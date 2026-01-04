@@ -1,0 +1,179 @@
+# golangci-lint configuration for graft
+# https://golangci-lint.run/usage/configuration/
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    colored-line-number: {}
+  print-issued-lines: true
+  print-linter-name: true
+  sort-results: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/fivetwenty-io/graft
+
+linters:
+  default: none
+  enable:
+    # Default linters
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Additional recommended for production libraries
+    - bodyclose
+    - dogsled
+    - dupl
+    - errorlint
+    - exhaustive
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - goprintffuncname
+    - gosec
+    - misspell
+    - nakedret
+    - nilerr
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - tparallel
+    - unconvert
+    - unparam
+    - whitespace
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment  # Too strict for general use
+
+    gocyclo:
+      min-complexity: 15
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        - whyNoLint  # Allow nolint without explanation in some cases
+        - hugeParam  # Value receivers on small data types are fine for immutability
+        - unnamedResult  # Named results add visual noise for simple functions
+        - paramTypeCombine  # Style preference only
+        - commentedOutCode  # Sometimes commented code serves as documentation
+        - appendCombine  # Minor optimization, can reduce clarity
+        - docStub  # Allow placeholder docs during development
+        - appendAssign  # False positives for intentional patterns
+        - typeDefFirst  # Organization preference
+        - ifElseChain  # Some if-else chains with loop breaks cannot be switched
+
+    gosec:
+      excludes:
+        - G104  # Unhandled errors (covered by errcheck)
+        - G304  # File path injection (intentional for file operator)
+
+    misspell:
+      locale: US
+
+    nakedret:
+      max-func-lines: 30
+
+    prealloc:
+      simple: true
+      for-loops: true
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+          exclude:
+            - "**/*_test.go"
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: superfluous-else
+        - name: unreachable-code
+
+    staticcheck:
+      checks:
+        - all
+        - -ST1000  # Package comments
+        - -ST1003  # Naming conventions
+
+issues:
+  exclude-use-default: false
+  exclude-rules:
+    # Allow dot imports for goconvey in tests
+    - path: _test\.go$
+      linters:
+        - revive
+      text: "dot-imports"
+
+    # Allow longer functions in test files
+    - path: _test\.go
+      linters:
+        - gocyclo
+
+    # Allow magic numbers in tests
+    - path: _test\.go
+      linters:
+        - goconst
+
+    # Exclude some staticcheck rules for legacy code patterns
+    - linters:
+        - staticcheck
+      text: "SA1019:"  # Deprecated usage (can be addressed gradually)
+
+    # Allow unchecked errors in examples
+    - path: examples/
+      linters:
+        - errcheck
+
+  max-issues-per-linter: 0
+  max-same-issues: 0

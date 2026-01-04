@@ -1,0 +1,58 @@
+# Document Memory Tracking Example
+# This example shows how values change through different phases
+
+# Initial values that will be tracked
+database:
+  host: "localhost"
+  port: 5432
+  name: "dev_db"
+  
+app:
+  name: "myapp"
+  version: "1.0.0"
+  
+# Values that will be merged from overlay
+# When merged with overlay.yaml, these will be overridden
+# Memory will track: old value → new value
+
+# Values modified by operators
+computed:
+  # This will be evaluated and tracked
+  db_url: (( concat "postgresql://" database.host ":" database.port "/" database.name ))
+  
+  # This will grab a value and track the resolution
+  app_identifier: (( grab app.name ))
+  
+  # This uses a default and tracks what was used
+  timeout: (( grab custom_timeout || 30 ))
+
+# Arrays that will show merge tracking
+services:
+  - name: "web"
+    port: 8080
+  - name: "api"
+    port: 8081
+
+# This will be pruned and tracked as deletion
+temporary:
+  debug_mode: true
+  test_value: (( prune ))
+
+---
+# overlay.yaml content (for reference)
+# database:
+#   host: "prod-db.example.com"
+#   port: 5432
+#   user: "app_user"
+#   
+# app:
+#   version: "2.0.0"
+#   environment: "production"
+#
+# services:
+#   - name: "worker"
+#     port: 8082
+#   (( append ))
+#
+# computed:
+#   custom_timeout: 60

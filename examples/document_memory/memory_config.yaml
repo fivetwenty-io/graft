@@ -1,0 +1,105 @@
+# Document Memory Configuration Example
+# This file shows all available configuration options for document memory
+
+# Memory tracking can be configured via environment variables or programmatically
+# Environment variables take precedence over programmatic configuration
+
+memory:
+  # Enable or disable memory tracking
+  # ENV: GRAFT_MEMORY_ENABLED=true
+  enabled: true
+  
+  # Maximum number of versions to keep per node/path
+  # Older versions are pruned when this limit is exceeded
+  # ENV: GRAFT_MEMORY_MAX_VERSIONS_PER_NODE=100
+  max_versions_per_node: 100
+  
+  # Maximum total versions across all nodes
+  # Helps control overall memory usage
+  # ENV: GRAFT_MEMORY_MAX_TOTAL_VERSIONS=10000
+  max_total_versions: 10000
+  
+  # Maximum memory usage in megabytes
+  # Memory cleanup is triggered when this limit is exceeded
+  # ENV: GRAFT_MEMORY_MAX_MB=100
+  max_memory_mb: 100
+  
+  # Compress versions older than this duration
+  # Reduces memory usage for historical data
+  # ENV: GRAFT_MEMORY_COMPRESS_AFTER=24h
+  compress_after: "24h"
+  
+  # How often to run cleanup routines
+  # Cleanup includes pruning old versions and compression
+  # ENV: GRAFT_MEMORY_CLEANUP_INTERVAL=15m
+  cleanup_interval: "15m"
+  
+  # Track changes during merge phase
+  # ENV: GRAFT_MEMORY_TRACK_MERGE=true
+  track_merge_phase: true
+  
+  # Track changes during evaluation phase (operators)
+  # ENV: GRAFT_MEMORY_TRACK_EVAL=true
+  track_eval_phase: true
+  
+  # Include operator state in metadata
+  # Provides additional context about operator execution
+  # ENV: GRAFT_MEMORY_INCLUDE_OPERATOR_STATE=true
+  include_operator_state: true
+  
+  # Enable compression for old versions
+  # ENV: GRAFT_MEMORY_ENABLE_COMPRESSION=true
+  enable_compression: true
+  
+  # Number of versions before compression kicks in
+  # ENV: GRAFT_MEMORY_COMPRESS_THRESHOLD=10
+  compress_threshold: 10
+
+# Example usage in code:
+#
+# ```go
+# config := graft.MemoryConfig{
+#     Enabled:            true,
+#     MaxVersionsPerNode: 100,
+#     MaxTotalVersions:   10000,
+#     MaxMemoryMB:        100,
+#     CompressAfter:      24 * time.Hour,
+#     CleanupInterval:    15 * time.Minute,
+#     TrackMergePhase:    true,
+#     TrackEvalPhase:     true,
+#     EnableCompression:  true,
+#     CompressThreshold:  10,
+# }
+# 
+# engine := graft.NewDefaultEngine()
+# engine.UpdateConfig(graft.EngineConfig{
+#     MemoryConfig: config,
+# })
+# ```
+
+# Performance tuning recommendations:
+performance:
+  # For development/debugging - track everything
+  development:
+    max_versions_per_node: 1000
+    max_total_versions: 100000
+    max_memory_mb: 500
+    compress_after: "7d"
+    cleanup_interval: "1h"
+    
+  # For production - balanced tracking
+  production:
+    max_versions_per_node: 50
+    max_total_versions: 5000
+    max_memory_mb: 50
+    compress_after: "1h"
+    cleanup_interval: "5m"
+    
+  # For minimal overhead - essential tracking only
+  minimal:
+    max_versions_per_node: 10
+    max_total_versions: 1000
+    max_memory_mb: 10
+    compress_after: "10m"
+    cleanup_interval: "1m"
+    track_merge_phase: false  # Only track evaluation phase

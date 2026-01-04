@@ -1,0 +1,984 @@
+// Package graft provides the Parser for operator expressions.
+package graft
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
+)
+
+// Note: Precedence constants and Associativity are defined in operator_registry.go
+
+// Parser parses operator expressions.
+type Parser struct {
+	tokenizer *interfaces.AdvancedTokenizer
+	tokens    []*interfaces.Token
+	pos       int
+	input     string
+	phase     OperatorPhase
+}
+
+// NewParser creates a new parser for the given input.
+func NewParser(input string, phase OperatorPhase) *Parser {
+	opts := interfaces.TokenizerOptions{
+		RecognizeReferencePaths: true,
+		AllowEnvironmentVars:    true,
+		TrackPositions:          true,
+		AllowUnicode:            true,
+	}
+	return &Parser{
+		tokenizer: interfaces.NewAdvancedTokenizer(input, opts),
+		input:     input,
+		phase:     phase,
+	}
+}
+
+// tokenize converts input to tokens.
+//
+//nolint:unparam // returns error for interface consistency and future error handling
+func (p *Parser) tokenize() error {
+	p.tokens = nil
+	p.pos = 0
+
+	for p.tokenizer.HasMore() {
+		tok := p.tokenizer.NextToken()
+		p.tokens = append(p.tokens, tok)
+		if tok.Type == interfaces.TokenEOF {
+			break
+		}
+	}
+	return nil
+}
+
+// current returns the current token.
+func (p *Parser) current() interfaces.Token {
+	if p.pos >= len(p.tokens) {
+		return interfaces.Token{Type: interfaces.TokenEOF}
+	}
+	return *p.tokens[p.pos]
+}
+
+// advance moves to the next token.
+func (p *Parser) advance() {
+	if p.pos < len(p.tokens) {
+		p.pos++
+	}
+}
+
+// expect checks if current token is of expected type and advances.
+func (p *Parser) expect(tokenType interfaces.TokenType) error {
+	if p.current().Type != tokenType {
+		return fmt.Errorf("expected %v, got %v at position %d",
+			tokenType, p.current().Type, p.current().Pos.Offset)
+	}
+	p.advance()
+	return nil
+}
+
+// ParseOpcall parses a complete operator call expression (( ... )).
+func (p *Parser) ParseOpcall() (*Opcall, error) {
+	if err := p.tokenize(); err != nil {
+		return nil, err
+	}
+
+	// Expect ((
+	if p.current().Type != interfaces.TokenOperatorStart {
+		return nil, fmt.Errorf("expected '((' at start of operator expression")
+	}
+	p.advance()
+
+	// Check what kind of expression this is
+	expr, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
+
+	// Expect ))
+	if p.current().Type != interfaces.TokenOperatorEnd {
+		return nil, fmt.Errorf("expected '))' at end of operator expression, got %v", p.current().Type)
+	}
+
+	// Convert the parsed expression to an Opcall
+	return p.exprToOpcall(expr)
+}
+
+// parseExpression parses an expression with precedence climbing.
+func (p *Parser) parseExpression() (*Expr, error) {
+	return p.parseExprWithPrecedence(PrecedenceLowest)
+}
+
+// parseExprWithPrecedence implements the precedence climbing algorithm.
+//
+//nolint:gocyclo // precedence climbing requires handling multiple operator types
+func (p *Parser) parseExprWithPrecedence(minPrec Precedence) (*Expr, error) {
+	left, err := p.parsePrimary()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		tok := p.current()
+
+		// Check for end conditions
+		if tok.Type == interfaces.TokenEOF ||
+			tok.Type == interfaces.TokenOperatorEnd ||
+			tok.Type == interfaces.TokenRightParen ||
+			tok.Type == interfaces.TokenComma ||
+			tok.Type == interfaces.TokenColon {
+			break
+		}
+
+		// Handle ternary operator
+		if tok.Type == interfaces.TokenQuestion {
+			if int(PrecedenceTernary) < int(minPrec) {
+				break
+			}
+			left, err = p.parseTernary(left)
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		// Handle logical OR (special fallback semantics)
+		if tok.Type == interfaces.TokenOr {
+			if int(PrecedenceLogicalOr) < int(minPrec) {
+				break
+			}
+			left, err = p.parseLogicalOr(left)
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		// Handle binary operators
+		prec, assoc, exprType := p.getBinaryOpInfo(tok.Type)
+		if prec == PrecedenceLowest {
+			// Not a binary operator
+			break
+		}
+
+		if int(prec) < int(minPrec) {
+			break
+		}
+
+		p.advance() // consume operator
+
+		// Calculate next precedence for right associativity
+		nextMinPrec := prec
+		if assoc == LeftAssociative {
+			nextMinPrec++
+		}
+
+		right, err := p.parseExprWithPrecedence(nextMinPrec)
+		if err != nil {
+			return nil, err
+		}
+
+		left = &Expr{
+			Type:  exprType,
+			Left:  left,
+			Right: right,
+		}
+	}
+
+	return left, nil
+}
+
+// parseTernary handles condition ? trueExpr : falseExpr.
+func (p *Parser) parseTernary(condition *Expr) (*Expr, error) {
+	p.advance() // consume ?
+
+	trueExpr, err := p.parseExprWithPrecedence(PrecedenceOr) // Parse at higher precedence
+	if err != nil {
+		return nil, err
+	}
+
+	if p.current().Type != interfaces.TokenColon {
+		return nil, fmt.Errorf("expected ':' in ternary expression, got %v", p.current().Type)
+	}
+	p.advance() // consume :
+
+	falseExpr, err := p.parseExprWithPrecedence(PrecedenceTernary) // Ternary is right-associative
+	if err != nil {
+		return nil, err
+	}
+
+	// Return as an operator call to ?:
+	return &Expr{
+		Type:     OperatorCall,
+		Operator: "?:",
+		Call: &Opcall{
+			src: p.input,
+			op:  OperatorFor("?:"),
+			args: []*Expr{
+				condition,
+				trueExpr,
+				falseExpr,
+			},
+		},
+	}, nil
+}
+
+// parseLogicalOr handles left || right with fallback semantics.
+func (p *Parser) parseLogicalOr(left *Expr) (*Expr, error) {
+	p.advance() // consume ||
+
+	right, err := p.parseExprWithPrecedence(PrecedenceAnd) // Next higher precedence
+	if err != nil {
+		return nil, err
+	}
+
+	return &Expr{
+		Type:  LogicalOr,
+		Left:  left,
+		Right: right,
+	}, nil
+}
+
+// parsePrimary parses primary expressions (literals, references, etc.)
+func (p *Parser) parsePrimary() (*Expr, error) {
+	tok := p.current()
+
+	switch tok.Type {
+	case interfaces.TokenInteger:
+		return p.parseInteger()
+
+	case interfaces.TokenFloat:
+		return p.parseFloat()
+
+	case interfaces.TokenString, interfaces.TokenRawString:
+		return p.parseString()
+
+	case interfaces.TokenBoolean:
+		return p.parseBoolean()
+
+	case interfaces.TokenNull:
+		return p.parseNull()
+
+	case interfaces.TokenIdentifier:
+		return p.parseIdentifierOrOperator()
+
+	case interfaces.TokenReference:
+		return p.parseReference()
+
+	case interfaces.TokenEnvironment:
+		return p.parseEnvironment()
+
+	case interfaces.TokenLeftParen:
+		return p.parseParenthesized()
+
+	case interfaces.TokenNot:
+		return p.parseUnary()
+
+	case interfaces.TokenMinus:
+		// Could be unary minus or just negative number
+		return p.parseUnaryMinus()
+
+	case interfaces.TokenOperatorStart:
+		// Nested operator call
+		return p.parseNestedOperator()
+
+	case interfaces.TokenAt:
+		// Target reference like @something
+		return p.parseTarget()
+
+	case interfaces.TokenEOF, interfaces.TokenInvalid, interfaces.TokenOperatorEnd,
+		interfaces.TokenPlus, interfaces.TokenStar, interfaces.TokenSlash, interfaces.TokenPercent,
+		interfaces.TokenEqual, interfaces.TokenNotEqual, interfaces.TokenLess, interfaces.TokenGreater,
+		interfaces.TokenLessEqual, interfaces.TokenGreaterEqual, interfaces.TokenAnd, interfaces.TokenOr,
+		interfaces.TokenQuestion, interfaces.TokenColon, interfaces.TokenRightParen,
+		interfaces.TokenLeftBracket, interfaces.TokenRightBracket, interfaces.TokenLeftBrace, interfaces.TokenRightBrace,
+		interfaces.TokenComma, interfaces.TokenDot, interfaces.TokenPipe,
+		interfaces.TokenIf, interfaces.TokenElif, interfaces.TokenElse, interfaces.TokenFi,
+		interfaces.TokenFor, interfaces.TokenIn, interfaces.TokenDone, interfaces.TokenWhile,
+		interfaces.TokenCase, interfaces.TokenWhen, interfaces.TokenDefault, interfaces.TokenEsac,
+		interfaces.TokenOn, interfaces.TokenBefore, interfaces.TokenAfter, interfaces.TokenRange, interfaces.TokenOperatorName:
+		return nil, fmt.Errorf("unexpected token: %v (%s) at position %d",
+			tok.Type, tok.Literal, tok.Pos.Offset)
+	}
+	return nil, fmt.Errorf("unexpected token: %v (%s) at position %d",
+		tok.Type, tok.Literal, tok.Pos.Offset)
+}
+
+// parseInteger parses an integer literal.
+func (p *Parser) parseInteger() (*Expr, error) {
+	tok := p.current()
+	p.advance()
+
+	val, err := strconv.ParseInt(tok.Literal, 10, 64)
+	if err != nil {
+		// If int64 overflows, try parsing as float64
+		if floatVal, floatErr := strconv.ParseFloat(tok.Literal, 64); floatErr == nil {
+			return &Expr{
+				Type:    Literal,
+				Literal: floatVal,
+			}, nil
+		}
+		return nil, fmt.Errorf("invalid integer: %s", tok.Literal)
+	}
+
+	return &Expr{
+		Type:    Literal,
+		Literal: val,
+	}, nil
+}
+
+// parseFloat parses a float literal.
+func (p *Parser) parseFloat() (*Expr, error) {
+	tok := p.current()
+	p.advance()
+
+	val, err := strconv.ParseFloat(tok.Literal, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid float: %s", tok.Literal)
+	}
+
+	return &Expr{
+		Type:    Literal,
+		Literal: val,
+	}, nil
+}
+
+// parseString parses a string literal.
+func (p *Parser) parseString() (*Expr, error) {
+	tok := p.current()
+	p.advance()
+
+	// Remove quotes and process escape sequences
+	raw := tok.Literal
+	if len(raw) >= 2 {
+		quote := raw[0]
+		if raw[len(raw)-1] == quote {
+			raw = raw[1 : len(raw)-1]
+		}
+	}
+
+	// Process escape sequences
+	raw = processEscapes(raw)
+
+	return &Expr{
+		Type:    Literal,
+		Literal: raw,
+	}, nil
+}
+
+// parseBoolean parses a boolean literal.
+func (p *Parser) parseBoolean() (*Expr, error) {
+	tok := p.current()
+	p.advance()
+
+	val := strings.EqualFold(tok.Literal, literalTrue)
+
+	return &Expr{
+		Type:    Literal,
+		Literal: val,
+	}, nil
+}
+
+// parseNull parses a null literal.
+func (p *Parser) parseNull() (*Expr, error) {
+	p.advance()
+	return &Expr{
+		Type:    Literal,
+		Literal: nil,
+	}, nil
+}
+
+// parseIdentifierOrOperator parses an identifier which may be an operator name.
+func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
+	tok := p.current()
+	name := tok.Literal
+
+	// Check if this is a known operator (regardless of phase - let evaluator filter by phase)
+	op := OperatorFor(name)
+	_, isNullOperator := op.(NullOperator)
+	isKnownOperator := !isNullOperator
+
+	// Store current position to check if we're at primary position
+	// Position 1 is the first token after "((" - the primary operator position
+	isPrimaryPosition := p.pos == 1
+
+	if isKnownOperator {
+		// It's a known operator - but only parse it as an operator call if:
+		// 1. It's followed by explicit parentheses: ips(...)
+		// 2. It's at position 1 (the primary operator after "((" )
+		//
+		// Otherwise, treat it as a reference. This is important because
+		// identifiers like "ips" could be either a reference to a YAML key
+		// or an operator call. In argument context, prefer treating as reference.
+
+		p.advance()
+		nextTok := p.current()
+
+		// If followed by function-call parens, definitely an operator call
+		if nextTok.Type == interfaces.TokenLeftParen {
+			p.pos-- // back up one position
+			return p.parseOperatorCall(name)
+		}
+
+		// If this is the first token after "((" (position 1), it's the primary operator
+		// Always treat the primary operator as an operator call
+		if p.pos == 2 { // position 0 is "((" which got consumed, position 1 is operator, now at position 2
+			p.pos-- // back up one position
+			return p.parseOperatorCall(name)
+		}
+
+		// In argument position: only treat as operator call if followed by explicit parens
+		// (which was checked above). Otherwise treat as reference.
+		if nextTok.Type == interfaces.TokenDot {
+			return p.parseReferencePath(name)
+		}
+
+		// Just a reference
+		cursor, err := tree.ParseCursor(name)
+		if err != nil {
+			return nil, fmt.Errorf("invalid reference: %s", name)
+		}
+
+		return &Expr{
+			Type:      Reference,
+			Reference: cursor,
+		}, nil
+	}
+
+	// Unknown operator (NullOperator) - at primary position, still treat as operator call
+	// This allows unknown operators to be parsed and left unevaluated
+	if isPrimaryPosition {
+		p.advance()
+		nextTok := p.current()
+
+		// If followed by function-call parens, definitely an operator call
+		if nextTok.Type == interfaces.TokenLeftParen {
+			p.pos-- // back up one position
+			return p.parseOperatorCall(name)
+		}
+
+		// At primary position - parse as operator call (even if unknown)
+		if p.pos == 2 {
+			p.pos-- // back up one position
+			return p.parseOperatorCall(name)
+		}
+
+		// Check for reference path
+		if nextTok.Type == interfaces.TokenDot {
+			return p.parseReferencePath(name)
+		}
+
+		// Treat as reference
+		cursor, err := tree.ParseCursor(name)
+		if err != nil {
+			return nil, fmt.Errorf("invalid reference: %s", name)
+		}
+
+		return &Expr{
+			Type:      Reference,
+			Reference: cursor,
+		}, nil
+	}
+
+	// Unknown operator not at primary position - treat as reference
+	p.advance()
+	if p.current().Type == interfaces.TokenDot {
+		return p.parseReferencePath(name)
+	}
+
+	// Just an identifier - treat as reference
+	cursor, err := tree.ParseCursor(name)
+	if err != nil {
+		return nil, fmt.Errorf("invalid reference: %s", name)
+	}
+
+	return &Expr{
+		Type:      Reference,
+		Reference: cursor,
+	}, nil
+}
+
+// parseOperatorCall parses an operator call with arguments.
+//
+//nolint:gocyclo // operator call parsing supports multiple argument styles
+func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
+	p.advance() // consume operator name
+
+	op := OperatorFor(opName)
+
+	// Check for target (@target)
+	var target string
+	if p.current().Type == interfaces.TokenAt {
+		p.advance()
+		if p.current().Type != interfaces.TokenIdentifier {
+			return nil, fmt.Errorf("expected target name after @")
+		}
+		target = p.current().Literal
+		p.advance()
+	}
+
+	// Parse arguments
+	var args []*Expr
+
+	// Check for function-style: op(arg1, arg2)
+	if p.current().Type == interfaces.TokenLeftParen {
+		p.advance() // consume (
+		for p.current().Type != interfaces.TokenRightParen && p.current().Type != interfaces.TokenEOF {
+			arg, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, arg)
+
+			if p.current().Type == interfaces.TokenComma {
+				p.advance()
+			} else if p.current().Type != interfaces.TokenRightParen {
+				break
+			}
+		}
+		if err := p.expect(interfaces.TokenRightParen); err != nil {
+			return nil, err
+		}
+	} else {
+		// Space-separated arguments until )) or another operator
+		for p.current().Type != interfaces.TokenOperatorEnd &&
+			p.current().Type != interfaces.TokenEOF &&
+			p.current().Type != interfaces.TokenQuestion &&
+			p.current().Type != interfaces.TokenColon {
+			// Check for binary operators that would end the argument list
+			// Handle || as a LogicalOr marker for fallback expressions
+			if p.isBinaryOperator(p.current().Type) {
+				if p.current().Type == interfaces.TokenOr {
+					// Capture || and the fallback value as a LogicalOr expression
+					// This handles (( grab this || "that" )) and (( concat a || b  c || d ))
+					p.advance() // consume ||
+
+					// Parse the right side of the || (the fallback value)
+					right, err := p.parsePrimary()
+					if err != nil {
+						return nil, err
+					}
+
+					// Wrap the existing args and the fallback into a LogicalOr structure
+					// by creating a LogicalOr expression with left = last arg, right = fallback
+					if len(args) > 0 {
+						lastArg := args[len(args)-1]
+						args[len(args)-1] = &Expr{
+							Type:  LogicalOr,
+							Left:  lastArg,
+							Right: right,
+						}
+					}
+					// Handle optional comma after the LogicalOr expression
+					if p.current().Type == interfaces.TokenComma {
+						p.advance()
+					}
+					continue
+				}
+				break
+			}
+
+			arg, err := p.parsePrimary()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, arg)
+
+			// Optional comma
+			if p.current().Type == interfaces.TokenComma {
+				p.advance()
+			}
+		}
+	}
+
+	return &Expr{
+		Type:     OperatorCall,
+		Operator: opName,
+		Target:   target,
+		Call: &Opcall{
+			src:  p.input,
+			op:   op,
+			args: args,
+		},
+	}, nil
+}
+
+// parseReferencePath parses a dotted reference path like foo.bar.baz.
+func (p *Parser) parseReferencePath(start string) (*Expr, error) {
+	// Pre-allocate for small path (most paths have 2-4 segments)
+	parts := make([]string, 0, 4)
+	parts = append(parts, start)
+
+	for p.current().Type == interfaces.TokenDot {
+		p.advance() // consume .
+
+		if p.current().Type != interfaces.TokenIdentifier && p.current().Type != interfaces.TokenInteger {
+			return nil, fmt.Errorf("expected identifier or index after '.'")
+		}
+
+		parts = append(parts, p.current().Literal)
+		p.advance()
+	}
+
+	path := strings.Join(parts, ".")
+	cursor, err := tree.ParseCursor(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid reference path: %s", path)
+	}
+
+	return &Expr{
+		Type:      Reference,
+		Reference: cursor,
+	}, nil
+}
+
+// parseReference parses a reference token.
+func (p *Parser) parseReference() (*Expr, error) {
+	tok := p.current()
+	p.advance()
+
+	cursor, err := tree.ParseCursor(tok.Literal)
+	if err != nil {
+		return nil, fmt.Errorf("invalid reference: %s", tok.Literal)
+	}
+
+	return &Expr{
+		Type:      Reference,
+		Reference: cursor,
+	}, nil
+}
+
+// parseEnvironment parses an environment variable reference.
+func (p *Parser) parseEnvironment() (*Expr, error) {
+	tok := p.current()
+	p.advance()
+
+	name := tok.Literal
+	name = strings.TrimPrefix(name, "$")
+	if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
+		name = name[1 : len(name)-1]
+	}
+
+	return &Expr{
+		Type: EnvVar,
+		Name: name,
+	}, nil
+}
+
+// parseParenthesized parses a parenthesized expression.
+func (p *Parser) parseParenthesized() (*Expr, error) {
+	p.advance() // consume (
+
+	expr, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := p.expect(interfaces.TokenRightParen); err != nil {
+		return nil, fmt.Errorf("expected ')' to close parenthesized expression")
+	}
+
+	return expr, nil
+}
+
+// parseUnary parses a unary NOT expression.
+func (p *Parser) parseUnary() (*Expr, error) {
+	p.advance() // consume !
+
+	operand, err := p.parseExprWithPrecedence(PrecedenceUnary)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Expr{
+		Type: Negate,
+		Left: operand,
+	}, nil
+}
+
+// parseUnaryMinus handles unary minus or negative numbers.
+func (p *Parser) parseUnaryMinus() (*Expr, error) {
+	p.advance() // consume -
+
+	// Check if followed by a number
+	if p.current().Type == interfaces.TokenInteger {
+		tok := p.current()
+		p.advance()
+		val, err := strconv.ParseInt("-"+tok.Literal, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid integer: -%s", tok.Literal)
+		}
+		return &Expr{
+			Type:    Literal,
+			Literal: val,
+		}, nil
+	}
+
+	if p.current().Type == interfaces.TokenFloat {
+		tok := p.current()
+		p.advance()
+		val, err := strconv.ParseFloat("-"+tok.Literal, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid float: -%s", tok.Literal)
+		}
+		return &Expr{
+			Type:    Literal,
+			Literal: val,
+		}, nil
+	}
+
+	// Otherwise it's a unary minus on an expression
+	operand, err := p.parseExprWithPrecedence(PrecedenceUnary)
+	if err != nil {
+		return nil, err
+	}
+
+	// For unary minus, we can represent as 0 - operand or use a special type
+	// For now, use Subtraction with 0 as left
+	return &Expr{
+		Type: Subtraction,
+		Left: &Expr{
+			Type:    Literal,
+			Literal: int64(0),
+		},
+		Right: operand,
+	}, nil
+}
+
+// parseNestedOperator parses a nested (( ... )) expression.
+func (p *Parser) parseNestedOperator() (*Expr, error) {
+	p.advance() // consume ((
+
+	expr, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := p.expect(interfaces.TokenOperatorEnd); err != nil {
+		return nil, fmt.Errorf("expected '))' to close nested operator")
+	}
+
+	return expr, nil
+}
+
+// parseTarget parses a target reference @something.
+func (p *Parser) parseTarget() (*Expr, error) {
+	p.advance() // consume @
+
+	if p.current().Type != interfaces.TokenIdentifier {
+		return nil, fmt.Errorf("expected identifier after @")
+	}
+
+	name := p.current().Literal
+	p.advance()
+
+	return &Expr{
+		Type: Reference,
+		Name: name,
+	}, nil
+}
+
+// getBinaryOpInfo returns precedence, associativity, and expr type for binary operators.
+//
+//nolint:unparam // associativity returned for future right-associative operator support
+func (p *Parser) getBinaryOpInfo(tokenType interfaces.TokenType) (Precedence, Associativity, ExprType) {
+	switch tokenType {
+	case interfaces.TokenAnd:
+		return PrecedenceAnd, LeftAssociative, LogicalAnd
+	case interfaces.TokenPlus:
+		return PrecedenceAdditive, LeftAssociative, Addition
+	case interfaces.TokenMinus:
+		return PrecedenceAdditive, LeftAssociative, Subtraction
+	case interfaces.TokenStar:
+		return PrecedenceMultiplicative, LeftAssociative, Multiplication
+	case interfaces.TokenSlash:
+		return PrecedenceMultiplicative, LeftAssociative, Division
+	case interfaces.TokenPercent:
+		return PrecedenceMultiplicative, LeftAssociative, Modulo
+	case interfaces.TokenEqual:
+		return PrecedenceEquality, LeftAssociative, Equal
+	case interfaces.TokenNotEqual:
+		return PrecedenceEquality, LeftAssociative, NotEqual
+	case interfaces.TokenLess:
+		return PrecedenceComparison, LeftAssociative, LessThan
+	case interfaces.TokenGreater:
+		return PrecedenceComparison, LeftAssociative, GreaterThan
+	case interfaces.TokenLessEqual:
+		return PrecedenceComparison, LeftAssociative, LessThanOrEqual
+	case interfaces.TokenGreaterEqual:
+		return PrecedenceComparison, LeftAssociative, GreaterThanOrEqual
+	case interfaces.TokenEOF, interfaces.TokenInvalid, interfaces.TokenOperatorStart, interfaces.TokenOperatorEnd,
+		interfaces.TokenInteger, interfaces.TokenFloat, interfaces.TokenString, interfaces.TokenRawString,
+		interfaces.TokenBoolean, interfaces.TokenNull, interfaces.TokenIdentifier, interfaces.TokenReference, interfaces.TokenEnvironment,
+		interfaces.TokenOr, interfaces.TokenNot, interfaces.TokenQuestion, interfaces.TokenColon,
+		interfaces.TokenLeftParen, interfaces.TokenRightParen, interfaces.TokenLeftBracket, interfaces.TokenRightBracket,
+		interfaces.TokenLeftBrace, interfaces.TokenRightBrace, interfaces.TokenComma, interfaces.TokenDot, interfaces.TokenAt, interfaces.TokenPipe,
+		interfaces.TokenIf, interfaces.TokenElif, interfaces.TokenElse, interfaces.TokenFi,
+		interfaces.TokenFor, interfaces.TokenIn, interfaces.TokenDone, interfaces.TokenWhile,
+		interfaces.TokenCase, interfaces.TokenWhen, interfaces.TokenDefault, interfaces.TokenEsac,
+		interfaces.TokenOn, interfaces.TokenBefore, interfaces.TokenAfter, interfaces.TokenRange, interfaces.TokenOperatorName:
+		return PrecedenceLowest, LeftAssociative, Literal
+	}
+	return PrecedenceLowest, LeftAssociative, Literal
+}
+
+// isBinaryOperator checks if a token type is a binary operator.
+func (p *Parser) isBinaryOperator(tokenType interfaces.TokenType) bool {
+	switch tokenType {
+	case interfaces.TokenPlus, interfaces.TokenMinus,
+		interfaces.TokenStar, interfaces.TokenSlash, interfaces.TokenPercent,
+		interfaces.TokenEqual, interfaces.TokenNotEqual,
+		interfaces.TokenLess, interfaces.TokenGreater,
+		interfaces.TokenLessEqual, interfaces.TokenGreaterEqual,
+		interfaces.TokenAnd, interfaces.TokenOr,
+		interfaces.TokenQuestion:
+		return true
+	case interfaces.TokenEOF, interfaces.TokenInvalid, interfaces.TokenOperatorStart, interfaces.TokenOperatorEnd,
+		interfaces.TokenInteger, interfaces.TokenFloat, interfaces.TokenString, interfaces.TokenRawString,
+		interfaces.TokenBoolean, interfaces.TokenNull, interfaces.TokenIdentifier, interfaces.TokenReference, interfaces.TokenEnvironment,
+		interfaces.TokenNot, interfaces.TokenColon,
+		interfaces.TokenLeftParen, interfaces.TokenRightParen, interfaces.TokenLeftBracket, interfaces.TokenRightBracket,
+		interfaces.TokenLeftBrace, interfaces.TokenRightBrace, interfaces.TokenComma, interfaces.TokenDot, interfaces.TokenAt, interfaces.TokenPipe,
+		interfaces.TokenIf, interfaces.TokenElif, interfaces.TokenElse, interfaces.TokenFi,
+		interfaces.TokenFor, interfaces.TokenIn, interfaces.TokenDone, interfaces.TokenWhile,
+		interfaces.TokenCase, interfaces.TokenWhen, interfaces.TokenDefault, interfaces.TokenEsac,
+		interfaces.TokenOn, interfaces.TokenBefore, interfaces.TokenAfter, interfaces.TokenRange, interfaces.TokenOperatorName:
+		return false
+	}
+	return false
+}
+
+// exprToOpcall converts a parsed expression to an Opcall.
+func (p *Parser) exprToOpcall(expr *Expr) (*Opcall, error) {
+	if expr == nil {
+		return nil, fmt.Errorf("nil expression")
+	}
+
+	// If it's already an operator call, extract the Opcall
+	if expr.Type == OperatorCall && expr.Call != nil {
+		return expr.Call, nil
+	}
+
+	// For other expression types, wrap in an appropriate operator
+	// Reference expressions just return the reference value
+	if expr.Type == Reference {
+		// Create a "grab" operator call for references
+		op := OperatorFor("grab")
+		if _, ok := op.(NullOperator); ok {
+			return nil, fmt.Errorf("grab operator not found")
+		}
+		return &Opcall{
+			src:  p.input,
+			op:   op,
+			args: []*Expr{expr},
+		}, nil
+	}
+
+	// For other expression types (arithmetic, logical, including those with
+	// nested operator calls), wrap in exprOperator for evaluation
+	return &Opcall{
+		src:  p.input,
+		op:   &exprOperator{expr: expr},
+		args: []*Expr{expr},
+	}, nil
+}
+
+// exprOperator is a synthetic operator for evaluating expressions.
+type exprOperator struct {
+	expr *Expr
+}
+
+func (e *exprOperator) Setup() error {
+	return nil
+}
+
+func (e *exprOperator) Phase() OperatorPhase {
+	return EvalPhase
+}
+
+func (e *exprOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
+	if e.expr != nil {
+		return e.expr.Dependencies(ev, locs)
+	}
+	return auto
+}
+
+func (e *exprOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
+	if len(args) == 0 || args[0] == nil {
+		return nil, fmt.Errorf("no expression to evaluate")
+	}
+
+	// Set evaluator on the expression before evaluating
+	// This is needed for nested operator calls within the expression
+	args[0].SetEvaluator(ev)
+
+	val, err := args[0].Evaluate(ev.Tree)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Response{
+		Type:  Replace,
+		Value: val,
+	}, nil
+}
+
+// processEscapes processes escape sequences in a string.
+func processEscapes(s string) string {
+	result := strings.Builder{}
+	i := 0
+	for i < len(s) {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case 'n':
+				result.WriteByte('\n')
+				i += 2
+			case 'r':
+				result.WriteByte('\r')
+				i += 2
+			case 't':
+				result.WriteByte('\t')
+				i += 2
+			case '\\':
+				result.WriteByte('\\')
+				i += 2
+			case '"':
+				result.WriteByte('"')
+				i += 2
+			case '\'':
+				result.WriteByte('\'')
+				i += 2
+			default:
+				result.WriteByte(s[i])
+				i++
+			}
+		} else {
+			result.WriteByte(s[i])
+			i++
+		}
+	}
+	return result.String()
+}
+
+// ParseOpcallWithParser parses an operator call using the new Parser.
+func ParseOpcallWithParser(phase OperatorPhase, src string) (*Opcall, error) {
+	// Quick check - must start with (( and end with ))
+	src = strings.TrimSpace(src)
+	if !strings.HasPrefix(src, "((") || !strings.HasSuffix(src, "))") {
+		return nil, nil
+	}
+
+	parser := NewParser(src, phase)
+	opcall, err := parser.ParseOpcall()
+	if err != nil {
+		// For debugging
+		if os.Getenv("GRAFT_DEBUG") != "" {
+			fmt.Fprintf(os.Stderr, "Parser error for '%s': %v\n", src, err)
+		}
+		return nil, err
+	}
+
+	return opcall, nil
+}

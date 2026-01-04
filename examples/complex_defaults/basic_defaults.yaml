@@ -1,0 +1,40 @@
+# Basic Complex YAML Defaults Example
+# This demonstrates using hashes and arrays as default values
+
+application:
+  # Use a hash as default for configuration
+  config: (( grab custom_config || { environment: "development", debug: true, log_level: "info" } ))
+  
+  # Use an array as default for allowed origins
+  cors_origins: (( grab allowed_origins || [ "http://localhost:3000", "http://localhost:8080" ] ))
+  
+  # Nested default structure
+  database: (( grab db_config || { 
+    host: "localhost",
+    port: 5432,
+    name: "app_dev",
+    pool: {
+      min: 2,
+      max: 10,
+      timeout: 5000
+    }
+  } ))
+
+# Service endpoints with defaults
+services:
+  api: (( grab api_service || { url: "http://localhost:3001", timeout: 30, retries: 3 } ))
+  auth: (( grab auth_service || { url: "http://localhost:3002", timeout: 15, retries: 5 } ))
+  
+  # Array of service definitions
+  backends: (( grab backend_services || [
+    { name: "primary", host: "backend1.local", port: 8080, weight: 70 },
+    { name: "secondary", host: "backend2.local", port: 8080, weight: 30 }
+  ] ))
+
+# Feature flags with complex defaults
+features:
+  flags: (( grab feature_flags || {
+    new_ui: { enabled: false, rollout_percentage: 0 },
+    advanced_search: { enabled: true, rollout_percentage: 100 },
+    beta_features: { enabled: false, allowed_users: [] }
+  } ))

@@ -1,0 +1,60 @@
+# Nested Complex Defaults Example
+# Shows deeply nested structures and mixed types
+
+infrastructure:
+  kubernetes: (( grab k8s_config || {
+    cluster: {
+      name: "dev-cluster",
+      region: "us-east-1",
+      version: "1.27",
+      nodes: {
+        master: { count: 1, instance_type: "t3.medium" },
+        worker: { count: 3, instance_type: "t3.large" }
+      }
+    },
+    networking: {
+      pod_cidr: "10.244.0.0/16",
+      service_cidr: "10.96.0.0/12",
+      dns_domain: "cluster.local"
+    },
+    addons: [
+      { name: "metrics-server", version: "0.6.3", enabled: true },
+      { name: "ingress-nginx", version: "4.7.1", enabled: true },
+      { name: "cert-manager", version: "1.12.0", enabled: false }
+    ]
+  } ))
+
+monitoring:
+  # Complex monitoring configuration with defaults
+  config: (( grab monitoring_config || {
+    prometheus: {
+      enabled: true,
+      retention: "30d",
+      storage: { size: "100Gi", class: "fast-ssd" },
+      scrape_configs: [
+        { job: "kubernetes-pods", interval: "30s", timeout: "10s" },
+        { job: "node-exporter", interval: "60s", timeout: "10s" }
+      ]
+    },
+    grafana: {
+      enabled: true,
+      admin: { user: "admin", password: "changeme" },
+      datasources: [
+        { name: "prometheus", type: "prometheus", url: "http://prometheus:9090" }
+      ],
+      dashboards: {
+        kubernetes: { id: "3119", revision: 2 },
+        nginx: { id: "9614", revision: 1 }
+      }
+    },
+    alerts: {
+      channels: [
+        { name: "slack", webhook: "https://hooks.slack.com/services/XXX", enabled: false },
+        { name: "email", smtp: { host: "localhost", port: 25 }, enabled: true }
+      ],
+      rules: {
+        high_cpu: { threshold: 80, duration: "5m", severity: "warning" },
+        disk_full: { threshold: 90, duration: "2m", severity: "critical" }
+      }
+    }
+  } ))

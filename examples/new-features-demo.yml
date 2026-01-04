@@ -1,0 +1,74 @@
+# New Features Demo for Graft
+#
+# This file demonstrates the new operator enhancements
+
+# 1. Prune Default Feature
+# When a grab fails, use prune as the default to remove the entry
+config:
+  # This will be kept because meta.keep exists
+  enabled: (( grab meta.keep || (( prune )) ))
+  
+  # This will be pruned because meta.missing doesn't exist
+  optional_feature: (( grab meta.missing || (( prune )) ))
+  
+  # Array example - missing indices will be pruned
+  services:
+    - name: (( grab meta.services.0.name || (( prune )) ))
+      port: (( grab meta.services.0.port || (( prune )) ))
+    - name: (( grab meta.services.1.name || (( prune )) ))
+      port: (( grab meta.services.1.port || (( prune )) ))
+
+# 2. Calc Operator with Implicit Current Value
+# When calc expression starts with an operator, it uses the current value
+values:
+  # If this location has value 10, this will result in 20
+  doubled: (( calc "* 2" ))
+  
+  # If no current value exists, defaults to 0
+  # So this results in 100
+  added: (( calc "+ 100" ))
+  
+  # Works with all operators: *, /, +, -, %, ^
+  halved: (( calc "/ 2" ))
+  incremented: (( calc "+ 1" ))
+  decremented: (( calc "- 1" ))
+  remainder: (( calc "% 3" ))
+
+# 3. Complex YAML Defaults (Not Implemented)
+# This feature was analyzed but not implemented due to parser complexity
+# The following syntax is NOT supported:
+#
+# config: (( grab meta.config || { default: true, timeout: 30 } ))
+# list: (( grab meta.list || [ "item1", "item2" ] ))
+#
+# Workaround: Use the static operator or separate defaults
+
+# Metadata for examples
+meta:
+  keep: true
+  services:
+    - name: web
+      port: 8080
+
+# Example usage:
+# graft merge base.yml new-features-demo.yml --prune
+#
+# The result will:
+# - Keep config.enabled (because meta.keep exists)
+# - Remove config.optional_feature (pruned)
+# - Keep first service, remove second (pruned)
+# - Apply calc operations to existing values
+
+# IMPORTANT LIMITATIONS:
+#
+# 1. Prune Default Syntax:
+#    Must use nested parentheses: (( grab x || (( prune )) ))
+#    NOT: (( grab x || prune ))
+#
+# 2. Calc Implicit Value:
+#    Only works when the location doesn't already contain an operator
+#    In merge scenarios, the operator expression replaces the original value
+#    before calc can see it
+#
+# 3. Array Pruning:
+#    Fixed bounds checking issue - now safely handles out-of-bounds indices

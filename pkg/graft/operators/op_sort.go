@@ -1,0 +1,190 @@
+package operators
+
+import (
+	"fmt"
+	"reflect"
+	"sort"
+	"sync"
+
+	"github.com/fivetwenty-io/graft/pkg/graft"
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
+)
+
+// pathsToSort is kept for backward compatibility but engine state is preferred.
+var pathsToSort = map[string]string{}
+
+// sortMutex protects pathsToSort for concurrent access.
+var sortMutex sync.Mutex
+
+// SortOperator sorts lists by value or by key (for maps in list).
+type SortOperator struct{}
+
+// Setup initializes the operator.
+func (SortOperator) Setup() error {
+	return nil
+}
+
+// Phase returns which phase this operator should run in.
+func (SortOperator) Phase() OperatorPhase {
+	return MergePhase
+}
+
+// Dependencies returns what keys the operator depends on.
+func (SortOperator) Dependencies(_ *Evaluator, _ []*Expr, _ []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
+	return auto
+}
+
+// Run executes the operator
+// The sort operator is handled as a post-processing step after evaluation,
+// so during evaluation it just returns the current value unchanged.
+// The actual sorting happens in the engine's evaluate method.
+func (SortOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
+	DEBUG("running (( sort ... )) operation at $.%s", ev.Here)
+	defer DEBUG("done with (( sort ... )) operation at $.%s\n", ev.Here)
+
+	val, err := ev.Here.Resolve(ev.Tree)
+	if err != nil {
+		return nil, err
+	}
+	return &Response{
+		Type:  Replace,
+		Value: val,
+	}, nil
+}
+
+//nolint:gochecknoinits // Operator registration must happen at package load time
+func init() {
+	RegisterOp("sort", SortOperator{})
+}
+
+// AddToSortListIfNecessaryWithEngine is the engine-aware version.
+func AddToSortListIfNecessaryWithEngine(operator string, path string, engine graft.Engine) {
+	if opcall, err := ParseOpcall(MergePhase, operator); err == nil {
+		var byKey string
+		args := opcall.Args()
+		if len(args) == 2 {
+			byKey = args[1].String()
+		}
+
+		DEBUG("adding sort by '%s' of path '%s' to the list of paths to sort", byKey, path)
+		if engine != nil {
+			engine.GetOperatorState().AddPathToSort(path, byKey)
+		} else {
+			// Fallback to global state for backward compatibility
+			sortMutex.Lock()
+			if _, ok := pathsToSort[path]; !ok {
+				pathsToSort[path] = byKey
+			}
+			sortMutex.Unlock()
+		}
+	}
+}
+
+// universalLess compares two values for sorting.
+func universalLess(a, b interface{}, key string) bool {
+	switch aVal := a.(type) {
+	case string:
+		if bVal, ok := b.(string); ok {
+			return aVal < bVal
+		}
+	case float64:
+		if bVal, ok := b.(float64); ok {
+			return aVal < bVal
+		}
+	case int:
+		if bVal, ok := b.(int); ok {
+			return aVal < bVal
+		}
+	case map[interface{}]interface{}:
+		if entryB, ok := b.(map[interface{}]interface{}); ok {
+			return universalLess(aVal[key], entryB[key], key)
+		}
+	}
+
+	return false
+}
+
+// SortList sorts a list by value or by key for maps.
+func SortList(path string, list []interface{}, key string) error {
+	return sortList(path, list, key)
+}
+
+// sortList sorts a list by value or by key for maps.
+func sortList(path string, list []interface{}, key string) error {
+	typeCheckMap := map[string]struct{}{}
+	for _, entry := range list {
+		reflectType := reflect.TypeOf(entry)
+
+		var typeName string
+		if reflectType != nil {
+			typeName = reflectType.Kind().String()
+		} else {
+			typeName = "nil"
+		}
+
+		if _, ok := typeCheckMap[typeName]; !ok {
+			typeCheckMap[typeName] = struct{}{}
+		}
+	}
+
+	if length := len(typeCheckMap); length > 0 && length != 1 {
+		return tree.TypeMismatchError{
+			Path:   []string{path},
+			Wanted: "a list with homogeneous entry types",
+			Got:    "a list with different types",
+		}
+	}
+
+	for kind := range typeCheckMap {
+		switch kind {
+		case reflect.Map.String():
+			if key == "" {
+				key = "name" // default identifier key
+			}
+
+			// Check if all maps have the key
+			for _, item := range list {
+				if m, ok := item.(map[interface{}]interface{}); ok {
+					if _, hasKey := m[key]; !hasKey {
+						return tree.TypeMismatchError{
+							Path:   []string{path},
+							Wanted: fmt.Sprintf("a list with map entries each containing %s", key),
+							Got:    fmt.Sprintf("a list with map entries, where some do not contain %s", key),
+						}
+					}
+				}
+			}
+
+		case reflect.Slice.String():
+			return tree.TypeMismatchError{
+				Path:   []string{path},
+				Wanted: "a list with maps, strings or numbers",
+				Got:    "a list with list entries",
+			}
+		}
+	}
+
+	sort.Slice(list, func(i int, j int) bool {
+		return universalLess(list[i], list[j], key)
+	})
+
+	return nil
+}
+
+// GetPathsToSort returns the paths to sort (for backward compatibility).
+func GetPathsToSort() map[string]string {
+	sortMutex.Lock()
+	defer sortMutex.Unlock()
+	result := make(map[string]string)
+	for k, v := range pathsToSort {
+		result[k] = v
+	}
+	return result
+}
+
+// ClearPathsToSort clears the paths to sort (for backward compatibility).
+func ClearPathsToSort() {
+	sortMutex.Lock()
+	defer sortMutex.Unlock()
+	pathsToSort = map[string]string{}
+}

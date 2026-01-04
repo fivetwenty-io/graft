@@ -1,0 +1,61 @@
+# Basic Expression Examples for Unified Parser
+
+# Simple operator calls
+simple_grab: (( grab config.database.host ))
+simple_concat: (( concat "Hello" " " "World" ))
+
+# Arithmetic expressions with proper precedence
+math_basic: (( calc 2 + 3 * 4 ))  # Should be 14, not 20
+math_parentheses: (( calc (2 + 3) * 4 ))  # Should be 20
+
+# Comparison and logical operators
+comparison: (( grab count > 5 ))
+logical_and: (( grab enabled && count > 0 ))
+logical_or: (( grab primary_host || "localhost" ))
+
+# Ternary expressions
+conditional: (( grab environment == "prod" ? "production-db" : "dev-db" ))
+complex_ternary: (( grab retries > 10 ? "error" : retries < 5 ? "warning" : "ok" ))
+
+# Reference paths with array indexing
+array_access: (( grab users[0].name ))
+map_access: (( grab config["database"]["host"] ))
+complex_path: (( grab environments.production.services[0].endpoints["api"].url ))
+
+# Environment variables in paths
+env_path: (( grab $ENVIRONMENT.database.host ))
+env_with_fallback: (( grab $DB_HOST || config.database.default_host ))
+
+# Operator calls with targets and modifiers
+vault_with_target: (( vault@production "secret/database" ))
+cached_grab: (( grab:nocache dynamic.config ))
+vault_with_both: (( vault@staging:ttl=300 "secret/api-key" ))
+
+# Function-style operator calls
+function_style: (( vault("secret/config:password") ))
+mixed_style: (( concat(grab("app.name"), "-", grab("app.version")) ))
+
+# YAML literals in expressions
+default_config: (( grab app.config || { host: "localhost", port: 8080 } ))
+default_list: (( grab app.tags || ["web", "api"] ))
+nested_yaml: (( grab settings || { 
+  database: { host: "localhost", port: 5432 },
+  cache: { enabled: true, ttl: 300 }
+} ))
+
+# Complex combined expressions
+dynamic_endpoint: (( concat "https://" (grab config.host || "localhost") ":" (grab config.port || 8080) "/api/v1" ))
+weighted_config: (( grab environment == "prod" ? grab("prod.config") : grab("dev.config") || default_config ))
+
+# Escaped strings and special characters
+escaped_string: (( concat "Message: \"" (grab user.message) "\"" ))
+unicode_string: (( concat "Hello " (grab user.name || "世界") ))
+
+# Nested operator calls
+nested_grab: (( concat (grab prefix || "app") "-" (grab suffix || "service") ))
+nested_arithmetic: (( calc (grab base_value || 10) * (grab multiplier || 2) + (grab offset || 0) ))
+
+# Error cases that should be handled gracefully
+missing_operator: (( unknown_op "argument" ))  # Should create NullOperator
+wrong_phase: (( concat "only" "in" "merge" "phase" ))  # Should error in eval phase
+invalid_reference: (( grab invalid..reference ))  # Should error gracefully
