@@ -6,11 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	// Use geofffranks forks to persist the fix in https://github.com/go-yaml/yaml/pull/133/commits
-	// Also https://github.com/go-yaml/yaml/pull/195
-	"github.com/geofffranks/simpleyaml"
-	"github.com/geofffranks/yaml"
 	. "github.com/smartystreets/goconvey/convey"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
@@ -20,17 +17,14 @@ func TestEvaluator(t *testing.T) {
 	SilenceWarnings(true)
 	// Enable debug logging for dependency analysis
 	// log.DebugOn = true
-	YAML := func(s string) map[interface{}]interface{} {
-		y, err := simpleyaml.NewYaml([]byte(s))
+	YAML := func(s string) map[string]interface{} {
+		data := map[string]interface{}{}
+		err := yamlv3.Unmarshal([]byte(s), &data)
 		So(err, ShouldBeNil)
-
-		data, err := y.Map()
-		So(err, ShouldBeNil)
-
 		return data
 	}
-	ToYAML := func(tree map[interface{}]interface{}) string {
-		y, err := yaml.Marshal(tree)
+	ToYAML := func(tree map[string]interface{}) string {
+		y, err := yamlv3.Marshal(tree)
 		So(err, ShouldBeNil)
 		return string(y)
 	}
@@ -60,7 +54,7 @@ func TestEvaluator(t *testing.T) {
 					for _, op := range ops {
 						flow = append(flow, map[string]string{op.Where().String(): op.Src()})
 					}
-					So(ToYAML(map[interface{}]interface{}{"dataflow": flow}),
+					So(ToYAML(map[string]interface{}{"dataflow": flow}),
 						ShouldEqual, ReYAML(dataflow))
 
 					err = ev.RunPhase(phase)
@@ -1865,8 +1859,8 @@ meta:
 properties:
   name: (( grab meta.name ))
 `
-			tree := map[interface{}]interface{}{}
-			err := yaml.Unmarshal([]byte(input), &tree)
+			tree := map[string]interface{}{}
+			err := yamlv3.Unmarshal([]byte(input), &tree)
 			So(err, ShouldBeNil)
 
 			ev := &Evaluator{Tree: tree}
@@ -1879,7 +1873,7 @@ properties:
 
 			// Verify the grab operation worked
 			So(ev.Tree["properties"], ShouldNotBeNil)
-			props, ok := ev.Tree["properties"].(map[interface{}]interface{})
+			props, ok := ev.Tree["properties"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected properties to be a map")
 			}
@@ -1894,8 +1888,8 @@ meta:
 properties:
   name: (( grab meta.name ))
 `
-			tree := map[interface{}]interface{}{}
-			err := yaml.Unmarshal([]byte(input), &tree)
+			tree := map[string]interface{}{}
+			err := yamlv3.Unmarshal([]byte(input), &tree)
 			So(err, ShouldBeNil)
 
 			ev := &Evaluator{Tree: tree}
@@ -1907,7 +1901,7 @@ properties:
 			So(err, ShouldBeNil)
 
 			// Verify the secret was pruned
-			meta, ok := ev.Tree["meta"].(map[interface{}]interface{})
+			meta, ok := ev.Tree["meta"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected meta to be a map")
 			}
@@ -1926,8 +1920,8 @@ properties:
 other:
   data: value
 `
-			tree := map[interface{}]interface{}{}
-			err := yaml.Unmarshal([]byte(input), &tree)
+			tree := map[string]interface{}{}
+			err := yamlv3.Unmarshal([]byte(input), &tree)
 			So(err, ShouldBeNil)
 
 			ev := &Evaluator{Tree: tree}
@@ -1947,8 +1941,8 @@ other:
 properties:
   name: (( param "missing-param" ))
 `
-			tree := map[interface{}]interface{}{}
-			err := yaml.Unmarshal([]byte(input), &tree)
+			tree := map[string]interface{}{}
+			err := yamlv3.Unmarshal([]byte(input), &tree)
 			So(err, ShouldBeNil)
 
 			ev := &Evaluator{Tree: tree}
@@ -1966,8 +1960,8 @@ properties:
 properties:
   name: (( grab meta.name ))
 `
-			tree := map[interface{}]interface{}{}
-			err := yaml.Unmarshal([]byte(input), &tree)
+			tree := map[string]interface{}{}
+			err := yamlv3.Unmarshal([]byte(input), &tree)
 			So(err, ShouldBeNil)
 
 			ev := &Evaluator{Tree: tree, SkipEval: true}
@@ -1979,7 +1973,7 @@ properties:
 			So(err, ShouldBeNil)
 
 			// Verify that grab was not evaluated (should still be a string with expression)
-			props, ok := ev.Tree["properties"].(map[interface{}]interface{})
+			props, ok := ev.Tree["properties"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected properties to be a map")
 			}
@@ -1995,10 +1989,10 @@ properties:
 func TestEvaluator_Prune(t *testing.T) {
 	Convey("Evaluator Prune function", t, func() {
 		Convey("should prune simple map keys", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"keep":   "this",
 				"remove": "this",
-				"meta": map[interface{}]interface{}{
+				"meta": map[string]interface{}{
 					"keep":   "nested",
 					"remove": "nested",
 				},
@@ -2013,7 +2007,7 @@ func TestEvaluator_Prune(t *testing.T) {
 			So(exists, ShouldBeFalse)
 			So(tree["keep"], ShouldEqual, "this")
 
-			meta, ok := tree["meta"].(map[interface{}]interface{})
+			meta, ok := tree["meta"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected meta to be a map")
 			}
@@ -2023,7 +2017,7 @@ func TestEvaluator_Prune(t *testing.T) {
 		})
 
 		Convey("should prune array elements by index", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"list": []interface{}{"keep", "remove", "keep"},
 			}
 
@@ -2042,7 +2036,7 @@ func TestEvaluator_Prune(t *testing.T) {
 		})
 
 		Convey("should handle invalid paths gracefully", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"valid": "data",
 			}
 
@@ -2055,7 +2049,7 @@ func TestEvaluator_Prune(t *testing.T) {
 		})
 
 		Convey("should handle malformed paths", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"valid": "data",
 			}
 
@@ -2065,7 +2059,7 @@ func TestEvaluator_Prune(t *testing.T) {
 		})
 
 		Convey("should handle empty path list", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"keep": "this",
 			}
 
@@ -2078,11 +2072,11 @@ func TestEvaluator_Prune(t *testing.T) {
 		})
 
 		Convey("should handle nested array operations", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"jobs": []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "job1",
-						"properties": map[interface{}]interface{}{
+						"properties": map[string]interface{}{
 							"secret": "remove-this",
 							"public": "keep-this",
 						},
@@ -2099,11 +2093,11 @@ func TestEvaluator_Prune(t *testing.T) {
 			if !ok {
 				t.Fatal("expected jobs to be an array")
 			}
-			job, ok := jobs[0].(map[interface{}]interface{})
+			job, ok := jobs[0].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected job to be a map")
 			}
-			props, ok := job["properties"].(map[interface{}]interface{})
+			props, ok := job["properties"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected properties to be a map")
 			}
@@ -2118,11 +2112,11 @@ func TestEvaluator_Prune(t *testing.T) {
 func TestEvaluator_SortPaths(t *testing.T) {
 	Convey("Evaluator SortPaths function", t, func() {
 		Convey("should sort array by simple field", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"items": []interface{}{
-					map[interface{}]interface{}{"name": "zebra", "value": 1},
-					map[interface{}]interface{}{"name": "alpha", "value": 2},
-					map[interface{}]interface{}{"name": "beta", "value": 3},
+					map[string]interface{}{"name": "zebra", "value": 1},
+					map[string]interface{}{"name": "alpha", "value": 2},
+					map[string]interface{}{"name": "beta", "value": 3},
 				},
 			}
 
@@ -2137,17 +2131,17 @@ func TestEvaluator_SortPaths(t *testing.T) {
 				t.Fatal("expected items to be an array")
 			}
 			So(len(items), ShouldEqual, 3)
-			item0, ok := items[0].(map[interface{}]interface{})
+			item0, ok := items[0].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected items[0] to be a map")
 			}
 			So(item0["name"], ShouldEqual, "alpha")
-			item1, ok := items[1].(map[interface{}]interface{})
+			item1, ok := items[1].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected items[1] to be a map")
 			}
 			So(item1["name"], ShouldEqual, "beta")
-			item2, ok := items[2].(map[interface{}]interface{})
+			item2, ok := items[2].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected items[2] to be a map")
 			}
@@ -2155,18 +2149,18 @@ func TestEvaluator_SortPaths(t *testing.T) {
 		})
 
 		Convey("should sort array by nested field", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"services": []interface{}{
-					map[interface{}]interface{}{
-						"metadata": map[interface{}]interface{}{"priority": 3},
+					map[string]interface{}{
+						"metadata": map[string]interface{}{"priority": 3},
 						"name":     "service3",
 					},
-					map[interface{}]interface{}{
-						"metadata": map[interface{}]interface{}{"priority": 1},
+					map[string]interface{}{
+						"metadata": map[string]interface{}{"priority": 1},
 						"name":     "service1",
 					},
-					map[interface{}]interface{}{
-						"metadata": map[interface{}]interface{}{"priority": 2},
+					map[string]interface{}{
+						"metadata": map[string]interface{}{"priority": 2},
 						"name":     "service2",
 					},
 				},
@@ -2182,17 +2176,17 @@ func TestEvaluator_SortPaths(t *testing.T) {
 			if !ok {
 				t.Fatal("expected services to be an array")
 			}
-			service0, ok := services[0].(map[interface{}]interface{})
+			service0, ok := services[0].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected services[0] to be a map")
 			}
 			So(service0["name"], ShouldEqual, "service1")
-			service1, ok := services[1].(map[interface{}]interface{})
+			service1, ok := services[1].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected services[1] to be a map")
 			}
 			So(service1["name"], ShouldEqual, "service2")
-			service2, ok := services[2].(map[interface{}]interface{})
+			service2, ok := services[2].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected services[2] to be a map")
 			}
@@ -2200,7 +2194,7 @@ func TestEvaluator_SortPaths(t *testing.T) {
 		})
 
 		Convey("should handle invalid path", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"items": []interface{}{},
 			}
 
@@ -2211,7 +2205,7 @@ func TestEvaluator_SortPaths(t *testing.T) {
 		})
 
 		Convey("should handle non-existent path", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"items": []interface{}{},
 			}
 
@@ -2222,8 +2216,8 @@ func TestEvaluator_SortPaths(t *testing.T) {
 		})
 
 		Convey("should error on map instead of array", func() {
-			tree := map[interface{}]interface{}{
-				"notarray": map[interface{}]interface{}{"key": "value"},
+			tree := map[string]interface{}{
+				"notarray": map[string]interface{}{"key": "value"},
 			}
 
 			ev := &Evaluator{Tree: tree}
@@ -2234,7 +2228,7 @@ func TestEvaluator_SortPaths(t *testing.T) {
 		})
 
 		Convey("should error on non-array value", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"string": "not an array",
 			}
 
@@ -2246,9 +2240,9 @@ func TestEvaluator_SortPaths(t *testing.T) {
 		})
 
 		Convey("should handle empty sort map", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"items": []interface{}{
-					map[interface{}]interface{}{"name": "keep-order"},
+					map[string]interface{}{"name": "keep-order"},
 				},
 			}
 
@@ -2262,7 +2256,7 @@ func TestEvaluator_SortPaths(t *testing.T) {
 			if !ok {
 				t.Fatal("expected items to be an array")
 			}
-			item0, ok := items[0].(map[interface{}]interface{})
+			item0, ok := items[0].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected items[0] to be a map")
 			}
@@ -2274,8 +2268,8 @@ func TestEvaluator_SortPaths(t *testing.T) {
 func TestEvaluator_CherryPick(t *testing.T) {
 	Convey("Evaluator CherryPick function", t, func() {
 		Convey("should cherry-pick single top-level key", func() {
-			tree := map[interface{}]interface{}{
-				"keep": map[interface{}]interface{}{
+			tree := map[string]interface{}{
+				"keep": map[string]interface{}{
 					"nested": "value",
 				},
 				"remove": "this should be gone",
@@ -2289,7 +2283,7 @@ func TestEvaluator_CherryPick(t *testing.T) {
 			// Tree should only contain the cherry-picked path
 			So(len(ev.Tree), ShouldEqual, 1)
 			So(ev.Tree["keep"], ShouldNotBeNil)
-			keep, ok := ev.Tree["keep"].(map[interface{}]interface{})
+			keep, ok := ev.Tree["keep"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected keep to be a map")
 			}
@@ -2297,11 +2291,11 @@ func TestEvaluator_CherryPick(t *testing.T) {
 		})
 
 		Convey("should cherry-pick multiple paths", func() {
-			tree := map[interface{}]interface{}{
-				"first": map[interface{}]interface{}{
+			tree := map[string]interface{}{
+				"first": map[string]interface{}{
 					"data": "one",
 				},
-				"second": map[interface{}]interface{}{
+				"second": map[string]interface{}{
 					"data": "two",
 				},
 				"third": "remove this",
@@ -2320,17 +2314,17 @@ func TestEvaluator_CherryPick(t *testing.T) {
 		})
 
 		Convey("should cherry-pick nested paths", func() {
-			tree := map[interface{}]interface{}{
-				"meta": map[interface{}]interface{}{
+			tree := map[string]interface{}{
+				"meta": map[string]interface{}{
 					"name":    "app",
 					"version": "1.0",
 				},
-				"config": map[interface{}]interface{}{
-					"database": map[interface{}]interface{}{
+				"config": map[string]interface{}{
+					"database": map[string]interface{}{
 						"host": "localhost",
 						"port": 5432,
 					},
-					"cache": map[interface{}]interface{}{
+					"cache": map[string]interface{}{
 						"host": "redis",
 					},
 				},
@@ -2342,13 +2336,13 @@ func TestEvaluator_CherryPick(t *testing.T) {
 
 			// Should preserve the nested structure
 			So(ev.Tree["config"], ShouldNotBeNil)
-			config, ok := ev.Tree["config"].(map[interface{}]interface{})
+			config, ok := ev.Tree["config"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected config to be a map")
 			}
 			So(config["database"], ShouldNotBeNil)
 
-			database, ok := config["database"].(map[interface{}]interface{})
+			database, ok := config["database"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected database to be a map")
 			}
@@ -2361,11 +2355,11 @@ func TestEvaluator_CherryPick(t *testing.T) {
 		})
 
 		Convey("should handle array elements", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"items": []interface{}{
-					map[interface{}]interface{}{"name": "item1"},
-					map[interface{}]interface{}{"name": "item2"},
-					map[interface{}]interface{}{"name": "item3"},
+					map[string]interface{}{"name": "item1"},
+					map[string]interface{}{"name": "item2"},
+					map[string]interface{}{"name": "item3"},
 				},
 			}
 
@@ -2383,7 +2377,7 @@ func TestEvaluator_CherryPick(t *testing.T) {
 		})
 
 		Convey("should handle invalid path", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"valid": "data",
 			}
 
@@ -2393,7 +2387,7 @@ func TestEvaluator_CherryPick(t *testing.T) {
 		})
 
 		Convey("should handle non-existent path", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"valid": "data",
 			}
 
@@ -2403,7 +2397,7 @@ func TestEvaluator_CherryPick(t *testing.T) {
 		})
 
 		Convey("should handle empty cherry-pick list", func() {
-			tree := map[interface{}]interface{}{
+			tree := map[string]interface{}{
 				"keep": "original",
 			}
 
@@ -2416,21 +2410,21 @@ func TestEvaluator_CherryPick(t *testing.T) {
 		})
 
 		Convey("should handle complex nested cherry-picking", func() {
-			tree := map[interface{}]interface{}{
-				"app": map[interface{}]interface{}{
-					"metadata": map[interface{}]interface{}{
+			tree := map[string]interface{}{
+				"app": map[string]interface{}{
+					"metadata": map[string]interface{}{
 						"name": "myapp",
-						"labels": map[interface{}]interface{}{
+						"labels": map[string]interface{}{
 							"environment": "prod",
 							"team":        "backend",
 						},
 					},
-					"spec": map[interface{}]interface{}{
+					"spec": map[string]interface{}{
 						"replicas": 3,
-						"template": map[interface{}]interface{}{
+						"template": map[string]interface{}{
 							"containers": []interface{}{
-								map[interface{}]interface{}{"name": "web"},
-								map[interface{}]interface{}{"name": "worker"},
+								map[string]interface{}{"name": "web"},
+								map[string]interface{}{"name": "worker"},
 							},
 						},
 					},
@@ -2444,19 +2438,19 @@ func TestEvaluator_CherryPick(t *testing.T) {
 
 			// Verify complex nested structure is preserved correctly
 			So(ev.Tree["app"], ShouldNotBeNil)
-			app, ok := ev.Tree["app"].(map[interface{}]interface{})
+			app, ok := ev.Tree["app"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected app to be a map")
 			}
 
 			// Check metadata path
 			So(app["metadata"], ShouldNotBeNil)
-			metadata, ok := app["metadata"].(map[interface{}]interface{})
+			metadata, ok := app["metadata"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected metadata to be a map")
 			}
 			So(metadata["labels"], ShouldNotBeNil)
-			labels, ok := metadata["labels"].(map[interface{}]interface{})
+			labels, ok := metadata["labels"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected labels to be a map")
 			}
@@ -2468,7 +2462,7 @@ func TestEvaluator_CherryPick(t *testing.T) {
 
 			// Check spec path
 			So(app["spec"], ShouldNotBeNil)
-			spec, ok := app["spec"].(map[interface{}]interface{})
+			spec, ok := app["spec"].(map[string]interface{})
 			if !ok {
 				t.Fatal("expected spec to be a map")
 			}

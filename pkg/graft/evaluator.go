@@ -18,7 +18,7 @@ import (
 
 // Evaluator processes YAML documents by evaluating operator expressions.
 type Evaluator struct {
-	Tree     map[interface{}]interface{}
+	Tree     map[string]interface{}
 	Deps     map[string][]tree.Cursor
 	SkipEval bool
 	Here     *tree.Cursor
@@ -71,12 +71,6 @@ func nameOfObj(o interface{}, def string) string {
 	for _, field := range tree.NameFields {
 		switch val := o.(type) {
 		case map[string]interface{}:
-			if value, ok := val[field]; ok {
-				if s, ok := value.(string); ok {
-					return s
-				}
-			}
-		case map[interface{}]interface{}:
 			if value, ok := val[field]; ok {
 				if s, ok := value.(string); ok {
 					return s
@@ -186,38 +180,10 @@ func (ctx *dataFlowContext) registerOpcall(op *Opcall) {
 // scanValue recursively scans a value for operators.
 func (ctx *dataFlowContext) scanValue(o interface{}) {
 	switch v := o.(type) {
-	case map[interface{}]interface{}:
-		ctx.scanInterfaceMap(v)
 	case map[string]interface{}:
 		ctx.scanStringMap(v)
 	case []interface{}:
 		ctx.scanSlice(v)
-	}
-}
-
-// scanInterfaceMap scans a map[interface{}]interface{}.
-func (ctx *dataFlowContext) scanInterfaceMap(v map[interface{}]interface{}) {
-	ptr := reflect.ValueOf(v).Pointer()
-	if ctx.visited[ptr] {
-		return
-	}
-	ctx.visited[ptr] = true
-	defer delete(ctx.visited, ptr)
-
-	keys := make([]string, 0, len(v))
-	keyToInterface := make(map[string]interface{})
-	for k := range v {
-		keyStr := fmt.Sprintf("%v", k)
-		keys = append(keys, keyStr)
-		keyToInterface[keyStr] = k
-	}
-	sort.Strings(keys)
-
-	for _, keyStr := range keys {
-		originalKey := keyToInterface[keyStr]
-		ctx.ev.Here.Push(keyStr)
-		ctx.checkValue(v[originalKey])
-		ctx.ev.Here.Pop()
 	}
 }
 
@@ -563,7 +529,7 @@ func (ev *Evaluator) Prune(paths []string) error {
 		}
 
 		switch v := o.(type) {
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			log.DEBUG("  pruning %s", path)
 			delete(v, key)
 
@@ -590,7 +556,7 @@ func (ev *Evaluator) Prune(paths []string) error {
 								replacement = append(replacement, list[idx+1:]...)
 							}
 
-							if sMap, ok := s.(map[interface{}]interface{}); ok {
+							if sMap, ok := s.(map[string]interface{}); ok {
 								delete(sMap, parentName)
 								sMap[parentName] = replacement
 							}
@@ -627,7 +593,7 @@ func (ev *Evaluator) SortPaths(pathKeyMap map[string]string) error {
 		case []interface{}:
 			// no-op, that's what we want ...
 
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			return tree.TypeMismatchError{
 				Path:   []string{path},
 				Wanted: "a list",
@@ -659,7 +625,7 @@ func (ev *Evaluator) CherryPick(paths []string) error {
 
 	if len(paths) > 0 {
 		// This will serve as the replacement tree ...
-		replacement := make(map[interface{}]interface{})
+		replacement := make(map[string]interface{})
 
 		for _, path := range paths {
 			cursor, err := tree.ParseCursor(path)
@@ -694,7 +660,7 @@ func (ev *Evaluator) CherryPick(paths []string) error {
 					pointer = nil
 
 					// ... create the final cherry wrapped in its container ...
-					tmp := make(map[interface{}]interface{})
+					tmp := make(map[string]interface{})
 					tmp[cherryName] = cherryValue
 
 					// ... and add it to the replacement map
@@ -705,7 +671,7 @@ func (ev *Evaluator) CherryPick(paths []string) error {
 						return err
 					}
 
-					if mergedMap, ok := merged.(map[interface{}]interface{}); ok {
+					if mergedMap, ok := merged.(map[string]interface{}); ok {
 						replacement = mergedMap
 					}
 				} else {
@@ -715,8 +681,8 @@ func (ev *Evaluator) CherryPick(paths []string) error {
 					// Depending on the type of the parent, either a map or a list is created for the new parent of the cherry value
 					if obj, err := parent.Resolve(ev.Tree); err == nil {
 						switch obj.(type) {
-						case map[interface{}]interface{}:
-							tmp := make(map[interface{}]interface{})
+						case map[string]interface{}:
+							tmp := make(map[string]interface{})
 							tmp[cherryName] = cherryValue
 
 							cherryName = parent.Nodes[len(parent.Nodes)-1]
@@ -765,7 +731,7 @@ func (ev *Evaluator) CheckForCycles(maxDepth int) error {
 				}
 			}
 
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			for _, v := range val {
 				if err := check(v, depth-1); err != nil {
 					return err
@@ -822,9 +788,6 @@ func (ev *Evaluator) RunOp(op *Opcall) error {
 			}
 			val[i] = resp.Value
 
-		case map[interface{}]interface{}:
-			val[key] = resp.Value
-
 		case map[string]interface{}:
 			val[key] = resp.Value
 
@@ -861,13 +824,13 @@ func (ev *Evaluator) RunOp(op *Opcall) error {
 			return err
 		}
 
-		m, ok := o.(map[interface{}]interface{})
+		m, ok := o.(map[string]interface{})
 		if !ok {
 			return fmt.Errorf("inject target is not a map")
 		}
 		delete(m, key)
 
-		respMap, ok := resp.Value.(map[interface{}]interface{})
+		respMap, ok := resp.Value.(map[string]interface{})
 		if !ok {
 			return fmt.Errorf("inject value is not a map")
 		}
@@ -1030,7 +993,7 @@ func (ev *Evaluator) segmentsMatchWithContext(opSegment, cherrySegment string, c
 						// opSegment is numeric, cherrySegment is a name
 						if opIdx >= 0 && opIdx < len(arr) {
 							// Check if the element at this index has the expected name
-							if elem, ok := arr[opIdx].(map[interface{}]interface{}); ok {
+							if elem, ok := arr[opIdx].(map[string]interface{}); ok {
 								// Check common name fields
 								for _, nameField := range tree.NameFields {
 									if name, exists := elem[nameField]; exists {
@@ -1045,7 +1008,7 @@ func (ev *Evaluator) segmentsMatchWithContext(opSegment, cherrySegment string, c
 						// cherrySegment is numeric, opSegment is a name
 						if cherryIdx >= 0 && cherryIdx < len(arr) {
 							// Check if the element at the cherry index has the op name
-							if elem, ok := arr[cherryIdx].(map[interface{}]interface{}); ok {
+							if elem, ok := arr[cherryIdx].(map[string]interface{}); ok {
 								for _, nameField := range tree.NameFields {
 									if name, exists := elem[nameField]; exists {
 										if nameStr, ok := name.(string); ok && nameStr == opSegment {

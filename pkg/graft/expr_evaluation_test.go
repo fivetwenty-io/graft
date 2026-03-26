@@ -76,10 +76,10 @@ func TestEvaluateExpr_Literal(t *testing.T) {
 		},
 		{
 			name: "map literal",
-			literal: map[interface{}]interface{}{
+			literal: map[string]interface{}{
 				"key": "value",
 			},
-			expected: map[interface{}]interface{}{
+			expected: map[string]interface{}{
 				"key": "value",
 			},
 		},
@@ -93,7 +93,7 @@ func TestEvaluateExpr_Literal(t *testing.T) {
 			}
 
 			ev := &Evaluator{
-				Tree: make(map[interface{}]interface{}),
+				Tree: make(map[string]interface{}),
 			}
 
 			resp, err := EvaluateExpr(expr, ev)
@@ -114,11 +114,11 @@ func TestEvaluateExpr_Literal(t *testing.T) {
 
 // TestEvaluateExpr_Reference tests reference expression evaluation.
 func TestEvaluateExpr_Reference(t *testing.T) {
-	testData := map[interface{}]interface{}{
+	testData := map[string]interface{}{
 		"simple": "value",
-		"nested": map[interface{}]interface{}{
+		"nested": map[string]interface{}{
 			"key": "nested value",
-			"deep": map[interface{}]interface{}{
+			"deep": map[string]interface{}{
 				"key": "deep value",
 			},
 		},
@@ -289,7 +289,7 @@ func TestEvaluateExpr_EnvVar(t *testing.T) {
 			}
 
 			ev := &Evaluator{
-				Tree: make(map[interface{}]interface{}),
+				Tree: make(map[string]interface{}),
 			}
 
 			resp, err := EvaluateExpr(expr, ev)
@@ -310,9 +310,9 @@ func TestEvaluateExpr_EnvVar(t *testing.T) {
 
 // TestEvaluateExpr_LogicalOr tests logical OR (fallback) expression evaluation.
 func TestEvaluateExpr_LogicalOr(t *testing.T) {
-	testData := map[interface{}]interface{}{
+	testData := map[string]interface{}{
 		"existing": "found value",
-		"nested": map[interface{}]interface{}{
+		"nested": map[string]interface{}{
 			"key": "nested value",
 		},
 	}
@@ -400,7 +400,7 @@ func TestEvaluateExpr_OperatorCall(t *testing.T) {
 		}
 
 		ev := &Evaluator{
-			Tree: make(map[interface{}]interface{}),
+			Tree: make(map[string]interface{}),
 		}
 
 		resp, err := EvaluateExpr(expr, ev)
@@ -449,7 +449,7 @@ func TestEvaluateExpr_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ev := &Evaluator{
-				Tree: make(map[interface{}]interface{}),
+				Tree: make(map[string]interface{}),
 			}
 
 			_, err := EvaluateExpr(tt.expr, ev)
@@ -467,10 +467,10 @@ func TestEvaluateExpr_Errors(t *testing.T) {
 
 // TestEvaluateExpr_ComplexNesting tests deeply nested expressions.
 func TestEvaluateExpr_ComplexNesting(t *testing.T) {
-	testData := map[interface{}]interface{}{
-		"level1": map[interface{}]interface{}{
-			"level2": map[interface{}]interface{}{
-				"level3": map[interface{}]interface{}{
+	testData := map[string]interface{}{
+		"level1": map[string]interface{}{
+			"level2": map[string]interface{}{
+				"level3": map[string]interface{}{
 					"value": "deep value",
 				},
 			},
@@ -600,12 +600,12 @@ func TestLooksLikeBooleanExpr(t *testing.T) {
 // TestEvaluateExpr_Performance tests expression evaluation performance.
 func TestEvaluateExpr_Performance(t *testing.T) {
 	// Create a large tree for performance testing
-	largeTree := make(map[interface{}]interface{})
+	largeTree := make(map[string]interface{})
 	for i := 0; i < 1000; i++ {
 		key := fmt.Sprintf("key%d", i)
-		largeTree[key] = map[interface{}]interface{}{
+		largeTree[key] = map[string]interface{}{
 			"value": fmt.Sprintf("value%d", i),
-			"nested": map[interface{}]interface{}{
+			"nested": map[string]interface{}{
 				"deep": fmt.Sprintf("deep%d", i),
 			},
 		}
@@ -673,7 +673,7 @@ func TestEvaluateExpr_CircularReference(t *testing.T) {
 	// at a higher level (in the evaluator), not in expression evaluation
 	// This test documents the expected behavior
 
-	testData := map[interface{}]interface{}{
+	testData := map[string]interface{}{
 		"a": "(( grab b ))",
 		"b": "(( grab c ))",
 		"c": "(( grab a ))",
@@ -725,7 +725,7 @@ func BenchmarkEvaluateExpr_Literal(b *testing.B) {
 		Literal: "test value",
 	}
 	ev := &Evaluator{
-		Tree: make(map[interface{}]interface{}),
+		Tree: make(map[string]interface{}),
 	}
 
 	b.ResetTimer()
@@ -735,9 +735,9 @@ func BenchmarkEvaluateExpr_Literal(b *testing.B) {
 }
 
 func BenchmarkEvaluateExpr_Reference(b *testing.B) {
-	testData := map[interface{}]interface{}{
-		"test": map[interface{}]interface{}{
-			"nested": map[interface{}]interface{}{
+	testData := map[string]interface{}{
+		"test": map[string]interface{}{
+			"nested": map[string]interface{}{
 				"value": "benchmark value",
 			},
 		},
@@ -767,7 +767,7 @@ func BenchmarkEvaluateExpr_EnvVar(b *testing.B) {
 		Name: "BENCH_VAR",
 	}
 	ev := &Evaluator{
-		Tree: make(map[interface{}]interface{}),
+		Tree: make(map[string]interface{}),
 	}
 
 	b.ResetTimer()
@@ -777,7 +777,7 @@ func BenchmarkEvaluateExpr_EnvVar(b *testing.B) {
 }
 
 func BenchmarkEvaluateExpr_LogicalOr(b *testing.B) {
-	testData := map[interface{}]interface{}{
+	testData := map[string]interface{}{
 		"existing": "value",
 	}
 

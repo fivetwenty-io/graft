@@ -3,18 +3,16 @@ package graft
 import (
 	"testing"
 
-	"github.com/geofffranks/simpleyaml"
+	yamlv3 "gopkg.in/yaml.v3"
+
 	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestDataflowOrdering(t *testing.T) {
-	YAML := func(s string) map[interface{}]interface{} {
-		y, err := simpleyaml.NewYaml([]byte(s))
+	YAML := func(s string) map[string]interface{} {
+		data := map[string]interface{}{}
+		err := yamlv3.Unmarshal([]byte(s), &data)
 		So(err, ShouldBeNil)
-
-		data, err := y.Map()
-		So(err, ShouldBeNil)
-
 		return data
 	}
 
