@@ -425,7 +425,7 @@ func parseNatsConfig(ev *graft.Evaluator, args []*graft.Expr) (*natsConfig, erro
 		case string:
 			// Simple URL string
 			config.URL = v
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			// Configuration map
 			if url, ok := v["url"]; ok {
 				if urlStr, ok := url.(string); ok {
@@ -784,8 +784,8 @@ func fetchFromKV(js jetstream.JetStream, storePath string, config *natsConfig) (
 				if err == nil && parsed != nil {
 					// Successfully parsed and got non-string result
 					if _, isString := parsed.(string); !isString {
-						// Convert to ensure map[interface{}]interface{} for compatibility
-						result = convertYAMLTypes(parsed)
+						// Parse result is already map[string]interface{} from yaml.v3
+						result = parsed
 					} else {
 						// Parsed but still a string, keep original
 						result = valueStr
@@ -904,8 +904,8 @@ func fetchFromObject(js jetstream.JetStream, storePath string, config *natsConfi
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse YAML from object '%s': %w", objectName, err)
 			}
-			// Ensure we return map[interface{}]interface{} for compatibility
-			result = convertYAMLTypes(yamlResult)
+			// Parse result is already map[string]interface{} from yaml.v3
+			result = yamlResult
 		case "application/json", "text/json":
 			// Parse as JSON (YAML parser handles JSON too)
 			err = yaml.Unmarshal(data, &result)
@@ -922,8 +922,8 @@ func fetchFromObject(js jetstream.JetStream, storePath string, config *natsConfi
 					// If parsing fails, return as string
 					result = string(data)
 				} else {
-					// Ensure we return map[interface{}]interface{} for compatibility
-					result = convertYAMLTypes(yamlResult)
+					// Parse result is already map[string]interface{} from yaml.v3
+					result = yamlResult
 				}
 			} else {
 				// Return as string if text or no content type
@@ -1329,29 +1329,4 @@ func ShutdownNatsOperator() {
 	ClearNatsCache()
 }
 
-// convertYAMLTypes ensures YAML data uses map[interface{}]interface{} for consistency.
-func convertYAMLTypes(input interface{}) interface{} {
-	switch v := input.(type) {
-	case map[string]interface{}:
-		result := make(map[interface{}]interface{})
-		for k, val := range v {
-			result[k] = convertYAMLTypes(val)
-		}
-		return result
-	case []interface{}:
-		result := make([]interface{}, len(v))
-		for i, val := range v {
-			result[i] = convertYAMLTypes(val)
-		}
-		return result
-	case map[interface{}]interface{}:
-		// Already the right type, but check nested values
-		result := make(map[interface{}]interface{})
-		for k, val := range v {
-			result[k] = convertYAMLTypes(val)
-		}
-		return result
-	default:
-		return input
-	}
-}
+

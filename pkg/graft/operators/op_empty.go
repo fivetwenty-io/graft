@@ -126,8 +126,6 @@ func (EmptyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		isEmpty = v == ""
 	case []interface{}:
 		isEmpty = len(v) == 0
-	case map[interface{}]interface{}:
-		isEmpty = len(v) == 0
 	case map[string]interface{}:
 		isEmpty = len(v) == 0
 	case int, int64:

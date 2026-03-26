@@ -53,12 +53,6 @@ func (KeysOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 		// Extract keys based on the type
 		switch v := val.(type) {
-		case map[interface{}]interface{}:
-			DEBUG("arg[%d]: extracting keys from map[interface{}]interface{}", i)
-			for key := range v {
-				keySet[fmt.Sprintf("%v", key)] = true
-			}
-
 		case map[string]interface{}:
 			DEBUG("arg[%d]: extracting keys from map[string]interface{}", i)
 			for key := range v {

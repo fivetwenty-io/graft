@@ -130,7 +130,7 @@ func GetOperandType(val interface{}) OperandType {
 		return TypeString
 	case bool:
 		return TypeBool
-	case map[string]interface{}, map[interface{}]interface{}:
+	case map[string]interface{}:
 		return TypeMap
 	case []interface{}:
 		return TypeList

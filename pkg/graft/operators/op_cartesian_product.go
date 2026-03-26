@@ -89,10 +89,6 @@ func (CartesianProductOperator) Run(ev *Evaluator, args []*Expr) (*Response, err
 					DEBUG("       list[%d]: list item is itself a list; error!", j)
 					return nil, fmt.Errorf("cartesian-product operator can only operate on lists of scalar values")
 				}
-				if _, isMap := item.(map[interface{}]interface{}); isMap {
-					DEBUG("       list[%d]: list item is a map; error!", j)
-					return nil, fmt.Errorf("cartesian-product operator can only operate on lists of scalar values")
-				}
 				if _, isMap := item.(map[string]interface{}); isMap {
 					DEBUG("       list[%d]: list item is a map; error!", j)
 					return nil, fmt.Errorf("cartesian-product operator can only operate on lists of scalar values")
@@ -101,7 +97,7 @@ func (CartesianProductOperator) Run(ev *Evaluator, args []*Expr) (*Response, err
 			}
 			lists = append(lists, v)
 
-		case map[interface{}]interface{}, map[string]interface{}:
+		case map[string]interface{}:
 			DEBUG("     [%d]: resolved to a map; error!", i)
 			return nil, fmt.Errorf("cartesian-product operator only accepts arrays and scalar values")
 

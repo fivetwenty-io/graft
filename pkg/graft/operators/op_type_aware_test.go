@@ -50,8 +50,8 @@ func TestIsTruthy(t *testing.T) {
 		// map cases
 		{name: "non-empty map is truthy", value: map[string]interface{}{"key": "value"}, expected: true},
 		{name: "empty string map is falsy", value: map[string]interface{}{}, expected: false},
-		{name: "non-empty interface map is truthy", value: map[interface{}]interface{}{"key": "value"}, expected: true},
-		{name: "empty interface map is falsy", value: map[interface{}]interface{}{}, expected: false},
+		{name: "non-empty interface map is truthy", value: map[string]interface{}{"key": "value"}, expected: true},
+		{name: "empty interface map is falsy", value: map[string]interface{}{}, expected: false},
 
 		// other types (always truthy when non-nil)
 		{name: "struct is truthy", value: struct{}{}, expected: true},
@@ -113,7 +113,7 @@ func TestNegateOperator(t *testing.T) {
 
 			// Create a minimal evaluator
 			ev := &graft.Evaluator{
-				Tree: make(map[interface{}]interface{}),
+				Tree: make(map[string]interface{}),
 			}
 
 			// Create a literal expression
@@ -146,7 +146,7 @@ func TestNegateOperator(t *testing.T) {
 func TestNegateOperatorArgCount(t *testing.T) {
 	op := NegateOperator{}
 	ev := &graft.Evaluator{
-		Tree: make(map[interface{}]interface{}),
+		Tree: make(map[string]interface{}),
 	}
 
 	// No arguments
@@ -321,7 +321,7 @@ func TestTypeAwareTernaryOperator(t *testing.T) {
 
 			// Create a minimal evaluator
 			ev := &graft.Evaluator{
-				Tree: make(map[interface{}]interface{}),
+				Tree: make(map[string]interface{}),
 			}
 
 			// Create literal expressions for the arguments
@@ -353,7 +353,7 @@ func TestTypeAwareTernaryOperator(t *testing.T) {
 func TestTernaryOperatorArgCount(t *testing.T) {
 	op := TypeAwareTernaryOperator{}
 	ev := &graft.Evaluator{
-		Tree: make(map[interface{}]interface{}),
+		Tree: make(map[string]interface{}),
 	}
 
 	// No arguments
@@ -432,7 +432,7 @@ func TestTypeAwareNotOperator(t *testing.T) {
 
 			// Create a minimal evaluator
 			ev := &graft.Evaluator{
-				Tree: make(map[interface{}]interface{}),
+				Tree: make(map[string]interface{}),
 			}
 
 			// Create a literal expression
@@ -492,7 +492,7 @@ func TestTypeAwareAndOperator(t *testing.T) {
 
 			// Create a minimal evaluator
 			ev := &graft.Evaluator{
-				Tree: make(map[interface{}]interface{}),
+				Tree: make(map[string]interface{}),
 			}
 
 			// Create literal expressions
@@ -709,20 +709,7 @@ func deepEqual(a, b interface{}) bool {
 		return false
 	}
 
-	if aMap, ok := a.(map[interface{}]interface{}); ok {
-		if bMap, ok := b.(map[interface{}]interface{}); ok {
-			if len(aMap) != len(bMap) {
-				return false
-			}
-			for k, v := range aMap {
-				if bv, exists := bMap[k]; !exists || !deepEqual(v, bv) {
-					return false
-				}
-			}
-			return true
-		}
-		return false
-	}
+
 
 	// Default comparison
 	return a == b

@@ -95,8 +95,8 @@ func universalLess(a, b interface{}, key string) bool {
 		if bVal, ok := b.(int); ok {
 			return aVal < bVal
 		}
-	case map[interface{}]interface{}:
-		if entryB, ok := b.(map[interface{}]interface{}); ok {
+	case map[string]interface{}:
+		if entryB, ok := b.(map[string]interface{}); ok {
 			return universalLess(aVal[key], entryB[key], key)
 		}
 	}
@@ -144,7 +144,7 @@ func sortList(path string, list []interface{}, key string) error {
 
 			// Check if all maps have the key
 			for _, item := range list {
-				if m, ok := item.(map[interface{}]interface{}); ok {
+				if m, ok := item.(map[string]interface{}); ok {
 					if _, hasKey := m[key]; !hasKey {
 						return tree.TypeMismatchError{
 							Path:   []string{path},

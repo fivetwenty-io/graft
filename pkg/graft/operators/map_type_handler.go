@@ -1,6 +1,7 @@
 package operators
 
 import (
+	"fmt"
 	"reflect"
 )
 
@@ -35,7 +36,7 @@ func (h *MapTypeHandler) Add(a, b interface{}) (interface{}, error) {
 
 	// Create a new map with all entries from both maps
 	// If there are conflicts, the second map (b) takes precedence
-	result := make(map[interface{}]interface{})
+	result := make(map[string]interface{})
 
 	// Copy all entries from mapA
 	for k, v := range mapA {
@@ -129,22 +130,15 @@ func (h *MapTypeHandler) GreaterOrEqual(a, b interface{}) (bool, error) {
 	return false, NotImplementedError("greaterOrEqual", a, b)
 }
 
-// convertToMap converts various map types to map[interface{}]interface{}.
-func convertToMap(val interface{}) (map[interface{}]interface{}, bool) {
+// convertToMap converts various map types to map[string]interface{}.
+func convertToMap(val interface{}) (map[string]interface{}, bool) {
 	if val == nil {
 		return nil, false
 	}
 
 	switch m := val.(type) {
-	case map[interface{}]interface{}:
-		return m, true
 	case map[string]interface{}:
-		// Convert map[string]interface{} to map[interface{}]interface{}
-		result := make(map[interface{}]interface{})
-		for k, v := range m {
-			result[k] = v
-		}
-		return result, true
+		return m, true
 	default:
 		// Use reflection to handle other map types
 		rv := reflect.ValueOf(val)
@@ -152,9 +146,9 @@ func convertToMap(val interface{}) (map[interface{}]interface{}, bool) {
 			return nil, false
 		}
 
-		result := make(map[interface{}]interface{})
+		result := make(map[string]interface{})
 		for _, key := range rv.MapKeys() {
-			result[key.Interface()] = rv.MapIndex(key).Interface()
+			result[fmt.Sprintf("%v", key.Interface())] = rv.MapIndex(key).Interface()
 		}
 		return result, true
 	}

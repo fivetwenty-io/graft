@@ -300,7 +300,7 @@ func (p *vaultArgProcessor) convertToString(value interface{}, expr *Expr) (stri
 		return v, nil
 	case int, int64, float32, float64, bool:
 		return fmt.Sprintf("%v", v), nil
-	case map[interface{}]interface{}, map[string]interface{}:
+	case map[string]interface{}:
 		if expr != nil && expr.Type == Reference {
 			return "", fmt.Errorf("$.%s is a map; only scalars are supported for vault paths", expr.Reference)
 		}

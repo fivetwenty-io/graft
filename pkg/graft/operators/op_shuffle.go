@@ -51,7 +51,7 @@ func (ShuffleOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			DEBUG("  arg[%d]: found list value with %d elements", i, len(v))
 			vals = append(vals, v...)
 
-		case map[interface{}]interface{}, map[string]interface{}:
+		case map[string]interface{}:
 			DEBUG("     [%d]: resolved to a map; error!", i)
 			return nil, fmt.Errorf("shuffle only accepts arrays and scalar values")
 

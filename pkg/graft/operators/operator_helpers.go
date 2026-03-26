@@ -153,8 +153,6 @@ func AsString(val interface{}) (string, error) {
 		return v, nil
 	case fmt.Stringer:
 		return v.String(), nil
-	case map[interface{}]interface{}:
-		return "", fmt.Errorf("value is a map, not a string")
 	case map[string]interface{}:
 		return "", fmt.Errorf("value is a map, not a string")
 	case []interface{}:

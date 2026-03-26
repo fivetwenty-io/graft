@@ -61,7 +61,7 @@ func (InjectOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("running (( inject ... )) operation at $.%s", ev.Here)
 	defer DEBUG("done with (( inject ... )) operation at $%s\n", ev.Here)
 
-	var vals []map[interface{}]interface{}
+	var vals []map[string]interface{}
 
 	for i, arg := range args {
 		// Special handling for references vs expressions
@@ -74,7 +74,7 @@ func (InjectOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 				return nil, err
 			}
 
-			m, ok := s.(map[interface{}]interface{})
+			m, ok := s.(map[string]interface{})
 			if !ok {
 				DEBUG("     [%d]: resolved to something that is not a map.  that is unacceptable.", i)
 				return nil, ansi.Errorf("@c{%s} @R{is not a map}", arg.Reference)
@@ -98,19 +98,10 @@ func (InjectOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			}
 
 			// Check if the resolved value is a map
-			m, ok := val.(map[interface{}]interface{})
+			m, ok := val.(map[string]interface{})
 			if !ok {
-				// Also check for map[string]interface{}
-				if sm, ok := val.(map[string]interface{}); ok {
-					// Convert to map[interface{}]interface{}
-					m = make(map[interface{}]interface{})
-					for k, v := range sm {
-						m[k] = v
-					}
-				} else {
-					DEBUG("     [%d]: resolved to something that is not a map", i)
-					return nil, ansi.Errorf("@R{inject operator argument must resolve to a map}")
-				}
+				DEBUG("     [%d]: resolved to something that is not a map", i)
+				return nil, ansi.Errorf("@R{inject operator argument must resolve to a map}")
 			}
 
 			DEBUG("     [%d]: resolved to a map; appending to the list of maps to merge/inject", i)
@@ -128,7 +119,7 @@ func (InjectOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	default:
 		DEBUG("  merging found maps into a single map to be injected")
 		// Merge all maps together
-		merged := make(map[interface{}]interface{})
+		merged := make(map[string]interface{})
 		for _, val := range vals {
 			err := Merge(merged, val)
 			if err != nil {

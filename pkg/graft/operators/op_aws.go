@@ -450,7 +450,7 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			DEBUG("  arg[%d]: converting %T to string", i, v)
 			l = append(l, fmt.Sprintf("%v", v))
 
-		case map[interface{}]interface{}, map[string]interface{}:
+		case map[string]interface{}:
 			DEBUG("  arg[%d]: %v is not a string scalar", i, v)
 			return nil, ansi.Errorf("@R{%s operator argument is a map; only scalars are supported here}", o.variant)
 

@@ -32,17 +32,21 @@ func TestVault(t *testing.T) {
 	// Disable ANSI colors for testing
 	ansi.Color(false)
 
-	YAML := func(s string) map[interface{}]interface{} {
+	YAML := func(s string) map[string]interface{} {
 		y, err := simpleyaml.NewYaml([]byte(s))
 		So(err, ShouldBeNil)
 
 		data, err := y.Map()
 		So(err, ShouldBeNil)
 
-		return data
+		result := make(map[string]interface{})
+		for k, v := range data {
+			result[fmt.Sprintf("%v", k)] = v
+		}
+		return result
 	}
 
-	ToYAML := func(tree map[interface{}]interface{}) string {
+	ToYAML := func(tree map[string]interface{}) string {
 		y, err := yaml.Marshal(tree)
 		So(err, ShouldBeNil)
 		return string(y)
@@ -425,14 +429,18 @@ secret: (( vault "secret/hand4:shake" ))
 }
 
 func TestVaultWithDefaults(t *testing.T) {
-	YAML := func(s string) map[interface{}]interface{} {
+	YAML := func(s string) map[string]interface{} {
 		y, err := simpleyaml.NewYaml([]byte(s))
 		So(err, ShouldBeNil)
 
 		data, err := y.Map()
 		So(err, ShouldBeNil)
 
-		return data
+		result := make(map[string]interface{})
+		for k, v := range data {
+			result[fmt.Sprintf("%v", k)] = v
+		}
+		return result
 	}
 
 	Convey("Vault operator with || default values", t, func() {

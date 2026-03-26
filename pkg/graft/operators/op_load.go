@@ -65,7 +65,7 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		DEBUG("  arg[0]: converting %T to string", v)
 		location = fmt.Sprintf("%v", v)
 
-	case map[interface{}]interface{}, map[string]interface{}:
+	case map[string]interface{}:
 		DEBUG("  arg[0]: %v is not a string scalar", v)
 		return nil, ansi.Errorf("@R{load operator argument is a map; only string scalars are supported}")
 

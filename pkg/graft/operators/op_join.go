@@ -119,28 +119,13 @@ func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 						DEBUG("     [%d]: entry #%d in list is a list (not a literal)", i, idx)
 						return nil, ansi.Errorf("entry #%d in list is not compatible for @c{(( join ... ))}", idx)
 
-					case map[interface{}]interface{}, map[string]interface{}:
+					case map[string]interface{}:
 						DEBUG("     [%d]: entry #%d in list is a map (not a literal)", i, idx)
 						return nil, ansi.Errorf("entry #%d in list is not compatible for @c{(( join ... ))}", idx)
 
 					default:
 						*list = append(*list, fmt.Sprintf("%v", entry))
 					}
-				}
-
-			case map[interface{}]interface{}:
-				DEBUG("     [%d]: resolved to a map", i)
-				// Sort keys for consistent output
-				keys := make([]string, 0, len(v))
-				for k := range v {
-					keys = append(keys, fmt.Sprintf("%v", k))
-				}
-				sort.Strings(keys)
-
-				// Join key:value pairs
-				for _, k := range keys {
-					pair := fmt.Sprintf("%s:%v", k, v[k])
-					*list = append(*list, pair)
 				}
 
 			case map[string]interface{}:
