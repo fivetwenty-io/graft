@@ -30,7 +30,7 @@ import (
 // It provides all the core functionality needed by graft.
 type DefaultEngine struct {
 	// Configuration
-	config EngineConfig
+	opts EngineOptions
 
 	// Operator registry (clone of DefaultRegistry, plus engine-local overrides)
 	registry       *UnifiedOperatorRegistry
@@ -95,32 +95,6 @@ type DefaultEngine struct {
 	Pool *parallel.WorkerPool
 }
 
-// EngineConfig holds configuration for the engine.
-type EngineConfig struct {
-	// Vault configuration
-	VaultAddr    string
-	VaultToken   string
-	VaultSkipTLS bool
-	SkipVault    bool
-
-	// AWS configuration
-	AWSRegion  string
-	AWSProfile string
-	SkipAWS    bool
-
-	// Performance configuration
-	EnableCaching  bool
-	CacheSize      int
-	EnableParallel bool
-	MaxWorkers     int
-
-	// Dataflow configuration
-	DataflowOrder string // "alphabetical" (default) or "insertion"
-
-	// Memory tracking configuration
-	MemoryConfig MemoryConfig
-}
-
 // EngineMetrics tracks engine performance metrics.
 type EngineMetrics struct {
 	OperatorCalls map[string]int64
@@ -130,71 +104,22 @@ type EngineMetrics struct {
 	AWSCalls      int64
 }
 
-// NewDefaultEngine creates a new default engine with default configuration.
-func NewDefaultEngine() *DefaultEngine {
-	return NewDefaultEngineWithConfig(DefaultEngineConfig())
-}
-
-// NewDefaultEngineWithConfig creates a new default engine with custom configuration.
-//
-//nolint:gocritic // hugeParam: config is passed by value for ownership semantics
-func NewDefaultEngineWithConfig(config EngineConfig) *DefaultEngine {
-	e := &DefaultEngine{
-		config:           config,
-		registry:         DefaultRegistry.Clone(),
-		localOperators:   make(map[string]bool),
-		vaultSecretCache: make(map[string]map[string]interface{}),
-		vaultRefs:        make(map[string][]string),
-		awsSecretsCache:  make(map[string]string),
-		awsParamsCache:   make(map[string]string),
-		usedIPs:          make(map[string]string),
-		pathsToSort:      make(map[string]string),
-		skipVault:        config.SkipVault,
-		skipAws:          config.SkipAWS,
-		metrics: &EngineMetrics{
-			OperatorCalls: make(map[string]int64),
-		},
-	}
-
-	// Initialize document memory if enabled
-	if config.MemoryConfig.Enabled {
-		e.documentMemory = NewDocumentMemory(config.MemoryConfig)
-	}
-
-	// Initialize vault if configured
-	if !config.SkipVault && config.VaultAddr != "" {
-		e.initializeVault()
-	}
-
-	// Initialize AWS if configured
-	if !config.SkipAWS && config.AWSRegion != "" {
-		e.initializeAWS()
-	}
-
-	return e
-}
-
-// DefaultEngineConfig returns default engine configuration.
-func DefaultEngineConfig() EngineConfig {
-	return EngineConfig{
-		EnableCaching:  true,
+// defaultEngineOpts returns default EngineOptions for NewDefaultEngine.
+func defaultEngineOpts() EngineOptions {
+	return EngineOptions{
+		EnableCache:    true,
 		CacheSize:      10000,
 		EnableParallel: false,
-		MaxWorkers:     4,
-		DataflowOrder:  "alphabetical", // Default to alphabetical ordering
-		MemoryConfig: MemoryConfig{
-			Enabled:            false, // Disabled by default
-			MaxVersionsPerNode: 100,
-			MaxTotalVersions:   10000,
-			MaxMemoryMB:        100,
-			CompressAfter:      24 * time.Hour,
-			CleanupInterval:    15 * time.Minute,
-			TrackMergePhase:    true,
-			TrackEvalPhase:     true,
-			EnableCompression:  true,
-			CompressThreshold:  10,
-		},
+		MaxConcurrency: 4,
+		DataflowOrder:  "alphabetical",
 	}
+}
+
+// NewDefaultEngine creates a new default engine with default configuration.
+func NewDefaultEngine() *DefaultEngine {
+	opts := defaultEngineOpts()
+	e := newEngineFromOptions(&opts)
+	return e
 }
 
 // RegisterOperator registers a custom operator in the engine's registry clone.
@@ -496,7 +421,7 @@ func (e *DefaultEngine) createEvaluator(t map[string]interface{}) *Evaluator {
 		Deps:          map[string][]tree.Cursor{},
 		Here:          here,
 		engine:        e,
-		DataflowOrder: e.config.DataflowOrder,
+		DataflowOrder: e.opts.DataflowOrder,
 	}
 
 	// Set memory tracker if available
@@ -793,11 +718,11 @@ func (e *DefaultEngine) WithAWSConfig(_ AWSConfig) Engine {
 	return e
 }
 
-// UpdateConfig updates the engine configuration.
-func (e *DefaultEngine) UpdateConfig(cfg EngineConfig) {
-	e.config = cfg
-	e.skipVault = cfg.SkipVault
-	e.skipAws = cfg.SkipAWS
+// UpdateOptions replaces the engine options and re-applies skip flags.
+func (e *DefaultEngine) UpdateOptions(opts EngineOptions) {
+	e.opts = opts
+	e.skipVault = opts.SkipVault
+	e.skipAws = opts.SkipAws
 }
 
 // GetOperatorState returns the operator state interface.
@@ -815,7 +740,10 @@ func (e *DefaultEngine) GetDocumentMemory() *DocumentMemory {
 func (e *DefaultEngine) EnableMemoryTracking() {
 	if e.documentMemory == nil {
 		// Create with default config if not already created
-		memConfig := e.config.MemoryConfig
+		var memConfig MemoryConfig
+		if e.opts.MemoryConfig != nil {
+			memConfig = *e.opts.MemoryConfig
+		}
 		memConfig.Enabled = true
 		e.documentMemory = NewDocumentMemory(memConfig)
 	} else {
@@ -923,7 +851,47 @@ func (e *DefaultEngine) SetWorkerPool(pool *parallel.WorkerPool) {
 	e.Pool = pool
 }
 
-// createEngineFromOptions creates an engine from EngineOptions (used by api.go).
+// newEngineFromOptions builds a *DefaultEngine directly from *EngineOptions.
+// It does not validate options; callers that need validation should call
+// createEngineFromOptions instead.
+func newEngineFromOptions(opts *EngineOptions) *DefaultEngine {
+	e := &DefaultEngine{
+		opts:             *opts,
+		registry:         DefaultRegistry.Clone(),
+		localOperators:   make(map[string]bool),
+		vaultSecretCache: make(map[string]map[string]interface{}),
+		vaultRefs:        make(map[string][]string),
+		awsSecretsCache:  make(map[string]string),
+		awsParamsCache:   make(map[string]string),
+		usedIPs:          make(map[string]string),
+		pathsToSort:      make(map[string]string),
+		skipVault:        opts.SkipVault,
+		skipAws:          opts.SkipAws,
+		skipNats:         opts.SkipNats,
+		metrics: &EngineMetrics{
+			OperatorCalls: make(map[string]int64),
+		},
+	}
+
+	// Initialize document memory if a config was provided and enabled
+	if opts.MemoryConfig != nil && opts.MemoryConfig.Enabled {
+		e.documentMemory = NewDocumentMemory(*opts.MemoryConfig)
+	}
+
+	// Initialize vault if configured
+	if !opts.SkipVault && opts.VaultAddress != "" {
+		e.initializeVault()
+	}
+
+	// Initialize AWS if configured
+	if !opts.SkipAws && opts.AWSRegion != "" {
+		e.initializeAWS()
+	}
+
+	return e
+}
+
+// createEngineFromOptions creates an engine from EngineOptions (used by NewEngine in api.go).
 //
 //nolint:gocyclo // engine configuration requires handling many optional settings
 func createEngineFromOptions(opts *EngineOptions) (Engine, error) {
@@ -932,27 +900,8 @@ func createEngineFromOptions(opts *EngineOptions) (Engine, error) {
 		return nil, NewConfigurationError("concurrency must be non-negative")
 	}
 
-	// Create engine config from options
-	engineCfg := EngineConfig{
-		VaultAddr:      opts.VaultAddress,
-		VaultToken:     opts.VaultToken,
-		AWSRegion:      opts.AWSRegion,
-		EnableCaching:  opts.EnableCache,
-		CacheSize:      opts.CacheSize,
-		EnableParallel: opts.MaxConcurrency > 1,
-		MaxWorkers:     opts.MaxConcurrency,
-		DataflowOrder:  opts.DataflowOrder,
-		SkipVault:      opts.SkipVault,
-		SkipAWS:        opts.SkipAws,
-	}
-
-	// Create the engine
-	engine := NewDefaultEngineWithConfig(engineCfg)
-
-	// Apply NATS skip (not in EngineConfig)
-	if opts.SkipNats {
-		engine.skipNats = true
-	}
+	// Build the engine directly from opts
+	engine := newEngineFromOptions(opts)
 
 	// Register custom operators if any
 	if opts.CustomOperators != nil {
@@ -963,7 +912,7 @@ func createEngineFromOptions(opts *EngineOptions) (Engine, error) {
 		}
 	}
 
-	// Enable memory tracking if requested
+	// Enable memory tracking if requested (without a MemoryConfig)
 	if opts.EnableMemoryTracking {
 		engine.EnableMemoryTracking()
 	}

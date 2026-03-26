@@ -15,11 +15,12 @@ import (
 func TestIntegration_CacheHitMiss(t *testing.T) {
 	Convey("Cache Hit/Miss Behavior", t, func() {
 		Convey("Engine with caching enabled processes same document twice", func() {
-			config := EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			}
-			engine := NewDefaultEngineWithConfig(config)
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			yaml := []byte(`
 meta:
@@ -58,10 +59,12 @@ app:
 		})
 
 		Convey("Engine without caching still produces correct results", func() {
-			config := EngineConfig{
-				EnableCaching: false,
-			}
-			engine := NewDefaultEngineWithConfig(config)
+			engine, err := NewEngine(
+				WithCache(false, 0),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			yaml := []byte(`
 meta:
@@ -83,11 +86,12 @@ computed: (( calc "meta.value * 2" ))
 		})
 
 		Convey("Different inputs produce different outputs", func() {
-			config := EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			}
-			engine := NewDefaultEngineWithConfig(config)
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			yaml1 := []byte(`
 meta:
@@ -132,14 +136,19 @@ result: (( grab meta.value ))
 func TestIntegration_CacheInvalidation(t *testing.T) {
 	Convey("Cache Invalidation", t, func() {
 		Convey("Config changes produce different results", func() {
-			engine1 := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			})
+			engine1, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
-			engine2 := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: false,
-			})
+			engine2, err := NewEngine(
+				WithCache(false, 0),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			yaml := []byte(`
 meta:
@@ -172,10 +181,12 @@ result: (( calc "meta.x * meta.y" ))
 		})
 
 		Convey("Sequential evaluations with mutations", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			// Base document
 			baseYaml := []byte(`
@@ -220,56 +231,61 @@ result: (( calc "meta.base + 5" ))
 func TestIntegration_CacheWithEngineState(t *testing.T) {
 	Convey("Cache with Engine State", t, func() {
 		Convey("Vault cache integration", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-				SkipVault:     true, // Skip actual vault calls
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+			)
+			So(err, ShouldBeNil)
+			de := engine.(*DefaultEngine)
 
 			// Set up vault cache manually
 			vaultData := map[string]interface{}{
 				"username": "admin",
 				"password": "secret123",
 			}
-			engine.SetVaultCache("secret/test", vaultData)
+			de.SetVaultCache("secret/test", vaultData)
 
 			// Verify cache was set
-			cache := engine.GetVaultCache()
+			cache := de.GetVaultCache()
 			So(cache["secret/test"], ShouldNotBeNil)
 			So(cache["secret/test"]["username"], ShouldEqual, "admin")
 		})
 
 		Convey("AWS cache integration", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-				SkipAWS:       true, // Skip actual AWS calls
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
+			de := engine.(*DefaultEngine)
 
 			// Set up AWS secrets cache
-			engine.SetAWSSecretCache("my-secret", "secret-value")
-			engine.SetAWSParamCache("/config/key", "param-value")
+			de.SetAWSSecretCache("my-secret", "secret-value")
+			de.SetAWSParamCache("/config/key", "param-value")
 
 			// Verify caches were set
-			secretsCache := engine.GetAWSSecretsCache()
+			secretsCache := de.GetAWSSecretsCache()
 			So(secretsCache["my-secret"], ShouldEqual, "secret-value")
 
-			paramsCache := engine.GetAWSParamsCache()
+			paramsCache := de.GetAWSParamsCache()
 			So(paramsCache["/config/key"], ShouldEqual, "param-value")
 		})
 
 		Convey("IP allocation cache", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
+			de := engine.(*DefaultEngine)
 
 			// Set up IP allocations
-			engine.SetUsedIP("10.0.0.1", "job1")
-			engine.SetUsedIP("10.0.0.2", "job2")
+			de.SetUsedIP("10.0.0.1", "job1")
+			de.SetUsedIP("10.0.0.2", "job2")
 
 			// Verify IPs were tracked
-			usedIPs := engine.GetUsedIPs()
+			usedIPs := de.GetUsedIPs()
 			So(usedIPs["10.0.0.1"], ShouldEqual, "job1")
 			So(usedIPs["10.0.0.2"], ShouldEqual, "job2")
 		})
@@ -280,10 +296,12 @@ func TestIntegration_CacheWithEngineState(t *testing.T) {
 func TestIntegration_CacheWithParallelOps(t *testing.T) {
 	Convey("Cache with Parallel Operations", t, func() {
 		Convey("Concurrent evaluations with shared engine", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			yaml := []byte(`
 meta:
@@ -333,10 +351,12 @@ result: (( concat meta.value "-output" ))
 		})
 
 		Convey("Concurrent evaluations with different inputs", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			var wg sync.WaitGroup
 			results := make(map[int]int)
@@ -389,11 +409,14 @@ result: (( calc "meta.base * 10" ))
 // TestIntegration_FeatureFlagToggling tests toggling caching on and off.
 func TestIntegration_FeatureFlagToggling(t *testing.T) {
 	Convey("Feature Flag Toggling", t, func() {
-		Convey("Toggle caching via config update", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			})
+		Convey("Toggle caching via options update", func() {
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
+			de := engine.(*DefaultEngine)
 
 			yaml := []byte(`
 meta:
@@ -404,24 +427,24 @@ result: (( grab meta.value ))
 			ctx := context.Background()
 
 			// Evaluate with caching enabled
-			doc1, err := engine.ParseYAML(yaml)
+			doc1, err := de.ParseYAML(yaml)
 			So(err, ShouldBeNil)
-			result1, err := engine.Evaluate(ctx, doc1)
+			result1, err := de.Evaluate(ctx, doc1)
 			So(err, ShouldBeNil)
 
 			val1, err := result1.GetInt("result")
 			So(err, ShouldBeNil)
 			So(val1, ShouldEqual, 42)
 
-			// Update config to disable caching
-			engine.UpdateConfig(EngineConfig{
-				EnableCaching: false,
+			// Update options to disable caching
+			de.UpdateOptions(EngineOptions{
+				EnableCache: false,
 			})
 
 			// Evaluate with caching disabled
-			doc2, err := engine.ParseYAML(yaml)
+			doc2, err := de.ParseYAML(yaml)
 			So(err, ShouldBeNil)
-			result2, err := engine.Evaluate(ctx, doc2)
+			result2, err := de.Evaluate(ctx, doc2)
 			So(err, ShouldBeNil)
 
 			val2, err := result2.GetInt("result")
@@ -433,9 +456,13 @@ result: (( grab meta.value ))
 		})
 
 		Convey("Toggle parser type", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
+			de := engine.(*DefaultEngine)
 
 			yaml := []byte(`
 meta:
@@ -447,24 +474,24 @@ result: (( concat meta.a " " meta.b ))
 			ctx := context.Background()
 
 			// Evaluate with enhanced parser
-			doc1, err := engine.ParseYAML(yaml)
+			doc1, err := de.ParseYAML(yaml)
 			So(err, ShouldBeNil)
-			result1, err := engine.Evaluate(ctx, doc1)
+			result1, err := de.Evaluate(ctx, doc1)
 			So(err, ShouldBeNil)
 
 			val1, err := result1.GetString("result")
 			So(err, ShouldBeNil)
 			So(val1, ShouldEqual, "hello world")
 
-			// Toggle to standard parser
-			engine.UpdateConfig(EngineConfig{
-				EnableCaching: true,
+			// Toggle options (keep caching)
+			de.UpdateOptions(EngineOptions{
+				EnableCache: true,
 			})
 
-			// Evaluate with standard parser
-			doc2, err := engine.ParseYAML(yaml)
+			// Evaluate after options update
+			doc2, err := de.ParseYAML(yaml)
 			So(err, ShouldBeNil)
-			result2, err := engine.Evaluate(ctx, doc2)
+			result2, err := de.Evaluate(ctx, doc2)
 			So(err, ShouldBeNil)
 
 			val2, err := result2.GetString("result")
@@ -473,27 +500,25 @@ result: (( concat meta.a " " meta.b ))
 		})
 
 		Convey("Skip external services", func() {
-			// Test with vault skip
-			engineWithVault := NewDefaultEngineWithConfig(EngineConfig{
-				SkipVault: false,
-			})
-			So(engineWithVault.IsVaultSkipped(), ShouldBeFalse)
+			// Test with vault skip false
+			engineWithVault, err := NewEngine(WithSkipVault(false))
+			So(err, ShouldBeNil)
+			So(engineWithVault.(*DefaultEngine).IsVaultSkipped(), ShouldBeFalse)
 
-			engineWithoutVault := NewDefaultEngineWithConfig(EngineConfig{
-				SkipVault: true,
-			})
-			So(engineWithoutVault.IsVaultSkipped(), ShouldBeTrue)
+			// Test with vault skip true
+			engineWithoutVault, err := NewEngine(WithSkipVault(true))
+			So(err, ShouldBeNil)
+			So(engineWithoutVault.(*DefaultEngine).IsVaultSkipped(), ShouldBeTrue)
 
-			// Test with AWS skip
-			engineWithAWS := NewDefaultEngineWithConfig(EngineConfig{
-				SkipAWS: false,
-			})
-			So(engineWithAWS.IsAWSSkipped(), ShouldBeFalse)
+			// Test with AWS skip false
+			engineWithAWS, err := NewEngine(WithSkipAws(false))
+			So(err, ShouldBeNil)
+			So(engineWithAWS.(*DefaultEngine).IsAWSSkipped(), ShouldBeFalse)
 
-			engineWithoutAWS := NewDefaultEngineWithConfig(EngineConfig{
-				SkipAWS: true,
-			})
-			So(engineWithoutAWS.IsAWSSkipped(), ShouldBeTrue)
+			// Test with AWS skip true
+			engineWithoutAWS, err := NewEngine(WithSkipAws(true))
+			So(err, ShouldBeNil)
+			So(engineWithoutAWS.(*DefaultEngine).IsAWSSkipped(), ShouldBeTrue)
 		})
 	})
 }
@@ -502,10 +527,12 @@ result: (( concat meta.a " " meta.b ))
 func TestIntegration_CacheConsistency(t *testing.T) {
 	Convey("Cache Consistency", t, func() {
 		Convey("Repeated evaluations produce consistent results", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			yaml := []byte(`
 meta:
@@ -538,10 +565,12 @@ formatted: (( concat "v" meta.version "-" meta.timestamp ))
 		})
 
 		Convey("Engine state isolation between evaluations", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			yaml1 := []byte(`
 meta:
@@ -592,10 +621,12 @@ func TestIntegration_CacheStress(t *testing.T) {
 
 	Convey("Cache Stress Tests", t, func() {
 		Convey("Many unique evaluations", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     100, // Small cache to force evictions
-			})
+			engine, err := NewEngine(
+				WithCache(true, 100), // Small cache to force evictions
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			ctx := context.Background()
 			successCount := 0
@@ -623,10 +654,12 @@ result: (( grab meta.index ))
 		})
 
 		Convey("Rapid sequential evaluations", func() {
-			engine := NewDefaultEngineWithConfig(EngineConfig{
-				EnableCaching: true,
-				CacheSize:     1000,
-			})
+			engine, err := NewEngine(
+				WithCache(true, 1000),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
+			So(err, ShouldBeNil)
 
 			yaml := []byte(`
 meta:
@@ -706,10 +739,12 @@ func TestIntegration_TableDrivenCache(t *testing.T) {
 	Convey("Table-Driven Cache Integration Tests", t, func() {
 		for _, tc := range cacheIntegrationTestCases {
 			Convey(tc.name, func() {
-				engine := NewDefaultEngineWithConfig(EngineConfig{
-					EnableCaching: tc.cacheEnabled,
-					CacheSize:     1000,
-				})
+				engine, err := NewEngine(
+					WithCache(tc.cacheEnabled, 1000),
+					WithSkipVault(true),
+					WithSkipAws(true),
+				)
+				So(err, ShouldBeNil)
 
 				doc, err := engine.ParseYAML([]byte(tc.config))
 				So(err, ShouldBeNil)

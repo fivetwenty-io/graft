@@ -431,9 +431,13 @@ func TestDocumentMemory(t *testing.T) {
 			t.Skip("Skipping: nested path tracking during merge not yet implemented")
 
 			// Create engine with memory tracking enabled
-			engineConfig := DefaultEngineConfig()
-			engineConfig.MemoryConfig.Enabled = true
-			engine := NewDefaultEngineWithConfig(engineConfig)
+			memCfg := MemoryConfig{Enabled: true}
+			engine, err := NewEngine(WithMemoryConfig(memCfg))
+			if err != nil {
+				t.Fatalf("failed to create engine: %v", err)
+			}
+			de := engine.(*DefaultEngine)
+			de.EnableMemoryTracking()
 
 			// Parse documents
 			doc1, err := engine.ParseYAML([]byte(`

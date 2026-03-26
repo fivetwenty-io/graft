@@ -71,11 +71,11 @@ func TestDefaultEngine(t *testing.T) {
 			engine := NewDefaultEngine()
 
 			So(engine, ShouldNotBeNil)
-			So(engine.config.EnableCaching, ShouldBeTrue)
-			So(engine.config.CacheSize, ShouldEqual, 10000)
-			So(engine.config.EnableParallel, ShouldBeFalse)
-			So(engine.config.MaxWorkers, ShouldEqual, 4)
-			So(engine.config.DataflowOrder, ShouldEqual, "alphabetical")
+			So(engine.opts.EnableCache, ShouldBeTrue)
+			So(engine.opts.CacheSize, ShouldEqual, 10000)
+			So(engine.opts.EnableParallel, ShouldBeFalse)
+			So(engine.opts.MaxConcurrency, ShouldEqual, 4)
+			So(engine.opts.DataflowOrder, ShouldEqual, "alphabetical")
 			So(engine.registry, ShouldNotBeNil)
 			So(engine.vaultSecretCache, ShouldNotBeNil)
 			So(engine.vaultRefs, ShouldNotBeNil)
@@ -85,37 +85,36 @@ func TestDefaultEngine(t *testing.T) {
 			So(engine.pathsToSort, ShouldNotBeNil)
 		})
 
-		Convey("NewDefaultEngineWithConfig should create engine with custom config", func() {
-			config := EngineConfig{
-				EnableCaching:  false,
-				CacheSize:      5000,
-				EnableParallel: true,
-				MaxWorkers:     8,
-				DataflowOrder:  "insertion",
-				SkipVault:      true,
-				SkipAWS:        true,
-			}
+		Convey("NewEngine should create engine with custom options", func() {
+			engine, err := NewEngine(
+				WithCache(false, 5000),
+				WithParallel(true),
+				WithMaxWorkers(8),
+				WithDataflowOrder("insertion"),
+				WithSkipVault(true),
+				WithSkipAws(true),
+			)
 
-			engine := NewDefaultEngineWithConfig(config)
-
+			So(err, ShouldBeNil)
 			So(engine, ShouldNotBeNil)
-			So(engine.config.EnableCaching, ShouldBeFalse)
-			So(engine.config.CacheSize, ShouldEqual, 5000)
-			So(engine.config.EnableParallel, ShouldBeTrue)
-			So(engine.config.MaxWorkers, ShouldEqual, 8)
-			So(engine.config.DataflowOrder, ShouldEqual, "insertion")
-			So(engine.skipVault, ShouldBeTrue)
-			So(engine.skipAws, ShouldBeTrue)
+			de := engine.(*DefaultEngine)
+			So(de.opts.EnableCache, ShouldBeFalse)
+			So(de.opts.CacheSize, ShouldEqual, 5000)
+			So(de.opts.EnableParallel, ShouldBeTrue)
+			So(de.opts.MaxConcurrency, ShouldEqual, 8)
+			So(de.opts.DataflowOrder, ShouldEqual, "insertion")
+			So(de.skipVault, ShouldBeTrue)
+			So(de.skipAws, ShouldBeTrue)
 		})
 
-		Convey("DefaultEngineConfig should return correct defaults", func() {
-			config := DefaultEngineConfig()
+		Convey("defaultEngineOpts should return correct defaults", func() {
+			opts := defaultEngineOpts()
 
-			So(config.EnableCaching, ShouldBeTrue)
-			So(config.CacheSize, ShouldEqual, 10000)
-			So(config.EnableParallel, ShouldBeFalse)
-			So(config.MaxWorkers, ShouldEqual, 4)
-			So(config.DataflowOrder, ShouldEqual, "alphabetical")
+			So(opts.EnableCache, ShouldBeTrue)
+			So(opts.CacheSize, ShouldEqual, 10000)
+			So(opts.EnableParallel, ShouldBeFalse)
+			So(opts.MaxConcurrency, ShouldEqual, 4)
+			So(opts.DataflowOrder, ShouldEqual, "alphabetical")
 		})
 	})
 }
@@ -452,20 +451,20 @@ func TestNewDefaultEngineFactories(t *testing.T) {
 			engine := NewDefaultEngine()
 
 			So(engine, ShouldNotBeNil)
-			So(engine.config.EnableCaching, ShouldBeTrue)
-			So(engine.config.CacheSize, ShouldEqual, 10000)
-			So(engine.config.EnableParallel, ShouldBeFalse)
+			So(engine.opts.EnableCache, ShouldBeTrue)
+			So(engine.opts.CacheSize, ShouldEqual, 10000)
+			So(engine.opts.EnableParallel, ShouldBeFalse)
 		})
 
-		Convey("DefaultEngineConfig should return default configuration", func() {
-			config := DefaultEngineConfig()
+		Convey("defaultEngineOpts should return default configuration", func() {
+			opts := defaultEngineOpts()
 
-			So(config.EnableCaching, ShouldBeTrue)
-			So(config.CacheSize, ShouldEqual, 10000)
-			So(config.EnableParallel, ShouldBeFalse)
-			So(config.MaxWorkers, ShouldEqual, 4)
-			So(config.SkipVault, ShouldBeFalse)
-			So(config.SkipAWS, ShouldBeFalse)
+			So(opts.EnableCache, ShouldBeTrue)
+			So(opts.CacheSize, ShouldEqual, 10000)
+			So(opts.EnableParallel, ShouldBeFalse)
+			So(opts.MaxConcurrency, ShouldEqual, 4)
+			So(opts.SkipVault, ShouldBeFalse)
+			So(opts.SkipAws, ShouldBeFalse)
 		})
 	})
 }
@@ -542,10 +541,9 @@ func TestEngineVaultServiceMethods(t *testing.T) {
 			So(engine.IsVaultSkipped(), ShouldBeFalse)
 
 			// Test with skip vault enabled
-			config := DefaultEngineConfig()
-			config.SkipVault = true
-			engine2 := NewDefaultEngineWithConfig(config)
-			So(engine2.IsVaultSkipped(), ShouldBeTrue)
+			engine2, err := NewEngine(WithSkipVault(true))
+			So(err, ShouldBeNil)
+			So(engine2.(*DefaultEngine).IsVaultSkipped(), ShouldBeTrue)
 		})
 	})
 }
@@ -590,10 +588,9 @@ func TestEngineAWSServiceMethods(t *testing.T) {
 			So(engine.IsAWSSkipped(), ShouldBeFalse)
 
 			// Test with skip AWS enabled
-			config := DefaultEngineConfig()
-			config.SkipAWS = true
-			engine2 := NewDefaultEngineWithConfig(config)
-			So(engine2.IsAWSSkipped(), ShouldBeTrue)
+			engine2, err := NewEngine(WithSkipAws(true))
+			So(err, ShouldBeNil)
+			So(engine2.(*DefaultEngine).IsAWSSkipped(), ShouldBeTrue)
 		})
 	})
 }
@@ -773,46 +770,45 @@ performance_test:
 func TestEngineConfigurationEdgeCases(t *testing.T) {
 	Convey("Engine Configuration Edge Cases", t, func() {
 		Convey("should handle extreme configuration values", func() {
-			config := EngineConfig{
-				CacheSize:     0,         // Minimum cache
-				MaxWorkers:    1,         // Minimum workers
-				DataflowOrder: "unknown", // Invalid order
-			}
-
-			engine := NewDefaultEngineWithConfig(config)
+			engine, err := NewEngine(
+				WithCache(false, 0),    // Minimum cache
+				WithMaxWorkers(1),      // Minimum workers
+				WithDataflowOrder("unknown"), // Invalid order
+			)
+			So(err, ShouldBeNil)
 			So(engine, ShouldNotBeNil)
-			So(engine.config.CacheSize, ShouldEqual, 0)
-			So(engine.config.MaxWorkers, ShouldEqual, 1)
+			de := engine.(*DefaultEngine)
+			So(de.opts.CacheSize, ShouldEqual, 0)
+			So(de.opts.MaxConcurrency, ShouldEqual, 1)
 		})
 
 		Convey("should handle maximum configuration values", func() {
-			config := EngineConfig{
-				CacheSize:  999999, // Large cache
-				MaxWorkers: 1000,   // Many workers
-			}
-
-			engine := NewDefaultEngineWithConfig(config)
+			engine, err := NewEngine(
+				WithCache(false, 999999), // Large cache
+				WithMaxWorkers(1000),     // Many workers
+			)
+			So(err, ShouldBeNil)
 			So(engine, ShouldNotBeNil)
-			So(engine.config.CacheSize, ShouldEqual, 999999)
-			So(engine.config.MaxWorkers, ShouldEqual, 1000)
+			de := engine.(*DefaultEngine)
+			So(de.opts.CacheSize, ShouldEqual, 999999)
+			So(de.opts.MaxConcurrency, ShouldEqual, 1000)
 		})
 
 		Convey("should handle empty configuration strings", func() {
-			config := EngineConfig{
-				VaultAddr:     "",
-				VaultToken:    "",
-				AWSRegion:     "",
-				AWSProfile:    "",
-				DataflowOrder: "",
-			}
-
-			engine := NewDefaultEngineWithConfig(config)
+			engine, err := NewEngine(
+				WithVaultConfig("", ""),
+				WithAWSRegion(""),
+				WithAWSProfile(""),
+				WithDataflowOrder(""),
+			)
+			So(err, ShouldBeNil)
 			So(engine, ShouldNotBeNil)
-			So(engine.config.VaultAddr, ShouldEqual, "")
-			So(engine.config.VaultToken, ShouldEqual, "")
-			So(engine.config.AWSRegion, ShouldEqual, "")
-			So(engine.config.AWSProfile, ShouldEqual, "")
-			So(engine.config.DataflowOrder, ShouldEqual, "")
+			de := engine.(*DefaultEngine)
+			So(de.opts.VaultAddress, ShouldEqual, "")
+			So(de.opts.VaultToken, ShouldEqual, "")
+			So(de.opts.AWSRegion, ShouldEqual, "")
+			So(de.opts.AWSProfile, ShouldEqual, "")
+			So(de.opts.DataflowOrder, ShouldEqual, "")
 		})
 	})
 }
@@ -962,18 +958,16 @@ func TestEngineInitialization(t *testing.T) {
 
 		Convey("initializeVault should handle configuration", func() {
 			// Test vault initialization by checking skip status
-			config := EngineConfig{SkipVault: true}
-			engine := NewDefaultEngineWithConfig(config)
-
-			So(engine.IsVaultSkipped(), ShouldBeTrue)
+			engine, err := NewEngine(WithSkipVault(true))
+			So(err, ShouldBeNil)
+			So(engine.(*DefaultEngine).IsVaultSkipped(), ShouldBeTrue)
 		})
 
 		Convey("initializeAWS should handle configuration", func() {
 			// Test AWS initialization by checking skip status
-			config := EngineConfig{SkipAWS: true}
-			engine := NewDefaultEngineWithConfig(config)
-
-			So(engine.IsAWSSkipped(), ShouldBeTrue)
+			engine, err := NewEngine(WithSkipAws(true))
+			So(err, ShouldBeNil)
+			So(engine.(*DefaultEngine).IsAWSSkipped(), ShouldBeTrue)
 		})
 	})
 }
@@ -1124,25 +1118,25 @@ func TestEngineConfiguration(t *testing.T) {
 	Convey("Engine Configuration", t, func() {
 		engine := NewDefaultEngine()
 
-		Convey("UpdateConfig should update all config fields", func() {
-			newConfig := EngineConfig{
-				VaultAddr:      "https://vault.example.com",
+		Convey("UpdateOptions should update all option fields", func() {
+			newOpts := EngineOptions{
+				VaultAddress:   "https://vault.example.com",
 				VaultToken:     "token123",
 				VaultSkipTLS:   true,
 				SkipVault:      true,
 				AWSRegion:      "us-west-2",
 				AWSProfile:     "test",
-				SkipAWS:        true,
-				EnableCaching:  false,
+				SkipAws:        true,
+				EnableCache:    false,
 				CacheSize:      5000,
 				EnableParallel: true,
-				MaxWorkers:     8,
+				MaxConcurrency: 8,
 				DataflowOrder:  "insertion",
 			}
 
-			engine.UpdateConfig(newConfig)
+			engine.UpdateOptions(newOpts)
 
-			So(engine.config, ShouldResemble, newConfig)
+			So(engine.opts, ShouldResemble, newOpts)
 			So(engine.skipVault, ShouldBeTrue)
 			So(engine.skipAws, ShouldBeTrue)
 		})
@@ -1175,13 +1169,13 @@ func TestCreateEngineFromOptions(t *testing.T) {
 
 			defaultEngine, ok := engine.(*DefaultEngine)
 			So(ok, ShouldBeTrue)
-			So(defaultEngine.config.VaultAddr, ShouldEqual, "https://vault.example.com")
-			So(defaultEngine.config.VaultToken, ShouldEqual, "token123")
-			So(defaultEngine.config.AWSRegion, ShouldEqual, "us-west-2")
-			So(defaultEngine.config.EnableCaching, ShouldBeTrue)
-			So(defaultEngine.config.CacheSize, ShouldEqual, 5000)
-			So(defaultEngine.config.MaxWorkers, ShouldEqual, 4)
-			So(defaultEngine.config.DataflowOrder, ShouldEqual, "insertion")
+			So(defaultEngine.opts.VaultAddress, ShouldEqual, "https://vault.example.com")
+			So(defaultEngine.opts.VaultToken, ShouldEqual, "token123")
+			So(defaultEngine.opts.AWSRegion, ShouldEqual, "us-west-2")
+			So(defaultEngine.opts.EnableCache, ShouldBeTrue)
+			So(defaultEngine.opts.CacheSize, ShouldEqual, 5000)
+			So(defaultEngine.opts.MaxConcurrency, ShouldEqual, 4)
+			So(defaultEngine.opts.DataflowOrder, ShouldEqual, "insertion")
 		})
 
 		Convey("should fail for negative concurrency", func() {

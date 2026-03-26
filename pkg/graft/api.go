@@ -245,6 +245,15 @@ type EngineOptions struct {
 	// YAMLCompat controls YAML 1.1 backward compatibility behavior (nil uses defaults)
 	YAMLCompat *YAMLCompat
 
+	// VaultSkipTLS disables TLS verification for Vault connections.
+	VaultSkipTLS bool
+
+	// AWSProfile sets the AWS credentials profile to use.
+	AWSProfile string
+
+	// MemoryConfig configures document memory tracking behavior.
+	MemoryConfig *MemoryConfig
+
 	// Skip flags for external service operators
 	SkipVault bool
 	SkipAws   bool
@@ -413,6 +422,34 @@ func WithMemoryPools(enabled bool) EngineOption {
 func WithYAMLCompat(compat *YAMLCompat) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.YAMLCompat = compat
+	}
+}
+
+// WithVaultSkipTLS disables TLS verification for Vault connections.
+func WithVaultSkipTLS(skip bool) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.VaultSkipTLS = skip
+	}
+}
+
+// WithAWSProfile sets the AWS credentials profile.
+func WithAWSProfile(profile string) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.AWSProfile = profile
+	}
+}
+
+// WithMemoryConfig sets the document memory tracking configuration.
+func WithMemoryConfig(cfg MemoryConfig) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.MemoryConfig = &cfg
+	}
+}
+
+// WithMaxWorkers sets the maximum number of worker goroutines (alias for WithConcurrency).
+func WithMaxWorkers(n int) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.MaxConcurrency = n
 	}
 }
 
