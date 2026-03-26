@@ -4,11 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	. "github.com/smartystreets/goconvey/convey"
 
+	awsbackend "github.com/fivetwenty-io/graft/internal/backends/aws"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
@@ -143,22 +141,22 @@ func TestAwsOperatorSetup(t *testing.T) {
 func TestAwsClientPoolThreadSafety(t *testing.T) {
 	Convey("AwsClientPool Thread Safety", t, func() {
 		Convey("Multiple cache operations should not race", func() {
-			pool := &AwsClientPool{
-				sessions:              make(map[string]*session.Session),
-				secretsManagerClients: make(map[string]secretsmanageriface.SecretsManagerAPI),
-				parameterStoreClients: make(map[string]ssmiface.SSMAPI),
-				configs:               make(map[string]*AwsTarget),
-				secretsCache:          make(map[string]map[string]string),
-				paramsCache:           make(map[string]map[string]string),
-			}
+			// DefaultPool is the global pool from internal/backends/aws
+			pool := awsbackend.DefaultPool
 
 			// Test that the pool is properly initialized with mutex protection
-			So(pool.sessions, ShouldNotBeNil)
-			So(pool.secretsManagerClients, ShouldNotBeNil)
-			So(pool.parameterStoreClients, ShouldNotBeNil)
-			So(pool.configs, ShouldNotBeNil)
-			So(pool.secretsCache, ShouldNotBeNil)
-			So(pool.paramsCache, ShouldNotBeNil)
+			So(pool, ShouldNotBeNil)
+
+			// Verify cache operations work
+			pool.SetSecretCache("test-target", "test-secret", "test-value")
+			cache := pool.GetSecretCache("test-target")
+			So(cache, ShouldNotBeNil)
+			So(cache["test-secret"], ShouldEqual, "test-value")
+
+			pool.SetParamCache("test-target", "test-param", "test-param-value")
+			paramCache := pool.GetParamCache("test-target")
+			So(paramCache, ShouldNotBeNil)
+			So(paramCache["test-param"], ShouldEqual, "test-param-value")
 		})
 	})
 }
