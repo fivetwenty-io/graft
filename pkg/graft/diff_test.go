@@ -8,10 +8,8 @@ import (
 	"testing"
 	"unicode"
 
-	// Use geofffranks forks to persist the fix in https://github.com/go-yaml/yaml/pull/133/commits
-	// Also https://github.com/go-yaml/yaml/pull/195
-	"github.com/geofffranks/simpleyaml"
 	. "github.com/smartystreets/goconvey/convey"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
@@ -20,13 +18,10 @@ func TestDiff(t *testing.T) {
 	// Disable ANSI colors for testing
 	ansi.Color(false)
 
-	YAML := func(s string) map[interface{}]interface{} {
-		y, err := simpleyaml.NewYaml([]byte(s))
+	YAML := func(s string) map[string]interface{} {
+		data := make(map[string]interface{})
+		err := yamlv3.Unmarshal([]byte(s), &data)
 		So(err, ShouldBeNil)
-
-		data, err := y.Map()
-		So(err, ShouldBeNil)
-
 		return data
 	}
 

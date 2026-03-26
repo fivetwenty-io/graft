@@ -13,7 +13,7 @@ import (
 //nolint:dupl // Benchmark test intentionally similar to BenchmarkDirectOperatorExecution for comparison
 func BenchmarkConcatOperatorMemory(b *testing.B) {
 	ev := &graft.Evaluator{
-		Tree: map[interface{}]interface{}{
+		Tree: map[string]interface{}{
 			"name":  "test",
 			"value": "data",
 		},
@@ -51,7 +51,7 @@ func BenchmarkConcatOperatorMemory(b *testing.B) {
 // BenchmarkJoinOperatorMemory benchmarks memory allocations in join operator.
 func BenchmarkJoinOperatorMemory(b *testing.B) {
 	ev := &graft.Evaluator{
-		Tree: map[interface{}]interface{}{
+		Tree: map[string]interface{}{
 			"items": []interface{}{"one", "two", "three", "four", "five"},
 		},
 		Here: func() *tree.Cursor {

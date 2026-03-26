@@ -11,23 +11,23 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 	Convey("Cherry-pick with complex dependency chains", t, func() {
 		Convey("Should evaluate transitive dependencies", func() {
 			// Create a document with complex dependency chains
-			doc := NewDocument(map[interface{}]interface{}{
-				"base": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"base": map[string]interface{}{
 					"url": "(( concat config.protocol \"://example.com\" ))",
 				},
-				"config": map[interface{}]interface{}{
+				"config": map[string]interface{}{
 					"protocol": "(( grab env.protocol || \"https\" ))",
 					"timeout":  30,
 				},
-				"env": map[interface{}]interface{}{
+				"env": map[string]interface{}{
 					"protocol": "https",
 					"debug":    false,
 				},
-				"api": map[interface{}]interface{}{
+				"api": map[string]interface{}{
 					"endpoint": "(( concat base.url \"/api/v1\" ))",
 					"auth_url": "(( concat base.url \"/auth\" ))",
 				},
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"error": "(( grab nonexistent.value ))", // Should not be evaluated
 				},
 			})
@@ -44,9 +44,9 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Check that operators were evaluated correctly
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			api, ok := data["api"].(map[interface{}]interface{})
+			api, ok := data["api"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(api["endpoint"], ShouldEqual, "https://example.com/api/v1")
 			So(api["auth_url"], ShouldEqual, "https://example.com/auth")
@@ -57,14 +57,14 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 
 		Convey("Should handle circular dependencies gracefully", func() {
 			// Create a document with potential circular refs
-			doc := NewDocument(map[interface{}]interface{}{
-				"a": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"a": map[string]interface{}{
 					"value": "(( grab b.value ))",
 				},
-				"b": map[interface{}]interface{}{
+				"b": map[string]interface{}{
 					"value": "(( grab c.value ))",
 				},
-				"c": map[interface{}]interface{}{
+				"c": map[string]interface{}{
 					"value": "final",
 					"ref":   "(( grab a.value ))", // Creates a cycle
 				},
@@ -82,36 +82,36 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Check result
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			a, ok := data["a"].(map[interface{}]interface{})
+			a, ok := data["a"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(a["value"], ShouldEqual, "final")
 		})
 
 		Convey("Should handle operators within arrays", func() {
-			doc := NewDocument(map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
 				"databases": []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "primary",
 						"host": "(( grab hosts.primary ))",
 						"port": "(( grab defaults.db_port ))",
 					},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "secondary",
 						"host": "(( grab hosts.secondary ))",
 						"port": "(( grab defaults.db_port ))",
 					},
 				},
-				"hosts": map[interface{}]interface{}{
+				"hosts": map[string]interface{}{
 					"primary":   "db1.example.com",
 					"secondary": "db2.example.com",
 				},
-				"defaults": map[interface{}]interface{}{
+				"defaults": map[string]interface{}{
 					"db_port":    5432,
 					"cache_port": 6379,
 				},
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"data": "(( grab missing ))",
 				},
 			})
@@ -128,18 +128,18 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Check that array operators were evaluated
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			databases, ok := data["databases"].([]interface{})
 			So(ok, ShouldBeTrue)
 			So(len(databases), ShouldEqual, 2)
 
-			primary, ok := databases[0].(map[interface{}]interface{})
+			primary, ok := databases[0].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(primary["host"], ShouldEqual, "db1.example.com")
 			So(primary["port"], ShouldEqual, 5432)
 
-			secondary, ok := databases[1].(map[interface{}]interface{})
+			secondary, ok := databases[1].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(secondary["host"], ShouldEqual, "db2.example.com")
 			So(secondary["port"], ShouldEqual, 5432)
@@ -149,28 +149,28 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 		})
 
 		Convey("Should handle deeply nested operator dependencies", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"level1": map[interface{}]interface{}{
-					"level2": map[interface{}]interface{}{
-						"level3": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"level1": map[string]interface{}{
+					"level2": map[string]interface{}{
+						"level3": map[string]interface{}{
 							"value": "(( grab level4.level5.level6.final ))",
 						},
 					},
 				},
-				"level4": map[interface{}]interface{}{
-					"level5": map[interface{}]interface{}{
-						"level6": map[interface{}]interface{}{
+				"level4": map[string]interface{}{
+					"level5": map[string]interface{}{
+						"level6": map[string]interface{}{
 							"final": "(( concat prefix.value suffix.value ))",
 						},
 					},
 				},
-				"prefix": map[interface{}]interface{}{
+				"prefix": map[string]interface{}{
 					"value": "start-",
 				},
-				"suffix": map[interface{}]interface{}{
+				"suffix": map[string]interface{}{
 					"value": "-end",
 				},
-				"unrelated": map[interface{}]interface{}{
+				"unrelated": map[string]interface{}{
 					"error": "(( grab does.not.exist ))",
 				},
 			})
@@ -187,13 +187,13 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Check deep evaluation
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			level1, ok := data["level1"].(map[interface{}]interface{})
+			level1, ok := data["level1"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			level2, ok := level1["level2"].(map[interface{}]interface{})
+			level2, ok := level1["level2"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			level3, ok := level2["level3"].(map[interface{}]interface{})
+			level3, ok := level2["level3"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(level3["value"], ShouldEqual, "start--end")
 
@@ -202,18 +202,18 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 		})
 
 		Convey("Should handle conditional operators", func() {
-			doc := NewDocument(map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
 				"environment": "production",
 				"is_prod":     true,
-				"features": map[interface{}]interface{}{
+				"features": map[string]interface{}{
 					"ssl":      "(( grab is_prod ))",
 					"debug":    false,
 					"replicas": "(( is_prod ? 3 : 1 ))",
 				},
-				"config": map[interface{}]interface{}{
+				"config": map[string]interface{}{
 					"url": "(( features.ssl ? \"https://api.example.com\" : \"http://api.example.com\" ))",
 				},
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"bad": "(( grab nowhere ))",
 				},
 			})
@@ -230,9 +230,9 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Check conditional evaluation
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			config, ok := data["config"].(map[interface{}]interface{})
+			config, ok := data["config"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(config["url"], ShouldEqual, "https://api.example.com")
 
@@ -241,33 +241,33 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 		})
 
 		Convey("Should handle operators with array paths", func() {
-			doc := NewDocument(map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
 				"services": []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "web",
 						"instances": []interface{}{
-							map[interface{}]interface{}{
+							map[string]interface{}{
 								"id":   "web-1",
 								"port": "(( grab defaults.web_port ))",
 							},
-							map[interface{}]interface{}{
+							map[string]interface{}{
 								"id":   "web-2",
 								"port": "(( grab services.0.instances.0.port ))", // Reference to sibling
 							},
 						},
 					},
 				},
-				"defaults": map[interface{}]interface{}{
+				"defaults": map[string]interface{}{
 					"web_port": 8080,
 					"api_port": 9090,
 				},
-				"monitoring": map[interface{}]interface{}{
+				"monitoring": map[string]interface{}{
 					"targets": []interface{}{
 						"(( grab services.0.instances.0.id ))",
 						"(( grab services.0.instances.1.id ))",
 					},
 				},
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"error": "(( grab fail ))",
 				},
 			})
@@ -284,9 +284,9 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Check array path resolution
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			monitoring, ok := data["monitoring"].(map[interface{}]interface{})
+			monitoring, ok := data["monitoring"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			targets, ok := monitoring["targets"].([]interface{})
 			So(ok, ShouldBeTrue)
@@ -303,25 +303,25 @@ func TestCherryPickWithComplexDependencies(t *testing.T) {
 func TestMultipleCherryPickPaths(t *testing.T) {
 	Convey("Cherry-pick with multiple paths", t, func() {
 		Convey("Should evaluate operators under multiple paths", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"database": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"database": map[string]interface{}{
 					"host": "(( grab defaults.db_host ))",
 					"port": "(( grab defaults.db_port ))",
 					"name": "myapp",
 				},
-				"cache": map[interface{}]interface{}{
+				"cache": map[string]interface{}{
 					"host": "(( grab defaults.cache_host ))",
 					"port": "(( grab defaults.cache_port ))",
 					"ttl":  3600,
 				},
-				"defaults": map[interface{}]interface{}{
+				"defaults": map[string]interface{}{
 					"db_host":    "localhost",
 					"db_port":    5432,
 					"cache_host": "redis.local",
 					"cache_port": 6379,
 					"unused":     "value",
 				},
-				"monitoring": map[interface{}]interface{}{
+				"monitoring": map[string]interface{}{
 					"enabled": true,
 					"url":     "(( grab invalid.path ))", // Should not be evaluated
 				},
@@ -339,16 +339,16 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Check that both paths are included and evaluated
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
-			database, ok := data["database"].(map[interface{}]interface{})
+			database, ok := data["database"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(database["host"], ShouldEqual, "localhost")
 			So(database["port"], ShouldEqual, 5432)
 			So(database["name"], ShouldEqual, "myapp")
 
-			cache, ok := data["cache"].(map[interface{}]interface{})
+			cache, ok := data["cache"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(cache["host"], ShouldEqual, "redis.local")
 			So(cache["port"], ShouldEqual, 6379)
@@ -360,22 +360,22 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 		})
 
 		Convey("Should handle overlapping dependencies", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"app1": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"app1": map[string]interface{}{
 					"url":     "(( concat shared.protocol \"://\" shared.domain \"/app1\" ))",
 					"timeout": "(( grab shared.timeout ))",
 				},
-				"app2": map[interface{}]interface{}{
+				"app2": map[string]interface{}{
 					"url":     "(( concat shared.protocol \"://\" shared.domain \"/app2\" ))",
 					"retries": "(( grab shared.retries ))",
 				},
-				"shared": map[interface{}]interface{}{
+				"shared": map[string]interface{}{
 					"protocol": "https",
 					"domain":   "example.com",
 					"timeout":  30,
 					"retries":  3,
 				},
-				"other": map[interface{}]interface{}{
+				"other": map[string]interface{}{
 					"data": "(( grab missing ))",
 				},
 			})
@@ -391,15 +391,15 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
-			app1, ok := data["app1"].(map[interface{}]interface{})
+			app1, ok := data["app1"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(app1["url"], ShouldEqual, "https://example.com/app1")
 			So(app1["timeout"], ShouldEqual, 30)
 
-			app2, ok := data["app2"].(map[interface{}]interface{})
+			app2, ok := data["app2"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(app2["url"], ShouldEqual, "https://example.com/app2")
 			So(app2["retries"], ShouldEqual, 3)
@@ -409,32 +409,32 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 		})
 
 		Convey("Should handle nested paths with multiple picks", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"services": map[interface{}]interface{}{
-					"web": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"services": map[string]interface{}{
+					"web": map[string]interface{}{
 						"port":     8080,
 						"replicas": "(( grab config.web_replicas ))",
 					},
-					"api": map[interface{}]interface{}{
+					"api": map[string]interface{}{
 						"port":     9090,
 						"replicas": "(( grab config.api_replicas ))",
 					},
-					"worker": map[interface{}]interface{}{
+					"worker": map[string]interface{}{
 						"replicas": "(( grab config.worker_replicas ))",
 					},
 				},
-				"config": map[interface{}]interface{}{
+				"config": map[string]interface{}{
 					"web_replicas":    3,
 					"api_replicas":    2,
 					"worker_replicas": 5,
 				},
-				"monitoring": map[interface{}]interface{}{
-					"dashboards": map[interface{}]interface{}{
+				"monitoring": map[string]interface{}{
+					"dashboards": map[string]interface{}{
 						"web": "(( grab services.web.port ))",
 						"api": "(( grab services.api.port ))",
 					},
 				},
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"error": "(( grab fail ))",
 				},
 			})
@@ -450,18 +450,18 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
 			// Check services structure
-			services, ok := data["services"].(map[interface{}]interface{})
+			services, ok := data["services"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			web, ok := services["web"].(map[interface{}]interface{})
+			web, ok := services["web"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(web["port"], ShouldEqual, 8080)
 			So(web["replicas"], ShouldEqual, 3)
 
-			api, ok := services["api"].(map[interface{}]interface{})
+			api, ok := services["api"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(api["port"], ShouldEqual, 9090)
 			So(api["replicas"], ShouldEqual, 2)
@@ -470,9 +470,9 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 			So(services["worker"], ShouldBeNil)
 
 			// Check monitoring structure
-			monitoring, ok := data["monitoring"].(map[interface{}]interface{})
+			monitoring, ok := data["monitoring"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			dashboards, ok := monitoring["dashboards"].(map[interface{}]interface{})
+			dashboards, ok := monitoring["dashboards"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(dashboards["web"], ShouldEqual, 8080)
 			So(dashboards["api"], ShouldEqual, 9090)
@@ -482,31 +482,31 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 		})
 
 		Convey("Should handle array paths in multiple picks", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"servers": map[interface{}]interface{}{
-					"web": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"servers": map[string]interface{}{
+					"web": map[string]interface{}{
 						"host": "(( concat hosts.prefix \"-web.example.com\" ))",
 						"port": 8080,
 					},
-					"api": map[interface{}]interface{}{
+					"api": map[string]interface{}{
 						"host": "(( concat hosts.prefix \"-api.example.com\" ))",
 						"port": 9090,
 					},
-					"db": map[interface{}]interface{}{
+					"db": map[string]interface{}{
 						"host": "(( concat hosts.prefix \"-db.example.com\" ))",
 						"port": 5432,
 					},
 				},
-				"hosts": map[interface{}]interface{}{
+				"hosts": map[string]interface{}{
 					"prefix": "prod",
 				},
-				"monitoring": map[interface{}]interface{}{
+				"monitoring": map[string]interface{}{
 					"targets": []interface{}{
 						"(( grab servers.web.host ))",
 						"(( grab servers.api.host ))",
 					},
 				},
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"data": "(( grab missing ))",
 				},
 			})
@@ -522,19 +522,19 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
 			// Check servers
-			servers, ok := data["servers"].(map[interface{}]interface{})
+			servers, ok := data["servers"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
-			web, ok := servers["web"].(map[interface{}]interface{})
+			web, ok := servers["web"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(web["host"], ShouldEqual, "prod-web.example.com")
 			So(web["port"], ShouldEqual, 8080)
 
-			api, ok := servers["api"].(map[interface{}]interface{})
+			api, ok := servers["api"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(api["host"], ShouldEqual, "prod-api.example.com")
 			So(api["port"], ShouldEqual, 9090)
@@ -543,7 +543,7 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 			So(servers["db"], ShouldBeNil)
 
 			// Check monitoring
-			monitoring, ok := data["monitoring"].(map[interface{}]interface{})
+			monitoring, ok := data["monitoring"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			targets, ok := monitoring["targets"].([]interface{})
 			So(ok, ShouldBeTrue)
@@ -556,11 +556,11 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 		})
 
 		Convey("Should handle empty cherry-pick list", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"data": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"data": map[string]interface{}{
 					"value": "(( grab source.value ))",
 				},
-				"source": map[interface{}]interface{}{
+				"source": map[string]interface{}{
 					"value": 42,
 				},
 			})
@@ -577,9 +577,9 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Everything should be evaluated as normal
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			dataMap, ok := data["data"].(map[interface{}]interface{})
+			dataMap, ok := data["data"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(dataMap["value"], ShouldEqual, 42)
 		})
@@ -589,18 +589,18 @@ func TestMultipleCherryPickPaths(t *testing.T) {
 func TestCherryPickWithPruneOperator(t *testing.T) {
 	Convey("Cherry-pick interaction with prune operator", t, func() {
 		Convey("Should handle prune operator within cherry-picked paths", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"database": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"database": map[string]interface{}{
 					"host":     "localhost",
 					"port":     5432,
 					"password": "(( prune ))",
 					"username": "admin",
 				},
-				"cache": map[interface{}]interface{}{
+				"cache": map[string]interface{}{
 					"host": "redis.local",
 					"ttl":  "(( prune ))",
 				},
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"secret": "(( prune ))",
 					"data":   "value",
 				},
@@ -618,17 +618,17 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Check that prune was applied within cherry-picked paths
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
-			database, ok := data["database"].(map[interface{}]interface{})
+			database, ok := data["database"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(database["host"], ShouldEqual, "localhost")
 			So(database["port"], ShouldEqual, 5432)
 			So(database["username"], ShouldEqual, "admin")
 			So(database["password"], ShouldBeNil) // Should be pruned
 
-			cache, ok := data["cache"].(map[interface{}]interface{})
+			cache, ok := data["cache"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(cache["host"], ShouldEqual, "redis.local")
 			So(cache["ttl"], ShouldBeNil) // Should be pruned
@@ -638,16 +638,16 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 		})
 
 		Convey("Should handle prune references to cherry-picked paths", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"config": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"config": map[string]interface{}{
 					"api_key": "(( grab secrets.api_key ))",
 					"url":     "https://api.example.com",
 				},
-				"secrets": map[interface{}]interface{}{
+				"secrets": map[string]interface{}{
 					"api_key": "secret123",
 					"unused":  "(( prune ))",
 				},
-				"metadata": map[interface{}]interface{}{
+				"metadata": map[string]interface{}{
 					"version":    "1.0",
 					"deprecated": "(( prune ))",
 				},
@@ -664,11 +664,11 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
 			// Config should be evaluated
-			config, ok := data["config"].(map[interface{}]interface{})
+			config, ok := data["config"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(config["api_key"], ShouldEqual, "secret123")
 			So(config["url"], ShouldEqual, "https://api.example.com")
@@ -681,18 +681,18 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 		})
 
 		Convey("Should apply both cherry-pick and explicit prune", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"services": map[interface{}]interface{}{
-					"web": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"services": map[string]interface{}{
+					"web": map[string]interface{}{
 						"port":  8080,
 						"debug": true,
 					},
-					"api": map[interface{}]interface{}{
+					"api": map[string]interface{}{
 						"port":  9090,
 						"debug": false,
 					},
 				},
-				"monitoring": map[interface{}]interface{}{
+				"monitoring": map[string]interface{}{
 					"enabled": true,
 					"endpoints": []interface{}{
 						"(( grab services.web.port ))",
@@ -713,24 +713,24 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
 			// Check services
-			services, ok := data["services"].(map[interface{}]interface{})
+			services, ok := data["services"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			web, ok := services["web"].(map[interface{}]interface{})
+			web, ok := services["web"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(web["port"], ShouldEqual, 8080)
 			So(web["debug"], ShouldBeNil) // Explicitly pruned
 
-			api, ok := services["api"].(map[interface{}]interface{})
+			api, ok := services["api"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(api["port"], ShouldEqual, 9090)
 			So(api["debug"], ShouldBeNil) // Explicitly pruned
 
 			// Check monitoring
-			monitoring, ok := data["monitoring"].(map[interface{}]interface{})
+			monitoring, ok := data["monitoring"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(monitoring["enabled"], ShouldEqual, true)
 			endpoints, ok := monitoring["endpoints"].([]interface{})
@@ -740,20 +740,20 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 		})
 
 		Convey("Should handle prune operator in arrays", func() {
-			doc := NewDocument(map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
 				"environments": []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name":    "dev",
 						"secrets": "(( prune ))",
 						"url":     "http://dev.example.com",
 					},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name":    "prod",
 						"secrets": "(( prune ))",
 						"url":     "https://prod.example.com",
 					},
 				},
-				"deployment": map[interface{}]interface{}{
+				"deployment": map[string]interface{}{
 					"target": "(( grab environments.1.name ))",
 				},
 			})
@@ -768,7 +768,7 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
 			// Check environments
@@ -776,40 +776,40 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 			So(ok, ShouldBeTrue)
 			So(len(environments), ShouldEqual, 2)
 
-			dev, ok := environments[0].(map[interface{}]interface{})
+			dev, ok := environments[0].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(dev["name"], ShouldEqual, "dev")
 			So(dev["url"], ShouldEqual, "http://dev.example.com")
 			So(dev["secrets"], ShouldBeNil) // Should be pruned
 
-			prod, ok := environments[1].(map[interface{}]interface{})
+			prod, ok := environments[1].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(prod["name"], ShouldEqual, "prod")
 			So(prod["url"], ShouldEqual, "https://prod.example.com")
 			So(prod["secrets"], ShouldBeNil) // Should be pruned
 
 			// Check deployment
-			deployment, ok := data["deployment"].(map[interface{}]interface{})
+			deployment, ok := data["deployment"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(deployment["target"], ShouldEqual, "prod")
 		})
 
 		Convey("Should handle conditional values with cherry-pick", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"feature_flags": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"feature_flags": map[string]interface{}{
 					"new_ui":     true,
 					"debug_mode": false,
 				},
-				"config": map[interface{}]interface{}{
+				"config": map[string]interface{}{
 					"ui_version": "(( feature_flags.new_ui ? \"v2\" : \"v1\" ))",
 					"log_level":  "(( feature_flags.debug_mode ? \"debug\" : \"info\" ))",
 					"api_url":    "https://api.example.com",
 				},
-				"admin": map[interface{}]interface{}{
+				"admin": map[string]interface{}{
 					"debug_panel": "(( prune ))",
 					"user":        "admin",
 				},
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"data": "(( grab missing ))",
 				},
 			})
@@ -825,11 +825,11 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
 			// Check config
-			config, ok := data["config"].(map[interface{}]interface{})
+			config, ok := data["config"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(config["ui_version"], ShouldEqual, "v2")
 			So(config["log_level"], ShouldEqual, "info")
@@ -845,20 +845,20 @@ func TestCherryPickWithPruneOperator(t *testing.T) {
 func TestCherryPickWithDeferOperator(t *testing.T) {
 	Convey("Cherry-pick with defer operator", t, func() {
 		Convey("Should handle defer operator within cherry-picked paths", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"templates": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"templates": map[string]interface{}{
 					"web_url": "(( defer concat \"https://\" domain.name \"/\" app.path ))",
 					"api_url": "(( defer concat \"https://api.\" domain.name ))",
 					"db_url":  "(( defer grab database.url || \"postgres://localhost\" ))",
 				},
-				"app": map[interface{}]interface{}{
+				"app": map[string]interface{}{
 					"path":    "myapp",
 					"version": "1.0",
 				},
-				"domain": map[interface{}]interface{}{
+				"domain": map[string]interface{}{
 					"name": "example.com",
 				},
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"error": "(( grab missing ))",
 				},
 			})
@@ -874,11 +874,11 @@ func TestCherryPickWithDeferOperator(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
 			// Check that defer expressions are preserved
-			templates, ok := data["templates"].(map[interface{}]interface{})
+			templates, ok := data["templates"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(templates["web_url"], ShouldEqual, "(( concat \"https://\" domain.name \"/\" app.path ))")
 			So(templates["api_url"], ShouldEqual, "(( concat \"https://api.\" domain.name ))")
@@ -889,17 +889,17 @@ func TestCherryPickWithDeferOperator(t *testing.T) {
 		})
 
 		Convey("Should handle defer with references outside cherry-pick scope", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"config": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"config": map[string]interface{}{
 					"url_template": "(( defer concat protocol \"://\" server.host \":\" server.port ))",
 					"timeout":      30,
 				},
-				"server": map[interface{}]interface{}{
+				"server": map[string]interface{}{
 					"host": "localhost",
 					"port": 8080,
 				},
 				"protocol": "https",
-				"other": map[interface{}]interface{}{
+				"other": map[string]interface{}{
 					"data": "(( grab fail ))",
 				},
 			})
@@ -915,11 +915,11 @@ func TestCherryPickWithDeferOperator(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
 			// Check config
-			config, ok := data["config"].(map[interface{}]interface{})
+			config, ok := data["config"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(config["url_template"], ShouldEqual, "(( concat protocol \"://\" server.host \":\" server.port ))")
 			So(config["timeout"], ShouldEqual, 30)
@@ -931,9 +931,9 @@ func TestCherryPickWithDeferOperator(t *testing.T) {
 		})
 
 		Convey("Should handle nested defer expressions", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"generators": map[interface{}]interface{}{
-					"urls": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"generators": map[string]interface{}{
+					"urls": map[string]interface{}{
 						"base": "(( defer concat scheme \"://\" host ))",
 						"full": "(( defer concat generators.urls.base \"/\" path ))",
 					},
@@ -941,7 +941,7 @@ func TestCherryPickWithDeferOperator(t *testing.T) {
 				"scheme": "https",
 				"host":   "api.example.com",
 				"path":   "v1/users",
-				"unused": map[interface{}]interface{}{
+				"unused": map[string]interface{}{
 					"fail": "(( grab missing.value ))",
 				},
 			})
@@ -957,13 +957,13 @@ func TestCherryPickWithDeferOperator(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 
 			// Check generators structure
-			generators, ok := data["generators"].(map[interface{}]interface{})
+			generators, ok := data["generators"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			urls, ok := generators["urls"].(map[interface{}]interface{})
+			urls, ok := generators["urls"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(urls["base"], ShouldEqual, "(( concat scheme \"://\" host ))")
 			So(urls["full"], ShouldEqual, "(( concat generators.urls.base \"/\" path ))")

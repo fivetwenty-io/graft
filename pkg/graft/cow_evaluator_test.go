@@ -12,8 +12,8 @@ import (
 
 func TestCOWEvaluator(t *testing.T) {
 	Convey("COWEvaluator operations", t, func() {
-		data := map[interface{}]interface{}{
-			"meta": map[interface{}]interface{}{
+		data := map[string]interface{}{
+			"meta": map[string]interface{}{
 				"name":  "test",
 				"value": 42,
 			},
@@ -73,8 +73,8 @@ func TestCOWEvaluator(t *testing.T) {
 
 func TestEnhancedMigrationHelper(t *testing.T) {
 	Convey("EnhancedMigrationHelper operations", t, func() {
-		originalData := map[interface{}]interface{}{
-			"meta": map[interface{}]interface{}{
+		originalData := map[string]interface{}{
+			"meta": map[string]interface{}{
 				"name": "original",
 			},
 		}
@@ -125,7 +125,7 @@ func TestEnhancedMigrationHelper(t *testing.T) {
 			So(traditionalEv, ShouldNotBeNil)
 
 			// Modify traditional evaluator
-			meta, ok := traditionalEv.Tree["meta"].(map[interface{}]interface{})
+			meta, ok := traditionalEv.Tree["meta"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			meta["modified"] = true
 
@@ -147,8 +147,8 @@ func TestCOWEvaluatorConcurrency(t *testing.T) {
 	}
 
 	Convey("COWEvaluator concurrent operations", t, func() {
-		data := map[interface{}]interface{}{
-			"counters": map[interface{}]interface{}{},
+		data := map[string]interface{}{
+			"counters": map[string]interface{}{},
 		}
 
 		evaluator := NewCOWEvaluator(data)
@@ -269,7 +269,7 @@ func TestCOWTreeFactory(t *testing.T) {
 		factory := NewCOWTreeFactory()
 
 		Convey("Create from data", func() {
-			data := map[interface{}]interface{}{
+			data := map[string]interface{}{
 				"test": "value",
 			}
 
@@ -347,7 +347,7 @@ func TestCOWTreeComparator(t *testing.T) {
 		comparator := NewCOWTreeComparator()
 
 		Convey("Compare trees", func() {
-			data := map[interface{}]interface{}{
+			data := map[string]interface{}{
 				"test": "value",
 			}
 
@@ -372,12 +372,12 @@ func TestCOWTreeComparator(t *testing.T) {
 
 // Benchmark COW evaluator operations.
 func BenchmarkCOWEvaluator(b *testing.B) {
-	data := map[interface{}]interface{}{
-		"data": map[interface{}]interface{}{},
+	data := map[string]interface{}{
+		"data": map[string]interface{}{},
 	}
 
 	// Populate with test data
-	dataMap, _ := data["data"].(map[interface{}]interface{})
+	dataMap, _ := data["data"].(map[string]interface{})
 	for i := 0; i < 1000; i++ {
 		dataMap[fmt.Sprintf("key%d", i)] = fmt.Sprintf("value%d", i)
 	}

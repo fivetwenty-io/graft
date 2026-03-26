@@ -859,12 +859,6 @@ func ToMap(v interface{}) (map[string]interface{}, error) {
 	switch val := v.(type) {
 	case map[string]interface{}:
 		return val, nil
-	case map[interface{}]interface{}:
-		result := make(map[string]interface{})
-		for k, v := range val {
-			result[ToString(k)] = v
-		}
-		return result, nil
 	default:
 		// Use reflection for other map types
 		rv := reflect.ValueOf(v)
@@ -897,7 +891,7 @@ func TypeOf(v interface{}) string {
 		return "float"
 	case bool:
 		return valueTypeBool
-	case map[string]interface{}, map[interface{}]interface{}:
+	case map[string]interface{}:
 		return valueTypeMap
 	case []interface{}, []string, []int, []float64, []bool:
 		return "array"
@@ -970,8 +964,6 @@ func IsEmpty(v interface{}) bool {
 	case []int:
 		return len(val) == 0
 	case map[string]interface{}:
-		return len(val) == 0
-	case map[interface{}]interface{}:
 		return len(val) == 0
 	default:
 		rv := reflect.ValueOf(v)
@@ -1258,13 +1250,6 @@ func DeepCopy(v interface{}) interface{} {
 	switch val := v.(type) {
 	case map[string]interface{}:
 		result := make(map[string]interface{}, len(val))
-		for k, v := range val {
-			result[k] = DeepCopy(v)
-		}
-		return result
-
-	case map[interface{}]interface{}:
-		result := make(map[interface{}]interface{}, len(val))
 		for k, v := range val {
 			result[k] = DeepCopy(v)
 		}

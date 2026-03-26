@@ -38,19 +38,19 @@ users:
 			So(len(users), ShouldEqual, 3) // alice (updated), bob, charlie
 
 			// Verify alice was updated
-			alice, ok := users[0].(map[interface{}]interface{})
+			alice, ok := users[0].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(alice["name"], ShouldEqual, "alice")
 			So(alice["role"], ShouldEqual, "superadmin")
 
 			// Verify bob still exists
-			bob, ok := users[1].(map[interface{}]interface{})
+			bob, ok := users[1].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(bob["name"], ShouldEqual, "bob")
 			So(bob["role"], ShouldEqual, "user")
 
 			// Verify charlie was added
-			charlie, ok := users[2].(map[interface{}]interface{})
+			charlie, ok := users[2].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(charlie["name"], ShouldEqual, "charlie")
 			So(charlie["role"], ShouldEqual, "guest")
@@ -186,7 +186,7 @@ mixed:
 			mixed, _ := result.GetSlice("mixed")
 			So(len(mixed), ShouldEqual, 2) // Replaced, not merged
 
-			first, ok := mixed[0].(map[interface{}]interface{})
+			first, ok := mixed[0].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(first["name"], ShouldEqual, "new")
 			So(first["value"], ShouldEqual, 100)

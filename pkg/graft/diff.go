@@ -64,7 +64,7 @@ func keyed(l []interface{}) string {
 KEYSEARCH:
 	for _, k := range []string{"name", "id", "key"} {
 		for _, v := range l {
-			o, ok := v.(map[interface{}]interface{})
+			o, ok := v.(map[string]interface{})
 			if !ok {
 				continue KEYSEARCH
 			}
@@ -79,22 +79,23 @@ KEYSEARCH:
 	return ""
 }
 
-func mapify(l []interface{}, key string) map[interface{}]interface{} {
-	m := make(map[interface{}]interface{})
+func mapify(l []interface{}, key string) map[string]interface{} {
+	m := make(map[string]interface{})
 
 	for _, v := range l {
 		if typeof(v) != Map {
 			return nil
 		}
-		o, ok := v.(map[interface{}]interface{})
+		o, ok := v.(map[string]interface{})
 		if !ok {
 			return nil
 		}
-		k, ok := o[key]
+		kv, ok := o[key]
 		if !ok {
 			return nil
 		}
-		m[k] = v
+		ks := fmt.Sprintf("%v", kv)
+		m[ks] = v
 	}
 
 	return m
@@ -117,7 +118,7 @@ func (t Type) String() string {
 
 func typeof(x interface{}) Type {
 	switch v := x.(type) {
-	case map[interface{}]interface{}:
+	case map[string]interface{}:
 		return Map
 	case []interface{}:
 		if keyed(v) != "" {
@@ -312,8 +313,8 @@ func Diff(a, b interface{}) (Diffable, error) {
 	case Scalar:
 		return DiffScalar{Old: yamlmarshal(a), New: yamlmarshal(b)}, nil
 	case Map:
-		aMap, aOk := a.(map[interface{}]interface{})
-		bMap, bOk := b.(map[interface{}]interface{})
+		aMap, aOk := a.(map[string]interface{})
+		bMap, bOk := b.(map[string]interface{})
 		if !aOk || !bOk {
 			return DiffScalar{}, fmt.Errorf("expected map types")
 		}
@@ -338,7 +339,7 @@ func Diff(a, b interface{}) (Diffable, error) {
 }
 
 // diffMaps computes the difference between two maps.
-func diffMaps(ma, mb map[interface{}]interface{}) (DiffMap, error) {
+func diffMaps(ma, mb map[string]interface{}) (DiffMap, error) {
 	x := DiffMap{
 		Removed: make(map[string]Diffable),
 		Added:   make(map[string]Diffable),

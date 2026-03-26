@@ -12,8 +12,8 @@ func TestIsUnderPath(t *testing.T) {
 	Convey("isUnderPath() path matching", t, func() {
 		Convey("Should match exact paths", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
-					"params": map[interface{}]interface{}{
+				Tree: map[string]interface{}{
+					"params": map[string]interface{}{
 						"username": "admin",
 					},
 				},
@@ -26,7 +26,7 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should not match unrelated paths", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{},
+				Tree: map[string]interface{}{},
 			}
 
 			So(ev.isUnderPath("meta", "params"), ShouldBeFalse)
@@ -36,9 +36,9 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should handle nested paths correctly", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
-					"meta": map[interface{}]interface{}{
-						"environment": map[interface{}]interface{}{
+				Tree: map[string]interface{}{
+					"meta": map[string]interface{}{
+						"environment": map[string]interface{}{
 							"name": "prod",
 						},
 					},
@@ -52,10 +52,10 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should handle numeric array indices", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
+				Tree: map[string]interface{}{
 					"instances": []interface{}{
-						map[interface{}]interface{}{"name": "web", "port": 8080},
-						map[interface{}]interface{}{"name": "api", "port": 9090},
+						map[string]interface{}{"name": "web", "port": 8080},
+						map[string]interface{}{"name": "api", "port": 9090},
 					},
 				},
 			}
@@ -68,10 +68,10 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should handle named array entries", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
+				Tree: map[string]interface{}{
 					"jobs": []interface{}{
-						map[interface{}]interface{}{"name": "web-server", "instances": 3},
-						map[interface{}]interface{}{"name": "api-server", "instances": 2},
+						map[string]interface{}{"name": "web-server", "instances": 3},
+						map[string]interface{}{"name": "api-server", "instances": 2},
 					},
 				},
 			}
@@ -89,7 +89,7 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should handle invalid paths gracefully", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{},
+				Tree: map[string]interface{}{},
 			}
 
 			// Invalid path syntax should return false
@@ -100,13 +100,13 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should handle mixed path types", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
+				Tree: map[string]interface{}{
 					"networks": []interface{}{
-						map[interface{}]interface{}{
+						map[string]interface{}{
 							"name": "default",
 							"subnets": []interface{}{
-								map[interface{}]interface{}{"range": "10.0.0.0/24"},
-								map[interface{}]interface{}{"range": "10.0.1.0/24"},
+								map[string]interface{}{"range": "10.0.0.0/24"},
+								map[string]interface{}{"range": "10.0.1.0/24"},
 							},
 						},
 					},
@@ -121,9 +121,9 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should handle edge cases", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
-					"a": map[interface{}]interface{}{
-						"b": map[interface{}]interface{}{
+				Tree: map[string]interface{}{
+					"a": map[string]interface{}{
+						"b": map[string]interface{}{
 							"c": "value",
 						},
 					},
@@ -136,8 +136,8 @@ func TestIsUnderPath(t *testing.T) {
 			So(ev.isUnderPath("a.b.c", "a"), ShouldBeTrue)
 
 			// Path with numbers as keys (not indices)
-			ev.Tree = map[interface{}]interface{}{
-				"123": map[interface{}]interface{}{
+			ev.Tree = map[string]interface{}{
+				"123": map[string]interface{}{
 					"456": "value",
 				},
 			}
@@ -146,16 +146,16 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should handle deeply nested structures", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
-					"level1": map[interface{}]interface{}{
+				Tree: map[string]interface{}{
+					"level1": map[string]interface{}{
 						"level2": []interface{}{
-							map[interface{}]interface{}{
+							map[string]interface{}{
 								"name": "first",
-								"level3": map[interface{}]interface{}{
+								"level3": map[string]interface{}{
 									"level4": []interface{}{
-										map[interface{}]interface{}{
+										map[string]interface{}{
 											"id": "item1",
-											"data": map[interface{}]interface{}{
+											"data": map[string]interface{}{
 												"value": 100,
 											},
 										},
@@ -178,17 +178,17 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should handle complex real-world structures", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
+				Tree: map[string]interface{}{
 					"instance_groups": []interface{}{
-						map[interface{}]interface{}{
+						map[string]interface{}{
 							"name": "web",
 							"azs":  []interface{}{"z1", "z2"},
 							"jobs": []interface{}{
-								map[interface{}]interface{}{
+								map[string]interface{}{
 									"name": "nginx",
-									"properties": map[interface{}]interface{}{
+									"properties": map[string]interface{}{
 										"port": 80,
-										"ssl": map[interface{}]interface{}{
+										"ssl": map[string]interface{}{
 											"enabled": true,
 											"cert":    "(( vault secret/certs:cert ))",
 										},
@@ -196,13 +196,13 @@ func TestIsUnderPath(t *testing.T) {
 								},
 							},
 						},
-						map[interface{}]interface{}{
+						map[string]interface{}{
 							"name": "database",
 							"azs":  []interface{}{"z1"},
 							"jobs": []interface{}{
-								map[interface{}]interface{}{
+								map[string]interface{}{
 									"name": "postgres",
-									"properties": map[interface{}]interface{}{
+									"properties": map[string]interface{}{
 										"port": 5432,
 									},
 								},
@@ -226,15 +226,15 @@ func TestIsUnderPath(t *testing.T) {
 
 		Convey("Should handle arrays within arrays", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
+				Tree: map[string]interface{}{
 					"matrix": []interface{}{
 						[]interface{}{
-							map[interface{}]interface{}{"value": 1},
-							map[interface{}]interface{}{"value": 2},
+							map[string]interface{}{"value": 1},
+							map[string]interface{}{"value": 2},
 						},
 						[]interface{}{
-							map[interface{}]interface{}{"value": 3},
-							map[interface{}]interface{}{"value": 4},
+							map[string]interface{}{"value": 3},
+							map[string]interface{}{"value": 4},
 						},
 					},
 				},
@@ -252,7 +252,7 @@ func TestSegmentsMatchWithContext(t *testing.T) {
 	Convey("segmentsMatchWithContext() segment matching", t, func() {
 		Convey("Should match identical segments", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{},
+				Tree: map[string]interface{}{},
 			}
 			cursor := &tree.Cursor{}
 
@@ -263,7 +263,7 @@ func TestSegmentsMatchWithContext(t *testing.T) {
 
 		Convey("Should match numeric indices correctly", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{},
+				Tree: map[string]interface{}{},
 			}
 			cursor := &tree.Cursor{}
 
@@ -275,10 +275,10 @@ func TestSegmentsMatchWithContext(t *testing.T) {
 
 		Convey("Should match named entries with numeric indices", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
+				Tree: map[string]interface{}{
 					"jobs": []interface{}{
-						map[interface{}]interface{}{"name": "web"},
-						map[interface{}]interface{}{"name": "api"},
+						map[string]interface{}{"name": "web"},
+						map[string]interface{}{"name": "api"},
 					},
 				},
 			}
@@ -300,10 +300,10 @@ func TestSegmentsMatchWithContext(t *testing.T) {
 
 		Convey("Should handle arrays with id field", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
+				Tree: map[string]interface{}{
 					"resources": []interface{}{
-						map[interface{}]interface{}{"id": "db-1", "type": "database"},
-						map[interface{}]interface{}{"id": "cache-1", "type": "redis"},
+						map[string]interface{}{"id": "db-1", "type": "database"},
+						map[string]interface{}{"id": "cache-1", "type": "redis"},
 					},
 				},
 			}
@@ -318,8 +318,8 @@ func TestSegmentsMatchWithContext(t *testing.T) {
 
 		Convey("Should handle non-array contexts", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
-					"config": map[interface{}]interface{}{
+				Tree: map[string]interface{}{
+					"config": map[string]interface{}{
 						"port": 8080,
 					},
 				},
@@ -336,7 +336,7 @@ func TestSegmentsMatchWithContext(t *testing.T) {
 
 		Convey("Should handle empty cursor", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{},
+				Tree: map[string]interface{}{},
 			}
 			cursor := &tree.Cursor{}
 
@@ -347,9 +347,9 @@ func TestSegmentsMatchWithContext(t *testing.T) {
 
 		Convey("Should handle missing name fields", func() {
 			ev := &Evaluator{
-				Tree: map[interface{}]interface{}{
+				Tree: map[string]interface{}{
 					"items": []interface{}{
-						map[interface{}]interface{}{"value": 100}, // No name field
+						map[string]interface{}{"value": 100}, // No name field
 						"simple-string", // Not a map
 					},
 				},

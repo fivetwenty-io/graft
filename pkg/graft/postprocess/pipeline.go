@@ -373,20 +373,6 @@ func (p *PruneProcessor) prune(v interface{}) interface{} {
 		}
 		return result
 
-	case map[interface{}]interface{}:
-		result := make(map[string]interface{})
-		for k, v := range val {
-			key := fmt.Sprintf("%v", k)
-			if p.isPruned(v) || isPruneMarkerType(v) {
-				continue
-			}
-			pruned := p.prune(v)
-			if pruned != nil || (!p.isPruned(v) && !isPruneMarkerType(v)) {
-				result[key] = pruned
-			}
-		}
-		return result
-
 	case []interface{}:
 		result := make([]interface{}, 0, len(val))
 		for _, elem := range val {
@@ -489,35 +475,6 @@ func (p *InjectProcessor) processInject(v interface{}) interface{} {
 
 		return result
 
-	case map[interface{}]interface{}:
-		result := make(map[string]interface{})
-		for k, v := range val {
-			key := fmt.Sprintf("%v", k)
-			processed := p.processInject(v)
-
-			// Check for InjectMarker
-			if source := getInjectMarkerSource(v); source != nil {
-				if src, ok := source.(map[string]interface{}); ok {
-					for sk, sv := range src {
-						procSv := p.processInject(sv)
-						result[sk] = procSv
-					}
-				}
-				continue
-			}
-
-			if strings.HasPrefix(key, "<<") {
-				if injectMap, ok := processed.(map[string]interface{}); ok {
-					for ik, iv := range injectMap {
-						result[ik] = iv
-					}
-				}
-			} else {
-				result[key] = processed
-			}
-		}
-		return result
-
 	case []interface{}:
 		result := make([]interface{}, len(val))
 		for i, elem := range val {
@@ -602,18 +559,6 @@ func (p *KeySorter) sortKeys(v interface{}) interface{} {
 			return &SortedMap{Data: result}
 		}
 		return val
-
-	case map[interface{}]interface{}:
-		result := make(map[string]interface{})
-		for k, v := range val {
-			key := fmt.Sprintf("%v", k)
-			if p.Recursive {
-				result[key] = p.sortKeys(v)
-			} else {
-				result[key] = v
-			}
-		}
-		return &SortedMap{Data: result}
 
 	case []interface{}:
 		result := make([]interface{}, len(val))
@@ -747,13 +692,6 @@ func getPath(doc interface{}, path string) interface{} {
 	for _, part := range parts {
 		switch val := current.(type) {
 		case map[string]interface{}:
-			v, ok := val[part]
-			if !ok {
-				return nil
-			}
-			current = v
-
-		case map[interface{}]interface{}:
 			v, ok := val[part]
 			if !ok {
 				return nil
@@ -899,13 +837,6 @@ func deepCopy(v interface{}) interface{} {
 		result := make(map[string]interface{})
 		for k, v := range val {
 			result[k] = deepCopy(v)
-		}
-		return result
-
-	case map[interface{}]interface{}:
-		result := make(map[string]interface{})
-		for k, v := range val {
-			result[fmt.Sprintf("%v", k)] = deepCopy(v)
 		}
 		return result
 
@@ -1084,16 +1015,9 @@ func Unflatten(flat map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-// NormalizeMapKeys converts map[interface{}]interface{} to map[string]interface{}.
+// NormalizeMapKeys recursively normalizes map keys (no-op for map[string]interface{}).
 func NormalizeMapKeys(v interface{}) interface{} {
 	switch val := v.(type) {
-	case map[interface{}]interface{}:
-		result := make(map[string]interface{})
-		for k, v := range val {
-			result[fmt.Sprintf("%v", k)] = NormalizeMapKeys(v)
-		}
-		return result
-
 	case map[string]interface{}:
 		result := make(map[string]interface{})
 		for k, v := range val {

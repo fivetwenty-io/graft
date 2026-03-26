@@ -115,7 +115,7 @@ func main() {
 	if op, exists := graft.UnifiedRegistry.GetImplementation("custom"); exists {
 		// Create a simple evaluator context
 		ev := &graft.Evaluator{
-			Tree: map[interface{}]interface{}{},
+			Tree: map[string]interface{}{},
 		}
 
 		// Create arguments

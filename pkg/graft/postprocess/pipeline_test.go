@@ -1229,10 +1229,10 @@ func TestUnflatten(t *testing.T) {
 }
 
 func TestNormalizeMapKeys(t *testing.T) {
-	doc := map[interface{}]interface{}{
+	doc := map[string]interface{}{
 		"string_key": "value1",
-		123:          "value2",
-		true:         "value3",
+		"123":        "value2",
+		"true":       "value3",
 	}
 
 	normalized := NormalizeMapKeys(doc)
@@ -1253,8 +1253,8 @@ func TestNormalizeMapKeys(t *testing.T) {
 }
 
 func TestNormalizeMapKeys_Nested(t *testing.T) {
-	doc := map[interface{}]interface{}{
-		"outer": map[interface{}]interface{}{
+	doc := map[string]interface{}{
+		"outer": map[string]interface{}{
 			"inner": testStrValue,
 		},
 	}
@@ -1276,7 +1276,7 @@ func TestNormalizeMapKeys_Nested(t *testing.T) {
 
 func TestNormalizeMapKeys_Array(t *testing.T) {
 	doc := []interface{}{
-		map[interface{}]interface{}{
+		map[string]interface{}{
 			"key": "value",
 		},
 	}
@@ -1348,7 +1348,7 @@ func TestGetInjectMarkerSource(t *testing.T) {
 func TestPruneProcessor_MapInterfaceInterface(t *testing.T) {
 	proc := NewPruneProcessor()
 
-	doc := map[interface{}]interface{}{
+	doc := map[string]interface{}{
 		"keep":   1,
 		"remove": "(( prune ))",
 	}
@@ -1374,11 +1374,11 @@ func TestPruneProcessor_MapInterfaceInterface(t *testing.T) {
 func TestInjectProcessor_MapInterfaceInterface(t *testing.T) {
 	proc := NewInjectProcessor()
 
-	shared := map[interface{}]interface{}{
+	shared := map[string]interface{}{
 		"host": "localhost",
 	}
 
-	doc := map[interface{}]interface{}{
+	doc := map[string]interface{}{
 		"<<":   shared,
 		"name": "myapp",
 	}
@@ -1432,7 +1432,7 @@ func TestInjectProcessor_Array(t *testing.T) {
 func TestKeySorter_MapInterfaceInterface(t *testing.T) {
 	proc := NewKeySorter(true)
 
-	doc := map[interface{}]interface{}{
+	doc := map[string]interface{}{
 		"z": 1,
 		"a": 2,
 	}

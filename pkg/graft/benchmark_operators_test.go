@@ -524,7 +524,7 @@ config:
 func BenchmarkDirectOperatorExecution(b *testing.B) {
 	b.Run("ConcatOperator_Direct", func(b *testing.B) {
 		ev := &graft.Evaluator{
-			Tree: map[interface{}]interface{}{
+			Tree: map[string]interface{}{
 				"name":  "test",
 				"value": "data",
 			},
@@ -560,8 +560,8 @@ func BenchmarkDirectOperatorExecution(b *testing.B) {
 
 	b.Run("GrabOperator_Direct", func(b *testing.B) {
 		ev := &graft.Evaluator{
-			Tree: map[interface{}]interface{}{
-				"meta": map[interface{}]interface{}{
+			Tree: map[string]interface{}{
+				"meta": map[string]interface{}{
 					"app":     "myapp",
 					"version": "1.0",
 				},
@@ -590,13 +590,13 @@ func BenchmarkDirectOperatorExecution(b *testing.B) {
 	})
 
 	b.Run("KeysOperator_Direct", func(b *testing.B) {
-		dataMap := make(map[interface{}]interface{})
+		dataMap := make(map[string]interface{})
 		for i := 0; i < 50; i++ {
 			dataMap[fmt.Sprintf("key%d", i)] = fmt.Sprintf("value%d", i)
 		}
 
 		ev := &graft.Evaluator{
-			Tree: map[interface{}]interface{}{
+			Tree: map[string]interface{}{
 				"data": dataMap,
 			},
 			Here: func() *tree.Cursor {
@@ -629,7 +629,7 @@ func BenchmarkDirectOperatorExecution(b *testing.B) {
 		}
 
 		ev := &graft.Evaluator{
-			Tree: map[interface{}]interface{}{
+			Tree: map[string]interface{}{
 				"items": items,
 			},
 			Here: func() *tree.Cursor {
@@ -686,9 +686,9 @@ func BenchmarkWithMemoryPools(b *testing.B) {
 	})
 
 	b.Run("MapDeepCopy", func(b *testing.B) {
-		src := make(map[interface{}]interface{})
+		src := make(map[string]interface{})
 		for i := 0; i < 100; i++ {
-			src[fmt.Sprintf("key%d", i)] = map[interface{}]interface{}{
+			src[fmt.Sprintf("key%d", i)] = map[string]interface{}{
 				"nested": fmt.Sprintf("value%d", i),
 			}
 		}
@@ -855,8 +855,8 @@ func BenchmarkOperatorScaling(b *testing.B) {
 func BenchmarkDataFlow(b *testing.B) {
 	b.Run("SimpleDataFlow", func(b *testing.B) {
 		ev := &graft.Evaluator{
-			Tree: map[interface{}]interface{}{
-				"meta": map[interface{}]interface{}{
+			Tree: map[string]interface{}{
+				"meta": map[string]interface{}{
 					"value": "test",
 				},
 				"result": "(( grab meta.value ))",
@@ -872,8 +872,8 @@ func BenchmarkDataFlow(b *testing.B) {
 	})
 
 	b.Run("ComplexDataFlow", func(b *testing.B) {
-		evalTree := make(map[interface{}]interface{})
-		evalTree["meta"] = map[interface{}]interface{}{
+		evalTree := make(map[string]interface{})
+		evalTree["meta"] = map[string]interface{}{
 			"base": "app",
 		}
 
@@ -896,7 +896,7 @@ func BenchmarkDataFlow(b *testing.B) {
 	})
 
 	b.Run("DeepDependencyChain", func(b *testing.B) {
-		evalTree := make(map[interface{}]interface{})
+		evalTree := make(map[string]interface{})
 		evalTree["value_0"] = "base"
 
 		for i := 1; i < 50; i++ {

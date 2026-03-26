@@ -37,13 +37,13 @@ func BenchmarkCurrentEvaluatorThreadSafety(b *testing.B) {
 					// Simulate mixed read/write workload
 					if fastrand()%100 < int(scenario.readRatio*100) {
 						// Read operation
-						if meta, ok := data["meta"].(map[interface{}]interface{}); ok {
+						if meta, ok := data["meta"].(map[string]interface{}); ok {
 							_ = meta[fmt.Sprintf("key%d", fastrand()%scenario.treeSize)]
 						}
 					} else {
 						// Write operation
 						key := fmt.Sprintf("key%d", fastrand()%scenario.treeSize)
-						if meta, ok := data["meta"].(map[interface{}]interface{}); ok {
+						if meta, ok := data["meta"].(map[string]interface{}); ok {
 							meta[key] = fmt.Sprintf("value-%d", fastrand())
 						}
 					}
@@ -185,7 +185,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 				go func(id int) {
 					defer wg.Done()
 					for j := 0; j < 1000; j++ {
-						data[fmt.Sprintf("worker%d", id)] = map[interface{}]interface{}{
+						data[fmt.Sprintf("worker%d", id)] = map[string]interface{}{
 							fmt.Sprintf("key%d", j): fmt.Sprintf("value%d", j),
 						}
 					}
@@ -199,10 +199,10 @@ func BenchmarkMemoryUsage(b *testing.B) {
 
 // Helper functions
 
-func generateTestTree(size int) map[interface{}]interface{} {
-	data := make(map[interface{}]interface{})
-	data["meta"] = make(map[interface{}]interface{})
-	meta, ok := data["meta"].(map[interface{}]interface{})
+func generateTestTree(size int) map[string]interface{} {
+	data := make(map[string]interface{})
+	data["meta"] = make(map[string]interface{})
+	meta, ok := data["meta"].(map[string]interface{})
 	if !ok {
 		// This should never happen since we just created it
 		return data

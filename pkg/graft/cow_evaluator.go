@@ -13,7 +13,7 @@ type COWEvaluator struct {
 }
 
 // NewCOWEvaluator creates a new COW-based evaluator.
-func NewCOWEvaluator(data map[interface{}]interface{}) *COWEvaluator {
+func NewCOWEvaluator(data map[string]interface{}) *COWEvaluator {
 	cowTree := NewCOWTree(data)
 	return &COWEvaluator{
 		cowTree: cowTree,
@@ -77,7 +77,7 @@ type EnhancedMigrationHelper struct {
 }
 
 // NewEnhancedMigrationHelper creates a COW-aware migration helper.
-func NewEnhancedMigrationHelper(data map[interface{}]interface{}) *EnhancedMigrationHelper {
+func NewEnhancedMigrationHelper(data map[string]interface{}) *EnhancedMigrationHelper {
 	cowTree := NewCOWTree(data)
 	cowEval := &COWEvaluator{cowTree: cowTree}
 
@@ -123,7 +123,7 @@ func (emh *EnhancedMigrationHelper) GetSnapshots() []*COWEvaluator {
 // UpdateFromEvaluator updates the COW tree with data from a traditional evaluator.
 func (emh *EnhancedMigrationHelper) UpdateFromEvaluator(ev *Evaluator) error {
 	// Convert the evaluator's tree to interface{} map
-	data := make(map[interface{}]interface{})
+	data := make(map[string]interface{})
 	for k, v := range ev.Tree {
 		data[k] = v
 	}
@@ -166,7 +166,7 @@ func NewCOWTreeFactory() *COWTreeFactory {
 }
 
 // CreateFromData creates a COW tree from data.
-func (f *COWTreeFactory) CreateFromData(data map[interface{}]interface{}) ThreadSafeTree {
+func (f *COWTreeFactory) CreateFromData(data map[string]interface{}) ThreadSafeTree {
 	return NewCOWTree(data)
 }
 

@@ -7,19 +7,14 @@ import (
 	"io"
 	"os"
 
-	"github.com/geofffranks/simpleyaml"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
 
 func jsonifyData(data []byte, strict bool) (string, error) {
-	y, err := simpleyaml.NewYaml(data)
-	if err != nil {
-		return "", err
-	}
-
-	doc, err := y.Map()
-	if err != nil {
+	doc := make(map[string]interface{})
+	if err := yamlv3.Unmarshal(data, &doc); err != nil {
 		return "", ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
 	}
 
@@ -94,13 +89,6 @@ func deinterface(o interface{}, strict bool) (interface{}, error) {
 	switch v := o.(type) {
 	case map[string]interface{}:
 		return deinterfaceMap(v, strict)
-	case map[interface{}]interface{}:
-		// Legacy fallback: convert old-style maps (e.g. from simpleyaml)
-		converted := make(map[string]interface{}, len(v))
-		for k, val := range v {
-			converted[fmt.Sprintf("%v", k)] = val
-		}
-		return deinterfaceMap(converted, strict)
 	case []interface{}:
 		return deinterfaceList(v, strict)
 	default:

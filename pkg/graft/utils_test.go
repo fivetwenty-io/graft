@@ -627,7 +627,7 @@ func TestToMap(t *testing.T) {
 		},
 		{
 			"interface map",
-			map[interface{}]interface{}{"a": 1, "b": 2},
+			map[string]interface{}{"a": 1, "b": 2},
 			map[string]interface{}{"a": 1, "b": 2},
 			false,
 		},

@@ -776,7 +776,7 @@ func init() {
 	// register common types for gob encoding
 	gob.Register(map[string]interface{}{})
 	gob.Register([]interface{}{})
-	gob.Register(map[interface{}]interface{}{})
+	gob.Register(map[string]interface{}{})
 }
 
 // SerializeValue serializes a value for disk storage.

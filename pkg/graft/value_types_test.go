@@ -164,7 +164,7 @@ func TestValue(t *testing.T) {
 	})
 
 	t.Run("Interface map conversion", func(t *testing.T) {
-		original := map[interface{}]interface{}{
+		original := map[string]interface{}{
 			"key1": "value1",
 			"key2": 42,
 		}
@@ -286,18 +286,8 @@ func TestValueImpl_String(t *testing.T) {
 
 func TestNewValue_EdgeCases(t *testing.T) {
 	Convey("NewValue edge cases", t, func() {
-		Convey("should handle map[interface{}]interface{} with non-string keys", func() {
-			input := map[interface{}]interface{}{
-				123:    "numeric key",
-				"test": "string key",
-			}
-
-			value := NewValue(input)
-			So(value.Type(), ShouldEqual, UnknownValue)
-		})
-
-		Convey("should handle map[interface{}]interface{} with all string keys", func() {
-			input := map[interface{}]interface{}{
+		Convey("should handle map[string]interface{} with string keys", func() {
+			input := map[string]interface{}{
 				"key1": "value1",
 				"key2": "value2",
 			}

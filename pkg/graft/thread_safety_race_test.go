@@ -9,20 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/geofffranks/simpleyaml"
 	. "github.com/smartystreets/goconvey/convey"
+	yamlv3 "gopkg.in/yaml.v3"
 )
 
 // parseYAML is a helper function to parse YAML into a map for tests
-// Uses simpleyaml to properly parse graft operator expressions
-func parseYAML(s string) map[interface{}]interface{} {
-	y, err := simpleyaml.NewYaml([]byte(s))
-	if err != nil {
+func parseYAML(s string) map[string]interface{} {
+	data := make(map[string]interface{})
+	if err := yamlv3.Unmarshal([]byte(s), &data); err != nil {
 		panic(fmt.Sprintf("failed to parse YAML: %v", err))
-	}
-	data, err := y.Map()
-	if err != nil {
-		panic(fmt.Sprintf("failed to get YAML map: %v", err))
 	}
 	return data
 }
@@ -35,8 +30,8 @@ func TestTreeRaceConditions(t *testing.T) {
 
 	Convey("Tree operations under concurrent access", t, func() {
 		Convey("Concurrent reads and writes to same path", func() {
-			data := make(map[interface{}]interface{})
-			data["meta"] = map[interface{}]interface{}{
+			data := make(map[string]interface{})
+			data["meta"] = map[string]interface{}{
 				"name": "initial",
 			}
 			tree := NewCOWTree(data)
@@ -87,7 +82,7 @@ func TestTreeRaceConditions(t *testing.T) {
 		})
 
 		Convey("Concurrent modifications to different paths", func() {
-			data := make(map[interface{}]interface{})
+			data := make(map[string]interface{})
 			tree := NewCOWTree(data)
 
 			var wg sync.WaitGroup
@@ -118,10 +113,10 @@ func TestTreeRaceConditions(t *testing.T) {
 		})
 
 		Convey("Nested map concurrent access", func() {
-			data := make(map[interface{}]interface{})
-			data["root"] = map[interface{}]interface{}{
-				"level1": map[interface{}]interface{}{
-					"level2": map[interface{}]interface{}{
+			data := make(map[string]interface{})
+			data["root"] = map[string]interface{}{
+				"level1": map[string]interface{}{
+					"level2": map[string]interface{}{
 						"value": 0,
 					},
 				},
@@ -232,8 +227,8 @@ func TestOperatorRaceConditions(t *testing.T) {
 
 	Convey("Operator thread safety", t, func() {
 		Convey("Concurrent tree access via evaluator", func() {
-			data := make(map[interface{}]interface{})
-			data["source"] = map[interface{}]interface{}{
+			data := make(map[string]interface{})
+			data["source"] = map[string]interface{}{
 				"value": "test",
 			}
 
@@ -248,7 +243,7 @@ func TestOperatorRaceConditions(t *testing.T) {
 					defer wg.Done()
 					for j := 0; j < 10; j++ {
 						// Access the tree value through evaluator
-						if source, ok := ev.Tree["source"].(map[interface{}]interface{}); ok {
+						if source, ok := ev.Tree["source"].(map[string]interface{}); ok {
 							if val, ok := source["value"]; ok {
 								results <- val
 							}
@@ -267,7 +262,7 @@ func TestOperatorRaceConditions(t *testing.T) {
 		})
 
 		Convey("COWTree concurrent increment simulation", func() {
-			data := make(map[interface{}]interface{})
+			data := make(map[string]interface{})
 			data["counter"] = 0
 			tree := NewCOWTree(data)
 

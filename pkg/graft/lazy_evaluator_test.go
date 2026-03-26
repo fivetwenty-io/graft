@@ -16,7 +16,7 @@ func TestLazyEvaluator(t *testing.T) {
 				Literal: "test value",
 			}
 
-			evaluator := &Evaluator{Tree: make(map[interface{}]interface{})}
+			evaluator := &Evaluator{Tree: make(map[string]interface{})}
 			lazy := NewLazyExpression(expr, evaluator)
 
 			So(lazy, ShouldNotBeNil)
@@ -29,7 +29,7 @@ func TestLazyEvaluator(t *testing.T) {
 				Literal: 42,
 			}
 
-			evaluator := &Evaluator{Tree: make(map[interface{}]interface{})}
+			evaluator := &Evaluator{Tree: make(map[string]interface{})}
 			lazy := NewLazyExpression(expr, evaluator)
 
 			// Should not be evaluated initially
@@ -49,8 +49,8 @@ func TestLazyEvaluator(t *testing.T) {
 
 		Convey("Reference expression lazy evaluation", func() {
 			// Create a test tree
-			testTree := map[interface{}]interface{}{
-				"meta": map[interface{}]interface{}{
+			testTree := map[string]interface{}{
+				"meta": map[string]interface{}{
 					"key": "test-value",
 				},
 			}
@@ -79,7 +79,7 @@ func TestLazyEvaluator(t *testing.T) {
 				Literal: "wrapped",
 			}
 
-			evaluator := &Evaluator{Tree: make(map[interface{}]interface{})}
+			evaluator := &Evaluator{Tree: make(map[string]interface{})}
 			lazy := lev.WrapExpression(expr, evaluator)
 
 			So(lazy, ShouldNotBeNil)
@@ -93,7 +93,7 @@ func TestLazyEvaluator(t *testing.T) {
 			expr2 := &Expr{Type: Literal, Literal: "dep2"}
 			expr3 := &Expr{Type: Literal, Literal: "main"}
 
-			evaluator := &Evaluator{Tree: make(map[interface{}]interface{})}
+			evaluator := &Evaluator{Tree: make(map[string]interface{})}
 
 			lazy1 := NewLazyExpression(expr1, evaluator)
 			lazy2 := NewLazyExpression(expr2, evaluator)
@@ -120,7 +120,7 @@ func TestLazyEvaluator(t *testing.T) {
 			expr1 := &Expr{Type: Literal, Literal: "test1"}
 			expr2 := &Expr{Type: Literal, Literal: "test2"}
 
-			evaluator := &Evaluator{Tree: make(map[interface{}]interface{})}
+			evaluator := &Evaluator{Tree: make(map[string]interface{})}
 
 			// Wrap and evaluate expressions
 			lazy1 := lev.WrapExpression(expr1, evaluator)
@@ -157,7 +157,7 @@ func TestLazyEvaluator(t *testing.T) {
 			lev := NewLazyEvaluator()
 
 			expr := &Expr{Type: Literal, Literal: "test"}
-			evaluator := &Evaluator{Tree: make(map[interface{}]interface{})}
+			evaluator := &Evaluator{Tree: make(map[string]interface{})}
 
 			lev.WrapExpression(expr, evaluator)
 
@@ -173,7 +173,7 @@ func TestLazyEvaluator(t *testing.T) {
 		Convey("Thread safety", func() {
 			lev := NewLazyEvaluator()
 			expr := &Expr{Type: Literal, Literal: "concurrent"}
-			evaluator := &Evaluator{Tree: make(map[interface{}]interface{})}
+			evaluator := &Evaluator{Tree: make(map[string]interface{})}
 
 			lazy := lev.WrapExpression(expr, evaluator)
 
@@ -217,7 +217,7 @@ func TestLazyEvaluator(t *testing.T) {
 
 func BenchmarkLazyEvaluation(b *testing.B) {
 	lev := NewLazyEvaluator()
-	evaluator := &Evaluator{Tree: make(map[interface{}]interface{})}
+	evaluator := &Evaluator{Tree: make(map[string]interface{})}
 
 	b.Run("LiteralExpression", func(b *testing.B) {
 		expr := &Expr{Type: Literal, Literal: "benchmark"}

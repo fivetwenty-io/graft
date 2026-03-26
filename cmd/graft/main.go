@@ -110,7 +110,7 @@ func checkForCycles(root interface{}, maxDepth int) error {
 		}
 
 		switch v := o.(type) {
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			// Check if we've seen this map before (circular reference)
 			ptr := reflect.ValueOf(v).Pointer()
 			if visited[ptr] {
@@ -330,7 +330,33 @@ func parseGoPatch(data []byte) (patch.Ops, error) {
 	return ops, nil
 }
 
-func parseYAML(data []byte) (map[interface{}]interface{}, error) {
+// convertLegacyMap converts map[interface{}]interface{} returned by simpleyaml
+// to map[string]interface{} for use throughout graft. This is a temporary bridge
+// until simpleyaml is replaced by yaml.v3 in Task 1.9.
+func convertLegacyMap(m map[interface{}]interface{}) map[string]interface{} {
+	result := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		result[fmt.Sprintf("%v", k)] = convertLegacyValue(v)
+	}
+	return result
+}
+
+func convertLegacyValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[interface{}]interface{}:
+		return convertLegacyMap(val)
+	case []interface{}:
+		result := make([]interface{}, len(val))
+		for i, elem := range val {
+			result[i] = convertLegacyValue(elem)
+		}
+		return result
+	default:
+		return v
+	}
+}
+
+func parseYAML(data []byte) (map[string]interface{}, error) {
 	y, err := simpleyaml.NewYaml(data)
 	if err != nil {
 		return nil, err
@@ -338,10 +364,10 @@ func parseYAML(data []byte) (map[interface{}]interface{}, error) {
 
 	if emptyY, emptyErr := simpleyaml.NewYaml([]byte{}); emptyErr == nil && *y == *emptyY {
 		log.DEBUG("YAML doc is empty, creating empty hash/map")
-		return make(map[interface{}]interface{}), nil
+		return make(map[string]interface{}), nil
 	}
 
-	doc, err := y.Map()
+	rawDoc, err := y.Map()
 
 	if err != nil {
 		if _, arrayErr := y.Array(); arrayErr == nil {
@@ -350,6 +376,7 @@ func parseYAML(data []byte) (map[interface{}]interface{}, error) {
 		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
 	}
 
+	doc := convertLegacyMap(rawDoc)
 	return doc, nil
 }
 
@@ -396,7 +423,7 @@ func splitLoadYamlFile(file string) ([]YamlFile, error) {
 	return docs, nil
 }
 
-func cmdMergeEval(options *mergeOpts) (map[interface{}]interface{}, error) {
+func cmdMergeEval(options *mergeOpts) (map[string]interface{}, error) {
 	files := []YamlFile{}
 
 	if len(options.Files) < 1 {
@@ -436,7 +463,7 @@ func cmdMergeEval(options *mergeOpts) (map[interface{}]interface{}, error) {
 	return result, nil
 }
 
-func cmdFanEval(options *mergeOpts) ([]map[interface{}]interface{}, error) {
+func cmdFanEval(options *mergeOpts) ([]map[string]interface{}, error) {
 	stdinInfo, err := os.Stdin.Stat()
 	if err != nil {
 		return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
@@ -449,7 +476,7 @@ func cmdFanEval(options *mergeOpts) ([]map[interface{}]interface{}, error) {
 		return nil, ansi.Errorf("@R{Missing Input:} You must specify at least a source document to graft fan. If no files are specified, STDIN is used. Using STDIN for source and target docs only works with -m.")
 	}
 
-	roots := []map[interface{}]interface{}{}
+	roots := []map[string]interface{}{}
 	sourcePath := options.Files[0]
 	options.Files = options.Files[1:]
 
@@ -582,7 +609,7 @@ func readFile(file *YamlFile) ([]byte, error) {
 }
 
 //nolint:gocyclo // mergeAllDocs orchestrates complex document merging with multiple options
-func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[interface{}]interface{}, error) {
+func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{}, error) {
 	// Create engine with settings from options
 	engineOpts := []graft.EngineOption{
 		graft.WithCache(true, 1000),
@@ -668,8 +695,8 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[interface{}]interfa
 	}
 
 	// Get the raw data for backward compatibility
-	// The CLI expects a map[interface{}]interface{}
-	data, ok := merged.GetData().(map[interface{}]interface{})
+	// The CLI expects a map[string]interface{}
+	data, ok := merged.GetData().(map[string]interface{})
 	if !ok {
 		return nil, ansi.Errorf("@R{Merge result is not a map}")
 	}

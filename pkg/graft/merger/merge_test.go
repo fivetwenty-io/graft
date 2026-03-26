@@ -7,7 +7,7 @@ import (
 
 	. "github.com/smartystreets/goconvey/convey"
 
-	"github.com/geofffranks/simpleyaml"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -18,32 +18,6 @@ const (
 	testOrigStr           = "fdsa"
 	errNotModificationDef = "actual is not ModificationDefinition"
 )
-
-// convertInterfaceMapToStringMap converts map[interface{}]interface{} to map[string]interface{}
-// recursively. This is needed because simpleyaml returns map[interface{}]interface{}.
-func convertInterfaceMapToStringMap(in map[interface{}]interface{}) map[string]interface{} {
-	out := make(map[string]interface{})
-	for k, v := range in {
-		key := fmt.Sprintf("%v", k)
-		out[key] = convertInterfaceValue(v)
-	}
-	return out
-}
-
-func convertInterfaceValue(v interface{}) interface{} {
-	switch val := v.(type) {
-	case map[interface{}]interface{}:
-		return convertInterfaceMapToStringMap(val)
-	case []interface{}:
-		result := make([]interface{}, len(val))
-		for i, item := range val {
-			result[i] = convertInterfaceValue(item)
-		}
-		return result
-	default:
-		return v
-	}
-}
 
 func TestShouldKeyMergeArrayOfHashes(t *testing.T) {
 	Convey("We should key-based merge arrays of hashes", t, func() {
@@ -2158,13 +2132,10 @@ func TestMergeArray(t *testing.T) {
 
 func TestMerge(t *testing.T) {
 	YAML := func(s string) map[string]interface{} {
-		y, err := simpleyaml.NewYaml([]byte(s))
+		data := make(map[string]interface{})
+		err := yamlv3.Unmarshal([]byte(s), &data)
 		So(err, ShouldBeNil)
-
-		data, err := y.Map()
-		So(err, ShouldBeNil)
-
-		return convertInterfaceMapToStringMap(data)
+		return data
 	}
 
 	valueIs := func(t interface{}, path string, expect string) {

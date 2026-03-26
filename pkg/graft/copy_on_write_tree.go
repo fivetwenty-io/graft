@@ -9,7 +9,7 @@ import (
 // COWNode represents a node in a Copy-on-Write tree.
 type COWNode struct {
 	value    interface{}
-	children map[interface{}]*COWNode
+	children map[string]*COWNode
 	version  int64 // Version for optimistic locking
 	isShared int32 // Atomic flag indicating if this node is shared
 }
@@ -18,7 +18,7 @@ type COWNode struct {
 func NewCOWNode(value interface{}) *COWNode {
 	return &COWNode{
 		value:    value,
-		children: make(map[interface{}]*COWNode),
+		children: make(map[string]*COWNode),
 		version:  0,
 		isShared: 0,
 	}
@@ -37,19 +37,13 @@ func (node *COWNode) isNodeShared() bool {
 // clone creates a copy of the node for modification.
 func (node *COWNode) clone() *COWNode {
 	cloned := &COWNode{
-		children: make(map[interface{}]*COWNode),
+		children: make(map[string]*COWNode),
 		version:  atomic.AddInt64(&node.version, 1),
 		isShared: 0,
 	}
 
 	// Deep copy the value if it's a map
 	switch v := node.value.(type) {
-	case map[interface{}]interface{}:
-		newMap := make(map[interface{}]interface{})
-		for k, val := range v {
-			newMap[k] = val
-		}
-		cloned.value = newMap
 	case map[string]interface{}:
 		newMap := make(map[string]interface{})
 		for k, val := range v {
@@ -80,7 +74,7 @@ type COWTree struct {
 var _ ThreadSafeTree = (*COWTree)(nil)
 
 // NewCOWTree creates a new Copy-on-Write tree.
-func NewCOWTree(data map[interface{}]interface{}) *COWTree {
+func NewCOWTree(data map[string]interface{}) *COWTree {
 	tree := &COWTree{
 		root:    NewCOWNode(nil),
 		version: 0,
@@ -94,7 +88,7 @@ func NewCOWTree(data map[interface{}]interface{}) *COWTree {
 }
 
 // buildFromData constructs the COW tree from a map.
-func (cow *COWTree) buildFromData(data map[interface{}]interface{}) {
+func (cow *COWTree) buildFromData(data map[string]interface{}) {
 	cow.mu.Lock()
 	defer cow.mu.Unlock()
 
@@ -106,17 +100,13 @@ func (cow *COWTree) buildNodeFromValue(value interface{}) *COWNode {
 	node := NewCOWNode(value)
 
 	switch v := value.(type) {
-	case map[interface{}]interface{}:
-		for k, child := range v {
-			node.children[k] = cow.buildNodeFromValue(child)
-		}
 	case map[string]interface{}:
 		for k, child := range v {
 			node.children[k] = cow.buildNodeFromValue(child)
 		}
 	case []interface{}:
 		for i, child := range v {
-			node.children[i] = cow.buildNodeFromValue(child)
+			node.children[fmt.Sprintf("%d", i)] = cow.buildNodeFromValue(child)
 		}
 	}
 
@@ -124,17 +114,17 @@ func (cow *COWTree) buildNodeFromValue(value interface{}) *COWNode {
 }
 
 // Clone creates a deep copy of the tree data.
-func (cow *COWTree) Clone() map[interface{}]interface{} {
+func (cow *COWTree) Clone() map[string]interface{} {
 	cow.mu.RLock()
 	defer cow.mu.RUnlock()
 
 	if cow.root == nil || cow.root.value == nil {
-		return make(map[interface{}]interface{})
+		return make(map[string]interface{})
 	}
 
-	result, ok := deepCopy(cow.root.value).(map[interface{}]interface{})
+	result, ok := deepCopy(cow.root.value).(map[string]interface{})
 	if !ok {
-		return make(map[interface{}]interface{})
+		return make(map[string]interface{})
 	}
 	return result
 }
@@ -190,12 +180,6 @@ func (cow *COWTree) findInNode(node *COWNode, path ...string) (interface{}, erro
 
 	// Check if node has the key in its value map
 	switch v := node.value.(type) {
-	case map[interface{}]interface{}:
-		if len(path) == 1 {
-			if val, exists := v[key]; exists {
-				return val, nil
-			}
-		}
 	case map[string]interface{}:
 		if len(path) == 1 {
 			if val, exists := v[key]; exists {
@@ -289,24 +273,17 @@ func (cow *COWTree) setInternalNode(node *COWNode, value interface{}, path ...st
 
 		// Ensure node has a map value
 		if node.value == nil {
-			node.value = make(map[interface{}]interface{})
+			node.value = make(map[string]interface{})
 		}
 
 		// Convert value to map if needed
-		var nodeMap map[interface{}]interface{}
+		var nodeMap map[string]interface{}
 		switch v := node.value.(type) {
-		case map[interface{}]interface{}:
-			nodeMap = v
 		case map[string]interface{}:
-			// Convert to interface{} map
-			nodeMap = make(map[interface{}]interface{})
-			for k, val := range v {
-				nodeMap[k] = val
-			}
-			node.value = nodeMap
+			nodeMap = v
 		default:
 			// Replace with new map
-			nodeMap = make(map[interface{}]interface{})
+			nodeMap = make(map[string]interface{})
 			node.value = nodeMap
 		}
 
@@ -340,14 +317,14 @@ func (cow *COWTree) setInternalNode(node *COWNode, value interface{}, path ...st
 		}
 	} else {
 		// Create new intermediate node
-		childNode = NewCOWNode(make(map[interface{}]interface{}))
+		childNode = NewCOWNode(make(map[string]interface{}))
 		node.children[key] = childNode
 
 		// Update parent's value map
 		if node.value == nil {
-			node.value = make(map[interface{}]interface{})
+			node.value = make(map[string]interface{})
 		}
-		if nodeMap, ok := node.value.(map[interface{}]interface{}); ok {
+		if nodeMap, ok := node.value.(map[string]interface{}); ok {
 			nodeMap[key] = childNode.value
 		}
 	}
@@ -391,7 +368,7 @@ func (cow *COWTree) deleteInternalNode(node *COWNode, path ...string) error {
 		delete(node.children, key)
 
 		// Remove from value map
-		if nodeMap, ok := node.value.(map[interface{}]interface{}); ok {
+		if nodeMap, ok := node.value.(map[string]interface{}); ok {
 			delete(nodeMap, key)
 		}
 
@@ -511,11 +488,11 @@ func (cow *COWTree) Transaction(fn func(tx TreeTransaction) error) error {
 	return tx.commitInternal()
 }
 
-// toMapInterface converts the COW tree back to a map[interface{}]interface{}.
+// toMapInterface converts the COW tree back to a map[string]interface{}.
 // Deprecated: use toStringMap for new code.
-func (cow *COWTree) toMapInterface() map[interface{}]interface{} {
+func (cow *COWTree) toMapInterface() map[string]interface{} {
 	if cow.root == nil {
-		return make(map[interface{}]interface{})
+		return make(map[string]interface{})
 	}
 
 	return cow.nodeToMap(cow.root)
@@ -540,7 +517,7 @@ func (cow *COWTree) nodeToStringMap(node *COWNode) map[string]interface{} {
 			if childNode, exists := node.children[k]; exists {
 				if childNode.value != nil {
 					switch childNode.value.(type) {
-					case map[interface{}]interface{}, map[string]interface{}:
+					case map[string]interface{}:
 						result[k] = cow.nodeToStringMap(childNode)
 					default:
 						result[k] = childNode.value
@@ -552,57 +529,22 @@ func (cow *COWTree) nodeToStringMap(node *COWNode) map[string]interface{} {
 				result[k] = val
 			}
 		}
-	case map[interface{}]interface{}:
-		for k, val := range v {
-			ks := fmt.Sprintf("%v", k)
-			if childNode, exists := node.children[k]; exists {
-				if childNode.value != nil {
-					switch childNode.value.(type) {
-					case map[interface{}]interface{}, map[string]interface{}:
-						result[ks] = cow.nodeToStringMap(childNode)
-					default:
-						result[ks] = childNode.value
-					}
-				} else {
-					result[ks] = val
-				}
-			} else {
-				result[ks] = val
-			}
-		}
 	}
 
 	return result
 }
 
 // nodeToMap recursively converts a COW node to a map.
-func (cow *COWTree) nodeToMap(node *COWNode) map[interface{}]interface{} {
-	result := make(map[interface{}]interface{})
+func (cow *COWTree) nodeToMap(node *COWNode) map[string]interface{} {
+	result := make(map[string]interface{})
 
 	switch v := node.value.(type) {
-	case map[interface{}]interface{}:
-		for k, val := range v {
-			if childNode, exists := node.children[k]; exists {
-				if childNode.value != nil {
-					switch childNode.value.(type) {
-					case map[interface{}]interface{}, map[string]interface{}:
-						result[k] = cow.nodeToMap(childNode)
-					default:
-						result[k] = childNode.value
-					}
-				} else {
-					result[k] = val
-				}
-			} else {
-				result[k] = val
-			}
-		}
 	case map[string]interface{}:
 		for k, val := range v {
 			if childNode, exists := node.children[k]; exists {
 				if childNode.value != nil {
 					switch childNode.value.(type) {
-					case map[interface{}]interface{}, map[string]interface{}:
+					case map[string]interface{}:
 						result[k] = cow.nodeToMap(childNode)
 					default:
 						result[k] = childNode.value

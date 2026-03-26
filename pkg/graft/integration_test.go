@@ -130,7 +130,7 @@ middleware:
 				So(err, ShouldBeNil)
 				So(len(services), ShouldEqual, 1)
 
-				service, ok := services[0].(map[interface{}]interface{})
+				service, ok := services[0].(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				So(service["name"], ShouldEqual, "cache")
 				So(service["port"], ShouldEqual, 6379)
@@ -144,7 +144,7 @@ middleware:
 				So(len(middleware), ShouldEqual, 3) // cors, metrics, tracing
 
 				// Verify the content
-				corsMiddleware, ok := middleware[0].(map[interface{}]interface{})
+				corsMiddleware, ok := middleware[0].(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				So(corsMiddleware["name"], ShouldEqual, "cors")
 				So(corsMiddleware["enabled"], ShouldEqual, true)

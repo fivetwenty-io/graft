@@ -11,10 +11,10 @@ import (
 
 	// Use geofffranks forks to persist the fix in https://github.com/go-yaml/yaml/pull/133/commits
 	// Also https://github.com/go-yaml/yaml/pull/195
-	"github.com/geofffranks/simpleyaml"
 	"github.com/geofffranks/yaml"
 
 	. "github.com/smartystreets/goconvey/convey"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
@@ -102,8 +102,8 @@ top:
   - two
 `
 			obj, err := parseYAML([]byte(data))
-			expect := map[interface{}]interface{}{
-				"top": map[interface{}]interface{}{
+			expect := map[string]interface{}{
+				"top": map[string]interface{}{
 					"subarray": []interface{}{"one", "two"},
 				},
 			}
@@ -139,13 +139,13 @@ func TestMergeAllDocs(t *testing.T) {
 		})
 		//nolint:dupl // Test cases intentionally have similar structure with different file types
 		Convey("Succeeds with valid files + yaml", func() {
-			expect := map[interface{}]interface{}{
+			expect := map[string]interface{}{
 				"key":           "overridden",
 				"array_append":  []interface{}{"one", "two", "three"},
 				"array_prepend": []interface{}{"three", "four", "five"},
 				"array_replace": []interface{}{[]interface{}{1, 2, 3}},
 				"array_inline": []interface{}{
-					map[interface{}]interface{}{"name": "first_elem", "val": "overwritten"},
+					map[string]interface{}{"name": "first_elem", "val": "overwritten"},
 					"second_elem was overwritten",
 					"third elem is appended",
 				},
@@ -155,18 +155,18 @@ func TestMergeAllDocs(t *testing.T) {
 					"third",
 				},
 				"array_map_default": []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "AAA",
 						"k1":   "key 1",
 						"k2":   "updated",
 					},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "BBB",
 						"k2":   "final",
 						"k3":   "original",
 					},
 				},
-				"map": map[interface{}]interface{}{
+				"map": map[string]interface{}{
 					"key":  "value",
 					"key2": "val2",
 				},
@@ -179,13 +179,13 @@ func TestMergeAllDocs(t *testing.T) {
 		})
 		//nolint:dupl // Test cases intentionally have similar structure with different file types
 		Convey("Succeeds with valid files + json", func() {
-			expect := map[interface{}]interface{}{
+			expect := map[string]interface{}{
 				"key":           "overridden",
 				"array_append":  []interface{}{"one", "two", "three"},
 				"array_prepend": []interface{}{"three", "four", "five"},
 				"array_replace": []interface{}{[]interface{}{1, 2, 3}},
 				"array_inline": []interface{}{
-					map[interface{}]interface{}{"name": "first_elem", "val": "overwritten"},
+					map[string]interface{}{"name": "first_elem", "val": "overwritten"},
 					"second_elem was overwritten",
 					"third elem is appended",
 				},
@@ -195,18 +195,18 @@ func TestMergeAllDocs(t *testing.T) {
 					"third",
 				},
 				"array_map_default": []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "AAA",
 						"k1":   "key 1",
 						"k2":   "updated",
 					},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "BBB",
 						"k2":   "final",
 						"k3":   "original",
 					},
 				},
-				"map": map[interface{}]interface{}{
+				"map": map[string]interface{}{
 					"key":  "value",
 					"key2": "val2",
 				},
@@ -2643,10 +2643,8 @@ func TestExamples(t *testing.T) {
 		s, err := os.ReadFile(path)
 		So(err, ShouldBeNil)
 
-		y, err := simpleyaml.NewYaml(s)
-		So(err, ShouldBeNil)
-
-		data, err := y.Map()
+		data := make(map[string]interface{})
+		err = yamlv3.Unmarshal(s, &data)
 		So(err, ShouldBeNil)
 
 		out, err := yaml.Marshal(data)

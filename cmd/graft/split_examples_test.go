@@ -9,8 +9,8 @@ import (
 )
 
 // Helper functions for safe type assertions in tests.
-func asMap(v interface{}) map[interface{}]interface{} {
-	m, ok := v.(map[interface{}]interface{})
+func asMap(v interface{}) map[string]interface{} {
+	m, ok := v.(map[string]interface{})
 	if !ok {
 		return nil
 	}

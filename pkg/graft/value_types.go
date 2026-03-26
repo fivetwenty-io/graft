@@ -129,18 +129,6 @@ func NewValue(v interface{}) Value {
 		return &valueImpl{value: val, vtype: SliceValue}
 	case map[string]interface{}:
 		return &valueImpl{value: val, vtype: MapValue}
-	case map[interface{}]interface{}:
-		// Convert to string-keyed map for consistency
-		converted := make(map[string]interface{})
-		for k, v := range val {
-			if key, ok := k.(string); ok {
-				converted[key] = v
-			} else {
-				// Keep as original type if keys aren't strings
-				return &valueImpl{value: val, vtype: UnknownValue}
-			}
-		}
-		return &valueImpl{value: converted, vtype: MapValue}
 	default:
 		return &valueImpl{value: val, vtype: UnknownValue}
 	}

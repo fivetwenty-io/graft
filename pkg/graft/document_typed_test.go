@@ -13,7 +13,7 @@ const (
 //nolint:gocyclo // test function covers all typed accessor methods
 func TestDocumentTypedMethods(t *testing.T) {
 	// Setup test data
-	data := map[interface{}]interface{}{
+	data := map[string]interface{}{
 		"string":   testHello,
 		"int":      42,
 		"int64":    int64(9223372036854775807),
@@ -21,11 +21,11 @@ func TestDocumentTypedMethods(t *testing.T) {
 		"bool":     true,
 		"slice":    []interface{}{"a", "b", "c"},
 		"strSlice": []interface{}{"one", "two", "three"},
-		"map": map[interface{}]interface{}{
+		"map": map[string]interface{}{
 			"key1": testValue1,
 			"key2": "value2",
 		},
-		"strMap": map[interface{}]interface{}{
+		"strMap": map[string]interface{}{
 			"foo": "bar",
 			"baz": "qux",
 		},
@@ -177,7 +177,7 @@ func TestDocumentTypedMethods(t *testing.T) {
 		}
 
 		// Test error case with mixed types
-		mixedData := map[interface{}]interface{}{
+		mixedData := map[string]interface{}{
 			"mixed": []interface{}{"string", 123, true},
 		}
 		mixedDoc := NewDocument(mixedData)
@@ -201,8 +201,8 @@ func TestDocumentTypedMethods(t *testing.T) {
 		}
 
 		// Test error case with mixed value types
-		mixedData := map[interface{}]interface{}{
-			"mixed": map[interface{}]interface{}{
+		mixedData := map[string]interface{}{
+			"mixed": map[string]interface{}{
 				"str": "value",
 				"num": 123,
 			},

@@ -45,7 +45,7 @@ func TestIsGoPatchDocument(t *testing.T) {
 		})
 
 		Convey("should return false for regular documents", func() {
-			doc := NewDocument(map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
 				"key": "value",
 			})
 			So(IsGoPatchDocument(doc), ShouldBeFalse)
@@ -70,7 +70,7 @@ func TestGetGoPatchOps(t *testing.T) {
 		})
 
 		Convey("should return false for regular documents", func() {
-			doc := NewDocument(map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
 				"key": "value",
 			})
 

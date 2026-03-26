@@ -124,7 +124,7 @@ application:
 		if configList, ok := configs.([]interface{}); ok {
 			fmt.Printf("Configurations:\n")
 			for _, config := range configList {
-				if configMap, ok := config.(map[interface{}]interface{}); ok {
+				if configMap, ok := config.(map[string]interface{}); ok {
 					fmt.Printf("  - %v: %v\n", configMap["name"], configMap["url"])
 				}
 			}

@@ -9,7 +9,7 @@ type ThreadSafeTree interface {
 	Get(path string) (interface{}, error)
 	Set(path string, value interface{}) error
 	Delete(path ...string) error
-	Clone() map[interface{}]interface{}
+	Clone() map[string]interface{}
 	Copy() ThreadSafeTree
 	Lock()
 	Unlock()

@@ -41,7 +41,7 @@ func (w *testTreeWrapper) Copy() *testTreeWrapper {
 	return &testTreeWrapper{COWTree: cow}
 }
 
-func newTestTree(init map[interface{}]interface{}) *testTreeWrapper {
+func newTestTree(init map[string]interface{}) *testTreeWrapper {
 	return &testTreeWrapper{COWTree: NewCOWTree(init)}
 }
 
@@ -104,8 +104,8 @@ func TestCOWTree(t *testing.T) {
 
 func TestCOWTreeCopyOnWrite(t *testing.T) {
 	Convey("COWTree Copy-on-Write semantics", t, func() {
-		originalData := map[interface{}]interface{}{
-			"shared": map[interface{}]interface{}{
+		originalData := map[string]interface{}{
+			"shared": map[string]interface{}{
 				"value": "original",
 			},
 		}
@@ -171,8 +171,8 @@ func TestCOWTreeConcurrency(t *testing.T) {
 	}
 
 	Convey("COWTree concurrent operations", t, func() {
-		tree := newTestTree(map[interface{}]interface{}{
-			"counters": map[interface{}]interface{}{},
+		tree := newTestTree(map[string]interface{}{
+			"counters": map[string]interface{}{},
 		})
 
 		Convey("Concurrent reads and writes", func() {
@@ -281,8 +281,8 @@ func TestCOWTreeConcurrency(t *testing.T) {
 
 func TestCOWTreeTransactions(t *testing.T) {
 	Convey("COWTree transaction operations", t, func() {
-		tree := newTestTree(map[interface{}]interface{}{
-			"account": map[interface{}]interface{}{
+		tree := newTestTree(map[string]interface{}{
+			"account": map[string]interface{}{
 				"balance": 100,
 			},
 		})
@@ -343,10 +343,10 @@ func TestCOWTreeTransactions(t *testing.T) {
 func TestCOWTreeMemorySharing(t *testing.T) {
 	Convey("COWTree memory sharing behavior", t, func() {
 		// Create a tree with nested structure
-		originalData := map[interface{}]interface{}{
-			"level1": map[interface{}]interface{}{
-				"level2": map[interface{}]interface{}{
-					"level3": map[interface{}]interface{}{
+		originalData := map[string]interface{}{
+			"level1": map[string]interface{}{
+				"level2": map[string]interface{}{
+					"level3": map[string]interface{}{
 						"value": "deep-value",
 					},
 				},
@@ -393,13 +393,13 @@ func TestCOWTreeMemorySharing(t *testing.T) {
 // TODO: SafeTree implementation removed - this benchmark compares COWTree with SafeTree
 /*
 func BenchmarkCOWTreeVsSafeTree(b *testing.B) {
-	initialData := map[interface{}]interface{}{
-		"data": map[interface{}]interface{}{},
+	initialData := map[string]interface{}{
+		"data": map[string]interface{}{},
 	}
 
 	// Populate with test data
 	for i := 0; i < 1000; i++ {
-		initialData["data"].(map[interface{}]interface{})[fmt.Sprintf("key%d", i)] = fmt.Sprintf("value%d", i)
+		initialData["data"].(map[string]interface{})[fmt.Sprintf("key%d", i)] = fmt.Sprintf("value%d", i)
 	}
 
 	b.Run("SafeTree-Find", func(b *testing.B) {

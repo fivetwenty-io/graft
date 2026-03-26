@@ -41,16 +41,16 @@ func TestCherryPickContextPropagation(t *testing.T) {
 
 		Convey("Context propagation through MergeBuilder", func() {
 			// Create test documents
-			doc1 := NewDocument(map[interface{}]interface{}{
-				"params": map[interface{}]interface{}{
+			doc1 := NewDocument(map[string]interface{}{
+				"params": map[string]interface{}{
 					"username": "admin",
 					"port":     8080,
 				},
-				"meta": map[interface{}]interface{}{
+				"meta": map[string]interface{}{
 					"environment": "production",
 					"region":      "us-east-1",
 				},
-				"other": map[interface{}]interface{}{
+				"other": map[string]interface{}{
 					"data": "should not be in output",
 				},
 			})
@@ -74,16 +74,16 @@ func TestCherryPickContextPropagation(t *testing.T) {
 
 		Convey("Context propagation to Evaluator", func() {
 			// Create test document with operators
-			doc := NewDocument(map[interface{}]interface{}{
-				"params": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"params": map[string]interface{}{
 					"username": "(( grab meta.user ))",
 					"port":     8080,
 				},
-				"meta": map[interface{}]interface{}{
+				"meta": map[string]interface{}{
 					"user":        "testuser",
 					"environment": "(( grab config.env ))",
 				},
-				"config": map[interface{}]interface{}{
+				"config": map[string]interface{}{
 					"env": "production",
 				},
 			})
@@ -97,7 +97,7 @@ func TestCherryPickContextPropagation(t *testing.T) {
 			ctx := WithCherryPickPaths(context.Background(), []string{"params"})
 
 			// The evaluator should receive the cherry-pick paths
-			rawData, ok := doc.RawData().(map[interface{}]interface{})
+			rawData, ok := doc.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			evaluator := &Evaluator{
 				Tree: rawData,
@@ -152,14 +152,14 @@ func TestCherryPickContextPropagation(t *testing.T) {
 func TestEngineEvaluateWithCherryPick(t *testing.T) {
 	Convey("Engine.Evaluate() with cherry-pick context", t, func() {
 		Convey("Should pass cherry-pick paths to evaluator", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"params": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"params": map[string]interface{}{
 					"value": "(( grab meta.data ))",
 				},
-				"meta": map[interface{}]interface{}{
+				"meta": map[string]interface{}{
 					"data": "test-value",
 				},
-				"other": map[interface{}]interface{}{
+				"other": map[string]interface{}{
 					"skip": "(( grab missing.value ))", // This would cause error if evaluated
 				},
 			})
@@ -174,15 +174,15 @@ func TestEngineEvaluateWithCherryPick(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Verify the operator was evaluated
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			params, ok := data["params"].(map[interface{}]interface{})
+			params, ok := data["params"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(params["value"], ShouldEqual, "test-value")
 
 			// The "other" section should still be present but unevaluated
 			// since we didn't prune, just selectively evaluated
-			other, ok := data["other"].(map[interface{}]interface{})
+			other, ok := data["other"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(other["skip"], ShouldEqual, "(( grab missing.value ))")
 		})
@@ -192,20 +192,20 @@ func TestEngineEvaluateWithCherryPick(t *testing.T) {
 func TestMergeBuilderCherryPickIntegration(t *testing.T) {
 	Convey("MergeBuilder cherry-pick integration", t, func() {
 		Convey("Should propagate cherry-pick paths through merge and evaluate", func() {
-			doc1 := NewDocument(map[interface{}]interface{}{
-				"base": map[interface{}]interface{}{
+			doc1 := NewDocument(map[string]interface{}{
+				"base": map[string]interface{}{
 					"url": "http://example.com",
 				},
-				"params": map[interface{}]interface{}{
+				"params": map[string]interface{}{
 					"endpoint": "(( concat base.url \"/api\" ))",
 				},
 			})
 
-			doc2 := NewDocument(map[interface{}]interface{}{
-				"params": map[interface{}]interface{}{
+			doc2 := NewDocument(map[string]interface{}{
+				"params": map[string]interface{}{
 					"timeout": 30,
 				},
-				"extra": map[interface{}]interface{}{
+				"extra": map[string]interface{}{
 					"bad": "(( grab nonexistent ))", // Would error if evaluated
 				},
 			})
@@ -222,9 +222,9 @@ func TestMergeBuilderCherryPickIntegration(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Check that cherry-picked paths are evaluated
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			params, ok := data["params"].(map[interface{}]interface{})
+			params, ok := data["params"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(params["endpoint"], ShouldEqual, "http://example.com/api")
 			So(params["timeout"], ShouldEqual, 30)
@@ -234,18 +234,18 @@ func TestMergeBuilderCherryPickIntegration(t *testing.T) {
 		})
 
 		Convey("Should handle nested cherry-pick paths", func() {
-			doc := NewDocument(map[interface{}]interface{}{
-				"meta": map[interface{}]interface{}{
-					"environment": map[interface{}]interface{}{
+			doc := NewDocument(map[string]interface{}{
+				"meta": map[string]interface{}{
+					"environment": map[string]interface{}{
 						"name":   "prod",
 						"region": "(( grab cloud.region ))",
 					},
 					"version": "1.0",
 				},
-				"cloud": map[interface{}]interface{}{
+				"cloud": map[string]interface{}{
 					"region": "us-west-2",
 				},
-				"skip": map[interface{}]interface{}{
+				"skip": map[string]interface{}{
 					"error": "(( grab undefined ))",
 				},
 			})
@@ -261,11 +261,11 @@ func TestMergeBuilderCherryPickIntegration(t *testing.T) {
 			So(result, ShouldNotBeNil)
 
 			// Verify structure
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			meta, ok := data["meta"].(map[interface{}]interface{})
+			meta, ok := data["meta"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
-			env, ok := meta["environment"].(map[interface{}]interface{})
+			env, ok := meta["environment"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(env["name"], ShouldEqual, "prod")
 			So(env["region"], ShouldEqual, "us-west-2")
