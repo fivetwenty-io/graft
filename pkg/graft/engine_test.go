@@ -77,10 +77,7 @@ func TestDefaultEngine(t *testing.T) {
 			So(engine.opts.MaxConcurrency, ShouldEqual, 4)
 			So(engine.opts.DataflowOrder, ShouldEqual, "alphabetical")
 			So(engine.registry, ShouldNotBeNil)
-			So(engine.vaultSecretCache, ShouldNotBeNil)
 			So(engine.vaultRefs, ShouldNotBeNil)
-			So(engine.awsSecretsCache, ShouldNotBeNil)
-			So(engine.awsParamsCache, ShouldNotBeNil)
 			So(engine.usedIPs, ShouldNotBeNil)
 			So(engine.pathsToSort, ShouldNotBeNil)
 		})
@@ -366,17 +363,6 @@ func TestEngineStateManagement(t *testing.T) {
 		engine := NewDefaultEngine()
 
 		Convey("Vault state management", func() {
-			Convey("should track vault cache", func() {
-				cache := make(map[string]interface{})
-				cache["key"] = "value"
-				engine.SetVaultCache("secret/test", cache)
-
-				retrieved := engine.GetVaultCache()
-				So(retrieved["secret/test"], ShouldNotBeNil)
-				secretData := retrieved["secret/test"]
-				So(secretData["key"], ShouldEqual, "value")
-			})
-
 			Convey("should track vault references", func() {
 				engine.AddVaultRef("secret/test", []string{"key1", "key2"})
 
@@ -391,20 +377,6 @@ func TestEngineStateManagement(t *testing.T) {
 		})
 
 		Convey("AWS state management", func() {
-			Convey("should track AWS secrets cache", func() {
-				engine.SetAWSSecretCache("secret1", "value1")
-
-				cache := engine.GetAWSSecretsCache()
-				So(cache["secret1"], ShouldEqual, "value1")
-			})
-
-			Convey("should track AWS params cache", func() {
-				engine.SetAWSParamCache("param1", "value1")
-
-				cache := engine.GetAWSParamsCache()
-				So(cache["param1"], ShouldEqual, "value1")
-			})
-
 			Convey("should report AWS skip status", func() {
 				So(engine.IsAWSSkipped(), ShouldEqual, engine.skipAws)
 			})
@@ -506,27 +478,6 @@ func TestEngineVaultServiceMethods(t *testing.T) {
 	Convey("Engine Vault Service Methods", t, func() {
 		engine := NewDefaultEngine()
 
-		Convey("GetVaultClient should return nil initially", func() {
-			client := engine.GetVaultClient()
-			So(client, ShouldBeNil)
-		})
-
-		Convey("GetVaultCache should return empty cache initially", func() {
-			cache := engine.GetVaultCache()
-			So(cache, ShouldNotBeNil)
-			So(len(cache), ShouldEqual, 0)
-		})
-
-		Convey("SetVaultCache should update cache", func() {
-			testData := map[string]interface{}{
-				"key": "value",
-			}
-
-			engine.SetVaultCache("test/path", testData)
-			cache := engine.GetVaultCache()
-			So(cache["test/path"], ShouldResemble, testData)
-		})
-
 		Convey("AddVaultRef should add reference", func() {
 			engine.AddVaultRef("test/path", []string{"field1"})
 			engine.AddVaultRef("test/path", []string{"field2"})
@@ -534,6 +485,20 @@ func TestEngineVaultServiceMethods(t *testing.T) {
 			// Test with a valid path - assuming the method doesn't panic
 			// Since we can't easily access the internal refs map, we'll just test it doesn't error
 			So(func() { engine.AddVaultRef("test/path", []string{"field3"}) }, ShouldNotPanic)
+		})
+
+		Convey("GetVaultRefs should return tracked refs", func() {
+			engine.AddVaultRef("test/path", []string{"field1", "field2"})
+			refs := engine.GetVaultRefs()
+			So(refs["test/path"], ShouldContain, "field1")
+			So(refs["test/path"], ShouldContain, "field2")
+		})
+
+		Convey("ResetVaultRefs should clear refs", func() {
+			engine.AddVaultRef("test/path", []string{"field1"})
+			engine.ResetVaultRefs()
+			refs := engine.GetVaultRefs()
+			So(len(refs), ShouldEqual, 0)
 		})
 
 		Convey("IsVaultSkipped should return config value", func() {
@@ -551,37 +516,6 @@ func TestEngineVaultServiceMethods(t *testing.T) {
 func TestEngineAWSServiceMethods(t *testing.T) {
 	Convey("Engine AWS Service Methods", t, func() {
 		engine := NewDefaultEngine()
-
-		Convey("AWS clients should return nil initially", func() {
-			So(engine.GetAWSSession(), ShouldBeNil)
-			So(engine.GetSecretsManagerClient(), ShouldBeNil)
-			So(engine.GetParameterStoreClient(), ShouldBeNil)
-		})
-
-		Convey("AWS caches should return empty initially", func() {
-			secretsCache := engine.GetAWSSecretsCache()
-			paramsCache := engine.GetAWSParamsCache()
-
-			So(secretsCache, ShouldNotBeNil)
-			So(len(secretsCache), ShouldEqual, 0)
-			So(paramsCache, ShouldNotBeNil)
-			So(len(paramsCache), ShouldEqual, 0)
-		})
-
-		Convey("SetAWSSecretCache should update cache", func() {
-			engine.SetAWSSecretCache("test/secret", "secret_value")
-			cache := engine.GetAWSSecretsCache()
-			So(cache["test/secret"], ShouldEqual, "secret_value")
-		})
-
-		Convey("SetAWSParamCache should update cache", func() {
-			engine.SetAWSParamCache("/app/config/port", "8080")
-			engine.SetAWSParamCache("/app/config/host", "localhost")
-
-			cache := engine.GetAWSParamsCache()
-			So(cache["/app/config/port"], ShouldEqual, "8080")
-			So(cache["/app/config/host"], ShouldEqual, "localhost")
-		})
 
 		Convey("IsAWSSkipped should return config value", func() {
 			// Default config has SkipAWS: false
@@ -1004,28 +938,19 @@ func TestEngineExternalClientAccess(t *testing.T) {
 	Convey("Engine External Client Access", t, func() {
 		engine := NewDefaultEngine()
 
-		Convey("GetVaultClient should return vault client", func() {
-			client := engine.GetVaultClient()
-			// Initially nil since no vault client is configured by default
-			So(client, ShouldBeNil)
+		Convey("GetOperatorState should return the engine itself", func() {
+			state := engine.GetOperatorState()
+			So(state, ShouldNotBeNil)
+			So(state, ShouldEqual, engine)
 		})
 
-		Convey("GetAWSSession should return AWS session", func() {
-			session := engine.GetAWSSession()
-			// Initially nil since no AWS session is configured by default
-			So(session, ShouldBeNil)
-		})
-
-		Convey("GetSecretsManagerClient should return secrets manager client", func() {
-			client := engine.GetSecretsManagerClient()
-			// Initially nil since no AWS client is configured by default
-			So(client, ShouldBeNil)
-		})
-
-		Convey("GetParameterStoreClient should return parameter store client", func() {
-			client := engine.GetParameterStoreClient()
-			// Initially nil since no AWS client is configured by default
-			So(client, ShouldBeNil)
+		Convey("Vault and AWS clients are accessed through backend packages", func() {
+			// Vault client: vault.GlobalKV / vault.DefaultPool.GetClient()
+			// AWS session: awsbackend.DefaultPool.GetSession()
+			// These are no longer on OperatorState. Verify skip flags are still accessible.
+			So(engine.IsVaultSkipped(), ShouldBeFalse)
+			So(engine.IsAWSSkipped(), ShouldBeFalse)
+			So(engine.IsNATSSkipped(), ShouldBeFalse)
 		})
 	})
 }

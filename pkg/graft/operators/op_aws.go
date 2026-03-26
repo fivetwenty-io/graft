@@ -144,20 +144,21 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			// Use target-aware client pool
 			value, err = o.getValueFromTarget(targetName, key, params)
 		} else {
-			// Use default behavior
-			awsSess := engine.GetOperatorState().GetAWSSession()
-			if awsSess == nil {
-				awsSess, err = awsbackend.InitializeSession(os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))
-				if err != nil {
-					return nil, fmt.Errorf("error during AWS session initialization: %w", err)
+			// Use default behavior via backend pool
+			awsSess, sessErr := awsbackend.DefaultPool.GetSession("default")
+			if sessErr != nil {
+				// Fall back to initializing from environment
+				awsSess, sessErr = awsbackend.InitializeSession(os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))
+				if sessErr != nil {
+					return nil, fmt.Errorf("error during AWS session initialization: %w", sessErr)
 				}
 			}
 
 			switch o.variant {
 			case "awsparam":
-				value, err = o.getAwsParamFromEngine(engine, awsSess, key)
+				value, err = o.getAwsParam(awsSess, key)
 			case "awssecret":
-				value, err = o.getAwsSecretFromEngine(engine, awsSess, key, params)
+				value, err = o.getAwsSecret(awsSess, key, params)
 			}
 		}
 
@@ -313,17 +314,14 @@ func parseAwsOpKey(key string) (string, url.Values, error) {
 	return split[0], values, nil
 }
 
-// getAwsSecretFromEngine fetches a secret using the engine.
-func (o AwsOperator) getAwsSecretFromEngine(engine graft.Engine, awsSession *session.Session, secret string, params url.Values) (string, error) {
-	cache := engine.GetOperatorState().GetAWSSecretsCache()
+// getAwsSecret fetches a secret using the AWS backend cache and session.
+func (o AwsOperator) getAwsSecret(awsSession *session.Session, secret string, params url.Values) (string, error) {
+	cache := awsbackend.DefaultPool.GetSecretCache("default")
 	if val, cached := cache[secret]; cached {
 		return val, nil
 	}
 
-	client := engine.GetOperatorState().GetSecretsManagerClient()
-	if client == nil {
-		client = secretsmanager.New(awsSession)
-	}
+	client := secretsmanager.New(awsSession)
 
 	input := &secretsmanager.GetSecretValueInput{
 		SecretId: awsSDK.String(secret),
@@ -341,21 +339,18 @@ func (o AwsOperator) getAwsSecretFromEngine(engine graft.Engine, awsSession *ses
 	}
 
 	value := awsSDK.StringValue(output.SecretString)
-	engine.GetOperatorState().SetAWSSecretCache(secret, value)
+	awsbackend.DefaultPool.SetSecretCache("default", secret, value)
 	return value, nil
 }
 
-// getAwsParamFromEngine fetches a parameter using the engine context.
-func (o AwsOperator) getAwsParamFromEngine(engine graft.Engine, awsSession *session.Session, param string) (string, error) {
-	cache := engine.GetOperatorState().GetAWSParamsCache()
+// getAwsParam fetches a parameter using the AWS backend cache and session.
+func (o AwsOperator) getAwsParam(awsSession *session.Session, param string) (string, error) {
+	cache := awsbackend.DefaultPool.GetParamCache("default")
 	if val, cached := cache[param]; cached {
 		return val, nil
 	}
 
-	client := engine.GetOperatorState().GetParameterStoreClient()
-	if client == nil {
-		client = ssm.New(awsSession)
-	}
+	client := ssm.New(awsSession)
 
 	input := &ssm.GetParameterInput{
 		Name:           awsSDK.String(param),
@@ -368,7 +363,7 @@ func (o AwsOperator) getAwsParamFromEngine(engine graft.Engine, awsSession *sess
 	}
 
 	value := awsSDK.StringValue(output.Parameter.Value)
-	engine.GetOperatorState().SetAWSParamCache(param, value)
+	awsbackend.DefaultPool.SetParamCache("default", param, value)
 	return value, nil
 }
 

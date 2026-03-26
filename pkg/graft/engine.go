@@ -17,10 +17,6 @@ import (
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	vaultkv "github.com/cloudfoundry-community/vaultkv"
 	"gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -37,21 +33,13 @@ type DefaultEngine struct {
 	localOperators map[string]bool // tracks operators registered on this engine (not inherited)
 	opMutex        sync.RWMutex
 
-	// Vault state
-	vaultKV          *vaultkv.KV
-	vaultSecretCache map[string]map[string]interface{}
-	vaultRefs        map[string][]string
-	vaultMutex       sync.RWMutex
-	skipVault        bool
+	// Vault state (refs tracking only; client and cache live in internal/backends/vault)
+	vaultRefs  map[string][]string
+	vaultMutex sync.RWMutex
+	skipVault  bool
 
-	// AWS state
-	awsSession           *session.Session
-	secretsManagerClient secretsmanageriface.SecretsManagerAPI
-	parameterstoreClient ssmiface.SSMAPI
-	awsSecretsCache      map[string]string
-	awsParamsCache       map[string]string
-	awsMutex             sync.RWMutex
-	skipAws              bool
+	// AWS state (client and cache live in internal/backends/aws)
+	skipAws bool
 
 	// NATS state
 	skipNats bool
@@ -168,33 +156,6 @@ func (e *DefaultEngine) GetOperator(name string) (Operator, bool) {
 
 // EngineContext interface methods for internal operator access
 
-// GetVaultClient returns the Vault client for secret operations.
-func (e *DefaultEngine) GetVaultClient() *vaultkv.KV {
-	e.vaultMutex.RLock()
-	defer e.vaultMutex.RUnlock()
-	return e.vaultKV
-}
-
-// GetVaultCache returns a copy of the cached Vault secrets.
-func (e *DefaultEngine) GetVaultCache() map[string]map[string]interface{} {
-	// Return a copy to avoid concurrent modification
-	e.vaultMutex.RLock()
-	defer e.vaultMutex.RUnlock()
-
-	result := make(map[string]map[string]interface{})
-	for k, v := range e.vaultSecretCache {
-		result[k] = v
-	}
-	return result
-}
-
-// SetVaultCache caches Vault secret data for a path.
-func (e *DefaultEngine) SetVaultCache(path string, data map[string]interface{}) {
-	e.vaultMutex.Lock()
-	defer e.vaultMutex.Unlock()
-	e.vaultSecretCache[path] = data
-}
-
 // AddVaultRef records a Vault reference for tracking.
 func (e *DefaultEngine) AddVaultRef(path string, keys []string) {
 	e.vaultMutex.Lock()
@@ -209,65 +170,6 @@ func (e *DefaultEngine) AddVaultRef(path string, keys []string) {
 // IsVaultSkipped returns true if Vault operations should be skipped.
 func (e *DefaultEngine) IsVaultSkipped() bool {
 	return e.skipVault
-}
-
-// GetAWSSession returns the AWS session for API calls.
-func (e *DefaultEngine) GetAWSSession() *session.Session {
-	e.awsMutex.RLock()
-	defer e.awsMutex.RUnlock()
-	return e.awsSession
-}
-
-// GetSecretsManagerClient returns the AWS Secrets Manager client.
-func (e *DefaultEngine) GetSecretsManagerClient() secretsmanageriface.SecretsManagerAPI {
-	e.awsMutex.RLock()
-	defer e.awsMutex.RUnlock()
-	return e.secretsManagerClient
-}
-
-// GetParameterStoreClient returns the AWS Parameter Store client.
-func (e *DefaultEngine) GetParameterStoreClient() ssmiface.SSMAPI {
-	e.awsMutex.RLock()
-	defer e.awsMutex.RUnlock()
-	return e.parameterstoreClient
-}
-
-// GetAWSSecretsCache returns a copy of the cached AWS secrets.
-func (e *DefaultEngine) GetAWSSecretsCache() map[string]string {
-	e.awsMutex.RLock()
-	defer e.awsMutex.RUnlock()
-
-	result := make(map[string]string)
-	for k, v := range e.awsSecretsCache {
-		result[k] = v
-	}
-	return result
-}
-
-// SetAWSSecretCache caches an AWS secret value.
-func (e *DefaultEngine) SetAWSSecretCache(key, value string) {
-	e.awsMutex.Lock()
-	defer e.awsMutex.Unlock()
-	e.awsSecretsCache[key] = value
-}
-
-// GetAWSParamsCache returns a copy of the cached AWS parameters.
-func (e *DefaultEngine) GetAWSParamsCache() map[string]string {
-	e.awsMutex.RLock()
-	defer e.awsMutex.RUnlock()
-
-	result := make(map[string]string)
-	for k, v := range e.awsParamsCache {
-		result[k] = v
-	}
-	return result
-}
-
-// SetAWSParamCache caches an AWS parameter value.
-func (e *DefaultEngine) SetAWSParamCache(key, value string) {
-	e.awsMutex.Lock()
-	defer e.awsMutex.Unlock()
-	e.awsParamsCache[key] = value
 }
 
 // IsAWSSkipped returns true if AWS operations should be skipped.
@@ -403,16 +305,6 @@ func (e *DefaultEngine) SetSuppressWarnings(v bool) {
 }
 
 // Internal methods
-
-func (e *DefaultEngine) initializeVault() {
-	// Initialize vault connection
-	// Implementation will set up e.vaultKV
-}
-
-func (e *DefaultEngine) initializeAWS() {
-	// Initialize AWS clients
-	// Implementation will set up AWS session and clients
-}
 
 func (e *DefaultEngine) createEvaluator(t map[string]interface{}) *Evaluator {
 	here, _ := tree.ParseCursor("$")
@@ -862,18 +754,15 @@ func (e *DefaultEngine) SetWorkerPool(pool *parallel.WorkerPool) {
 // createEngineFromOptions instead.
 func newEngineFromOptions(opts *EngineOptions) *DefaultEngine {
 	e := &DefaultEngine{
-		opts:             *opts,
-		registry:         DefaultRegistry.Clone(),
-		localOperators:   make(map[string]bool),
-		vaultSecretCache: make(map[string]map[string]interface{}),
-		vaultRefs:        make(map[string][]string),
-		awsSecretsCache:  make(map[string]string),
-		awsParamsCache:   make(map[string]string),
-		usedIPs:          make(map[string]string),
-		pathsToSort:      make(map[string]string),
-		skipVault:        opts.SkipVault,
-		skipAws:          opts.SkipAws,
-		skipNats:         opts.SkipNats,
+		opts:           *opts,
+		registry:       DefaultRegistry.Clone(),
+		localOperators: make(map[string]bool),
+		vaultRefs:      make(map[string][]string),
+		usedIPs:        make(map[string]string),
+		pathsToSort:    make(map[string]string),
+		skipVault:      opts.SkipVault,
+		skipAws:        opts.SkipAws,
+		skipNats:       opts.SkipNats,
 		metrics: &EngineMetrics{
 			OperatorCalls: make(map[string]int64),
 		},
@@ -882,16 +771,6 @@ func newEngineFromOptions(opts *EngineOptions) *DefaultEngine {
 	// Initialize document memory if a config was provided and enabled
 	if opts.MemoryConfig != nil && opts.MemoryConfig.Enabled {
 		e.documentMemory = NewDocumentMemory(*opts.MemoryConfig)
-	}
-
-	// Initialize vault if configured
-	if !opts.SkipVault && opts.VaultAddress != "" {
-		e.initializeVault()
-	}
-
-	// Initialize AWS if configured
-	if !opts.SkipAws && opts.AWSRegion != "" {
-		e.initializeAWS()
 	}
 
 	return e

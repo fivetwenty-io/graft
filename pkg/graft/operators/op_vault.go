@@ -553,18 +553,14 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 		}
 		DEBUG("vault: using target-specific client for '%s'", targetName)
 	} else {
-		// Fall back to default behavior (environment-based or global client)
-		kv = engine.GetOperatorState().GetVaultClient()
-		if kv == nil {
-			// Fall back to global initialization from environment
-			if vault.GlobalKV == nil {
-				initErr := vault.InitializeClient()
-				if initErr != nil {
-					return "", fmt.Errorf("Error during Vault client initialization: %w", initErr)
-				}
+		// Fall back to global initialization from environment
+		if vault.GlobalKV == nil {
+			initErr := vault.InitializeClient()
+			if initErr != nil {
+				return "", fmt.Errorf("Error during Vault client initialization: %w", initErr)
 			}
-			kv = vault.GlobalKV
 		}
+		kv = vault.GlobalKV
 		DEBUG("vault: using default client")
 	}
 
@@ -575,10 +571,9 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 
 	// Check cache first (include target in cache key)
 	cacheKey := o.getCacheKey(targetName, leftPart)
-	vaultCache := engine.GetOperatorState().GetVaultCache()
 	var fullSecret map[string]interface{}
-	var found bool
-	if fullSecret, found = vaultCache[cacheKey]; found {
+	if cached, found := vault.SecretCache.Get(cacheKey); found {
+		fullSecret = cached
 		DEBUG("vault: Cache hit for `%s` (target: %s)", leftPart, targetName)
 	} else {
 		DEBUG("vault: Cache MISS for `%s` (target: %s)", leftPart, targetName)
@@ -593,7 +588,7 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 			}
 			return "", secretErr
 		}
-		engine.GetOperatorState().SetVaultCache(cacheKey, fullSecret)
+		vault.SecretCache.Set(cacheKey, fullSecret)
 	}
 
 	secret, extractErr := vault.ExtractSubkey(fullSecret, leftPart, rightPart)

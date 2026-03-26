@@ -4,11 +4,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	vaultkv "github.com/cloudfoundry-community/vaultkv"
-
 	"github.com/fivetwenty-io/graft/internal/cache"
 	"github.com/fivetwenty-io/graft/internal/config"
 	"github.com/fivetwenty-io/graft/internal/features"
@@ -115,11 +110,12 @@ type Engine interface {
 }
 
 // OperatorState provides state access for operators during evaluation.
+// Backend-specific clients and caches (Vault KV, AWS session, Secrets Manager,
+// Parameter Store) are accessed through their respective backend packages
+// (internal/backends/vault and internal/backends/aws) rather than through
+// this interface.
 type OperatorState interface {
-	// Vault operations
-	GetVaultClient() *vaultkv.KV
-	GetVaultCache() map[string]map[string]interface{}
-	SetVaultCache(path string, data map[string]interface{})
+	// Vault refs
 	AddVaultRef(path string, keys []string)
 	IsVaultSkipped() bool
 
@@ -132,14 +128,7 @@ type OperatorState interface {
 	SetSkipAws(v bool)
 	SetSkipNats(v bool)
 
-	// AWS operations
-	GetAWSSession() *session.Session
-	GetSecretsManagerClient() secretsmanageriface.SecretsManagerAPI
-	GetParameterStoreClient() ssmiface.SSMAPI
-	GetAWSSecretsCache() map[string]string
-	SetAWSSecretCache(key, value string)
-	GetAWSParamsCache() map[string]string
-	SetAWSParamCache(key, value string)
+	// AWS skip
 	IsAWSSkipped() bool
 
 	// NATS operations

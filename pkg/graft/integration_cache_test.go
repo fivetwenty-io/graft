@@ -230,47 +230,6 @@ result: (( calc "meta.base + 5" ))
 // TestIntegration_CacheWithEngineState tests caching with engine state (vault, AWS caches).
 func TestIntegration_CacheWithEngineState(t *testing.T) {
 	Convey("Cache with Engine State", t, func() {
-		Convey("Vault cache integration", func() {
-			engine, err := NewEngine(
-				WithCache(true, 1000),
-				WithSkipVault(true),
-			)
-			So(err, ShouldBeNil)
-			de := engine.(*DefaultEngine)
-
-			// Set up vault cache manually
-			vaultData := map[string]interface{}{
-				"username": "admin",
-				"password": "secret123",
-			}
-			de.SetVaultCache("secret/test", vaultData)
-
-			// Verify cache was set
-			cache := de.GetVaultCache()
-			So(cache["secret/test"], ShouldNotBeNil)
-			So(cache["secret/test"]["username"], ShouldEqual, "admin")
-		})
-
-		Convey("AWS cache integration", func() {
-			engine, err := NewEngine(
-				WithCache(true, 1000),
-				WithSkipAws(true),
-			)
-			So(err, ShouldBeNil)
-			de := engine.(*DefaultEngine)
-
-			// Set up AWS secrets cache
-			de.SetAWSSecretCache("my-secret", "secret-value")
-			de.SetAWSParamCache("/config/key", "param-value")
-
-			// Verify caches were set
-			secretsCache := de.GetAWSSecretsCache()
-			So(secretsCache["my-secret"], ShouldEqual, "secret-value")
-
-			paramsCache := de.GetAWSParamsCache()
-			So(paramsCache["/config/key"], ShouldEqual, "param-value")
-		})
-
 		Convey("IP allocation cache", func() {
 			engine, err := NewEngine(
 				WithCache(true, 1000),
