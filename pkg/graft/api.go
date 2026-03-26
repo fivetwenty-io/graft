@@ -221,6 +221,9 @@ type EngineOptions struct {
 
 	// EnableParallel enables parallel evaluation (shorthand for feature flag)
 	EnableParallel bool
+
+	// YAMLCompat controls YAML 1.1 backward compatibility behavior (nil uses defaults)
+	YAMLCompat *YAMLCompat
 }
 
 // EngineOption is a functional option for configuring an engine.
@@ -378,6 +381,13 @@ func WithMemoryPools(enabled bool) EngineOption {
 			opts.FeatureFlags = features.DefaultFlags()
 		}
 		opts.FeatureFlags.Set(features.FeatureMemoryPools, enabled)
+	}
+}
+
+// WithYAMLCompat sets YAML compatibility options.
+func WithYAMLCompat(compat *YAMLCompat) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.YAMLCompat = compat
 	}
 }
 
