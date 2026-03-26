@@ -28,7 +28,7 @@ type Evaluator struct {
 	Only []string
 
 	// Reference to the engine (for accessing registries and state)
-	engine interface{} // Using interface{} to avoid circular dependency
+	engine Engine
 
 	// DataflowOrder controls the ordering of operations in dataflow output
 	// "alphabetical" (default) - sort operations alphabetically by path
@@ -58,7 +58,7 @@ type Evaluator struct {
 }
 
 // SetEngine sets the engine for the evaluator.
-func (ev *Evaluator) SetEngine(engine interface{}) {
+func (ev *Evaluator) SetEngine(engine Engine) {
 	ev.engine = engine
 }
 

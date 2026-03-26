@@ -1,11 +1,10 @@
 package graft
 
 // GetEngine returns the engine from an evaluator.
+// If no engine is set, a default engine is created for backward compatibility.
 func GetEngine(ev *Evaluator) Engine {
 	if ev.engine != nil {
-		if eng, ok := ev.engine.(Engine); ok {
-			return eng
-		}
+		return ev.engine
 	}
 	// Return a default engine for backward compatibility
 	engine, _ := CreateDefaultEngine()
