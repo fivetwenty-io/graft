@@ -251,33 +251,5 @@ func (h *TestHelper) AssertDocumentsEqual(doc1, doc2 Document) {
 
 // CreateTestDocument creates a document from a map for testing.
 func (h *TestHelper) CreateTestDocument(data map[string]interface{}) Document {
-	// Convert string keys to interface{} keys to match graft's internal format
-	converted := make(map[interface{}]interface{})
-	h.convertMapKeys(data, converted)
-	return &document{data: converted}
-}
-
-func (h *TestHelper) convertMapKeys(src map[string]interface{}, dst map[interface{}]interface{}) {
-	for k, v := range src {
-		switch val := v.(type) {
-		case map[string]interface{}:
-			nested := make(map[interface{}]interface{})
-			h.convertMapKeys(val, nested)
-			dst[k] = nested
-		case []interface{}:
-			newSlice := make([]interface{}, len(val))
-			for i, item := range val {
-				if itemMap, ok := item.(map[string]interface{}); ok {
-					nested := make(map[interface{}]interface{})
-					h.convertMapKeys(itemMap, nested)
-					newSlice[i] = nested
-				} else {
-					newSlice[i] = item
-				}
-			}
-			dst[k] = newSlice
-		default:
-			dst[k] = v
-		}
-	}
+	return &document{data: data}
 }

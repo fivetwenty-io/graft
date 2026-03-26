@@ -138,9 +138,9 @@ type ModificationDefinition struct {
 }
 
 // Merge merges multiple maps together.
-func Merge(l ...map[interface{}]interface{}) (map[interface{}]interface{}, error) {
+func Merge(l ...map[string]interface{}) (map[string]interface{}, error) {
 	m := &Merger{}
-	root := map[interface{}]interface{}{}
+	root := map[string]interface{}{}
 	for _, next := range l {
 		_ = m.Merge(root, next)
 	}
@@ -148,13 +148,13 @@ func Merge(l ...map[interface{}]interface{}) (map[interface{}]interface{}, error
 }
 
 // MergeWithMetadata performs merge and returns metadata about operations encountered.
-func MergeWithMetadata(l ...map[interface{}]interface{}) (map[interface{}]interface{}, *MergeMetadata, error) {
+func MergeWithMetadata(l ...map[string]interface{}) (map[string]interface{}, *MergeMetadata, error) {
 	m := &Merger{
 		metadata: MergeMetadata{
 			SortPaths: make(map[string]string),
 		},
 	}
-	root := map[interface{}]interface{}{}
+	root := map[string]interface{}{}
 	for _, next := range l {
 		_ = m.Merge(root, next)
 	}
@@ -162,14 +162,14 @@ func MergeWithMetadata(l ...map[interface{}]interface{}) (map[interface{}]interf
 }
 
 // MergeWithMemory performs merge with memory tracking.
-func MergeWithMemory(memory interfaces.MemoryTracker, l ...map[interface{}]interface{}) (map[interface{}]interface{}, error) {
+func MergeWithMemory(memory interfaces.MemoryTracker, l ...map[string]interface{}) (map[string]interface{}, error) {
 	m := &Merger{
 		memory: memory,
 		metadata: MergeMetadata{
 			SortPaths: make(map[string]string),
 		},
 	}
-	root := map[interface{}]interface{}{}
+	root := map[string]interface{}{}
 	for _, next := range l {
 		_ = m.Merge(root, next)
 	}
@@ -215,8 +215,8 @@ func deepCopy(orig interface{}) interface{} {
 	}
 
 	switch v := orig.(type) {
-	case map[interface{}]interface{}:
-		x := map[interface{}]interface{}{}
+	case map[string]interface{}:
+		x := make(map[string]interface{})
 		for k, val := range v {
 			x[k] = deepCopy(val)
 		}
@@ -229,25 +229,18 @@ func deepCopy(orig interface{}) interface{} {
 		}
 		return x
 
-	case map[string]interface{}:
-		x := make(map[string]interface{})
-		for k, val := range v {
-			x[k] = deepCopy(val)
-		}
-		return x
-
 	default:
 		return orig
 	}
 }
 
 // Merge merges map b into map a.
-func (m *Merger) Merge(a, b map[interface{}]interface{}) error {
+func (m *Merger) Merge(a, b map[string]interface{}) error {
 	m.mergeMap(a, b, "$")
 	return m.Error()
 }
 
-func (m *Merger) mergeMap(orig, n map[interface{}]interface{}, node string) {
+func (m *Merger) mergeMap(orig, n map[string]interface{}, node string) {
 	log.DEBUG("mergeMap: merging at node %s", node)
 	log.DEBUG("mergeMap: orig keys = %v", getMapKeys(orig))
 	log.DEBUG("mergeMap: new keys = %v", getMapKeys(n))
@@ -344,7 +337,7 @@ func (m *Merger) MergeObj(orig interface{}, n interface{}, node string) interfac
 			// Check if the original value is complex (map or array)
 			// Complex values might be referenced by grab/inject operators
 			switch orig.(type) {
-			case map[interface{}]interface{}, []interface{}:
+			case map[string]interface{}, []interface{}:
 				log.DEBUG("%s: prune operator replacing complex content, marking for prune but preserving original value", node)
 				m.addToPruneListIfNecessary(node)
 				return orig // Keep original value for other operators to reference
@@ -368,76 +361,21 @@ func (m *Merger) MergeObj(orig interface{}, n interface{}, node string) interfac
 	}
 
 	switch t := n.(type) {
-	case map[interface{}]interface{}:
+	case map[string]interface{}:
 		switch origMap := orig.(type) {
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			log.DEBUG("%s: performing map merge", node)
-			if nMap, ok := n.(map[interface{}]interface{}); ok {
-				m.mergeMap(origMap, nMap, node)
-			}
+			m.mergeMap(origMap, t, node)
 			return orig
 
-		case map[string]interface{}:
-			// Convert orig to map[interface{}]interface{} and merge
-			log.DEBUG("%s: converting original map[string]interface{} to map[interface{}]interface{} for merge", node)
-			converted, ok := convertToInterfaceMap(origMap).(map[interface{}]interface{})
-			if !ok {
-				return orig
-			}
-			if nMap, ok := n.(map[interface{}]interface{}); ok {
-				m.mergeMap(converted, nMap, node)
-			}
-			return converted
-
 		case nil:
-			newOrig := map[interface{}]interface{}{}
-			if nMap, ok := n.(map[interface{}]interface{}); ok {
-				m.mergeMap(newOrig, nMap, node)
-			}
+			newOrig := map[string]interface{}{}
+			m.mergeMap(newOrig, t, node)
 			return newOrig
 
 		default:
 			log.DEBUG("%s: replacing with new data (original was not a map)", node)
 			return t
-		}
-
-	case map[string]interface{}:
-		switch origType := orig.(type) {
-		case map[interface{}]interface{}:
-			log.DEBUG("%s: performing map merge (converting new map[string]interface{} to map[interface{}]interface{})", node)
-			newConverted, ok := convertToInterfaceMap(t).(map[interface{}]interface{})
-			if !ok {
-				return orig
-			}
-			if origMap, ok := orig.(map[interface{}]interface{}); ok {
-				m.mergeMap(origMap, newConverted, node)
-			}
-			return orig
-
-		case map[string]interface{}:
-			log.DEBUG("%s: performing map merge (both are map[string]interface{}, converting to map[interface{}]interface{})", node)
-			origConverted, ok := convertToInterfaceMap(origType).(map[interface{}]interface{})
-			if !ok {
-				return orig
-			}
-			newConverted, ok := convertToInterfaceMap(t).(map[interface{}]interface{})
-			if !ok {
-				return orig
-			}
-			m.mergeMap(origConverted, newConverted, node)
-			return origConverted
-
-		case nil:
-			log.DEBUG("%s: new map creation (converting map[string]interface{} to map[interface{}]interface{})", node)
-			converted, ok := convertToInterfaceMap(t).(map[interface{}]interface{})
-			if !ok {
-				return t
-			}
-			return converted
-
-		default:
-			log.DEBUG("%s: replacing with new data (original was not a map)", node)
-			return convertToInterfaceMap(t)
 		}
 
 	case []interface{}:
@@ -582,7 +520,7 @@ func (m *Merger) mergeArray(orig []interface{}, n []interface{}, node string) []
 
 				// Since we have a way to identify indiviual entries based on their key/id, we can sanity check for possible duplicates
 				for _, entry := range modificationDefinition.list {
-					obj, ok := entry.(map[interface{}]interface{})
+					obj, ok := entry.(map[string]interface{})
 					if !ok {
 						continue
 					}
@@ -744,27 +682,29 @@ func (m *Merger) mergeArrayInline(orig, n []interface{}, node string) []interfac
 
 func (m *Merger) mergeArrayByKey(orig, n []interface{}, node, key string) []interface{} {
 	merged := make([]interface{}, 0, len(orig)+len(n))
-	newMap := make(map[interface{}]interface{})
+	newMap := make(map[string]interface{})
 
 	for _, o := range n {
-		obj, ok := o.(map[interface{}]interface{})
+		obj, ok := o.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		newMap[obj[key]] = obj
+		keyVal := fmt.Sprintf("%v", obj[key])
+		newMap[keyVal] = obj
 	}
 
 	for _, o := range orig {
-		obj, ok := o.(map[interface{}]interface{})
+		obj, ok := o.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		path := fmt.Sprintf("%s.%s", node, obj[key])
+		keyVal := fmt.Sprintf("%v", obj[key])
+		path := fmt.Sprintf("%s.%s", node, keyVal)
 		var mergedItem interface{}
 
-		if _, ok := newMap[obj[key]]; ok {
-			mergedItem = m.MergeObj(obj, newMap[obj[key]], path)
-			delete(newMap, obj[key])
+		if _, ok := newMap[keyVal]; ok {
+			mergedItem = m.MergeObj(obj, newMap[keyVal], path)
+			delete(newMap, keyVal)
 		} else {
 			mergedItem = m.MergeObj(nil, obj, path)
 		}
@@ -775,11 +715,12 @@ func (m *Merger) mergeArrayByKey(orig, n []interface{}, node, key string) []inte
 
 	i := 0
 	for _, obj := range n {
-		objMap, ok := obj.(map[interface{}]interface{})
+		objMap, ok := obj.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		if _, ok := newMap[objMap[key]]; ok {
+		keyVal := fmt.Sprintf("%v", objMap[key])
+		if _, ok := newMap[keyVal]; ok {
 			path := fmt.Sprintf("%s.%d", node, i)
 			log.DEBUG("%s: appending new data to merged array", path)
 			mergedItem := m.MergeObj(nil, objMap, path)
@@ -973,7 +914,7 @@ func isSimpleList(list []interface{}) bool {
 
 	var hash_count int
 	for _, item := range list {
-		if _, ok := item.(map[interface{}]interface{}); ok {
+		if _, ok := item.(map[string]interface{}); ok {
 			hash_count++
 		}
 	}
@@ -1016,9 +957,9 @@ func canKeyMergeArray(disp string, array []interface{}, node string, key string)
 			return ansi.Errorf("@m{%s.%d}: @R{%s object is a} @c{%s}@R{, not a} @c{map} @R{- cannot merge by key}", node, i, disp, reflect.TypeOf(o).Kind().String())
 		}
 
-		obj, ok := o.(map[interface{}]interface{})
+		obj, ok := o.(map[string]interface{})
 		if !ok {
-			return ansi.Errorf("@m{%s.%d}: @R{%s object is not a map[interface{}]interface{} - cannot merge by key}", node, i, disp)
+			return ansi.Errorf("@m{%s.%d}: @R{%s object is not a map[string]interface{} - cannot merge by key}", node, i, disp)
 		}
 		if _, ok := obj[key]; !ok {
 			return ansi.Errorf("@m{%s.%d}: @R{%s object does not contain the key} @c{'%s'}@R{ - cannot merge by key}", node, i, disp, key)
@@ -1026,7 +967,7 @@ func canKeyMergeArray(disp string, array []interface{}, node string, key string)
 
 		// Verify that the target key has a hashable value (i.e. a value that is not itself a hash or sequence)
 		targetValue := obj[key]
-		_, isMap := targetValue.(map[interface{}]interface{})
+		_, isMap := targetValue.(map[string]interface{})
 		_, isSlice := targetValue.([]interface{})
 		if isMap || isSlice {
 			return NewWarningError(eContextDefaultMerge, "@m{%s.%d}: @R{%s object's key} @c{'%s'} @R{cannot have a value which is a hash or sequence - cannot merge by key}", node, i, disp, key)
@@ -1047,7 +988,7 @@ func getIndexOfSimpleEntry(list []interface{}, name string) int {
 func getIndexOfEntry(list []interface{}, key string, name string) int {
 	for i, entry := range list {
 		if reflect.TypeOf(entry).Kind() == reflect.Map {
-			obj, ok := entry.(map[interface{}]interface{})
+			obj, ok := entry.(map[string]interface{})
 			if !ok {
 				continue
 			}
@@ -1117,7 +1058,7 @@ func (m *Merger) addToSortListIfNecessary(operator, path string) {
 	m.metadata.SortPaths[cleanPath] = sortKey
 }
 
-func getMapKeys(m map[interface{}]interface{}) []interface{} {
+func getMapKeys(m map[string]interface{}) []interface{} {
 	keys := make([]interface{}, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -1128,7 +1069,7 @@ func getMapKeys(m map[interface{}]interface{}) []interface{} {
 func convertToInterfaceMap(input interface{}) interface{} {
 	switch v := input.(type) {
 	case map[string]interface{}:
-		result := make(map[interface{}]interface{})
+		result := make(map[string]interface{})
 		for k, val := range v {
 			result[k] = convertToInterfaceMap(val)
 		}
@@ -1138,13 +1079,6 @@ func convertToInterfaceMap(input interface{}) interface{} {
 		result := make([]interface{}, len(v))
 		for i, val := range v {
 			result[i] = convertToInterfaceMap(val)
-		}
-		return result
-	case map[interface{}]interface{}:
-		// Already the right type, but check nested values
-		result := make(map[interface{}]interface{})
-		for k, val := range v {
-			result[k] = convertToInterfaceMap(val)
 		}
 		return result
 	default:

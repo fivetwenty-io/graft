@@ -19,6 +19,32 @@ const (
 	errNotModificationDef = "actual is not ModificationDefinition"
 )
 
+// convertInterfaceMapToStringMap converts map[interface{}]interface{} to map[string]interface{}
+// recursively. This is needed because simpleyaml returns map[interface{}]interface{}.
+func convertInterfaceMapToStringMap(in map[interface{}]interface{}) map[string]interface{} {
+	out := make(map[string]interface{})
+	for k, v := range in {
+		key := fmt.Sprintf("%v", k)
+		out[key] = convertInterfaceValue(v)
+	}
+	return out
+}
+
+func convertInterfaceValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[interface{}]interface{}:
+		return convertInterfaceMapToStringMap(val)
+	case []interface{}:
+		result := make([]interface{}, len(val))
+		for i, item := range val {
+			result[i] = convertInterfaceValue(item)
+		}
+		return result
+	default:
+		return v
+	}
+}
+
 func TestShouldKeyMergeArrayOfHashes(t *testing.T) {
 	Convey("We should key-based merge arrays of hashes", t, func() {
 		Convey("If the element is a string with the right key-merge token", func() {
@@ -503,9 +529,9 @@ func TestMergeObj(t *testing.T) {
 
 	Convey("Passing a map to m.MergeObj merges as a map", t, func() {
 		Convey("merges as a map under normal conditions", func() {
-			orig := map[interface{}]interface{}{"first": 1, "second": 2}
-			n := map[interface{}]interface{}{"second": 4, "third": 3}
-			expect := map[interface{}]interface{}{"first": 1, "second": 4, "third": 3}
+			orig := map[string]interface{}{"first": 1, "second": 2}
+			n := map[string]interface{}{"second": 4, "third": 3}
+			expect := map[string]interface{}{"first": 1, "second": 4, "third": 3}
 
 			m := &Merger{}
 			o := m.MergeObj(orig, n, "node-path")
@@ -514,12 +540,12 @@ func TestMergeObj(t *testing.T) {
 			So(err, ShouldBeNil)
 		})
 		Convey("returns an error when m.mergeMap throws an error", func() {
-			origMap := map[interface{}]interface{}{
+			origMap := map[string]interface{}{
 				"array": []interface{}{
 					"string",
 				},
 			}
-			newMap := map[interface{}]interface{}{
+			newMap := map[string]interface{}{
 				"array": []interface{}{
 					"(( merge on name ))",
 					"string",
@@ -532,8 +558,8 @@ func TestMergeObj(t *testing.T) {
 			So(err.Error(), ShouldContainSubstring, "node-path.array.0: new object is a string, not a map - cannot merge by key")
 		})
 		Convey("returns an error for any (( merge ... )) operators found in non-list context", func() {
-			orig := map[interface{}]interface{}{}
-			n := map[interface{}]interface{}{"map": "(( merge || nil ))"}
+			orig := map[string]interface{}{}
+			n := map[string]interface{}{"map": "(( merge || nil ))"}
 			m := &Merger{}
 			m.MergeObj(orig, n, "node-path")
 			err := m.Error()
@@ -634,8 +660,8 @@ func TestMergeObj(t *testing.T) {
 		})
 		Convey("When passed a map, but original item is a scalar", func() {
 			orig := "value"
-			val := map[interface{}]interface{}{"key": "value"}
-			expect := map[interface{}]interface{}{"key": "value"}
+			val := map[string]interface{}{"key": "value"}
+			expect := map[string]interface{}{"key": "value"}
 
 			m := &Merger{}
 			o := m.MergeObj(orig, val, "node-path")
@@ -644,8 +670,8 @@ func TestMergeObj(t *testing.T) {
 			So(err, ShouldBeNil)
 		})
 		Convey("When passed a map, but original item is nil", func() {
-			val := map[interface{}]interface{}{"key": "value"}
-			expect := map[interface{}]interface{}{"key": "value"}
+			val := map[string]interface{}{"key": "value"}
+			expect := map[string]interface{}{"key": "value"}
 
 			m := &Merger{}
 			o := m.MergeObj(nil, val, "node-path")
@@ -672,9 +698,9 @@ func TestMergeMap(t *testing.T) {
 	ansi.Color(false)
 
 	Convey("with map elements updates original map", t, func() {
-		origMap := map[interface{}]interface{}{"k1": "v1", "k2": "v2"}
-		newMap := map[interface{}]interface{}{"k3": "v3", "k2": "v2.new"}
-		expectMap := map[interface{}]interface{}{"k2": "v2.new", "k3": "v3", "k1": "v1"}
+		origMap := map[string]interface{}{"k1": "v1", "k2": "v2"}
+		newMap := map[string]interface{}{"k3": "v3", "k2": "v2.new"}
+		expectMap := map[string]interface{}{"k2": "v2.new", "k3": "v3", "k1": "v1"}
 
 		m := &Merger{}
 		m.mergeMap(origMap, newMap, "node-path")
@@ -682,12 +708,12 @@ func TestMergeMap(t *testing.T) {
 		So(m.Error(), ShouldBeNil)
 	})
 	Convey("m.mergeMap re-throws an error if it finds one while merging data", t, func() {
-		origMap := map[interface{}]interface{}{
+		origMap := map[string]interface{}{
 			"array": []interface{}{
 				"string",
 			},
 		}
-		newMap := map[interface{}]interface{}{
+		newMap := map[string]interface{}{
 			"array": []interface{}{
 				"(( merge on name ))",
 				"string",
@@ -733,7 +759,7 @@ func TestMergeArray(t *testing.T) {
 				orig := []interface{}{
 					"orig_first",
 					[]interface{}{"subfirst", "subsecond"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "original",
 						"val":  "original",
 					},
@@ -743,7 +769,7 @@ func TestMergeArray(t *testing.T) {
 					"(( inline ))",
 					"overwritten_first",
 					[]interface{}{"(( append ))", "subthird"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"val": "overwritten",
 					},
 					"overwritten_last",
@@ -751,7 +777,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{
 					"overwritten_first",
 					[]interface{}{"subfirst", "subsecond", "subthird"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "original",
 						"val":  "overwritten",
 					},
@@ -767,7 +793,7 @@ func TestMergeArray(t *testing.T) {
 				orig := []interface{}{
 					"orig_first",
 					[]interface{}{"subfirst", "subsecond"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "original",
 						"val":  "original",
 					},
@@ -777,14 +803,14 @@ func TestMergeArray(t *testing.T) {
 					"(( inline ))",
 					"overwritten_first",
 					[]interface{}{"(( append ))", "subthird"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"val": "overwritten",
 					},
 				}
 				expect := []interface{}{
 					"overwritten_first",
 					[]interface{}{"subfirst", "subsecond", "subthird"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "original",
 						"val":  "overwritten",
 					},
@@ -805,7 +831,7 @@ func TestMergeArray(t *testing.T) {
 					"(( inline ))",
 					"overwritten_first",
 					[]interface{}{"(( append ))", "subthird"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"val": "overwritten",
 					},
 					"overwritten_last",
@@ -813,7 +839,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{
 					"overwritten_first",
 					[]interface{}{"subfirst", "subsecond", "subthird"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"val": "overwritten",
 					},
 					"overwritten_last",
@@ -830,7 +856,7 @@ func TestMergeArray(t *testing.T) {
 					"(( inline ))",
 					"overwritten_first",
 					[]interface{}{"(( append ))", "subthird"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"val": "overwritten",
 					},
 					"overwritten_last",
@@ -838,7 +864,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{
 					"overwritten_first",
 					[]interface{}{"subthird"},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"val": "overwritten",
 					},
 					"overwritten_last",
@@ -895,21 +921,21 @@ func TestMergeArray(t *testing.T) {
 		Convey("with initial element '(( merge ))'", func() {
 			Convey("merges and defaults to 'name' for a key, if not specified", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "job1", "id": "1", "org": "org1"},
-					map[interface{}]interface{}{"name": "job3", "id": "3", "org": "org3"},
-					map[interface{}]interface{}{"name": "job2", "id": "2", "org": "org2"},
+					map[string]interface{}{"name": "job1", "id": "1", "org": "org1"},
+					map[string]interface{}{"name": "job3", "id": "3", "org": "org3"},
+					map[string]interface{}{"name": "job2", "id": "2", "org": "org2"},
 				}
 				array := []interface{}{
 					"(( merge ))",
-					map[interface{}]interface{}{"name": "job2", "org": "myorg2"},
-					map[interface{}]interface{}{"name": "job4", "org": "myorg4"},
-					map[interface{}]interface{}{"name": "job1", "org": "myorg1"},
+					map[string]interface{}{"name": "job2", "org": "myorg2"},
+					map[string]interface{}{"name": "job4", "org": "myorg4"},
+					map[string]interface{}{"name": "job1", "org": "myorg1"},
 				}
 				expect := []interface{}{
-					map[interface{}]interface{}{"name": "job1", "id": "1", "org": "myorg1"},
-					map[interface{}]interface{}{"name": "job3", "id": "3", "org": "org3"},
-					map[interface{}]interface{}{"name": "job2", "id": "2", "org": "myorg2"},
-					map[interface{}]interface{}{"name": "job4", "org": "myorg4"},
+					map[string]interface{}{"name": "job1", "id": "1", "org": "myorg1"},
+					map[string]interface{}{"name": "job3", "id": "3", "org": "org3"},
+					map[string]interface{}{"name": "job2", "id": "2", "org": "myorg2"},
+					map[string]interface{}{"name": "job4", "org": "myorg4"},
 				}
 
 				m := &Merger{}
@@ -920,16 +946,16 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Default merging falls back to inline if one of the original map's target keys' values are a map", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org1"},
-					map[interface{}]interface{}{"name": map[interface{}]interface{}{"beep": "boop"}, "org": "org2"},
+					map[string]interface{}{"name": "foo", "org": "org1"},
+					map[string]interface{}{"name": map[string]interface{}{"beep": "boop"}, "org": "org2"},
 				}
 				array := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": "bar", "org": "org4"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				expect := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": "bar", "org": "org4"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				m := &Merger{}
 				output := m.mergeArray(orig, array, "node-path")
@@ -939,16 +965,16 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Default merging falls back to inline if one of the original map's target keys' values are a sequence", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org1"},
-					map[interface{}]interface{}{"name": []interface{}{"beep", "boop"}},
+					map[string]interface{}{"name": "foo", "org": "org1"},
+					map[string]interface{}{"name": []interface{}{"beep", "boop"}},
 				}
 				array := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": "bar", "org": "org4"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				expect := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": "bar", "org": "org4"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				m := &Merger{}
 				output := m.mergeArray(orig, array, "node-path")
@@ -958,16 +984,16 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Default merging falls back to inline if one of the new map's target keys' values are a map", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org1"},
-					map[interface{}]interface{}{"name": "bar", "org": "org2"},
+					map[string]interface{}{"name": "foo", "org": "org1"},
+					map[string]interface{}{"name": "bar", "org": "org2"},
 				}
 				array := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": map[interface{}]interface{}{"beep": "boop"}, "org": "org3"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": map[string]interface{}{"beep": "boop"}, "org": "org3"},
 				}
 				expect := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": map[interface{}]interface{}{"beep": "boop"}, "org": "org3"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": map[string]interface{}{"beep": "boop"}, "org": "org3"},
 				}
 				m := &Merger{}
 				output := m.mergeArray(orig, array, "node-path")
@@ -977,16 +1003,16 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Default merging falls back to inline if one of the new map's target keys' values are a sequence", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org1"},
-					map[interface{}]interface{}{"name": "bar", "org": "org2"},
+					map[string]interface{}{"name": "foo", "org": "org1"},
+					map[string]interface{}{"name": "bar", "org": "org2"},
 				}
 				array := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": []interface{}{"beep", "boop"}},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": []interface{}{"beep", "boop"}},
 				}
 				expect := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": []interface{}{"beep", "boop"}, "org": "org2"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": []interface{}{"beep", "boop"}, "org": "org2"},
 				}
 				m := &Merger{}
 				output := m.mergeArray(orig, array, "node-path")
@@ -996,13 +1022,13 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Explicit merging fails if one of the original map's target keys' values are a map", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org1"},
-					map[interface{}]interface{}{"name": map[interface{}]interface{}{"beep": "boop"}, "org": "org2"},
+					map[string]interface{}{"name": "foo", "org": "org1"},
+					map[string]interface{}{"name": map[string]interface{}{"beep": "boop"}, "org": "org2"},
 				}
 				array := []interface{}{
 					"(( merge ))",
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": "bar", "org": "org4"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				m := &Merger{}
 				m.mergeArray(orig, array, "node-path")
@@ -1011,13 +1037,13 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Explicit merging fails if one of the original map's target keys' values are a sequence", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org1"},
-					map[interface{}]interface{}{"name": []interface{}{"beep", "boop"}},
+					map[string]interface{}{"name": "foo", "org": "org1"},
+					map[string]interface{}{"name": []interface{}{"beep", "boop"}},
 				}
 				array := []interface{}{
 					"(( merge ))",
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": "bar", "org": "org4"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				m := &Merger{}
 				m.mergeArray(orig, array, "node-path")
@@ -1026,13 +1052,13 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Explicit merging fails if one of the new map's target keys' values are a map", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org1"},
-					map[interface{}]interface{}{"name": "bar", "org": "org2"},
+					map[string]interface{}{"name": "foo", "org": "org1"},
+					map[string]interface{}{"name": "bar", "org": "org2"},
 				}
 				array := []interface{}{
 					"(( merge ))",
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": map[interface{}]interface{}{"beep": "boop"}, "org": "org3"},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": map[string]interface{}{"beep": "boop"}, "org": "org3"},
 				}
 				m := &Merger{}
 				m.mergeArray(orig, array, "node-path")
@@ -1041,13 +1067,13 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Explicit merging fails if one of the new map's target keys' values are a sequence", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "foo", "org": "org1"},
-					map[interface{}]interface{}{"name": "bar", "org": "org2"},
+					map[string]interface{}{"name": "foo", "org": "org1"},
+					map[string]interface{}{"name": "bar", "org": "org2"},
 				}
 				array := []interface{}{
 					"(( merge ))",
-					map[interface{}]interface{}{"name": "foo", "org": "org3"},
-					map[interface{}]interface{}{"name": []interface{}{"beep", "boop"}},
+					map[string]interface{}{"name": "foo", "org": "org3"},
+					map[string]interface{}{"name": []interface{}{"beep", "boop"}},
 				}
 				m := &Merger{}
 				m.mergeArray(orig, array, "node-path")
@@ -1056,21 +1082,21 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("allows custom key merging to be specified", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "1", "org": "org1"},
-					map[interface{}]interface{}{"id": "3", "org": "org3"},
-					map[interface{}]interface{}{"id": "2", "org": "org2"},
+					map[string]interface{}{"id": "1", "org": "org1"},
+					map[string]interface{}{"id": "3", "org": "org3"},
+					map[string]interface{}{"id": "2", "org": "org2"},
 				}
 				array := []interface{}{
 					"(( merge on id ))",
-					map[interface{}]interface{}{"id": "2", "org": "myorg2"},
-					map[interface{}]interface{}{"id": "4", "org": "myorg4"},
-					map[interface{}]interface{}{"id": "1", "org": "myorg1"},
+					map[string]interface{}{"id": "2", "org": "myorg2"},
+					map[string]interface{}{"id": "4", "org": "myorg4"},
+					map[string]interface{}{"id": "1", "org": "myorg1"},
 				}
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "1", "org": "myorg1"},
-					map[interface{}]interface{}{"id": "3", "org": "org3"},
-					map[interface{}]interface{}{"id": "2", "org": "myorg2"},
-					map[interface{}]interface{}{"id": "4", "org": "myorg4"},
+					map[string]interface{}{"id": "1", "org": "myorg1"},
+					map[string]interface{}{"id": "3", "org": "org3"},
+					map[string]interface{}{"id": "2", "org": "myorg2"},
+					map[string]interface{}{"id": "4", "org": "myorg4"},
 				}
 
 				m := &Merger{}
@@ -1081,16 +1107,16 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("But not if any of the original array elements are not maps", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "1", "org": "org1"},
-					map[interface{}]interface{}{"id": "3", "org": "org3"},
-					map[interface{}]interface{}{"id": "2", "org": "org2"},
+					map[string]interface{}{"id": "1", "org": "org1"},
+					map[string]interface{}{"id": "3", "org": "org3"},
+					map[string]interface{}{"id": "2", "org": "org2"},
 					"this will make it fail",
 				}
 				array := []interface{}{
 					"(( merge on id ))",
-					map[interface{}]interface{}{"id": "2", "org": "myorg2"},
-					map[interface{}]interface{}{"id": "4", "org": "myorg4"},
-					map[interface{}]interface{}{"id": "1", "org": "myorg1"},
+					map[string]interface{}{"id": "2", "org": "myorg2"},
+					map[string]interface{}{"id": "4", "org": "myorg4"},
+					map[string]interface{}{"id": "1", "org": "myorg1"},
 				}
 
 				m := &Merger{}
@@ -1101,15 +1127,15 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("But not if any of the new array elements are not maps", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "1", "org": "org1"},
-					map[interface{}]interface{}{"id": "3", "org": "org3"},
-					map[interface{}]interface{}{"id": "2", "org": "org2"},
+					map[string]interface{}{"id": "1", "org": "org1"},
+					map[string]interface{}{"id": "3", "org": "org3"},
+					map[string]interface{}{"id": "2", "org": "org2"},
 				}
 				array := []interface{}{
 					"(( merge on id ))",
-					map[interface{}]interface{}{"id": "2", "org": "myorg2"},
-					map[interface{}]interface{}{"id": "4", "org": "myorg4"},
-					map[interface{}]interface{}{"id": "1", "org": "myorg1"},
+					map[string]interface{}{"id": "2", "org": "myorg2"},
+					map[string]interface{}{"id": "4", "org": "myorg4"},
+					map[string]interface{}{"id": "1", "org": "myorg1"},
 					"this will make it fail",
 				}
 
@@ -1121,15 +1147,15 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("But not if any of the elements of the original array don't have the key requested", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "1", "org": "org1"},
-					map[interface{}]interface{}{"id": "3", "org": "org3"},
-					map[interface{}]interface{}{"name": "2", "org": "org2"},
+					map[string]interface{}{"id": "1", "org": "org1"},
+					map[string]interface{}{"id": "3", "org": "org3"},
+					map[string]interface{}{"name": "2", "org": "org2"},
 				}
 				array := []interface{}{
 					"(( merge on id ))",
-					map[interface{}]interface{}{"id": "2", "org": "myorg2"},
-					map[interface{}]interface{}{"id": "4", "org": "myorg4"},
-					map[interface{}]interface{}{"id": "1", "org": "myorg1"},
+					map[string]interface{}{"id": "2", "org": "myorg2"},
+					map[string]interface{}{"id": "4", "org": "myorg4"},
+					map[string]interface{}{"id": "1", "org": "myorg1"},
 				}
 
 				m := &Merger{}
@@ -1139,15 +1165,15 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("But not if any of the elements of the new array don't have the key requested", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "1", "org": "org1"},
-					map[interface{}]interface{}{"id": "3", "org": "org3"},
-					map[interface{}]interface{}{"id": "2", "org": "org2"},
+					map[string]interface{}{"id": "1", "org": "org1"},
+					map[string]interface{}{"id": "3", "org": "org3"},
+					map[string]interface{}{"id": "2", "org": "org2"},
 				}
 				array := []interface{}{
 					"(( merge on id ))",
-					map[interface{}]interface{}{"id": "2", "org": "myorg2"},
-					map[interface{}]interface{}{"id": "4", "org": "myorg4"},
-					map[interface{}]interface{}{"name": "1", "org": "myorg1"},
+					map[string]interface{}{"id": "2", "org": "myorg2"},
+					map[string]interface{}{"id": "4", "org": "myorg4"},
+					map[string]interface{}{"name": "1", "org": "myorg1"},
 				}
 
 				m := &Merger{}
@@ -1159,7 +1185,7 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Returns an error if m.MergeObj() returns an error", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "first",
 						"val": []interface{}{
 							"string",
@@ -1168,7 +1194,7 @@ func TestMergeArray(t *testing.T) {
 				}
 				array := []interface{}{
 					"(( merge ))",
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "first",
 						"val": []interface{}{
 							"(( merge ))",
@@ -1184,9 +1210,9 @@ func TestMergeArray(t *testing.T) {
 			})
 		})
 		Convey("arrays of maps can be merged inline", func() {
-			origMapSlice := map[interface{}]interface{}{"k1": "v1", "k2": "v2"}
-			newMapSlice := map[interface{}]interface{}{"k3": "v3", "k2": "v2.new"}
-			expectMapSlice := map[interface{}]interface{}{"k1": "v1", "k2": "v2.new", "k3": "v3"}
+			origMapSlice := map[string]interface{}{"k1": "v1", "k2": "v2"}
+			newMapSlice := map[string]interface{}{"k3": "v3", "k2": "v2.new"}
+			expectMapSlice := map[string]interface{}{"k1": "v1", "k2": "v2.new", "k3": "v3"}
 			orig := []interface{}{origMapSlice}
 			array := []interface{}{newMapSlice}
 			expect := []interface{}{expectMapSlice}
@@ -1198,9 +1224,9 @@ func TestMergeArray(t *testing.T) {
 			So(err, ShouldBeNil)
 		})
 		Convey("merges arrays of maps by default", func() {
-			origMapSlice := map[interface{}]interface{}{"k1": "v1", "k2": "v2"}
-			newMapSlice := map[interface{}]interface{}{"k3": "v3", "k2": "v2.new"}
-			expectMapSlice := map[interface{}]interface{}{"k1": "v1", "k2": "v2.new", "k3": "v3"}
+			origMapSlice := map[string]interface{}{"k1": "v1", "k2": "v2"}
+			newMapSlice := map[string]interface{}{"k3": "v3", "k2": "v2.new"}
+			expectMapSlice := map[string]interface{}{"k1": "v1", "k2": "v2.new", "k3": "v3"}
 			orig := []interface{}{origMapSlice}
 			array := []interface{}{newMapSlice}
 			expect := []interface{}{expectMapSlice}
@@ -1213,22 +1239,22 @@ func TestMergeArray(t *testing.T) {
 		})
 		Convey("uses key-merge if possible", func() {
 			first := []interface{}{
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name": "first",
 					"k1":   "v1",
 				},
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name": "second",
 					"done": "yes",
 				},
 			}
 			second := []interface{}{
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name": "second",
 					"2":    "best",
 					"test": "test",
 				},
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name": "first",
 					"k1":   "1",
 					"k2":   "2",
@@ -1239,12 +1265,12 @@ func TestMergeArray(t *testing.T) {
 			o := m.MergeObj(first, second, "an.inlined.merge")
 			err := m.Error()
 			So(o, ShouldResemble, []interface{}{
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name": "first",
 					"k1":   "1",
 					"k2":   "2",
 				},
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name": "second",
 					"2":    "best",
 					"done": "yes",
@@ -1257,25 +1283,25 @@ func TestMergeArray(t *testing.T) {
 			_ = os.Setenv("DEFAULT_ARRAY_MERGE_KEY", "id")
 			Convey("can override key-merge by default", func() {
 				first := []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "first",
 						"k1":   "v1",
 						"id":   "1",
 					},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "second",
 						"done": "yes",
 						"id":   "2",
 					},
 				}
 				second := []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "second",
 						"2":    "best",
 						"test": "test",
 						"id":   "2",
 					},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "first",
 						"k1":   "1",
 						"k2":   "2",
@@ -1287,13 +1313,13 @@ func TestMergeArray(t *testing.T) {
 				o := m.MergeObj(first, second, "an.inlined.merge")
 				err := m.Error()
 				So(o, ShouldResemble, []interface{}{
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "first",
 						"k1":   "1",
 						"k2":   "2",
 						"id":   "1",
 					},
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"name": "second",
 						"2":    "best",
 						"done": "yes",
@@ -1380,19 +1406,19 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("After '<default>: first' put the new entry", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after \"first\" ))",
-					map[interface{}]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1404,19 +1430,19 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Before '<default>: first' put the new entry", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert before \"first\" ))",
-					map[interface{}]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1428,19 +1454,19 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("After 'id: second' put the new entry", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after id \"second\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
 				}
 
 				m := &Merger{}
@@ -1452,19 +1478,19 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Before 'id: second' put the new entry", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert before id \"second\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1477,26 +1503,26 @@ func TestMergeArray(t *testing.T) {
 			//nolint:dupl // Test cases intentionally have similar structure with different insertion strategies
 			Convey("Insert multiple new entries before second and after first", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert before id \"second\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
 					"(( insert after id \"first\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1509,26 +1535,26 @@ func TestMergeArray(t *testing.T) {
 			//nolint:dupl // Test cases intentionally have similar structure with different insertion strategies
 			Convey("Insert multiple new entries in two batches after first", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after id \"first\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
 					"(( insert after id \"first\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1540,31 +1566,31 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Insert multiple new entries in three batches after first", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after id \"first\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
 					"(( insert after id \"first\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
 					"(( insert after id \"first\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1576,37 +1602,37 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Insert multiple new entries in different batches", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "fourth", "release": "v1"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "sixth", "release": "v1"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "fourth", "release": "v1"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "sixth", "release": "v1"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after id \"second\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
 					"(( insert after id \"fourth\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
 					"(( insert after id \"sixth\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "fourth", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "sixth", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "fourth", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "sixth", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1618,33 +1644,33 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Insert multiple new entries in different batches with empty lists", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "fourth", "release": "v1"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "sixth", "release": "v1"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "fourth", "release": "v1"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "sixth", "release": "v1"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after id \"second\" ))",
 					"(( insert after id \"fourth\" ))",
 					"(( insert after id \"sixth\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "fourth", "release": "v1"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "sixth", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "fourth", "release": "v1"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "sixth", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1656,51 +1682,51 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Insert multiple new entries in with different insertion styles", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "fourth", "release": "v1"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "sixth", "release": "v1"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "fourth", "release": "v1"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "sixth", "release": "v1"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after id \"second\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
 					"(( prepend ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
 					"(( append ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-7", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-7", "release": "vNext"},
 					"(( insert before id \"fourth\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-8", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-8", "release": "vNext"},
 					"(( insert after 0 ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-9", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-9", "release": "vNext"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-9", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-8", "release": "vNext"},
-					map[interface{}]interface{}{"id": "fourth", "release": "v1"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "sixth", "release": "v1"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-7", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-9", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-1", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-2", "release": "vNext"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-8", "release": "vNext"},
+					map[string]interface{}{"id": "fourth", "release": "v1"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "sixth", "release": "v1"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-7", "release": "vNext"},
 				}
 
 				m := &Merger{}
@@ -1749,32 +1775,32 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Insert multiple new entries in with different insertion styles which depend on each other (with id keys)", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "1"},
-					map[interface{}]interface{}{"id": "2"},
-					map[interface{}]interface{}{"id": "3"},
+					map[string]interface{}{"id": "1"},
+					map[string]interface{}{"id": "2"},
+					map[string]interface{}{"id": "3"},
 				}
 
 				array := []interface{}{
 					"(( prepend ))",
-					map[interface{}]interface{}{"id": "this thing"},
-					map[interface{}]interface{}{"id": "that thing"},
+					map[string]interface{}{"id": "this thing"},
+					map[string]interface{}{"id": "that thing"},
 					"(( insert after id \"this thing\" ))",
-					map[interface{}]interface{}{"id": "first insert"},
+					map[string]interface{}{"id": "first insert"},
 					"(( insert after id \"first insert\" ))",
-					map[interface{}]interface{}{"id": "second insert"},
+					map[string]interface{}{"id": "second insert"},
 					"(( insert after id \"2\" ))",
-					map[interface{}]interface{}{"id": "stuff"},
+					map[string]interface{}{"id": "stuff"},
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "this thing"},
-					map[interface{}]interface{}{"id": "first insert"},
-					map[interface{}]interface{}{"id": "second insert"},
-					map[interface{}]interface{}{"id": "that thing"},
-					map[interface{}]interface{}{"id": "1"},
-					map[interface{}]interface{}{"id": "2"},
-					map[interface{}]interface{}{"id": "stuff"},
-					map[interface{}]interface{}{"id": "3"},
+					map[string]interface{}{"id": "this thing"},
+					map[string]interface{}{"id": "first insert"},
+					map[string]interface{}{"id": "second insert"},
+					map[string]interface{}{"id": "that thing"},
+					map[string]interface{}{"id": "1"},
+					map[string]interface{}{"id": "2"},
+					map[string]interface{}{"id": "stuff"},
+					map[string]interface{}{"id": "3"},
 				}
 
 				m := &Merger{}
@@ -1786,13 +1812,13 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("throw an error when insertion point cannot be found", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after name \"not-existing\" ))",
-					map[interface{}]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
 				}
 
 				m := &Merger{}
@@ -1805,13 +1831,13 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("throw an error when key cannot be found in new list", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after id \"second\" ))",
-					map[interface{}]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
 				}
 
 				m := &Merger{}
@@ -1824,13 +1850,13 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("throw an error when key cannot be found in original list", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after id \"second\" ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block", "release": "vNext"},
 				}
 
 				m := &Merger{}
@@ -1843,14 +1869,14 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("throw an error when entry is already in target list", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( insert after name \"second\" ))",
-					map[interface{}]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
-					map[interface{}]interface{}{"name": "second", "release": "vNext"},
+					map[string]interface{}{"name": "new-kid-on-the-block", "release": "vNext"},
+					map[string]interface{}{"name": "second", "release": "vNext"},
 				}
 
 				m := &Merger{}
@@ -1912,8 +1938,8 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Delete '<default>: first'", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
@@ -1921,7 +1947,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1932,8 +1958,8 @@ func TestMergeArray(t *testing.T) {
 			})
 			Convey("Delete '<default>: first' (no quotes)", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
@@ -1941,7 +1967,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1953,8 +1979,8 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Delete 'id: second'", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
@@ -1962,7 +1988,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1974,8 +2000,8 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("Allow inquoted names in delete", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
@@ -1983,7 +2009,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -1995,8 +2021,8 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("delete multiple entries, second and first", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
@@ -2015,14 +2041,14 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("delete multiple entries in different batches", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "fourth", "release": "v1"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "sixth", "release": "v1"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "fourth", "release": "v1"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "sixth", "release": "v1"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
 				}
 
 				array := []interface{}{
@@ -2032,11 +2058,11 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
 				}
 
 				m := &Merger{}
@@ -2048,40 +2074,40 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("delete multiple entries, together with different modification styles", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "second", "release": "v1"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "fourth", "release": "v1"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "sixth", "release": "v1"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "fourth", "release": "v1"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "sixth", "release": "v1"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
 				}
 
 				array := []interface{}{
 					"(( delete id \"second\" ))",
 					"(( prepend ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-3", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
 					"(( append ))",
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-7", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-7", "release": "vNext"},
 					"(( delete id \"fourth\" ))",
 					"(( delete 0 ))",
 				}
 
 				expect := []interface{}{
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
-					map[interface{}]interface{}{"id": "first", "release": "v1"},
-					map[interface{}]interface{}{"id": "third", "release": "v1"},
-					map[interface{}]interface{}{"id": "fifth", "release": "v1"},
-					map[interface{}]interface{}{"id": "sixth", "release": "v1"},
-					map[interface{}]interface{}{"id": "seventh", "release": "v1"},
-					map[interface{}]interface{}{"id": "eighth", "release": "v1"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
-					map[interface{}]interface{}{"id": "new-kid-on-the-block-7", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-4", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-5", "release": "vNext"},
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "third", "release": "v1"},
+					map[string]interface{}{"id": "fifth", "release": "v1"},
+					map[string]interface{}{"id": "sixth", "release": "v1"},
+					map[string]interface{}{"id": "seventh", "release": "v1"},
+					map[string]interface{}{"id": "eighth", "release": "v1"},
+					map[string]interface{}{"id": "new-kid-on-the-block-6", "release": "vNext"},
+					map[string]interface{}{"id": "new-kid-on-the-block-7", "release": "vNext"},
 				}
 
 				m := &Merger{}
@@ -2093,8 +2119,8 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("throw an error when delete point cannot be found", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
@@ -2111,8 +2137,8 @@ func TestMergeArray(t *testing.T) {
 
 			Convey("throw an error when key cannot be found in original list", func() {
 				orig := []interface{}{
-					map[interface{}]interface{}{"name": "first", "release": "v1"},
-					map[interface{}]interface{}{"name": "second", "release": "v1"},
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
 				}
 
 				array := []interface{}{
@@ -2131,14 +2157,14 @@ func TestMergeArray(t *testing.T) {
 }
 
 func TestMerge(t *testing.T) {
-	YAML := func(s string) map[interface{}]interface{} {
+	YAML := func(s string) map[string]interface{} {
 		y, err := simpleyaml.NewYaml([]byte(s))
 		So(err, ShouldBeNil)
 
 		data, err := y.Map()
 		So(err, ShouldBeNil)
 
-		return data
+		return convertInterfaceMapToStringMap(data)
 	}
 
 	valueIs := func(t interface{}, path string, expect string) {
@@ -2241,7 +2267,7 @@ top_replace:
 - c
 `)
 
-		orig := map[interface{}]interface{}{}
+		orig := map[string]interface{}{}
 		merged, err := Merge(orig, template)
 		So(err, ShouldBeNil)
 

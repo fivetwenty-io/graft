@@ -8,8 +8,8 @@ import (
 )
 
 // deepMerge recursively merges src into dst and returns the result.
-func deepMerge(dst, src map[interface{}]interface{}) map[interface{}]interface{} {
-	result := make(map[interface{}]interface{})
+func deepMerge(dst, src map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
 
 	// Copy dst first
 	for k, v := range dst {
@@ -20,8 +20,8 @@ func deepMerge(dst, src map[interface{}]interface{}) map[interface{}]interface{}
 	for key, srcVal := range src {
 		if dstVal, exists := result[key]; exists {
 			// If both are maps, merge recursively
-			if srcMap, srcOk := srcVal.(map[interface{}]interface{}); srcOk {
-				if dstMap, dstOk := dstVal.(map[interface{}]interface{}); dstOk {
+			if srcMap, srcOk := srcVal.(map[string]interface{}); srcOk {
+				if dstMap, dstOk := dstVal.(map[string]interface{}); dstOk {
 					result[key] = deepMerge(dstMap, srcMap)
 					continue
 				}
@@ -46,22 +46,16 @@ func deepCopyHelper(v interface{}) interface{} {
 	}
 
 	switch val := v.(type) {
-	case map[interface{}]interface{}:
-		result := make(map[interface{}]interface{})
+	case map[string]interface{}:
+		result := make(map[string]interface{})
 		for k, v := range val {
-			result[deepCopyHelper(k)] = deepCopyHelper(v)
+			result[k] = deepCopyHelper(v)
 		}
 		return result
 	case []interface{}:
 		result := make([]interface{}, len(val))
 		for i, v := range val {
 			result[i] = deepCopyHelper(v)
-		}
-		return result
-	case map[string]interface{}:
-		result := make(map[string]interface{})
-		for k, v := range val {
-			result[k] = deepCopyHelper(v)
 		}
 		return result
 	default:
@@ -89,12 +83,12 @@ func parsePath(path string) []string {
 	return strings.Split(path, ".")
 }
 
-// DeepCopyMap creates a deep copy of a map[interface{}]interface{}.
-func DeepCopyMap(m map[interface{}]interface{}) map[interface{}]interface{} {
+// DeepCopyMap creates a deep copy of a map[string]interface{}.
+func DeepCopyMap(m map[string]interface{}) map[string]interface{} {
 	if m == nil {
 		return nil
 	}
-	result, ok := deepCopyHelper(m).(map[interface{}]interface{})
+	result, ok := deepCopyHelper(m).(map[string]interface{})
 	if !ok {
 		return nil
 	}
@@ -117,12 +111,6 @@ func getValueAtPath(data interface{}, path string) (interface{}, error) {
 
 	for _, segment := range segments {
 		switch v := current.(type) {
-		case map[interface{}]interface{}:
-			val, ok := v[segment]
-			if !ok {
-				return nil, fmt.Errorf("key %s not found", segment)
-			}
-			current = val
 		case map[string]interface{}:
 			val, ok := v[segment]
 			if !ok {
@@ -167,7 +155,7 @@ func SortList(path string, list []interface{}, sortKey string) error {
 			case []interface{}:
 				// Special error for lists of lists
 				return fmt.Errorf("$.%s is a list with list entries (not a list with maps, strings or numbers)", path)
-			case map[interface{}]interface{}:
+			case map[string]interface{}:
 				// Always consider maps as maps for type checking
 				typeName = valueTypeMap
 
@@ -247,8 +235,8 @@ func universalLess(a, b interface{}, key string) bool {
 		}
 		return aVal < bVal
 
-	case map[interface{}]interface{}:
-		entryB, ok := b.(map[interface{}]interface{})
+	case map[string]interface{}:
+		entryB, ok := b.(map[string]interface{})
 		if !ok {
 			return false
 		}

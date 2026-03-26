@@ -118,14 +118,14 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 
 	// Handle empty document list
 	if len(m.docs) == 0 {
-		return NewDocument(make(map[interface{}]interface{})), nil
+		return NewDocument(make(map[string]interface{})), nil
 	}
 
 	// Handle single document case
 	if len(m.docs) == 1 {
 		// For single documents, we need to validate arrays even without merging
 		// to match legacy behavior for Issue #172
-		data, ok := m.docs[0].RawData().(map[interface{}]interface{})
+		data, ok := m.docs[0].RawData().(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("document data is not a map")
 		}
@@ -152,7 +152,7 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 
 			// Create an empty base and merge our document into it
 			// This triggers the array validation logic
-			base := make(map[interface{}]interface{})
+			base := make(map[string]interface{})
 			err := mergerInstance.Merge(base, data)
 			if err != nil {
 				// Convert merger.MultiError to graft.MultiError for consistent error formatting
@@ -203,11 +203,11 @@ func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 
 	// If no regular documents, start with empty
 	if len(regularDocs) == 0 {
-		return NewDocument(make(map[interface{}]interface{})), nil
+		return NewDocument(make(map[string]interface{})), nil
 	}
 
 	// Start with the first document as base
-	baseData, ok := regularDocs[0].RawData().(map[interface{}]interface{})
+	baseData, ok := regularDocs[0].RawData().(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("document data is not a map")
 	}
@@ -229,7 +229,7 @@ func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 		}
 
 		// Create an empty base and merge our first document into it
-		emptyBase := make(map[interface{}]interface{})
+		emptyBase := make(map[string]interface{})
 		err := mergerInstance.Merge(emptyBase, baseData)
 		if err != nil {
 			// Convert merger.MultiError to graft.MultiError for consistent error formatting
@@ -273,7 +273,7 @@ func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 		default:
 		}
 
-		overlayData, ok := regularDocs[i].RawData().(map[interface{}]interface{})
+		overlayData, ok := regularDocs[i].RawData().(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("overlay document data is not a map")
 		}
@@ -291,7 +291,7 @@ func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 }
 
 // needsLegacyMerger determines if the legacy merger should be used.
-func (m *mergeBuilderImpl) needsLegacyMerger(base, overlay map[interface{}]interface{}) bool {
+func (m *mergeBuilderImpl) needsLegacyMerger(base, overlay map[string]interface{}) bool {
 	return (!m.skipEvaluation && m.hasArrayOperators(overlay)) ||
 		m.hasArraysWithMaps(overlay) ||
 		m.hasPruneOperators(overlay) ||
@@ -300,7 +300,7 @@ func (m *mergeBuilderImpl) needsLegacyMerger(base, overlay map[interface{}]inter
 }
 
 // performLegacyMerge uses the legacy merger for complex merge operations.
-func (m *mergeBuilderImpl) performLegacyMerge(base, overlay map[interface{}]interface{}) error {
+func (m *mergeBuilderImpl) performLegacyMerge(base, overlay map[string]interface{}) error {
 	mergerInstance := &merger.Merger{
 		AppendByDefault: m.fallbackAppend,
 	}
@@ -358,7 +358,7 @@ func (m *mergeBuilderImpl) collectMergeMetadata(mergerInstance *merger.Merger) {
 }
 
 // mergeInto merges overlay data into base data using legacy merger when needed.
-func (m *mergeBuilderImpl) mergeInto(base, overlay map[interface{}]interface{}) error {
+func (m *mergeBuilderImpl) mergeInto(base, overlay map[string]interface{}) error {
 	if m.needsLegacyMerger(base, overlay) {
 		return m.performLegacyMerge(base, overlay)
 	}
@@ -367,7 +367,7 @@ func (m *mergeBuilderImpl) mergeInto(base, overlay map[interface{}]interface{}) 
 }
 
 // performSimpleMerge performs a simple merge without legacy merger.
-func (m *mergeBuilderImpl) performSimpleMerge(base, overlay map[interface{}]interface{}) error {
+func (m *mergeBuilderImpl) performSimpleMerge(base, overlay map[string]interface{}) error {
 	var memTracker interfaces.MemoryTracker
 	if m.engine != nil {
 		memTracker = m.engine.GetMemoryTracker()
@@ -419,8 +419,8 @@ func (m *mergeBuilderImpl) mergeValues(base, overlay interface{}) (interface{}, 
 	}
 
 	// Handle map merging
-	baseMap, baseIsMap := base.(map[interface{}]interface{})
-	overlayMap, overlayIsMap := overlay.(map[interface{}]interface{})
+	baseMap, baseIsMap := base.(map[string]interface{})
+	overlayMap, overlayIsMap := overlay.(map[string]interface{})
 
 	if baseIsMap && overlayIsMap {
 		result := deepCopyMap(baseMap)
@@ -468,14 +468,14 @@ func (m *mergeBuilderImpl) mergeValues(base, overlay interface{}) (interface{}, 
 }
 
 // hasArrayOperators checks if a map contains arrays with merge operators.
-func (m *mergeBuilderImpl) hasArrayOperators(data map[interface{}]interface{}) bool {
+func (m *mergeBuilderImpl) hasArrayOperators(data map[string]interface{}) bool {
 	for _, value := range data {
 		switch v := value.(type) {
 		case []interface{}:
 			if m.arrayHasOperators(v) {
 				return true
 			}
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			// Recursively check nested maps
 			if m.hasArrayOperators(v) {
 				return true
@@ -505,16 +505,16 @@ func (m *mergeBuilderImpl) arrayHasOperators(array []interface{}) bool {
 }
 
 // hasArraysWithMaps checks if a map contains arrays with map elements (for merge-by-key detection).
-func (m *mergeBuilderImpl) hasArraysWithMaps(data map[interface{}]interface{}) bool {
+func (m *mergeBuilderImpl) hasArraysWithMaps(data map[string]interface{}) bool {
 	for _, value := range data {
 		switch v := value.(type) {
 		case []interface{}:
 			for _, item := range v {
-				if _, isMap := item.(map[interface{}]interface{}); isMap {
+				if _, isMap := item.(map[string]interface{}); isMap {
 					return true
 				}
 			}
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			// Recursively check nested maps
 			if m.hasArraysWithMaps(v) {
 				return true
@@ -525,7 +525,7 @@ func (m *mergeBuilderImpl) hasArraysWithMaps(data map[interface{}]interface{}) b
 }
 
 // hasPruneOperators checks if a map contains prune operators.
-func (m *mergeBuilderImpl) hasPruneOperators(data map[interface{}]interface{}) bool {
+func (m *mergeBuilderImpl) hasPruneOperators(data map[string]interface{}) bool {
 	for _, value := range data {
 		switch v := value.(type) {
 		case string:
@@ -533,7 +533,7 @@ func (m *mergeBuilderImpl) hasPruneOperators(data map[interface{}]interface{}) b
 			if strings.TrimSpace(v) == "(( prune ))" {
 				return true
 			}
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			// Recursively check nested maps
 			if m.hasPruneOperators(v) {
 				return true
@@ -545,7 +545,7 @@ func (m *mergeBuilderImpl) hasPruneOperators(data map[interface{}]interface{}) b
 					return true
 				}
 				// Also check if array contains maps with prune operators
-				if mapItem, ok := item.(map[interface{}]interface{}); ok {
+				if mapItem, ok := item.(map[string]interface{}); ok {
 					if m.hasPruneOperators(mapItem) {
 						return true
 					}
@@ -557,7 +557,7 @@ func (m *mergeBuilderImpl) hasPruneOperators(data map[interface{}]interface{}) b
 }
 
 // hasSortOperators checks if a map contains sort operators.
-func (m *mergeBuilderImpl) hasSortOperators(data map[interface{}]interface{}) bool {
+func (m *mergeBuilderImpl) hasSortOperators(data map[string]interface{}) bool {
 	for _, value := range data {
 		switch v := value.(type) {
 		case string:
@@ -566,7 +566,7 @@ func (m *mergeBuilderImpl) hasSortOperators(data map[interface{}]interface{}) bo
 			if strings.HasPrefix(trimmed, "(( sort") && strings.HasSuffix(trimmed, "))") {
 				return true
 			}
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			// Recursively check nested maps
 			if m.hasSortOperators(v) {
 				return true
@@ -673,17 +673,9 @@ func (m *mergeBuilderImpl) applyGoPatch(doc Document) (Document, error) {
 	}
 
 	// Ensure the result is a map
-	resultMap, ok := data.(map[interface{}]interface{})
+	resultMap, ok := data.(map[string]interface{})
 	if !ok {
-		// Try to convert if it's map[string]interface{}
-		if strMap, ok := data.(map[string]interface{}); ok {
-			resultMap = make(map[interface{}]interface{})
-			for k, v := range strMap {
-				resultMap[k] = v
-			}
-		} else {
-			return nil, fmt.Errorf("go-patch operations resulted in non-map data")
-		}
+		return nil, fmt.Errorf("go-patch operations resulted in non-map data")
 	}
 
 	return NewDocument(resultMap), nil
@@ -691,7 +683,7 @@ func (m *mergeBuilderImpl) applyGoPatch(doc Document) (Document, error) {
 
 // applyPruning removes specified keys from the document.
 func (m *mergeBuilderImpl) applyPruning(doc Document) Document {
-	data, ok := doc.RawData().(map[interface{}]interface{})
+	data, ok := doc.RawData().(map[string]interface{})
 	if !ok {
 		return doc // Return unchanged if not a map
 	}
@@ -712,11 +704,11 @@ func (m *mergeBuilderImpl) applyPruning(doc Document) Document {
 //
 //nolint:gocyclo // cherry-picking handles arrays, maps, and nested paths
 func (m *mergeBuilderImpl) applyCherryPicking(doc Document) (Document, error) {
-	data, ok := doc.RawData().(map[interface{}]interface{})
+	data, ok := doc.RawData().(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("document data is not a map")
 	}
-	result := make(map[interface{}]interface{})
+	result := make(map[string]interface{})
 
 	// Group cherry-pick paths by their parent
 	type arraySelection struct {
@@ -823,7 +815,7 @@ func (m *mergeBuilderImpl) applyCherryPicking(doc Document) (Document, error) {
 						// Parent is an array, but we couldn't access the element
 						// Create a nested map structure: parent.key = entire array
 						lastPart := parts[len(parts)-1]
-						mapWithKey := map[interface{}]interface{}{
+						mapWithKey := map[string]interface{}{
 							lastPart: parentValue,
 						}
 						err = m.setKey(result, parentPath, mapWithKey)
@@ -860,7 +852,7 @@ func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 	}
 
 	// Fallback: create basic evaluator (this should not happen in practice)
-	data, ok := doc.RawData().(map[interface{}]interface{})
+	data, ok := doc.RawData().(map[string]interface{})
 	if !ok {
 		return nil, NewEvaluationError("", "document data is not a map", nil)
 	}
@@ -882,7 +874,7 @@ func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 // Helper functions for key manipulation
 
 //nolint:gocyclo // removeKey navigates nested maps and arrays with various path formats
-func (m *mergeBuilderImpl) removeKey(data map[interface{}]interface{}, keyPath string) error {
+func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string) error {
 	// Handle nested paths like "config.enabled" or "meta.list.1"
 	if keyPath == "" {
 		return nil
@@ -902,7 +894,7 @@ func (m *mergeBuilderImpl) removeKey(data map[interface{}]interface{}, keyPath s
 		part := parts[i]
 
 		switch v := current.(type) {
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			value, exists := v[part]
 			if !exists {
 				// Path doesn't exist, nothing to remove
@@ -937,7 +929,7 @@ func (m *mergeBuilderImpl) removeKey(data map[interface{}]interface{}, keyPath s
 	finalPart := parts[len(parts)-1]
 
 	switch parent := current.(type) {
-	case map[interface{}]interface{}:
+	case map[string]interface{}:
 		// Simple map key deletion
 		delete(parent, finalPart)
 	case []interface{}:
@@ -961,7 +953,7 @@ func (m *mergeBuilderImpl) removeKey(data map[interface{}]interface{}, keyPath s
 		var parentContainer interface{} = data
 		for i := 0; i < len(parts)-2; i++ {
 			part := parts[i]
-			if m, ok := parentContainer.(map[interface{}]interface{}); ok {
+			if m, ok := parentContainer.(map[string]interface{}); ok {
 				if next, exists := m[part]; exists {
 					parentContainer = next
 				}
@@ -969,7 +961,7 @@ func (m *mergeBuilderImpl) removeKey(data map[interface{}]interface{}, keyPath s
 		}
 
 		// Now update the array in its parent map
-		if parentMap, ok := parentContainer.(map[interface{}]interface{}); ok {
+		if parentMap, ok := parentContainer.(map[string]interface{}); ok {
 			arrayKey := parts[len(parts)-2]
 			if arr, ok := parentMap[arrayKey].([]interface{}); ok && index < len(arr) {
 				// Remove element at index
@@ -1001,12 +993,6 @@ func findNamedArrayEntry(arr []interface{}, name string) (interface{}, bool) {
 	for _, entry := range arr {
 		// Only check map entries
 		switch v := entry.(type) {
-		case map[interface{}]interface{}:
-			for _, idKey := range identifierKeys {
-				if val, exists := v[idKey]; exists && fmt.Sprintf("%v", val) == name {
-					return entry, true
-				}
-			}
 		case map[string]interface{}:
 			for _, idKey := range identifierKeys {
 				if val, exists := v[idKey]; exists && fmt.Sprintf("%v", val) == name {
@@ -1019,7 +1005,7 @@ func findNamedArrayEntry(arr []interface{}, name string) (interface{}, bool) {
 	return nil, false
 }
 
-func (m *mergeBuilderImpl) extractKey(data map[interface{}]interface{}, keyPath string) (interface{}, error) {
+func (m *mergeBuilderImpl) extractKey(data map[string]interface{}, keyPath string) (interface{}, error) {
 	// Handle nested paths like "config.enabled"
 	if keyPath == "" {
 		return nil, NewValidationError("empty key path")
@@ -1032,12 +1018,6 @@ func (m *mergeBuilderImpl) extractKey(data map[interface{}]interface{}, keyPath 
 	var current interface{} = data
 	for i, part := range parts {
 		switch v := current.(type) {
-		case map[interface{}]interface{}:
-			value, exists := v[part]
-			if !exists {
-				return nil, NewValidationError(fmt.Sprintf("key not found: %s (missing segment '%s')", keyPath, part))
-			}
-			current = value
 		case map[string]interface{}:
 			value, exists := v[part]
 			if !exists {
@@ -1071,7 +1051,7 @@ func (m *mergeBuilderImpl) extractKey(data map[interface{}]interface{}, keyPath 
 	return deepCopyValue(current), nil
 }
 
-func (m *mergeBuilderImpl) setKey(data map[interface{}]interface{}, keyPath string, value interface{}) error {
+func (m *mergeBuilderImpl) setKey(data map[string]interface{}, keyPath string, value interface{}) error {
 	// Handle nested paths like "config.enabled"
 	if keyPath == "" {
 		return NewValidationError("empty key path")
@@ -1093,22 +1073,14 @@ func (m *mergeBuilderImpl) setKey(data map[interface{}]interface{}, keyPath stri
 
 		if next, exists := current[part]; exists {
 			switch v := next.(type) {
-			case map[interface{}]interface{}:
-				current = v
 			case map[string]interface{}:
-				// Convert to map[interface{}]interface{} for consistency
-				newMap := make(map[interface{}]interface{})
-				for k, val := range v {
-					newMap[k] = val
-				}
-				current[part] = newMap
-				current = newMap
+				current = v
 			default:
 				return NewValidationError(fmt.Sprintf("cannot set path '%s': segment '%s' is not a map", keyPath, part))
 			}
 		} else {
 			// Create intermediate maps as needed
-			newMap := make(map[interface{}]interface{})
+			newMap := make(map[string]interface{})
 			current[part] = newMap
 			current = newMap
 		}
@@ -1122,8 +1094,8 @@ func (m *mergeBuilderImpl) setKey(data map[interface{}]interface{}, keyPath stri
 
 // Deep copy helpers
 
-func deepCopyMap(src map[interface{}]interface{}) map[interface{}]interface{} {
-	dst := make(map[interface{}]interface{})
+func deepCopyMap(src map[string]interface{}) map[string]interface{} {
+	dst := make(map[string]interface{})
 	for key, value := range src {
 		dst[key] = deepCopyValue(value)
 	}
@@ -1132,18 +1104,12 @@ func deepCopyMap(src map[interface{}]interface{}) map[interface{}]interface{} {
 
 func deepCopyValue(src interface{}) interface{} {
 	switch v := src.(type) {
-	case map[interface{}]interface{}:
+	case map[string]interface{}:
 		return deepCopyMap(v)
 	case []interface{}:
 		dst := make([]interface{}, len(v))
 		for i, item := range v {
 			dst[i] = deepCopyValue(item)
-		}
-		return dst
-	case map[string]interface{}:
-		dst := make(map[string]interface{})
-		for key, value := range v {
-			dst[key] = deepCopyValue(value)
 		}
 		return dst
 	default:
