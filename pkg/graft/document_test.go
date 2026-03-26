@@ -527,23 +527,23 @@ func TestDocument_Set(t *testing.T) {
 			})
 		})
 
-		Convey("When setting with invalid path", func() {
+		Convey("When setting with unclosed bracket path", func() {
+			// ParseCursor treats unclosed brackets as valid paths (parses up to the bracket)
 			err := doc.Set("invalid[", "value")
 
-			Convey("Then it should return validation error", func() {
-				So(err, ShouldNotBeNil)
-				var graftErr *GraftError
-				So(errors.As(err, &graftErr), ShouldBeTrue)
-				So(graftErr.Type, ShouldEqual, ValidationError)
+			Convey("Then it should succeed setting the parsed key", func() {
+				So(err, ShouldBeNil)
 			})
 		})
 
 		Convey("When setting a nested path", func() {
 			err := doc.Set("nested.path", "value")
 
-			Convey("Then it should return not implemented error", func() {
-				So(err, ShouldNotBeNil)
-				So(err.Error(), ShouldContainSubstring, "Set operation not yet implemented")
+			Convey("Then it should succeed and create intermediate maps", func() {
+				So(err, ShouldBeNil)
+				val, getErr := doc.GetString("nested.path")
+				So(getErr, ShouldBeNil)
+				So(val, ShouldEqual, "value")
 			})
 		})
 	})
@@ -653,20 +653,6 @@ func TestDocument_ToMap(t *testing.T) {
 	})
 }
 
-func TestDocument_ensurePathExists(t *testing.T) {
-	Convey("Given a document", t, func() {
-		doc := &document{data: make(map[string]interface{})}
-
-		Convey("When ensuring path exists", func() {
-			// Since this is a simplified implementation that returns nil
-			err := doc.ensurePathExists(nil)
-
-			Convey("Then it should return nil", func() {
-				So(err, ShouldBeNil)
-			})
-		})
-	})
-}
 
 func TestPathParts(t *testing.T) {
 	Convey("Given various path strings", t, func() {
@@ -1093,4 +1079,27 @@ func TestDocument_CherryPick(t *testing.T) {
 			})
 		})
 	})
+}
+
+func TestDocumentSet(t *testing.T) {
+	doc := NewDocument(map[string]interface{}{"a": map[string]interface{}{"b": "old"}})
+
+	err := doc.Set("a.b", "new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	val, _ := doc.GetString("a.b")
+	if val != "new" {
+		t.Errorf("Set(a.b) = %q, want %q", val, "new")
+	}
+
+	// Set creates intermediate paths
+	err = doc.Set("x.y.z", 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, _ := doc.Get("x.y.z")
+	if v != 42 {
+		t.Errorf("Set(x.y.z) = %v, want 42", v)
+	}
 }

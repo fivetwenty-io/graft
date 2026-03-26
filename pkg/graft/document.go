@@ -70,13 +70,7 @@ func (d *document) Set(path string, value interface{}) error {
 		return NewValidationError(fmt.Sprintf("invalid path '%s': %v", path, err))
 	}
 
-	err = d.ensurePathExists(cursor)
-	if err != nil {
-		return err
-	}
-
-	// TODO: Implement cursor.Set method or alternative approach
-	return NewValidationError("Set operation not yet implemented")
+	return cursor.Set(d.data, value)
 }
 
 // Delete removes a value at the given path.
@@ -232,13 +226,6 @@ func (d *document) Clone() Document {
 	}
 	// Fallback - this shouldn't happen
 	return NewDocument(make(map[string]interface{}))
-}
-
-// ensurePathExists creates intermediate maps/slices as needed for the given path.
-func (d *document) ensurePathExists(cursor *tree.Cursor) error {
-	// This is a simplified implementation
-	// A full implementation would need to handle array indices and create intermediate structures
-	return nil
 }
 
 // deepCopy performs a deep copy of the data structure.

@@ -3,6 +3,8 @@ package tree
 
 import (
 	"bytes"
+	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -143,4 +145,52 @@ func (c *Cursor) Component(offset int) string {
 		return ""
 	}
 	return c.Nodes[offset]
+}
+
+// Set sets a value at the cursor path in the given root map.
+// Intermediate maps are created if they don't exist.
+func (c *Cursor) Set(root map[string]interface{}, value interface{}) error {
+	if len(c.Nodes) == 0 {
+		return fmt.Errorf("empty cursor path")
+	}
+
+	current := interface{}(root)
+	for i := 0; i < len(c.Nodes)-1; i++ {
+		node := c.Nodes[i]
+		switch container := current.(type) {
+		case map[string]interface{}:
+			next, exists := container[node]
+			if !exists {
+				newMap := make(map[string]interface{})
+				container[node] = newMap
+				current = newMap
+			} else {
+				current = next
+			}
+		case []interface{}:
+			idx, err := strconv.Atoi(node)
+			if err != nil || idx < 0 || idx >= len(container) {
+				return fmt.Errorf("invalid array index %q", node)
+			}
+			current = container[idx]
+		default:
+			return fmt.Errorf("cannot traverse into %T at %q", current, node)
+		}
+	}
+
+	lastNode := c.Nodes[len(c.Nodes)-1]
+	switch container := current.(type) {
+	case map[string]interface{}:
+		container[lastNode] = value
+		return nil
+	case []interface{}:
+		idx, err := strconv.Atoi(lastNode)
+		if err != nil || idx < 0 || idx >= len(container) {
+			return fmt.Errorf("invalid array index %q", lastNode)
+		}
+		container[idx] = value
+		return nil
+	default:
+		return fmt.Errorf("cannot set on %T", current)
+	}
 }
