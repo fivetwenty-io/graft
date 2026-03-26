@@ -20,9 +20,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/geofffranks/simpleyaml"
 	"github.com/geofffranks/yaml"
 	. "github.com/smartystreets/goconvey/convey"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -33,16 +33,10 @@ func TestVault(t *testing.T) {
 	ansi.Color(false)
 
 	YAML := func(s string) map[string]interface{} {
-		y, err := simpleyaml.NewYaml([]byte(s))
+		var result map[string]interface{}
+		err := yamlv3.Unmarshal([]byte(s), &result)
 		So(err, ShouldBeNil)
-
-		data, err := y.Map()
-		So(err, ShouldBeNil)
-
-		result := make(map[string]interface{})
-		for k, v := range data {
-			result[fmt.Sprintf("%v", k)] = v
-		}
+		So(result, ShouldNotBeNil)
 		return result
 	}
 
@@ -430,16 +424,10 @@ secret: (( vault "secret/hand4:shake" ))
 
 func TestVaultWithDefaults(t *testing.T) {
 	YAML := func(s string) map[string]interface{} {
-		y, err := simpleyaml.NewYaml([]byte(s))
+		var result map[string]interface{}
+		err := yamlv3.Unmarshal([]byte(s), &result)
 		So(err, ShouldBeNil)
-
-		data, err := y.Map()
-		So(err, ShouldBeNil)
-
-		result := make(map[string]interface{})
-		for k, v := range data {
-			result[fmt.Sprintf("%v", k)] = v
-		}
+		So(result, ShouldNotBeNil)
 		return result
 	}
 

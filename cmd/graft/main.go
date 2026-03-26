@@ -25,9 +25,9 @@ import (
 
 	// Use geofffranks forks to persist the fix in https://github.com/go-yaml/yaml/pull/133/commits
 	// Also https://github.com/go-yaml/yaml/pull/195
-	"github.com/geofffranks/simpleyaml"
 	"github.com/geofffranks/yaml"
 	"github.com/voxelbrain/goptions"
+	yamlv3 "gopkg.in/yaml.v3"
 )
 
 // Version holds the Current version of graft.
@@ -330,54 +330,33 @@ func parseGoPatch(data []byte) (patch.Ops, error) {
 	return ops, nil
 }
 
-// convertLegacyMap converts map[interface{}]interface{} returned by simpleyaml
-// to map[string]interface{} for use throughout graft. This is a temporary bridge
-// until simpleyaml is replaced by yaml.v3 in Task 1.9.
-func convertLegacyMap(m map[interface{}]interface{}) map[string]interface{} {
-	result := make(map[string]interface{}, len(m))
-	for k, v := range m {
-		result[fmt.Sprintf("%v", k)] = convertLegacyValue(v)
-	}
-	return result
-}
-
-func convertLegacyValue(v interface{}) interface{} {
-	switch val := v.(type) {
-	case map[interface{}]interface{}:
-		return convertLegacyMap(val)
-	case []interface{}:
-		result := make([]interface{}, len(val))
-		for i, elem := range val {
-			result[i] = convertLegacyValue(elem)
-		}
-		return result
-	default:
-		return v
-	}
-}
-
 func parseYAML(data []byte) (map[string]interface{}, error) {
-	y, err := simpleyaml.NewYaml(data)
-	if err != nil {
-		return nil, err
-	}
-
-	if emptyY, emptyErr := simpleyaml.NewYaml([]byte{}); emptyErr == nil && *y == *emptyY {
+	// Handle empty document
+	if len(bytes.TrimSpace(data)) == 0 {
 		log.DEBUG("YAML doc is empty, creating empty hash/map")
 		return make(map[string]interface{}), nil
 	}
 
-	rawDoc, err := y.Map()
-
-	if err != nil {
-		if _, arrayErr := y.Array(); arrayErr == nil {
-			return nil, RootIsArrayError{msg: ansi.Sprintf("@R{Root of YAML document is not a hash/map}: %s\n", err)}
-		}
+	// First, unmarshal into a generic interface to detect root type
+	var raw interface{}
+	if err := yamlv3.Unmarshal(data, &raw); err != nil {
 		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
 	}
 
-	doc := convertLegacyMap(rawDoc)
-	return doc, nil
+	switch v := raw.(type) {
+	case map[string]interface{}:
+		if len(v) == 0 {
+			log.DEBUG("YAML doc is empty, creating empty hash/map")
+		}
+		return v, nil
+	case nil:
+		log.DEBUG("YAML doc is null/empty, creating empty hash/map")
+		return make(map[string]interface{}), nil
+	case []interface{}:
+		return nil, RootIsArrayError{msg: ansi.Sprintf("@R{Root of YAML document is not a hash/map}: root is an array\n")}
+	default:
+		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: found %T\n", raw)
+	}
 }
 
 func loadYamlFile(file string) (YamlFile, error) {

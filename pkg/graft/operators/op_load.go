@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/geofffranks/simpleyaml"
+	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -83,22 +83,21 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		return nil, err
 	}
 
-	data, err := simpleyaml.NewYaml(bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	if listroot, err := data.Array(); err == nil {
-		return &Response{
-			Type:  Replace,
-			Value: listroot,
-		}, nil
-	}
-
-	if maproot, err := data.Map(); err == nil {
+	// Try to unmarshal as a map first
+	var maproot map[string]interface{}
+	if err := yamlv3.Unmarshal(bytes, &maproot); err == nil && maproot != nil {
 		return &Response{
 			Type:  Replace,
 			Value: maproot,
+		}, nil
+	}
+
+	// Try to unmarshal as a list
+	var listroot []interface{}
+	if err := yamlv3.Unmarshal(bytes, &listroot); err == nil && listroot != nil {
+		return &Response{
+			Type:  Replace,
+			Value: listroot,
 		}, nil
 	}
 

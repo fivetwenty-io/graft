@@ -9,7 +9,6 @@ require (
 	github.com/cppforlife/go-patch v0.2.0
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/fsnotify/fsnotify v1.6.0
-	github.com/geofffranks/simpleyaml v0.0.0-20161109204137-c9320f076de5
 	github.com/geofffranks/yaml v0.0.0-20161117152608-9f2fe4b6f295
 	github.com/gonvenience/ytbx v1.4.7
 	github.com/homeport/dyff v1.10.3
