@@ -3,7 +3,6 @@ package graft
 import (
 	"context"
 	"io"
-	"sync"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
@@ -124,6 +123,15 @@ type OperatorState interface {
 	AddVaultRef(path string, keys []string)
 	IsVaultSkipped() bool
 
+	// Vault refs (for vaultinfo command)
+	GetVaultRefs() map[string][]string
+	ResetVaultRefs()
+
+	// Skip setters (for REDACT mode)
+	SetSkipVault(v bool)
+	SetSkipAws(v bool)
+	SetSkipNats(v bool)
+
 	// AWS operations
 	GetAWSSession() *session.Session
 	GetSecretsManagerClient() secretsmanageriface.SecretsManagerAPI
@@ -134,6 +142,9 @@ type OperatorState interface {
 	SetAWSParamCache(key, value string)
 	IsAWSSkipped() bool
 
+	// NATS operations
+	IsNATSSkipped() bool
+
 	// Static IPs
 	GetUsedIPs() map[string]string
 	SetUsedIP(key, ip string)
@@ -141,10 +152,19 @@ type OperatorState interface {
 	// Prune operations
 	AddKeyToPrune(key string)
 	GetKeysToPrune() []string
+	ResetKeysToPrune()
 
 	// Sort operations
 	AddPathToSort(path, order string)
 	GetPathsToSort() map[string]string
+	ResetPathsToSort()
+
+	// Reset operations (for cleanup between evaluations)
+	ResetUsedIPs()
+
+	// Warning suppression
+	SuppressWarnings() bool
+	SetSuppressWarnings(v bool)
 }
 
 // ArrayMergeStrategy defines how arrays are merged.
@@ -224,6 +244,11 @@ type EngineOptions struct {
 
 	// YAMLCompat controls YAML 1.1 backward compatibility behavior (nil uses defaults)
 	YAMLCompat *YAMLCompat
+
+	// Skip flags for external service operators
+	SkipVault bool
+	SkipAws   bool
+	SkipNats  bool
 }
 
 // EngineOption is a functional option for configuring an engine.
@@ -391,6 +416,27 @@ func WithYAMLCompat(compat *YAMLCompat) EngineOption {
 	}
 }
 
+// WithSkipVault configures the engine to skip vault operations.
+func WithSkipVault(skip bool) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.SkipVault = skip
+	}
+}
+
+// WithSkipAws configures the engine to skip AWS operations.
+func WithSkipAws(skip bool) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.SkipAws = skip
+	}
+}
+
+// WithSkipNats configures the engine to skip NATS operations.
+func WithSkipNats(skip bool) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.SkipNats = skip
+	}
+}
+
 // Logger interface for structured logging.
 type Logger interface {
 	Debug(msg string, fields ...interface{})
@@ -481,48 +527,3 @@ func CreateDefaultEngine() (Engine, error) {
 //		return engine.ToYAML(result)
 //	}
 //
-// Global variables for backward compatibility with CLI.
-var (
-	// VaultRefs tracks vault references found during evaluation.
-	VaultRefs = map[string][]string{}
-
-	// SkipVault disables vault operations when true.
-	SkipVault bool
-
-	// SkipAws disables AWS operations when true.
-	SkipAws bool
-
-	// keysToPrune tracks keys to prune (temporary until Phase 2).
-	keysToPrune []string
-
-	// pathsToSort tracks paths to sort (temporary until Phase 2).
-	pathsToSort = make(map[string]string)
-
-	// globalStateMutex protects keysToPrune and pathsToSort for concurrent access.
-	globalStateMutex sync.Mutex
-)
-
-// addToPruneListIfNecessary adds a path to the prune list if needed (temporary until Phase 2).
-func addToPruneListIfNecessary(paths ...string) {
-	globalStateMutex.Lock()
-	defer globalStateMutex.Unlock()
-	keysToPrune = append(keysToPrune, paths...)
-}
-
-// getAndClearKeysToPrune returns the current prune list and clears it (thread-safe).
-func getAndClearKeysToPrune() []string {
-	globalStateMutex.Lock()
-	defer globalStateMutex.Unlock()
-	keys := keysToPrune
-	keysToPrune = nil
-	return keys
-}
-
-// getAndClearPathsToSort returns the current sort paths and clears them (thread-safe).
-func getAndClearPathsToSort() map[string]string {
-	globalStateMutex.Lock()
-	defer globalStateMutex.Unlock()
-	paths := pathsToSort
-	pathsToSort = make(map[string]string)
-	return paths
-}

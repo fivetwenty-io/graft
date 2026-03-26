@@ -15,21 +15,11 @@ import (
 // UNDEFINED_AZ is a placeholder for undefined availability zones.
 const UNDEFINED_AZ = "__UNDEFINED_AZ__"
 
-// UsedIPs ...
-var UsedIPs map[string]string
-
 // StaticIPOperator ...
 type StaticIPOperator struct{}
 
 // Setup ...
 func (StaticIPOperator) Setup() error {
-	// Note: We no longer reset the global UsedIPs map here because
-	// the operator now uses engine state for IP tracking.
-	// The engine state is managed separately and persists across
-	// operator calls within the same evaluation phase.
-	if UsedIPs == nil {
-		UsedIPs = map[string]string{}
-	}
 	return nil
 }
 

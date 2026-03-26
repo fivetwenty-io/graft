@@ -1,17 +1,9 @@
 package operators
 
 import (
-	"sync"
-
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
-
-// keysToPrune is kept for backward compatibility.
-var keysToPrune []string
-
-// pruneMutex protects keysToPrune for concurrent access.
-var pruneMutex sync.Mutex
 
 // addToPruneListIfNecessary adds paths to the prune list.
 func addToPruneListIfNecessary(engine graft.Engine, paths ...string) {
@@ -90,27 +82,3 @@ func init() {
 	RegisterOp("prune", PruneOperator{})
 }
 
-// GetKeysToPrune returns the keys to prune (for backward compatibility).
-func GetKeysToPrune() []string {
-	pruneMutex.Lock()
-	defer pruneMutex.Unlock()
-	result := make([]string, len(keysToPrune))
-	copy(result, keysToPrune)
-	return result
-}
-
-// ClearKeysToPrune clears the keys to prune (for backward compatibility).
-func ClearKeysToPrune() {
-	pruneMutex.Lock()
-	defer pruneMutex.Unlock()
-	keysToPrune = []string{}
-}
-
-// AddKeyToPruneGlobal adds a key to the global prune list (for backward compatibility).
-func AddKeyToPruneGlobal(key string) {
-	pruneMutex.Lock()
-	defer pruneMutex.Unlock()
-	if !isIncluded(keysToPrune, key) {
-		keysToPrune = append(keysToPrune, key)
-	}
-}

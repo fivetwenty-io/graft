@@ -53,6 +53,9 @@ type DefaultEngine struct {
 	awsMutex             sync.RWMutex
 	skipAws              bool
 
+	// NATS state
+	skipNats bool
+
 	// Static IPs state
 	usedIPs map[string]string
 	ipMutex sync.RWMutex
@@ -64,6 +67,9 @@ type DefaultEngine struct {
 	// Sort state
 	pathsToSort map[string]string
 	sortMutex   sync.RWMutex
+
+	// Warning suppression
+	suppressWarnings bool
 
 	// Metrics and monitoring
 	metrics *EngineMetrics
@@ -269,25 +275,15 @@ func (e *DefaultEngine) AddVaultRef(path string, keys []string) {
 	e.vaultMutex.Lock()
 	defer e.vaultMutex.Unlock()
 
-	// Update internal vault refs
 	if e.vaultRefs[path] == nil {
 		e.vaultRefs[path] = []string{}
 	}
 	e.vaultRefs[path] = append(e.vaultRefs[path], keys...)
-
-	// Also update global VaultRefs for backward compatibility with vaultinfo command
-	if SkipVault || e.skipVault {
-		if VaultRefs[path] == nil {
-			VaultRefs[path] = []string{}
-		}
-		VaultRefs[path] = append(VaultRefs[path], keys...)
-	}
 }
 
 // IsVaultSkipped returns true if Vault operations should be skipped.
 func (e *DefaultEngine) IsVaultSkipped() bool {
-	// Check both the engine's skipVault and the global SkipVault for backward compatibility
-	return e.skipVault || SkipVault
+	return e.skipVault
 }
 
 // GetAWSSession returns the AWS session for API calls.
@@ -407,6 +403,78 @@ func (e *DefaultEngine) GetPathsToSort() map[string]string {
 		paths[k] = v
 	}
 	return paths
+}
+
+// GetVaultRefs returns a copy of the vault references map.
+func (e *DefaultEngine) GetVaultRefs() map[string][]string {
+	e.vaultMutex.RLock()
+	defer e.vaultMutex.RUnlock()
+
+	result := make(map[string][]string)
+	for k, v := range e.vaultRefs {
+		refs := make([]string, len(v))
+		copy(refs, v)
+		result[k] = refs
+	}
+	return result
+}
+
+// ResetVaultRefs clears the vault references map.
+func (e *DefaultEngine) ResetVaultRefs() {
+	e.vaultMutex.Lock()
+	defer e.vaultMutex.Unlock()
+	e.vaultRefs = make(map[string][]string)
+}
+
+// SetSkipVault sets whether vault operations should be skipped.
+func (e *DefaultEngine) SetSkipVault(v bool) {
+	e.skipVault = v
+}
+
+// SetSkipAws sets whether AWS operations should be skipped.
+func (e *DefaultEngine) SetSkipAws(v bool) {
+	e.skipAws = v
+}
+
+// SetSkipNats sets whether NATS operations should be skipped.
+func (e *DefaultEngine) SetSkipNats(v bool) {
+	e.skipNats = v
+}
+
+// IsNATSSkipped returns true if NATS operations should be skipped.
+func (e *DefaultEngine) IsNATSSkipped() bool {
+	return e.skipNats
+}
+
+// ResetKeysToPrune clears the keys to prune list.
+func (e *DefaultEngine) ResetKeysToPrune() {
+	e.pruneMutex.Lock()
+	defer e.pruneMutex.Unlock()
+	e.keysToPrune = nil
+}
+
+// ResetPathsToSort clears the paths to sort map.
+func (e *DefaultEngine) ResetPathsToSort() {
+	e.sortMutex.Lock()
+	defer e.sortMutex.Unlock()
+	e.pathsToSort = make(map[string]string)
+}
+
+// ResetUsedIPs clears the used IPs map.
+func (e *DefaultEngine) ResetUsedIPs() {
+	e.ipMutex.Lock()
+	defer e.ipMutex.Unlock()
+	e.usedIPs = make(map[string]string)
+}
+
+// SuppressWarnings returns whether warnings should be suppressed.
+func (e *DefaultEngine) SuppressWarnings() bool {
+	return e.suppressWarnings
+}
+
+// SetSuppressWarnings sets whether warnings should be suppressed.
+func (e *DefaultEngine) SetSuppressWarnings(v bool) {
+	e.suppressWarnings = v
 }
 
 // Internal methods
@@ -874,10 +942,17 @@ func createEngineFromOptions(opts *EngineOptions) (Engine, error) {
 		EnableParallel: opts.MaxConcurrency > 1,
 		MaxWorkers:     opts.MaxConcurrency,
 		DataflowOrder:  opts.DataflowOrder,
+		SkipVault:      opts.SkipVault,
+		SkipAWS:        opts.SkipAws,
 	}
 
 	// Create the engine
 	engine := NewDefaultEngineWithConfig(engineCfg)
+
+	// Apply NATS skip (not in EngineConfig)
+	if opts.SkipNats {
+		engine.skipNats = true
+	}
 
 	// Register custom operators if any
 	if opts.CustomOperators != nil {

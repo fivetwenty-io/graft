@@ -24,9 +24,6 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
-// SkipAws toggles whether AwsOperator will attempt to query AWS for any value
-// When true will always return "REDACTED".
-var SkipAws bool
 
 // AwsTarget represents an AWS target configuration.
 type AwsTarget struct {
@@ -474,14 +471,14 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	// Extract target information (placeholder for now)
 	targetName := o.extractTarget(ev, args)
 
+	engine := graft.GetEngine(ev)
 	var value string
-	if !SkipAws {
+	if !engine.GetOperatorState().IsAWSSkipped() {
 		if targetName != "" {
 			// Use target-aware client pool
 			value, err = o.getValueFromTarget(targetName, key, params)
 		} else {
 			// Use default behavior
-			engine := graft.GetEngine(ev)
 			awsSess := engine.GetOperatorState().GetAWSSession()
 			if awsSess == nil {
 				awsSess, err = initializeAwsSession(os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))

@@ -95,9 +95,6 @@ var (
 	}
 )
 
-// SkipNats toggles whether NatsOperator will attempt to connect to NATS
-// When true will always return "REDACTED".
-var SkipNats bool
 
 // NatsTarget represents a NATS target configuration.
 type NatsTarget struct {
@@ -977,7 +974,8 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 	DEBUG("running (( nats ... )) operation at $.%s", ev.Here)
 	defer DEBUG("done with (( nats ... )) operation at $%s\n", ev.Here)
 
-	if SkipNats {
+	engine := graft.GetEngine(ev)
+	if engine.GetOperatorState().IsNATSSkipped() {
 		return &graft.Response{
 			Type:  graft.Replace,
 			Value: "REDACTED",

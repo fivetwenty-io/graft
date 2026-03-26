@@ -68,15 +68,9 @@ func TestParseAwsOpKey(t *testing.T) {
 
 func TestAwsOperatorSkipMode(t *testing.T) {
 	Convey("AWS Operator Skip Mode", t, func() {
-		// Save original value
-		originalSkipAws := SkipAws
-		defer func() { SkipAws = originalSkipAws }()
-
-		Convey("when SkipAws is true", func() {
-			SkipAws = true
-
+		Convey("when SkipAws is true via engine option", func() {
 			Convey("awssecret should return skipped message", func() {
-				engine, err := graft.NewEngine()
+				engine, err := graft.NewEngine(graft.WithSkipAws(true))
 				So(err, ShouldBeNil)
 
 				yaml := []byte(`
@@ -95,7 +89,7 @@ secret: (( awssecret "prod/database/password" ))
 			})
 
 			Convey("awsparam should return skipped message", func() {
-				engine, err := graft.NewEngine()
+				engine, err := graft.NewEngine(graft.WithSkipAws(true))
 				So(err, ShouldBeNil)
 
 				yaml := []byte(`

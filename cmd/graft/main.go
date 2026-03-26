@@ -79,6 +79,7 @@ type mergeOpts struct {
 	DataflowOrder  string             `goptions:"--dataflow-order, description='Order of operations in dataflow output: alphabetical (default) or insertion'"`
 	Help           bool               `goptions:"--help, -h"`
 	Files          goptions.Remainder `goptions:"description='List of files to merge. To read STDIN, specify a filename of \\'-\\'.'"`
+	EngineOpts     []graft.EngineOption // Programmatic engine options (not from CLI flags)
 }
 
 type cliOptions struct {
@@ -164,7 +165,7 @@ func handleColorFlag(colorOpt string) (bool, bool) {
 }
 
 func handleMerge(opts *mergeOpts) int {
-	tree, err := cmdMergeEval(opts)
+	tree, _, err := cmdMergeEval(opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
@@ -216,17 +217,16 @@ func handleFan(opts *mergeOpts) int {
 }
 
 func handleVaultInfo(options *cliOptions) int {
-	graft.VaultRefs = map[string][]string{}
-	graft.SkipVault = true
 	options.Merge.Files = options.VaultInfo.Files
 	options.Merge.EnableGoPatch = options.VaultInfo.EnableGoPatch
-	_, err := cmdMergeEval(&options.Merge)
+	options.Merge.EngineOpts = append(options.Merge.EngineOpts, graft.WithSkipVault(true))
+	_, engine, err := cmdMergeEval(&options.Merge)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
 	}
 
-	printStdOutf("%s\n", formatVaultRefs())
+	printStdOutf("%s\n", formatVaultRefs(engine))
 	return 0
 }
 
@@ -402,17 +402,17 @@ func splitLoadYamlFile(file string) ([]YamlFile, error) {
 	return docs, nil
 }
 
-func cmdMergeEval(options *mergeOpts) (map[string]interface{}, error) {
+func cmdMergeEval(options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
 	files := []YamlFile{}
 
 	if len(options.Files) < 1 {
 		stdinInfo, err := os.Stdin.Stat()
 		if err != nil {
-			return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
+			return nil, nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
 		}
 
 		if stdinInfo.Mode()&os.ModeCharDevice != 0 {
-			return nil, ansi.Errorf("@R{Error reading STDIN}: no data found. Did you forget to pipe data to STDIN, or specify yaml files to merge?")
+			return nil, nil, ansi.Errorf("@R{Error reading STDIN}: no data found. Did you forget to pipe data to STDIN, or specify yaml files to merge?")
 		}
 
 		options.Files = append(options.Files, "-")
@@ -422,24 +422,24 @@ func cmdMergeEval(options *mergeOpts) (map[string]interface{}, error) {
 		if options.MultiDoc {
 			docs, err := splitLoadYamlFile(file)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			files = append(files, docs...)
 		} else {
 			yamlFile, err := loadYamlFile(file)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			files = append(files, yamlFile)
 		}
 	}
 
-	result, err := mergeAllDocs(files, options)
+	result, engine, err := mergeAllDocs(files, options)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return result, nil
+	return result, engine, nil
 }
 
 func cmdFanEval(options *mergeOpts) ([]map[string]interface{}, error) {
@@ -497,7 +497,7 @@ func cmdFanEval(options *mergeOpts) ([]map[string]interface{}, error) {
 	for _, doc := range docs {
 		sourceBuffer := bytes.NewBuffer(sourceBytes)
 		source = YamlFile{Path: source.Path, Reader: io.NopCloser(sourceBuffer)}
-		result, err := mergeAllDocs([]YamlFile{source, doc}, options)
+		result, _, err := mergeAllDocs([]YamlFile{source, doc}, options)
 		if err != nil {
 			return nil, err
 		}
@@ -539,9 +539,10 @@ func (refs byKey) Len() int           { return len(refs) }
 func (refs byKey) Swap(i, j int)      { refs[i], refs[j] = refs[j], refs[i] }
 func (refs byKey) Less(i, j int) bool { return refs[i].Key < refs[j].Key }
 
-func formatVaultRefs() string {
+func formatVaultRefs(engine graft.Engine) string {
 	refs := yamlVaultRefs{}
-	for secret, srcs := range graft.VaultRefs {
+	vaultRefs := engine.GetOperatorState().GetVaultRefs()
+	for secret, srcs := range vaultRefs {
 		refs.Secrets = append(refs.Secrets, yamlVaultSecret{secret, srcs})
 	}
 
@@ -552,7 +553,7 @@ func formatVaultRefs() string {
 
 	output, err := yaml.Marshal(refs)
 	if err != nil {
-		panic(fmt.Sprintf("Could not marshal YAML for vault references: %+v", graft.VaultRefs))
+		panic(fmt.Sprintf("Could not marshal YAML for vault references: %+v", vaultRefs))
 	}
 
 	return string(output)
@@ -588,12 +589,14 @@ func readFile(file *YamlFile) ([]byte, error) {
 }
 
 //nolint:gocyclo // mergeAllDocs orchestrates complex document merging with multiple options
-func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{}, error) {
-	// Create engine with settings from options
-	engineOpts := []graft.EngineOption{
+func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
+	// Create engine with settings from options (caller-provided first, then defaults)
+	engineOpts := make([]graft.EngineOption, 0, len(options.EngineOpts)+3)
+	engineOpts = append(engineOpts, options.EngineOpts...)
+	engineOpts = append(engineOpts,
 		graft.WithCache(true, 1000),
 		graft.WithConcurrency(10),
-	}
+	)
 
 	// Set dataflow order if specified (default to alphabetical if not set)
 	dataflowOrder := options.DataflowOrder
@@ -604,7 +607,7 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{},
 
 	engine, err := graft.NewEngine(engineOpts...)
 	if err != nil {
-		return nil, ansi.Errorf("@R{Failed to create graft engine}: %s", err.Error())
+		return nil, nil, ansi.Errorf("@R{Failed to create graft engine}: %s", err.Error())
 	}
 
 	// Parse all documents
@@ -614,7 +617,7 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{},
 
 		data, readErr := readFile(&file)
 		if readErr != nil {
-			return nil, readErr
+			return nil, nil, readErr
 		}
 
 		// Check if it's a go-patch document
@@ -624,7 +627,7 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{},
 				log.DEBUG("Detected root of document as an array. Attempting go-patch parsing")
 				ops, patchErr := parseGoPatch(data)
 				if patchErr != nil {
-					return nil, ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, patchErr.Error())
+					return nil, nil, ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, patchErr.Error())
 				}
 				// Create a go-patch document
 				doc := graft.NewGoPatchDocument(ops)
@@ -636,7 +639,7 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{},
 		// Parse as YAML
 		doc, parseDocErr := engine.ParseYAML(data)
 		if parseDocErr != nil {
-			return nil, ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, parseDocErr.Error())
+			return nil, nil, ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, parseDocErr.Error())
 		}
 		docs = append(docs, doc)
 	}
@@ -668,18 +671,18 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{},
 	if err != nil {
 		// Check if this is a MultiError from the merger (Issue #172)
 		if strings.Contains(err.Error(), "error(s) detected:") {
-			return nil, err
+			return nil, nil, err
 		}
-		return nil, ansi.Errorf("@R{Merge failed}: %s", err.Error())
+		return nil, nil, ansi.Errorf("@R{Merge failed}: %s", err.Error())
 	}
 
 	// Get the raw data for backward compatibility
 	// The CLI expects a map[string]interface{}
 	data, ok := merged.GetData().(map[string]interface{})
 	if !ok {
-		return nil, ansi.Errorf("@R{Merge result is not a map}")
+		return nil, nil, ansi.Errorf("@R{Merge result is not a map}")
 	}
-	return data, nil
+	return data, engine, nil
 }
 
 func diffFiles(paths []string) (output string, hasDifferences bool, err error) {

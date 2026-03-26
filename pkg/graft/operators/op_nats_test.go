@@ -68,15 +68,9 @@ func TestParseNatsPath(t *testing.T) {
 
 func TestNatsOperatorSkipMode(t *testing.T) {
 	Convey("NATS Operator Skip Mode", t, func() {
-		// Save original value
-		originalSkipNats := SkipNats
-		defer func() { SkipNats = originalSkipNats }()
-
-		Convey("when SkipNats is true", func() {
-			SkipNats = true
-
+		Convey("when SkipNats is true via engine option", func() {
 			Convey("nats should return REDACTED", func() {
-				engine, err := graft.NewEngine()
+				engine, err := graft.NewEngine(graft.WithSkipNats(true))
 				So(err, ShouldBeNil)
 
 				yaml := []byte(`

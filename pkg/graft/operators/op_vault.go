@@ -18,11 +18,8 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
-// globalKV is the global vault client for backward compatibility.
+// globalKV is the module-level vault client, initialized lazily from environment.
 var globalKV *vaultkv.KV
-
-// VaultRefs maps secret path to paths in YAML structure which call for it.
-var VaultRefs = map[string][]string{}
 
 // VaultTarget represents a vault target configuration.
 type VaultTarget struct {
@@ -181,9 +178,6 @@ func (o VaultOperator) getCacheKey(target, path string) string {
 	return fmt.Sprintf("%s@%s", target, path)
 }
 
-// SkipVault toggles whether calls to the Vault operator actually cause the
-// Vault to be contacted and the keys substituted in.
-var SkipVault bool
 
 // vaultArgProcessor handles argument processing for vault operator with LogicalOr support.
 type vaultArgProcessor struct {
@@ -797,12 +791,7 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 		// Fall back to default behavior (environment-based or global client)
 		kv = engine.GetOperatorState().GetVaultClient()
 		if kv == nil {
-			// For backward compatibility, try to initialize from environment
-			if SkipVault {
-				return "REDACTED", nil
-			}
-
-			// Fall back to global initialization
+			// Fall back to global initialization from environment
 			if globalKV == nil {
 				initErr := initializeVaultClient()
 				if initErr != nil {

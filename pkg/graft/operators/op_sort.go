@@ -4,17 +4,10 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"sync"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
-
-// pathsToSort is kept for backward compatibility but engine state is preferred.
-var pathsToSort = map[string]string{}
-
-// sortMutex protects pathsToSort for concurrent access.
-var sortMutex sync.Mutex
 
 // SortOperator sorts lists by value or by key (for maps in list).
 type SortOperator struct{}
@@ -69,13 +62,6 @@ func AddToSortListIfNecessaryWithEngine(operator string, path string, engine gra
 		DEBUG("adding sort by '%s' of path '%s' to the list of paths to sort", byKey, path)
 		if engine != nil {
 			engine.GetOperatorState().AddPathToSort(path, byKey)
-		} else {
-			// Fallback to global state for backward compatibility
-			sortMutex.Lock()
-			if _, ok := pathsToSort[path]; !ok {
-				pathsToSort[path] = byKey
-			}
-			sortMutex.Unlock()
 		}
 	}
 }
@@ -171,20 +157,3 @@ func sortList(path string, list []interface{}, key string) error {
 	return nil
 }
 
-// GetPathsToSort returns the paths to sort (for backward compatibility).
-func GetPathsToSort() map[string]string {
-	sortMutex.Lock()
-	defer sortMutex.Unlock()
-	result := make(map[string]string)
-	for k, v := range pathsToSort {
-		result[k] = v
-	}
-	return result
-}
-
-// ClearPathsToSort clears the paths to sort (for backward compatibility).
-func ClearPathsToSort() {
-	sortMutex.Lock()
-	defer sortMutex.Unlock()
-	pathsToSort = map[string]string{}
-}

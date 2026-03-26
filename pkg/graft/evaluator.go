@@ -875,10 +875,14 @@ func (ev *Evaluator) Run(prune, picks []string) error {
 	errors := MultiError{Errors: []error{}}
 	paramErrs := MultiError{Errors: []error{}}
 
+	eng := GetEngine(ev)
+	state := eng.GetOperatorState()
+
 	if os.Getenv("REDACT") != "" {
-		log.DEBUG("Setting vault & aws operators to redact keys")
-		SkipVault = true
-		SkipAws = true
+		log.DEBUG("Setting vault & aws & nats operators to redact keys")
+		state.SetSkipVault(true)
+		state.SetSkipAws(true)
+		state.SetSkipNats(true)
 	}
 
 	if !ev.SkipEval {
@@ -898,13 +902,17 @@ func (ev *Evaluator) Run(prune, picks []string) error {
 	}
 
 	// post-processing: prune
-	addToPruneListIfNecessary(prune...)
-	prunePaths := getAndClearKeysToPrune()
+	for _, p := range prune {
+		state.AddKeyToPrune(p)
+	}
+	prunePaths := state.GetKeysToPrune()
+	state.ResetKeysToPrune()
 	log.DEBUG("Final prune list contains %d paths: %v", len(prunePaths), prunePaths)
 	errors.Append(ev.Prune(prunePaths))
 
 	// post-processing: sorting
-	sortPaths := getAndClearPathsToSort()
+	sortPaths := state.GetPathsToSort()
+	state.ResetPathsToSort()
 	errors.Append(ev.SortPaths(sortPaths))
 
 	// post-processing: cherry-pick

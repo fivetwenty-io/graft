@@ -65,7 +65,7 @@ func TestSplitExamples(t *testing.T) {
 				}
 			}()
 
-			m, err := mergeAllDocs(files, &mergeOpts{})
+			m, _, err := mergeAllDocs(files, &mergeOpts{})
 			So(err, ShouldBeNil)
 
 			// Check IP octets
@@ -94,7 +94,7 @@ func TestSplitExamples(t *testing.T) {
 				}
 			}()
 
-			m, err := mergeAllDocs(files, &mergeOpts{})
+			m, _, err := mergeAllDocs(files, &mergeOpts{})
 			So(err, ShouldBeNil)
 
 			// Check URL params
@@ -123,7 +123,7 @@ func TestSplitExamples(t *testing.T) {
 				}
 			}()
 
-			m, err := mergeAllDocs(files, &mergeOpts{})
+			m, _, err := mergeAllDocs(files, &mergeOpts{})
 			So(err, ShouldBeNil)
 
 			// Check base version
@@ -147,7 +147,7 @@ func TestSplitExamples(t *testing.T) {
 				}
 			}()
 
-			m, err := mergeAllDocs(files, &mergeOpts{})
+			m, _, err := mergeAllDocs(files, &mergeOpts{})
 			So(err, ShouldBeNil)
 
 			// Check basic tests
@@ -179,7 +179,7 @@ func TestSplitExamples(t *testing.T) {
 				}
 			}()
 
-			m, err := mergeAllDocs(files, &mergeOpts{})
+			m, _, err := mergeAllDocs(files, &mergeOpts{})
 			So(err, ShouldBeNil)
 
 			// Check grab integration
@@ -208,7 +208,7 @@ func TestSplitExamples(t *testing.T) {
 				}
 			}()
 
-			m, err := mergeAllDocs(files, &mergeOpts{})
+			m, _, err := mergeAllDocs(files, &mergeOpts{})
 			So(err, ShouldBeNil)
 
 			// Check basic regex
@@ -238,7 +238,7 @@ func TestSplitExamples(t *testing.T) {
 				}
 			}()
 
-			m, err := mergeAllDocs(files, &mergeOpts{})
+			m, _, err := mergeAllDocs(files, &mergeOpts{})
 			So(err, ShouldBeNil)
 
 			// Check perfect reversibility
