@@ -1,162 +1,17 @@
 package operators
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
-	"os"
 	"strings"
 
 	"github.com/cloudfoundry-community/vaultkv"
-	"github.com/geofffranks/yaml"
 
+	"github.com/fivetwenty-io/graft/internal/backends/vault"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
-
-// globalKV is the module-level vault client, initialized lazily from environment.
-var globalKV *vaultkv.KV
-
-// VaultTarget represents a vault target configuration.
-type VaultTarget struct {
-	URL        string `yaml:"url"`
-	Token      string `yaml:"token"`
-	Namespace  string `yaml:"namespace"`
-	SkipVerify bool   `yaml:"skip_verify"`
-}
-
-// VaultClientPool manages vault clients for different targets.
-type VaultClientPool struct {
-	clients map[string]*vaultkv.KV
-	configs map[string]*VaultTarget
-}
-
-// Global client pool for target-aware vault clients.
-var vaultClientPool = &VaultClientPool{
-	clients: make(map[string]*vaultkv.KV),
-	configs: make(map[string]*VaultTarget),
-}
-
-// GetClient returns a vault client for the specified target.
-func (vcp *VaultClientPool) GetClient(targetName string, engine graft.Engine) (*vaultkv.KV, error) {
-	// Return existing client if available
-	if client, exists := vcp.clients[targetName]; exists {
-		return client, nil
-	}
-
-	// Get target configuration
-	config, err := vcp.getTargetConfig(targetName, engine)
-	if err != nil {
-		return nil, fmt.Errorf("vault target '%s' not found: %w", targetName, err)
-	}
-
-	// Create new client
-	client, err := createVaultClientFromConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create vault client for target '%s': %w", targetName, err)
-	}
-
-	// Store client for reuse
-	vcp.clients[targetName] = client
-	vcp.configs[targetName] = config
-
-	return client, nil
-}
-
-// getTargetConfig retrieves target configuration from the engine or environment.
-//
-//nolint:unparam // engine reserved for future configuration retrieval from engine
-func (vcp *VaultClientPool) getTargetConfig(targetName string, engine graft.Engine) (*VaultTarget, error) {
-	// Check if we have cached config
-	if config, exists := vcp.configs[targetName]; exists {
-		return config, nil
-	}
-
-	// For now, try environment variables with target suffix
-	// In a full implementation, this would query the engine's configuration
-	envPrefix := fmt.Sprintf("VAULT_%s_", strings.ToUpper(targetName))
-
-	config := &VaultTarget{
-		URL:       os.Getenv(envPrefix + "ADDR"),
-		Token:     os.Getenv(envPrefix + "TOKEN"),
-		Namespace: os.Getenv(envPrefix + "NAMESPACE"),
-	}
-
-	// Check for skip verify
-	if skipStr := os.Getenv(envPrefix + "SKIP_VERIFY"); skipStr == "true" || skipStr == "1" {
-		config.SkipVerify = true
-	}
-
-	// If no environment variables found, return error
-	if config.URL == "" || config.Token == "" {
-		return nil, fmt.Errorf("vault target '%s' configuration not found (expected %sADDR and %sTOKEN environment variables)",
-			targetName, envPrefix, envPrefix)
-	}
-
-	return config, nil
-}
-
-// createVaultClientFromConfig creates a vault client from target configuration.
-func createVaultClientFromConfig(config *VaultTarget) (*vaultkv.KV, error) {
-	// Expand environment variables in configuration
-	addr := os.ExpandEnv(config.URL)
-	token := os.ExpandEnv(config.Token)
-	namespace := os.ExpandEnv(config.Namespace)
-
-	parsedURL, err := url.Parse(addr)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse Vault URL `%s': %w", addr, err)
-	}
-
-	// Port handling
-	if parsedURL.Port() == "" {
-		if parsedURL.Scheme == "http" {
-			parsedURL.Host += ":80"
-		} else {
-			parsedURL.Host += ":443"
-		}
-	}
-
-	// TLS configuration
-	roots, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve system root certificate authorities: %w", err)
-	}
-
-	client := &vaultkv.Client{
-		AuthToken: token,
-		VaultURL:  parsedURL,
-		Namespace: namespace,
-		Client: &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				TLSClientConfig: &tls.Config{
-					RootCAs:            roots,
-					InsecureSkipVerify: config.SkipVerify, // #nosec G402 - controlled by user configuration
-				},
-			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) > 10 {
-					return fmt.Errorf("stopped after 10 redirects")
-				}
-				req.Header.Add("X-Vault-Token", token)
-				req.Header.Add("X-Vault-Namespace", namespace)
-				return nil
-			},
-		},
-	}
-
-	// Enable tracing if debug is on
-	if DebugOn() {
-		client.Trace = os.Stderr
-	}
-
-	return client.NewKV(), nil
-}
 
 // extractTarget attempts to extract target information from the operator context.
 func (o VaultOperator) extractTarget(ev *Evaluator, args []*Expr) string {
@@ -514,96 +369,6 @@ func (VaultOperator) Dependencies(_ *Evaluator, _ []*Expr, _ []*tree.Cursor, aut
 	return auto
 }
 
-//nolint:gocyclo // Vault client init handles multiple auth sources and TLS config
-func initializeVaultClient() error {
-	addr := os.Getenv("VAULT_ADDR")
-	token := os.Getenv("VAULT_TOKEN")
-	namespace := os.Getenv("VAULT_NAMESPACE")
-	skip := false
-
-	if addr == "" || token == "" {
-		svtoken := struct {
-			Vault      string `yaml:"vault"`
-			Token      string `yaml:"token"`
-			Namespace  string `yaml:"namespace"`
-			SkipVerify bool   `yaml:"skip_verify"`
-		}{}
-		b, err := os.ReadFile(os.ExpandEnv("${HOME}/.svtoken"))
-		if err == nil {
-			err = yaml.Unmarshal(b, &svtoken)
-			if err == nil {
-				addr = svtoken.Vault
-				token = svtoken.Token
-				namespace = svtoken.Namespace
-				skip = svtoken.SkipVerify
-			}
-		}
-	}
-
-	if skipVaultVerify(os.Getenv("VAULT_SKIP_VERIFY")) {
-		skip = true
-	}
-
-	if token == "" {
-		b, err := os.ReadFile(fmt.Sprintf("%s/.vault-token", os.Getenv("HOME")))
-		if err == nil {
-			token = strings.TrimSuffix(string(b), "\n")
-		}
-	}
-
-	if addr == "" || token == "" {
-		return fmt.Errorf("failed to determine Vault URL / token, and the $REDACT environment variable is not set")
-	}
-
-	roots, err := x509.SystemCertPool()
-	if err != nil {
-		return fmt.Errorf("unable to retrieve system root certificate authorities: %w", err)
-	}
-
-	parsedURL, err := url.Parse(addr)
-	if err != nil {
-		return fmt.Errorf("could not parse Vault URL `%s': %w", addr, err)
-	}
-
-	if parsedURL.Port() == "" {
-		if parsedURL.Scheme == "http" {
-			parsedURL.Host += ":80"
-		} else {
-			parsedURL.Host += ":443"
-		}
-	}
-
-	client := &vaultkv.Client{
-		AuthToken: token,
-		VaultURL:  parsedURL,
-		Namespace: namespace,
-		Client: &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				TLSClientConfig: &tls.Config{
-					RootCAs:            roots,
-					InsecureSkipVerify: skip, // #nosec G402 - skip is controlled by user configuration
-				},
-			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) > 10 {
-					return fmt.Errorf("stopped after 10 redirects")
-				}
-				req.Header.Add("X-Vault-Token", token)
-				req.Header.Add("X-Vault-Namespace", token)
-				return nil
-			},
-		},
-	}
-	if DebugOn() {
-		client.Trace = os.Stderr
-	}
-
-	globalKV = client.NewKV()
-
-	return nil
-}
-
 // Run executes the `(( vault ... ))` operator call, which entails
 // interacting with the (unsealed) Vault instance to retrieve the
 // given secrets.
@@ -782,7 +547,7 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 
 	if targetName != "" {
 		// Use target-specific client
-		kv, err = vaultClientPool.GetClient(targetName, engine)
+		kv, err = vault.DefaultPool.GetClient(targetName, engine)
 		if err != nil {
 			return "", fmt.Errorf("failed to get vault client for target '%s': %w", targetName, err)
 		}
@@ -792,18 +557,18 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 		kv = engine.GetOperatorState().GetVaultClient()
 		if kv == nil {
 			// Fall back to global initialization from environment
-			if globalKV == nil {
-				initErr := initializeVaultClient()
+			if vault.GlobalKV == nil {
+				initErr := vault.InitializeClient()
 				if initErr != nil {
 					return "", fmt.Errorf("Error during Vault client initialization: %w", initErr)
 				}
 			}
-			kv = globalKV
+			kv = vault.GlobalKV
 		}
 		DEBUG("vault: using default client")
 	}
 
-	leftPart, rightPart := parsePath(key)
+	leftPart, rightPart := vault.ParsePath(key)
 	if leftPart == "" || rightPart == "" {
 		return "", ansi.Errorf("@R{invalid argument} @c{%s}@R{; must be in the form} @m{path/to/secret:key}", key)
 	}
@@ -819,7 +584,7 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 		DEBUG("vault: Cache MISS for `%s` (target: %s)", leftPart, targetName)
 		// Secret isn't cached. Grab it from the vault.
 		var secretErr error
-		fullSecret, secretErr = getVaultSecretWithClient(kv, leftPart)
+		fullSecret, secretErr = vault.GetSecretWithClient(kv, leftPart)
 		if secretErr != nil {
 			// Normalize the error messages
 			var notFoundErr *vaultkv.ErrNotFound
@@ -831,7 +596,7 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 		engine.GetOperatorState().SetVaultCache(cacheKey, fullSecret)
 	}
 
-	secret, extractErr := extractSubkey(fullSecret, leftPart, rightPart)
+	secret, extractErr := vault.ExtractSubkey(fullSecret, leftPart, rightPart)
 	if extractErr != nil {
 		return "", extractErr
 	}
@@ -953,54 +718,3 @@ func init() {
 	RegisterOp("vault-try", VaultTryOperator{})
 }
 
-/****** VAULT INTEGRATION ***********************************/
-
-// getVaultSecretWithClient retrieves a secret using the provided client.
-func getVaultSecretWithClient(kvClient *vaultkv.KV, secret string) (map[string]interface{}, error) {
-	ret := map[string]interface{}{}
-
-	DEBUG("Fetching Vault secret at `%s'", secret)
-	_, err := kvClient.Get(secret, &ret, nil)
-	if err != nil {
-		DEBUG(" failure.")
-		return nil, err
-	}
-
-	DEBUG("  success.")
-	return ret, nil
-}
-
-func extractSubkey(secretMap map[string]interface{}, secret, subkey string) (string, error) {
-	DEBUG("  extracting the [%s] subkey from the secret", subkey)
-
-	secretSubkeyPath := fmt.Sprintf("%s:%s", secret, subkey)
-	v, ok := secretMap[subkey]
-	if !ok {
-		DEBUG("    !! %s not found!\n", secretSubkeyPath)
-		return "", ansi.Errorf("@R{secret} @c{%s} @R{not found}", secretSubkeyPath)
-	}
-	vStr, ok := v.(string)
-	if !ok {
-		DEBUG("    !! %s is not a string!\n", secretSubkeyPath)
-		return "", ansi.Errorf("@R{secret} @c{%s} @R{is not a string}", secretSubkeyPath)
-	}
-	DEBUG(" success.")
-	return vStr, nil
-}
-
-func parsePath(path string) (secret, key string) {
-	secret = path
-	if idx := strings.LastIndex(path, ":"); idx >= 0 {
-		secret = path[:idx]
-		key = path[idx+1:]
-	}
-	return
-}
-
-func skipVaultVerify(env string) bool {
-	env = strings.ToLower(env)
-	if env == "" || env == "no" || env == "false" || env == "0" || env == "off" {
-		return false
-	}
-	return true
-}
