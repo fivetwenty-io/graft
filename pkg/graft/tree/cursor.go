@@ -194,3 +194,43 @@ func (c *Cursor) Set(root map[string]interface{}, value interface{}) error {
 		return fmt.Errorf("cannot set on %T", current)
 	}
 }
+
+// Delete removes the value at the cursor path from the given root map.
+func (c *Cursor) Delete(root map[string]interface{}) error {
+	if len(c.Nodes) == 0 {
+		return fmt.Errorf("empty cursor path")
+	}
+
+	current := interface{}(root)
+	for i := 0; i < len(c.Nodes)-1; i++ {
+		node := c.Nodes[i]
+		switch container := current.(type) {
+		case map[string]interface{}:
+			next, exists := container[node]
+			if !exists {
+				return NotFoundError{Path: c.Nodes[:i+1]}
+			}
+			current = next
+		case []interface{}:
+			idx, err := strconv.Atoi(node)
+			if err != nil || idx < 0 || idx >= len(container) {
+				return NotFoundError{Path: c.Nodes[:i+1]}
+			}
+			current = container[idx]
+		default:
+			return fmt.Errorf("cannot traverse into %T at %q", current, node)
+		}
+	}
+
+	lastNode := c.Nodes[len(c.Nodes)-1]
+	switch container := current.(type) {
+	case map[string]interface{}:
+		if _, exists := container[lastNode]; !exists {
+			return NotFoundError{Path: c.Nodes}
+		}
+		delete(container, lastNode)
+		return nil
+	default:
+		return fmt.Errorf("cannot delete from %T", current)
+	}
+}

@@ -79,13 +79,12 @@ func (d *document) Delete(path string) error {
 		return NewValidationError("cannot delete root")
 	}
 
-	_, err := tree.ParseCursor(path)
+	cursor, err := tree.ParseCursor(path)
 	if err != nil {
 		return NewValidationError(fmt.Sprintf("invalid path '%s': %v", path, err))
 	}
 
-	// TODO: Implement cursor.Delete method or alternative approach
-	return NewValidationError("Delete operation not yet implemented")
+	return cursor.Delete(d.data)
 }
 
 // GetString retrieves a string value at the given path.

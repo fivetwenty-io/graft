@@ -578,7 +578,7 @@ func TestDocument_Delete(t *testing.T) {
 		})
 
 		Convey("When deleting with invalid path", func() {
-			err := doc.Delete("invalid[")
+			err := doc.Delete("invalid]")
 
 			Convey("Then it should return validation error", func() {
 				So(err, ShouldNotBeNil)
@@ -591,12 +591,37 @@ func TestDocument_Delete(t *testing.T) {
 		Convey("When deleting a valid path", func() {
 			err := doc.Delete("key")
 
-			Convey("Then it should return not implemented error", func() {
-				So(err, ShouldNotBeNil)
-				So(err.Error(), ShouldContainSubstring, "Delete operation not yet implemented")
+			Convey("Then it should succeed", func() {
+				So(err, ShouldBeNil)
 			})
 		})
 	})
+}
+
+func TestDocumentDelete(t *testing.T) {
+	doc := NewDocument(map[string]interface{}{
+		"keep": "yes",
+		"remove": "this",
+		"nested": map[string]interface{}{"a": 1, "b": 2},
+	})
+
+	err := doc.Delete("remove")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = doc.Get("remove")
+	if err == nil {
+		t.Error("expected error for deleted key")
+	}
+
+	err = doc.Delete("nested.a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	val, _ := doc.Get("nested.b")
+	if val != 2 {
+		t.Errorf("nested.b = %v, want 2", val)
+	}
 }
 
 func TestDocument_Keys(t *testing.T) {
