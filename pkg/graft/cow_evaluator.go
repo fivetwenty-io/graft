@@ -142,7 +142,7 @@ func (emh *EnhancedMigrationHelper) UpdateFromEvaluator(ev *Evaluator) error {
 // ExportToEvaluator creates a traditional evaluator with current COW tree data.
 func (emh *EnhancedMigrationHelper) ExportToEvaluator() (*Evaluator, error) {
 	if cowTree, ok := emh.cowTree.(*COWTree); ok {
-		rawData := cowTree.toMapInterface()
+		rawData := cowTree.toStringMap()
 
 		ev := &Evaluator{
 			Tree:     rawData,

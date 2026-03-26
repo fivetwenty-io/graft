@@ -197,7 +197,7 @@ list:
 			So(err, ShouldBeNil)
 			So(doc, ShouldNotBeNil)
 
-			data, ok := doc.RawData().(map[interface{}]interface{})
+			data, ok := doc.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(data["key1"], ShouldEqual, "value1")
 			So(data["key2"], ShouldNotBeNil)
@@ -254,7 +254,7 @@ normal_string: hello
 			So(err, ShouldBeNil)
 			So(doc, ShouldNotBeNil)
 
-			data, ok := doc.RawData().(map[interface{}]interface{})
+			data, ok := doc.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(data["yes_val"], ShouldEqual, true)
 			So(data["no_val"], ShouldEqual, false)
@@ -283,7 +283,7 @@ func TestEngineJSONParsing(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(doc, ShouldNotBeNil)
 
-			data, ok := doc.RawData().(map[interface{}]interface{})
+			data, ok := doc.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(data["key1"], ShouldEqual, "value1")
 			So(data["key2"], ShouldNotBeNil)
@@ -335,7 +335,7 @@ key2: value2
 			So(err, ShouldBeNil)
 			So(result, ShouldNotBeNil)
 
-			data, ok := result.RawData().(map[interface{}]interface{})
+			data, ok := result.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(data["key1"], ShouldEqual, "value1")
 			So(data["key2"], ShouldEqual, "value2")
@@ -1167,11 +1167,11 @@ func TestConvertStringMapToInterfaceMap(t *testing.T) {
 
 			result := convertStringMapToInterfaceMap(input)
 
-			converted, ok := result.(map[interface{}]interface{})
+			converted, ok := result.(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(converted["key1"], ShouldEqual, "value1")
 
-			nested, ok := converted["key2"].(map[interface{}]interface{})
+			nested, ok := converted["key2"].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(nested["nested"], ShouldEqual, "value2")
 		})
@@ -1191,7 +1191,7 @@ func TestConvertStringMapToInterfaceMap(t *testing.T) {
 			So(len(converted), ShouldEqual, 2)
 			So(converted[0], ShouldEqual, "value1")
 
-			nested, ok := converted[1].(map[interface{}]interface{})
+			nested, ok := converted[1].(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(nested["key"], ShouldEqual, "value")
 		})

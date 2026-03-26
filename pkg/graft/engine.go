@@ -26,40 +26,6 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
-// convertStringMapToInterfaceMap recursively converts map[string]interface{} to map[interface{}]interface{}
-// This is needed for yaml.v3 compatibility since it returns map[string]interface{} instead of map[interface{}]interface{}
-// It also converts YAML 1.1 boolean strings back to booleans for compatibility.
-func convertStringMapToInterfaceMap(input interface{}) interface{} {
-	switch v := input.(type) {
-	case map[string]interface{}:
-		result := make(map[interface{}]interface{})
-		for k, val := range v {
-			result[k] = convertStringMapToInterfaceMap(val)
-		}
-		return result
-	case []interface{}:
-		// Also convert arrays that might contain maps
-		result := make([]interface{}, len(v))
-		for i, val := range v {
-			result[i] = convertStringMapToInterfaceMap(val)
-		}
-		return result
-	case string:
-		// Convert YAML 1.1 boolean strings back to booleans for compatibility
-		switch v {
-		case "yes", "Yes", "YES", "on", "On", "ON":
-			return true
-		case "no", "No", "NO", "off", "Off", "OFF":
-			return false
-		default:
-			return v
-		}
-	default:
-		// Return as-is for primitive types
-		return v
-	}
-}
-
 // DefaultEngine is the default implementation of the Engine interface
 // It provides all the core functionality needed by graft.
 type DefaultEngine struct {
@@ -451,7 +417,7 @@ func (e *DefaultEngine) initializeAWS() {
 	// Implementation will set up AWS session and clients
 }
 
-func (e *DefaultEngine) createEvaluator(t map[interface{}]interface{}) *Evaluator {
+func (e *DefaultEngine) createEvaluator(t map[string]interface{}) *Evaluator {
 	here, _ := tree.ParseCursor("$")
 	ev := &Evaluator{
 		Tree:          t,
@@ -538,7 +504,7 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator) error {
 			doc = doc.Prune(cleanPath)
 		}
 		// Update the evaluator tree with the pruned document
-		if pruned, ok := doc.RawData().(map[interface{}]interface{}); ok {
+		if pruned, ok := doc.RawData().(map[string]interface{}); ok {
 			ev.Tree = pruned
 		}
 	}
@@ -598,16 +564,11 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		return nil, nil
 	}
 
-	// Check that root is a map/hash - handle both v2 and v3 map types
+	// Check that root is a map/hash — yaml.v3 returns map[string]interface{}
 	switch result := genericResult.(type) {
-	case map[interface{}]interface{}:
-		return NewDocument(result), nil
 	case map[string]interface{}:
-		// Convert map[string]interface{} to map[interface{}]interface{} for compatibility
-		converted, ok := convertStringMapToInterfaceMap(result).(map[interface{}]interface{})
-		if !ok {
-			return nil, fmt.Errorf("failed to convert YAML document to expected map type")
-		}
+		// Apply YAML 1.1 boolean compatibility conversions (yes/no/on/off → bool)
+		converted := DefaultYAMLCompat().ConvertMapValues(result)
 		return NewDocument(converted), nil
 	default:
 		// Return plain error for compatibility with tests
@@ -632,13 +593,7 @@ func (e *DefaultEngine) ParseJSON(data []byte) (Document, error) {
 		return nil, nil
 	}
 
-	// Convert to map[interface{}]interface{}
-	converted := make(map[interface{}]interface{})
-	for k, v := range result {
-		converted[k] = v
-	}
-
-	return NewDocument(converted), nil
+	return NewDocument(result), nil
 }
 
 // ParseFile parses a file into a Document.
@@ -685,7 +640,7 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 	}
 
 	// Get the raw data
-	data, ok := doc.RawData().(map[interface{}]interface{})
+	data, ok := doc.RawData().(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("document data is not a map")
 	}

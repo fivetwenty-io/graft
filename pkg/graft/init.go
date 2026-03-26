@@ -204,8 +204,8 @@ func isPruneOperator(val interface{}) bool {
 // Merge merges two data structures.
 func Merge(dst, src interface{}) error {
 	// Deep merge implementation for maps
-	dstMap, dstOk := dst.(map[interface{}]interface{})
-	srcMap, srcOk := src.(map[interface{}]interface{})
+	dstMap, dstOk := dst.(map[string]interface{})
+	srcMap, srcOk := src.(map[string]interface{})
 
 	if !dstOk || !srcOk {
 		return fmt.Errorf("Merge: both arguments must be maps")
@@ -221,8 +221,8 @@ func Merge(dst, src interface{}) error {
 			}
 
 			// If both are maps, merge recursively
-			if dstSubMap, dstIsMap := dstVal.(map[interface{}]interface{}); dstIsMap {
-				if srcSubMap, srcIsMap := srcVal.(map[interface{}]interface{}); srcIsMap {
+			if dstSubMap, dstIsMap := dstVal.(map[string]interface{}); dstIsMap {
+				if srcSubMap, srcIsMap := srcVal.(map[string]interface{}); srcIsMap {
 					err := Merge(dstSubMap, srcSubMap)
 					if err != nil {
 						return err

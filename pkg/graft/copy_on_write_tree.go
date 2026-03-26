@@ -421,15 +421,9 @@ func (cow *COWTree) Replace(data map[string]interface{}) error {
 	cow.mu.Lock()
 	defer cow.mu.Unlock()
 
-	// Convert to interface{} map
-	converted := make(map[interface{}]interface{})
-	for k, v := range data {
-		converted[k] = v
-	}
-
 	// Merge with existing data
-	existingData := cow.toMapInterface()
-	mergedData := deepMerge(existingData, converted)
+	existingData := cow.toStringMap()
+	mergedData := deepMerge(existingData, data)
 
 	// Rebuild tree
 	cow.root = cow.buildNodeFromValue(mergedData)
@@ -448,8 +442,8 @@ func (cow *COWTree) Merge(other ThreadSafeTree) error {
 		defer otherCOW.mu.RUnlock()
 
 		// Convert both trees to maps and merge
-		thisData := cow.toMapInterface()
-		otherData := otherCOW.toMapInterface()
+		thisData := cow.toStringMap()
+		otherData := otherCOW.toStringMap()
 		mergedData := deepMerge(thisData, otherData)
 
 		// Rebuild tree
@@ -518,12 +512,67 @@ func (cow *COWTree) Transaction(fn func(tx TreeTransaction) error) error {
 }
 
 // toMapInterface converts the COW tree back to a map[interface{}]interface{}.
+// Deprecated: use toStringMap for new code.
 func (cow *COWTree) toMapInterface() map[interface{}]interface{} {
 	if cow.root == nil {
 		return make(map[interface{}]interface{})
 	}
 
 	return cow.nodeToMap(cow.root)
+}
+
+// toStringMap converts the COW tree to a map[string]interface{}.
+func (cow *COWTree) toStringMap() map[string]interface{} {
+	if cow.root == nil {
+		return make(map[string]interface{})
+	}
+
+	return cow.nodeToStringMap(cow.root)
+}
+
+// nodeToStringMap recursively converts a COW node to map[string]interface{}.
+func (cow *COWTree) nodeToStringMap(node *COWNode) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	switch v := node.value.(type) {
+	case map[string]interface{}:
+		for k, val := range v {
+			if childNode, exists := node.children[k]; exists {
+				if childNode.value != nil {
+					switch childNode.value.(type) {
+					case map[interface{}]interface{}, map[string]interface{}:
+						result[k] = cow.nodeToStringMap(childNode)
+					default:
+						result[k] = childNode.value
+					}
+				} else {
+					result[k] = val
+				}
+			} else {
+				result[k] = val
+			}
+		}
+	case map[interface{}]interface{}:
+		for k, val := range v {
+			ks := fmt.Sprintf("%v", k)
+			if childNode, exists := node.children[k]; exists {
+				if childNode.value != nil {
+					switch childNode.value.(type) {
+					case map[interface{}]interface{}, map[string]interface{}:
+						result[ks] = cow.nodeToStringMap(childNode)
+					default:
+						result[ks] = childNode.value
+					}
+				} else {
+					result[ks] = val
+				}
+			} else {
+				result[ks] = val
+			}
+		}
+	}
+
+	return result
 }
 
 // nodeToMap recursively converts a COW node to a map.

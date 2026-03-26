@@ -110,7 +110,7 @@ func EvaluateOperatorArgs(ev *Evaluator, args []*Expr) ([]interface{}, error) {
 }
 
 // DeepCopyMap creates a deep copy of a map.
-func DeepCopyMap(m map[interface{}]interface{}) map[interface{}]interface{} {
+func DeepCopyMap(m map[string]interface{}) map[string]interface{} {
 	return graft.DeepCopyMap(m)
 }
 

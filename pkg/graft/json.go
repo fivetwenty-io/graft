@@ -92,8 +92,15 @@ func JSONifyFiles(paths []string, strict bool) ([]string, error) {
 
 func deinterface(o interface{}, strict bool) (interface{}, error) {
 	switch v := o.(type) {
-	case map[interface{}]interface{}:
+	case map[string]interface{}:
 		return deinterfaceMap(v, strict)
+	case map[interface{}]interface{}:
+		// Legacy fallback: convert old-style maps (e.g. from simpleyaml)
+		converted := make(map[string]interface{}, len(v))
+		for k, val := range v {
+			converted[fmt.Sprintf("%v", k)] = val
+		}
+		return deinterfaceMap(converted, strict)
 	case []interface{}:
 		return deinterfaceList(v, strict)
 	default:
@@ -116,23 +123,12 @@ func addKeyToMap(m map[string]interface{}, k, v interface{}, strict bool) error 
 	return nil
 }
 
-func deinterfaceMap(o map[interface{}]interface{}, strict bool) (map[string]interface{}, error) {
+func deinterfaceMap(o map[string]interface{}, strict bool) (map[string]interface{}, error) {
 	m := map[string]interface{}{}
 	for k, v := range o {
-		switch k.(type) {
-		case string:
-			err := addKeyToMap(m, k, v, strict)
-			if err != nil {
-				return nil, err
-			}
-		default:
-			if strict {
-				return nil, fmt.Errorf("non-string keys found during strict JSON conversion")
-			}
-			err := addKeyToMap(m, k, v, strict)
-			if err != nil {
-				return nil, err
-			}
+		err := addKeyToMap(m, k, v, strict)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return m, nil
