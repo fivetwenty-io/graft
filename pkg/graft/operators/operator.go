@@ -4,26 +4,20 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// RegisterOp registers an operator in the main graft package registry.
+// RegisterOp registers an operator in the DefaultRegistry.
 func RegisterOp(name string, op graft.Operator) {
-	// Register in legacy registry for backward compatibility
-	graft.OpRegistry[name] = op
-
-	// Also register in unified registry
 	if err := graft.RegisterUnifiedOperator(name, op); err != nil {
-		// Log error but don't panic - this maintains backward compatibility
 		graft.DEBUG("Warning: Failed to register %s in unified registry: %v", name, err)
 	}
 }
 
-// SetupOperators initializes all operators for a given phase.
+// SetupOperators initializes all operators for a given phase using the DefaultRegistry.
 func SetupOperators(phase graft.OperatorPhase) error {
+	entries := graft.DefaultRegistry.GetByPhase(phase)
 	errors := graft.MultiError{Errors: []error{}}
-	for _, op := range graft.OpRegistry {
-		if op.Phase() == phase {
-			if err := op.Setup(); err != nil {
-				errors.Append(err)
-			}
+	for _, entry := range entries {
+		if err := entry.Implementation.Setup(); err != nil {
+			errors.Append(err)
 		}
 	}
 	if len(errors.Errors) > 0 {

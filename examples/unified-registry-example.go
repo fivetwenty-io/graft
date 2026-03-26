@@ -56,18 +56,18 @@ func main() {
 	fmt.Println("\n2. Querying registry...")
 
 	// Check if registered
-	if graft.UnifiedRegistry.IsRegistered("custom") {
+	if graft.DefaultRegistry.IsRegistered("custom") {
 		fmt.Println("✓ 'custom' operator is registered")
 	}
 
 	// Get metadata
-	if meta, exists := graft.UnifiedRegistry.GetMetadata("custom"); exists {
+	if meta, exists := graft.DefaultRegistry.GetMetadata("custom"); exists {
 		fmt.Printf("✓ Metadata: Phase=%v, Args=%d-%d\n",
 			meta.Phase, meta.MinArgs, meta.MaxArgs)
 	}
 
 	// Get implementation
-	if impl, exists := graft.UnifiedRegistry.GetImplementation("custom"); exists {
+	if impl, exists := graft.DefaultRegistry.GetImplementation("custom"); exists {
 		fmt.Printf("✓ Implementation type: %T\n", impl)
 	}
 
@@ -80,7 +80,7 @@ func main() {
 	}
 
 	for phase, name := range phases {
-		ops := graft.UnifiedRegistry.GetByPhase(phase)
+		ops := graft.DefaultRegistry.GetByPhase(phase)
 		fmt.Printf("%s phase: %d operators\n", name, len(ops))
 	}
 
@@ -97,7 +97,7 @@ func main() {
 	}
 
 	for _, test := range testOps {
-		err := graft.UnifiedRegistry.ValidateArgs(test.name, test.args)
+		err := graft.DefaultRegistry.ValidateArgs(test.name, test.args)
 		if err == nil {
 			fmt.Printf("✓ %s with %d args: Valid\n", test.name, test.args)
 		} else {
@@ -107,12 +107,12 @@ func main() {
 
 	// 5. Advanced usage - clone registry
 	fmt.Println("\n5. Advanced features...")
-	cloned := graft.UnifiedRegistry.Clone()
+	cloned := graft.DefaultRegistry.Clone()
 	fmt.Printf("Cloned registry has %d operators\n", cloned.Count())
 
 	// 6. Direct usage example
 	fmt.Println("\n6. Using the operator...")
-	if op, exists := graft.UnifiedRegistry.GetImplementation("custom"); exists {
+	if op, exists := graft.DefaultRegistry.GetImplementation("custom"); exists {
 		// Create a simple evaluator context
 		ev := &graft.Evaluator{
 			Tree: map[string]interface{}{},

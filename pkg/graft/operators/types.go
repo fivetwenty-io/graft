@@ -88,9 +88,6 @@ func ResolveEnv(nodes []string) []string {
 	return nodes
 }
 
-// OpRegistry reference.
-var OpRegistry = graft.OpRegistry
-
 // EvaluateExpr evaluates an expression.
 func EvaluateExpr(expr *Expr, ev *Evaluator) (*Response, error) {
 	return graft.EvaluateExpr(expr, ev)

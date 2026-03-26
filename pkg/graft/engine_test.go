@@ -76,7 +76,7 @@ func TestDefaultEngine(t *testing.T) {
 			So(engine.config.EnableParallel, ShouldBeFalse)
 			So(engine.config.MaxWorkers, ShouldEqual, 4)
 			So(engine.config.DataflowOrder, ShouldEqual, "alphabetical")
-			So(engine.operators, ShouldNotBeNil)
+			So(engine.registry, ShouldNotBeNil)
 			So(engine.vaultSecretCache, ShouldNotBeNil)
 			So(engine.vaultRefs, ShouldNotBeNil)
 			So(engine.awsSecretsCache, ShouldNotBeNil)
@@ -949,9 +949,8 @@ func TestEngineInitialization(t *testing.T) {
 	Convey("Engine Initialization", t, func() {
 		engine := NewDefaultEngine()
 
-		Convey("registerDefaultOperators should not panic", func() {
-			// This tests the private function indirectly by checking that
-			// default operators are available after engine creation
+		Convey("default operators should be available after engine creation", func() {
+			// Operators are registered into DefaultRegistry by init() and cloned per engine
 			operators := engine.ListOperators()
 
 			So(len(operators), ShouldBeGreaterThan, 5)
@@ -1223,8 +1222,7 @@ func TestCreateEngineFromOptions(t *testing.T) {
 				},
 			}
 
-			// Custom operators can override built-ins since registerDefaultOperators
-			// doesn't populate the engine's internal operators map
+			// Custom operators are registered into the engine's registry clone
 			engine, err := createEngineFromOptions(opts)
 			So(err, ShouldBeNil)
 			So(engine, ShouldNotBeNil)

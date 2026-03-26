@@ -11,21 +11,16 @@ import (
 
 //nolint:gochecknoinits // Operator registry initialization must happen at package load time
 func init() {
-	// Initialize operator registry if not already done
-	if OpRegistry == nil {
-		OpRegistry = make(map[string]Operator)
-	}
-
-	// Migrate legacy registries to unified registry on first init
-	// This will be called after all operator init() functions have run
-	// since package init order ensures this runs last
-	if UnifiedRegistry.Count() == 0 {
-		// First migrate from legacy registries
+	// Ensure the DefaultRegistry is populated with complete metadata on first init.
+	// All operator init() functions have already registered into DefaultRegistry via
+	// RegisterUnifiedOperator, so this call only fills in metadata-only gaps.
+	if DefaultRegistry.Count() == 0 {
+		// Register any metadata-only entries from OperatorInfoRegistry
 		if err := MigrateFromLegacyRegistries(); err != nil {
 			log.DEBUG("Warning: Failed to migrate to unified registry: %v", err)
 		}
 
-		// Then ensure all operators are registered with complete metadata
+		// Ensure all operators have complete metadata entries
 		if err := PopulateCompleteRegistry(); err != nil {
 			log.DEBUG("Warning: Failed to populate complete registry: %v", err)
 		}
@@ -48,13 +43,7 @@ func ParseOpcall(phase OperatorPhase, src string) (*Opcall, error) {
 }
 
 // RegisterOp is a helper function to register operators.
-//
-// Deprecated: Use RegisterUnifiedOperator instead for new code.
 func RegisterOp(name string, op Operator) {
-	// Register in legacy registry for backward compatibility
-	OpRegistry[name] = op
-
-	// Also register in unified registry
 	if err := RegisterUnifiedOperator(name, op); err != nil {
 		log.DEBUG("Warning: Failed to register %s in unified registry: %v", name, err)
 	}
@@ -83,13 +72,7 @@ func SetupOperators(phase OperatorPhase) error {
 
 // OperatorFor returns the operator for the given name.
 func OperatorFor(name string) Operator {
-	// First check unified registry
-	if op, exists := UnifiedRegistry.GetImplementation(name); exists {
-		return op
-	}
-
-	// Fall back to legacy registry for backward compatibility
-	if op, exists := OpRegistry[name]; exists {
+	if op, exists := DefaultRegistry.GetImplementation(name); exists {
 		return op
 	}
 

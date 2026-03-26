@@ -32,9 +32,10 @@ type DefaultEngine struct {
 	// Configuration
 	config EngineConfig
 
-	// Operator registry
-	operators map[string]Operator
-	opMutex   sync.RWMutex
+	// Operator registry (clone of DefaultRegistry, plus engine-local overrides)
+	registry       *UnifiedOperatorRegistry
+	localOperators map[string]bool // tracks operators registered on this engine (not inherited)
+	opMutex        sync.RWMutex
 
 	// Vault state
 	vaultKV          *vaultkv.KV
@@ -134,7 +135,8 @@ func NewDefaultEngine() *DefaultEngine {
 func NewDefaultEngineWithConfig(config EngineConfig) *DefaultEngine {
 	e := &DefaultEngine{
 		config:           config,
-		operators:        make(map[string]Operator),
+		registry:         DefaultRegistry.Clone(),
+		localOperators:   make(map[string]bool),
 		vaultSecretCache: make(map[string]map[string]interface{}),
 		vaultRefs:        make(map[string][]string),
 		awsSecretsCache:  make(map[string]string),
@@ -152,9 +154,6 @@ func NewDefaultEngineWithConfig(config EngineConfig) *DefaultEngine {
 	if config.MemoryConfig.Enabled {
 		e.documentMemory = NewDocumentMemory(config.MemoryConfig)
 	}
-
-	// Register default operators
-	e.registerDefaultOperators()
 
 	// Initialize vault if configured
 	if !config.SkipVault && config.VaultAddr != "" {
@@ -192,37 +191,48 @@ func DefaultEngineConfig() EngineConfig {
 	}
 }
 
-// RegisterOperator registers a custom operator.
+// RegisterOperator registers a custom operator in the engine's registry clone.
+// Returns an error if the operator was already explicitly registered on this engine
+// (i.e. not just inherited from DefaultRegistry). Custom operators can shadow
+// built-in operators that were inherited from DefaultRegistry.
 func (e *DefaultEngine) RegisterOperator(name string, op Operator) error {
 	e.opMutex.Lock()
 	defer e.opMutex.Unlock()
 
-	if _, exists := e.operators[name]; exists {
+	// Fail if operator was already locally registered on this engine
+	if e.localOperators[name] {
 		return fmt.Errorf("operator %s already registered", name)
 	}
 
-	e.operators[name] = op
+	// Preserve existing metadata if available (from DefaultRegistry clone); override implementation.
+	var entry *UnifiedOperatorEntry
+	if existing, exists := e.registry.Get(name); exists {
+		entryCopy := *existing
+		entryCopy.Implementation = op
+		entry = &entryCopy
+	} else {
+		entry = &UnifiedOperatorEntry{
+			Name:           name,
+			Precedence:     PrecedenceCall,
+			MinArgs:        0,
+			MaxArgs:        -1,
+			Phase:          EvalPhase,
+			Implementation: op,
+		}
+	}
+	if err := e.registry.Register(entry); err != nil {
+		return err
+	}
+	e.localOperators[name] = true
 	return nil
 }
 
-// GetOperator retrieves an operator by name.
+// GetOperator retrieves an operator by name from the engine's registry clone.
 func (e *DefaultEngine) GetOperator(name string) (Operator, bool) {
 	e.opMutex.RLock()
 	defer e.opMutex.RUnlock()
 
-	// First check engine's registry
-	if op, exists := e.operators[name]; exists {
-		return op, true
-	}
-
-	// Check unified registry
-	if op, exists := UnifiedRegistry.GetImplementation(name); exists {
-		return op, true
-	}
-
-	// Fall back to legacy global registry for backward compatibility
-	op, exists := OpRegistry[name]
-	return op, exists
+	return e.registry.GetImplementation(name)
 }
 
 // EngineContext interface methods for internal operator access
@@ -400,12 +410,6 @@ func (e *DefaultEngine) GetPathsToSort() map[string]string {
 }
 
 // Internal methods
-
-func (e *DefaultEngine) registerDefaultOperators() {
-	// Basic operators are registered through the factory
-	// This is kept minimal to avoid circular dependencies
-	// Use factory.NewDefaultEngine() for full operator set
-}
 
 func (e *DefaultEngine) initializeVault() {
 	// Initialize vault connection
@@ -682,43 +686,25 @@ func (e *DefaultEngine) ToJSONIndent(doc Document, indent string) ([]byte, error
 	return nil, fmt.Errorf("not implemented")
 }
 
-// UnregisterOperator removes a custom operator.
+// UnregisterOperator removes an operator from the engine's registry clone.
+// Note: this removes from the clone only, not from DefaultRegistry.
 func (e *DefaultEngine) UnregisterOperator(name string) error {
 	e.opMutex.Lock()
 	defer e.opMutex.Unlock()
 
-	delete(e.operators, name)
+	e.registry.mu.Lock()
+	delete(e.registry.operators, name)
+	e.registry.mu.Unlock()
+	delete(e.localOperators, name)
 	return nil
 }
 
-// ListOperators returns all available operators.
+// ListOperators returns all available operators from the engine's registry clone.
 func (e *DefaultEngine) ListOperators() []string {
 	e.opMutex.RLock()
 	defer e.opMutex.RUnlock()
 
-	names := make([]string, 0, len(e.operators)+len(OpRegistry))
-
-	// Add engine-specific operators
-	for name := range e.operators {
-		names = append(names, name)
-	}
-
-	// Add global operators
-	for name := range OpRegistry {
-		// Check if not already in the list
-		found := false
-		for _, existing := range names {
-			if existing == name {
-				found = true
-				break
-			}
-		}
-		if !found {
-			names = append(names, name)
-		}
-	}
-
-	return names
+	return e.registry.ListOperators()
 }
 
 // WithLogger sets a new logger (returns new engine instance).

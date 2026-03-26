@@ -25,8 +25,9 @@ type UnifiedOperatorRegistry struct {
 	mu        sync.RWMutex
 }
 
-// UnifiedRegistry is the global unified registry instance.
-var UnifiedRegistry = NewUnifiedOperatorRegistry()
+// DefaultRegistry is the global unified registry instance.
+// Operators register into this via init(); each engine clones from it.
+var DefaultRegistry = NewUnifiedOperatorRegistry()
 
 // NewUnifiedOperatorRegistry creates a new unified operator registry.
 func NewUnifiedOperatorRegistry() *UnifiedOperatorRegistry {
@@ -188,15 +189,14 @@ func (r *UnifiedOperatorRegistry) Clone() *UnifiedOperatorRegistry {
 
 // Migration helpers to ease transition from old registries
 
-// RegisterUnifiedOperator registers an operator using the old registration pattern.
+// RegisterUnifiedOperator registers an operator into the DefaultRegistry.
 func RegisterUnifiedOperator(name string, op Operator) error {
 	// Look up metadata from OperatorInfoRegistry if it exists
 	if info, exists := OperatorInfoRegistry[name]; exists {
-		return UnifiedRegistry.RegisterOperator(name, op, info)
+		return DefaultRegistry.RegisterOperator(name, op, info)
 	}
 
 	// If no metadata exists, create default metadata
-	// This handles operators that were only in OpRegistry
 	defaultInfo := OperatorInfo{
 		Name:       name,
 		Precedence: PrecedenceCall,
@@ -205,30 +205,23 @@ func RegisterUnifiedOperator(name string, op Operator) error {
 		Phase:      EvalPhase,
 	}
 
-	return UnifiedRegistry.RegisterOperator(name, op, defaultInfo)
+	return DefaultRegistry.RegisterOperator(name, op, defaultInfo)
 }
 
 // GetUnifiedOperator retrieves an operator implementation (backward compatible).
 func GetUnifiedOperator(name string) (Operator, bool) {
-	return UnifiedRegistry.GetImplementation(name)
+	return DefaultRegistry.GetImplementation(name)
 }
 
-// MigrateFromLegacyRegistries populates the unified registry from the old registries.
+// MigrateFromLegacyRegistries populates the unified registry from the OperatorInfoRegistry.
+// Since OpRegistry has been removed, this only registers metadata-only entries.
 func MigrateFromLegacyRegistries() error {
-	// First, add all operators from OpRegistry
-	for name, op := range OpRegistry {
-		if err := RegisterUnifiedOperator(name, op); err != nil {
-			return fmt.Errorf("failed to migrate operator %s: %w", name, err)
-		}
-	}
-
-	// Add any operators that are only in OperatorInfoRegistry
-	// (though this shouldn't happen in practice)
+	// Register any operators that are only in OperatorInfoRegistry
 	for name, info := range OperatorInfoRegistry {
-		if !UnifiedRegistry.IsRegistered(name) {
+		if !DefaultRegistry.IsRegistered(name) {
 			// Create a NullOperator for metadata-only entries
 			nullOp := NullOperator{Missing: name}
-			if err := UnifiedRegistry.RegisterOperator(name, nullOp, info); err != nil {
+			if err := DefaultRegistry.RegisterOperator(name, nullOp, info); err != nil {
 				return fmt.Errorf("failed to register metadata-only operator %s: %w", name, err)
 			}
 		}
@@ -306,21 +299,16 @@ func PopulateCompleteRegistry() error {
 
 	// Register all operators, using existing implementation if available
 	for _, op := range operators {
-		// Check if we already have an implementation
+		// Check if we already have a real (non-null) implementation
 		var impl Operator
-		if existing, exists := UnifiedRegistry.Get(op.name); exists && existing.Implementation != nil {
+		if existing, exists := DefaultRegistry.Get(op.name); exists && existing.Implementation != nil {
 			// Check if the existing implementation is a NullOperator
 			if _, isNull := existing.Implementation.(NullOperator); !isNull {
 				impl = existing.Implementation
-			} else if existingImpl, exists := OpRegistry[op.name]; exists {
-				// Found a real implementation in OpRegistry, use it
-				impl = existingImpl
 			} else {
 				// Keep the NullOperator
 				impl = existing.Implementation
 			}
-		} else if existingImpl, exists := OpRegistry[op.name]; exists {
-			impl = existingImpl
 		} else {
 			// No implementation found, use NullOperator
 			impl = NullOperator{Missing: op.name}
@@ -337,7 +325,7 @@ func PopulateCompleteRegistry() error {
 			Implementation: impl,
 		}
 
-		if err := UnifiedRegistry.Register(entry); err != nil {
+		if err := DefaultRegistry.Register(entry); err != nil {
 			return fmt.Errorf("failed to register operator %s: %w", op.name, err)
 		}
 	}

@@ -492,9 +492,6 @@ var (
 	// SkipAws disables AWS operations when true.
 	SkipAws bool
 
-	// OpRegistry stores all registered operators (temporary until Phase 2).
-	OpRegistry = make(map[string]Operator)
-
 	// keysToPrune tracks keys to prune (temporary until Phase 2).
 	keysToPrune []string
 
