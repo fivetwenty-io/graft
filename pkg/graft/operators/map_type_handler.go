@@ -8,6 +8,7 @@ import (
 // MapTypeHandler handles operations on map types (TypeMap).
 type MapTypeHandler struct {
 	*BaseTypeHandler
+	derived DerivedComparisons[*MapTypeHandler]
 }
 
 // NewMapTypeHandler creates a new map type handler.
@@ -15,6 +16,7 @@ func NewMapTypeHandler() *MapTypeHandler {
 	handler := &MapTypeHandler{
 		BaseTypeHandler: NewBaseTypeHandler(70), // Higher priority than numeric/string handlers
 	}
+	handler.derived = NewDerivedComparisons(handler)
 
 	// Add supported type combinations
 	handler.AddSupportedTypes(
@@ -103,11 +105,7 @@ func (h *MapTypeHandler) Equal(a, b interface{}) (bool, error) {
 
 // NotEqual checks if two maps are not equal.
 func (h *MapTypeHandler) NotEqual(a, b interface{}) (bool, error) {
-	equal, err := h.Equal(a, b)
-	if err != nil {
-		return false, err
-	}
-	return !equal, nil
+	return h.derived.NotEqual(a, b)
 }
 
 // Less is not meaningful for maps.

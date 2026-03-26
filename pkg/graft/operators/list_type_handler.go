@@ -8,6 +8,7 @@ import (
 // ListTypeHandler handles operations on list types (TypeList).
 type ListTypeHandler struct {
 	*BaseTypeHandler
+	derived DerivedComparisons[*ListTypeHandler]
 }
 
 // NewListTypeHandler creates a new list type handler.
@@ -15,6 +16,7 @@ func NewListTypeHandler() *ListTypeHandler {
 	handler := &ListTypeHandler{
 		BaseTypeHandler: NewBaseTypeHandler(70), // Higher priority than numeric/string handlers
 	}
+	handler.derived = NewDerivedComparisons(handler)
 
 	// Add supported type combinations
 	handler.AddSupportedTypes(
@@ -128,11 +130,7 @@ func (h *ListTypeHandler) Equal(a, b interface{}) (bool, error) {
 
 // NotEqual checks if two lists are not equal.
 func (h *ListTypeHandler) NotEqual(a, b interface{}) (bool, error) {
-	equal, err := h.Equal(a, b)
-	if err != nil {
-		return false, err
-	}
-	return !equal, nil
+	return h.derived.NotEqual(a, b)
 }
 
 // Less is not meaningful for lists (would need to define ordering).

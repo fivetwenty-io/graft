@@ -9,6 +9,7 @@ import (
 // StringTypeHandler handles operations for string types.
 type StringTypeHandler struct {
 	*BaseTypeHandler
+	derived DerivedComparisons[*StringTypeHandler]
 }
 
 // NewStringTypeHandler creates a new handler for string operations.
@@ -16,6 +17,7 @@ func NewStringTypeHandler() *StringTypeHandler {
 	handler := &StringTypeHandler{
 		BaseTypeHandler: NewBaseTypeHandler(90), // High priority for string operations
 	}
+	handler.derived = NewDerivedComparisons(handler)
 
 	// Support string-string operations and string-int for multiplication
 	handler.AddSupportedTypes(
@@ -120,8 +122,7 @@ func (h *StringTypeHandler) Equal(a, b interface{}) (bool, error) {
 
 // NotEqual performs string inequality comparison.
 func (h *StringTypeHandler) NotEqual(a, b interface{}) (bool, error) {
-	equal, err := h.Equal(a, b)
-	return !equal, err
+	return h.derived.NotEqual(a, b)
 }
 
 // Less performs lexicographic comparison.
@@ -150,14 +151,12 @@ func (h *StringTypeHandler) Greater(a, b interface{}) (bool, error) {
 
 // LessOrEqual performs lexicographic comparison.
 func (h *StringTypeHandler) LessOrEqual(a, b interface{}) (bool, error) {
-	greater, err := h.Greater(a, b)
-	return !greater, err
+	return h.derived.LessOrEqual(a, b)
 }
 
 // GreaterOrEqual performs lexicographic comparison.
 func (h *StringTypeHandler) GreaterOrEqual(a, b interface{}) (bool, error) {
-	less, err := h.Less(a, b)
-	return !less, err
+	return h.derived.GreaterOrEqual(a, b)
 }
 
 // CanHandle checks if this handler can handle the given type combination.

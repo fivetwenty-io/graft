@@ -5,6 +5,7 @@ package operators
 // BooleanTypeHandler handles operations for boolean types.
 type BooleanTypeHandler struct {
 	*BaseTypeHandler
+	derived DerivedComparisons[*BooleanTypeHandler]
 }
 
 // NewBooleanTypeHandler creates a new handler for boolean operations.
@@ -12,6 +13,7 @@ func NewBooleanTypeHandler() *BooleanTypeHandler {
 	handler := &BooleanTypeHandler{
 		BaseTypeHandler: NewBaseTypeHandler(80), // Medium-high priority
 	}
+	handler.derived = NewDerivedComparisons(handler)
 
 	// Support boolean operations with mixed types for logical operations
 	// Equality will use strict checking, but logical operations use truthiness
@@ -86,8 +88,7 @@ func (h *BooleanTypeHandler) Equal(a, b interface{}) (bool, error) {
 
 // NotEqual performs boolean inequality comparison.
 func (h *BooleanTypeHandler) NotEqual(a, b interface{}) (bool, error) {
-	equal, err := h.Equal(a, b)
-	return !equal, err
+	return h.derived.NotEqual(a, b)
 }
 
 // Less treats false < true.
@@ -118,14 +119,12 @@ func (h *BooleanTypeHandler) Greater(a, b interface{}) (bool, error) {
 
 // LessOrEqual performs boolean comparison.
 func (h *BooleanTypeHandler) LessOrEqual(a, b interface{}) (bool, error) {
-	greater, err := h.Greater(a, b)
-	return !greater, err
+	return h.derived.LessOrEqual(a, b)
 }
 
 // GreaterOrEqual performs boolean comparison.
 func (h *BooleanTypeHandler) GreaterOrEqual(a, b interface{}) (bool, error) {
-	less, err := h.Less(a, b)
-	return !less, err
+	return h.derived.GreaterOrEqual(a, b)
 }
 
 // toBoolStrict converts a value to boolean if it is actually a boolean.

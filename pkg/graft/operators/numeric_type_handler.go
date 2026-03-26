@@ -8,6 +8,7 @@ import (
 // NumericTypeHandler handles arithmetic and comparison operations for numeric types (int and float).
 type NumericTypeHandler struct {
 	*BaseTypeHandler
+	derived DerivedComparisons[*NumericTypeHandler]
 }
 
 // NewNumericTypeHandler creates a new handler for numeric operations.
@@ -15,6 +16,7 @@ func NewNumericTypeHandler() *NumericTypeHandler {
 	handler := &NumericTypeHandler{
 		BaseTypeHandler: NewBaseTypeHandler(100), // Highest priority for numeric operations
 	}
+	handler.derived = NewDerivedComparisons(handler)
 
 	// Support int-int, int-float, float-int, and float-float combinations
 	handler.AddSupportedTypes(
@@ -231,8 +233,7 @@ func (h *NumericTypeHandler) Equal(a, b interface{}) (bool, error) {
 
 // NotEqual performs inequality comparison on numeric types.
 func (h *NumericTypeHandler) NotEqual(a, b interface{}) (bool, error) {
-	equal, err := h.Equal(a, b)
-	return !equal, err
+	return h.derived.NotEqual(a, b)
 }
 
 // Less performs less-than comparison on numeric types.
@@ -269,14 +270,12 @@ func (h *NumericTypeHandler) Greater(a, b interface{}) (bool, error) {
 
 // LessOrEqual performs less-than-or-equal comparison on numeric types.
 func (h *NumericTypeHandler) LessOrEqual(a, b interface{}) (bool, error) {
-	greater, err := h.Greater(a, b)
-	return !greater, err
+	return h.derived.LessOrEqual(a, b)
 }
 
 // GreaterOrEqual performs greater-than-or-equal comparison on numeric types.
 func (h *NumericTypeHandler) GreaterOrEqual(a, b interface{}) (bool, error) {
-	less, err := h.Less(a, b)
-	return !less, err
+	return h.derived.GreaterOrEqual(a, b)
 }
 
 //nolint:gochecknoinits // Type handler registration must happen at package load time
