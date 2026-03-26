@@ -1,7 +1,7 @@
 // Package main provides the graft command-line interface.
 //
 // The graft CLI is built as a consumer of the pkg/graft library, providing
-// command-line access to all graft functionality.
+// command-line access to all graft functionality. Uses Cobra for CLI parsing.
 //
 // # Commands
 //
@@ -12,30 +12,30 @@
 //
 // diff:
 //
-//	Compare YAML/JSON files with rich diff output.
+//	Show the semantic differences between two YAML files.
 //	  graft diff file1.yml file2.yml
 //
 // json:
 //
-//	Convert YAML to JSON or vice versa.
+//	Convert YAML to JSON.
 //	  graft json input.yml
 //
 // fan:
 //
-//	Generate multiple outputs from templates.
-//	  graft fan template.yml --values env/*.yml
+//	Fan out a source document across multiple target documents.
+//	  graft fan source.yml targets.yml
 //
-// debug:
+// vaultinfo:
 //
-//	Start interactive debugging REPL.
-//	  graft debug config.yml
+//	List vault references in the given files.
+//	  graft vaultinfo config.yml
 //
 // # Global Flags
 //
-//	--output, -o    Output format (yaml, json)
-//	--quiet, -q     Suppress non-essential output
-//	--verbose, -v   Enable verbose output
-//	--debug         Enable debug mode
+//	--debug, -D     Enable debug mode
+//	--trace, -T     Enable trace mode (very verbose)
+//	--version, -v   Display version information
+//	--color         Control color output (on/off/auto)
 //
 // # Environment Variables
 //
