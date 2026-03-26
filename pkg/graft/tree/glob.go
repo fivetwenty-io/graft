@@ -46,18 +46,6 @@ func (c *Cursor) Glob(tree interface{}) ([]*Cursor, error) {
 					paths = append(paths, sub...)
 				}
 
-			case map[interface{}]interface{}:
-				for k, v := range oVal {
-					sub, err := resolver(v, append(here, fmt.Sprintf("%v", k)), path, pos+1)
-					if err != nil {
-						var notFound NotFoundError
-						if !errors.As(err, &notFound) {
-							return nil, err
-						}
-					}
-					paths = append(paths, sub...)
-				}
-
 			default:
 				return nil, TypeMismatchError{
 					Path:   path,
@@ -95,24 +83,6 @@ func (c *Cursor) Glob(tree interface{}) ([]*Cursor, error) {
 				if !ok {
 					return nil, NotFoundError{
 						Path: path[0 : pos+1],
-					}
-				}
-				return resolver(v, append(here, k), path, pos+1)
-
-			case map[interface{}]interface{}:
-				v, ok := val[k]
-				if !ok {
-					/* key might not actually be a string.  let's iterate */
-					for k1, v1 := range val {
-						if fmt.Sprintf("%v", k1) == k {
-							v, ok = v1, true
-							break
-						}
-					}
-					if !ok {
-						return nil, NotFoundError{
-							Path: path[0 : pos+1],
-						}
 					}
 				}
 				return resolver(v, append(here, k), path, pos+1)

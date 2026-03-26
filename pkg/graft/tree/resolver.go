@@ -19,11 +19,6 @@ func listFind(l []interface{}, fields []string, key string) (interface{}, uint64
 				if ok && value == key {
 					return v, idx, true
 				}
-			case map[interface{}]interface{}:
-				value, ok := m[field]
-				if ok && value == key {
-					return v, idx, true
-				}
 			}
 		}
 	}
@@ -69,25 +64,6 @@ func (c *Cursor) Canonical(o interface{}) (*Cursor, error) {
 				}
 			}
 
-		case map[interface{}]interface{}:
-			canon.Push(k)
-			v, ok := val[k]
-			if !ok {
-				/* key might not actually be a string.  let's iterate */
-				for k1, v1 := range val {
-					if fmt.Sprintf("%v", k1) == k {
-						v, ok = v1, true
-						break
-					}
-				}
-				if !ok {
-					return nil, NotFoundError{
-						Path: canon.Nodes,
-					}
-				}
-			}
-			o = v
-
 		default:
 			return nil, TypeMismatchError{
 				Path:   canon.Nodes,
@@ -113,24 +89,6 @@ func (c *Cursor) Resolve(o interface{}) (interface{}, error) {
 			if !ok {
 				return nil, NotFoundError{
 					Path: path,
-				}
-			}
-			o = v
-
-		case map[interface{}]interface{}:
-			v, ok := val[k]
-			if !ok {
-				/* key might not actually be a string.  let's iterate */
-				for k1, v1 := range val {
-					if fmt.Sprintf("%v", k1) == k {
-						v, ok = v1, true
-						break
-					}
-				}
-				if !ok {
-					return nil, NotFoundError{
-						Path: path,
-					}
 				}
 			}
 			o = v

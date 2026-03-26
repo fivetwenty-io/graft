@@ -295,15 +295,15 @@ func TestCursorUnder(t *testing.T) {
 
 func TestResolve(t *testing.T) {
 	// Test data structure
-	data := map[interface{}]interface{}{
-		"root": map[interface{}]interface{}{
-			"child": map[interface{}]interface{}{
+	data := map[string]interface{}{
+		"root": map[string]interface{}{
+			"child": map[string]interface{}{
 				"value":  "test",
 				"number": 42,
 			},
 			"list": []interface{}{
 				"item0",
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name":  "item1",
 					"value": "named_item",
 				},
@@ -347,7 +347,7 @@ func TestResolve(t *testing.T) {
 		{
 			name:     "list by name",
 			path:     "root.list.item1",
-			expected: map[interface{}]interface{}{"name": "item1", "value": "named_item"},
+			expected: map[string]interface{}{"name": "item1", "value": "named_item"},
 			hasError: false,
 		},
 		{
@@ -415,9 +415,9 @@ func TestResolve(t *testing.T) {
 }
 
 func TestFind(t *testing.T) {
-	data := map[interface{}]interface{}{
+	data := map[string]interface{}{
 		"test": "value",
-		"nested": map[interface{}]interface{}{
+		"nested": map[string]interface{}{
 			"key": "nested_value",
 		},
 	}
@@ -472,10 +472,10 @@ func TestFind(t *testing.T) {
 }
 
 func TestFindString(t *testing.T) {
-	data := map[interface{}]interface{}{
+	data := map[string]interface{}{
 		"string": "test_string",
 		"number": 42,
-		"nested": map[interface{}]interface{}{
+		"nested": map[string]interface{}{
 			"string": "nested_string",
 		},
 	}
@@ -656,9 +656,9 @@ func BenchmarkParseCursor(b *testing.B) {
 }
 
 func BenchmarkResolve(b *testing.B) {
-	data := map[interface{}]interface{}{
-		"root": map[interface{}]interface{}{
-			"child": map[interface{}]interface{}{
+	data := map[string]interface{}{
+		"root": map[string]interface{}{
+			"child": map[string]interface{}{
 				"value": "test",
 			},
 		},
