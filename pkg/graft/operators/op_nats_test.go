@@ -6,59 +6,60 @@ import (
 
 	. "github.com/smartystreets/goconvey/convey"
 
+	natsbackend "github.com/fivetwenty-io/graft/internal/backends/nats"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func TestParseNatsPath(t *testing.T) {
 	Convey("parseNatsPath", t, func() {
 		Convey("valid kv path", func() {
-			storeType, storePath, err := parseNatsPath("kv:mybucket/mykey")
+			storeType, storePath, err := natsbackend.ParsePath("kv:mybucket/mykey")
 			So(err, ShouldBeNil)
 			So(storeType, ShouldEqual, "kv")
 			So(storePath, ShouldEqual, "mybucket/mykey")
 		})
 
 		Convey("valid obj path", func() {
-			storeType, storePath, err := parseNatsPath("obj:mybucket/myobject")
+			storeType, storePath, err := natsbackend.ParsePath("obj:mybucket/myobject")
 			So(err, ShouldBeNil)
 			So(storeType, ShouldEqual, "obj")
 			So(storePath, ShouldEqual, "mybucket/myobject")
 		})
 
 		Convey("kv with uppercase is normalized", func() {
-			storeType, storePath, err := parseNatsPath("KV:store/key")
+			storeType, storePath, err := natsbackend.ParsePath("KV:store/key")
 			So(err, ShouldBeNil)
 			So(storeType, ShouldEqual, "kv")
 			So(storePath, ShouldEqual, "store/key")
 		})
 
 		Convey("obj with uppercase is normalized", func() {
-			storeType, storePath, err := parseNatsPath("OBJ:bucket/object")
+			storeType, storePath, err := natsbackend.ParsePath("OBJ:bucket/object")
 			So(err, ShouldBeNil)
 			So(storeType, ShouldEqual, "obj")
 			So(storePath, ShouldEqual, "bucket/object")
 		})
 
 		Convey("invalid format without colon", func() {
-			_, _, err := parseNatsPath("mybucket/mykey")
+			_, _, err := natsbackend.ParsePath("mybucket/mykey")
 			So(err, ShouldNotBeNil)
 			So(err.Error(), ShouldContainSubstring, "invalid NATS path format")
 		})
 
 		Convey("invalid store type", func() {
-			_, _, err := parseNatsPath("invalid:bucket/key")
+			_, _, err := natsbackend.ParsePath("invalid:bucket/key")
 			So(err, ShouldNotBeNil)
 			So(err.Error(), ShouldContainSubstring, "invalid store type")
 		})
 
 		Convey("empty path after store type", func() {
-			_, _, err := parseNatsPath("kv:")
+			_, _, err := natsbackend.ParsePath("kv:")
 			So(err, ShouldNotBeNil)
 			So(err.Error(), ShouldContainSubstring, "empty path after store type")
 		})
 
 		Convey("path with nested keys", func() {
-			storeType, storePath, err := parseNatsPath("kv:config/app/settings/database")
+			storeType, storePath, err := natsbackend.ParsePath("kv:config/app/settings/database")
 			So(err, ShouldBeNil)
 			So(storeType, ShouldEqual, "kv")
 			So(storePath, ShouldEqual, "config/app/settings/database")
@@ -112,11 +113,9 @@ func TestNatsOperatorSetup(t *testing.T) {
 
 func TestNatsClientPoolExists(t *testing.T) {
 	Convey("NATS Global Client Pool", t, func() {
-		Convey("natsTargetPool should be initialized", func() {
+		Convey("DefaultPool should be initialized", func() {
 			// The global pool is initialized at package load time
-			So(natsTargetPool, ShouldNotBeNil)
-			So(natsTargetPool.connections, ShouldNotBeNil)
-			So(natsTargetPool.configs, ShouldNotBeNil)
+			So(natsbackend.DefaultPool, ShouldNotBeNil)
 		})
 	})
 }
