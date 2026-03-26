@@ -1128,3 +1128,44 @@ func TestDocumentSet(t *testing.T) {
 		t.Errorf("Set(x.y.z) = %v, want 42", v)
 	}
 }
+
+func TestCheckForCycles(t *testing.T) {
+	// No cycles in a normal nested map
+	data := map[string]interface{}{
+		"a": "b",
+		"c": map[string]interface{}{"d": "e"},
+	}
+	if err := CheckForCycles(data, 100); err != nil {
+		t.Errorf("unexpected error on acyclic data: %v", err)
+	}
+
+	// No cycles in a slice
+	sliceData := map[string]interface{}{
+		"items": []interface{}{"x", "y", "z"},
+	}
+	if err := CheckForCycles(sliceData, 100); err != nil {
+		t.Errorf("unexpected error on acyclic slice data: %v", err)
+	}
+
+	// Max depth of zero should always return an error
+	if err := CheckForCycles(data, 0); err == nil {
+		t.Error("expected error for zero max depth")
+	}
+
+	// Max depth of zero on a scalar root also errors
+	if err := CheckForCycles("scalar", 0); err == nil {
+		t.Error("expected error for zero max depth on scalar")
+	}
+
+	// Deep nesting within allowed depth should succeed
+	deep := map[string]interface{}{
+		"level1": map[string]interface{}{
+			"level2": map[string]interface{}{
+				"level3": "value",
+			},
+		},
+	}
+	if err := CheckForCycles(deep, 10); err != nil {
+		t.Errorf("unexpected error on deeply nested but allowed data: %v", err)
+	}
+}

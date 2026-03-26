@@ -1153,3 +1153,57 @@ func TestCreateEngineFromOptions(t *testing.T) {
 		})
 	})
 }
+
+func TestParseMultiDocYAML(t *testing.T) {
+	engine := NewDefaultEngine()
+
+	t.Run("single document", func(t *testing.T) {
+		data := []byte("key1: value1\nkey2: value2\n")
+		docs, err := engine.ParseMultiDocYAML(data)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document, got %d", len(docs))
+		}
+		val, err := docs[0].Get("key1")
+		if err != nil {
+			t.Fatalf("Get failed: %v", err)
+		}
+		if val != "value1" {
+			t.Errorf("expected value1, got %v", val)
+		}
+	})
+
+	t.Run("multiple documents separated by ---", func(t *testing.T) {
+		data := []byte("key1: value1\n---\nkey2: value2\n")
+		docs, err := engine.ParseMultiDocYAML(data)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(docs) != 2 {
+			t.Fatalf("expected 2 documents, got %d", len(docs))
+		}
+		val1, _ := docs[0].Get("key1")
+		if val1 != "value1" {
+			t.Errorf("doc[0] key1: expected value1, got %v", val1)
+		}
+		val2, _ := docs[1].Get("key2")
+		if val2 != "value2" {
+			t.Errorf("doc[1] key2: expected value2, got %v", val2)
+		}
+	})
+
+	t.Run("file starting with --- separator is handled", func(t *testing.T) {
+		// Files that start with --- produce an empty first segment
+		data := []byte("\n---\nkey1: value1\n")
+		docs, err := engine.ParseMultiDocYAML(data)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// The empty leading doc is stripped; only the real doc remains
+		if len(docs) != 1 {
+			t.Fatalf("expected 1 document after stripping empty leader, got %d", len(docs))
+		}
+	})
+}

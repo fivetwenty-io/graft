@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"sort"
 	"strings"
 
@@ -100,56 +99,6 @@ type cliOptions struct {
 	} `goptions:"vaultinfo"`
 }
 
-// checkForCycles detects circular references in the data structure.
-func checkForCycles(root interface{}, maxDepth int) error {
-	visited := make(map[uintptr]bool)
-
-	var check func(o interface{}, depth int) error
-	check = func(o interface{}, depth int) error {
-		if depth == 0 {
-			return ansi.Errorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
-		}
-
-		switch v := o.(type) {
-		case map[string]interface{}:
-			// Check if we've seen this map before (circular reference)
-			ptr := reflect.ValueOf(v).Pointer()
-			if visited[ptr] {
-				return ansi.Errorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
-			}
-			visited[ptr] = true
-
-			for _, val := range v {
-				if err := check(val, depth-1); err != nil {
-					return err
-				}
-			}
-
-			delete(visited, ptr) // Remove after visiting children
-
-		case []interface{}:
-			// Check if we've seen this slice before (circular reference)
-			ptr := reflect.ValueOf(v).Pointer()
-			if visited[ptr] {
-				return ansi.Errorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
-			}
-			visited[ptr] = true
-
-			for _, val := range v {
-				if err := check(val, depth-1); err != nil {
-					return err
-				}
-			}
-
-			delete(visited, ptr) // Remove after visiting children
-		}
-
-		return nil
-	}
-
-	return check(root, maxDepth)
-}
-
 func handleColorFlag(colorOpt string) (bool, bool) {
 	switch colorOpt {
 	case "on":
@@ -174,7 +123,7 @@ func handleMerge(opts *mergeOpts) int {
 	log.TRACE("Converting the following data back to YML:")
 	log.TRACE("%#v", tree)
 
-	if cycleErr := checkForCycles(tree, 4096); cycleErr != nil {
+	if cycleErr := graft.CheckForCycles(tree, 4096); cycleErr != nil {
 		log.PrintStdErrf("%s\n", cycleErr.Error())
 		return 2
 	}
@@ -200,7 +149,7 @@ func handleFan(opts *mergeOpts) int {
 		log.TRACE("Converting the following data back to YML:")
 		log.TRACE("%#v", tree)
 
-		if err := checkForCycles(tree, 4096); err != nil {
+		if err := graft.CheckForCycles(tree, 4096); err != nil {
 			log.PrintStdErrf("%s\n", err.Error())
 			return 2
 		}

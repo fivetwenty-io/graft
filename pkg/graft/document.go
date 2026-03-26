@@ -3,11 +3,13 @@ package graft
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -616,4 +618,50 @@ func (d *document) GetMapStringString(path string) (map[string]string, error) {
 		result[k] = value
 	}
 	return result, nil
+}
+
+// CheckForCycles detects circular references in a data structure.
+// It traverses maps and slices up to maxDepth levels deep, returning an error
+// if a cycle is detected or the maximum depth is exceeded.
+func CheckForCycles(root interface{}, maxDepth int) error {
+	visited := make(map[uintptr]bool)
+
+	var check func(o interface{}, depth int) error
+	check = func(o interface{}, depth int) error {
+		if depth == 0 {
+			return ansi.Errorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
+		}
+
+		switch v := o.(type) {
+		case map[string]interface{}:
+			ptr := reflect.ValueOf(v).Pointer()
+			if visited[ptr] {
+				return ansi.Errorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
+			}
+			visited[ptr] = true
+			for _, val := range v {
+				if err := check(val, depth-1); err != nil {
+					return err
+				}
+			}
+			delete(visited, ptr)
+
+		case []interface{}:
+			ptr := reflect.ValueOf(v).Pointer()
+			if visited[ptr] {
+				return ansi.Errorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
+			}
+			visited[ptr] = true
+			for _, val := range v {
+				if err := check(val, depth-1); err != nil {
+					return err
+				}
+			}
+			delete(visited, ptr)
+		}
+
+		return nil
+	}
+
+	return check(root, maxDepth)
 }

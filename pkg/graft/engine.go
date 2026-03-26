@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -469,6 +470,30 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		// Return plain error for compatibility with tests
 		return nil, fmt.Errorf("root of YAML document is not a hash/map")
 	}
+}
+
+// ParseMultiDocYAML splits multi-document YAML (separated by "\n---\n") and
+// parses each document. An empty leading document produced by a file that
+// begins with the separator line is silently discarded.
+func (e *DefaultEngine) ParseMultiDocYAML(data []byte) ([]Document, error) {
+	rawDocs := bytes.Split(data, []byte("\n---\n"))
+
+	// Strip empty leading doc if the file starts with a --- separator
+	if len(rawDocs) > 0 && len(bytes.TrimSpace(rawDocs[0])) == 0 {
+		rawDocs = rawDocs[1:]
+	}
+
+	docs := make([]Document, 0, len(rawDocs))
+	for _, docBytes := range rawDocs {
+		doc, err := e.ParseYAML(docBytes)
+		if err != nil {
+			return nil, err
+		}
+		if doc != nil {
+			docs = append(docs, doc)
+		}
+	}
+	return docs, nil
 }
 
 // ParseJSON parses JSON data into a Document.
