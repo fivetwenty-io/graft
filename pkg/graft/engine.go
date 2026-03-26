@@ -467,14 +467,20 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator) error {
 		default:
 		}
 
-		if err := ev.RunPhase(phase); err != nil {
+		var phaseErr error
+		if e.IsFeatureEnabled(features.FeatureParallelEvaluation) && e.Pool != nil {
+			phaseErr = ev.RunPhaseParallel(phase)
+		} else {
+			phaseErr = ev.RunPhase(phase)
+		}
+		if phaseErr != nil {
 			// Record failure metric if enabled
 			if e.IsFeatureEnabled(features.FeatureMetrics) && e.MetricsRegistry != nil {
 				phaseName := phaseToString(phase)
 				counter := e.MetricsRegistry.GetOrCreateCounter("graft_evaluation_errors_total", metrics.Labels{"phase": phaseName})
 				counter.Inc()
 			}
-			return err
+			return phaseErr
 		}
 	}
 
