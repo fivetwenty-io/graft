@@ -19,7 +19,7 @@ import (
 )
 
 // Document represents a YAML/JSON document in a more user-friendly format
-// This abstraction hides the internal map[interface{}]interface{} representation.
+// This abstraction provides type-safe access to the internal map[string]interface{} representation.
 type Document interface {
 	// Get retrieves a value at the given path (e.g., "meta.instance_groups.0.name")
 	Get(path string) (interface{}, error)

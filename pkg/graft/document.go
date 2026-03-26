@@ -13,13 +13,13 @@ import (
 
 // document implements the Document interface.
 type document struct {
-	data map[interface{}]interface{}
+	data map[string]interface{}
 }
 
 // NewDocument creates a new document from a map.
-func NewDocument(data map[interface{}]interface{}) Document {
+func NewDocument(data map[string]interface{}) Document {
 	if data == nil {
-		data = make(map[interface{}]interface{})
+		data = make(map[string]interface{})
 	}
 	return &document{data: data}
 }
@@ -27,15 +27,8 @@ func NewDocument(data map[interface{}]interface{}) Document {
 // NewDocumentFromInterface creates a document from any interface{}.
 func NewDocumentFromInterface(data interface{}) (Document, error) {
 	switch v := data.(type) {
-	case map[interface{}]interface{}:
-		return NewDocument(v), nil
 	case map[string]interface{}:
-		// Convert map[string]interface{} to map[interface{}]interface{}
-		converted := make(map[interface{}]interface{})
-		for k, val := range v {
-			converted[k] = val
-		}
-		return NewDocument(converted), nil
+		return NewDocument(v), nil
 	case nil:
 		return NewDocument(nil), nil
 	default:
@@ -65,7 +58,7 @@ func (d *document) Get(path string) (interface{}, error) {
 // Set sets a value at the given path.
 func (d *document) Set(path string, value interface{}) error {
 	if path == "" || path == "$" {
-		if mapValue, ok := value.(map[interface{}]interface{}); ok {
+		if mapValue, ok := value.(map[string]interface{}); ok {
 			d.data = mapValue
 			return nil
 		}
@@ -175,17 +168,6 @@ func (d *document) GetMap(path string) (map[string]interface{}, error) {
 	switch v := val.(type) {
 	case map[string]interface{}:
 		return v, nil
-	case map[interface{}]interface{}:
-		// Convert to string-keyed map
-		result := make(map[string]interface{})
-		for k, v := range v {
-			key, ok := k.(string)
-			if !ok {
-				return nil, fmt.Errorf("map at path %s contains non-string key: %v", path, k)
-			}
-			result[key] = v
-		}
-		return result, nil
 	default:
 		return nil, NewValidationError(fmt.Sprintf("value at path '%s' is not a map (got %T)", path, val))
 	}
@@ -195,31 +177,23 @@ func (d *document) GetMap(path string) (map[string]interface{}, error) {
 func (d *document) Keys() []string {
 	var keys []string
 	for k := range d.data {
-		if s, ok := k.(string); ok {
-			keys = append(keys, s)
-		} else {
-			keys = append(keys, fmt.Sprintf("%v", k))
-		}
+		keys = append(keys, k)
 	}
 	return keys
 }
 
 // ToMap returns the underlying map representation.
-func (d *document) ToMap() map[interface{}]interface{} {
+func (d *document) ToMap() map[string]interface{} {
 	return d.data
 }
 
-// convertToJSONCompatible converts map[interface{}]interface{} to map[string]interface{}.
+// convertToJSONCompatible ensures all nested maps are map[string]interface{}.
 func convertToJSONCompatible(v interface{}) interface{} {
 	switch v := v.(type) {
-	case map[interface{}]interface{}:
+	case map[string]interface{}:
 		m := make(map[string]interface{})
 		for k, val := range v {
-			key, ok := k.(string)
-			if !ok {
-				key = fmt.Sprintf("%v", k)
-			}
-			m[key] = convertToJSONCompatible(val)
+			m[k] = convertToJSONCompatible(val)
 		}
 		return m
 	case []interface{}:
@@ -253,11 +227,11 @@ func (d *document) RawData() interface{} {
 // Clone creates a deep copy of the document.
 func (d *document) Clone() Document {
 	cloned := deepCopy(d.data)
-	if clonedMap, ok := cloned.(map[interface{}]interface{}); ok {
+	if clonedMap, ok := cloned.(map[string]interface{}); ok {
 		return NewDocument(clonedMap)
 	}
 	// Fallback - this shouldn't happen
-	return NewDocument(make(map[interface{}]interface{}))
+	return NewDocument(make(map[string]interface{}))
 }
 
 // ensurePathExists creates intermediate maps/slices as needed for the given path.
@@ -270,13 +244,6 @@ func (d *document) ensurePathExists(cursor *tree.Cursor) error {
 // deepCopy performs a deep copy of the data structure.
 func deepCopy(src interface{}) interface{} {
 	switch v := src.(type) {
-	case map[interface{}]interface{}:
-		dst := make(map[interface{}]interface{})
-		for key, value := range v {
-			dst[key] = deepCopy(value)
-		}
-		return dst
-
 	case map[string]interface{}:
 		dst := make(map[string]interface{})
 		for key, value := range v {
@@ -336,34 +303,27 @@ func parseIndex(component string) (key string, index int, hasIndex bool) {
 
 // CreateEmptyDocument creates a new empty document.
 func CreateEmptyDocument() Document {
-	return NewDocument(make(map[interface{}]interface{}))
+	return NewDocument(make(map[string]interface{}))
 }
 
 // pruneNavigationResult holds the result of navigating through a path for pruning.
 type pruneNavigationResult struct {
-	current     map[interface{}]interface{}
+	current     map[string]interface{}
 	lastList    []interface{}
 	lastListKey string
 	success     bool
 }
 
 // navigateForPrune navigates through the path segments to find the target for pruning.
-func (d *document) navigateForPrune(segments []string, current map[interface{}]interface{}) pruneNavigationResult {
+func (d *document) navigateForPrune(segments []string, current map[string]interface{}) pruneNavigationResult {
 	result := pruneNavigationResult{current: current, success: true}
 
 	for i := 0; i < len(segments)-1; i++ {
 		segment := segments[i]
 
 		switch v := result.current[segment].(type) {
-		case map[interface{}]interface{}:
-			result.current = v
 		case map[string]interface{}:
-			newMap := make(map[interface{}]interface{})
-			for k, val := range v {
-				newMap[k] = val
-			}
-			result.current[segment] = newMap
-			result.current = newMap
+			result.current = v
 		case []interface{}:
 			if i == len(segments)-2 {
 				result.lastList = v
@@ -388,11 +348,11 @@ func (d *document) navigateForPrune(segments []string, current map[interface{}]i
 }
 
 // navigateThroughList finds an element in a list by index or name.
-func (d *document) navigateThroughList(list []interface{}, segment string) (elem map[interface{}]interface{}, depth int) {
+func (d *document) navigateThroughList(list []interface{}, segment string) (elem map[string]interface{}, depth int) {
 	// Try numeric index first
 	if index, err := strconv.Atoi(segment); err == nil {
 		if index >= 0 && index < len(list) {
-			if elem, ok := list[index].(map[interface{}]interface{}); ok {
+			if elem, ok := list[index].(map[string]interface{}); ok {
 				return elem, 1
 			}
 		}
@@ -400,7 +360,7 @@ func (d *document) navigateThroughList(list []interface{}, segment string) (elem
 
 	// Try to find by name field
 	for _, item := range list {
-		if elem, ok := item.(map[interface{}]interface{}); ok {
+		if elem, ok := item.(map[string]interface{}); ok {
 			if name, exists := elem["name"]; exists {
 				if nameStr, ok := name.(string); ok && nameStr == segment {
 					return elem, 1
@@ -437,7 +397,7 @@ func (d *document) Prune(key string) Document {
 }
 
 // pruneFromList removes an element from a list by index.
-func (d *document) pruneFromList(current map[interface{}]interface{}, listKey string, list []interface{}, indexStr string) {
+func (d *document) pruneFromList(current map[string]interface{}, listKey string, list []interface{}, indexStr string) {
 	index, err := strconv.Atoi(indexStr)
 	if err != nil || index < 0 || index >= len(list) {
 		return
@@ -457,7 +417,7 @@ type listItemEntry struct {
 
 // CherryPick creates a new document with only the specified keys.
 func (d *document) CherryPick(keys ...string) Document {
-	picked := make(map[interface{}]interface{})
+	picked := make(map[string]interface{})
 	listItems := make([]listItemEntry, 0)
 
 	for _, keyPath := range keys {
@@ -478,7 +438,7 @@ func (d *document) CherryPick(keys ...string) Document {
 }
 
 // cherryPickSimpleKey handles simple key cherry-picking.
-func (d *document) cherryPickSimpleKey(picked map[interface{}]interface{}, key string) {
+func (d *document) cherryPickSimpleKey(picked map[string]interface{}, key string) {
 	if val, exists := d.data[key]; exists {
 		picked[key] = deepCopy(val)
 	}
@@ -521,7 +481,7 @@ func (d *document) findListItem(list []interface{}, key string) (item interface{
 
 	// Look for named item by identifier fields
 	for i, elem := range list {
-		if itemMap, ok := elem.(map[interface{}]interface{}); ok {
+		if itemMap, ok := elem.(map[string]interface{}); ok {
 			for _, idField := range []string{"key", "id", "name"} {
 				if idVal, hasId := itemMap[idField]; hasId {
 					if idStr, ok := idVal.(string); ok && idStr == key {
@@ -535,7 +495,7 @@ func (d *document) findListItem(list []interface{}, key string) (item interface{
 }
 
 // cherryPickNestedPath handles cherry-picking nested paths.
-func (d *document) cherryPickNestedPath(picked map[interface{}]interface{}, segments []string, keyPath string) {
+func (d *document) cherryPickNestedPath(picked map[string]interface{}, segments []string, keyPath string) {
 	val, err := d.Get(keyPath)
 	if err != nil || val == nil {
 		return
@@ -544,9 +504,9 @@ func (d *document) cherryPickNestedPath(picked map[interface{}]interface{}, segm
 	current := picked
 	for i := 0; i < len(segments)-1; i++ {
 		if _, exists := current[segments[i]]; !exists {
-			current[segments[i]] = make(map[interface{}]interface{})
+			current[segments[i]] = make(map[string]interface{})
 		}
-		if m, ok := current[segments[i]].(map[interface{}]interface{}); ok {
+		if m, ok := current[segments[i]].(map[string]interface{}); ok {
 			current = m
 		} else {
 			return
@@ -558,7 +518,7 @@ func (d *document) cherryPickNestedPath(picked map[interface{}]interface{}, segm
 }
 
 // addSortedListItems adds sorted list items to the picked document.
-func (d *document) addSortedListItems(picked map[interface{}]interface{}, listItems []listItemEntry) {
+func (d *document) addSortedListItems(picked map[string]interface{}, listItems []listItemEntry) {
 	// Sort list items by index in descending order
 	for i := 0; i < len(listItems)-1; i++ {
 		for j := i + 1; j < len(listItems); j++ {
@@ -656,31 +616,18 @@ func (d *document) GetMapStringString(path string) (map[string]string, error) {
 		return nil, err
 	}
 
-	var rawMap map[interface{}]interface{}
-	switch v := val.(type) {
-	case map[string]interface{}:
-		// Convert to interface{} keyed map for uniform processing
-		rawMap = make(map[interface{}]interface{})
-		for k, v := range v {
-			rawMap[k] = v
-		}
-	case map[interface{}]interface{}:
-		rawMap = v
-	default:
+	rawMap, ok := val.(map[string]interface{})
+	if !ok {
 		return nil, fmt.Errorf("value at path %s is not a map (got %T)", path, val)
 	}
 
 	result := make(map[string]string)
 	for k, v := range rawMap {
-		key, ok := k.(string)
-		if !ok {
-			return nil, fmt.Errorf("map at path %s contains non-string key: %v", path, k)
-		}
 		value, ok := v.(string)
 		if !ok {
-			return nil, fmt.Errorf("map at path %s contains non-string value for key %s: %v", path, key, v)
+			return nil, fmt.Errorf("map at path %s contains non-string value for key %s: %v", path, k, v)
 		}
-		result[key] = value
+		result[k] = value
 	}
 	return result, nil
 }

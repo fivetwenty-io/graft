@@ -9,19 +9,19 @@ import (
 
 func TestDocument_Get(t *testing.T) {
 	Convey("Given a document with nested data", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"name": "test",
-			"config": map[interface{}]interface{}{
+			"config": map[string]interface{}{
 				"enabled": true,
 				"timeout": 30,
-				"nested": map[interface{}]interface{}{
+				"nested": map[string]interface{}{
 					"value": "deep",
 				},
 			},
 			"list": []interface{}{
 				"item1",
 				"item2",
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name": "item3",
 				},
 			},
@@ -97,7 +97,7 @@ func TestDocument_Get(t *testing.T) {
 
 func TestDocument_GetString(t *testing.T) {
 	Convey("Given a document with various types", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"string_val": "hello",
 			"int_val":    42,
 			"bool_val":   true,
@@ -148,7 +148,7 @@ func TestDocument_GetString(t *testing.T) {
 
 func TestDocument_GetInt(t *testing.T) {
 	Convey("Given a document with various types", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"int_val":    42,
 			"string_val": "hello",
 			"float_val":  3.14,
@@ -186,7 +186,7 @@ func TestDocument_GetInt(t *testing.T) {
 
 func TestDocument_GetBool(t *testing.T) {
 	Convey("Given a document with various types", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"bool_true":  true,
 			"bool_false": false,
 			"string_val": "hello",
@@ -220,7 +220,7 @@ func TestDocument_GetBool(t *testing.T) {
 
 func TestDocument_GetSlice(t *testing.T) {
 	Convey("Given a document with various types", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"slice_val": []interface{}{
 				"item1",
 				"item2",
@@ -255,8 +255,8 @@ func TestDocument_GetSlice(t *testing.T) {
 
 func TestDocument_GetMap(t *testing.T) {
 	Convey("Given a document with various types", t, func() {
-		data := map[interface{}]interface{}{
-			"map_val": map[interface{}]interface{}{
+		data := map[string]interface{}{
+			"map_val": map[string]interface{}{
 				"key1": "value1",
 				"key2": 42,
 			},
@@ -288,13 +288,13 @@ func TestDocument_GetMap(t *testing.T) {
 
 func TestDocument_Clone(t *testing.T) {
 	Convey("Given a document with nested data", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"name": "test",
-			"config": map[interface{}]interface{}{
+			"config": map[string]interface{}{
 				"enabled": true,
 				"list": []interface{}{
 					"item1",
-					map[interface{}]interface{}{
+					map[string]interface{}{
 						"nested": "value",
 					},
 				},
@@ -323,7 +323,7 @@ func TestDocument_Clone(t *testing.T) {
 				// Modify the cloned document's underlying data
 				clonedDoc, ok := cloned.(*document)
 				So(ok, ShouldBeTrue)
-				clonedConfig, ok := clonedDoc.data["config"].(map[interface{}]interface{})
+				clonedConfig, ok := clonedDoc.data["config"].(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				clonedConfig["enabled"] = false
 
@@ -343,9 +343,9 @@ func TestDocument_Clone(t *testing.T) {
 
 func TestDocument_ToYAML(t *testing.T) {
 	Convey("Given a document", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"name": "test",
-			"config": map[interface{}]interface{}{
+			"config": map[string]interface{}{
 				"enabled": true,
 				"count":   42,
 			},
@@ -370,9 +370,9 @@ func TestDocument_ToYAML(t *testing.T) {
 
 func TestDocument_ToJSON(t *testing.T) {
 	Convey("Given a document", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"name": "test",
-			"config": map[interface{}]interface{}{
+			"config": map[string]interface{}{
 				"enabled": true,
 				"count":   42,
 			},
@@ -397,7 +397,7 @@ func TestDocument_ToJSON(t *testing.T) {
 
 func TestDocument_RawData(t *testing.T) {
 	Convey("Given a document", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"name": "test",
 		}
 		doc := &document{data: data}
@@ -416,7 +416,7 @@ func TestDocument_RawData(t *testing.T) {
 func TestNewDocument(t *testing.T) {
 	Convey("NewDocument", t, func() {
 		Convey("should create document with provided data", func() {
-			data := map[interface{}]interface{}{
+			data := map[string]interface{}{
 				"key": "value",
 			}
 			doc := NewDocument(data)
@@ -429,7 +429,7 @@ func TestNewDocument(t *testing.T) {
 			doc := NewDocument(nil)
 
 			So(doc, ShouldNotBeNil)
-			rawData, ok := doc.RawData().(map[interface{}]interface{})
+			rawData, ok := doc.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(len(rawData), ShouldEqual, 0)
 		})
@@ -438,8 +438,8 @@ func TestNewDocument(t *testing.T) {
 
 func TestNewDocumentFromInterface(t *testing.T) {
 	Convey("NewDocumentFromInterface", t, func() {
-		Convey("should create document from map[interface{}]interface{}", func() {
-			data := map[interface{}]interface{}{
+		Convey("should create document from map[string]interface{} preserving identity", func() {
+			data := map[string]interface{}{
 				"key": "value",
 			}
 			doc, err := NewDocumentFromInterface(data)
@@ -449,7 +449,7 @@ func TestNewDocumentFromInterface(t *testing.T) {
 			So(doc.RawData(), ShouldEqual, data)
 		})
 
-		Convey("should create document from map[string]interface{}", func() {
+		Convey("should create document from map[string]interface{} with correct values", func() {
 			data := map[string]interface{}{
 				"key": "value",
 			}
@@ -458,7 +458,7 @@ func TestNewDocumentFromInterface(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(doc, ShouldNotBeNil)
 
-			rawData, ok := doc.RawData().(map[interface{}]interface{})
+			rawData, ok := doc.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(rawData["key"], ShouldEqual, "value")
 		})
@@ -469,7 +469,7 @@ func TestNewDocumentFromInterface(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(doc, ShouldNotBeNil)
 
-			rawData, ok := doc.RawData().(map[interface{}]interface{})
+			rawData, ok := doc.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(len(rawData), ShouldEqual, 0)
 		})
@@ -486,13 +486,13 @@ func TestNewDocumentFromInterface(t *testing.T) {
 
 func TestDocument_Set(t *testing.T) {
 	Convey("Given a document", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"existing": "value",
 		}
 		doc := &document{data: data}
 
 		Convey("When setting root with valid map", func() {
-			newData := map[interface{}]interface{}{
+			newData := map[string]interface{}{
 				"new": "root",
 			}
 			err := doc.Set("", newData)
@@ -504,7 +504,7 @@ func TestDocument_Set(t *testing.T) {
 		})
 
 		Convey("When setting root with $ path", func() {
-			newData := map[interface{}]interface{}{
+			newData := map[string]interface{}{
 				"new": "root",
 			}
 			err := doc.Set("$", newData)
@@ -551,7 +551,7 @@ func TestDocument_Set(t *testing.T) {
 
 func TestDocument_Delete(t *testing.T) {
 	Convey("Given a document", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"key": "value",
 		}
 		doc := &document{data: data}
@@ -600,11 +600,11 @@ func TestDocument_Delete(t *testing.T) {
 }
 
 func TestDocument_Keys(t *testing.T) {
-	Convey("Given a document with various key types", t, func() {
-		data := map[interface{}]interface{}{
+	Convey("Given a document with string keys", t, func() {
+		data := map[string]interface{}{
 			"string_key": "value1",
-			123:          "value2",
-			true:         "value3",
+			"other_key":  "value2",
+			"third_key":  "value3",
 		}
 		doc := &document{data: data}
 
@@ -614,14 +614,14 @@ func TestDocument_Keys(t *testing.T) {
 			Convey("Then it should return all keys as strings", func() {
 				So(len(keys), ShouldEqual, 3)
 				So(keys, ShouldContain, "string_key")
-				So(keys, ShouldContain, "123")
-				So(keys, ShouldContain, "true")
+				So(keys, ShouldContain, "other_key")
+				So(keys, ShouldContain, "third_key")
 			})
 		})
 	})
 
 	Convey("Given an empty document", t, func() {
-		doc := &document{data: make(map[interface{}]interface{})}
+		doc := &document{data: make(map[string]interface{})}
 
 		Convey("When getting keys", func() {
 			keys := doc.Keys()
@@ -635,9 +635,9 @@ func TestDocument_Keys(t *testing.T) {
 
 func TestDocument_ToMap(t *testing.T) {
 	Convey("Given a document", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"key": "value",
-			"nested": map[interface{}]interface{}{
+			"nested": map[string]interface{}{
 				"inner": "data",
 			},
 		}
@@ -655,7 +655,7 @@ func TestDocument_ToMap(t *testing.T) {
 
 func TestDocument_ensurePathExists(t *testing.T) {
 	Convey("Given a document", t, func() {
-		doc := &document{data: make(map[interface{}]interface{})}
+		doc := &document{data: make(map[string]interface{})}
 
 		Convey("When ensuring path exists", func() {
 			// Since this is a simplified implementation that returns nil
@@ -754,7 +754,7 @@ func TestCreateEmptyDocument(t *testing.T) {
 
 		Convey("Then it should return valid empty document", func() {
 			So(doc, ShouldNotBeNil)
-			data, ok := doc.RawData().(map[interface{}]interface{})
+			data, ok := doc.RawData().(map[string]interface{})
 			So(ok, ShouldBeTrue)
 			So(len(data), ShouldEqual, 0)
 		})
@@ -763,7 +763,7 @@ func TestCreateEmptyDocument(t *testing.T) {
 
 func TestDocument_GetData(t *testing.T) {
 	Convey("Given a document", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"key": "value",
 		}
 		doc := &document{data: data}
@@ -780,7 +780,7 @@ func TestDocument_GetData(t *testing.T) {
 
 func TestDocument_GetInt64(t *testing.T) {
 	Convey("Given a document with various numeric types", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"int64_val":  int64(42),
 			"int_val":    int(24),
 			"float_val":  float64(12.0),
@@ -840,7 +840,7 @@ func TestDocument_GetInt64(t *testing.T) {
 
 func TestDocument_GetFloat64(t *testing.T) {
 	Convey("Given a document with various numeric types", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"float_val":  float64(42.5),
 			"int_val":    int(24),
 			"int64_val":  int64(12),
@@ -889,7 +889,7 @@ func TestDocument_GetFloat64(t *testing.T) {
 
 func TestDocument_GetStringSlice(t *testing.T) {
 	Convey("Given a document with various slice types", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"string_slice": []interface{}{"a", "b", "c"},
 			"mixed_slice":  []interface{}{"a", 1, "c"},
 			"not_slice":    "string",
@@ -930,20 +930,12 @@ func TestDocument_GetStringSlice(t *testing.T) {
 
 func TestDocument_GetMapStringString(t *testing.T) {
 	Convey("Given a document with various map types", t, func() {
-		data := map[interface{}]interface{}{
-			"valid_map": map[interface{}]interface{}{
+		data := map[string]interface{}{
+			"valid_map": map[string]interface{}{
 				"key1": "value1",
 				"key2": "value2",
 			},
-			"string_keyed_map": map[string]interface{}{
-				"key1": "value1",
-				"key2": "value2",
-			},
-			"mixed_key_map": map[interface{}]interface{}{
-				"key1": "value1",
-				123:    "value2",
-			},
-			"mixed_value_map": map[interface{}]interface{}{
+			"mixed_value_map": map[string]interface{}{
 				"key1": "value1",
 				"key2": 123,
 			},
@@ -960,28 +952,6 @@ func TestDocument_GetMapStringString(t *testing.T) {
 					"key1": "value1",
 					"key2": "value2",
 				})
-			})
-		})
-
-		Convey("When getting string-keyed map", func() {
-			value, err := doc.GetMapStringString("string_keyed_map")
-
-			Convey("Then it should convert and return the map", func() {
-				So(err, ShouldBeNil)
-				So(value, ShouldResemble, map[string]string{
-					"key1": "value1",
-					"key2": "value2",
-				})
-			})
-		})
-
-		Convey("When getting map with non-string keys", func() {
-			value, err := doc.GetMapStringString("mixed_key_map")
-
-			Convey("Then it should return error", func() {
-				So(err, ShouldNotBeNil)
-				So(value, ShouldBeNil)
-				So(err.Error(), ShouldContainSubstring, "contains non-string key")
 			})
 		})
 
@@ -1009,17 +979,17 @@ func TestDocument_GetMapStringString(t *testing.T) {
 
 func TestDocument_CherryPick(t *testing.T) {
 	Convey("Given a document with complex data", t, func() {
-		data := map[interface{}]interface{}{
+		data := map[string]interface{}{
 			"simple_key": "simple_value",
-			"nested": map[interface{}]interface{}{
+			"nested": map[string]interface{}{
 				"key": "value",
 			},
 			"list": []interface{}{
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name": "item1",
 					"id":   "1",
 				},
-				map[interface{}]interface{}{
+				map[string]interface{}{
 					"name": "item2",
 					"key":  "second",
 				},
@@ -1032,7 +1002,7 @@ func TestDocument_CherryPick(t *testing.T) {
 
 			Convey("Then it should return document with only that key", func() {
 				So(result, ShouldNotBeNil)
-				resultMap, ok := result.RawData().(map[interface{}]interface{})
+				resultMap, ok := result.RawData().(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				So(len(resultMap), ShouldEqual, 1)
 				So(resultMap["simple_key"], ShouldEqual, "simple_value")
@@ -1044,7 +1014,7 @@ func TestDocument_CherryPick(t *testing.T) {
 
 			Convey("Then it should return empty document", func() {
 				So(result, ShouldNotBeNil)
-				resultMap, ok := result.RawData().(map[interface{}]interface{})
+				resultMap, ok := result.RawData().(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				So(len(resultMap), ShouldEqual, 0)
 			})
@@ -1055,13 +1025,13 @@ func TestDocument_CherryPick(t *testing.T) {
 
 			Convey("Then it should return document with list item", func() {
 				So(result, ShouldNotBeNil)
-				resultMap, ok := result.RawData().(map[interface{}]interface{})
+				resultMap, ok := result.RawData().(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				So(resultMap["list"], ShouldNotBeNil)
 				list, ok := resultMap["list"].([]interface{})
 				So(ok, ShouldBeTrue)
 				So(len(list), ShouldEqual, 1)
-				item, ok := list[0].(map[interface{}]interface{})
+				item, ok := list[0].(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				So(item["name"], ShouldEqual, "item2")
 			})
@@ -1072,13 +1042,13 @@ func TestDocument_CherryPick(t *testing.T) {
 
 			Convey("Then it should return document with named item", func() {
 				So(result, ShouldNotBeNil)
-				resultMap, ok := result.RawData().(map[interface{}]interface{})
+				resultMap, ok := result.RawData().(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				So(resultMap["list"], ShouldNotBeNil)
 				list, ok := resultMap["list"].([]interface{})
 				So(ok, ShouldBeTrue)
 				So(len(list), ShouldEqual, 1)
-				item, ok := list[0].(map[interface{}]interface{})
+				item, ok := list[0].(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				So(item["key"], ShouldEqual, "second")
 			})
@@ -1089,11 +1059,11 @@ func TestDocument_CherryPick(t *testing.T) {
 
 			Convey("Then it should reconstruct nested structure", func() {
 				So(result, ShouldNotBeNil)
-				resultMap, ok := result.RawData().(map[interface{}]interface{})
+				resultMap, ok := result.RawData().(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				// Check if nested structure was created
 				if resultMap["nested"] != nil {
-					nested, ok := resultMap["nested"].(map[interface{}]interface{})
+					nested, ok := resultMap["nested"].(map[string]interface{})
 					So(ok, ShouldBeTrue)
 					So(nested["key"], ShouldEqual, "value")
 				} else {
@@ -1108,12 +1078,12 @@ func TestDocument_CherryPick(t *testing.T) {
 
 			Convey("Then it should return document with both", func() {
 				So(result, ShouldNotBeNil)
-				resultMap, ok := result.RawData().(map[interface{}]interface{})
+				resultMap, ok := result.RawData().(map[string]interface{})
 				So(ok, ShouldBeTrue)
 				So(resultMap["simple_key"], ShouldEqual, "simple_value")
 				// Check if nested structure exists
 				if resultMap["nested"] != nil {
-					nested, ok := resultMap["nested"].(map[interface{}]interface{})
+					nested, ok := resultMap["nested"].(map[string]interface{})
 					So(ok, ShouldBeTrue)
 					So(nested["key"], ShouldEqual, "value")
 				} else {
