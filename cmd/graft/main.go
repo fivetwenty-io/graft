@@ -15,6 +15,7 @@ import (
 	"github.com/gonvenience/ytbx"
 	"github.com/homeport/dyff/pkg/dyff"
 	"github.com/mattn/go-isatty"
+	"github.com/spf13/cobra"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 
@@ -25,7 +26,6 @@ import (
 	// Use geofffranks forks to persist the fix in https://github.com/go-yaml/yaml/pull/133/commits
 	// Also https://github.com/go-yaml/yaml/pull/195
 	"github.com/geofffranks/yaml"
-	"github.com/voxelbrain/goptions"
 	yamlv3 "gopkg.in/yaml.v3"
 )
 
@@ -36,19 +36,13 @@ var printStdOutf = func(format string, args ...interface{}) {
 	_, _ = fmt.Fprintf(os.Stdout, format, args...)
 }
 
-var getopts = func(o interface{}) {
-	err := goptions.Parse(o)
-	if err != nil {
-		usage()
-	}
-}
-
 var exit = func(code int) {
 	os.Exit(code)
 }
 
 var usage = func() {
-	goptions.PrintHelp()
+	// Default implementation; overridden in tests and replaced in main()
+	fmt.Fprintf(os.Stderr, "Usage: graft <command> [options] [files...]\n")
 	exit(1)
 }
 
@@ -63,40 +57,20 @@ type YamlFile struct {
 }
 
 type jsonOpts struct {
-	Strict bool               `goptions:"--strict, description='Refuse to convert non-string keys to strings'"`
-	Help   bool               `goptions:"--help, -h"`
-	Files  goptions.Remainder `goptions:"description='Files to convert to JSON'"`
+	Strict bool
+	Files  []string
 }
 
 type mergeOpts struct {
-	SkipEval       bool               `goptions:"--skip-eval, description='Do not evaluate graft logic after merging docs'"`
-	Prune          []string           `goptions:"--prune, description='Specify keys to prune from final output (may be specified more than once)'"`
-	CherryPick     []string           `goptions:"--cherry-pick, description='The opposite of prune, specify keys to cherry-pick from final output (may be specified more than once)'"`
-	FallbackAppend bool               `goptions:"--fallback-append, description='Default merge normally tries to key merge, then inline. This flag says do an append instead of an inline.'"`
-	EnableGoPatch  bool               `goptions:"--go-patch, description='Enable the use of go-patch when parsing files to be merged'"`
-	MultiDoc       bool               `goptions:"--multi-doc, -m, description='Treat multi-doc yaml as multiple files.'"`
-	DataflowOrder  string             `goptions:"--dataflow-order, description='Order of operations in dataflow output: alphabetical (default) or insertion'"`
-	Help           bool               `goptions:"--help, -h"`
-	Files          goptions.Remainder `goptions:"description='List of files to merge. To read STDIN, specify a filename of \\'-\\'.'"`
+	SkipEval       bool
+	Prune          []string
+	CherryPick     []string
+	FallbackAppend bool
+	EnableGoPatch  bool
+	MultiDoc       bool
+	DataflowOrder  string
+	Files          []string
 	EngineOpts     []graft.EngineOption // Programmatic engine options (not from CLI flags)
-}
-
-type cliOptions struct {
-	Debug   bool   `goptions:"-D, --debug, description='Enable debugging'"`
-	Trace   bool   `goptions:"-T, --trace, description='Enable trace mode debugging (very verbose)'"`
-	Version bool   `goptions:"-v, --version, description='Display version information'"`
-	Color   string `goptions:"--color, description='Control color output (on/off/auto, default: auto)'"`
-	Action  goptions.Verbs
-	Merge   mergeOpts `goptions:"merge"`
-	Fan     mergeOpts `goptions:"fan"`
-	JSON    jsonOpts  `goptions:"json"`
-	Diff    struct {
-		Files goptions.Remainder `goptions:"description='Show the semantic differences between two YAML files'"`
-	} `goptions:"diff"`
-	VaultInfo struct {
-		EnableGoPatch bool               `goptions:"--go-patch, description='Enable the use of go-patch when parsing files to be merged'"`
-		Files         goptions.Remainder `goptions:"description='List vault references in the given files'"`
-	} `goptions:"vaultinfo"`
 }
 
 func handleColorFlag(colorOpt string) (bool, bool) {
@@ -165,11 +139,13 @@ func handleFan(opts *mergeOpts) int {
 	return 0
 }
 
-func handleVaultInfo(options *cliOptions) int {
-	options.Merge.Files = options.VaultInfo.Files
-	options.Merge.EnableGoPatch = options.VaultInfo.EnableGoPatch
-	options.Merge.EngineOpts = append(options.Merge.EngineOpts, graft.WithSkipVault(true))
-	_, engine, err := cmdMergeEval(&options.Merge)
+func handleVaultInfo(vaultFiles []string, enableGoPatch bool) int {
+	opts := &mergeOpts{
+		Files:         vaultFiles,
+		EnableGoPatch: enableGoPatch,
+		EngineOpts:    []graft.EngineOption{graft.WithSkipVault(true)},
+	}
+	_, engine, err := cmdMergeEval(opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
@@ -211,54 +187,183 @@ func handleDiff(files []string, colorOpt string) int {
 	return 0
 }
 
+// newRootCmd creates a fresh Cobra command tree. Called each time main() runs
+// so that tests calling main() multiple times get clean flag state.
+func newRootCmd() (*cobra.Command, *bool) {
+	var debug, trace, version bool
+	var colorOpt string
+
+	// Track whether PersistentPreRunE signaled an abort (e.g., invalid color)
+	var aborted bool
+
+	rootCmd := &cobra.Command{
+		Use:           "graft",
+		Short:         "graft - YAML merging and operator evaluation",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+			// Handle debug/trace flags
+			if envFlag("DEBUG") || debug {
+				log.DebugOn = true
+			}
+			if envFlag("TRACE") || trace {
+				log.TraceOn = true
+				log.DebugOn = true
+			}
+
+			// Handle color flag
+			colorEnabled, colorValid := handleColorFlag(colorOpt)
+			if !colorValid {
+				aborted = true
+				exit(1)
+				return fmt.Errorf("invalid color option")
+			}
+			ansi.Color(colorEnabled)
+			return nil
+		},
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if aborted {
+				return nil
+			}
+			// Root command with no subcommand
+			if version {
+				printStdOutf("%s - Version %s\n", os.Args[0], Version)
+				exit(0)
+				return nil
+			}
+			// No subcommand given: call usage
+			usage()
+			return nil
+		},
+	}
+
+	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "D", false, "Enable debugging")
+	rootCmd.PersistentFlags().BoolVarP(&trace, "trace", "T", false, "Enable trace mode debugging (very verbose)")
+	rootCmd.PersistentFlags().BoolVarP(&version, "version", "v", false, "Display version information")
+	rootCmd.PersistentFlags().StringVar(&colorOpt, "color", "", "Control color output (on/off/auto, default: auto)")
+
+	// merge command
+	var mergeSkipEval, mergeFallbackAppend, mergeGoPatch, mergeMultiDoc bool
+	var mergePrune, mergeCherryPick []string
+	var mergeDataflowOrder string
+
+	mergeCmd := &cobra.Command{
+		Use:   "merge [files...]",
+		Short: "Merge multiple YAML/JSON files",
+		RunE: func(_ *cobra.Command, args []string) error {
+			opts := &mergeOpts{
+				SkipEval:       mergeSkipEval,
+				Prune:          mergePrune,
+				CherryPick:     mergeCherryPick,
+				FallbackAppend: mergeFallbackAppend,
+				EnableGoPatch:  mergeGoPatch,
+				MultiDoc:       mergeMultiDoc,
+				DataflowOrder:  mergeDataflowOrder,
+				Files:          args,
+			}
+			exit(handleMerge(opts))
+			return nil
+		},
+	}
+	mergeCmd.Flags().BoolVar(&mergeSkipEval, "skip-eval", false, "Do not evaluate graft logic after merging docs")
+	mergeCmd.Flags().StringArrayVar(&mergePrune, "prune", nil, "Specify keys to prune from final output (may be specified more than once)")
+	mergeCmd.Flags().StringArrayVar(&mergeCherryPick, "cherry-pick", nil, "The opposite of prune, specify keys to cherry-pick from final output (may be specified more than once)")
+	mergeCmd.Flags().BoolVar(&mergeFallbackAppend, "fallback-append", false, "Default merge normally tries to key merge, then inline. This flag says do an append instead of an inline.")
+	mergeCmd.Flags().BoolVar(&mergeGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged")
+	mergeCmd.Flags().BoolVarP(&mergeMultiDoc, "multi-doc", "m", false, "Treat multi-doc yaml as multiple files.")
+	mergeCmd.Flags().StringVar(&mergeDataflowOrder, "dataflow-order", "", "Order of operations in dataflow output: alphabetical (default) or insertion")
+
+	// fan command
+	var fanSkipEval, fanFallbackAppend, fanGoPatch, fanMultiDoc bool
+	var fanPrune, fanCherryPick []string
+	var fanDataflowOrder string
+
+	fanCmd := &cobra.Command{
+		Use:   "fan [files...]",
+		Short: "Fan out source document across target documents",
+		RunE: func(_ *cobra.Command, args []string) error {
+			opts := &mergeOpts{
+				SkipEval:       fanSkipEval,
+				Prune:          fanPrune,
+				CherryPick:     fanCherryPick,
+				FallbackAppend: fanFallbackAppend,
+				EnableGoPatch:  fanGoPatch,
+				MultiDoc:       fanMultiDoc,
+				DataflowOrder:  fanDataflowOrder,
+				Files:          args,
+			}
+			exit(handleFan(opts))
+			return nil
+		},
+	}
+	fanCmd.Flags().BoolVar(&fanSkipEval, "skip-eval", false, "Do not evaluate graft logic after merging docs")
+	fanCmd.Flags().StringArrayVar(&fanPrune, "prune", nil, "Specify keys to prune from final output (may be specified more than once)")
+	fanCmd.Flags().StringArrayVar(&fanCherryPick, "cherry-pick", nil, "The opposite of prune, specify keys to cherry-pick from final output (may be specified more than once)")
+	fanCmd.Flags().BoolVar(&fanFallbackAppend, "fallback-append", false, "Default merge normally tries to key merge, then inline. This flag says do an append instead of an inline.")
+	fanCmd.Flags().BoolVar(&fanGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged")
+	fanCmd.Flags().BoolVarP(&fanMultiDoc, "multi-doc", "m", false, "Treat multi-doc yaml as multiple files.")
+	fanCmd.Flags().StringVar(&fanDataflowOrder, "dataflow-order", "", "Order of operations in dataflow output: alphabetical (default) or insertion")
+
+	// json command
+	var jsonStrict bool
+
+	jsonCmd := &cobra.Command{
+		Use:   "json [files...]",
+		Short: "Convert YAML to JSON",
+		RunE: func(_ *cobra.Command, args []string) error {
+			opts := jsonOpts{
+				Strict: jsonStrict,
+				Files:  args,
+			}
+			exit(handleJSON(opts))
+			return nil
+		},
+	}
+	jsonCmd.Flags().BoolVar(&jsonStrict, "strict", false, "Refuse to convert non-string keys to strings")
+
+	// diff command
+	diffCmd := &cobra.Command{
+		Use:   "diff [file1] [file2]",
+		Short: "Show the semantic differences between two YAML files",
+		RunE: func(_ *cobra.Command, args []string) error {
+			exit(handleDiff(args, colorOpt))
+			return nil
+		},
+	}
+
+	// vaultinfo command
+	var vaultInfoGoPatch bool
+
+	vaultinfoCmd := &cobra.Command{
+		Use:   "vaultinfo [files...]",
+		Short: "List vault references in the given files",
+		RunE: func(_ *cobra.Command, args []string) error {
+			exit(handleVaultInfo(args, vaultInfoGoPatch))
+			return nil
+		},
+	}
+	vaultinfoCmd.Flags().BoolVar(&vaultInfoGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged")
+
+	rootCmd.AddCommand(mergeCmd, fanCmd, jsonCmd, diffCmd, vaultinfoCmd)
+
+	return rootCmd, &aborted
+}
+
 func main() {
-	var options cliOptions
-	getopts(&options)
+	rootCmd, aborted := newRootCmd()
 
-	if envFlag("DEBUG") || options.Debug {
-		log.DebugOn = true
+	err := rootCmd.Execute()
+
+	// If already aborted (e.g., invalid --color), don't call usage
+	if *aborted {
+		return
 	}
 
-	if envFlag("TRACE") || options.Trace {
-		log.TraceOn = true
-		log.DebugOn = true
-	}
-
-	if options.JSON.Help || options.Merge.Help || options.Fan.Help {
+	// If Cobra returned an error (unknown command, bad flags, etc.), call usage
+	if err != nil {
 		usage()
 		return
 	}
-
-	if options.Version {
-		printStdOutf("%s - Version %s\n", os.Args[0], Version)
-		exit(0)
-		return
-	}
-
-	colorEnabled, colorValid := handleColorFlag(options.Color)
-	if !colorValid {
-		exit(1)
-		return
-	}
-	ansi.Color(colorEnabled)
-
-	var exitCode int
-	switch options.Action {
-	case "merge":
-		exitCode = handleMerge(&options.Merge)
-	case "fan":
-		exitCode = handleFan(&options.Fan)
-	case "vaultinfo":
-		exitCode = handleVaultInfo(&options)
-	case "json":
-		exitCode = handleJSON(options.JSON)
-	case "diff":
-		exitCode = handleDiff(options.Diff.Files, options.Color)
-	default:
-		usage()
-		return
-	}
-	exit(exitCode)
 }
 
 func isArrayError(err error) bool {
