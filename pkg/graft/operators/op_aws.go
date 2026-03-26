@@ -23,10 +23,6 @@ import (
 // These are kept as package-level functions so other operators (e.g. NATS)
 // that shared these helpers continue to compile.
 
-func getEnvOrDefault(key, defaultValue string) string {
-	return awsbackend.GetEnvOrDefault(key, defaultValue)
-}
-
 func parseDurationOrDefault(value string, defaultValue time.Duration) time.Duration {
 	return awsbackend.ParseDurationOrDefault(value, defaultValue)
 }
