@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/ssm"
-	"github.com/geofffranks/yaml"
+	"gopkg.in/yaml.v3"
 
 	awsbackend "github.com/fivetwenty-io/graft/internal/backends/aws"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"

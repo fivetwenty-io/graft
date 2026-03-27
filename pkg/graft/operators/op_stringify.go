@@ -1,9 +1,10 @@
 package operators
 
 import (
+	"bytes"
 	"fmt"
 
-	"github.com/geofffranks/yaml"
+	"gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -69,16 +70,18 @@ func (StringifyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		}, nil
 	}
 
-	// For complex types, use YAML marshaling
+	// For complex types, use YAML marshaling with 2-space indent
 	DEBUG("converting complex type to YAML string")
-	output, err := yaml.Marshal(val)
-	if err != nil {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(val); err != nil {
 		DEBUG("YAML marshaling failed: %s", err)
 		return nil, fmt.Errorf("unable to stringify value: %w", err)
 	}
+	enc.Close()
 
-	result := string(output)
-	// Keep the trailing newline that yaml.Marshal adds for complex types
+	result := buf.String()
 
 	return &Response{
 		Type:  Replace,

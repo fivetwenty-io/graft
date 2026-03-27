@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/geofffranks/yaml"
-
 	fmt "github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
 
@@ -21,12 +19,12 @@ func indent(pad, s string) string {
 
 func yamlstring(f string, x Diffable) string {
 	const defaultPad = "    "
-	s, _ := yaml.Marshal(x.Value())
+	s, _ := MarshalYAML(x.Value())
 	return fmt.Sprintf(f, indent(defaultPad, strings.TrimSuffix(string(s), "\n")))
 }
 
 func yamlmarshal(x interface{}) string {
-	s, _ := yaml.Marshal(x)
+	s, _ := MarshalYAML(x)
 	return fmt.Sprintf("%s", s)
 }
 

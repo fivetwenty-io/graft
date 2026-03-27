@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/geofffranks/yaml"
+	"gopkg.in/yaml.v3"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )

@@ -23,10 +23,7 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	_ "github.com/fivetwenty-io/graft/pkg/graft/operators" // Register operators
 
-	// Use geofffranks forks to persist the fix in https://github.com/go-yaml/yaml/pull/133/commits
-	// Also https://github.com/go-yaml/yaml/pull/195
-	"github.com/geofffranks/yaml"
-	yamlv3 "gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 )
 
 // Version holds the Current version of graft.
@@ -102,7 +99,7 @@ func handleMerge(opts *mergeOpts) int {
 		return 2
 	}
 
-	merged, err := yaml.Marshal(tree)
+	merged, err := graft.MarshalYAML(tree)
 	if err != nil {
 		log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
 		return 2
@@ -128,7 +125,7 @@ func handleFan(opts *mergeOpts) int {
 			return 2
 		}
 
-		merged, err := yaml.Marshal(tree)
+		merged, err := graft.MarshalYAML(tree)
 		if err != nil {
 			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
 			return 2
@@ -393,7 +390,7 @@ func parseYAML(data []byte) (map[string]interface{}, error) {
 
 	// First, unmarshal into a generic interface to detect root type
 	var raw interface{}
-	if err := yamlv3.Unmarshal(data, &raw); err != nil {
+	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
 	}
 
@@ -605,7 +602,7 @@ func formatVaultRefs(engine graft.Engine) string {
 		sort.Strings(secret.References)
 	}
 
-	output, err := yaml.Marshal(refs)
+	output, err := graft.MarshalYAML(refs)
 	if err != nil {
 		panic(fmt.Sprintf("Could not marshal YAML for vault references: %+v", vaultRefs))
 	}

@@ -20,9 +20,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/geofffranks/yaml"
 	. "github.com/smartystreets/goconvey/convey"
-	yamlv3 "gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -34,7 +33,7 @@ func TestVault(t *testing.T) {
 
 	YAML := func(s string) map[string]interface{} {
 		var result map[string]interface{}
-		err := yamlv3.Unmarshal([]byte(s), &result)
+		err := yaml.Unmarshal([]byte(s), &result)
 		So(err, ShouldBeNil)
 		So(result, ShouldNotBeNil)
 		return result
@@ -425,7 +424,7 @@ secret: (( vault "secret/hand4:shake" ))
 func TestVaultWithDefaults(t *testing.T) {
 	YAML := func(s string) map[string]interface{} {
 		var result map[string]interface{}
-		err := yamlv3.Unmarshal([]byte(s), &result)
+		err := yaml.Unmarshal([]byte(s), &result)
 		So(err, ShouldBeNil)
 		So(result, ShouldNotBeNil)
 		return result
