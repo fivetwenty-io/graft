@@ -3,8 +3,10 @@ package graft
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
+	"gopkg.in/yaml.v3"
 )
 
 // Action represents the type of action an operator should take.
@@ -406,8 +408,17 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 		}
 		return nil, fmt.Errorf("nil reference")
 	case EnvVar:
-		// TODO: Implement environment variable lookup
-		return nil, fmt.Errorf("environment variable evaluation not implemented")
+		val := os.Getenv(e.Name)
+		if val == "" {
+			return val, nil
+		}
+		var unmarshaled interface{}
+		if err := yaml.Unmarshal([]byte(val), &unmarshaled); err == nil {
+			if _, isString := unmarshaled.(string); !isString {
+				return unmarshaled, nil
+			}
+		}
+		return val, nil
 	case OperatorCall:
 		// Evaluate nested operator call using the evaluator
 		if e.evaluator == nil {
