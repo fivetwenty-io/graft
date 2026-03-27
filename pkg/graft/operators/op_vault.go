@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cloudfoundry-community/vaultkv"
-
 	"github.com/fivetwenty-io/graft/internal/backends/vault"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -542,25 +540,25 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 		return "REDACTED", nil
 	}
 
-	var kv *vaultkv.KV
+	var reader vault.VaultReader
 	var err error
 
 	if targetName != "" {
 		// Use target-specific client
-		kv, err = vault.DefaultPool.GetClient(targetName, engine)
+		reader, err = vault.DefaultPool.GetClient(targetName, engine)
 		if err != nil {
 			return "", fmt.Errorf("failed to get vault client for target '%s': %w", targetName, err)
 		}
 		DEBUG("vault: using target-specific client for '%s'", targetName)
 	} else {
 		// Fall back to global initialization from environment
-		if vault.GlobalKV == nil {
+		if vault.GlobalReader == nil {
 			initErr := vault.InitializeClient()
 			if initErr != nil {
 				return "", fmt.Errorf("Error during Vault client initialization: %w", initErr)
 			}
 		}
-		kv = vault.GlobalKV
+		reader = vault.GlobalReader
 		DEBUG("vault: using default client")
 	}
 
@@ -579,10 +577,10 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targe
 		DEBUG("vault: Cache MISS for `%s` (target: %s)", leftPart, targetName)
 		// Secret isn't cached. Grab it from the vault.
 		var secretErr error
-		fullSecret, secretErr = vault.GetSecretWithClient(kv, leftPart)
+		fullSecret, secretErr = vault.GetSecretWithReader(reader, leftPart)
 		if secretErr != nil {
 			// Normalize the error messages
-			var notFoundErr *vaultkv.ErrNotFound
+			var notFoundErr *vault.ErrNotFound
 			if errors.As(secretErr, &notFoundErr) {
 				secretErr = fmt.Errorf("secret %s not found", key)
 			}

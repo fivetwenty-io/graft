@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -9,30 +10,30 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cloudfoundry-community/vaultkv"
-	"github.com/geofffranks/yaml"
+	api "github.com/hashicorp/vault/api"
+	"gopkg.in/yaml.v3"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// GlobalKV is the module-level vault client, initialized lazily from environment.
-var GlobalKV *vaultkv.KV
+// GlobalReader is the module-level vault reader, initialized lazily from environment.
+var GlobalReader VaultReader
 
-// ClientPool manages vault clients for different targets.
+// ClientPool manages vault readers for different targets.
 type ClientPool struct {
-	clients map[string]*vaultkv.KV
+	clients map[string]VaultReader
 	configs map[string]*Target
 }
 
-// DefaultPool is the global client pool for target-aware vault clients.
+// DefaultPool is the global client pool for target-aware vault readers.
 var DefaultPool = &ClientPool{
-	clients: make(map[string]*vaultkv.KV),
+	clients: make(map[string]VaultReader),
 	configs: make(map[string]*Target),
 }
 
-// GetClient returns a vault client for the specified target.
-func (vcp *ClientPool) GetClient(targetName string, engine graft.Engine) (*vaultkv.KV, error) {
+// GetClient returns a vault reader for the specified target.
+func (vcp *ClientPool) GetClient(targetName string, engine graft.Engine) (VaultReader, error) {
 	// Return existing client if available
 	if client, exists := vcp.clients[targetName]; exists {
 		return client, nil
@@ -90,13 +91,8 @@ func (vcp *ClientPool) getTargetConfig(targetName string, engine graft.Engine) (
 	return config, nil
 }
 
-// CreateClientFromConfig creates a vault client from target configuration.
-func CreateClientFromConfig(config *Target) (*vaultkv.KV, error) {
-	// Expand environment variables in configuration
-	addr := os.ExpandEnv(config.URL)
-	token := os.ExpandEnv(config.Token)
-	namespace := os.ExpandEnv(config.Namespace)
-
+// newAPIClient creates a hashicorp/vault/api Client with the given parameters.
+func newAPIClient(addr string, token string, namespace string, skip bool) (*api.Client, error) {
 	parsedURL, err := url.Parse(addr)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse Vault URL `%s': %w", addr, err)
@@ -117,38 +113,57 @@ func CreateClientFromConfig(config *Target) (*vaultkv.KV, error) {
 		return nil, fmt.Errorf("unable to retrieve system root certificate authorities: %w", err)
 	}
 
-	client := &vaultkv.Client{
-		AuthToken: token,
-		VaultURL:  parsedURL,
-		Namespace: namespace,
-		Client: &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				TLSClientConfig: &tls.Config{
-					RootCAs:            roots,
-					InsecureSkipVerify: config.SkipVerify, // #nosec G402 - controlled by user configuration
-				},
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{
+				RootCAs:            roots,
+				InsecureSkipVerify: skip, // #nosec G402 - controlled by user configuration
 			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) > 10 {
-					return fmt.Errorf("stopped after 10 redirects")
-				}
-				req.Header.Add("X-Vault-Token", token)
-				req.Header.Add("X-Vault-Namespace", namespace)
-				return nil
-			},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			req.Header.Add("X-Vault-Token", token)
+			req.Header.Add("X-Vault-Namespace", namespace)
+			return nil
 		},
 	}
 
-	// Enable tracing if debug is on
-	if graft.DebugOn() {
-		client.Trace = os.Stderr
+	config := &api.Config{
+		Address:    parsedURL.String(),
+		HttpClient: httpClient,
 	}
 
-	return client.NewKV(), nil
+	client, err := api.NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Vault API client: %w", err)
+	}
+
+	client.SetToken(token)
+	if namespace != "" {
+		client.SetNamespace(namespace)
+	}
+
+	return client, nil
 }
 
-// InitializeClient initializes the global vault client from environment variables.
+// CreateClientFromConfig creates a vault reader from target configuration.
+func CreateClientFromConfig(config *Target) (VaultReader, error) {
+	addr := os.ExpandEnv(config.URL)
+	token := os.ExpandEnv(config.Token)
+	namespace := os.ExpandEnv(config.Namespace)
+
+	client, err := newAPIClient(addr, token, namespace, config.SkipVerify)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewVaultReader(client), nil
+}
+
+// InitializeClient initializes the global vault reader from environment variables.
 //
 //nolint:gocyclo // Vault client init handles multiple auth sources and TLS config
 func InitializeClient() error {
@@ -191,61 +206,21 @@ func InitializeClient() error {
 		return fmt.Errorf("failed to determine Vault URL / token, and the $REDACT environment variable is not set")
 	}
 
-	roots, err := x509.SystemCertPool()
+	client, err := newAPIClient(addr, token, namespace, skip)
 	if err != nil {
-		return fmt.Errorf("unable to retrieve system root certificate authorities: %w", err)
+		return err
 	}
 
-	parsedURL, err := url.Parse(addr)
-	if err != nil {
-		return fmt.Errorf("could not parse Vault URL `%s': %w", addr, err)
-	}
-
-	if parsedURL.Port() == "" {
-		if parsedURL.Scheme == "http" {
-			parsedURL.Host += ":80"
-		} else {
-			parsedURL.Host += ":443"
-		}
-	}
-
-	client := &vaultkv.Client{
-		AuthToken: token,
-		VaultURL:  parsedURL,
-		Namespace: namespace,
-		Client: &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				TLSClientConfig: &tls.Config{
-					RootCAs:            roots,
-					InsecureSkipVerify: skip, // #nosec G402 - skip is controlled by user configuration
-				},
-			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) > 10 {
-					return fmt.Errorf("stopped after 10 redirects")
-				}
-				req.Header.Add("X-Vault-Token", token)
-				req.Header.Add("X-Vault-Namespace", token)
-				return nil
-			},
-		},
-	}
-	if graft.DebugOn() {
-		client.Trace = os.Stderr
-	}
-
-	GlobalKV = client.NewKV()
+	GlobalReader = NewVaultReader(client)
 
 	return nil
 }
 
-// GetSecretWithClient retrieves a secret using the provided client.
-func GetSecretWithClient(kvClient *vaultkv.KV, secret string) (map[string]interface{}, error) {
-	ret := map[string]interface{}{}
-
+// GetSecretWithReader retrieves a secret using the provided VaultReader.
+func GetSecretWithReader(reader VaultReader, secret string) (map[string]interface{}, error) {
 	graft.DEBUG("Fetching Vault secret at `%s'", secret)
-	_, err := kvClient.Get(secret, &ret, nil)
+
+	ret, err := reader.ReadSecret(context.Background(), secret)
 	if err != nil {
 		graft.DEBUG(" failure.")
 		return nil, err
