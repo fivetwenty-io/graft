@@ -302,9 +302,15 @@ func LazyEvaluateExpression(expr *Expr, evaluator *Evaluator) (interface{}, erro
 	return evaluateExpressionNormally(expr, evaluator)
 }
 
-// evaluateExpressionNormally performs standard expression evaluation.
+// evaluateExpressionNormally performs standard expression evaluation by
+// delegating to EvaluateExpr and unwrapping the Response value.
 func evaluateExpressionNormally(expr *Expr, evaluator *Evaluator) (interface{}, error) {
-	// This would call into the existing evaluation system
-	// For now, return a placeholder
-	return nil, fmt.Errorf("normal evaluation not implemented in lazy evaluator")
+	resp, err := EvaluateExpr(expr, evaluator)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	return resp.Value, nil
 }
