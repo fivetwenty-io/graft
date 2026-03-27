@@ -23,12 +23,74 @@ func NewCOWEvaluator(data map[string]interface{}) *COWEvaluator {
 }
 
 // Evaluate performs thread-safe evaluation using COW semantics.
+// It exports the COW tree data, runs it through the standard engine
+// evaluation pipeline, and imports the results back on success.
+// On error the original tree data is preserved.
 func (ce *COWEvaluator) Evaluate(ctx context.Context) error {
 	ce.mu.Lock()
 	defer ce.mu.Unlock()
 
-	// For now, this is a placeholder for full evaluation
-	// In Phase 5, we'll implement complete operator evaluation
+	// Extract current tree data
+	cowTree, ok := ce.cowTree.(*COWTree)
+	if !ok {
+		return fmt.Errorf("unsupported tree type for evaluation")
+	}
+
+	data := cowTree.toStringMap()
+
+	// Short-circuit: nothing to evaluate in an empty tree
+	if len(data) == 0 {
+		return nil
+	}
+
+	// Check context cancellation before doing work
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	// Marshal tree data to YAML so the engine can parse and evaluate it.
+	// This round-trip ensures the engine sees the data in its expected format
+	// with operator expressions as string values ready for resolution.
+	yamlBytes, err := yaml.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal tree data: %w", err)
+	}
+
+	// Create an engine with external services skipped (local data only)
+	engine, err := NewEngine(
+		WithSkipVault(true),
+		WithSkipAws(true),
+		WithSkipNats(true),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create evaluation engine: %w", err)
+	}
+
+	// Parse the YAML into a Document the engine understands
+	doc, err := engine.ParseYAML(yamlBytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse tree data for evaluation: %w", err)
+	}
+	if doc == nil {
+		return nil
+	}
+
+	// Run evaluation through the standard pipeline
+	result, err := engine.Evaluate(ctx, doc)
+	if err != nil {
+		// On error, the original tree is preserved (we never replaced it)
+		return err
+	}
+
+	// Extract evaluated data and replace the COW tree
+	resultData, ok := result.RawData().(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("evaluation result is not a map")
+	}
+
+	ce.cowTree = NewCOWTree(resultData)
 	return nil
 }
 
