@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"gopkg.in/yaml.v3"
 )
 
 // COWEvaluator is a thread-safe evaluator using Copy-on-Write trees.
@@ -175,10 +177,28 @@ func (f *COWTreeFactory) CreateEmpty() ThreadSafeTree {
 	return NewCOWTree(nil)
 }
 
-// CreateFromYAML creates a COW tree from YAML data (placeholder).
+// CreateFromYAML creates a COW tree from YAML data.
 func (f *COWTreeFactory) CreateFromYAML(yamlData []byte) (ThreadSafeTree, error) {
-	// This would integrate with YAML parsing in a full implementation
-	return NewCOWTree(nil), nil
+	if len(yamlData) == 0 {
+		return NewCOWTree(nil), nil
+	}
+
+	var raw interface{}
+	if err := yaml.Unmarshal(yamlData, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	if raw == nil {
+		return NewCOWTree(nil), nil
+	}
+
+	data, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("root of YAML document is not a hash/map")
+	}
+
+	converted := DefaultYAMLCompat().ConvertMapValues(data)
+	return NewCOWTree(converted), nil
 }
 
 // COWPerformanceMonitor tracks performance metrics for COW operations.
