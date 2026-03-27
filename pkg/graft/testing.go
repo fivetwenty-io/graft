@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
 // TestHelper provides utilities for testing graft operations.
@@ -187,12 +189,19 @@ func (h *TestHelper) AssertNoError(err error) {
 }
 
 // MockOperator creates a simple mock operator for testing.
+// Implements the Operator interface for use with Engine.RegisterOperator.
 type MockOperator struct {
 	Name        string
 	ReturnValue interface{}
 	ReturnError error
 	CallCount   int
-	LastArgs    []interface{}
+	LastArgs    []*Expr
+	MockPhase   OperatorPhase
+}
+
+// Setup implements Operator.Setup.
+func (m *MockOperator) Setup() error {
+	return nil
 }
 
 // Type returns the operator name.
@@ -200,8 +209,8 @@ func (m *MockOperator) Type() string {
 	return m.Name
 }
 
-// Run executes the mock operator (placeholder implementation).
-func (m *MockOperator) Run(ev *Evaluator, args []interface{}) (interface{}, error) {
+// Run implements Operator.Run.
+func (m *MockOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	m.CallCount++
 	m.LastArgs = args
 
@@ -209,14 +218,36 @@ func (m *MockOperator) Run(ev *Evaluator, args []interface{}) (interface{}, erro
 		return nil, m.ReturnError
 	}
 
-	return m.ReturnValue, nil
+	return &Response{
+		Type:  Replace,
+		Value: m.ReturnValue,
+	}, nil
 }
 
-// TestWithMockOperator provides a way to test with custom mock operators.
+// Dependencies implements Operator.Dependencies.
+func (m *MockOperator) Dependencies(_ *Evaluator, _ []*Expr, _ []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
+	return auto
+}
+
+// Phase implements Operator.Phase.
+func (m *MockOperator) Phase() OperatorPhase {
+	return m.MockPhase
+}
+
+// TestWithMockOperator registers a mock operator for the duration of testFunc,
+// then cleans it up.
 func (h *TestHelper) TestWithMockOperator(name string, mock *MockOperator, testFunc func()) {
-	// Note: This would require engine to support operator registration
-	// For now, this is a placeholder for future implementation
-	h.t.Log("Mock operator testing not yet implemented")
+	err := h.engine.RegisterOperator(name, mock)
+	if err != nil {
+		h.t.Fatalf("Failed to register mock operator %q: %v", name, err)
+	}
+	defer func() {
+		unregErr := h.engine.UnregisterOperator(name)
+		if unregErr != nil {
+			h.t.Errorf("Failed to unregister mock operator %q: %v", name, unregErr)
+		}
+	}()
+
 	testFunc()
 }
 
