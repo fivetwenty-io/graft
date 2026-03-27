@@ -470,14 +470,28 @@ func (m *mergeBuilderImpl) mergeValues(base, overlay interface{}) (interface{}, 
 // hasArrayOperators checks if a map contains arrays with merge operators.
 func (m *mergeBuilderImpl) hasArrayOperators(data map[string]interface{}) bool {
 	for _, value := range data {
-		switch v := value.(type) {
-		case []interface{}:
-			if m.arrayHasOperators(v) {
-				return true
-			}
-		case map[string]interface{}:
-			// Recursively check nested maps
-			if m.hasArrayOperators(v) {
+		if m.valueHasArrayOperators(value) {
+			return true
+		}
+	}
+	return false
+}
+
+// valueHasArrayOperators checks if a value (or its children) contains array operators.
+func (m *mergeBuilderImpl) valueHasArrayOperators(value interface{}) bool {
+	switch v := value.(type) {
+	case []interface{}:
+		if m.arrayHasOperators(v) {
+			return true
+		}
+	case map[string]interface{}:
+		if m.hasArrayOperators(v) {
+			return true
+		}
+	case map[interface{}]interface{}:
+		// yaml.v3 produces this for maps with non-string keys
+		for _, val := range v {
+			if m.valueHasArrayOperators(val) {
 				return true
 			}
 		}
@@ -661,24 +675,64 @@ func (m *mergeBuilderImpl) applyGoPatch(doc Document) (Document, error) {
 	// Get the raw data
 	data := doc.RawData()
 
+	// go-patch expects map[interface{}]interface{} (yaml.v2 convention).
+	// Convert map[string]interface{} to map[interface{}]interface{} before applying.
+	if stringMap, ok := data.(map[string]interface{}); ok {
+		data = toInterfaceKeyMap(stringMap)
+	}
+
 	// Apply each set of patch operations in order
 	for _, ops := range m.patchOps {
 		var err error
 		data, err = ops.Apply(data)
 		if err != nil {
-			// For now, we don't have file information here
-			// The error format matches what the go-patch library returns
 			return nil, err
 		}
 	}
 
-	// Ensure the result is a map
-	resultMap, ok := data.(map[string]interface{})
-	if !ok {
+	// Convert the result back to map[string]interface{} for the rest of the pipeline
+	switch result := data.(type) {
+	case map[string]interface{}:
+		return NewDocument(NormalizeMap(result)), nil
+	case map[interface{}]interface{}:
+		converted := make(map[string]interface{}, len(result))
+		for k, v := range result {
+			converted[fmt.Sprintf("%v", k)] = v
+		}
+		return NewDocument(NormalizeMap(converted)), nil
+	default:
 		return nil, fmt.Errorf("go-patch operations resulted in non-map data")
 	}
+}
 
-	return NewDocument(resultMap), nil
+// toInterfaceKeyMap deep-converts map[string]interface{} to
+// map[interface{}]interface{} for go-patch compatibility.
+func toInterfaceKeyMap(data map[string]interface{}) map[interface{}]interface{} {
+	result := make(map[interface{}]interface{}, len(data))
+	for k, v := range data {
+		result[k] = toInterfaceKeyValue(v)
+	}
+	return result
+}
+
+func toInterfaceKeyValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		return toInterfaceKeyMap(val)
+	case map[interface{}]interface{}:
+		// Already interface keys, but recurse into values
+		for k, v := range val {
+			val[k] = toInterfaceKeyValue(v)
+		}
+		return val
+	case []interface{}:
+		for i, item := range val {
+			val[i] = toInterfaceKeyValue(item)
+		}
+		return val
+	default:
+		return v
+	}
 }
 
 // applyPruning removes specified keys from the document.

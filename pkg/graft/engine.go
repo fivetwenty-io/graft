@@ -466,6 +466,14 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		// Apply YAML 1.1 boolean compatibility conversions (yes/no/on/off → bool)
 		converted := DefaultYAMLCompat().ConvertMapValues(result)
 		return NewDocument(converted), nil
+	case map[interface{}]interface{}:
+		// yaml.v3 produces this when all root keys are non-strings
+		converted := make(map[string]interface{}, len(result))
+		for k, v := range result {
+			converted[fmt.Sprintf("%v", k)] = v
+		}
+		final := DefaultYAMLCompat().ConvertMapValues(converted)
+		return NewDocument(final), nil
 	default:
 		// Return plain error for compatibility with tests
 		return nil, fmt.Errorf("root of YAML document is not a hash/map")
