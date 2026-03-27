@@ -222,6 +222,13 @@ func deepCopy(orig interface{}) interface{} {
 		}
 		return x
 
+	case map[interface{}]interface{}:
+		x := make(map[interface{}]interface{})
+		for k, val := range v {
+			x[k] = deepCopy(val)
+		}
+		return x
+
 	case []interface{}:
 		x := make([]interface{}, len(v))
 		for i, val := range v {
@@ -232,6 +239,41 @@ func deepCopy(orig interface{}) interface{} {
 	default:
 		return orig
 	}
+}
+
+// toStringKeyMap converts map[interface{}]interface{} to map[string]interface{}
+// and returns a mapping from string keys to original key values for restoring later.
+func toStringKeyMap(m map[interface{}]interface{}) (map[string]interface{}, map[string]interface{}) {
+	result := make(map[string]interface{}, len(m))
+	keyMap := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		sk := fmt.Sprintf("%v", k)
+		result[sk] = v
+		keyMap[sk] = k
+	}
+	return result, keyMap
+}
+
+// toOriginalKeyMap converts map[string]interface{} back to map[interface{}]interface{}
+// using original key types from origKeys and newKeys maps.
+func toOriginalKeyMap(m map[string]interface{}, origKeys, newKeys map[string]interface{}) map[interface{}]interface{} {
+	result := make(map[interface{}]interface{}, len(m))
+	for sk, v := range m {
+		if origKeys != nil {
+			if origKey, ok := origKeys[sk]; ok {
+				result[origKey] = v
+				continue
+			}
+		}
+		if newKeys != nil {
+			if newKey, ok := newKeys[sk]; ok {
+				result[newKey] = v
+				continue
+			}
+		}
+		result[sk] = v
+	}
+	return result
 }
 
 // Merge merges map b into map a.
@@ -368,10 +410,40 @@ func (m *Merger) MergeObj(orig interface{}, n interface{}, node string) interfac
 			m.mergeMap(origMap, t, node)
 			return orig
 
+		case map[interface{}]interface{}:
+			log.DEBUG("%s: performing map merge (converting orig from interface keys)", node)
+			stringOrig, origKeys := toStringKeyMap(origMap)
+			m.mergeMap(stringOrig, t, node)
+			return toOriginalKeyMap(stringOrig, origKeys, nil)
+
 		case nil:
 			newOrig := map[string]interface{}{}
 			m.mergeMap(newOrig, t, node)
 			return newOrig
+
+		default:
+			log.DEBUG("%s: replacing with new data (original was not a map)", node)
+			return t
+		}
+
+	case map[interface{}]interface{}:
+		stringN, newKeys := toStringKeyMap(t)
+		switch origMap := orig.(type) {
+		case map[interface{}]interface{}:
+			log.DEBUG("%s: performing map merge (both have interface keys)", node)
+			stringOrig, origKeys := toStringKeyMap(origMap)
+			m.mergeMap(stringOrig, stringN, node)
+			return toOriginalKeyMap(stringOrig, origKeys, newKeys)
+
+		case map[string]interface{}:
+			log.DEBUG("%s: performing map merge (converting new from interface keys)", node)
+			m.mergeMap(origMap, stringN, node)
+			return orig
+
+		case nil:
+			newOrig := map[string]interface{}{}
+			m.mergeMap(newOrig, stringN, node)
+			return toOriginalKeyMap(newOrig, nil, newKeys)
 
 		default:
 			log.DEBUG("%s: replacing with new data (original was not a map)", node)
