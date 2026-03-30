@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Graft! This guide covers the cont
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.26 or later
 
 - Git
 

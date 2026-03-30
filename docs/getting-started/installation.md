@@ -4,7 +4,7 @@ This guide covers all the ways to install Graft on your system.
 
 ## Requirements
 
-- **Go 1.21+** (for building from source or `go install`)
+- **Go 1.26+** (for building from source or `go install`)
 - **Linux**, **macOS**, or **Windows**
 - **amd64** or **arm64** architecture
 
@@ -93,7 +93,7 @@ docker run --rm -v $(pwd):/data graft merge /data/base.yml /data/overlay.yml
 Build your own image:
 
 ```dockerfile
-FROM golang:1.21-alpine AS builder
+FROM golang:1.26-alpine AS builder
 RUN go install github.com/wayneeseguin/graft/cmd/graft@latest
 
 FROM alpine:latest
