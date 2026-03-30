@@ -9,17 +9,17 @@ import (
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	treepkg "github.com/fivetwenty-io/graft/pkg/graft/tree"
 
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "github.com/goccy/go-yaml"
 )
 
 // helper: parse YAML into map[string]interface{}
 func parseYAMLForTest(t *testing.T, s string) map[string]interface{} {
 	t.Helper()
 	data := map[string]interface{}{}
-	if err := yamlv3.Unmarshal([]byte(s), &data); err != nil {
+	if err := yamlv3.Unmarshal(QuoteInjectKeys([]byte(s)), &data); err != nil {
 		t.Fatalf("failed to parse YAML: %v", err)
 	}
-	return data
+	return NormalizeMap(data)
 }
 
 // helper: create an engine with parallel evaluation enabled and a worker pool

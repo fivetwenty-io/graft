@@ -18,7 +18,7 @@ import (
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -448,6 +448,9 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
+
+	// Quote graft's <<<: inject keys for goccy/go-yaml compatibility
+	data = QuoteInjectKeys(data)
 
 	// First parse as generic interface to check document type
 	var genericResult interface{}

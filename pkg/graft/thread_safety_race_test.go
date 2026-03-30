@@ -10,16 +10,16 @@ import (
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "github.com/goccy/go-yaml"
 )
 
 // parseYAML is a helper function to parse YAML into a map for tests
 func parseYAML(s string) map[string]interface{} {
 	data := make(map[string]interface{})
-	if err := yamlv3.Unmarshal([]byte(s), &data); err != nil {
+	if err := yamlv3.Unmarshal(QuoteInjectKeys([]byte(s)), &data); err != nil {
 		panic(fmt.Sprintf("failed to parse YAML: %v", err))
 	}
-	return data
+	return NormalizeMap(data)
 }
 
 // TestTreeRaceConditions specifically tests for race conditions in tree operations

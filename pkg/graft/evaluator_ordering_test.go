@@ -3,7 +3,7 @@ package graft
 import (
 	"testing"
 
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "github.com/goccy/go-yaml"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -11,9 +11,9 @@ import (
 func TestDataflowOrdering(t *testing.T) {
 	YAML := func(s string) map[string]interface{} {
 		data := map[string]interface{}{}
-		err := yamlv3.Unmarshal([]byte(s), &data)
+		err := yamlv3.Unmarshal(QuoteInjectKeys([]byte(s)), &data)
 		So(err, ShouldBeNil)
-		return data
+		return NormalizeMap(data)
 	}
 
 	Convey("Dataflow Ordering", t, func() {

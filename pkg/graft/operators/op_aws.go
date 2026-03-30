@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/ssm"
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 
 	awsbackend "github.com/fivetwenty-io/graft/internal/backends/aws"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
@@ -170,6 +170,8 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			if err != nil {
 				return nil, fmt.Errorf("$.%s error extracting key: %w", key, err)
 			}
+
+			tmp = graft.NormalizeMap(tmp)
 
 			if _, ok := tmp[subkey]; !ok {
 				return nil, fmt.Errorf("$.%s invalid key '%s'", key, subkey)

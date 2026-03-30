@@ -7,14 +7,14 @@ import (
 	"io"
 	"os"
 
-	yamlv3 "gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
 
 func jsonifyData(data []byte, strict bool) (string, error) {
 	doc := make(map[string]interface{})
-	if err := yamlv3.Unmarshal(data, &doc); err != nil {
+	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return "", ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
 	}
 

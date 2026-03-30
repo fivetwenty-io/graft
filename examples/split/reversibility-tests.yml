@@ -82,10 +82,9 @@ special_characters:
   # Should preserve unicode: "Hello→World•Test★Done"
   
   # Tab and newline preservation
-  whitespace_text: "col1	col2
-row2	data"
-  tab_split: (( split "	" special_characters.whitespace_text ))
-  tab_rebuilt: (( join "	" special_characters.tab_split ))
+  whitespace_text: "col1\tcol2\nrow2\tdata"
+  tab_split: (( split "\t" special_characters.whitespace_text ))
+  tab_rebuilt: (( join "\t" special_characters.tab_split ))
   # Should preserve tabs and newlines
   
   # Escape sequences

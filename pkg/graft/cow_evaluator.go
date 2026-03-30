@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 // COWEvaluator is a thread-safe evaluator using Copy-on-Write trees.

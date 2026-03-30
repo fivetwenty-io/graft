@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	api "github.com/hashicorp/vault/api"
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"

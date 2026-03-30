@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
@@ -57,6 +57,9 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 			if err := yaml.Unmarshal([]byte(val), &unmarshalled); err == nil {
 				// Only use unmarshalled value if it's not a string
 				if _, isString := unmarshalled.(string); !isString {
+					if m, isMap := unmarshalled.(map[string]interface{}); isMap {
+						unmarshalled = graft.NormalizeMap(m)
+					}
 					return unmarshalled, nil
 				}
 			}

@@ -3,15 +3,14 @@ package graft
 import (
 	"bytes"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 // MarshalYAML serializes a value to YAML with 2-space indentation,
 // matching the output format expected by BOSH and CF ecosystem tools.
 func MarshalYAML(v interface{}) ([]byte, error) {
 	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
+	enc := yaml.NewEncoder(&buf, yaml.Indent(2))
 	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}

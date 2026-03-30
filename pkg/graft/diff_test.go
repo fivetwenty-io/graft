@@ -9,7 +9,7 @@ import (
 	"unicode"
 
 	. "github.com/smartystreets/goconvey/convey"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
@@ -20,9 +20,9 @@ func TestDiff(t *testing.T) {
 
 	YAML := func(s string) map[string]interface{} {
 		data := make(map[string]interface{})
-		err := yamlv3.Unmarshal([]byte(s), &data)
+		err := yamlv3.Unmarshal(QuoteInjectKeys([]byte(s)), &data)
 		So(err, ShouldBeNil)
-		return data
+		return NormalizeMap(data)
 	}
 
 	trim := func(s string) string {

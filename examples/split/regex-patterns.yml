@@ -14,8 +14,7 @@ basic_regex:
   # Expected: ["apple", "banana", "cherry", "date", "fig"]
   
   # Split on whitespace (spaces, tabs, newlines)
-  whitespace_text: "hello world	tab
-newline"
+  whitespace_text: "hello world\ttab\nnewline"
   words: (( split "/\\s+" basic_regex.whitespace_text ))
   # Expected: ["hello", "world", "tab", "newline"]
   

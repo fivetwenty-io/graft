@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
@@ -19,9 +19,9 @@ func TestEvaluator(t *testing.T) {
 	// log.DebugOn = true
 	YAML := func(s string) map[string]interface{} {
 		data := map[string]interface{}{}
-		err := yamlv3.Unmarshal([]byte(s), &data)
+		err := yamlv3.Unmarshal(QuoteInjectKeys([]byte(s)), &data)
 		So(err, ShouldBeNil)
-		return data
+		return NormalizeMap(data)
 	}
 	ToYAML := func(tree map[string]interface{}) string {
 		y, err := yamlv3.Marshal(tree)

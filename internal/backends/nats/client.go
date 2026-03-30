@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -512,9 +512,10 @@ func FetchFromKV(js jetstream.JetStream, storePath string, config *Config) (inte
 				var parsed interface{}
 				err = yaml.Unmarshal(value, &parsed)
 				if err == nil && parsed != nil {
+					parsed = normalizeYAMLValue(parsed)
 					// Successfully parsed and got non-string result
 					if _, isString := parsed.(string); !isString {
-						// Parse result is already map[string]interface{} from yaml.v3
+						// Normalize result from goccy/go-yaml (uint64 → int normalization)
 						result = parsed
 					} else {
 						// Parsed but still a string, keep original
@@ -634,14 +635,15 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse YAML from object '%s': %w", objectName, err)
 			}
-			// Parse result is already map[string]interface{} from yaml.v3
-			result = yamlResult
+			// Normalize result from goccy/go-yaml (uint64 → int normalization)
+			result = normalizeYAMLValue(yamlResult)
 		case "application/json", "text/json":
 			// Parse as JSON (YAML parser handles JSON too)
 			err = yaml.Unmarshal(data, &result)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse JSON from object '%s': %w", objectName, err)
 			}
+			result = normalizeYAMLValue(result)
 		case "text/plain", "":
 			// Check file extension if no content type
 			if contentType == "" && (strings.HasSuffix(objectName, ".yaml") || strings.HasSuffix(objectName, ".yml")) {
@@ -652,8 +654,8 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 					// If parsing fails, return as string
 					result = string(data)
 				} else {
-					// Parse result is already map[string]interface{} from yaml.v3
-					result = yamlResult
+					// Normalize result from goccy/go-yaml (uint64 → int normalization)
+					result = normalizeYAMLValue(yamlResult)
 				}
 			} else {
 				// Return as string if text or no content type
@@ -785,5 +787,27 @@ var DebugFunc func(format string, args ...interface{})
 func debugLog(format string, args ...interface{}) {
 	if DebugFunc != nil {
 		DebugFunc(format, args...)
+	}
+}
+
+// normalizeYAMLValue converts goccy/go-yaml integer types (uint64) to int
+// so callers receive the same Go types the codebase expects.
+func normalizeYAMLValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(val))
+		for k, elem := range val {
+			out[k] = normalizeYAMLValue(elem)
+		}
+		return out
+	case []interface{}:
+		for i, elem := range val {
+			val[i] = normalizeYAMLValue(elem)
+		}
+		return val
+	case uint64:
+		return int(val)
+	default:
+		return v
 	}
 }

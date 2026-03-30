@@ -23,7 +23,7 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	_ "github.com/fivetwenty-io/graft/pkg/graft/operators" // Register operators
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 // Version holds the Current version of graft.
@@ -390,7 +390,7 @@ func parseYAML(data []byte) (map[string]interface{}, error) {
 
 	// First, unmarshal into a generic interface to detect root type
 	var raw interface{}
-	if err := yaml.Unmarshal(data, &raw); err != nil {
+	if err := yaml.Unmarshal(graft.QuoteInjectKeys(data), &raw); err != nil {
 		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
 	}
 
@@ -399,7 +399,7 @@ func parseYAML(data []byte) (map[string]interface{}, error) {
 		if len(v) == 0 {
 			log.DEBUG("YAML doc is empty, creating empty hash/map")
 		}
-		return v, nil
+		return graft.NormalizeMap(v), nil
 	case nil:
 		log.DEBUG("YAML doc is null/empty, creating empty hash/map")
 		return make(map[string]interface{}), nil

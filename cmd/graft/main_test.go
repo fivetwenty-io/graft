@@ -11,10 +11,11 @@ import (
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
+	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 //nolint:gochecknoinits // Test setup requires init to configure test environment before tests run
@@ -301,33 +302,33 @@ func TestMain(t *testing.T) {
 			stderr = ""
 			main()
 			So(stdout, ShouldEqual, `array_append:
-  - one
-  - two
-  - three
+- one
+- two
+- three
 array_default:
-  - FIRST
-  - SECOND
-  - third
+- FIRST
+- SECOND
+- third
 array_inline:
-  - name: first_elem
-    val: overwritten
-  - second_elem was overwritten
-  - third elem is appended
+- name: first_elem
+  val: overwritten
+- second_elem was overwritten
+- third elem is appended
 array_map_default:
-  - k1: key 1
-    k2: updated
-    name: AAA
-  - k2: final
-    k3: original
-    name: BBB
+- k1: key 1
+  k2: updated
+  name: AAA
+- k2: final
+  k3: original
+  name: BBB
 array_prepend:
-  - three
-  - four
-  - five
+- three
+- four
+- five
 array_replace:
-  - - 1
-    - 2
-    - 3
+- - 1
+  - 2
+  - 3
 key: overridden
 map:
   key: value
@@ -357,10 +358,10 @@ map:
 			So(stdout, ShouldEqual, `injected_jobs:
   .: (( inject jobs ))
 jobs:
-  - name: consul
-  - name: cc_bridge
-  - (( append ))
-  - name: cell
+- name: consul
+- name: cc_bridge
+- (( append ))
+- name: cell
 param: (( param "Fill this in later" ))
 properties:
   loggregator: true
@@ -408,13 +409,13 @@ properties:
 			stderr = ""
 			main()
 			So(stdout, ShouldEqual, `jobs:
-  - name: my-server
-    static_ips:
-      - 192.168.1.0
+- name: my-server
+  static_ips:
+  - 192.168.1.0
 properties:
   client:
     servers:
-      - 192.168.1.0
+    - 192.168.1.0
 
 `)
 			So(stderr, ShouldEqual, "")
@@ -435,34 +436,34 @@ properties:
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `jobs:
-  - instances: 1
-    name: api_z1
-    networks:
-      - name: net1
-        static_ips:
-          - 192.168.1.2
-  - instances: 1
-    name: api_z2
-    networks:
-      - name: net2
-        static_ips:
-          - 192.168.2.2
-networks:
+- instances: 1
+  name: api_z1
+  networks:
   - name: net1
-    subnets:
-      - cloud_properties: random
-        static:
-          - 192.168.1.2 - 192.168.1.30
+    static_ips:
+    - 192.168.1.2
+- instances: 1
+  name: api_z2
+  networks:
   - name: net2
-    subnets:
-      - cloud_properties: random
-        static:
-          - 192.168.2.2 - 192.168.2.30
+    static_ips:
+    - 192.168.2.2
+networks:
+- name: net1
+  subnets:
+  - cloud_properties: random
+    static:
+    - "192.168.1.2 - 192.168.1.30"
+- name: net2
+  subnets:
+  - cloud_properties: random
+    static:
+    - "192.168.2.2 - 192.168.2.30"
 properties:
   api_server_primary: 192.168.1.2
   api_servers:
-    - 192.168.1.2
-    - 192.168.2.2
+  - 192.168.1.2
+  - 192.168.2.2
 
 `)
 		})
@@ -523,24 +524,24 @@ name4: name
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `jobs:
-  - instances: 3
-    name: api_z1
-    networks:
-      - name: net1
-        static_ips:
-          - 10.0.0.2
-          - 10.0.0.3
-          - 10.0.0.4
-networks:
+- instances: 3
+  name: api_z1
+  networks:
   - name: net1
-    subnets:
-      - static:
-          - 10.0.0.2 - 10.0.0.20
-properties:
-  api_servers:
+    static_ips:
     - 10.0.0.2
     - 10.0.0.3
     - 10.0.0.4
+networks:
+- name: net1
+  subnets:
+  - static:
+    - "10.0.0.2 - 10.0.0.20"
+properties:
+  api_servers:
+  - 10.0.0.2
+  - 10.0.0.3
+  - 10.0.0.4
 
 `)
 		})
@@ -553,14 +554,7 @@ properties:
 			main()
 			So(stdout, ShouldEqual, `content:
   meta_test:
-    stuff: |
-      ---
-      meta:
-        filename: test.yml
-
-      content:
-        meta_test:
-          stuff: (( file meta.filename ))
+    stuff: "---\nmeta:\n  filename: test.yml\n\ncontent:\n  meta_test:\n    stuff: (( file meta.filename ))\n"
 meta:
   filename: test.yml
 
@@ -578,7 +572,7 @@ nested:
   key:
     override: true
 networks:
-  - true
+- true
 storage: 4096
 
 `)
@@ -688,7 +682,8 @@ quux: quux
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `{"map":{"list":["string",42,{"map":"of things"}]}}`+"\n")
+			So(stdout, ShouldEqual, `{"map":{"list":["string",42,{"map":"of things"}]}}
+`)
 		})
 
 		Convey("json command handles malformed YAML", func() {
@@ -706,9 +701,9 @@ quux: quux
 			stderr = ""
 			main()
 			So(stdout, ShouldEqual, `secrets:
-  - key: secret/bar:beep
-    references:
-      - meta.foo
+- key: secret/bar:beep
+  references:
+  - meta.foo
 
 `)
 			So(stderr, ShouldEqual, "")
@@ -720,10 +715,10 @@ quux: quux
 			stderr = ""
 			main()
 			So(stdout, ShouldEqual, `secrets:
-  - key: secret/bar:beep
-    references:
-      - meta.foo
-      - meta.otherfoo
+- key: secret/bar:beep
+  references:
+  - meta.foo
+  - meta.otherfoo
 
 `)
 			So(stderr, ShouldEqual, "")
@@ -746,15 +741,15 @@ quux: quux
 			stderr = ""
 			main()
 			So(stdout, ShouldEqual, `secrets:
-  - key: imaprefix/beep:boop
-    references:
-      - foo.bar
-  - key: imaprefix/cup:cake
-    references:
-      - foo.bat
-  - key: imaprefix/hello:world
-    references:
-      - foo.wom
+- key: imaprefix/beep:boop
+  references:
+  - foo.bar
+- key: imaprefix/cup:cake
+  references:
+  - foo.bat
+- key: imaprefix/hello:world
+  references:
+  - foo.wom
 
 `)
 			So(stderr, ShouldEqual, "")
@@ -766,12 +761,12 @@ quux: quux
 			stderr = ""
 			main()
 			So(stdout, ShouldEqual, `secrets:
-  - key: secret/foo:bar
-    references:
-      - foo
-  - key: secret/meep:meep
-    references:
-      - bar
+- key: secret/foo:bar
+  references:
+  - foo
+- key: secret/meep:meep
+  references:
+  - bar
 
 `)
 			So(stderr, ShouldEqual, "")
@@ -795,8 +790,8 @@ quux: quux
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `meta:
   list:
-    - one
-    - three
+  - one
+  - three
 
 `)
 		})
@@ -806,15 +801,15 @@ quux: quux
 			stderr = ""
 			main()
 			So(stdout, ShouldEqual, `secrets:
-  - key: secret/beep:boop
-    references:
-      - bar
-  - key: secret/blork:blork
-    references:
-      - new_key
-  - key: secret/foo:bar
-    references:
-      - foo
+- key: secret/beep:boop
+  references:
+  - bar
+- key: secret/blork:blork
+  references:
+  - new_key
+- key: secret/foo:bar
+  references:
+  - foo
 
 `)
 			So(stderr, ShouldEqual, "")
@@ -829,8 +824,8 @@ quux: quux
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `meta:
   list:
-    - one
-    - three
+  - one
+  - three
 
 `)
 		})
@@ -843,21 +838,21 @@ quux: quux
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `jobs:
-  - instances: 2
-    name: main-job
-    templates:
-      - name: one
-      - name: two
-    update:
-      canaries: 1
-      max_in_flight: 3
-  - instances: 1
-    name: another-job
-    templates:
-      - name: one
-      - name: two
-    update:
-      canaries: 2
+- instances: 2
+  name: main-job
+  templates:
+  - name: one
+  - name: two
+  update:
+    canaries: 1
+    max_in_flight: 3
+- instances: 1
+  name: another-job
+  templates:
+  - name: one
+  - name: two
+  update:
+    canaries: 2
 
 `)
 		})
@@ -870,17 +865,17 @@ quux: quux
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `list:
-  - name: A
-    release: A
-    version: A
-  - name: B
-    release: B
-    version: B
-  - name: C
-    release: C
-    version: C
-  - name: D
-    release: D
+- name: A
+  release: A
+  version: A
+- name: B
+  release: B
+  version: B
+- name: C
+  release: C
+  version: C
+- name: D
+  release: D
 
 `)
 		})
@@ -917,17 +912,17 @@ quux: quux
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `list:
-  - name: zero
-    params:
-      fail-fast: false
-      preload: true
-  - name: one
-    params:
-      fail-fast: false
-      preload: true
-  - name: two
-    params:
-      preload: false
+- name: zero
+  params:
+    fail-fast: false
+    preload: true
+- name: one
+  params:
+    fail-fast: false
+    preload: true
+- name: two
+  params:
+    preload: false
 
 `)
 		})
@@ -941,9 +936,9 @@ quux: quux
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `meta:
   list:
-    - one
-    - two
-    - five
+  - one
+  - two
+  - five
 
 `)
 		})
@@ -957,21 +952,21 @@ quux: quux
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `meta:
   list:
-    - Leonel Messi
-    - Oliver Kahn
+  - Leonel Messi
+  - Oliver Kahn
 stuff:
   default_groups:
-    - openid
-    - cloud_controller.read
-    - uaa.user
-    - approvals.me
-    - profile
-    - roles
-    - user_attributes
-    - uaa.offline_token
+  - openid
+  - cloud_controller.read
+  - uaa.user
+  - approvals.me
+  - profile
+  - roles
+  - user_attributes
+  - uaa.offline_token
   environment_scripts:
-    - scripts/configure-HA-hosts.sh
-    - scripts/forward_logfiles.sh
+  - scripts/configure-HA-hosts.sh
+  - scripts/forward_logfiles.sh
 
 `)
 		})
@@ -984,20 +979,20 @@ stuff:
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `jobs:
-  - instances: 1
-    name: pepe
-    networks:
-      - name: cf1
-        static_ips:
-          - 10.4.5.4
+- instances: 1
+  name: pepe
+  networks:
+  - name: cf1
+    static_ips:
+    - 10.4.5.4
 meta:
   network_prefix: "10.4"
 networks:
-  - name: cf1
-    subnets:
-      - range: 10.4.36.0/24
-        static:
-          - 10.4.5.4 - 10.4.5.100
+- name: cf1
+  subnets:
+  - range: 10.4.36.0/24
+    static:
+    - "10.4.5.4 - 10.4.5.100"
 
 `)
 		})
@@ -1010,22 +1005,22 @@ networks:
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `jobs:
-  - instances: 1
-    name: bosh
-    networks:
-      - name: stuff
-        static_ips:
-          - 1.2.3.4
+- instances: 1
+  name: bosh
+  networks:
+  - name: stuff
+    static_ips:
+    - 1.2.3.4
 meta:
   ips:
-    - 1.2.3.4
+  - 1.2.3.4
 networks:
-  - name: stuff
-    subnets:
-      - static:
-          - 1.2.3.4
-  - name: stuff2
-    type: vip
+- name: stuff
+  subnets:
+  - static:
+    - 1.2.3.4
+- name: stuff2
+  type: vip
 
 `)
 		})
@@ -1038,32 +1033,32 @@ networks:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `jobs:
-  - azs:
-      - z1
-    instances: 2
-    name: static_z1
-    networks:
-      - name: net1
-        static_ips:
-          - 10.0.0.1
-          - 10.1.1.1
-networks:
+- azs:
+  - z1
+  instances: 2
+  name: static_z1
+  networks:
   - name: net1
-    subnets:
-      - azs:
-          - z1
-          - z2
-          - z3
-        static:
-          - 10.0.0.1 - 10.0.0.15
-      - azs:
-          - z1
-        static:
-          - 10.1.1.1
-      - azs:
-          - z2
-        static:
-          - 10.2.2.2
+    static_ips:
+    - 10.0.0.1
+    - 10.1.1.1
+networks:
+- name: net1
+  subnets:
+  - azs:
+    - z1
+    - z2
+    - z3
+    static:
+    - "10.0.0.1 - 10.0.0.15"
+  - azs:
+    - z1
+    static:
+    - 10.1.1.1
+  - azs:
+    - z2
+    static:
+    - 10.2.2.2
 
 `)
 			})
@@ -1075,34 +1070,34 @@ networks:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `jobs:
-  - azs:
-      - z1
-      - z2
-      - z3
-    instances: 2
-    name: static_z1
-    networks:
-      - name: net1
-        static_ips:
-          - 10.1.1.1
-          - 10.2.2.2
-networks:
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 2
+  name: static_z1
+  networks:
   - name: net1
-    subnets:
-      - azs:
-          - z1
-          - z2
-          - z3
-        static:
-          - 10.0.0.1 - 10.0.0.15
-      - azs:
-          - z1
-        static:
-          - 10.1.1.1
-      - azs:
-          - z2
-        static:
-          - 10.2.2.2
+    static_ips:
+    - 10.1.1.1
+    - 10.2.2.2
+networks:
+- name: net1
+  subnets:
+  - azs:
+    - z1
+    - z2
+    - z3
+    static:
+    - "10.0.0.1 - 10.0.0.15"
+  - azs:
+    - z1
+    static:
+    - 10.1.1.1
+  - azs:
+    - z2
+    static:
+    - 10.2.2.2
 
 `)
 			})
@@ -1140,39 +1135,39 @@ networks:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `jobs:
-  - azs:
-      - z1
-    instances: 1
-    name: static_z1
-    networks:
-      - name: net1
-        static_ips:
-          - 10.1.1.1
-  - azs:
-      - z2
-    instances: 1
-    name: static_z2
-    networks:
-      - name: net1
-        static_ips:
-          - 10.2.2.2
-networks:
+- azs:
+  - z1
+  instances: 1
+  name: static_z1
+  networks:
   - name: net1
-    subnets:
-      - azs:
-          - z1
-          - z2
-          - z3
-        static:
-          - 10.0.0.1 - 10.0.0.15
-      - azs:
-          - z1
-        static:
-          - 10.1.1.1
-      - azs:
-          - z2
-        static:
-          - 10.2.2.2
+    static_ips:
+    - 10.1.1.1
+- azs:
+  - z2
+  instances: 1
+  name: static_z2
+  networks:
+  - name: net1
+    static_ips:
+    - 10.2.2.2
+networks:
+- name: net1
+  subnets:
+  - azs:
+    - z1
+    - z2
+    - z3
+    static:
+    - "10.0.0.1 - 10.0.0.15"
+  - azs:
+    - z1
+    static:
+    - 10.1.1.1
+  - azs:
+    - z2
+    static:
+    - 10.2.2.2
 
 `)
 			})
@@ -1253,15 +1248,15 @@ networks:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `b:
-  - hello
-  - world
+- hello
+- world
 greeting: hello
 output:
-  - hello world
-  - hello bye
+- hello world
+- hello bye
 z:
-  - hello
-  - bye
+- hello
+- bye
 
 `)
 			})
@@ -1294,12 +1289,12 @@ z:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `jobs:
-  - instances: 4
-    name: big_ones
-  - instances: 1
-    name: small_ones
-  - instances: 2
-    name: extra_ones
+- instances: 4
+  name: big_ones
+- instances: 1
+  name: small_ones
+- instances: 2
+  name: extra_ones
 
 `)
 			})
@@ -1388,11 +1383,11 @@ int: 7776000
 				So(stdout, ShouldEqual, `properties:
   cc:
     quota_definitions:
+      q256MB:
+        non_basic_services_allowed: true
       q2GB:
         non_basic_services_allowed: true
       q4GB:
-        non_basic_services_allowed: true
-      q256MB:
         non_basic_services_allowed: true
 
 `)
@@ -1407,87 +1402,87 @@ int: 7776000
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `float_list:
-  - 1.42
-  - 2.42
-  - 3.42
-  - 4.42
-  - 5.42
-  - 6.42
-  - 7.42
-  - 8.42
-  - 9.42
+- 1.42
+- 2.42
+- 3.42
+- 4.42
+- 5.42
+- 6.42
+- 7.42
+- 8.42
+- 9.42
 foobar_list:
-  - foobar: item-6
-  - foobar: item-7
-  - foobar: item-8
-  - foobar: item-9
-  - foobar: item-g
-  - foobar: item-h
-  - foobar: item-i
-  - foobar: item-j
-  - foobar: item-k
-  - foobar: item-l
-  - foobar: item-m
+- foobar: item-6
+- foobar: item-7
+- foobar: item-8
+- foobar: item-9
+- foobar: item-g
+- foobar: item-h
+- foobar: item-i
+- foobar: item-j
+- foobar: item-k
+- foobar: item-l
+- foobar: item-m
 int_list:
-  - 1
-  - 2
-  - 3
-  - 4
-  - 5
-  - 6
-  - 7
-  - 8
-  - 9
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+- 9
 key_list:
-  - key: item-1
-  - key: item-2
-  - key: item-3
-  - key: item-4
-  - key: item-a
-  - key: item-b
-  - key: item-c
-  - key: item-d
-  - key: item-e
-  - key: item-f
-  - key: item-g
-  - key: item-h
-  - key: item-i
+- key: item-1
+- key: item-2
+- key: item-3
+- key: item-4
+- key: item-a
+- key: item-b
+- key: item-c
+- key: item-d
+- key: item-e
+- key: item-f
+- key: item-g
+- key: item-h
+- key: item-i
 name_list:
-  - name: item-1
-  - name: item-2
-  - name: item-3
-  - name: item-4
-  - name: item-5
-  - name: item-6
-  - name: item-7
-  - name: item-8
-  - name: item-9
-  - name: item-a
-  - name: item-b
-  - name: item-c
-  - name: item-d
-  - name: item-e
-  - name: item-f
-  - name: item-g
-  - name: item-h
-  - name: item-i
-  - name: item-j
-  - name: item-k
-  - name: item-l
-  - name: item-m
-  - name: item-n
-  - name: item-o
-  - name: item-p
-  - name: item-q
-  - name: item-r
-  - name: item-s
-  - name: item-t
-  - name: item-u
-  - name: item-v
-  - name: item-w
-  - name: item-x
-  - name: item-y
-  - name: item-z
+- name: item-1
+- name: item-2
+- name: item-3
+- name: item-4
+- name: item-5
+- name: item-6
+- name: item-7
+- name: item-8
+- name: item-9
+- name: item-a
+- name: item-b
+- name: item-c
+- name: item-d
+- name: item-e
+- name: item-f
+- name: item-g
+- name: item-h
+- name: item-i
+- name: item-j
+- name: item-k
+- name: item-l
+- name: item-m
+- name: item-n
+- name: item-o
+- name: item-p
+- name: item-q
+- name: item-r
+- name: item-s
+- name: item-t
+- name: item-u
+- name: item-v
+- name: item-w
+- name: item-x
+- name: item-y
+- name: item-z
 
 `)
 			})
@@ -1509,13 +1504,13 @@ name_list:
       structure:
         load:
           complex-list:
-            - name: one
-            - name: two
+          - name: one
+          - name: two
           map:
             key: value
           simple-list:
-            - one
-            - two
+          - one
+          - two
 
 `)
 				})
@@ -1547,10 +1542,10 @@ name_list:
 					So(stderr, ShouldEqual, "")
 					So(stdout, ShouldEqual, `params:
   users:
-    - color: green
-      name: bob
-    - color: red
-      name: fred
+  - color: green
+    name: bob
+  - color: red
+    name: fred
 
 `)
 				})
@@ -1563,10 +1558,10 @@ name_list:
 					So(stderr, ShouldEqual, "")
 					So(stdout, ShouldEqual, `params:
   users:
-    - color: green
-      name: bob
-    - color: red
-      name: fred
+  - color: green
+    name: bob
+  - color: red
+    name: fred
 
 `)
 				})
@@ -1613,8 +1608,8 @@ name_list:
     yaml:
       structure:
         load:
-          - one
-          - two
+        - one
+        - two
 
 `)
 				})
@@ -1646,7 +1641,7 @@ name_list:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `releases:
-  - name: vb
+- name: vb
 
 `)
 			})
@@ -1689,7 +1684,7 @@ properties:
     flags: auth,block,read-only
     id: 74a03820-3f81-45ca-afd5-d7d57b947ff1
 releases:
-  - name: vb
+- name: vb
 
 `)
 			})
@@ -1735,9 +1730,9 @@ releases:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `list:
-  - desc: The second one
-    key: two
-    version: v2
+- desc: The second one
+  key: two
+  version: v2
 
 `)
 			})
@@ -1749,9 +1744,9 @@ releases:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `list:
-  - desc: The second one
-    id: two
-    version: v2
+- desc: The second one
+  id: two
+  version: v2
 
 `)
 			})
@@ -1763,9 +1758,9 @@ releases:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `list:
-  - desc: The second one
-    name: two
-    version: v2
+- desc: The second one
+  name: two
+  version: v2
 
 `)
 			})
@@ -1777,12 +1772,12 @@ releases:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `list:
-  - desc: The fifth one
-    name: five
-    version: v5
-  - desc: The second one
-    name: two
-    version: v2
+- desc: The fifth one
+  name: five
+  version: v5
+- desc: The second one
+  name: two
+  version: v2
 
 `)
 			})
@@ -1797,24 +1792,24 @@ releases:
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `list:
   "10":
-    - desc: The first one
-      name: one
-      version: v1
-    - desc: The second one
-      name: two
-      version: v2
-    - desc: The third one
-      name: three
-      version: v3
-    - desc: The fourth one
-      name: four
-      version: v4
-    - desc: The fifth one
-      name: five
-      version: v5
-    - desc: The sixth one
-      name: six
-      version: v6
+  - desc: The first one
+    name: one
+    version: v1
+  - desc: The second one
+    name: two
+    version: v2
+  - desc: The third one
+    name: three
+    version: v3
+  - desc: The fourth one
+    name: four
+    version: v4
+  - desc: The fifth one
+    name: five
+    version: v5
+  - desc: The sixth one
+    name: six
+    version: v6
 
 `)
 			})
@@ -1854,12 +1849,12 @@ releases:
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `array:
-  - thing: 1
-    value: foo
-  - thing: 2
-    value: bar
-  - thing: 1
-    value: baz
+- thing: 1
+  value: foo
+- thing: 2
+  value: bar
+- thing: 1
+  value: baz
 
 `)
 		})
@@ -1871,10 +1866,10 @@ releases:
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `array:
-  - thing: 1
-    value: baz
-  - thing: 2
-    value: bar
+- thing: 1
+  value: baz
+- thing: 2
+  value: bar
 
 `)
 		})
@@ -2048,7 +2043,7 @@ thing: boop
 				So(stdout, ShouldEqual, `some:
   yaml:
     structure:
-      certificate: '-----BEGIN CERTIFICATE----- QSBzcHJ1Y2UgaXMgYSB0cmVlIG9mIHRoZSBnZW51cyBQaWNlYSAvcGHJqsuIc2nL kMmZLyxbMV0gYSBnZW51cyBvZiBhYm91dCAzNSBzcGVjaWVzIG9mIGNvbmlmZXJv dXMgZXZlcmdyZWVuIHRyZWVzIGluIHRoZSBGYW1pbHkgUGluYWNlYWUsIGZvdW5k IGluIHRoZSBub3J0aGVybiB0ZW1wZXJhdGUgYW5kIGJvcmVhbCAodGFpZ2EpIHJl Z2lvbnMgb2YgdGhlIGVhcnRoLiBTcHJ1Y2VzIGFyZSBsYXJnZSB0cmVlcywgZnJv bSBhYm91dCAyMOKAkzYwIG1ldHJlcyAoYWJvdXQgNjDigJMyMDAgZmVldCkgdGFs bCB3aGVuIG1hdHVyZSwgYW5kIGNhbiBiZSBkaXN0aW5ndWlzaGVkIGJ5IHRoZWly IHdob3JsZWQgYnJhbmNoZXMgYW5kIGNvbmljYWwgZm9ybS4gVGhlIG5lZWRsZXMs IG9yIGxlYXZlcywgb2Ygc3BydWNlIHRyZWVzIGFyZSBhdHRhY2hlZCBzaW5nbHkg dG8gdGhlIGJyYW5jaGVzIGluIGEgc3BpcmFsIGZhc2hpb24sIGVhY2ggbmVlZGxl IG9uIGEgc21hbGwgcGVnLWxpa2Ugc3RydWN0dXJlLiBUaGUgbmVlZGxlcyBhcmUg c2hlZCB3aGVuIDTigJMxMCB5ZWFycyBvbGQsIGxlYXZpbmcgdGhlIGJyYW5jaGVz IHJvdWdoIHdpdGggdGhlIHJldGFpbmVkIHBlZ3MgKGFuIGVhc3kgbWVhbnMgb2Yg ZGlzdGluZ3Vpc2hpbmcgdGhlbSBmcm9tIG90aGVyIHNpbWlsYXIgZ2VuZXJhLCB3 aGVyZSB0aGUgYnJhbmNoZXMgYXJlIGZhaXJseSBzbW9vdGgpLgoKU3BydWNlcyBh cmUgdXNlZCBhcyBmb29kIHBsYW50cyBieSB0aGUgbGFydmFlIG9mIHNvbWUgTGVw aWRvcHRlcmEgKG1vdGggYW5kIGJ1dHRlcmZseSkgc3BlY2llczsgc2VlIGxpc3Qg b2YgTGVwaWRvcHRlcmEgdGhhdCBmZWVkIG9uIHNwcnVjZXMuIFRoZXkgYXJlIGFs c28gdXNlZCBieSB0aGUgbGFydmFlIG9mIGdhbGwgYWRlbGdpZHMgKEFkZWxnZXMg c3BlY2llcykuCgpJbiB0aGUgbW91bnRhaW5zIG9mIHdlc3Rlcm4gU3dlZGVuIHNj aWVudGlzdHMgaGF2ZSBmb3VuZCBhIE5vcndheSBzcHJ1Y2UgdHJlZSwgbmlja25h bWVkIE9sZCBUamlra28sIHdoaWNoIGJ5IHJlcHJvZHVjaW5nIHRocm91Z2ggbGF5 ZXJpbmcgaGFzIHJlYWNoZWQgYW4gYWdlIG9mIDksNTUwIHllYXJzIGFuZCBpcyBj bGFpbWVkIHRvIGJlIHRoZSB3b3JsZCdzIG9sZGVzdCBrbm93biBsaXZpbmcgdHJl ZS4K -----END CERTIFICATE-----'
+      certificate: "-----BEGIN CERTIFICATE----- QSBzcHJ1Y2UgaXMgYSB0cmVlIG9mIHRoZSBnZW51cyBQaWNlYSAvcGHJqsuIc2nL kMmZLyxbMV0gYSBnZW51cyBvZiBhYm91dCAzNSBzcGVjaWVzIG9mIGNvbmlmZXJv dXMgZXZlcmdyZWVuIHRyZWVzIGluIHRoZSBGYW1pbHkgUGluYWNlYWUsIGZvdW5k IGluIHRoZSBub3J0aGVybiB0ZW1wZXJhdGUgYW5kIGJvcmVhbCAodGFpZ2EpIHJl Z2lvbnMgb2YgdGhlIGVhcnRoLiBTcHJ1Y2VzIGFyZSBsYXJnZSB0cmVlcywgZnJv bSBhYm91dCAyMOKAkzYwIG1ldHJlcyAoYWJvdXQgNjDigJMyMDAgZmVldCkgdGFs bCB3aGVuIG1hdHVyZSwgYW5kIGNhbiBiZSBkaXN0aW5ndWlzaGVkIGJ5IHRoZWly IHdob3JsZWQgYnJhbmNoZXMgYW5kIGNvbmljYWwgZm9ybS4gVGhlIG5lZWRsZXMs IG9yIGxlYXZlcywgb2Ygc3BydWNlIHRyZWVzIGFyZSBhdHRhY2hlZCBzaW5nbHkg dG8gdGhlIGJyYW5jaGVzIGluIGEgc3BpcmFsIGZhc2hpb24sIGVhY2ggbmVlZGxl IG9uIGEgc21hbGwgcGVnLWxpa2Ugc3RydWN0dXJlLiBUaGUgbmVlZGxlcyBhcmUg c2hlZCB3aGVuIDTigJMxMCB5ZWFycyBvbGQsIGxlYXZpbmcgdGhlIGJyYW5jaGVz IHJvdWdoIHdpdGggdGhlIHJldGFpbmVkIHBlZ3MgKGFuIGVhc3kgbWVhbnMgb2Yg ZGlzdGluZ3Vpc2hpbmcgdGhlbSBmcm9tIG90aGVyIHNpbWlsYXIgZ2VuZXJhLCB3 aGVyZSB0aGUgYnJhbmNoZXMgYXJlIGZhaXJseSBzbW9vdGgpLgoKU3BydWNlcyBh cmUgdXNlZCBhcyBmb29kIHBsYW50cyBieSB0aGUgbGFydmFlIG9mIHNvbWUgTGVw aWRvcHRlcmEgKG1vdGggYW5kIGJ1dHRlcmZseSkgc3BlY2llczsgc2VlIGxpc3Qg b2YgTGVwaWRvcHRlcmEgdGhhdCBmZWVkIG9uIHNwcnVjZXMuIFRoZXkgYXJlIGFs c28gdXNlZCBieSB0aGUgbGFydmFlIG9mIGdhbGwgYWRlbGdpZHMgKEFkZWxnZXMg c3BlY2llcykuCgpJbiB0aGUgbW91bnRhaW5zIG9mIHdlc3Rlcm4gU3dlZGVuIHNj aWVudGlzdHMgaGF2ZSBmb3VuZCBhIE5vcndheSBzcHJ1Y2UgdHJlZSwgbmlja25h bWVkIE9sZCBUamlra28sIHdoaWNoIGJ5IHJlcHJvZHVjaW5nIHRocm91Z2ggbGF5 ZXJpbmcgaGFzIHJlYWNoZWQgYW4gYWdlIG9mIDksNTUwIHllYXJzIGFuZCBpcyBj bGFpbWVkIHRvIGJlIHRoZSB3b3JsZCdzIG9sZGVzdCBrbm93biBsaXZpbmcgdHJl ZS4K -----END CERTIFICATE-----"
       someotherkey: value
 
 `)
@@ -2061,19 +2056,19 @@ thing: boop
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `empty_nil:
-  - null
-  - more stuff
+- null
+- more stuff
 explicit_nil:
-  - null
-  - stuff
+- null
+- stuff
 latter_elements_nil:
-  - stuff
-  - null
+- stuff
+- null
 nested_nil:
-  - stuff:
-      - null
-      - nested nil above
-    thing: has stuff
+- stuff:
+  - null
+  - nested nil above
+  thing: has stuff
 
 `)
 			})
@@ -2087,9 +2082,9 @@ nested_nil:
 warning: Falling back to inline merge strategy
 `)
 				So(stdout, ShouldEqual, `array-of-maps:
-  - name:
-      subkey1: true
-      subkey2: false
+- name:
+    subkey1: true
+    subkey2: false
 
 `)
 			})
@@ -2102,9 +2097,9 @@ warning: Falling back to inline merge strategy
 warning: Falling back to inline merge strategy
 `)
 				So(stdout, ShouldEqual, `array-of-maps:
-  - name:
-      - subkey1
-      - subkey2
+- name:
+  - subkey1
+  - subkey2
 
 `)
 			})
@@ -2164,11 +2159,11 @@ warning: Falling back to inline merge strategy
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `ips:
-  - 1.2.3.4
-  - 2.2.3.4
+- 1.2.3.4
+- 2.2.3.4
 ips_with_port:
-  - 1.2.3.4:80
-  - 2.2.3.4:80
+- 1.2.3.4:80
+- 2.2.3.4:80
 join_ips_with_port: 1.2.3.4:80,2.2.3.4:80
 
 `)
@@ -2181,21 +2176,21 @@ join_ips_with_port: 1.2.3.4:80,2.2.3.4:80
 			main()
 			So(stderr, ShouldEqual, "")
 			So(stdout, ShouldEqual, `groups:
-  - jobs:
-      - master-isolation-tests
-      - master-integration-tests
-      - master-dependencies-test
-      - master-docker-build
-    name: master
+- jobs:
+  - master-isolation-tests
+  - master-integration-tests
+  - master-dependencies-test
+  - master-docker-build
+  name: master
 meta:
   fast-tests:
-    - isolation
+  - isolation
   master-fast-tests:
-    - master-isolation-tests
+  - master-isolation-tests
   master-slow-tests:
-    - master-integration-tests
+  - master-integration-tests
   slow-tests:
-    - integration
+  - integration
 
 `)
 		})
@@ -2211,8 +2206,8 @@ meta:
 				So(stdout, ShouldEqual, `serverFiles:
   prometheus.yml:
     scrape_configs:
-      - name: one
-      - name: two
+    - name: one
+    - name: two
 
 `)
 			})
@@ -2227,8 +2222,8 @@ meta:
 				So(stdout, ShouldEqual, `serverFiles:
   prometheus.yml:
     scrape_configs:
-      - name: one
-      - name: two
+    - name: one
+    - name: two
 
 `)
 			})
@@ -2243,8 +2238,8 @@ meta:
 				So(stdout, ShouldEqual, `serverFiles:
   prometheus.yml:
     scrape_configs:
-      - name: one
-      - name: two
+    - name: one
+    - name: two
 
 `)
 			})
@@ -2259,8 +2254,8 @@ meta:
 				So(stdout, ShouldEqual, `serverFiles:
   prometheus.yml:
     scrape_configs:
-      - job_name: one
-      - job_name: two
+    - job_name: one
+    - job_name: two
 
 `)
 			})
@@ -2274,19 +2269,19 @@ meta:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `array:
-  - 10
-  - 5
-  - 6
+- 10
+- 5
+- 6
 graft_array_grab:
-  - add graft stuff in the beginning of the array
-  - name: item7
-  - name: item8
-  - name: item9
+- add graft stuff in the beginning of the array
+- name: item7
+- name: item8
+- name: item9
 items:
-  - add graft stuff in the beginning of the array
-  - name: item7
-  - name: item8
-  - name: item9
+- add graft stuff in the beginning of the array
+- name: item7
+- name: item8
+- name: item9
 key: 10
 key2:
   nested:
@@ -2322,14 +2317,14 @@ new_key: 10
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `array:
-  - 4
-  - 5
-  - 6
+- 4
+- 5
+- 6
 items:
-  - name: item7
-  - name: 7.5
-  - name: item8
-  - name: item9
+- name: item7
+- name: 7.5
+- name: item8
+- name: item9
 key: 1
 key2:
   nested:
@@ -2348,12 +2343,12 @@ key2:
 				main()
 				So(stderr, ShouldEqual, "")
 				So(stdout, ShouldEqual, `array:
-  - id: first
-    value: 123
-  - id: second
-    value: 987
-  - id: third
-    value: true
+- id: first
+  value: 123
+- id: second
+  value: 987
+- id: third
+  value: true
 
 `)
 			})
@@ -2628,12 +2623,12 @@ func TestExamples(t *testing.T) {
 		So(err, ShouldBeNil)
 
 		data := make(map[string]interface{})
-		err = yaml.Unmarshal(s, &data)
+		err = yaml.Unmarshal(graft.QuoteInjectKeys(s), &data)
 		So(err, ShouldBeNil)
+		data = graft.NormalizeMap(data)
 
 		var buf bytes.Buffer
-		enc := yaml.NewEncoder(&buf)
-		enc.SetIndent(2)
+		enc := yaml.NewEncoder(&buf, yaml.Indent(2))
 		err = enc.Encode(data)
 		So(err, ShouldBeNil)
 		enc.Close()

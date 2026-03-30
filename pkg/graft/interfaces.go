@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 // Action represents the type of action an operator should take.
@@ -414,6 +414,7 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 		}
 		var unmarshaled interface{}
 		if err := yaml.Unmarshal([]byte(val), &unmarshaled); err == nil {
+			unmarshaled = normalizeValue(unmarshaled)
 			if _, isString := unmarshaled.(string); !isString {
 				return unmarshaled, nil
 			}

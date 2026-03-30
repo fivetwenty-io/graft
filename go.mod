@@ -1,6 +1,6 @@
 module github.com/fivetwenty-io/graft
 
-go 1.24.9
+go 1.26.1
 
 require (
 	github.com/Knetic/govaluate v3.0.0+incompatible
@@ -8,6 +8,7 @@ require (
 	github.com/cppforlife/go-patch v0.2.0
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/fsnotify/fsnotify v1.6.0
+	github.com/goccy/go-yaml v1.19.2
 	github.com/gonvenience/ytbx v1.4.7
 	github.com/hashicorp/vault/api v1.16.0
 	github.com/homeport/dyff v1.10.3
@@ -15,7 +16,6 @@ require (
 	github.com/nats-io/nats.go v1.43.0
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/spf13/cobra v1.10.2
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -65,4 +65,5 @@ require (
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

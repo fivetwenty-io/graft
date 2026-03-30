@@ -3,15 +3,59 @@ package merger
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
 
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
+
+// quoteInjectKeys pre-processes YAML bytes to quote graft's <<<: inject key
+// for goccy/go-yaml compatibility. Local copy to avoid import cycle with pkg/graft.
+var (
+	injectKeyStandaloneRe = regexp.MustCompile(`(?m)^(\s*(?:- )?)<<<:`)
+	injectKeyDottedRe     = regexp.MustCompile(`(?m)^(\s*(?:- )?)(\S+\.<<<):`)
+)
+
+func quoteInjectKeys(data []byte) []byte {
+	data = injectKeyDottedRe.ReplaceAll(data, []byte(`${1}"${2}":`))
+	data = injectKeyStandaloneRe.ReplaceAll(data, []byte(`${1}"<<<":`))
+	return data
+}
+
+// normalizeYAMLMap normalizes goccy integer types (uint64/int64 → int).
+// Local copy to avoid import cycle with pkg/graft.
+func normalizeYAMLMap(data map[string]interface{}) map[string]interface{} {
+	for k, v := range data {
+		data[k] = normalizeYAMLValue(v)
+	}
+	return data
+}
+
+func normalizeYAMLValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		return normalizeYAMLMap(val)
+	case []interface{}:
+		for i, item := range val {
+			val[i] = normalizeYAMLValue(item)
+		}
+		return val
+	case uint64:
+		if val > uint64(^uint(0)>>1) {
+			return val
+		}
+		return int(val)
+	case int64:
+		return int(val)
+	default:
+		return v
+	}
+}
 
 // Test constants for repeated string literals.
 const (
@@ -2133,9 +2177,9 @@ func TestMergeArray(t *testing.T) {
 func TestMerge(t *testing.T) {
 	YAML := func(s string) map[string]interface{} {
 		data := make(map[string]interface{})
-		err := yamlv3.Unmarshal([]byte(s), &data)
+		err := yamlv3.Unmarshal(quoteInjectKeys([]byte(s)), &data)
 		So(err, ShouldBeNil)
-		return data
+		return normalizeYAMLMap(data)
 	}
 
 	valueIs := func(t interface{}, path string, expect string) {

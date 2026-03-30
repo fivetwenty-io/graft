@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -73,8 +73,7 @@ func (StringifyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	// For complex types, use YAML marshaling with 2-space indent
 	DEBUG("converting complex type to YAML string")
 	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
+	enc := yaml.NewEncoder(&buf, yaml.Indent(2))
 	if err := enc.Encode(val); err != nil {
 		DEBUG("YAML marshaling failed: %s", err)
 		return nil, fmt.Errorf("unable to stringify value: %w", err)

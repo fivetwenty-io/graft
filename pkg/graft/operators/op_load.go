@@ -9,9 +9,10 @@ import (
 	"os"
 	"path/filepath"
 
-	yamlv3 "gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -85,16 +86,16 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 	// Try to unmarshal as a map first
 	var maproot map[string]interface{}
-	if err := yamlv3.Unmarshal(bytes, &maproot); err == nil && maproot != nil {
+	if err := yaml.Unmarshal(graft.QuoteInjectKeys(bytes), &maproot); err == nil && maproot != nil {
 		return &Response{
 			Type:  Replace,
-			Value: maproot,
+			Value: graft.NormalizeMap(maproot),
 		}, nil
 	}
 
 	// Try to unmarshal as a list
 	var listroot []interface{}
-	if err := yamlv3.Unmarshal(bytes, &listroot); err == nil && listroot != nil {
+	if err := yaml.Unmarshal(graft.QuoteInjectKeys(bytes), &listroot); err == nil && listroot != nil {
 		return &Response{
 			Type:  Replace,
 			Value: listroot,
