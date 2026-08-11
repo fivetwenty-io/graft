@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -14,6 +15,34 @@ import (
 
 // UNDEFINED_AZ is a placeholder for undefined availability zones.
 const UNDEFINED_AZ = "__UNDEFINED_AZ__"
+
+// staticIPClaimMu serializes the check-then-claim sequence against an
+// engine's used-IP tracking. graft.OperatorState's GetUsedIPs/SetUsedIP
+// pair is individually thread-safe (each call takes the engine's own
+// lock), but reading the map and then writing to it are two separate
+// operations. Without an operator-level lock around both, two
+// static_ips evaluations racing on the same IP could both observe the
+// address as free and both claim it, silently handing the same static
+// IP to two BOSH instance groups. Parallel evaluation is becoming the
+// default, so this sequence must be atomic regardless of how many
+// operator evaluations the scheduler runs concurrently.
+var staticIPClaimMu sync.Mutex
+
+// claimStaticIP atomically checks whether ip is already claimed in
+// state and, if not, claims it for owner. It returns the name of the
+// existing claimant and a non-nil error (matching spruce's wording)
+// when the IP was already taken.
+func claimStaticIP(state graft.OperatorState, ip, owner string) (string, error) {
+	staticIPClaimMu.Lock()
+	defer staticIPClaimMu.Unlock()
+
+	if thief, taken := state.GetUsedIPs()[ip]; taken {
+		return thief, ansi.Errorf("@R{tried to use IP '}@c{%s}@R{', but that address is already allocated to} @c{%s}", ip, thief)
+	}
+
+	state.SetUsedIP(ip, owner)
+	return "", nil
+}
 
 // StaticIPOperator ...
 type StaticIPOperator struct{}
@@ -472,22 +501,19 @@ func (s StaticIPOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			return nil, ansi.Errorf("@R{request for} @c{static_ip(%d)} @R{in a pool of only} @c{%d (zero-indexed)} @R{static addresses}", offset, len(pool))
 		}
 
-		// check to see if the address is already claimed
+		// check to see if the address is already claimed, and claim it
+		// atomically so concurrent evaluations cannot both succeed for
+		// the same IP (see staticIPClaimMu / claimStaticIP)
 		ip := pool[offset]
 		DEBUG("     [%d]: checking to see if %s is already claimed", i, ip)
 
-		// Get engine for IP tracking
 		engine := graft.GetEngine(ev)
-		usedIPs := engine.GetOperatorState().GetUsedIPs()
-
-		if thief, taken := usedIPs[ip]; taken {
+		if thief, claimErr := claimStaticIP(engine.GetOperatorState(), ip, current); claimErr != nil {
 			DEBUG("     [%d]: %s is in use by %s\n", i, ip, thief)
-			return nil, ansi.Errorf("@R{tried to use IP '}@c{%s}@R{', but that address is already allocated to} @c{%s}", ip, thief)
+			return nil, claimErr
 		}
 
-		// claim this address for ourselves
-		DEBUG("     [%d]: claiming %s for job %s", i, ip, current)
-		engine.GetOperatorState().SetUsedIP(ip, current)
+		DEBUG("     [%d]: claimed %s for job %s", i, ip, current)
 		ips = append(ips, ip)
 
 		DEBUG("")
