@@ -1,0 +1,4 @@
+meta:
+  flag: true
+
+result: (( negate meta.flag ))

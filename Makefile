@@ -32,13 +32,16 @@ PLATFORM := $(GOOS)-$(GOARCH)
 
 # Build output paths
 BUILD_OUTPUT := $(BUILD_DIR)/$(PLATFORM)/$(BINARY_NAME)
+# spruce-named alias binary (drop-in replacement build target; see
+# tests/spruce-compat/e2e-genesis-dropin.sh for the consumer of this path).
+ALIAS_OUTPUT := $(BUILD_DIR)/$(PLATFORM)/spruce
 
 # Release platforms
 PLATFORMS := darwin-amd64 darwin-arm64 linux-amd64 linux-arm64
 
 # Phony targets
-.PHONY: help build build-linux build-release package clean install
-.PHONY: test test-unit test-clean test-verbose test-race test-short test-all
+.PHONY: help build build-linux build-release build-spruce-alias package clean install
+.PHONY: test test-unit test-clean test-verbose test-race test-short test-all test-spruce-compat test-spruce-e2e
 .PHONY: fmt vet lint security gosec vuln trivy coverage coverage-text
 .PHONY: staticcheck gocyclo ineffassign errcheck goimports deadcode golangci
 .PHONY: check check-all
@@ -62,6 +65,13 @@ build: ## Build the graft binary for current platform
 	@mkdir -p $(BUILD_DIR)/$(PLATFORM)
 	@go build $(LDFLAGS) -o $(BUILD_OUTPUT) $(SOURCE_DIR)
 	@printf "$(GREEN)✓ Built: $(BUILD_OUTPUT)$(RESET)\n"
+
+build-spruce-alias: build ## Build a spruce-named alias binary from graft for drop-in replacement testing
+	@printf "$(GREEN)Building spruce-named alias binary for $(PLATFORM)...$(RESET)\n"
+	@cp $(BUILD_OUTPUT) $(ALIAS_OUTPUT)
+	@chmod +x $(ALIAS_OUTPUT)
+	@printf "$(GREEN)✓ Built: $(ALIAS_OUTPUT)$(RESET)\n"
+	@$(ALIAS_OUTPUT) -v
 
 build-linux: ## Build for Linux (amd64 and arm64)
 	@printf "$(GREEN)Building graft for Linux...$(RESET)\n"
@@ -137,7 +147,21 @@ test-short: ## Run tests in short mode
 	@go test -short ./...
 	@printf "$(GREEN)✓ Short tests complete$(RESET)\n"
 
-test-all: vet test-unit test-race ## Run all test targets
+test-spruce-compat: ## Run the full spruce/graft parity suite: golden-output harness, operator matrix, vaultinfo pipefail (golden/operator suites skip gracefully if spruce is unavailable; vaultinfo pipefail always runs, needs only graft)
+	@printf "$(GREEN)Running spruce/graft golden-output parity harness...$(RESET)\n"
+	@bash tests/spruce-compat/run.sh
+	@printf "$(GREEN)Running spruce/graft operator parity suite...$(RESET)\n"
+	@bash tests/spruce-compat/operators/run-operators.sh
+	@printf "$(GREEN)Running vaultinfo pipefail pipeline test...$(RESET)\n"
+	@bash tests/spruce-compat/vaultinfo-pipefail.sh
+	@printf "$(GREEN)✓ Parity suite complete$(RESET)\n"
+
+test-spruce-e2e: build-spruce-alias ## Run end-to-end genesis drop-in validation against the spruce-named alias binary
+	@printf "$(GREEN)Running genesis drop-in end-to-end validation...$(RESET)\n"
+	@bash tests/spruce-compat/e2e-genesis-dropin.sh
+	@printf "$(GREEN)✓ Genesis drop-in validation complete$(RESET)\n"
+
+test-all: vet test-unit test-race test-spruce-compat ## Run all test targets
 
 ##@ Code Quality
 
@@ -252,7 +276,7 @@ trivy: ## Run Trivy container and dependency scanner
 
 ##@ Combined Checks
 
-check: lint staticcheck test test-race golangci ## Run basic quality checks
+check: lint staticcheck test test-race golangci test-spruce-compat ## Run basic quality checks
 	@printf "$(GREEN)✓ Basic checks passed$(RESET)\n"
 
 check-all: lint test-all security staticcheck gocyclo ineffassign errcheck golangci ## Run all quality checks

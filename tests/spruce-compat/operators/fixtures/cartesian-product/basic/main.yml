@@ -1,0 +1,5 @@
+meta:
+  colors: [red, blue]
+  sizes: [s, m]
+
+result: (( cartesian-product meta.colors meta.sizes ))

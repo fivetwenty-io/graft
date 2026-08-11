@@ -1,0 +1,4 @@
+meta:
+  parts: [alpha, beta, gamma]
+
+result: (( join "," meta.parts ))

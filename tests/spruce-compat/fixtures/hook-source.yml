@@ -1,0 +1,6 @@
+job_overrides:
+  web:
+    instances: 3
+    resources:
+      cpu: 2
+      memory: 4096

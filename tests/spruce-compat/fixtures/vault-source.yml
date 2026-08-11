@@ -1,0 +1,5 @@
+app:
+  user: (( vault "secret/app:username" ))
+  pass: (( vault "secret/app:password" ))
+db:
+  host: db.internal

@@ -1,0 +1,7 @@
+jobs:
+- name: api
+  instances: 2
+- name: worker
+  instances: 4
+
+result: (( grab jobs.worker.instances ))

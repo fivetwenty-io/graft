@@ -1,0 +1,4 @@
+meta:
+  encoded: aGVsbG8gd29ybGQ=
+
+result: (( base64-decode meta.encoded ))

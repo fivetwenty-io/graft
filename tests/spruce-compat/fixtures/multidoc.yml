@@ -1,0 +1,11 @@
+name: doc-one
+meta:
+  region: us
+tags:
+- primary
+---
+name: doc-two
+meta:
+  region: eu
+tags:
+- secondary

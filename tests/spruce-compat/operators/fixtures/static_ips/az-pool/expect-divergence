@@ -1,0 +1,1 @@
+10.0.0.1 - 10.0.0.15 (a string containing ' - ') gets double-quoted by graft's YAML marshaler on re-emit but left bare by spruce's. Same data once parsed, different scalar-style choice on write. Likely same marshal-parity class as the stringify block-scalar divergence noted elsewhere in this suite.

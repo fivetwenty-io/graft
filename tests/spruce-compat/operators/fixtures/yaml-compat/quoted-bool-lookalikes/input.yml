@@ -1,0 +1,20 @@
+# Explicitly quoted YAML 1.1 boolean-lookalike scalars must decode as
+# strings, matching spruce; the same words left unquoted must still
+# coerce to booleans. See docs/spruce/yaml-formatting.md.
+quoted_yes: "yes"
+quoted_On: 'On'
+quoted_NO: "NO"
+quoted_off: 'off'
+quoted_YES: "YES"
+unquoted_yes: yes
+unquoted_On: On
+unquoted_NO: NO
+unquoted_off: off
+list:
+- "yes"
+- keep
+- 'OFF'
+- on
+nested:
+  quoted_flag: "on"
+  unquoted_flag: on

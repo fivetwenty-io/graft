@@ -1,0 +1,19 @@
+jobs:
+- name: static_z1a
+  instances: 1
+  azs: [z1]
+  networks:
+  - name: net1
+    static_ips: (( static_ips(0) ))
+- name: static_z1b
+  instances: 1
+  azs: [z1]
+  networks:
+  - name: net1
+    static_ips: (( static_ips(0) ))
+networks:
+- name: net1
+  subnets:
+  - azs: [z1]
+    static:
+      - 10.0.0.1 - 10.0.0.15

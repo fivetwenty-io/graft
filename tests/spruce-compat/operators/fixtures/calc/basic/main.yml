@@ -1,0 +1,5 @@
+meta:
+  width: 4
+  height: 5
+
+result: (( calc "meta.width * meta.height + 1" ))

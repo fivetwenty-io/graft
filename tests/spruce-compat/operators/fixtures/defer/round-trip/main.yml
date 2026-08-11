@@ -1,0 +1,6 @@
+meta:
+  a: 1
+  b: 2
+
+template:
+  value: (( defer grab meta.a meta.b ))

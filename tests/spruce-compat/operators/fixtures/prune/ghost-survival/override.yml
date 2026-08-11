@@ -1,0 +1,3 @@
+meta:
+  password: hunter2
+result: (( grab meta.password ))

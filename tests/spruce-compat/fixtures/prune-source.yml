@@ -1,0 +1,8 @@
+keep: yes
+items:
+- name: alpha
+  val: 1
+- name: beta
+  val: 2
+secret_stuff:
+  token: abc

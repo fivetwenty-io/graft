@@ -1,0 +1,5 @@
+meta:
+  thing:
+    nested: value
+
+result: (( concat "prefix-" meta.thing ))

@@ -1,0 +1,15 @@
+meta:
+  region: us-west-2
+params:
+  instance_type: t3.large
+properties:
+  app:
+    workers: 4
+releases:
+- name: base-release
+  version: 2
+- name: extra-release
+  version: 1
+jobs:
+- name: worker
+  instances: 1

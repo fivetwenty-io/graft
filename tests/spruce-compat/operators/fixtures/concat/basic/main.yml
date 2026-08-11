@@ -1,0 +1,5 @@
+meta:
+  name: worker
+  suffix: prod
+
+result: (( concat meta.name "-" meta.suffix ))

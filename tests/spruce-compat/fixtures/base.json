@@ -1,0 +1,6 @@
+{
+  "meta": {"region": "us-east-1", "az": "z1"},
+  "name": "my-service",
+  "params": {"instance_type": "t3.small"},
+  "properties": {"app": {"workers": 2, "endpoint": "(( concat \"https://\" meta.region \".example.com\" ))"}}
+}

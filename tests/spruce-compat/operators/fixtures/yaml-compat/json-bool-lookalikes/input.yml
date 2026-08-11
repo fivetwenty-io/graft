@@ -1,0 +1,16 @@
+# `graft json` (and `spruce json`) must apply the same YAML 1.1
+# boolean-lookalike coercion `merge` does: unquoted yes/no/on/off ->
+# JSON boolean, explicitly quoted forms stay JSON strings.
+quoted_yes: "yes"
+quoted_On: 'On'
+quoted_NO: "NO"
+quoted_off: 'off'
+unquoted_yes: yes
+unquoted_On: On
+unquoted_NO: NO
+unquoted_off: off
+list:
+- "yes"
+- keep
+- 'OFF'
+- on

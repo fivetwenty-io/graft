@@ -1,0 +1,2 @@
+result: (( awsparam "/parity/demo/param" ))
+secret: (( awssecret "parity/demo/secret" ))

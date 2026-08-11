@@ -1,0 +1,1 @@
+graft renders the multiline result as a double-quoted flow scalar; spruce renders the same string as a literal block scalar (|). Content is byte-identical once YAML-decoded, only the chosen scalar style differs. Likely same marshal-parity class as the null-render/key-order line items tracked elsewhere in this effort, not something to silently patch here.

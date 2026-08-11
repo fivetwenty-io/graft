@@ -1,0 +1,7 @@
+base:
+  color: blue
+  size: large
+
+merged:
+  woot: (( inject base ))
+  size: small

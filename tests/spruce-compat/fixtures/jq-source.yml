@@ -1,0 +1,6 @@
+properties:
+  vb:
+    id: abc-123
+    flags: read-only
+meta:
+  unused: true

@@ -87,3 +87,32 @@ jobs:
 
       - name: Run import validation example
         run: make validate-imports-example
+
+  spruce-compat:
+    name: Spruce Compat
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Add GOPATH/bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # Best-effort: installs spruce so the golden-output and operator
+      # parity suites can run for real instead of skipping. A failure
+      # here (network, upstream repo issue, etc.) must not fail the job
+      # -- both suites already skip cleanly when no spruce binary is on
+      # PATH, and the vaultinfo pipefail suite needs only graft.
+      - name: Install spruce (best-effort)
+        run: go install github.com/geofffranks/spruce/cmd/spruce@latest
+        continue-on-error: true
+
+      - name: Run spruce/graft parity suite
+        run: make test-spruce-compat

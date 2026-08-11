@@ -1,0 +1,1 @@
+spruce has no nats operator (confirmed absent from spruce source tree). graft's nats operator is a pure superset extension with nothing to compare against. Not run against spruce; kept only as a documentation marker.

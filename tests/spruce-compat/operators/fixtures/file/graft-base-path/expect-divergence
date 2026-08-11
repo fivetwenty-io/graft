@@ -1,0 +1,1 @@
+graft-only extension: SPRUCE_FILE_BASE_PATH takes precedence in spruce; GRAFT_FILE_BASE_PATH is a graft-specific override spruce does not recognize, so spruce falls back to reading relative to cwd and fails. Documented divergence, not a bug.

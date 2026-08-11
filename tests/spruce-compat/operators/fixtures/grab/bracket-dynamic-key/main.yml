@@ -1,0 +1,7 @@
+meta:
+  lookup: worker
+  by_name:
+    api: 2
+    worker: 4
+
+result: (( grab meta.by_name[meta.lookup] ))
