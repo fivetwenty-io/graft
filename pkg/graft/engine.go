@@ -431,7 +431,10 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator) error {
 				continue
 			case ParamPhase:
 				return phaseErr
-			default: // EvalPhase
+			case EvalPhase:
+				mergeErrs.Append(phaseErr)
+				return mergeErrs
+			default:
 				mergeErrs.Append(phaseErr)
 				return mergeErrs
 			}
