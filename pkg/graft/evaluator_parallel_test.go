@@ -2,8 +2,11 @@ package graft
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/fivetwenty-io/graft/internal/features"
 	"github.com/fivetwenty-io/graft/internal/parallel"
@@ -232,6 +235,216 @@ dst:
 		if dst[k] != want {
 			t.Errorf("dst.%s: expected %d, got %v", k, want, dst[k])
 		}
+	}
+}
+
+// sleepingTestOperator sleeps for a fixed duration before returning a
+// static value. Used to prove computeOp for independent same-wave
+// operators runs truly concurrently (Wave D1) rather than one at a time:
+// N independent instances should complete in a small multiple of one
+// sleep, not N sleeps.
+type sleepingTestOperator struct {
+	sleep time.Duration
+	value interface{}
+}
+
+func (sleepingTestOperator) Setup() error { return nil }
+
+func (o sleepingTestOperator) Run(_ *Evaluator, _ []*Expr) (*Response, error) {
+	time.Sleep(o.sleep)
+	return &Response{Type: Replace, Value: o.value}, nil
+}
+
+func (sleepingTestOperator) Dependencies(_ *Evaluator, _ []*Expr, _ []*treepkg.Cursor, auto []*treepkg.Cursor) []*treepkg.Cursor {
+	return auto
+}
+
+func (sleepingTestOperator) Phase() OperatorPhase { return EvalPhase }
+
+// TestParallelTrueConcurrencySpeedup proves that independent (no
+// dependency edge) operators within a wave actually execute their
+// computeOp phase concurrently, not one at a time behind the pool's
+// SubmitWaitContext as before Wave D1. Four independent 150ms operators
+// must finish well under the 600ms a fully-serial dispatch would take.
+func TestParallelTrueConcurrencySpeedup(t *testing.T) {
+	ansi.Color(false)
+	SilenceWarnings(true)
+
+	const sleep = 150 * time.Millisecond
+	const serialBound = 4 * sleep
+
+	engine := newParallelEngine(t)
+	RegisterOp("sleepingtest", sleepingTestOperator{sleep: sleep, value: "done"})
+
+	yaml := `
+a: (( sleepingtest ))
+b: (( sleepingtest ))
+c: (( sleepingtest ))
+d: (( sleepingtest ))
+`
+	tree := parseYAMLForTest(t, yaml)
+	ev := &Evaluator{
+		Tree: tree,
+		Deps: map[string][]treepkg.Cursor{},
+	}
+	ev.SetEngine(engine)
+
+	start := time.Now()
+	err := ev.RunPhaseParallel(EvalPhase)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("RunPhaseParallel failed: %v", err)
+	}
+
+	for _, key := range []string{"a", "b", "c", "d"} {
+		if ev.Tree[key] != "done" {
+			t.Errorf("%s: expected %q, got %v", key, "done", ev.Tree[key])
+		}
+	}
+
+	// newParallelEngine's pool starts with 2 min workers, so 4 concurrent
+	// 150ms tasks land in two batches of two (~300ms), well under the
+	// fully-serial bound of 4x150ms=600ms. Assert comfortably between the
+	// two so scheduling jitter cannot produce a false pass.
+	if elapsed >= serialBound-100*time.Millisecond {
+		t.Errorf("expected concurrent dispatch well under the %v serial bound, took %v (looks serialized)", serialBound, elapsed)
+	}
+}
+
+// TestParallelWaveWiderThanPoolQueueDoesNotFail is the regression test for
+// the D-review's D-F1 finding: a dependency-free wave larger than the
+// worker pool's task queue capacity (DefaultPoolConfig().QueueSize ==
+// 1000) must still succeed. Before the fix, the concurrent group's fan-out
+// used pool.SubmitContext, whose non-blocking select returns ErrPoolFull
+// the instant the queue saturates; runOpsWithScheduler recorded that
+// rejection as the operator's own evaluation error, so the merge failed
+// outright once a wave exceeded 1000 independent operators - ordinary for
+// large BOSH manifests with many independent grab/vault/concat calls, not
+// a synthetic limit.
+//
+// Uses a small synthetic per-call delay (sleepingTestOperator) rather than
+// the near-instant real `grab` operator: with instant work, the pool's two
+// workers can drain the queue faster than a same-process test loop enqueues
+// it, so the queue capacity is never actually exercised and the test would
+// pass even on the buggy code (confirmed: an earlier grab-based version of
+// this test did not reproduce the bug). A short sleep makes the producer
+// (submission loop, effectively instantaneous) reliably outpace the
+// consumers (2 workers x sleep-bound throughput), guaranteeing the queue
+// saturates regardless of machine speed - mirroring why the reviewer's real
+// CLI repro needed a real subprocess to observe the failure reliably.
+// 1200 mirrors the reviewer's own confirmed-failing count (n=1200 failed,
+// n=1000 passed against DefaultPoolConfig's QueueSize=1000).
+func TestParallelWaveWiderThanPoolQueueDoesNotFail(t *testing.T) {
+	ansi.Color(false)
+	SilenceWarnings(true)
+
+	const opCount = 1200 // > DefaultPoolConfig().QueueSize (1000)
+	const sleep = 2 * time.Millisecond
+
+	engine := newParallelEngine(t)
+	RegisterOp("widewavetest", sleepingTestOperator{sleep: sleep, value: "done"})
+
+	var b strings.Builder
+	for i := 0; i < opCount; i++ {
+		fmt.Fprintf(&b, "k%04d: (( widewavetest ))\n", i)
+	}
+
+	tree := parseYAMLForTest(t, b.String())
+	ev := &Evaluator{
+		Tree: tree,
+		Deps: map[string][]treepkg.Cursor{},
+	}
+	ev.SetEngine(engine)
+
+	err := ev.RunPhaseParallel(EvalPhase)
+	if err != nil {
+		t.Fatalf("RunPhaseParallel failed for a %d-operator wave (pool queue capacity 1000): %v", opCount, err)
+	}
+
+	for i := 0; i < opCount; i++ {
+		key := fmt.Sprintf("k%04d", i)
+		if ev.Tree[key] != "done" {
+			t.Errorf("%s: expected %q, got %v", key, "done", ev.Tree[key])
+		}
+	}
+}
+
+// orderSensitiveProbeOperator implements OrderSensitive and records
+// whether more than one instance was ever running concurrently, proving
+// the scheduler dispatches OrderSensitive operators one at a time within
+// a wave even though they carry no DataFlow dependency edge between them.
+type orderSensitiveProbeOperator struct {
+	inFlight        *int32
+	overlapObserved *int32
+	sleep           time.Duration
+}
+
+func (orderSensitiveProbeOperator) Setup() error { return nil }
+
+func (o orderSensitiveProbeOperator) Run(_ *Evaluator, _ []*Expr) (*Response, error) {
+	if atomic.AddInt32(o.inFlight, 1) > 1 {
+		atomic.StoreInt32(o.overlapObserved, 1)
+	}
+	time.Sleep(o.sleep)
+	atomic.AddInt32(o.inFlight, -1)
+	return &Response{Type: Replace, Value: "claimed"}, nil
+}
+
+func (orderSensitiveProbeOperator) Dependencies(_ *Evaluator, _ []*Expr, _ []*treepkg.Cursor, auto []*treepkg.Cursor) []*treepkg.Cursor {
+	return auto
+}
+
+func (orderSensitiveProbeOperator) Phase() OperatorPhase { return EvalPhase }
+
+// OrderSensitive marks this operator so the scheduler serializes it
+// against other same-wave instances - see interfaces.go's OrderSensitive
+// and evaluator_parallel.go's isOrderSensitiveOp/partitioning.
+func (orderSensitiveProbeOperator) OrderSensitive() bool { return true }
+
+// TestParallelOrderSensitiveOperatorRunsSequentially proves the
+// OrderSensitive partitioning added in Wave D1 (see op_static_ips.go's
+// real use of it) actually prevents concurrent dispatch of same-wave
+// OrderSensitive operators, which have no DataFlow dependency edge
+// between them and would otherwise land in the true-concurrency group.
+func TestParallelOrderSensitiveOperatorRunsSequentially(t *testing.T) {
+	ansi.Color(false)
+	SilenceWarnings(true)
+
+	var inFlight, overlapObserved int32
+
+	engine := newParallelEngine(t)
+	op := orderSensitiveProbeOperator{
+		inFlight:        &inFlight,
+		overlapObserved: &overlapObserved,
+		sleep:           20 * time.Millisecond,
+	}
+	RegisterOp("ordersensitivetest", op)
+
+	yaml := `
+a: (( ordersensitivetest ))
+b: (( ordersensitivetest ))
+c: (( ordersensitivetest ))
+d: (( ordersensitivetest ))
+`
+	tree := parseYAMLForTest(t, yaml)
+	ev := &Evaluator{
+		Tree: tree,
+		Deps: map[string][]treepkg.Cursor{},
+	}
+	ev.SetEngine(engine)
+
+	if err := ev.RunPhaseParallel(EvalPhase); err != nil {
+		t.Fatalf("RunPhaseParallel failed: %v", err)
+	}
+
+	for _, key := range []string{"a", "b", "c", "d"} {
+		if ev.Tree[key] != "claimed" {
+			t.Errorf("%s: expected %q, got %v", key, "claimed", ev.Tree[key])
+		}
+	}
+
+	if atomic.LoadInt32(&overlapObserved) != 0 {
+		t.Error("OrderSensitive operators overlapped in time; expected strictly sequential dispatch within the wave")
 	}
 }
 

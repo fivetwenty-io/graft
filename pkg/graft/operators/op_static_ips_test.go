@@ -383,3 +383,31 @@ func TestClaimStaticIPIsRaceSafe(t *testing.T) {
 		t.Fatalf("engine used-IP owner %q does not match sole winner %q", got, winner)
 	}
 }
+
+// TestStaticIPOperatorIsOrderSensitive pins the static_ips end of the
+// OrderSensitive carve-out. The scheduler side (that operators reporting
+// true are dispatched one at a time) is covered by
+// TestParallelOrderSensitiveOperatorRunsSequentially; what that test
+// cannot cover is whether static_ips - the only operator that needs the
+// carve-out - still opts into it.
+//
+// A timing-based test cannot cover this: claimStaticIP's critical section
+// is short enough that removing the carve-out does not reliably reorder
+// claims, so every behavioral static_ips test still passes with
+// OrderSensitive() returning false (verified by mutation). This assertion
+// closes that gap deterministically instead: it fails immediately if the
+// method is deleted (interface no longer satisfied) or flipped to false,
+// which is the realistic regression - a refactor dropping a method whose
+// only caller reaches it through a type assertion.
+func TestStaticIPOperatorIsOrderSensitive(t *testing.T) {
+	var op interface{} = StaticIPOperator{}
+
+	sensitive, ok := op.(graft.OrderSensitive)
+	if !ok {
+		t.Fatal("StaticIPOperator no longer implements graft.OrderSensitive; the parallel scheduler will dispatch static_ips calls concurrently, making duplicate-IP-claim errors nondeterministic")
+	}
+
+	if !sensitive.OrderSensitive() {
+		t.Error("StaticIPOperator.OrderSensitive() returned false; static_ips claims from the same wave will run concurrently and race for the shared used-IP pool")
+	}
+}

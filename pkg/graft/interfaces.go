@@ -141,6 +141,26 @@ type TargetAware interface {
 	SupportsTarget() bool
 }
 
+// OrderSensitive is implemented by operators whose observable behavior
+// (result value, or an error's wording) depends on relative execution
+// order among other operators in the same dependency-free scheduling wave
+// - state a DataFlow dependency edge would not capture because it is
+// engine-wide claim/allocation state (e.g. static_ips's used-IP pool)
+// rather than a read of another operator's tree output.
+//
+// The parallel scheduler (evaluator_parallel.go) runs OrderSensitive
+// operators within a wave one at a time, in the same sorted-by-path order
+// used before true per-wave concurrency was introduced, so their behavior
+// is unchanged from sequential evaluation. Operators that do not implement
+// this interface, or whose OrderSensitive() returns false, are eligible
+// for true concurrent dispatch within a wave.
+type OrderSensitive interface {
+	// OrderSensitive reports whether this operator call needs to run
+	// serialized (relative to other same-wave operators) rather than
+	// concurrently.
+	OrderSensitive() bool
+}
+
 // Opcall represents an operator call.
 type Opcall struct {
 	src       string

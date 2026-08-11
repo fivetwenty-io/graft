@@ -769,20 +769,56 @@ func (ev *Evaluator) CheckForCycles(maxDepth int) error {
 }
 
 // RunOp executes a single operator and applies its result to the tree.
-//
-//nolint:gocyclo // operator execution requires handling multiple response types and parent structures
+// It is the sequential entry point: computeOp (may perform Vault/AWS/NATS
+// I/O, reads ev.Tree) followed immediately by applyResponse (mutates
+// ev.Tree). The parallel scheduler (evaluator_parallel.go) calls the two
+// halves separately so it can run computeOp for multiple operators
+// concurrently and serialize only applyResponse - see runOpsWithScheduler.
 func (ev *Evaluator) RunOp(op *Opcall) error {
-	// Capture old value if memory tracking is enabled
-	var oldValue interface{}
+	resp, oldValue, err := ev.computeOp(op)
+	if err != nil {
+		return err
+	}
+	return ev.applyResponse(op, resp, oldValue)
+}
+
+// computeOp runs the operator itself (op.Run), which may perform Vault,
+// AWS, or NATS I/O and reads ev.Tree, but does not mutate it. It also
+// captures the tree's current value at op.where for memory/history
+// recording, before applyResponse overwrites it. Safe to call concurrently
+// for multiple operators within the same dependency-free scheduling wave,
+// since DataFlow guarantees no same-wave operator reads a path another
+// same-wave operator writes, and no writes happen until applyResponse.
+func (ev *Evaluator) computeOp(op *Opcall) (resp *Response, oldValue interface{}, err error) {
 	if ev.memory != nil && ev.memory.IsEnabled() && op.where != nil {
 		oldValue, _ = op.where.Resolve(ev.Tree)
 	}
 
-	resp, err := op.Run(ev)
-	if err != nil {
-		return err
-	}
+	// Opcall.Run sets ev.Here/ev.Target as ambient per-call context for the
+	// duration of op.op.Run (and restores them after), so a nested operator
+	// or a "grab"-style relative-path resolution can read "where am I right
+	// now". That is safe for one evaluator running one call at a time, but
+	// two concurrent computeOp calls sharing the same *Evaluator would race
+	// on those two fields and could observe each other's Here/Target
+	// mid-flight, corrupting relative-path resolution, not just tripping
+	// the race detector. Give each call its own shallow copy of the
+	// evaluator so Here/Target mutations are goroutine-local. Every other
+	// field (Tree, Deps, engine, memory, ...) is a reference type or a
+	// value set once before evaluation begins, so sharing it across the
+	// copy is safe for the read-only access computeOp performs.
+	evCopy := *ev
+	resp, err = op.Run(&evCopy)
+	return resp, oldValue, err
+}
 
+// applyResponse mutates ev.Tree with the operator's result and records
+// history if enabled. Callers running multiple operators' computeOp
+// concurrently must still call applyResponse serially (e.g. under a
+// mutex) - ev.Tree is a plain map/slice tree, not safe for concurrent
+// writes.
+//
+//nolint:gocyclo // operator response application requires handling multiple response types and parent structures
+func (ev *Evaluator) applyResponse(op *Opcall, resp *Response, oldValue interface{}) error {
 	switch resp.Type {
 	case Replace:
 		log.DEBUG("executing a Replace instruction on %s", op.where)

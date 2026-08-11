@@ -52,6 +52,15 @@ func (StaticIPOperator) Setup() error {
 	return nil
 }
 
+// OrderSensitive reports true: which instance group's claim wins a
+// duplicate-IP-claim error (see staticIPClaimMu/claimStaticIP) depends on
+// relative evaluation order among static_ips calls, so the parallel
+// scheduler must not dispatch static_ips concurrently with other
+// same-wave static_ips calls.
+func (StaticIPOperator) OrderSensitive() bool {
+	return true
+}
+
 // Phase ...
 func (StaticIPOperator) Phase() OperatorPhase {
 	return EvalPhase

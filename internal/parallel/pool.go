@@ -187,6 +187,42 @@ func (wp *WorkerPool) SubmitContext(ctx context.Context, task TaskFunc) error {
 	}
 }
 
+// SubmitBlocking submits a task, blocking until a queue slot is available
+// (or ctx/the pool is done), but returns as soon as the task is enqueued -
+// it does not wait for the task to execute. Use this instead of
+// SubmitContext when many tasks are being fanned out concurrently and the
+// caller wants backpressure on submission (bounded queue growth) without
+// serializing on each task's completion the way SubmitWaitContext would:
+// SubmitContext's non-blocking select turns a full queue into an
+// immediate ErrPoolFull, which is wrong for a producer that is only
+// trying to enqueue faster than the workers can drain, not asking whether
+// the pool has capacity right now.
+func (wp *WorkerPool) SubmitBlocking(ctx context.Context, task TaskFunc) error {
+	if wp.shutdown.Load() {
+		return ErrPoolShutdown
+	}
+
+	if task == nil {
+		return nil
+	}
+
+	pt := &poolTask{
+		fn:     task,
+		ctx:    ctx,
+		result: nil, // fire-and-forget once enqueued, like SubmitContext
+	}
+
+	select {
+	case wp.taskQueue <- pt:
+		wp.stats.submitted.Add(1)
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-wp.ctx.Done():
+		return ErrPoolShutdown
+	}
+}
+
 // SubmitWait submits a task and waits for its completion.
 func (wp *WorkerPool) SubmitWait(task TaskFunc) error {
 	return wp.SubmitWaitContext(wp.ctx, task)
@@ -305,6 +341,19 @@ func (wp *WorkerPool) ShutdownWaitTimeout(timeout time.Duration) error {
 // Done returns a channel that's closed when the pool is fully shut down.
 func (wp *WorkerPool) Done() <-chan struct{} {
 	return wp.doneCh
+}
+
+// Cancelled returns a channel that's closed the instant the pool's
+// internal context is cancelled (ShutdownWait/ShutdownWaitTimeout),
+// regardless of whether the graceful worker drain has finished - unlike
+// Done, which only closes once every worker has actually exited. A
+// worker abandons its current select the moment this fires and does not
+// drain any task still sitting in taskQueue, so a caller with its own
+// WaitGroup tracking tasks submitted via SubmitBlocking should select on
+// this alongside that WaitGroup to avoid blocking forever on tasks a
+// cancelled pool will never run.
+func (wp *WorkerPool) Cancelled() <-chan struct{} {
+	return wp.ctx.Done()
 }
 
 // IsShutdown returns true if the pool is shutting down.
