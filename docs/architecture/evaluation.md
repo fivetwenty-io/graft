@@ -493,7 +493,7 @@ func (o *GrabOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 The `||` operator provides fallback values:
 
 ```go
-func (o *LogicalOrOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
+func (o *OrElseOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
     // Try left side first
     leftResult, leftErr := ev.EvaluateExpression(args[0])
 

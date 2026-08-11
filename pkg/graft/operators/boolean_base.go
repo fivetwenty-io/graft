@@ -183,18 +183,6 @@ func NewTypeAwareAndOperator() *TypeAwareAndOperator {
 	}
 }
 
-// TypeAwareOrOperator implements the || operator with type awareness.
-type TypeAwareOrOperator struct {
-	*BooleanOperatorBase
-}
-
-// NewTypeAwareOrOperator creates a new type-aware OR operator.
-func NewTypeAwareOrOperator() *TypeAwareOrOperator {
-	return &TypeAwareOrOperator{
-		BooleanOperatorBase: NewBooleanOperatorBase("||", true),
-	}
-}
-
 // TypeAwareNotOperator implements the ! operator with type awareness.
 type TypeAwareNotOperator struct {
 	*BooleanOperatorBase

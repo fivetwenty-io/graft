@@ -8,18 +8,6 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
-// AndOperator implements logical AND (&&).
-type AndOperator struct {
-	*BooleanOperatorBase
-}
-
-// NewAndOperator creates a new AND operator.
-func NewAndOperator() *AndOperator {
-	return &AndOperator{
-		BooleanOperatorBase: NewBooleanOperatorBase("&&", true), // true = short-circuit
-	}
-}
-
 // OrElseOperator implements or-else behavior (||) - returns first non-nil value
 // This is the fallback/coalesce operator, not true boolean OR.
 type OrElseOperator struct{}
@@ -78,18 +66,6 @@ func (OrElseOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 	// Left evaluation succeeded and value is not nil, return it
 	log.DEBUG("  left = %v, returning", leftResp.Value)
 	return leftResp, nil
-}
-
-// NotOperator implements logical NOT (!)
-type NotOperator struct {
-	*BooleanOperatorBase
-}
-
-// NewNotOperator creates a new NOT operator.
-func NewNotOperator() *NotOperator {
-	return &NotOperator{
-		BooleanOperatorBase: NewBooleanOperatorBase("!", false), // false = no short-circuit (unary)
-	}
 }
 
 //nolint:gochecknoinits // Operator registration must happen at package load time
