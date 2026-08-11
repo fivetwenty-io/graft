@@ -31,6 +31,16 @@ type Target struct {
 	CacheTTL           time.Duration `yaml:"cache_ttl"`
 	StreamingThreshold int64         `yaml:"streaming_threshold"`
 	AuditLogging       bool          `yaml:"audit_logging"`
+
+	// Auth holds credential material used to authenticate the NATS
+	// connection. Precedence when more than one is set (highest first):
+	// CredsFile, NkeySeedFile, Token, then User/Password. See
+	// BuildConnectionOptions for the resolution order.
+	Token        string `yaml:"token"`
+	User         string `yaml:"user"`
+	Password     string `yaml:"password"`
+	NkeySeedFile string `yaml:"nkey_seed_file"`
+	CredsFile    string `yaml:"creds_file"`
 }
 
 // Config holds connection configuration with enhanced retry and TLS options.
@@ -49,6 +59,16 @@ type Config struct {
 	CacheTTL           time.Duration
 	StreamingThreshold int64 // Size threshold for streaming objects (bytes)
 	AuditLogging       bool  // Enable audit logging for access
+
+	// Auth holds credential material used to authenticate the NATS
+	// connection. Precedence when more than one is set (highest first):
+	// CredsFile, NkeySeedFile, Token, then User/Password. See
+	// BuildConnectionOptions for the resolution order.
+	Token        string // NATS_TOKEN / NATS_<TARGET>_TOKEN
+	User         string // NATS_USER / NATS_<TARGET>_USER
+	Password     string // NATS_PASSWORD / NATS_<TARGET>_PASSWORD
+	NkeySeedFile string // NATS_NKEY / NATS_<TARGET>_NKEY (path to an nkey seed file)
+	CredsFile    string // NATS_CREDS / NATS_<TARGET>_CREDS (path to a .creds file)
 }
 
 // ParsePath extracts store type (kv/obj) and path from the argument.

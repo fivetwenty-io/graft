@@ -119,3 +119,137 @@ func TestNatsClientPoolExists(t *testing.T) {
 		})
 	})
 }
+
+// TestParseNatsConfig_DefaultAuthEnvVars proves parseNatsConfig's default
+// (no-target) path reads each of NATS_TOKEN/USER/PASSWORD/NKEY/CREDS
+// individually. One subtest per variable, asserting only that variable's
+// field is set and every other auth field stays empty, so deleting any
+// single env-var read (the adversarial review's first two mutations) or
+// all five at once (its third mutation) fails a subtest instead of the
+// whole table passing on partial coverage.
+func TestParseNatsConfig_DefaultAuthEnvVars(t *testing.T) {
+	pathArg := &graft.Expr{Type: graft.Literal, Literal: "kv:store/key"}
+
+	cases := []struct {
+		name   string
+		envVar string
+		value  string
+		get    func(c *natsbackend.Config) string
+	}{
+		{"token", "NATS_TOKEN", "tok_xyz", func(c *natsbackend.Config) string { return c.Token }},
+		{"user", "NATS_USER", "bob", func(c *natsbackend.Config) string { return c.User }},
+		{"password", "NATS_PASSWORD", "hunter2", func(c *natsbackend.Config) string { return c.Password }},
+		{"nkey", "NATS_NKEY", "/path/to/seed.nk", func(c *natsbackend.Config) string { return c.NkeySeedFile }},
+		{"creds", "NATS_CREDS", "/path/to/user.creds", func(c *natsbackend.Config) string { return c.CredsFile }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(tc.envVar, tc.value)
+
+			cfg, err := parseNatsConfig(nil, []*graft.Expr{pathArg})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if got := tc.get(cfg); got != tc.value {
+				t.Errorf("%s: got %q, want %q (env var %s not read)", tc.name, got, tc.value, tc.envVar)
+			}
+
+			// Every other auth field must stay empty: proves this env var
+			// maps to exactly its own field, not a neighboring one.
+			for _, other := range cases {
+				if other.name == tc.name {
+					continue
+				}
+				if got := other.get(cfg); got != "" {
+					t.Errorf("%s: expected %s to stay empty, got %q", tc.name, other.name, got)
+				}
+			}
+		})
+	}
+}
+
+// TestParseNatsConfig_DefaultAuthEnvVars_AllUnset confirms the default path
+// leaves every auth field empty (anonymous connection) when none of the
+// five variables are set - the baseline the table above diffs against.
+func TestParseNatsConfig_DefaultAuthEnvVars_AllUnset(t *testing.T) {
+	pathArg := &graft.Expr{Type: graft.Literal, Literal: "kv:store/key"}
+
+	cfg, err := parseNatsConfig(nil, []*graft.Expr{pathArg})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Token != "" || cfg.User != "" || cfg.Password != "" || cfg.NkeySeedFile != "" || cfg.CredsFile != "" {
+		t.Errorf("expected all auth fields empty, got Token=%q User=%q Password=%q NkeySeedFile=%q CredsFile=%q",
+			cfg.Token, cfg.User, cfg.Password, cfg.NkeySeedFile, cfg.CredsFile)
+	}
+}
+
+// TestParseNatsConfig_ConfigMapAuthKeys proves the inline second-argument
+// config map's token/user/password/nkey_seed_file/creds_file keys are each
+// read individually, mirroring TestParseNatsConfig_DefaultAuthEnvVars for
+// the config-map branches (the review's fourth and fifth mutations:
+// deleting the creds_file branch alone, and deleting all five at once).
+func TestParseNatsConfig_ConfigMapAuthKeys(t *testing.T) {
+	pathArg := &graft.Expr{Type: graft.Literal, Literal: "kv:store/key"}
+
+	cases := []struct {
+		name   string
+		mapKey string
+		value  string
+		get    func(c *natsbackend.Config) string
+	}{
+		{"token", "token", "tok_xyz", func(c *natsbackend.Config) string { return c.Token }},
+		{"user", "user", "bob", func(c *natsbackend.Config) string { return c.User }},
+		{"password", "password", "hunter2", func(c *natsbackend.Config) string { return c.Password }},
+		{"nkey_seed_file", "nkey_seed_file", "/path/to/seed.nk", func(c *natsbackend.Config) string { return c.NkeySeedFile }},
+		{"creds_file", "creds_file", "/path/to/user.creds", func(c *natsbackend.Config) string { return c.CredsFile }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			configArg := &graft.Expr{
+				Type:    graft.Literal,
+				Literal: map[string]interface{}{tc.mapKey: tc.value},
+			}
+
+			cfg, err := parseNatsConfig(nil, []*graft.Expr{pathArg, configArg})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if got := tc.get(cfg); got != tc.value {
+				t.Errorf("%s: got %q, want %q (config-map key %q not read)", tc.name, got, tc.value, tc.mapKey)
+			}
+
+			for _, other := range cases {
+				if other.name == tc.name {
+					continue
+				}
+				if got := other.get(cfg); got != "" {
+					t.Errorf("%s: expected %s to stay empty, got %q", tc.name, other.name, got)
+				}
+			}
+		})
+	}
+}
+
+// TestParseNatsConfig_ConfigMapAuthKeys_AllUnset confirms an auth-free
+// config map leaves every auth field empty, the baseline the table above
+// diffs against.
+func TestParseNatsConfig_ConfigMapAuthKeys_AllUnset(t *testing.T) {
+	pathArg := &graft.Expr{Type: graft.Literal, Literal: "kv:store/key"}
+	configArg := &graft.Expr{Type: graft.Literal, Literal: map[string]interface{}{"tls": true}}
+
+	cfg, err := parseNatsConfig(nil, []*graft.Expr{pathArg, configArg})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Token != "" || cfg.User != "" || cfg.Password != "" || cfg.NkeySeedFile != "" || cfg.CredsFile != "" {
+		t.Errorf("expected all auth fields empty, got Token=%q User=%q Password=%q NkeySeedFile=%q CredsFile=%q",
+			cfg.Token, cfg.User, cfg.Password, cfg.NkeySeedFile, cfg.CredsFile)
+	}
+}

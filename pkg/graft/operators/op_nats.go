@@ -82,6 +82,11 @@ func parseNatsConfig(ev *graft.Evaluator, args []*graft.Expr) (*natsbackend.Conf
 		CacheTTL:           defaultCacheTTLEnv,
 		StreamingThreshold: defaultStreamingThreshold,
 		AuditLogging:       defaultAuditLogging,
+		Token:              os.Getenv("NATS_TOKEN"),
+		User:               os.Getenv("NATS_USER"),
+		Password:           os.Getenv("NATS_PASSWORD"),
+		NkeySeedFile:       os.Getenv("NATS_NKEY"),
+		CredsFile:          os.Getenv("NATS_CREDS"),
 	}
 
 	// If we have a second argument, it could be URL string or config map
@@ -184,6 +189,31 @@ func parseNatsConfig(ev *graft.Evaluator, args []*graft.Expr) (*natsbackend.Conf
 					if d, err := time.ParseDuration(intervalStr); err == nil {
 						config.MaxRetryInterval = d
 					}
+				}
+			}
+			if token, ok := v["token"]; ok {
+				if tokenStr, ok := token.(string); ok {
+					config.Token = tokenStr
+				}
+			}
+			if user, ok := v["user"]; ok {
+				if userStr, ok := user.(string); ok {
+					config.User = userStr
+				}
+			}
+			if password, ok := v["password"]; ok {
+				if passwordStr, ok := password.(string); ok {
+					config.Password = passwordStr
+				}
+			}
+			if nkey, ok := v["nkey_seed_file"]; ok {
+				if nkeyStr, ok := nkey.(string); ok {
+					config.NkeySeedFile = nkeyStr
+				}
+			}
+			if creds, ok := v["creds_file"]; ok {
+				if credsStr, ok := creds.(string); ok {
+					config.CredsFile = credsStr
 				}
 			}
 		default:

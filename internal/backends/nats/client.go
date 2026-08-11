@@ -188,22 +188,7 @@ func (ncp *ClientPool) GetConnection(targetName string) (*PooledConnection, erro
 	}
 
 	// Create NATS configuration from target config
-	cfg := &Config{
-		URL:                config.URL,
-		Timeout:            config.Timeout,
-		Retries:            config.Retries,
-		RetryInterval:      config.RetryInterval,
-		RetryBackoff:       config.RetryBackoff,
-		MaxRetryInterval:   config.MaxRetryInterval,
-		TLS:                config.TLS,
-		CertFile:           config.CertFile,
-		KeyFile:            config.KeyFile,
-		CAFile:             config.CAFile,
-		InsecureSkipVerify: config.InsecureSkipVerify,
-		CacheTTL:           config.CacheTTL,
-		StreamingThreshold: config.StreamingThreshold,
-		AuditLogging:       config.AuditLogging,
-	}
+	cfg := configFromTarget(config)
 
 	// Create new connection
 	conn, err := CreateConnectionFromConfig(cfg)
@@ -297,9 +282,46 @@ func (ncp *ClientPool) GetTargetConfig(targetName string) (*Target, error) {
 		CacheTTL:           parseDurationOrDefault(getEnvOrDefault(envPrefix+"CACHE_TTL", "5m"), 5*time.Minute),
 		StreamingThreshold: ParseInt64OrDefault(getEnvOrDefault(envPrefix+"STREAMING_THRESHOLD", "10485760"), 10*1024*1024),
 		AuditLogging:       parseBoolOrDefault(getEnvOrDefault(envPrefix+"AUDIT_LOGGING", "false")),
+		Token:              os.Getenv(envPrefix + "TOKEN"),
+		User:               os.Getenv(envPrefix + "USER"),
+		Password:           os.Getenv(envPrefix + "PASSWORD"),
+		NkeySeedFile:       os.Getenv(envPrefix + "NKEY"),
+		CredsFile:          os.Getenv(envPrefix + "CREDS"),
 	}
 
 	return config, nil
+}
+
+// configFromTarget copies every field of a resolved *Target (as produced
+// by GetTargetConfig) into the *Config shape BuildConnectionOptions and
+// CreateConnectionFromConfig consume. It exists as its own function,
+// rather than inlined at GetConnection's one call site, so tests can
+// verify the field-by-field copy directly - Target and Config are
+// separate, independently-editable types (Target carries YAML tags for
+// file-based config, Config does not), so a field added to one and
+// missed in this mapping would silently vanish with no compiler error.
+func configFromTarget(t *Target) *Config {
+	return &Config{
+		URL:                t.URL,
+		Timeout:            t.Timeout,
+		Retries:            t.Retries,
+		RetryInterval:      t.RetryInterval,
+		RetryBackoff:       t.RetryBackoff,
+		MaxRetryInterval:   t.MaxRetryInterval,
+		TLS:                t.TLS,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		CAFile:             t.CAFile,
+		InsecureSkipVerify: t.InsecureSkipVerify,
+		CacheTTL:           t.CacheTTL,
+		StreamingThreshold: t.StreamingThreshold,
+		AuditLogging:       t.AuditLogging,
+		Token:              t.Token,
+		User:               t.User,
+		Password:           t.Password,
+		NkeySeedFile:       t.NkeySeedFile,
+		CredsFile:          t.CredsFile,
+	}
 }
 
 // ReleaseConnection decreases the reference count for a target connection.
@@ -331,10 +353,12 @@ func (ncp *ClientPool) CloseAll() {
 
 // CreateConnectionWithRetry creates a NATS connection with retry logic.
 func CreateConnectionWithRetry(config *Config) (*nats.Conn, jetstream.JetStream, error) {
-	opts := BuildConnectionOptions(config)
+	opts, err := BuildConnectionOptions(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid NATS connection configuration: %w", err)
+	}
 
 	var conn *nats.Conn
-	var err error
 
 	retryInterval := config.RetryInterval
 	for attempt := 0; attempt <= config.Retries; attempt++ {
@@ -375,10 +399,12 @@ func CreateConnectionWithRetry(config *Config) (*nats.Conn, jetstream.JetStream,
 
 // CreateConnectionFromConfig creates a NATS connection from target configuration.
 func CreateConnectionFromConfig(config *Config) (*nats.Conn, error) {
-	opts := BuildConnectionOptions(config)
+	opts, err := BuildConnectionOptions(config)
+	if err != nil {
+		return nil, fmt.Errorf("invalid NATS connection configuration: %w", err)
+	}
 
 	var conn *nats.Conn
-	var err error
 
 	retryInterval := config.RetryInterval
 	for attempt := 0; attempt <= config.Retries; attempt++ {
@@ -410,8 +436,13 @@ func CreateConnectionFromConfig(config *Config) (*nats.Conn, error) {
 	return conn, nil
 }
 
-// BuildConnectionOptions builds NATS connection options with enhanced TLS support.
-func BuildConnectionOptions(config *Config) []nats.Option {
+// BuildConnectionOptions builds NATS connection options with enhanced TLS
+// and authentication support. It returns an error instead of silently
+// degrading to an anonymous/unauthenticated or unencrypted connection when
+// the configured credential or certificate material cannot be loaded -
+// deferring that failure to connect time would surface it as an opaque
+// server-side auth/TLS rejection far from its actual cause.
+func BuildConnectionOptions(config *Config) ([]nats.Option, error) {
 	opts := []nats.Option{
 		nats.Timeout(config.Timeout),
 		nats.MaxReconnects(config.Retries),
@@ -437,11 +468,10 @@ func BuildConnectionOptions(config *Config) []nats.Option {
 
 		if config.CertFile != "" && config.KeyFile != "" {
 			cert, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
-			if err == nil {
-				tlsConfig.Certificates = []tls.Certificate{cert}
-			} else {
-				debugLog("failed to load client certificates: %v", err)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load NATS client certificate/key pair (%s, %s): %w", config.CertFile, config.KeyFile, err)
 			}
+			tlsConfig.Certificates = []tls.Certificate{cert}
 		}
 
 		if config.CAFile != "" {
@@ -451,7 +481,42 @@ func BuildConnectionOptions(config *Config) []nats.Option {
 		opts = append(opts, nats.Secure(tlsConfig))
 	}
 
-	return opts
+	authOpt, err := buildAuthOption(config)
+	if err != nil {
+		return nil, err
+	}
+	if authOpt != nil {
+		opts = append(opts, authOpt)
+	}
+
+	return opts, nil
+}
+
+// buildAuthOption resolves the single nats.Option carrying whichever auth
+// method is configured, using the documented precedence order (highest
+// first): CredsFile, NkeySeedFile, Token, then User/Password. Only one
+// auth method is ever applied - mixing, e.g., a creds file and a token
+// makes no sense to the NATS server, so the higher-precedence field wins
+// outright rather than being combined with the others. Returns (nil, nil)
+// when no auth field is set, preserving the pre-existing anonymous
+// connection behavior.
+func buildAuthOption(config *Config) (nats.Option, error) {
+	switch {
+	case config.CredsFile != "":
+		return nats.UserCredentials(config.CredsFile), nil
+	case config.NkeySeedFile != "":
+		opt, err := nats.NkeyOptionFromSeed(config.NkeySeedFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load NATS nkey seed file %s: %w", config.NkeySeedFile, err)
+		}
+		return opt, nil
+	case config.Token != "":
+		return nats.Token(config.Token), nil
+	case config.User != "" || config.Password != "":
+		return nats.UserInfo(config.User, config.Password), nil
+	default:
+		return nil, nil
+	}
 }
 
 // FetchFromKV retrieves a value from a NATS KV store with retry logic. It
