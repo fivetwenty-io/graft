@@ -115,6 +115,7 @@ func (p *Parser) ParseOpcall() (*Opcall, error) {
 		return nil, fmt.Errorf("expected '((' at start of operator expression")
 	}
 	p.advance()
+	p.opcallPos = p.pos // the token right after "((" is the primary operator position
 
 	// Check what kind of expression this is
 	expr, err := p.parseExpression()
@@ -416,6 +417,8 @@ func (p *Parser) parseNull() (*Expr, error) {
 }
 
 // parseIdentifierOrOperator parses an identifier which may be an operator name.
+//
+//nolint:gocyclo // primary-vs-operand position and known-vs-unknown operator dispatch inherently branch a lot; see the A6 lookahead added inline for why each branch exists
 func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 	tok := p.current()
 	name := tok.Literal
@@ -425,14 +428,15 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 	_, isNullOperator := op.(NullOperator)
 	isKnownOperator := !isNullOperator
 
-	// Store current position to check if we're at primary position
-	// Position 1 is the first token after "((" - the primary operator position
-	isPrimaryPosition := p.pos == 1
+	// Store current position to check if we're at the operator-call-opening
+	// position — the token right after "((" (or, for a later stage, the
+	// token right after a nested "(" / "((").
+	isPrimaryPosition := p.pos == p.opcallPos
 
 	if isKnownOperator {
 		// It's a known operator - but only parse it as an operator call if:
 		// 1. It's followed by explicit parentheses: ips(...)
-		// 2. It's at position 1 (the primary operator after "((" )
+		// 2. It's at the operator-call-opening position
 		//
 		// Otherwise, treat it as a reference. This is important because
 		// identifiers like "ips" could be either a reference to a YAML key
@@ -447,9 +451,9 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 			return p.parseOperatorCall(name)
 		}
 
-		// If this is the first token after "((" (position 1), it's the primary operator
-		// Always treat the primary operator as an operator call
-		if p.pos == 2 { // position 0 is "((" which got consumed, position 1 is operator, now at position 2
+		// If this was the token at opcallPos, it's the primary operator.
+		// Always treat the primary operator as an operator call.
+		if p.pos == p.opcallPos+1 { // one past opcallPos, i.e. right after consuming the operator name
 			p.pos-- // back up one position
 			return p.parseOperatorCall(name)
 		}
@@ -475,6 +479,33 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 	// Unknown operator (NullOperator) - at primary position, still treat as operator call
 	// This allows unknown operators to be parsed and left unevaluated
 	if isPrimaryPosition {
+		// A6 (spec cluster A6, §3.2): a bare identifier at the call-opening
+		// position that names no registered operator is normally parsed as
+		// an operator call — the NullOperator literal pass-through (B-1,
+		// B-2). But when the token immediately following it is an infix
+		// operator, "?", or ".", the identifier is in operand position
+		// instead: parse it as a reference so expressions like
+		// `env == "production"` and `flag && other` work. Every other
+		// following token — "))", ")", ",", EOF, a literal, another
+		// identifier, "(" — keeps today's behavior verbatim (§3.3): this is
+		// the load-bearing backward-compat constraint that keeps `(( a ))`
+		// alone passing through as literal text for defer / multi-pass
+		// genesis templating.
+		if p.nextTokenPlacesIdentifierInOperandPosition() {
+			p.advance() // consume the identifier
+			if p.current().Type == interfaces.TokenDot {
+				return p.parseReferencePath(name)
+			}
+			cursor, err := tree.ParseCursor(name)
+			if err != nil {
+				return nil, fmt.Errorf("invalid reference: %s", name)
+			}
+			return &Expr{
+				Type:      Reference,
+				Reference: cursor,
+			}, nil
+		}
+
 		p.advance()
 		nextTok := p.current()
 
@@ -485,7 +516,7 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 		}
 
 		// At primary position - parse as operator call (even if unknown)
-		if p.pos == 2 {
+		if p.pos == p.opcallPos+1 {
 			p.pos-- // back up one position
 			return p.parseOperatorCall(name)
 		}
@@ -523,6 +554,37 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 		Type:      Reference,
 		Reference: cursor,
 	}, nil
+}
+
+// nextTokenPlacesIdentifierInOperandPosition reports whether the token
+// immediately following the current identifier is one that places the
+// identifier in operand position rather than call-opening position: an
+// infix binary operator (+ - * / % == != < <= > >= && ||), "?", or "."
+// (spec cluster A6 §3.2). It peeks one token ahead without consuming
+// anything; p.pos must still be at the identifier itself when called.
+func (p *Parser) nextTokenPlacesIdentifierInOperandPosition() bool {
+	if p.pos+1 >= len(p.tokens) {
+		return false
+	}
+	switch p.tokens[p.pos+1].Type {
+	case interfaces.TokenPlus, interfaces.TokenMinus, interfaces.TokenStar, interfaces.TokenSlash, interfaces.TokenPercent,
+		interfaces.TokenEqual, interfaces.TokenNotEqual, interfaces.TokenLess, interfaces.TokenLessEqual,
+		interfaces.TokenGreater, interfaces.TokenGreaterEqual, interfaces.TokenAnd, interfaces.TokenOr,
+		interfaces.TokenQuestion, interfaces.TokenDot:
+		return true
+	case interfaces.TokenEOF, interfaces.TokenInvalid, interfaces.TokenOperatorStart, interfaces.TokenOperatorEnd,
+		interfaces.TokenInteger, interfaces.TokenFloat, interfaces.TokenString, interfaces.TokenRawString,
+		interfaces.TokenBoolean, interfaces.TokenNull, interfaces.TokenIdentifier, interfaces.TokenReference, interfaces.TokenEnvironment,
+		interfaces.TokenNot, interfaces.TokenColon,
+		interfaces.TokenLeftParen, interfaces.TokenRightParen, interfaces.TokenLeftBracket, interfaces.TokenRightBracket,
+		interfaces.TokenLeftBrace, interfaces.TokenRightBrace, interfaces.TokenComma, interfaces.TokenAt, interfaces.TokenPipe,
+		interfaces.TokenIf, interfaces.TokenElif, interfaces.TokenElse, interfaces.TokenFi,
+		interfaces.TokenFor, interfaces.TokenIn, interfaces.TokenDone, interfaces.TokenWhile,
+		interfaces.TokenCase, interfaces.TokenWhen, interfaces.TokenDefault, interfaces.TokenEsac,
+		interfaces.TokenOn, interfaces.TokenBefore, interfaces.TokenAfter, interfaces.TokenRange, interfaces.TokenOperatorName:
+		return false
+	}
+	return false
 }
 
 // parseOperatorCall parses an operator call with arguments.
