@@ -556,7 +556,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	var mergeSkipEval, mergeFallbackAppend, mergeGoPatch, mergeMultiDoc bool
 	var mergePrune, mergeCherryPick []string
 	var mergeDataflowOrder string
-	var mergeHistory, mergeShowChanges, mergeChangesOnly bool
+	var mergeHistory, mergeShowChanges, mergeChangesOnly, mergeInteractive bool
 	var mergeTracePath string
 
 	mergeCmd := &cobra.Command{
@@ -578,6 +578,10 @@ func newRootCmd() (*cobra.Command, *bool) {
 				ChangesOnly:    mergeChangesOnly,
 				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
 			}
+			if mergeInteractive {
+				exit(handleDebug(args, opts, os.Stdin, os.Stdout))
+				return nil
+			}
 			exit(handleMerge(opts))
 			return nil
 		},
@@ -593,6 +597,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	mergeCmd.Flags().StringVar(&mergeTracePath, "trace-path", "", "Print detailed history for a single path instead of the merged document")
 	mergeCmd.Flags().BoolVar(&mergeShowChanges, "show-changes", false, "Print a merge/evaluation change summary instead of the merged document")
 	mergeCmd.Flags().BoolVar(&mergeChangesOnly, "changes-only", false, "Print only the paths that changed during merge/evaluation instead of the merged document")
+	mergeCmd.Flags().BoolVar(&mergeInteractive, "interactive", false, "Launch the interactive debug REPL instead of merging directly (equivalent to 'graft debug')")
 
 	// fan command
 	var fanSkipEval, fanFallbackAppend, fanGoPatch, fanMultiDoc bool
@@ -684,7 +689,26 @@ func newRootCmd() (*cobra.Command, *bool) {
 	}
 	vaultinfoCmd.Flags().BoolVar(&vaultInfoGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged")
 
-	rootCmd.AddCommand(mergeCmd, fanCmd, jsonCmd, diffCmd, vaultinfoCmd)
+	// debug command
+	var debugGoPatch, debugFallbackAppend bool
+
+	debugCmd := &cobra.Command{
+		Use:   "debug [files...]",
+		Short: "Interactive debugging REPL for step-through merge analysis",
+		RunE: func(_ *cobra.Command, args []string) error {
+			opts := &mergeOpts{
+				EnableGoPatch:  debugGoPatch,
+				FallbackAppend: debugFallbackAppend,
+				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
+			}
+			exit(handleDebug(args, opts, os.Stdin, os.Stdout))
+			return nil
+		},
+	}
+	debugCmd.Flags().BoolVar(&debugGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged (same meaning as merge --go-patch)")
+	debugCmd.Flags().BoolVar(&debugFallbackAppend, "fallback-append", false, "Use append semantics instead of inline for the default array-merge fallback (same meaning as merge --fallback-append)")
+
+	rootCmd.AddCommand(mergeCmd, fanCmd, jsonCmd, diffCmd, vaultinfoCmd, debugCmd)
 
 	return rootCmd, &aborted
 }
