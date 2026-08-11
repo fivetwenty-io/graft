@@ -114,35 +114,19 @@ integer-only maps are unaffected; see [Map key
 ordering](yaml-formatting.md#known-differences) for the byte-parity
 guarantee that still holds for those cases.
 
-### scalar-array-default-merge-replaces-instead-of-inlining
-
-**Current behavior:** an overlay array whose entries are all plain
-scalars, carrying no array-merge marker, bypasses the marker-aware merge
-path and is handled by an array merge strategy option that defaults to
-replacing the original array outright. With `base.yml` holding
-`f: [a, b, c]` and `overlay.yml` holding `f: [X]`, graft produces
-`f: [X]`.
-
-**Expected behavior:** spruce's default fallback chain tries a key merge
-first, which requires map entries and so does not apply, then falls
-through to a pairwise merge by position (`inline`). spruce produces
-`f: [X, b, c]` for the same input.
-
-**Impact:** an overlay that shortens a scalar array silently drops the
-original's trailing entries under graft where spruce preserves them.
-Overlays whose array is the same length as or longer than the original
-are unaffected, because a replace and a pairwise merge agree in those
-cases, which is why the divergence is easy to miss. A deployment file
-that trims a list of scalars -- release names, DNS servers, feature
-flags -- gets a different result from the two tools. Writing
-`- (( inline ))` as the overlay array's first entry restores spruce's
-behavior, and `--fallback-append` already matches.
-
 ## Resolved
 
 Items that were tracked as open gaps and have since been closed. Kept
 here, under their original heading, so links from other pages that
 point at a specific gap keep resolving to the right place.
+
+### scalar-array-default-merge-replaces-instead-of-inlining
+
+**Resolved.** The scalar-array path's default strategy now merges
+pairwise by position, matching spruce's `inline` fallback: with
+`base.yml` holding `f: [a, b, c]` and `overlay.yml` holding `f: [X]`,
+both tools produce `f: [X, b, c]`. An explicit strategy option can
+still request replace, and `--fallback-append` is unchanged.
 
 ### quoted-boolean-strings-coerced-to-booleans
 

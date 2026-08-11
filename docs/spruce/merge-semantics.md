@@ -48,23 +48,18 @@ path (`pkg/graft/merger`), which the CLI's merge builder routes into
 whenever an overlay array contains map entries, an explicit array-merge
 marker, or a prune/sort marker. Arrays of plain scalars with no marker
 and no map entries take a separate, simpler path controlled by an array
-merge strategy option (default: replace the original array outright).
-
-**This diverges from spruce.** spruce's key-merge step requires map
-entries, so a scalar array falls through to the next step of the chain --
-pairwise merge by position (`inline`) -- rather than being replaced.
-The difference is only visible when the overlay array is shorter than the
-original, because a replace and a pairwise merge agree whenever the
-overlay is the same length or longer:
+merge strategy option, whose default (`inline`) merges pairwise by
+position exactly as spruce's fallback does: overlay entries replace
+base entries index by index, base entries beyond the overlay's length
+are kept, and extra overlay entries are appended.
 
 ```
 # base.yml: f: [a, b, c]      overlay.yml: f: [X]
 spruce merge base.yml overlay.yml   ->  f: [X, b, c]
-graft  merge base.yml overlay.yml   ->  f: [X]
+graft  merge base.yml overlay.yml   ->  f: [X, b, c]
 ```
 
-An overlay that says `- (( inline ))` before its entries gets spruce's
-behavior from graft. `--fallback-append` behaves the same in both tools.
+`--fallback-append` behaves the same in both tools.
 
 ```mermaid
 flowchart TD
@@ -77,7 +72,7 @@ flowchart TD
     F -- no --> H{--fallback-append set?}
     H -- yes --> I[Append new entries]
     H -- no --> J[Merge pairwise by position - inline]
-    B -- no --> K[Array merge strategy option\ndefault: replace]
+    B -- no --> K[Array merge strategy option\ndefault: merge pairwise by position - inline]
 ```
 
 ### Array-marker handling under `--skip-eval` matches spruce

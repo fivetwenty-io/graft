@@ -550,12 +550,15 @@ func (m *mergeBuilderImpl) mergeValuesAtPath(base, overlay interface{}, path []s
 			copy(result, overlayArray)
 			copy(result[len(overlayArray):], baseArray)
 			return result, nil
-		case ReplaceArrays, InlineArrays:
-			// Replace arrays (default) - for simple merge without operators,
-			// we just replace unless it has identifiable elements
+		case ReplaceArrays:
 			return deepCopyValue(overlayArray), nil
+		case InlineArrays:
+			return m.mergeArraysInlineAtPath(baseArray, overlayArray, path)
 		default:
-			return deepCopyValue(overlayArray), nil
+			// InlineArrays is the zero value, so an unset strategy lands in
+			// the InlineArrays case above; any future strategy value falls
+			// back to the same spruce-default positional merge.
+			return m.mergeArraysInlineAtPath(baseArray, overlayArray, path)
 		}
 	}
 
@@ -570,6 +573,33 @@ func (m *mergeBuilderImpl) mergeValuesAtPath(base, overlay interface{}, path []s
 	}
 
 	return deepCopyValue(overlay), nil
+}
+
+// mergeArraysInlineAtPath merges two arrays positionally, matching spruce's
+// default (inline) list merge: overlay elements merge over base elements
+// index by index, base elements beyond the overlay's length are kept, and
+// overlay elements beyond the base's length are appended. Only arrays free
+// of merge markers, maps, prune, and sort reach this path — anything else
+// routes through the legacy merger (see needsLegacyMerger) — so elements
+// here are scalars or nested plain arrays.
+func (m *mergeBuilderImpl) mergeArraysInlineAtPath(baseArray, overlayArray []interface{}, path []string) ([]interface{}, error) {
+	merged := make([]interface{}, 0, max(len(baseArray), len(overlayArray)))
+	for i := range overlayArray {
+		elemPath := append(append([]string{}, path...), strconv.Itoa(i))
+		if i < len(baseArray) {
+			elem, err := m.mergeValuesAtPath(baseArray[i], overlayArray[i], elemPath)
+			if err != nil {
+				return nil, err
+			}
+			merged = append(merged, elem)
+		} else {
+			merged = append(merged, deepCopyValue(overlayArray[i]))
+		}
+	}
+	for i := len(overlayArray); i < len(baseArray); i++ {
+		merged = append(merged, deepCopyValue(baseArray[i]))
+	}
+	return merged, nil
 }
 
 // isCalcModificationExpression reports whether s is an unevaluated "(( calc

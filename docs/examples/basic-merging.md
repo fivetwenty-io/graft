@@ -136,8 +136,8 @@ Arrays require explicit operators to control merge behavior.
 ### Default Array Behavior
 
 An array whose entries are plain scalars, carrying no array-merge marker, is
-replaced outright by the overlay's array. Entries past the end of the overlay
-are not preserved.
+merged pairwise by position: overlay entries replace base entries index by
+index, and base entries past the end of the overlay are preserved.
 
 **base.yml:**
 
@@ -164,6 +164,8 @@ graft merge base.yml overlay.yml
 ```yaml
 features:
 - auth-v2
+- logging
+- caching
 ```
 
 Arrays whose entries are maps take a different default: they merge by the
