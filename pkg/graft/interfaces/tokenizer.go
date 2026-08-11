@@ -304,6 +304,13 @@ func (t *AdvancedTokenizer) PeekToken() *Token {
 	return t.nextToken
 }
 
+// Position returns the tokenizer's current byte offset into the input.
+// Callers use this to detect a scanner arm that returns a token without
+// consuming any input, which would otherwise livelock the caller's read loop.
+func (t *AdvancedTokenizer) Position() int {
+	return t.position
+}
+
 // HasMore returns true if there are more tokens to read.
 func (t *AdvancedTokenizer) HasMore() bool {
 	if t.nextComputed && t.nextToken != nil {
@@ -396,6 +403,22 @@ func (t *AdvancedTokenizer) scanToken() Token {
 	return t.makeTokenAt(TokenInvalid, string(ch), pos.start, pos.startLine, pos.startColumn)
 }
 
+// runeSpanEnd returns the byte offset reached by advancing runeCount runes
+// from start in s, clamped to len(s). ReferencePattern.Match reports its
+// match length in runes — the same unit advance() consumes — so a caller
+// that needs the matched text must convert. Slicing s[start:start+runeCount]
+// directly reads past the end for a pattern whose scan overruns the input
+// (an unterminated quote inside a bracketed segment, e.g. `A["`, which
+// panicked the whole process) and splits a multi-byte rune otherwise.
+func runeSpanEnd(s string, start, runeCount int) int {
+	end := start
+	for i := 0; i < runeCount && end < len(s); i++ {
+		_, size := utf8.DecodeRuneInString(s[end:])
+		end += size
+	}
+	return end
+}
+
 // tryMatchReferencePattern attempts to match a reference pattern.
 func (t *AdvancedTokenizer) tryMatchReferencePattern(pos tokenPosition) (Token, bool) {
 	if !t.options.RecognizeReferencePaths || t.state != StateNormal {
@@ -404,7 +427,7 @@ func (t *AdvancedTokenizer) tryMatchReferencePattern(pos tokenPosition) (Token, 
 
 	for _, pattern := range t.patterns {
 		if matched, length := pattern.Match(t.input, t.position); matched {
-			value := t.input[t.position : t.position+length]
+			value := t.input[t.position:runeSpanEnd(t.input, t.position, length)]
 			if strings.Contains(value, ".") || strings.Contains(value, "[") {
 				t.advance(length)
 				return Token{
@@ -420,13 +443,12 @@ func (t *AdvancedTokenizer) tryMatchReferencePattern(pos tokenPosition) (Token, 
 }
 
 // scanDollarSign handles the $ character.
-//
-//nolint:unparam // pos reserved for future positional error reporting
 func (t *AdvancedTokenizer) scanDollarSign(pos tokenPosition) Token {
 	if t.options.AllowEnvironmentVars {
 		return t.scanEnvironmentVar()
 	}
-	return t.makeToken(TokenInvalid, "unexpected character: $")
+	t.advance(1)
+	return t.makeTokenAt(TokenInvalid, "unexpected character: $", pos.start, pos.startLine, pos.startColumn)
 }
 
 // scanParentheses handles ( and ) characters.
@@ -517,7 +539,8 @@ func (t *AdvancedTokenizer) scanComplexOperator(ch rune, pos tokenPosition) (Tok
 			t.advance(2)
 			return t.makeTokenAt(TokenEqual, "==", pos.start, pos.startLine, pos.startColumn), true
 		}
-		return t.makeToken(TokenInvalid, "unexpected character: ="), true
+		t.advance(1)
+		return t.makeTokenAt(TokenInvalid, "unexpected character: =", pos.start, pos.startLine, pos.startColumn), true
 	case '<':
 		if peek == '=' {
 			t.advance(2)
@@ -537,13 +560,15 @@ func (t *AdvancedTokenizer) scanComplexOperator(ch rune, pos tokenPosition) (Tok
 			t.advance(2)
 			return t.makeTokenAt(TokenAnd, "&&", pos.start, pos.startLine, pos.startColumn), true
 		}
-		return t.makeToken(TokenInvalid, "unexpected character: &"), true
+		t.advance(1)
+		return t.makeTokenAt(TokenInvalid, "unexpected character: &", pos.start, pos.startLine, pos.startColumn), true
 	case '|':
 		if peek == '|' {
 			t.advance(2)
 			return t.makeTokenAt(TokenOr, "||", pos.start, pos.startLine, pos.startColumn), true
 		}
-		return t.makeToken(TokenInvalid, "unexpected character: |"), true
+		t.advance(1)
+		return t.makeTokenAt(TokenInvalid, "unexpected character: |", pos.start, pos.startLine, pos.startColumn), true
 	}
 
 	return Token{}, false

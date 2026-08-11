@@ -13,13 +13,30 @@ import (
 
 // Note: Precedence constants and Associativity are defined in operator_registry.go
 
+// tokenStream is the minimal tokenizer surface Parser.tokenize consumes. It
+// exists so tests can substitute a stub that simulates a non-advancing
+// scanner arm without constructing pathological AdvancedTokenizer input.
+type tokenStream interface {
+	HasMore() bool
+	NextToken() *interfaces.Token
+	Position() int
+}
+
 // Parser parses operator expressions.
 type Parser struct {
-	tokenizer *interfaces.AdvancedTokenizer
+	tokenizer tokenStream
 	tokens    []*interfaces.Token
 	pos       int
 	input     string
 	phase     OperatorPhase
+
+	// opcallPos is the token index at which a bare identifier may open an
+	// operator call — the "primary operator position". It replaces the
+	// literal constant 1 that parseIdentifierOrOperator used to compare
+	// against, so nested groups (a later stage) can each carry their own
+	// marker. In this stage it is set once, in ParseOpcall, to 1 — the
+	// first token after "((" — matching today's sole call site.
+	opcallPos int
 }
 
 // NewParser creates a new parser for the given input.
@@ -39,16 +56,24 @@ func NewParser(input string, phase OperatorPhase) *Parser {
 
 // tokenize converts input to tokens.
 //
-//nolint:unparam // returns error for interface consistency and future error handling
+// A progress assertion guards against a tokenizer scanner arm that returns a
+// token without consuming any input: without it, Parser.tokenize would loop
+// forever appending identical tokens (this happened for lone `=`, `&`, `|`,
+// and `$` before that bug was fixed; see interfaces/tokenizer.go). Any future
+// regression of the same shape now fails loudly instead of hanging.
 func (p *Parser) tokenize() error {
 	p.tokens = nil
 	p.pos = 0
 
 	for p.tokenizer.HasMore() {
+		before := p.tokenizer.Position()
 		tok := p.tokenizer.NextToken()
 		p.tokens = append(p.tokens, tok)
 		if tok.Type == interfaces.TokenEOF {
 			break
+		}
+		if p.tokenizer.Position() <= before {
+			return fmt.Errorf("tokenizer made no progress at offset %d", before)
 		}
 	}
 	return nil
