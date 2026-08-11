@@ -1,533 +1,97 @@
 # Error Codes and Troubleshooting
 
-This reference covers Graft error types, codes, and troubleshooting guidance.
+This reference covers graft's error model, its opt-in error-code system, and debugging tools.
 
-## Error Categories
+## Error model
 
-| Category | Code Range | Description |
-|----------|------------|-------------|
-| Parse | 100-199 | YAML/JSON parsing errors |
-| Evaluation | 200-299 | Operator evaluation errors |
-| Merge | 300-399 | Document merge errors |
-| Backend | 400-499 | External service errors |
-| Validation | 500-599 | Post-processing validation errors |
-| System | 900-999 | Internal system errors |
+Every error graft raises internally is a plain Go `error`. Two additional types layer stable, machine-readable classification on top, without changing any error's message text:
 
-## Parse Errors (100-199)
+- `graft.GraftError` (`pkg/graft/errors.go`): `{Type ErrorType, Message, Path string, Cause error}`. `ErrorType` is a string enum: `parse_error`, `merge_error`, `evaluation_error`, `operator_error`, `configuration_error`, `validation_error`, `external_error`. Constructed by the library API (`Document`, `MergeBuilder`, `Engine.ParseYAML`/`ParseJSON`) for structural and configuration failures.
 
-### E101: Invalid YAML Syntax
+- `graft.PathError` (`pkg/graft/errors.go`): `{Path string, Cause error}`. Wraps every per-operator evaluation failure with the document path where it occurred. `Error()` returns `"$.<path>: <cause>"` — this is the line format spruce and genesis have always used, and is exactly what appears (one per line, `- ` prefixed) in a `MultiError`'s `"N error(s) detected:"` block.
 
-```
-Error E101: Invalid YAML syntax
-  File: config.yml
-  Line: 15, Column: 3
+Both types implement `Code() ErrorCode`, and `graft.ClassifyError(err error) ErrorCode` classifies any error, including plain ones never explicitly tagged, by unwrapping through `errors.As`/`errors.Is` and matching a fixed set of known types and message patterns. `ErrorCode` is a string like `"E201"`; the empty string means "no assigned code" (not itself an error).
 
-  database:
-    host: localhost
-    port: 5432
-      timeout: 30  # Invalid indentation
-      ^^^^
+## CLI stderr output does not change by default
 
-  Hint: Check indentation. YAML uses consistent spaces (not tabs).
-```
+Merge and evaluation errors print as `- $.<path>: <message>` lines inside a `"N error(s) detected:"` block — this is spruce's format, and genesis's `ManifestProvider.pm` parses it with the regex `^\s*-\s*\$\.(\S+?):`. That format, the `secret <key> not found` wording, warning formatting, and exit codes are unchanged and byte-identical to previous graft releases; nothing below alters default output.
 
-**Causes:**
+## Opt-in: `GRAFT_ERROR_CODES`
 
-- Mixed tabs and spaces
+Set `GRAFT_ERROR_CODES=1` (also accepts `true`, `yes`, `on`, case-insensitive) to have `MultiError`'s per-path lines gain a `[Ecode]` tag on the message segment, after the `$.path: ` prefix genesis's regex depends on:
 
-- Inconsistent indentation
+Given `jobs.web.instances: (( concat "only-one-arg" ))`, `graft merge` produces:
 
-- Missing colons after keys
+```bash
+# default
+ - $.jobs.web.instances: concat operator requires at least two arguments
 
-- Unclosed quotes
-
-**Resolution:**
-
-- Use spaces consistently (2 or 4)
-
-- Ensure proper key: value syntax
-
-- Close all quotes and brackets
-
-### E102: Invalid Operator Syntax
-
-```
-Error E102: Invalid operator syntax
-  File: config.yml
-  Line: 12, Column: 15
-
-  password: (( vault "secret/db:password" ||
-                                          ^
-  Expected: expression after '||' operator
-  Found: end of line
-
-  Hint: The '||' operator requires a default value.
-  Example: (( vault "path:key" || "default" ))
+# GRAFT_ERROR_CODES=1
+ - $.jobs.web.instances: [E206] concat operator requires at least two arguments
 ```
 
-**Causes:**
+(both captured verbatim from `graft merge`; the pair differs by exactly the `[E206] ` tag)
 
-- Incomplete operator expression
+The tag is only added when the error resolves to a `*PathError` with a non-empty `Code()`; unclassified errors, and errors outside the `MultiError` per-path shape (YAML/JSON parse failures reported per input file, cycle-detection's single summary line, marshal errors), are unaffected by this flag today — use the Go API (`ClassifyError`, `GraftError.Code()`, `PathError.Code()`) to classify those programmatically.
 
-- Missing arguments
+## Codes
 
-- Unbalanced parentheses
+Every code below has a real trigger in graft's code and a passing test (`pkg/graft/errors_test.go`, `pkg/graft/operators/op_vault_errorcode_test.go`). "CLI-reachable" means a plain `graft merge` on ordinary input reaches it; "library API" means the trigger is a public `pkg/graft` function/method a Go program embedding graft can call, not something the `graft` CLI itself exposes a direct path to today.
 
-**Resolution:**
+### Parse (E1xx)
 
-- Complete the expression
+| Code | Meaning | Trigger |
+|------|---------|---------|
+| E100 | YAML/JSON parsing, or `(( if/for/while/case ))` control-flow expansion, failed | CLI-reachable: `graft merge` on a file with invalid YAML/JSON. Reported per input file, not as a `MultiError` `*PathError` entry, so `GRAFT_ERROR_CODES=1` does not tag it on stderr today — see the carve-out above. `ClassifyError`/`GraftError.Code()` still return `E100` for it programmatically. |
+| E101 | A reference/path expression (e.g. inside `(( grab ))`) could not be parsed | Library API: `tree.ParseCursor` given malformed bracket syntax (e.g. unbalanced `]`) |
 
-- Add required arguments
+### Evaluation (E2xx)
 
-- Balance `((` and `))`
+| Code | Meaning | Trigger |
+|------|---------|---------|
+| E200 | Generic operator-evaluation failure not covered by a more specific code | Library API: `graft.NewEvaluationError` (used internally by `MergeBuilder`'s evaluation fallback) |
+| E201 | A reference resolved to a path that doesn't exist | CLI-reachable: `(( grab missing.path ))` |
+| E202 | A path held the wrong kind of value (map/list/scalar) for the operation | CLI-reachable: `(( grab a.b ))` where `a` is a scalar |
+| E203 | The operator data-flow graph has a cycle | CLI-reachable: `a: (( grab b ))` / `b: (( grab a ))`. The cycle detector returns a single summary error, not a `MultiError` of `*PathError` entries, so `GRAFT_ERROR_CODES=1` does not tag it on stderr today — see the carve-out above. `ClassifyError` still returns `E203` for it programmatically. |
+| E204 | `(( param "..." ))` was never overridden | CLI-reachable: any unresolved `(( param ))` |
+| E205 | An operator name is not registered | Library API: `graft.ValidateOperatorArgs("unknown", n)`. Not reachable via a normal merge today — the parser (`identifierOpensOpcallAt`) only recognizes an identifier as an operator call at all once it is already a registered name, so an unregistered name in `(( ... ))` position falls back to `NullOperator` (left unevaluated, not an error) rather than reaching this code path. |
+| E206 | Operator called with the wrong number of arguments, or a required argument was nil/missing | CLI-reachable: e.g. `(( concat "only-one" ))`, `(( join ))`, `(( empty ))`, `(( file ))` with 0 or 3+ arguments. Note `GraftError{Type: OperatorError}` (`graft.NewOperatorError`) is deliberately *not* mapped to E206 or any other code (`Code()` returns `""`): its message is caller-supplied free text, not reliably an argument-count problem, and it has no real (non-example) construction site today. |
+| E207 | Division/modulo by zero (or null) | CLI-reachable: `(( a / b ))` with `b` equal to `0` |
+| E210 | `(( op@target ... ))` used on an operator that doesn't support `@target` | CLI-reachable: `(( concat@x "a" "b" ))` |
 
-### E103: Unterminated String
+### Merge (E3xx)
 
-```
-Error E103: Unterminated string
-  File: config.yml
-  Line: 8, Column: 20
+| Code | Meaning | Trigger |
+|------|---------|---------|
+| E300 | Documents could not be merged, for a reason other than a type mismatch | Library API: `graft.NewMergeError` (used internally by `MergeBuilder`) |
+| E301 | A structural/path operation on the `Document`/`MergeBuilder` API was invalid (empty path, segment not found, array index out of bounds, navigating through a non-container value, wrong value type for a typed getter, ...) | Library API: e.g. `doc.GetString("a")` where `a` holds an int |
 
-  message: (( concat "Hello, World ))
-                     ^
-  Expected: closing quote
+### Backend (E4xx)
 
-  Hint: Ensure all strings are properly quoted.
-```
+| Code | Meaning | Trigger |
+|------|---------|---------|
+| E400 | Generic external-service integration failure | Library API only: `graft.NewExternalError` — exported for custom operators/backends; no internal graft call site constructs it today |
+| E403 | A Vault secret path or field does not exist | CLI-reachable: `(( vault "secret/path:key" ))` against a path Vault doesn't have |
 
-### E104: Invalid Reference Path
+Connection/authentication failures for Vault, AWS, and NATS are not assigned codes: graft does not currently classify those failure modes distinctly from one another at any single call site, and inventing codes for them without a real, distinguishable trigger would be exactly the kind of aspirational code this taxonomy avoids.
 
-```
-Error E104: Invalid reference path
-  File: config.yml
-  Line: 10, Column: 15
+### System (E9xx)
 
-  value: (( grab ..invalid..path ))
-               ^
-  Invalid path syntax: consecutive dots not allowed
-```
+| Code | Meaning | Trigger |
+|------|---------|---------|
+| E900 | Invalid engine/library configuration | Library API: `graft.NewEngine(graft.WithConcurrency(-1))` |
+| E901 | A file referenced by `(( file ))`, or (via the stdlib `fs.ErrNotExist` sentinel) any other file path graft opens, does not exist | CLI-reachable: `(( file "/nonexistent/path" ))`. Note `(( load ))` does not trigger this: it checks `os.Stat` first and returns a generic "not a file or usable URI" message for a missing path rather than propagating the underlying not-found error. |
+| E902 | A file referenced the same way could not be read due to permissions (stdlib `fs.ErrPermission` sentinel) | Classification-tested directly against a synthetic `fs.ErrPermission`; not exercised through an actual permission-denied file in CI, since that depends on not running as root |
 
-## Evaluation Errors (200-299)
+## CLI exit codes
 
-### E201: Undefined Reference
-
-```
-Error E201: Undefined reference
-  File: config.yml
-  Line: 15, Column: 18
-
-  url: (( concat host ":" port ))
-                 ^^^^
-  Reference 'host' not found in document
-
-  Available paths:
-    - database.host
-    - server.host
-
-  Hint: Did you mean 'database.host'?
-```
-
-**Causes:**
-
-- Typo in path name
-
-- Missing required data
-
-- Reference to pruned key
-
-**Resolution:**
-
-- Check path spelling
-
-- Ensure source data exists
-
-- Verify prune/cherry-pick order
-
-### E202: Type Mismatch
-
-```
-Error E202: Type mismatch
-  File: config.yml
-  Line: 20, Column: 12
-
-  total: (( base + "10" ))
-                   ^^^^
-  Cannot add int and string
-
-  Left operand: 100 (int)
-  Right operand: "10" (string)
-
-  Hint: Use numeric types for arithmetic.
-  Example: (( base + 10 ))
-```
-
-**Causes:**
-
-- Arithmetic on non-numbers
-
-- Boolean operation on wrong type
-
-- Array operation on non-array
-
-**Resolution:**
-
-- Check operand types
-
-- Cast values if needed
-
-- Use appropriate operators
-
-### E203: Circular Reference
-
-```
-Error E203: Circular reference detected
-  File: config.yml
-
-  Cycle detected:
-    foo → bar → baz → foo
-
-  foo: (( grab bar ))   # line 5
-  bar: (( grab baz ))   # line 6
-  baz: (( grab foo ))   # line 7
-
-  Hint: Remove or restructure one of the circular dependencies.
-```
-
-### E204: Required Parameter Missing
-
-```
-Error E204: Required parameter missing
-  File: config.yml
-  Line: 12, Column: 15
-
-  password: (( param "Database password is required" ))
-            ^
-  This parameter must be provided.
-
-  Hint: Provide a value in an overlay file or environment-specific config.
-```
-
-### E205: Operator Not Found
-
-```
-Error E205: Unknown operator
-  File: config.yml
-  Line: 8, Column: 12
-
-  value: (( unknown_op "arg" ))
-            ^^^^^^^^^^
-  Operator 'unknown_op' is not registered
-
-  Similar operators:
-    - vault
-    - concat
-
-  Hint: Check operator spelling or register custom operator.
-```
-
-### E206: Invalid Argument Count
-
-```
-Error E206: Invalid argument count
-  File: config.yml
-  Line: 10, Column: 12
-
-  result: (( join "," ))
-             ^^^^
-  Operator 'join' requires 2 arguments, got 1
-
-  Usage: (( join delimiter array ))
-  Example: (( join "," items ))
-```
-
-### E207: Division by Zero
-
-```
-Error E207: Division by zero
-  File: config.yml
-  Line: 15, Column: 18
-
-  ratio: (( total / count ))
-                  ^
-  Cannot divide by zero
-
-  total = 100
-  count = 0
-
-  Hint: Add a condition to check for zero before division.
-  Example: '(( count > 0 ? total / count : 0 ))'
-```
-
-## Merge Errors (300-399)
-
-### E301: Incompatible Types
-
-```
-Error E301: Cannot merge incompatible types
-  File: overlay.yml
-  Line: 5
-
-  Path: database.config
-  Base type: map
-  Overlay type: string
-
-  Base value:
-    database:
-      config:
-        host: localhost
-        port: 5432
-
-  Overlay value:
-    database:
-      config: "connection-string"
-
-  Hint: Use (( replace )) to replace the entire structure.
-```
-
-### E302: Array Merge Conflict
-
-```
-Error E302: Array merge conflict
-  File: overlay.yml
-  Line: 10
-
-  Path: users
-  Cannot merge arrays: no common key found
-
-  Base array: [{name: alice}, {name: bob}]
-  Overlay array: [{id: 1, data: ...}, {id: 2, data: ...}]
-
-  Hint: Specify merge key: (( merge on id ))
-  Or use: (( append )), (( prepend )), (( replace ))
-```
-
-### E303: Invalid Array Index
-
-```
-Error E303: Invalid array index
-  File: config.yml
-  Line: 12, Column: 22
-
-  item: (( grab items[10] ))
-                     ^^
-  Array index 10 out of bounds (array length: 3)
-
-  Valid indices: 0, 1, 2
-```
-
-## Backend Errors (400-499)
-
-### E401: Vault Connection Failed
-
-```
-Error E401: Vault connection failed
-  Target: default
-  Address: https://vault.example.com
-
-  Connection refused: dial tcp 10.0.0.1:8200: connection refused
-
-  Checklist:
-    - [ ] VAULT_ADDR is set correctly
-    - [ ] Vault server is running
-    - [ ] Network connectivity to Vault
-    - [ ] Firewall allows port 8200
-
-  Current configuration:
-    VAULT_ADDR: https://vault.example.com
-    VAULT_TOKEN: s.xxxxx (set)
-```
-
-### E402: Vault Authentication Failed
-
-```
-Error E402: Vault authentication failed
-  Target: default
-  Address: https://vault.example.com
-
-  Error: permission denied
-
-  Checklist:
-    - [ ] VAULT_TOKEN is valid and not expired
-    - [ ] Token has permissions for the requested path
-    - [ ] Token namespace matches VAULT_NAMESPACE
-
-  Hint: Verify token with: vault token lookup
-```
-
-### E403: Secret Not Found
-
-```
-Error E403: Secret not found
-  Target: default
-  Path: secret/db:password
-
-  Secret path 'secret/db' does not exist or field 'password' not found
-
-  Checklist:
-    - [ ] Path exists in Vault
-    - [ ] Field name is correct
-    - [ ] Token has read permission
-
-  Hint: List available fields with: vault kv get secret/db
-```
-
-### E410: AWS Authentication Failed
-
-```
-Error E410: AWS authentication failed
-  Service: Parameter Store
-  Region: us-west-2
-
-  Error: NoCredentialProviders
-
-  Checklist:
-    - [ ] AWS_REGION is set
-    - [ ] AWS credentials configured (profile, env vars, or IAM role)
-    - [ ] Credentials have required permissions
-
-  Expected permissions:
-    - ssm:GetParameter
-    - ssm:GetParameters
-```
-
-### E411: AWS Parameter Not Found
-
-```
-Error E411: AWS parameter not found
-  Service: Parameter Store
-  Parameter: /app/prod/db_host
-  Region: us-west-2
-
-  Error: ParameterNotFound
-
-  Hint: Verify parameter exists:
-    aws ssm get-parameter --name "/app/prod/db_host"
-```
-
-### E420: NATS Connection Failed
-
-```
-Error E420: NATS connection failed
-  Target: default
-  URL: nats://nats.example.com:4222
-
-  Error: connection refused
-
-  Checklist:
-    - [ ] NATS_URL is correct
-    - [ ] NATS server is running
-    - [ ] Network connectivity
-    - [ ] TLS configuration if required
-```
-
-### E430: Backend Timeout
-
-```
-Error E430: Backend timeout
-  Backend: vault
-  Target: default
-  Operation: get secret/db:password
-  Timeout: 30s
-
-  The request timed out after 30 seconds
-
-  Possible causes:
-    - Network latency
-    - Backend under load
-    - Request rate limiting
-
-  Hint: Increase timeout with VAULT_TIMEOUT or retry
-```
-
-## Validation Errors (500-599)
-
-### E501: Schema Validation Failed
-
-```
-Error E501: Schema validation failed
-  Validator: schema-validator
-
-  Errors:
-    - database.port: expected integer, got string
-    - server.host: required field missing
-    - features.flags[0]: invalid enum value "unknown"
-
-  Schema: config-schema.json
-```
-
-### E502: Required Fields Missing
-
-```
-Error E502: Required fields missing
-  Validator: required-fields
-
-  Missing fields:
-    - app.name
-    - app.version
-    - database.host
-
-  Hint: Add missing fields or provide them in an overlay.
-```
-
-### E503: Post-Processor Failed
-
-```
-Error E503: Post-processor failed
-  Processor: custom-validator
-
-  Error: validation rule 'max-replicas' failed
-  Path: deployment.replicas
-  Value: 100
-  Maximum: 50
-```
-
-## System Errors (900-999)
-
-### E901: Out of Memory
-
-```
-Error E901: Out of memory
-  Operation: parsing
-  File: large-config.yml
-  File size: 500MB
-
-  Hint: Split large files or increase memory limits.
-```
-
-### E902: File Not Found
-
-```
-Error E902: File not found
-  Path: /path/to/missing.yml
-
-  Error: open /path/to/missing.yml: no such file or directory
-
-  Hint: Check path and file permissions.
-```
-
-### E903: Permission Denied
-
-```
-Error E903: Permission denied
-  Path: /etc/secrets/config.yml
-
-  Error: open /etc/secrets/config.yml: permission denied
-
-  Hint: Check file permissions and ownership.
-```
-
-## CLI Exit Codes
-
-| Code | Description |
-|------|-------------|
+| Code | Meaning |
+|------|---------|
 | 0 | Success |
-| 1 | General error |
-| 2 | Parse error (E1xx) |
-| 3 | Evaluation error (E2xx) |
-| 4 | Backend error (E4xx) |
-| 5 | Validation error (E5xx) |
-| 126 | Command not executable |
-| 127 | Command not found |
+| 1 | Usage error (bad flags/arguments) |
+| 2 | Merge/evaluation/parse failure, or any other runtime error |
+
+There is no per-category exit code (no separate code for parse vs. evaluation vs. backend failures) and no use of `126`/`127` — those are shell conventions, not something graft itself returns.
 
 ## Debugging Tips
 
@@ -535,32 +99,36 @@ Error E903: Permission denied
 
 ```bash
 # Debug logging
-export GRAFT_DEBUG=true
-graft merge base.yml overlay.yml
+DEBUG=1 graft merge base.yml overlay.yml
 
 # Trace logging (verbose)
-export GRAFT_TRACE=true
-graft merge base.yml overlay.yml
+TRACE=1 graft merge base.yml overlay.yml
 
 # Or with flags
 graft merge -D base.yml overlay.yml
 graft merge -T base.yml overlay.yml
 ```
 
-### Use Interactive Debugger
+### Use the Interactive Debugger
+
+`graft debug` (also `graft merge --interactive`) launches a step-through REPL over the merge:
 
 ```bash
 graft debug base.yml overlay.yml
-
-graft> step
-graft> inspect database
-graft> history database.host
 ```
+
+Run `help` inside the REPL for the current command list (step-through, tree inspection, and history commands); it evolves independently of this document, so it is the source of truth for exact subcommand names rather than a duplicated list here.
 
 ### Skip Evaluation for Parsing Issues
 
 ```bash
 graft merge --skip-eval base.yml overlay.yml
+```
+
+### Opt Into Error Codes
+
+```bash
+GRAFT_ERROR_CODES=1 graft merge base.yml overlay.yml
 ```
 
 ### Test Backend Connectivity

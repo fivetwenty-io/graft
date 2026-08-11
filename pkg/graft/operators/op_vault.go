@@ -556,7 +556,7 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, target, key strin
 			// Normalize the error messages
 			var notFoundErr *vault.ErrNotFound
 			if errors.As(secretErr, &notFoundErr) {
-				secretErr = fmt.Errorf("secret %s not found", key)
+				secretErr = graft.WithCode(fmt.Errorf("secret %s not found", key), graft.CodeSecretNotFound)
 			}
 			return nil, secretErr
 		}

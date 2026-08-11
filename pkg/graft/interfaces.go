@@ -228,11 +228,11 @@ func (op *Opcall) Run(ev *Evaluator) (*Response, error) {
 			if name == "" {
 				name = "this"
 			}
-			err := fmt.Errorf("%s operator does not support an @target", name)
+			err := WithCode(fmt.Errorf("%s operator does not support an @target", name), CodeUnsupportedTarget)
 			if op.where != nil {
-				return nil, fmt.Errorf("$.%s: %w", op.where, err)
+				return nil, &PathError{Path: op.where.String(), Cause: err}
 			}
-			return nil, fmt.Errorf("$.<generated>: %w", err)
+			return nil, &PathError{Path: "<generated>", Cause: err}
 		}
 	}
 
@@ -246,9 +246,9 @@ func (op *Opcall) Run(ev *Evaluator) (*Response, error) {
 
 	if err != nil {
 		if op.where != nil {
-			return nil, fmt.Errorf("$.%s: %w", op.where, err)
+			return nil, &PathError{Path: op.where.String(), Cause: err}
 		}
-		return nil, fmt.Errorf("$.<generated>: %w", err)
+		return nil, &PathError{Path: "<generated>", Cause: err}
 	}
 	return r, nil
 }

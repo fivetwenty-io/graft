@@ -1,0 +1,463 @@
+package graft_test
+
+import (
+	"errors"
+	"io/fs"
+	"regexp"
+	"testing"
+
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/pkg/graft"
+	_ "github.com/fivetwenty-io/graft/pkg/graft/operators" // registers grab, concat, param, vault, /, etc.
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
+)
+
+// regexpMustCompilePathPrefix mirrors genesis's ManifestProvider.pm regex
+// used to find the "$.<path>:" prefix of a graft error line.
+func regexpMustCompilePathPrefix() *regexp.Regexp {
+	return regexp.MustCompile(`(?m)^\s*-\s*\$\.(\S+?):`)
+}
+
+// withColorDisabled disables ansi coloring for the duration of fn,
+// restoring the previous state afterward, so MultiError.Error() assertions
+// can compare against plain (uncolored) text. This mirrors main.go's
+// default ("auto") color handling, which disables color whenever stderr
+// isn't a tty — the state genesis always observes in practice, since it
+// captures graft's stderr to a file.
+func withColorDisabled(t *testing.T, fn func()) {
+	t.Helper()
+	previous := ansi.IsColorEnabled()
+	ansi.Color(false)
+	defer ansi.Color(previous)
+	fn()
+}
+
+// mergeExprErr runs a real merge (mirroring `graft merge`) and returns the
+// resulting evaluation error, failing the test if evaluation unexpectedly
+// succeeded. It reuses the same engine construction path as mergeYAML
+// (a6_backward_compat_test.go, same package) so these tests exercise the
+// identical code the CLI runs.
+func mergeExprErr(t *testing.T, yamlSrc string) error {
+	t.Helper()
+	_, err := mergeYAML(t, yamlSrc)
+	if err == nil {
+		t.Fatalf("expected an evaluation error for %q, got none", yamlSrc)
+	}
+	return err
+}
+
+// firstPathError extracts the first *graft.PathError out of err, which is
+// either a graft.MultiError (the normal shape for evaluation failures) or
+// already a *graft.PathError.
+func firstPathError(t *testing.T, err error) *graft.PathError {
+	t.Helper()
+	var multi graft.MultiError
+	if me, ok := err.(graft.MultiError); ok {
+		multi = me
+	} else if mep, ok := err.(*graft.MultiError); ok {
+		multi = *mep
+	}
+	if len(multi.Errors) > 0 {
+		err = multi.Errors[0]
+	}
+	var pe *graft.PathError
+	if errors.As(err, &pe) {
+		return pe
+	}
+	t.Fatalf("expected a *graft.PathError somewhere in the chain, got %T: %v", err, err)
+	return nil
+}
+
+// --- Default output is untouched (genesis contract) -----------------------
+
+func TestMultiErrorDefaultFormatUnchanged(t *testing.T) {
+	// GRAFT_ERROR_CODES unset: MultiError.Error() must render the exact
+	// "N error(s) detected:\n - $.path: msg\n" spruce/genesis format, with
+	// no code annotation, regardless of whether the underlying error is
+	// classifiable.
+	withColorDisabled(t, func() {
+		pe := &graft.PathError{Path: "some.path", Cause: errors.New("unknown operator: bogus_op")}
+		me := graft.MultiError{Errors: []error{pe}}
+
+		got := me.Error()
+		want := "1 error(s) detected:\n - $.some.path: unknown operator: bogus_op\n\n"
+		if got != want {
+			t.Fatalf("default MultiError.Error() changed:\n got:  %q\n want: %q", got, want)
+		}
+	})
+}
+
+func TestMultiErrorDefaultFormatUnchangedWithFalsyEnv(t *testing.T) {
+	for _, v := range []string{"", "0", "false", "off", "nope"} {
+		t.Run("GRAFT_ERROR_CODES="+v, func(t *testing.T) {
+			t.Setenv("GRAFT_ERROR_CODES", v)
+			withColorDisabled(t, func() {
+				pe := &graft.PathError{Path: "x", Cause: errors.New("unknown operator: bogus_op")}
+				me := graft.MultiError{Errors: []error{pe}}
+				got := me.Error()
+				want := "1 error(s) detected:\n - $.x: unknown operator: bogus_op\n\n"
+				if got != want {
+					t.Fatalf("MultiError.Error() with GRAFT_ERROR_CODES=%q changed:\n got:  %q\n want: %q", v, got, want)
+				}
+			})
+		})
+	}
+}
+
+// --- Opt-in CLI annotation --------------------------------------------------
+
+func TestMultiErrorOptInAnnotatesClassifiedErrors(t *testing.T) {
+	t.Setenv("GRAFT_ERROR_CODES", "1")
+
+	withColorDisabled(t, func() {
+		pe := &graft.PathError{Path: "some.path", Cause: errors.New("unknown operator: bogus_op")}
+		me := graft.MultiError{Errors: []error{pe}}
+
+		got := me.Error()
+		want := "1 error(s) detected:\n - $.some.path: [E205] unknown operator: bogus_op\n\n"
+		if got != want {
+			t.Fatalf("opted-in MultiError.Error():\n got:  %q\n want: %q", got, want)
+		}
+	})
+}
+
+func TestMultiErrorOptInLeavesUnclassifiedErrorsUnchanged(t *testing.T) {
+	t.Setenv("GRAFT_ERROR_CODES", "1")
+
+	withColorDisabled(t, func() {
+		pe := &graft.PathError{Path: "some.path", Cause: errors.New("something entirely bespoke went wrong")}
+		me := graft.MultiError{Errors: []error{pe}}
+
+		got := me.Error()
+		want := "1 error(s) detected:\n - $.some.path: something entirely bespoke went wrong\n\n"
+		if got != want {
+			t.Fatalf("opted-in MultiError.Error() for unclassified error:\n got:  %q\n want: %q", got, want)
+		}
+	})
+}
+
+func TestMultiErrorOptInStillMatchesGenesisPathRegex(t *testing.T) {
+	// genesis's ManifestProvider.pm keys its retry logic off
+	// ^\s*-\s*\$\.(\S+?): — confirm the opted-in, code-annotated line still
+	// matches, with the same captured path.
+	t.Setenv("GRAFT_ERROR_CODES", "1")
+
+	pe := &graft.PathError{Path: "database.host", Cause: errors.New("unknown operator: bogus_op")}
+	me := graft.MultiError{Errors: []error{pe}}
+
+	line := me.Error()
+	re := regexpMustCompilePathPrefix()
+	match := re.FindStringSubmatch(line)
+	if match == nil {
+		t.Fatalf("opted-in line does not match genesis's path regex: %q", line)
+	}
+	if match[1] != "database.host" {
+		t.Fatalf("captured path = %q, want %q", match[1], "database.host")
+	}
+}
+
+// --- PathError preserves the exact previous fmt.Errorf("$.%s: %w", ...) shape
+
+func TestPathErrorErrorStringMatchesPriorFormat(t *testing.T) {
+	pe := &graft.PathError{Path: "a.b.c", Cause: errors.New("boom")}
+	if got, want := pe.Error(), "$.a.b.c: boom"; got != want {
+		t.Fatalf("PathError.Error() = %q, want %q", got, want)
+	}
+	if !errors.Is(pe, pe.Cause) {
+		// errors.Is with the exact cause value should short-circuit true
+		// via direct equality on the first Unwrap hop.
+		t.Fatalf("errors.Is(pe, pe.Cause) = false, want true")
+	}
+}
+
+// --- WithCode / codedError ---------------------------------------------------
+
+func TestWithCodeNilError(t *testing.T) {
+	if err := graft.WithCode(nil, graft.CodeParamRequired); err != nil {
+		t.Fatalf("WithCode(nil, ...) = %v, want nil", err)
+	}
+}
+
+func TestWithCodePreservesErrorStringAndUnwrap(t *testing.T) {
+	cause := errors.New("underlying")
+	tagged := graft.WithCode(cause, graft.CodeParamRequired)
+
+	if tagged.Error() != cause.Error() {
+		t.Fatalf("tagged.Error() = %q, want %q", tagged.Error(), cause.Error())
+	}
+	if !errors.Is(tagged, cause) {
+		t.Fatalf("errors.Is(tagged, cause) = false, want true")
+	}
+	if code := graft.ClassifyError(tagged); code != graft.CodeParamRequired {
+		t.Fatalf("ClassifyError(tagged) = %q, want %q", code, graft.CodeParamRequired)
+	}
+}
+
+// --- ClassifyError: end-to-end, CLI-reachable triggers ---------------------
+
+func TestClassifyError_ReferenceNotFound(t *testing.T) {
+	err := mergeExprErr(t, "x: (( grab nonexistent ))\n")
+	pe := firstPathError(t, err)
+	if pe.Code() != graft.CodeReferenceNotFound {
+		t.Fatalf("Code() = %q, want %q (err: %v)", pe.Code(), graft.CodeReferenceNotFound, err)
+	}
+}
+
+func TestClassifyError_TypeMismatch(t *testing.T) {
+	err := mergeExprErr(t, "a: hello\nx: (( grab a.b ))\n")
+	pe := firstPathError(t, err)
+	if pe.Code() != graft.CodeTypeMismatch {
+		t.Fatalf("Code() = %q, want %q (err: %v)", pe.Code(), graft.CodeTypeMismatch, err)
+	}
+}
+
+func TestClassifyError_UnknownOperator(t *testing.T) {
+	// Every operator-call syntax the parser accepts — top-level "((
+	// bogus_op ... ))" and nested "(bogus_op ...)" inside another call —
+	// gates on OperatorFor(name) being registered before the identifier is
+	// even parsed as an OperatorCall (parser.go identifierOpensOpcallAt);
+	// an unregistered name never reaches evaluation, so "unknown operator:
+	// %s" cannot be triggered end-to-end through a normal merge today. It
+	// is real, exported library surface, though: ValidateOperatorArgs
+	// (operator_registry.go), used to validate arguments against
+	// OperatorInfoRegistry metadata, returns it directly for any name not
+	// in that registry.
+	err := graft.ValidateOperatorArgs("bogus_nonexistent_op", 1)
+	if err == nil {
+		t.Fatalf("expected an error for an unregistered operator name")
+	}
+	if code := graft.ClassifyError(err); code != graft.CodeUnknownOperator {
+		t.Fatalf("ClassifyError(err) = %q, want %q (err: %v)", code, graft.CodeUnknownOperator, err)
+	}
+}
+
+func TestClassifyError_ArgumentCount(t *testing.T) {
+	err := mergeExprErr(t, "x: (( concat \"only-one\" ))\n")
+	pe := firstPathError(t, err)
+	if pe.Code() != graft.CodeArgumentCount {
+		t.Fatalf("Code() = %q, want %q (err: %v)", pe.Code(), graft.CodeArgumentCount, err)
+	}
+}
+
+// TestClassifyError_ArgumentCount_MessageFamilies covers the operator
+// error-message shapes that don't fit the "requires exactly/at least N
+// argument(s)" or "too few arguments supplied" families already covered by
+// TestClassifyError_ArgumentCount: "no arguments specified to (( ... ))"
+// (join, grab, keys, cartesian-product, split), "<op> operator expects N
+// argument(s)" (empty), and "requires one or two ... arguments" (file).
+func TestClassifyError_ArgumentCount_MessageFamilies(t *testing.T) {
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{"join zero-arg", "x: (( join ))\n"},
+		{"grab zero-arg", "x: (( grab ))\n"},
+		{"keys zero-arg", "x: (( keys ))\n"},
+		{"cartesian-product zero-arg", "x: (( cartesian-product ))\n"},
+		{"split zero-arg", "x: (( split ))\n"},
+		{"empty zero-arg", "x: (( empty ))\n"},
+		{"file zero-arg", "x: (( file ))\n"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := mergeExprErr(t, c.yaml)
+			pe := firstPathError(t, err)
+			if pe.Code() != graft.CodeArgumentCount {
+				t.Fatalf("Code() = %q, want %q (err: %v)", pe.Code(), graft.CodeArgumentCount, err)
+			}
+		})
+	}
+}
+
+func TestClassifyError_DivisionByZero(t *testing.T) {
+	err := mergeExprErr(t, "a: 1\nb: 0\nx: (( a / b ))\n")
+	pe := firstPathError(t, err)
+	if pe.Code() != graft.CodeDivisionByZero {
+		t.Fatalf("Code() = %q, want %q (err: %v)", pe.Code(), graft.CodeDivisionByZero, err)
+	}
+}
+
+func TestClassifyError_ParamRequired(t *testing.T) {
+	err := mergeExprErr(t, "x: (( param \"x is required\" ))\n")
+	pe := firstPathError(t, err)
+	if pe.Code() != graft.CodeParamRequired {
+		t.Fatalf("Code() = %q, want %q (err: %v)", pe.Code(), graft.CodeParamRequired, err)
+	}
+}
+
+// TestClassifyError_ParamOperator_WrongArgCount pins the explicit
+// graft.WithCode(..., graft.CodeArgumentCount) tag op_param.go applies to
+// its own "only expects one argument" branch (distinct from the
+// param-required branch above, and from the generic message-pattern
+// matching TestClassifyError_ArgumentCount_MessageFamilies covers — this
+// one is untagged by message pattern, since "param operator only expects
+// one argument" contains neither "requires ..." nor "operator expects").
+func TestClassifyError_ParamOperator_WrongArgCount(t *testing.T) {
+	err := mergeExprErr(t, "x: (( param \"a\" \"b\" ))\n")
+	pe := firstPathError(t, err)
+	if pe.Code() != graft.CodeArgumentCount {
+		t.Fatalf("Code() = %q, want %q (err: %v)", pe.Code(), graft.CodeArgumentCount, err)
+	}
+}
+
+func TestClassifyError_UnsupportedTarget(t *testing.T) {
+	err := mergeExprErr(t, "x: (( concat@sometarget \"a\" \"b\" ))\n")
+	pe := firstPathError(t, err)
+	if pe.Code() != graft.CodeUnsupportedTarget {
+		t.Fatalf("Code() = %q, want %q (err: %v)", pe.Code(), graft.CodeUnsupportedTarget, err)
+	}
+}
+
+func TestClassifyError_CircularReference(t *testing.T) {
+	err := mergeExprErr(t, "a: (( grab b ))\nb: (( grab a ))\n")
+	if code := graft.ClassifyError(err); code != graft.CodeCircularReference {
+		t.Fatalf("ClassifyError(err) = %q, want %q (err: %v)", code, graft.CodeCircularReference, err)
+	}
+}
+
+func TestClassifyError_FileNotFound_ViaFileOperator(t *testing.T) {
+	// (( load )) checks os.Stat first and returns a generic "not a file or
+	// usable URI" error for a missing path, never exposing the underlying
+	// fs.ErrNotExist. (( file )) calls os.ReadFile directly and propagates
+	// its *fs.PathError unwrapped, so it is the CLI-reachable trigger for
+	// CodeFileNotFound.
+	err := mergeExprErr(t, "x: (( file \"/nonexistent/path/that/should/never/exist/graft-e2\" ))\n")
+	pe := firstPathError(t, err)
+	if pe.Code() != graft.CodeFileNotFound {
+		t.Fatalf("Code() = %q, want %q (err: %v)", pe.Code(), graft.CodeFileNotFound, err)
+	}
+}
+
+// --- ClassifyError: constructor/library-level triggers ---------------------
+
+func TestClassifyError_ParseError(t *testing.T) {
+	engine, err := graft.NewEngine()
+	if err != nil {
+		t.Fatalf("failed to create engine: %v", err)
+	}
+	_, parseErr := engine.ParseYAML([]byte("a: [unterminated\n"))
+	if parseErr == nil {
+		t.Fatalf("expected a YAML parse error, got none")
+	}
+	if code := graft.ClassifyError(parseErr); code != graft.CodeParseError {
+		t.Fatalf("ClassifyError(parseErr) = %q, want %q (err: %v)", code, graft.CodeParseError, parseErr)
+	}
+}
+
+func TestClassifyError_PathSyntaxError(t *testing.T) {
+	_, err := tree.ParseCursor("a]")
+	if err == nil {
+		t.Fatalf("expected a path syntax error, got none")
+	}
+	if code := graft.ClassifyError(err); code != graft.CodePathSyntaxError {
+		t.Fatalf("ClassifyError(err) = %q, want %q (err: %v)", code, graft.CodePathSyntaxError, err)
+	}
+}
+
+func TestClassifyError_EvaluationErrorConstructor(t *testing.T) {
+	err := graft.NewEvaluationError("some.path", "failed to evaluate merged document", errors.New("cause"))
+	if code := graft.ClassifyError(err); code != graft.CodeEvaluationError {
+		t.Fatalf("ClassifyError(err) = %q, want %q (err: %v)", code, graft.CodeEvaluationError, err)
+	}
+}
+
+func TestClassifyError_MergeErrorConstructor(t *testing.T) {
+	err := graft.NewMergeError("failed to merge documents", errors.New("cause"))
+	if code := graft.ClassifyError(err); code != graft.CodeMergeError {
+		t.Fatalf("ClassifyError(err) = %q, want %q (err: %v)", code, graft.CodeMergeError, err)
+	}
+}
+
+func TestClassifyError_ValidationError_ViaDocumentAPI(t *testing.T) {
+	engine, err := graft.NewEngine()
+	if err != nil {
+		t.Fatalf("failed to create engine: %v", err)
+	}
+	doc, err := engine.ParseYAML([]byte("a: 5\n"))
+	if err != nil {
+		t.Fatalf("failed to parse YAML: %v", err)
+	}
+	_, getErr := doc.GetString("a")
+	if getErr == nil {
+		t.Fatalf("expected doc.GetString(\"a\") to fail (a is an int, not a string)")
+	}
+	if code := graft.ClassifyError(getErr); code != graft.CodeValidationError {
+		t.Fatalf("ClassifyError(getErr) = %q, want %q (err: %v)", code, graft.CodeValidationError, getErr)
+	}
+}
+
+func TestClassifyError_ExternalErrorConstructor(t *testing.T) {
+	err := graft.NewExternalError("some-service", "unreachable", errors.New("cause"))
+	if code := graft.ClassifyError(err); code != graft.CodeExternalError {
+		t.Fatalf("ClassifyError(err) = %q, want %q (err: %v)", code, graft.CodeExternalError, err)
+	}
+}
+
+func TestClassifyError_ConfigurationError_ViaNewEngine(t *testing.T) {
+	_, err := graft.NewEngine(graft.WithConcurrency(-1))
+	if err == nil {
+		t.Fatalf("expected NewEngine(WithConcurrency(-1)) to fail")
+	}
+	if code := graft.ClassifyError(err); code != graft.CodeConfigurationError {
+		t.Fatalf("ClassifyError(err) = %q, want %q (err: %v)", code, graft.CodeConfigurationError, err)
+	}
+}
+
+// --- ClassifyError: stdlib filesystem sentinels (hermetic, no OS access) ---
+
+func TestClassifyError_FileNotFound_Sentinel(t *testing.T) {
+	err := &fs.PathError{Op: "open", Path: "/does/not/exist", Err: fs.ErrNotExist}
+	if code := graft.ClassifyError(err); code != graft.CodeFileNotFound {
+		t.Fatalf("ClassifyError(err) = %q, want %q", code, graft.CodeFileNotFound)
+	}
+}
+
+func TestClassifyError_PermissionDenied_Sentinel(t *testing.T) {
+	err := &fs.PathError{Op: "open", Path: "/root/secret", Err: fs.ErrPermission}
+	if code := graft.ClassifyError(err); code != graft.CodePermissionDenied {
+		t.Fatalf("ClassifyError(err) = %q, want %q", code, graft.CodePermissionDenied)
+	}
+}
+
+// --- ClassifyError: nil and unclassified ------------------------------------
+
+func TestClassifyError_Nil(t *testing.T) {
+	if code := graft.ClassifyError(nil); code != "" {
+		t.Fatalf("ClassifyError(nil) = %q, want empty", code)
+	}
+}
+
+func TestClassifyError_Unclassified(t *testing.T) {
+	err := errors.New("some error nobody bothered to classify")
+	if code := graft.ClassifyError(err); code != "" {
+		t.Fatalf("ClassifyError(err) = %q, want empty", code)
+	}
+}
+
+// --- GraftError.Code() covers every ErrorType -------------------------------
+
+func TestGraftErrorCodeExhaustive(t *testing.T) {
+	cases := []struct {
+		name string
+		err  *graft.GraftError
+		want graft.ErrorCode
+	}{
+		{"parse", graft.NewParseError("m", nil), graft.CodeParseError},
+		{"merge", graft.NewMergeError("m", nil), graft.CodeMergeError},
+		{"evaluation", graft.NewEvaluationError("p", "m", nil), graft.CodeEvaluationError},
+		// OperatorError wraps arbitrary caller-supplied text and has no
+		// real (non-example) construction site today; deliberately left
+		// unclassified rather than guessed at (see errors.go GraftError.Code).
+		{"operator", graft.NewOperatorError("op", "m", nil), graft.ErrorCode("")},
+		{"configuration", graft.NewConfigurationError("m"), graft.CodeConfigurationError},
+		{"validation", graft.NewValidationError("m"), graft.CodeValidationError},
+		{"external", graft.NewExternalError("svc", "m", nil), graft.CodeExternalError},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.err.Code(); got != c.want {
+				t.Fatalf("Code() = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
