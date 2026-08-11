@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/cppforlife/go-patch/patch"
 	"github.com/gonvenience/ytbx"
@@ -1344,48 +1345,92 @@ func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []g
 		return nil, nil, ansi.Errorf("@R{Failed to create graft engine}: %s", err.Error())
 	}
 
-	// Parse all documents
-	docs := []graft.Document{}
-	for _, file := range files {
-		log.DEBUG("Processing file '%s'", file.Path)
+	// Read and parse every file concurrently: reading bytes off disk (or
+	// STDIN) and parsing them into a Document has no side effects and
+	// doesn't depend on any other file, so it is safe to fan out - only
+	// the eventual merge order (docs stays indexed by the caller's
+	// original file order below) is significant, and that is untouched.
+	// engine.ParseYAML performs no writes to engine state (verified: it
+	// only calls package-level parse helpers), so sharing one *DefaultEngine
+	// across these goroutines is safe.
+	results := make([]fileParseResult, len(files))
+	var wg sync.WaitGroup
+	for i := range files {
+		wg.Add(1)
+		idx := i
+		// Each goroutine gets its own copy of the YamlFile: readFile
+		// mutates its Path field for the "-"/STDIN case, and sharing that
+		// mutation across goroutines (even harmlessly, since each only
+		// touches its own index) would be unnecessarily fragile.
+		fileCopy := files[idx]
+		go func() {
+			defer wg.Done()
+			results[idx] = parseOneYamlFile(engine, fileCopy, options)
+		}()
+	}
+	wg.Wait()
 
-		data, readErr := readFile(&file)
-		if readErr != nil {
-			return nil, nil, readErr
+	// Preserve the sequential loop's behavior exactly: it stopped at the
+	// first file that failed to read/parse, in file order, so any later
+	// file's (now also attempted, since reads ran concurrently) error is
+	// discarded in favor of the earliest-indexed one.
+	docs := make([]graft.Document, 0, len(files))
+	for i, r := range results {
+		if r.err != nil {
+			return nil, nil, r.err
 		}
-
-		// Check if it's a go-patch document
-		if options.EnableGoPatch {
-			_, parseErr := parseYAML(data)
-			if isArrayError(parseErr) {
-				log.DEBUG("Detected root of document as an array. Attempting go-patch parsing")
-				ops, patchErr := parseGoPatch(data)
-				if patchErr != nil {
-					return nil, nil, ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, patchErr.Error())
-				}
-				// Create a go-patch document
-				doc := graft.NewGoPatchDocument(ops)
-				docs = append(docs, doc)
-				continue
-			}
-		}
-
-		// Parse as YAML
-		doc, parseDocErr := engine.ParseYAML(data)
-		if parseDocErr != nil {
-			return nil, nil, ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, parseDocErr.Error())
-		}
-		if doc == nil {
-			// engine.ParseYAML returns (nil, nil) for blank, comment-only,
-			// or null ("---") documents. Treat as an empty map, matching
-			// spruce's behavior of merging such documents as {} no-ops.
-			log.DEBUG("YAML doc '%s' is null/empty, creating empty hash/map", file.Path)
-			doc = graft.NewDocument(make(map[string]interface{}))
-		}
-		docs = append(docs, doc)
+		log.DEBUG("Processed file '%s'", files[i].Path)
+		docs = append(docs, r.doc)
 	}
 
 	return engine, docs, nil
+}
+
+// fileParseResult holds the outcome of parsing one input file into a
+// graft.Document, or the error that occurred while doing so.
+type fileParseResult struct {
+	doc graft.Document
+	err error
+}
+
+// parseOneYamlFile reads and parses a single input file (or STDIN),
+// handling go-patch detection and blank/null-document normalization
+// identically to the sequential loop it replaces in buildEngineAndDocs.
+// Safe to call concurrently for different files sharing the same engine.
+func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts) fileParseResult {
+	log.DEBUG("Processing file '%s'", file.Path)
+
+	data, readErr := readFile(&file)
+	if readErr != nil {
+		return fileParseResult{err: readErr}
+	}
+
+	// Check if it's a go-patch document
+	if options.EnableGoPatch {
+		_, parseErr := parseYAML(data)
+		if isArrayError(parseErr) {
+			log.DEBUG("Detected root of document as an array. Attempting go-patch parsing")
+			ops, patchErr := parseGoPatch(data)
+			if patchErr != nil {
+				return fileParseResult{err: ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, patchErr.Error())}
+			}
+			return fileParseResult{doc: graft.NewGoPatchDocument(ops)}
+		}
+	}
+
+	// Parse as YAML
+	doc, parseDocErr := engine.ParseYAML(data)
+	if parseDocErr != nil {
+		return fileParseResult{err: ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, parseDocErr.Error())}
+	}
+	if doc == nil {
+		// engine.ParseYAML returns (nil, nil) for blank, comment-only,
+		// or null ("---") documents. Treat as an empty map, matching
+		// spruce's behavior of merging such documents as {} no-ops.
+		log.DEBUG("YAML doc '%s' is null/empty, creating empty hash/map", file.Path)
+		doc = graft.NewDocument(make(map[string]interface{}))
+	}
+	return fileParseResult{doc: doc}
 }
 
 //nolint:gocyclo // mergeAllDocs orchestrates complex document merging with multiple options

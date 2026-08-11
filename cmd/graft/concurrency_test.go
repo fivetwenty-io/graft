@@ -1,13 +1,84 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/config"
 	"github.com/fivetwenty-io/graft/internal/features"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
+
+// newInMemoryYamlFile builds a YamlFile backed by an in-memory reader, for
+// tests that don't need real files on disk.
+func newInMemoryYamlFile(path, content string) YamlFile {
+	return YamlFile{Path: path, Reader: io.NopCloser(strings.NewReader(content))}
+}
+
+// TestBuildEngineAndDocsPreservesFileOrderUnderConcurrentParsing proves
+// that buildEngineAndDocs' concurrent file read/parse (Wave D1's
+// file-level parallelism) still returns docs indexed by the caller's
+// original file order, not by goroutine completion order - merge order is
+// significant (later files override earlier ones), so this would be a
+// silent correctness regression if it broke.
+func TestBuildEngineAndDocsPreservesFileOrderUnderConcurrentParsing(t *testing.T) {
+	files := []YamlFile{
+		newInMemoryYamlFile("first.yml", "value: first\nonly_in_first: 1\n"),
+		newInMemoryYamlFile("second.yml", "value: second\nonly_in_second: 2\n"),
+		newInMemoryYamlFile("third.yml", "value: third\nonly_in_third: 3\n"),
+	}
+
+	engine, docs, err := buildEngineAndDocs(files, &mergeOpts{})
+	if err != nil {
+		t.Fatalf("buildEngineAndDocs() error = %v", err)
+	}
+	if len(docs) != 3 {
+		t.Fatalf("expected 3 docs, got %d", len(docs))
+	}
+
+	mergeBuilder := engine.Merge(nil, docs...)
+	merged, err := mergeBuilder.Execute()
+	if err != nil {
+		t.Fatalf("merge Execute() error = %v", err)
+	}
+	result := merged.RawData().(map[string]interface{})
+
+	// "value" must reflect the LAST file (third.yml) per graft's overlay
+	// semantics, which only holds if merge order matches file order.
+	if result["value"] != "third" {
+		t.Errorf("value = %v, want %q (file order must be preserved through concurrent parsing)", result["value"], "third")
+	}
+	for key, want := range map[string]int{"only_in_first": 1, "only_in_second": 2, "only_in_third": 3} {
+		if result[key] != want {
+			t.Errorf("%s = %v, want %d", key, result[key], want)
+		}
+	}
+}
+
+// TestBuildEngineAndDocsReportsEarliestFileErrorUnderConcurrentParsing
+// proves that when multiple files fail to parse, buildEngineAndDocs
+// reports the earliest-indexed file's error - matching the sequential
+// loop it replaced, which stopped at the first failure and never even
+// attempted later files. Concurrent parsing attempts every file
+// regardless, so this pins the result's determinism explicitly.
+func TestBuildEngineAndDocsReportsEarliestFileErrorUnderConcurrentParsing(t *testing.T) {
+	files := []YamlFile{
+		newInMemoryYamlFile("ok.yml", "a: 1\n"),
+		newInMemoryYamlFile("bad-first.yml", "- this\n- is\n- an array, not a map\n"),
+		newInMemoryYamlFile("bad-second.yml", "- another\n- array\n"),
+	}
+
+	_, _, err := buildEngineAndDocs(files, &mergeOpts{})
+	if err == nil {
+		t.Fatal("expected an error from the two array-root files, got nil")
+	}
+	if !strings.Contains(err.Error(), "bad-first.yml") {
+		t.Errorf("expected error to name the earliest-indexed failing file (bad-first.yml), got: %s", err.Error())
+	}
+}
 
 // staticIPRaceDeterminismIterations mirrors
 // parallelDeterminismIterations in pkg/graft/parallel_determinism_test.go:
@@ -58,6 +129,104 @@ func TestParallelStaticIPClaimErrorDeterministic(t *testing.T) {
 		if got != baseline {
 			t.Fatalf("iteration %d produced a different error message than iteration 0 under parallel evaluation.\niteration 0: %s\niteration %d: %s",
 				i, baseline, i, got)
+		}
+	}
+}
+
+// TestParallelStaticIPOrderSensitiveCarveOutPreventsRaceyClaims targets
+// the D-review's D-F3 finding. The reviewer forced isOrderSensitiveOp to
+// return false (fully defeating the serialization
+// StaticIPOperator.OrderSensitive exists to provide) and found that
+// TestParallelStaticIPClaimErrorDeterministic above - the only test tying
+// the carve-out to the real static_ips operator - still PASSED: its
+// fixture has exactly one colliding pair, and claimStaticIP's critical
+// section is fast enough that sorted submission order alone usually
+// reproduces the same winner run after run even with no explicit
+// serialization, so that test never actually exercised the race the
+// carve-out exists to prevent.
+//
+// This test widens real-operator coverage well beyond that one-pair
+// fixture: 80 independent pairs of static_ips jobs (160 operators total,
+// one winner + one duplicate-claim error per pair), each pair claiming the
+// single static IP in its own subnet so pairs never contend with each
+// other, all landing in one dependency-free wave, with
+// cfg.Parallel.MaxWorkers pinned to 2 to maximize queue contention. With
+// the carve-out intact (the normal, shipped state), every pair's winner is
+// deterministic and the aggregated error text is byte-identical across
+// repeated runs - this test asserts exactly that and would fail on any
+// regression that made static_ips's winner selection nondeterministic in
+// the normal, unmutated codebase.
+//
+// Honest limitation, recorded per the review's own fallback ("drop the
+// claim ... and record the gap explicitly"): manually mutating
+// isOrderSensitiveOp to `return false` (mirroring the reviewer's own
+// mutation) does NOT reliably make this test fail, even at this 80-pair
+// scale or a 1000-pair scale tried during development. claimStaticIP's
+// critical section is a single global mutex around a few nanoseconds of
+// map work; on this hardware (32 logical CPUs, GOMAXPROCS=32) Go's
+// scheduler resolves goroutine dispatch order closely enough to submission
+// order that the theoretical race the carve-out guards against does not
+// manifest without also injecting artificial delay into the operator
+// itself, which was judged out of scope (it would mean shipping
+// test-only behavior in production operator code). This test therefore
+// verifies the real operator's behavior is correct and deterministic at
+// wave-scale, but is not proof the OrderSensitive carve-out specifically
+// is load-bearing on every possible machine/load condition - see
+// d-notes.md's D-review remediation section for the full record.
+func TestParallelStaticIPOrderSensitiveCarveOutPreventsRaceyClaims(t *testing.T) {
+	const pairs = 80
+	const repeats = 10
+
+	var b strings.Builder
+	b.WriteString("jobs:\n")
+	for g := 0; g < pairs; g++ {
+		fmt.Fprintf(&b, `- name: group%03da
+  instances: 1
+  azs: [z1]
+  networks:
+  - name: net%03d
+    static_ips: (( static_ips(0) ))
+- name: group%03db
+  instances: 1
+  azs: [z1]
+  networks:
+  - name: net%03d
+    static_ips: (( static_ips(0) ))
+`, g, g, g, g)
+	}
+	b.WriteString("networks:\n")
+	for g := 0; g < pairs; g++ {
+		fmt.Fprintf(&b, `- name: net%03d
+  subnets:
+  - az: z1
+    static:
+    - 10.%d.1.1
+`, g, g)
+	}
+	yamlSrc := b.String()
+
+	cfg := config.DefaultConfig()
+	cfg.Parallel.MaxWorkers = 2
+	ff := features.DefaultFlags()
+
+	var baseline string
+	for i := 0; i < repeats; i++ {
+		files := []YamlFile{newInMemoryYamlFile("static-ips-amplified.yml", yamlSrc)}
+		opts := &mergeOpts{EngineOpts: configEngineOpts(cfg, ff)}
+
+		_, _, err := mergeAllDocs(files, opts)
+		if err == nil {
+			t.Fatalf("iteration %d: expected %d duplicate-IP-claim errors (one per pair), got nil", i, pairs)
+		}
+
+		got := err.Error()
+		if i == 0 {
+			baseline = got
+			continue
+		}
+		if got != baseline {
+			t.Fatalf("iteration %d produced different static_ips claim errors than iteration 0 under parallel evaluation (winner nondeterminism - the OrderSensitive carve-out is not preventing a real race)\niteration 0 length: %d\niteration %d length: %d",
+				i, len(baseline), i, len(got))
 		}
 	}
 }
