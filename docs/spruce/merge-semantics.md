@@ -49,8 +49,22 @@ whenever an overlay array contains map entries, an explicit array-merge
 marker, or a prune/sort marker. Arrays of plain scalars with no marker
 and no map entries take a separate, simpler path controlled by an array
 merge strategy option (default: replace the original array outright).
-This matches spruce's own behavior for scalar arrays, since spruce's
-key-merge fallback also requires map entries to attempt a key match.
+
+**This diverges from spruce.** spruce's key-merge step requires map
+entries, so a scalar array falls through to the next step of the chain --
+pairwise merge by position (`inline`) -- rather than being replaced.
+The difference is only visible when the overlay array is shorter than the
+original, because a replace and a pairwise merge agree whenever the
+overlay is the same length or longer:
+
+```
+# base.yml: f: [a, b, c]      overlay.yml: f: [X]
+spruce merge base.yml overlay.yml   ->  f: [X, b, c]
+graft  merge base.yml overlay.yml   ->  f: [X]
+```
+
+An overlay that says `- (( inline ))` before its entries gets spruce's
+behavior from graft. `--fallback-append` behaves the same in both tools.
 
 ```mermaid
 flowchart TD

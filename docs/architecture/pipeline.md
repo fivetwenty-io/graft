@@ -1,6 +1,12 @@
 # Processing Pipeline
 
-Graft processes YAML documents through a six-stage pipeline. Each stage has well-defined inputs and outputs, enabling composability, testability, and parallel execution where appropriate.
+Graft processes YAML documents through a five-stage pipeline. Each stage has well-defined inputs and outputs, enabling composability, testability, and parallel execution where appropriate.
+
+The order matters more than it looks. Control-flow expansion runs on raw
+bytes, per file, before anything else — which is why a loop can only iterate
+over data defined in its own file. Operator expressions, by contrast, are
+parsed and run at the far end, after every document has been merged, which is
+why a `grab` can reach a value another file contributed.
 
 ## Pipeline Overview
 
@@ -14,24 +20,21 @@ flowchart TB
         direction TB
 
         subgraph FILE1["File 1 Pipeline"]
-            PS1[Pre-Scan]
+            PS1[Expand Control Flow]
             YP1[YAML Parse]
-            AST1[AST Build]
-            PS1 --> YP1 --> AST1
+            PS1 --> YP1
         end
 
         subgraph FILE2["File 2 Pipeline"]
-            PS2[Pre-Scan]
+            PS2[Expand Control Flow]
             YP2[YAML Parse]
-            AST2[AST Build]
-            PS2 --> YP2 --> AST2
+            PS2 --> YP2
         end
 
         subgraph FILEN["File N Pipeline"]
-            PSN[Pre-Scan]
+            PSN[Expand Control Flow]
             YPN[YAML Parse]
-            ASTN[AST Build]
-            PSN --> YPN --> ASTN
+            PSN --> YPN
         end
     end
 
@@ -72,188 +75,127 @@ flowchart TB
     end
 
     FILES --> FILE1 & FILE2 & FILEN
-    AST1 & AST2 & ASTN --> COMBINE
+    YP1 & YP2 & YPN --> COMBINE
     COMBINE --> DEPGRAPH
     WAVE1 & WAVE2 & WAVEN --> BATCHER
     WAVEN --> PRUNE
     SORT --> YAML_OUT & JSON_OUT & DIFF_OUT & HIST_OUT
 ```
 
-## Stage 1: Pre-Scanning
+## Stage 1: Control-Flow Expansion
 
-The pre-scanner extracts `(( ... ))` operator expressions and control flow constructs before YAML parsing. This enables accurate position tracking and handles operators that span multiple lines.
+`(( if ))`, `(( for ))`, `(( while ))`, and `(( case ))` blocks are rewritten
+into plain YAML before anything parses the document. They have to be: a
+marker occupies a whole line rather than a value position, its body is raw
+YAML rather than an expression, and two branches of the same `if` may legally
+define the same key — none of which survives a YAML parse.
 
 ### Purpose
 
-- Extract operator locations with precise line/column positions
+- Turn each control-flow block into the lines its selected branch or its loop
+  iterations produce
 
-- Identify control flow blocks (if/fi, for/done, case/esac)
+- Leave every other line byte-identical
 
-- Handle multi-line operators correctly
-
-- Distinguish operators from quoted strings
+- Report structural errors — unclosed blocks, stray closers, clause
+  misordering, nesting beyond 64 levels — before the YAML parser can report
+  something less useful about the same text
 
 ### Interface
 
+`pkg/graft` exposes a hook rather than importing the implementation:
+
 ```go
-type OperatorLocation struct {
-    StartLine   int
-    StartColumn int
-    EndLine     int
-    EndColumn   int
-    RawText     string           // Full "(( ... ))" text
-    InnerText   string           // Just the "..." part
-    Type        OperatorType     // Standard, ControlFlow
-}
-
-type OperatorType int
-
-const (
-    OperatorTypeStandard OperatorType = iota
-    OperatorTypeIf
-    OperatorTypeElse
-    OperatorTypeElseIf
-    OperatorTypeEndIf
-    OperatorTypeFor
-    OperatorTypeWhile
-    OperatorTypeEndLoop
-    OperatorTypeCase
-    OperatorTypeWhen
-    OperatorTypeDefault
-    OperatorTypeEndCase
-)
-
-func PreScanOperators(source []byte) ([]OperatorLocation, error)
+// pkg/graft/controlflow_hook.go
+var ControlFlowExpander func(source []byte) ([]byte, error)
 ```
+
+`pkg/graft/controlflow` assigns it in `init()`. The dependency can only run
+that way: the expander needs `Evaluator` and `Engine` from `pkg/graft` to
+resolve conditions and iterables. A consumer opts in with a blank import,
+exactly as it does for `pkg/graft/operators`:
+
+```go
+import (
+    _ "github.com/fivetwenty-io/graft/pkg/graft/controlflow"
+    _ "github.com/fivetwenty-io/graft/pkg/graft/operators"
+)
+```
+
+With no consumer, the hook stays nil and parsing behaves as it did before
+control flow existed. A document with no markers is returned byte-identical
+either way.
 
 ### Algorithm
 
-The pre-scanner performs a single pass through the source:
+1. Split the source into lines and classify each one as a marker or as body
+   text, skipping anything inside a `|` or `>` block scalar
 
-1. Track line and column positions as it scans
+2. Parse the classified lines into a tree of blocks and verbatim runs
 
-2. Look for `((` sequences that start operators
+3. Evaluate each condition, iterable, and `case` subject against a scope
+   built from the same file
 
-3. Find the matching `))` handling nested parentheses
-
-4. Classify the operator type based on the first keyword
-
-5. Record the location for later correlation with YAML nodes
+4. Emit the selected branches and loop iterations, discarding marker
+   indentation and keeping body indentation verbatim
 
 ### Design Decision
 
-Pre-scanning before YAML parsing (rather than during or after) ensures:
+Expanding per file, before the merge, is what makes conditions and iterables
+resolve against the file they are written in. A loop whose iterable is
+defined only in another merged file fails at expansion time rather than
+silently picking the value up later:
 
-- Multi-line operators are captured correctly
+```
+loop.yml: parse_error: control flow expansion failed: $.controlflow.for.L2: unable to resolve `svcs`: `$.svcs` could not be found in the datastructure
+```
 
-- Nested parentheses within operators work properly
-
-- YAML parser sees operators as opaque strings
-
-- Position mapping is accurate for error reporting
+Loop bindings are materialised under a reserved top-level key,
+`__graft_loop`, and pruned before output. Under `--skip-eval` the bindings
+survive into the intermediate document alongside the unevaluated references,
+so the intermediate can be fed back through graft.
 
 ## Stage 2: YAML Parsing
 
-YAML parsing uses the yaml.v3 library with the Node API to preserve line and column information.
+YAML parsing uses goccy/go-yaml, which reports line and column detail on
+failure.
 
 ### Purpose
 
-- Parse YAML into a node tree with position information
+- Parse the expanded bytes into Go maps, slices, and scalars
 
 - Handle all YAML constructs (maps, arrays, scalars, anchors)
 
 - Support both YAML and JSON input formats
 
-### Interface
+### Process
 
-```go
-func ParseYAMLWithPositions(source []byte) (*yaml.Node, error) {
-    var node yaml.Node
-    err := yaml.Unmarshal(source, &node)
-    return &node, err
-}
-```
+`Engine.ParseYAML` runs the expander, then a short series of compatibility
+passes, then the parse:
+
+1. Expand control flow, if the hook is registered
+
+2. Sanitize a bare `-` sequence terminator followed by a sibling map key,
+   working around a parser bug in the YAML library
+
+3. Quote `<<<:` inject keys so the library accepts them
+
+4. Parse, tagging quoted YAML 1.1 boolean lookalikes (`"yes"`, `'On'`,
+   `"OFF"`) so the conversion below leaves them alone
+
+5. Convert unquoted YAML 1.1 booleans, matching spruce
+
+The root of the document must be a map; anything else is rejected with
+`root of YAML document is not a hash/map`.
 
 ### Design Decision
 
-Using yaml.v3's Node API (rather than unmarshaling directly to Go types) provides:
+Operator expressions are opaque strings at this point. They are not parsed
+here, and nothing tries to give them meaning until the evaluator reaches
+them, which is what lets a merge overwrite an expression with a plain value —
+or with another expression — without either side ever being evaluated.
 
-- Line and column information on every node
-
-- Ability to preserve comments
-
-- Support for YAML anchors and aliases
-
-- Round-trip capability
-
-## Stage 3: AST Construction
-
-The AST builder converts YAML nodes into Graft's internal AST, parsing operator expressions encountered in string values.
-
-### Purpose
-
-- Convert yaml.Node tree to Graft AST
-
-- Parse operator expressions using the unified parser
-
-- Correlate operator locations from pre-scan with YAML positions
-
-- Build a traversable structure for merging and evaluation
-
-### Interface
-
-```go
-func BuildAST(yamlNode *yaml.Node, operators []OperatorLocation) (*GraftNode, error)
-```
-
-### Process
-
-1. Walk the yaml.Node tree recursively
-
-2. For each string value, check if it matches an operator location
-
-3. If operator, parse the expression and create an OperatorNode
-
-4. Otherwise, create a literal ValueNode
-
-5. Build the complete document tree
-
-### Data Structures
-
-```go
-type GraftNode interface {
-    Position() Range
-    Accept(Visitor) interface{}
-}
-
-type DocumentNode struct {
-    Root GraftNode
-    Meta *Metadata
-}
-
-type MapNode struct {
-    Entries []MapEntry
-    Pos     Range
-}
-
-type ArrayNode struct {
-    Items []GraftNode
-    Pos   Range
-}
-
-type OperatorNode struct {
-    Expression Expression  // Parsed operator expression
-    Raw        string      // Original text for error messages
-    Pos        Range
-}
-
-type ValueNode struct {
-    Value interface{}
-    Pos   Range
-}
-```
-
-## Stage 4: Merging
+## Stage 3: Merging
 
 The merger combines multiple documents into one, respecting array operators and maintaining document order.
 
@@ -265,38 +207,44 @@ The merger combines multiple documents into one, respecting array operators and 
 
 - Maintain deterministic merge order
 
-- Track merge history for debugging
-
 ### Interface
 
 ```go
-type MergeConfig struct {
-    ArrayStrategy ArrayMergeStrategy
-    TrackHistory  bool
-}
-
-func Merge(docs []*Document, config MergeConfig) (*Document, error)
+result, err := engine.Merge(ctx, base, overlay).
+    WithPrune("meta").
+    WithCherryPick("database").
+    Execute()
 ```
 
 ### Merge Semantics
 
 - Maps are merged recursively (later values override earlier)
 
-- Arrays use the specified array operator or default strategy
+- Arrays use the array-merge marker in the incoming document, or the default
+  strategy — key merge, then inline — when none is given
 
 - Scalars are replaced by later values
 
-- Null values can prune keys (configurable)
+- Operator expressions are still opaque text here; a later document
+  overwrites an earlier one's expression without either being evaluated
 
-### Array Operators
+### Array-Merge Markers
 
-| Operator | Behavior |
+These are applied by `pkg/graft/merger` while documents are combined, not by
+the operator registry, so they are not among the 47 registered operators:
+
+| Marker | Behavior |
 |----------|----------|
 | `(( append ))` | Append items to existing array |
 | `(( prepend ))` | Prepend items to existing array |
 | `(( replace ))` | Replace entire array |
 | `(( inline ))` | Merge array items by position |
-| `(( merge ))` | Merge arrays by key field |
+| `(( merge ))` / `(( merge on <key> ))` | Merge arrays by key field |
+| `(( delete ... ))` | Remove a matching entry |
+
+`(( inject ))` also runs at merge time, but it *is* a registered operator —
+it runs in MergePhase and deep-merges a resolved map into the parent
+structure.
 
 ### Sequential Execution
 
@@ -304,17 +252,18 @@ Merging must be sequential (not parallel) because:
 
 - Document order affects the final result
 
-- Array operators reference the accumulated state
+- Array markers reference the accumulated state
 
-- History tracking requires ordered operations
+- `calc`'s leading-operator form reads the prior value recorded for the same
+  path by the previous file
 
-## Stage 5: Evaluation
+## Stage 4: Evaluation
 
-The evaluator executes operators in dependency order using wave-based parallel execution.
+The evaluator executes operators in dependency order using wave-based parallel execution. This is also where each `(( ... ))` string is first parsed as an expression: `ParseOpcall` runs when the evaluator reaches a scalar, not when the file was read.
 
 ### Purpose
 
-- Resolve operator expressions to concrete values
+- Parse and resolve operator expressions to concrete values
 
 - Execute in correct dependency order
 
@@ -322,16 +271,19 @@ The evaluator executes operators in dependency order using wave-based parallel e
 
 - Batch external backend calls
 
-### Interface
+### Operator Phases
 
-```go
-type EvalWave struct {
-    Operators []OperatorRef
-}
+Not every operator runs in the same pass:
 
-func BuildEvalPlan(doc *Document) []EvalWave
-func EvaluateParallel(doc *Document, waves []EvalWave) error
-```
+- **MergePhase** — runs while documents are combined, before any EvalPhase
+  operator. `inject` and `sort` register here.
+
+- **ParamPhase** — runs next. An unresolved `(( param ))` aborts the run
+  before evaluation starts, so `param` failures and evaluation failures never
+  appear in the same output.
+
+- **EvalPhase** — the main pass, where the large majority of operators,
+  including every external-backend lookup, execute.
 
 ### Wave-Based Execution
 
@@ -397,49 +349,49 @@ flowchart TB
 
 See [Operator Evaluation](evaluation.md) for detailed documentation.
 
-## Stage 6: Post-Processing
+## Stage 5: Post-Processing
 
 Post-processing applies final transformations to the evaluated document.
 
 ### Purpose
 
-- Prune meta-keys and temporary values
+- Remove paths marked by `(( prune ))` and by `--prune`
 
 - Cherry-pick specific paths for output
 
 - Sort keys for deterministic output
 
-- Validate against schemas
-
 ### Interface
 
 ```go
-type PostProcessor interface {
+type Processor interface {
     Name() string
-    Phase() PostProcessPhase
-    Process(ctx context.Context, doc *Document, meta *Metadata) error
+    Phase() Phase
+    Process(ctx context.Context, doc interface{}, meta *Metadata) (interface{}, error)
 }
 
-type PostProcessPhase int
+type Phase int
 
 const (
-    PhasePrePrune PostProcessPhase = iota
-    PhasePrune
-    PhasePostPrune
-    PhaseValidate
-    PhaseFormat
+    PhaseEarly Phase = iota  // immediately after evaluation
+    PhaseNormal              // standard post-processing
+    PhaseLate                // just before output
 )
 ```
 
-### Built-in Post-Processors
+### Built-in Processors
 
 | Processor | Phase | Purpose |
 |-----------|-------|---------|
-| MetaKeyPruner | PhasePrune | Remove keys starting with `_` |
-| NullPruner | PhasePrune | Remove null values (optional) |
-| CherryPicker | PhasePostPrune | Select specific paths for output |
-| KeySorter | PhaseFormat | Sort map keys alphabetically |
-| SchemaValidator | PhaseValidate | Validate against JSON Schema |
+| `PruneProcessor` | PhaseEarly | Remove paths marked by `(( prune ))` |
+| `InjectProcessor` | PhaseEarly | Apply deferred `(( inject ))` merges |
+| `PathPruner` | PhaseLate | Remove the paths named by `--prune` |
+| `CherryPickProcessor` | PhaseLate | Keep only the paths named by `--cherry-pick` |
+| `KeySorter` | PhaseLate | Sort map keys alphabetically |
+
+Both `PathPruner` and `CherryPickProcessor` accept a `field=value` predicate
+in place of a path segment, in the dotted spelling: `servers.name=primary`.
+The bracketed spelling works in expressions but not in these flags.
 
 ### Execution Order
 
@@ -461,62 +413,51 @@ for _, p := range processors {
 
 ## Pipeline Configuration
 
+The pipeline is configured through engine options and environment variables
+rather than through a single configuration struct:
+
 ```go
-type PipelineConfig struct {
-    // File-level parallelism
-    FileParallelism     int           // Files processed in parallel
-
-    // Evaluation parallelism
-    EvalParallelism     int           // Operators per wave
-
-    // Sub-tree parallelism
-    SubtreeParallelism  bool          // Enable sub-tree merge
-    SubtreeThreshold    int           // Min keys to trigger
-
-    // External call optimization
-    ExternalParallelism int           // Max concurrent external calls
-    BatchSize           int           // Requests per batch
-    BatchTimeout        time.Duration // Max wait before partial batch
-
-    // Per-backend pool sizes
-    VaultPoolSize       int
-    AWSPoolSize         int
-    NATSPoolSize        int
-}
+engine, _ := graft.NewEngine(
+    graft.WithParallel(true),
+    graft.WithMaxWorkers(8),
+    graft.WithCache(true, 1000),
+)
 ```
 
-### Configuration Presets
-
-| Preset | Use Case | Characteristics |
-|--------|----------|-----------------|
-| `PipelineSequential` | Debugging | Single-threaded, deterministic |
-| `PipelineBalanced` | Default | Moderate parallelism, good throughput |
-| `PipelineHighThroughput` | Large jobs | Maximum parallelism, aggressive batching |
+| Setting | Environment variable | Effect |
+|---------|----------------------|--------|
+| Parallel evaluation | `GRAFT_PARALLEL_ENABLED` | Turn wave-based parallel evaluation on or off |
+| Worker count | `GRAFT_PARALLEL_MAX_WORKERS`, `GRAFT_PARALLEL_MIN_WORKERS` | Bound the worker pool |
+| Expression cache | `GRAFT_EXPRESSION_CACHE_SIZE` | Number of parsed expressions retained |
+| Document cache | `GRAFT_CACHE_ENABLED`, `GRAFT_CACHE_MAX_SIZE`, `GRAFT_CACHE_TTL` | Cache behavior |
+| Loop cap | `GRAFT_MAX_LOOP_ITERATIONS` | `(( while ))` iteration limit; `--max-loop-iterations` wins over it |
 
 ## Error Handling
 
-Each pipeline stage can produce errors with full context:
+Errors carry the stage they came from in their prefix, and graft aggregates
+per-path failures so one run reports all of them:
 
-```go
-type PipelineError struct {
-    Stage    string      // Which stage failed
-    File     string      // Source file (if applicable)
-    Position Position    // Source position
-    Message  string      // Human-readable message
-    Cause    error       // Underlying error
-    Hint     string      // Suggestion for resolution
-}
-```
+- **Control-flow expansion** failures are reported as parse errors, with the
+  file name and a synthetic path naming the construct and its source line:
+  `loop.yml: parse_error: control flow expansion failed:
+  $.controlflow.for.L2: ...`
 
-### Error Propagation
+- **YAML parse** failures keep the library's line and column detail:
+  `config.yml: parse_error: failed to parse YAML: [15:14] mapping value is
+  not allowed in this context`
 
-- Parsing errors stop processing of that file but allow others to continue
+- **Merge** failures are fatal; the documents cannot be combined
 
-- Merge errors are fatal (documents cannot be merged)
+- **Evaluation** failures are collected and reported together, each against
+  the path that produced it:
 
-- Evaluation errors can be fatal or produce warnings (configurable)
+  ```
+  2 error(s) detected:
+   - $.database.port: too few arguments supplied to (( split ... ))
+   - $.database.url: concat operator requires at least two arguments
+  ```
 
-- Post-processing errors are typically fatal
+Any of these exits 2.
 
 ## Performance Considerations
 
@@ -524,9 +465,8 @@ type PipelineError struct {
 
 | Stage | Time Complexity | Parallelizable | I/O Bound |
 |-------|-----------------|----------------|-----------|
-| Pre-scan | O(n) | Per-file | No |
+| Expand control flow | O(n) | Per-file | No |
 | YAML Parse | O(n) | Per-file | No |
-| AST Build | O(n) | Per-file | No |
 | Merge | O(n*m) | No | No |
 | Evaluate | O(v+e) | Per-wave | Yes (backends) |
 | Post-process | O(n) | No | No |
@@ -541,7 +481,7 @@ Where:
 
 - **File-level parallelism**
 
-  Parse multiple files concurrently in stages 1-3
+  Expand and parse multiple files concurrently
 
 - **Wave-based evaluation**
 

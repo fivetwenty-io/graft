@@ -54,8 +54,8 @@ previous_pass: (( awssecret "production/db?stage=AWSPREVIOUS" ))
 ### With Target
 
 ```yaml
-prod_secret: (( awssecret production@"db-credentials" ))
-staging_secret: (( awssecret staging@"db-credentials" ))
+prod_secret: (( awssecret@production "db-credentials" ))
+staging_secret: (( awssecret@staging "db-credentials" ))
 ```
 
 ### Dynamic Path
@@ -154,13 +154,7 @@ database:
   port: 5432
   username: (( awssecret "prod/db?key=username" ))
   password: (( awssecret "prod/db?key=password" ))
-  connection_string: ((
-    concat "postgres://"
-    (awssecret "prod/db?key=username") ":"
-    (awssecret "prod/db?key=password") "@"
-    (grab database.host) ":"
-    (grab database.port)
-  ))
+  connection_string: (( concat "postgres://" (awssecret "prod/db?key=username") ":" (awssecret "prod/db?key=password") "@" (grab database.host) ":" (grab database.port) ))
 ```
 
 ### API Keys

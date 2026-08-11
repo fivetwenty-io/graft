@@ -1,6 +1,6 @@
 # Operator inventory: graft vs. spruce
 
-spruce registers 25 operator names. graft registers 44. This page lists both
+spruce registers 25 operator names. graft registers 47. This page lists both
 sets, operator by operator, and calls out the operators that exist in one
 tool but not the other.
 
@@ -50,6 +50,9 @@ graft ships operator categories with no spruce equivalent:
 | `+`, `-`, `*`, `/`, `%` | `op_add.go`, `op_subtract.go`, `op_multiply.go`, `op_divide.go`, `op_modulo.go` | Type-aware arithmetic operators usable directly in expressions (`(( a + b ))`), not only inside a `calc` string. |
 | `&&`, `\|\|`, `!` | `op_boolean.go` | Type-aware boolean AND, OR-else, and NOT operators. spruce supports `\|\|` only as parse-time expression sugar for a literal fallback value (e.g., `(( grab a.b \|\| "default" ))`) and has no registered boolean operator at all — spruce's `&&`, `!`, and general boolean logic do not exist as operators. graft's `\|\|` is a full registered operator (`OrElseOperator`) rather than parser-level sugar, but the `(( a \|\| b ))` fallback syntax still works the same way a spruce user would expect. |
 | `==`, `!=`, `<`, `>`, `<=`, `>=` | `op_comparison.go` | Type-aware comparison operators; spruce has no comparison operators at all. |
+| `type` | `op_type.go` | Reports the type of a single argument as one of `string`, `int`, `float`, `bool`, `map`, `array`, or `null`. Requires exactly one argument. spruce reports `(( type )) operator not defined`. |
+| `flatten` | `op_flatten.go` | Flattens a list recursively at every depth into a single flat list; takes no depth argument. Requires exactly one list argument. spruce reports `(( flatten )) operator not defined`. |
+| `uniq` | `op_uniq.go` | Removes duplicate entries from a list, keeping the first occurrence and preserving input order; it never sorts. Requires exactly one list argument. spruce reports `(( uniq )) operator not defined`. |
 
 graft does not register a plain `or` operator name. The `||` operator above
 already covers spruce-equivalent short-circuit fallback semantics, making a
@@ -68,7 +71,7 @@ table above.
 ## Counting notes
 
 spruce's 25 registrations are 25 distinct implementations, with no aliases.
-graft's 44 registrations include two aliases pointing at one implementation
+graft's 47 registrations include two aliases pointing at one implementation
 (`cartesian-product` / `cartesian`) and one operator, `vault`, whose file
 (`op_vault.go`) also registers the separate `vault-try` implementation. Every
 other graft registration is a distinct implementation.

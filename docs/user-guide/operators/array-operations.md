@@ -2,6 +2,22 @@
 
 Operators for manipulating arrays during merge and evaluation.
 
+Two different things live in this page, and they are not interchangeable:
+
+- **Array merge markers** — `append`, `prepend`, `replace`, `inline`, `merge`,
+  `insert`, `delete`, and `sort`. These are handled by the merger, so they only
+  do anything when a *later* document overlays an *earlier* one. Writing them
+  in a single file that has nothing to overlay is an error.
+
+- **Array expressions** — `flatten`, `uniq`, `shuffle`, and
+  `cartesian-product`. These are ordinary operators: they take arguments,
+  return a value, and work inside a single file.
+
+Every output block below is what `graft merge` actually prints: the whole
+merged document, map keys sorted alphabetically, and list items at the same
+indentation as their parent key. Where an example would otherwise be buried in
+scaffolding, the `--prune` flag that removed it is shown with the command.
+
 ## Array Merge Operators
 
 These operators control how arrays are merged between documents.
@@ -15,7 +31,9 @@ Add elements to the end of an existing array.
 packages:
   - git
   - vim
+```
 
+```yaml
 # overlay.yml
 packages:
   - (( append ))
@@ -23,13 +41,14 @@ packages:
   - postgresql
 ```
 
-**Result:**
+**Output** (`graft merge base.yml overlay.yml`):
+
 ```yaml
 packages:
-  - git
-  - vim
-  - nginx
-  - postgresql
+- git
+- vim
+- nginx
+- postgresql
 ```
 
 ### prepend
@@ -41,7 +60,9 @@ Add elements to the beginning of an existing array.
 packages:
   - git
   - vim
+```
 
+```yaml
 # overlay.yml
 packages:
   - (( prepend ))
@@ -49,13 +70,14 @@ packages:
   - also-first
 ```
 
-**Result:**
+**Output** (`graft merge base.yml overlay.yml`):
+
 ```yaml
 packages:
-  - required-first
-  - also-first
-  - git
-  - vim
+- required-first
+- also-first
+- git
+- vim
 ```
 
 ### replace
@@ -68,7 +90,9 @@ packages:
   - git
   - vim
   - emacs
+```
 
+```yaml
 # overlay.yml
 packages:
   - (( replace ))
@@ -76,16 +100,17 @@ packages:
   - and-this
 ```
 
-**Result:**
+**Output** (`graft merge base.yml overlay.yml`):
+
 ```yaml
 packages:
-  - only-this
-  - and-this
+- only-this
+- and-this
 ```
 
 ### inline
 
-Merge arrays by index position (default behavior).
+Merge arrays by index position.
 
 ```yaml
 # base.yml
@@ -94,7 +119,9 @@ servers:
     port: 8080
   - name: server2
     port: 8081
+```
 
+```yaml
 # overlay.yml
 servers:
   - (( inline ))
@@ -102,18 +129,20 @@ servers:
   - port: 9081
 ```
 
-**Result:**
+**Output** (`graft merge base.yml overlay.yml`):
+
 ```yaml
 servers:
-  - name: server1
-    port: 9080
-  - name: server2
-    port: 9081
+- name: server1
+  port: 9080
+- name: server2
+  port: 9081
 ```
 
 ### merge
 
-Merge arrays by matching a key field.
+Merge arrays by matching a key field. `(( merge ))` matches on `name`;
+`(( merge on <key> ))` matches on the key you name.
 
 ```yaml
 # base.yml
@@ -124,7 +153,9 @@ services:
   - name: web
     port: 80
     replicas: 1
+```
 
+```yaml
 # overlay.yml
 services:
   - (( merge on name ))
@@ -135,19 +166,24 @@ services:
     replicas: 2
 ```
 
-**Result:**
+**Output** (`graft merge base.yml overlay.yml`):
+
 ```yaml
 services:
-  - name: api
-    port: 8080
-    replicas: 3      # merged
-  - name: web
-    port: 80
-    replicas: 1      # unchanged
-  - name: worker     # added
-    port: 9090
-    replicas: 2
+- name: api
+  port: 8080
+  replicas: 3
+- name: web
+  port: 80
+  replicas: 1
+- name: worker
+  port: 9090
+  replicas: 2
 ```
+
+`api` picks up the new `replicas` and keeps its `port`, `web` is untouched
+because the overlay never mentions it, and `worker` is appended because no
+entry matched.
 
 ### insert
 
@@ -159,26 +195,34 @@ steps:
   - name: step1
   - name: step2
   - name: step3
+```
 
-# overlay.yml - insert after index 1
+```yaml
+# overlay.yml
 steps:
   - (( insert after 1 ))
   - name: step1.5
 ```
 
-**Result:**
+**Output** (`graft merge base.yml overlay.yml`):
+
 ```yaml
 steps:
-  - name: step1
-  - name: step2
-  - name: step1.5    # inserted
-  - name: step3
+- name: step1
+- name: step2
+- name: step1.5
+- name: step3
 ```
 
 **Syntax variations:**
 
-- `(( insert after N ))` - Insert after index N
-- `(( insert before N ))` - Insert before index N
+- `(( insert after N ))` / `(( insert before N ))` — position by index
+
+- `(( insert after "<value>" ))` / `(( insert before "<value>" ))` — position
+  next to the entry whose `name` is `<value>`
+
+- `(( insert after <key> "<value>" ))` — position next to the entry whose
+  `<key>` is `<value>`
 
 ### delete
 
@@ -191,23 +235,133 @@ packages:
   - vim
   - emacs
   - nano
-
-# overlay.yml - delete by index
-packages:
-  - (( delete 2 ))   # removes "emacs"
-
-# Or delete by key match
 services:
-  - (( delete "name=worker" ))
+  - name: api
+  - name: worker
 ```
+
+```yaml
+# overlay.yml
+packages:
+  - (( delete 2 ))
+services:
+  - (( delete "worker" ))
+```
+
+**Output** (`graft merge base.yml overlay.yml`):
+
+```yaml
+packages:
+- git
+- vim
+- nano
+services:
+- name: api
+```
+
+**Syntax variations:**
+
+- `(( delete N ))` — remove index N
+
+- `(( delete "<value>" ))` — remove the entry whose `name` is `<value>`
+
+- `(( delete <key> "<value>" ))` — remove the entry whose `<key>` is `<value>`
+
+Nothing may follow a delete-by-name marker in the same overlay array except
+another array operator:
+
+```
+1 error(s) detected:
+ - $.services: item in array directly after (( delete name "worker" )) must be one of the array operators 'append', 'prepend', 'delete', or 'insert'
+```
+
+### sort
+
+Sort a list that an earlier document already defined. `(( sort ))` replaces the
+list in the overlay; the merger keeps the earlier list and queues it for
+sorting.
+
+```yaml
+# base.yml
+numbers:
+  - 3
+  - 1
+  - 4
+  - 1
+  - 5
+```
+
+```yaml
+# sorted.yml
+numbers: (( sort ))
+```
+
+**Output** (`graft merge base.yml sorted.yml`):
+
+```yaml
+numbers:
+- 1
+- 1
+- 3
+- 4
+- 5
+```
+
+For a list of maps, the sort key defaults to `name`; `sort by <key>` chooses a
+different one.
+
+```yaml
+# users.yml
+users:
+  - name: Charlie
+    age: 30
+  - name: Alice
+    age: 25
+  - name: Bob
+    age: 35
+```
+
+```yaml
+# by-age.yml
+users: (( sort by age ))
+```
+
+**Output** (`graft merge users.yml by-age.yml`):
+
+```yaml
+users:
+- age: 25
+  name: Alice
+- age: 30
+  name: Charlie
+- age: 35
+  name: Bob
+```
+
+`sort` needs a list to attach to. Written where no earlier document supplies
+one — including in the file that first defines the list — it fails:
+
+```
+1 error(s) detected:
+ - $.numbers: orphaned (( sort )) operator at $.numbers, no list exists at that path
+```
+
+The list must also be homogeneous. Mixed element types, or entries that are
+themselves lists, are rejected; so is a list of maps where some entry lacks the
+sort key.
 
 ## Array Transformation Operators
 
 ### flatten
 
-Flatten nested arrays into a single array.
+Flatten a nested list into a single flat list.
+
+`flatten` takes exactly one argument, and that argument must be a list. It
+recurses to every depth — there is no depth argument and no way to flatten only
+one level.
 
 ```yaml
+# flat.yml
 nested:
   - [1, 2]
   - [3, 4]
@@ -216,105 +370,75 @@ nested:
 flat: (( flatten nested ))
 ```
 
-**Result:**
+**Output** (`graft merge flat.yml --prune nested`):
+
 ```yaml
 flat:
-  - 1
-  - 2
-  - 3
-  - 4
-  - 5
-  - 6
-  - 7
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
 ```
+
+The `[[5, 6], 7]` entry is flattened along with the rest: `5` and `6` come out
+at the same level as `1` and `7`.
+
+**Errors:**
+
+- `flatten operator requires exactly one argument, got <n>`
+
+- `flatten operator requires a list argument, got <type>`
 
 ### uniq
 
-Remove duplicate elements from an array.
+Remove duplicate elements from a list.
+
+`uniq` takes exactly one argument, and that argument must be a list. It keeps
+the **first** occurrence of each value and preserves the input order. It never
+sorts.
 
 ```yaml
+# uniq.yml
 with_dupes:
+  - zebra
   - apple
-  - banana
+  - zebra
+  - mango
   - apple
-  - cherry
-  - banana
 
 unique: (( uniq with_dupes ))
 ```
 
-**Result:**
+**Output** (`graft merge uniq.yml --prune with_dupes`):
+
 ```yaml
 unique:
-  - apple
-  - banana
-  - cherry
+- zebra
+- apple
+- mango
 ```
 
-### sort
+`zebra` stays first because it appeared first. If you want alphabetical order,
+sort separately.
 
-Sort array elements.
+Comparison is by value and type, so `1` and `"1"` are two different elements
+and both survive.
 
-**Simple sort:**
-```yaml
-numbers:
-  - 3
-  - 1
-  - 4
-  - 1
-  - 5
+**Errors:**
 
-sorted: (( sort numbers ))
-```
+- `uniq operator requires exactly one argument, got <n>`
 
-**Result:**
-```yaml
-sorted:
-  - 1
-  - 1
-  - 3
-  - 4
-  - 5
-```
-
-**Sort by key:**
-```yaml
-users:
-  - name: Charlie
-    age: 30
-  - name: Alice
-    age: 25
-  - name: Bob
-    age: 35
-
-by_name: (( sort users by name ))
-by_age: (( sort users by age ))
-```
-
-**Result:**
-```yaml
-by_name:
-  - name: Alice
-    age: 25
-  - name: Bob
-    age: 35
-  - name: Charlie
-    age: 30
-
-by_age:
-  - name: Alice
-    age: 25
-  - name: Charlie
-    age: 30
-  - name: Bob
-    age: 35
-```
+- `uniq operator requires a list argument, got <type>`
 
 ### shuffle
 
-Randomize array order.
+Randomize list order.
 
 ```yaml
+# shuffle.yml
 items:
   - a
   - b
@@ -324,20 +448,27 @@ items:
 randomized: (( shuffle items ))
 ```
 
-**Result:** (random order)
+**Output** (`graft merge shuffle.yml --prune items`), one run of many:
+
 ```yaml
 randomized:
-  - c
-  - a
-  - d
-  - b
+- b
+- d
+- c
+- a
 ```
+
+The order is drawn from `crypto/rand`, so consecutive runs differ. Arguments
+must resolve to lists or scalars; a map argument errors with `shuffle only
+accepts arrays and scalar values`.
 
 ### cartesian-product
 
-Generate all combinations of elements from multiple arrays.
+Combine every element of each list with every element of the others. Each
+combination is emitted as a single **concatenated string**, not as a tuple.
 
 ```yaml
+# cart.yml
 colors:
   - red
   - blue
@@ -348,20 +479,27 @@ sizes:
 combinations: (( cartesian-product colors sizes ))
 ```
 
-**Result:**
+**Output** (`graft merge cart.yml --prune colors --prune sizes`):
+
 ```yaml
 combinations:
-  - [red, small]
-  - [red, large]
-  - [blue, small]
-  - [blue, large]
+- redsmall
+- redlarge
+- bluesmall
+- bluelarge
 ```
+
+Every list must contain only scalars — a nested list or a map errors with
+`cartesian-product operator can only operate on lists of scalar values`. A
+scalar argument is treated as a one-element list. `cartesian` is a registered
+alias for the same operator.
 
 ## Combining with Control Flow
 
 ### Filter with for/if
 
 ```yaml
+# filter.yml
 services:
   - name: api
     enabled: true
@@ -378,16 +516,18 @@ enabled_services:
 (( done ))
 ```
 
-**Result:**
+**Output** (`graft merge filter.yml --prune services`):
+
 ```yaml
 enabled_services:
-  - api
-  - web
+- api
+- web
 ```
 
 ### Transform with for
 
 ```yaml
+# transform.yml
 ports:
   - 8080
   - 8081
@@ -400,6 +540,22 @@ services:
 (( done ))
 ```
 
+**Output** (`graft merge transform.yml`):
+
+```yaml
+ports:
+- 8080
+- 8081
+- 8082
+services:
+- name: service-8080
+  port: 8080
+- name: service-8081
+  port: 8081
+- name: service-8082
+  port: 8082
+```
+
 ## Practical Examples
 
 ### Merge Package Lists
@@ -410,7 +566,9 @@ packages:
   - curl
   - wget
   - git
+```
 
+```yaml
 # web-server.yml
 packages:
   - (( append ))
@@ -427,7 +585,9 @@ env_vars:
     value: my-app
   - name: LOG_LEVEL
     value: info
+```
 
+```yaml
 # production.yml
 env_vars:
   - (( merge on name ))
@@ -435,6 +595,18 @@ env_vars:
     value: warn
   - name: METRICS_ENABLED
     value: "true"
+```
+
+**Output** (`graft merge base.yml production.yml`):
+
+```yaml
+env_vars:
+- name: APP_NAME
+  value: my-app
+- name: LOG_LEVEL
+  value: warn
+- name: METRICS_ENABLED
+  value: "true"
 ```
 
 ### Kubernetes Containers
@@ -446,7 +618,9 @@ containers:
     image: myapp:latest
     ports:
       - containerPort: 8080
+```
 
+```yaml
 # with-sidecar.yml
 containers:
   - (( append ))
@@ -456,21 +630,44 @@ containers:
       - containerPort: 9090
 ```
 
+**Output** (`graft merge base.yml with-sidecar.yml`):
+
+```yaml
+containers:
+- image: myapp:latest
+  name: app
+  ports:
+  - containerPort: 8080
+- image: proxy:latest
+  name: sidecar
+  ports:
+  - containerPort: 9090
+```
+
 ### Unique Values
 
 ```yaml
+# hosts.yml
 all_hosts:
   - server1.example.com
   - server2.example.com
-  - server1.example.com  # duplicate
+  - server1.example.com
 
 hosts: (( uniq all_hosts ))
-# Result: [server1.example.com, server2.example.com]
+```
+
+**Output** (`graft merge hosts.yml --prune all_hosts`):
+
+```yaml
+hosts:
+- server1.example.com
+- server2.example.com
 ```
 
 ### Sorted Configuration
 
 ```yaml
+# routes.yml
 routes:
   - path: /api
     priority: 10
@@ -478,30 +675,46 @@ routes:
     priority: 100
   - path: /
     priority: 1
+```
 
-ordered_routes: (( sort routes by priority ))
-# Sorted by priority ascending
+```yaml
+# order.yml
+routes: (( sort by priority ))
+```
+
+**Output** (`graft merge routes.yml order.yml`):
+
+```yaml
+routes:
+- path: /
+  priority: 1
+- path: /api
+  priority: 10
+- path: /health
+  priority: 100
 ```
 
 ## Array Operator Summary
 
 | Operator | Position | Description |
 |----------|----------|-------------|
-| `append` | First element | Add to end |
-| `prepend` | First element | Add to beginning |
-| `replace` | First element | Replace entire array |
-| `inline` | First element | Merge by index |
-| `merge` | First element | Merge by key |
-| `insert` | First element | Insert at position |
-| `delete` | First element | Remove elements |
-| `flatten` | Expression | Flatten nested |
-| `uniq` | Expression | Remove duplicates |
-| `sort` | Expression | Sort elements |
+| `append` | First element of an overlay array | Add to end |
+| `prepend` | First element of an overlay array | Add to beginning |
+| `replace` | First element of an overlay array | Replace entire array |
+| `inline` | First element of an overlay array | Merge by index |
+| `merge` | First element of an overlay array | Merge by key, default `name` |
+| `insert` | First element of an overlay array | Insert at index or next to a named entry |
+| `delete` | First element of an overlay array | Remove by index or by key match |
+| `sort` | Overlay value replacing a list | Sort the earlier document's list |
+| `flatten` | Expression | Flatten one list, recursively, at every depth |
+| `uniq` | Expression | Drop duplicates from one list, keeping first occurrence and input order |
 | `shuffle` | Expression | Randomize order |
-| `cartesian-product` | Expression | Cross product |
+| `cartesian-product` | Expression | Every combination, concatenated into strings |
 
 ## See Also
 
 - [Array Merging Guide](../array-merging.md) - Deep dive into array merge strategies
+
 - [Operators Overview](index.md) - All operators
+
 - [Control Flow](control-flow.md) - for loops for array processing

@@ -295,7 +295,7 @@ engine, _ := graft.NewEngine(
 
 ```yaml
 prod_secret: (( vault "secret/db:password" ))
-staging_secret: (( vault staging@"secret/db:password" ))
+staging_secret: (( vault@staging "secret/db:password" ))
 ```
 
 ### AWS
@@ -339,7 +339,7 @@ engine, _ := graft.NewEngine(
 ```yaml
 db_host: (( awsparam "/app/prod/db_host" ))
 api_key: (( awssecret "prod/api-credentials" ))
-staging_host: (( awsparam staging@"/app/db_host" ))
+staging_host: (( awsparam@staging "/app/db_host" ))
 ```
 
 ### NATS

@@ -74,10 +74,10 @@ database:
   pool_size: 50
   port: 5432
 features:
-  - rate-limiting
-  - monitoring
-  - authentication
-  - logging
+- rate-limiting
+- monitoring
+- authentication
+- logging
 server:
   host: 0.0.0.0
   port: 443
@@ -92,6 +92,10 @@ Notice how:
 - `database.port` and `database.name` were preserved from base
 - `features` array was prepended (production items first)
 - `server.ssl` was added
+
+Notice the shape of the output too. Graft always prints the whole merged
+document, sorts map keys alphabetically at every level, and emits list items
+at their parent key's indentation rather than indented beneath it.
 
 ## Step 3: Use Operators
 
@@ -113,13 +117,19 @@ server:
   name: (( concat meta.region "-server" ))
 
 computed:
-  full_name: (( concat "Application: " application.name " v" application.version ))
+  full_name: '(( concat "Application: " application.name " v" application.version ))'
 
 application:
   name: my-app
   version: 2.0.0
 EOF
 ```
+
+`full_name` is wrapped in single quotes because its expression contains a
+`: ` sequence, which YAML would otherwise read as a mapping key. The same
+applies to any expression containing a ternary — `size: '(( large ? "8Gi" :
+"2Gi" ))'` — and an expression must stay on one line, since a plain scalar
+cannot span lines.
 
 ```sh
 graft merge config.yml
@@ -222,30 +232,21 @@ resources:
 
 ## Step 6: Compare Files with Diff
 
-Compare two configurations:
+Compare two configurations. `graft diff` reports structural changes — paths
+that were added, removed, or changed — rather than a line-by-line text diff,
+and exits 1 when the documents differ:
 
 ```sh
 graft diff base.yml production.yml
 ```
 
-See changes in side-by-side format:
+## Step 7: Convert to JSON
 
-```sh
-graft diff --side-by-side base.yml production.yml
-```
-
-## Step 7: Convert Between Formats
-
-Convert YAML to JSON:
+Graft reads YAML or JSON on either side of a merge, and `graft json`
+converts the result:
 
 ```sh
 graft merge base.yml production.yml | graft json
-```
-
-Convert JSON to YAML:
-
-```sh
-echo '{"key": "value"}' | graft json --reverse
 ```
 
 ## What's Next?
@@ -253,7 +254,7 @@ echo '{"key": "value"}' | graft json --reverse
 Now that you've got the basics, explore more:
 
 - [CLI Commands](../user-guide/cli/) - Full command reference
-- [Operators](../user-guide/operators/) - All 50+ operators
+- [Operators](../user-guide/operators/) - All 47 operators
 - [Array Merging](../user-guide/array-merging.md) - Advanced array operations
 - [Secrets Management](../user-guide/secrets/) - Integrate with Vault, AWS, NATS
 - [Examples](../examples/) - More practical examples
@@ -292,10 +293,12 @@ See the raw operators without evaluation:
 graft merge config.yml --skip-eval
 ```
 
-### Debug with History
+### Select a List Entry by Field
 
-See where each value came from:
+Both flags accept a `field=value` predicate in place of a path segment,
+written in dotted form:
 
 ```sh
-graft merge base.yml prod.yml --history
+graft merge --cherry-pick 'servers.name=primary' config.yml
+graft merge --prune 'servers.name=replica' config.yml
 ```

@@ -114,6 +114,30 @@ integer-only maps are unaffected; see [Map key
 ordering](yaml-formatting.md#known-differences) for the byte-parity
 guarantee that still holds for those cases.
 
+### scalar-array-default-merge-replaces-instead-of-inlining
+
+**Current behavior:** an overlay array whose entries are all plain
+scalars, carrying no array-merge marker, bypasses the marker-aware merge
+path and is handled by an array merge strategy option that defaults to
+replacing the original array outright. With `base.yml` holding
+`f: [a, b, c]` and `overlay.yml` holding `f: [X]`, graft produces
+`f: [X]`.
+
+**Expected behavior:** spruce's default fallback chain tries a key merge
+first, which requires map entries and so does not apply, then falls
+through to a pairwise merge by position (`inline`). spruce produces
+`f: [X, b, c]` for the same input.
+
+**Impact:** an overlay that shortens a scalar array silently drops the
+original's trailing entries under graft where spruce preserves them.
+Overlays whose array is the same length as or longer than the original
+are unaffected, because a replace and a pairwise merge agree in those
+cases, which is why the divergence is easy to miss. A deployment file
+that trims a list of scalars -- release names, DNS servers, feature
+flags -- gets a different result from the two tools. Writing
+`- (( inline ))` as the overlay array's first entry restores spruce's
+behavior, and `--fallback-append` already matches.
+
 ## Resolved
 
 Items that were tracked as open gaps and have since been closed. Kept
@@ -146,28 +170,26 @@ tools now handle by producing `{}` for that document.
 **Resolved.** The vault operator's target-extraction code used to be an
 explicit placeholder that always returned an empty string for a
 non-empty `@target`, which risked a wrong-target cache-key collision for
-multi-target lookups. That placeholder has been removed. The current,
-accurate behavior, documented directly on `VaultOperator`, is that
-`@target` syntax (`(( vault@production "path:key" ))`) is accepted by
-the parser and recorded on the parsed expression, but graft's `Opcall`
-type has no field to carry it through, so `Run` never observes a
-non-empty target at all: no placeholder call is attempted, so there is
-no collision risk. Multi-target Vault access remains available today
-through per-target environment variables and
-`internal/backends/vault.DefaultPool`, just not through `@target`
-parsing on the operator call itself.
+multi-target lookups. The target is now carried through to `Run` and
+resolved against `internal/backends/vault.DefaultPool`, so
+`(( vault@production "path:key" ))` reaches the client configured by
+`VAULT_PRODUCTION_ADDR` and `VAULT_PRODUCTION_TOKEN`. A target with no
+matching configuration errors at evaluation time and names the variables
+it expected, rather than falling back to the default client.
+
+The spruce spelling that puts the target on the path
+(`(( vault production@"path:key" ))`) is rejected with a message
+redirecting to the operator-name spelling.
 
 ### aws-nats-target-extraction
 
 **Resolved.** Same fix as [vault-target-extraction](#vault-target-extraction):
-the AWS and NATS operators no longer carry a placeholder that silently
-mis-resolved `@target`. Both operators now document, next to their
-`Run` method, that `@target` is parsed but not wired through to
-execution, and that multi-account AWS access and multi-cluster NATS
-access remain available via per-target environment variables
-(`AWS_<TARGET>_REGION` and equivalents) consumed directly by
+`(( awsparam@<target> ... ))`, `(( awssecret@<target> ... ))`, and
+`(( nats@<target> ... ))` resolve their target against
 `internal/backends/aws.ClientPool` and
-`internal/backends/nats.ClientPool`.
+`internal/backends/nats.ClientPool`, configured through
+`AWS_<TARGET>_REGION` (and the profile, role, and access-key variants) and
+`NATS_<TARGET>_URL`.
 
 ### or-operator-unregistered
 

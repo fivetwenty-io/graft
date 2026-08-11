@@ -44,7 +44,15 @@ graft merge --cherry-pick database --cherry-pick server base.yml overlay.yml
 
 ### Control Flow
 
-Operators that control execution flow: `if/elif/else/fi`, `for/done`, `while/done`, `case/when/esac`.
+The whole-line keywords `if/elif/else/fi`, `for/done`, `while/done`, and `case/when/default/esac`. They are not operators: each occupies a line of its own rather than a value position, and its body is raw YAML rather than an expression. Graft expands them into plain YAML before the document is parsed. Blocks may nest up to 64 levels deep.
+
+```yaml
+(( if environment == "production" ))
+replicas: 5
+(( else ))
+replicas: 1
+(( fi ))
+```
 
 ### Cursor
 
@@ -78,9 +86,18 @@ The main entry point for all Graft operations. The `Engine` interface provides p
 
 The component that executes operators in dependency order, resolving references and calling external backends.
 
+### Expansion
+
+The source-to-source rewrite that turns control-flow blocks into plain YAML. It runs on each input file's raw text, before YAML parsing and before any merge, which is why a loop cannot iterate over data that only another merged file defines.
+
 ### Expression
 
-A parsed operator or value within `(( ... ))` markers. Expressions can be nested and combined.
+A parsed operator or value within `(( ... ))` markers. Expressions nest and combine: an operator call may appear as an argument to another, and infix arithmetic, comparison, boolean, and ternary forms are all evaluated directly.
+
+```yaml
+url: (( concat "https://" (grab host) ":" (grab port) ))
+total: (( base + tax * quantity ))
+```
 
 ## F
 
@@ -92,14 +109,22 @@ A default value used when an operator fails or returns empty.
 host: (( vault "secret/db:host" || "localhost" ))
 ```
 
+### Flatten
+
+An operator that splices nested lists into a single flat list, at every depth. It takes exactly one list argument; there is no depth argument.
+
+```yaml
+flat: (( flatten nested ))
+```
+
 ### Functional Options
 
 A Go pattern used for configuration. Options are functions that modify internal configuration.
 
 ```go
 engine, _ := graft.NewEngine(
-    graft.WithCacheSize(1000),
-    graft.WithHistoryTracking(true),
+    graft.WithCache(true, 1000),
+    graft.WithConcurrency(4),
 )
 ```
 
@@ -107,29 +132,16 @@ engine, _ := graft.NewEngine(
 
 ### Grab
 
-The primary reference operator. `grab` retrieves values from elsewhere in the document.
+The primary reference operator. `grab` retrieves values from elsewhere in the document. A bare reference in operand position resolves the same way, so `grab` is optional inside an expression.
 
 ```yaml
 url: (( grab database.host ))
+is_prod: (( environment == "production" ))
 ```
 
 ### GraftError
 
 The base error type in Graft. All errors include code, message, position, path, and cause.
-
-## H
-
-### History
-
-A record of all changes during merge and evaluation. History tracks source files, line numbers, and intermediate values.
-
-### History Entry
-
-A single change record containing index, path, source, line, phase, operation, old value, new value, and timestamp.
-
-### History Phase
-
-The stage when a change occurred: Load, Merge, Eval, or PostProcess.
 
 ## I
 
@@ -139,9 +151,12 @@ An operator that merges map contents at the parent level.
 
 ```yaml
 settings:
-  (( inject common_settings ))
+  <<<: (( inject common_settings ))
   custom: value
 ```
+
+The `<<<:` key holds the call and is removed from the output once the merge
+runs. A bare `(( inject ... ))` with no key is a YAML parse error.
 
 ### Inline
 
@@ -149,21 +164,25 @@ An array merge strategy that merges by index position.
 
 ## M
 
+### Marker
+
+A line whose trimmed content is exactly `(( <keyword> ... ))`, optionally followed by a YAML comment. Markers delimit control-flow blocks. Their own indentation is discarded; the indentation of the lines between them is kept verbatim, and decides where the body lands in the document.
+
 ### Merge
 
 The process of combining multiple documents. Later documents override earlier ones for scalar values; maps are deeply merged.
 
 ### MergeBuilder
 
-A fluent API for configuring merge operations with options like prune, cherry-pick, and history tracking.
+A fluent API for configuring merge operations, with options for prune, cherry-pick, array merge strategy, skipping evaluation, go-patch parsing, and fallback-append.
 
 ### Multi-Target
 
-Support for multiple named backend configurations. Targets are selected with `target@path` syntax.
+Support for multiple named backend configurations. Targets are selected by writing `@<target>` on the operator name.
 
 ```yaml
-prod: (( vault prod@"secret/db:password" ))
-staging: (( vault staging@"secret/db:password" ))
+prod: (( vault@prod "secret/db:password" ))
+staging: (( vault@staging "secret/db:password" ))
 ```
 
 ## O
@@ -192,15 +211,15 @@ password: (( param "Password is required" ))
 
 ### Phase
 
-An execution stage in the processing pipeline: Prescan, Parse, Merge, Evaluate, or PostProcess.
+When an operator runs relative to the rest of the document. **MergePhase** operators run while documents are combined; **ParamPhase** runs next, and an unresolved `param` aborts the run before evaluation starts; **EvalPhase** is the main pass, where the large majority of operators, including every external-backend lookup, execute.
 
 ### Pipeline
 
-The processing stages for documents: pre-scanning, YAML parsing, AST building, merging, evaluation, and post-processing.
+The processing stages for documents: control-flow expansion, YAML parsing, merging, operator evaluation, and post-processing.
 
 ### Position
 
-Line and column location in source file. Used for error messages and history tracking.
+Line and column location in source file, with a byte offset. Used for error messages.
 
 ### Post-Processor
 
@@ -210,9 +229,22 @@ A component that runs after merge and evaluation. Post-processors validate, tran
 
 An array merge strategy that adds elements to the beginning of an array.
 
+### Predicate
+
+A `field=value` selector used in place of a path segment, matching the entry of a list whose named field holds that value. Expressions accept the dotted and the bracketed spelling; `--cherry-pick` and `--prune` accept the dotted spelling only.
+
+```yaml
+primary_host: (( grab servers.name=primary.host ))
+replica_host: (( grab servers[name=replica].host ))
+```
+
+```bash
+graft merge --cherry-pick 'servers.name=primary' config.yml
+```
+
 ### Pre-Scanner
 
-The first pipeline stage that extracts `(( ... ))` operator locations before YAML parsing.
+A scanner in `pkg/graft/interfaces` that extracts `(( ... ))` locations and their raw contents from source text, handling nested parentheses and quoted strings. It is a standalone utility for tooling; the merge pipeline itself parses each expression when the evaluator reaches it.
 
 ### Prune
 
@@ -228,17 +260,24 @@ graft merge --prune internal base.yml overlay.yml
 
 ## R
 
+### Range
+
+A generator used as a `for` loop's iterable: `range <start> <end> [step]`. The interval is **closed**, so `range 1 5` yields 1, 2, 3, 4, and 5. A step of zero, or one pointing away from the end bound, is an error.
+
+```yaml
+workers:
+(( for i in range 1 5 ))
+  - name: (( concat "worker-" i ))
+(( done ))
+```
+
 ### Reference
 
-A path expression that retrieves a value from the document. References use dot notation: `path.to.value`.
+A path expression that retrieves a value from the document. References use dot notation — `path.to.value` — with numeric indexes or `field=value` predicates for list entries.
 
 ### Registry
 
 The operator registry maintains all available operators and their metadata.
-
-### REPL
-
-Read-Eval-Print Loop. Graft's interactive debugging interface accessed with `graft debug`.
 
 ### Replace
 
@@ -258,14 +297,18 @@ An operator that converts any value to its YAML string representation.
 
 ### Target
 
-A named backend configuration. Targets allow connecting to multiple instances of the same backend type.
+A named backend configuration, allowing connections to several instances of the same backend type. A target is written on the operator name with `@`, and configured through per-target environment variables — `VAULT_<TARGET>_ADDR` and `VAULT_<TARGET>_TOKEN`, `AWS_<TARGET>_REGION` and friends, `NATS_<TARGET>_URL`.
+
+```yaml
+password: (( vault@production "secret/db:password" ))
+```
 
 ### Ternary
 
-A conditional expression: `condition ? true_value : false_value`.
+A conditional expression: `condition ? true_value : false_value`. Only the selected branch is evaluated. In YAML the whole expression must be quoted, because a plain scalar cannot contain the `: ` that separates the branches.
 
 ```yaml
-size: (( production ? "8Gi" : "2Gi" ))
+size: '(( production ? "8Gi" : "2Gi" ))'
 ```
 
 ### Trace
@@ -275,6 +318,20 @@ Detailed logging of the merge process showing all operations, timing, and values
 ### TTL (Time To Live)
 
 Duration before cached values expire. Configurable for document cache and backend responses.
+
+### Type
+
+The `type` operator names its argument's type as a string — exactly one of `string`, `int`, `float`, `bool`, `array`, `map`, or `null`. It takes exactly one argument.
+
+```yaml
+kind: (( type database.port ))    # int
+```
+
+## U
+
+### Uniq
+
+An operator that removes duplicate elements from a list, keeping the first occurrence of each and preserving the input order. It never sorts, and compares by value and type, so `1` and `"1"` are distinct.
 
 ## V
 

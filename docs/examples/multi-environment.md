@@ -657,12 +657,12 @@ backend:
   api:
     host: (( concat meta.app_name "-api" ))
     port: 8080
-    replicas: (( meta.environment == "production" ? 3 : 1 ))
+    replicas: '(( meta.environment == "production" ? 3 : 1 ))'
 
   worker:
     host: (( concat meta.app_name "-worker" ))
     port: 8081
-    replicas: (( meta.environment == "production" ? 5 : 1 ))
+    replicas: '(( meta.environment == "production" ? 5 : 1 ))'
     queues:
       - default
       - high

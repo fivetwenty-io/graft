@@ -9,7 +9,7 @@ Graft is a YAML/JSON configuration merging tool with:
 - Powerful operators for data manipulation
 - Control flow for conditional configurations
 - Secrets integration with Vault, AWS, and NATS
-- Rich diff and history tracking
+- Semantic diffing of two documents
 
 ## Sections
 
@@ -23,17 +23,16 @@ Complete reference for all command-line operations.
 - [json](cli/json.md) - Convert between YAML and JSON
 - [fan](cli/fan.md) - Cross-product merge
 - [vaultinfo](cli/vaultinfo.md) - List Vault references
-- [debug](cli/debug.md) - Interactive debugging REPL
 
 ### [Operators](operators/)
 
-All 50+ operators for configuration manipulation.
+All 47 registered operators, plus the control-flow keywords.
 
-- [Data Manipulation](operators/data-manipulation.md) - grab, concat, join, split, etc.
+- [Data Manipulation](operators/data-manipulation.md) - grab, concat, join, split, type, etc.
 - [Control Flow](operators/control-flow.md) - if/else, for, while, case
 - [Arithmetic](operators/arithmetic.md) - Math operations
 - [Comparison & Logic](operators/comparison-logic.md) - Comparisons & booleans
-- [Array Operations](operators/array-operations.md) - Array manipulation
+- [Array Operations](operators/array-operations.md) - sort, shuffle, flatten, uniq
 - [External Sources](operators/external-sources.md) - file, load
 
 ### [Array Merging](array-merging.md)
@@ -56,19 +55,11 @@ Integrate with external secrets stores.
 
 ### [Diff & Comparison](diffing.md)
 
-Compare configurations with rich output.
+Compare two documents structurally.
 
-- Side-by-side diff
-- Unified diff (git-style)
-- Change list
-
-### [History Tracking](history-tracking.md)
-
-Track where every value came from.
-
-- Merge history
-- Path tracing
-- Change trees
+- Added, removed, and changed paths
+- Map entries reported side by side
+- List entries reported as added and removed runs
 
 ### [Configuration](configuration.md)
 
@@ -87,15 +78,18 @@ Environment variables and settings.
 | Merge files | `graft merge base.yml overlay.yml` |
 | Compare files | `graft diff before.yml after.yml` |
 | Convert to JSON | `graft json config.yml` |
-| See merge history | `graft merge --history base.yml overlay.yml` |
-| Debug interactively | `graft debug base.yml overlay.yml` |
+| Keep only some keys | `graft merge --cherry-pick database base.yml overlay.yml` |
+| Drop scaffolding keys | `graft merge --prune meta base.yml overlay.yml` |
+| Leave operators unevaluated | `graft merge --skip-eval config.yml` |
 
 ### Common Operators
 
 | Operator | Example | Description |
 |----------|---------|-------------|
 | grab | `(( grab path.to.value ))` | Reference another value |
+| grab with predicate | `(( grab servers.name=primary.host ))` | Select a list entry by field value |
 | concat | `(( concat "a" "b" ))` | Concatenate strings |
+| type | `(( type some.value ))` | Name a value's type as a string |
 | vault | `(( vault "secret/db:pass" ))` | Fetch from Vault |
 | if/else | `(( if cond )) ... (( fi ))` | Conditional content |
 | append | `(( append ))` | Append to array |

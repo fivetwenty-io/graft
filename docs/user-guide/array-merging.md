@@ -311,7 +311,10 @@ items:
   - keep3
 ```
 
-### Delete by Key Match
+### Delete by Name
+
+The string form names the value of the entry's `name` key, not a `key=value`
+pair. Every entry in the list must have a `name` key.
 
 ```yaml
 # base.yml
@@ -325,7 +328,7 @@ services:
 
 # overlay.yml
 services:
-  - (( delete "name=deprecated" ))
+  - (( delete "deprecated" ))
 
 # Result
 services:
@@ -333,6 +336,19 @@ services:
     port: 8080
   - name: web
     port: 80
+```
+
+Writing `(( delete "name=deprecated" ))` looks for an entry whose `name` is the
+literal string `name=deprecated`, and fails:
+
+```
+ - $.services: unable to find specified modification point with 'name: name=deprecated'
+```
+
+A list whose entries have no `name` key cannot be deleted from by string:
+
+```
+ - $.items.0: original object does not contain the key 'name' - cannot merge by key
 ```
 
 ## Combining Operators
@@ -448,7 +464,7 @@ features:
 
 # overlay.yml
 features:
-  - (( delete "name=deprecated-feature" ))
+  - (( delete "deprecated-feature" ))
 ```
 
 ## Fallback Append Mode
@@ -473,7 +489,7 @@ With this flag, arrays without explicit operators use append instead of inline.
 | insert after | `(( insert after N ))` | Insert after index N |
 | insert before | `(( insert before N ))` | Insert before index N |
 | delete | `(( delete N ))` | Remove index N |
-| delete | `(( delete "key=val" ))` | Remove by key match |
+| delete | `(( delete "name-value" ))` | Remove the entry with that `name` |
 
 ## See Also
 

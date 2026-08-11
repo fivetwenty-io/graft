@@ -17,6 +17,7 @@ subcommand.
 | `--version` | `-v` | Print `<program> - Version <version>` to stdout and exit `0`. Only takes effect when no subcommand is given. |
 | `--color` | | Control ANSI color output: `on`, `off`, or `auto` (default). `auto` colors output only when stderr is a terminal. An invalid value prints an error and exits `1` before any subcommand runs. |
 | `--config <path>` | | Path to a YAML configuration file. See [Config flag](#--config-flag) below. |
+| `--max-loop-iterations <n>` | | Iteration cap for `(( while ))` loops, default `1000`. Also settable with `GRAFT_MAX_LOOP_ITERATIONS`; the flag wins when both are given. Exceeding the cap is a hard error (exit `2`), not a truncation. |
 
 graft reads `DEBUG`/`TRACE` directly from the process environment
 (`os.Getenv`); a value counts as "set" unless it is empty, `"false"`
@@ -75,6 +76,7 @@ position.
 | `--skip-eval` | Merge documents but skip operator evaluation (`EvalPhase`/`ParamPhase` are not run). |
 | `--prune <key>` | Remove `<key>` from the final output. Repeatable. |
 | `--cherry-pick <key>` | Output only `<key>` (and its descendants) from the final output. Repeatable; the inverse of `--prune`. |
+| `--max-loop-iterations <n>` | Global flag; see [Global flags](#global-flags). |
 | `--fallback-append` | Use append semantics instead of inline (key-then-index) semantics for the default array-merge fallback. |
 | `--go-patch` | Parse array-rooted documents as [go-patch](https://github.com/cppforlife/go-patch) operations instead of erroring on a non-map document root. |
 | `-m`, `--multi-doc` | Treat each `---`-separated document within a file as a separate input document rather than parsing the file as one document. |
@@ -92,6 +94,21 @@ graft merge --prune meta --prune internal base.yml overlay.yml
 graft merge --cherry-pick database --cherry-pick server base.yml overlay.yml
 cat base.yml | graft merge - overlay.yml
 ```
+
+A path segment given to `--prune` or `--cherry-pick` may be a `field=value`
+list predicate, which selects the first list entry whose `field` equals
+`value`:
+
+```bash
+graft merge --cherry-pick 'servers.name=primary' inventory.yml
+graft merge --prune 'servers.name=primary' inventory.yml
+```
+
+This is a graft extension — spruce rejects predicate segments in either flag.
+Only the dotted spelling is accepted here. The bracketed spelling
+(`servers[name=primary]`) works in expressions but not in these flags:
+`--cherry-pick` reports `validation_error: key not found`, and `--prune`
+silently matches nothing.
 
 ### graft fan
 

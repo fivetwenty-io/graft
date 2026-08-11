@@ -22,6 +22,8 @@ Complete reference of all Graft CLI commands and flags.
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
 | `--color` | | Color output: `on`, `off`, `auto` |
+| `--config <path>` | | Path to a YAML configuration file |
+| `--max-loop-iterations <n>` | | `(( while ))` iteration cap (default 1000) |
 
 ## graft merge
 

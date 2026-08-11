@@ -210,7 +210,7 @@ The command recognizes various Vault reference formats:
 password: (( vault "secret/db:password" ))
 
 # With target
-password: (( vault production@"secret/db:password" ))
+password: (( vault@production "secret/db:password" ))
 
 # Multiple paths (fallback)
 password: (( vault "secret/v2/db:password; secret/v1/db:password" ))

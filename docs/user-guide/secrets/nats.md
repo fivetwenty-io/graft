@@ -51,8 +51,8 @@ setting: (( nats "kv:config/key" || "default" ))
 
 ```yaml
 # Use specific NATS cluster
-prod_config: (( nats production@"kv:config/settings" ))
-staging_config: (( nats staging@"kv:config/settings" ))
+prod_config: (( nats@production "kv:config/settings" ))
+staging_config: (( nats@staging "kv:config/settings" ))
 ```
 
 ### With Explicit URL
@@ -224,9 +224,9 @@ config:
 # Fetch from different NATS clusters
 clusters:
   us-east:
-    config: (( nats us-east@"kv:config/settings" ))
+    config: (( nats@us-east "kv:config/settings" ))
   eu-west:
-    config: (( nats eu-west@"kv:config/settings" ))
+    config: (( nats@eu-west "kv:config/settings" ))
 ```
 
 ### Dynamic Configuration Updates

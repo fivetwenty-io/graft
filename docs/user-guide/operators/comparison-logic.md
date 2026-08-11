@@ -2,64 +2,72 @@
 
 Boolean operations for conditional logic and comparisons.
 
+Two things trip up almost every first attempt, so they are worth stating before
+anything else:
+
+- **A ternary has to be quoted.** `(( cond ? a : b ))` contains `: `, which a
+  plain YAML scalar cannot hold. Single-quote the whole value:
+  `size: '(( large ? "8Gi" : "2Gi" ))'`.
+
+- **`||` is a fallback, not a boolean OR.** It returns the left operand
+  whenever the left operand resolves, including when it resolves to `false`.
+
+Every output block below is what `graft merge` actually prints: the whole
+merged document, map keys sorted alphabetically. Where an example would
+otherwise be buried in the values it reads from, the `--prune` flag that
+removed them is shown with the command.
+
+A bare reference works as an operand, so `(( env == "production" ))` and
+`(( grab env == "production" ))` test the same thing.
+
 ## Comparison Operators
 
-### Equality (==)
+### Equality (==) and Inequality (!=)
 
-Check if values are equal.
+```yaml
+# eq.yml
+env: production
+
+is_prod: (( env == "production" ))
+is_dev: (( env == "development" ))
+not_prod: (( env != "production" ))
+not_dev: (( env != "development" ))
+```
+
+**Output** (`graft merge eq.yml`):
 
 ```yaml
 env: production
-
-is_prod: (( grab env == "production" ))   # true
-is_dev: (( grab env == "development" ))   # false
+is_dev: false
+is_prod: true
+not_dev: true
+not_prod: false
 ```
 
-### Inequality (!=)
-
-Check if values are not equal.
+### Ordering (<, >, <=, >=)
 
 ```yaml
-env: production
-
-not_prod: (( grab env != "production" ))  # false
-not_dev: (( grab env != "development" ))  # true
-```
-
-### Less Than (<)
-
-```yaml
+# cmp.yml
 count: 5
 
-under_limit: (( grab count < 10 ))        # true
-at_minimum: (( grab count < 5 ))          # false
+under_limit: (( count < 10 ))
+at_minimum: (( count < 5 ))
+over_threshold: (( count > 3 ))
+exceeds_max: (( count > 10 ))
+at_or_under: (( count <= 5 ))
+at_or_over: (( count >= 5 ))
 ```
 
-### Greater Than (>)
+**Output** (`graft merge cmp.yml`):
 
 ```yaml
+at_minimum: false
+at_or_over: true
+at_or_under: true
 count: 5
-
-over_threshold: (( grab count > 3 ))      # true
-exceeds_max: (( grab count > 10 ))        # false
-```
-
-### Less Than or Equal (<=)
-
-```yaml
-count: 5
-
-at_or_under: (( grab count <= 5 ))        # true
-under_max: (( grab count <= 10 ))         # true
-```
-
-### Greater Than or Equal (>=)
-
-```yaml
-count: 5
-
-at_or_over: (( grab count >= 5 ))         # true
-meets_min: (( grab count >= 3 ))          # true
+exceeds_max: false
+over_threshold: true
+under_limit: true
 ```
 
 ## Logical Operators
@@ -69,155 +77,308 @@ meets_min: (( grab count >= 3 ))          # true
 Both conditions must be true.
 
 ```yaml
+# and.yml
 is_production: true
 has_ssl: true
 
-secure_prod: (( grab is_production && grab has_ssl ))  # true
+secure_prod: (( is_production && has_ssl ))
 ```
 
-**Short-circuit evaluation:** If the first operand is false, the second is not evaluated.
+**Output** (`graft merge and.yml`):
 
 ```yaml
-# Safe to use - second part not evaluated if first is false
-safe: (( grab config.enabled && grab config.value > 0 ))
+has_ssl: true
+is_production: true
+secure_prod: true
 ```
 
-### Logical OR (||)
-
-At least one condition must be true.
+**Short-circuit evaluation:** if the left operand is false, the right is never
+evaluated, so a reference that would not resolve is safe there:
 
 ```yaml
+config:
+  enabled: false
+safe: (( config.enabled && config.value > 0 ))
+```
+
+That yields `safe: false`. Flip `enabled` to `true` and the missing reference
+is reached:
+
+```
+1 error(s) detected:
+ - $.safe: unable to resolve `config.value`: `$.config.value` could not be found in the datastructure
+```
+
+### Fallback (||)
+
+`||` is graft's fallback operator. It evaluates the left operand; if that
+succeeds, the left value is the answer, whatever it is. Only a left operand
+that *fails to resolve* hands control to the right.
+
+```yaml
+# fallback.yml
+config:
+  enabled: false
+  retries: 0
+  label: ""
+
+enabled: (( config.enabled || true ))
+retries: (( config.retries || 3 ))
+label: (( config.label || "unnamed" ))
+timeout: (( config.timeout || 30 ))
+```
+
+**Output** (`graft merge fallback.yml --prune config`):
+
+```yaml
+enabled: false
+label: ""
+retries: 0
+timeout: 30
+```
+
+Only `timeout` took its default, because only `config.timeout` was missing.
+`false`, `0`, and `""` are all values, so they win.
+
+This is what makes `||` useful for defaults:
+
+```yaml
+host: (( grab config.host || "localhost" ))
+password: (( vault "secret/db:pass" || "default-password" ))
+```
+
+**It is not a boolean OR.** To ask whether either of two conditions holds,
+negate a conjunction or use a ternary:
+
+```yaml
+# either.yml
 is_production: false
 is_staging: true
 
-needs_monitoring: (( grab is_production || grab is_staging ))  # true
+wrong: (( is_production || is_staging ))
+right: (( ! (! is_production && ! is_staging) ))
+also_right: '(( is_production ? true : is_staging ))'
 ```
 
-**Short-circuit evaluation:** If the first operand is true, the second is not evaluated.
-
-**Default values:** `||` is commonly used for defaults:
+**Output** (`graft merge either.yml --prune is_production --prune is_staging`):
 
 ```yaml
-# Use default if grab fails or returns falsy
-host: (( grab config.host || "localhost" ))
-port: (( grab config.port || 8080 ))
-enabled: (( grab config.enabled || false ))
+also_right: true
+right: true
+wrong: false
 ```
+
+`wrong` is `false` because `is_production` resolved, so `||` returned it.
 
 ### Logical NOT (!)
 
-Negate a boolean value.
+Negate a boolean value. `nil`, `false`, `0`, `""`, and empty lists and maps are
+all falsey; everything else is truthy.
 
 ```yaml
+# not.yml
 debug_enabled: true
-
-debug_disabled: (( ! grab debug_enabled ))  # false
+debug_disabled: (( ! debug_enabled ))
 ```
 
-```yaml
-is_production: true
+**Output** (`graft merge not.yml`):
 
-(( if ! grab is_production ))
+```yaml
+debug_disabled: false
+debug_enabled: true
+```
+
+`!` also works in a control-flow condition, where no quoting is needed because
+the marker occupies the whole line:
+
+```yaml
+is_production: false
+
+(( if ! is_production ))
 debug:
   enabled: true
 (( fi ))
 ```
+
+**Output:**
+
+```yaml
+debug:
+  enabled: true
+is_production: false
+```
+
+`negate` is a named operator with the same truthiness rules:
+`(( negate enabled ))`.
 
 ## Ternary Operator (? :)
 
 Conditional expression that returns one of two values.
 
 **Syntax:**
+
 ```yaml
-value: (( condition ? value_if_true : value_if_false ))
+value: '(( condition ? value_if_true : value_if_false ))'
+```
+
+The single quotes are required. YAML reads `? ` and `: ` inside a plain scalar
+as structure, so an unquoted ternary never reaches graft:
+
+```
+tern.yml: parse_error: failed to parse YAML: [2:11] mapping value is not allowed in this context
+   1 | is_production: true
+>  2 | replicas: (( is_production ? 5 : 1 ))
+                 ^
 ```
 
 **Examples:**
+
 ```yaml
+# tern.yml
 is_production: true
 
-replicas: (( grab is_production ? 5 : 1 ))
-# production: 5, others: 1
-
-log_level: (( grab is_production ? "warn" : "debug" ))
-# production: "warn", others: "debug"
+replicas: '(( is_production ? 5 : 1 ))'
+log_level: '(( is_production ? "warn" : "debug" ))'
 ```
+
+**Output** (`graft merge tern.yml`):
+
+```yaml
+is_production: true
+log_level: warn
+replicas: 5
+```
+
+Only the selected branch is evaluated, so the branch not taken may reference
+something that does not exist.
 
 ### Complex Conditions
 
+Ternaries chain, and the whole chain still has to be one quoted scalar on one
+line.
+
 ```yaml
+# complex.yml
 env: staging
 traffic: high
 
-replicas: ((
-    grab env == "production" ? 10 :
-    grab env == "staging" && grab traffic == "high" ? 5 :
-    grab env == "staging" ? 2 :
-    1
-))
-# For staging with high traffic: 5
+replicas: '(( env == "production" ? 10 : env == "staging" && traffic == "high" ? 5 : env == "staging" ? 2 : 1 ))'
+```
+
+**Output** (`graft merge complex.yml`):
+
+```yaml
+env: staging
+replicas: 5
+traffic: high
 ```
 
 ### With Operators
 
+A parenthesized ternary cannot be the **first** argument of an operator call.
+`url: '(( concat (use_ssl ? "https" : "http") "://" host ))'` fails with:
+
+```
+1 error(s) detected:
+ - expected '))' at end of operator expression, got STRING
+```
+
+Give the ternary its own key and reference that:
+
 ```yaml
+# url.yml
 use_ssl: true
 host: api.example.com
 port: 8080
 
-url: (( concat
-    (grab use_ssl ? "https" : "http")
-    "://"
-    (grab host)
-    ":"
-    (grab port)
-))
-# "https://api.example.com:8080"
+scheme: '(( use_ssl ? "https" : "http" ))'
+url: (( concat scheme "://" host ":" port ))
+```
+
+**Output** (`graft merge url.yml --prune scheme`):
+
+```yaml
+host: api.example.com
+port: 8080
+url: https://api.example.com:8080
+use_ssl: true
 ```
 
 ## Combining Operators
 
 ### Complex Boolean Expressions
 
+"Admin, or else verified and active" is an OR, so it needs a ternary rather
+than `||`:
+
 ```yaml
+# access.yml
 user:
-  role: admin
+  role: viewer
   verified: true
   active: true
 
-has_access: ((
-    grab user.role == "admin" ||
-    (grab user.verified && grab user.active)
-))
+has_access: '(( user.role == "admin" ? true : user.verified && user.active ))'
 ```
+
+**Output** (`graft merge access.yml --prune user`):
+
+```yaml
+has_access: true
+```
+
+Written as `(( user.role == "admin" || (user.verified && user.active) ))` this
+returns `false` for a verified, active viewer: the left comparison resolved to
+`false`, and `||` returned it.
 
 ### Chained Comparisons
 
 ```yaml
+# temp.yml
 temperature: 72
 
-status: ((
-    grab temperature < 60 ? "cold" :
-    grab temperature < 75 ? "comfortable" :
-    grab temperature < 90 ? "warm" :
-    "hot"
-))
-# "comfortable"
+status: '(( temperature < 60 ? "cold" : temperature < 75 ? "comfortable" : temperature < 90 ? "warm" : "hot" ))'
+```
+
+**Output** (`graft merge temp.yml`):
+
+```yaml
+status: comfortable
+temperature: 72
 ```
 
 ### Null Checks
 
-```yaml
-optional_config:
-  # might be empty
+`type` is the reliable guard, because it answers for any value including a
+missing one.
 
-# Check before using
-setting: ((
-    (type grab optional_config) != "null" &&
-    (grab optional_config.enabled || false)
-    ? grab optional_config.value
-    : "default"
-))
+```yaml
+# nullcheck.yml
+optional_config: ~
+
+setting: '(( (type optional_config) == "map" ? optional_config.value : "default" ))'
+```
+
+**Output** (`graft merge nullcheck.yml --prune optional_config`):
+
+```yaml
+setting: default
+```
+
+Give `optional_config` a `value` and the same expression returns it:
+
+```yaml
+# nullcheck-present.yml
+optional_config:
+  value: custom
+
+setting: '(( (type optional_config) == "map" ? optional_config.value : "default" ))'
+```
+
+**Output** (`graft merge nullcheck-present.yml --prune optional_config`):
+
+```yaml
+setting: custom
 ```
 
 ## Operator Precedence
@@ -225,71 +386,140 @@ setting: ((
 From highest to lowest:
 
 1. `!` (logical NOT)
+
 2. `*`, `/`, `%` (multiplication, division, modulo)
+
 3. `+`, `-` (addition, subtraction)
+
 4. `<`, `>`, `<=`, `>=` (comparisons)
+
 5. `==`, `!=` (equality)
+
 6. `&&` (logical AND)
-7. `||` (logical OR)
+
+7. `||` (fallback)
+
 8. `? :` (ternary)
 
 **Example:**
-```yaml
-# Evaluated as: ((a < b) && (c > d)) || e
-result: (( a < b && c > d || e ))
 
-# Use parentheses for clarity
-clear: (( (a < b && c > d) || e ))
+```yaml
+# prec.yml
+a: 1
+b: 2
+c: 4
+d: 3
+
+result: (( a < b && c > d ))
 ```
+
+**Output** (`graft merge prec.yml --prune a --prune b --prune c --prune d`):
+
+```yaml
+result: true
+```
+
+Parentheses group as usual, and writing them out costs nothing:
+`(( (a < b && c > d) || e ))` says explicitly what the precedence table already
+implies.
 
 ## Practical Examples
 
 ### Feature Flags
 
 ```yaml
+# flags.yml
 features:
   new_ui: true
   beta_api: false
 
 settings:
-  ui_version: (( grab features.new_ui ? "v2" : "v1" ))
-  api_endpoint: (( grab features.beta_api
-      ? "/api/beta"
-      : "/api/v1" ))
+  ui_version: '(( features.new_ui ? "v2" : "v1" ))'
+  api_endpoint: '(( features.beta_api ? "/api/beta" : "/api/v1" ))'
+```
+
+**Output** (`graft merge flags.yml`):
+
+```yaml
+features:
+  beta_api: false
+  new_ui: true
+settings:
+  api_endpoint: /api/v1
+  ui_version: v2
 ```
 
 ### Environment-Based Configuration
 
 ```yaml
+# envcfg.yml
 env: production
 
 database:
-  pool_size: ((
-      grab env == "production" ? 50 :
-      grab env == "staging" ? 20 :
-      5
-  ))
-  ssl: (( grab env == "production" || grab env == "staging" ))
+  pool_size: '(( env == "production" ? 50 : env == "staging" ? 20 : 5 ))'
+  ssl: '(( env == "production" ? true : env == "staging" ))'
+```
+
+**Output** (`graft merge envcfg.yml`):
+
+```yaml
+database:
+  pool_size: 50
+  ssl: true
+env: production
+```
+
+Change only the environment and both values follow:
+
+```yaml
+# envcfg-dev.yml
+env: development
+
+database:
+  pool_size: '(( env == "production" ? 50 : env == "staging" ? 20 : 5 ))'
+  ssl: '(( env == "production" ? true : env == "staging" ))'
+```
+
+**Output** (`graft merge envcfg-dev.yml --prune env`):
+
+```yaml
+database:
+  pool_size: 5
+  ssl: false
 ```
 
 ### Validation
 
 ```yaml
+# valid.yml
 config:
   port: 8080
   timeout: 30
 
 validation:
-  port_valid: (( grab config.port > 0 && grab config.port < 65536 ))
-  timeout_valid: (( grab config.timeout >= 0 && grab config.timeout <= 300 ))
-  config_valid: (( grab validation.port_valid && grab validation.timeout_valid ))
+  port_valid: (( config.port > 0 && config.port < 65536 ))
+  timeout_valid: (( config.timeout >= 0 && config.timeout <= 300 ))
+  config_valid: (( validation.port_valid && validation.timeout_valid ))
+```
+
+**Output** (`graft merge valid.yml`):
+
+```yaml
+config:
+  port: 8080
+  timeout: 30
+validation:
+  config_valid: true
+  port_valid: true
+  timeout_valid: true
 ```
 
 ### Safe Defaults
 
 ```yaml
+# defaults.yml
 input:
-  # might be missing values
+  host: app.example.com
 
 output:
   host: (( grab input.host || "localhost" ))
@@ -298,21 +528,45 @@ output:
   timeout: (( grab input.timeout || 30 ))
 ```
 
-### Type-Safe Operations
+**Output** (`graft merge defaults.yml`):
 
 ```yaml
+input:
+  host: app.example.com
+output:
+  host: app.example.com
+  port: 8080
+  ssl: false
+  timeout: 30
+```
+
+### Type-Safe Operations
+
+Because the untaken branch is never evaluated, a `type` guard keeps arithmetic
+away from values that would fail it.
+
+```yaml
+# typesafe.yml
 value: "not a number"
 
-# Check type before arithmetic
-safe_calc: ((
-    (type grab value) == "int" || (type grab value) == "float"
-    ? (grab value * 2)
-    : 0
-))
+doubled: '(( (type value) == "int" ? value * 2 : 0 ))'
 ```
+
+**Output** (`graft merge typesafe.yml`):
+
+```yaml
+doubled: 0
+value: not a number
+```
+
+With `value: 21` the same file gives `doubled: 42`.
 
 ## See Also
 
 - [Operators Overview](index.md) - All operators
+
 - [Control Flow](control-flow.md) - if/else, for, case
+
 - [Arithmetic](arithmetic.md) - Math operators
+
+- [Operator reference](../../reference/operators.md) - Arity, types, and error text

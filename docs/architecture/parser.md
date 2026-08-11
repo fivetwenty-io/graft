@@ -1,160 +1,140 @@
 # Parser Design
 
-Graft's parser uses a hybrid strategy that preserves YAML compatibility while providing full control over operator expression parsing.
+Graft has two parsers, and keeping them apart explains most of the design.
+The **control-flow preprocessor** rewrites whole lines of source text before
+any YAML is parsed. The **expression parser** parses the contents of a single
+`(( ... ))` scalar, and runs later, when the evaluator reaches that value.
+Neither one parses YAML itself; that is delegated to a library.
 
 ## Design Rationale
 
-### Why Not Fork yaml.v3?
+### Why Not Fork the YAML Library?
 
-- yaml.v3 is battle-tested (~15k lines of code)
+- goccy/go-yaml is battle-tested and maintained
 
-- YAML spec is complex; a custom parser risks compliance bugs
+- The YAML spec is complex; a custom parser risks compliance bugs
 
 - The real complexity is in operator parsing, not YAML parsing
 
-- A hybrid approach gives accurate positions without fork risk
+- Delegating YAML keeps graft's own surface small
 
-### Hybrid Strategy
+### Division of Labor
 
-1. **Pre-Scanner**
+1. **Control-flow expansion**
 
-   Extract `(( ... ))` operator locations with precise positions
+   Rewrite `(( if ))`, `(( for ))`, `(( while ))`, and `(( case ))` blocks
+   into plain YAML, per file, on the raw bytes
 
-2. **yaml.v3 with Node API**
+2. **YAML parsing**
 
-   Parse YAML while preserving line/column information
+   Hand the expanded bytes to goccy/go-yaml, which reports position
+   information on failure
 
-3. **Unified Operator Parser**
+3. **Expression parsing**
 
-   Parse operator expressions with position mapping
+   Parse each `(( ... ))` scalar with the unified recursive-descent parser
+   when the evaluator reaches it
 
-4. **Position Mapping**
+## Control-Flow Preprocessor
 
-   Combine YAML positions with operator positions for accurate errors
+Control flow cannot be represented as a parsed expression. A marker occupies
+a whole line rather than a value position, its body is raw YAML rather than
+an expression, and two branches of the same `if` may legally define the same
+key — none of which survives a YAML parse. So `pkg/graft/controlflow`
+rewrites the source text instead, and everything downstream sees only the
+expanded result.
+
+The package registers itself with `pkg/graft` through a package-level hook
+(`ControlFlowExpander`, in `pkg/graft/controlflow_hook.go`), so `pkg/graft`
+never imports it. A consumer opts in with a blank import, exactly as it does
+for `pkg/graft/operators`. With no consumer, the hook stays nil and parsing
+behaves as it did before control flow existed.
+
+### Line Classification
+
+The scanner splits the source into lines and marks each one. A line is a
+**marker** when its trimmed content is exactly one balanced `(( ... ))`
+group, optionally followed by a YAML comment, and its first word is a
+control-flow keyword. Every other line is body text, copied out verbatim.
+
+Three details fall out of that rule:
+
+- **Quoting and nesting are honored within the line.** Parentheses inside a
+  quoted string do not close the group, and backslash escapes are respected.
+
+- **Markers are single-line.** The classifier only ever sees one line's
+  text, so a marker cannot span a line break.
+
+- **Block scalars are skipped.** A line that opens a `|` or `>` block scalar
+  puts the scanner into a pass-through state until the first non-blank line
+  at or below the opening line's indentation, so a `(( if ))`-shaped string
+  inside a script or another templating language is body text, not a marker.
+
+Keyword aliases are resolved at this point: `elsif` to `elif`, `endif` to
+`fi`, `endfor` and `endwhile` to `done`, `endcase` to `esac`.
+
+### Block Parsing
+
+A recursive-descent pass over the classified lines builds a tree of items,
+where an item is either a run of verbatim body lines or a nested block. It
+enforces the structural rules directly, and each diagnostic names the rule it
+broke rather than failing generically:
+
+- An unclosed block reports `unclosed block: expected (( elif )) or
+  (( else )) or (( fi )), reached end of input`
+
+- A stray closer reports `(( done )) at line 2 has no matching block start`
+
+- `elif` after `else`, a duplicate `else`, and `when` after `default` each
+  get their own message
+
+- Nesting is bounded at 64 levels: `control flow block nesting too deep
+  (max 64)`
+
+Because expansion happens before parsing, all of these carry graft's
+`parse_error` prefix and exit 2:
+
+```
+cf2.yml: parse_error: control flow expansion failed: control flow: (( done )) at line 2 has no matching block start
+```
+
+A failure while *evaluating* a condition or iterable, rather than while
+parsing the block structure, gets a synthetic path naming the construct and
+its source line instead:
+
+```
+loop.yml: parse_error: control flow expansion failed: $.controlflow.for.L2: unable to resolve `svcs`: `$.svcs` could not be found in the datastructure
+```
+
+See [Control Flow](../user-guide/operators/control-flow.md) for the
+user-facing rules, including loop-variable binding and the `while` iteration
+cap.
 
 ## Pre-Scanner
 
-### Purpose
-
-Scan input for `(( ... ))` operator expressions and control flow constructs before YAML parsing.
-
-### Interface
+`pkg/graft/interfaces` also provides a standalone pre-scanner that extracts
+every `(( ... ))` location and its raw content from a source string:
 
 ```go
 type OperatorLocation struct {
-    StartLine   int
-    StartColumn int
-    EndLine     int
-    EndColumn   int
-    RawText     string           // Full "(( ... ))" text
-    InnerText   string           // Just the "..." part
-    Type        OperatorType     // Standard, ControlFlow
+    Start      Position // Start position of the opening ((
+    End        Position // End position of the closing ))
+    RawContent string   // The content between (( and )), excluding delimiters
 }
 
-func PreScanOperators(source []byte) ([]OperatorLocation, error)
+func PreScan(source string) ([]OperatorLocation, error)
+func PreScanWithFile(source, filename string) ([]OperatorLocation, error)
 ```
 
-### Algorithm
+It handles nested parentheses, quoted strings containing `((` or `))`,
+escaped quotes, and expressions spanning several lines, and it does **not**
+validate what it finds — it reports locations and raw text only. Unbalanced
+delimiters produce a `PreScanError` carrying the position.
 
-```go
-func PreScanOperators(source []byte) ([]OperatorLocation, error) {
-    var locations []OperatorLocation
-    line, col := 1, 1
-    i := 0
-
-    for i < len(source)-1 {
-        // Track position
-        if source[i] == '\n' {
-            line++
-            col = 1
-            i++
-            continue
-        }
-
-        // Look for "(("
-        if source[i] == '(' && source[i+1] == '(' {
-            start := Position{Line: line, Column: col}
-
-            // Find matching "))"
-            end, inner, err := findOperatorEnd(source, i+2)
-            if err != nil {
-                return nil, err
-            }
-
-            loc := OperatorLocation{
-                StartLine:   start.Line,
-                StartColumn: start.Column,
-                EndLine:     end.Line,
-                EndColumn:   end.Column,
-                RawText:     string(source[i:end.Offset+2]),
-                InnerText:   inner,
-                Type:        classifyOperator(inner),
-            }
-            locations = append(locations, loc)
-
-            i = end.Offset + 2
-            continue
-        }
-
-        col++
-        i++
-    }
-
-    return locations, nil
-}
-```
-
-### Control Flow Classification
-
-```go
-func classifyOperator(inner string) OperatorType {
-    trimmed := strings.TrimSpace(inner)
-    words := strings.Fields(trimmed)
-
-    if len(words) == 0 {
-        return OperatorTypeStandard
-    }
-
-    switch words[0] {
-    case "if":
-        return OperatorTypeIf
-    case "elif":
-        return OperatorTypeElseIf
-    case "else":
-        return OperatorTypeElse
-    case "fi":
-        return OperatorTypeEndIf
-    case "for":
-        return OperatorTypeFor
-    case "while":
-        return OperatorTypeWhile
-    case "done":
-        return OperatorTypeEndLoop
-    case "case":
-        return OperatorTypeCase
-    case "when":
-        return OperatorTypeWhen
-    case "default":
-        return OperatorTypeDefault
-    case "esac":
-        return OperatorTypeEndCase
-    default:
-        return OperatorTypeStandard
-    }
-}
-```
-
-### Handled Cases
-
-- Multi-line operators
-
-- Nested parentheses within operators
-
-- Operators in any YAML context (values, keys, array items)
-
-- Escaped/quoted strings (not treated as operators)
-
-- Control flow block detection (if/fi, for/done, case/esac)
+This is a utility for tooling that needs to find expressions without
+evaluating them. The merge pipeline does not use it: control-flow markers are
+found by the preprocessor's own line classifier, and ordinary expressions are
+parsed on demand by the evaluator.
 
 ## Tokenizer
 
@@ -166,165 +146,140 @@ The tokenizer performs lexical analysis on operator expressions, producing a str
 type TokenType int
 
 const (
-    TokenTypeEOF TokenType = iota
-    TokenTypeError
+    TokenEOF TokenType = iota
+    TokenInvalid
+
+    // Delimiters of the expression itself
+    TokenOperatorStart  // ((
+    TokenOperatorEnd    // ))
 
     // Literals
-    TokenTypeInteger
-    TokenTypeFloat
-    TokenTypeString
-    TokenTypeBoolean
-    TokenTypeNull
+    TokenInteger        // 42, -17, 0xFF
+    TokenFloat          // 3.14, -2.5, 1e10
+    TokenString         // "hello"
+    TokenRawString      // 'world'
+    TokenBoolean        // true, false
+    TokenNull           // null, nil, ~
 
     // Identifiers
-    TokenTypeIdentifier
-    TokenTypeReference
-    TokenTypeEnvironment
+    TokenIdentifier     // foo, bar_baz
+    TokenReference      // meta.name, foo.bar[0]
+    TokenEnvironment    // $ENV_VAR
 
     // Operators
-    TokenTypeOperatorStart  // ((
-    TokenTypeOperatorEnd    // ))
-    TokenTypePlus           // +
-    TokenTypeMinus          // -
-    TokenTypeStar           // *
-    TokenTypeSlash          // /
-    TokenTypePercent        // %
-    TokenTypeEqual          // ==
-    TokenTypeNotEqual       // !=
-    TokenTypeLess           // <
-    TokenTypeGreater        // >
-    TokenTypeLessEqual      // <=
-    TokenTypeGreaterEqual   // >=
-    TokenTypeAnd            // &&
-    TokenTypeOr             // ||
-    TokenTypeNot            // !
-    TokenTypeQuestion       // ?
-    TokenTypeColon          // :
+    TokenPlus           // +
+    TokenMinus          // -
+    TokenStar           // *
+    TokenSlash          // /
+    TokenPercent        // %
+    TokenEqual          // ==
+    TokenNotEqual       // !=
+    TokenLess           // <
+    TokenGreater        // >
+    TokenLessEqual      // <=
+    TokenGreaterEqual   // >=
+    TokenAnd            // &&
+    TokenOr             // ||
+    TokenNot            // !
+    TokenQuestion       // ?
+    TokenColon          // :
 
     // Delimiters
-    TokenTypeLeftParen      // (
-    TokenTypeRightParen     // )
-    TokenTypeLeftBracket    // [
-    TokenTypeRightBracket   // ]
-    TokenTypeLeftBrace      // {
-    TokenTypeRightBrace     // }
-    TokenTypeComma          // ,
-    TokenTypeDot            // .
-    TokenTypeAt             // @
-    TokenTypePipe           // |
+    TokenLeftParen      // (
+    TokenRightParen     // )
+    TokenLeftBracket    // [
+    TokenRightBracket   // ]
+    TokenLeftBrace      // {
+    TokenRightBrace     // }
+    TokenComma          // ,
+    TokenDot            // .
+    TokenAt             // @
+    TokenPipe           // |
 
-    // Control Flow Keywords
-    TokenTypeIf
-    TokenTypeElif
-    TokenTypeElse
-    TokenTypeFi
-    TokenTypeFor
-    TokenTypeWhile
-    TokenTypeDone
-    TokenTypeCase
-    TokenTypeWhen
-    TokenTypeDefault
-    TokenTypeEsac
-    TokenTypeIn
-    TokenTypeRange
+    // Keywords
+    TokenIf
+    TokenElif
+    TokenElse
+    TokenFi
+    TokenFor
+    TokenIn
+    TokenDone
+    TokenWhile
+    TokenCase
+    TokenWhen
+    TokenDefault
+    TokenEsac
+    TokenOn      // merge on <key>
+    TokenBefore  // insert before
+    TokenAfter   // insert after
+    TokenRange
+
+    TokenOperatorName
 )
 ```
+
+The control-flow keyword tokens exist because the tokenizer is shared, but
+the expression parser never builds a control-flow construct from them: those
+blocks are already gone by the time any expression is parsed. An `(( if ))`
+line reaching the expression parser means it was not recognized as a marker —
+most often because it sits inside a block scalar, or because
+`pkg/graft/controlflow` was not imported.
 
 ### Token Structure
 
 ```go
 type Token struct {
-    Type     TokenType
-    Value    string
-    Position Position
+    Type    TokenType   // The type of the token
+    Value   interface{} // Parsed value for literals (int64, float64, string, bool, nil)
+    Literal string      // The raw text as it appears in source
+    Pos     Position    // Start position in source
+    End     Position    // End position in source
+    Error   string      // Error message for TokenInvalid
 }
 
 type Position struct {
-    Line   int
-    Column int
-    Offset int
+    Line   int    // 1-based
+    Column int    // 1-based
+    Offset int    // 0-based byte offset
+    File   string // Source file name (optional)
 }
 ```
 
 ### Tokenizer Interface
 
+`AdvancedTokenizer` is the implementation the parser drives:
+
 ```go
-type Tokenizer interface {
-    // Reset initializes with new input
-    Reset(input string)
+tok := interfaces.NewAdvancedTokenizer(input, interfaces.TokenizerOptions{
+    RecognizeReferencePaths: true,  // parse "meta.name" as one token
+    AllowEnvironmentVars:    true,  // parse "$VAR"
+    TrackPositions:          true,
+    AllowUnicode:            true,
+})
 
-    // Next returns the next token
-    Next() Token
-
-    // Peek returns the next token without consuming
-    Peek() Token
-
-    // Position returns current position
-    Position() Position
+for tok.HasMore() {
+    t := tok.NextToken()
+    // ...
 }
 ```
 
-### Keyword Recognition
-
-Keywords are recognized only in operator context:
-
-```go
-var keywords = map[string]TokenType{
-    "if":      TokenTypeIf,
-    "elif":    TokenTypeElif,
-    "else":    TokenTypeElse,
-    "fi":      TokenTypeFi,
-    "for":     TokenTypeFor,
-    "while":   TokenTypeWhile,
-    "done":    TokenTypeDone,
-    "case":    TokenTypeCase,
-    "when":    TokenTypeWhen,
-    "default": TokenTypeDefault,
-    "esac":    TokenTypeEsac,
-    "in":      TokenTypeIn,
-    "range":   TokenTypeRange,
-    "true":    TokenTypeBoolean,
-    "false":   TokenTypeBoolean,
-    "nil":     TokenTypeNull,
-    "null":    TokenTypeNull,
-}
-```
+`NextToken`, `PeekToken`, `HasMore`, `Position`, and `Reset` are the surface
+the parser uses. `Position` returns a byte offset, and the parser asserts it
+strictly increases between tokens: a scanner arm that produces a token
+without consuming input would otherwise loop forever, which is exactly what
+happened for a lone `=`, `&`, `|`, or `$` before that was fixed.
 
 ## Grammar Specification
 
 ### EBNF Grammar
 
+The grammar below covers expressions only. Control-flow blocks are not part
+of it — they are line-oriented, and they are gone before an expression is
+ever parsed.
+
 ```ebnf
-(* Document structure *)
-document       = ( statement | control_flow )* ;
-
-(* Control flow constructs *)
-control_flow   = if_block | for_block | while_block | case_block ;
-
-if_block       = "((" "if" expression "))" statement*
-                 ( "((" "elif" expression "))" statement* )*
-                 ( "((" "else" "))" statement* )?
-                 "((" "fi" "))" ;
-
-for_block      = "((" "for" IDENTIFIER ( "," IDENTIFIER )? "in" expression "))"
-                 statement*
-                 "((" "done" "))" ;
-
-while_block    = "((" "while" expression "))"
-                 statement*
-                 "((" "done" "))" ;
-
-case_block     = "((" "case" expression "))"
-                 ( when_clause )*
-                 ( "((" "default" "))" statement* )?
-                 "((" "esac" "))" ;
-
-when_clause    = "((" "when" pattern ( "|" pattern )* "))" statement* ;
-
-pattern        = STRING | NUMBER | BOOLEAN | IDENTIFIER ;
-
-(* Standard operator expressions *)
-statement      = "((" expression "))" | yaml_content ;
+(* An operator expression occupies one YAML scalar *)
+opcall         = "((" expression "))" ;
 
 expression     = ternary ;
 ternary        = logical_or ( "?" expression ":" expression )? ;
@@ -334,18 +289,84 @@ equality       = comparison ( ( "==" | "!=" ) comparison )* ;
 comparison     = additive ( ( "<" | ">" | "<=" | ">=" ) additive )* ;
 additive       = multiplicative ( ( "+" | "-" ) multiplicative )* ;
 multiplicative = unary ( ( "*" | "/" | "%" ) unary )* ;
-unary          = ( "!" | "-" ) unary | call ;
-call           = primary ( "(" arguments? ")" )* ;
+unary          = ( "!" | "-" ) unary | primary ;
 primary        = literal | reference | "(" expression ")" | operator_call ;
-operator_call  = OPERATOR arguments? ;
+operator_call  = OPERATOR [ "@" IDENTIFIER ] arguments? ;
 arguments      = expression ( expression )* ;
 literal        = STRING | NUMBER | BOOLEAN | NULL ;
-reference      = IDENTIFIER ( "." IDENTIFIER | "[" index "]" )* ;
-index          = NUMBER | STRING "=" value ;
-
-(* Built-in functions *)
-range          = "range" NUMBER NUMBER ( NUMBER )? ;
+reference      = IDENTIFIER ( "." segment | "[" segment "]" )* ;
+segment        = IDENTIFIER | NUMBER | IDENTIFIER "=" value ;
 ```
+
+Arguments are separated by whitespace, not commas. `@` after an operator name
+names a backend target: `(( vault@production "secret/db:password" ))`. A
+`field=value` segment is a predicate, selecting the entry of a list whose
+named field holds that value; the dotted and bracketed spellings are
+equivalent.
+
+### Operand Position
+
+`primary` is where an identifier's meaning is decided, and the rule is a
+two-token lookahead. An identifier opens an operator call only when it names
+a registered operator **and** the token after it can begin an argument — that
+is, it is not `)`, `))`, `,`, `:`, `.`, end of input, or an infix operator.
+
+Both halves are load-bearing:
+
+- Without the first, `(( environment == "production" ))` would fail. With it,
+  an identifier naming no registered operator resolves as a reference, so
+  `grab` is optional inside an expression.
+
+- Without the second, a document key that happens to share an operator's name
+  would break. `type`, `sort`, `keys`, and `empty` are all ordinary manifest
+  keys, and `(( left == type ))` has to keep resolving `type` as a reference.
+
+One case is deliberately preserved from before infix expressions existed: a
+lone identifier, `(( a ))`, still parses as a call to an unregistered
+operator and passes through as literal text. Multi-pass templating depends on
+that.
+
+### Nested Calls and Grouping
+
+A parenthesized group gets its own operand position, so an operator call may
+appear anywhere an argument may, at any depth:
+
+```yaml
+image:  (( base64 (file "logo.png") ))
+config: (( file (concat "configs/" env ".conf") ))
+secret: (( vault (concat "secret/" env "/db:password") ))
+nested: (( grab (concat "environments." (grab env) ".settings") ))
+```
+
+Paren nesting is bounded at 64 levels; deeper reports `expression nesting too
+deep (max 64)`.
+
+One spacing rule applies throughout. `))` is a single token — the end of the
+expression — so two closing parentheses may never sit next to each other
+inside one. When a nested call ends where an enclosing group also ends, put a
+space between them:
+
+```yaml
+# Parse error: the ")) " after db.user ends the expression early
+bad:  (( base64 (concat "prefix-" (grab db.user)) ))
+
+# Fine
+good: (( base64 (concat "prefix-" (grab db.user) ) ))
+```
+
+Three shapes are not accepted:
+
+- **A group wrapping the whole expression.** `(( (join "," (grab a)) ))`
+  fails with `expected ')' to close parenthesized expression`. Write
+  `(( join "," (grab a) ))`.
+
+- **A parenthesized infix or ternary group as an operator's first argument.**
+  `(( concat (a + b) "://" ))` fails with `expected '))' at end of operator
+  expression, got STRING`. A parenthesized operator *call* first is fine —
+  `(( concat (grab a) "://" ))` — and moving the group to a later argument is
+  fine too: `'(( concat "://" (p ? "x" : "y") ))'`.
+
+- **Two closing parentheses with nothing between them**, as above.
 
 ### Operator Precedence
 
@@ -359,364 +380,167 @@ range          = "range" NUMBER NUMBER ( NUMBER )? ;
 | 6 | `+` `-` | Left |
 | 7 | `*` `/` `%` | Left |
 | 8 | `!` `-` (unary) | Right |
-| 9 (highest) | `()` function call | Left |
+| 9 | operator call | Left |
+| 10 (highest) | literals, references, `( ... )` | Left |
 
 ## Unified Parser
 
 ### Structure
 
 ```go
-type UnifiedParser struct {
-    tokenizer     Tokenizer
-    registry      OperatorRegistry
-    options       ParserOptions
+type Parser struct {
+    tokenizer tokenStream
+    tokens    []*interfaces.Token
+    pos       int
+    input     string
+    phase     OperatorPhase
 
-    // State
-    currentToken  Token
-    peekToken     Token
-    hasNext       bool
-    errors        []error
-    originalInput string
+    // Token index at which a bare identifier may open an operator call
+    opcallPos int
+
+    // Currently-open "(" / "((" groups
+    nestingDepth int
 }
 
-type ParserOptions struct {
-    Phase           OperatorPhase
-    StrictMode      bool
-    MaxNestingDepth int
-}
+const maxNestingDepth = 64
 ```
+
+`opcallPos` is the mechanism behind operand position. `ParseOpcall` sets it
+to 1 — the first token after `((` — and every parenthesized group saves it,
+sets it to its own first token, and restores it on the way out. That is what
+gives each group its own call-opening slot, however deeply nested.
 
 ### Core Methods
 
 ```go
-// ParseExpression parses a complete expression
-func (p *UnifiedParser) ParseExpression(input string) (Expression, error)
+// NewParser builds a parser over one expression's text
+func NewParser(input string, phase OperatorPhase) *Parser
 
-// ParseOperatorCall parses "(( operator args ))"
-func (p *UnifiedParser) ParseOperatorCall(input string) (Expression, error)
+// ParseOpcall parses a complete "(( operator args ))"
+func (p *Parser) ParseOpcall() (*Opcall, error)
 
-// ParseReference parses "foo.bar[0].baz"
-func (p *UnifiedParser) ParseReference(input string) (Expression, error)
+// ParseOpcallWithParser is the package-level entry the evaluator calls
+func ParseOpcallWithParser(phase OperatorPhase, src string) (*Opcall, error)
 ```
 
-### Recursive Descent Implementation
-
-```go
-func (p *UnifiedParser) parseExpr() (Expression, error) {
-    return p.parseTernary()
-}
-
-func (p *UnifiedParser) parseTernary() (Expression, error) {
-    condition, err := p.parseLogicalOr()
-    if err != nil {
-        return nil, err
-    }
-
-    if p.currentToken.Type == TokenTypeQuestion {
-        p.advance()
-
-        trueExpr, err := p.parseExpr()
-        if err != nil {
-            return nil, err
-        }
-
-        if p.currentToken.Type != TokenTypeColon {
-            return nil, p.expectedError("':'")
-        }
-        p.advance()
-
-        falseExpr, err := p.parseExpr()
-        if err != nil {
-            return nil, err
-        }
-
-        return &TernaryOp{
-            Condition: condition,
-            TrueExpr:  trueExpr,
-            FalseExpr: falseExpr,
-        }, nil
-    }
-
-    return condition, nil
-}
-
-func (p *UnifiedParser) parseLogicalOr() (Expression, error) {
-    left, err := p.parseLogicalAnd()
-    if err != nil {
-        return nil, err
-    }
-
-    for p.currentToken.Type == TokenTypeOr {
-        p.advance()
-
-        right, err := p.parseLogicalAnd()
-        if err != nil {
-            return nil, err
-        }
-
-        left = &LogicalOr{Left: left, Right: right}
-    }
-
-    return left, nil
-}
-
-// Similar implementations for other precedence levels...
-```
+Parsing is driven by precedence climbing over the levels in the table above,
+with the ternary handled as a right-associative special case that produces a
+call to the registered `?:` operator.
 
 ## AST Node Types
 
-### Expression Nodes
+The parser produces one node type, `Expr`, discriminated by `Type`:
 
 ```go
-// Expression is the base interface for all AST nodes
-type Expression interface {
-    Accept(v Visitor) interface{}
-    Position() Range
-    String() string
-}
+type Expr struct {
+    Type      ExprType
+    Operator  string
+    Name      string
+    Target    string // "production" in "vault@production"
+    Left      *Expr
+    Right     *Expr
+    Literal   interface{}
+    Reference *tree.Cursor
 
-// OperatorCall represents a named operator with arguments
-type OperatorCall struct {
-    Operator   string
-    Arguments  []Expression
-    Target     string       // Optional target (e.g., "prod@" in vault)
-    Modifiers  []string     // Optional modifiers
-    Pos        Range
-}
+    // Which nodes of Reference.Nodes were written in bracket notation
+    BracketedNodes []bool
 
-// Reference represents a path to a document value
-type Reference struct {
-    Path       []PathElement
-    Pos        Range
-}
-
-type PathElement struct {
-    Type  PathElementType // Field or Index
-    Field string          // For field access
-    Index interface{}     // For index access (int or map key lookup)
-}
-
-// Literal represents a constant value
-type Literal struct {
-    Value interface{} // string, int64, float64, bool, nil
-    Kind  LiteralKind
-    Pos   Range
-}
-
-// BinaryOp represents a binary operation
-type BinaryOp struct {
-    Op    string
-    Left  Expression
-    Right Expression
-    Pos   Range
-}
-
-// UnaryOp represents a unary operation
-type UnaryOp struct {
-    Op      string
-    Operand Expression
-    Pos     Range
-}
-
-// TernaryOp represents a conditional expression
-type TernaryOp struct {
-    Condition Expression
-    TrueExpr  Expression
-    FalseExpr Expression
-    Pos       Range
-}
-
-// LogicalOr represents || with fallback semantics
-type LogicalOr struct {
-    Left  Expression
-    Right Expression
-    Pos   Range
+    Call *Opcall
+    Pos  Position
 }
 ```
 
-### Control Flow Nodes
+`ExprType` covers `Literal`, `Reference`, `List`, `Or`, `Negate`, the
+arithmetic and comparison forms (`Addition` through `GreaterThanOrEqual`),
+`LogicalAnd`, `LogicalOr`, `RegexpMatch`, `EnvVar`, `BoshVar`,
+`OperatorCall`, and the two vault sub-expression forms `VaultGroup` and
+`VaultChoice`.
+
+An operator call is an `Opcall`, which carries the resolved operator, its
+argument expressions, the name as written, and the `@target` if one was
+given:
 
 ```go
-// IfStatement represents if/elif/else/fi
-type IfStatement struct {
-    Conditions []Expression  // Condition for if and each elif
-    Bodies     [][]Statement // Statements for each branch
-    ElseBody   []Statement   // Statements for else (optional)
-    Pos        Range
-}
-
-// ForStatement represents for/done
-type ForStatement struct {
-    Variable   string       // Loop variable
-    KeyVar     string       // Optional key variable
-    Collection Expression   // Collection to iterate
-    Body       []Statement
-    Pos        Range
-}
-
-// WhileStatement represents while/done
-type WhileStatement struct {
-    Condition Expression
-    Body      []Statement
-    MaxIter   int          // Safety limit
-    Pos       Range
-}
-
-// CaseStatement represents case/when/default/esac
-type CaseStatement struct {
-    Value   Expression
-    When    []WhenClause
-    Default []Statement
-    Pos     Range
-}
-
-// WhenClause represents a single when in case
-type WhenClause struct {
-    Patterns []Expression // Multiple via |
-    Body     []Statement
-    Pos      Range
-}
-
-// RangeExpr represents range start end [step]
-type RangeExpr struct {
-    Start Expression
-    End   Expression
-    Step  Expression // Optional
-    Pos   Range
+type Opcall struct {
+    src       string
+    where     *tree.Cursor
+    canonical *tree.Cursor
+    op        Operator
+    args      []*Expr
+    name      string // as written, e.g. "vault"
+    target    string // "prod" in "vault@prod"; "" if none
 }
 ```
 
-### Visitor Pattern
+There are no control-flow node types, and no visitor interface. Control flow
+never reaches the expression AST, and `Opcall.Run` dispatches directly on the
+`Operator` interface — `Setup`, `Run`, `Dependencies`, `Phase` — rather than
+through a traversal.
 
-```go
-type Visitor interface {
-    VisitOperatorCall(node *OperatorCall) interface{}
-    VisitReference(node *Reference) interface{}
-    VisitLiteral(node *Literal) interface{}
-    VisitBinaryOp(node *BinaryOp) interface{}
-    VisitUnaryOp(node *UnaryOp) interface{}
-    VisitTernaryOp(node *TernaryOp) interface{}
-    VisitLogicalOr(node *LogicalOr) interface{}
-    VisitEnvironment(node *Environment) interface{}
-    VisitYAMLLiteral(node *YAMLLiteral) interface{}
-    VisitParenthesized(node *Parenthesized) interface{}
-
-    // Control flow
-    VisitIfStatement(node *IfStatement) interface{}
-    VisitForStatement(node *ForStatement) interface{}
-    VisitWhileStatement(node *WhileStatement) interface{}
-    VisitCaseStatement(node *CaseStatement) interface{}
-    VisitWhenClause(node *WhenClause) interface{}
-    VisitRangeExpr(node *RangeExpr) interface{}
-}
-```
+An operator that accepts a target implements `TargetAware`. `Opcall.Run`
+consults it before running any call that carried one, so an operator that
+cannot honor a target rejects it with a clear error instead of silently
+reading from the default backend.
 
 ## Position Tracking
 
-### Range Type
-
 ```go
+type Position struct {
+    Line   int    // 1-based
+    Column int    // 1-based
+    Offset int    // 0-based byte offset
+    File   string // optional
+}
+
 type Range struct {
     Start Position
     End   Position
 }
-
-type Position struct {
-    Line   int
-    Column int
-    Offset int // Byte offset in source
-}
 ```
 
-### Position Mapper
+`PositionMapper` converts byte offsets back into line/column positions. It
+precomputes the offset of every line start and binary-searches that table, so
+a lookup is logarithmic in the number of lines rather than a rescan:
 
 ```go
-type PositionMapper struct {
-    operatorLocs map[string]OperatorLocation
-    yamlNodes    map[*yaml.Node]Position
-    sourceFile   string
-    source       string
-}
-
-func (pm *PositionMapper) MapError(node *yaml.Node, offset int) Position {
-    base := Position{Line: node.Line, Column: node.Column}
-
-    // Adjust for offset within operator expression
-    content := node.Value[:offset]
-    for _, ch := range content {
-        if ch == '\n' {
-            base.Line++
-            base.Column = 1
-        } else {
-            base.Column++
-        }
-    }
-
-    return base
-}
+pm := interfaces.NewPositionMapper(source, "config.yml")
+pos := pm.PositionAt(offset)   // Position{Line, Column, Offset, File}
 ```
 
 ## Error Reporting
 
-### Error Types
-
-```go
-type ParseError struct {
-    Message  string
-    Position Position
-    Source   string
-    Length   int
-    Hint     string
-}
-
-func (e *ParseError) Error() string {
-    return e.Format()
-}
-
-func (e *ParseError) Format() string {
-    lines := strings.Split(e.Source, "\n")
-
-    var result strings.Builder
-    result.WriteString(fmt.Sprintf("Error at line %d, column %d:\n",
-        e.Position.Line, e.Position.Column))
-
-    // Show context line
-    if e.Position.Line > 0 && e.Position.Line <= len(lines) {
-        line := lines[e.Position.Line-1]
-        result.WriteString(fmt.Sprintf("  %s\n", line))
-
-        // Show caret
-        result.WriteString(strings.Repeat(" ", e.Position.Column+1))
-        result.WriteString(strings.Repeat("^", max(1, e.Length)))
-        result.WriteString("\n")
-    }
-
-    result.WriteString(e.Message)
-
-    if e.Hint != "" {
-        result.WriteString(fmt.Sprintf("\n\nHint: %s", e.Hint))
-    }
-
-    return result.String()
-}
-```
-
-### Example Error Output
+Expression errors are reported against the path being evaluated, and graft
+aggregates them so one run reports every failure rather than stopping at the
+first:
 
 ```
-Error at line 15, column 34:
-  password: (( vault "secret/db:pass" || ))
-                                       ^^
-Expected: expression after '||' operator
-Found: '))'
+2 error(s) detected:
+ - $.database.port: too few arguments supplied to (( split ... ))
+ - $.database.url: concat operator requires at least two arguments
+```
 
-Hint: The '||' operator requires a default value.
-Example: (( vault "path:key" || "default" ))
+Failures from control-flow expansion happen earlier, before YAML parsing, so
+they carry the `parse_error` prefix, the file name, and a synthetic path:
+
+```
+loop.yml: parse_error: control flow expansion failed: $.controlflow.for.L2: unable to resolve `svcs`: `$.svcs` could not be found in the datastructure
+```
+
+YAML errors keep the library's own line and column detail, which is usually
+what a human needs to find an unquoted expression:
+
+```
+yerr.yml: parse_error: failed to parse YAML: [4:38] could not find end character of double-quoted text
+   1 | application:
+   2 |   name: my-app
+   3 | computed:
+>  4 |   full_name: (( concat "Application: " application.name ))
+                                            ^
 ```
 
 ## Nested Expression Examples
 
-All of these must work consistently:
+All of these work:
 
 ```yaml
 # Simple nesting
@@ -726,27 +550,33 @@ url: (( concat "https://" (grab host) ":" (grab port) ))
 config: (( grab (concat "environments." (grab env) ".settings") ))
 
 # Operators in operator arguments
-password: (( vault (concat "secret/" (grab env) ":password") ))
+password: (( vault (concat "secret/" (grab env) "/db:password") ))
 
 # Arithmetic with references
 total: (( (grab base) + (grab tax) * (grab quantity) ))
 
-# Ternary with nested expressions
-value: (( (grab enabled) ? (grab primary) : (grab fallback) ))
+# Bare references, no grab needed
+total: (( base + tax * quantity ))
+
+# Ternary, quoted because the expression contains ": "
+value: '(( (grab enabled) ? (grab primary) : (grab fallback) ))'
 
 # Boolean expressions
 allowed: (( (grab role) == "admin" || (grab permissions.write) ))
 
-# Complex real-world example
-db_url: (( concat
-    "postgres://"
-    (grab db.user) ":"
-    (vault (concat "secret/" (grab env) "/db:password"))
-    "@" (grab db.host) ":" (grab db.port)
-    "/" (grab db.name)
-    (grab db.ssl ? "?sslmode=require" : "")
-))
+# A predicate instead of an index
+primary_host: (( grab servers.name=primary.host ))
+
+# Everything at once, on one line
+db_url: '(( concat "postgres://" (grab db.user) ":" (grab pw) "@" (grab db.host) ":" (grab db.port) "/" (grab db.name) (db.ssl ? "?sslmode=require" : "") ))'
 ```
+
+Two YAML rules constrain how these are written, and neither is graft's doing.
+An expression containing `: ` — any ternary, and any string literal with a
+colon followed by a space — has to be quoted, or YAML reads it as a mapping
+key. And an expression cannot be split across lines: a plain scalar does not
+span lines, so the multi-line layout that reads well in a design document is
+a parse error in a real file.
 
 ## Testing Requirements
 

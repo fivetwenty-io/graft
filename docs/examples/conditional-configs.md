@@ -1,10 +1,31 @@
 # Conditional Configurations
 
-This guide demonstrates Graft's control flow operators for creating dynamic, conditional configurations.
+This guide demonstrates Graft's control flow constructs for creating dynamic,
+conditional configurations.
+
+Control flow is a source-to-source preprocessor: each file's text is rewritten
+into ordinary YAML before it is parsed. Two facts from that shape every example
+below.
+
+- A marker's own indentation is discarded, but the indentation of the lines
+  inside a block is kept verbatim. Where you indent the body decides where it
+  lands in the document.
+
+- Expansion happens per file, before any merge, and the source data a loop
+  iterates stays in the output like any other key. Drop it with `--prune` when
+  it is only scaffolding.
+
+Graft prints the whole merged document with keys sorted alphabetically at every
+level, and list items at the same indentation as their parent key. Every output
+block below is exactly what the shown command prints.
+
+See [Control Flow Operators](../user-guide/operators/control-flow.md) for the
+complete reference.
 
 ## If/Elif/Else Conditionals
 
-Use conditional blocks to include or exclude configuration sections based on conditions.
+Use conditional blocks to include or exclude configuration sections based on
+conditions.
 
 ### Simple If/Else
 
@@ -39,6 +60,10 @@ database:
   ssl: true
 environment: production
 ```
+
+The condition is an ordinary graft expression, so a bare reference works
+without `grab`. `(( if environment == "production" ))` and
+`(( if grab environment == "production" ))` are the same test.
 
 ### Multi-Branch with Elif
 
@@ -83,6 +108,9 @@ resources:
   memory: 4Gi
   replicas: 2
 ```
+
+Only the selected branch is evaluated, so an unselected branch may reference
+keys that do not exist.
 
 ### Boolean Conditions
 
@@ -140,7 +168,8 @@ server:
   protocol: https
 ```
 
-Note that the `metrics` block is entirely absent since `features.metrics` is false.
+Note that the `metrics` block is entirely absent since `features.metrics` is
+false.
 
 ### Compound Conditions
 
@@ -218,7 +247,9 @@ security:
 
 ## Nested Conditionals
 
-Conditionals can be nested for complex logic.
+Conditionals nest inside one another. Because the marker's indentation is
+discarded and the body's is kept, the inner branch bodies below are indented two
+spaces so they land under `provider:`.
 
 **config.yml:**
 
@@ -262,8 +293,8 @@ cloud: aws
 provider:
   name: Amazon Web Services
   regions:
-    - us-east-1
-    - us-west-2
+  - us-east-1
+  - us-west-2
   support:
     level: enterprise
     response_time: 1h
@@ -273,7 +304,7 @@ tier: premium
 
 ## For Loops
 
-Iterate over arrays or maps to generate repeated structures.
+Iterate over lists or maps to generate repeated structures.
 
 ### Basic Array Iteration
 
@@ -301,20 +332,24 @@ graft merge config.yml
 
 ```yaml
 deployments:
-  - image: myapp/api:latest
-    name: api
-    replicas: 1
-  - image: myapp/worker:latest
-    name: worker
-    replicas: 1
-  - image: myapp/scheduler:latest
-    name: scheduler
-    replicas: 1
+- image: myapp/api:latest
+  name: api
+  replicas: 1
+- image: myapp/worker:latest
+  name: worker
+  replicas: 1
+- image: myapp/scheduler:latest
+  name: scheduler
+  replicas: 1
 services:
-  - api
-  - worker
-  - scheduler
+- api
+- worker
+- scheduler
 ```
+
+The `services` list is a normal document key, so it survives into the output.
+Add `--prune services` when it is only there to drive the loop. The remaining
+loop examples do exactly that.
 
 ### Iterating Over Objects
 
@@ -350,7 +385,7 @@ kubernetes:
 ```
 
 ```sh
-graft merge config.yml
+graft merge --prune service_configs config.yml
 ```
 
 **Output:**
@@ -358,52 +393,44 @@ graft merge config.yml
 ```yaml
 kubernetes:
   deployments:
-    - apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: api
-      spec:
-        replicas: 3
-        template:
-          spec:
-            containers:
-              - name: api
-                port: 8080
-    - apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: worker
-      spec:
-        replicas: 2
-        template:
-          spec:
-            containers:
-              - name: worker
-                port: 8081
-    - apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: scheduler
-      spec:
-        replicas: 1
-        template:
-          spec:
-            containers:
-              - name: scheduler
-                port: 8082
-service_configs:
-  - name: api
-    port: 8080
-    replicas: 3
-  - name: worker
-    port: 8081
-    replicas: 2
-  - name: scheduler
-    port: 8082
-    replicas: 1
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+    spec:
+      replicas: 3
+      template:
+        spec:
+          containers:
+          - name: api
+            port: 8080
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: worker
+    spec:
+      replicas: 2
+      template:
+        spec:
+          containers:
+          - name: worker
+            port: 8081
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: scheduler
+    spec:
+      replicas: 1
+      template:
+        spec:
+          containers:
+          - name: scheduler
+            port: 8082
 ```
 
 ### Iterating with Index
+
+Over a list, the two-variable form binds the index and the element.
 
 **config.yml:**
 
@@ -422,29 +449,28 @@ subnets:
 ```
 
 ```sh
-graft merge config.yml
+graft merge --prune zones config.yml
 ```
 
 **Output:**
 
 ```yaml
 subnets:
-  - availability_zone: us-east-1a
-    cidr: 10.0.0.0/24
-    name: subnet-0
-  - availability_zone: us-east-1b
-    cidr: 10.0.1.0/24
-    name: subnet-1
-  - availability_zone: us-east-1c
-    cidr: 10.0.2.0/24
-    name: subnet-2
-zones:
-  - us-east-1a
-  - us-east-1b
-  - us-east-1c
+- availability_zone: us-east-1a
+  cidr: 10.0.0.0/24
+  name: subnet-0
+- availability_zone: us-east-1b
+  cidr: 10.0.1.0/24
+  name: subnet-1
+- availability_zone: us-east-1c
+  cidr: 10.0.2.0/24
+  name: subnet-2
 ```
 
 ### Iterating Over Map Keys
+
+Over a map, the two-variable form binds the key and the value, with keys
+visited in sorted order.
 
 **config.yml:**
 
@@ -463,7 +489,7 @@ container:
 ```
 
 ```sh
-graft merge config.yml
+graft merge --prune environment_vars config.yml
 ```
 
 **Output:**
@@ -471,19 +497,18 @@ graft merge config.yml
 ```yaml
 container:
   env:
-    - name: DATABASE_URL
-      value: postgres://localhost/myapp
-    - name: LOG_LEVEL
-      value: info
-    - name: REDIS_URL
-      value: redis://localhost:6379
-environment_vars:
-  DATABASE_URL: postgres://localhost/myapp
-  LOG_LEVEL: info
-  REDIS_URL: redis://localhost:6379
+  - name: DATABASE_URL
+    value: postgres://localhost/myapp
+  - name: LOG_LEVEL
+    value: info
+  - name: REDIS_URL
+    value: redis://localhost:6379
 ```
 
 ### Using Range for Numeric Iteration
+
+`range` generates a sequence over a closed interval, so both bounds are
+included.
 
 **config.yml:**
 
@@ -503,16 +528,16 @@ graft merge config.yml
 
 ```yaml
 workers:
-  - id: 1
-    name: worker-1
-  - id: 2
-    name: worker-2
-  - id: 3
-    name: worker-3
-  - id: 4
-    name: worker-4
-  - id: 5
-    name: worker-5
+- id: 1
+  name: worker-1
+- id: 2
+  name: worker-2
+- id: 3
+  name: worker-3
+- id: 4
+  name: worker-4
+- id: 5
+  name: worker-5
 ```
 
 ### Range with Step
@@ -534,77 +559,107 @@ graft merge config.yml
 
 ```yaml
 ports:
-  - 8080
-  - 8082
-  - 8084
-  - 8086
-  - 8088
-  - 8090
+- 8080
+- 8082
+- 8084
+- 8086
+- 8088
+- 8090
 ```
 
-## While Loops
+A step of zero, or one pointing away from the end bound, is an error:
 
-Execute blocks while a condition is true.
+```
+range step must be non-zero and must move start toward end
+```
 
-**config.yml:**
+## Retry Tables Instead of While Loops
+
+`while` is spelled `(( while condition ))` ... `(( done ))`, but it is of
+little practical use. Graft has no assignment, so nothing inside the body can
+change the value the condition tests. A condition that is false at the start
+emits nothing; a condition that is true stays true and runs until the iteration
+cap, which is a hard error.
+
+**spin.yml:**
 
 ```yaml
-retry_attempts: 5
+counter: 0
+limit: 5
 
-retry_configs:
-  attempts: []
-
-# Note: while loops have safety limits to prevent infinite loops
-(( while retry_count < retry_attempts ))
-retry_settings:
-(( for i in range 1 retry_attempts ))
-  - attempt: (( grab i ))
-    delay_seconds: (( calc i * 2 ))
-    max_delay: (( calc i * i ))
-(( done ))
+attempts:
+(( while counter < limit ))
+  - pending
 (( done ))
 ```
 
-A more practical example using while:
+```sh
+graft merge spin.yml
+```
+
+**Output** (exit code 2):
+
+```
+spin.yml: parse_error: control flow expansion failed: $.controlflow.while.L5: while loop exceeded maximum iterations (1000)
+```
+
+The cap defaults to 1000 and can be raised or lowered two ways, the flag
+winning when both are given:
+
+```sh
+GRAFT_MAX_LOOP_ITERATIONS=7 graft merge spin.yml
+graft merge --max-loop-iterations 7 spin.yml
+```
+
+A retry-and-backoff table is the case `while` looks made for, and it is exactly
+the case `for ... in range` handles better.
 
 **backoff.yml:**
 
 ```yaml
 max_retries: 4
-base_delay: 1
+base_delay: 5
 
 retries:
 (( for attempt in range 0 max_retries ))
   - attempt: (( grab attempt ))
-    delay: (( calc base_delay * (2 ** attempt) ))
+    delay_seconds: (( calc base_delay * (attempt + 1) ))
 (( done ))
 ```
 
 ```sh
-graft merge backoff.yml
+graft merge --prune max_retries --prune base_delay backoff.yml
 ```
 
 **Output:**
 
 ```yaml
-base_delay: 1
-max_retries: 4
 retries:
-  - attempt: 0
-    delay: 1
-  - attempt: 1
-    delay: 2
-  - attempt: 2
-    delay: 4
-  - attempt: 3
-    delay: 8
-  - attempt: 4
-    delay: 16
+- attempt: 0
+  delay_seconds: 5
+- attempt: 1
+  delay_seconds: 10
+- attempt: 2
+  delay_seconds: 15
+- attempt: 3
+  delay_seconds: 20
+- attempt: 4
+  delay_seconds: 25
 ```
+
+The delay uses `calc`'s unquoted form on purpose. A loop variable is bound by
+rewriting the name where it appears as a reference, and quoted string literals
+are left alone, so `calc`'s quoted form cannot see `attempt`:
+`(( calc "pow(2, attempt)" ))` fails with `calc operator does not support named
+variables in expression: attempt`. Unquoted `calc` handles infix arithmetic and
+parentheses but no function calls, so an exponential table has to be written
+out as a literal list.
 
 ## Case/When Pattern Matching
 
-Match values against multiple patterns.
+Match a value against multiple patterns. Matching is exact string equality, the
+first matching `when` wins, and there is no fallthrough. Patterns must be
+literals: a quoted string, a number, or `true`/`false`.
 
 ### Basic Case
 
@@ -645,6 +700,9 @@ storage:
   class: STANDARD
   type: s3
 ```
+
+`default` is optional but must come last. A subject that matches nothing, with
+no `default` present, emits nothing.
 
 ### Multiple Patterns per When
 
@@ -692,6 +750,12 @@ settings:
 ```
 
 ### Nested Case Statements
+
+Keep nested bodies at the indentation you want them to land at. Indenting a
+body under the inner `(( case ))` marker does not nest it under the outer case;
+it nests it under whatever mapping is open in the surrounding document. Below
+the inner markers are indented for readability while their bodies stay at the
+top level, so `resources:` is a sibling of `platform:`.
 
 **config.yml:**
 
@@ -752,7 +816,7 @@ resources:
 
 ## Combining Control Flow with Operators
 
-Control flow works seamlessly with other Graft operators.
+Control flow works alongside every other Graft operator.
 
 ### Conditionals with Grab and Concat
 
@@ -821,7 +885,7 @@ ingress:
 ```
 
 ```sh
-graft merge config.yml
+graft merge --prune services config.yml
 ```
 
 **Output:**
@@ -829,20 +893,10 @@ graft merge config.yml
 ```yaml
 ingress:
   rules:
-    - host: api.example.com
-      port: 8080
-    - host: admin.example.com
-      port: 8082
-services:
-  - name: api
+  - host: api.example.com
     port: 8080
-    public: true
-  - name: worker
-    port: 8081
-    public: false
-  - name: admin
+  - host: admin.example.com
     port: 8082
-    public: true
 ```
 
 ### Vault Secrets with Conditionals
@@ -859,23 +913,32 @@ database:
   (( if environment == "production" ))
   password: (( vault "secret/prod/db:password" ))
   (( else ))
-  password: (( vault "secret/dev/db:password" || "dev-password" ))
+  password: (( vault "secret/dev/db:password" ))
   (( fi ))
 ```
 
-When Vault is configured and accessible:
+With Vault configured and reachable, `graft merge config.yml` fills
+`database.password` in from `secret/prod/db`. Without it, the merge fails:
 
-```sh
-graft merge config.yml
+```
+1 error(s) detected:
+ - $.database.password: Error during Vault client initialization: failed to determine Vault URL / token, and the $REDACT environment variable is not set
 ```
 
-**Output (with Vault):**
+Set `REDACT=1` to check the structure without contacting Vault at all. Every
+`vault` lookup then resolves to the literal `REDACTED`:
+
+```sh
+REDACT=1 graft merge config.yml
+```
+
+**Output:**
 
 ```yaml
 database:
   host: db.example.com
   name: myapp
-  password: <value-from-vault>
+  password: REDACTED
   port: 5432
 environment: production
 ```
@@ -896,12 +959,6 @@ environments:
     resources:
       cpu: 100m
       memory: 256Mi
-  - name: staging
-    namespace: staging
-    replicas: 2
-    resources:
-      cpu: 250m
-      memory: 512Mi
   - name: production
     namespace: prod
     replicas: 5
@@ -948,11 +1005,107 @@ deployments:
 graft merge deployment-config.yml --prune app --prune environments
 ```
 
-This generates complete Kubernetes Deployment manifests for all environments.
+**Output:**
+
+```yaml
+deployments:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    labels:
+      app: my-api
+      environment: development
+      version: 1.5.0
+    name: my-api-development
+    namespace: dev
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: my-api
+    template:
+      metadata:
+        labels:
+          app: my-api
+          version: 1.5.0
+      spec:
+        containers:
+        - image: myregistry/my-api:1.5.0
+          name: my-api
+          resources:
+            limits:
+              cpu: 100m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    labels:
+      app: my-api
+      environment: production
+      version: 1.5.0
+    name: my-api-production
+    namespace: prod
+  spec:
+    replicas: 5
+    selector:
+      matchLabels:
+        app: my-api
+    template:
+      metadata:
+        labels:
+          app: my-api
+          version: 1.5.0
+      spec:
+        containers:
+        - image: myregistry/my-api:1.5.0
+          name: my-api
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 500m
+              memory: 1Gi
+```
+
+Add an environment to the `environments` list and a full manifest appears for
+it, with no template duplicated.
+
+## Common Pitfalls
+
+- **Loops cannot iterate another file's data**
+
+  Expansion runs per file before any merge, so a loop whose iterable is defined
+  only in a different merged file fails at expansion time. Move the loop into
+  the file that defines the data.
+
+- **Loop variables are invisible inside quoted strings**
+
+  A binding is applied by rewriting the name where it appears as a reference,
+  and string literals are deliberately left alone. This is why `concat "https://name.example.com/" name`
+  is not corrupted, and why `calc`'s quoted form cannot see a loop variable.
+
+- **`__graft_loop` is a reserved top-level key**
+
+  Loop bindings live under it during expansion and are pruned before output. A
+  document that defines its own top-level `__graft_loop` alongside control flow
+  fails with a duplicate-mapping-key parse error. Rename the key.
+
+- **Control flow errors are parse errors**
+
+  Expansion precedes YAML parsing, so failures carry graft's `parse_error`
+  prefix and a synthetic path naming the construct and its source line
+  (`$.controlflow.<construct>.L<line>`). The exit code is 2.
 
 ## See Also
 
 - [Basic Merging](basic-merging.md) - Fundamental merge operations
+
 - [Multi-Environment Setups](multi-environment.md) - Environment management patterns
+
 - [Control Flow Operators](../user-guide/operators/control-flow.md) - Complete reference
+
 - [Operator Reference](../reference/operator-quick-reference.md) - All operators

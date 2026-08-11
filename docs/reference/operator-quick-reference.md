@@ -93,11 +93,11 @@ cleared: (( null ))
 
 ### type
 
-Get value type as string.
+Get value type as string. Takes exactly one argument.
 
 ```yaml
 value_type: (( type some_value ))
-# Returns: "string", "int", "float", "bool", "map", "array", "nil"
+# Returns one of: string, int, float, bool, array, map, null
 ```
 
 ## Data Flow & Control
@@ -146,7 +146,7 @@ internal:
 sum: (( 1 + 2 ))           # 3
 diff: (( 10 - 3 ))         # 7
 product: (( 4 * 5 ))       # 20
-quotient: (( 20 / 4 ))     # 5
+quotient: (( 20 / 4 ))     # 5.0 — division always yields a float
 remainder: (( 17 % 5 ))    # 2
 ```
 
@@ -158,19 +158,32 @@ Complex math with functions.
 result: (( calc "base * rate + offset" ))
 clamped: (( calc "max(0, min(100, value))" ))
 rounded: (( calc "floor(price * 100) / 100" ))
+unquoted: (( calc (a + b) * 2 ))
 ```
 
 **Functions:** `max()`, `min()`, `mod()`, `pow()`, `sqrt()`, `floor()`, `ceil()`
 
+Functions require the quoted form — `(( calc max(a, b) ))` does not parse.
+`**` (exponentiation) and `^` (bitwise XOR, not power) also require the quoted
+form; unquoted, neither tokenizes.
+
 ### Enhanced calc (Value Modification)
 
-```yaml
-base:
-  timeout: 30
+A leading operator modifies the value an **earlier file** in the same merge
+gave the same path:
 
-overlay:
-  timeout: (( calc * 2 ))    # 60 (30 * 2)
+```yaml
+# base.yml
+timeout: 30
 ```
+
+```yaml
+# overlay.yml
+timeout: (( calc * 2 ))
+```
+
+`graft merge base.yml overlay.yml` yields `timeout: 60`. Chaining a third
+file that modifies the same key again yields `0`.
 
 ## Comparison & Logic
 
@@ -198,9 +211,12 @@ ready: (( initialized && !maintenance ))
 ### Ternary Conditional
 
 ```yaml
-size: (( large ? "8Gi" : "2Gi" ))
-host: (( production ? "prod.example.com" : "dev.example.com" ))
+size: '(( large ? "8Gi" : "2Gi" ))'
+host: '(( production ? "prod.example.com" : "dev.example.com" ))'
 ```
+
+Quote the whole expression. A plain YAML scalar cannot contain `: `, so an
+unquoted ternary is a YAML parse error before graft ever sees it.
 
 ### Default Values (||)
 
@@ -248,9 +264,16 @@ services:
 
 ### while / done
 
+graft has no assignment construct, so nothing in a loop body can change the
+value its condition tests. A condition that is false emits nothing; one that is
+true runs to the iteration cap (default 1000, set with
+`GRAFT_MAX_LOOP_ITERATIONS` or `--max-loop-iterations`) and then errors. Use
+`for ... in range` instead:
+
 ```yaml
-(( while grab counter < 10 ))
-  - attempt: (( grab counter ))
+attempts:
+(( for i in range 0 3 ))
+  - attempt: (( grab i ))
 (( done ))
 ```
 
@@ -334,27 +357,29 @@ Insert at specific position.
 
 ```yaml
 items:
-  - (( insert before 2 ))
+  - (( insert before 2 ))       # By index
   - inserted_item
 
 items:
-  - (( insert after "name=target" ))
+  - (( insert after "target" )) # By the entry's name value
   - inserted_after
 ```
 
 ### delete
 
-Remove elements.
+Remove elements. The string form matches on the entry's `name` value, not on a
+`field=value` predicate.
 
 ```yaml
 items:
-  - (( delete 2 ))           # By index
-  - (( delete "name=old" ))  # By key match
+  - (( delete 2 ))       # By index
+  - (( delete "old" ))   # By name value
 ```
 
 ### flatten
 
-Flatten nested arrays.
+Flatten a list recursively — nested lists at every depth are spliced into one
+flat list. Exactly one list argument; there is no depth argument.
 
 ```yaml
 flat: (( flatten nested_arrays ))
@@ -362,19 +387,23 @@ flat: (( flatten nested_arrays ))
 
 ### uniq
 
-Remove duplicate elements.
+Remove duplicates, keeping the first occurrence and preserving input order.
+It never sorts. Exactly one list argument.
 
 ```yaml
 unique: (( uniq array_with_dupes ))
+# [zebra, apple, zebra, mango, apple] -> [zebra, apple, mango]
 ```
 
 ### sort
 
-Sort array elements.
+A merge marker, not an expression: it replaces a list an earlier document
+defined, and sorts the result.
 
 ```yaml
-sorted: (( sort ))
-sorted_by: (( sort by name ))
+# overlay.yml
+numbers: (( sort ))
+servers: (( sort by name ))
 ```
 
 ### shuffle
@@ -404,7 +433,7 @@ HashiCorp Vault / OpenBao secrets.
 password: (( vault "secret/db:password" ))
 
 # With target
-staging: (( vault staging@"secret/db:password" ))
+staging: (( vault@staging "secret/db:password" ))
 
 # Multiple paths (fallback)
 value: (( vault "secret/v2:key; secret/v1:key" ))
@@ -428,7 +457,7 @@ host: (( awsparam "/app/prod/db_host" ))
 port: (( awsparam "/app/config?key=database.port" ))
 
 # With target
-value: (( awsparam staging@"/app/config" ))
+value: (( awsparam@staging "/app/config" ))
 ```
 
 ### awssecret
@@ -458,7 +487,7 @@ config: (( nats "kv:bucket/key" ))
 template: (( nats "obj:assets/template.yml" ))
 
 # With target
-value: (( nats prod@"kv:config/settings" ))
+value: (( nats@prod "kv:config/settings" ))
 ```
 
 ### file
@@ -498,7 +527,7 @@ ips: (( static_ips 0 1 2 ))
 
 ## Nesting Examples
 
-Operators can be nested arbitrarily:
+An operator call may appear in another operator's argument position:
 
 ```yaml
 # Nested references
@@ -507,18 +536,27 @@ config: (( grab (concat "env." environment ".settings") ))
 # Vault with dynamic path
 secret: (( vault (concat "secret/" env ":password") ))
 
-# Complex conditional
-url: (( concat
-    (production ? "https" : "http")
-    "://"
-    (grab config.host)
-    ":"
-    (grab config.port || 80)
-))
+# File contents, base64-encoded
+blob: (( base64 (file "certs/server.pem") ))
 
 # Arithmetic with references
 total: (( (grab base) + (grab tax) * (grab quantity) ))
 ```
+
+Three shapes do not parse, so keep them out of your documents:
+
+- **An expression split across YAML lines.** Keep the whole `(( ... ))` on one
+  line, or quote the scalar.
+
+- **A parenthesised call wrapping the entire expression** —
+  `(( (join "," (grab a)) ))` errors with `expected ')' to close parenthesized
+  expression`. Write `(( join "," (grab a) ))`.
+
+- **A parenthesised infix or ternary group in *first* argument position** —
+  `(( concat (production ? "https" : "http") "://" host ))` errors with
+  `expected '))' at end of operator expression, got STRING`. Compute the group
+  into its own key first, or move it out of first position. A parenthesised
+  *operator call* in first position is fine: `(( concat (grab a) "://" ))`.
 
 ## See Also
 

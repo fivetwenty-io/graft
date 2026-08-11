@@ -1,6 +1,6 @@
 # Operator Reference
 
-Full reference for the 44 operators graft registers in `pkg/graft/operators`.
+Full reference for the 47 operators graft registers in `pkg/graft/operators`.
 Every operator implements `Setup`, `Run`, `Dependencies`, and `Phase`
 (`pkg/graft/interfaces.go`); `Setup` is a no-op for every operator in this
 package — argument validation happens inside `Run`. The **Phase** column
@@ -19,7 +19,7 @@ below states when each operator runs relative to the rest of the document
 |---|---|---|
 | `grab` | EvalPhase | Reference |
 | `concat`, `join`, `split`, `stringify`, `base64`, `base64-decode` | EvalPhase | String |
-| `keys`, `negate`, `null`, `empty` | EvalPhase | Data |
+| `keys`, `negate`, `null`, `empty`, `type` | EvalPhase | Data |
 | `param` | ParamPhase | Validation |
 | `inject` | MergePhase | Merge structure |
 | `prune` | EvalPhase | Merge structure |
@@ -32,6 +32,7 @@ below states when each operator runs relative to the rest of the document
 | `sort` | MergePhase | Array |
 | `shuffle` | EvalPhase | Array |
 | `cartesian-product`, `cartesian` | EvalPhase | Array |
+| `flatten`, `uniq` | EvalPhase | Array |
 | `vault`, `vault-try` | EvalPhase | External source |
 | `awsparam`, `awssecret` | EvalPhase | External source |
 | `nats` | EvalPhase | External source |
@@ -43,7 +44,13 @@ below states when each operator runs relative to the rest of the document
 The array-merge markers (`append`, `prepend`, `replace`, `inline`, `merge`,
 `merge on <key>`, `(( delete ... ))`) are handled by `pkg/graft/merger`
 during the merge step rather than through the operator-registration
-mechanism above; they are not counted in the 44 registered operators.
+mechanism above; they are not counted in the 47 registered operators.
+
+The control-flow keywords (`if`/`elif`/`else`/`fi`, `for`/`done`,
+`while`/`done`, `case`/`when`/`default`/`esac`, and `range`) are not
+operators either. They are expanded by a source-to-source preprocessor that
+runs on each input file before YAML parsing; see
+[Control flow](../user-guide/operators/control-flow.md).
 
 There is no `or` operator name registered in graft. `||` maps to a
 registered implementation (`OrElseOperator`); see
@@ -86,6 +93,12 @@ combined: (( grab list_a list_b ))
 | `negate` | `(( negate enabled ))` | Requires exactly one argument. Boolean-negates using the same truthiness rules as `!`: `nil`, `false`, `0`/`0.0`, `""`, and empty lists/maps are truthy-false (so `negate` returns `true`); anything else returns `false`. |
 | `null` | `(( null ))` / `(( null some_value ))` | With no arguments, returns `nil`. With one argument, returns `true` if that value is `nil`, `false` otherwise. Errors ("null operator takes at most one argument") if given more than one argument. |
 | `empty` | `(( empty some_value ))` | Dual-purpose: `(( empty map ))`/`(( empty list ))` on an unresolvable type-name reference construct an empty `{}`/`[]`; on a resolvable value it reports whether that value is empty. Requires exactly one argument. |
+| `type` | `(( type some_value ))` | Returns the argument's type name as a string, exactly one of `string`, `int`, `float`, `bool`, `array`, `map`, or `null`. Requires exactly one argument — `"type operator requires exactly one argument, got <n>"` otherwise. |
+
+Because `type` is a registered operator, a bare `(( type ))` with no
+argument is an error rather than literal text that survives the run. Genesis
+templates that emitted `(( type ... ))` expecting graft to pass it through to
+a later pass must wrap it in `(( defer ))`.
 
 ### param
 
@@ -153,13 +166,44 @@ argument — "defer has no arguments - what are you deferring?" otherwise.
 | Operator(s) | Syntax | Notes |
 |---|---|---|
 | `+`, `-`, `*`, `/`, `%` | `(( a + b ))` | Type-aware binary arithmetic, implemented on a shared `ArithmeticOperatorBase` that dispatches by operand type via the type-handler registry. |
-| `calc` | `(( calc "base * rate + offset" ))` | Requires exactly one argument: a string expression. Supports `min`, `max`, `mod`, `pow` (all binary), and `sqrt`, `floor`, `ceil` (all unary) as built-in functions inside the expression string. |
+| `calc` | `(( calc "base * rate + offset" ))` | Requires exactly one argument: the expression. Supports `min`, `max`, `mod`, `pow` (all binary), and `sqrt`, `floor`, `ceil` (all unary) as built-in functions inside the expression. Zero arguments errors with "calc operator only expects one argument containing the expression". |
 
 ```yaml
 sum: (( 1 + 2 ))
 result: (( calc "max(0, min(100, value))" ))
 rounded: (( calc "floor(price * 100) / 100" ))
 ```
+
+`calc` accepts the expression in three forms:
+
+- **Quoted** — `(( calc "a + b" ))`. The full form; the only one that accepts
+  function calls.
+
+- **Raw** — `(( calc a + b ))`, `(( calc (a + b) * 2 ))`. Infix arithmetic and
+  parenthesised grouping, written without quotes. Function calls are **not**
+  available in this form: `(( calc max(a, b) ))` fails to parse, because the
+  parentheses are read as expression grouping.
+
+- **Leading operator** — `(( calc * 2 ))`, and likewise `+`, `-`, `/`, `%`.
+  Modifies the value the same path held in an earlier file of the same merge.
+
+Bare names inside the expression are resolved against the document: first as a
+sibling of the key being computed, then from the document root. A name that
+resolves nowhere errors with "calc operator does not support named variables
+in expression: `<name>`"; one that resolves to `nil` or to a non-numeric type
+errors with "path `<name>` references a nil value, which cannot be used in
+calculations" and "path `<name>` is of type `<type>`, which cannot be used in
+calculations" respectively. `**` is exponentiation; `^` is bitwise XOR, not a
+power operator. Both require the quoted form; unquoted, neither tokenizes.
+There is no `pi` constant — use `pow(a, b)` and a document key.
+
+The leading-operator form reads the prior value out of the merge, so it spans
+exactly one merge step: `graft merge base.yml overlay.yml` with `timeout: 30`
+in the base and `timeout: (( calc * 2 ))` in the overlay yields `60`. Chaining
+a second overlay that also modifies `timeout` yields `0`, because the prior
+value recorded for the third file is the second file's unevaluated expression
+text rather than a number. With no prior value at all, the form falls back to
+`0`.
 
 ### Comparison operators
 
@@ -199,7 +243,7 @@ type-aware truthiness is evaluated, so a failing expression in the unused
 branch does not cause an error.
 
 ```yaml
-size: (( large ? "8Gi" : "2Gi" ))
+size: '(( large ? "8Gi" : "2Gi" ))'
 ```
 
 ### Array operators
@@ -209,6 +253,8 @@ size: (( large ? "8Gi" : "2Gi" ))
 | `sort` | MergePhase | `(( sort ))` / `(( sort by name ))` | `Run` returns the current value unchanged during evaluation; the sort is applied as a post-processing step (`AddToSortListIfNecessaryWithEngine`, `sortList`). Sorting requires a homogeneous list — mixed element types, or nested lists, produce a `tree.TypeMismatchError`. For a list of maps, the sort key defaults to `name` if `sort by <key>` is not given, and every map in the list must contain that key. |
 | `shuffle` | EvalPhase | `(( shuffle array ))` | Randomly reorders elements using `crypto/rand`. Each argument must resolve to a list or scalar (list elements are flattened together) — a `nil` argument errors with "shuffle operator argument cannot be nil", and a map argument errors with "shuffle only accepts arrays and scalar values". |
 | `cartesian-product` / `cartesian` | EvalPhase | `(( cartesian-product sizes colors ))` | Both names register the same `CartesianProductOperator`. Requires at least one argument — "no arguments specified to `(( cartesian-product ... ))`" otherwise. |
+| `flatten` | EvalPhase | `(( flatten nested ))` | Flattens a list recursively — nested lists at every depth are spliced into a single flat list. Requires exactly one argument — `"flatten operator requires exactly one argument, got <n>"` otherwise — and that argument must be a list (`"flatten operator requires a list argument, got <type>"`). There is no depth argument. |
+| `uniq` | EvalPhase | `(( uniq with_dupes ))` | Removes duplicate elements, keeping the first occurrence of each and preserving the input order. It never sorts. Comparison is by value and type, so `1` and `"1"` are distinct. Requires exactly one argument — `"uniq operator requires exactly one argument, got <n>"` otherwise — and that argument must be a list (`"uniq operator requires a list argument, got <type>"`). |
 
 ### External sources
 
@@ -231,15 +277,21 @@ path1:key path2:key "default" ))`, minimum 2 arguments: one or more vault
 paths followed by a trailing default) predates the semicolon syntax and is
 deprecated in favor of it, though it remains registered and usable.
 
-Target syntax (`(( vault@production "path:key" ))`) is accepted by the
-parser and recorded on the parsed expression, but `Opcall` (the type whose
-`Run` method actually executes the operator) has no field to carry that
-target through, so `vault`, `awsparam`/`awssecret`, and `nats` never observe
-a non-empty target at run time. See
-[Known gaps](../spruce/known-gaps.md) for the tracked follow-up. Multi-target
-access to these backends today works only through per-target environment
-variables (for example `AWS_<TARGET>_REGION` for AWS), not through `@target`
-parsing.
+Target syntax selects a named backend configuration. It is written on the
+operator name, `(( vault@production "path:key" ))`, and the target is carried
+through to `Run`, which resolves it against the corresponding client pool.
+Each target is configured through per-target environment variables —
+`VAULT_<TARGET>_ADDR` and `VAULT_<TARGET>_TOKEN` for `vault`,
+`AWS_<TARGET>_REGION` and friends for `awsparam`/`awssecret`, and
+`NATS_<TARGET>_URL` for `nats`. An unconfigured target errors at evaluation
+time naming the variables it expected.
+
+The spruce spelling that puts the target on the path,
+`(( vault production@"path:key" ))`, is rejected outright:
+
+```
+vault target must be written as (( vault@<target> "path:key" )), not (( vault <target>@"path:key" ))
+```
 
 `REDACT` (any non-empty value) puts vault, AWS, and NATS lookups into a
 skipped state for the run. `vault`/`vault-try`, `nats`, and

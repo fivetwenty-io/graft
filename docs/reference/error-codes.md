@@ -255,7 +255,7 @@ Error E207: Division by zero
   count = 0
 
   Hint: Add a condition to check for zero before division.
-  Example: (( count > 0 ? total / count : 0 ))
+  Example: '(( count > 0 ? total / count : 0 ))'
 ```
 
 ## Merge Errors (300-399)

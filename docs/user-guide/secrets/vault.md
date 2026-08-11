@@ -47,8 +47,8 @@ password: (( vault (concat "secret/" env "/db:password") ))
 
 ```yaml
 # Use specific Vault target
-prod_pass: (( vault prod@"secret/db:password" ))
-staging_pass: (( vault staging@"secret/db:password" ))
+prod_pass: (( vault@prod "secret/db:password" ))
+staging_pass: (( vault@staging "secret/db:password" ))
 ```
 
 ## Configuration
@@ -162,13 +162,7 @@ database:
   port: 5432
   username: (( vault "secret/db:username" ))
   password: (( vault "secret/db:password" ))
-  connection_string: ((
-    concat "postgres://"
-    (vault "secret/db:username") ":"
-    (vault "secret/db:password") "@"
-    (grab database.host) ":"
-    (grab database.port)
-  ))
+  connection_string: (( concat "postgres://" (vault "secret/db:username") ":" (vault "secret/db:password") "@" (grab database.host) ":" (grab database.port) ))
 ```
 
 ### API Keys
@@ -206,9 +200,9 @@ secrets:
 ```yaml
 clusters:
   us-east:
-    db_password: (( vault us-east@"secret/db:password" ))
+    db_password: (( vault@us-east "secret/db:password" ))
   eu-west:
-    db_password: (( vault eu-west@"secret/db:password" ))
+    db_password: (( vault@eu-west "secret/db:password" ))
 ```
 
 ## OpenBao Support
@@ -228,7 +222,7 @@ password: (( vault "secret/db:password" ))
 Or explicitly specify OpenBao target:
 
 ```yaml
-password: (( vault openbao@"secret/db:password" ))
+password: (( vault@openbao "secret/db:password" ))
 ```
 
 ## Listing Vault References

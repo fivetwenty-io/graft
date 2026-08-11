@@ -135,10 +135,10 @@ export VAULT_STAGING_TOKEN=s.staging-token
 dev_secret: (( vault "secret/dev:password" ))
 
 # Use production Vault (target prefix: prod@)
-prod_secret: (( vault prod@"secret/database:password" ))
+prod_secret: (( vault@prod "secret/database:password" ))
 
 # Use staging Vault (target prefix: staging@)
-staging_secret: (( vault staging@"secret/database:password" ))
+staging_secret: (( vault@staging "secret/database:password" ))
 ```
 
 ### OpenBao Support
@@ -147,7 +147,7 @@ OpenBao (Vault fork) uses the same operator with a different target:
 
 ```yaml
 # Using OpenBao
-secret: (( vault openbao@"secret/database:password" ))
+secret: (( vault@openbao "secret/database:password" ))
 ```
 
 **Environment:**
@@ -259,10 +259,10 @@ export AWS_EU_PROFILE=eu-production
 default_param: (( awsparam "/app/config/key" ))
 
 # Production account (target prefix: prod@)
-prod_param: (( awsparam prod@"/app/config/key" ))
+prod_param: (( awsparam@prod "/app/config/key" ))
 
 # EU account (target prefix: eu@)
-eu_param: (( awsparam eu@"/app/config/key" ))
+eu_param: (( awsparam@eu "/app/config/key" ))
 ```
 
 ### AWS Parameter Store with Defaults
@@ -352,7 +352,7 @@ export AWS_PROD_PROFILE=production
 dev_secret: (( awssecret "myapp/dev/database" ))
 
 # Production account
-prod_secret: (( awssecret prod@"myapp/prod/database?key=password" ))
+prod_secret: (( awssecret@prod "myapp/prod/database?key=password" ))
 ```
 
 ## NATS JetStream
@@ -429,10 +429,10 @@ export NATS_EU_TOKEN=eu-token
 local_config: (( nats "kv:config/local" ))
 
 # Production NATS
-prod_config: (( nats prod@"kv:config/production" ))
+prod_config: (( nats@prod "kv:config/production" ))
 
 # EU NATS
-eu_config: (( nats eu@"kv:config/europe" ))
+eu_config: (( nats@eu "kv:config/europe" ))
 ```
 
 ## Combined Secrets Example

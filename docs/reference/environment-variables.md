@@ -11,6 +11,17 @@ Complete reference of all environment variables supported by Graft.
 | `GRAFT_TRACE` | `false` | Enable trace logging (verbose) |
 | `GRAFT_CACHE_SIZE` | `100` | Maximum cache entries |
 | `GRAFT_CACHE_TTL` | `5m` | Cache time-to-live |
+| `GRAFT_MAX_LOOP_ITERATIONS` | `1000` | Iteration cap for `(( while ))` loops |
+
+### Loop Iteration Cap
+
+A `(( while ))` loop that exceeds the cap fails the run with
+`while loop exceeded maximum iterations (<n>)` and exit code `2`. The
+`--max-loop-iterations` flag overrides this variable when both are set.
+
+```bash
+GRAFT_MAX_LOOP_ITERATIONS=50 graft merge config.yml
+```
 
 ### Color Output
 
@@ -89,8 +100,8 @@ export VAULT_PROD_NAMESPACE=production
 
 ```yaml
 default_secret: (( vault "secret/db:password" ))
-staging_secret: (( vault staging@"secret/db:password" ))
-prod_secret: (( vault prod@"secret/db:password" ))
+staging_secret: (( vault@staging "secret/db:password" ))
+prod_secret: (( vault@prod "secret/db:password" ))
 ```
 
 ### OpenBao
@@ -103,7 +114,7 @@ export VAULT_BAO_TOKEN=s.bao-token
 ```
 
 ```yaml
-bao_secret: (( vault bao@"secret/db:password" ))
+bao_secret: (( vault@bao "secret/db:password" ))
 ```
 
 ## AWS
@@ -152,8 +163,8 @@ export AWS_PROD_PROFILE=production
 
 ```yaml
 default_param: (( awsparam "/app/db_host" ))
-staging_param: (( awsparam staging@"/app/db_host" ))
-prod_secret: (( awssecret prod@"db-credentials" ))
+staging_param: (( awsparam@staging "/app/db_host" ))
+prod_secret: (( awssecret@prod "db-credentials" ))
 ```
 
 ### AWS Parameter Store Specific
@@ -212,7 +223,7 @@ export NATS_PROD_CREDS=/path/to/prod.creds
 
 ```yaml
 config: (( nats "kv:config/settings" ))
-prod_config: (( nats prod@"kv:config/settings" ))
+prod_config: (( nats@prod "kv:config/settings" ))
 ```
 
 ## Pipeline Configuration

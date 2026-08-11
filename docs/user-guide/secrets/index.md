@@ -43,8 +43,8 @@ password: (( vault (concat "secret/" environment "/db:password") ))
 
 ```yaml
 # Fetch from different backends/clusters
-prod_secret: (( vault production@"secret/db:password" ))
-staging_secret: (( vault staging@"secret/db:password" ))
+prod_secret: (( vault@production "secret/db:password" ))
+staging_secret: (( vault@staging "secret/db:password" ))
 ```
 
 ## Configuration
@@ -128,10 +128,10 @@ Use different backends or targets per environment:
 
 ```yaml
 # Production
-password: (( vault production@"secret/db:password" ))
+password: (( vault@production "secret/db:password" ))
 
 # Staging
-password: (( vault staging@"secret/db:password" ))
+password: (( vault@staging "secret/db:password" ))
 ```
 
 ## Error Handling

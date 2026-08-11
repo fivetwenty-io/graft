@@ -44,8 +44,8 @@ host: (( awsparam "/app/config?key=database.primary.host" ))
 
 ```yaml
 # Use specific AWS profile/region
-prod_host: (( awsparam production@"/app/db/host" ))
-staging_host: (( awsparam staging@"/app/db/host" ))
+prod_host: (( awsparam@production "/app/db/host" ))
+staging_host: (( awsparam@staging "/app/db/host" ))
 ```
 
 ### Dynamic Path
@@ -186,8 +186,8 @@ config:
 
 ```yaml
 # Access parameters in different AWS accounts
-main_config: (( awsparam main-account@"/app/config" ))
-shared_config: (( awsparam shared-account@"/shared/config" ))
+main_config: (( awsparam@main-account "/app/config" ))
+shared_config: (( awsparam@shared-account "/shared/config" ))
 ```
 
 ## IAM Permissions

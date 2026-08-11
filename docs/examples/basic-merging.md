@@ -133,9 +133,11 @@ server:
 
 Arrays require explicit operators to control merge behavior.
 
-### Default Array Behavior (Inline)
+### Default Array Behavior
 
-Without operators, arrays merge by index position.
+An array whose entries are plain scalars, carrying no array-merge marker, is
+replaced outright by the overlay's array. Entries past the end of the overlay
+are not preserved.
 
 **base.yml:**
 
@@ -161,12 +163,68 @@ graft merge base.yml overlay.yml
 
 ```yaml
 features:
-  - auth-v2
-  - logging
-  - caching
+- auth-v2
 ```
 
-The first element was replaced; others preserved.
+Arrays whose entries are maps take a different default: they merge by the
+identifier key (`name` unless `DEFAULT_ARRAY_MERGE_KEY` says otherwise), so
+entries the overlay does not mention survive.
+
+**base.yml:**
+
+```yaml
+users:
+  - name: alice
+    role: admin
+  - name: bob
+    role: user
+```
+
+**overlay.yml:**
+
+```yaml
+users:
+  - name: alice
+    role: owner
+```
+
+```sh
+graft merge base.yml overlay.yml
+```
+
+**Output:**
+
+```yaml
+users:
+- name: alice
+  role: owner
+- name: bob
+  role: user
+```
+
+To merge scalar arrays by position instead of replacing, say so with the
+`(( inline ))` marker:
+
+**overlay.yml:**
+
+```yaml
+features:
+  - (( inline ))
+  - auth-v2
+```
+
+```sh
+graft merge base.yml overlay.yml
+```
+
+**Output:**
+
+```yaml
+features:
+- auth-v2
+- logging
+- caching
+```
 
 ### Append Operator
 
@@ -197,10 +255,10 @@ graft merge base.yml overlay.yml
 
 ```yaml
 packages:
-  - nginx
-  - postgresql
-  - redis
-  - memcached
+- nginx
+- postgresql
+- redis
+- memcached
 ```
 
 ### Prepend Operator
@@ -232,10 +290,10 @@ graft merge base.yml overlay.yml
 
 ```yaml
 middleware:
-  - rate-limiter
-  - cors
-  - auth
-  - logging
+- rate-limiter
+- cors
+- auth
+- logging
 ```
 
 ### Replace Operator
@@ -267,8 +325,8 @@ graft merge base.yml overlay.yml
 
 ```yaml
 allowed_hosts:
-  - api.example.com
-  - www.example.com
+- api.example.com
+- www.example.com
 ```
 
 ### Merge by Key
@@ -307,15 +365,15 @@ graft merge base.yml overlay.yml
 
 ```yaml
 users:
-  - active: false
-    name: alice
-    role: admin
-  - active: true
-    name: bob
-    role: user
-  - active: true
-    name: charlie
-    role: viewer
+- active: false
+  name: alice
+  role: admin
+- active: true
+  name: bob
+  role: user
+- active: true
+  name: charlie
+  role: viewer
 ```
 
 ### What Happened
@@ -432,10 +490,10 @@ primary:
   endpoint: api.us-east.example.com
   region: us-east
 regions:
-  - endpoint: api.us-east.example.com
-    name: us-east
-  - endpoint: api.eu-west.example.com
-    name: eu-west
+- endpoint: api.us-east.example.com
+  name: us-east
+- endpoint: api.eu-west.example.com
+  name: eu-west
 secondary:
   endpoint: api.eu-west.example.com
   region: eu-west
@@ -473,7 +531,22 @@ database:
   user: admin
 ```
 
-### Multi-line Concat
+### Long Concat Expressions
+
+A `(( ... ))` expression has to fit on one YAML line. Splitting one across
+several lines is a YAML parse error, not a graft error:
+
+```
+config.yml: parse_error: failed to parse YAML: [8:3] non-map value is specified
+   5 |   full_name: (( concat
+   6 |     meta.app "-"
+   7 |     meta.env
+>  8 |   ))
+         ^
+```
+
+Keep the expression on one line; when it gets unwieldy, compute the pieces into
+their own keys and concatenate those.
 
 **config.yml:**
 
@@ -484,11 +557,7 @@ meta:
   version: 2.5.0
 
 labels:
-  full_name: (( concat
-    meta.app "-"
-    meta.env "-"
-    meta.version
-  ))
+  full_name: (( concat meta.app "-" meta.env "-" meta.version ))
 ```
 
 ```sh
@@ -752,12 +821,12 @@ defaults:
   buffer_size: 1024
 
 database:
-  (( inject defaults ))
+  <<<: (( inject defaults ))
   host: localhost
   port: 5432
 
 cache:
-  (( inject defaults ))
+  <<<: (( inject defaults ))
   host: localhost
   port: 6379
 ```

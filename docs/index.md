@@ -56,11 +56,12 @@ Learn how to use Graft effectively.
 
 - [CLI Commands](user-guide/cli/)
 
-  Complete CLI reference including merge, diff, json, and debug commands
+  Complete CLI reference including merge, diff, json, fan, and vaultinfo
 
 - [Operators](user-guide/operators/)
 
-  All 50+ operators for data manipulation, control flow, arithmetic, and more
+  All 47 operators for data manipulation, arithmetic, arrays, and external
+  sources, plus the control-flow keywords
 
 - [Array Merging](user-guide/array-merging.md)
 
@@ -70,9 +71,9 @@ Learn how to use Graft effectively.
 
   Integrate with Vault, AWS Parameter Store, AWS Secrets Manager, NATS
 
-- [Diff & History](user-guide/diffing.md)
+- [Diff](user-guide/diffing.md)
 
-  Rich diff output formats and merge history tracking
+  Semantic comparison of two documents
 
 - [Configuration](user-guide/configuration.md)
 
@@ -112,11 +113,11 @@ Understand how Graft works.
 
 - [Processing Pipeline](architecture/pipeline.md)
 
-  Pre-scan, parse, merge, evaluate, post-process
+  Expand control flow, parse, merge, evaluate, post-process
 
 - [Parser Design](architecture/parser.md)
 
-  Unified recursive descent parser
+  Unified recursive descent parser for operator expressions
 
 - [Parallel Execution](architecture/parallelism.md)
 
@@ -182,13 +183,13 @@ Help improve Graft.
 
 | Feature | Description |
 |---------|-------------|
-| **Spruce Compatible** | Drop-in replacement for Spruce |
-| **50+ Operators** | Rich operator set for data manipulation |
-| **Control Flow** | if/elif/else, for/while, case/when |
-| **Secrets Management** | Vault, AWS, NATS integration |
-| **Rich Diff Output** | Side-by-side, unified, change lists |
-| **History Tracking** | Complete merge traceability |
-| **Interactive REPL** | Debug complex merges step-by-step |
+| **Spruce Compatible** | Spruce's operators, flags, and merge semantics |
+| **47 Operators** | References, strings, arithmetic, arrays, external sources |
+| **Control Flow** | if/elif/else/fi, for/done, while/done, case/when/esac |
+| **Predicates** | `field=value` selection in references and in `--prune`/`--cherry-pick` |
+| **Secrets Management** | Vault, AWS Parameter Store, AWS Secrets Manager, NATS |
+| **Named Targets** | `(( vault@production "secret/db:password" ))` routes one lookup |
+| **Semantic Diff** | Structural comparison of two documents |
 | **Go Library** | Embed in your applications |
 | **Parallel Execution** | Wave-based evaluation for performance |
 

@@ -19,7 +19,7 @@ All backends share these design characteristics:
 
 - **Multi-Target Support**
 
-  Use `target@path` syntax for multiple environments
+  Use `operator@target` syntax for multiple environments
 
 - **Connection Pooling**
 
@@ -46,8 +46,8 @@ All backends share these design characteristics:
 password: (( vault "secret/db:password" ))
 
 # With target (different Vault instance)
-prod_pass: (( vault prod@"secret/db:password" ))
-staging_pass: (( vault staging@"secret/db:password" ))
+prod_pass: (( vault@prod "secret/db:password" ))
+staging_pass: (( vault@staging "secret/db:password" ))
 
 # Multiple paths with fallback
 password: (( vault "secret/v2:pass; secret/v1:pass" ))
@@ -257,7 +257,7 @@ db_host: (( awsparam "/app/prod/db_host" ))
 db_port: (( awsparam "/app/config?key=database.port" ))
 
 # With target (different AWS account/region)
-db_host: (( awsparam staging@"/app/db_host" ))
+db_host: (( awsparam@staging "/app/db_host" ))
 
 # With default
 db_host: (( awsparam "/app/db_host" || "localhost" ))
@@ -420,7 +420,7 @@ db_pass: (( awssecret "prod/db?key=password" ))
 db_pass: (( awssecret "prod/db?key=password&stage=AWSCURRENT" ))
 
 # With target
-api_key: (( awssecret prod@"api-credentials" ))
+api_key: (( awssecret@prod "api-credentials" ))
 ```
 
 ### Secrets Manager Client
@@ -514,7 +514,7 @@ config: (( nats "kv:bucket/key" ))
 template: (( nats "obj:assets/template.yml" ))
 
 # With target
-config: (( nats synadia@"kv:config/settings" ))
+config: (( nats@synadia "kv:config/settings" ))
 
 # With explicit URL
 config: (( nats "kv:bucket/key" "nats://server:4222" ))

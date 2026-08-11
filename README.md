@@ -47,33 +47,37 @@ Use graft to:
 - [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) up your configurations
 - Manage secrets from Vault, AWS, or NATS
 - Generate environment-specific configurations from templates
-- Debug complex merge scenarios with an interactive REPL
+- Compare generated configurations semantically rather than line by line
 
 ## Features
 
-- **Full Spruce Compatibility**
+- **Spruce Compatible**
 
-  Drop-in replacement for all spruce functionality
+  Runs spruce's operators, CLI flags, and merge semantics; the remaining
+  differences are tracked in [Known Gaps](docs/spruce/known-gaps.md)
 
-- **50+ Operators**
+- **47 Operators**
 
-  Data manipulation, control flow, arithmetic, array operations, and more
+  References, strings, arithmetic, comparison and boolean logic, arrays,
+  external sources, and IP arithmetic
+
+- **Control Flow**
+
+  `if`/`elif`/`else`, `for`, `while`, and `case` blocks, expanded into plain
+  YAML before the document is parsed
 
 - **Multi-Backend Secrets**
 
   Vault, OpenBao, AWS Parameter Store, AWS Secrets Manager, NATS JetStream
 
-- **Rich Diff Output**
+- **Named Backend Targets**
 
-  Side-by-side, unified, and change list formats with colorization
+  Route one lookup at a named backend with `(( vault@production "secret/db:password" ))`
 
-- **Merge History Tracking**
+- **Semantic Diff**
 
-  Complete traceability of where every value came from
-
-- **Interactive Debugging REPL**
-
-  Step through complex merges with breakpoints and inspection
+  `graft diff` reports structural changes — added, removed, and changed
+  paths — instead of a textual diff
 
 - **Embeddable Go Library**
 
@@ -175,23 +179,41 @@ Comprehensive documentation is available in the [docs/](docs/) directory:
 
 ## Operator Quick Reference
 
+All 47 registered operators:
+
 | Category | Operators |
 |----------|-----------|
-| Data Manipulation | `grab`, `concat`, `join`, `split`, `stringify`, `keys`, `base64`, `type` |
-| Control Flow | `if`/`elif`/`else`/`fi`, `for`/`while`/`done`, `case`/`when`/`esac` |
+| Reference | `grab` |
+| String | `concat`, `join`, `split`, `stringify`, `base64`, `base64-decode` |
+| Data | `keys`, `type`, `empty`, `null`, `negate` |
 | Arithmetic | `+`, `-`, `*`, `/`, `%`, `calc` |
 | Comparison & Logic | `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `\|\|`, `!`, `? :` |
-| Array Operations | `append`, `prepend`, `merge`, `replace`, `inline`, `flatten`, `uniq`, `sort` |
-| Secrets | `vault`, `awsparam`, `awssecret`, `nats` |
+| Array | `sort`, `shuffle`, `flatten`, `uniq`, `cartesian-product`, `cartesian` |
+| Secrets | `vault`, `vault-try`, `awsparam`, `awssecret`, `nats` |
 | External Sources | `file`, `load` |
+| Merge structure | `inject`, `prune`, `param`, `defer` |
+| IP arithmetic | `ips`, `static_ips` |
 
-See the [Operator Quick Reference](docs/reference/operator-quick-reference.md) for complete documentation.
+Two families sit outside that count. The array-merge markers — `append`,
+`prepend`, `replace`, `inline`, `merge`, `merge on <key>`, `delete` — are
+handled by the merger while documents are combined. The control-flow
+keywords — `if`/`elif`/`else`/`fi`, `for`/`done`, `while`/`done`,
+`case`/`when`/`default`/`esac`, and `range` — are expanded by a
+source-to-source preprocessor before the YAML is parsed.
+
+See the [Operator Reference](docs/reference/operators.md) for complete
+documentation, or the [Operator Quick Reference](docs/reference/operator-quick-reference.md)
+for syntax at a glance.
 
 ## Origins
 
 Graft was originally forked from Geoff Franks's excellent [Spruce](https://github.com/geofffranks/spruce) tool to add additional features. After significant refactoring and the addition of new capabilities, it has grown into its own tool with a different focus and expanded use cases.
 
-Graft passes all original Spruce tests and should be considered a superset of Spruce - any valid Spruce configuration will work with graft.
+Graft aims to run any valid Spruce configuration unchanged, and adds
+capabilities Spruce does not have — control flow, infix expressions,
+`field=value` predicates, named backend targets, and the NATS backend among
+them. The differences that remain are catalogued in
+[Known Gaps](docs/spruce/known-gaps.md).
 
 ## Contributing
 
