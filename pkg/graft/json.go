@@ -7,16 +7,30 @@ import (
 	"io"
 	"os"
 
-	"github.com/goccy/go-yaml"
-
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
 
 func jsonifyData(data []byte, strict bool) (string, error) {
-	doc := make(map[string]interface{})
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+	// Parse through the same YAML-1.1-compat-aware path ParseYAML uses, so
+	// `graft json` and `graft merge` agree on unquoted yes/no/on/off ->
+	// bool coercion and on quoted lookalikes staying strings, matching
+	// spruce json on both counts.
+	root, err := ParseYAML11CompatAware(data)
+	if err != nil {
 		return "", ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
 	}
+
+	// An empty, whitespace-only, or explicit-null document unmarshals to a
+	// nil root rather than an error. Require an actual map root here (as
+	// spruce's simpleyaml.Map() does) so a dangling multi-doc separator or
+	// blank document fails loudly instead of silently emitting "{}".
+	doc, ok := root.(map[string]interface{})
+	if !ok {
+		return "", ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", "type assertion to map[string]interface{} failed")
+	}
+
+	doc = DefaultYAMLCompat().ConvertMapValues(doc)
+	doc = UnprotectYAML11QuotedBools(doc).(map[string]interface{})
 
 	doc_, err := deinterface(doc, strict)
 	if err != nil {
@@ -29,6 +43,18 @@ func jsonifyData(data []byte, strict bool) (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// splitYAMLDocs splits raw multi-document YAML on the "\n---\n" document
+// separator, the same convention spruce's JSONifyFiles uses. A leading
+// empty document (e.g. input starting with "---\n") is dropped so index
+// numbers in error messages line up with the document's actual position.
+func splitYAMLDocs(data []byte) [][]byte {
+	docs := bytes.Split(data, []byte("\n---\n"))
+	if len(docs[0]) == 0 {
+		docs = docs[1:]
+	}
+	return docs
 }
 
 // JSONifyIO reads from a reader and converts to JSON format.
@@ -67,12 +93,7 @@ func JSONifyFiles(paths []string, strict bool) ([]string, error) {
 			}
 		}
 
-		docs := bytes.Split(data, []byte("\n---\n"))
-		// strip off empty document created if the first three bytes of the file are the doc separator
-		// keeps the indexing correct for when used with error messages
-		if len(docs[0]) == 0 {
-			docs = docs[1:]
-		}
+		docs := splitYAMLDocs(data)
 		for i, doc := range docs {
 			jsonData, err := jsonifyData(doc, strict)
 			if err != nil {
