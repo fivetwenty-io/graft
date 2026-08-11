@@ -84,9 +84,15 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 		DEBUG("LogicalOr: left side failed with error %v, trying right side", err)
 		return ResolveOperatorArgument(ev, arg.Right)
 
-	case List, Or, Negate, Addition, Subtraction, Multiplication, Division, Modulo,
-		Equal, NotEqual, LessThan, LessThanOrEqual, GreaterThan, GreaterThanOrEqual,
-		LogicalAnd, RegexpMatch, BoshVar, VaultGroup, VaultChoice:
+	case Negate, Addition, Subtraction, Multiplication, Division, Modulo,
+		Equal, NotEqual, LessThan, LessThanOrEqual, GreaterThan, GreaterThanOrEqual, LogicalAnd:
+		// Infix nodes appearing as an operator's own argument (including a
+		// nested infix operand of another infix node — see graft.EvaluateInfix's
+		// doc comment for why this recursion terminates) dispatch through the
+		// same shared entry point Expr.Evaluate uses.
+		return graft.EvaluateInfix(ev, arg)
+
+	case List, Or, RegexpMatch, BoshVar, VaultGroup, VaultChoice:
 		return nil, fmt.Errorf("unsupported expression type: %v", arg.Type)
 	}
 	return nil, fmt.Errorf("unknown expression type: %v", arg.Type)

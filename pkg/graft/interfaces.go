@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 	"github.com/goccy/go-yaml"
+
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
 // Action represents the type of action an operator should take.
@@ -460,9 +461,17 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 			return e.Right.Evaluate(treeData)
 		}
 		return nil, nil
-	case List, Or, Negate, Addition, Subtraction, Multiplication, Division, Modulo,
-		Equal, NotEqual, LessThan, LessThanOrEqual, GreaterThan, GreaterThanOrEqual,
-		LogicalAnd, RegexpMatch, BoshVar, VaultGroup, VaultChoice:
+	case Negate, Addition, Subtraction, Multiplication, Division, Modulo,
+		Equal, NotEqual, LessThan, LessThanOrEqual, GreaterThan, GreaterThanOrEqual, LogicalAnd:
+		// Infix nodes dispatch through the shared EvaluateInfix entry point to
+		// the operator already registered for their symbol (see
+		// evaluate_infix.go). Requiring an evaluator here mirrors the
+		// OperatorCall arm above.
+		if e.evaluator == nil {
+			return nil, fmt.Errorf("operator call evaluation requires an evaluator; use SetEvaluator() first")
+		}
+		return EvaluateInfix(e.evaluator, e)
+	case List, Or, RegexpMatch, BoshVar, VaultGroup, VaultChoice:
 		return nil, fmt.Errorf("unsupported expression type for evaluation: %d", e.Type)
 	}
 	return nil, fmt.Errorf("unsupported expression type for evaluation: %d", e.Type)
