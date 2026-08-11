@@ -62,7 +62,19 @@ func (ConcatOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			return nil, err
 		}
 
-		// Convert to string
+		// A reference that resolves to a map or a list is not a string
+		// scalar and cannot be concatenated, matching spruce's behavior.
+		if arg.Type == Reference {
+			switch v.(type) {
+			case map[string]interface{}, []interface{}:
+				DEBUG("  arg[%d]: %v is not a string scalar", i, v)
+				return nil, ansi.Errorf("@R{tried to concat} @c{%s}@R{, which is not a string scalar}", arg.Reference)
+			}
+		}
+
+		// Convert to string. References already rejected non-scalar values
+		// above; this branch only handles scalars and non-reference list
+		// results (e.g. from a nested operator call).
 		var stringVal string
 		switch val := v.(type) {
 		case string:
