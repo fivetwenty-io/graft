@@ -1,0 +1,3 @@
+meta:
+  environment: (( grab meta.name ))
+application: my-app

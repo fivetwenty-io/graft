@@ -663,12 +663,31 @@ func cmdMergeEval(options *mergeOpts) (map[string]interface{}, graft.Engine, err
 }
 
 func cmdFanEval(options *mergeOpts) ([]map[string]interface{}, error) {
-	stdinInfo, err := os.Stdin.Stat()
-	if err != nil {
-		return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
-	}
-	if stdinInfo.Mode()&os.ModeCharDevice == 0 {
-		options.Files = append(options.Files, "-")
+	// Only fall back to stdin when fewer than 2 file arguments were given -
+	// not 0, since fan's first positional argument is always the source,
+	// not a target: a source-only invocation (1 argument) has no target at
+	// all yet, and stdin is meant to supply it (`cat targets.yml | graft
+	// fan src.yml`, matching `cat x | graft merge`'s own stdin-as-input
+	// convention). Guarding on 0 instead breaks exactly that case (F20).
+	//
+	// Appending "-" unconditionally whenever stdin isn't a terminal
+	// (spruce's own cmdFanEval does this too, bug-for-bug:
+	// ../spruce/cmd/spruce/main.go's cmdFanEval) is still wrong: once a
+	// source AND at least one explicit target are both given, there is
+	// nothing left for stdin to usefully supply, so silently turning any
+	// non-terminal stdin into a further extra target - and potentially
+	// hanging forever reading an open pipe that's never closed - has no
+	// legitimate use case. An explicit "-" argument (anywhere, as source
+	// or target) still works either way, since it's already present in
+	// options.Files without needing this fallback to add it.
+	if len(options.Files) < 2 {
+		stdinInfo, err := os.Stdin.Stat()
+		if err != nil {
+			return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
+		}
+		if stdinInfo.Mode()&os.ModeCharDevice == 0 {
+			options.Files = append(options.Files, "-")
+		}
 	}
 
 	if len(options.Files) == 0 {
@@ -691,9 +710,10 @@ func cmdFanEval(options *mergeOpts) ([]map[string]interface{}, error) {
 		source = sourceDocs[0]
 		docs = append(sourceDocs[1:], docs...)
 	} else {
-		source, err = loadYamlFile(sourcePath)
-		if err != nil {
-			return nil, err
+		var sourceLoadErr error
+		source, sourceLoadErr = loadYamlFile(sourcePath)
+		if sourceLoadErr != nil {
+			return nil, sourceLoadErr
 		}
 	}
 

@@ -3360,6 +3360,69 @@ doc7:
 `)
 		So(rc, ShouldEqual, 0)
 	})
+
+	Convey("graft fan with explicit file arguments does not also read a non-empty stdin (regression: cmdFanEval used to unconditionally append '-')", t, func() {
+		restoreStdin := setStdinFromFile(t, "../../assets/vaultinfo/novault.yml")
+		defer restoreStdin()
+
+		os.Args = []string{"graft", "fan", "../../assets/fan/dirsource.yml", "../../assets/fan/targets/dev.yml"}
+		stdout = ""
+		stderr = ""
+		main()
+		So(stderr, ShouldEqual, "")
+		So(rc, ShouldEqual, 0)
+		// Only one document merged (targets/dev.yml): a single "---" block,
+		// no second one for a spurious stdin-sourced target.
+		So(stdout, ShouldEqual, `---
+application: my-app
+meta:
+  environment: development
+  name: development
+
+`)
+	})
+	Convey("graft fan still reads stdin as the target when no target files are given and stdin is piped", t, func() {
+		restoreStdin := setStdinFromFile(t, "../../assets/fan/multi-doc-1.yml")
+		defer restoreStdin()
+
+		os.Args = []string{"graft", "fan", "-m", "../../assets/fan/multi-doc-source.yml"}
+		stdout = ""
+		stderr = ""
+		main()
+		So(stderr, ShouldEqual, "")
+		So(rc, ShouldEqual, 0)
+		So(stdout, ShouldNotEqual, "")
+	})
+	Convey("graft fan with a source but no target arguments still reads stdin as the target (F20 regression: F11's guard over-narrowed to len==0, but fan's first positional is the source, not a target)", t, func() {
+		restoreStdin := setStdinFromFile(t, "../../assets/fan/targets/dev.yml")
+		defer restoreStdin()
+
+		os.Args = []string{"graft", "fan", "../../assets/fan/dirsource.yml"}
+		stdout = ""
+		stderr = ""
+		main()
+		So(stderr, ShouldEqual, "")
+		So(rc, ShouldEqual, 0)
+		So(stdout, ShouldEqual, `---
+application: my-app
+meta:
+  environment: development
+  name: development
+
+`)
+	})
+	Convey("graft fan still honors an explicit '-' target alongside other file arguments", t, func() {
+		restoreStdin := setStdinFromFile(t, "../../assets/fan/multi-doc-1.yml")
+		defer restoreStdin()
+
+		os.Args = []string{"graft", "fan", "../../assets/fan/source.yml", "-"}
+		stdout = ""
+		stderr = ""
+		main()
+		So(stderr, ShouldEqual, "")
+		So(rc, ShouldEqual, 0)
+		So(stdout, ShouldNotEqual, "")
+	})
 }
 
 func TestExamples(t *testing.T) {
