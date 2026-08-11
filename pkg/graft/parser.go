@@ -645,8 +645,9 @@ func (p *Parser) parseReference() (*Expr, error) {
 	}
 
 	return &Expr{
-		Type:      Reference,
-		Reference: cursor,
+		Type:           Reference,
+		Reference:      cursor,
+		BracketedNodes: tree.BracketsOf(tok.Literal),
 	}, nil
 }
 

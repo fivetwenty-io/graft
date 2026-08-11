@@ -47,9 +47,14 @@ type Expr struct {
 	Right     *Expr
 	Literal   interface{}
 	Reference *tree.Cursor
-	Call      *Opcall
-	Pos       Position
-	evaluator *Evaluator // Optional evaluator for nested operator calls
+	// BracketedNodes marks, by index, which nodes of Reference.Nodes were
+	// written using bracket notation (e.g. "key[lookup]") rather than dot
+	// notation, as recovered by tree.BracketsOf. Only populated for
+	// Reference expressions; nil/empty for every other expression type.
+	BracketedNodes []bool
+	Call           *Opcall
+	Pos            Position
+	evaluator      *Evaluator // Optional evaluator for nested operator calls
 }
 
 // ExprType represents the type of expression.

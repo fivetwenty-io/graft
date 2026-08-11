@@ -68,6 +68,57 @@ func ParseCursor(s string) (*Cursor, error) {
 	}, nil
 }
 
+// BracketsOf re-parses a path string and reports which of its resulting
+// nodes were written using bracket notation (e.g. "key[lookup]") versus
+// dot notation (e.g. "key.lookup"). ParseCursor normalizes both notations
+// into identical Nodes, discarding this distinction, so callers that need
+// to treat bracketed segments as dynamic key references (e.g. the grab
+// operator) must recover it from the raw source text via this function.
+// The returned slice always has the same length as ParseCursor(s).Nodes,
+// since both functions share identical node-boundary rules.
+func BracketsOf(s string) []bool {
+	var bracketedNodes []bool
+	node := bytes.NewBuffer([]byte{})
+	inBracket := false
+
+	push := func(bracketed bool) {
+		if node.Len() == 0 {
+			return
+		}
+		if len(bracketedNodes) == 0 && node.String() == "$" {
+			node.Reset()
+			return
+		}
+		bracketedNodes = append(bracketedNodes, bracketed)
+		node.Reset()
+	}
+
+	for _, c := range s {
+		switch c {
+		case '.':
+			if inBracket {
+				node.WriteRune(c)
+			} else {
+				push(false)
+			}
+
+		case '[':
+			push(false)
+			inBracket = true
+
+		case ']':
+			push(true)
+			inBracket = false
+
+		default:
+			node.WriteRune(c)
+		}
+	}
+	push(false)
+
+	return bracketedNodes
+}
+
 // Copy creates a copy of the cursor.
 func (c *Cursor) Copy() *Cursor {
 	other := &Cursor{Nodes: []string{}}

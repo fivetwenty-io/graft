@@ -45,6 +45,17 @@ func (GrabOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	var vals []interface{}
 
 	for i, arg := range args {
+		// Substitute any bracket-notation dynamic key segments (e.g.
+		// "key[lookup]") before resolving the reference itself, so both
+		// the resolution below and ResolveOperatorArgument see the
+		// substituted path.
+		if arg != nil && arg.Type == Reference {
+			if err := resolveGrabDynamicBrackets(arg, ev); err != nil {
+				DEBUG("     [%d]: dynamic bracket key resolution failed\n    error: %s", i, err)
+				return nil, err
+			}
+		}
+
 		// Use ResolveOperatorArgument to handle nested expressions
 		val, err := ResolveOperatorArgument(ev, arg)
 		if err != nil {
