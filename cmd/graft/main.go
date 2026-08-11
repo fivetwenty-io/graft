@@ -63,8 +63,10 @@ type YamlFile struct {
 }
 
 type jsonOpts struct {
-	Strict bool
-	Files  []string
+	Strict   bool
+	Reverse  bool
+	MultiDoc bool
+	Files    []string
 }
 
 type mergeOpts struct {
@@ -299,11 +301,38 @@ func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config
 }
 
 func handleJSON(opts jsonOpts) int {
+	if opts.Reverse {
+		yamls, err := cmdJSONReverseEval(opts)
+		if err != nil {
+			log.PrintStdErrf("%s\n", err)
+			return 2
+		}
+		if len(yamls) == 1 {
+			printStdOutf("%s\n", yamls[0])
+			return 0
+		}
+		for _, y := range yamls {
+			printStdOutf("---\n%s\n", y)
+		}
+		return 0
+	}
+
 	jsons, err := cmdJSONEval(opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err)
 		return 2
 	}
+
+	if opts.MultiDoc {
+		combined, combineErr := graft.CombineJSONLines(jsons)
+		if combineErr != nil {
+			log.PrintStdErrf("%s\n", combineErr)
+			return 2
+		}
+		printStdOutf("%s\n", combined)
+		return 0
+	}
+
 	for _, output := range jsons {
 		printStdOutf("%s\n", output)
 	}
@@ -632,21 +661,25 @@ func newRootCmd() (*cobra.Command, *bool) {
 	fanCmd.Flags().StringVar(&fanDataflowOrder, "dataflow-order", "", "Order of operations in dataflow output: alphabetical (default) or insertion")
 
 	// json command
-	var jsonStrict bool
+	var jsonStrict, jsonReverse, jsonMultiDoc bool
 
 	jsonCmd := &cobra.Command{
 		Use:   "json [files...]",
 		Short: "Convert YAML to JSON",
 		RunE: func(_ *cobra.Command, args []string) error {
 			opts := jsonOpts{
-				Strict: jsonStrict,
-				Files:  args,
+				Strict:   jsonStrict,
+				Reverse:  jsonReverse,
+				MultiDoc: jsonMultiDoc,
+				Files:    args,
 			}
 			exit(handleJSON(opts))
 			return nil
 		},
 	}
 	jsonCmd.Flags().BoolVar(&jsonStrict, "strict", false, "Refuse to convert non-string keys to strings")
+	jsonCmd.Flags().BoolVarP(&jsonReverse, "reverse", "r", false, "Convert JSON to YAML instead of YAML to JSON")
+	jsonCmd.Flags().BoolVar(&jsonMultiDoc, "multi-doc", false, "Wrap multiple JSON documents into a single JSON array instead of one object per line")
 
 	// diff command
 	var diffNoColor, diffSideBySide, diffUnified, diffChanges, diffQuiet bool
@@ -998,6 +1031,17 @@ func cmdJSONEval(options jsonOpts) ([]string, error) {
 	}
 
 	return output, nil
+}
+
+// cmdJSONReverseEval implements `graft json --reverse`: JSON input (from
+// files or stdin) converted to YAML documents.
+func cmdJSONReverseEval(options jsonOpts) ([]string, error) {
+	files, err := resolveStdinDefaultFiles(options.Files)
+	if err != nil {
+		return nil, err
+	}
+
+	return graft.YAMLifyFiles(files)
 }
 
 type yamlVaultSecret struct {

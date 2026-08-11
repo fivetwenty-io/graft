@@ -872,6 +872,84 @@ quux: quux
 			So(stderr, ShouldContainSubstring, "Root of YAML document is not a hash/map:")
 		})
 
+		Convey("json --reverse converts a compact JSON file to YAML", func() {
+			os.Args = []string{"graft", "json", "--reverse", "../../assets/json/reverse-basic.json"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "database:\n  host: localhost\n  port: 5432\n")
+		})
+
+		Convey("json -r is the short form of --reverse", func() {
+			os.Args = []string{"graft", "json", "-r", "../../assets/json/reverse-basic.json"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "database:\n  host: localhost\n  port: 5432\n")
+		})
+
+		Convey("json --reverse accepts pretty-printed multi-line JSON", func() {
+			os.Args = []string{"graft", "json", "--reverse", "../../assets/json/reverse-pretty.json"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "a: 1\nb:\n- 1\n- 2\n- 3\n")
+		})
+
+		Convey("json --reverse round-trips graft json's own one-object-per-line output as multiple --- separated YAML documents", func() {
+			os.Args = []string{"graft", "json", "--reverse", "../../assets/json/reverse-jsonl.json"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "---\ndoc: 1\n---\ndoc: 2\n")
+		})
+
+		Convey("json --reverse reads from stdin", func() {
+			restoreStdin := setStdinFromFile(t, "../../assets/json/reverse-basic.json")
+			defer restoreStdin()
+
+			os.Args = []string{"graft", "json", "--reverse"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "database:\n  host: localhost\n  port: 5432\n")
+		})
+
+		Convey("json --reverse errors on invalid JSON, naming the source file", func() {
+			os.Args = []string{"graft", "json", "--reverse", "../../assets/json/reverse-invalid.json"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stdout, ShouldEqual, "")
+			So(stderr, ShouldContainSubstring, "reverse-invalid.json")
+			So(stderr, ShouldContainSubstring, "Error parsing JSON")
+		})
+
+		Convey("json --multi-doc wraps multiple documents into a single JSON array instead of one object per line", func() {
+			os.Args = []string{"graft", "json", "--multi-doc", "../../assets/merge/multi-doc.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "[\n  {\n    \"doc\": {\n      \"data\": {\n        \"test01\": \"stuff\"\n      }\n    }\n  },\n  {\n    \"doc\": {\n      \"data\": {\n        \"test02\": \"morestuff\"\n      }\n    }\n  }\n]\n")
+		})
+
+		Convey("json without --multi-doc keeps the default one-JSON-object-per-line shape unchanged (genesis compat)", func() {
+			os.Args = []string{"graft", "json", "../../assets/merge/multi-doc.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `{"doc":{"data":{"test01":"stuff"}}}
+{"doc":{"data":{"test02":"morestuff"}}}
+`)
+		})
+
 		Convey("json with an explicit file argument does not also read a non-empty stdin (regression: cmdJSONEval used to unconditionally append '-')", func() {
 			restoreStdin := setStdinFromFile(t, "../../assets/vaultinfo/novault.yml")
 			defer restoreStdin()
