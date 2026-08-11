@@ -26,7 +26,6 @@ type mergeBuilderImpl struct {
 	arrayStrategy  ArrayMergeStrategy
 	error          error                 // Stores any error from construction
 	mergeMetadata  *merger.MergeMetadata // Accumulated metadata from merges
-	patchOps       []patch.Ops           // Store parsed go-patch operations
 }
 
 // WithPrune adds keys to remove from the final output.
@@ -121,8 +120,11 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 		return NewDocument(make(map[string]interface{})), nil
 	}
 
-	// Handle single document case
-	if len(m.docs) == 1 {
+	// Handle single document case. A lone go-patch document (no base to
+	// patch) falls through to mergeDocuments below, which patches an empty
+	// map at that document's position, matching spruce's behavior for a
+	// single-file go-patch invocation.
+	if len(m.docs) == 1 && !IsGoPatchDocument(m.docs[0]) {
 		// For single documents, we need to validate arrays even without merging
 		// to match legacy behavior for Issue #172
 		data, ok := m.docs[0].RawData().(map[string]interface{})
@@ -131,12 +133,16 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 		}
 
 		// Check if we need to use the merger:
-		// 1. If there are array operators AND we're not skipping evaluation
-		// 2. If there are arrays with maps (for validation warnings) AND we're not skipping evaluation
-		// 3. If there are prune operators AND we're not skipping evaluation
-		// When skipEvaluation is true, we want to preserve operators in the output
-		useArrayOperators := m.hasArrayOperators(data) && !m.skipEvaluation
-		hasArraysWithMaps := m.hasArraysWithMaps(data) && !m.skipEvaluation
+		// 1. If there are array-merge markers (append/prepend/merge/insert/delete/...)
+		//    These are merge-phase constructs and must always be resolved, even
+		//    under --skip-eval (which only skips the evaluator phase).
+		// 2. If there are arrays with maps (for default key-merge/validation) -
+		//    also a merge-phase concern, independent of --skip-eval.
+		// 3. If there are prune operators AND we're not skipping evaluation -
+		//    (( prune )) on a lone, never-overwritten value is resolved by the
+		//    evaluator, so it must stay literal when evaluation is skipped.
+		useArrayOperators := m.hasArrayOperators(data)
+		hasArraysWithMaps := m.hasArraysWithMaps(data)
 		hasPruneOps := m.hasPruneOperators(data) && !m.skipEvaluation
 
 		if useArrayOperators || hasArraysWithMaps || hasPruneOps {
@@ -186,86 +192,20 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 
 // mergeDocuments performs the actual document merging.
 //
+// Documents are processed in file order, exactly matching spruce's own merge
+// loop: a regular (YAML) document merges onto the running result, and a
+// go-patch document replaces the running result with ops.Apply(result) at
+// the position it appears. A patch positioned between two regular overlays
+// therefore only affects documents merged before it — later overlays keep
+// merging on top of the patched result, instead of every patch being hoisted
+// to the end of the whole file sequence.
+//
 //nolint:gocyclo // document merging has complex logic for go-patch and prune operators
 func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
-	// Separate regular documents from go-patch documents
-	var regularDocs []Document
+	var result map[string]interface{}
+	haveResult := false
+
 	for _, doc := range m.docs {
-		if IsGoPatchDocument(doc) {
-			// Extract and store go-patch operations
-			if ops, ok := GetGoPatchOps(doc); ok {
-				m.patchOps = append(m.patchOps, ops)
-			}
-		} else {
-			regularDocs = append(regularDocs, doc)
-		}
-	}
-
-	// If no regular documents, start with empty
-	if len(regularDocs) == 0 {
-		return NewDocument(make(map[string]interface{})), nil
-	}
-
-	// Start with the first document as base
-	baseData, ok := regularDocs[0].RawData().(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("document data is not a map")
-	}
-	result := deepCopyMap(baseData)
-
-	// Check if the first document needs special processing (contains prune operators)
-	// But skip this when skipEvaluation is true to preserve operators
-	if m.hasPruneOperators(baseData) && !m.skipEvaluation {
-		// Process the first document through merger to handle prune operators
-		mergerInstance := &merger.Merger{
-			AppendByDefault: m.fallbackAppend,
-		}
-
-		// Set memory tracker if available from the engine
-		if m.engine != nil {
-			if tracker := m.engine.GetMemoryTracker(); tracker != nil {
-				mergerInstance.SetMemoryTracker(tracker)
-			}
-		}
-
-		// Create an empty base and merge our first document into it
-		emptyBase := make(map[string]interface{})
-		err := mergerInstance.Merge(emptyBase, baseData)
-		if err != nil {
-			// Convert merger.MultiError to graft.MultiError for consistent error formatting
-			var mergerMultiErr merger.MultiError
-			if errors.As(err, &mergerMultiErr) {
-				graftMultiErr := &MultiError{}
-				for _, e := range mergerMultiErr.Errors {
-					graftMultiErr.Append(e)
-				}
-				return nil, graftMultiErr
-			}
-			return nil, err
-		}
-
-		// Collect metadata from the merge
-		metadata := mergerInstance.GetMetadata()
-		if metadata != nil && (len(metadata.PrunePaths) > 0 || len(metadata.SortPaths) > 0) {
-			if m.mergeMetadata == nil {
-				m.mergeMetadata = &merger.MergeMetadata{
-					SortPaths: make(map[string]string),
-				}
-			}
-			// Accumulate prune paths
-			m.mergeMetadata.PrunePaths = append(m.mergeMetadata.PrunePaths, metadata.PrunePaths...)
-			// Merge sort paths
-			for k, v := range metadata.SortPaths {
-				m.mergeMetadata.SortPaths[k] = v
-			}
-		}
-
-		// Use the processed result
-		result = emptyBase
-	}
-
-	// Merge subsequent documents
-	for i := 1; i < len(regularDocs); i++ {
 		// Check context cancellation during merge
 		select {
 		case <-m.ctx.Done():
@@ -273,12 +213,42 @@ func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 		default:
 		}
 
-		overlayData, ok := regularDocs[i].RawData().(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("overlay document data is not a map")
+		if IsGoPatchDocument(doc) {
+			ops, ok := GetGoPatchOps(doc)
+			if !ok {
+				continue
+			}
+			if !haveResult {
+				// A leading go-patch document (no base merged yet) patches an
+				// empty map, matching spruce's `root := make(map[...]...)`
+				// starting point.
+				result = make(map[string]interface{})
+				haveResult = true
+			}
+			patched, err := applyGoPatchToMap(result, ops)
+			if err != nil {
+				return nil, err
+			}
+			result = patched
+			continue
 		}
-		err := m.mergeInto(result, overlayData)
-		if err != nil {
+
+		overlayData, ok := doc.RawData().(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("document data is not a map")
+		}
+
+		if !haveResult {
+			baseResult, err := m.prepareFirstDocument(overlayData)
+			if err != nil {
+				return nil, err
+			}
+			result = baseResult
+			haveResult = true
+			continue
+		}
+
+		if err := m.mergeInto(result, overlayData); err != nil {
 			// Check if this is a detailed merger error that should be preserved
 			if isMergerError(err) {
 				return nil, err
@@ -287,16 +257,67 @@ func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 		}
 	}
 
+	if !haveResult {
+		return NewDocument(make(map[string]interface{})), nil
+	}
+
 	return NewDocument(result), nil
 }
 
+// prepareFirstDocument resolves array-merge markers, arrays-with-maps
+// default key-merge validation, and (( prune )) ghost-tracking on the first
+// document that contributes to the merge result. This mirrors the
+// merge-phase processing mergeInto applies to every later overlay, run once
+// against an empty base since there is nothing yet to merge onto — the same
+// treatment as spruce's initial `m.Merge(root, doc)` call against an empty
+// root. Array-merge markers and arrays-with-maps are merge-phase constructs
+// and must be resolved regardless of --skip-eval; prune operators are only
+// ghost-tracked here when evaluation will run (a never-overwritten
+// (( prune )) on a lone document is resolved by the evaluator, not by
+// merge-phase ghosting).
+func (m *mergeBuilderImpl) prepareFirstDocument(baseData map[string]interface{}) (map[string]interface{}, error) {
+	needsProcessing := m.hasArrayOperators(baseData) ||
+		m.hasArraysWithMaps(baseData) ||
+		(m.hasPruneOperators(baseData) && !m.skipEvaluation)
+	if !needsProcessing {
+		return deepCopyMap(baseData), nil
+	}
+
+	mergerInstance := &merger.Merger{
+		AppendByDefault: m.fallbackAppend,
+	}
+	if m.engine != nil {
+		if tracker := m.engine.GetMemoryTracker(); tracker != nil {
+			mergerInstance.SetMemoryTracker(tracker)
+		}
+	}
+
+	emptyBase := make(map[string]interface{})
+	if err := mergerInstance.Merge(emptyBase, baseData); err != nil {
+		return nil, m.convertMergerError(err)
+	}
+
+	m.collectMergeMetadata(mergerInstance)
+
+	return emptyBase, nil
+}
+
 // needsLegacyMerger determines if the legacy merger should be used.
+//
+// Array-merge markers, arrays-with-maps default key-merge validation, and
+// (( sort by X )) ghost-tracking are all merge-phase constructs that must be
+// resolved identically whether or not --skip-eval is set (skip-eval only
+// disables the evaluator phase, not the merger). Prune ghost-tracking is
+// intentionally left unconditional here too: once a (( prune )) marker has
+// been overwritten by a later document it must stay queued for removal
+// regardless of --skip-eval, matching spruce's merge.go behavior.
 func (m *mergeBuilderImpl) needsLegacyMerger(base, overlay map[string]interface{}) bool {
-	return (!m.skipEvaluation && m.hasArrayOperators(overlay)) ||
+	return m.hasArrayOperators(overlay) ||
 		m.hasArraysWithMaps(overlay) ||
 		m.hasPruneOperators(overlay) ||
 		m.hasPruneOperators(base) ||
-		m.hasSortOperators(overlay)
+		m.hasSortOperators(overlay) ||
+		m.hasSortOperators(base)
 }
 
 // performLegacyMerge uses the legacy merger for complex merge operations.
@@ -436,11 +457,11 @@ func (m *mergeBuilderImpl) mergeValues(base, overlay interface{}) (interface{}, 
 	overlayArray, overlayIsArray := overlay.([]interface{})
 
 	if baseIsArray && overlayIsArray {
-		// Special handling when skipEvaluation is true and array has operators
-		if m.skipEvaluation && m.arrayHasOperators(overlayArray) {
-			return m.mergeArraysPreservingOperators(baseArray, overlayArray), nil
-		}
-
+		// NOTE: arrays containing merge markers (append/prepend/merge/insert/
+		// delete/replace/inline) never reach this branch: needsLegacyMerger
+		// recursively detects them in the enclosing map and routes the whole
+		// base/overlay pair through performLegacyMerge (the real merger),
+		// which resolves markers identically with or without --skip-eval.
 		switch m.arrayStrategy {
 		case AppendArrays:
 			// Append arrays
@@ -590,31 +611,27 @@ func (m *mergeBuilderImpl) hasSortOperators(data map[string]interface{}) bool {
 	return false
 }
 
-// isMergerError checks if an error came from the merger package and contains detailed info.
+// isMergerError checks if an error originated from the legacy merger
+// (performLegacyMerge/convertMergerError), which always reports detailed,
+// per-path failures (bad key-merge, out-of-bounds insert/delete index,
+// duplicate insert entry, missing modification point, etc.) as a *MultiError.
+// Those messages must reach the CLI unwrapped, matching spruce's own
+// "N error(s) detected: - $.path: ..." formatting, rather than being
+// flattened into a generic "failed to merge documents" wrapper.
 func isMergerError(err error) bool {
 	if err == nil {
 		return false
 	}
-	errMsg := err.Error()
-	// Check for patterns that indicate this is a detailed merger error
-	return strings.Contains(errMsg, "cannot merge by key") ||
-		strings.Contains(errMsg, "inappropriate use of") ||
-		strings.Contains(errMsg, "unable to find specified modification point") ||
-		strings.Contains(errMsg, "item in array directly after")
+	var multiErr *MultiError
+	return errors.As(err, &multiErr)
 }
 
 // applyPostProcessing applies pruning, cherry-picking, and evaluation.
 func (m *mergeBuilderImpl) applyPostProcessing(doc Document) (Document, error) {
 	result := doc
 
-	// Apply go-patch operations first (before evaluation)
-	if len(m.patchOps) > 0 {
-		patched, err := m.applyGoPatch(result)
-		if err != nil {
-			return nil, err
-		}
-		result = patched
-	}
+	// go-patch operations are applied inline, at their position in the file
+	// sequence, by mergeDocuments; nothing left to do for them here.
 
 	// Pass merge metadata to engine before evaluation
 	if m.mergeMetadata != nil && m.engine != nil {
@@ -635,6 +652,13 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document) (Document, error) {
 			return nil, err
 		}
 		result = evaluated
+	} else if m.engine != nil {
+		// (( sort by X )) list ordering is applied by spruce even when
+		// evaluation is skipped (--skip-eval only disables scalar operator
+		// evaluation, not merge-phase list ordering). The normal path applies
+		// queued sort paths as evaluator post-processing (see engine.go
+		// evaluate()), which is bypassed here, so apply them directly.
+		result = m.applySortPathsWithoutEvaluation(result)
 	}
 
 	// Collect prune keys from both sources:
@@ -654,8 +678,12 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document) (Document, error) {
 		// Temporarily set m.pruneKeys to all keys for the applyPruning method
 		originalPruneKeys := m.pruneKeys
 		m.pruneKeys = allPruneKeys
-		result = m.applyPruning(result)
+		var pruneErr error
+		result, pruneErr = m.applyPruning(result)
 		m.pruneKeys = originalPruneKeys // Restore original
+		if pruneErr != nil {
+			return nil, pruneErr
+		}
 	}
 
 	// Apply cherry-picking AFTER evaluation and pruning
@@ -670,36 +698,28 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document) (Document, error) {
 	return result, nil
 }
 
-// applyGoPatch applies go-patch operations to the document.
-func (m *mergeBuilderImpl) applyGoPatch(doc Document) (Document, error) {
-	// Get the raw data
-	data := doc.RawData()
+// applyGoPatchToMap applies a single set of go-patch operations to data at
+// its position in the merge sequence (see mergeDocuments), converting to and
+// from go-patch's map[interface{}]interface{} convention (yaml.v2 style)
+// around the call.
+func applyGoPatchToMap(data map[string]interface{}, ops patch.Ops) (map[string]interface{}, error) {
+	converted := toInterfaceKeyMap(data)
 
-	// go-patch expects map[interface{}]interface{} (yaml.v2 convention).
-	// Convert map[string]interface{} to map[interface{}]interface{} before applying.
-	if stringMap, ok := data.(map[string]interface{}); ok {
-		data = toInterfaceKeyMap(stringMap)
-	}
-
-	// Apply each set of patch operations in order
-	for _, ops := range m.patchOps {
-		var err error
-		data, err = ops.Apply(data)
-		if err != nil {
-			return nil, err
-		}
+	result, err := ops.Apply(converted)
+	if err != nil {
+		return nil, err
 	}
 
 	// Convert the result back to map[string]interface{} for the rest of the pipeline
-	switch result := data.(type) {
+	switch typed := result.(type) {
 	case map[string]interface{}:
-		return NewDocument(NormalizeMap(result)), nil
+		return NormalizeMap(typed), nil
 	case map[interface{}]interface{}:
-		converted := make(map[string]interface{}, len(result))
-		for k, v := range result {
-			converted[fmt.Sprintf("%v", k)] = v
+		out := make(map[string]interface{}, len(typed))
+		for k, v := range typed {
+			out[fmt.Sprintf("%v", k)] = v
 		}
-		return NewDocument(NormalizeMap(converted)), nil
+		return NormalizeMap(out), nil
 	default:
 		return nil, fmt.Errorf("go-patch operations resulted in non-map data")
 	}
@@ -735,23 +755,69 @@ func toInterfaceKeyValue(v interface{}) interface{} {
 	}
 }
 
-// applyPruning removes specified keys from the document.
-func (m *mergeBuilderImpl) applyPruning(doc Document) Document {
+// applySortPathsWithoutEvaluation applies queued (( sort by X )) list ordering
+// directly to the document without running the full evaluator, covering the
+// skip-eval path where engine.go's evaluate() (and its sort post-processing)
+// never runs. Unlike evaluate(), unresolvable or non-list sort targets are
+// skipped here rather than treated as errors.
+func (m *mergeBuilderImpl) applySortPathsWithoutEvaluation(doc Document) Document {
+	sortPaths := m.engine.GetOperatorState().GetPathsToSort()
+	if len(sortPaths) == 0 {
+		return doc
+	}
+
 	data, ok := doc.RawData().(map[string]interface{})
 	if !ok {
 		return doc // Return unchanged if not a map
 	}
 	result := deepCopyMap(data)
 
-	for _, key := range m.pruneKeys {
-		err := m.removeKey(result, key)
+	for path, sortKey := range sortPaths {
+		cleanPath := strings.TrimPrefix(path, "$.")
+		value, err := getValueAtPath(result, cleanPath)
 		if err != nil {
-			// Log warning but don't fail - key might not exist
+			// Path no longer resolves (e.g. pruned); nothing to sort.
+			continue
+		}
+		list, isList := value.([]interface{})
+		if !isList {
+			// Sort marker resolved to a non-list value; nothing to sort.
+			continue
+		}
+		if err := SortList(cleanPath, list, sortKey); err != nil {
+			// Preserve unsorted order rather than fail the whole merge;
+			// matches engine.go's evaluate(), which logs and continues.
 			continue
 		}
 	}
 
+	m.engine.GetOperatorState().ResetPathsToSort()
 	return NewDocument(result)
+}
+
+// applyPruning removes specified keys from the document.
+//
+// A prune path that does not resolve to anything (missing key,
+// out-of-range index, or a named array-entry lookup at the final path
+// segment) is not an error: removeKey returns nil for all of those
+// cases, matching spruce's own --prune behavior (verified against the
+// spruce binary), where an unresolved path is silently skipped. Any
+// non-nil error from removeKey is therefore a genuine failure and is
+// propagated rather than swallowed.
+func (m *mergeBuilderImpl) applyPruning(doc Document) (Document, error) {
+	data, ok := doc.RawData().(map[string]interface{})
+	if !ok {
+		return doc, nil // Return unchanged if not a map
+	}
+	result := deepCopyMap(data)
+
+	for _, key := range m.pruneKeys {
+		if err := m.removeKey(result, key); err != nil {
+			return nil, fmt.Errorf("prune %q: %w", key, err)
+		}
+	}
+
+	return NewDocument(result), nil
 }
 
 // applyCherryPicking keeps only specified keys in the document.
@@ -942,8 +1008,19 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 		return nil
 	}
 
-	// Navigate to the parent of the target
+	// Navigate to the parent of the target, tracking the immediate container
+	// (map or array) that holds `current` and the key/index used to reach it
+	// at every step. Unlike a re-navigation from the root, this walk covers
+	// map segments *and* array segments (numeric index or named entry) at
+	// every position, so the final-segment array branch below can splice the
+	// target array back into whatever holds it — a map field, or a slot in
+	// an outer array — for paths like "jobs.0.networks.1" or
+	// "jobs.web.networks.1" that pass through an array before the final
+	// segment.
 	var current interface{} = data
+	var parentContainer interface{}
+	var parentKey interface{} // string for a map parent, int for an array parent
+
 	for i := 0; i < len(parts)-1; i++ {
 		part := parts[i]
 
@@ -954,6 +1031,7 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 				// Path doesn't exist, nothing to remove
 				return nil
 			}
+			parentContainer, parentKey = v, part
 			current = value
 		case []interface{}:
 			// Handle array index or named entry
@@ -963,19 +1041,24 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 					// Index out of bounds, nothing to remove
 					return nil
 				}
+				parentContainer, parentKey = v, idx
 				current = v[idx]
 			} else {
 				// Named entry lookup
-				entry, found := findNamedArrayEntry(v, part)
+				idx, entry, found := findNamedArrayEntryWithIndex(v, part)
 				if !found {
 					// Named entry not found, nothing to remove
 					return nil
 				}
+				parentContainer, parentKey = v, idx
 				current = entry
 			}
 		default:
-			// Can't navigate further
-			return NewValidationError(fmt.Sprintf("cannot navigate path '%s' at segment %d: '%s' is not a map or array", keyPath, i, part))
+			// current is a scalar (or other non-container) but the path has
+			// more segments to traverse: the target doesn't exist under it.
+			// Matches spruce, where tree.Cursor.Resolve returns an error in
+			// this situation and the caller silently skips the prune.
+			return nil
 		}
 	}
 
@@ -987,44 +1070,51 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 		// Simple map key deletion
 		delete(parent, finalPart)
 	case []interface{}:
-		// Array index deletion
-		index, err := strconv.Atoi(finalPart)
-		if err != nil {
-			return NewValidationError(fmt.Sprintf("invalid array index '%s' in path '%s'", finalPart, keyPath))
+		// Array index deletion. spruce's own --prune only removes array
+		// entries addressed by a numeric index at the final path segment;
+		// a named final segment (e.g. "items.beta") is a no-op there too
+		// (verified against the spruce binary: named lookup is only used
+		// by spruce when navigating *through* an array to reach a deeper
+		// key, never as the final delete target). Mirror that: a
+		// non-numeric final segment on an array resolves to nothing.
+		index, isNum := isNumericIndex(finalPart)
+		if !isNum {
+			return nil
 		}
 		if index < 0 || index >= len(parent) {
-			// Index out of bounds, nothing to remove
+			// Index out of bounds, nothing to remove. The spruce binary
+			// panics on an out-of-range --prune index into an array; graft
+			// intentionally diverges here and stays graceful, matching its
+			// own no-op-on-unresolved-path behavior for every other prune
+			// shape rather than crashing the whole merge.
 			return nil
 		}
 
-		// Need to update the parent container that holds this array
-		// Go back one level to find the parent map
-		if len(parts) < 2 {
-			return NewValidationError("cannot prune array element at root level")
-		}
-
-		// Re-navigate to get the parent map
-		var parentContainer interface{} = data
-		for i := 0; i < len(parts)-2; i++ {
-			part := parts[i]
-			if m, ok := parentContainer.(map[string]interface{}); ok {
-				if next, exists := m[part]; exists {
-					parentContainer = next
-				}
-			}
-		}
-
-		// Now update the array in its parent map
-		if parentMap, ok := parentContainer.(map[string]interface{}); ok {
-			arrayKey := parts[len(parts)-2]
-			if arr, ok := parentMap[arrayKey].([]interface{}); ok && index < len(arr) {
-				// Remove element at index
-				newArr := append(arr[:index], arr[index+1:]...)
-				parentMap[arrayKey] = newArr
+		// Splice the element out and write the shortened array back into the
+		// map field that holds it. spruce's own Prune() (evaluator.go) only
+		// performs this write-back when the array's own container is a map
+		// (its `reflect.TypeOf(s).Kind() == reflect.Map` check); an array
+		// nested directly inside another array with no intervening map (e.g.
+		// prune path "matrix.0.1" on `matrix: [[10,20,30],[40,50,60]]`) is a
+		// silent no-op in spruce too (verified against the binary). Mirror
+		// that restriction exactly — parentKey/parentContainer is populated
+		// for every intermediate segment (map field, numeric array index, or
+		// named array entry) so paths like "jobs.0.networks.1" and
+		// "jobs.web.networks.1" reach a map parentContainer correctly; only
+		// a bare array-of-arrays final segment stays unsupported, matching
+		// spruce rather than silently going further than it does.
+		if pc, ok := parentContainer.(map[string]interface{}); ok {
+			if key, ok := parentKey.(string); ok {
+				newArr := append(append([]interface{}{}, parent[:index]...), parent[index+1:]...)
+				pc[key] = newArr
 			}
 		}
 	default:
-		return NewValidationError(fmt.Sprintf("cannot remove from type %T at path '%s'", current, keyPath))
+		// The path navigates down to a scalar (or other non-container)
+		// and still expects a final key/index under it: nothing to
+		// remove. Matches spruce's default case in Prune(), which logs
+		// and moves on without deleting anything or raising an error.
+		return nil
 	}
 
 	return nil
@@ -1039,24 +1129,44 @@ func isNumericIndex(s string) (int, bool) {
 	return idx, true
 }
 
-// findNamedArrayEntry searches for an entry in an array by checking common identifier fields.
+// findNamedArrayEntry searches for an entry in an array by checking identifier fields.
+// The configured array-merge identifier key (DEFAULT_ARRAY_MERGE_KEY, "name" by
+// default) is checked first and is authoritative; "name", "id", and "key" remain
+// as fallbacks for entries that don't use the configured key, preserving prior
+// behavior for documents that don't set the environment variable.
 func findNamedArrayEntry(arr []interface{}, name string) (interface{}, bool) {
-	// Check common identifier keys in order of preference
-	identifierKeys := []string{"name", "id", "key"}
+	_, entry, found := findNamedArrayEntryWithIndex(arr, name)
+	return entry, found
+}
 
-	for _, entry := range arr {
+// findNamedArrayEntryWithIndex is findNamedArrayEntry plus the position of
+// the matched entry within arr. removeKey needs the index (not just the
+// entry) to splice a shortened array back into its parent container when
+// navigation passes through a named array entry before reaching the final
+// prune target.
+func findNamedArrayEntryWithIndex(arr []interface{}, name string) (int, interface{}, bool) {
+	configuredKey := merger.GetIdentifierKey()
+	identifierKeys := make([]string, 0, 4)
+	identifierKeys = append(identifierKeys, configuredKey)
+	for _, fallback := range []string{"name", "id", "key"} {
+		if fallback != configuredKey {
+			identifierKeys = append(identifierKeys, fallback)
+		}
+	}
+
+	for i, entry := range arr {
 		// Only check map entries
 		switch v := entry.(type) {
 		case map[string]interface{}:
 			for _, idKey := range identifierKeys {
 				if val, exists := v[idKey]; exists && fmt.Sprintf("%v", val) == name {
-					return entry, true
+					return i, entry, true
 				}
 			}
 		}
 	}
 
-	return nil, false
+	return -1, nil, false
 }
 
 func (m *mergeBuilderImpl) extractKey(data map[string]interface{}, keyPath string) (interface{}, error) {
@@ -1169,93 +1279,6 @@ func deepCopyValue(src interface{}) interface{} {
 	default:
 		return v // Primitives are copied by value
 	}
-}
-
-// mergeArraysPreservingOperators performs a custom array merge that preserves operators
-// when --skip-eval is used. This handles the complex merge semantics while keeping operators.
-//
-//nolint:gocyclo // array merge with operator preservation has many edge cases
-func (m *mergeBuilderImpl) mergeArraysPreservingOperators(base, overlay []interface{}) []interface{} {
-	// For the test case:
-	// base: [route, (( append )), cell]
-	// overlay: [cc_bridge, (( prepend )), consul]
-	// expected: [consul, cc_bridge, (( append )), cell]
-
-	var result []interface{}
-
-	// Check for prepend operator in overlay
-	prependIdx := -1
-	for i, item := range overlay {
-		if str, ok := item.(string); ok && strings.TrimSpace(str) == "(( prepend ))" {
-			prependIdx = i
-			break
-		}
-	}
-
-	if prependIdx >= 0 {
-		// Items after prepend in overlay go to the beginning (in order)
-		afterPrepend := overlay[prependIdx+1:]
-		result = append(result, afterPrepend...)
-
-		// Items before prepend in overlay
-		beforePrepend := overlay[:prependIdx]
-		result = append(result, beforePrepend...)
-
-		// Now handle base array
-		// Look for append operator in base
-		appendIdx := -1
-		for i, item := range base {
-			if str, ok := item.(string); ok && strings.TrimSpace(str) == "(( append ))" {
-				appendIdx = i
-				break
-			}
-		}
-
-		if appendIdx >= 0 {
-			// Preserve the append operator and items after it
-			result = append(result, base[appendIdx:]...)
-		}
-	} else {
-		// No prepend, check for other operators
-
-		// Check for replace
-		for _, item := range overlay {
-			if str, ok := item.(string); ok && strings.TrimSpace(str) == "(( replace ))" {
-				// Replace means use overlay as-is
-				return deepCopyArray(overlay)
-			}
-		}
-
-		// Check for append in overlay
-		appendIdx := -1
-		for i, item := range overlay {
-			if str, ok := item.(string); ok && strings.TrimSpace(str) == "(( append ))" {
-				appendIdx = i
-				break
-			}
-		}
-
-		if appendIdx >= 0 {
-			// Start with base
-			result = append(result, base...)
-			// Add items from overlay starting from append position
-			result = append(result, overlay[appendIdx:]...)
-		} else {
-			// No operators, do inline merge (overlay replaces base)
-			result = deepCopyArray(overlay)
-		}
-	}
-
-	return result
-}
-
-// deepCopyArray creates a deep copy of an array.
-func deepCopyArray(arr []interface{}) []interface{} {
-	result := make([]interface{}, len(arr))
-	for i, v := range arr {
-		result[i] = deepCopyValue(v)
-	}
-	return result
 }
 
 // valuesEqual performs a simple equality check for values.

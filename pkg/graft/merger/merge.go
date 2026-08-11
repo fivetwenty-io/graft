@@ -209,6 +209,16 @@ func getDefaultIdentifierKey() string {
 	return defaultArrayMergeKey
 }
 
+// GetIdentifierKey returns the array-merge identifier key that the merger
+// uses to match array-of-maps entries across documents. It honors the
+// DEFAULT_ARRAY_MERGE_KEY environment variable override and falls back to
+// "name" when unset, matching spruce semantics. Exported so other packages
+// (e.g. CLI path-based lookups for --prune/--cherry-pick) can stay
+// consistent with the merge engine's identifier key.
+func GetIdentifierKey() string {
+	return getDefaultIdentifierKey()
+}
+
 func deepCopy(orig interface{}) interface{} {
 	if orig == nil {
 		return nil
