@@ -76,7 +76,40 @@ type mergeOpts struct {
 	MultiDoc       bool
 	DataflowOrder  string
 	Files          []string
-	EngineOpts     []graft.EngineOption // Programmatic engine options (not from CLI flags)
+
+	// History, TracePath, ShowChanges, and ChangesOnly are merge-only
+	// history/tracing flags (docs/user-guide/history-tracking.md). At most
+	// one may be set (see validateHistoryFlags); when one is, handleMerge
+	// prints that flag's tracking report instead of the merged document.
+	History     bool
+	TracePath   string // non-empty selects --trace-path <path>
+	ShowChanges bool
+	ChangesOnly bool
+	EngineOpts  []graft.EngineOption // Programmatic engine options (not from CLI flags)
+}
+
+// hasHistoryFlag reports whether any of the merge --history/--trace-path/
+// --show-changes/--changes-only flags were given.
+func (o *mergeOpts) hasHistoryFlag() bool {
+	return o.History || o.TracePath != "" || o.ShowChanges || o.ChangesOnly
+}
+
+// validateHistoryFlags rejects combining more than one of --history/
+// --trace-path/--show-changes/--changes-only: each selects a distinct
+// report format over the same underlying history data, so combining them
+// has no well-defined single output (mirrors `graft diff`'s
+// --side-by-side/--unified/--changes mutual exclusivity).
+func (o *mergeOpts) validateHistoryFlags() error {
+	selected := 0
+	for _, on := range []bool{o.History, o.TracePath != "", o.ShowChanges, o.ChangesOnly} {
+		if on {
+			selected++
+		}
+	}
+	if selected > 1 {
+		return fmt.Errorf("--history, --trace-path, --show-changes, and --changes-only are mutually exclusive; pick one")
+	}
+	return nil
 }
 
 func handleColorFlag(colorOpt string) (bool, bool) {
@@ -94,6 +127,14 @@ func handleColorFlag(colorOpt string) (bool, bool) {
 }
 
 func handleMerge(opts *mergeOpts) int {
+	if err := opts.validateHistoryFlags(); err != nil {
+		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{%s}", err.Error()))
+		return 1
+	}
+	if opts.hasHistoryFlag() {
+		return handleMergeHistory(opts)
+	}
+
 	tree, _, err := cmdMergeEval(opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
@@ -515,6 +556,8 @@ func newRootCmd() (*cobra.Command, *bool) {
 	var mergeSkipEval, mergeFallbackAppend, mergeGoPatch, mergeMultiDoc bool
 	var mergePrune, mergeCherryPick []string
 	var mergeDataflowOrder string
+	var mergeHistory, mergeShowChanges, mergeChangesOnly bool
+	var mergeTracePath string
 
 	mergeCmd := &cobra.Command{
 		Use:   "merge [files...]",
@@ -529,6 +572,10 @@ func newRootCmd() (*cobra.Command, *bool) {
 				MultiDoc:       mergeMultiDoc,
 				DataflowOrder:  mergeDataflowOrder,
 				Files:          args,
+				History:        mergeHistory,
+				TracePath:      mergeTracePath,
+				ShowChanges:    mergeShowChanges,
+				ChangesOnly:    mergeChangesOnly,
 				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
 			}
 			exit(handleMerge(opts))
@@ -542,6 +589,10 @@ func newRootCmd() (*cobra.Command, *bool) {
 	mergeCmd.Flags().BoolVar(&mergeGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged")
 	mergeCmd.Flags().BoolVarP(&mergeMultiDoc, "multi-doc", "m", false, "Treat multi-doc yaml as multiple files.")
 	mergeCmd.Flags().StringVar(&mergeDataflowOrder, "dataflow-order", "", "Order of operations in dataflow output: alphabetical (default) or insertion")
+	mergeCmd.Flags().BoolVar(&mergeHistory, "history", false, "Print per-path merge history instead of the merged document")
+	mergeCmd.Flags().StringVar(&mergeTracePath, "trace-path", "", "Print detailed history for a single path instead of the merged document")
+	mergeCmd.Flags().BoolVar(&mergeShowChanges, "show-changes", false, "Print a merge/evaluation change summary instead of the merged document")
+	mergeCmd.Flags().BoolVar(&mergeChangesOnly, "changes-only", false, "Print only the paths that changed during merge/evaluation instead of the merged document")
 
 	// fan command
 	var fanSkipEval, fanFallbackAppend, fanGoPatch, fanMultiDoc bool

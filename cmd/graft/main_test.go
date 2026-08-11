@@ -2893,6 +2893,106 @@ key2:
 			})
 		})
 
+		Convey("merge history/tracing flags", func() {
+			Convey("--history prints per-path history instead of the merged document", func() {
+				os.Args = []string{"graft", "merge", "--history", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+				So(stdout, ShouldStartWith, "Merge History:\n")
+				So(stdout, ShouldContainSubstring, "database.host:\n")
+				So(stdout, ShouldContainSubstring, "[0] ../../assets/diff/base.yml → localhost")
+				So(stdout, ShouldContainSubstring, "[1] ../../assets/diff/modified.yml → db.prod.example.com")
+				So(stdout, ShouldContainSubstring, "Final              → db.prod.example.com")
+				So(stdout, ShouldContainSubstring, "database.port:\n")
+				So(stdout, ShouldContainSubstring, "(unchanged)")
+			})
+
+			Convey("--trace-path prints one path's annotated history", func() {
+				os.Args = []string{"graft", "merge", "--trace-path", "database.host", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+				So(stdout, ShouldStartWith, "database.host:\n")
+				So(stdout, ShouldContainSubstring, "Type: value")
+				So(stdout, ShouldContainSubstring, "Final              → db.prod.example.com")
+			})
+
+			Convey("--trace-path on an unknown path is an error", func() {
+				os.Args = []string{"graft", "merge", "--trace-path", "no.such.path", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stdout, ShouldEqual, "")
+				So(stderr, ShouldContainSubstring, "No history found for path")
+				So(stderr, ShouldContainSubstring, "no.such.path")
+				So(rc, ShouldEqual, 2)
+			})
+
+			Convey("--show-changes prints a summary and only changed/added/removed paths", func() {
+				os.Args = []string{"graft", "merge", "--show-changes", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+				So(stdout, ShouldStartWith, "Merge Summary: 2 files → 5 keys (2 changed, 1 added, 0 removed)\n")
+				So(stdout, ShouldContainSubstring, "database.host:\n")
+				So(stdout, ShouldContainSubstring, "✗")
+				So(stdout, ShouldContainSubstring, "✓")
+				So(stdout, ShouldContainSubstring, "database.ssl:\n")
+				So(stdout, ShouldContainSubstring, "+ ../../assets/diff/modified.yml true")
+				// database.port and meta.version are unchanged and must not appear.
+				So(stdout, ShouldNotContainSubstring, "database.port")
+			})
+
+			Convey("--changes-only lists only changed paths with old -> new values", func() {
+				os.Args = []string{"graft", "merge", "--changes-only", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+				So(stdout, ShouldStartWith, "Changed paths (3 paths of 5):\n")
+				So(stdout, ShouldContainSubstring, "database.host")
+				So(stdout, ShouldContainSubstring, "localhost → db.prod.example.com")
+				So(stdout, ShouldContainSubstring, "database.ssl")
+				So(stdout, ShouldContainSubstring, "<none> → true")
+			})
+
+			Convey("--history reflects a --prune removal as a POST-phase entry", func() {
+				os.Args = []string{"graft", "merge", "--history", "--prune", "meta", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+				So(stdout, ShouldContainSubstring, "meta.version:\n")
+				So(stdout, ShouldContainSubstring, "<pruned>")
+			})
+
+			Convey("combining --history and --show-changes is a usage error", func() {
+				os.Args = []string{"graft", "merge", "--history", "--show-changes", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stdout, ShouldEqual, "")
+				So(stderr, ShouldContainSubstring, "mutually exclusive")
+				So(rc, ShouldEqual, 1)
+			})
+		})
+
 		Convey("diff command", func() {
 			Convey("exits 0 and reports no differences for identical files", func() {
 				os.Args = []string{"graft", "diff", "../../assets/merge/first.yml", "../../assets/merge/first.yml"}
