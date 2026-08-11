@@ -245,8 +245,17 @@ func (f *COWTreeFactory) CreateFromYAML(yamlData []byte) (ThreadSafeTree, error)
 		return NewCOWTree(nil), nil
 	}
 
-	var raw interface{}
-	if err := yaml.Unmarshal(yamlData, &raw); err != nil {
+	// Work around a goccy/go-yaml v1.19.2 parser bug where a bare "-"
+	// sequence terminator followed by a sibling map key gets misparsed
+	// into the sequence (see sanitizeBareSequenceTerminators).
+	yamlData = sanitizeBareSequenceTerminators(yamlData)
+
+	// Quoted YAML 1.1 boolean-lookalike scalars ("yes", 'On', "OFF", ...)
+	// are tagged during this parse so the compat conversion below skips
+	// them, matching spruce (quoting is an explicit request to keep the
+	// value a string).
+	raw, err := ParseYAML11CompatAware(yamlData)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
@@ -260,6 +269,7 @@ func (f *COWTreeFactory) CreateFromYAML(yamlData []byte) (ThreadSafeTree, error)
 	}
 
 	converted := DefaultYAMLCompat().ConvertMapValues(data)
+	converted = UnprotectYAML11QuotedBools(converted).(map[string]interface{})
 	return NewCOWTree(converted), nil
 }
 

@@ -3,6 +3,12 @@ package graft
 import (
 	"fmt"
 	"regexp"
+	"strings"
+
+	"github.com/goccy/go-yaml"
+	"github.com/goccy/go-yaml/ast"
+	"github.com/goccy/go-yaml/parser"
+	"github.com/goccy/go-yaml/token"
 )
 
 // injectKeyStandaloneRe matches <<<: as a standalone map key.
@@ -136,4 +142,118 @@ func (c *YAMLCompat) convertSlice(s []interface{}) []interface{} {
 		s[i] = c.convertAny(v)
 	}
 	return s
+}
+
+// yaml11QuotedBoolMarker prefixes a decoded string value that came from
+// an explicitly quoted YAML 1.1 boolean-lookalike scalar (e.g. "yes",
+// 'On'). ConvertValue's coercion switch matches on the bare words only,
+// so a tagged value falls through untouched; UnprotectYAML11QuotedBools
+// removes the prefix afterward, unconditionally, restoring the original
+// string. U+E0DA is a Private Use Area code point that cannot appear in
+// hand-authored deployment YAML.
+const yaml11QuotedBoolMarker = "\uE0DA"
+
+// yaml11BoolLookalikeWords are the exact-cased tokens ConvertValue
+// coerces to a boolean. Quoting one of them (single or double) is an
+// author's explicit request, honored by both spruce and YAML 1.1, to
+// keep the value a string -- that request must survive the compat
+// coercion pass below.
+var yaml11BoolLookalikeWords = map[string]bool{
+	"yes": true, "Yes": true, "YES": true,
+	"no": true, "No": true, "NO": true,
+	"on": true, "On": true, "ON": true,
+	"off": true, "Off": true, "OFF": true,
+}
+
+// quotedBoolTagger is an ast.Visitor that mutates the Value of every
+// explicitly-quoted (single- or double-quoted) *ast.StringNode whose
+// content is a YAML 1.1 boolean-lookalike word, prefixing it with
+// yaml11QuotedBoolMarker. Plain (unquoted) scalars, and quoted scalars
+// embedded inside literal/folded block content (which the parser
+// represents as a different node shape, never a quoted StringNode), are
+// left untouched.
+type quotedBoolTagger struct{}
+
+func (quotedBoolTagger) Visit(n ast.Node) ast.Visitor {
+	if n == nil {
+		return nil
+	}
+	if sn, ok := n.(*ast.StringNode); ok {
+		if sn.Token != nil && isQuotedScalarToken(sn.Token.Type) && yaml11BoolLookalikeWords[sn.Value] {
+			sn.Value = yaml11QuotedBoolMarker + sn.Value
+		}
+	}
+	return quotedBoolTagger{}
+}
+
+func isQuotedScalarToken(t token.Type) bool {
+	return t == token.SingleQuoteType || t == token.DoubleQuoteType
+}
+
+// ParseYAML11CompatAware parses data the same way yaml.Unmarshal(data,
+// &interface{}{}) would, except every explicitly-quoted YAML 1.1
+// boolean-lookalike scalar ("yes", 'On', "OFF", ...) is protected from
+// YAMLCompat's later yes/no/on/off -> bool coercion. Unquoted
+// occurrences of those words decode as plain strings exactly as before,
+// so ConvertMapValues keeps converting them.
+//
+// Quoting information only exists at the token level -- once a document
+// is decoded into interface{} values, a quoted and an unquoted "yes"
+// are indistinguishable Go strings. This parses data into goccy's AST,
+// tags quoted matches using the AST's own token type (not a text-level
+// guess), then decodes the (locally mutated) AST back into the same
+// generic shape a direct yaml.Unmarshal call would produce.
+//
+// Callers must run the result through UnprotectYAML11QuotedBools after
+// applying YAMLCompat, unconditionally, so a tagged value that YAMLCompat
+// left alone (e.g. compat disabled) still comes out as the original
+// word rather than the internal marker-prefixed string.
+func ParseYAML11CompatAware(data []byte) (interface{}, error) {
+	file, err := parser.ParseBytes(data, 0)
+	if err != nil {
+		return nil, err
+	}
+	if len(file.Docs) == 0 || file.Docs[0].Body == nil {
+		return nil, nil
+	}
+
+	ast.Walk(quotedBoolTagger{}, file.Docs[0].Body)
+
+	var result interface{}
+	if err := yaml.NodeToValue(file.Docs[0].Body, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// UnprotectYAML11QuotedBools reverses the tagging ParseYAML11CompatAware
+// applied: it walks v, stripping yaml11QuotedBoolMarker from any string
+// value that still carries it, restoring the original bare word. Mutates
+// map and slice values in place; returns the (possibly replaced) root
+// value, mirroring ConvertMapValues' in-place style.
+func UnprotectYAML11QuotedBools(v interface{}) interface{} {
+	switch val := v.(type) {
+	case string:
+		if strings.HasPrefix(val, yaml11QuotedBoolMarker) {
+			return strings.TrimPrefix(val, yaml11QuotedBoolMarker)
+		}
+		return val
+	case map[string]interface{}:
+		for k, item := range val {
+			val[k] = UnprotectYAML11QuotedBools(item)
+		}
+		return val
+	case map[interface{}]interface{}:
+		for k, item := range val {
+			val[k] = UnprotectYAML11QuotedBools(item)
+		}
+		return val
+	case []interface{}:
+		for i, item := range val {
+			val[i] = UnprotectYAML11QuotedBools(item)
+		}
+		return val
+	default:
+		return v
+	}
 }
