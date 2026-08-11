@@ -151,16 +151,20 @@ func TestAwsClientPoolThreadSafety(t *testing.T) {
 			// Test that the pool is properly initialized with mutex protection
 			So(pool, ShouldNotBeNil)
 
-			// Verify cache operations work
-			pool.SetSecretCache("test-target", "test-secret", "test-value")
-			cache := pool.GetSecretCache("test-target")
-			So(cache, ShouldNotBeNil)
-			So(cache["test-secret"], ShouldEqual, "test-value")
+			// GetOrFetchSecret/GetOrFetchParam are the safe cache accessors
+			// (they never expose the backing map, unlike the removed
+			// GetSecretCache/SetSecretCache pair - see internal/backends/aws/cache.go).
+			secretVal, err := pool.GetOrFetchSecret("test-target", "test-secret", func() (string, error) {
+				return "test-value", nil
+			})
+			So(err, ShouldBeNil)
+			So(secretVal, ShouldEqual, "test-value")
 
-			pool.SetParamCache("test-target", "test-param", "test-param-value")
-			paramCache := pool.GetParamCache("test-target")
-			So(paramCache, ShouldNotBeNil)
-			So(paramCache["test-param"], ShouldEqual, "test-param-value")
+			paramVal, err := pool.GetOrFetchParam("test-target", "test-param", func() (string, error) {
+				return "test-param-value", nil
+			})
+			So(err, ShouldBeNil)
+			So(paramVal, ShouldEqual, "test-param-value")
 		})
 	})
 }

@@ -538,33 +538,32 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, target, key strin
 		return "", ansi.Errorf("@R{invalid argument} @c{%s}@R{; must be in the form} @m{path/to/secret:key}", key)
 	}
 
-	// Check cache first. The cache key is namespaced by target so the same
-	// path on two different Vault instances never collides (spec cluster
-	// A7 §7): without this, a cached lookup made against the default
-	// instance could silently satisfy a later "@target" lookup for the
-	// same path against a different instance, or vice versa.
+	// Cache key is namespaced by target so the same path on two different
+	// Vault instances never collides (spec cluster A7 §7): without this, a
+	// cached lookup made against the default instance could silently
+	// satisfy a later "@target" lookup for the same path against a
+	// different instance, or vice versa. GetOrFetch both serves cached
+	// values without a network call and coalesces concurrent requests for
+	// the same cache key into one Vault request (spec cluster D2).
 	cacheKey := leftPart
 	if target != "" {
 		cacheKey = target + "\x00" + leftPart
 	}
-	var fullSecret map[string]interface{}
-	if cached, found := vault.SecretCache.Get(cacheKey); found {
-		fullSecret = cached
-		DEBUG("vault: Cache hit for `%s`", leftPart)
-	} else {
+	fullSecret, fetchErr := vault.SecretCache.GetOrFetch(cacheKey, func() (map[string]interface{}, error) {
 		DEBUG("vault: Cache MISS for `%s`", leftPart)
-		// Secret isn't cached. Grab it from the vault.
-		var secretErr error
-		fullSecret, secretErr = vault.GetSecretWithReader(reader, leftPart)
+		secretData, secretErr := vault.GetSecretWithReader(reader, leftPart)
 		if secretErr != nil {
 			// Normalize the error messages
 			var notFoundErr *vault.ErrNotFound
 			if errors.As(secretErr, &notFoundErr) {
 				secretErr = fmt.Errorf("secret %s not found", key)
 			}
-			return "", secretErr
+			return nil, secretErr
 		}
-		vault.SecretCache.Set(cacheKey, fullSecret)
+		return secretData, nil
+	})
+	if fetchErr != nil {
+		return "", fetchErr
 	}
 
 	secret, extractErr := vault.ExtractSubkey(fullSecret, leftPart, rightPart)

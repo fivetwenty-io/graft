@@ -224,57 +224,52 @@ func (o AwsOperator) resolveSession(target string) (*session.Session, string, er
 
 // getAwsSecret fetches a secret using the AWS backend cache and session.
 // cacheTarget namespaces the secret cache (see resolveSession).
+// GetOrFetchSecret both serves cached values without a network call and
+// coalesces concurrent requests for the same (target, secret) into one
+// backend request (spec cluster D2), rather than exposing the raw cache
+// map for an unsynchronized read as the previous implementation did.
 func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secret string, params url.Values) (string, error) {
-	cache := awsbackend.DefaultPool.GetSecretCache(cacheTarget)
-	if val, cached := cache[secret]; cached {
-		return val, nil
-	}
+	return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, secret, func() (string, error) {
+		client := secretsmanager.New(awsSession)
 
-	client := secretsmanager.New(awsSession)
+		input := &secretsmanager.GetSecretValueInput{
+			SecretId: awsSDK.String(secret),
+		}
 
-	input := &secretsmanager.GetSecretValueInput{
-		SecretId: awsSDK.String(secret),
-	}
+		if params.Get("stage") != "" {
+			input.VersionStage = awsSDK.String(params.Get("stage"))
+		} else if params.Get("version") != "" {
+			input.VersionId = awsSDK.String(params.Get("version"))
+		}
 
-	if params.Get("stage") != "" {
-		input.VersionStage = awsSDK.String(params.Get("stage"))
-	} else if params.Get("version") != "" {
-		input.VersionId = awsSDK.String(params.Get("version"))
-	}
+		output, err := client.GetSecretValue(input)
+		if err != nil {
+			return "", err
+		}
 
-	output, err := client.GetSecretValue(input)
-	if err != nil {
-		return "", err
-	}
-
-	value := awsSDK.StringValue(output.SecretString)
-	awsbackend.DefaultPool.SetSecretCache(cacheTarget, secret, value)
-	return value, nil
+		return awsSDK.StringValue(output.SecretString), nil
+	})
 }
 
 // getAwsParam fetches a parameter using the AWS backend cache and session.
-// cacheTarget namespaces the parameter cache (see resolveSession).
+// cacheTarget namespaces the parameter cache (see resolveSession); see
+// getAwsSecret for the GetOrFetchParam cache+dedup behavior.
 func (o AwsOperator) getAwsParam(awsSession *session.Session, cacheTarget, param string) (string, error) {
-	cache := awsbackend.DefaultPool.GetParamCache(cacheTarget)
-	if val, cached := cache[param]; cached {
-		return val, nil
-	}
+	return awsbackend.DefaultPool.GetOrFetchParam(cacheTarget, param, func() (string, error) {
+		client := ssm.New(awsSession)
 
-	client := ssm.New(awsSession)
+		input := &ssm.GetParameterInput{
+			Name:           awsSDK.String(param),
+			WithDecryption: awsSDK.Bool(true),
+		}
 
-	input := &ssm.GetParameterInput{
-		Name:           awsSDK.String(param),
-		WithDecryption: awsSDK.Bool(true),
-	}
+		output, err := client.GetParameter(input)
+		if err != nil {
+			return "", err
+		}
 
-	output, err := client.GetParameter(input)
-	if err != nil {
-		return "", err
-	}
-
-	value := awsSDK.StringValue(output.Parameter.Value)
-	awsbackend.DefaultPool.SetParamCache(cacheTarget, param, value)
-	return value, nil
+		return awsSDK.StringValue(output.Parameter.Value), nil
+	})
 }
 
 // NewAwsParamOperator creates a new AWS Parameter Store operator.

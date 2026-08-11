@@ -427,25 +427,27 @@ func BuildConnectionOptions(config *Config) []nats.Option {
 	return opts
 }
 
-// FetchFromKV retrieves a value from a NATS KV store with retry logic.
+// FetchFromKV retrieves a value from a NATS KV store with retry logic. It
+// always performs the real JetStream read - callers wanting a cache in
+// front of it (target-namespaced, request-deduped) use FetchFromKVCached
+// instead of calling this directly. FetchFromKV used to check/populate the
+// shared TTL cache itself, keyed only by storePath with no target
+// component; since op_nats.go's caller already applied its own
+// target-namespaced cache in front of this call, that inner cache was
+// both redundant and a cross-target data leak (a second target's request
+// for the same storePath could be served the first target's cached
+// value) - see TestFetchFromKVCached_TargetNamespaced.
 //
 //nolint:gocyclo // KV fetch includes retry logic and YAML parsing
 func FetchFromKV(js jetstream.JetStream, storePath string, config *Config) (interface{}, error) {
 	startTime := time.Now()
 	operationType := "kv"
 
-	// Audit logging
-	if config.AuditLogging {
-		debugLog("AUDIT: Accessing KV store: %s", storePath)
-	}
-
-	// Check TTL cache first
-	cacheKey := fmt.Sprintf("kv:%s", storePath)
-	if val, ok := Cache.Get(cacheKey); ok {
-		duration := time.Since(startTime)
-		GlobalMetrics.RecordOperation(operationType, duration, false, true)
-		return val, nil
-	}
+	// The "AUDIT: Accessing" line is emitted by the caching layer
+	// (FetchFromKVCachedWith, internal/backends/nats/cached_fetch.go)
+	// before it checks the cache, so both a cache hit and a miss are
+	// audited exactly once - logging it here too would double it on
+	// every miss (this function only ever runs on a miss).
 
 	// Parse store name and key
 	parts := strings.SplitN(storePath, "/", 2)
@@ -535,9 +537,6 @@ func FetchFromKV(js jetstream.JetStream, storePath string, config *Config) (inte
 			}
 		}
 
-		// Cache the result with TTL
-		Cache.Set(cacheKey, result, config.CacheTTL)
-
 		// Audit logging for successful KV access
 		if config.AuditLogging {
 			debugLog("AUDIT: Successfully retrieved KV data from %s", storePath)
@@ -559,24 +558,18 @@ func FetchFromKV(js jetstream.JetStream, storePath string, config *Config) (inte
 }
 
 // FetchFromObject retrieves a value from a NATS Object store with retry logic.
+// It always performs the real JetStream read - see FetchFromObjectCached
+// for the target-namespaced, request-deduped cache in front of it (see
+// FetchFromKV's doc comment for why the caching used to live here too).
 //
 //nolint:gocyclo // Object fetch includes retry logic and content-type handling
 func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (interface{}, error) {
 	startTime := time.Now()
 	operationType := StoreObj
 
-	// Audit logging
-	if config.AuditLogging {
-		debugLog("AUDIT: Accessing Object store: %s", storePath)
-	}
-
-	// Check TTL cache first
-	cacheKey := fmt.Sprintf("%s:%s", StoreObj, storePath)
-	if val, ok := Cache.Get(cacheKey); ok {
-		duration := time.Since(startTime)
-		GlobalMetrics.RecordOperation(operationType, duration, false, true)
-		return val, nil
-	}
+	// The "AUDIT: Accessing" line is emitted by the caching layer
+	// (FetchFromObjectCachedWith, internal/backends/nats/cached_fetch.go)
+	// before it checks the cache - see FetchFromKV's comment above.
 
 	// Parse bucket name and object name
 	parts := strings.SplitN(storePath, "/", 2)
@@ -669,9 +662,6 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 			// For any other content type, base64 encode
 			result = base64.StdEncoding.EncodeToString(data)
 		}
-
-		// Cache the result with TTL
-		Cache.Set(cacheKey, result, config.CacheTTL)
 
 		// Audit logging for successful Object access
 		if config.AuditLogging {

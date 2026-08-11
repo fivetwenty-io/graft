@@ -30,64 +30,20 @@ func (NatsOperator) SupportsTarget() bool {
 	return true
 }
 
-// fetchFromKV retrieves a value from a NATS KV store, using the shared TTL
-// cache. target namespaces the cache key so the same store path on two
-// different NATS clusters never collides (spec cluster A7 §7, mirroring the
-// same fix in op_vault.go's performVaultLookup).
+// fetchFromKV retrieves a value from a NATS KV store using
+// natsbackend.FetchFromKVCached, which namespaces the cache key by target
+// so the same store path on two different NATS clusters never collides
+// (spec cluster A7 §7, mirroring the same fix in op_vault.go's
+// performVaultLookup) and coalesces concurrent identical requests into one
+// backend call (spec cluster D2).
 func (n NatsOperator) fetchFromKV(js jetstream.JetStream, target, storePath string, config *natsbackend.Config) (interface{}, error) {
-	startTime := time.Now()
-	operationType := "kv"
-
-	// Audit logging
-	if config.AuditLogging {
-		DEBUG("AUDIT: Accessing KV store: %s", storePath)
-	}
-
-	// Check TTL cache first
-	cacheKey := fmt.Sprintf("kv:%s:%s", target, storePath)
-	if val, ok := natsbackend.Cache.Get(cacheKey); ok {
-		duration := time.Since(startTime)
-		natsbackend.GlobalMetrics.RecordOperation(operationType, duration, false, true)
-		return val, nil
-	}
-
-	result, err := natsbackend.FetchFromKV(js, storePath, config)
-	if err != nil {
-		return nil, err
-	}
-
-	natsbackend.Cache.Set(cacheKey, result, config.CacheTTL)
-
-	return result, nil
+	return natsbackend.FetchFromKVCached(target, js, storePath, config)
 }
 
-// fetchFromObject retrieves a value from a NATS Object store, using the
-// shared TTL cache. target namespaces the cache key (see fetchFromKV).
+// fetchFromObject retrieves a value from a NATS Object store; see
+// fetchFromKV for the cache/dedup behavior.
 func (n NatsOperator) fetchFromObject(js jetstream.JetStream, target, storePath string, config *natsbackend.Config) (interface{}, error) {
-	startTime := time.Now()
-	operationType := natsbackend.StoreObj
-
-	// Audit logging
-	if config.AuditLogging {
-		DEBUG("AUDIT: Accessing Object store: %s", storePath)
-	}
-
-	// Check TTL cache first
-	cacheKey := fmt.Sprintf("%s:%s:%s", natsbackend.StoreObj, target, storePath)
-	if val, ok := natsbackend.Cache.Get(cacheKey); ok {
-		duration := time.Since(startTime)
-		natsbackend.GlobalMetrics.RecordOperation(operationType, duration, false, true)
-		return val, nil
-	}
-
-	result, err := natsbackend.FetchFromObject(js, storePath, config)
-	if err != nil {
-		return nil, err
-	}
-
-	natsbackend.Cache.Set(cacheKey, result, config.CacheTTL)
-
-	return result, nil
+	return natsbackend.FetchFromObjectCached(target, js, storePath, config)
 }
 
 // parseNatsConfig extracts configuration from arguments.
