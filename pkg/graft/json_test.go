@@ -2,6 +2,7 @@ package graft
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -100,6 +101,105 @@ func TestJSONifyFilesMultiDoc(t *testing.T) {
 			So(lines[1], ShouldEqual, `{"flag":"yes"}`)
 		})
 	})
+}
+
+func TestYAMLifyFiles(t *testing.T) {
+	Convey("YAMLifyFiles converts JSON input to YAML", t, func() {
+		dir := t.TempDir()
+
+		Convey("a single compact JSON object becomes one YAML document", func() {
+			path := writeTempFile(t, dir, "single.json", `{"database":{"host":"localhost","port":5432}}`)
+			docs, err := YAMLifyFiles([]string{path})
+			So(err, ShouldBeNil)
+			So(len(docs), ShouldEqual, 1)
+			So(docs[0], ShouldEqual, "database:\n  host: localhost\n  port: 5432")
+		})
+
+		Convey("pretty-printed multi-line JSON parses as a single document", func() {
+			path := writeTempFile(t, dir, "pretty.json", "{\n  \"a\": 1,\n  \"b\": [1, 2, 3]\n}\n")
+			docs, err := YAMLifyFiles([]string{path})
+			So(err, ShouldBeNil)
+			So(len(docs), ShouldEqual, 1)
+			So(docs[0], ShouldEqual, "a: 1\nb:\n- 1\n- 2\n- 3")
+		})
+
+		Convey("one-JSON-object-per-line input (JSONifyFiles' own output shape) round-trips to one YAML doc per line", func() {
+			path := writeTempFile(t, dir, "jsonl.json", "{\"doc\":1}\n{\"doc\":2}\n")
+			docs, err := YAMLifyFiles([]string{path})
+			So(err, ShouldBeNil)
+			So(len(docs), ShouldEqual, 2)
+			So(docs[0], ShouldEqual, "doc: 1")
+			So(docs[1], ShouldEqual, "doc: 2")
+		})
+
+		Convey("multiple files are each converted, in argument order", func() {
+			path1 := writeTempFile(t, dir, "one.json", `{"a":1}`)
+			path2 := writeTempFile(t, dir, "two.json", `{"b":2}`)
+			docs, err := YAMLifyFiles([]string{path1, path2})
+			So(err, ShouldBeNil)
+			So(docs, ShouldResemble, []string{"a: 1", "b: 2"})
+		})
+
+		Convey("a JSON array root converts to a YAML sequence document", func() {
+			path := writeTempFile(t, dir, "array.json", `[1,2,3]`)
+			docs, err := YAMLifyFiles([]string{path})
+			So(err, ShouldBeNil)
+			So(len(docs), ShouldEqual, 1)
+			So(docs[0], ShouldEqual, "- 1\n- 2\n- 3")
+		})
+
+		Convey("invalid JSON errors with the source file named", func() {
+			path := writeTempFile(t, dir, "bad.json", `{"a": }`)
+			_, err := YAMLifyFiles([]string{path})
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, path)
+			So(err.Error(), ShouldContainSubstring, "Error parsing JSON")
+		})
+
+		Convey("empty input errors instead of silently producing nothing", func() {
+			path := writeTempFile(t, dir, "empty.json", "")
+			_, err := YAMLifyFiles([]string{path})
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "no JSON documents found")
+		})
+
+		Convey("a missing file errors with the path named", func() {
+			_, err := YAMLifyFiles([]string{dir + "/does-not-exist.json"})
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "does-not-exist.json")
+		})
+	})
+}
+
+func TestCombineJSONLines(t *testing.T) {
+	Convey("CombineJSONLines wraps individual JSON documents into a single JSON array", t, func() {
+		Convey("multiple compact JSON objects become a pretty-printed array", func() {
+			out, err := CombineJSONLines([]string{`{"a":1}`, `{"b":2}`})
+			So(err, ShouldBeNil)
+			So(out, ShouldEqual, "[\n  {\n    \"a\": 1\n  },\n  {\n    \"b\": 2\n  }\n]")
+		})
+
+		Convey("a single document still becomes a one-element array", func() {
+			out, err := CombineJSONLines([]string{`{"a":1}`})
+			So(err, ShouldBeNil)
+			So(out, ShouldEqual, "[\n  {\n    \"a\": 1\n  }\n]")
+		})
+
+		Convey("zero documents becomes an empty array", func() {
+			out, err := CombineJSONLines(nil)
+			So(err, ShouldBeNil)
+			So(out, ShouldEqual, "[]")
+		})
+	})
+}
+
+func writeTempFile(t *testing.T, dir, name, contents string) string {
+	t.Helper()
+	path := dir + "/" + name
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatalf("writing temp file %s: %v", path, err)
+	}
+	return path
 }
 
 // jsonifyDataMultiDoc splits data the same way JSONifyFiles does and
