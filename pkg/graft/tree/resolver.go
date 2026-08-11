@@ -36,6 +36,23 @@ func IsPredicateSegment(node string) bool {
 	return ok
 }
 
+// ParsePredicateSegment is parsePredicateSegment, exported so callers
+// outside this package — notably mergeBuilderImpl's cherry-pick/prune path
+// navigation — can recognize a "field=value" segment using the identical
+// rule Resolve/Canonical/Glob use, rather than duplicating the regex (spec
+// cluster A7 §6.4, carried into cherry-pick/prune predicate reach).
+func ParsePredicateSegment(node string) (field, value string, ok bool) {
+	return parsePredicateSegment(node)
+}
+
+// PredicateFind is predicateFind, exported so callers outside this package
+// can match a list element by an explicit field=value predicate using the
+// exact same first-match, list-containers-only semantics Resolve/Canonical/
+// Glob use.
+func PredicateFind(l []interface{}, field, value string) (interface{}, uint64, bool) {
+	return predicateFind(l, field, value)
+}
+
 // predicateFind searches a list for the first map element whose `field` key
 // stringifies equal to `value`. This generalizes listFind's fixed
 // NameFields search to an explicit field name (spec cluster A7 §6.4).

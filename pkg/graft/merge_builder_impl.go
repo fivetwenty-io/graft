@@ -12,6 +12,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 	"github.com/fivetwenty-io/graft/pkg/graft/merger"
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
 // mergeBuilderImpl implements the MergeBuilder interface.
@@ -1190,12 +1191,28 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 	case []interface{}:
 		// Array index deletion. spruce's own --prune only removes array
 		// entries addressed by a numeric index at the final path segment;
-		// a named final segment (e.g. "items.beta") is a no-op there too
-		// (verified against the spruce binary: named lookup is only used
-		// by spruce when navigating *through* an array to reach a deeper
-		// key, never as the final delete target). Mirror that: a
-		// non-numeric final segment on an array resolves to nothing.
+		// a bare named final segment (e.g. "items.beta") is a no-op there
+		// too (verified against the spruce binary: named lookup is only
+		// used by spruce when navigating *through* an array to reach a
+		// deeper key, never as the final delete target). Mirror that for
+		// the bare-name case, which has a real spruce behavior to stay
+		// compatible with.
+		//
+		// A "field=value" predicate final segment (e.g.
+		// "servers.name=secondary") is different: spruce has no predicate
+		// syntax at all (spec cluster A7 §6.4/§7.1), so there is no spruce
+		// behavior to preserve, and the whole point of wiring predicates
+		// into --cherry-pick/--prune is that they resolve to a specific
+		// array entry — so a predicate final segment does resolve to a
+		// delete index, via the same tree.PredicateFind the resolver uses.
 		index, isNum := isNumericIndex(finalPart)
+		if !isNum {
+			if field, value, isPredicate := tree.ParsePredicateSegment(finalPart); isPredicate {
+				if _, idx, found := tree.PredicateFind(parent, field, value); found {
+					index, isNum = int(idx), true
+				}
+			}
+		}
 		if !isNum {
 			return nil
 		}
@@ -1262,7 +1279,23 @@ func findNamedArrayEntry(arr []interface{}, name string) (interface{}, bool) {
 // entry) to splice a shortened array back into its parent container when
 // navigation passes through a named array entry before reaching the final
 // prune target.
+//
+// A "field=value" path segment (e.g. the "servers.name=primary" of
+// --cherry-pick/--prune) is a list predicate, not a name/id/key lookup —
+// dispatched to tree.PredicateFind so cherry-pick and prune match the exact
+// same first-match, list-containers-only semantics as (( grab ... ))
+// predicate resolution (spec cluster A7 §6.4, carried into this path
+// navigator, which used to hand-roll its own name-field-only search and
+// silently fail on predicate syntax).
 func findNamedArrayEntryWithIndex(arr []interface{}, name string) (int, interface{}, bool) {
+	if field, value, isPredicate := tree.ParsePredicateSegment(name); isPredicate {
+		entry, idx, found := tree.PredicateFind(arr, field, value)
+		if !found {
+			return -1, nil, false
+		}
+		return int(idx), entry, true
+	}
+
 	configuredKey := merger.GetIdentifierKey()
 	identifierKeys := make([]string, 0, 4)
 	identifierKeys = append(identifierKeys, configuredKey)

@@ -246,3 +246,88 @@ func TestGlobWildcardSkipsMissingSubPaths(t *testing.T) {
 		t.Errorf("got %q, want jobs.worker.value", cursors[0].String())
 	}
 }
+
+// --- Glob predicate segment (spec cluster A7 §6.4) ---
+//
+// Glob's own "field=value" branch (glob.go:59-67) was unreachable from any
+// test before this: op_static_ips.go's three Cursor.Glob call sites only
+// ever glob "*" wildcard paths, never a predicate segment, and no other
+// caller drives Glob with one either.
+
+func TestGlobPredicateSegmentResolvesMatchingEntry(t *testing.T) {
+	data := map[string]interface{}{
+		"servers": []interface{}{
+			map[string]interface{}{"name": "primary", "host": "10.0.0.1"},
+			map[string]interface{}{"name": "secondary", "host": "10.0.0.2"},
+		},
+	}
+	c, err := ParseCursor("servers.name=primary.host")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	cursors, err := c.Glob(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cursors) != 1 {
+		t.Fatalf("got %d cursors, want 1: %v", len(cursors), cursorStrings(cursors))
+	}
+	// The predicate segment resolves to the matched entry's numeric index,
+	// exactly like Resolve/Canonical's own predicate branches.
+	if got, want := cursors[0].String(), "servers.0.host"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestGlobPredicateSegmentCombinesWithWildcard(t *testing.T) {
+	// A predicate segment narrows to one list entry; a "*" segment after it
+	// still fans out over that entry's own fields, exercising both
+	// glob.go branches together in a single path.
+	data := map[string]interface{}{
+		"servers": []interface{}{
+			map[string]interface{}{"name": "primary", "host": "10.0.0.1", "port": 22},
+			map[string]interface{}{"name": "secondary", "host": "10.0.0.2", "port": 22},
+		},
+	}
+	c, err := ParseCursor("servers.name=primary.*")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	cursors, err := c.Glob(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	paths := cursorStrings(cursors)
+	if len(paths) != 3 {
+		t.Fatalf("got %d paths, want 3 (name, host, port): %v", len(paths), paths)
+	}
+	want := map[string]bool{"servers.0.host": true, "servers.0.name": true, "servers.0.port": true}
+	for _, p := range paths {
+		if !want[p] {
+			t.Errorf("unexpected path %q", p)
+		}
+	}
+}
+
+func TestGlobPredicateSegmentNotFound(t *testing.T) {
+	data := map[string]interface{}{
+		"servers": []interface{}{
+			map[string]interface{}{"name": "primary", "host": "10.0.0.1"},
+		},
+	}
+	c, err := ParseCursor("servers.name=missing.host")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+
+	_, err = c.Glob(data)
+	if err == nil {
+		t.Fatal("expected NotFoundError, got nil")
+	}
+	var notFound NotFoundError
+	if !errors.As(err, &notFound) {
+		t.Errorf("expected NotFoundError, got %T: %v", err, err)
+	}
+}
