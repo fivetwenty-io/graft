@@ -3698,6 +3698,77 @@ doc7:
 		So(rc, ShouldEqual, 0)
 	})
 
+	Convey("graft fan expands a directory target argument into its .yml/.yaml/.json files, sorted, skipping dotfiles and non-config files", t, func() {
+		os.Args = []string{"graft", "fan", "../../assets/fan/dirsource.yml", "../../assets/fan/targets/"}
+		stdout = ""
+		stderr = ""
+		main()
+		So(stderr, ShouldEqual, "")
+		So(stdout, ShouldEqual, `---
+application: my-app
+meta:
+  environment: development
+  name: development
+
+---
+application: my-app
+meta:
+  environment: production
+  name: production
+
+`)
+		So(rc, ShouldEqual, 0)
+	})
+
+	Convey("graft fan --output-dir writes one file per target instead of writing to stdout", t, func() {
+		outDir := t.TempDir()
+		os.Args = []string{"graft", "fan", "--output-dir", outDir, "../../assets/fan/dirsource.yml", "../../assets/fan/targets/dev.yml", "../../assets/fan/targets/prod.yml"}
+		stdout = ""
+		stderr = ""
+		main()
+		So(stderr, ShouldEqual, "")
+		So(stdout, ShouldEqual, "")
+		So(rc, ShouldEqual, 0)
+
+		devOut, err := os.ReadFile(filepath.Join(outDir, "dev.yml"))
+		So(err, ShouldBeNil)
+		So(string(devOut), ShouldEqual, "application: my-app\nmeta:\n  environment: development\n  name: development\n")
+
+		prodOut, err := os.ReadFile(filepath.Join(outDir, "prod.yml"))
+		So(err, ShouldBeNil)
+		So(string(prodOut), ShouldEqual, "application: my-app\nmeta:\n  environment: production\n  name: production\n")
+	})
+
+	Convey("graft fan --output-dir with a directory target creates the output directory and names files after the target files", t, func() {
+		outDir := filepath.Join(t.TempDir(), "nested", "output")
+		os.Args = []string{"graft", "fan", "-o", outDir, "../../assets/fan/dirsource.yml", "../../assets/fan/targets/"}
+		stdout = ""
+		stderr = ""
+		main()
+		So(stderr, ShouldEqual, "")
+		So(stdout, ShouldEqual, "")
+		So(rc, ShouldEqual, 0)
+
+		entries, err := os.ReadDir(outDir)
+		So(err, ShouldBeNil)
+		names := []string{}
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		So(names, ShouldResemble, []string{"dev.yml", "prod.yml"})
+	})
+
+	Convey("graft fan errors on an empty target directory", t, func() {
+		emptyDir := t.TempDir()
+		os.Args = []string{"graft", "fan", "../../assets/fan/dirsource.yml", emptyDir}
+		stdout = ""
+		stderr = ""
+		main()
+		So(stdout, ShouldEqual, "")
+		So(stderr, ShouldContainSubstring, "contains no .yml/.yaml/.json files")
+		So(rc, ShouldEqual, 2)
+	})
+
 	Convey("graft fan with explicit file arguments does not also read a non-empty stdin (regression: cmdFanEval used to unconditionally append '-')", t, func() {
 		restoreStdin := setStdinFromFile(t, "../../assets/vaultinfo/novault.yml")
 		defer restoreStdin()
@@ -3718,6 +3789,27 @@ meta:
 
 `)
 	})
+	Convey("graft fan --output-dir with explicit file arguments does not create a spurious stdin.yml output file", t, func() {
+		restoreStdin := setStdinFromFile(t, "../../assets/vaultinfo/novault.yml")
+		defer restoreStdin()
+
+		outDir := t.TempDir()
+		os.Args = []string{"graft", "fan", "--output-dir", outDir, "../../assets/fan/dirsource.yml", "../../assets/fan/targets/dev.yml"}
+		stdout = ""
+		stderr = ""
+		main()
+		So(stderr, ShouldEqual, "")
+		So(rc, ShouldEqual, 0)
+
+		entries, err := os.ReadDir(outDir)
+		So(err, ShouldBeNil)
+		names := []string{}
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		So(names, ShouldResemble, []string{"dev.yml"})
+	})
+
 	Convey("graft fan still reads stdin as the target when no target files are given and stdin is piped", t, func() {
 		restoreStdin := setStdinFromFile(t, "../../assets/fan/multi-doc-1.yml")
 		defer restoreStdin()

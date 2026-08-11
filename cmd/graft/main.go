@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/cppforlife/go-patch/patch"
@@ -79,6 +81,7 @@ type mergeOpts struct {
 	MultiDoc       bool
 	DataflowOrder  string
 	Files          []string
+	OutputDir      string // fan only: write each result to <OutputDir>/<target-basename> instead of stdout
 
 	// History, TracePath, ShowChanges, and ChangesOnly are merge-only
 	// history/tracing flags (docs/user-guide/history-tracking.md). At most
@@ -163,30 +166,156 @@ func handleMerge(opts *mergeOpts) int {
 }
 
 func handleFan(opts *mergeOpts) int {
-	trees, err := cmdFanEval(opts)
+	results, err := cmdFanEval(opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
 	}
 
-	for _, tree := range trees {
-		log.TRACE("Converting the following data back to YML:")
-		log.TRACE("%#v", tree)
+	if opts.OutputDir != "" {
+		return writeFanResultsToDir(results, opts.OutputDir)
+	}
 
-		if err := graft.CheckForCycles(tree, 4096); err != nil {
+	for _, result := range results {
+		log.TRACE("Converting the following data back to YML:")
+		log.TRACE("%#v", result.Tree)
+
+		if err := graft.CheckForCycles(result.Tree, 4096); err != nil {
 			log.PrintStdErrf("%s\n", err.Error())
 			return 2
 		}
 
-		merged, err := graft.MarshalYAML(tree)
+		merged, err := graft.MarshalYAML(result.Tree)
 		if err != nil {
-			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
+			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), result.Tree)
 			return 2
 		}
 
 		printStdOutf("---\n%s\n", string(merged))
 	}
 	return 0
+}
+
+// writeFanResultsToDir implements `fan --output-dir`: instead of writing
+// every merged result to stdout separated by `---`, each result is written
+// to its own file inside outputDir, named after the target file it came
+// from (see fanOutputPath). outputDir is created (including any missing
+// parents) if it does not already exist.
+func writeFanResultsToDir(results []fanResult, outputDir string) int {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Unable to create output directory} @m{%s}: %s", outputDir, err.Error()))
+		return 2
+	}
+
+	for _, result := range results {
+		if err := graft.CheckForCycles(result.Tree, 4096); err != nil {
+			log.PrintStdErrf("%s\n", err.Error())
+			return 2
+		}
+
+		merged, err := graft.MarshalYAML(result.Tree)
+		if err != nil {
+			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), result.Tree)
+			return 2
+		}
+
+		outPath := fanOutputPath(outputDir, result.Path)
+		// #nosec G306 - fan output is meant to be readable configuration data, matching the permissions of merge/json's stdout-redirected output
+		if err := os.WriteFile(outPath, merged, 0o644); err != nil {
+			log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Unable to write output file} @m{%s}: %s", outPath, err.Error()))
+			return 2
+		}
+	}
+	return 0
+}
+
+// fanOutputPath derives the output filename for one fan result from the
+// YamlFile.Path recorded for it. Target files are always processed through
+// splitLoadYamlFile (see cmdFanEval), so docPath always carries a trailing
+// "[N]" document-index suffix (e.g. "targets/dev.yml[0]", or
+// "STDIN[0]" when the target came from stdin); that suffix is stripped
+// before deriving the basename, and re-added as a "-N" filename suffix only
+// when N > 0, so a target file that only produced one document (the common
+// case) gets a clean "dev.yml" output name, while a multi-document target
+// file produces "multi.yml", "multi-1.yml", "multi-2.yml", etc.
+func fanOutputPath(outputDir, docPath string) string {
+	base := docPath
+	index := 0
+	if open := strings.LastIndex(base, "["); open >= 0 && strings.HasSuffix(base, "]") {
+		if n, err := strconv.Atoi(base[open+1 : len(base)-1]); err == nil {
+			index = n
+			base = base[:open]
+		}
+	}
+
+	if base == "STDIN" {
+		base = "stdin.yml"
+	}
+
+	name := filepath.Base(base)
+	ext := filepath.Ext(name)
+	if ext == "" {
+		ext = ".yml"
+		name += ext
+	}
+	if index > 0 {
+		name = strings.TrimSuffix(name, ext) + fmt.Sprintf("-%d", index) + ext
+	}
+
+	return filepath.Join(outputDir, name)
+}
+
+// expandFanTargets replaces any directory entry in paths with the sorted
+// list of its immediate .yml/.yaml/.json files (dotfiles and
+// subdirectories are skipped; expansion is not recursive), matching
+// docs/user-guide/cli/fan.md's "target directory" usage
+// (`graft fan template.yml targets/`). Non-directory paths (including the
+// stdin sentinel "-") and paths that fail to stat are passed through
+// unchanged so the existing file-open error path in loadYamlFile reports
+// the failure consistently.
+func expandFanTargets(paths []string) ([]string, error) {
+	expanded := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if p == "-" {
+			expanded = append(expanded, p)
+			continue
+		}
+
+		info, statErr := os.Stat(p)
+		if statErr != nil || !info.IsDir() {
+			expanded = append(expanded, p)
+			continue
+		}
+
+		entries, readErr := os.ReadDir(p)
+		if readErr != nil {
+			return nil, ansi.Errorf("@R{Error reading directory} @m{%s}: %s", p, readErr.Error())
+		}
+
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			if strings.HasPrefix(name, ".") {
+				continue
+			}
+			switch strings.ToLower(filepath.Ext(name)) {
+			case ".yml", ".yaml", ".json":
+				names = append(names, name)
+			}
+		}
+		if len(names) == 0 {
+			return nil, ansi.Errorf("@R{Empty target directory}: %s contains no .yml/.yaml/.json files", p)
+		}
+		sort.Strings(names)
+
+		for _, name := range names {
+			expanded = append(expanded, filepath.Join(p, name))
+		}
+	}
+	return expanded, nil
 }
 
 // configEngineOpts converts a loaded internal/config.Config and a resolved
@@ -644,7 +773,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	// fan command
 	var fanSkipEval, fanFallbackAppend, fanGoPatch, fanMultiDoc bool
 	var fanPrune, fanCherryPick []string
-	var fanDataflowOrder string
+	var fanDataflowOrder, fanOutputDir string
 
 	fanCmd := &cobra.Command{
 		Use:   "fan [files...]",
@@ -659,6 +788,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 				MultiDoc:       fanMultiDoc,
 				DataflowOrder:  fanDataflowOrder,
 				Files:          args,
+				OutputDir:      fanOutputDir,
 				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
 			}
 			exit(handleFan(opts))
@@ -672,6 +802,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	fanCmd.Flags().BoolVar(&fanGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged")
 	fanCmd.Flags().BoolVarP(&fanMultiDoc, "multi-doc", "m", false, "Treat multi-doc yaml as multiple files.")
 	fanCmd.Flags().StringVar(&fanDataflowOrder, "dataflow-order", "", "Order of operations in dataflow output: alphabetical (default) or insertion")
+	fanCmd.Flags().StringVarP(&fanOutputDir, "output-dir", "o", "", "Write each result to <output-dir>/<target-basename> instead of stdout")
 
 	// json command
 	var jsonStrict, jsonReverse, jsonMultiDoc bool
@@ -925,7 +1056,15 @@ func cmdMergeEval(options *mergeOpts) (map[string]interface{}, graft.Engine, err
 	return result, engine, nil
 }
 
-func cmdFanEval(options *mergeOpts) ([]map[string]interface{}, error) {
+// fanResult pairs one fan target's merged document tree with the YamlFile
+// path it was merged against, so callers (handleFan / writeFanResultsToDir)
+// can name output files after their target when --output-dir is given.
+type fanResult struct {
+	Path string
+	Tree map[string]interface{}
+}
+
+func cmdFanEval(options *mergeOpts) ([]fanResult, error) {
 	// Only fall back to stdin when fewer than 2 file arguments were given -
 	// not 0, since fan's first positional argument is always the source,
 	// not a target: a source-only invocation (1 argument) has no target at
@@ -957,9 +1096,15 @@ func cmdFanEval(options *mergeOpts) ([]map[string]interface{}, error) {
 		return nil, ansi.Errorf("@R{Missing Input:} You must specify at least a source document to graft fan. If no files are specified, STDIN is used. Using STDIN for source and target docs only works with -m.")
 	}
 
-	roots := []map[string]interface{}{}
+	roots := []fanResult{}
 	sourcePath := options.Files[0]
 	options.Files = options.Files[1:]
+
+	var expandErr error
+	options.Files, expandErr = expandFanTargets(options.Files)
+	if expandErr != nil {
+		return nil, expandErr
+	}
 
 	docs := []YamlFile{}
 	source := YamlFile{}
@@ -1004,7 +1149,7 @@ func cmdFanEval(options *mergeOpts) ([]map[string]interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		roots = append(roots, result)
+		roots = append(roots, fanResult{Path: doc.Path, Tree: result})
 	}
 
 	return roots, nil
