@@ -1,0 +1,5 @@
+database:
+  host: db.prod.example.com
+  port: 5432
+  timeout: 60
+  ssl: true

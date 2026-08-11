@@ -20,6 +20,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/config"
 	"github.com/fivetwenty-io/graft/internal/features"
+	"github.com/fivetwenty-io/graft/internal/histdiff"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 
 	"github.com/fivetwenty-io/graft/log"
@@ -268,24 +269,145 @@ func handleJSON(opts jsonOpts) int {
 	return 0
 }
 
-func handleDiff(files []string, colorOpt string) int {
+// diffOpts holds `graft diff`'s subcommand-specific flags (see
+// docs/user-guide/cli/diff.md): at most one of SideBySide/Unified/Changes
+// selects an alternate rendering of the same underlying semantic diff;
+// leaving all three false keeps the pre-existing dyff HumanReport default,
+// byte-for-byte.
+type diffOpts struct {
+	NoColor    bool
+	SideBySide bool
+	Unified    bool
+	Changes    bool
+	Context    int // negative means "use renderUnifiedDiff's default"
+	Width      int // <= 0 means "use renderSideBySide's default"
+	Quiet      bool
+}
+
+func handleDiff(files []string, colorOpt string, opts diffOpts) int {
 	if colorOpt == "auto" || colorOpt == "" {
 		ansi.Color(isatty.IsTerminal(os.Stdout.Fd()))
+	}
+	if opts.NoColor {
+		ansi.Color(false)
 	}
 	if len(files) != 2 {
 		usage()
 		return 1
 	}
-	output, differences, err := diffFiles(files)
+
+	selected := 0
+	for _, on := range []bool{opts.SideBySide, opts.Unified, opts.Changes} {
+		if on {
+			selected++
+		}
+	}
+	if selected > 1 {
+		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{--side-by-side, --unified, and --changes are mutually exclusive; pick one}"))
+		return 1
+	}
+
+	if selected == 0 {
+		output, differences, err := diffFiles(files)
+		if err != nil {
+			log.PrintStdErrf("%s\n", err)
+			return 2
+		}
+		if !opts.Quiet {
+			printStdOutf("%s\n", output)
+		}
+		if differences {
+			return 1
+		}
+		return 0
+	}
+
+	return handleDiffRender(files, opts)
+}
+
+// handleDiffRender implements the `--side-by-side`/`--unified`/`--changes`
+// alternate diff renderings, all built from the same
+// internal/histdiff.Compare semantic diff (itself built on dyff, matching
+// the default diffFiles path) rather than a second diff algorithm.
+func handleDiffRender(files []string, opts diffOpts) int {
+	fromLabel, fromDoc, toLabel, toDoc, err := loadDiffDocuments(files)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err)
 		return 2
 	}
-	printStdOutf("%s\n", output)
-	if differences {
+
+	changes, err := histdiff.Compare(fromLabel, fromDoc, toLabel, toDoc)
+	if err != nil {
+		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error comparing} @m{%s} @R{and} @m{%s}: %s", fromLabel, toLabel, err.Error()))
+		return 2
+	}
+
+	var output string
+	switch {
+	case opts.Changes:
+		output = renderChangeList(changes)
+	case opts.Unified:
+		output, err = renderUnifiedDiff(fromLabel, fromDoc, toLabel, toDoc, opts.Context)
+	case opts.SideBySide:
+		output, err = renderSideBySide(fromLabel, fromDoc, toLabel, toDoc, opts.Width)
+	}
+	if err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 2
+	}
+
+	if !opts.Quiet {
+		printStdOutf("%s", output)
+		if !strings.HasSuffix(output, "\n") {
+			printStdOutf("\n")
+		}
+	}
+
+	if len(changes) > 0 {
 		return 1
 	}
 	return 0
+}
+
+// loadDiffDocuments loads exactly two YAML/JSON files via ytbx (the same
+// loader diffFiles uses for the default dyff report) and decodes each to a
+// plain Go value, for renderers that need the actual document content
+// (--unified, --side-by-side) rather than just a change list.
+func loadDiffDocuments(paths []string) (fromLabel string, fromDoc interface{}, toLabel string, toDoc interface{}, err error) {
+	if len(paths) != 2 {
+		return "", nil, "", nil, ansi.Errorf("incorrect number of files given to loadDiffDocuments(); please file a bug report")
+	}
+
+	from, to, err := ytbx.LoadFiles(paths[0], paths[1])
+	if err != nil {
+		return "", nil, "", nil, err
+	}
+
+	fromVal, err := decodeInputFileDocument(from)
+	if err != nil {
+		return "", nil, "", nil, ansi.Errorf("@m{%s}: @R{%s}", paths[0], err.Error())
+	}
+	toVal, err := decodeInputFileDocument(to)
+	if err != nil {
+		return "", nil, "", nil, ansi.Errorf("@m{%s}: @R{%s}", paths[1], err.Error())
+	}
+
+	return paths[0], fromVal, paths[1], toVal, nil
+}
+
+// decodeInputFileDocument decodes the first document of a loaded
+// ytbx.InputFile into a plain Go value. An input file with no documents
+// (an empty file) decodes to an empty map, matching graft merge/json's own
+// empty-document handling.
+func decodeInputFileDocument(f ytbx.InputFile) (interface{}, error) {
+	if len(f.Documents) == 0 {
+		return map[string]interface{}{}, nil
+	}
+	var v interface{}
+	if err := f.Documents[0].Decode(&v); err != nil {
+		return nil, err
+	}
+	return v, nil
 }
 
 // newRootCmd creates a fresh Cobra command tree. Called each time main() runs
@@ -471,14 +593,32 @@ func newRootCmd() (*cobra.Command, *bool) {
 	jsonCmd.Flags().BoolVar(&jsonStrict, "strict", false, "Refuse to convert non-string keys to strings")
 
 	// diff command
+	var diffNoColor, diffSideBySide, diffUnified, diffChanges, diffQuiet bool
+	var diffContext, diffWidth int
+
 	diffCmd := &cobra.Command{
 		Use:   "diff [file1] [file2]",
 		Short: "Show the semantic differences between two YAML files",
 		RunE: func(_ *cobra.Command, args []string) error {
-			exit(handleDiff(args, colorOpt))
+			exit(handleDiff(args, colorOpt, diffOpts{
+				NoColor:    diffNoColor,
+				SideBySide: diffSideBySide,
+				Unified:    diffUnified,
+				Changes:    diffChanges,
+				Context:    diffContext,
+				Width:      diffWidth,
+				Quiet:      diffQuiet,
+			}))
 			return nil
 		},
 	}
+	diffCmd.Flags().BoolVarP(&diffSideBySide, "side-by-side", "y", false, "Side-by-side diff view")
+	diffCmd.Flags().BoolVarP(&diffUnified, "unified", "u", false, "Unified diff format (git-style), grouped by top-level key")
+	diffCmd.Flags().BoolVar(&diffChanges, "changes", false, "List all changes (original -> new) grouped by change type")
+	diffCmd.Flags().IntVar(&diffContext, "context", -1, "Lines of context around each change in --unified output (default: 3)")
+	diffCmd.Flags().IntVar(&diffWidth, "width", 0, "Total output width for --side-by-side (default: 80)")
+	diffCmd.Flags().BoolVar(&diffNoColor, "no-color", false, "Disable colorized output for this command, overriding --color")
+	diffCmd.Flags().BoolVarP(&diffQuiet, "quiet", "q", false, "Exit with status only, no output")
 
 	// vaultinfo command
 	var vaultInfoGoPatch bool

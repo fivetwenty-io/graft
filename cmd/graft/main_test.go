@@ -13,10 +13,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
-	. "github.com/smartystreets/goconvey/convey"
 	"github.com/goccy/go-yaml"
 	"github.com/mattn/go-isatty"
+	. "github.com/smartystreets/goconvey/convey"
 
 	"github.com/fivetwenty-io/graft/internal/config"
 	"github.com/fivetwenty-io/graft/internal/features"
@@ -2957,6 +2958,114 @@ key2:
 				So(rc, ShouldEqual, 1)
 			})
 
+			Convey("--changes lists changes grouped by kind", func() {
+				os.Args = []string{"graft", "diff", "--changes", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldStartWith, "Changes (2 modified, 1 added, 1 removed):\n")
+				So(stdout, ShouldContainSubstring, "MODIFIED  database.host")
+				So(stdout, ShouldContainSubstring, "- localhost")
+				So(stdout, ShouldContainSubstring, "+ db.prod.example.com")
+				So(stdout, ShouldContainSubstring, "ADDED     database.ssl")
+				So(stdout, ShouldContainSubstring, "REMOVED   meta")
+			})
+
+			Convey("--changes on identical files reports zero changes and exits 0", func() {
+				os.Args = []string{"graft", "diff", "--changes", "../../assets/diff/base.yml", "../../assets/diff/base.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+				So(stdout, ShouldEqual, "Changes (0 modified, 0 added, 0 removed):\n")
+			})
+
+			Convey("--unified renders a git-style diff grouped by top-level key", func() {
+				os.Args = []string{"graft", "diff", "--unified", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldStartWith, "--- ../../assets/diff/base.yml\n+++ ../../assets/diff/modified.yml\n")
+				So(stdout, ShouldContainSubstring, "@@ database @@")
+				So(stdout, ShouldContainSubstring, "@@ meta @@")
+				So(stdout, ShouldContainSubstring, "-  host: localhost")
+				So(stdout, ShouldContainSubstring, "+  host: db.prod.example.com")
+			})
+
+			Convey("--unified --context=0 is accepted", func() {
+				os.Args = []string{"graft", "diff", "--unified", "--context", "0", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldContainSubstring, "@@ database @@")
+			})
+
+			Convey("--side-by-side renders two columns separated by a divider", func() {
+				os.Args = []string{"graft", "diff", "--side-by-side", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldContainSubstring, "../../assets/diff/base.yml")
+				So(stdout, ShouldContainSubstring, "../../assets/diff/modified.yml")
+				So(stdout, ShouldContainSubstring, "┼")
+			})
+
+			Convey("--side-by-side --width controls the column width", func() {
+				os.Args = []string{"graft", "diff", "--side-by-side", "--width", "40", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 1)
+				lines := strings.Split(stdout, "\n")
+				So(utf8.RuneCountInString(lines[0]), ShouldBeLessThanOrEqualTo, 44)
+			})
+
+			Convey("--quiet suppresses output but keeps the differences exit code", func() {
+				os.Args = []string{"graft", "diff", "--changes", "--quiet", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldEqual, "")
+				So(rc, ShouldEqual, 1)
+			})
+
+			Convey("combining --changes and --unified is a usage error", func() {
+				os.Args = []string{"graft", "diff", "--changes", "--unified", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+				So(stderr, ShouldContainSubstring, "mutually exclusive")
+			})
+
+			Convey("--no-color disables color even when --color=on is given", func() {
+				os.Args = []string{"graft", "diff", "--color", "on", "--no-color", "--changes", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldNotContainSubstring, "\x1b[")
+			})
 			Convey("--color=bogus is rejected as a usage error", func() {
 				os.Args = []string{"graft", "diff", "--color", "bogus", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
 				stdout = ""

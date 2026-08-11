@@ -14,6 +14,7 @@ require (
 	github.com/homeport/dyff v1.10.3
 	github.com/mattn/go-isatty v0.0.20
 	github.com/nats-io/nats.go v1.43.0
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
