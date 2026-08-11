@@ -2979,21 +2979,21 @@ key2:
 				// way to "explicitly set" it to its own default that's
 				// distinguishable from leaving it unset.
 				defaultEnv := map[string]string{
-					config.EnvEngineStrictMode:   "false",
-					config.EnvEngineMaxRecursion: "100",
-					config.EnvEngineTimeout:      "30s",
-					config.EnvCacheEnabled:       "true",
-					config.EnvCacheMaxSize:       "10000",
-					config.EnvCacheTTL:           "5m",
-					config.EnvCacheL2Enabled:     "false",
-					config.EnvParallelEnabled:    "true",
-					config.EnvParallelMinWorkers: "1",
-					config.EnvParallelMaxWorkers: "0",
-					config.EnvMetricsEnabled:     "false",
-					config.EnvMetricsFormat:      "prometheus",
-					config.EnvMetricsEndpoint:    "/metrics",
-					config.EnvLoggingLevel:       "info",
-					config.EnvLoggingFormat:      "text",
+					config.EnvEngineStrictMode:     "false",
+					config.EnvEngineMaxRecursion:   "100",
+					config.EnvEngineTimeout:        "30s",
+					config.EnvCacheEnabled:         "true",
+					config.EnvCacheMaxSize:         "10000",
+					config.EnvCacheTTL:             "5m",
+					config.EnvCacheL2Enabled:       "false",
+					config.EnvParallelEnabled:      "true",
+					config.EnvParallelMinWorkers:   "1",
+					config.EnvParallelMaxWorkers:   "0",
+					config.EnvMetricsEnabled:       "false",
+					config.EnvMetricsFormat:        "prometheus",
+					config.EnvMetricsEndpoint:      "/metrics",
+					config.EnvLoggingLevel:         "info",
+					config.EnvLoggingFormat:        "text",
 					features.EnvFeatureParallel:    "false",
 					features.EnvFeatureCache:       "true",
 					features.EnvFeatureMetrics:     "false",
@@ -3186,6 +3186,15 @@ key2:
 				So(rc, ShouldEqual, 1)
 			})
 
+			Convey("--color=bogus is rejected as a usage error", func() {
+				os.Args = []string{"graft", "diff", "--color", "bogus", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+			})
+
 			Convey("--changes lists changes grouped by kind", func() {
 				os.Args = []string{"graft", "diff", "--changes", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
 				stdout = ""
@@ -3293,14 +3302,6 @@ key2:
 				main()
 				So(rc, ShouldEqual, 1)
 				So(stdout, ShouldNotContainSubstring, "\x1b[")
-			})
-			Convey("--color=bogus is rejected as a usage error", func() {
-				os.Args = []string{"graft", "diff", "--color", "bogus", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
-				stdout = ""
-				stderr = ""
-				rc = 256
-				main()
-				So(rc, ShouldEqual, 1)
 			})
 		})
 	})
@@ -3789,6 +3790,7 @@ meta:
 
 `)
 	})
+
 	Convey("graft fan --output-dir with explicit file arguments does not create a spurious stdin.yml output file", t, func() {
 		restoreStdin := setStdinFromFile(t, "../../assets/vaultinfo/novault.yml")
 		defer restoreStdin()
@@ -3822,6 +3824,7 @@ meta:
 		So(rc, ShouldEqual, 0)
 		So(stdout, ShouldNotEqual, "")
 	})
+
 	Convey("graft fan with a source but no target arguments still reads stdin as the target (F20 regression: F11's guard over-narrowed to len==0, but fan's first positional is the source, not a target)", t, func() {
 		restoreStdin := setStdinFromFile(t, "../../assets/fan/targets/dev.yml")
 		defer restoreStdin()
@@ -3840,6 +3843,7 @@ meta:
 
 `)
 	})
+
 	Convey("graft fan still honors an explicit '-' target alongside other file arguments", t, func() {
 		restoreStdin := setStdinFromFile(t, "../../assets/fan/multi-doc-1.yml")
 		defer restoreStdin()
