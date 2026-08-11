@@ -47,9 +47,11 @@ graft merge --color=auto file.yml
 
 **Environment variable:**
 
+There is no `GRAFT_COLOR` variable. Color is disabled by setting `NO_COLOR`
+to any non-empty value, or `TERM=dumb`:
+
 ```sh
-export GRAFT_COLOR=on   # Always use color
-export GRAFT_COLOR=off  # Never use color
+export NO_COLOR=1   # Never use color
 ```
 
 ## Exit Codes

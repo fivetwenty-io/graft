@@ -69,20 +69,75 @@ environment: production
 config: (( nats (concat "kv:config/" environment "/settings") ))
 ```
 
+### With Inline Configuration Map
+
+The second argument accepts a map instead of a URL string, letting you set
+connection, TLS, and auth options directly in the YAML document rather than
+through environment variables:
+
+```yaml
+config: (( nats "kv:config/settings" {
+  url: "nats://server:4222",
+  timeout: "10s",
+  token: "my-token",
+} ))
+```
+
 ## Configuration
+
+### Inline Configuration Map Keys
+
+| Key | Type | Overrides |
+|-----|------|-----------|
+| `url` | string | `NATS_URL` |
+| `timeout` | duration string (e.g. `"10s"`) | `NATS_TIMEOUT` |
+| `retries` | int | `NATS_RETRIES` |
+| `retry_interval` | duration string | `NATS_RETRY_INTERVAL` |
+| `retry_backoff` | float | `NATS_RETRY_BACKOFF` |
+| `max_retry_interval` | duration string | `NATS_MAX_RETRY_INTERVAL` |
+| `tls` | bool | `NATS_TLS` |
+| `cert_file` | string | `NATS_CERT_FILE` |
+| `key_file` | string | `NATS_KEY_FILE` |
+| `ca_file` | string | `NATS_CA_FILE` |
+| `insecure_skip_verify` | bool | `NATS_INSECURE_SKIP_VERIFY` |
+| `cache_ttl` | duration string | `NATS_CACHE_TTL` |
+| `streaming_threshold` | int | `NATS_STREAMING_THRESHOLD` |
+| `audit_logging` | bool | `NATS_AUDIT_LOGGING` |
+| `token` | string | `NATS_TOKEN` |
+| `user` | string | `NATS_USER` |
+| `password` | string | `NATS_PASSWORD` |
+| `nkey_seed_file` | string | `NATS_NKEY` |
+| `creds_file` | string | `NATS_CREDS` |
+
+Every key is optional; unset keys keep the value the corresponding
+environment variable (or its default) already resolved to. The auth
+precedence rule (`creds_file` > `nkey_seed_file` > `token` >
+`user`/`password`) applies to the resulting config the same way it applies
+to environment variables. This map only applies to the default (no-target)
+connection - named targets are configured entirely through
+`NATS_{TARGET}_*` environment variables, not through this map.
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NATS_URL` | NATS server URL | `nats://localhost:4222` |
+| `NATS_URL` | NATS server URL | `nats://127.0.0.1:4222` (the `nats.go` client default) |
 | `NATS_TOKEN` | Authentication token | - |
 | `NATS_USER` | Username | - |
 | `NATS_PASSWORD` | Password | - |
-| `NATS_CREDS` | Credentials file path | - |
-| `NATS_TLS_CERT` | TLS certificate path | - |
-| `NATS_TLS_KEY` | TLS key path | - |
-| `NATS_TLS_CA` | TLS CA certificate path | - |
+| `NATS_NKEY` | Path to an nkey seed file | - |
+| `NATS_CREDS` | Path to a `.creds` file | - |
+| `NATS_CERT_FILE` | TLS client certificate path | - |
+| `NATS_KEY_FILE` | TLS client key path | - |
+| `NATS_CA_FILE` | TLS CA certificate path | - |
+| `NATS_TIMEOUT` | Connection timeout | `5s` |
+
+When more than one auth variable is set, only one method is used: `NATS_CREDS`
+wins over `NATS_NKEY`, which wins over `NATS_TOKEN`, which wins over
+`NATS_USER`/`NATS_PASSWORD`. See the
+[Environment Variables Reference](../../reference/environment-variables.md)
+for the complete list, including target-prefixed forms and retry/TLS
+tuning variables.
 
 ### Per-Target Variables
 
@@ -102,18 +157,17 @@ export NATS_STAGING_TOKEN="staging-token"
 
 ### Library Configuration
 
+There is no `graft.NATSConfig` type or `WithNATS`/`WithNATSTarget` engine
+option. As a library, graft configures NATS the same way the CLI does: by
+reading the environment variables above (`NATS_URL`, `NATS_TOKEN`, the
+`NATS_{TARGET}_*` prefixed forms, and so on) at evaluation time. The only
+NATS-related engine option is `graft.WithSkipNats(true)`, which makes every
+`(( nats ... ))` operator return the literal string `"REDACTED"` instead of
+making a backend call:
+
 ```go
 engine, _ := graft.NewEngine(
-    graft.WithNATS(graft.NATSConfig{
-        URL:     "nats://localhost:4222",
-        Token:   os.Getenv("NATS_TOKEN"),
-        TLSCert: "/path/to/cert.pem",
-        TLSKey:  "/path/to/key.pem",
-    }),
-    graft.WithNATSTarget("production", graft.NATSConfig{
-        URL:   "nats://nats-prod.example.com:4222",
-        Token: os.Getenv("NATS_PRODUCTION_TOKEN"),
-    }),
+    graft.WithSkipNats(true),
 )
 ```
 
@@ -229,17 +283,6 @@ clusters:
     config: (( nats@eu-west "kv:config/settings" ))
 ```
 
-### Dynamic Configuration Updates
-
-NATS KV supports watching for changes (in the library):
-
-```go
-// Watch for configuration changes
-engine.WatchKV("config/settings", func(value string) {
-    // Handle configuration update
-})
-```
-
 ## Authentication
 
 ### Token Authentication
@@ -257,6 +300,13 @@ export NATS_USER="myuser"
 export NATS_PASSWORD="mypassword"
 ```
 
+### Nkey Authentication
+
+```sh
+export NATS_URL="nats://localhost:4222"
+export NATS_NKEY="/path/to/user.nk"
+```
+
 ### Credentials File
 
 ```sh
@@ -268,9 +318,10 @@ export NATS_CREDS="/path/to/user.creds"
 
 ```sh
 export NATS_URL="nats://localhost:4222"
-export NATS_TLS_CERT="/path/to/client-cert.pem"
-export NATS_TLS_KEY="/path/to/client-key.pem"
-export NATS_TLS_CA="/path/to/ca.pem"
+export NATS_TLS="true"
+export NATS_CERT_FILE="/path/to/client-cert.pem"
+export NATS_KEY_FILE="/path/to/client-key.pem"
+export NATS_CA_FILE="/path/to/ca.pem"
 ```
 
 ## Error Handling
@@ -311,13 +362,11 @@ optional: (( nats "kv:config/optional" || "default" ))
 
 ### Connection Pooling
 
-Connections are pooled and reused:
-
-```go
-graft.WithNATS(graft.NATSConfig{
-    PoolSize: 10,  // Connection pool size
-})
-```
+Connections are pooled and reused automatically, one connection per target
+(the default, no-target connection has its own pool keyed by URL). Pool
+size isn't configurable: idle connections are closed automatically after
+5 minutes, checked every minute. There is no environment variable or
+engine option to change either interval.
 
 ### No Cross-Key Batching
 
@@ -349,7 +398,6 @@ backup: (( nats "kv:config/setting" ))  # cached
 | Consistency | Eventual | Strong | Strong |
 | Complexity | Simple | Complex | Medium |
 | Self-hosted | Yes | Yes | No |
-| Watch/Subscribe | Yes | No | Limited |
 
 **Use NATS for:**
 

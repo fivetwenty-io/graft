@@ -132,7 +132,7 @@ Every configuration field above has a matching `GRAFT_*` environment variable, a
 
 An empty or unset environment variable is ignored; the file value or default remains in effect. A boolean variable set to a value graft does not recognize (anything other than the accepted values above) is also ignored rather than treated as `false`.
 
-These `GRAFT_*` configuration variables are distinct from the per-command variables (`GRAFT_COLOR`, `GRAFT_DEBUG`, `GRAFT_TRACE`) and the backend credentials (`VAULT_*`, `AWS_*`, `NATS_*`) covered in [Environment Variables](environment-variables.md). This page covers only the unified `Config` system; see that page for the rest of graft's environment surface.
+These `GRAFT_*` configuration variables are distinct from the per-command variables (`NO_COLOR`/`TERM`/`--color`, `DEBUG`, `TRACE`) and the backend credentials (`VAULT_*`, `AWS_*`, `NATS_*`) covered in [Environment Variables](environment-variables.md). This page covers only the unified `Config` system; see that page for the rest of graft's environment surface.
 
 ## Feature Flags
 

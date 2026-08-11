@@ -8,9 +8,15 @@ Configure Graft behavior through environment variables and options.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `GRAFT_COLOR` | Color output: `on`, `off`, `auto` | `auto` |
-| `GRAFT_DEBUG` | Enable debug logging | `false` |
-| `GRAFT_TRACE` | Enable trace logging | `false` |
+| `DEBUG` | Enable debug logging (any non-empty value except `false`/`0`) | `false` |
+| `TRACE` | Enable trace logging (any non-empty value except `false`/`0`) | `false` |
+| `NO_COLOR` | Disable colorized output (any non-empty value) | - |
+
+There is no `GRAFT_COLOR`, `GRAFT_DEBUG`, or `GRAFT_TRACE` variable. Color
+is controlled by the `--color` CLI flag (`on`/`off`/`auto`) and by
+`NO_COLOR`/`TERM=dumb`; debug and trace logging are controlled by the
+`-D`/`--debug` and `-T`/`--trace` flags or by the `DEBUG`/`TRACE`
+environment variables above.
 
 ### Vault Configuration
 
@@ -20,9 +26,14 @@ Configure Graft behavior through environment variables and options.
 | `VAULT_TOKEN` | Authentication token | - |
 | `VAULT_NAMESPACE` | Vault namespace | - |
 | `VAULT_SKIP_VERIFY` | Skip TLS verification | `false` |
-| `VAULT_CACERT` | CA certificate path | - |
-| `VAULT_CLIENT_CERT` | Client certificate path | - |
-| `VAULT_CLIENT_KEY` | Client key path | - |
+
+If `VAULT_ADDR` or `VAULT_TOKEN` is unset, graft falls back to
+`~/.svtoken`, then to a bare token read from `~/.vault-token`.
+`VAULT_CACERT`, `VAULT_CAPATH`, `VAULT_CLIENT_CERT`, `VAULT_CLIENT_KEY`,
+and `VAULT_TLS_SERVER_NAME` are not honored: graft builds its own
+`http.Client` with its own TLS configuration when constructing the Vault
+API client, which does not pick up the HashiCorp SDK's environment-driven
+TLS settings.
 
 **Per-target Vault:**
 
@@ -42,11 +53,20 @@ export VAULT_STAGING_TOKEN="s.staging-token"
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `AWS_REGION` | AWS region | - |
-| `AWS_PROFILE` | Credentials profile | `default` |
+| `AWS_PROFILE` | Credentials profile | - |
+| `AWS_ROLE` | Role ARN to assume | - |
 | `AWS_ACCESS_KEY_ID` | Access key ID | - |
 | `AWS_SECRET_ACCESS_KEY` | Secret access key | - |
 | `AWS_SESSION_TOKEN` | Session token (STS) | - |
-| `AWS_ENDPOINT_URL` | Custom endpoint URL | - |
+| `AWS_WEB_IDENTITY_TOKEN_FILE` | Web identity token file (with `AWS_ROLE_ARN`) | - |
+| `AWS_CA_BUNDLE` | Path to a custom CA bundle | - |
+
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`,
+`AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_ROLE_ARN`, and `AWS_CA_BUNDLE` are read
+by the AWS SDK's default credential chain, not by graft's own code; graft
+itself reads only `AWS_REGION`, `AWS_PROFILE`, and `AWS_ROLE` directly.
+There is no `AWS_ENDPOINT_URL`; the real, per-target-only equivalent is
+`AWS_{TARGET}_ENDPOINT` below.
 
 **Per-target AWS:**
 
@@ -64,14 +84,19 @@ export AWS_STAGING_PROFILE="staging"
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NATS_URL` | NATS server URL | `nats://localhost:4222` |
+| `NATS_URL` | NATS server URL | `nats://127.0.0.1:4222` |
 | `NATS_TOKEN` | Authentication token | - |
 | `NATS_USER` | Username | - |
 | `NATS_PASSWORD` | Password | - |
-| `NATS_CREDS` | Credentials file path | - |
-| `NATS_TLS_CERT` | TLS certificate path | - |
-| `NATS_TLS_KEY` | TLS key path | - |
-| `NATS_TLS_CA` | TLS CA certificate path | - |
+| `NATS_NKEY` | Path to an nkey seed file | - |
+| `NATS_CREDS` | Path to a `.creds` file | - |
+| `NATS_CERT_FILE` | TLS client certificate path | - |
+| `NATS_KEY_FILE` | TLS client key path | - |
+| `NATS_CA_FILE` | TLS CA certificate path | - |
+| `NATS_TIMEOUT` | Connection timeout | `5s` |
+
+When more than one auth variable is set, precedence (highest first) is
+`NATS_CREDS`, `NATS_NKEY`, `NATS_TOKEN`, then `NATS_USER`/`NATS_PASSWORD`.
 
 **Per-target NATS:**
 
@@ -285,16 +310,18 @@ for why, and how to measure your own workload.
 ### TLS Settings
 
 ```sh
-# Vault TLS
-export VAULT_CACERT="/path/to/ca.pem"
-export VAULT_CLIENT_CERT="/path/to/client-cert.pem"
-export VAULT_CLIENT_KEY="/path/to/client-key.pem"
-
 # NATS TLS
-export NATS_TLS_CERT="/path/to/cert.pem"
-export NATS_TLS_KEY="/path/to/key.pem"
-export NATS_TLS_CA="/path/to/ca.pem"
+export NATS_TLS="true"
+export NATS_CERT_FILE="/path/to/cert.pem"
+export NATS_KEY_FILE="/path/to/key.pem"
+export NATS_CA_FILE="/path/to/ca.pem"
 ```
+
+Graft has no working TLS-material environment variables for Vault
+(`VAULT_CACERT`/`VAULT_CLIENT_CERT`/`VAULT_CLIENT_KEY` are not honored;
+see [Vault Configuration](#vault-configuration) above). Use `VAULT_ADDR`
+with an `https://` URL and `VAULT_SKIP_VERIFY` for TLS verification
+control instead.
 
 ### Secret Redaction
 

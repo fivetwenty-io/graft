@@ -425,9 +425,12 @@ engine, _ := graft.NewEngine(
 |---------|----------------------|--------|
 | Parallel evaluation | `GRAFT_PARALLEL_ENABLED` | Turn wave-based parallel evaluation on or off |
 | Worker count | `GRAFT_PARALLEL_MAX_WORKERS`, `GRAFT_PARALLEL_MIN_WORKERS` | Bound the worker pool |
-| Expression cache | `GRAFT_EXPRESSION_CACHE_SIZE` | Number of parsed expressions retained |
-| Document cache | `GRAFT_CACHE_ENABLED`, `GRAFT_CACHE_MAX_SIZE`, `GRAFT_CACHE_TTL` | Cache behavior |
+| Document cache | `GRAFT_CACHE_ENABLED`, `GRAFT_CACHE_MAX_SIZE`, `GRAFT_CACHE_TTL` | Cache behavior (see [Configuration Reference](../reference/config.md) for which of these the CLI actually reads today) |
 | Loop cap | `GRAFT_MAX_LOOP_ITERATIONS` | `(( while ))` iteration limit; `--max-loop-iterations` wins over it |
+
+There is no separate expression-parse cache or `GRAFT_EXPRESSION_CACHE_SIZE`
+variable; parsed expressions are not cached independently of the operator
+result cache above.
 
 ## Error Handling
 

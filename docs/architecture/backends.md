@@ -397,15 +397,29 @@ type Target struct {
     CacheTTL time.Duration
     // Retries, RetryInterval, RetryBackoff, MaxRetryInterval,
     // InsecureSkipVerify, StreamingThreshold, AuditLogging omitted
+
+    // Auth: at most one method wins, in this order (highest first):
+    // CredsFile, NkeySeedFile, Token, User/Password.
+    Token        string
+    User         string
+    Password     string
+    NkeySeedFile string
+    CredsFile    string
 }
 ```
 
-The exact environment variable names this page previously listed here
-(`NATS_TLS_CERT`/`NATS_TLS_KEY`) do not match the real, dynamically-built
+The environment variable names for these fields are the target-prefixed
 `NATS_{TARGET}_CERT_FILE`/`NATS_{TARGET}_KEY_FILE`/`NATS_{TARGET}_CA_FILE`
-suffixes - a broader env-var naming accuracy pass across the whole
-variable surface (not specific to NATS) is tracked separately; see
-[Environment Variables Reference](../reference/environment-variables.md).
+(TLS) and `NATS_{TARGET}_TOKEN`/`NATS_{TARGET}_USER`/
+`NATS_{TARGET}_PASSWORD`/`NATS_{TARGET}_NKEY`/`NATS_{TARGET}_CREDS` (auth);
+the default (no-target) connection reads the same names without the
+`{TARGET}_` segment (`NATS_CERT_FILE`, `NATS_TOKEN`, etc.). Auth-option
+construction (`BuildConnectionOptions` in `internal/backends/nats/client.go`)
+fails fast with an error rather than silently falling back to an anonymous
+connection when a configured nkey seed file or TLS client certificate
+can't be loaded. See
+[Environment Variables Reference](../reference/environment-variables.md)
+for the full, verified table.
 
 ### Client Pool
 

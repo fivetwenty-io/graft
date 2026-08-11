@@ -67,7 +67,6 @@ host: (( awsparam (concat "/app/" environment "/db/host") ))
 | `AWS_ACCESS_KEY_ID` | Access key ID | - |
 | `AWS_SECRET_ACCESS_KEY` | Secret access key | - |
 | `AWS_SESSION_TOKEN` | Session token (STS) | - |
-| `AWS_ENDPOINT_URL` | Custom endpoint URL | - |
 
 ### Per-Target Variables
 
