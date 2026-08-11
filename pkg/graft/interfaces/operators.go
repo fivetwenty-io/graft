@@ -430,7 +430,7 @@ func registerDataOperators() {
 	})
 
 	RegisterOperator("uniq", OperatorInfo{
-		MinArgs:     0,
+		MinArgs:     1,
 		MaxArgs:     1,
 		Description: "Remove duplicate elements from array",
 		Category:    CategoryData,
@@ -838,8 +838,8 @@ func registerArrayOperators() {
 	})
 
 	RegisterOperator("flatten", OperatorInfo{
-		MinArgs:     0,
-		MaxArgs:     2,
+		MinArgs:     1,
+		MaxArgs:     1,
 		Description: "Flatten nested arrays",
 		Category:    CategoryArray,
 		Phase:       EvalPhase,
