@@ -26,8 +26,12 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-// Version holds the Current version of graft.
-var Version = "(development)"
+// Version holds the current version of graft, overridden at build time via
+// `-ldflags "-X main.Version=..."` (see Makefile). The fallback below is a
+// real semver so that even an ad-hoc `go build`/`go run` without ldflags
+// still satisfies genesis's check_prereqs() minimum-version gate (spruce
+// compat requires >= 1.28.0, probed via `graft -v`/`--version`).
+var Version = "1.30.0"
 
 var printStdOutf = func(format string, args ...interface{}) {
 	_, _ = fmt.Fprintf(os.Stdout, format, args...)

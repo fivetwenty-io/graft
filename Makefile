@@ -13,7 +13,11 @@ RESET  := \033[0m
 BINARY_NAME := graft
 SOURCE_DIR := ./cmd/graft
 BUILD_DIR := build
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+# Prefer an exact tag match for a clean semver release build. Fall back to
+# a fixed baseline (kept in sync with cmd/graft/main.go's default Version)
+# rather than a commit hash, since genesis's check_prereqs() requires the
+# `-v`/`--version` output to contain a semver token >= 1.28.0.
+VERSION := $(shell (git describe --tags --exact-match 2>/dev/null || echo "v1.30.0") | sed 's/^v//')
 LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
 GO_FILES := $(shell find . -name '*.go' -not -path "./vendor/*")
 COVERAGE_DIR := coverage
