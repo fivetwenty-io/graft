@@ -300,20 +300,23 @@ optional: (( awssecret "optional-secret" || "default-value" ))
 
 ## Performance
 
-### Batching
+### Same-Secret Requests Collapse to One Fetch
 
-Multiple secrets are fetched efficiently:
+Graft does not batch requests for *different* secrets into fewer AWS API calls - each distinct secret name is still its own `GetSecretValue` call. But graft caches by secret name, not by secret-plus-subkey, so extracting several `?key=` subkeys of one JSON-valued secret only fetches that secret once:
 
 ```yaml
-# Batched into fewer API calls
+# db-creds is one JSON secret with username/password/host keys - one
+# GetSecretValue call for db-creds serves all three lines below.
 username: (( awssecret "db-creds?key=username" ))
 password: (( awssecret "db-creds?key=password" ))
 host: (( awssecret "db-creds?key=host" ))
 ```
 
+If these referenced three different secret names instead of three subkeys of `db-creds`, each would be its own AWS API call.
+
 ### Caching
 
-Secrets are cached during evaluation:
+Secrets are cached per target and secret name during evaluation, and concurrent references to the identical (target, secret) under parallel evaluation are coalesced into a single request rather than each firing its own:
 
 ```yaml
 # Same secret, fetched only once

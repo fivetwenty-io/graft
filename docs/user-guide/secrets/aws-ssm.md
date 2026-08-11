@@ -270,25 +270,32 @@ optional: (( awsparam "/app/optional" || "default-value" ))
 
 ## Performance
 
-### Batching
+### No Cross-Parameter Batching
 
-Multiple parameters are fetched efficiently:
+Each distinct parameter path is its own `GetParameter` API call - graft does not group different parameter names into AWS's batch `GetParameters` call (which supports up to ten names per request):
 
 ```yaml
-# These are batched into a single AWS API call
+# Three distinct paths - three separate AWS API calls, even under
+# parallel evaluation (where they run concurrently rather than batched).
 host: (( awsparam "/app/db/host" ))
 port: (( awsparam "/app/db/port" ))
 user: (( awsparam "/app/db/user" ))
 ```
 
+If a single parameter stores a JSON blob and you extract multiple keys from it with `?key=`, those calls *do* collapse to one fetch - see Caching below.
+
 ### Caching
 
-Parameters are cached during evaluation:
+Parameters are cached per target and path during evaluation. Referencing the same parameter path twice - including through different `?key=` subkey extractions of one JSON-valued parameter - fetches it only once, and concurrent references to the identical (target, path) under parallel evaluation are coalesced into a single request rather than each firing its own:
 
 ```yaml
 # Same parameter, fetched only once
 primary_host: (( awsparam "/app/db/host" ))
 backup_host: (( awsparam "/app/db/host" ))  # cached
+
+# Same parameter path, different subkeys of its JSON value - still one fetch
+cache_host: (( awsparam "/app/config?key=cache.host" ))
+cache_ttl: (( awsparam "/app/config?key=cache.ttl" ))
 ```
 
 ## See Also

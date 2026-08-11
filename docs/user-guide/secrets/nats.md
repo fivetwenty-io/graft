@@ -319,12 +319,13 @@ graft.WithNATS(graft.NATSConfig{
 })
 ```
 
-### Batching
+### No Cross-Key Batching
 
-Multiple KV requests are batched:
+Each distinct KV or Object path is its own JetStream request - graft does not aggregate different keys into one call:
 
 ```yaml
-# Efficiently batched
+# Three distinct keys - three separate JetStream requests, even under
+# parallel evaluation (where they run concurrently rather than batched).
 key1: (( nats "kv:config/key1" ))
 key2: (( nats "kv:config/key2" ))
 key3: (( nats "kv:config/key3" ))
@@ -332,7 +333,7 @@ key3: (( nats "kv:config/key3" ))
 
 ### Caching
 
-Values are cached during evaluation:
+Values are cached per target and path during evaluation, and concurrent references to the identical (target, path) under parallel evaluation are coalesced into a single request rather than each firing its own:
 
 ```yaml
 # Same key, fetched only once

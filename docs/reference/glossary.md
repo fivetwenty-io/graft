@@ -30,7 +30,7 @@ The first document in a merge operation. Subsequent documents (overlays) are mer
 
 ### Batch
 
-A group of external requests processed together. Graft batches multiple Vault or AWS calls to improve performance.
+Not a term graft's own architecture uses today: graft does not aggregate requests for different backend paths into fewer calls. What it does do is deduplicate - coalesce concurrent references to the identical path (same target, same secret/parameter/KV path) into one request instead of one per reference - for Vault, AWS Parameter Store, AWS Secrets Manager, and NATS lookups. See [Parallel Execution Model](../architecture/parallelism.md#level-3-backend-request-dedup).
 
 ## C
 

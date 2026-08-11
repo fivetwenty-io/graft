@@ -6,18 +6,19 @@ None of the capabilities on this page are required for spruce-compatible merges.
 
 ## Caching
 
-Graft caches the results of repeated operator lookups, most usefully repeated `vault`, `awsparam`, `awssecret`, and `nats` calls for the same key within a single run, so a document that references the same secret path twice makes one backend call instead of two.
+Graft has two independent caching layers that are easy to conflate because both affect the same kind of workload (repeated secret lookups), but only one of them is configurable.
 
-Caching is enabled by default. Each run gets an in-memory cache, sharded across 16 internal shards to reduce lock contention under parallel evaluation, holding up to 1,000 entries with no expiration.
+**Backend secret/parameter caching** is what makes a document that references the same `vault`, `awsparam`, `awssecret`, or `nats` path twice make one backend call instead of two. It lives inside each backend package (`internal/backends/vault`, `internal/backends/aws`, `internal/backends/nats`), keyed by target name plus path so the same path against two different Vault instances, AWS accounts, or NATS clusters never collides. It is unconditional: there is no config field or environment variable that turns it off, and it holds every distinct key it sees for the life of the process (or, for `nats`, until that key's TTL expires) rather than a fixed entry count.
 
-Turn caching off with `GRAFT_FEATURE_CACHE=false`. This is currently the only setting (config file or environment variable) that changes whether caching runs. The `cache.*` config file fields and their `GRAFT_CACHE_*` environment variables (`enabled`, `max_size`, `ttl`, `l2_enabled`, `l2_path`) are parsed and validated but not yet wired into the CLI, so setting them has no effect on cache size, expiration, or an L2 disk tier; see [Which Settings Actually Affect a Merge](../reference/config.md#which-settings-actually-affect-a-merge) for the full breakdown. The underlying cache package also supports disk-backed (L2) storage, cache warming, and hit-rate analytics, but the CLI doesn't expose those today.
+Under parallel evaluation, concurrent requests for the *same* target-namespaced key are also coalesced into a single backend call rather than each independently missing the cache and fetching: if a wave contains ten operators all resolving `(( vault "secret/db:password" ))`, the first one to run triggers the fetch and the other nine wait on and share its result. Requests for *different* targets or different paths are never coalesced together — each is its own backend call, dispatched concurrently with the others in the same wave (see [Parallel Execution Model](../architecture/parallelism.md)).
+
+**General operator-result caching** is a separate, general-purpose in-memory cache (`internal/cache`, sharded across 16 internal shards, up to 1,000 entries by default) that the engine constructs on every run. `GRAFT_FEATURE_CACHE=false` disables it. Today, though, no CLI command's operator evaluation path reads from or writes to it — `vault`, `awsparam`, `awssecret`, and `nats` lookups go through their own backend-level caches described above, not this one. Setting `GRAFT_FEATURE_CACHE` therefore has no observable effect on `graft merge`, `graft fan`, or `graft vaultinfo` today. The `cache.*` config file fields and their `GRAFT_CACHE_*` environment variables (`enabled`, `max_size`, `ttl`, `l2_enabled`, `l2_path`) are parsed and validated but likewise not wired into the CLI; see [Which Settings Actually Affect a Merge](../reference/config.md#which-settings-actually-affect-a-merge) for the full breakdown. The underlying cache package also supports disk-backed (L2) storage, cache warming, and hit-rate analytics, but the CLI doesn't expose those today.
 
 ```bash
-# Default: caching on.
+# Backend secret caching + request dedup is always on; there's nothing to
+# toggle for it. GRAFT_FEATURE_CACHE only affects the separate, currently
+# unused general operator-result cache.
 graft merge base.yml overlay.yml
-
-# Disable caching for this run.
-GRAFT_FEATURE_CACHE=false graft merge base.yml overlay.yml
 ```
 
 ## Metrics
@@ -28,7 +29,7 @@ None of that is reachable from the CLI today. `graft merge`, `graft fan`, and `g
 
 ## Parallel Evaluation
 
-Spruce evaluates operators one at a time. Graft can evaluate independent operations concurrently: a copy-on-write document tree means concurrent workers never share mutable state, and a dependency-graph scheduler runs each operation only once everything it depends on has finished.
+Spruce evaluates operators one at a time. Graft evaluates independent operations concurrently: a dependency-graph scheduler groups operators with no unmet dependency into waves, and within a wave, every operator's own work — including any Vault, AWS, or NATS network call — runs on its own goroutine at the same time as the rest of the wave. Applying each operator's result to the document tree is a separate, always-serialized step, since a plain Go map is not safe for concurrent writes; it happens after the wave's concurrent work finishes, in a fixed order (sorted by path) so the final document and any recorded history never depend on which goroutine's network call happened to finish first. A handful of operators whose behavior depends on relative execution order rather than a data dependency — currently only `static_ips`, claiming from a shared address pool — opt out of concurrent dispatch and run one at a time within their wave, exactly as they did before parallel evaluation existed. See [Parallel Execution Model](../architecture/parallelism.md) for the full design.
 
 Parallel evaluation is **enabled by default**. Graft derives the default worker count from the host's CPU count (`runtime.NumCPU()`) rather than using a fixed number, so it scales concurrency to the machine it runs on instead of applying a one-size-fits-all worker count.
 

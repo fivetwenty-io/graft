@@ -1,622 +1,185 @@
 # Parallel Execution Model
 
-Graft implements parallelism at multiple levels to maximize throughput while maintaining correctness. This document describes the parallel execution model, its configuration, and thread safety guarantees.
+Graft parallelizes two independent stages of a merge — reading/parsing input files, and evaluating independent operators — and deduplicates concurrent identical backend requests within a wave. This page describes what actually runs concurrently, what stays serialized and why, and the determinism guarantee that makes turning parallelism on or off a pure speed change, never an output change.
 
-## Parallelism Levels
+## Levels of Parallelism
 
 ```mermaid
 flowchart TB
-    subgraph FileLevel["File-Level Parallelism"]
+    subgraph FileLevel["File-Level Read/Parse"]
         F1[File 1] & F2[File 2] & FN[File N]
-        P1[Parse] & P2[Parse] & PN[Parse]
+        P1[Read + Parse] & P2[Read + Parse] & PN[Read + Parse]
         F1 --> P1
         F2 --> P2
         FN --> PN
     end
 
-    subgraph EvalLevel["Evaluation Parallelism"]
-        W1["Wave 1<br/>Op A, Op B, Op C"]
-        W2["Wave 2<br/>Op D, Op E"]
-        W3["Wave 3<br/>Op F"]
+    subgraph EvalLevel["Wave-Based Operator Evaluation"]
+        W1["Wave 1: independent operators<br/>compute concurrently, apply serially"]
+        W2["Wave 2: first dependents"]
+        W3["Wave 3: final resolution"]
         W1 --> W2 --> W3
     end
 
-    subgraph BatchLevel["Request Batching"]
-        BATCHER[Batcher]
-        V[Vault x10]
-        A[AWS x10]
-        N[NATS x10]
-        BATCHER --> V & A & N
+    subgraph Dedup["Backend Request Dedup"]
+        V["N vault refs to the same path/target"] -->|coalesced| VC[1 Vault request]
+        A["N awsparam/awssecret refs to the same path/target"] -->|coalesced| AC[1 AWS request]
+        NA["N nats refs to the same path/target"] -->|coalesced| NC[1 NATS request]
     end
 
-    P1 & P2 & PN --> MERGE[Merge]
+    P1 & P2 & PN --> MERGE[Sequential Merge]
     MERGE --> W1
+    W1 -.-> Dedup
+    W2 -.-> Dedup
     W3 --> RESULT[Result]
 ```
 
-## Level 1: File Processing
+## Level 1: File Read/Parse
 
-Multiple input files are processed in parallel through the first three pipeline stages (pre-scan, YAML parse, AST build).
-
-### Implementation
+`buildEngineAndDocs` (`cmd/graft/main.go`) reads and parses every input file (or stdin) concurrently, one goroutine per file, before the sequential merge stage begins:
 
 ```go
-func ProcessFiles(files []string, config PipelineConfig) ([]*Document, error) {
-    docs := make([]*Document, len(files))
-    errors := make([]error, len(files))
+results := make([]fileParseResult, len(files))
+var wg sync.WaitGroup
+for i := range files {
+    wg.Add(1)
+    idx := i
+    fileCopy := files[idx]
+    go func() {
+        defer wg.Done()
+        results[idx] = parseOneYamlFile(engine, fileCopy, options)
+    }()
+}
+wg.Wait()
+```
 
-    sem := make(chan struct{}, config.FileParallelism)
-    var wg sync.WaitGroup
+Reading bytes and parsing them into a `graft.Document` has no side effects and does not depend on any other file, so this is safe with no locking. `engine.ParseYAML` does not write to engine state, so every goroutine shares one `*DefaultEngine` safely.
 
-    for i, file := range files {
-        wg.Add(1)
-        sem <- struct{}{} // Acquire semaphore
+Results are collected back into `results[idx]`, indexed by each file's original position, not by completion order — so the *code path taken* afterward (which file's error is reported first, the order documents are merged in) is identical to a purely sequential read loop, even though the reads themselves overlap in time. If two files fail to parse, the earliest-indexed one's error is what's reported, exactly as a sequential loop that stopped at the first failure would report.
 
-        go func(idx int, path string) {
-            defer wg.Done()
-            defer func() { <-sem }() // Release semaphore
+This is unconditional — there is no flag to disable it — since it can only ever change how long file I/O takes, never what any file parses to.
 
-            doc, err := processFile(path)
-            docs[idx] = doc
-            errors[idx] = err
-        }(i, file)
-    }
+## Level 2: Wave-Based Operator Evaluation
 
-    wg.Wait()
+The evaluator computes a dependency graph over every `(( ... ))` operator call in the merged document (`Evaluator.DataFlow`) and groups operators with no unmet dependency into waves. Waves run in order; within a wave, `runOpsWithScheduler` (`pkg/graft/evaluator_parallel.go`) splits dispatch into two phases:
 
-    // Check for errors
-    for i, err := range errors {
-        if err != nil {
-            return nil, fmt.Errorf("file %s: %w", files[i], err)
-        }
-    }
+1. **Compute, concurrently.** For every operator in the wave except the order-sensitive ones (below), `computeOp` — which runs the operator itself, including any Vault/AWS/NATS network call — is submitted to the engine's worker pool and runs on its own goroutine, overlapping with the rest of the wave's compute phase. `computeOp` only reads the document tree (to resolve references like `(( grab other.path ))`) and never writes to it, so nothing in this phase requires synchronizing tree access; correctness here rests on `computeOp` capturing a per-call, goroutine-local copy of the evaluator's ambient `Here`/`Target` state before calling the operator's `Run` method — the tree, dependency map, and engine reference are shared (they're reference types set once before evaluation begins), only the ambient "which operator call is this" state needs to be goroutine-local.
 
-    return docs, nil
+2. **Apply, serially.** Once every goroutine in the compute phase has returned, each result is applied to the document tree in a fixed order — sorted by the operator's path, not by which goroutine finished first — under a single mutex. Applying a result is a plain Go map/slice write, which is not safe for concurrent access even across disjoint keys of the same map, so this step is never parallelized.
+
+```go
+// pkg/graft/evaluator_parallel.go (abridged)
+results := make([]computeResult, len(concurrent))
+var wg sync.WaitGroup
+wg.Add(len(concurrent))
+for i, task := range concurrent {
+    idx, op := i, opByID[task.ID]
+    pool.SubmitContext(ctx, func(context.Context) error {
+        defer wg.Done()
+        resp, oldValue, err := ev.computeOp(op)
+        results[idx] = computeResult{op: op, resp: resp, oldValue: oldValue, err: err}
+        return err
+    })
+}
+wg.Wait()
+
+for _, r := range results { // fixed order, not completion order
+    treeMu.Lock()
+    ev.applyResponse(r.op, r.resp, r.oldValue)
+    treeMu.Unlock()
 }
 ```
 
-### Design Decisions
+### Order-sensitive operators
 
-- File order is preserved despite parallel processing
-
-- Errors from one file do not stop processing of others
-
-- Memory is bounded by limiting concurrent file processing
-
-### When to Use
-
-File-level parallelism is most effective when:
-
-- Processing many files (5+)
-
-- Files are of similar size
-
-- I/O is not the bottleneck (files cached or on SSD)
-
-## Level 2: Wave Evaluation
-
-Within the evaluation stage, operators are grouped into waves based on dependency analysis. All operators in a wave execute in parallel.
-
-### Wave Execution
+A same-wave dependency-free pair of operators can still share state a `DataFlow` edge does not capture — `static_ips` is the one example in graft today, since two unrelated `(( static_ips ... ))` calls claim from the same engine-wide used-IP pool, and which one wins a duplicate-claim error depends on which ran first. An operator opts out of concurrent dispatch by implementing:
 
 ```go
-func EvaluateWaves(doc *Document, waves []EvalWave, config PipelineConfig) error {
-    for waveNum, wave := range waves {
-        startTime := time.Now()
-
-        if err := executeWave(doc, wave, config); err != nil {
-            return fmt.Errorf("wave %d: %w", waveNum, err)
-        }
-
-        metrics.RecordWaveDuration(waveNum, time.Since(startTime))
-    }
-
-    return nil
-}
-
-func executeWave(doc *Document, wave EvalWave, config PipelineConfig) error {
-    // Limit concurrent operators
-    sem := make(chan struct{}, config.EvalParallelism)
-    var wg sync.WaitGroup
-    var firstErr error
-    var errOnce sync.Once
-
-    for _, op := range wave.Operators {
-        wg.Add(1)
-        sem <- struct{}{}
-
-        go func(op OperatorRef) {
-            defer wg.Done()
-            defer func() { <-sem }()
-
-            result, err := evaluateOperator(doc, op)
-            if err != nil {
-                errOnce.Do(func() {
-                    firstErr = fmt.Errorf("%s: %w", op.Path, err)
-                })
-                return
-            }
-
-            applyResult(doc, op.Path, result)
-        }(op)
-    }
-
-    wg.Wait()
-    return firstErr
+type OrderSensitive interface {
+    OrderSensitive() bool
 }
 ```
 
-### Wave Size Optimization
+`static_ips` returns `true`. The scheduler partitions each wave into an order-sensitive group (dispatched one at a time, compute-and-apply fused under the tree mutex, exactly as it ran before wave-level concurrency existed) and a concurrent group (the two-phase path above); the order-sensitive group always runs to completion first, so it never overlaps with the concurrent group's tree reads either.
 
-Larger waves provide more parallelism but may increase memory pressure. The system optimizes wave sizes:
+## Level 3: Backend Request Dedup
 
-```go
-func optimizeWaves(waves []EvalWave, config PipelineConfig) []EvalWave {
-    var optimized []EvalWave
-
-    for _, wave := range waves {
-        if len(wave.Operators) > config.MaxWaveSize {
-            // Split large waves
-            for i := 0; i < len(wave.Operators); i += config.MaxWaveSize {
-                end := min(i+config.MaxWaveSize, len(wave.Operators))
-                optimized = append(optimized, EvalWave{
-                    Operators: wave.Operators[i:end],
-                })
-            }
-        } else {
-            optimized = append(optimized, wave)
-        }
-    }
-
-    return optimized
-}
-```
-
-## Level 3: Request Batching
-
-External backend calls are batched to reduce network overhead and take advantage of batch APIs.
-
-### Batching Strategy
-
-```mermaid
-sequenceDiagram
-    participant Op1 as Operator 1
-    participant Op2 as Operator 2
-    participant Op3 as Operator 3
-    participant B as Batcher
-    participant V as Vault
-
-    Op1->>B: Request secret/db:user
-    Op2->>B: Request secret/db:pass
-    Op3->>B: Request secret/api:key
-
-    Note over B: Wait for batch timeout or size
-
-    B->>V: Batch read [secret/db, secret/api]
-    V-->>B: Batch response
-
-    B-->>Op1: secret/db:user
-    B-->>Op2: secret/db:pass
-    B-->>Op3: secret/api:key
-```
-
-### Batcher Implementation
+Within a wave's compute phase, multiple operators can resolve to the *same* backend request — the same secret path in the same Vault target, the same NATS KV key in the same target, and so on. Each backend package caches results keyed by `target + path` (never colliding two different targets' identical paths) and, on a cache miss, coalesces concurrent identical requests through a `singleflight`-based group (`internal/backends/reqdedup`) so the first caller triggers the real backend call and every other concurrent caller for that exact key waits on and shares its result, rather than each independently missing the cache and firing its own request:
 
 ```go
-type RequestBatcher struct {
-    pending    map[string][]pendingRequest
-    mu         sync.Mutex
-    batchSize  int
-    timeout    time.Duration
-    timer      *time.Timer
-}
-
-type pendingRequest struct {
-    path     string
-    key      string
-    resultCh chan interface{}
-    errorCh  chan error
-}
-
-func (b *RequestBatcher) Request(target, path, key string) (interface{}, error) {
-    req := pendingRequest{
-        path:     path,
-        key:      key,
-        resultCh: make(chan interface{}, 1),
-        errorCh:  make(chan error, 1),
+// internal/backends/vault/cache.go (abridged)
+func (c *secretCache) GetOrFetch(path string, fetch func() (map[string]interface{}, error)) (map[string]interface{}, error) {
+    if v, ok := c.Get(path); ok {
+        return v, nil
     }
-
-    b.mu.Lock()
-    if b.pending[target] == nil {
-        b.pending[target] = make([]pendingRequest, 0)
-    }
-    b.pending[target] = append(b.pending[target], req)
-
-    // Start timer if first request
-    if len(b.pending[target]) == 1 {
-        b.timer = time.AfterFunc(b.timeout, func() {
-            b.flush(target)
-        })
-    }
-
-    // Flush if batch is full
-    if len(b.pending[target]) >= b.batchSize {
-        b.flush(target)
-    }
-    b.mu.Unlock()
-
-    // Wait for result
-    select {
-    case result := <-req.resultCh:
-        return result, nil
-    case err := <-req.errorCh:
+    v, err := c.group.Do(path, fetch) // coalesces concurrent identical-key callers
+    if err != nil {
         return nil, err
     }
-}
-
-func (b *RequestBatcher) flush(target string) {
-    b.mu.Lock()
-    requests := b.pending[target]
-    b.pending[target] = nil
-    if b.timer != nil {
-        b.timer.Stop()
-    }
-    b.mu.Unlock()
-
-    if len(requests) == 0 {
-        return
-    }
-
-    // Group by path for efficiency
-    byPath := make(map[string][]pendingRequest)
-    for _, req := range requests {
-        byPath[req.path] = append(byPath[req.path], req)
-    }
-
-    // Execute batch request
-    results, err := b.executeBatch(target, byPath)
-
-    // Distribute results
-    for _, req := range requests {
-        if err != nil {
-            req.errorCh <- err
-        } else if result, ok := results[req.path+":"+req.key]; ok {
-            req.resultCh <- result
-        } else {
-            req.errorCh <- fmt.Errorf("key not found: %s:%s", req.path, req.key)
-        }
-    }
+    c.Set(path, v)
+    return v, nil
 }
 ```
 
-### Batching Configuration
+The same pattern backs `awsparam`/`awssecret` (`internal/backends/aws/cache.go`) and `nats` (`internal/backends/nats/cached_fetch.go`).
 
-```go
-type BatchConfig struct {
-    // Maximum requests before forcing a flush
-    BatchSize int
-
-    // Maximum time to wait before flushing partial batch
-    BatchTimeout time.Duration
-
-    // Per-backend settings
-    VaultBatchSize int
-    AWSBatchSize   int
-    NATSBatchSize  int
-}
-
-// Default configuration
-var DefaultBatchConfig = BatchConfig{
-    BatchSize:      20,
-    BatchTimeout:   100 * time.Millisecond,
-    VaultBatchSize: 10, // Vault has per-path limits
-    AWSBatchSize:   10, // SSM GetParameters limit
-    NATSBatchSize:  50, // NATS is very fast
-}
-```
-
-## Configuration
-
-### Pipeline Configuration
-
-```go
-type PipelineConfig struct {
-    // File-level parallelism
-    FileParallelism     int           // default: runtime.NumCPU()
-
-    // Evaluation parallelism
-    EvalParallelism     int           // default: 16
-
-    // Sub-tree parallelism
-    SubtreeParallelism  bool          // default: true
-    SubtreeThreshold    int           // default: 100
-
-    // External calls
-    ExternalParallelism int           // default: 32
-    BatchSize           int           // default: 20
-    BatchTimeout        time.Duration // default: 100ms
-
-    // Connection pools
-    VaultPoolSize       int           // default: 5
-    AWSPoolSize         int           // default: 5
-    NATSPoolSize        int           // default: 3
-}
-```
-
-### Configuration Presets
-
-```go
-// PipelineSequential - for debugging and testing
-var PipelineSequential = PipelineConfig{
-    FileParallelism:     1,
-    EvalParallelism:     1,
-    SubtreeParallelism:  false,
-    ExternalParallelism: 1,
-    BatchSize:           1,
-}
-
-// PipelineBalanced - default for most workloads
-var PipelineBalanced = PipelineConfig{
-    FileParallelism:     runtime.NumCPU(),
-    EvalParallelism:     16,
-    SubtreeParallelism:  true,
-    SubtreeThreshold:    100,
-    ExternalParallelism: 32,
-    BatchSize:           20,
-    BatchTimeout:        100 * time.Millisecond,
-    VaultPoolSize:       5,
-    AWSPoolSize:         5,
-    NATSPoolSize:        3,
-}
-
-// PipelineHighThroughput - for large batch jobs
-var PipelineHighThroughput = PipelineConfig{
-    FileParallelism:     runtime.NumCPU() * 2,
-    EvalParallelism:     64,
-    SubtreeParallelism:  true,
-    SubtreeThreshold:    50,
-    ExternalParallelism: 128,
-    BatchSize:           50,
-    BatchTimeout:        200 * time.Millisecond,
-    VaultPoolSize:       10,
-    AWSPoolSize:         10,
-    NATSPoolSize:        5,
-}
-```
+This is deduplication of identical requests, not batching of distinct ones into fewer round trips. A document with ten different `(( vault "secret/db:X" ))`/`(( vault "secret/api:Y" ))` calls still makes ten Vault requests — dedup only collapses references to the *same* path down to one. AWS's SSM `GetParameters` (batch reads of up to ten distinct parameter names in one call) and Secrets Manager's `BatchGetSecretValue` are real AWS APIs that could reduce that further for the AWS backends specifically, but graft does not use them today; each `awsparam`/`awssecret` call still issues its own `GetParameter`/`GetSecretValue` request. Vault's KV API and the NATS KV/Object APIs graft uses have no equivalent multi-key batch read to fall back on.
 
 ## Thread Safety
 
-### Shared Component Synchronization
-
-All shared components use appropriate synchronization:
-
 | Component | Synchronization | Notes |
-|-----------|-----------------|-------|
-| `Engine` | `sync.RWMutex` | Operator registry reads are concurrent |
-| `Cache` | `sync.Map` or sharded locks | High read concurrency |
-| `ConnectionPool` | Channel-based semaphore | Limits concurrent connections |
-| `DocumentMemory` | `sync.RWMutex` per path | Fine-grained locking |
-| `Metrics` | `sync.Mutex` | Writes are infrequent |
+|---|---|---|
+| Document tree (`ev.Tree`) | Single mutex around every apply | Read concurrently during a wave's compute phase, which is safe because nothing writes to it then; every write goes through the apply mutex — see Level 2 |
+| Evaluator's `Here`/`Target` | Per-call shallow copy, not shared state | See Level 2's compute phase |
+| `vault.ClientPool`, `aws.ClientPool`, `nats.ClientPool` | `sync.RWMutex` per pool | Guards the target→client/session/connection maps. Once a target's entry exists every caller reuses it. Concurrent *first* callers for a not-yet-cached target are not coalesced, so several may build a client before one wins the store: `vault.ClientPool` re-checks under the write lock and discards the losers' clients, `aws.ClientPool` and `nats.ClientPool` do not |
+| `vault.SecretCache`, AWS secret/param caches, `nats.Cache` | `sync.RWMutex` plus a `reqdedup.Group` per cache | See Level 3 |
+| Engine's used-IP pool, prune list, sort list, Vault-reference tracking | Dedicated `sync.RWMutex` per concern on `DefaultEngine` | Pre-existing, unrelated to the parallel scheduler itself |
 
-### Document Thread Safety
+## Determinism
 
-The document is modified only during result application, which is serialized per path:
+Turning parallel evaluation on, or changing the worker count, never changes what a merge outputs — only how long it takes. This holds because:
 
-```go
-type Document struct {
-    Root    interface{}
-    pathMu  sync.Map // map[string]*sync.Mutex - per-path locks
-    globalMu sync.RWMutex
-}
+- Wave contents and wave order come from the dependency graph alone, independent of goroutine scheduling.
 
-func (d *Document) SetPath(path string, value interface{}) {
-    // Get or create per-path lock
-    lock, _ := d.pathMu.LoadOrStore(path, &sync.Mutex{})
-    mu := lock.(*sync.Mutex)
+- Within a wave, results are applied in a fixed order (sorted by path), not completion order.
 
-    mu.Lock()
-    defer mu.Unlock()
+- Order-sensitive operators (`static_ips`) never run concurrently with each other.
 
-    cursor := tree.ParseCursor(path)
-    cursor.Set(d.Root, value)
-}
+- Backend request dedup only ever changes *how many* requests are made for an identical key, never *what* any request returns.
 
-func (d *Document) GetPath(path string) (interface{}, bool) {
-    d.globalMu.RLock()
-    defer d.globalMu.RUnlock()
+`scripts/check-parallel-determinism.sh` enforces this empirically: it runs representative multi-doc, operator-heavy fixtures (array-merge markers, the `sort` operator, a `grab`/`calc` dependency chain) through a built `graft` binary 40 times each and diffs every run's stdout against the first, failing on any byte divergence. `pkg/graft/parallel_determinism_test.go` and `pkg/graft/evaluator_parallel_test.go` cover the same property (plus the order-sensitive partitioning and a timing-based proof that independent operators do overlap) at the Go test level, including under `-race`.
 
-    cursor := tree.ParseCursor(path)
-    return cursor.Get(d.Root)
-}
+## Configuration
+
+Parallel evaluation is controlled entirely by the `parallel.*` config section and its `GRAFT_PARALLEL_*` environment variables — there is no separate batching or dedup configuration, since request dedup is unconditional. See [Configuration Reference](../reference/config.md) for the full field table; in short:
+
+```bash
+# Default: parallel evaluation on, worker count derived from runtime.NumCPU().
+graft merge base.yml overlay.yml
+
+# Explicit worker ceiling.
+GRAFT_PARALLEL_MAX_WORKERS=4 graft merge base.yml overlay.yml
+
+# Sequential mode, for debugging or reproducing spruce's exact evaluation order.
+GRAFT_PARALLEL_ENABLED=false graft merge base.yml overlay.yml
 ```
 
-### Connection Pool Thread Safety
+## When Parallel Evaluation Helps
 
-```go
-type ConnectionPool struct {
-    connections chan *Connection
-    factory     func() (*Connection, error)
-    maxSize     int
-}
+- **Documents with several independent external-backend lookups** (multiple distinct Vault/AWS/NATS targets or paths) benefit the most: network latency is the dominant cost, and Level 2's compute phase overlaps it across the whole wave.
 
-func NewConnectionPool(maxSize int, factory func() (*Connection, error)) *ConnectionPool {
-    return &ConnectionPool{
-        connections: make(chan *Connection, maxSize),
-        factory:     factory,
-        maxSize:     maxSize,
-    }
-}
+- **Documents with many independent, dependency-free operators of any kind** (a wide, shallow dependency graph) benefit from concurrent compute even without any backend I/O, since Go's own scheduling overhead for launching a modest number of goroutines is small next to typical operator work.
 
-func (p *ConnectionPool) Get() (*Connection, error) {
-    select {
-    case conn := <-p.connections:
-        if conn.IsHealthy() {
-            return conn, nil
-        }
-        // Connection unhealthy, create new one
-        return p.factory()
-    default:
-        // Pool empty, create new connection
-        return p.factory()
-    }
-}
+- **A single long dependency chain** (`grab a` → `grab b` → `grab c` → ...) does not benefit: each step's wave contains exactly one operator, so there is nothing to run concurrently with it. This is inherent to the chain, not a scheduler limitation.
 
-func (p *ConnectionPool) Put(conn *Connection) {
-    select {
-    case p.connections <- conn:
-        // Returned to pool
-    default:
-        // Pool full, close connection
-        conn.Close()
-    }
-}
-```
+- **Many input files, each small** benefits from Level 1's concurrent read/parse regardless of what Level 2 does afterward.
 
-## Memory Management
+No benchmark numbers are published here: they would depend heavily on backend network latency, document shape, and host CPU count, and a fabricated table would be actively misleading. Measure your own workload with `time graft merge ...` under `GRAFT_PARALLEL_ENABLED=true` and `=false` if you need a number for your specific case.
 
-### Object Pooling
+## See Also
 
-Frequently allocated objects are pooled to reduce GC pressure:
+- [Processing Pipeline](pipeline.md) — where evaluation fits among the other four pipeline stages
 
-```go
-var exprPool = sync.Pool{
-    New: func() interface{} {
-        return &Expr{}
-    },
-}
+- [Extras Beyond Spruce](../features/extras.md#parallel-evaluation) — the CLI-facing summary of this page
 
-var cursorPool = sync.Pool{
-    New: func() interface{} {
-        return &tree.Cursor{}
-    },
-}
-
-// Get from pool
-func getExpr() *Expr {
-    return exprPool.Get().(*Expr)
-}
-
-// Return to pool
-func putExpr(e *Expr) {
-    e.Reset()
-    exprPool.Put(e)
-}
-
-// Buffer pool for serialization
-var bufferPool = sync.Pool{
-    New: func() interface{} {
-        return bytes.NewBuffer(make([]byte, 0, 4096))
-    },
-}
-```
-
-### Memory Bounds
-
-Memory usage is bounded through configuration:
-
-```go
-type ResourceLimits struct {
-    // Maximum document size
-    MaxDocumentSize int64 // default: 100 MB
-
-    // Maximum concurrent goroutines
-    MaxGoroutines int // default: 1000
-
-    // Maximum pending requests per batcher
-    MaxPendingRequests int // default: 10000
-}
-
-func (l *ResourceLimits) CheckGoroutines(current int) error {
-    if current > l.MaxGoroutines {
-        return ErrTooManyGoroutines
-    }
-    return nil
-}
-```
-
-## Performance Characteristics
-
-### Expected Speedups
-
-| Scenario | Sequential | Parallel | Speedup |
-|----------|------------|----------|---------|
-| 10 files, 100 keys each, no external | 200ms | 50ms | 4x |
-| 10 files, 50 vault calls | 5s | 300ms | 16x |
-| 1 file, 10,000 keys | 800ms | 250ms | 3x |
-| 20 files, 300 external calls | 30s | 1.5s | 20x |
-
-### Bottleneck Analysis
-
-```mermaid
-pie title Time Distribution (Typical Workload)
-    "File I/O" : 5
-    "YAML Parsing" : 15
-    "Merging" : 10
-    "Dependency Analysis" : 5
-    "Operator Evaluation" : 25
-    "External Calls" : 35
-    "Post-Processing" : 5
-```
-
-### Optimization Guidelines
-
-- **Many files, few operators**
-
-  Increase FileParallelism
-
-- **Few files, many operators**
-
-  Increase EvalParallelism
-
-- **Many external calls**
-
-  Increase BatchSize, ExternalParallelism
-
-- **Memory constrained**
-
-  Reduce all parallelism settings
-
-## Debugging Parallel Execution
-
-### Sequential Mode
-
-For debugging, run in sequential mode:
-
-```go
-engine := graft.NewEngine(
-    graft.WithPipelineConfig(graft.PipelineSequential),
-)
-```
-
-### Tracing
-
-Enable execution tracing:
-
-```go
-engine := graft.NewEngine(
-    graft.WithTracing(true),
-)
-
-// Trace output shows:
-// - Wave boundaries
-// - Operator start/end times
-// - Batch flush events
-// - Connection pool activity
-```
-
-### Metrics
-
-Collect parallel execution metrics:
-
-```go
-result, err := engine.Merge(files...)
-if err != nil {
-    return err
-}
-
-metrics := result.Metrics()
-fmt.Printf("Waves: %d\n", metrics.WaveCount)
-fmt.Printf("Max wave parallelism: %d\n", metrics.MaxWaveSize)
-fmt.Printf("Batched requests: %d\n", metrics.BatchedRequests)
-fmt.Printf("Cache hits: %d\n", metrics.CacheHits)
-```
+- [Configuration Reference](../reference/config.md) — the full `parallel.*` field and environment-variable table

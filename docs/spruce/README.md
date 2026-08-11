@@ -3,8 +3,8 @@
 graft is a Go reimplementation of [spruce](https://github.com/geofffranks/spruce)'s
 YAML-merging and operator-evaluation model, built on a different YAML
 library (`goccy/go-yaml` instead of spruce's `geofffranks/yaml` fork) and a
-different concurrency model (a copy-on-write tree that supports parallel
-operator evaluation, versus spruce's single-threaded evaluator). This
+different concurrency model (wave-based concurrent operator evaluation,
+versus spruce's single-threaded evaluator). This
 directory documents where the two tools agree, where they diverge, and what
 a drop-in replacement scenario (most notably Genesis, which currently shells
 out to a `spruce` binary on `$PATH`) needs to account for.

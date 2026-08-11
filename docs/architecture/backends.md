@@ -1,6 +1,6 @@
 # Backend Architecture
 
-Graft supports multiple external backends for secrets management and configuration storage. Each backend is designed with connection pooling, request batching, and multi-target support.
+Graft supports multiple external backends for secrets management and configuration storage. Each backend is designed with connection pooling, deduplication of concurrent identical requests, and multi-target support.
 
 ## Overview
 
@@ -25,9 +25,9 @@ All backends share these design characteristics:
 
   Reuse connections per target
 
-- **Request Batching**
+- **Request Deduplication**
 
-  Aggregate requests for efficiency
+  Concurrent identical requests (same target, same path) are coalesced into one backend call
 
 - **Caching**
 
@@ -156,94 +156,42 @@ func (p *VaultClientPool) getConfig(target string) *VaultConfig {
 }
 ```
 
-### Request Batching
+### Request Deduplication
 
-```mermaid
-sequenceDiagram
-    participant O1 as Operator 1
-    participant O2 as Operator 2
-    participant O3 as Operator 3
-    participant B as VaultBatcher
-    participant V as Vault
-
-    O1->>B: Request secret/db:user
-    O2->>B: Request secret/db:pass
-    O3->>B: Request secret/api:key
-
-    Note over B: Batch by path
-
-    B->>V: Read secret/db
-    V-->>B: {user, pass}
-
-    B->>V: Read secret/api
-    V-->>B: {key}
-
-    B-->>O1: user value
-    B-->>O2: pass value
-    B-->>O3: key value
-```
+Graft does not batch distinct Vault requests into fewer round trips — there
+is no `VaultBatcher`, no request queue, and no batch-size/timeout
+configuration. What it does is deduplicate: when a wave's concurrent
+operators (see [Parallel Execution Model](parallelism.md#level-2-wave-based-operator-evaluation))
+resolve to the *same* cache key (`target + path`), only the first caller
+triggers a real Vault request — every other concurrent caller for that
+exact key waits on and shares its result, via a `singleflight`-based group
+(`internal/backends/reqdedup`). A document with ten different secret paths
+still makes ten Vault requests; only references to the *same* path
+collapse to one.
 
 ```go
-type VaultBatcher struct {
-    pool       *VaultClientPool
-    pending    map[string][]pendingRequest
-    mu         sync.Mutex
-    batchSize  int
-    timeout    time.Duration
-    timer      *time.Timer
-}
-
-func (b *VaultBatcher) flush(target string) {
-    b.mu.Lock()
-    requests := b.pending[target]
-    b.pending[target] = nil
-    if b.timer != nil {
-        b.timer.Stop()
+// internal/backends/vault/cache.go (abridged)
+func (c *secretCache) GetOrFetch(path string, fetch func() (map[string]interface{}, error)) (map[string]interface{}, error) {
+    if v, ok := c.Get(path); ok {
+        return v, nil
     }
-    b.mu.Unlock()
-
-    if len(requests) == 0 {
-        return
-    }
-
-    // Group by path for efficiency
-    byPath := make(map[string][]pendingRequest)
-    for _, req := range requests {
-        byPath[req.path] = append(byPath[req.path], req)
-    }
-
-    // Fetch each path once
-    client, err := b.pool.GetClient(target)
+    v, err := c.group.Do(path, fetch) // coalesces concurrent identical-key callers
     if err != nil {
-        for _, req := range requests {
-            req.errorCh <- err
-        }
-        return
+        return nil, err
     }
-
-    for path, reqs := range byPath {
-        secret, err := client.Logical().Read(path)
-        if err != nil {
-            for _, req := range reqs {
-                req.errorCh <- err
-            }
-            continue
-        }
-
-        for _, req := range reqs {
-            if secret == nil || secret.Data == nil {
-                req.errorCh <- fmt.Errorf("secret not found: %s", path)
-                continue
-            }
-            if value, ok := secret.Data[req.key]; ok {
-                req.resultCh <- value
-            } else {
-                req.errorCh <- fmt.Errorf("key not found: %s:%s", path, req.key)
-            }
-        }
-    }
+    c.Set(path, v)
+    return v, nil
 }
 ```
+
+The vault client cache has no TTL — once a path is fetched, the cached
+value is reused for the rest of the process's evaluation runs until
+explicitly reset (`vault.SecretCache.Reset()`), not expired on a timer.
+The same `GetOrFetch`/dedup pattern backs `awsparam`/`awssecret`
+(`internal/backends/aws/cache.go`) and `nats`
+(`internal/backends/nats/cached_fetch.go`) — NATS's cache is the one
+exception with a real TTL (`Config.CacheTTL`), inherited from its
+pre-existing `TTLCache`.
 
 ## AWS Parameter Store
 
@@ -265,13 +213,24 @@ db_host: (( awsparam "/app/db_host" || "localhost" ))
 
 ### Configuration
 
+The real per-target config type is `aws.Target` (`internal/backends/aws/config.go`), built from environment variables by `ClientPool.GetTargetConfig` - there is no `AWSConfig` type, and no `Endpoint`/`AccessKey`/`SecretKey` fields under those names (the real fields are `Endpoint`, `AccessKeyID`, `SecretAccessKey`, plus role-assumption, retry, and cache-TTL fields not documented here):
+
 ```go
-type AWSConfig struct {
-    Region    string // AWS region
-    Profile   string // AWS profile name
-    Endpoint  string // Custom endpoint (for LocalStack)
-    AccessKey string // Access key ID
-    SecretKey string // Secret access key
+// internal/backends/aws/config.go (abridged)
+type Target struct {
+    Region             string
+    Profile            string
+    Role               string
+    AccessKeyID        string
+    SecretAccessKey    string
+    SessionToken       string
+    Endpoint           string
+    MaxRetries         int
+    HTTPTimeout        time.Duration
+    CacheTTL           time.Duration
+    AssumeRoleDuration time.Duration
+    AuditLogging       bool
+    // ...
 }
 ```
 
@@ -293,115 +252,65 @@ Per-target environment variables:
 
 - etc.
 
-### Session Pool
+### Client Pool
+
+The real type is `aws.ClientPool` (`internal/backends/aws/client.go`), a `sync.RWMutex`-guarded map of per-target sessions - not a type named `AWSSessionPool`:
 
 ```go
-type AWSSessionPool struct {
-    sessions map[string]*session.Session
-    configs  map[string]*AWSConfig
+// internal/backends/aws/client.go (abridged)
+type ClientPool struct {
     mu       sync.RWMutex
+    sessions map[string]*session.Session
+    configs  map[string]*Target
+    // secretsManagerClients, parameterStoreClients, secretsCache, paramsCache omitted
 }
 
-func (p *AWSSessionPool) GetSession(target string) (*session.Session, error) {
-    p.mu.RLock()
-    if sess, ok := p.sessions[target]; ok {
-        p.mu.RUnlock()
+func (acp *ClientPool) GetSession(targetName string) (*session.Session, error) {
+    acp.mu.RLock()
+    if sess, exists := acp.sessions[targetName]; exists {
+        acp.mu.RUnlock()
         return sess, nil
     }
-    p.mu.RUnlock()
+    acp.mu.RUnlock()
 
-    p.mu.Lock()
-    defer p.mu.Unlock()
-
-    if sess, ok := p.sessions[target]; ok {
-        return sess, nil
-    }
-
-    config := p.getConfig(target)
-    sess, err := p.createSession(config)
+    config, err := acp.GetTargetConfig(targetName)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("AWS target '%s' not found: %w", targetName, err)
     }
 
-    p.sessions[target] = sess
+    sess, err := acp.CreateSessionFromConfig(config)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create AWS session for target '%s': %w", targetName, err)
+    }
+
+    acp.mu.Lock()
+    acp.sessions[targetName] = sess
+    acp.configs[targetName] = config
+    acp.mu.Unlock()
+
     return sess, nil
-}
-
-func (p *AWSSessionPool) createSession(config *AWSConfig) (*session.Session, error) {
-    awsConfig := aws.NewConfig()
-
-    if config.Region != "" {
-        awsConfig = awsConfig.WithRegion(config.Region)
-    }
-    if config.Endpoint != "" {
-        awsConfig = awsConfig.WithEndpoint(config.Endpoint)
-    }
-    if config.AccessKey != "" && config.SecretKey != "" {
-        awsConfig = awsConfig.WithCredentials(credentials.NewStaticCredentials(
-            config.AccessKey, config.SecretKey, "",
-        ))
-    }
-
-    opts := session.Options{
-        Config: *awsConfig,
-    }
-    if config.Profile != "" {
-        opts.Profile = config.Profile
-    }
-
-    return session.NewSessionWithOptions(opts)
 }
 ```
 
-### Parameter Store Client
+### Parameter Store
+
+There is no `SSMClient` type. `awsparam` resolution lives in `pkg/graft/operators/op_aws.go`'s `AwsOperator.getAwsParam`, which fetches through `ClientPool.GetOrFetchParam` - the cache-check-then-dedup-then-fetch-then-cache sequence described in [Request Deduplication](#request-deduplication) above:
 
 ```go
-type SSMClient struct {
-    pool    *AWSSessionPool
-    cache   map[string]cachedParam
-    cacheMu sync.RWMutex
-    ttl     time.Duration
-}
-
-func (c *SSMClient) GetParameter(target, path string) (string, error) {
-    // Check cache
-    cacheKey := target + ":" + path
-    c.cacheMu.RLock()
-    if cached, ok := c.cache[cacheKey]; ok && time.Now().Before(cached.expires) {
-        c.cacheMu.RUnlock()
-        return cached.value, nil
-    }
-    c.cacheMu.RUnlock()
-
-    // Get session
-    sess, err := c.pool.GetSession(target)
-    if err != nil {
-        return "", err
-    }
-
-    // Fetch parameter
-    svc := ssm.New(sess)
-    input := &ssm.GetParameterInput{
-        Name:           aws.String(path),
-        WithDecryption: aws.Bool(true),
-    }
-
-    result, err := svc.GetParameter(input)
-    if err != nil {
-        return "", err
-    }
-
-    value := aws.StringValue(result.Parameter.Value)
-
-    // Cache result
-    c.cacheMu.Lock()
-    c.cache[cacheKey] = cachedParam{
-        value:   value,
-        expires: time.Now().Add(c.ttl),
-    }
-    c.cacheMu.Unlock()
-
-    return value, nil
+// pkg/graft/operators/op_aws.go (abridged)
+func (o AwsOperator) getAwsParam(awsSession *session.Session, cacheTarget, param string) (string, error) {
+    return awsbackend.DefaultPool.GetOrFetchParam(cacheTarget, param, func() (string, error) {
+        client := ssm.New(awsSession)
+        input := &ssm.GetParameterInput{
+            Name:           awsSDK.String(param),
+            WithDecryption: awsSDK.Bool(true),
+        }
+        output, err := client.GetParameter(input)
+        if err != nil {
+            return "", err
+        }
+        return awsSDK.StringValue(output.Parameter.Value), nil
+    })
 }
 ```
 
@@ -423,84 +332,33 @@ db_pass: (( awssecret "prod/db?key=password&stage=AWSCURRENT" ))
 api_key: (( awssecret@prod "api-credentials" ))
 ```
 
-### Secrets Manager Client
+### Secrets Manager
+
+There is no `SecretsManagerClient` type. `awssecret` resolution is `AwsOperator.getAwsSecret` (`pkg/graft/operators/op_aws.go`), fetching through `ClientPool.GetOrFetchSecret` - the same cache-dedup-fetch-cache pattern as `awsparam`, keyed by `stage`/`version` query parameters when given:
 
 ```go
-type SecretsManagerClient struct {
-    pool    *AWSSessionPool
-    cache   map[string]cachedSecret
-    cacheMu sync.RWMutex
-    ttl     time.Duration
-}
-
-func (c *SecretsManagerClient) GetSecret(target, name string, opts *SecretOptions) (interface{}, error) {
-    // Check cache
-    cacheKey := fmt.Sprintf("%s:%s:%s", target, name, opts.Stage)
-    c.cacheMu.RLock()
-    if cached, ok := c.cache[cacheKey]; ok && time.Now().Before(cached.expires) {
-        c.cacheMu.RUnlock()
-        return c.extractKey(cached.value, opts.Key), nil
-    }
-    c.cacheMu.RUnlock()
-
-    // Get session
-    sess, err := c.pool.GetSession(target)
-    if err != nil {
-        return nil, err
-    }
-
-    // Fetch secret
-    svc := secretsmanager.New(sess)
-    input := &secretsmanager.GetSecretValueInput{
-        SecretId: aws.String(name),
-    }
-    if opts.Stage != "" {
-        input.VersionStage = aws.String(opts.Stage)
-    }
-
-    result, err := svc.GetSecretValue(input)
-    if err != nil {
-        return nil, err
-    }
-
-    // Parse JSON
-    var value map[string]interface{}
-    if err := json.Unmarshal([]byte(aws.StringValue(result.SecretString)), &value); err != nil {
-        // Return as plain string if not JSON
-        return aws.StringValue(result.SecretString), nil
-    }
-
-    // Cache result
-    c.cacheMu.Lock()
-    c.cache[cacheKey] = cachedSecret{
-        value:   value,
-        expires: time.Now().Add(c.ttl),
-    }
-    c.cacheMu.Unlock()
-
-    return c.extractKey(value, opts.Key), nil
-}
-
-func (c *SecretsManagerClient) extractKey(value map[string]interface{}, key string) interface{} {
-    if key == "" {
-        return value
-    }
-
-    // Support nested keys: "database.password"
-    parts := strings.Split(key, ".")
-    current := interface{}(value)
-
-    for _, part := range parts {
-        if m, ok := current.(map[string]interface{}); ok {
-            current = m[part]
-        } else {
-            return nil
+// pkg/graft/operators/op_aws.go (abridged)
+func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secret string, params url.Values) (string, error) {
+    return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, secret, func() (string, error) {
+        client := secretsmanager.New(awsSession)
+        input := &secretsmanager.GetSecretValueInput{
+            SecretId: awsSDK.String(secret),
         }
-    }
-
-    return current
+        if params.Get("stage") != "" {
+            input.VersionStage = awsSDK.String(params.Get("stage"))
+        } else if params.Get("version") != "" {
+            input.VersionId = awsSDK.String(params.Get("version"))
+        }
+        output, err := client.GetSecretValue(input)
+        if err != nil {
+            return "", err
+        }
+        return awsSDK.StringValue(output.SecretString), nil
+    })
 }
 ```
+
+The `?key=` subkey extraction (JSON key lookup within a secret's value) and default-value (`||`) handling happen in the operator's caller, not inside this fetch function.
 
 ## NATS JetStream
 
@@ -522,159 +380,98 @@ config: (( nats "kv:bucket/key" "nats://server:4222" ))
 
 ### Configuration
 
+There is no `NATSConfig` type. The real per-target type is `nats.Target`
+(`internal/backends/nats/config.go`), and the connection-level type built
+from it is `nats.Config`; both name the TLS fields `CertFile`/`KeyFile`/
+`CAFile`, not `TLSCert`/`TLSKey`/`TLSCA`:
+
 ```go
-type NATSConfig struct {
-    URL       string        // NATS server URL
-    Token     string        // Authentication token
-    TLSCert   string        // TLS certificate path
-    TLSKey    string        // TLS key path
-    TLSCA     string        // TLS CA certificate path
-    Timeout   time.Duration // Connection timeout
+// internal/backends/nats/config.go (abridged)
+type Target struct {
+    URL      string
+    Timeout  time.Duration
+    TLS      bool
+    CertFile string
+    KeyFile  string
+    CAFile   string
+    CacheTTL time.Duration
+    // Retries, RetryInterval, RetryBackoff, MaxRetryInterval,
+    // InsecureSkipVerify, StreamingThreshold, AuditLogging omitted
 }
 ```
 
-Environment variables:
+The exact environment variable names this page previously listed here
+(`NATS_TLS_CERT`/`NATS_TLS_KEY`) do not match the real, dynamically-built
+`NATS_{TARGET}_CERT_FILE`/`NATS_{TARGET}_KEY_FILE`/`NATS_{TARGET}_CA_FILE`
+suffixes - a broader env-var naming accuracy pass across the whole
+variable surface (not specific to NATS) is tracked separately; see
+[Environment Variables Reference](../reference/environment-variables.md).
 
-- `NATS_URL` - NATS server URL
+### Client Pool
 
-- `NATS_TOKEN` - Authentication token
-
-- `NATS_TLS_CERT` - TLS certificate path
-
-- `NATS_TLS_KEY` - TLS key path
-
-Per-target environment variables:
-
-- `NATS_{TARGET}_URL`
-
-- `NATS_{TARGET}_TOKEN`
-
-- etc.
-
-### Connection Pool
+There is no `NATSConnectionPool` type. The real type is `nats.ClientPool`
+(`internal/backends/nats/client.go`), a `sync.RWMutex`-guarded map of
+per-target pooled connections. Its cache-hit path takes the write lock,
+not a read lock: it mutates the shared `*PooledConnection`'s
+`RefCount`/`LastUsed` fields, and `RLock` only guarantees the map itself
+isn't concurrently written, not that other `RLock` holders can't race on
+values reached through it:
 
 ```go
-type NATSConnectionPool struct {
-    connections map[string]*nats.Conn
-    configs     map[string]*NATSConfig
+// internal/backends/nats/client.go (abridged)
+type ClientPool struct {
     mu          sync.RWMutex
+    connections map[string]*PooledConnection
+    configs     map[string]*Target
 }
 
-func (p *NATSConnectionPool) GetConnection(target string) (*nats.Conn, error) {
-    p.mu.RLock()
-    if conn, ok := p.connections[target]; ok {
-        if conn.IsConnected() {
-            p.mu.RUnlock()
-            return conn, nil
-        }
+func (ncp *ClientPool) GetConnection(targetName string) (*PooledConnection, error) {
+    ncp.mu.Lock()
+    if conn, exists := ncp.connections[targetName]; exists {
+        conn.RefCount++
+        conn.LastUsed = time.Now()
+        ncp.mu.Unlock()
+        return conn, nil
     }
-    p.mu.RUnlock()
+    ncp.mu.Unlock()
 
-    p.mu.Lock()
-    defer p.mu.Unlock()
-
-    // Create new connection
-    config := p.getConfig(target)
-    conn, err := p.createConnection(config)
+    config, err := ncp.GetTargetConfig(targetName)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("NATS target '%s' not found: %w", targetName, err)
     }
 
-    p.connections[target] = conn
-    return conn, nil
-}
-
-func (p *NATSConnectionPool) createConnection(config *NATSConfig) (*nats.Conn, error) {
-    opts := []nats.Option{
-        nats.Timeout(config.Timeout),
+    conn, err := CreateConnectionFromConfig(&Config{URL: config.URL /* ... */})
+    if err != nil {
+        return nil, fmt.Errorf("failed to create NATS connection for target '%s': %w", targetName, err)
     }
 
-    if config.Token != "" {
-        opts = append(opts, nats.Token(config.Token))
+    pooledConn := &PooledConnection{Conn: conn, LastUsed: time.Now(), RefCount: 1}
+    js, err := jetstream.New(conn)
+    if err != nil {
+        conn.Close()
+        return nil, fmt.Errorf("failed to create JetStream context for target '%s': %w", targetName, err)
     }
+    pooledConn.JS = js
 
-    if config.TLSCert != "" && config.TLSKey != "" {
-        opts = append(opts, nats.ClientCert(config.TLSCert, config.TLSKey))
-    }
+    ncp.mu.Lock()
+    ncp.connections[targetName] = pooledConn
+    ncp.configs[targetName] = config
+    ncp.mu.Unlock()
 
-    if config.TLSCA != "" {
-        opts = append(opts, nats.RootCAs(config.TLSCA))
-    }
-
-    return nats.Connect(config.URL, opts...)
+    return pooledConn, nil
 }
 ```
 
-### NATS Client
+### KV and Object Fetch
 
-```go
-type NATSClient struct {
-    pool    *NATSConnectionPool
-    cache   map[string]cachedValue
-    cacheMu sync.RWMutex
-    ttl     time.Duration
-}
-
-func (c *NATSClient) Get(target, path string) (interface{}, error) {
-    // Parse path: "kv:bucket/key" or "obj:bucket/key"
-    parts := strings.SplitN(path, ":", 2)
-    if len(parts) != 2 {
-        return nil, fmt.Errorf("invalid NATS path: %s", path)
-    }
-
-    storeType := parts[0]
-    storePath := parts[1]
-
-    switch storeType {
-    case "kv":
-        return c.getKV(target, storePath)
-    case "obj":
-        return c.getObject(target, storePath)
-    default:
-        return nil, fmt.Errorf("unknown NATS store type: %s", storeType)
-    }
-}
-
-func (c *NATSClient) getKV(target, path string) (interface{}, error) {
-    // Parse: "bucket/key"
-    parts := strings.SplitN(path, "/", 2)
-    if len(parts) != 2 {
-        return nil, fmt.Errorf("invalid KV path: %s", path)
-    }
-
-    bucket := parts[0]
-    key := parts[1]
-
-    conn, err := c.pool.GetConnection(target)
-    if err != nil {
-        return nil, err
-    }
-
-    js, err := conn.JetStream()
-    if err != nil {
-        return nil, err
-    }
-
-    kv, err := js.KeyValue(bucket)
-    if err != nil {
-        return nil, err
-    }
-
-    entry, err := kv.Get(key)
-    if err != nil {
-        return nil, err
-    }
-
-    // Try to parse as JSON
-    var value interface{}
-    if err := json.Unmarshal(entry.Value(), &value); err != nil {
-        // Return as string
-        return string(entry.Value()), nil
-    }
-
-    return value, nil
-}
-```
+There is no `NATSClient` type. `nats` resolution is
+`pkg/graft/operators/op_nats.go`, which parses the `kv:`/`obj:` path
+prefix and calls the target-namespaced, dedup-and-cache-wrapped entry
+points in `internal/backends/nats/cached_fetch.go`
+(`FetchFromKVCached`/`FetchFromObjectCached` - see
+[Request Deduplication](#request-deduplication) above), which in turn call
+the real JetStream reads in `FetchFromKV`/`FetchFromObject`
+(`internal/backends/nats/client.go`).
 
 ## Caching Strategy
 
@@ -995,28 +792,35 @@ func (c *VaultClient) Read(path string) (interface{}, error) {
 
 ## Performance Considerations
 
-### Connection Pool Sizing
+### Connection Pooling
 
-| Backend | Default Pool Size | Considerations |
-|---------|-------------------|----------------|
-| Vault | 5 | Balance between connection overhead and concurrency |
-| AWS | 5 | AWS SDK handles connection reuse internally |
-| NATS | 3 | NATS connections are multiplexed |
+There is no per-backend connection pool size setting. Each backend's
+`ClientPool` (`vault.ClientPool`, `aws.ClientPool`, `nats.ClientPool`)
+creates one client/session/connection per distinct target the first time
+it's needed and reuses it for the rest of the run — pool "size" is
+however many distinct targets a document references, and it is not
+configurable. Concurrency across targets is bounded by the shared worker
+pool (`GRAFT_PARALLEL_MAX_WORKERS`, see
+[Parallel Execution Model](parallelism.md)), not by a per-backend limit.
 
-### Batch Size Tuning
+### No Batching
 
-| Backend | Default Batch Size | Limit |
-|---------|-------------------|-------|
-| Vault | 10 | Per-path reads are independent |
-| AWS SSM | 10 | GetParameters limit is 10 |
-| AWS Secrets | 20 | BatchGetSecretValue limit is 20 |
-| NATS | 50 | NATS is very fast, larger batches OK |
+Graft does not batch requests for any backend. AWS's SSM `GetParameters`
+(up to 10 distinct parameter names per call) and Secrets Manager's
+`BatchGetSecretValue` are real AWS APIs that could reduce request count
+further for the AWS backends specifically, but graft does not use them
+today — each `awsparam`/`awssecret` call issues its own `GetParameter`/
+`GetSecretValue` request. Vault's KV API and the NATS KV/Object APIs graft
+uses have no equivalent multi-key batch read to fall back on. See
+[Request Deduplication](#request-deduplication) above for what graft does
+do: coalesce concurrent *identical* requests, which is a different thing
+than batching *distinct* ones.
 
-### Cache TTL Recommendations
+### Cache TTL
 
-| Data Type | Recommended TTL | Notes |
-|-----------|-----------------|-------|
-| Static configuration | 5-15 minutes | Rarely changes |
-| Secrets | 1-5 minutes | Balance security vs performance |
-| Frequently rotated | 30 seconds | Short TTL for rotation scenarios |
-| Never cache | 0 | Use for one-time tokens |
+Vault and AWS caches have no TTL — a fetched value is reused for the rest
+of the process's evaluation until explicitly reset, not expired on a
+timer. NATS's cache does have a TTL (`Config.CacheTTL`, default 5
+minutes), inherited from its pre-existing `TTLCache`. There is no
+per-data-type TTL recommendation to make since only one of the three
+backends' caches has a TTL to tune in the first place.

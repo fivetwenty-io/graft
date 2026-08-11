@@ -174,20 +174,24 @@ graft.WithVault(graft.VaultConfig{
 })
 ```
 
-### Request Batching
+### Same-Path Requests Collapse to One Fetch
 
-Multiple secrets from the same backend are batched:
+Graft does not batch requests for *different* secret paths into fewer backend calls — each distinct path is still its own request. But a Vault KV read returns every key at a path in one response, and graft caches by path, so referencing several keys at the *same* path only fetches that path once:
 
 ```yaml
-# These three requests are batched into one
+# secret/db has keys username, password, host - one Vault read for
+# secret/db serves all three lines below, since the second and third
+# reference the same path graft already fetched and cached.
 db_user: (( vault "secret/db:username" ))
 db_pass: (( vault "secret/db:password" ))
 db_host: (( vault "secret/db:host" ))
 ```
 
+If `db_user`, `db_pass`, and `db_host` instead referenced three different paths (`secret/db-user`, `secret/db-pass`, `secret/db-host`), each would be its own Vault request.
+
 ### Caching
 
-Results are cached during evaluation:
+Results are cached per target and path during evaluation, and concurrent references to the identical (target, path) under parallel evaluation are coalesced into a single backend request rather than each firing its own:
 
 ```yaml
 # Same secret path referenced twice - fetched only once

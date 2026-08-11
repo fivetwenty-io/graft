@@ -292,57 +292,38 @@ flowchart LR
 
 ### Wave Execution
 
+`runOpsWithScheduler` (`pkg/graft/evaluator_parallel.go`) dispatches each wave in two phases, not one: compute each operator's result concurrently (a goroutine per operator, submitted to the engine's worker pool), then apply every result to the document tree serially, in a fixed order sorted by path rather than completion order. Splitting it this way means the concurrent phase — which is where any Vault/AWS/NATS network call happens — never has to synchronize on anything: no goroutine writes to the document tree until every goroutine in the wave has finished computing.
+
 ```go
-func EvaluateParallel(doc *Document, waves []EvalWave, config PipelineConfig) error {
-    for waveNum, wave := range waves {
-        // Create worker pool for this wave
-        sem := make(chan struct{}, config.EvalParallelism)
-        var wg sync.WaitGroup
-        errCh := make(chan error, len(wave.Operators))
+// pkg/graft/evaluator_parallel.go (abridged)
+results := make([]computeResult, len(concurrent))
+var wg sync.WaitGroup
+wg.Add(len(concurrent))
+for i, task := range concurrent {
+    idx, op := i, opByID[task.ID]
+    pool.SubmitContext(ctx, func(context.Context) error {
+        defer wg.Done()
+        resp, oldValue, err := ev.computeOp(op) // reads the tree, may call a backend; never writes
+        results[idx] = computeResult{op: op, resp: resp, oldValue: oldValue, err: err}
+        return err
+    })
+}
+wg.Wait()
 
-        for _, op := range wave.Operators {
-            wg.Add(1)
-            sem <- struct{}{} // Acquire semaphore
-
-            go func(op OperatorRef) {
-                defer wg.Done()
-                defer func() { <-sem }() // Release semaphore
-
-                result, err := evaluateOperator(doc, op)
-                if err != nil {
-                    errCh <- fmt.Errorf("wave %d, %s: %w", waveNum, op.Path, err)
-                    return
-                }
-
-                // Apply result to document (thread-safe)
-                applyResult(doc, op.Path, result)
-            }(op)
-        }
-
-        wg.Wait()
-        close(errCh)
-
-        // Check for errors
-        for err := range errCh {
-            return err // Return first error
-        }
-    }
-
-    return nil
+for _, r := range results { // fixed order (sorted by path), not completion order
+    treeMu.Lock()
+    ev.applyResponse(r.op, r.resp, r.oldValue)
+    treeMu.Unlock()
 }
 ```
 
-### Thread-Safe Result Application
+A handful of operators — currently only `static_ips`, which claims from a shared address pool — implement an `OrderSensitive` interface and are excluded from the concurrent phase, running one at a time instead, since their outcome depends on relative execution order in a way no dependency edge captures. Errors from every operator in the wave are collected and reported together, not just the first one encountered.
 
-```go
-func applyResult(doc *Document, path string, result interface{}) {
-    doc.mu.Lock()
-    defer doc.mu.Unlock()
+### Thread Safety
 
-    cursor := tree.ParseCursor(path)
-    cursor.Set(doc.Root, result)
-}
-```
+Applying a result is a plain Go map/slice write (`op.where.Set`-equivalent logic inside `applyResponse`), and Go's map type is not safe for concurrent access even across disjoint keys of the same map — so every apply, across the whole wave, goes through one mutex. The concurrent compute phase above needs no locking of its own because nothing writes to the tree while it runs; the only other per-call state an operator's `Run` method can observe (`Evaluator.Here`/`Evaluator.Target`, i.e. "which operator call is this") is a shallow copy made fresh for each `computeOp` call rather than shared mutable state on one `*Evaluator`.
+
+See [Parallel Execution Model](parallelism.md) for the full design, including backend request dedup and the determinism guarantee this all rests on.
 
 ## Operator Interface
 
@@ -573,47 +554,15 @@ func wrapEvalError(op OperatorRef, err error) error {
 
 ## Performance Considerations
 
-### Caching Resolved Values
+### Caching Backend Lookups
 
-```go
-type EvalCache struct {
-    values map[string]interface{}
-    mu     sync.RWMutex
-}
+There is no general result cache keyed by document path — evaluating the same `(( grab ... ))` twice runs it twice. What is cached is each external backend's own response, per target and path, inside that backend's package (`internal/backends/vault`, `internal/backends/aws`, `internal/backends/nats`): two operators resolving the same Vault path, AWS parameter, AWS secret, or NATS key against the same target share one backend response instead of each fetching it independently.
 
-func (c *EvalCache) Get(path string) (interface{}, bool) {
-    c.mu.RLock()
-    defer c.mu.RUnlock()
-    v, ok := c.values[path]
-    return v, ok
-}
+### Deduplicating Concurrent External Calls
 
-func (c *EvalCache) Set(path string, value interface{}) {
-    c.mu.Lock()
-    defer c.mu.Unlock()
-    c.values[path] = value
-}
-```
+A wave's concurrent compute phase (see [Parallel Execution](#parallel-execution) above) can contain several operators resolving to the *identical* backend request — same target, same path. Each backend's cache coalesces concurrent requests for that exact key through a `singleflight`-based group (`internal/backends/reqdedup`): the first caller triggers the real backend call, and every other concurrent caller for that key waits on and shares its result rather than firing its own. Requests for *different* targets or paths are never grouped together — each is its own backend call, run concurrently with the rest of the wave, not aggregated into fewer calls.
 
-### Batching External Calls
-
-When a wave contains multiple external calls to the same backend, they are batched:
-
-```go
-func batchExternalCalls(wave EvalWave) map[string][]OperatorRef {
-    batches := make(map[string][]OperatorRef)
-
-    for _, op := range wave.Operators {
-        if backend := getBackendName(op); backend != "" {
-            batches[backend] = append(batches[backend], op)
-        }
-    }
-
-    return batches
-}
-```
-
-See [Parallel Execution Model](parallelism.md) for more details on batching.
+See [Parallel Execution Model](parallelism.md#level-3-backend-request-dedup) for the full design.
 
 ### Metrics Collection
 

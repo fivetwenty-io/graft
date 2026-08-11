@@ -226,29 +226,33 @@ config: (( nats "kv:config/settings" ))
 prod_config: (( nats@prod "kv:config/settings" ))
 ```
 
-## Pipeline Configuration
+## Parallel Evaluation
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GRAFT_FILE_PARALLELISM` | `NumCPU` | Files processed in parallel |
-| `GRAFT_EVAL_PARALLELISM` | `16` | Operators per eval wave |
-| `GRAFT_EXTERNAL_PARALLELISM` | `32` | Max concurrent external calls |
-| `GRAFT_SUBTREE_PARALLELISM` | `true` | Enable sub-tree parallel merge |
-| `GRAFT_SUBTREE_THRESHOLD` | `100` | Min keys to parallelize |
-| `GRAFT_BATCH_SIZE` | `20` | Requests per batch |
-| `GRAFT_BATCH_TIMEOUT` | `100ms` | Max wait for batch |
+| `GRAFT_PARALLEL_ENABLED` | `true` | Enable parallel evaluation |
+| `GRAFT_PARALLEL_MIN_WORKERS` | - | Minimum worker goroutines |
+| `GRAFT_PARALLEL_MAX_WORKERS` | `NumCPU` (0 = auto-detect) | Maximum worker goroutines |
+
+These variables size the worker pool used for wave-level operator
+concurrency only. File-level read/parse concurrency is separate: it spawns
+one goroutine per input file, does not draw from the worker pool, and is
+unconditional — neither variable above affects it. There are also no
+request-batching variables: backend request deduplication (coalescing
+concurrent identical Vault/AWS/NATS lookups) is unconditional and
+unconfigurable. See
+[Parallel Execution Model](../architecture/parallelism.md) for the full
+model.
 
 **Example:**
 
 ```bash
-# High-throughput configuration
-export GRAFT_EXTERNAL_PARALLELISM=64
-export GRAFT_BATCH_SIZE=50
+# Explicit worker ceiling.
+export GRAFT_PARALLEL_MAX_WORKERS=16
 
-# Sequential processing (debugging)
-export GRAFT_FILE_PARALLELISM=1
-export GRAFT_EVAL_PARALLELISM=1
-export GRAFT_SUBTREE_PARALLELISM=false
+# Sequential evaluation (debugging, or reproducing spruce's exact
+# operator evaluation order).
+export GRAFT_PARALLEL_ENABLED=false
 ```
 
 ## History and Tracing

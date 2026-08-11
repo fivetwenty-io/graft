@@ -497,14 +497,17 @@ Vault references found:
 Total: 3 references
 ```
 
-## Secrets Batching
+## Same-Path Requests Collapse to One Fetch
 
-Graft automatically batches requests to secrets backends for performance. When you have multiple secrets from the same backend, they are fetched efficiently:
+Graft does not aggregate requests for *different* Vault paths into fewer backend calls, but it caches by path, and a Vault KV read returns every key at a path in one response - so referencing several keys of the *same* path only fetches that path once:
 
 **config.yml:**
 
 ```yaml
-# These 5 Vault calls are batched into fewer requests
+# secret/db and secret/api each have two keys read here; secret/jwt has
+# one. That is 3 distinct paths, so 3 Vault requests total - not 5, since
+# each path's second reference below reuses the first's cached response,
+# but also not 1, since these are 3 different paths, not 3 subkeys of one.
 credentials:
   db_user: (( vault "secret/db:username" ))
   db_pass: (( vault "secret/db:password" ))

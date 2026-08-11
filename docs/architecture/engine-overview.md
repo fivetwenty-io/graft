@@ -90,7 +90,7 @@ options for library consumers building their own engine, including:
 | `WithSkipVault`, `WithSkipAws`, `WithSkipNats` | Skip resolution for a given backend entirely (used by `vaultinfo`). |
 | `WithCache`, `WithCacheInstance`, `WithCaching` | Enable caching by size, supply a custom `cache.Cache` implementation, or toggle caching via feature flags. |
 | `WithConcurrency`, `WithMaxWorkers`, `WithWorkerPool` | Control the size and implementation of the worker pool used for parallel evaluation. |
-| `WithParallel` | Enable or disable parallel (copy-on-write) evaluation via feature flags. |
+| `WithParallel` | Enable or disable wave-based concurrent operator evaluation via feature flags. |
 | `WithMemoryPools` | Enable buffer/string pooling from `internal/pools`. |
 | `WithMetrics`, `WithMetricsRegistry` | Enable metrics collection, optionally with a custom registry. |
 | `WithFeatureFlags` | Supply a full `features.FeatureFlags` set directly. |
@@ -147,27 +147,33 @@ returning one of `graft.MergePhase`, `graft.EvalPhase`, or `graft.ParamPhase`
 (`pkg/graft/interfaces.go`). See the [operator reference](../reference/operators.md)
 for the phase of each registered operator.
 
-## Parallel (copy-on-write) evaluation model
+## Parallel evaluation model
 
-`pkg/graft/copy_on_write_tree.go` and `pkg/graft/cow_evaluator.go` implement
-a copy-on-write document tree so that concurrent operator evaluation does
-not require locking shared mutable state: each evaluation goroutine works
-against its own view of the tree and writes are merged back rather than
-applied in place. `internal/parallel/dag.go` builds a dependency graph from
-each operator's declared `Dependencies()` and schedules independent
-operators onto `internal/parallel`'s worker pool, while operators that
-depend on each other's output are ordered accordingly. `internal/pools`
-supplies buffer and string pooling to reduce garbage-collection pressure
-under concurrent evaluation.
+`Evaluator.DataFlow` builds a dependency graph from each operator's
+declared `Dependencies()` and groups operators with no unmet dependency
+into waves (`pkg/graft/evaluator_parallel.go`, backed by
+`internal/parallel`'s scheduler and worker pool). Within a wave, every
+operator's own work — including any Vault/AWS/NATS network call — runs
+concurrently on its own goroutine; applying each result to the document
+tree is a separate, always-serialized step, since the tree is a plain Go
+map and not safe for concurrent writes. `internal/pools` supplies buffer
+and string pooling to reduce garbage-collection pressure under concurrent
+evaluation.
+
+`pkg/graft/copy_on_write_tree.go` and `pkg/graft/cow_evaluator.go` do
+implement a copy-on-write document tree, but nothing in the `merge`,
+`fan`, or `vaultinfo` command paths (or anywhere else in `pkg/graft`
+outside their own tests) constructs or uses it — it is not the mechanism
+behind `WithParallel` or wave-based evaluation described above.
 
 `graft.WithConcurrency`/`WithMaxWorkers` control concurrency; `graft.WithParallel`
-opts into copy-on-write evaluation. The CLI
+opts into wave-based concurrent operator evaluation. The CLI
 derives both from the resolved config on every `merge`/`fan`/`vaultinfo`
 invocation, rather than using a fixed value: `WithParallel` follows
 `cfg.Parallel.Enabled` (`true` by default), and `WithConcurrency` follows
 `cfg.Parallel.MaxWorkers` when set, otherwise `runtime.NumCPU()` floored
 at `1`. See the [parallel execution model](parallelism.md) page for the
-worker-pool and batching design in more detail.
+worker-pool and request-dedup design in more detail.
 
 ## Related documentation
 
@@ -181,7 +187,7 @@ worker-pool and batching design in more detail.
 
 - [Parallel execution model](parallelism.md)
 
-  Worker-pool sizing, batching, and the DAG scheduler in more detail.
+  Worker-pool sizing, request dedup, and the DAG scheduler in more detail.
 
 - [Backend architecture](backends.md)
 

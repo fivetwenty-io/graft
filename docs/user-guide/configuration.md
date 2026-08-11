@@ -112,63 +112,31 @@ export NATS_PRODUCTION_TOKEN="prod-token"
 
 ```go
 engine, _ := graft.NewEngine(
-    // Cache settings
-    graft.WithCacheSize(1000),
-    graft.WithCacheTTL(5 * time.Minute),
+    // Operator-result cache: enabled, up to 1000 entries.
+    graft.WithCache(true, 1000),
 
-    // Tracing
-    graft.WithTraceOutput(os.Stderr),
-
-    // History
-    graft.WithHistoryTracking(true),
+    // Verbose operator-level logging.
+    graft.WithDebugLogging(true),
 )
 ```
 
-### Pipeline Configuration
+### Parallel Evaluation
 
 ```go
 engine, _ := graft.NewEngine(
-    graft.WithPipeline(graft.PipelineConfig{
-        // File parallelism
-        FileParallelism:     8,
+    // Worker count ceiling; 0 (the default) auto-detects from
+    // runtime.NumCPU(). This sizes the pool used for wave-level operator
+    // concurrency only - file-level read/parse concurrency (one goroutine
+    // per input file) is separate, does not draw from this pool, and is
+    // unconditional. No request-batching configuration exists either way
+    // (backend request deduplication is unconditional, see
+    // ../architecture/parallelism.md).
+    graft.WithMaxWorkers(16),
 
-        // Evaluation parallelism
-        EvalParallelism:     16,
-
-        // Sub-tree parallelism
-        SubtreeParallelism:  true,
-        SubtreeThreshold:    100,
-
-        // External calls
-        ExternalParallelism: 32,
-        BatchSize:           20,
-        BatchTimeout:        100 * time.Millisecond,
-
-        // Pool sizes
-        VaultPoolSize:       10,
-        AWSPoolSize:         10,
-        NATSPoolSize:        10,
-    }),
+    // false for sequential evaluation (debugging, or reproducing spruce's
+    // exact operator evaluation order).
+    graft.WithParallel(true),
 )
-```
-
-### Pipeline Presets
-
-```go
-// For debugging (sequential execution)
-graft.WithPipeline(graft.PipelineSequential)
-
-// For resource-constrained environments
-graft.WithPipeline(graft.PipelineConservative)
-
-// Default balanced settings
-graft.WithPipeline(graft.PipelineBalanced)
-
-// For many external calls
-graft.WithPipeline(graft.PipelineHighThroughput)
-
-// For small, fast merges
-graft.WithPipeline(graft.PipelineLowLatency)
 ```
 
 ### Backend Configuration
@@ -254,47 +222,63 @@ Configuration sources are checked in order:
 
 ## Performance Tuning
 
-### Large Files
+Graft's actual tuning surface is smaller than it may look: parallel
+evaluation (worker count and file-level read/parse concurrency) and the
+operator-result cache. There is no request-batching configuration —
+backend request deduplication (see
+[Parallel Execution Model](../architecture/parallelism.md#level-3-backend-request-dedup))
+is unconditional and has no tunable knobs.
+
+### Worker Count
 
 ```go
-// Increase parallelism for large files
-graft.WithPipeline(graft.PipelineConfig{
-    FileParallelism:   16,
-    EvalParallelism:   32,
-    SubtreeParallelism: true,
-    SubtreeThreshold:  50,  // Lower threshold
-})
+// Explicit worker ceiling (0, the default, auto-detects from runtime.NumCPU()).
+graft.WithMaxWorkers(16)
+
+// Equivalent CLI/config form:
+// GRAFT_PARALLEL_MAX_WORKERS=16 graft merge base.yml overlay.yml
 ```
 
-### Many External Calls
+`WithMaxWorkers` is an alias for `WithConcurrency`. This value sizes the
+worker pool used for wave-level operator concurrency only. File-level
+read/parse concurrency is separate: it spawns one goroutine per input
+file, does not draw from the worker pool, and is unconditional — this
+option does not affect it.
+
+### Disabling Parallelism
 
 ```go
-// Optimize for external call throughput
-graft.WithPipeline(graft.PipelineConfig{
-    ExternalParallelism: 64,
-    BatchSize:           50,
-    BatchTimeout:        50 * time.Millisecond,
-    VaultPoolSize:       20,
-    AWSPoolSize:         20,
-})
+// Sequential evaluation, for debugging or reproducing spruce's exact
+// operator evaluation order.
+graft.WithParallel(false)
+
+// Equivalent CLI/config form:
+// GRAFT_PARALLEL_ENABLED=false graft merge base.yml overlay.yml
 ```
 
-### Memory Optimization
+### Cache Size
 
 ```go
-// Reduce memory usage
-graft.WithCacheSize(100),        // Smaller cache
-graft.WithHistoryTracking(false), // Disable history
+// Operator-result cache: enabled, holding up to 1000 entries.
+graft.WithCache(true, 1000)
 ```
+
+This is the general operator-result cache (`internal/cache`), separate
+from each backend's own secret/parameter/KV cache
+(`vault.SecretCache`, the AWS `ClientPool`'s per-target caches, and
+`natsbackend.Cache`), which are unconditional and not sized via engine
+options.
 
 ### Debugging
 
 ```go
-// Maximum visibility
-graft.WithPipeline(graft.PipelineSequential),
-graft.WithTraceOutput(os.Stderr),
-graft.WithHistoryTracking(true),
+// Verbose operator-level logging.
+graft.WithDebugLogging(true)
 ```
+
+No benchmark numbers are published here — see
+[Parallel Execution Model](../architecture/parallelism.md#when-parallel-evaluation-helps)
+for why, and how to measure your own workload.
 
 ## Security Configuration
 

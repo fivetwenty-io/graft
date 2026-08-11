@@ -50,14 +50,11 @@ flowchart TB
         DEPGRAPH --> WAVE1 --> WAVE2 --> WAVEN
     end
 
-    subgraph BATCH["EXTERNAL CALL BATCHING"]
-        BATCHER[Request Batcher]
-        VAULT_B[Vault Batch]
-        AWS_B[AWS Batch]
-        NATS_B[NATS Batch]
-        BATCHER --> VAULT_B
-        BATCHER --> AWS_B
-        BATCHER --> NATS_B
+    subgraph DEDUP["BACKEND REQUEST DEDUP"]
+        direction TB
+        VAULT_D["Vault: concurrent identical<br/>target+path requests coalesce"]
+        AWS_D["AWS: concurrent identical<br/>target+path requests coalesce"]
+        NATS_D["NATS: concurrent identical<br/>target+path requests coalesce"]
     end
 
     subgraph POST["POST-PROCESSING"]
@@ -77,7 +74,7 @@ flowchart TB
     FILES --> FILE1 & FILE2 & FILEN
     YP1 & YP2 & YPN --> COMBINE
     COMBINE --> DEPGRAPH
-    WAVE1 & WAVE2 & WAVEN --> BATCHER
+    WAVE1 & WAVE2 & WAVEN --> DEDUP
     WAVEN --> PRUNE
     SORT --> YAML_OUT & JSON_OUT & DIFF_OUT & HIST_OUT
 ```
@@ -269,7 +266,7 @@ The evaluator executes operators in dependency order using wave-based parallel e
 
 - Parallelize independent operations
 
-- Batch external backend calls
+- Deduplicate concurrent identical external-backend requests within a wave
 
 ### Operator Phases
 
@@ -487,9 +484,9 @@ Where:
 
   Execute independent operators in parallel
 
-- **Request batching**
+- **Request dedup**
 
-  Group backend calls by path for efficiency
+  Coalesce concurrent identical backend requests (same target and path) into one
 
 - **Connection pooling**
 
@@ -497,4 +494,4 @@ Where:
 
 - **Result caching**
 
-  Cache backend responses with configurable TTL
+  Cache backend responses per target and path (permanent for the run's lifetime for Vault/AWS; TTL-bounded for NATS)
