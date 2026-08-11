@@ -36,7 +36,7 @@ func (EmptyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	defer DEBUG("done with (( empty ... )) operation at $.%s\n", ev.Here)
 
 	if len(args) != 1 {
-		return nil, fmt.Errorf("empty operator requires exactly one argument")
+		return nil, fmt.Errorf("empty operator expects 1 argument, received %d", len(args))
 	}
 
 	// Use ResolveOperatorArgument to handle nested expressions

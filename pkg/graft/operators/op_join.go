@@ -98,10 +98,8 @@ func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			val, err := ResolveOperatorArgument(ev, arg)
 			if err != nil {
 				DEBUG("     [%d]: resolution failed\n    error: %s", i, err)
-				// Maintain backward compatibility with error messages
-				if arg.Type == Reference {
-					return nil, ansi.Errorf("Unable to resolve @c{`%s`}: %s", arg.Reference, err)
-				}
+				// ResolveOperatorArgument already formats reference resolution
+				// failures as "unable to resolve `<ref>`: <err>"; do not re-wrap.
 				return nil, err
 			}
 
