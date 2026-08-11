@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sync"
 	"testing"
@@ -244,6 +245,52 @@ logging:
 	}
 	if cfg.Logging.Level != testLogLevelDebug {
 		t.Errorf("Expected Logging.Level 'debug', got '%s'", cfg.Logging.Level)
+	}
+}
+
+func TestLoadEmptyFilePreservesDefaults(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "empty.yaml")
+
+	if err := os.WriteFile(configPath, []byte(""), 0o600); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Failed to load empty config: %v", err)
+	}
+
+	want := DefaultConfig()
+	if !reflect.DeepEqual(cfg, want) {
+		t.Errorf("Expected empty file to load as DefaultConfig(), got %+v, want %+v", cfg, want)
+	}
+}
+
+func TestLoadPartialFileOnlyOverridesNamedFields(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "partial.yaml")
+
+	// Only sets logging.level; every other field (including
+	// Cache.Enabled/Parallel.Enabled, both true by default) must retain
+	// its DefaultConfig() value rather than being zeroed.
+	if err := os.WriteFile(configPath, []byte("logging:\n  level: debug\n"), 0o600); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Failed to load partial config: %v", err)
+	}
+
+	if cfg.Logging.Level != testLogLevelDebug {
+		t.Errorf("Expected Logging.Level 'debug', got '%s'", cfg.Logging.Level)
+	}
+
+	want := DefaultConfig()
+	want.Logging.Level = testLogLevelDebug
+	if !reflect.DeepEqual(cfg, want) {
+		t.Errorf("Expected only logging.level to change from defaults, got %+v, want %+v", cfg, want)
 	}
 }
 

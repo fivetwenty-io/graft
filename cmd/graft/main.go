@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"github.com/fivetwenty-io/graft/internal/config"
+	"github.com/fivetwenty-io/graft/internal/features"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 
 	"github.com/fivetwenty-io/graft/log"
@@ -140,11 +143,107 @@ func handleFan(opts *mergeOpts) int {
 	return 0
 }
 
-func handleVaultInfo(vaultFiles []string, enableGoPatch bool) int {
+// configEngineOpts converts a loaded internal/config.Config and a resolved
+// internal/features.FeatureFlags set into engine construction options. cfg
+// nil (--config not specified) omits WithConfigInstance and the
+// concurrency/parallel options derived from it (see resolveConcurrency); ff
+// nil omits WithFeatureFlags, in which case engine construction falls back
+// to its own features.DefaultFlags() default (see pkg/graft/engine.go
+// createEngineFromOptions), so passing ff == features.DefaultFlags() (no
+// GRAFT_FEATURE_* overrides) is behaviorally identical to omitting it.
+//
+// When cfg is non-nil, its Parallel section drives the engine's
+// parallel-evaluation default (parallel evaluation is enabled by default,
+// replacing the previously hardcoded WithConcurrency(10)):
+// cfg.Parallel.Enabled controls WithParallel, and resolveConcurrency
+// derives the worker count from cfg.Parallel.MaxWorkers (an explicit
+// file/env override) or runtime.NumCPU() floored at 1. graft.WithParallel
+// also flips the FeatureParallelEvaluation flag on the same *FeatureFlags
+// instance passed via WithFeatureFlags, so both of the engine's parallel
+// gates (EnableParallel and the feature flag) stay in sync from one
+// config-derived value.
+func configEngineOpts(cfg *config.Config, ff *features.FeatureFlags) []graft.EngineOption {
+	var opts []graft.EngineOption
+	if cfg != nil {
+		opts = append(opts, graft.WithConfigInstance(cfg))
+	}
+	if ff != nil {
+		opts = append(opts, graft.WithFeatureFlags(ff))
+	}
+	if cfg != nil {
+		opts = append(opts,
+			graft.WithParallel(cfg.Parallel.Enabled),
+			graft.WithConcurrency(resolveConcurrency(cfg.Parallel)),
+		)
+	}
+	return opts
+}
+
+// resolveConcurrency derives graft's default worker count from a resolved
+// Parallel config section. An explicit cfg.Parallel.MaxWorkers (set via
+// config file or GRAFT_PARALLEL_MAX_WORKERS) takes precedence; otherwise
+// runtime.NumCPU() is used, floored at 1 so a single-core host still gets a
+// usable pool. This replaces the CLI's previous unconditional
+// WithConcurrency(10).
+func resolveConcurrency(p config.ParallelConfig) int {
+	if p.MaxWorkers > 0 {
+		return p.MaxWorkers
+	}
+	n := runtime.NumCPU()
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+// resolveStartupFeatureFlags computes the CLI's effective feature-flag set
+// for one invocation: internal/features.DefaultFlags() overridden by any
+// recognized GRAFT_FEATURE_* environment variables (internal/features/env.go
+// documents the full env-var-to-flag mapping: GRAFT_FEATURE_PARALLEL,
+// GRAFT_FEATURE_CACHE, GRAFT_FEATURE_METRICS, GRAFT_FEATURE_DEBUG,
+// GRAFT_FEATURE_STRICT_TYPES, GRAFT_FEATURE_POOLS). An unset or
+// unrecognized-value env var leaves the corresponding flag at its default,
+// per FeatureFlags.LoadFromEnv's own documented behavior - so no error path
+// is needed here (mirrors resolveStartupConfig's env>default precedence,
+// without the file tier since feature flags are env/default only).
+func resolveStartupFeatureFlags() *features.FeatureFlags {
+	ff := features.DefaultFlags()
+	ff.LoadFromEnv()
+	return ff
+}
+
+// resolveStartupConfig computes the CLI's effective configuration for one
+// invocation: the --config file's contents if configPath is non-empty
+// (otherwise config.DefaultConfig()), with GRAFT_* environment variable
+// overrides (internal/config.ApplyEnv) applied on top. This gives the
+// precedence order env > file > default. The result is re-validated after
+// the environment overrides are applied, since an override (e.g. an
+// out-of-range GRAFT_ENGINE_MAX_RECURSION) can make an otherwise-valid
+// base configuration invalid.
+func resolveStartupConfig(configPath string) (*config.Config, error) {
+	cfg := config.DefaultConfig()
+	if configPath != "" {
+		loaded, err := config.Load(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("loading config file %s: %w", configPath, err)
+		}
+		cfg = loaded
+	}
+
+	config.ApplyEnv(cfg)
+	if err := config.Validate(cfg); err != nil {
+		return nil, fmt.Errorf("applying environment overrides: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config, ff *features.FeatureFlags) int {
+	engineOpts := append([]graft.EngineOption{graft.WithSkipVault(true)}, configEngineOpts(cfg, ff)...)
 	opts := &mergeOpts{
 		Files:         vaultFiles,
 		EnableGoPatch: enableGoPatch,
-		EngineOpts:    []graft.EngineOption{graft.WithSkipVault(true)},
+		EngineOpts:    engineOpts,
 	}
 	_, engine, err := cmdMergeEval(opts)
 	if err != nil {
@@ -193,9 +292,23 @@ func handleDiff(files []string, colorOpt string) int {
 func newRootCmd() (*cobra.Command, *bool) {
 	var debug, trace, version bool
 	var colorOpt string
+	var configPath string
 
 	// Track whether PersistentPreRunE signaled an abort (e.g., invalid color)
 	var aborted bool
+
+	// loadedConfig holds the configuration used for engine construction:
+	// the --config file if specified (else config.DefaultConfig()), with
+	// GRAFT_* environment overrides applied on top. Set once in
+	// PersistentPreRunE before any subcommand's RunE runs.
+	var loadedConfig *config.Config
+
+	// loadedFeatureFlags holds the feature-flag set used for engine
+	// construction: internal/features.DefaultFlags() with GRAFT_FEATURE_*
+	// environment overrides applied (see resolveStartupFeatureFlags). Set
+	// once in PersistentPreRunE before any subcommand's RunE runs, matching
+	// loadedConfig's env>default resolution pattern.
+	var loadedFeatureFlags *features.FeatureFlags
 
 	rootCmd := &cobra.Command{
 		Use:           "graft",
@@ -220,6 +333,23 @@ func newRootCmd() (*cobra.Command, *bool) {
 				return fmt.Errorf("invalid color option")
 			}
 			ansi.Color(colorEnabled)
+
+			// Load the --config file (or defaults) and apply GRAFT_*
+			// environment overrides up front so every subcommand fails
+			// fast on a bad path/value, rather than partway through
+			// merge/fan/vaultinfo execution.
+			cfg, err := resolveStartupConfig(configPath)
+			if err != nil {
+				aborted = true
+				log.PrintStdErrf("%s\n", err.Error())
+				exit(1)
+				return err
+			}
+			loadedConfig = cfg
+
+			// Resolve GRAFT_FEATURE_* environment overrides once per
+			// invocation, alongside loadedConfig above.
+			loadedFeatureFlags = resolveStartupFeatureFlags()
 			return nil
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -242,6 +372,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	rootCmd.PersistentFlags().BoolVarP(&trace, "trace", "T", false, "Enable trace mode debugging (very verbose)")
 	rootCmd.PersistentFlags().BoolVarP(&version, "version", "v", false, "Display version information")
 	rootCmd.PersistentFlags().StringVar(&colorOpt, "color", "", "Control color output (on/off/auto, default: auto)")
+	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Path to a YAML configuration file (see internal/config); absent means unchanged default behavior")
 
 	// merge command
 	var mergeSkipEval, mergeFallbackAppend, mergeGoPatch, mergeMultiDoc bool
@@ -261,6 +392,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 				MultiDoc:       mergeMultiDoc,
 				DataflowOrder:  mergeDataflowOrder,
 				Files:          args,
+				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
 			}
 			exit(handleMerge(opts))
 			return nil
@@ -292,6 +424,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 				MultiDoc:       fanMultiDoc,
 				DataflowOrder:  fanDataflowOrder,
 				Files:          args,
+				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
 			}
 			exit(handleFan(opts))
 			return nil
@@ -339,7 +472,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 		Use:   "vaultinfo [files...]",
 		Short: "List vault references in the given files",
 		RunE: func(_ *cobra.Command, args []string) error {
-			exit(handleVaultInfo(args, vaultInfoGoPatch))
+			exit(handleVaultInfo(args, vaultInfoGoPatch, loadedConfig, loadedFeatureFlags))
 			return nil
 		},
 	}
@@ -645,12 +778,15 @@ func readFile(file *YamlFile) ([]byte, error) {
 
 //nolint:gocyclo // mergeAllDocs orchestrates complex document merging with multiple options
 func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
-	// Create engine with settings from options (caller-provided first, then defaults)
-	engineOpts := make([]graft.EngineOption, 0, len(options.EngineOpts)+3)
+	// Create engine with settings from options (caller-provided first, then defaults).
+	// Concurrency/parallel-evaluation defaults come from options.EngineOpts
+	// (see configEngineOpts/resolveConcurrency) when a resolved config was
+	// supplied by the CLI; cache stays an unconditional default here,
+	// unaffected by config/feature wiring.
+	engineOpts := make([]graft.EngineOption, 0, len(options.EngineOpts)+1)
 	engineOpts = append(engineOpts, options.EngineOpts...)
 	engineOpts = append(engineOpts,
 		graft.WithCache(true, 1000),
-		graft.WithConcurrency(10),
 	)
 
 	// Set dataflow order if specified (default to alphabetical if not set)

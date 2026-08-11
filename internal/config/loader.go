@@ -22,9 +22,11 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 
-	// Start with defaults and overlay the file contents.
+	// Start with defaults and overlay only the fields the file explicitly
+	// sets (see mergeFileOntoConfig: a naive yaml.Unmarshal onto a
+	// prepopulated struct would zero every field the file omits).
 	cfg := DefaultConfig()
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	if err := mergeFileOntoConfig(data, cfg); err != nil {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
@@ -34,6 +36,98 @@ func Load(path string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// mergeFileOntoConfig overlays onto cfg only the fields explicitly present
+// in the YAML document in data, leaving every field the document omits at
+// its current value in cfg (typically a DefaultConfig()). This works around
+// goccy/go-yaml's Unmarshal-onto-a-prepopulated-struct behavior, which
+// zeroes every field absent from the source document rather than leaving it
+// untouched, contradicting Load's default-preserving contract: an operator
+// config file that only sets e.g. logging.level must not silently disable
+// caching or parallel evaluation by zeroing Cache.Enabled/Parallel.Enabled.
+//
+// It works by decoding the document twice: once into a generic
+// map-of-maps to discover which top-level/nested keys are actually present,
+// and once into a scratch Config to get correctly-typed values (bool, int,
+// time.Duration, string) via goccy's normal decoding. Only the (section,
+// field) pairs found present in the first pass are copied from the second
+// pass onto cfg.
+func mergeFileOntoConfig(data []byte, cfg *Config) error {
+	var present map[string]map[string]any
+	if err := yaml.Unmarshal(data, &present); err != nil {
+		return err
+	}
+
+	var parsed Config
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+
+	if keys, ok := present["engine"]; ok {
+		if _, ok := keys["strict_mode"]; ok {
+			cfg.Engine.StrictMode = parsed.Engine.StrictMode
+		}
+		if _, ok := keys["max_recursion"]; ok {
+			cfg.Engine.MaxRecursion = parsed.Engine.MaxRecursion
+		}
+		if _, ok := keys["timeout"]; ok {
+			cfg.Engine.Timeout = parsed.Engine.Timeout
+		}
+	}
+
+	if keys, ok := present["cache"]; ok {
+		if _, ok := keys["enabled"]; ok {
+			cfg.Cache.Enabled = parsed.Cache.Enabled
+		}
+		if _, ok := keys["max_size"]; ok {
+			cfg.Cache.MaxSize = parsed.Cache.MaxSize
+		}
+		if _, ok := keys["ttl"]; ok {
+			cfg.Cache.TTL = parsed.Cache.TTL
+		}
+		if _, ok := keys["l2_enabled"]; ok {
+			cfg.Cache.L2Enabled = parsed.Cache.L2Enabled
+		}
+		if _, ok := keys["l2_path"]; ok {
+			cfg.Cache.L2Path = parsed.Cache.L2Path
+		}
+	}
+
+	if keys, ok := present["parallel"]; ok {
+		if _, ok := keys["enabled"]; ok {
+			cfg.Parallel.Enabled = parsed.Parallel.Enabled
+		}
+		if _, ok := keys["min_workers"]; ok {
+			cfg.Parallel.MinWorkers = parsed.Parallel.MinWorkers
+		}
+		if _, ok := keys["max_workers"]; ok {
+			cfg.Parallel.MaxWorkers = parsed.Parallel.MaxWorkers
+		}
+	}
+
+	if keys, ok := present["metrics"]; ok {
+		if _, ok := keys["enabled"]; ok {
+			cfg.Metrics.Enabled = parsed.Metrics.Enabled
+		}
+		if _, ok := keys["format"]; ok {
+			cfg.Metrics.Format = parsed.Metrics.Format
+		}
+		if _, ok := keys["endpoint"]; ok {
+			cfg.Metrics.Endpoint = parsed.Metrics.Endpoint
+		}
+	}
+
+	if keys, ok := present["logging"]; ok {
+		if _, ok := keys["level"]; ok {
+			cfg.Logging.Level = parsed.Logging.Level
+		}
+		if _, ok := keys["format"]; ok {
+			cfg.Logging.Format = parsed.Logging.Format
+		}
+	}
+
+	return nil
 }
 
 // LoadOrDefault attempts to load configuration from the specified path.
