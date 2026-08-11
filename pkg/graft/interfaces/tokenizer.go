@@ -208,6 +208,22 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 				for pos < len(runes) && isIdentifierContinue(runes[pos]) {
 					pos++
 				}
+				// Predicate segment support (spec cluster A7 §6.3): a dotted
+				// segment may carry an inline "field=value" predicate, e.g.
+				// "servers.name=primary.host" tokenizes with "name=primary"
+				// as one segment, matching the bracketed
+				// "servers[name=primary].host" form. Guarded so a doubled
+				// '=' ("a==b") and a '=' followed by a quote
+				// (`env=="prod"`) are never captured here — both are left
+				// for the ordinary "==" comparison tokenization.
+				if pos < len(runes) && runes[pos] == '=' &&
+					pos+1 < len(runes) && runes[pos+1] != '=' &&
+					(isIdentifierStart(runes[pos+1]) || unicode.IsDigit(runes[pos+1])) {
+					pos++ // consume '='
+					for pos < len(runes) && isIdentifierContinue(runes[pos]) {
+						pos++
+					}
+				}
 			default:
 				return pos > 0, pos // Not a valid continuation
 			}

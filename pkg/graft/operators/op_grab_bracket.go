@@ -83,12 +83,22 @@ func resolveGrabDynamicBrackets(arg *Expr, ev *Evaluator) error {
 
 // isDynamicBracketNode reports whether a bracketed path node should be
 // treated as a dynamic key reference: non-empty, not an environment
-// variable ("$..."), and not a plain integer (an array index).
+// variable ("$..."), not a plain integer (an array index), and not a list
+// predicate ("field=value", e.g. "name=primary" in
+// "servers[name=primary]"). Predicate segments are left as literal node
+// text so tree.Resolve's predicate matcher can run instead of this
+// function trying (and failing) to resolve them as their own path — see
+// spec cluster A7 §6.4's regression guard: a container that turns out to be
+// a map at resolve time still gets a plain key lookup on the literal
+// "field=value" string, so a genuine map key containing "=" is unaffected.
 func isDynamicBracketNode(node string) bool {
 	if node == "" || node[0] == '$' {
 		return false
 	}
 	if _, err := strconv.ParseInt(node, 10, 64); err == nil {
+		return false
+	}
+	if tree.IsPredicateSegment(node) {
 		return false
 	}
 	return true

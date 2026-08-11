@@ -56,6 +56,16 @@ func (c *Cursor) Glob(tree interface{}) ([]*Cursor, error) {
 		} else {
 			switch val := o.(type) {
 			case []interface{}:
+				if field, value, isPredicate := parsePredicateSegment(k); isPredicate {
+					found, idx, ok := predicateFind(val, field, value)
+					if !ok {
+						return nil, NotFoundError{
+							Path: path[0 : pos+1],
+						}
+					}
+					return resolver(found, append(here, fmt.Sprintf("%d", idx)), path, pos+1)
+				}
+
 				i, err := strconv.ParseUint(k, 10, 0)
 				if err == nil {
 					// if k is an integer (in string form), go by index
