@@ -67,7 +67,7 @@ func TestParseAwsOpKey(t *testing.T) {
 func TestAwsOperatorSkipMode(t *testing.T) {
 	Convey("AWS Operator Skip Mode", t, func() {
 		Convey("when SkipAws is true via engine option", func() {
-			Convey("awssecret should return skipped message", func() {
+			Convey("awssecret should return REDACTED", func() {
 				engine, err := graft.NewEngine(graft.WithSkipAws(true))
 				So(err, ShouldBeNil)
 
@@ -82,11 +82,13 @@ secret: (( awssecret "prod/database/password" ))
 
 				secret, err := result.Get("secret")
 				So(err, ShouldBeNil)
-				// When SkipAws is true, returns a skip message instead of actual value
-				So(secret, ShouldContainSubstring, "skipped")
+				// When SkipAws is true, returns the literal "REDACTED" instead of
+				// the actual value, matching the vault and NATS operators
+				// (op_vault.go, op_nats.go) and spruce's op_aws.go semantics.
+				So(secret, ShouldEqual, "REDACTED")
 			})
 
-			Convey("awsparam should return skipped message", func() {
+			Convey("awsparam should return REDACTED", func() {
 				engine, err := graft.NewEngine(graft.WithSkipAws(true))
 				So(err, ShouldBeNil)
 
@@ -101,8 +103,10 @@ param: (( awsparam "/config/app/setting" ))
 
 				param, err := result.Get("param")
 				So(err, ShouldBeNil)
-				// When SkipAws is true, returns a skip message instead of actual value
-				So(param, ShouldContainSubstring, "skipped")
+				// When SkipAws is true, returns the literal "REDACTED" instead of
+				// the actual value, matching the vault and NATS operators
+				// (op_vault.go, op_nats.go) and spruce's op_aws.go semantics.
+				So(param, ShouldEqual, "REDACTED")
 			})
 		})
 	})

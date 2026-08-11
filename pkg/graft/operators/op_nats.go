@@ -16,86 +16,68 @@ import (
 
 // NatsOperator provides the (( nats "store_type:path" )) operator
 // It will fetch values from NATS JetStream KV or Object stores.
+//
+// NatsOperator does not support the `@target` operator-call syntax (e.g.
+// `(( nats@myserver "kv:path" ))`). The parser accepts that syntax and
+// records it on the parsed Expr, but pkg/graft's Opcall type (the object
+// whose Run method actually executes) has no field to carry it, so no
+// operator's Run ever observes a non-empty target. Multi-cluster NATS
+// access is still available today via per-target environment variables
+// consumed directly by internal/backends/nats.ClientPool, just not by
+// parsing a target out of the operator call itself.
 type NatsOperator struct{}
 
-// extractTarget extracts target name from operator call (placeholder).
-func (n NatsOperator) extractTarget(ev *graft.Evaluator, args []*graft.Expr) string {
-	// TODO: Extract target from parsed expression when parser supports it
-	// For now, return empty string to use default configuration
-	return ""
-}
-
-// getCacheKey generates a cache key that includes target information.
-func (n NatsOperator) getCacheKey(target, storeType, storePath string) string {
-	if target == "" {
-		return fmt.Sprintf("%s:%s", storeType, storePath)
-	}
-	return fmt.Sprintf("%s@%s:%s", target, storeType, storePath)
-}
-
-// fetchFromKVWithTarget retrieves a value from a NATS KV store with target-aware caching.
-func (n NatsOperator) fetchFromKVWithTarget(js jetstream.JetStream, storePath string, config *natsbackend.Config, target string) (interface{}, error) {
+// fetchFromKV retrieves a value from a NATS KV store, using the shared TTL cache.
+func (n NatsOperator) fetchFromKV(js jetstream.JetStream, storePath string, config *natsbackend.Config) (interface{}, error) {
 	startTime := time.Now()
 	operationType := "kv"
 
 	// Audit logging
 	if config.AuditLogging {
-		if target != "" {
-			DEBUG("AUDIT: Accessing KV store: %s (target: %s)", storePath, target)
-		} else {
-			DEBUG("AUDIT: Accessing KV store: %s", storePath)
-		}
+		DEBUG("AUDIT: Accessing KV store: %s", storePath)
 	}
 
-	// Check TTL cache first with target-aware key
-	cacheKey := n.getCacheKey(target, "kv", storePath)
+	// Check TTL cache first
+	cacheKey := fmt.Sprintf("kv:%s", storePath)
 	if val, ok := natsbackend.Cache.Get(cacheKey); ok {
 		duration := time.Since(startTime)
 		natsbackend.GlobalMetrics.RecordOperation(operationType, duration, false, true)
 		return val, nil
 	}
 
-	// Use existing fetchFromKV logic but with target-aware caching
 	result, err := natsbackend.FetchFromKV(js, storePath, config)
 	if err != nil {
 		return nil, err
 	}
 
-	// Cache the result with target-aware key
 	natsbackend.Cache.Set(cacheKey, result, config.CacheTTL)
 
 	return result, nil
 }
 
-// fetchFromObjectWithTarget retrieves a value from a NATS Object store with target-aware caching.
-func (n NatsOperator) fetchFromObjectWithTarget(js jetstream.JetStream, storePath string, config *natsbackend.Config, target string) (interface{}, error) {
+// fetchFromObject retrieves a value from a NATS Object store, using the shared TTL cache.
+func (n NatsOperator) fetchFromObject(js jetstream.JetStream, storePath string, config *natsbackend.Config) (interface{}, error) {
 	startTime := time.Now()
 	operationType := natsbackend.StoreObj
 
 	// Audit logging
 	if config.AuditLogging {
-		if target != "" {
-			DEBUG("AUDIT: Accessing Object store: %s (target: %s)", storePath, target)
-		} else {
-			DEBUG("AUDIT: Accessing Object store: %s", storePath)
-		}
+		DEBUG("AUDIT: Accessing Object store: %s", storePath)
 	}
 
-	// Check TTL cache first with target-aware key
-	cacheKey := n.getCacheKey(target, natsbackend.StoreObj, storePath)
+	// Check TTL cache first
+	cacheKey := fmt.Sprintf("%s:%s", natsbackend.StoreObj, storePath)
 	if val, ok := natsbackend.Cache.Get(cacheKey); ok {
 		duration := time.Since(startTime)
 		natsbackend.GlobalMetrics.RecordOperation(operationType, duration, false, true)
 		return val, nil
 	}
 
-	// Use existing fetchFromObject logic but with target-aware caching
 	result, err := natsbackend.FetchFromObject(js, storePath, config)
 	if err != nil {
 		return nil, err
 	}
 
-	// Cache the result with target-aware key
 	natsbackend.Cache.Set(cacheKey, result, config.CacheTTL)
 
 	return result, nil
@@ -305,33 +287,19 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 		return nil, err
 	}
 
-	// Extract target information (placeholder for now)
-	targetName := n.extractTarget(ev, args)
-
-	var pc *natsbackend.PooledConnection
-	if targetName != "" {
-		// Use target-aware client pool
-		pc, err = natsbackend.DefaultPool.GetConnection(targetName)
-		if err != nil {
-			return nil, err
-		}
-		defer natsbackend.DefaultPool.ReleaseConnection(targetName)
-	} else {
-		// Use default connection pool
-		pc, err = natsbackend.ConnPool.GetConnection(config)
-		if err != nil {
-			return nil, err
-		}
-		defer natsbackend.ConnPool.ReleaseConnection(config)
+	pc, err := natsbackend.ConnPool.GetConnection(config)
+	if err != nil {
+		return nil, err
 	}
+	defer natsbackend.ConnPool.ReleaseConnection(config)
 
 	// Fetch the value based on store type
 	var value interface{}
 	switch storeType {
 	case natsbackend.StoreKV:
-		value, err = n.fetchFromKVWithTarget(pc.JS, storePath, config, targetName)
+		value, err = n.fetchFromKV(pc.JS, storePath, config)
 	case natsbackend.StoreObj:
-		value, err = n.fetchFromObjectWithTarget(pc.JS, storePath, config, targetName)
+		value, err = n.fetchFromObject(pc.JS, storePath, config)
 	}
 
 	if err != nil {

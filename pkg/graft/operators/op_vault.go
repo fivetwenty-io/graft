@@ -11,27 +11,6 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
-// extractTarget attempts to extract target information from the operator context.
-func (o VaultOperator) extractTarget(ev *Evaluator, args []*Expr) string {
-	// For now, we'll implement a simple approach where target information
-	// could be stored in the engine state or extracted from the evaluator context.
-	// In a full implementation, this would access the parsed operator call's target field.
-
-	// TODO: This is a placeholder implementation. In the complete implementation,
-	// the target would be available from the operator call context.
-	// For now, we'll return empty string (no target) to maintain backward compatibility.
-	return ""
-}
-
-// getCacheKey generates a cache key that includes target information.
-func (o VaultOperator) getCacheKey(target, path string) string {
-	if target == "" {
-		return path
-	}
-	return fmt.Sprintf("%s@%s", target, path)
-}
-
-
 // vaultArgProcessor handles argument processing for vault operator with LogicalOr support.
 type vaultArgProcessor struct {
 	args         []*Expr
@@ -347,6 +326,15 @@ func isVaultNotFound(err error) bool {
 // The VaultOperator provides a means of injecting credentials and
 // other secrets from a Vault (vaultproject.io) Secure Key Storage
 // instance.
+//
+// VaultOperator does not support the `@target` operator-call syntax (e.g.
+// `(( vault@production "secret/path:key" ))`). The parser accepts that
+// syntax and records it on the parsed Expr, but pkg/graft's Opcall type
+// (the object whose Run method actually executes) has no field to carry
+// it, so Run never observes a non-empty target. Multi-target Vault access
+// remains available via internal/backends/vault.DefaultPool.GetClient,
+// which is wired up and ready for a caller once Opcall gains a target
+// channel; it is simply unreachable from this operator today.
 type VaultOperator struct{}
 
 // Setup ...
@@ -377,18 +365,14 @@ func (o VaultOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	// Get engine
 	engine := graft.GetEngine(ev)
 
-	// Extract target information if available
-	targetName := o.extractTarget(ev, args)
-	if targetName != "" {
-		DEBUG("vault: using target '%s'", targetName)
-	}
-
 	// syntax: (( vault "secret/path:key" ))
-	// syntax: (( vault@target "secret/path:key" ))
 	// syntax: (( vault path.object "to concat with" other.object ))
 	// syntax: (( vault "secret/path:key" || "default" ))
 	// syntax: (( vault prefix "/" key ":password" || "default" ))
 	// syntax: (( vault ( meta.vault_path meta.stub  ":" ("key1" | "key2" ) | meta.exodus_path "subpath:key1") || "default"))
+	//
+	// Note: `@target` syntax (e.g. `vault@production`) is parsed but not
+	// wired through to Run — see the VaultOperator doc comment above.
 	if len(args) < 1 {
 		return nil, fmt.Errorf("vault operator requires at least one argument")
 	}
@@ -396,12 +380,12 @@ func (o VaultOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	// Detect if we need enhanced parsing for sub-operators
 	if o.needsEnhancedParsing(args) {
 		DEBUG("vault: using enhanced parsing with sub-operators")
-		return o.runWithSubOperators(ev, args, engine, targetName)
+		return o.runWithSubOperators(ev, args, engine)
 	}
 
 	// Use classic implementation for backward compatibility
 	DEBUG("vault: using classic parsing")
-	return o.runClassic(ev, args, engine, targetName)
+	return o.runClassic(ev, args, engine)
 }
 
 // needsEnhancedParsing checks if any arguments contain vault sub-operators.
@@ -430,7 +414,7 @@ func (o VaultOperator) needsEnhancedParsing(args []*Expr) bool {
 }
 
 // runClassic executes vault operator with classic logic (backward compatibility).
-func (o VaultOperator) runClassic(ev *Evaluator, args []*Expr, engine graft.Engine, targetName string) (*Response, error) {
+func (o VaultOperator) runClassic(ev *Evaluator, args []*Expr, engine graft.Engine) (*Response, error) {
 	// Use the existing argument processor
 	processor := newVaultArgProcessor(args)
 
@@ -452,11 +436,11 @@ func (o VaultOperator) runClassic(ev *Evaluator, args []*Expr, engine graft.Engi
 		return nil, err
 	}
 
-	return o.tryVaultPaths(ev, engine, paths, processor, targetName)
+	return o.tryVaultPaths(ev, engine, paths, processor)
 }
 
 // runWithSubOperators executes vault operator with sub-operator support.
-func (o VaultOperator) runWithSubOperators(ev *Evaluator, args []*Expr, engine graft.Engine, targetName string) (*Response, error) {
+func (o VaultOperator) runWithSubOperators(ev *Evaluator, args []*Expr, engine graft.Engine) (*Response, error) {
 	// Use enhanced argument processor
 	processor := newVaultArgProcessor(args)
 
@@ -478,11 +462,11 @@ func (o VaultOperator) runWithSubOperators(ev *Evaluator, args []*Expr, engine g
 		return nil, err
 	}
 
-	return o.tryVaultPaths(ev, engine, paths, processor, targetName)
+	return o.tryVaultPaths(ev, engine, paths, processor)
 }
 
 // tryVaultPaths attempts to retrieve secrets from a list of vault paths.
-func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths []string, processor *vaultArgProcessor, targetName string) (*Response, error) {
+func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths []string, processor *vaultArgProcessor) (*Response, error) {
 	// Try each path in order
 	var lastErr error
 	for i, key := range paths {
@@ -492,7 +476,7 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 		engine.GetOperatorState().AddVaultRef(key, []string{ev.Here.String()})
 
 		// Perform the vault lookup
-		secret, err := o.performVaultLookup(engine, key, targetName)
+		secret, err := o.performVaultLookup(engine, key)
 		if err == nil {
 			// Success!
 			DEBUG("vault: path %d succeeded", i+1)
@@ -535,46 +519,34 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 }
 
 // performVaultLookup performs the actual vault lookup.
-func (o VaultOperator) performVaultLookup(engine graft.Engine, key string, targetName string) (string, error) {
+func (o VaultOperator) performVaultLookup(engine graft.Engine, key string) (string, error) {
 	if engine.GetOperatorState().IsVaultSkipped() {
 		return "REDACTED", nil
 	}
 
-	var reader vault.VaultReader
-	var err error
-
-	if targetName != "" {
-		// Use target-specific client
-		reader, err = vault.DefaultPool.GetClient(targetName, engine)
-		if err != nil {
-			return "", fmt.Errorf("failed to get vault client for target '%s': %w", targetName, err)
+	// Use the default client, initialized from the environment.
+	if vault.GlobalReader == nil {
+		initErr := vault.InitializeClient()
+		if initErr != nil {
+			return "", fmt.Errorf("Error during Vault client initialization: %w", initErr)
 		}
-		DEBUG("vault: using target-specific client for '%s'", targetName)
-	} else {
-		// Fall back to global initialization from environment
-		if vault.GlobalReader == nil {
-			initErr := vault.InitializeClient()
-			if initErr != nil {
-				return "", fmt.Errorf("Error during Vault client initialization: %w", initErr)
-			}
-		}
-		reader = vault.GlobalReader
-		DEBUG("vault: using default client")
 	}
+	reader := vault.GlobalReader
+	DEBUG("vault: using default client")
 
 	leftPart, rightPart := vault.ParsePath(key)
 	if leftPart == "" || rightPart == "" {
 		return "", ansi.Errorf("@R{invalid argument} @c{%s}@R{; must be in the form} @m{path/to/secret:key}", key)
 	}
 
-	// Check cache first (include target in cache key)
-	cacheKey := o.getCacheKey(targetName, leftPart)
+	// Check cache first
+	cacheKey := leftPart
 	var fullSecret map[string]interface{}
 	if cached, found := vault.SecretCache.Get(cacheKey); found {
 		fullSecret = cached
-		DEBUG("vault: Cache hit for `%s` (target: %s)", leftPart, targetName)
+		DEBUG("vault: Cache hit for `%s`", leftPart)
 	} else {
-		DEBUG("vault: Cache MISS for `%s` (target: %s)", leftPart, targetName)
+		DEBUG("vault: Cache MISS for `%s`", leftPart)
 		// Secret isn't cached. Grab it from the vault.
 		var secretErr error
 		fullSecret, secretErr = vault.GetSecretWithReader(reader, leftPart)
@@ -678,7 +650,7 @@ func (o VaultTryOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 		// Use the shared vault infrastructure
 		vaultOp := VaultOperator{}
-		secret, err := vaultOp.performVaultLookup(engine, path, "")
+		secret, err := vaultOp.performVaultLookup(engine, path)
 		if err == nil {
 			// Success!
 			DEBUG("vault-try: path %d succeeded", i+1)
@@ -710,4 +682,3 @@ func init() {
 	RegisterOp("vault", VaultOperator{})
 	RegisterOp("vault-try", VaultTryOperator{})
 }
-

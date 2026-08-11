@@ -38,23 +38,17 @@ func parseBoolOrDefault(value string) bool {
 
 // AwsOperator provides two operators;  (( awsparam "path" )) and (( awssecret "name_or_arn" ))
 // It will fetch parameters / secrets from the respective AWS service.
+//
+// AwsOperator does not support the `@target` operator-call syntax (e.g.
+// `(( awsparam@myaccount "path" ))`). The parser accepts that syntax and
+// records it on the parsed Expr, but pkg/graft's Opcall type (the object
+// whose Run method actually executes) has no field to carry it, so no
+// operator's Run ever observes a non-empty target. Multi-account AWS access
+// is still available today via per-target environment variables consumed
+// directly by internal/backends/aws.ClientPool (AWS_<TARGET>_REGION, etc.),
+// just not by parsing a target out of the operator call itself.
 type AwsOperator struct {
 	variant string
-}
-
-// extractTarget extracts target name from operator call (placeholder).
-func (o AwsOperator) extractTarget(ev *Evaluator, args []*Expr) string {
-	// TODO: Extract target from parsed expression when parser supports it
-	// For now, return empty string to use default configuration
-	return ""
-}
-
-// getCacheKey generates a cache key that includes target information.
-func (o AwsOperator) getCacheKey(target, variant, key string) string {
-	if target == "" {
-		return fmt.Sprintf("%s:%s", variant, key)
-	}
-	return fmt.Sprintf("%s@%s:%s", target, variant, key)
 }
 
 // Setup ...
@@ -130,32 +124,23 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 	DEBUG("     [0]: Using %s key '%s'\n", o.variant, key)
 
-	// Extract target information (placeholder for now)
-	targetName := o.extractTarget(ev, args)
-
 	engine := graft.GetEngine(ev)
 	var value string
 	if !engine.GetOperatorState().IsAWSSkipped() {
-		if targetName != "" {
-			// Use target-aware client pool
-			value, err = o.getValueFromTarget(targetName, key, params)
-		} else {
-			// Use default behavior via backend pool
-			awsSess, sessErr := awsbackend.DefaultPool.GetSession("default")
+		awsSess, sessErr := awsbackend.DefaultPool.GetSession("default")
+		if sessErr != nil {
+			// Fall back to initializing from environment
+			awsSess, sessErr = awsbackend.InitializeSession(os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))
 			if sessErr != nil {
-				// Fall back to initializing from environment
-				awsSess, sessErr = awsbackend.InitializeSession(os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))
-				if sessErr != nil {
-					return nil, fmt.Errorf("error during AWS session initialization: %w", sessErr)
-				}
+				return nil, fmt.Errorf("error during AWS session initialization: %w", sessErr)
 			}
+		}
 
-			switch o.variant {
-			case "awsparam":
-				value, err = o.getAwsParam(awsSess, key)
-			case "awssecret":
-				value, err = o.getAwsSecret(awsSess, key, params)
-			}
+		switch o.variant {
+		case "awsparam":
+			value, err = o.getAwsParam(awsSess, key)
+		case "awssecret":
+			value, err = o.getAwsSecret(awsSess, key, params)
 		}
 
 		if err != nil {
@@ -180,120 +165,17 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			value = fmt.Sprintf("%v", tmp[subkey])
 		}
 	} else {
-		// Return skip message when AWS is skipped
-		if targetName != "" {
-			value = fmt.Sprintf("<skipped for %s@%s[%s]>", o.variant, targetName, key)
-		} else {
-			value = fmt.Sprintf("<skipped for %s[%s]>", o.variant, key)
-		}
+		// When AWS is skipped (including via the REDACT environment variable,
+		// see evaluator.go and engine.go), return the literal "REDACTED"
+		// without making a backend call, matching spruce's op_aws.go and this
+		// package's vault/NATS operators (op_vault.go, op_nats.go).
+		value = "REDACTED"
 	}
 
 	return &Response{
 		Type:  Replace,
 		Value: value,
 	}, nil
-}
-
-// getValueFromTarget retrieves a value from AWS using target-specific clients.
-//
-//nolint:gocyclo // handles multiple AWS service types (SSM, Secrets Manager) with caching
-func (o AwsOperator) getValueFromTarget(targetName, key string, params url.Values) (string, error) {
-	config, err := awsbackend.DefaultPool.GetTargetConfig(targetName)
-	if err != nil {
-		return "", err
-	}
-
-	// Audit logging
-	if config.AuditLogging {
-		DEBUG("AUDIT: Accessing AWS %s: %s (target: %s)", o.variant, key, targetName)
-	}
-
-	// Check cache first with target-aware key
-	_ = o.getCacheKey(targetName, o.variant, key)
-
-	switch o.variant {
-	case "awsparam":
-		cache := awsbackend.DefaultPool.GetParamCache(targetName)
-		if val, cached := cache[key]; cached {
-			if config.AuditLogging {
-				DEBUG("AUDIT: Cache hit for %s parameter: %s (target: %s)", o.variant, key, targetName)
-			}
-			return val, nil
-		}
-
-		// Get Parameter Store client for this target
-		client, err := awsbackend.DefaultPool.GetParameterStoreClient(targetName)
-		if err != nil {
-			return "", err
-		}
-
-		input := &ssm.GetParameterInput{
-			Name:           awsSDK.String(key),
-			WithDecryption: awsSDK.Bool(true),
-		}
-
-		output, err := client.GetParameter(input)
-		if err != nil {
-			if config.AuditLogging {
-				DEBUG("AUDIT: Failed to retrieve parameter: %s (target: %s) - %v", key, targetName, err)
-			}
-			return "", err
-		}
-
-		value := awsSDK.StringValue(output.Parameter.Value)
-		awsbackend.DefaultPool.SetParamCache(targetName, key, value)
-
-		if config.AuditLogging {
-			DEBUG("AUDIT: Successfully retrieved parameter: %s (target: %s)", key, targetName)
-		}
-
-		return value, nil
-
-	case "awssecret":
-		cache := awsbackend.DefaultPool.GetSecretCache(targetName)
-		if val, cached := cache[key]; cached {
-			if config.AuditLogging {
-				DEBUG("AUDIT: Cache hit for %s secret: %s (target: %s)", o.variant, key, targetName)
-			}
-			return val, nil
-		}
-
-		// Get Secrets Manager client for this target
-		client, err := awsbackend.DefaultPool.GetSecretsManagerClient(targetName)
-		if err != nil {
-			return "", err
-		}
-
-		input := &secretsmanager.GetSecretValueInput{
-			SecretId: awsSDK.String(key),
-		}
-
-		if params.Get("stage") != "" {
-			input.VersionStage = awsSDK.String(params.Get("stage"))
-		} else if params.Get("version") != "" {
-			input.VersionId = awsSDK.String(params.Get("version"))
-		}
-
-		output, err := client.GetSecretValue(input)
-		if err != nil {
-			if config.AuditLogging {
-				DEBUG("AUDIT: Failed to retrieve secret: %s (target: %s) - %v", key, targetName, err)
-			}
-			return "", err
-		}
-
-		value := awsSDK.StringValue(output.SecretString)
-		awsbackend.DefaultPool.SetSecretCache(targetName, key, value)
-
-		if config.AuditLogging {
-			DEBUG("AUDIT: Successfully retrieved secret: %s (target: %s)", key, targetName)
-		}
-
-		return value, nil
-
-	default:
-		return "", fmt.Errorf("unknown AWS operator variant: %s", o.variant)
-	}
 }
 
 // parseAwsOpKey parsed the parameters passed to AwsOperator.
