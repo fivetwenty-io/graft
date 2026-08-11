@@ -10,7 +10,7 @@ The mock engine allows testing without real external services:
 import (
     "testing"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func TestConfigMerge(t *testing.T) {
@@ -362,7 +362,7 @@ import (
     "os"
     "testing"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func TestVaultIntegration(t *testing.T) {
@@ -530,7 +530,7 @@ package testutil
 import (
     "testing"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func AssertPath(t *testing.T, doc graft.Document, path string, expected interface{}) {

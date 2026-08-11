@@ -16,7 +16,7 @@ Graft is **fully compatible** with Spruce:
 ### Step 1: Install Graft
 
 ```sh
-go install github.com/wayneeseguin/graft/cmd/graft@latest
+go install github.com/fivetwenty-io/graft/cmd/graft@latest
 ```
 
 ### Step 2: Alias or Replace
@@ -123,7 +123,7 @@ graft> continue
 ### Embeddable Go Library
 
 ```go
-import "github.com/wayneeseguin/graft/pkg/graft"
+import "github.com/fivetwenty-io/graft/pkg/graft"
 
 engine, _ := graft.NewEngine()
 base, _ := engine.ParseFile("base.yml")
@@ -264,6 +264,6 @@ Plus additional variables for new backends:
 
 ## Getting Help
 
-- [GitHub Issues](https://github.com/wayneeseguin/graft/issues) - Report bugs or compatibility issues
+- [GitHub Issues](https://github.com/fivetwenty-io/graft/issues) - Report bugs or compatibility issues
 - [Examples](../examples/) - See practical usage patterns
 - [Operator Reference](../reference/operator-quick-reference.md) - All operators at a glance

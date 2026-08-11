@@ -37,7 +37,7 @@ import (
     "fmt"
     "sync"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 // RedisBackend implements graft.Backend for Redis

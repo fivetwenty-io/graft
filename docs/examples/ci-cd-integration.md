@@ -28,8 +28,8 @@ jobs:
 
       - name: Install Graft
         run: |
-          curl -sSL https://github.com/fivetwenty/graft/releases/latest/download/graft-linux-amd64 -o graft
-          chmod +x graft
+          GRAFT_VERSION=1.30.0
+          curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
       - name: Generate Configurations
@@ -69,8 +69,8 @@ jobs:
 
       - name: Install Graft
         run: |
-          curl -sSL https://github.com/fivetwenty/graft/releases/latest/download/graft-linux-amd64 -o graft
-          chmod +x graft
+          GRAFT_VERSION=1.30.0
+          curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
       - name: Validate Base Configuration
@@ -120,8 +120,8 @@ jobs:
 
       - name: Install Graft
         run: |
-          curl -sSL https://github.com/fivetwenty/graft/releases/latest/download/graft-linux-amd64 -o graft
-          chmod +x graft
+          GRAFT_VERSION=1.30.0
+          curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
       - name: Import Secrets from Vault
@@ -172,8 +172,8 @@ jobs:
 
       - name: Install Graft
         run: |
-          curl -sSL https://github.com/fivetwenty/graft/releases/latest/download/graft-linux-amd64 -o graft
-          chmod +x graft
+          GRAFT_VERSION=1.30.0
+          curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
       - name: Generate Current Config
@@ -213,12 +213,11 @@ stages:
   - deploy
 
 variables:
-  GRAFT_VERSION: "latest"
+  GRAFT_VERSION: "1.30.0"
 
 .install_graft: &install_graft
   before_script:
-    - curl -sSL https://github.com/fivetwenty/graft/releases/${GRAFT_VERSION}/download/graft-linux-amd64 -o /usr/local/bin/graft
-    - chmod +x /usr/local/bin/graft
+    - curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz -C /usr/local/bin
 
 validate:
   stage: validate
@@ -303,8 +302,8 @@ deploy:production:
   before_script:
     # Install graft
     - apk add --no-cache curl
-    - curl -sSL https://github.com/fivetwenty/graft/releases/latest/download/graft-linux-amd64 -o /usr/local/bin/graft
-    - chmod +x /usr/local/bin/graft
+    - GRAFT_VERSION=1.30.0
+    - curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz -C /usr/local/bin
     # Authenticate to Vault using JWT
     - |
       export VAULT_TOKEN=$(curl -s \
@@ -340,8 +339,8 @@ pipeline {
         stage('Install Graft') {
             steps {
                 sh '''
-                    curl -sSL https://github.com/fivetwenty/graft/releases/latest/download/graft-linux-amd64 -o graft
-                    chmod +x graft
+                    GRAFT_VERSION=1.30.0
+                    curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
                     mv graft /usr/local/bin/
                 '''
             }
@@ -438,8 +437,8 @@ commands:
           name: Install Graft
           command: |
             apk add --no-cache curl
-            curl -sSL https://github.com/fivetwenty/graft/releases/latest/download/graft-linux-amd64 -o /usr/local/bin/graft
-            chmod +x /usr/local/bin/graft
+            GRAFT_VERSION=1.30.0
+            curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz -C /usr/local/bin
 
 jobs:
   validate:
@@ -692,8 +691,8 @@ jobs:
 
       - name: Install Graft
         run: |
-          curl -sSL https://github.com/fivetwenty/graft/releases/latest/download/graft-linux-amd64 -o graft
-          chmod +x graft
+          GRAFT_VERSION=1.30.0
+          curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
       - name: Configure kubectl

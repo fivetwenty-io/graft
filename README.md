@@ -120,12 +120,12 @@ server:
 ### Using Go
 
 ```sh
-go install github.com/wayneeseguin/graft/cmd/graft@latest
+go install github.com/fivetwenty-io/graft/cmd/graft@latest
 ```
 
 ### Pre-built Binaries
 
-Download from the [releases page](https://github.com/wayneeseguin/graft/releases/) for:
+Download from the [releases page](https://github.com/fivetwenty-io/graft/releases/) for:
 
 - Linux (amd64, arm64)
 - macOS (amd64, arm64)
@@ -134,7 +134,7 @@ Download from the [releases page](https://github.com/wayneeseguin/graft/releases
 ### From Source
 
 ```sh
-git clone https://github.com/wayneeseguin/graft.git
+git clone https://github.com/fivetwenty-io/graft.git
 cd graft
 make build
 ```
@@ -195,7 +195,7 @@ Graft passes all original Spruce tests and should be considered a superset of Sp
 
 ## Contributing
 
-We welcome contributions! Please see [docs/contributing.md](docs/contributing.md) for guidelines.
+We welcome contributions! Please see [docs/contributing.md](docs/contributing.md) for guidelines, and [CONTRIBUTORS.md](CONTRIBUTORS.md) for the people behind Graft.
 
 ## License
 

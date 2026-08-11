@@ -63,7 +63,7 @@ import (
     "context"
     "fmt"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 // RequiredFieldsValidator ensures specified fields exist

@@ -13,7 +13,7 @@ import (
     "context"
     "os"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 type ConfigLoader struct {
@@ -63,7 +63,7 @@ import (
     "sync"
     "time"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 type ConfigService struct {
@@ -211,7 +211,7 @@ import (
     "fmt"
     "os"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func main() {
@@ -294,7 +294,7 @@ package controller
 import (
     "context"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
     "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -396,7 +396,7 @@ import (
     "context"
     "sync"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 type TenantConfigManager struct {
@@ -473,7 +473,7 @@ package validation
 import (
     "context"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 type ConfigValidator struct {
@@ -543,7 +543,7 @@ import (
     "context"
     "sync"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
     "github.com/fsnotify/fsnotify"
 )
 

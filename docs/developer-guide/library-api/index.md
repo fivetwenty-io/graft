@@ -112,7 +112,7 @@ flowchart LR
 ### Creating an Engine
 
 ```go
-import "github.com/fivetwenty/graft"
+import "github.com/fivetwenty-io/graft/pkg/graft"
 
 // Basic engine with defaults
 engine, err := graft.NewEngine()

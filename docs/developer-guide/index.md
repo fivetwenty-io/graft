@@ -80,7 +80,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func main() {

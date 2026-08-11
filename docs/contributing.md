@@ -16,7 +16,7 @@ Thank you for your interest in contributing to Graft! This guide covers the cont
 
 ```bash
 # Clone the repository
-git clone https://github.com/fivetwenty/graft.git
+git clone https://github.com/fivetwenty-io/graft.git
 cd graft
 
 # Install dependencies

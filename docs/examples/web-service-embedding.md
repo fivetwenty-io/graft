@@ -7,7 +7,7 @@ This guide demonstrates how to embed Graft as a Go library in web services, enab
 ### Installation
 
 ```sh
-go get github.com/fivetwenty/graft
+go get github.com/fivetwenty-io/graft
 ```
 
 ### Simple Example
@@ -19,7 +19,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func main() {
@@ -62,7 +62,7 @@ package main
 import (
     "log"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func main() {
@@ -100,7 +100,7 @@ import (
     "sync"
     "time"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 // ConfigService manages configuration for multiple environments
@@ -290,7 +290,7 @@ import (
     "sync"
     "time"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 type CachedConfig struct {
@@ -360,7 +360,7 @@ import (
     "container/list"
     "sync"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 type LRUConfigCache struct {
@@ -432,7 +432,7 @@ import (
     "fmt"
     "os"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func main() {
@@ -485,7 +485,7 @@ import (
     "net/http"
     "time"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 func main() {
@@ -546,7 +546,7 @@ import (
     "database/sql"
     "fmt"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
     _ "github.com/lib/pq"
 )
 
@@ -619,7 +619,7 @@ package main
 import (
     "testing"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
     "github.com/stretchr/testify/assert"
 )
 
@@ -696,7 +696,7 @@ package main
 import (
     "testing"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
     "github.com/stretchr/testify/assert"
 )
 
@@ -777,7 +777,7 @@ import (
     "syscall"
     "time"
 
-    "github.com/fivetwenty/graft/pkg/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 // Server represents the configuration server

@@ -499,7 +499,7 @@ import (
     "net/http"
     "time"
 
-    "github.com/fivetwenty/graft"
+    "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 // JSONAPIOperator fetches JSON from an API and extracts a value

@@ -196,7 +196,7 @@ Help improve Graft.
 
 - **GitHub Issues**
 
-  [Report bugs or request features](https://github.com/wayneeseguin/graft/issues)
+  [Report bugs or request features](https://github.com/fivetwenty-io/graft/issues)
 
 - **Examples**
 

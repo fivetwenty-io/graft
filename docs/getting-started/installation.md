@@ -5,8 +5,7 @@ This guide covers all the ways to install Graft on your system.
 ## Requirements
 
 - **Go 1.26+** (for building from source or `go install`)
-- **Linux**, **macOS**, or **Windows**
-- **amd64** or **arm64** architecture
+- **Linux** or **macOS** on **amd64** or **arm64**, or **Windows** on **amd64**
 
 ## Installation Methods
 
@@ -15,7 +14,7 @@ This guide covers all the ways to install Graft on your system.
 If you have Go installed, this is the quickest method:
 
 ```sh
-go install github.com/wayneeseguin/graft/cmd/graft@latest
+go install github.com/fivetwenty-io/graft/cmd/graft@latest
 ```
 
 Verify the installation:
@@ -26,46 +25,56 @@ graft --version
 
 ### Pre-built Binaries
 
-Download pre-built binaries from the [releases page](https://github.com/wayneeseguin/graft/releases/).
+Download pre-built binaries from the [releases page](https://github.com/fivetwenty-io/graft/releases/).
+
+Release assets are named `graft-<version>-<os>-<arch>`, and the version is part
+of both the tag and the filename. The examples below use `GRAFT_VERSION`; set it
+to the release you want.
 
 #### Linux (amd64)
 
 ```sh
-curl -L https://github.com/wayneeseguin/graft/releases/latest/download/graft-linux-amd64.tar.gz | tar xz
+GRAFT_VERSION=1.30.0
+curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
 
 #### Linux (arm64)
 
 ```sh
-curl -L https://github.com/wayneeseguin/graft/releases/latest/download/graft-linux-arm64.tar.gz | tar xz
+GRAFT_VERSION=1.30.0
+curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-arm64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
 
 #### macOS (Intel)
 
 ```sh
-curl -L https://github.com/wayneeseguin/graft/releases/latest/download/graft-darwin-amd64.tar.gz | tar xz
+GRAFT_VERSION=1.30.0
+curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-darwin-amd64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
 
 #### macOS (Apple Silicon)
 
 ```sh
-curl -L https://github.com/wayneeseguin/graft/releases/latest/download/graft-darwin-arm64.tar.gz | tar xz
+GRAFT_VERSION=1.30.0
+curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-darwin-arm64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
 
-#### Windows
+#### Windows (amd64)
 
-Download `graft-windows-amd64.zip` from the [releases page](https://github.com/wayneeseguin/graft/releases/) and add to your PATH.
+Download `graft-<version>-windows-amd64.zip` from the
+[releases page](https://github.com/fivetwenty-io/graft/releases/), extract
+`graft.exe`, and add its directory to your PATH.
 
 ### Building from Source
 
 Clone and build:
 
 ```sh
-git clone https://github.com/wayneeseguin/graft.git
+git clone https://github.com/fivetwenty-io/graft.git
 cd graft
 make build
 ```
@@ -84,21 +93,20 @@ sudo cp graft /usr/local/bin/
 
 ### Using Docker
 
-Run Graft in a container:
+No image is published to a registry. The repository ships a [Dockerfile](../../Dockerfile)
+that builds a `scratch`-based image with the `graft` binary as its entrypoint, so
+build it yourself from a clone:
+
+```sh
+git clone https://github.com/fivetwenty-io/graft.git
+cd graft
+docker build -t graft .
+```
+
+Then run it against a mounted directory:
 
 ```sh
 docker run --rm -v $(pwd):/data graft merge /data/base.yml /data/overlay.yml
-```
-
-Build your own image:
-
-```dockerfile
-FROM golang:1.26-alpine AS builder
-RUN go install github.com/wayneeseguin/graft/cmd/graft@latest
-
-FROM alpine:latest
-COPY --from=builder /go/bin/graft /usr/local/bin/
-ENTRYPOINT ["graft"]
 ```
 
 ## Verifying Installation
@@ -138,7 +146,7 @@ graft completion fish > ~/.config/fish/completions/graft.fish
 ### Using Go
 
 ```sh
-go install github.com/wayneeseguin/graft/cmd/graft@latest
+go install github.com/fivetwenty-io/graft/cmd/graft@latest
 ```
 
 ### Using Pre-built Binaries
@@ -190,11 +198,16 @@ chmod +x /usr/local/bin/graft
 
 ### Verifying Checksums
 
-Each release includes SHA256 checksums. Verify your download:
+Each release includes a single `graft-<version>-checksums.sha256` file covering
+every artifact in that release. Download it alongside the archive and verify:
 
 ```sh
-sha256sum -c graft-linux-amd64.tar.gz.sha256
+GRAFT_VERSION=1.30.0
+curl -LO https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-checksums.sha256
+sha256sum --ignore-missing -c graft-${GRAFT_VERSION}-checksums.sha256
 ```
+
+On macOS, use `shasum -a 256 --ignore-missing -c` instead.
 
 ## Next Steps
 

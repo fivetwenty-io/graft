@@ -117,7 +117,7 @@ graft merge base.yml env/${ENVIRONMENT}.yml
 ## Library Quick Start
 
 ```go
-import "github.com/fivetwenty/graft"
+import "github.com/fivetwenty-io/graft/pkg/graft"
 
 // Create engine
 engine, _ := graft.NewEngine()
