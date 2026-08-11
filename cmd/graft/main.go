@@ -696,6 +696,13 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{},
 		if parseDocErr != nil {
 			return nil, nil, ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, parseDocErr.Error())
 		}
+		if doc == nil {
+			// engine.ParseYAML returns (nil, nil) for blank, comment-only,
+			// or null ("---") documents. Treat as an empty map, matching
+			// spruce's behavior of merging such documents as {} no-ops.
+			log.DEBUG("YAML doc '%s' is null/empty, creating empty hash/map", file.Path)
+			doc = graft.NewDocument(make(map[string]interface{}))
+		}
 		docs = append(docs, doc)
 	}
 
