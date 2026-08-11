@@ -727,16 +727,37 @@ func cmdFanEval(options *mergeOpts) ([]map[string]interface{}, error) {
 	return roots, nil
 }
 
-func cmdJSONEval(options jsonOpts) ([]string, error) {
+// resolveStdinDefaultFiles appends the stdin sentinel "-" to files when no
+// files were given and stdin is actually piped in (not a character
+// device/terminal). Mirrors cmdMergeEval's `if len(options.Files) < 1`
+// guard: only falling back to stdin when no file arguments were given at
+// all, rather than unconditionally appending "-" whenever stdin isn't a
+// terminal. Without the length guard, `graft json file.yml` run with
+// non-terminal stdin (any pipe or redirect, e.g. under a CI runner or a
+// harness like this one) would also try to read stdin - returning
+// unexpected extra output if stdin has data, or blocking forever if stdin
+// is an open pipe that is never closed.
+func resolveStdinDefaultFiles(files []string) ([]string, error) {
+	if len(files) > 0 {
+		return files, nil
+	}
 	stdinInfo, err := os.Stdin.Stat()
 	if err != nil {
 		return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
 	}
 	if stdinInfo.Mode()&os.ModeCharDevice == 0 {
-		options.Files = append(options.Files, "-")
+		return append(files, "-"), nil
+	}
+	return files, nil
+}
+
+func cmdJSONEval(options jsonOpts) ([]string, error) {
+	files, err := resolveStdinDefaultFiles(options.Files)
+	if err != nil {
+		return nil, err
 	}
 
-	output, err := graft.JSONifyFiles(options.Files, options.Strict)
+	output, err := graft.JSONifyFiles(files, options.Strict)
 	if err != nil {
 		return nil, err
 	}

@@ -871,6 +871,19 @@ quux: quux
 			So(stderr, ShouldContainSubstring, "Root of YAML document is not a hash/map:")
 		})
 
+		Convey("json with an explicit file argument does not also read a non-empty stdin (regression: cmdJSONEval used to unconditionally append '-')", func() {
+			restoreStdin := setStdinFromFile(t, "../../assets/vaultinfo/novault.yml")
+			defer restoreStdin()
+
+			os.Args = []string{"graft", "json", "../../assets/json/in.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `{"map":{"list":["string",42,{"map":"of things"}]}}
+`)
+		})
+
 		Convey("vaultinfo lists vault calls in given file", func() {
 			os.Args = []string{"graft", "vaultinfo", "../../assets/vaultinfo/single.yml"}
 			stdout = ""
