@@ -605,17 +605,25 @@ func splitLoadYamlFile(file string) ([]YamlFile, error) {
 	return docs, nil
 }
 
-func cmdMergeEval(options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
+// resolveMergeInputFiles resolves options.Files to the actual list of
+// YamlFiles to merge: falling back to stdin ("-") when no files were given
+// (erroring if stdin has no data piped in), and splitting each file on the
+// multi-doc "\n---\n" separator when options.MultiDoc is set. Shared by
+// cmdMergeEval and buildMergeHistorySteps (merge --history/--trace-path/
+// --show-changes/--changes-only), which both need this exact resolution
+// but the latter also needs each resolved file's raw bytes cached for
+// repeated replay (see buildMergeHistorySteps).
+func resolveMergeInputFiles(options *mergeOpts) ([]YamlFile, error) {
 	files := []YamlFile{}
 
 	if len(options.Files) < 1 {
 		stdinInfo, err := os.Stdin.Stat()
 		if err != nil {
-			return nil, nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
+			return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
 		}
 
 		if stdinInfo.Mode()&os.ModeCharDevice != 0 {
-			return nil, nil, ansi.Errorf("@R{Error reading STDIN}: no data found. Did you forget to pipe data to STDIN, or specify yaml files to merge?")
+			return nil, ansi.Errorf("@R{Error reading STDIN}: no data found. Did you forget to pipe data to STDIN, or specify yaml files to merge?")
 		}
 
 		options.Files = append(options.Files, "-")
@@ -625,16 +633,25 @@ func cmdMergeEval(options *mergeOpts) (map[string]interface{}, graft.Engine, err
 		if options.MultiDoc {
 			docs, err := splitLoadYamlFile(file)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			files = append(files, docs...)
 		} else {
 			yamlFile, err := loadYamlFile(file)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			files = append(files, yamlFile)
 		}
+	}
+
+	return files, nil
+}
+
+func cmdMergeEval(options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
+	files, err := resolveMergeInputFiles(options)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	result, engine, err := mergeAllDocs(files, options)
@@ -791,8 +808,16 @@ func readFile(file *YamlFile) ([]byte, error) {
 	return data, nil
 }
 
-//nolint:gocyclo // mergeAllDocs orchestrates complex document merging with multiple options
-func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
+// buildEngineAndDocs constructs the graft.Engine and parses every input
+// file into a graft.Document, exactly as mergeAllDocs' single-shot merge
+// path always has. It is also reused by the history-tracking path
+// (cmdMergeHistoryEval) so `graft merge --history`/--trace-path/
+// --show-changes/--changes-only parse files identically to a plain
+// `graft merge` - same engine construction, same go-patch detection, same
+// blank/null-document-as-empty-map handling - and only differ in how the
+// resulting documents are merged (incrementally, to capture per-file raw
+// snapshots, rather than in one Execute() call).
+func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []graft.Document, error) {
 	// Create engine with settings from options (caller-provided first, then defaults).
 	// Concurrency/parallel-evaluation defaults come from options.EngineOpts
 	// (see configEngineOpts/resolveConcurrency) when a resolved config was
@@ -855,6 +880,16 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{},
 			doc = graft.NewDocument(make(map[string]interface{}))
 		}
 		docs = append(docs, doc)
+	}
+
+	return engine, docs, nil
+}
+
+//nolint:gocyclo // mergeAllDocs orchestrates complex document merging with multiple options
+func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
+	engine, docs, err := buildEngineAndDocs(files, options)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Merge all documents
