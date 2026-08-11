@@ -166,16 +166,20 @@ var DefaultPool = &ClientPool{
 	configs:     make(map[string]*Target),
 }
 
-// GetConnection returns a NATS connection for the specified target.
+// GetConnection returns a NATS connection for the specified target. The
+// cache-hit fast path takes the write lock (not RLock): it mutates the
+// shared *PooledConnection's RefCount/LastUsed fields, and RLock only
+// guarantees the map itself is not concurrently written, not that other
+// RLock holders cannot race on values reached through it.
 func (ncp *ClientPool) GetConnection(targetName string) (*PooledConnection, error) {
-	ncp.mu.RLock()
+	ncp.mu.Lock()
 	if conn, exists := ncp.connections[targetName]; exists {
 		conn.RefCount++
 		conn.LastUsed = time.Now()
-		ncp.mu.RUnlock()
+		ncp.mu.Unlock()
 		return conn, nil
 	}
-	ncp.mu.RUnlock()
+	ncp.mu.Unlock()
 
 	// Get target configuration
 	config, err := ncp.GetTargetConfig(targetName)
