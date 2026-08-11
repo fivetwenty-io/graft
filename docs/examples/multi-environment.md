@@ -595,23 +595,29 @@ graft diff --changes /tmp/dev.yml /tmp/prod.yml
 Changes (8 modified, 2 added, 0 removed):
 
   MODIFIED  database.host
-            - "localhost"
-            + "db.prod.internal"
+            - localhost
+            + db.prod.internal
 
   MODIFIED  database.pool.max_connections
             - 10
             + 100
 
   MODIFIED  logging.level
-            - "debug"
-            + "warn"
+            - debug
+            + warn
 
   ADDED     production.replicas
             + 5
 
   ADDED     production.autoscaling
-            + {"min": 3, "max": 10, "target_cpu": 70}
+            + max: 10
+            + min: 3
+            + target_cpu: 70
 ```
+
+(Illustrative counts/paths; each changed value is rendered as YAML, not
+JSON — a multi-key added value like `autoscaling` prints one `+` line per
+key, not a single compact object line.)
 
 ## Validation Pattern
 

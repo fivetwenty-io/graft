@@ -651,20 +651,29 @@ git checkout -- config/
 # Get the current branch configuration
 graft merge config/base.yml config/environments/production.yml > /tmp/current-config.yml
 
-# Check for changes
-if graft diff /tmp/main-config.yml /tmp/current-config.yml --changes-only > /tmp/changes.txt; then
-  if [ -s /tmp/changes.txt ]; then
+# Check for changes. graft diff exits 0 when the documents are
+# semantically identical, 1 when they differ, and 2 on an error, so the
+# exit code alone answers the question -- no need to test the output file.
+set +e
+graft diff --changes /tmp/main-config.yml /tmp/current-config.yml > /tmp/changes.txt
+status=$?
+set -e
+
+case "$status" in
+  0)
+    echo "No configuration changes"
+    exit 0
+    ;;
+  1)
     echo "Configuration changes detected:"
     cat /tmp/changes.txt
     exit 0
-  else
-    echo "No configuration changes"
-    exit 0
-  fi
-else
-  echo "Error comparing configurations"
-  exit 1
-fi
+    ;;
+  *)
+    echo "Error comparing configurations"
+    exit 1
+    ;;
+esac
 ```
 
 ## Kubernetes Deployment

@@ -47,7 +47,7 @@ graft merge [flags] file1.yml [file2.yml ...]
 | `--trace-path <path>` | Show history for specific path |
 | `--show-changes` | Show merge change tree |
 | `--changes-only` | Show only changed paths |
-| `--interactive`, `-i` | Enter debugging REPL |
+| `--interactive` | Enter debugging REPL (equivalent to `graft debug`; no short form) |
 
 ### Examples
 
@@ -80,7 +80,7 @@ graft merge --trace-path database.host base.yml overlay.yml
 graft merge --show-changes base.yml overlay.yml
 
 # Interactive debugging
-graft merge -i base.yml overlay.yml
+graft merge --interactive base.yml overlay.yml
 ```
 
 ## graft diff
@@ -96,13 +96,14 @@ graft diff [flags] file1.yml file2.yml
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--side-by-side` | `-y` | Side-by-side diff view |
-| `--unified` | `-u` | Unified diff format (git-style) |
-| `--changes` | | List all changes (original → new) |
-| `--context <n>` | | Lines of context in unified diff |
+| `--unified` | `-u` | Unified diff format (git-style), grouped by top-level key |
+| `--changes` | | List all changes (original → new), grouped by kind |
+| `--context <n>` | | Lines of context in unified diff (default 3) |
 | `--no-color` | | Disable colorized output |
-| `--width <n>` | | Width for side-by-side view |
-| `--ignore-paths <paths>` | | Paths to ignore (comma-separated) |
-| `--only-paths <paths>` | | Only compare these paths |
+| `--width <n>` | | Total width for side-by-side view (default 80) |
+| `--quiet` | `-q` | Exit with status only, no output |
+
+At most one of `--side-by-side`/`--unified`/`--changes` may be given.
 
 ### Examples
 
@@ -122,11 +123,8 @@ graft diff --changes before.yml after.yml
 # Custom width
 graft diff -y --width 160 before.yml after.yml
 
-# Ignore specific paths
-graft diff --ignore-paths meta,internal before.yml after.yml
-
-# Only compare specific paths
-graft diff --only-paths database,server before.yml after.yml
+# Check for differences without printing output
+graft diff --quiet before.yml after.yml; echo $?
 ```
 
 ## graft json
@@ -163,31 +161,34 @@ graft json --strict config.yml
 
 ## graft fan
 
-Cross-product merge against multiple targets.
+Cross-product merge against multiple targets. The first positional
+argument is always the source document; every remaining positional
+argument is a target (no `--` separator is used).
 
 ```bash
-graft fan [flags] base.yml [overlays...] -- target1.yml target2.yml
+graft fan [flags] source.yml [target1.yml target2.yml ...]
 ```
 
 ### Flags
 
-| Flag | Description |
-|------|-------------|
-| `--skip-eval` | Don't evaluate operators |
-| `--prune <key>` | Remove key from output |
-| `--output-dir <dir>` | Output directory for results |
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--skip-eval` | | Don't evaluate operators |
+| `--prune <key>` | | Remove key from output (repeatable) |
+| `--cherry-pick <key>` | | Output only specific keys (repeatable) |
+| `--output-dir <dir>` | `-o` | Write each result to `<dir>/<target-basename>` instead of stdout |
 
 ### Examples
 
 ```bash
 # Fan out to multiple environments
-graft fan base.yml -- env/dev.yml env/staging.yml env/prod.yml
+graft fan base.yml env/dev.yml env/staging.yml env/prod.yml
 
 # With output directory
-graft fan --output-dir outputs/ base.yml -- targets/*.yml
+graft fan --output-dir outputs/ base.yml targets/dev.yml targets/prod.yml
 
-# With additional overlay
-graft fan base.yml common.yml -- env/dev.yml env/prod.yml
+# A directory target argument expands to its .yml/.yaml/.json files, sorted
+graft fan base.yml targets/ --output-dir outputs/
 ```
 
 ## graft vaultinfo
@@ -229,14 +230,23 @@ Interactive debugging REPL.
 graft debug [flags] file1.yml [file2.yml ...]
 ```
 
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--go-patch` | Same meaning as `merge --go-patch`; applied to every merge the session performs |
+| `--fallback-append` | Same meaning as `merge --fallback-append`; applied to every merge the session performs |
+
 ### REPL Commands
 
 | Command | Description |
 |---------|-------------|
 | `load` | Load all documents |
 | `step` | Execute next merge step |
-| `continue` | Run to completion |
+| `continue` | Run to completion (or until a breakpoint) |
 | `break <path>` | Set breakpoint on path |
+| `unbreak <path>` | Remove breakpoint from path |
+| `breaks` | List all breakpoints |
 | `inspect <path>` | Show current value at path |
 | `history <path>` | Show change history for path |
 | `defer <path>` | Mark path for deferred evaluation |
@@ -272,9 +282,21 @@ graft> quit
 
 | Variable | Description |
 |----------|-------------|
-| `GRAFT_COLOR` | Color output: `on`, `off`, `auto` |
-| `GRAFT_DEBUG` | Enable debug logging |
-| `GRAFT_TRACE` | Enable trace logging |
+| `DEBUG` | Same as `--debug`: enable debug logging (any value but empty, `"false"`, or `"0"`) |
+| `TRACE` | Same as `--trace`: enable trace logging, also implies `DEBUG` (any value but empty, `"false"`, or `"0"`) |
+| `REDACT` | Any non-empty value skips Vault/AWS/NATS resolution and returns `"REDACTED"` in place of real secret values |
+| `DEFAULT_ARRAY_MERGE_KEY` | Overrides the identifier key (`name` by default) used for by-key array merges |
+
+There is no `GRAFT_COLOR` or `GRAFT_TRACE` — color is controlled only by
+`--color`, and CLI debug/trace logging only by the bare `DEBUG`/`TRACE`
+variables above or their `-D`/`-T` flag equivalents. (`GRAFT_DEBUG` does
+exist, but it is not a general logging switch: `pkg/graft/parser.go` reads
+it to print operator-expression parser errors to stderr, in addition to
+the normal error report. Leave it unset for machine-readable stderr.) See
+[CLI Reference](cli.md#environment-variables) for the authoritative list,
+including the full set of `GRAFT_*` variables `internal/config` reads
+(cache size/TTL, parallel worker bounds, and so on — a different, larger
+set from the three above).
 
 ### Vault Configuration
 
@@ -356,14 +378,14 @@ graft diff -y staging.yml prod.yml
 
 ## Exit Codes
 
+graft uses three exit codes across every command (see
+[CLI Reference](cli.md#exit-codes) for the full per-command breakdown):
+
 | Code | Description |
 |------|-------------|
-| 0 | Success |
-| 1 | General error |
-| 2 | Parse error |
-| 3 | Evaluation error |
-| 4 | Backend error |
-| 5 | Validation error |
+| 0 | Success (for `diff`, no differences found) |
+| 1 | Usage error, or mutually exclusive flags combined, or (`diff` only) differences found |
+| 2 | Runtime error: file read/parse failure, merge/evaluation failure, or similar |
 
 ## See Also
 

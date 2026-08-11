@@ -234,18 +234,22 @@ graft vaultinfo config.yml
 ```
 
 **Output:**
+```yaml
+secrets:
+- key: secret/api:key
+  references:
+  - api.key
+- key: secret/db:password
+  references:
+  - database.password
+- key: secret/db:username
+  references:
+  - database.username
 ```
-Vault paths found in config.yml:
 
-  secret/db
-    - password (used at database.password)
-    - username (used at database.username)
-
-  secret/api
-    - key (used at api.key)
-
-Summary: 3 Vault references across 2 paths
-```
+Add `--json` for the same data as JSON, or `--paths-only` for just the
+sorted list of secret keys (`docs/user-guide/cli/vaultinfo.md` has the
+full flag reference).
 
 ## Error Handling
 

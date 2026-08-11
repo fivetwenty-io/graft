@@ -23,6 +23,7 @@ Complete reference for all command-line operations.
 - [json](cli/json.md) - Convert between YAML and JSON
 - [fan](cli/fan.md) - Cross-product merge
 - [vaultinfo](cli/vaultinfo.md) - List Vault references
+- [debug](cli/debug.md) - Interactive step-through merge REPL
 
 ### [Operators](operators/)
 
@@ -60,6 +61,14 @@ Compare two documents structurally.
 - Added, removed, and changed paths
 - Map entries reported side by side
 - List entries reported as added and removed runs
+
+### [History Tracking](history-tracking.md)
+
+Track where each value in a merged document came from.
+
+- `merge --history` - Every path's full derivation
+- `merge --trace-path` - One path's full derivation
+- `merge --show-changes` / `--changes-only` - What changed
 
 ### [Configuration](configuration.md)
 

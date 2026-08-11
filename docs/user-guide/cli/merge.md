@@ -24,7 +24,7 @@ Files are merged left to right. Values in later files override values in earlier
 | `--trace-path` | | Show history for specific path |
 | `--show-changes` | | Show merge change tree |
 | `--changes-only` | | Show only changed paths |
-| `--interactive` | `-i` | Enter debugging REPL |
+| `--interactive` | | Enter debugging REPL (equivalent to `graft debug`; no short form) |
 
 ## Basic Usage
 

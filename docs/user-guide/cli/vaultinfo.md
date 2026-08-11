@@ -11,8 +11,10 @@ graft vaultinfo [flags] file1.yml file2.yml ...
 ## Flags
 
 | Flag | Short | Description |
-|------|-------|-------------|
-| `--json` | | Output as JSON |
+|------|-------|--------------|
+| `--go-patch` | | Enable the use of go-patch when parsing files to be merged |
+| `--json` | | Output as JSON instead of YAML |
+| `--paths-only` | | Output only the Vault secret keys (one per line, or a JSON array with `--json`), not their referring locations |
 
 ## Overview
 
@@ -41,16 +43,23 @@ api:
 ```
 
 **Output:**
+```yaml
+secrets:
+- key: secret/api:key
+  references:
+  - api.key
+- key: secret/db:password
+  references:
+  - database.password
+- key: secret/db:username
+  references:
+  - database.username
 ```
-Vault paths found in config.yml:
 
-  secret/db
-    - password (used at database.password)
-    - username (used at database.username)
-
-  secret/api
-    - key (used at api.key)
-```
+Every distinct `(( vault "<key>" ))` reference becomes one `secrets` entry,
+sorted by key, with its referring dotted paths sorted underneath it. A key
+referenced from more than one path lists every one of them under
+`references`.
 
 ### Multiple Files
 
@@ -68,25 +77,16 @@ graft merge base.yml env.yml | graft vaultinfo -
 
 ## Output Formats
 
-### Default (Human-Readable)
+### Default (YAML)
 
 ```sh
 graft vaultinfo config.yml
 ```
 
-**Output:**
-```
-Vault paths found in config.yml:
-
-  secret/data/production/db
-    - password (used at database.password)
-    - host (used at database.host)
-
-  secret/data/production/api
-    - key (used at api.key)
-
-Summary: 3 Vault references across 2 paths
-```
+Produces the `secrets:`/`key:`/`references:` YAML shape shown above. This
+exact shape (unaffected by `--json`/`--paths-only`, both new flags) is what
+genesis scrapes from `graft vaultinfo`
+(`docs/spruce/genesis-compat-contract.md`), so it never changes.
 
 ### JSON Output
 
@@ -97,26 +97,61 @@ graft vaultinfo --json config.yml
 **Output:**
 ```json
 {
-  "paths": [
+  "secrets": [
     {
-      "path": "secret/data/production/db",
-      "keys": [
-        {"key": "password", "location": "database.password"},
-        {"key": "host", "location": "database.host"}
+      "key": "secret/api:key",
+      "references": [
+        "api.key"
       ]
     },
     {
-      "path": "secret/data/production/api",
-      "keys": [
-        {"key": "key", "location": "api.key"}
+      "key": "secret/db:password",
+      "references": [
+        "database.password"
+      ]
+    },
+    {
+      "key": "secret/db:username",
+      "references": [
+        "database.username"
       ]
     }
-  ],
-  "summary": {
-    "total_references": 3,
-    "unique_paths": 2
-  }
+  ]
 }
+```
+
+`--json` mirrors the default YAML shape exactly (the same `secrets`/`key`/
+`references` fields), just indented JSON instead of YAML - it does not
+split each key into a separate "Vault path" and "field" the way an
+individual secret engine might store them, since graft has no such split
+in its own data model.
+
+### Paths Only
+
+```sh
+graft vaultinfo --paths-only config.yml
+```
+
+**Output:**
+```
+secret/api:key
+secret/db:password
+secret/db:username
+```
+
+One secret key per line, sorted, with no referring-location information.
+Combine with `--json` for a JSON array of the same keys instead:
+
+```sh
+graft vaultinfo --paths-only --json config.yml
+```
+
+```json
+[
+  "secret/api:key",
+  "secret/db:password",
+  "secret/db:username"
+]
 ```
 
 ## Use Cases
@@ -126,7 +161,7 @@ graft vaultinfo --json config.yml
 Determine what Vault paths a deployment needs access to:
 
 ```sh
-graft vaultinfo production-config.yml > required-paths.txt
+graft vaultinfo production-config.yml
 ```
 
 ### Policy Generation
@@ -134,21 +169,12 @@ graft vaultinfo production-config.yml > required-paths.txt
 Generate Vault policy from config:
 
 ```sh
-graft vaultinfo --json config.yml | jq -r '.paths[].path' | while read path; do
+graft vaultinfo --paths-only production-config.yml | while read -r key; do
+  path="${key%%:*}"
   echo "path \"$path\" {"
   echo "  capabilities = [\"read\"]"
   echo "}"
 done
-```
-
-**Output:**
-```hcl
-path "secret/data/production/db" {
-  capabilities = ["read"]
-}
-path "secret/data/production/api" {
-  capabilities = ["read"]
-}
 ```
 
 ### Pre-Flight Check
@@ -159,7 +185,8 @@ Verify Vault paths exist before merge:
 #!/bin/bash
 # Check all required secrets are accessible
 
-graft vaultinfo --json config.yml | jq -r '.paths[].path' | while read path; do
+graft vaultinfo --paths-only config.yml | while read -r key; do
+  path="${key%%:*}"
   if ! vault kv get "$path" > /dev/null 2>&1; then
     echo "ERROR: Cannot access $path"
     exit 1
@@ -186,13 +213,14 @@ graft vaultinfo config.yml
 # Ensure all secrets are available before deploy
 
 echo "Checking Vault access..."
-PATHS=$(graft vaultinfo --json config.yml | jq -r '.paths[].path')
+KEYS=$(graft vaultinfo --paths-only config.yml)
 
-for path in $PATHS; do
+for key in $KEYS; do
+  path="${key%%:*}"
   if vault kv get "$path" > /dev/null 2>&1; then
-    echo "✓ $path"
+    echo "✓ $key"
   else
-    echo "✗ $path - ACCESS DENIED"
+    echo "✗ $key - ACCESS DENIED"
     exit 1
   fi
 done
@@ -247,7 +275,7 @@ done
 ```sh
 # Find all configs using Vault
 find . -name "*.yml" -exec sh -c '
-  if graft vaultinfo "$1" 2>/dev/null | grep -q "Vault paths"; then
+  if graft vaultinfo "$1" 2>/dev/null | grep -q "secrets:"; then
     echo "=== $1 ==="
     graft vaultinfo "$1"
   fi

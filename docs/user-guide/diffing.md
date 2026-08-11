@@ -1,19 +1,41 @@
 # Diff & Comparison
 
-Graft provides rich, semantic comparison of YAML/JSON documents with multiple output formats.
+Graft provides semantic comparison of YAML/JSON documents, in several
+output formats, built on [dyff](https://github.com/homeport/dyff).
 
 ## Overview
 
-Unlike text-based diff tools, Graft compares documents **semantically**:
+Unlike text-based diff tools, graft compares documents **semantically**:
 
 - Key order doesn't matter
-- Equivalent values are equal
-- Type-aware comparison
+- Equivalent values are equal (e.g. `true` and `True`)
+- Type-aware comparison (`8080` and `"8080"` are different)
 - Understands YAML/JSON structure
+
+All examples below are real output, captured against:
+
+```yaml
+# base.yml
+database:
+  host: localhost
+  port: 5432
+  timeout: 30
+meta:
+  version: "1.0"
+```
+
+```yaml
+# modified.yml
+database:
+  host: db.prod.example.com
+  port: 5432
+  timeout: 60
+  ssl: true
+```
 
 ## Diff Formats
 
-### Default (Summary)
+### Default (dyff Human Report)
 
 ```sh
 graft diff base.yml modified.yml
@@ -21,48 +43,59 @@ graft diff base.yml modified.yml
 
 **Output:**
 ```
-3 differences between base.yml and modified.yml
 
-database.host:
-  - "localhost"
-  + "db.prod.example.com"
+(root level)
+- one map entry removed:
+meta:
+  version: 1.0
 
-database.timeout:
-  - 30
-  + 60
+database
++ one map entry added:
+ssl: true
 
-database.ssl:
-  + true (added)
+database.host
+± value change
+- localhost
++ db.prod.example.com
+
+database.timeout
+± value change
+- 30
++ 60
+
+
 ```
 
-### Side-by-Side
+This is dyff's own human-readable report, unchanged — `graft diff` with no
+flags delegates entirely to dyff's `HumanReport` renderer. Exit code `1`
+(differences found).
 
-Compare files in two columns:
+### Change List
 
 ```sh
-graft diff --side-by-side base.yml modified.yml
+graft diff --changes base.yml modified.yml
 ```
 
 **Output:**
 ```
-base.yml                              │ modified.yml
-──────────────────────────────────────┼──────────────────────────────────────
-database:                             │ database:
-  host: "localhost"                   │   host: "db.prod.example.com"
-  port: 5432                          │   port: 5432
-  timeout: 30                         │   timeout: 60
-                                      │   ssl: true
-```
+Changes (2 modified, 1 added, 1 removed):
 
-Control width:
+  MODIFIED  database.host
+            - localhost
+            + db.prod.example.com
 
-```sh
-graft diff --side-by-side --width=160 base.yml modified.yml
+  MODIFIED  database.timeout
+            - 30
+            + 60
+
+  ADDED     database.ssl
+            + true
+
+  REMOVED   meta
+            - version: "1.0"
 ```
 
 ### Unified (Git-Style)
-
-Standard patch format:
 
 ```sh
 graft diff --unified base.yml modified.yml
@@ -73,75 +106,83 @@ graft diff --unified base.yml modified.yml
 --- base.yml
 +++ modified.yml
 @@ database @@
--  host: "localhost"
-+  host: "db.prod.example.com"
+-  host: localhost
++  host: db.prod.example.com
    port: 5432
 -  timeout: 30
-+  timeout: 60
 +  ssl: true
++  timeout: 60
+@@ meta @@
+-  version: "1.0"
 ```
 
-With context lines:
+Hunks are grouped per top-level key (`@@ <key> @@`), each with its own
+git-style unified diff body, rather than one hunk per contiguous line
+range across the whole file. Context lines default to 3 (git's `-u`
+default); control it with `--context`:
 
 ```sh
-graft diff --unified --context=5 base.yml modified.yml
+graft diff --unified --context=0 base.yml modified.yml
 ```
 
-### Change List
-
-Detailed list with old and new values:
+### Side-by-Side
 
 ```sh
-graft diff --changes base.yml modified.yml
+graft diff --side-by-side base.yml modified.yml
 ```
 
-**Output:**
+**Output** (captured at `--width=70` for a narrower example; the default
+total width is 80):
 ```
-Changes (2 modified, 1 added, 0 removed):
+base.yml                          │ modified.yml
+──────────────────────────────────┼──────────────────────────────────
+database:                         │ database:
+  host: localhost                 │   host: db.prod.example.com
+  port: 5432                      │   port: 5432
+  timeout: 30                     │   ssl: true
+meta:                             │   timeout: 60
+  version: "1.0"                  │ 
+```
 
-  MODIFIED  database.host
-            - "localhost"
-            + "db.prod.example.com"
+Rows are aligned by a line-level diff of each file's full YAML text (via
+[`pmezard/go-difflib`](https://github.com/pmezard/go-difflib)'s Myers-diff
+implementation), so an insertion/deletion shifts the alignment rather than
+comparing files line-by-line positionally. `-y` is the short form.
 
-  MODIFIED  database.timeout
-            - 30
-            + 60
+Control the total width (both columns plus the separator) with `--width`:
 
-  ADDED     database.ssl
-            + true
+```sh
+graft diff --side-by-side --width=160 base.yml modified.yml
 ```
 
 ## Change Types
 
-| Type | Symbol | Description |
+| Type | Symbol (default/`--changes`) | Description |
 |------|--------|-------------|
-| Added | `+` | Key exists only in second file |
-| Removed | `-` | Key exists only in first file |
-| Modified | `~` | Value changed |
-| Type Changed | `!` | Type changed (e.g., string → number) |
+| Added | `+` | Key exists only in the second file |
+| Removed | `-` | Key exists only in the first file |
+| Modified | `±` (default) / `MODIFIED` (`--changes`) | Value changed |
+
+Type changes (e.g. `8080` → `"8080"`) show up as a MODIFIED/value change
+with both the old and new value visible — there is no separate symbol for
+"type changed" specifically; dyff reports it as a value modification.
 
 ## Color Coding
 
-Output is colorized by default when writing to a terminal:
+Output is colorized by default when writing to a terminal, following the
+root `--color` flag (`auto`/`on`/`off`).
 
-| Element | Color |
-|---------|-------|
-| Added | Green |
-| Removed | Red |
-| Modified | Yellow |
-| Unchanged | Gray |
-| Path | Cyan |
-
-Disable color:
+Disable color for one invocation regardless of `--color`:
 
 ```sh
 graft diff --no-color base.yml modified.yml
 ```
 
-Force color (e.g., for CI):
+`--no-color` is a `diff`-only flag; the root `--color off` flag does the
+same thing:
 
 ```sh
-graft diff --color=on base.yml modified.yml | less -R
+graft diff --color off base.yml modified.yml
 ```
 
 ## Semantic Comparison
@@ -162,7 +203,7 @@ database:
 
 ```sh
 graft diff file1.yml file2.yml
-# Output: Files are semantically identical
+# No output, exit code 0: the two documents are semantically identical
 ```
 
 ### Value Equivalence
@@ -176,7 +217,7 @@ count: 42
 
 # file2.yml
 enabled: True      # Same as true
-count: 42          # Same number
+count: 42           # Same number
 ```
 
 ### Type Awareness
@@ -192,62 +233,19 @@ port: "8080"      # string
 ```
 
 ```
-MODIFIED  port
-  - 8080 (int)
-  + "8080" (string)
+port
+± value change
+- 8080
++ "8080"
 ```
 
 ## Merge Change Tracking
 
-### Show Changes from Merge
-
-```sh
-graft merge --show-changes base.yml overlay.yml
-```
-
-**Output:**
-```
-Merge Summary: 2 files → 45 keys (5 changed, 2 added, 1 removed)
-
-database.host:
-  ✗ base.yml:12        "localhost"
-  ✓ overlay.yml:5      "db.prod.example.com"
-
-database.pool_size:
-  ✗ base.yml:14        10
-  ✓ overlay.yml:7      50
-
-api.key:
-  + overlay.yml:10     "abc123" (added)
-
-meta.internal:
-  - base.yml:20        (removed)
-```
-
-**Legend:**
-
-- ✓ Final value used
-- ✗ Value overwritten
-- \+ Added
-- \- Removed
-
-### Changes Only
-
-Show only paths that changed:
-
-```sh
-graft merge --changes-only base.yml overlay.yml
-```
-
-**Output:**
-```
-Changed paths (5 of 45):
-  database.host        "localhost" → "db.prod.example.com"
-  database.pool_size   10 → 50
-  database.ssl         <none> → true
-  api.key              <none> → "abc123"
-  meta.internal        {...} → <removed>
-```
+`graft diff` compares two already-written files. To see what a *merge*
+changed or would change, use `merge`'s own history/change flags — see
+[History Tracking](history-tracking.md) for `--show-changes` and
+`--changes-only` (these are `merge` flags, not `diff` flags; `graft diff`
+has no `--show-changes`/`--changes-only` of its own).
 
 ## Practical Examples
 
@@ -269,7 +267,7 @@ fi
 
 ```sh
 # Compare dev and production
-graft diff envs/dev.yml envs/prod.yml --changes
+graft diff --changes envs/dev.yml envs/prod.yml
 ```
 
 ### Merge Preview
@@ -309,11 +307,11 @@ graft diff --changes old-config.yml new-config.yml
 
 | Code | Description |
 |------|-------------|
-| 0 | Files are identical |
+| 0 | Files are semantically identical |
 | 1 | Files differ |
 | 2 | Error (file not found, parse error) |
 
-Use in scripts:
+`--quiet` suppresses all output but keeps these exit codes, for scripting:
 
 ```sh
 if graft diff --quiet file1.yml file2.yml; then
@@ -323,41 +321,21 @@ else
 fi
 ```
 
+## Flags Not Implemented
+
+`--ignore-paths`/`--only-paths` (filtering the diff to exclude/include
+specific paths) are not implemented. Combine `graft diff --changes` with
+`grep`/`jq`-style post-filtering if you need this today.
+
 ## Library API
 
-```go
-engine, _ := graft.NewEngine()
-
-doc1, _ := engine.ParseFile("before.yml")
-doc2, _ := engine.ParseFile("after.yml")
-
-diff := engine.Diff(doc1, doc2)
-
-// Check for changes
-if !diff.HasChanges() {
-    fmt.Println("No changes")
-    return
-}
-
-// Iterate changes
-for _, change := range diff.Changes() {
-    switch change.Type {
-    case graft.ChangeAdded:
-        fmt.Printf("+ %s: %v\n", change.Path, change.NewValue)
-    case graft.ChangeRemoved:
-        fmt.Printf("- %s: %v\n", change.Path, change.OldValue)
-    case graft.ChangeModified:
-        fmt.Printf("~ %s: %v → %v\n", change.Path,
-            change.OldValue, change.NewValue)
-    }
-}
-
-// Output formatted
-diff.WriteSideBySide(os.Stdout, &graft.DiffOptions{
-    Color: true,
-    Width: 120,
-})
-```
+There is no public `graft.Diff`/`DiffResult`/`Change` library API. The
+`pkg/graft` package does export a lower-level `Diff(a, b interface{})
+(Diffable, error)` helper (spruce-inherited), but it has no non-test
+callers anywhere in graft and is not part of the `diff` command's own code
+path — `graft diff` builds directly on the `dyff`/`ytbx` packages, not on
+`pkg/graft`'s `Diff`. Treat it as an implementation detail, not a
+supported API.
 
 ## See Also
 

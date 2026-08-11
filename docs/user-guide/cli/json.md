@@ -16,7 +16,7 @@ By default, converts YAML to JSON. Use `--reverse` to convert JSON to YAML.
 |------|-------|-------------|
 | `--reverse` | `-r` | Convert JSON to YAML |
 | `--strict` | | Error on non-string map keys |
-| `--multi-doc` | | Handle multi-document files |
+| `--multi-doc` | | Wrap the output documents into one pretty-printed JSON array instead of one compact object per line |
 
 ## YAML to JSON
 
@@ -124,11 +124,9 @@ graft json --strict config.yml
 
 ### Multi-Document
 
-Handle YAML files with multiple documents:
-
-```sh
-graft json --multi-doc multi.yml
-```
+A multi-document YAML file is always split into one JSON document per YAML
+document; no flag is needed for that. The default prints them as one
+compact JSON object per line:
 
 **multi.yml:**
 ```yaml
@@ -138,11 +136,33 @@ doc: 1
 doc: 2
 ```
 
+```sh
+graft json multi.yml
+```
+
+**Output:**
+```json
+{"doc":1}
+{"doc":2}
+```
+
+`--multi-doc` changes only how those documents are joined: into a single
+pretty-printed JSON array, which is what most JSON consumers expect from a
+file containing more than one document.
+
+```sh
+graft json --multi-doc multi.yml
+```
+
 **Output:**
 ```json
 [
-  {"doc": 1},
-  {"doc": 2}
+  {
+    "doc": 1
+  },
+  {
+    "doc": 2
+  }
 ]
 ```
 

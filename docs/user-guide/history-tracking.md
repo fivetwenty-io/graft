@@ -1,37 +1,67 @@
 # History Tracking
 
-Graft tracks the complete history of how each value was derived during merge and evaluation.
+Graft can track how each value in a merged document was derived: which
+input file first set it, how it changed as later files overwrote it, and
+what it resolved to after operator evaluation.
 
 ## Overview
 
 History tracking answers the question: "Where did this value come from?"
 
-For each path in the final document, Graft can tell you:
+For each path in the final document, graft can show:
 
-- Which file(s) contributed to the value
-- What the value was at each stage
-- When operators were evaluated
-- The final resolved value
+- Which file(s) touched it, in order
+- Its value at each step
+- Whether operator evaluation changed it
+- Its final value
+
+Graft has no per-value line-number tracking (the position information that
+does exist is scoped to a single `(( ... ))` expression's own tokens, not
+to merged document values), so history entries identify their source by
+**file, not file:line**.
 
 ## Enabling History
-
-### CLI
 
 ```sh
 graft merge --history base.yml overlay.yml secrets.yml
 ```
 
-### Library
+When any of `--history`/`--trace-path`/`--show-changes`/`--changes-only`
+are given, `merge` prints that report instead of the merged document. They
+are mutually exclusive — combining more than one is a usage error.
 
-```go
-result, _ := engine.Merge(ctx, base, overlay).
-    TrackHistory().
-    Execute()
-
-history := result.History()
-```
+There is currently no library API for history tracking (`graft.History`,
+`TrackHistory()`, etc., as sometimes described elsewhere, do not exist);
+the flags above are the only way to access it today.
 
 ## History Output
+
+The examples below are real output, captured against this fixture:
+
+```yaml
+# base.yml
+database:
+  host: localhost
+  port: 5432
+  pool_size: 10
+meta:
+  version: "1.0"
+```
+
+```yaml
+# env.yml
+database:
+  host: db.prod.example.com
+  pool_size: 50
+server:
+  timeout: 60
+```
+
+```yaml
+# secrets.yml
+database:
+  password: (( grab meta.version ))
+```
 
 ### Full History
 
@@ -44,28 +74,41 @@ graft merge --history base.yml env.yml secrets.yml
 Merge History:
 
 database.host:
-  [0] base.yml:12      → "localhost"
-  [1] env.yml:5        → "db.prod.example.com"
-  Final                → "db.prod.example.com"
+  [0] base.yml       → localhost
+  [1] env.yml        → db.prod.example.com
+  Final              → db.prod.example.com
 
 database.password:
-  [0] base.yml:13      → (( param "Required" ))
-  [1] secrets.yml:3    → (( vault "secret/db:password" ))
-  [2] <evaluated>      → "***REDACTED***"
-  Final                → "***REDACTED***"
+  [2] secrets.yml    → (( grab meta.version ))
+  [3] <evaluated>    → "1.0"
+  Final              → "1.0"
 
 database.pool_size:
-  [0] base.yml:14      → 10
-  [1] env.yml:8        → (( calc * 5 ))
-  [2] <evaluated>      → 50
-  Final                → 50
+  [0] base.yml       → 10
+  [1] env.yml        → 50
+  Final              → 50
+
+database.port:
+  [0] base.yml       → 5432
+  Final              → 5432  (unchanged)
+
+meta.version:
+  [0] base.yml       → "1.0"
+  Final              → "1.0"  (unchanged)
 
 server.timeout:
-  [0] base.yml:20      → 30
-  Final                → 30  (unchanged)
+  [1] env.yml        → 60
+  Final              → 60  (unchanged)
 ```
 
-### Trace Specific Path
+Every path in the final document gets an entry, including ones no later
+file ever touched — those are marked `(unchanged)`. The `[N]` index is the
+step's position across the whole merge (every input file in order, then
+one synthetic evaluation step); it is not reset per path, so a path whose
+history starts partway through (like `database.password`, first set by the
+third file) starts at that file's own step index.
+
+### Trace a Specific Path
 
 ```sh
 graft merge --trace-path database.password base.yml env.yml secrets.yml
@@ -74,182 +117,177 @@ graft merge --trace-path database.password base.yml env.yml secrets.yml
 **Output:**
 ```
 database.password:
-  [0] base.yml:13      → (( param "Required" ))
-      Type: operator (param)
-      Note: Required parameter marker
+  [2] secrets.yml    → (( grab meta.version ))
+      Type: operator (grab)
 
-  [1] secrets.yml:3    → (( vault "secret/db:password" ))
-      Type: operator (vault)
-      Note: Overwrote param marker
+  [3] <evaluated>    → "1.0"
+      Type: value
 
-  [2] <evaluated>      → "***REDACTED***"
-      Type: evaluation
-      Note: Vault operator resolved
-      Backend: vault
-      Path: secret/db:password
-      Duration: 45ms
-
-  Final                → "***REDACTED***"
+  Final              → "1.0"
 ```
+
+`Type` classifies the raw value at that step: `operator (<name>)` when it
+is still an unevaluated `(( name ...` expression, `removed` for a
+`<pruned>` entry, or `value` otherwise.
+
+A path with no recorded history is an error, not an empty report:
+
+```sh
+$ graft merge --trace-path no.such.path base.yml env.yml
+No history found for path no.such.path
+```
+(exit code 2)
 
 ### Show Changes
 
 ```sh
-graft merge --show-changes base.yml env.yml
+graft merge --show-changes base.yml env.yml secrets.yml
 ```
 
 **Output:**
 ```
-Merge Summary: 2 files → 45 keys (12 changed, 8 added, 2 removed)
+Merge Summary: 3 files → 6 keys (3 changed, 1 added, 0 removed)
 
 database.host:
-  ✗ base.yml:12        "localhost"
-  ✓ env.yml:5          "db.prod.example.com"
+  ✗ base.yml         localhost
+  ✓ env.yml          db.prod.example.com
+
+database.password:
+  ✗ secrets.yml      (( grab meta.version ))
+  ✓ <evaluated>      "1.0"
 
 database.pool_size:
-  ✗ base.yml:14        10
-  ○ env.yml:8          (( calc * 5 ))
-  ✓ <evaluated>        50
+  ✗ base.yml         10
+  ✓ env.yml          50
 
-meta.internal:
-  ✗ base.yml:45        { debug: true }
-  - <pruned>
-
-api.key:
-  + env.yml:15         "abc123"
+server.timeout:
+  + env.yml          60
 ```
+
+Paths present in the first file and never touched again (`database.port`,
+`meta.version` in this fixture) are omitted entirely — this report is
+about what changed, not the whole document.
 
 **Legend:**
 
 - ✓ Final value used
 - ✗ Value overwritten
-- ○ Intermediate value (unevaluated operator)
-- \+ Added
-- \- Removed/pruned
+- ○ Final value is still an unevaluated `(( ... ))` expression (only
+  reachable with `--skip-eval`, or for a `(( defer ))`-style value that
+  evaluation leaves alone)
+- \+ Added (first appears after the first file)
+- \- Removed (see `--prune`/`--cherry-pick` below)
+
+Combined with `--prune`, a fourth line kind appears for removed paths:
+
+```sh
+graft merge --show-changes --prune meta base.yml env.yml secrets.yml
+```
+
+**Output** (same as above, plus):
+```
+meta.version:
+  ✗ base.yml         "1.0"
+  - <pruned>
+
+server.timeout:
+  + env.yml          60
+```
+(and the summary line's removed count becomes `1 removed`)
 
 ### Changes Only
 
 ```sh
-graft merge --changes-only base.yml env.yml
+graft merge --changes-only base.yml env.yml secrets.yml
 ```
 
 **Output:**
 ```
-Changed paths (12 of 45):
-  database.host        "localhost" → "db.prod.example.com"
+Changed paths (4 paths of 6):
+  database.host        localhost → db.prod.example.com
+  database.password    <none> → "1.0"
   database.pool_size   10 → 50
-  server.timeout       30 → 60
-  server.ssl           <none> → true
-  ...
+  server.timeout       <none> → 60
 ```
+
+`<none>` on the left means the path wasn't present in the first file
+(added by a later file). The `of 6` denominator counts every path ever
+recorded, including ones later pruned away — not strictly the final
+document's key count.
 
 ## History Phases
 
-History entries are tagged with their phase:
+Every history entry is tagged with the step that produced it:
 
 | Phase | Description |
 |-------|-------------|
-| LOAD | Initial file loading |
-| MERGE | Value merging from overlays |
+| LOAD | The first input file |
+| MERGE | A later input file overwriting or adding a value |
 | EVAL | Operator evaluation |
-| POST | Post-processing (prune, etc.) |
+| POST | `--prune`/`--cherry-pick` removing a path |
 
-```
-database.url:
-  [0] base.yml:15      LOAD   → (( concat "..." ))
-  [1] <evaluated>      EVAL   → "postgres://localhost:5432/app"
-  [2] <redacted>       POST   → "postgres://***:***@localhost:5432/app"
-```
+The phase itself isn't printed directly in either `--history`'s or
+`--trace-path`'s output; the `[N]` step index and the
+file/`<evaluated>`/`<pruned>` source convey it (an EVAL-phase entry's
+source is always `<evaluated>`, a POST-phase entry's is always
+`<pruned>`), and `--trace-path`'s `Type:` line distinguishes an
+unevaluated operator expression from a plain value at each step.
 
 ## History Entry Details
 
-Each history entry contains:
+Each history entry carries:
 
 | Field | Description |
 |-------|-------------|
-| Index | Order in history (0 = first) |
-| Source | File name |
-| Line | Line number in source |
-| Phase | When change occurred |
-| Operation | Type of change |
-| OldValue | Previous value |
-| NewValue | New value |
-| Operator | If value is/was an operator |
-| Evaluated | Result after evaluation |
-| Timestamp | When it happened |
+| Index | The step's position in the overall merge (files, then evaluation, then optional post-processing) |
+| Source | The file path, or `<evaluated>`/`<pruned>` for the synthetic steps |
+| Phase | LOAD / MERGE / EVAL / POST |
+| Value | The value at that step (absent — printed as `<pruned>` — for a POST removal) |
 
-## Library API
+There is no `Line` field: graft does not track which line of a source file
+contributed a merged value.
 
-### Access History
+## Literal Dotted Keys
 
-```go
-result, _ := engine.Merge(ctx, docs...).
-    TrackHistory().
-    Execute()
+A path segment is a literal map key, not necessarily a nested traversal.
+A document can legally have a top-level key that itself contains a dot
+(`a.b: 1`), which is a different thing from a nested `a: {b: 1}`. History
+paths disambiguate the two using graft's existing quoted-segment path
+syntax (the same `"literal.key"` form `pkg/graft/utils.go`'s path parser
+already accepts): a segment containing a `.` or `[` is quoted.
 
-history := result.History()
+```sh
+# h1.yml
+a.b: 1
 
-// All paths that have history
-for _, path := range history.AllPaths() {
-    fmt.Println(path)
-}
-
-// Only paths that changed
-for _, path := range history.ChangedPaths() {
-    fmt.Println(path)
-}
+# h2.yml
+a:
+  b: 2
 ```
 
-### Path History
-
-```go
-// Get history for specific path
-entries := history.ForPath("database.password")
-
-for _, entry := range entries {
-    fmt.Printf("[%d] %s:%d → %v\n",
-        entry.Index,
-        entry.Source,
-        entry.Line,
-        entry.NewValue)
-}
+```sh
+graft merge --history h1.yml h2.yml
 ```
 
-### Query History
+**Output:**
+```
+Merge History:
 
-```go
-// Query with filters
-entries := history.Query(graft.HistoryFilter{
-    Path:   "database.*",
-    Phase:  graft.PhaseEval,
-    Source: "secrets.yml",
-})
+"a.b":
+  [0] h1.yml         → 1
+  Final              → 1  (unchanged)
+
+a.b:
+  [1] h2.yml         → 2
+  Final              → 2  (unchanged)
 ```
 
-### Timeline
-
-```go
-// Get all changes in order
-timeline := history.Timeline()
-
-for _, entry := range timeline {
-    fmt.Printf("%s: %s changed from %v to %v\n",
-        entry.Source,
-        entry.Path,
-        entry.OldValue,
-        entry.NewValue)
-}
-```
-
-### Export History
-
-```go
-// As JSON
-jsonData, _ := history.ToJSON()
-
-// As YAML
-yamlData, _ := history.ToYAML()
-```
+`"a.b"` (quoted) is the literal top-level key from `h1.yml`; `a.b`
+(unquoted) is the nested `a.b` path added by `h2.yml`. Without quoting,
+both would flatten to the identical string `a.b`, and history would
+misreport one as having overwritten the other. This only matters for keys
+that actually contain a `.` or `[` — the overwhelming majority of paths
+render exactly as before (`database.host`, not `"database"."host"`).
 
 ## Practical Examples
 
@@ -287,11 +325,11 @@ graft merge --history base.yml production.yml secrets.yml
 #!/bin/bash
 # Verify expected values and their sources
 
-OUTPUT=$(graft merge --history base.yml env.yml)
+OUTPUT=$(graft merge --changes-only base.yml env.yml)
 
-# Check database.host came from env.yml
-if ! echo "$OUTPUT" | grep -q "database.host:.*env.yml"; then
-    echo "ERROR: database.host should come from env.yml"
+# Check database.host is in the changed-paths list
+if ! echo "$OUTPUT" | grep -q "database.host"; then
+    echo "ERROR: database.host should have changed"
     exit 1
 fi
 
@@ -305,63 +343,38 @@ graft debug base.yml env.yml secrets.yml
 
 graft> history database.password
 database.password:
-  [0] base.yml:13    → (( param "Required" ))
-  [1] secrets.yml:3  → (( vault "secret/db:password" ))
+  [2] secrets.yml    → (( grab meta.version ))
+  [3] <evaluated>    → "1.0"
+  Final              → "1.0"
 
 graft> inspect database.password
-(( vault "secret/db:password" ))  # Not yet evaluated
-
-graft> eval database.password
-Evaluating: (( vault "secret/db:password" ))
-Result: "my-secret-password"
+"1.0"
 ```
 
 ## Performance Considerations
 
-History tracking adds overhead:
-
-- Memory: Stores all intermediate values
-- CPU: Additional processing per change
-
-For production with large files, consider:
-
-```sh
-# Trace specific paths instead of full history
-graft merge --trace-path critical.setting base.yml env.yml
-```
-
-In the library:
-
-```go
-// Enable only when needed
-if debug {
-    builder = builder.TrackHistory()
-}
-```
+`--history`/`--trace-path`/`--show-changes`/`--changes-only` re-run the
+real merge engine once per input file (to capture each file's individual
+contribution), plus one more evaluation pass — O(n) merge calls for n
+files, rather than the single merge/evaluate pass a plain `graft merge`
+does. That trade favors guaranteed-correct history (it's always what an
+equivalent plain merge would actually produce) over speed, which is the
+right call for a diagnostic report over the typically small number of
+files a merge invocation takes. For a large file set where this matters,
+prefer `--trace-path` (one path, still the same number of merge calls but
+much less output) over `--history` (every path).
 
 ## Secret Redaction
 
-Sensitive values are automatically redacted in history output:
-
-```
-database.password:
-  [0] base.yml:13      → (( param "Required" ))
-  [1] secrets.yml:3    → (( vault "secret/db:password" ))
-  [2] <evaluated>      → "***REDACTED***"
-```
-
-Configure redaction patterns:
-
-```go
-engine, _ := graft.NewEngine(
-    graft.WithHistoryRedaction([]string{
-        "password",
-        "secret",
-        "key",
-        "token",
-    }),
-)
-```
+History reports render whatever value is in the document at each step —
+including a resolved Vault/AWS secret's real value, unredacted. There is
+no automatic secret-pattern redaction in `--history`/`--trace-path`/
+`--show-changes`/`--changes-only` output; treat it the same as `graft
+merge`'s own stdout when handling secrets (e.g. avoid piping it somewhere
+that gets logged). Setting the `REDACT` environment variable (see
+[Vault Integration](secrets/vault.md)) redacts secret values the same way
+it does for a plain merge, since history tracking observes the same
+document the merge itself produces.
 
 ## See Also
 

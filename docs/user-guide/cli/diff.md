@@ -22,30 +22,53 @@ graft diff [flags] file1.yml file2.yml
 
 ## Output Formats
 
-### Default (Semantic Diff)
+### Default (dyff Report)
 
-Shows a summary of differences:
+With no format flag, `diff` prints [dyff](https://github.com/homeport/dyff)'s
+own human-readable report:
 
 ```sh
 graft diff base.yml modified.yml
 ```
 
-**Output:**
+**Output** (with `base.yml`/`modified.yml` as shown under
+[Change Types](#change-types) below):
 ```
-2 keys differ between base.yml and modified.yml
 
-database.host:
-  - "localhost"
-  + "db.prod.example.com"
+(root level)
+- one map entry removed:
+meta:
+  version: 1.0
 
-database.timeout:
-  - 30
-  + 60
+database
++ one map entry added:
+ssl: true
+
+database.host
+± value change
+- localhost
++ db.prod.example.com
+
+database.timeout
+± value change
+- 30
++ 60
+
+
 ```
+
+dyff orders its own report by path depth (root-level entries first, then
+each nested path), and brackets it with a leading and a trailing blank
+line.
+
+`--side-by-side`, `--unified`, and `--changes` (below) render the same
+underlying comparison differently; they don't add information dyff's own
+report is missing.
 
 ### Side-by-Side
 
-Compare files in two columns:
+Compare both files' full content in two columns, aligned by a line-level
+diff of their rendered YAML text:
 
 ```sh
 graft diff --side-by-side base.yml modified.yml
@@ -53,27 +76,32 @@ graft diff --side-by-side base.yml modified.yml
 
 **Output:**
 ```
-base.yml                              │ modified.yml
-──────────────────────────────────────┼──────────────────────────────────────
-database:                             │ database:
-  host: "localhost"                   │   host: "db.prod.example.com"
-  port: 5432                          │   port: 5432
-  timeout: 30                         │   timeout: 60
-                                      │   ssl: true
-meta:                                 │
-  version: "1.0"                      │
+base.yml                               │ modified.yml
+───────────────────────────────────────┼───────────────────────────────────────
+database:                              │ database:
+  host: localhost                      │   host: db.prod.example.com
+  port: 5432                           │   port: 5432
+  timeout: 30                          │   ssl: true
+meta:                                  │   timeout: 60
+  version: "1.0"                       │ 
 ```
+
+Because this aligns raw *lines*, not keys, a run of several changed/added
+lines in a row (here, `timeout`'s value changing and `ssl` being added)
+lines up as one block rather than each key getting its own row — nothing
+is lost, but don't expect strict per-key alignment on rows that changed.
 
 **Color coding:**
 
-- Red/strikethrough: removed lines
-- Green: added lines
-- Yellow/cyan: modified lines
-- Gray: unchanged context
+- Red: removed-only rows
+- Green: added-only rows
+- Yellow: modified rows (present, changed, on both sides)
+- Uncolored: unchanged context rows
 
 ### Unified (Git-Style)
 
-Standard unified diff format:
+Git-style diff, grouped by top-level key (`@@ <key> @@` headers, not
+numeric line ranges):
 
 ```sh
 graft diff --unified base.yml modified.yml
@@ -84,19 +112,25 @@ graft diff --unified base.yml modified.yml
 --- base.yml
 +++ modified.yml
 @@ database @@
--  host: "localhost"
-+  host: "db.prod.example.com"
+-  host: localhost
++  host: db.prod.example.com
    port: 5432
 -  timeout: 30
-+  timeout: 60
 +  ssl: true
++  timeout: 60
 @@ meta @@
 -  version: "1.0"
 ```
 
+Only top-level keys with at least one change get a hunk; unchanged keys
+(here, nothing else at the root) are omitted entirely, not shown as
+context. `--context <n>` controls how many unchanged lines surround each
+change within a hunk (default `3`).
+
 ### Change List
 
-Detailed list of all changes:
+Detailed list of all changes, grouped by kind (modified, then added, then
+removed) and sorted by path within each group:
 
 ```sh
 graft diff --changes base.yml modified.yml
@@ -107,8 +141,8 @@ graft diff --changes base.yml modified.yml
 Changes (2 modified, 1 added, 1 removed):
 
   MODIFIED  database.host
-            - "localhost"
-            + "db.prod.example.com"
+            - localhost
+            + db.prod.example.com
 
   MODIFIED  database.timeout
             - 30
@@ -117,9 +151,14 @@ Changes (2 modified, 1 added, 1 removed):
   ADDED     database.ssl
             + true
 
-  REMOVED   meta.version
-            - "1.0"
+  REMOVED   meta
+            - version: "1.0"
 ```
+
+A wholly removed/added multi-key subtree (here, all of `meta`) is one
+entry at the subtree's own root, not flattened to each of its leaves —
+the same convention `graft diff`'s default report and `merge
+--show-changes` use for an entirely new/removed section.
 
 ## Options
 
@@ -180,10 +219,8 @@ database:
 graft diff file1.yml file2.yml
 ```
 
-**Output:**
-```
-Files are semantically identical
-```
+Identical (semantically) files produce no output and exit `0` — dyff has
+nothing to report, so there is no diff-specific "identical" message.
 
 ## Use Cases
 

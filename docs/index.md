@@ -75,6 +75,14 @@ Learn how to use Graft effectively.
 
   Semantic comparison of two documents
 
+- [History Tracking](user-guide/history-tracking.md)
+
+  Track where each value in a merged document came from
+
+- [debug](user-guide/cli/debug.md)
+
+  Interactive step-through merge REPL
+
 - [Configuration](user-guide/configuration.md)
 
   Environment variables and configuration options
