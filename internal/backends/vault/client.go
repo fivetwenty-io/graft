@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 
 	api "github.com/hashicorp/vault/api"
 	"github.com/goccy/go-yaml"
@@ -17,11 +18,16 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// GlobalReader is the module-level vault reader, initialized lazily from environment.
+// GlobalReader is the module-level vault reader, initialized lazily from
+// environment before evaluation starts and only read (never reassigned)
+// during evaluation, so concurrent RunOp calls reading it are safe.
 var GlobalReader VaultReader
 
-// ClientPool manages vault readers for different targets.
+// ClientPool manages vault readers for different targets. clients/configs
+// are read and lazily populated from concurrent operator evaluation (see
+// pkg/graft/evaluator_parallel.go), so all access goes through mu.
 type ClientPool struct {
+	mu      sync.RWMutex
 	clients map[string]VaultReader
 	configs map[string]*Target
 }
@@ -35,9 +41,12 @@ var DefaultPool = &ClientPool{
 // GetClient returns a vault reader for the specified target.
 func (vcp *ClientPool) GetClient(targetName string, engine graft.Engine) (VaultReader, error) {
 	// Return existing client if available
+	vcp.mu.RLock()
 	if client, exists := vcp.clients[targetName]; exists {
+		vcp.mu.RUnlock()
 		return client, nil
 	}
+	vcp.mu.RUnlock()
 
 	// Get target configuration
 	config, err := vcp.getTargetConfig(targetName, engine)
@@ -51,9 +60,19 @@ func (vcp *ClientPool) GetClient(targetName string, engine graft.Engine) (VaultR
 		return nil, fmt.Errorf("failed to create vault client for target '%s': %w", targetName, err)
 	}
 
-	// Store client for reuse
+	// Store client for reuse. Re-check under the write lock in case another
+	// concurrent evaluation goroutine created and stored a client for the
+	// same target while this one was building its own (harmless duplicate
+	// work); keep whichever was stored first so all callers converge on one
+	// client per target.
+	vcp.mu.Lock()
+	if existing, exists := vcp.clients[targetName]; exists {
+		vcp.mu.Unlock()
+		return existing, nil
+	}
 	vcp.clients[targetName] = client
 	vcp.configs[targetName] = config
+	vcp.mu.Unlock()
 
 	return client, nil
 }
@@ -63,9 +82,12 @@ func (vcp *ClientPool) GetClient(targetName string, engine graft.Engine) (VaultR
 //nolint:unparam // engine reserved for future configuration retrieval from engine
 func (vcp *ClientPool) getTargetConfig(targetName string, engine graft.Engine) (*Target, error) {
 	// Check if we have cached config
+	vcp.mu.RLock()
 	if config, exists := vcp.configs[targetName]; exists {
+		vcp.mu.RUnlock()
 		return config, nil
 	}
+	vcp.mu.RUnlock()
 
 	// For now, try environment variables with target suffix
 	// In a full implementation, this would query the engine's configuration
