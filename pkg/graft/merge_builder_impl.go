@@ -787,6 +787,26 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document) (Document, error) {
 		allPruneKeys = append(allPruneKeys, evalPruneKeys...)
 	}
 
+	// __graft_loop is a reserved top-level key the control-flow preprocessor
+	// (pkg/graft/controlflow) uses to materialize for-loop variables so
+	// generated bodies can (( grab )) them during normal evaluation. It must
+	// never reach evaluated output. Gated on actually being present (a cheap
+	// top-level map lookup, not a tree walk) rather than appended
+	// unconditionally: an unconditional append would flip applyPruning's
+	// "anything to prune?" check to true for every document, forcing its
+	// deepCopyMap over documents that never touched control flow and have no
+	// other reason to be pruned or copied. Also gated on evaluation having
+	// run: under --skip-eval the loop bodies still hold unresolved
+	// (( grab __graft_loop... )) references, and dropping the bindings would
+	// strand every one of them in an intermediate meant to be merged again.
+	if !m.skipEvaluation {
+		if resultData, ok := result.RawData().(map[string]interface{}); ok {
+			if _, present := resultData["__graft_loop"]; present {
+				allPruneKeys = append(allPruneKeys, "__graft_loop")
+			}
+		}
+	}
+
 	// Apply pruning AFTER evaluation so that grab operators can reference values before they're pruned
 	if len(allPruneKeys) > 0 {
 		// Temporarily set m.pruneKeys to all keys for the applyPruning method

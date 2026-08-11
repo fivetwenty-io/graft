@@ -24,6 +24,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
+	"github.com/fivetwenty-io/graft/pkg/graft/controlflow" // Register the (( if/for/while/case )) preprocessor
 	_ "github.com/fivetwenty-io/graft/pkg/graft/operators" // Register operators
 
 	"github.com/goccy/go-yaml"
@@ -310,6 +311,11 @@ func newRootCmd() (*cobra.Command, *bool) {
 	// loadedConfig's env>default resolution pattern.
 	var loadedFeatureFlags *features.FeatureFlags
 
+	// maxLoopIterations is the --max-loop-iterations override for (( while ))
+	// loops (pkg/graft/controlflow). 0 means "not set on the command line";
+	// GRAFT_MAX_LOOP_ITERATIONS or the package default (1000) applies then.
+	var maxLoopIterations int
+
 	rootCmd := &cobra.Command{
 		Use:           "graft",
 		Short:         "graft - YAML merging and operator evaluation",
@@ -333,6 +339,14 @@ func newRootCmd() (*cobra.Command, *bool) {
 				return fmt.Errorf("invalid color option")
 			}
 			ansi.Color(colorEnabled)
+
+			// (( while )) loops are capped to prevent runaway/non-terminating
+			// expansion (docs/user-guide/operators/control-flow.md's
+			// documented default is 1000). --max-loop-iterations overrides
+			// both that default and GRAFT_MAX_LOOP_ITERATIONS.
+			if maxLoopIterations > 0 {
+				controlflow.SetMaxLoopIterations(maxLoopIterations)
+			}
 
 			// Load the --config file (or defaults) and apply GRAFT_*
 			// environment overrides up front so every subcommand fails
@@ -373,6 +387,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	rootCmd.PersistentFlags().BoolVarP(&version, "version", "v", false, "Display version information")
 	rootCmd.PersistentFlags().StringVar(&colorOpt, "color", "", "Control color output (on/off/auto, default: auto)")
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Path to a YAML configuration file (see internal/config); absent means unchanged default behavior")
+	rootCmd.PersistentFlags().IntVar(&maxLoopIterations, "max-loop-iterations", 0, "Maximum (( while )) loop iterations before erroring (default: 1000, or GRAFT_MAX_LOOP_ITERATIONS)")
 
 	// merge command
 	var mergeSkipEval, mergeFallbackAppend, mergeGoPatch, mergeMultiDoc bool

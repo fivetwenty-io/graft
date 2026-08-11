@@ -522,6 +522,20 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		return nil, nil
 	}
 
+	// Expand (( if )), (( for )), (( while )), (( case )) control-flow
+	// constructs into plain YAML before anything else touches the bytes.
+	// A document with no control-flow markers is returned unchanged by
+	// the expander, so this is a no-op for the overwhelming majority of
+	// callers. See pkg/graft/controlflow_hook.go for why this is a
+	// function-pointer hook rather than a direct import.
+	if ControlFlowExpander != nil {
+		expanded, cfErr := ControlFlowExpander(data)
+		if cfErr != nil {
+			return nil, NewParseError(fmt.Sprintf("control flow expansion failed: %s", cfErr.Error()), cfErr)
+		}
+		data = expanded
+	}
+
 	// Work around a goccy/go-yaml v1.19.2 parser bug where a bare "-"
 	// sequence terminator followed by a sibling map key gets misparsed
 	// into the sequence (see sanitizeBareSequenceTerminators).
