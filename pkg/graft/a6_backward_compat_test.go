@@ -169,14 +169,23 @@ func TestA6EndToEnd_AmbiguityHazards(t *testing.T) {
 		}
 	})
 
-	t.Run("H1 workaround requires A2, out of Stage A-i scope", func(t *testing.T) {
-		// The spec's documented workaround for H1, `(( (grab sort) == 5 ))`,
-		// depends on nested parenthesized operator calls (A2), which is
-		// Stage A-ii. This pins that Stage A-i alone does not silently make
-		// it work — a future A2 change is expected to flip this red.
-		_, err := mergeYAML(t, "sort: 5\nx: (( (grab sort) == 5 ))\n")
-		if err == nil {
-			t.Fatalf("expected the A2-dependent workaround to still fail to parse before A2 lands")
+	t.Run("H1 workaround: (grab sort) == 5, enabled by A2", func(t *testing.T) {
+		// H1: "sort" names a registered operator, so "(( sort == 5 ))" with
+		// "sort: 5" in the document parses "sort" as an operator call, not
+		// a reference — not a regression, today's behavior (§3.4). The
+		// spec's documented workaround wraps it in its own parens so A2's
+		// nested-opcall parsing applies: "(grab sort)" is now itself an
+		// operator call, comparable against 5 via "==".
+		doc, err := mergeYAML(t, "sort: 5\nx: (( (grab sort) == 5 ))\n")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got, err := doc.Get("x")
+		if err != nil {
+			t.Fatalf("failed to read x: %v", err)
+		}
+		if got != true {
+			t.Fatalf("expected true, got %v (%T)", got, got)
 		}
 	})
 

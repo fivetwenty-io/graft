@@ -33,10 +33,44 @@ type Parser struct {
 	// opcallPos is the token index at which a bare identifier may open an
 	// operator call — the "primary operator position". It replaces the
 	// literal constant 1 that parseIdentifierOrOperator used to compare
-	// against, so nested groups (a later stage) can each carry their own
-	// marker. In this stage it is set once, in ParseOpcall, to 1 — the
-	// first token after "((" — matching today's sole call site.
+	// against. ParseOpcall sets it once to 1 (the first token after "((").
+	// parseParenthesized and parseNestedOperator each save and restore it
+	// around their own inner parse, so every parenthesized group — however
+	// deeply nested — gets its own marker (spec cluster A2 §2.2).
 	opcallPos int
+
+	// nestingDepth counts currently-open "(" / "((" groups. parseParenthesized
+	// and parseNestedOperator increment it on entry and decrement it on exit;
+	// exceeding maxNestingDepth is a hard parse error (spec cluster A2 §2.5).
+	nestingDepth int
+}
+
+// maxNestingDepth bounds "(" / "((" nesting depth (spec cluster A2 §2.5).
+const maxNestingDepth = 64
+
+// enterNesting increments the parser's paren-nesting counter and reports an
+// error if it now exceeds maxNestingDepth. Callers that succeed must defer
+// exitNesting to restore the counter on every return path.
+func (p *Parser) enterNesting() error {
+	p.nestingDepth++
+	if p.nestingDepth > maxNestingDepth {
+		return fmt.Errorf("expression nesting too deep (max %d)", maxNestingDepth)
+	}
+	return nil
+}
+
+// exitNesting decrements the parser's paren-nesting counter.
+func (p *Parser) exitNesting() {
+	p.nestingDepth--
+}
+
+// tokenAt returns the token at absolute index idx without moving p.pos, or a
+// TokenEOF sentinel if that index falls outside the token stream.
+func (p *Parser) tokenAt(idx int) interfaces.Token {
+	if idx < 0 || idx >= len(p.tokens) {
+		return interfaces.Token{Type: interfaces.TokenEOF}
+	}
+	return *p.tokens[idx]
 }
 
 // NewParser creates a new parser for the given input.
@@ -201,7 +235,7 @@ func (p *Parser) parseExprWithPrecedence(minPrec Precedence) (*Expr, error) {
 			nextMinPrec++
 		}
 
-		right, err := p.parseExprWithPrecedence(nextMinPrec)
+		right, err := p.parseOperand(nextMinPrec)
 		if err != nil {
 			return nil, err
 		}
@@ -216,11 +250,74 @@ func (p *Parser) parseExprWithPrecedence(minPrec Precedence) (*Expr, error) {
 	return left, nil
 }
 
+// parseOperand parses an operand of the general expression grammar — a
+// binary operator's right side, a ternary branch, a logical-OR fallback, or
+// a unary operand — at the given minimum precedence. If the operand opens an
+// operator call under identifierOpensOpcallAt's two-token rule, that name
+// claims the call-opening position right there, exactly like the first token
+// after "((": `(( grab a && grab b ))` must evaluate both grabs, not degrade
+// the second one to a bare reference (spec cluster A2 §2.1, §11 Stage A-i
+// "Done means").
+//
+// Everything else is left untouched: opcallPos is only advanced when the
+// two-token rule fires, so the A6 lookahead rule for unregistered names —
+// scoped to a group's own first token — keeps governing every other operand
+// exactly as it does today (e.g. plain "(( a && b ))" still resolves both as
+// references), and a document key that merely shares a registered operator's
+// name stays a reference in operand position (`(( left == type ))` with a
+// "type:" key).
+func (p *Parser) parseOperand(minPrec Precedence) (*Expr, error) {
+	if p.identifierOpensOpcallAt(p.pos) {
+		saved := p.opcallPos
+		p.opcallPos = p.pos
+		expr, err := p.parseExprWithPrecedence(minPrec)
+		p.opcallPos = saved
+		return expr, err
+	}
+	return p.parseExprWithPrecedence(minPrec)
+}
+
+// identifierOpensOpcallAt reports whether the token at index idx opens an
+// operator call rather than naming a plain reference, using the spec's
+// two-token rule (cluster A2 §2.3–§2.4). Both conditions must hold:
+//
+//  1. the token is an IDENTIFIER whose name resolves through OperatorFor to
+//     a non-NullOperator; and
+//  2. the token after it can actually begin an argument — it is not ")",
+//     "))", ",", ":", ".", EOF, or any infix operator token (isBinaryOperator
+//     already covers "?").
+//
+// Condition 2 is what keeps a document key that happens to share an
+// operator's name — "type", "sort", "keys", "empty" are all ordinary
+// manifest keys — resolving as a reference wherever it sits at the end of an
+// expression, a ternary branch, or a unary operand. Without it, `(( left ==
+// type ))` would parse "type" as a zero-argument (( type )) call and fail.
+func (p *Parser) identifierOpensOpcallAt(idx int) bool {
+	if idx < 0 || idx >= len(p.tokens) {
+		return false
+	}
+	tok := *p.tokens[idx]
+	if tok.Type != interfaces.TokenIdentifier {
+		return false
+	}
+	if _, isNull := OperatorFor(tok.Literal).(NullOperator); isNull {
+		return false
+	}
+
+	next := p.tokenAt(idx + 1)
+	switch next.Type {
+	case interfaces.TokenRightParen, interfaces.TokenOperatorEnd, interfaces.TokenComma,
+		interfaces.TokenColon, interfaces.TokenDot, interfaces.TokenEOF:
+		return false
+	}
+	return !p.isBinaryOperator(next.Type)
+}
+
 // parseTernary handles condition ? trueExpr : falseExpr.
 func (p *Parser) parseTernary(condition *Expr) (*Expr, error) {
 	p.advance() // consume ?
 
-	trueExpr, err := p.parseExprWithPrecedence(PrecedenceOr) // Parse at higher precedence
+	trueExpr, err := p.parseOperand(PrecedenceOr) // Parse at higher precedence
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +327,7 @@ func (p *Parser) parseTernary(condition *Expr) (*Expr, error) {
 	}
 	p.advance() // consume :
 
-	falseExpr, err := p.parseExprWithPrecedence(PrecedenceTernary) // Ternary is right-associative
+	falseExpr, err := p.parseOperand(PrecedenceTernary) // Ternary is right-associative
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +352,7 @@ func (p *Parser) parseTernary(condition *Expr) (*Expr, error) {
 func (p *Parser) parseLogicalOr(left *Expr) (*Expr, error) {
 	p.advance() // consume ||
 
-	right, err := p.parseExprWithPrecedence(PrecedenceAnd) // Next higher precedence
+	right, err := p.parseOperand(PrecedenceAnd) // Next higher precedence
 	if err != nil {
 		return nil, err
 	}
@@ -609,8 +706,13 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 	// Parse arguments
 	var args []*Expr
 
-	// Check for function-style: op(arg1, arg2)
-	if p.current().Type == interfaces.TokenLeftParen {
+	// Check for function-style: op(arg1, arg2). A "(" that itself opens an
+	// operator call is not function-call syntax — it is the first
+	// space-separated argument, which is how nearly every documented nested
+	// call is written: "(( base64 (file \"x\") ))", "(( file (concat ... ) ))",
+	// "(( grab (concat ... ) ))" (spec cluster A2 §2.3's `arguments` rule,
+	// where a `primary` may be a parenthesized group).
+	if p.current().Type == interfaces.TokenLeftParen && !p.identifierOpensOpcallAt(p.pos+1) {
 		p.advance() // consume (
 		for p.current().Type != interfaces.TokenRightParen && p.current().Type != interfaces.TokenEOF {
 			arg, err := p.parseExpression()
@@ -629,8 +731,11 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 			return nil, err
 		}
 	} else {
-		// Space-separated arguments until )) or another operator
+		// Space-separated arguments until )), a bare ")" (closing an
+		// operator call opened by a single "(" — spec cluster A2), or
+		// another operator.
 		for p.current().Type != interfaces.TokenOperatorEnd &&
+			p.current().Type != interfaces.TokenRightParen &&
 			p.current().Type != interfaces.TokenEOF &&
 			p.current().Type != interfaces.TokenQuestion &&
 			p.current().Type != interfaces.TokenColon {
@@ -757,9 +862,33 @@ func (p *Parser) parseEnvironment() (*Expr, error) {
 	}, nil
 }
 
-// parseParenthesized parses a parenthesized expression.
+// parseParenthesized parses a "(" group, which is either a plain arithmetic
+// grouping (today's sole behavior) or, as of spec cluster A2, an operator
+// call opened by a bare "(" — e.g. "(grab a)" as an operand inside a larger
+// expression. parenOpensOpcall decides which with a two-token lookahead
+// (§2.3–§2.4); the two arms share everything except whether opcallPos is
+// updated so the enclosed identifier is eligible to open an operator call.
 func (p *Parser) parseParenthesized() (*Expr, error) {
 	p.advance() // consume (
+
+	if err := p.enterNesting(); err != nil {
+		return nil, err
+	}
+	defer p.exitNesting()
+
+	if p.parenOpensOpcall() {
+		savedOpcallPos := p.opcallPos
+		p.opcallPos = p.pos
+		expr, err := p.parseExpression()
+		p.opcallPos = savedOpcallPos
+		if err != nil {
+			return nil, err
+		}
+		if err := p.expect(interfaces.TokenRightParen); err != nil {
+			return nil, fmt.Errorf("expected ')' to close parenthesized expression")
+		}
+		return expr, nil
+	}
 
 	expr, err := p.parseExpression()
 	if err != nil {
@@ -773,11 +902,21 @@ func (p *Parser) parseParenthesized() (*Expr, error) {
 	return expr, nil
 }
 
+// parenOpensOpcall reports whether the "(" group about to be parsed opens an
+// operator call rather than an arithmetic grouping (spec cluster A2 §2.3–
+// §2.4). p.pos must point at the token immediately after the just-consumed
+// "(". The decision is identifierOpensOpcallAt's two-token rule, shared with
+// parseOperand so a "(" group and a bare operand classify identically.
+// Otherwise the group is ordinary grouping — today's behavior, unchanged.
+func (p *Parser) parenOpensOpcall() bool {
+	return p.identifierOpensOpcallAt(p.pos)
+}
+
 // parseUnary parses a unary NOT expression.
 func (p *Parser) parseUnary() (*Expr, error) {
 	p.advance() // consume !
 
-	operand, err := p.parseExprWithPrecedence(PrecedenceUnary)
+	operand, err := p.parseOperand(PrecedenceUnary)
 	if err != nil {
 		return nil, err
 	}
@@ -820,7 +959,7 @@ func (p *Parser) parseUnaryMinus() (*Expr, error) {
 	}
 
 	// Otherwise it's a unary minus on an expression
-	operand, err := p.parseExprWithPrecedence(PrecedenceUnary)
+	operand, err := p.parseOperand(PrecedenceUnary)
 	if err != nil {
 		return nil, err
 	}
@@ -837,11 +976,23 @@ func (p *Parser) parseUnaryMinus() (*Expr, error) {
 	}, nil
 }
 
-// parseNestedOperator parses a nested (( ... )) expression.
+// parseNestedOperator parses a nested (( ... )) expression. Unlike a bare
+// "(", "((" is unambiguously an operator-call opener — it is never used for
+// arithmetic grouping — so it always claims the primary operator position
+// for its own contents, exactly mirroring ParseOpcall (spec cluster A2
+// §2.2).
 func (p *Parser) parseNestedOperator() (*Expr, error) {
 	p.advance() // consume ((
 
+	if err := p.enterNesting(); err != nil {
+		return nil, err
+	}
+	defer p.exitNesting()
+
+	savedOpcallPos := p.opcallPos
+	p.opcallPos = p.pos
 	expr, err := p.parseExpression()
+	p.opcallPos = savedOpcallPos
 	if err != nil {
 		return nil, err
 	}
