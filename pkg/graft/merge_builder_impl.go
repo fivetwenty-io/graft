@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -26,6 +27,14 @@ type mergeBuilderImpl struct {
 	arrayStrategy  ArrayMergeStrategy
 	error          error                 // Stores any error from construction
 	mergeMetadata  *merger.MergeMetadata // Accumulated metadata from merges
+
+	// priorCalcValues records, per canonical path string, the base value a
+	// "(( calc <leading-op> ... ))" value-modification expression
+	// overwrote during merge (spec cluster A5 §5.3). Populated by
+	// mergeValuesAtPath; consumed by applyEvaluation via
+	// WithPriorCalcValues. nil for the overwhelming majority of merges that
+	// never write this expression shape — no cost for any other document.
+	priorCalcValues map[string]interface{}
 }
 
 // WithPrune adds keys to remove from the final output.
@@ -380,15 +389,67 @@ func (m *mergeBuilderImpl) collectMergeMetadata(mergerInstance *merger.Merger) {
 
 // mergeInto merges overlay data into base data using legacy merger when needed.
 func (m *mergeBuilderImpl) mergeInto(base, overlay map[string]interface{}) error {
+	return m.mergeIntoAtPath(base, overlay, nil)
+}
+
+// mergeIntoAtPath is mergeInto with the canonical path (as a segment slice,
+// root-relative) of `base`/`overlay` within the overall document. The path
+// is threaded through purely to let mergeValuesAtPath record calc
+// prior-values at the correct key (spec cluster A5 §5.3); it changes no
+// merge decision.
+func (m *mergeBuilderImpl) mergeIntoAtPath(base, overlay map[string]interface{}, path []string) error {
 	if m.needsLegacyMerger(base, overlay) {
+		m.recordPriorCalcValuesUnder(base, overlay, path)
 		return m.performLegacyMerge(base, overlay)
 	}
 
-	return m.performSimpleMerge(base, overlay)
+	return m.performSimpleMergeAtPath(base, overlay, path)
+}
+
+// recordPriorCalcValuesUnder records the calc value-modification prior
+// values for a subtree the legacy merger (pkg/graft/merger) is about to
+// merge. That merger has no recording hook of its own, and it handles every
+// document containing an array-merge marker, an array of maps, or a prune /
+// sort marker — the shape most real manifests take — so without this pass
+// the leading-operator form would silently evaluate against nothing and
+// yield 0 for exactly those documents. It reads both maps and writes only
+// m.priorCalcValues, so it changes no merge decision.
+//
+// Values inside lists are deliberately not recorded: their post-merge
+// indices depend on merge decisions (append vs. merge-by-key) this pass runs
+// before, so no key it could write would be certain to match ev.Here.
+func (m *mergeBuilderImpl) recordPriorCalcValuesUnder(base, overlay map[string]interface{}, path []string) {
+	for key, overlayValue := range overlay {
+		baseValue, inBase := base[key]
+		if !inBase {
+			continue
+		}
+
+		childPath := make([]string, len(path)+1)
+		copy(childPath, path)
+		childPath[len(path)] = key
+
+		switch ov := overlayValue.(type) {
+		case map[string]interface{}:
+			if bv, ok := baseValue.(map[string]interface{}); ok {
+				m.recordPriorCalcValuesUnder(bv, ov, childPath)
+			}
+		case string:
+			if isCalcModificationExpression(ov) {
+				m.recordPriorCalcValue(childPath, baseValue)
+			}
+		}
+	}
 }
 
 // performSimpleMerge performs a simple merge without legacy merger.
 func (m *mergeBuilderImpl) performSimpleMerge(base, overlay map[string]interface{}) error {
+	return m.performSimpleMergeAtPath(base, overlay, nil)
+}
+
+// performSimpleMergeAtPath is performSimpleMerge with the path context
+// mergeIntoAtPath threads through; see its doc comment.
+func (m *mergeBuilderImpl) performSimpleMergeAtPath(base, overlay map[string]interface{}, path []string) error {
 	var memTracker interfaces.MemoryTracker
 	if m.engine != nil {
 		memTracker = m.engine.GetMemoryTracker()
@@ -406,7 +467,14 @@ func (m *mergeBuilderImpl) performSimpleMerge(base, overlay map[string]interface
 			continue
 		}
 
-		merged, err := m.mergeValues(baseValue, overlayValue)
+		// A fresh copy per key: path is shared across sibling iterations of
+		// this loop, and append may otherwise reuse (and silently
+		// overwrite) the same backing array across them.
+		childPath := make([]string, len(path)+1)
+		copy(childPath, path)
+		childPath[len(path)] = keyStr
+
+		merged, err := m.mergeValuesAtPath(baseValue, overlayValue, childPath)
 		if err != nil {
 			return err
 		}
@@ -429,6 +497,12 @@ func (m *mergeBuilderImpl) performSimpleMerge(base, overlay map[string]interface
 
 // mergeValues merges two values based on their types.
 func (m *mergeBuilderImpl) mergeValues(base, overlay interface{}) (interface{}, error) {
+	return m.mergeValuesAtPath(base, overlay, nil)
+}
+
+// mergeValuesAtPath is mergeValues with the canonical path of base/overlay
+// within the overall document; see mergeIntoAtPath's doc comment.
+func (m *mergeBuilderImpl) mergeValuesAtPath(base, overlay interface{}, path []string) (interface{}, error) {
 	// If overlay is nil, it means delete the key
 	if overlay == nil {
 		return nil, nil
@@ -445,7 +519,7 @@ func (m *mergeBuilderImpl) mergeValues(base, overlay interface{}) (interface{}, 
 
 	if baseIsMap && overlayIsMap {
 		result := deepCopyMap(baseMap)
-		err := m.mergeInto(result, overlayMap)
+		err := m.mergeIntoAtPath(result, overlayMap, path)
 		if err != nil {
 			return nil, err
 		}
@@ -484,8 +558,47 @@ func (m *mergeBuilderImpl) mergeValues(base, overlay interface{}) (interface{}, 
 		}
 	}
 
-	// For different types or scalars, overlay replaces base
+	// For different types or scalars, overlay replaces base. If the
+	// incoming scalar is a "(( calc <leading-op> ... ))" value-modification
+	// expression, the base value it is about to overwrite is the "existing
+	// value" that expression needs at evaluation time and can no longer
+	// find at ev.Here once this replacement happens — record it (spec
+	// cluster A5 §5.3).
+	if overlayStr, ok := overlay.(string); ok && isCalcModificationExpression(overlayStr) {
+		m.recordPriorCalcValue(path, base)
+	}
+
 	return deepCopyValue(overlay), nil
+}
+
+// isCalcModificationExpression reports whether s is an unevaluated "(( calc
+// <leading-op> ... ))" value-modification expression — either the raw form
+// ("(( calc * 2 ))") or the quoted form the parser normalizes it to
+// ("(( calc "* 2" ))") — as opposed to an ordinary calc expression like
+// "(( calc "1 + 2" ))", which needs no prior value. A leading +, -, *, /, %,
+// or ^ character (op_calc.go's own leading-operator set, mirrored by the
+// parser's raw-substring capture — spec §5.2) immediately after "calc"
+// identifies the shape.
+func isCalcModificationExpression(s string) bool {
+	return calcModificationPattern.MatchString(strings.TrimSpace(s))
+}
+
+var calcModificationPattern = regexp.MustCompile(`^\(\(\s*calc\s+"?[*/+%^-]`)
+
+// recordPriorCalcValue records value as the prior value at the canonical
+// path (dot-joined, matching tree.Cursor.String()) about to be overwritten
+// by a calc value-modification expression. A root-level path (path
+// unset — should not occur, since calc's leading-operator form always
+// targets a specific key) is ignored rather than recorded under an empty
+// key.
+func (m *mergeBuilderImpl) recordPriorCalcValue(path []string, value interface{}) {
+	if len(path) == 0 {
+		return
+	}
+	if m.priorCalcValues == nil {
+		m.priorCalcValues = make(map[string]interface{})
+	}
+	m.priorCalcValues[strings.Join(path, ".")] = value
 }
 
 // hasArrayOperators checks if a map contains arrays with merge operators.
@@ -962,13 +1075,17 @@ func (m *mergeBuilderImpl) applyCherryPicking(doc Document) (Document, error) {
 func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 	// Use the engine's evaluate method if available
 	if m.engine != nil {
+		evalCtx := m.ctx
 		// If we have cherry-pick keys, pass them to the engine for evaluation
 		if len(m.cherryPickKeys) > 0 {
-			// Create a context with cherry-pick keys using the helper function
-			evalCtx := WithCherryPickPaths(m.ctx, m.cherryPickKeys)
-			return m.engine.Evaluate(evalCtx, doc)
+			evalCtx = WithCherryPickPaths(evalCtx, m.cherryPickKeys)
 		}
-		return m.engine.Evaluate(m.ctx, doc)
+		// Pass calc value-modification prior values recorded during merge,
+		// if any (spec cluster A5 §5.3).
+		if len(m.priorCalcValues) > 0 {
+			evalCtx = WithPriorCalcValues(evalCtx, m.priorCalcValues)
+		}
+		return m.engine.Evaluate(evalCtx, doc)
 	}
 
 	// Fallback: create basic evaluator (this should not happen in practice)
@@ -979,7 +1096,8 @@ func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 
 	// Create evaluator
 	evaluator := &Evaluator{
-		Tree: data,
+		Tree:        data,
+		PriorValues: m.priorCalcValues,
 	}
 
 	// Run evaluation - pass cherry-pick keys as the "picks" parameter

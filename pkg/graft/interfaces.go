@@ -537,3 +537,27 @@ func GetCherryPickPaths(ctx context.Context) []string {
 	}
 	return nil
 }
+
+// priorCalcValuesKey is the context key for the calc-modification prior
+// values map (spec cluster A5 §5.3). Threading it through context, rather
+// than a new MergeBuilder/Engine method parameter, matches the existing
+// cherry-pick-paths mechanism above and needs no signature changes to
+// Engine.Evaluate's public API.
+type priorCalcValuesKey struct{}
+
+// WithPriorCalcValues adds the merge builder's recorded prior values to the
+// context. Used by MergeBuilder to pass them to the evaluator, so
+// op_calc.go's leading-operator branch can look up the value a "(( calc
+// <leading-op> ... ))" expression overwrote during merge.
+func WithPriorCalcValues(ctx context.Context, values map[string]interface{}) context.Context {
+	return context.WithValue(ctx, priorCalcValuesKey{}, values)
+}
+
+// GetPriorCalcValues extracts the prior-values map from the context. Used by
+// the engine to retrieve it and set it on the evaluator.
+func GetPriorCalcValues(ctx context.Context) map[string]interface{} {
+	if values, ok := ctx.Value(priorCalcValuesKey{}).(map[string]interface{}); ok {
+		return values
+	}
+	return nil
+}

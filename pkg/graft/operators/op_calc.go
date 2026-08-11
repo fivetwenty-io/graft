@@ -41,6 +41,7 @@ func (CalcOperator) Dependencies(ev *graft.Evaluator, args []*graft.Expr, _ []*t
 			if str, ok := arg.Literal.(string); ok {
 				cursors := searchForCursors(str)
 				deps = append(deps, cursors...)
+				deps = append(deps, calcBareNameDependencies(ev, str)...)
 			}
 		}
 	}
@@ -85,11 +86,23 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 	if trimmedInput != "" {
 		firstChar := trimmedInput[0]
 		if firstChar == '*' || firstChar == '/' || firstChar == '+' || firstChar == '-' || firstChar == '^' || firstChar == '%' {
-			// Get current value or default to 0
-			currentVal, err := ev.Here.Resolve(ev.Tree)
+			// The "existing value" to modify (spec cluster A5 §5.3): by the
+			// time this operator runs, ev.Here already resolves to the
+			// unevaluated operator node itself, since the merge already
+			// replaced whatever was at this path with this expression's own
+			// source text — there is nothing left at ev.Here to multiply.
+			// ev.PriorValues, populated by the merge builder only for this
+			// expression shape and only when a value actually existed at
+			// this path before the overlay overwrote it, carries the real
+			// prior value. Fall back to ev.Here.Resolve (today's existing,
+			// pre-A5 behavior) for anything PriorValues has no entry for —
+			// a single-file document where nothing was actually overwritten
+			// — and finally to 0, the documented default for a path that
+			// does not exist.
+			currentVal, haveCurrentVal := calcPriorValue(ev)
 			var currentNumStr string
 
-			if err != nil || currentVal == nil {
+			if !haveCurrentVal {
 				// Default to 0 if current value doesn't exist
 				currentNumStr = "0"
 				DEBUG("  current value not found, defaulting to 0")
@@ -129,13 +142,46 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 		return nil, expressionError
 	}
 
-	// Check that there are no named variables in the expression that we cannot evaluate/insert
-	if len(expression.Vars()) > 0 {
-		return nil, fmt.Errorf("calc operator does not support named variables in expression: %s", strings.Join(expression.Vars(), ", "))
+	// Named variables in the expression (spec cluster A5 §5.4): resolve each
+	// name still reported by govaluate's own parser relative to the calc
+	// call's own parent first — a sibling reference, matching
+	// arithmetic.md's documented example where the referenced names are
+	// siblings of the calc key — then absolutely from the document root;
+	// the first hit wins. A name that resolves nowhere is reported; a name
+	// that resolves to a non-numeric value is a distinct, immediate error
+	// (resolveCalcVariable).
+	varNames := expression.Vars()
+	var parameters map[string]interface{}
+	var unresolvedVars []string
+	if len(varNames) > 0 {
+		parameters = make(map[string]interface{}, len(varNames))
+		for _, name := range varNames {
+			val, found, resolveErr := resolveCalcVariable(ev, name)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+			if !found {
+				unresolvedVars = append(unresolvedVars, name)
+				continue
+			}
+			parameters[name] = val
+		}
 	}
 
-	// Evaluate without a variables list (named variables are not supported)
-	result, evaluateError := expression.Evaluate(nil)
+	if len(unresolvedVars) > 0 {
+		return nil, fmt.Errorf("calc operator does not support named variables in expression: %s", strings.Join(unresolvedVars, ", "))
+	}
+
+	// An expression with no variables after substitution takes a
+	// byte-identical path to before A5 — same govaluate.Evaluate(nil) call,
+	// same result normalization below (B-8).
+	var result interface{}
+	var evaluateError error
+	if len(parameters) > 0 {
+		result, evaluateError = expression.Evaluate(parameters)
+	} else {
+		result, evaluateError = expression.Evaluate(nil)
+	}
 	if evaluateError != nil {
 		return nil, evaluateError
 	}
@@ -153,6 +199,138 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 		Type:  graft.Replace,
 		Value: result,
 	}, nil
+}
+
+// resolveCalcVariable resolves a bare named variable that survived
+// replaceCalcReferences's dotted-path substitution (spec cluster A5 §5.4).
+// It tries, in order: a sibling of the calc call's own path (ev.Here's
+// parent plus name), then an absolute path from the document root. The
+// first cursor that resolves wins; if that value is not numeric, resolution
+// stops immediately with the same type-mismatch message
+// replaceCalcReferences uses for dotted paths, rather than falling through
+// to the other candidate. found=false (with a nil error) means neither
+// candidate resolved at all — the caller collects these into the existing
+// "does not support named variables" error.
+func resolveCalcVariable(ev *graft.Evaluator, name string) (value float64, found bool, err error) {
+	var candidates []*tree.Cursor
+
+	if ev.Here != nil && ev.Here.Depth() >= 1 {
+		sibling := ev.Here.Copy()
+		sibling.Pop()
+		sibling.Push(name)
+		candidates = append(candidates, sibling)
+	}
+
+	if cursor, parseErr := tree.ParseCursor(name); parseErr == nil {
+		candidates = append(candidates, cursor)
+	}
+
+	for _, cursor := range candidates {
+		resolved, resolveErr := cursor.Resolve(ev.Tree)
+		if resolveErr != nil {
+			continue
+		}
+		// An explicitly null value resolves without error but has no
+		// reflect.Type, so it gets replaceCalcReferences's own nil message
+		// rather than the type-mismatch one, which would dereference a nil
+		// *reflect.rtype.
+		if resolved == nil {
+			return 0, false, fmt.Errorf("path %s references a nil value, which cannot be used in calculations", cursor.String())
+		}
+		f, numeric := calcToFloat64(resolved)
+		if !numeric {
+			return 0, false, fmt.Errorf("path %s is of type %s, which cannot be used in calculations", cursor.String(), reflect.TypeOf(resolved).Kind())
+		}
+		return f, true, nil
+	}
+
+	return 0, false, nil
+}
+
+// calcToFloat64 converts a resolved value to float64 for use as a
+// govaluate expression parameter, matching the numeric type set
+// replaceCalcReferences and supportedCalcFunctions already accept
+// elsewhere in this file.
+func calcToFloat64(val interface{}) (float64, bool) {
+	switch v := val.(type) {
+	case int:
+		return float64(v), true
+	case int8:
+		return float64(v), true
+	case int16:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case uint:
+		return float64(v), true
+	case uint8:
+		return float64(v), true
+	case uint16:
+		return float64(v), true
+	case uint32:
+		return float64(v), true
+	case uint64:
+		return float64(v), true
+	case float32:
+		return float64(v), true
+	case float64:
+		return v, true
+	default:
+		return 0, false
+	}
+}
+
+// calcBareNameDependencies extends Dependencies to cover §5.4's bare named
+// variables (e.g. the "a" and "b" in "a + b", as opposed to the dotted
+// paths searchForCursors already covers). Both candidate cursors
+// resolveCalcVariable will later try — the sibling-of-calc's-own-path
+// cursor and the absolute-from-root cursor — are added for each name
+// govaluate's own parser reports as a variable in the raw (unsubstituted)
+// expression string, so the evaluator orders whichever one actually
+// resolves ahead of this calc call. A raw string that also contains dotted
+// paths may not parse as a bare govaluate expression at all; that is fine,
+// since searchForCursors already covers the dotted-path case on its own.
+func calcBareNameDependencies(ev *graft.Evaluator, expr string) []*tree.Cursor {
+	parsed, err := govaluate.NewEvaluableExpressionWithFunctions(expr, supportedCalcFunctions())
+	if err != nil {
+		return nil
+	}
+
+	var deps []*tree.Cursor
+	for _, name := range parsed.Vars() {
+		if ev != nil && ev.Here != nil && ev.Here.Depth() >= 1 {
+			sibling := ev.Here.Copy()
+			sibling.Pop()
+			sibling.Push(name)
+			deps = append(deps, sibling)
+		}
+		if cursor, cerr := tree.ParseCursor(name); cerr == nil {
+			deps = append(deps, cursor)
+		}
+	}
+	return deps
+}
+
+// calcPriorValue returns the "existing value" for op_calc.go's
+// leading-operator value-modification form (spec cluster A5 §5.3): the
+// merge builder's recorded prior value at ev.Here's canonical path if one
+// was recorded, else whatever currently resolves at ev.Here (today's
+// pre-A5 fallback, kept for documents where nothing was actually
+// overwritten), else ok=false when neither yields anything.
+func calcPriorValue(ev *graft.Evaluator) (value interface{}, ok bool) {
+	if ev.PriorValues != nil {
+		if prior, found := ev.PriorValues[ev.Here.String()]; found {
+			return prior, true
+		}
+	}
+
+	resolved, err := ev.Here.Resolve(ev.Tree)
+	if err != nil || resolved == nil {
+		return nil, false
+	}
+	return resolved, true
 }
 
 // searchForCursors finds path references in the input string.

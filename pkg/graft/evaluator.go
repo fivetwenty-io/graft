@@ -42,6 +42,15 @@ type Evaluator struct {
 	// "insertion" - maintain the order operations were discovered
 	DataflowOrder string
 
+	// PriorValues holds, per canonical path string, the value a "(( calc
+	// <leading-op> ... ))" value-modification expression overwrote during
+	// merge — the "existing value" op_calc.go's leading-operator branch
+	// needs but can no longer find at ev.Here once the overlay's operator
+	// string has replaced it (spec cluster A5 §5.3). Populated only for
+	// that one expression shape, by the merge builder, before evaluation
+	// begins; nil (or missing the key) for every other document.
+	PriorValues map[string]interface{}
+
 	// CherryPickPaths contains the paths to cherry-pick during evaluation.
 	// When set, only operators under these paths and their dependencies will be evaluated.
 	// This enables selective evaluation, significantly improving performance for large documents

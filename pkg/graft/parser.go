@@ -692,6 +692,19 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 
 	op := OperatorFor(opName)
 
+	// spec cluster A5 §5.2: "(( calc * 2 ))" must parse identically to
+	// "(( calc "* 2" ))" — op_calc.go's leading-operator branch already
+	// handles the string form; the parser's ordinary argument loop can
+	// never produce it, because it breaks on the first binary operator
+	// token. Scoped to "calc" alone.
+	if opName == "calc" {
+		if expr, ok, err := p.tryParseCalcRawSubstring(op); err != nil {
+			return nil, err
+		} else if ok {
+			return expr, nil
+		}
+	}
+
 	// Check for target (@target)
 	var target string
 	if p.current().Type == interfaces.TokenAt {
@@ -797,6 +810,68 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 			target: target,
 		},
 	}, nil
+}
+
+// isCalcLeadingOperatorToken reports whether tok is one of the tokens that
+// can open op_calc.go's leading-operator value-modification form: * / + -
+// %, or the undocumented-but-accepted ^ (spec cluster A5 §5.2). "^" has no
+// dedicated TokenType — the tokenizer's catch-all arm scans any character it
+// does not otherwise recognize as a single-rune TokenInvalid, advancing
+// past it — so it is identified by literal text instead of token type.
+func isCalcLeadingOperatorToken(tok interfaces.Token) bool {
+	switch tok.Type {
+	case interfaces.TokenStar, interfaces.TokenSlash, interfaces.TokenPlus,
+		interfaces.TokenMinus, interfaces.TokenPercent:
+		return true
+	case interfaces.TokenInvalid:
+		return tok.Literal == "^"
+	}
+	return false
+}
+
+// tryParseCalcRawSubstring implements spec cluster A5 §5.2. If the token
+// immediately after "calc" is a leading calc operator (isCalcLeadingOperatorToken),
+// the raw input from that token's own start offset up to (not including)
+// the calc call's closing "))" is captured verbatim, trimmed, and returned
+// as a single string-literal argument — "(( calc * 2 ))" parses identically
+// to "(( calc "* 2" ))", reusing op_calc.go's existing string-form branch
+// untouched. The token cursor is left pointing at that "))" (not past it),
+// exactly where the ordinary argument loop would leave it, for the normal
+// enclosing ParseOpcall/parseNestedOperator expect() call to consume.
+//
+// Returns ok=false (falling through to ordinary argument parsing) when the
+// next token is not a leading calc operator — e.g. "(( calc "1 + 2" ))" or
+// "(( calc(a, b) ))" both leave the raw-capture path alone.
+func (p *Parser) tryParseCalcRawSubstring(op Operator) (*Expr, bool, error) {
+	tok := p.current()
+	if !isCalcLeadingOperatorToken(tok) {
+		return nil, false, nil
+	}
+
+	closeIdx := -1
+	for i := p.pos; i < len(p.tokens); i++ {
+		if p.tokens[i].Type == interfaces.TokenOperatorEnd {
+			closeIdx = i
+			break
+		}
+	}
+	if closeIdx == -1 {
+		return nil, false, fmt.Errorf("expected '))' to close calc expression")
+	}
+
+	raw := strings.TrimSpace(p.input[tok.Pos.Offset:p.tokens[closeIdx].Pos.Offset])
+	p.pos = closeIdx
+
+	return &Expr{
+		Type:     OperatorCall,
+		Operator: "calc",
+		Call: &Opcall{
+			src:  p.input,
+			op:   op,
+			name: "calc",
+			args: []*Expr{{Type: Literal, Literal: raw}},
+		},
+	}, true, nil
 }
 
 // parseReferencePath parses a dotted reference path like foo.bar.baz.

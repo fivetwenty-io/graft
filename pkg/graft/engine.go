@@ -674,6 +674,12 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 		ev.Only = cherryPickPaths // Also set the original field for backward compatibility
 	}
 
+	// Extract calc-modification prior values recorded during merge, if any
+	// (spec cluster A5 §5.3).
+	if priorValues := GetPriorCalcValues(ctx); len(priorValues) > 0 {
+		ev.PriorValues = priorValues
+	}
+
 	// Run evaluation
 	err := e.evaluate(ctx, ev)
 	if err != nil {
