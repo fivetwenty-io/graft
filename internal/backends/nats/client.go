@@ -225,13 +225,40 @@ func (ncp *ClientPool) GetConnection(targetName string) (*PooledConnection, erro
 	}
 	pooledConn.JS = js
 
-	// Store connection for reuse
+	// Store for reuse, but re-check under the write lock first: another
+	// goroutine racing this same cold target may have already stored its
+	// own connection while this one was still connecting (D1 made this
+	// reachable - op_nats.go calls GetConnection from computeOp, so two
+	// nats@target operators in the same wave can race a cold pool). If so,
+	// converge onto the existing winner and close this goroutine's
+	// now-redundant connection instead of silently overwriting the map
+	// entry, which would leave it unreachable from CloseAll and never
+	// closed - a real leaked TCP connection, not just wasted work.
+	return ncp.storeOrDiscard(targetName, pooledConn, config, conn.Close), nil
+}
+
+// storeOrDiscard stores candidate as the pooled connection for targetName,
+// unless another goroutine already stored one first, in which case it
+// closes candidate's connection via closeLoser and returns the existing
+// winner (with its RefCount incremented for this caller, matching the
+// fast-path hit in GetConnection - every successful return here pairs
+// with exactly one later ReleaseConnection call). Extracted as its own
+// method, taking a closeLoser callback instead of calling
+// candidate.Conn.Close() directly, so the race-convergence logic is
+// testable without a real NATS connection.
+func (ncp *ClientPool) storeOrDiscard(targetName string, candidate *PooledConnection, config *Target, closeLoser func()) *PooledConnection {
 	ncp.mu.Lock()
-	ncp.connections[targetName] = pooledConn
+	if existing, exists := ncp.connections[targetName]; exists {
+		existing.RefCount++
+		existing.LastUsed = time.Now()
+		ncp.mu.Unlock()
+		closeLoser()
+		return existing
+	}
+	ncp.connections[targetName] = candidate
 	ncp.configs[targetName] = config
 	ncp.mu.Unlock()
-
-	return pooledConn, nil
+	return candidate
 }
 
 // GetTargetConfig retrieves target configuration from environment variables.
