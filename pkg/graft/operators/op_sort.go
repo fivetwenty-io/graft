@@ -27,22 +27,21 @@ func (SortOperator) Dependencies(_ *Evaluator, _ []*Expr, _ []*tree.Cursor, auto
 	return auto
 }
 
-// Run executes the operator
-// The sort operator is handled as a post-processing step after evaluation,
-// so during evaluation it just returns the current value unchanged.
-// The actual sorting happens in the engine's evaluate method.
-func (SortOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
+// Run executes the operator.
+//
+// A well-formed (( sort by X )) marker is consumed at merge time (see
+// addToSortListIfNecessary in pkg/graft/merger/merge.go), never reaching
+// Run(): it is queued as a path-to-sort and the prior document's list is
+// kept in its place. Run() is only ever invoked when a (( sort ... ))
+// marker had no prior list to attach to (e.g. it's the first document
+// defining that path, or it appears somewhere other than as a scalar
+// override of an existing list) — in spruce this is always a hard error,
+// never a silent pass-through.
+func (SortOperator) Run(ev *Evaluator, _ []*Expr) (*Response, error) {
 	DEBUG("running (( sort ... )) operation at $.%s", ev.Here)
 	defer DEBUG("done with (( sort ... )) operation at $.%s\n", ev.Here)
 
-	val, err := ev.Here.Resolve(ev.Tree)
-	if err != nil {
-		return nil, err
-	}
-	return &Response{
-		Type:  Replace,
-		Value: val,
-	}, nil
+	return nil, fmt.Errorf("orphaned (( sort )) operator at $.%s, no list exists at that path", ev.Here)
 }
 
 //nolint:gochecknoinits // Operator registration must happen at package load time
