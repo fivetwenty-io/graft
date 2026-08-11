@@ -9,7 +9,7 @@ import (
 
 // UniqOperator removes duplicate elements from an array, keeping the first
 // occurrence of each distinct value and preserving input order — it never
-// sorts (spec cluster A4 §4.3). Element equality is reflect.DeepEqual, so
+// sorts. Element equality is reflect.DeepEqual, so
 // maps and lists dedupe structurally, matching legacyEqual's own use of
 // DeepEqual elsewhere in the operator corpus.
 type UniqOperator struct{}

@@ -34,8 +34,8 @@ func (c *secretCache) Set(path string, data map[string]interface{}) {
 }
 
 // GetOrFetch returns the cached secret for path if present, otherwise calls
-// fetch to read it from Vault and caches the result (spec cluster D2).
-// Concurrent callers for the same path are coalesced onto a single fetch
+// fetch to read it from Vault and caches the result. Concurrent callers
+// for the same path are coalesced onto a single fetch
 // via the cache's reqdedup.Group, so N references to the same secret
 // within one merge produce one Vault request. A failed fetch is never
 // cached, so a later call retries rather than replaying the error.

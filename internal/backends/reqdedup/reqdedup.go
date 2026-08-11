@@ -1,6 +1,6 @@
 // Package reqdedup coalesces concurrent, identical backend requests into a
-// single in-flight call (spec cluster D2: N references to the same secret
-// within one merge produce one backend request). It is a thin, typed
+// single in-flight call: N references to the same secret within one merge
+// produce one backend request. It is a thin, typed
 // wrapper around golang.org/x/sync/singleflight so backend packages
 // (internal/backends/vault, aws, nats) share one well-tested coalescing
 // primitive instead of each hand-rolling its own.

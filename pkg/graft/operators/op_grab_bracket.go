@@ -87,8 +87,8 @@ func resolveGrabDynamicBrackets(arg *Expr, ev *Evaluator) error {
 // predicate ("field=value", e.g. "name=primary" in
 // "servers[name=primary]"). Predicate segments are left as literal node
 // text so tree.Resolve's predicate matcher can run instead of this
-// function trying (and failing) to resolve them as their own path — see
-// spec cluster A7 §6.4's regression guard: a container that turns out to be
+// function trying (and failing) to resolve them as their own path - the
+// regression guard: a container that turns out to be
 // a map at resolve time still gets a plain key lookup on the literal
 // "field=value" string, so a genuine map key containing "=" is unaffected.
 func isDynamicBracketNode(node string) bool {

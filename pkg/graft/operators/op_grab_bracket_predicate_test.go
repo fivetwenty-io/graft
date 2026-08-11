@@ -2,8 +2,8 @@ package operators
 
 import "testing"
 
-// TestIsDynamicBracketNodeExcludesPredicateSegments pins the spec cluster A7
-// §6.4 regression guard: a bracketed segment shaped like "field=value" must
+// TestIsDynamicBracketNodeExcludesPredicateSegments pins the predicate
+// regression guard: a bracketed segment shaped like "field=value" must
 // not be claimed as a dynamic key reference, so the resolver's predicate
 // matcher gets a chance to run instead of resolveGrabDynamicBrackets trying
 // (and failing) to resolve "name=primary" as its own path from the document

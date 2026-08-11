@@ -31,7 +31,7 @@ type mergeBuilderImpl struct {
 
 	// priorCalcValues records, per canonical path string, the base value a
 	// "(( calc <leading-op> ... ))" value-modification expression
-	// overwrote during merge (spec cluster A5 §5.3). Populated by
+	// overwrote during merge. Populated by
 	// mergeValuesAtPath; consumed by applyEvaluation via
 	// WithPriorCalcValues. nil for the overwhelming majority of merges that
 	// never write this expression shape — no cost for any other document.
@@ -396,7 +396,7 @@ func (m *mergeBuilderImpl) mergeInto(base, overlay map[string]interface{}) error
 // mergeIntoAtPath is mergeInto with the canonical path (as a segment slice,
 // root-relative) of `base`/`overlay` within the overall document. The path
 // is threaded through purely to let mergeValuesAtPath record calc
-// prior-values at the correct key (spec cluster A5 §5.3); it changes no
+// prior-values at the correct key; it changes no
 // merge decision.
 func (m *mergeBuilderImpl) mergeIntoAtPath(base, overlay map[string]interface{}, path []string) error {
 	if m.needsLegacyMerger(base, overlay) {
@@ -1132,7 +1132,7 @@ func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 			evalCtx = WithCherryPickPaths(evalCtx, m.cherryPickKeys)
 		}
 		// Pass calc value-modification prior values recorded during merge,
-		// if any (spec cluster A5 §5.3).
+		// if any.
 		if len(m.priorCalcValues) > 0 {
 			evalCtx = WithPriorCalcValues(evalCtx, m.priorCalcValues)
 		}
@@ -1250,7 +1250,7 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 		//
 		// A "field=value" predicate final segment (e.g.
 		// "servers.name=secondary") is different: spruce has no predicate
-		// syntax at all (spec cluster A7 §6.4/§7.1), so there is no spruce
+		// syntax at all, so there is no spruce
 		// behavior to preserve, and the whole point of wiring predicates
 		// into --cherry-pick/--prune is that they resolve to a specific
 		// array entry — so a predicate final segment does resolve to a
@@ -1334,7 +1334,7 @@ func findNamedArrayEntry(arr []interface{}, name string) (interface{}, bool) {
 // --cherry-pick/--prune) is a list predicate, not a name/id/key lookup —
 // dispatched to tree.PredicateFind so cherry-pick and prune match the exact
 // same first-match, list-containers-only semantics as (( grab ... ))
-// predicate resolution (spec cluster A7 §6.4, carried into this path
+// predicate resolution, carried into this path
 // navigator, which used to hand-roll its own name-field-only search and
 // silently fail on predicate syntax).
 func findNamedArrayEntryWithIndex(arr []interface{}, name string) (int, interface{}, bool) {

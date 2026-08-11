@@ -11,8 +11,8 @@ import (
 // TestGroup_ConcurrentSameKeyCallsOnce verifies that N goroutines calling Do
 // with the same key while the first call is still in flight all receive the
 // same result from exactly one underlying fetch - this is the core request
-// dedup guarantee (spec cluster D2): N references to the same secret produce
-// one backend request.
+// dedup guarantee: N references to the same secret produce one backend
+// request.
 func TestGroup_ConcurrentSameKeyCallsOnce(t *testing.T) {
 	var g Group[string]
 	var calls atomic.Int64
@@ -63,8 +63,8 @@ func TestGroup_ConcurrentSameKeyCallsOnce(t *testing.T) {
 
 // TestGroup_DistinctKeysCallSeparately verifies that different keys are not
 // coalesced together - each distinct key gets its own underlying fetch, and
-// per-target separation (spec cluster A7) is preserved when callers key by
-// "target\x00path" or similar.
+// per-target separation is preserved when callers key by "target\x00path"
+// or similar.
 func TestGroup_DistinctKeysCallSeparately(t *testing.T) {
 	var g Group[int]
 	var calls atomic.Int64

@@ -9,7 +9,7 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// TestCalcPriorValue_GenuineTwoFileMerge pins spec cluster A5 §5.3 gap 2:
+// TestCalcPriorValue_GenuineTwoFileMerge pins a merge-order requirement:
 // a "(( calc <leading-op> ... ))" value-modification expression in an
 // overlay document must multiply the *base* document's value at that path,
 // not the unevaluated operator node itself. The single-file "base:"/

@@ -8,7 +8,7 @@ import (
 )
 
 // predicateSegmentPattern matches a list-predicate path segment such as
-// "name=primary" (spec cluster A7 §6.4): a field name, "=", and the value
+// "name=primary": a field name, "=", and the value
 // to match against that field on each map element of a list. Both the
 // bracketed form ("servers[name=primary]") and the dotted form
 // ("servers.name=primary") produce this exact segment string via
@@ -26,8 +26,8 @@ func parsePredicateSegment(node string) (field, value string, ok bool) {
 }
 
 // IsPredicateSegment reports whether node has the "field=value" shape
-// Resolve/Canonical/Glob treat as a list predicate (spec cluster A7 §6.4).
-// Exported so callers outside this package — notably
+// Resolve/Canonical/Glob treat as a list predicate. Exported so callers
+// outside this package — notably
 // operators.isDynamicBracketNode, which decides whether a bracketed
 // grab segment is a dynamic key reference or a literal node — can apply the
 // identical rule without duplicating the regex.
@@ -39,8 +39,7 @@ func IsPredicateSegment(node string) bool {
 // ParsePredicateSegment is parsePredicateSegment, exported so callers
 // outside this package — notably mergeBuilderImpl's cherry-pick/prune path
 // navigation — can recognize a "field=value" segment using the identical
-// rule Resolve/Canonical/Glob use, rather than duplicating the regex (spec
-// cluster A7 §6.4, carried into cherry-pick/prune predicate reach).
+// rule Resolve/Canonical/Glob use, rather than duplicating the regex.
 func ParsePredicateSegment(node string) (field, value string, ok bool) {
 	return parsePredicateSegment(node)
 }
@@ -55,7 +54,7 @@ func PredicateFind(l []interface{}, field, value string) (interface{}, uint64, b
 
 // predicateFind searches a list for the first map element whose `field` key
 // stringifies equal to `value`. This generalizes listFind's fixed
-// NameFields search to an explicit field name (spec cluster A7 §6.4).
+// NameFields search to an explicit field name.
 func predicateFind(l []interface{}, field, value string) (interface{}, uint64, bool) {
 	for i, v := range l {
 		idx := uint64(i) // #nosec G115 - i is from range loop, always >= 0

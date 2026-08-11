@@ -5,10 +5,10 @@ import (
 )
 
 // secretFetchGroup and paramFetchGroup coalesce concurrent GetOrFetch*
-// calls for the same (target, key) into one underlying fetch (spec cluster
-// D2). Package-level: the cache maps they front are themselves
-// package-level (DefaultPool), and coalescing only needs to be scoped to
-// the key string, which already carries the target.
+// calls for the same (target, key) into one underlying fetch. Package-
+// level: the cache maps they front are themselves package-level
+// (DefaultPool), and coalescing only needs to be scoped to the key string,
+// which already carries the target.
 var (
 	secretFetchGroup reqdedup.Group[string]
 	paramFetchGroup  reqdedup.Group[string]

@@ -36,16 +36,16 @@ type Parser struct {
 	// against. ParseOpcall sets it once to 1 (the first token after "((").
 	// parseParenthesized and parseNestedOperator each save and restore it
 	// around their own inner parse, so every parenthesized group — however
-	// deeply nested — gets its own marker (spec cluster A2 §2.2).
+	// deeply nested — gets its own marker.
 	opcallPos int
 
 	// nestingDepth counts currently-open "(" / "((" groups. parseParenthesized
 	// and parseNestedOperator increment it on entry and decrement it on exit;
-	// exceeding maxNestingDepth is a hard parse error (spec cluster A2 §2.5).
+	// exceeding maxNestingDepth is a hard parse error.
 	nestingDepth int
 }
 
-// maxNestingDepth bounds "(" / "((" nesting depth (spec cluster A2 §2.5).
+// maxNestingDepth bounds "(" / "((" nesting depth.
 const maxNestingDepth = 64
 
 // enterNesting increments the parser's paren-nesting counter and reports an
@@ -256,8 +256,7 @@ func (p *Parser) parseExprWithPrecedence(minPrec Precedence) (*Expr, error) {
 // operator call under identifierOpensOpcallAt's two-token rule, that name
 // claims the call-opening position right there, exactly like the first token
 // after "((": `(( grab a && grab b ))` must evaluate both grabs, not degrade
-// the second one to a bare reference (spec cluster A2 §2.1, §11 Stage A-i
-// "Done means").
+// the second one to a bare reference.
 //
 // Everything else is left untouched: opcallPos is only advanced when the
 // two-token rule fires, so the A6 lookahead rule for unregistered names —
@@ -548,8 +547,8 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 			return p.parseOperatorCall(name)
 		}
 
-		// If followed by @, it is a targeted operator call — op@target
-		// (spec cluster A7 §7.2 form (b)). This matters in argument
+		// If followed by @, it is a targeted operator call — op@target.
+		// This matters in argument
 		// position: "(( vault@a "x" || vault@b "x" ))" puts the second
 		// targeted call on the right of ||, where the identifier would
 		// otherwise fall through to the reference branch and leave the
@@ -587,7 +586,7 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 	// Unknown operator (NullOperator) - at primary position, still treat as operator call
 	// This allows unknown operators to be parsed and left unevaluated
 	if isPrimaryPosition {
-		// A6 (spec cluster A6, §3.2): a bare identifier at the call-opening
+		// A bare identifier at the call-opening
 		// position that names no registered operator is normally parsed as
 		// an operator call — the NullOperator literal pass-through (B-1,
 		// B-2). But when the token immediately following it is an infix
@@ -668,7 +667,7 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 // immediately following the current identifier is one that places the
 // identifier in operand position rather than call-opening position: an
 // infix binary operator (+ - * / % == != < <= > >= && ||), "?", or "."
-// (spec cluster A6 §3.2). It peeks one token ahead without consuming
+// It peeks one token ahead without consuming
 // anything; p.pos must still be at the identifier itself when called.
 func (p *Parser) nextTokenPlacesIdentifierInOperandPosition() bool {
 	if p.pos+1 >= len(p.tokens) {
@@ -703,7 +702,7 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 
 	op := OperatorFor(opName)
 
-	// spec cluster A5 §5.2: "(( calc * 2 ))" must parse identically to
+	// "(( calc * 2 ))" must parse identically to
 	// "(( calc "* 2" ))" — op_calc.go's leading-operator branch already
 	// handles the string form; the parser's ordinary argument loop can
 	// never produce it, because it breaks on the first binary operator
@@ -734,8 +733,8 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 	// operator call is not function-call syntax — it is the first
 	// space-separated argument, which is how nearly every documented nested
 	// call is written: "(( base64 (file \"x\") ))", "(( file (concat ... ) ))",
-	// "(( grab (concat ... ) ))" (spec cluster A2 §2.3's `arguments` rule,
-	// where a `primary` may be a parenthesized group).
+	// "(( grab (concat ... ) ))" (the `arguments` rule, where a `primary`
+	// may be a parenthesized group).
 	if p.current().Type == interfaces.TokenLeftParen && !p.identifierOpensOpcallAt(p.pos+1) {
 		p.advance() // consume (
 		for p.current().Type != interfaces.TokenRightParen && p.current().Type != interfaces.TokenEOF {
@@ -756,7 +755,7 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 		}
 	} else {
 		// Space-separated arguments until )), a bare ")" (closing an
-		// operator call opened by a single "(" — spec cluster A2), or
+		// operator call opened by a single "("), or
 		// another operator.
 		for p.current().Type != interfaces.TokenOperatorEnd &&
 			p.current().Type != interfaces.TokenRightParen &&
@@ -825,7 +824,7 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 
 // isCalcLeadingOperatorToken reports whether tok is one of the tokens that
 // can open op_calc.go's leading-operator value-modification form: * / + -
-// %, or the undocumented-but-accepted ^ (spec cluster A5 §5.2). "^" has no
+// %, or the undocumented-but-accepted ^. "^" has no
 // dedicated TokenType — the tokenizer's catch-all arm scans any character it
 // does not otherwise recognize as a single-rune TokenInvalid, advancing
 // past it — so it is identified by literal text instead of token type.
@@ -840,7 +839,7 @@ func isCalcLeadingOperatorToken(tok interfaces.Token) bool {
 	return false
 }
 
-// tryParseCalcRawSubstring implements spec cluster A5 §5.2. If the token
+// tryParseCalcRawSubstring implements the calc raw-substring capture. If the token
 // immediately after "calc" is a leading calc operator (isCalcLeadingOperatorToken),
 // the raw input from that token's own start offset up to (not including)
 // the calc call's closing "))" is captured verbatim, trimmed, and returned
@@ -949,7 +948,7 @@ func (p *Parser) parseEnvironment() (*Expr, error) {
 }
 
 // parseParenthesized parses a "(" group, which is either a plain arithmetic
-// grouping (today's sole behavior) or, as of spec cluster A2, an operator
+// grouping (today's sole behavior) or an operator
 // call opened by a bare "(" — e.g. "(grab a)" as an operand inside a larger
 // expression. parenOpensOpcall decides which with a two-token lookahead
 // (§2.3–§2.4); the two arms share everything except whether opcallPos is
@@ -989,8 +988,8 @@ func (p *Parser) parseParenthesized() (*Expr, error) {
 }
 
 // parenOpensOpcall reports whether the "(" group about to be parsed opens an
-// operator call rather than an arithmetic grouping (spec cluster A2 §2.3–
-// §2.4). p.pos must point at the token immediately after the just-consumed
+// operator call rather than an arithmetic grouping. p.pos must point at
+// the token immediately after the just-consumed
 // "(". The decision is identifierOpensOpcallAt's two-token rule, shared with
 // parseOperand so a "(" group and a bare operand classify identically.
 // Otherwise the group is ordinary grouping — today's behavior, unchanged.
@@ -1065,8 +1064,7 @@ func (p *Parser) parseUnaryMinus() (*Expr, error) {
 // parseNestedOperator parses a nested (( ... )) expression. Unlike a bare
 // "(", "((" is unambiguously an operator-call opener — it is never used for
 // arithmetic grouping — so it always claims the primary operator position
-// for its own contents, exactly mirroring ParseOpcall (spec cluster A2
-// §2.2).
+// for its own contents, exactly mirroring ParseOpcall.
 func (p *Parser) parseNestedOperator() (*Expr, error) {
 	p.advance() // consume ((
 

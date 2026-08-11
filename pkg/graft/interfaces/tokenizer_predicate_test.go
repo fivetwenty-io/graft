@@ -2,8 +2,8 @@ package interfaces
 
 import "testing"
 
-// TestArrayReferencePatternPredicateSegment pins the spec cluster A7 §6.3
-// tokenizer change: a dotted segment may carry an inline "field=value"
+// TestArrayReferencePatternPredicateSegment pins the tokenizer's predicate
+// support: a dotted segment may carry an inline "field=value"
 // predicate, and the doubled-'=' / quote-after-'=' cases must still stop at
 // the ordinary "==" comparison boundary rather than being captured into the
 // reference.

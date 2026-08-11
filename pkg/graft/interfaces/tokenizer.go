@@ -208,7 +208,7 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 				for pos < len(runes) && isIdentifierContinue(runes[pos]) {
 					pos++
 				}
-				// Predicate segment support (spec cluster A7 §6.3): a dotted
+				// Predicate segment support: a dotted
 				// segment may carry an inline "field=value" predicate, e.g.
 				// "servers.name=primary.host" tokenizes with "name=primary"
 				// as one segment, matching the bracketed

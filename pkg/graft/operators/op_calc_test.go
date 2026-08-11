@@ -9,7 +9,7 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// TestCalcRawSubstringMatchesQuotedForm pins spec cluster A5 §5.2: the
+// TestCalcRawSubstringMatchesQuotedForm pins the rule that the
 // parser's raw-substring capture for "(( calc * 2 ))" must produce the same
 // result as writing the equivalent "(( calc "* 2" ))" by hand. Since
 // nothing overwrote the value at this path (single document, no merge), the
@@ -68,7 +68,7 @@ func TestCalcLiteralOnlyUnaffected(t *testing.T) {
 	})
 }
 
-// TestCalcNamedVariables pins spec cluster A5 §5.4: bare named variables
+// TestCalcNamedVariables pins the rule that bare named variables
 // resolve relative to the calc call's own parent first (siblings), then
 // absolutely from the document root.
 func TestCalcNamedVariables(t *testing.T) {

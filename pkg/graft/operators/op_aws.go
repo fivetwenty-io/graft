@@ -196,7 +196,7 @@ func parseAwsOpKey(key string) (string, url.Values, error) {
 // resolveSession returns the AWS session to use and the pool cache
 // namespace it was resolved under. A non-empty target selects a pooled,
 // target-specific session and namespaces the cache under the target name,
-// erroring if that target has no configuration (spec cluster A7 §7): unlike
+// erroring if that target has no configuration: unlike
 // the no-target path, there is no fallback, since silently falling back to
 // the default session is exactly the wrong-account-read risk this wiring
 // closes. An empty target keeps the existing behavior verbatim: try the
@@ -226,7 +226,7 @@ func (o AwsOperator) resolveSession(target string) (*session.Session, string, er
 // cacheTarget namespaces the secret cache (see resolveSession).
 // GetOrFetchSecret both serves cached values without a network call and
 // coalesces concurrent requests for the same (target, secret) into one
-// backend request (spec cluster D2), rather than exposing the raw cache
+// backend request, rather than exposing the raw cache
 // map for an unsynchronized read as the previous implementation did.
 func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secret string, params url.Values) (string, error) {
 	return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, secret, func() (string, error) {

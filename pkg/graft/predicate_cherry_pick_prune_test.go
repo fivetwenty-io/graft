@@ -13,8 +13,7 @@ import (
 // against name/id/key fields — it never recognized predicate syntax at
 // all. They now dispatch a predicate segment to tree.ParsePredicateSegment
 // / tree.PredicateFind, the exact same first-match, list-containers-only
-// functions the (( grab ... )) predicate resolver uses (spec cluster A7
-// §6.4).
+// functions the (( grab ... )) predicate resolver uses.
 
 func predicateTestServers() map[string]interface{} {
 	return map[string]interface{}{

@@ -25,7 +25,7 @@ import (
 // existing single-config connection pool otherwise.
 type NatsOperator struct{}
 
-// SupportsTarget reports that nats honors "@target" (spec cluster A7 §7).
+// SupportsTarget reports that nats honors "@target".
 func (NatsOperator) SupportsTarget() bool {
 	return true
 }
@@ -33,9 +33,8 @@ func (NatsOperator) SupportsTarget() bool {
 // fetchFromKV retrieves a value from a NATS KV store using
 // natsbackend.FetchFromKVCached, which namespaces the cache key by target
 // so the same store path on two different NATS clusters never collides
-// (spec cluster A7 §7, mirroring the same fix in op_vault.go's
-// performVaultLookup) and coalesces concurrent identical requests into one
-// backend call (spec cluster D2).
+// (mirroring the same fix in op_vault.go's performVaultLookup) and
+// coalesces concurrent identical requests into one backend call.
 func (n NatsOperator) fetchFromKV(js jetstream.JetStream, target, storePath string, config *natsbackend.Config) (interface{}, error) {
 	return natsbackend.FetchFromKVCached(target, js, storePath, config)
 }
@@ -280,8 +279,8 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 		return nil, err
 	}
 
-	// A non-empty target selects a pooled, target-specific connection
-	// (spec cluster A7 §7); an empty target keeps the existing
+	// A non-empty target selects a pooled, target-specific connection; an
+	// empty target keeps the existing
 	// single-config connection pool behavior verbatim. Unlike the no-target
 	// path, a target that cannot be resolved is a hard error — there is no
 	// fallback to the default connection, since that would silently read

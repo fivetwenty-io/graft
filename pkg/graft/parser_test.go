@@ -318,7 +318,7 @@ func TestA6BareReferenceOperand(t *testing.T) {
 }
 
 // TestParseOpcallDoesNotHangOnBareEquals pins the fix for the tokenizer
-// livelock (spec cluster A7 §6.1): before the fix, an unescaped `=`, `&`, or
+// livelock: before the fix, an unescaped `=`, `&`, or
 // `|` inside an operator call — including the dotted predicate form —
 // spun the tokenizer forever, appending identical TokenInvalid tokens.
 //

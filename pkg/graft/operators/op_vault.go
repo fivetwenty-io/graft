@@ -335,7 +335,7 @@ func isVaultNotFound(err error) bool {
 // falling back to the default environment-initialized client otherwise.
 type VaultOperator struct{}
 
-// SupportsTarget reports that vault honors "@target" (spec cluster A7 §7).
+// SupportsTarget reports that vault honors "@target".
 func (VaultOperator) SupportsTarget() bool {
 	return true
 }
@@ -520,7 +520,7 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 }
 
 // performVaultLookup performs the actual vault lookup. target selects a
-// pooled, target-specific client when non-empty (spec cluster A7 §7); an
+// pooled, target-specific client when non-empty; an
 // empty target uses the default environment-initialized client, unchanged
 // from before target support existed.
 func (o VaultOperator) performVaultLookup(engine graft.Engine, target, key string) (string, error) {
@@ -539,12 +539,12 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, target, key strin
 	}
 
 	// Cache key is namespaced by target so the same path on two different
-	// Vault instances never collides (spec cluster A7 §7): without this, a
+	// Vault instances never collides: without this, a
 	// cached lookup made against the default instance could silently
 	// satisfy a later "@target" lookup for the same path against a
 	// different instance, or vice versa. GetOrFetch both serves cached
 	// values without a network call and coalesces concurrent requests for
-	// the same cache key into one Vault request (spec cluster D2).
+	// the same cache key into one Vault request.
 	cacheKey := leftPart
 	if target != "" {
 		cacheKey = target + "\x00" + leftPart
@@ -575,7 +575,7 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, target, key strin
 
 // resolveReader returns the VaultReader to use for a lookup: the pooled,
 // target-specific reader when target is non-empty, otherwise the default
-// environment-initialized reader (spec cluster A7 §7). A non-empty target
+// environment-initialized reader. A non-empty target
 // that cannot be resolved is a hard error — unlike the no-target path,
 // there is no fallback, since silently falling back to the default
 // instance is exactly the wrong-instance-read bug this wiring fixes.

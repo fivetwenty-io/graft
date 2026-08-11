@@ -114,8 +114,8 @@ func TestStoreOrDiscard_FirstCallerStores(t *testing.T) {
 	}
 }
 
-// TestStoreOrDiscard_LoserConvergesAndCloses is D-F15's core regression
-// test: when a connection for targetName already exists (another
+// TestStoreOrDiscard_LoserConvergesAndCloses is a core regression test:
+// when a connection for targetName already exists (another
 // goroutine won the race while this caller was still connecting),
 // storeOrDiscard must return the existing winner - not overwrite it with
 // the caller's candidate - and must invoke closeLoser exactly once so the
@@ -151,8 +151,8 @@ func TestStoreOrDiscard_LoserConvergesAndCloses(t *testing.T) {
 	}
 }
 
-// TestStoreOrDiscard_ConcurrentColdTarget simulates the real thundering
-// herd D-F15 describes: many goroutines racing storeOrDiscard for the
+// TestStoreOrDiscard_ConcurrentColdTarget simulates a real thundering
+// herd: many goroutines racing storeOrDiscard for the
 // same never-before-seen target, each with its own already-constructed
 // candidate (standing in for a goroutine that already paid the cost of
 // CreateConnectionFromConfig + jetstream.New before reaching the store

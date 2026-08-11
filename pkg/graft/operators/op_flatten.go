@@ -7,7 +7,7 @@ import (
 )
 
 // FlattenOperator recursively flattens a nested array to a single flat
-// array (spec cluster A4 §4.2): [[1,2],[3,4],[[5,6],7]] becomes
+// array: [[1,2],[3,4],[[5,6],7]] becomes
 // [1,2,3,4,5,6,7], however deeply the input nests. It takes exactly one
 // argument (interpretation decision T-2); a documented depth argument was
 // never implemented.

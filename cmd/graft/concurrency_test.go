@@ -19,8 +19,8 @@ func newInMemoryYamlFile(path, content string) YamlFile {
 }
 
 // TestBuildEngineAndDocsPreservesFileOrderUnderConcurrentParsing proves
-// that buildEngineAndDocs' concurrent file read/parse (Wave D1's
-// file-level parallelism) still returns docs indexed by the caller's
+// that buildEngineAndDocs' concurrent file read/parse (file-level
+// parallelism) still returns docs indexed by the caller's
 // original file order, not by goroutine completion order - merge order is
 // significant (later files override earlier ones), so this would be a
 // silent correctness regression if it broke.
@@ -133,13 +133,12 @@ func TestParallelStaticIPClaimErrorDeterministic(t *testing.T) {
 	}
 }
 
-// TestParallelStaticIPOrderSensitiveCarveOutPreventsRaceyClaims targets
-// the D-review's D-F3 finding. The reviewer forced isOrderSensitiveOp to
-// return false (fully defeating the serialization
-// StaticIPOperator.OrderSensitive exists to provide) and found that
-// TestParallelStaticIPClaimErrorDeterministic above - the only test tying
-// the carve-out to the real static_ips operator - still PASSED: its
-// fixture has exactly one colliding pair, and claimStaticIP's critical
+// TestParallelStaticIPOrderSensitiveCarveOutPreventsRaceyClaims covers a
+// gap in TestParallelStaticIPClaimErrorDeterministic above: forcing
+// isOrderSensitiveOp to return false (fully defeating the serialization
+// StaticIPOperator.OrderSensitive exists to provide) does not make that
+// test fail. Its fixture has exactly one colliding pair, and
+// claimStaticIP's critical
 // section is fast enough that sorted submission order alone usually
 // reproduces the same winner run after run even with no explicit
 // serialization, so that test never actually exercised the race the
@@ -157,10 +156,8 @@ func TestParallelStaticIPClaimErrorDeterministic(t *testing.T) {
 // regression that made static_ips's winner selection nondeterministic in
 // the normal, unmutated codebase.
 //
-// Honest limitation, recorded per the review's own fallback ("drop the
-// claim ... and record the gap explicitly"): manually mutating
-// isOrderSensitiveOp to `return false` (mirroring the reviewer's own
-// mutation) does NOT reliably make this test fail, even at this 80-pair
+// Honest limitation: manually mutating isOrderSensitiveOp to `return
+// false` does NOT reliably make this test fail, even at this 80-pair
 // scale or a 1000-pair scale tried during development. claimStaticIP's
 // critical section is a single global mutex around a few nanoseconds of
 // map work; on this hardware (32 logical CPUs, GOMAXPROCS=32) Go's
@@ -171,8 +168,7 @@ func TestParallelStaticIPClaimErrorDeterministic(t *testing.T) {
 // test-only behavior in production operator code). This test therefore
 // verifies the real operator's behavior is correct and deterministic at
 // wave-scale, but is not proof the OrderSensitive carve-out specifically
-// is load-bearing on every possible machine/load condition - see
-// d-notes.md's D-review remediation section for the full record.
+// is load-bearing on every possible machine/load condition.
 func TestParallelStaticIPOrderSensitiveCarveOutPreventsRaceyClaims(t *testing.T) {
 	const pairs = 80
 	const repeats = 10

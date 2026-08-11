@@ -132,8 +132,8 @@ type Operator interface {
 // Opcall.Run consults it before running any operator whose call carried a
 // target: operators that do not implement it, or that implement it
 // returning false, reject the target with a clear error instead of
-// silently discarding it — the bug documented in spec cluster A7 §7 (the
-// vault-target bug), where "(( vault@prod … ))" read from the default
+// silently discarding it — the vault-target bug, where "(( vault@prod … ))"
+// read from the default
 // Vault instance without any indication the target had been ignored.
 type TargetAware interface {
 	// SupportsTarget reports whether this operator can honor a non-empty
@@ -559,7 +559,7 @@ func GetCherryPickPaths(ctx context.Context) []string {
 }
 
 // priorCalcValuesKey is the context key for the calc-modification prior
-// values map (spec cluster A5 §5.3). Threading it through context, rather
+// values map. Threading it through context, rather
 // than a new MergeBuilder/Engine method parameter, matches the existing
 // cherry-pick-paths mechanism above and needs no signature changes to
 // Engine.Evaluate's public API.

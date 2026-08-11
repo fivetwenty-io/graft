@@ -46,7 +46,7 @@ type Evaluator struct {
 	// <leading-op> ... ))" value-modification expression overwrote during
 	// merge — the "existing value" op_calc.go's leading-operator branch
 	// needs but can no longer find at ev.Here once the overlay's operator
-	// string has replaced it (spec cluster A5 §5.3). Populated only for
+	// string has replaced it. Populated only for
 	// that one expression shape, by the merge builder, before evaluation
 	// begins; nil (or missing the key) for every other document.
 	PriorValues map[string]interface{}

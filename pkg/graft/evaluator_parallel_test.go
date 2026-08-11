@@ -240,7 +240,7 @@ dst:
 
 // sleepingTestOperator sleeps for a fixed duration before returning a
 // static value. Used to prove computeOp for independent same-wave
-// operators runs truly concurrently (Wave D1) rather than one at a time:
+// operators runs truly concurrently rather than one at a time:
 // N independent instances should complete in a small multiple of one
 // sleep, not N sleeps.
 type sleepingTestOperator struct {
@@ -264,7 +264,7 @@ func (sleepingTestOperator) Phase() OperatorPhase { return EvalPhase }
 // TestParallelTrueConcurrencySpeedup proves that independent (no
 // dependency edge) operators within a wave actually execute their
 // computeOp phase concurrently, not one at a time behind the pool's
-// SubmitWaitContext as before Wave D1. Four independent 150ms operators
+// SubmitWaitContext. Four independent 150ms operators
 // must finish well under the 600ms a fully-serial dispatch would take.
 func TestParallelTrueConcurrencySpeedup(t *testing.T) {
 	ansi.Color(false)
@@ -311,8 +311,8 @@ d: (( sleepingtest ))
 	}
 }
 
-// TestParallelWaveWiderThanPoolQueueDoesNotFail is the regression test for
-// the D-review's D-F1 finding: a dependency-free wave larger than the
+// TestParallelWaveWiderThanPoolQueueDoesNotFail is a regression test: a
+// dependency-free wave larger than the
 // worker pool's task queue capacity (DefaultPoolConfig().QueueSize ==
 // 1000) must still succeed. Before the fix, the concurrent group's fan-out
 // used pool.SubmitContext, whose non-blocking select returns ErrPoolFull
@@ -330,10 +330,10 @@ d: (( sleepingtest ))
 // this test did not reproduce the bug). A short sleep makes the producer
 // (submission loop, effectively instantaneous) reliably outpace the
 // consumers (2 workers x sleep-bound throughput), guaranteeing the queue
-// saturates regardless of machine speed - mirroring why the reviewer's real
-// CLI repro needed a real subprocess to observe the failure reliably.
-// 1200 mirrors the reviewer's own confirmed-failing count (n=1200 failed,
-// n=1000 passed against DefaultPoolConfig's QueueSize=1000).
+// saturates regardless of machine speed - a real CLI repro of this bug
+// needed a real subprocess to observe the failure reliably, for the same
+// reason. 1200 is a confirmed-failing count (n=1200 failed, n=1000 passed
+// against DefaultPoolConfig's QueueSize=1000).
 func TestParallelWaveWiderThanPoolQueueDoesNotFail(t *testing.T) {
 	ansi.Color(false)
 	SilenceWarnings(true)
@@ -402,7 +402,7 @@ func (orderSensitiveProbeOperator) Phase() OperatorPhase { return EvalPhase }
 func (orderSensitiveProbeOperator) OrderSensitive() bool { return true }
 
 // TestParallelOrderSensitiveOperatorRunsSequentially proves the
-// OrderSensitive partitioning added in Wave D1 (see op_static_ips.go's
+// OrderSensitive partitioning (see op_static_ips.go's
 // real use of it) actually prevents concurrent dispatch of same-wave
 // OrderSensitive operators, which have no DataFlow dependency edge
 // between them and would otherwise land in the true-concurrency group.
@@ -767,4 +767,3 @@ func TestPhaseGating_ParamErrorDropsMergeErrors_Sequential(t *testing.T) {
 		t.Errorf("EvalPhase (( grab )) error leaked through ParamPhase short-circuit: %s", msg)
 	}
 }
-

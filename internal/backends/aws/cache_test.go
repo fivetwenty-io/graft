@@ -130,7 +130,8 @@ func TestClientPool_GetOrFetchSecret_ConcurrentSameKeyDedupes(t *testing.T) {
 
 // TestClientPool_GetOrFetchSecret_DifferentTargetsNeverCollide verifies the
 // same secret path on two different targets is fetched and cached
-// independently (spec cluster A7 target separation carried into D2 dedup).
+// independently, and per-target separation is preserved through the
+// dedup layer.
 func TestClientPool_GetOrFetchSecret_DifferentTargetsNeverCollide(t *testing.T) {
 	pool := &ClientPool{
 		secretsCache: make(map[string]map[string]string),

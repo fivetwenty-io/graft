@@ -75,9 +75,9 @@ func TestFetchFromKVCached_TargetNamespaced(t *testing.T) {
 	}
 }
 
-// TestFetchFromKVCached_ConcurrentSameKeyDedupes proves D2 for the NATS KV
-// path: concurrent requests for the identical (target, storePath) coalesce
-// into one underlying fetch.
+// TestFetchFromKVCached_ConcurrentSameKeyDedupes proves the request-dedup
+// guarantee for the NATS KV path: concurrent requests for the identical
+// (target, storePath) coalesce into one underlying fetch.
 func TestFetchFromKVCached_ConcurrentSameKeyDedupes(t *testing.T) {
 	ClearCache()
 	t.Cleanup(ClearCache)
@@ -155,8 +155,8 @@ func TestFetchFromObjectCached_TargetNamespaced(t *testing.T) {
 	}
 }
 
-// TestFetchFromKVCachedWith_AuditLogsOnMissAndHit is D-F6's regression
-// test: op_nats.go's old fetchFromKV emitted an "AUDIT: Accessing KV
+// TestFetchFromKVCachedWith_AuditLogsOnMissAndHit is a regression test:
+// op_nats.go's old fetchFromKV emitted an "AUDIT: Accessing KV
 // store" line before checking the cache, so both a miss and a later hit
 // for the same path were audited. Moving the cache into this package
 // dropped the hit-path line - FetchFromKV (the miss-only real backend
@@ -239,8 +239,8 @@ func TestFetchFromKVCachedWith_MissAuditNotDoubled(t *testing.T) {
 	}
 }
 
-// TestFetchFromKVCachedWith_HitRecordsMeasuredDuration is D-F7's
-// regression test: the cache-hit path called
+// TestFetchFromKVCachedWith_HitRecordsMeasuredDuration is a regression
+// test: the cache-hit path called
 // GlobalMetrics.RecordOperation with a hardcoded 0 duration instead of
 // measuring elapsed time. A hardcoded 0 means TotalDuration never
 // increases across any number of hits; a measured value does.
@@ -275,8 +275,9 @@ func TestFetchFromKVCachedWith_HitRecordsMeasuredDuration(t *testing.T) {
 
 // TestFetchFromObjectCachedWith_AuditLogsOnMissAndHit and
 // TestFetchFromObjectCachedWith_HitRecordsMeasuredDuration mirror the KV
-// tests above for the object-store seam - D-F6/D-F7 affected
-// FetchFromObjectCachedWith identically.
+// tests above for the object-store seam - the same audit-logging and
+// duration-measurement bugs affected FetchFromObjectCachedWith
+// identically.
 func TestFetchFromObjectCachedWith_AuditLogsOnMissAndHit(t *testing.T) {
 	ClearCache()
 	t.Cleanup(ClearCache)

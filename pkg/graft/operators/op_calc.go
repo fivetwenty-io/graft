@@ -86,7 +86,7 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 	if trimmedInput != "" {
 		firstChar := trimmedInput[0]
 		if firstChar == '*' || firstChar == '/' || firstChar == '+' || firstChar == '-' || firstChar == '^' || firstChar == '%' {
-			// The "existing value" to modify (spec cluster A5 §5.3): by the
+			// The "existing value" to modify: by the
 			// time this operator runs, ev.Here already resolves to the
 			// unevaluated operator node itself, since the merge already
 			// replaced whatever was at this path with this expression's own
@@ -142,7 +142,7 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 		return nil, expressionError
 	}
 
-	// Named variables in the expression (spec cluster A5 §5.4): resolve each
+	// Named variables in the expression: resolve each
 	// name still reported by govaluate's own parser relative to the calc
 	// call's own parent first — a sibling reference, matching
 	// arithmetic.md's documented example where the referenced names are
@@ -202,7 +202,7 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 }
 
 // resolveCalcVariable resolves a bare named variable that survived
-// replaceCalcReferences's dotted-path substitution (spec cluster A5 §5.4).
+// replaceCalcReferences's dotted-path substitution.
 // It tries, in order: a sibling of the calc call's own path (ev.Here's
 // parent plus name), then an absolute path from the document root. The
 // first cursor that resolves wins; if that value is not numeric, resolution
@@ -314,7 +314,7 @@ func calcBareNameDependencies(ev *graft.Evaluator, expr string) []*tree.Cursor {
 }
 
 // calcPriorValue returns the "existing value" for op_calc.go's
-// leading-operator value-modification form (spec cluster A5 §5.3): the
+// leading-operator value-modification form: the
 // merge builder's recorded prior value at ev.Here's canonical path if one
 // was recorded, else whatever currently resolves at ev.Here (today's
 // pre-A5 fallback, kept for documents where nothing was actually

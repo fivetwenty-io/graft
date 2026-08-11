@@ -212,10 +212,10 @@ func (ncp *ClientPool) GetConnection(targetName string) (*PooledConnection, erro
 
 	// Store for reuse, but re-check under the write lock first: another
 	// goroutine racing this same cold target may have already stored its
-	// own connection while this one was still connecting (D1 made this
-	// reachable - op_nats.go calls GetConnection from computeOp, so two
-	// nats@target operators in the same wave can race a cold pool). If so,
-	// converge onto the existing winner and close this goroutine's
+	// own connection while this one was still connecting - op_nats.go
+	// calls GetConnection from computeOp, so two nats@target operators in
+	// the same scheduler wave can race a cold pool. If so, converge onto
+	// the existing winner and close this goroutine's
 	// now-redundant connection instead of silently overwriting the map
 	// entry, which would leave it unreachable from CloseAll and never
 	// closed - a real leaked TCP connection, not just wasted work.

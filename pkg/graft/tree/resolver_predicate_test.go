@@ -5,9 +5,8 @@ import (
 	"testing"
 )
 
-// predicateTestData builds a document with a list of maps, matching the
-// spec cluster A7 worked example: servers keyed by "name", each with a
-// "host" field.
+// predicateTestData builds a document with a list of maps: servers keyed
+// by "name", each with a "host" field.
 func predicateTestData() map[string]interface{} {
 	return map[string]interface{}{
 		"servers": []interface{}{

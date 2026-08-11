@@ -7,8 +7,8 @@ import (
 )
 
 // TypeOperator reports the graft-level type name of its single argument:
-// "string", "int", "float", "bool", "array", "map", or "null" (spec cluster
-// A4 §4.1). Classification defers to GetOperandType, with "array" written in
+// "string", "int", "float", "bool", "array", "map", or "null".
+// Classification defers to GetOperandType, with "array" written in
 // place of GetOperandType's own "list" string, and "map" left as-is — the
 // only two vocabularies differ; see interpretation decision T-1 for the
 // "null" (not "nil") spelling.

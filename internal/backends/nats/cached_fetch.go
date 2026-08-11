@@ -9,9 +9,9 @@ import (
 )
 
 // kvFetchGroup and objFetchGroup coalesce concurrent cache-miss fetches for
-// the same target-namespaced key into a single underlying call (spec
-// cluster D2): N references to the same NATS KV/Object path within one
-// merge produce one backend request.
+// the same target-namespaced key into a single underlying call: N
+// references to the same NATS KV/Object path within one merge produce one
+// backend request.
 var (
 	kvFetchGroup  reqdedup.Group[interface{}]
 	objFetchGroup reqdedup.Group[interface{}]

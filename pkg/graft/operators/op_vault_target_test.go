@@ -10,7 +10,7 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// TestVaultTargetSelectsPooledClient pins the spec cluster A7 §7 fix: a
+// TestVaultTargetSelectsPooledClient pins the target-selection fix: a
 // non-empty "@target" must select the pooled, target-specific Vault client
 // (internal/backends/vault.DefaultPool.GetClient) rather than being parsed
 // and silently discarded. An httptest server stands in for a second Vault

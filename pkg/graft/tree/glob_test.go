@@ -247,7 +247,7 @@ func TestGlobWildcardSkipsMissingSubPaths(t *testing.T) {
 	}
 }
 
-// --- Glob predicate segment (spec cluster A7 §6.4) ---
+// --- Glob predicate segment ---
 //
 // Glob's own "field=value" branch (glob.go:59-67) was unreachable from any
 // test before this: op_static_ips.go's three Cursor.Glob call sites only
