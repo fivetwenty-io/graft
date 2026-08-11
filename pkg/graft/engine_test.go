@@ -237,6 +237,22 @@ key1: value1
 			So(doc, ShouldBeNil)
 		})
 
+		Convey("ParseYAML should surface goccy's line/column detail on malformed YAML, matching spruce's error", func() {
+			yaml := "a: [unclosed\n"
+			doc, err := engine.ParseYAML([]byte(yaml))
+
+			So(err, ShouldNotBeNil)
+			So(doc, ShouldBeNil)
+			// spruce's error on the same input is "unmarshal []byte to yaml
+			// failed: yaml: line 1: did not find expected ',' or ']'" --
+			// goccy's own error text differs in wording but must carry the
+			// same load-bearing detail: a line number and a syntax reason,
+			// not just the flattened "parse_error: failed to parse YAML".
+			So(err.Error(), ShouldContainSubstring, "1")
+			So(err.Error(), ShouldContainSubstring, "failed to parse YAML")
+			So(len(err.Error()), ShouldBeGreaterThan, len("parse_error: failed to parse YAML"))
+		})
+
 		Convey("ParseYAML should convert YAML 1.1 booleans", func() {
 			yaml := `
 yes_val: yes
@@ -310,6 +326,17 @@ func TestEngineJSONParsing(t *testing.T) {
 
 			So(err, ShouldNotBeNil)
 			So(doc, ShouldBeNil)
+		})
+
+		Convey("ParseJSON should surface the underlying decode error detail on malformed JSON", func() {
+			json := `{"key1": invalid}`
+
+			doc, err := engine.ParseJSON([]byte(json))
+
+			So(err, ShouldNotBeNil)
+			So(doc, ShouldBeNil)
+			So(err.Error(), ShouldContainSubstring, "failed to parse JSON")
+			So(len(err.Error()), ShouldBeGreaterThan, len("parse_error: failed to parse JSON"))
 		})
 	})
 }

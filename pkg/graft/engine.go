@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,8 +18,6 @@ import (
 	"github.com/fivetwenty-io/graft/internal/parallel"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
-
-	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -295,6 +294,16 @@ func (e *DefaultEngine) ResetUsedIPs() {
 	e.usedIPs = make(map[string]string)
 }
 
+// resetPerRunState clears the prune/sort/used-IP markers that accumulate
+// during a single evaluate() run. Called via defer at the top of evaluate
+// so it fires exactly once per run, after this run's own post-processing
+// has already read the markers it needs.
+func (e *DefaultEngine) resetPerRunState() {
+	e.ResetKeysToPrune()
+	e.ResetPathsToSort()
+	e.ResetUsedIPs()
+}
+
 // SuppressWarnings returns whether warnings should be suppressed.
 func (e *DefaultEngine) SuppressWarnings() bool {
 	return e.suppressWarnings
@@ -335,6 +344,25 @@ func (e *DefaultEngine) GetMemoryTracker() interfaces.MemoryTracker {
 
 //nolint:gocyclo // evaluation pipeline with multiple phases and post-processing is inherently complex
 func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator) error {
+	// Reset per-run prune/sort/used-IP markers on every exit path (success,
+	// any phase error, context cancellation, sort failure) so a reused
+	// engine never leaks one Merge().Execute() run's state into the next.
+	// The legacy Evaluator.Run() does the equivalent reset for prune/sort
+	// (evaluator.go ResetKeysToPrune/ResetPathsToSort) right after capturing
+	// them for post-processing; this live path consumes GetKeysToPrune/
+	// GetPathsToSort below but never resets, so a later unrelated Execute()
+	// call on the same engine silently inherits and re-applies this run's
+	// prune/sort markers. Deferring the reset (rather than resetting inline
+	// after each Get) guarantees it fires exactly once per run regardless
+	// of which return statement is hit, while leaving this run's own
+	// post-processing below - which reads the markers before the deferred
+	// reset runs - unaffected. usedIPs gets the same treatment: spruce's
+	// StaticIPOperator.Setup() clears its package-level UsedIPs map on
+	// every phase run (op_static_ips.go), but graft's Setup() is a no-op -
+	// ResetUsedIPs is otherwise never called anywhere - so static_ips
+	// claims leak across engine reuse the same way prune/sort markers do.
+	defer e.resetPerRunState()
+
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
@@ -345,13 +373,36 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator) error {
 	// Set the engine on the evaluator
 	ev.engine = Engine(e)
 
+	// A non-empty REDACT environment variable forces vault, AWS, and NATS
+	// operators to return the literal string "REDACTED" instead of making a
+	// backend call, matching spruce's evaluator.go REDACT semantics. This
+	// check must live on the DefaultEngine.Evaluate path (not only on the
+	// legacy Evaluator.Run path) because Evaluate is what the CLI merge
+	// path (MergeBuilder) actually calls.
+	if os.Getenv("REDACT") != "" {
+		state := e.GetOperatorState()
+		state.SetSkipVault(true)
+		state.SetSkipAws(true)
+		state.SetSkipNats(true)
+	}
+
 	// Record evaluation start time if metrics are enabled
 	var startTime time.Time
 	if e.IsFeatureEnabled(features.FeatureMetrics) && e.MetricsRegistry != nil {
 		startTime = time.Now()
 	}
 
-	// Run evaluation phases
+	// Run evaluation phases. MergePhase errors are accumulated rather than
+	// returned immediately, so ParamPhase and EvalPhase still run and their
+	// errors are combined with any MergePhase errors into a single report -
+	// this matches spruce's evaluator.go Run(), which appends MergePhase
+	// errors to a running MultiError instead of short-circuiting on them.
+	// ParamPhase errors still abort evaluation before EvalPhase runs and are
+	// returned on their own (dropping any accumulated MergePhase errors),
+	// matching spruce: once a required param is unresolved, downstream
+	// EvalPhase operators can't be trusted to evaluate meaningfully, so
+	// spruce doesn't bother combining prior merge errors into that report.
+	var mergeErrs MultiError
 	for _, phase := range []OperatorPhase{MergePhase, ParamPhase, EvalPhase} {
 		// Check context cancellation before each phase
 		select {
@@ -373,8 +424,22 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator) error {
 				counter := e.MetricsRegistry.GetOrCreateCounter("graft_evaluation_errors_total", metrics.Labels{"phase": phaseName})
 				counter.Inc()
 			}
-			return phaseErr
+
+			switch phase {
+			case MergePhase:
+				mergeErrs.Append(phaseErr)
+				continue
+			case ParamPhase:
+				return phaseErr
+			default: // EvalPhase
+				mergeErrs.Append(phaseErr)
+				return mergeErrs
+			}
 		}
+	}
+
+	if len(mergeErrs.Errors) > 0 {
+		return mergeErrs
 	}
 
 	// Record successful evaluation metrics if enabled
@@ -423,12 +488,17 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator) error {
 
 			// Check if it's a list
 			if list, ok := value.([]interface{}); ok {
-				// Sort the list in place
-				err := SortList(cleanPath, list, sortKey)
-				if err != nil {
+				// Sort the list in place. A sort failure (e.g. a quoted
+				// (( sort by "key" )) taken literally against maps keyed
+				// by the unquoted key) is fatal in spruce, not a
+				// best-effort skip, so it must fail evaluation here too.
+				if err := SortList(cleanPath, list, sortKey); err != nil {
 					log.DEBUG("Engine: Failed to sort list at path '%s': %v", cleanPath, err)
-					// Don't fail the whole evaluation, just log the error
-					continue
+					// Wrap in MultiError so the CLI renders spruce's
+					// "N error(s) detected:\n - $.path: msg" format
+					// instead of the generic "Merge failed: ..." wrapper
+					// used for raw, unaggregated errors.
+					return MultiError{Errors: []error{err}}
 				}
 				log.DEBUG("Engine: Successfully sorted list at path '%s'", cleanPath)
 			} else {
@@ -449,14 +519,26 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		return nil, nil
 	}
 
+	// Work around a goccy/go-yaml v1.19.2 parser bug where a bare "-"
+	// sequence terminator followed by a sibling map key gets misparsed
+	// into the sequence (see sanitizeBareSequenceTerminators).
+	data = sanitizeBareSequenceTerminators(data)
+
 	// Quote graft's <<<: inject keys for goccy/go-yaml compatibility
 	data = QuoteInjectKeys(data)
 
-	// First parse as generic interface to check document type
-	var genericResult interface{}
-	err := yaml.Unmarshal(data, &genericResult)
+	// First parse as generic interface to check document type. Quoted
+	// YAML 1.1 boolean-lookalike scalars ("yes", 'On', "OFF", ...) are
+	// tagged during this parse so the compat conversion below skips
+	// them, matching spruce (quoting is an explicit request to keep the
+	// value a string).
+	genericResult, err := ParseYAML11CompatAware(data)
 	if err != nil {
-		return nil, NewParseError("failed to parse YAML", err)
+		// Fold goccy's own error text (it carries line/column detail, the
+		// same information spruce's underlying library reports) into the
+		// message instead of dropping it, so a human debugging kit YAML
+		// gets a usable location, not just "failed to parse YAML".
+		return nil, NewParseError(fmt.Sprintf("failed to parse YAML: %s", err.Error()), err)
 	}
 
 	if genericResult == nil {
@@ -468,6 +550,7 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 	case map[string]interface{}:
 		// Apply YAML 1.1 boolean compatibility conversions (yes/no/on/off → bool)
 		converted := DefaultYAMLCompat().ConvertMapValues(result)
+		converted = UnprotectYAML11QuotedBools(converted).(map[string]interface{})
 		return NewDocument(converted), nil
 	case map[interface{}]interface{}:
 		// yaml.v3 produces this when all root keys are non-strings
@@ -476,6 +559,7 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 			converted[fmt.Sprintf("%v", k)] = v
 		}
 		final := DefaultYAMLCompat().ConvertMapValues(converted)
+		final = UnprotectYAML11QuotedBools(final).(map[string]interface{})
 		return NewDocument(final), nil
 	default:
 		// Return plain error for compatibility with tests
@@ -517,7 +601,9 @@ func (e *DefaultEngine) ParseJSON(data []byte) (Document, error) {
 	var result map[string]interface{}
 	err := json.Unmarshal(data, &result)
 	if err != nil {
-		return nil, NewParseError("failed to parse JSON", err)
+		// See the matching comment in ParseYAML: fold the underlying
+		// decode error into the message so its detail is not dropped.
+		return nil, NewParseError(fmt.Sprintf("failed to parse JSON: %s", err.Error()), err)
 	}
 
 	if result == nil {
@@ -871,8 +957,17 @@ func createEngineFromOptions(opts *EngineOptions) (Engine, error) {
 	if opts.WorkerPool != nil {
 		engine.Pool = opts.WorkerPool
 	} else if opts.EnableParallel && engine.IsFeatureEnabled(features.FeatureParallelEvaluation) {
-		// Create default worker pool if parallel evaluation is enabled
-		pool, err := parallel.NewPool(1, opts.MaxConcurrency)
+		// Create default worker pool if parallel evaluation is enabled.
+		// minWorkers comes from the resolved ConfigInstance's
+		// Parallel.MinWorkers when one was supplied (WithConfigInstance),
+		// instead of always hardcoding 1, so a config file/env override of
+		// GRAFT_PARALLEL_MIN_WORKERS has an observable effect on pool
+		// construction.
+		minWorkers := 1
+		if opts.ConfigInstance != nil && opts.ConfigInstance.Parallel.MinWorkers > 0 {
+			minWorkers = opts.ConfigInstance.Parallel.MinWorkers
+		}
+		pool, err := parallel.NewPool(minWorkers, opts.MaxConcurrency)
 		if err != nil {
 			log.DEBUG("Warning: Failed to create worker pool: %v", err)
 		} else {
