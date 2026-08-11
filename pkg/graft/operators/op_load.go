@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 
 	"github.com/goccy/go-yaml"
 
@@ -66,13 +65,9 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		DEBUG("  arg[0]: converting %T to string", v)
 		location = fmt.Sprintf("%v", v)
 
-	case map[string]interface{}:
+	case map[string]interface{}, []interface{}:
 		DEBUG("  arg[0]: %v is not a string scalar", v)
-		return nil, ansi.Errorf("@R{load operator argument is a map; only string scalars are supported}")
-
-	case []interface{}:
-		DEBUG("  arg[0]: %v is not a string scalar", v)
-		return nil, ansi.Errorf("@R{load operator argument is a list; only string scalars are supported}")
+		return nil, ansi.Errorf("@R{tried to read file} @c{%s}@R{, which is not a string scalar}", args[0].String())
 
 	default:
 		DEBUG("  arg[0]: using value of type %T as string", val)
@@ -127,10 +122,9 @@ func getBytesFromLocation(location string) ([]byte, error) {
 		return data, err
 	}
 
-	// Preprend the optional Graft base path override
-	if !filepath.IsAbs(location) {
-		location = filepath.Join(os.Getenv("GRAFT_FILE_BASE_PATH"), location)
-	}
+	// Prepend the optional GRAFT_FILE_BASE_PATH (falling back to
+	// SPRUCE_FILE_BASE_PATH) override for relative paths.
+	location = resolveWithFileBasePath(location)
 
 	// Handle location as local file if there is a file at that location
 	if _, err := os.Stat(location); err == nil {

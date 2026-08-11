@@ -94,11 +94,14 @@ func (FileOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		return nil, fmt.Errorf("file operator requires one or two string arguments")
 	}
 
-	// Prepend the optional Graft base path override for relative paths
-	if !filepath.IsAbs(filename) && os.Getenv("GRAFT_FILE_BASE_PATH") != "" {
-		filename = filepath.Join(os.Getenv("GRAFT_FILE_BASE_PATH"), filename)
-		DEBUG("using GRAFT_FILE_BASE_PATH, final path: %s", filename)
+	// Prepend the optional GRAFT_FILE_BASE_PATH (falling back to
+	// SPRUCE_FILE_BASE_PATH) override for relative paths.
+	resolved := resolveWithFileBasePath(filename)
+	if resolved != filename {
+		DEBUG("resolved relative path using file base path override, final path: %s", resolved)
 	}
+
+	filename = resolved
 
 	// Read the file
 	file, err := os.ReadFile(filename) // #nosec G304 - file operator needs to read user-specified files
