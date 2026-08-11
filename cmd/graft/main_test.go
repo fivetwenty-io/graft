@@ -7,12 +7,19 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/goccy/go-yaml"
+	"github.com/mattn/go-isatty"
 
+	"github.com/fivetwenty-io/graft/internal/config"
+	"github.com/fivetwenty-io/graft/internal/features"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -34,6 +41,73 @@ func openFiles(paths []string) ([]YamlFile, error) {
 		files = append(files, YamlFile{Path: file, Reader: f})
 	}
 	return files, nil
+}
+
+// setStdinFromFile points os.Stdin at path's contents for the duration of a
+// test, simulating genesis's `cat file | graft ... -` and `graft ... < file`
+// invocation patterns. It returns a restore func that must be called (via
+// defer) to put the real os.Stdin back, so later tests aren't affected.
+func setStdinFromFile(t *testing.T, path string) func() {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("setStdinFromFile: open %s: %s", path, err)
+	}
+	original := os.Stdin
+	os.Stdin = f
+	return func() {
+		os.Stdin = original
+		_ = f.Close()
+	}
+}
+
+// genesisVersionRegex mirrors genesis's check_prereqs() version probe regex
+// (lib/Genesis/Commands.pm): qr(.*version\s+(\S+).*)i.
+var genesisVersionRegex = regexp.MustCompile(`(?i).*version\s+(\S+).*`)
+
+// minGenesisVersion is genesis's minimum spruce-compatible version gate.
+const minGenesisVersion = "1.28.0"
+
+// semverAtLeast reports whether version's major.minor.patch numeric prefix
+// is >= min's. It only compares the leading dotted numeric prefix (ignoring
+// any leading 'v' and any pre-release/build metadata suffix), which is
+// sufficient for genesis's minimum-version gate check.
+func semverAtLeast(version, minVersion string) bool {
+	parse := func(v string) ([3]int, bool) {
+		v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+		// Strip anything after the first run of digits/dots (pre-release,
+		// build metadata, or non-numeric suffixes like "(development)").
+		end := 0
+		for end < len(v) && (v[end] == '.' || (v[end] >= '0' && v[end] <= '9')) {
+			end++
+		}
+		numeric := v[:end]
+		parts := strings.Split(numeric, ".")
+		var out [3]int
+		for i := 0; i < 3 && i < len(parts); i++ {
+			n, err := strconv.Atoi(parts[i])
+			if err != nil {
+				return out, false
+			}
+			out[i] = n
+		}
+		return out, len(parts) > 0 && numeric != ""
+	}
+
+	got, ok := parse(version)
+	if !ok {
+		return false
+	}
+	want, ok := parse(minVersion)
+	if !ok {
+		return false
+	}
+	for i := 0; i < 3; i++ {
+		if got[i] != want[i] {
+			return got[i] > want[i]
+		}
+	}
+	return true
 }
 
 func TestParseYAML(t *testing.T) {
@@ -215,6 +289,26 @@ func TestMergeAllDocs(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(result, ShouldResemble, expect)
 		})
+		Convey("Blank/comment-only/null documents merge as {} no-ops (spruce parity)", func() {
+			files, err := openFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/empty.yml"})
+			So(err, ShouldBeNil)
+			withEmpty, _, err := mergeAllDocs(files, &mergeOpts{})
+			So(err, ShouldBeNil)
+
+			files, err = openFiles([]string{"../../assets/merge/first.yml"})
+			So(err, ShouldBeNil)
+			withoutEmpty, _, err := mergeAllDocs(files, &mergeOpts{})
+			So(err, ShouldBeNil)
+
+			So(withEmpty, ShouldResemble, withoutEmpty)
+		})
+		Convey("A lone blank document merges to an empty map, not a panic", func() {
+			files, err := openFiles([]string{"../../assets/merge/empty.yml"})
+			So(err, ShouldBeNil)
+			result, _, err := mergeAllDocs(files, &mergeOpts{})
+			So(err, ShouldBeNil)
+			So(result, ShouldResemble, map[string]interface{}{})
+		})
 	})
 }
 
@@ -222,7 +316,11 @@ func TestMain(t *testing.T) {
 	Convey("main()", t, func() {
 		var stdout string
 		printStdOutf = func(format string, args ...interface{}) {
-			stdout = fmt.Sprintf(format, args...)
+			// Append (not overwrite): commands like `json` on multi-doc
+			// input call printStdOutf once per output line, matching
+			// production's Fprintf-to-stdout behavior (see TestFan's
+			// override, which uses the same append pattern).
+			stdout += fmt.Sprintf(format, args...)
 		}
 		var stderr string
 		// Edit log stderr function
@@ -273,6 +371,10 @@ func TestMain(t *testing.T) {
 				So(stdout, ShouldStartWith, fmt.Sprintf("graft - Version %s", Version))
 				So(stderr, ShouldEqual, "")
 				So(rc, ShouldEqual, 0)
+
+				matches := genesisVersionRegex.FindStringSubmatch(stdout)
+				So(matches, ShouldNotBeNil)
+				So(semverAtLeast(matches[1], minGenesisVersion), ShouldBeTrue)
 			})
 			Convey("When '--version' is specified", func() {
 				os.Args = []string{"graft", "--version"}
@@ -282,6 +384,10 @@ func TestMain(t *testing.T) {
 				So(stdout, ShouldStartWith, fmt.Sprintf("graft - Version %s", Version))
 				So(stderr, ShouldEqual, "")
 				So(rc, ShouldEqual, 0)
+
+				matches := genesisVersionRegex.FindStringSubmatch(stdout)
+				So(matches, ShouldNotBeNil)
+				So(semverAtLeast(matches[1], minGenesisVersion), ShouldBeTrue)
 			})
 		})
 		Convey("Should panic on errors merging docs", func() {
@@ -350,6 +456,39 @@ map:
 `)
 			So(stderr, ShouldEqual, "")
 		})
+		Convey("Should merge from stdin via '-' sentinel (genesis 'cat file | merge --skip-eval -' pattern)", func() {
+			restoreStdin := setStdinFromFile(t, "../../assets/merge/first.yml")
+			defer restoreStdin()
+
+			os.Args = []string{"graft", "merge", "--skip-eval", "-"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldNotEqual, "")
+		})
+		Convey("Should merge from stdin via '-' sentinel combined with a --prune flag (genesis 'echo ... | merge --prune -' pattern)", func() {
+			restoreStdin := setStdinFromFile(t, "../../assets/merge/first.yml")
+			defer restoreStdin()
+
+			os.Args = []string{"graft", "merge", "--prune", "array_append", "-"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldNotContainSubstring, "array_append")
+		})
+		Convey("Should merge from stdin implicitly when no file args and no '-' are given", func() {
+			restoreStdin := setStdinFromFile(t, "../../assets/merge/first.yml")
+			defer restoreStdin()
+
+			os.Args = []string{"graft", "merge"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldNotEqual, "")
+		})
 		Convey("Should not evaluate graft logic when --no-eval", func() {
 			os.Args = []string{"graft", "merge", "--skip-eval", "../../assets/no-eval/first.yml", "../../assets/no-eval/second.yml"}
 			stdout = ""
@@ -359,9 +498,9 @@ map:
   .: (( inject jobs ))
 jobs:
 - name: consul
-- name: cc_bridge
-- (( append ))
+- name: route
 - name: cell
+- name: cc_bridge
 param: (( param "Fill this in later" ))
 properties:
   loggregator: true
@@ -686,6 +825,43 @@ quux: quux
 `)
 		})
 
+		Convey("json command reads from stdin via redirect (no file arg)", func() {
+			restoreStdin := setStdinFromFile(t, "../../assets/json/in.yml")
+			defer restoreStdin()
+
+			os.Args = []string{"graft", "json"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `{"map":{"list":["string",42,{"map":"of things"}]}}
+`)
+		})
+
+		Convey("json command reads from stdin via explicit '-' sentinel", func() {
+			restoreStdin := setStdinFromFile(t, "../../assets/json/in.yml")
+			defer restoreStdin()
+
+			os.Args = []string{"graft", "json", "-"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `{"map":{"list":["string",42,{"map":"of things"}]}}
+`)
+		})
+
+		Convey("json command emits one JSON object per line for multi-doc input (genesis lines() framing)", func() {
+			os.Args = []string{"graft", "json", "../../assets/merge/multi-doc.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `{"doc":{"data":{"test01":"stuff"}}}
+{"doc":{"data":{"test02":"morestuff"}}}
+`)
+		})
+
 		Convey("json command handles malformed YAML", func() {
 			os.Args = []string{"graft", "json", "../../assets/json/malformed.yml"}
 			stdout = ""
@@ -815,6 +991,54 @@ quux: quux
 			So(stderr, ShouldEqual, "")
 		})
 
+		Convey("vaultinfo exits non-zero on internal failure so a pipefail pipeline surfaces it", func() {
+			os.Args = []string{"graft", "vaultinfo", "../../assets/vaultinfo/improper.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stdout, ShouldEqual, "")
+			So(rc, ShouldEqual, 2)
+		})
+
+		Convey("vaultinfo reports unresolvable nodes in genesis's vault_paths() stderr format", func() {
+			os.Args = []string{"graft", "vaultinfo", "../../assets/vaultinfo/unresolvable.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stdout, ShouldEqual, "")
+			So(rc, ShouldEqual, 2)
+
+			// genesis's ManifestProvider.pm vault_paths() extracts unresolvable
+			// node paths from vaultinfo stderr with this exact pattern.
+			unresolvablePathPattern := regexp.MustCompile(`(?m)^\s*-\s*\$\.(\S+?):`)
+			matches := unresolvablePathPattern.FindAllStringSubmatch(stderr, -1)
+			So(matches, ShouldHaveLength, 1)
+			So(matches[0][1], ShouldEqual, "meta.broken")
+		})
+
+		Convey("vaultinfo output piped through 'graft json' yields genesis's expected {secrets:[{key,references}]} shape", func() {
+			os.Args = []string{"graft", "vaultinfo", "../../assets/vaultinfo/single.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			vaultinfoYAML := stdout
+
+			pipedFile, err := os.CreateTemp(t.TempDir(), "vaultinfo-*.yml")
+			So(err, ShouldBeNil)
+			_, err = pipedFile.WriteString(vaultinfoYAML)
+			So(err, ShouldBeNil)
+			So(pipedFile.Close(), ShouldBeNil)
+
+			os.Args = []string{"graft", "json", pipedFile.Name()}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `{"secrets":[{"key":"secret/bar:beep","references":["meta.foo"]}]}
+`)
+		})
+
 		Convey("Adding (static) prune support for list entries (edge case scenario)", func() {
 			os.Args = []string{"graft", "merge", "--prune", "meta.list.1", "../../assets/prune/prune-in-lists/fileA.yml"}
 			stdout = ""
@@ -826,6 +1050,46 @@ quux: quux
   list:
   - one
   - three
+
+`)
+		})
+
+		Convey("Prune of an array element reached through an enclosing numeric array index", func() {
+			os.Args = []string{"graft", "merge", "--prune", "jobs.0.networks.1", "../../assets/prune/prune-through-array/fileA.yml"}
+			stdout = ""
+			stderr = ""
+
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `jobs:
+- name: web
+  networks:
+  - net-a
+  - net-c
+- name: worker
+  networks:
+  - net-x
+  - net-y
+
+`)
+		})
+
+		Convey("Prune of an array element reached through an enclosing named array entry", func() {
+			os.Args = []string{"graft", "merge", "--prune", "jobs.web.networks.1", "../../assets/prune/prune-through-array/fileA.yml"}
+			stdout = ""
+			stderr = ""
+
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `jobs:
+- name: web
+  networks:
+  - net-a
+  - net-c
+- name: worker
+  networks:
+  - net-x
+  - net-y
 
 `)
 		})
@@ -2299,7 +2563,7 @@ new_key: 10
 				stdout = ""
 				stderr = ""
 				main()
-				So(stderr, ShouldEqual, "Merge failed: Expected to find a map key 'key_not_there' for path '/key_not_there' (found map keys: 'array', 'items', 'key', 'key2', 'more_stuff')\n")
+				So(stderr, ShouldEqual, "Merge failed: Expected to find a map key 'key_not_there' for path '/key_not_there' (found map keys: 'array', 'items', 'key', 'key2')\n")
 				So(stdout, ShouldEqual, "")
 			})
 			Convey("yaml-parser throws errors when trying to parse gopatch from array-based files", func() {
@@ -2330,6 +2594,26 @@ key2:
   nested:
     super_nested: 2
   other: 3
+
+`)
+			})
+			Convey("go-patch applies at its position in the file sequence, not after every regular document (base, patch, overlay: patch applies to base, overlay merges on top)", func() {
+				os.Args = []string{"graft", "merge", "--go-patch", "../../assets/go-patch/positional/base.yml", "../../assets/go-patch/positional/patch.yml", "../../assets/go-patch/positional/overlay.yml"}
+				stdout = ""
+				stderr = ""
+				main()
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldEqual, `key: overlay
+
+`)
+			})
+			Convey("go-patch applied last still overrides an earlier overlay (base, overlay, patch)", func() {
+				os.Args = []string{"graft", "merge", "--go-patch", "../../assets/go-patch/positional/base.yml", "../../assets/go-patch/positional/overlay.yml", "../../assets/go-patch/positional/patch.yml"}
+				stdout = ""
+				stderr = ""
+				main()
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldEqual, `key: patched
 
 `)
 			})
@@ -2404,7 +2688,469 @@ key2:
 				So(stderr, ShouldNotContainSubstring, "\x1b[")
 			})
 		})
+
+		Convey("Config Options", func() {
+			Convey("--config flag absent leaves default behavior unchanged", func() {
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+				baseline := stdout
+
+				// An empty config file must not change the merge result versus
+				// no --config flag at all (internal/config.DefaultConfig() sets
+				// Cache.Enabled=true, but that must not silently flip behavior).
+				emptyConfig := filepath.Join(t.TempDir(), "empty-config.yaml")
+				err := os.WriteFile(emptyConfig, []byte(""), 0o600)
+				So(err, ShouldBeNil)
+
+				os.Args = []string{"graft", "--config", emptyConfig, "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldEqual, baseline)
+			})
+
+			Convey("--config flag with a valid non-empty file merges successfully", func() {
+				cfgFile := filepath.Join(t.TempDir(), "config.yaml")
+				err := os.WriteFile(cfgFile, []byte("logging:\n  level: debug\n  format: json\n"), 0o600)
+				So(err, ShouldBeNil)
+
+				os.Args = []string{"graft", "--config", cfgFile, "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldNotEqual, "")
+			})
+
+			Convey("--config flag with a missing file fails with a clear error", func() {
+				os.Args = []string{"graft", "--config", "../../assets/does-not-exist-config.yaml", "merge", "../../assets/merge/first.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldNotEqual, 0)
+				So(stderr, ShouldContainSubstring, "does-not-exist-config.yaml")
+			})
+
+			Convey("--config flag with an unparseable file fails with a clear error", func() {
+				badConfig := filepath.Join(t.TempDir(), "bad-config.yaml")
+				err := os.WriteFile(badConfig, []byte("engine:\n  strict_mode: [unterminated\n"), 0o600)
+				So(err, ShouldBeNil)
+
+				os.Args = []string{"graft", "--config", badConfig, "merge", "../../assets/merge/first.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldNotEqual, 0)
+				So(stderr, ShouldNotEqual, "")
+			})
+
+			Convey("--config flag with an invalid config value fails validation", func() {
+				invalidConfig := filepath.Join(t.TempDir(), "invalid-config.yaml")
+				err := os.WriteFile(invalidConfig, []byte("logging:\n  level: not-a-real-level\n"), 0o600)
+				So(err, ShouldBeNil)
+
+				os.Args = []string{"graft", "--config", invalidConfig, "merge", "../../assets/merge/first.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldNotEqual, 0)
+				So(stderr, ShouldContainSubstring, "logging.level")
+			})
+		})
+
+		Convey("Feature Flag Options", func() {
+			Convey("no GRAFT_FEATURE_* vars leaves default behavior unchanged", func() {
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+				baseline := stdout
+
+				// GRAFT_FEATURE_CACHE only toggles whether the engine builds an
+				// internal result cache (a performance optimization); it must
+				// not change merge output content.
+				_ = os.Setenv("GRAFT_FEATURE_CACHE", "false")
+				defer func() { _ = os.Unsetenv("GRAFT_FEATURE_CACHE") }()
+
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldEqual, baseline)
+			})
+
+			Convey("an unrecognized GRAFT_FEATURE_CACHE value is ignored, not a fatal error", func() {
+				_ = os.Setenv("GRAFT_FEATURE_CACHE", "not-a-real-bool")
+				defer func() { _ = os.Unsetenv("GRAFT_FEATURE_CACHE") }()
+
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+			})
+		})
+
+		Convey("Env Var Defaults Explicitly Set", func() {
+			Convey("every GRAFT_*/GRAFT_FEATURE_* var pinned to its own default leaves output unchanged", func() {
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+				baseline := stdout
+
+				// internal/config's own defaults (config.DefaultConfig()) and
+				// internal/features' own defaults (features.DefaultFlags()),
+				// pinned explicitly via env instead of left unset. Proves the
+				// env tier is a true no-op when every var's value matches the
+				// default it would resolve to anyway - not just that one
+				// setting doesn't observably affect output (the "Feature Flag
+				// Options" cases above), but that ALL of them set at once still
+				// reproduce the exact same baseline as leaving everything
+				// unset. GRAFT_CACHE_L2_PATH is excluded: its default is "" and
+				// internal/config/env.go treats an empty env value as unset
+				// (applyCacheEnv only assigns when val != ""), so there is no
+				// way to "explicitly set" it to its own default that's
+				// distinguishable from leaving it unset.
+				defaultEnv := map[string]string{
+					config.EnvEngineStrictMode:   "false",
+					config.EnvEngineMaxRecursion: "100",
+					config.EnvEngineTimeout:      "30s",
+					config.EnvCacheEnabled:       "true",
+					config.EnvCacheMaxSize:       "10000",
+					config.EnvCacheTTL:           "5m",
+					config.EnvCacheL2Enabled:     "false",
+					config.EnvParallelEnabled:    "true",
+					config.EnvParallelMinWorkers: "1",
+					config.EnvParallelMaxWorkers: "0",
+					config.EnvMetricsEnabled:     "false",
+					config.EnvMetricsFormat:      "prometheus",
+					config.EnvMetricsEndpoint:    "/metrics",
+					config.EnvLoggingLevel:       "info",
+					config.EnvLoggingFormat:      "text",
+					features.EnvFeatureParallel:    "false",
+					features.EnvFeatureCache:       "true",
+					features.EnvFeatureMetrics:     "false",
+					features.EnvFeatureDebug:       "false",
+					features.EnvFeatureStrictTypes: "false",
+					features.EnvFeaturePools:       "true",
+				}
+				for name, val := range defaultEnv {
+					_ = os.Setenv(name, val)
+				}
+				defer func() {
+					for name := range defaultEnv {
+						_ = os.Unsetenv(name)
+					}
+				}()
+
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldEqual, baseline)
+			})
+		})
+
+		Convey("diff command", func() {
+			Convey("exits 0 and reports no differences for identical files", func() {
+				os.Args = []string{"graft", "diff", "../../assets/merge/first.yml", "../../assets/merge/first.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldEqual, "\n\n")
+			})
+
+			Convey("exits 1 and reports differences for differing files, uncolored when stdout is not a tty", func() {
+				os.Args = []string{"graft", "diff", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldNotEqual, "")
+				// go test's stdout is never a tty (it's captured by the
+				// test binary), so the default "auto" color detection
+				// must emit no ANSI escapes here: diff coloring is gated
+				// on isatty(stdout), matching spruce, not forced on.
+				So(stdout, ShouldNotContainSubstring, "\x1b[")
+			})
+
+			Convey("exits 2 on a load error", func() {
+				os.Args = []string{"graft", "diff", "../../assets/merge/first.yml", "../../assets/merge/does-not-exist.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 2)
+				So(stdout, ShouldEqual, "")
+				So(stderr, ShouldNotEqual, "")
+			})
+
+			Convey("exits 1 with usage when given the wrong number of files", func() {
+				os.Args = []string{"graft", "diff", "../../assets/merge/first.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+			})
+
+			Convey("--color=off and --color=on are both honored without error and stay uncolored off a real tty", func() {
+				os.Args = []string{"graft", "diff", "--color", "off", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldNotContainSubstring, "\x1b[")
+
+				os.Args = []string{"graft", "diff", "--color", "on", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+			})
+
+			Convey("--color=bogus is rejected as a usage error", func() {
+				os.Args = []string{"graft", "diff", "--color", "bogus", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+			})
+		})
 	})
+}
+
+// TestHandleColorFlag locks the --color decision logic used by handleDiff
+// and the root command's PersistentPreRunE: "on"/"off" are explicit
+// overrides, "auto"/"" defer to isatty(stderr), and anything else is
+// rejected.
+func TestHandleColorFlag(t *testing.T) {
+	Convey("handleColorFlag()", t, func() {
+		Convey("'on' forces color on and is valid", func() {
+			enabled, valid := handleColorFlag("on")
+			So(valid, ShouldBeTrue)
+			So(enabled, ShouldBeTrue)
+		})
+		Convey("'off' forces color off and is valid", func() {
+			enabled, valid := handleColorFlag("off")
+			So(valid, ShouldBeTrue)
+			So(enabled, ShouldBeFalse)
+		})
+		Convey("'auto' and '' defer to isatty(stderr) and are valid", func() {
+			want := isatty.IsTerminal(os.Stderr.Fd())
+			enabled, valid := handleColorFlag("auto")
+			So(valid, ShouldBeTrue)
+			So(enabled, ShouldEqual, want)
+
+			enabled, valid = handleColorFlag("")
+			So(valid, ShouldBeTrue)
+			So(enabled, ShouldEqual, want)
+		})
+		Convey("an unrecognized value is invalid", func() {
+			enabled, valid := handleColorFlag("bogus")
+			So(valid, ShouldBeFalse)
+			So(enabled, ShouldBeFalse)
+		})
+	})
+}
+
+// TestDiffFiles locks diffFiles()'s exit-code-relevant return values
+// (hasDifferences, err) independent of the CLI plumbing in handleDiff, and
+// confirms its report body carries no ANSI escapes when stdout is not a
+// tty (spruce parity: dyff/bunt's own isatty(stdout) auto-detection gates
+// diff coloring, not graft's --color flag).
+func TestDiffFiles(t *testing.T) {
+	Convey("diffFiles()", t, func() {
+		Convey("identical files report no differences", func() {
+			output, hasDifferences, err := diffFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/first.yml"})
+			So(err, ShouldBeNil)
+			So(hasDifferences, ShouldBeFalse)
+			So(output, ShouldEqual, "\n")
+		})
+		Convey("differing files report differences with no ANSI escapes off a tty", func() {
+			output, hasDifferences, err := diffFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/second.yml"})
+			So(err, ShouldBeNil)
+			So(hasDifferences, ShouldBeTrue)
+			So(output, ShouldNotBeEmpty)
+			So(output, ShouldNotContainSubstring, "\x1b[")
+		})
+		Convey("a missing file is a load error", func() {
+			_, _, err := diffFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/does-not-exist.yml"})
+			So(err, ShouldNotBeNil)
+		})
+		Convey("any count other than two files is a usage error", func() {
+			_, _, err := diffFiles([]string{"../../assets/merge/first.yml"})
+			So(err, ShouldNotBeNil)
+
+			_, _, err = diffFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/second.yml", "../../assets/merge/first.yml"})
+			So(err, ShouldNotBeNil)
+		})
+	})
+}
+
+func TestResolveStartupConfigEnvOverridesFile(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("logging:\n  level: debug\n"), 0o600); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	_ = os.Setenv("GRAFT_LOGGING_LEVEL", "error")
+	defer func() { _ = os.Unsetenv("GRAFT_LOGGING_LEVEL") }()
+
+	cfg, err := resolveStartupConfig(configPath)
+	if err != nil {
+		t.Fatalf("resolveStartupConfig() error = %v", err)
+	}
+
+	if cfg.Logging.Level != "error" {
+		t.Errorf("Expected GRAFT_LOGGING_LEVEL to override file's logging.level 'debug', got %q", cfg.Logging.Level)
+	}
+}
+
+func TestResolveStartupConfigEnvOverridesDefault(t *testing.T) {
+	_ = os.Setenv("GRAFT_CACHE_ENABLED", "false")
+	defer func() { _ = os.Unsetenv("GRAFT_CACHE_ENABLED") }()
+
+	cfg, err := resolveStartupConfig("")
+	if err != nil {
+		t.Fatalf("resolveStartupConfig() error = %v", err)
+	}
+
+	if cfg.Cache.Enabled {
+		t.Error("Expected GRAFT_CACHE_ENABLED=false to override default Cache.Enabled=true")
+	}
+}
+
+func TestResolveStartupConfigInvalidEnvOverrideFails(t *testing.T) {
+	_ = os.Setenv("GRAFT_LOGGING_LEVEL", "not-a-real-level")
+	defer func() { _ = os.Unsetenv("GRAFT_LOGGING_LEVEL") }()
+
+	_, err := resolveStartupConfig("")
+	if err == nil {
+		t.Fatal("Expected error for invalid GRAFT_LOGGING_LEVEL, got nil")
+	}
+	if !strings.Contains(err.Error(), "logging.level") {
+		t.Errorf("Expected error to mention 'logging.level', got: %v", err)
+	}
+}
+
+func TestResolveStartupFeatureFlagsNoEnvMatchesDefaults(t *testing.T) {
+	ff := resolveStartupFeatureFlags()
+
+	want := features.DefaultFlags().GetAll()
+	got := ff.GetAll()
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("resolveStartupFeatureFlags() with no GRAFT_FEATURE_* vars set = %v, want default flags %v", got, want)
+	}
+}
+
+func TestResolveStartupFeatureFlagsEnvOverridesDefault(t *testing.T) {
+	_ = os.Setenv("GRAFT_FEATURE_CACHE", "false")
+	defer func() { _ = os.Unsetenv("GRAFT_FEATURE_CACHE") }()
+
+	ff := resolveStartupFeatureFlags()
+
+	if ff.IsEnabled(features.FeatureCaching) {
+		t.Error("Expected GRAFT_FEATURE_CACHE=false to override default FeatureCaching=true")
+	}
+	// Unrelated flags stay at their defaults - only the named env var's flag changes.
+	if !ff.IsEnabled(features.FeatureMemoryPools) {
+		t.Error("Expected FeatureMemoryPools to remain at its default (true) when only GRAFT_FEATURE_CACHE is set")
+	}
+	if ff.IsEnabled(features.FeatureParallelEvaluation) {
+		t.Error("Expected FeatureParallelEvaluation to remain at its default (false) when only GRAFT_FEATURE_CACHE is set")
+	}
+}
+
+func TestResolveStartupFeatureFlagsInvalidEnvValueIgnored(t *testing.T) {
+	// internal/features.LoadFromEnv documents that an unparseable value is
+	// ignored (flag keeps its prior value), unlike resolveStartupConfig's
+	// GRAFT_* vars which fail validation. No error path exists to test here;
+	// this asserts the flag is left at its default instead.
+	_ = os.Setenv("GRAFT_FEATURE_CACHE", "not-a-real-bool")
+	defer func() { _ = os.Unsetenv("GRAFT_FEATURE_CACHE") }()
+
+	ff := resolveStartupFeatureFlags()
+
+	if !ff.IsEnabled(features.FeatureCaching) {
+		t.Error("Expected unparseable GRAFT_FEATURE_CACHE value to be ignored, leaving FeatureCaching at its default (true)")
+	}
+}
+
+// TestConfigEngineOptsWiresFeatureFlags proves configEngineOpts's
+// WithFeatureFlags wiring observably changes engine construction: disabling
+// features.FeatureCaching (as GRAFT_FEATURE_CACHE=false would resolve to via
+// resolveStartupFeatureFlags) suppresses the engine's internal cache
+// instance even though mergeAllDocs always requests graft.WithCache(true, ..).
+func TestConfigEngineOptsWiresFeatureFlags(t *testing.T) {
+	newEngineWithCache := func(ff *features.FeatureFlags) *graft.DefaultEngine {
+		opts := append(configEngineOpts(nil, ff), graft.WithCache(true, 1000))
+		engine, err := graft.NewEngine(opts...)
+		if err != nil {
+			t.Fatalf("graft.NewEngine() error = %v", err)
+		}
+		de, ok := engine.(*graft.DefaultEngine)
+		if !ok {
+			t.Fatalf("graft.NewEngine() returned %T, want *graft.DefaultEngine", engine)
+		}
+		return de
+	}
+
+	baseline := newEngineWithCache(features.DefaultFlags())
+	if baseline.GetCache() == nil {
+		t.Error("Expected a cache instance with default feature flags (FeatureCaching enabled) and WithCache(true, ..)")
+	}
+
+	disabledCache := features.DefaultFlags()
+	disabledCache.Set(features.FeatureCaching, false)
+	withCacheDisabled := newEngineWithCache(disabledCache)
+	if withCacheDisabled.GetCache() != nil {
+		t.Error("Expected no cache instance when FeatureCaching is disabled via feature flags, even though WithCache(true, ..) was requested")
+	}
+}
+
+func TestConfigEngineOptsNilInputsProduceNoOptions(t *testing.T) {
+	opts := configEngineOpts(nil, nil)
+	if len(opts) != 0 {
+		t.Errorf("configEngineOpts(nil, nil) returned %d options, want 0", len(opts))
+	}
 }
 
 func TestDebug(t *testing.T) {

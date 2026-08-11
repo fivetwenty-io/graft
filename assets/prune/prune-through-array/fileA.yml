@@ -1,0 +1,11 @@
+---
+jobs:
+- name: web
+  networks:
+  - net-a
+  - net-b
+  - net-c
+- name: worker
+  networks:
+  - net-x
+  - net-y

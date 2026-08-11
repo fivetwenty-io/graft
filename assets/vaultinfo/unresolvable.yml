@@ -1,0 +1,3 @@
+meta:
+  foo: (( vault "secret/bar:beep" ))
+  broken: (( grab meta.does.not.exist ))
