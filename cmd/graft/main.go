@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -283,7 +284,7 @@ func resolveStartupConfig(configPath string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config, ff *features.FeatureFlags) int {
+func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config, ff *features.FeatureFlags, jsonOutput, pathsOnly bool) int {
 	engineOpts := append([]graft.EngineOption{graft.WithSkipVault(true)}, configEngineOpts(cfg, ff)...)
 	opts := &mergeOpts{
 		Files:         vaultFiles,
@@ -296,7 +297,19 @@ func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config
 		return 2
 	}
 
-	printStdOutf("%s\n", formatVaultRefs(engine))
+	// Neither new flag given: byte-identical to the pre-existing behavior
+	// genesis scrapes (docs/spruce/genesis-compat-contract.md).
+	if !jsonOutput && !pathsOnly {
+		printStdOutf("%s\n", formatVaultRefs(engine))
+		return 0
+	}
+
+	output, err := formatVaultInfoExtended(buildVaultRefs(engine), jsonOutput, pathsOnly)
+	if err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 2
+	}
+	printStdOutf("%s\n", output)
 	return 0
 }
 
@@ -710,17 +723,19 @@ func newRootCmd() (*cobra.Command, *bool) {
 	diffCmd.Flags().BoolVarP(&diffQuiet, "quiet", "q", false, "Exit with status only, no output")
 
 	// vaultinfo command
-	var vaultInfoGoPatch bool
+	var vaultInfoGoPatch, vaultInfoJSON, vaultInfoPathsOnly bool
 
 	vaultinfoCmd := &cobra.Command{
 		Use:   "vaultinfo [files...]",
 		Short: "List vault references in the given files",
 		RunE: func(_ *cobra.Command, args []string) error {
-			exit(handleVaultInfo(args, vaultInfoGoPatch, loadedConfig, loadedFeatureFlags))
+			exit(handleVaultInfo(args, vaultInfoGoPatch, loadedConfig, loadedFeatureFlags, vaultInfoJSON, vaultInfoPathsOnly))
 			return nil
 		},
 	}
 	vaultinfoCmd.Flags().BoolVar(&vaultInfoGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged")
+	vaultinfoCmd.Flags().BoolVar(&vaultInfoJSON, "json", false, "Output as JSON instead of YAML")
+	vaultinfoCmd.Flags().BoolVar(&vaultInfoPathsOnly, "paths-only", false, "Output only the Vault secret paths (one per line, or a JSON array with --json), not their referring locations")
 
 	// debug command
 	var debugGoPatch, debugFallbackAppend bool
@@ -1045,22 +1060,30 @@ func cmdJSONReverseEval(options jsonOpts) ([]string, error) {
 }
 
 type yamlVaultSecret struct {
-	Key        string
-	References []string
+	Key        string   `json:"key"`
+	References []string `json:"references"`
 }
 
 type byKey []yamlVaultSecret
 
 type yamlVaultRefs struct {
-	Secrets []yamlVaultSecret
+	Secrets []yamlVaultSecret `json:"secrets"`
 }
 
 func (refs byKey) Len() int           { return len(refs) }
 func (refs byKey) Swap(i, j int)      { refs[i], refs[j] = refs[j], refs[i] }
 func (refs byKey) Less(i, j int) bool { return refs[i].Key < refs[j].Key }
 
-func formatVaultRefs(engine graft.Engine) string {
-	refs := yamlVaultRefs{}
+// buildVaultRefs collects and sorts engine's discovered Vault references
+// into the shape both the default YAML output (formatVaultRefs) and the
+// --json/--paths-only output (formatVaultInfoExtended) render from, so all
+// three share one sort/collection implementation. Secrets is always a
+// non-nil (possibly empty) slice so JSON marshaling emits `[]` rather than
+// `null` when no Vault references are found; graft.MarshalYAML already
+// renders a nil slice as `[]` (see formatVaultRefs's existing byte-for-byte
+// test coverage), so this is not a behavior change for the YAML path.
+func buildVaultRefs(engine graft.Engine) yamlVaultRefs {
+	refs := yamlVaultRefs{Secrets: []yamlVaultSecret{}}
 	vaultRefs := engine.GetOperatorState().GetVaultRefs()
 	for secret, srcs := range vaultRefs {
 		refs.Secrets = append(refs.Secrets, yamlVaultSecret{secret, srcs})
@@ -1071,12 +1094,47 @@ func formatVaultRefs(engine graft.Engine) string {
 		sort.Strings(secret.References)
 	}
 
+	return refs
+}
+
+func formatVaultRefs(engine graft.Engine) string {
+	refs := buildVaultRefs(engine)
+
 	output, err := graft.MarshalYAML(refs)
 	if err != nil {
-		panic(fmt.Sprintf("Could not marshal YAML for vault references: %+v", vaultRefs))
+		panic(fmt.Sprintf("Could not marshal YAML for vault references: %+v", refs))
 	}
 
 	return string(output)
+}
+
+// formatVaultInfoExtended renders `vaultinfo --json` and/or
+// `vaultinfo --paths-only` output from an already-built, already-sorted
+// yamlVaultRefs. Combining both flags yields a JSON array of just the
+// secret key strings; --paths-only alone yields one key per line (plain
+// text, easy to feed into a shell `while read` loop); --json alone yields
+// the full key+references structure as JSON.
+func formatVaultInfoExtended(refs yamlVaultRefs, jsonOutput, pathsOnly bool) (string, error) {
+	if pathsOnly {
+		paths := make([]string, len(refs.Secrets))
+		for i, s := range refs.Secrets {
+			paths[i] = s.Key
+		}
+		if jsonOutput {
+			b, err := json.MarshalIndent(paths, "", "  ")
+			if err != nil {
+				return "", ansi.Errorf("@R{Could not marshal JSON for vault paths}: %s", err.Error())
+			}
+			return string(b), nil
+		}
+		return strings.Join(paths, "\n"), nil
+	}
+
+	b, err := json.MarshalIndent(refs, "", "  ")
+	if err != nil {
+		return "", ansi.Errorf("@R{Could not marshal JSON for vault references}: %s", err.Error())
+	}
+	return string(b), nil
 }
 
 func readFile(file *YamlFile) ([]byte, error) {

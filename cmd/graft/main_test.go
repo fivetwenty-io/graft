@@ -1063,6 +1063,56 @@ quux: quux
 
 `)
 		})
+		Convey("vaultinfo --json emits the same secret/reference data as JSON", func() {
+			os.Args = []string{"graft", "vaultinfo", "--json", "../../assets/vaultinfo/single.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "{\n  \"secrets\": [\n    {\n      \"key\": \"secret/bar:beep\",\n      \"references\": [\n        \"meta.foo\"\n      ]\n    }\n  ]\n}\n")
+		})
+
+		Convey("vaultinfo --json with no vault references emits an empty array, not null", func() {
+			os.Args = []string{"graft", "vaultinfo", "--json", "../../assets/vaultinfo/novault.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "{\n  \"secrets\": []\n}\n")
+		})
+
+		Convey("vaultinfo --paths-only lists only the vault secret keys, one per line, sorted", func() {
+			os.Args = []string{"graft", "vaultinfo", "--paths-only", "../../assets/vaultinfo/concat.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "imaprefix/beep:boop\nimaprefix/cup:cake\nimaprefix/hello:world\n")
+		})
+
+		Convey("vaultinfo --paths-only --json emits a JSON array of the secret keys", func() {
+			os.Args = []string{"graft", "vaultinfo", "--paths-only", "--json", "../../assets/vaultinfo/concat.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, "[\n  \"imaprefix/beep:boop\",\n  \"imaprefix/cup:cake\",\n  \"imaprefix/hello:world\"\n]\n")
+		})
+
+		Convey("vaultinfo with neither --json nor --paths-only keeps the default YAML shape byte-identical (genesis compat)", func() {
+			os.Args = []string{"graft", "vaultinfo", "../../assets/vaultinfo/single.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stdout, ShouldEqual, `secrets:
+- key: secret/bar:beep
+  references:
+  - meta.foo
+
+`)
+			So(stderr, ShouldEqual, "")
+		})
+
 		Convey("vaultinfo handles gopatch files", func() {
 			os.Args = []string{"graft", "vaultinfo", "--go-patch", "../../assets/vaultinfo/merge1.yml", "../../assets/vaultinfo/go-patch.yml"}
 			stdout = ""
