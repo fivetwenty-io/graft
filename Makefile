@@ -38,9 +38,13 @@ ALIAS_OUTPUT := $(BUILD_DIR)/$(PLATFORM)/spruce
 
 # Release platforms
 PLATFORMS := darwin-amd64 darwin-arm64 linux-amd64 linux-arm64
+# Windows is built separately from PLATFORMS because the binary needs a .exe
+# suffix and ships as a .zip rather than a .tar.gz.
+WINDOWS_PLATFORMS := windows-amd64
+CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 
 # Phony targets
-.PHONY: help build build-linux build-release build-spruce-alias package clean install
+.PHONY: help build build-linux build-windows build-release build-spruce-alias package checksums clean install
 .PHONY: test test-unit test-clean test-verbose test-race test-short test-all test-spruce-compat test-spruce-e2e
 .PHONY: fmt vet lint security gosec vuln trivy coverage coverage-text
 .PHONY: staticcheck gocyclo ineffassign errcheck goimports deadcode golangci
@@ -82,6 +86,12 @@ build-linux: ## Build for Linux (amd64 and arm64)
 	@GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/linux-arm64/$(BINARY_NAME) $(SOURCE_DIR)
 	@printf "$(GREEN)✓ Built: $(BUILD_DIR)/linux-arm64/$(BINARY_NAME)$(RESET)\n"
 
+build-windows: ## Build for Windows (amd64)
+	@printf "$(GREEN)Building graft for Windows...$(RESET)\n"
+	@mkdir -p $(BUILD_DIR)/windows-amd64
+	@GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/windows-amd64/$(BINARY_NAME).exe $(SOURCE_DIR)
+	@printf "$(GREEN)✓ Built: $(BUILD_DIR)/windows-amd64/$(BINARY_NAME).exe$(RESET)\n"
+
 build-release: ## Build for all release platforms
 	@printf "$(GREEN)Building graft for all platforms...$(RESET)\n"
 	@for platform in $(PLATFORMS); do \
@@ -91,17 +101,48 @@ build-release: ## Build for all release platforms
 		mkdir -p $(BUILD_DIR)/$$platform; \
 		GOOS=$$os GOARCH=$$arch go build $(LDFLAGS) -o $(BUILD_DIR)/$$platform/$(BINARY_NAME) $(SOURCE_DIR); \
 	done
+	@for platform in $(WINDOWS_PLATFORMS); do \
+		os=$${platform%%-*}; \
+		arch=$${platform##*-}; \
+		printf "Building for $$os/$$arch...\n"; \
+		mkdir -p $(BUILD_DIR)/$$platform; \
+		GOOS=$$os GOARCH=$$arch go build $(LDFLAGS) -o $(BUILD_DIR)/$$platform/$(BINARY_NAME).exe $(SOURCE_DIR); \
+	done
 	@printf "$(GREEN)✓ Release builds complete$(RESET)\n"
-	@ls -la $(BUILD_DIR)/*/$(BINARY_NAME)
+	@ls -la $(BUILD_DIR)/*/$(BINARY_NAME) $(BUILD_DIR)/*/$(BINARY_NAME).exe
 
-package: clean build-release ## Clean, build all platforms, and prepare for release
+package: clean build-release ## Clean, build all platforms, archive, and checksum for release
 	@printf "$(GREEN)Packaging graft...$(RESET)\n"
 	@for platform in $(PLATFORMS); do \
 		printf "Creating archive for $$platform...\n"; \
 		tar -czf $(BUILD_DIR)/$(BINARY_NAME)-$(VERSION)-$$platform.tar.gz -C $(BUILD_DIR)/$$platform $(BINARY_NAME); \
 	done
+	@for platform in $(WINDOWS_PLATFORMS); do \
+		printf "Creating archive for $$platform...\n"; \
+		(cd $(BUILD_DIR)/$$platform && zip -q ../$(BINARY_NAME)-$(VERSION)-$$platform.zip $(BINARY_NAME).exe); \
+	done
+	@$(MAKE) --no-print-directory checksums
 	@printf "$(GREEN)✓ Packages ready in $(BUILD_DIR)/$(RESET)\n"
-	@ls -la $(BUILD_DIR)/*.tar.gz
+	@ls -la $(BUILD_DIR)/*.tar.gz $(BUILD_DIR)/*.zip $(BUILD_DIR)/$(CHECKSUM_FILE)
+
+checksums: ## Generate SHA256 checksums for the packaged release artifacts
+	@printf "$(GREEN)Generating SHA256 checksums...$(RESET)\n"
+	@set -eo pipefail; cd $(BUILD_DIR) 2>/dev/null || { \
+		printf "$(YELLOW)No $(BUILD_DIR)/ directory - run 'make package' first$(RESET)\n" >&2; \
+		exit 1; \
+	}; \
+	shopt -s nullglob; \
+	artifacts=($(BINARY_NAME)-$(VERSION)-*.tar.gz $(BINARY_NAME)-$(VERSION)-*.zip); \
+	if [ $${#artifacts[@]} -eq 0 ]; then \
+		printf "$(YELLOW)No $(BINARY_NAME)-$(VERSION)-* archives in $(BUILD_DIR)/ - run 'make package' first$(RESET)\n" >&2; \
+		exit 1; \
+	fi; \
+	if command -v sha256sum >/dev/null 2>&1; then \
+		sha256sum "$${artifacts[@]}" > $(CHECKSUM_FILE); \
+	else \
+		shasum -a 256 "$${artifacts[@]}" > $(CHECKSUM_FILE); \
+	fi
+	@printf "$(GREEN)✓ Checksums: $(BUILD_DIR)/$(CHECKSUM_FILE)$(RESET)\n"
 
 install: build ## Install graft binary to INSTALL_PATH (default: /usr/local/bin)
 	@printf "$(GREEN)Installing graft to $(INSTALL_PATH)...$(RESET)\n"

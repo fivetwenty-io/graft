@@ -1,0 +1,9 @@
+.git/
+.github/
+.agents/
+build/
+coverage/
+docs/
+tests/
+*.test
+/graft
