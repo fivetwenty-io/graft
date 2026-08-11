@@ -30,6 +30,11 @@ func EvaluateExpr(e *Expr, ev *Evaluator) (*Response, error) {
 		}, nil
 
 	case Reference:
+		if e.Reference == nil {
+			return nil, WrapError(
+				fmt.Errorf("unable to resolve reference: @%s is a target, not a value", e.Name),
+				ReferenceError, e.Pos)
+		}
 		v, err := e.Reference.Resolve(ev.Tree)
 		if err != nil {
 			return nil, WrapError(err, ReferenceError, e.Pos).

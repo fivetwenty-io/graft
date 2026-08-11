@@ -30,6 +30,12 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 		return arg.Literal, nil
 
 	case Reference:
+		// A Reference expression can carry a nil cursor: the parser emits
+		// one for an orphaned @name token (a target with no operator call
+		// attached to it). There is nothing to resolve.
+		if arg.Reference == nil {
+			return nil, fmt.Errorf("unable to resolve reference: @%s is a target, not a value", arg.Name)
+		}
 		// Use the existing reference resolution
 		DEBUG("ResolveOperatorArgument: resolving reference %s", arg.Reference.String())
 		// Expand environment variables in the reference path

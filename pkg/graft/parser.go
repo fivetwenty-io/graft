@@ -548,6 +548,17 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 			return p.parseOperatorCall(name)
 		}
 
+		// If followed by @, it is a targeted operator call — op@target
+		// (spec cluster A7 §7.2 form (b)). This matters in argument
+		// position: "(( vault@a "x" || vault@b "x" ))" puts the second
+		// targeted call on the right of ||, where the identifier would
+		// otherwise fall through to the reference branch and leave the
+		// "@target" tokens orphaned.
+		if nextTok.Type == interfaces.TokenAt {
+			p.pos-- // back up one position
+			return p.parseOperatorCall(name)
+		}
+
 		// If this was the token at opcallPos, it's the primary operator.
 		// Always treat the primary operator as an operator call.
 		if p.pos == p.opcallPos+1 { // one past opcallPos, i.e. right after consuming the operator name
