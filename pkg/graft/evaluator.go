@@ -23,6 +23,13 @@ type Evaluator struct {
 	SkipEval bool
 	Here     *tree.Cursor
 
+	// Target is the "@target" name of the operator call currently running
+	// (e.g. "prod" in "(( vault@prod "path:key" ))"), or "" if the call has
+	// none. Opcall.Run sets and restores it around each op.Run, mirroring
+	// Here, so a target-aware operator's Run method can read it without a
+	// change to the Operator interface's signature.
+	Target string
+
 	CheckOps []*Opcall
 
 	Only []string

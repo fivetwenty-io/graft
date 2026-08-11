@@ -17,18 +17,24 @@ import (
 // NatsOperator provides the (( nats "store_type:path" )) operator
 // It will fetch values from NATS JetStream KV or Object stores.
 //
-// NatsOperator does not support the `@target` operator-call syntax (e.g.
-// `(( nats@myserver "kv:path" ))`). The parser accepts that syntax and
-// records it on the parsed Expr, but pkg/graft's Opcall type (the object
-// whose Run method actually executes) has no field to carry it, so no
-// operator's Run ever observes a non-empty target. Multi-cluster NATS
-// access is still available today via per-target environment variables
-// consumed directly by internal/backends/nats.ClientPool, just not by
-// parsing a target out of the operator call itself.
+// NatsOperator supports the `@target` operator-call syntax (e.g.
+// `(( nats@myserver "kv:path" ))`): Opcall.Run sets Evaluator.Target from
+// the parsed Expr's target before calling Run, and Run selects a pooled,
+// target-specific connection from internal/backends/nats.DefaultPool
+// (NATS_<TARGET>_URL, etc.) when it is non-empty, falling back to the
+// existing single-config connection pool otherwise.
 type NatsOperator struct{}
 
-// fetchFromKV retrieves a value from a NATS KV store, using the shared TTL cache.
-func (n NatsOperator) fetchFromKV(js jetstream.JetStream, storePath string, config *natsbackend.Config) (interface{}, error) {
+// SupportsTarget reports that nats honors "@target" (spec cluster A7 §7).
+func (NatsOperator) SupportsTarget() bool {
+	return true
+}
+
+// fetchFromKV retrieves a value from a NATS KV store, using the shared TTL
+// cache. target namespaces the cache key so the same store path on two
+// different NATS clusters never collides (spec cluster A7 §7, mirroring the
+// same fix in op_vault.go's performVaultLookup).
+func (n NatsOperator) fetchFromKV(js jetstream.JetStream, target, storePath string, config *natsbackend.Config) (interface{}, error) {
 	startTime := time.Now()
 	operationType := "kv"
 
@@ -38,7 +44,7 @@ func (n NatsOperator) fetchFromKV(js jetstream.JetStream, storePath string, conf
 	}
 
 	// Check TTL cache first
-	cacheKey := fmt.Sprintf("kv:%s", storePath)
+	cacheKey := fmt.Sprintf("kv:%s:%s", target, storePath)
 	if val, ok := natsbackend.Cache.Get(cacheKey); ok {
 		duration := time.Since(startTime)
 		natsbackend.GlobalMetrics.RecordOperation(operationType, duration, false, true)
@@ -55,8 +61,9 @@ func (n NatsOperator) fetchFromKV(js jetstream.JetStream, storePath string, conf
 	return result, nil
 }
 
-// fetchFromObject retrieves a value from a NATS Object store, using the shared TTL cache.
-func (n NatsOperator) fetchFromObject(js jetstream.JetStream, storePath string, config *natsbackend.Config) (interface{}, error) {
+// fetchFromObject retrieves a value from a NATS Object store, using the
+// shared TTL cache. target namespaces the cache key (see fetchFromKV).
+func (n NatsOperator) fetchFromObject(js jetstream.JetStream, target, storePath string, config *natsbackend.Config) (interface{}, error) {
 	startTime := time.Now()
 	operationType := natsbackend.StoreObj
 
@@ -66,7 +73,7 @@ func (n NatsOperator) fetchFromObject(js jetstream.JetStream, storePath string, 
 	}
 
 	// Check TTL cache first
-	cacheKey := fmt.Sprintf("%s:%s", natsbackend.StoreObj, storePath)
+	cacheKey := fmt.Sprintf("%s:%s:%s", natsbackend.StoreObj, target, storePath)
 	if val, ok := natsbackend.Cache.Get(cacheKey); ok {
 		duration := time.Since(startTime)
 		natsbackend.GlobalMetrics.RecordOperation(operationType, duration, false, true)
@@ -287,19 +294,34 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 		return nil, err
 	}
 
-	pc, err := natsbackend.ConnPool.GetConnection(config)
-	if err != nil {
-		return nil, err
+	// A non-empty target selects a pooled, target-specific connection
+	// (spec cluster A7 §7); an empty target keeps the existing
+	// single-config connection pool behavior verbatim. Unlike the no-target
+	// path, a target that cannot be resolved is a hard error — there is no
+	// fallback to the default connection, since that would silently read
+	// from the wrong NATS cluster.
+	var pc *natsbackend.PooledConnection
+	if ev.Target != "" {
+		pc, err = natsbackend.DefaultPool.GetConnection(ev.Target)
+		if err != nil {
+			return nil, fmt.Errorf("error selecting NATS target %q: %w", ev.Target, err)
+		}
+		defer natsbackend.DefaultPool.ReleaseConnection(ev.Target)
+	} else {
+		pc, err = natsbackend.ConnPool.GetConnection(config)
+		if err != nil {
+			return nil, err
+		}
+		defer natsbackend.ConnPool.ReleaseConnection(config)
 	}
-	defer natsbackend.ConnPool.ReleaseConnection(config)
 
 	// Fetch the value based on store type
 	var value interface{}
 	switch storeType {
 	case natsbackend.StoreKV:
-		value, err = n.fetchFromKV(pc.JS, storePath, config)
+		value, err = n.fetchFromKV(pc.JS, ev.Target, storePath, config)
 	case natsbackend.StoreObj:
-		value, err = n.fetchFromObject(pc.JS, storePath, config)
+		value, err = n.fetchFromObject(pc.JS, ev.Target, storePath, config)
 	}
 
 	if err != nil {

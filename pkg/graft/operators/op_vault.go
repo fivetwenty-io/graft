@@ -327,15 +327,18 @@ func isVaultNotFound(err error) bool {
 // other secrets from a Vault (vaultproject.io) Secure Key Storage
 // instance.
 //
-// VaultOperator does not support the `@target` operator-call syntax (e.g.
-// `(( vault@production "secret/path:key" ))`). The parser accepts that
-// syntax and records it on the parsed Expr, but pkg/graft's Opcall type
-// (the object whose Run method actually executes) has no field to carry
-// it, so Run never observes a non-empty target. Multi-target Vault access
-// remains available via internal/backends/vault.DefaultPool.GetClient,
-// which is wired up and ready for a caller once Opcall gains a target
-// channel; it is simply unreachable from this operator today.
+// VaultOperator supports the `@target` operator-call syntax (e.g.
+// `(( vault@production "secret/path:key" ))`): Opcall.Run sets
+// Evaluator.Target from the parsed Expr's target before calling Run, and
+// performVaultLookup selects a pooled, target-specific client from
+// internal/backends/vault.DefaultPool.GetClient when it is non-empty,
+// falling back to the default environment-initialized client otherwise.
 type VaultOperator struct{}
+
+// SupportsTarget reports that vault honors "@target" (spec cluster A7 §7).
+func (VaultOperator) SupportsTarget() bool {
+	return true
+}
 
 // Setup ...
 func (VaultOperator) Setup() error {
@@ -371,8 +374,6 @@ func (o VaultOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	// syntax: (( vault prefix "/" key ":password" || "default" ))
 	// syntax: (( vault ( meta.vault_path meta.stub  ":" ("key1" | "key2" ) | meta.exodus_path "subpath:key1") || "default"))
 	//
-	// Note: `@target` syntax (e.g. `vault@production`) is parsed but not
-	// wired through to Run — see the VaultOperator doc comment above.
 	if len(args) < 1 {
 		return nil, fmt.Errorf("vault operator requires at least one argument")
 	}
@@ -476,7 +477,7 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 		engine.GetOperatorState().AddVaultRef(key, []string{ev.Here.String()})
 
 		// Perform the vault lookup
-		secret, err := o.performVaultLookup(engine, key)
+		secret, err := o.performVaultLookup(engine, ev.Target, key)
 		if err == nil {
 			// Success!
 			DEBUG("vault: path %d succeeded", i+1)
@@ -518,29 +519,34 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 	return nil, fmt.Errorf("vault operator failed to retrieve secret")
 }
 
-// performVaultLookup performs the actual vault lookup.
-func (o VaultOperator) performVaultLookup(engine graft.Engine, key string) (string, error) {
+// performVaultLookup performs the actual vault lookup. target selects a
+// pooled, target-specific client when non-empty (spec cluster A7 §7); an
+// empty target uses the default environment-initialized client, unchanged
+// from before target support existed.
+func (o VaultOperator) performVaultLookup(engine graft.Engine, target, key string) (string, error) {
 	if engine.GetOperatorState().IsVaultSkipped() {
 		return "REDACTED", nil
 	}
 
-	// Use the default client, initialized from the environment.
-	if vault.GlobalReader == nil {
-		initErr := vault.InitializeClient()
-		if initErr != nil {
-			return "", fmt.Errorf("Error during Vault client initialization: %w", initErr)
-		}
+	reader, err := o.resolveReader(engine, target)
+	if err != nil {
+		return "", err
 	}
-	reader := vault.GlobalReader
-	DEBUG("vault: using default client")
 
 	leftPart, rightPart := vault.ParsePath(key)
 	if leftPart == "" || rightPart == "" {
 		return "", ansi.Errorf("@R{invalid argument} @c{%s}@R{; must be in the form} @m{path/to/secret:key}", key)
 	}
 
-	// Check cache first
+	// Check cache first. The cache key is namespaced by target so the same
+	// path on two different Vault instances never collides (spec cluster
+	// A7 §7): without this, a cached lookup made against the default
+	// instance could silently satisfy a later "@target" lookup for the
+	// same path against a different instance, or vice versa.
 	cacheKey := leftPart
+	if target != "" {
+		cacheKey = target + "\x00" + leftPart
+	}
 	var fullSecret map[string]interface{}
 	if cached, found := vault.SecretCache.Get(cacheKey); found {
 		fullSecret = cached
@@ -568,9 +574,40 @@ func (o VaultOperator) performVaultLookup(engine graft.Engine, key string) (stri
 	return secret, nil
 }
 
+// resolveReader returns the VaultReader to use for a lookup: the pooled,
+// target-specific reader when target is non-empty, otherwise the default
+// environment-initialized reader (spec cluster A7 §7). A non-empty target
+// that cannot be resolved is a hard error — unlike the no-target path,
+// there is no fallback, since silently falling back to the default
+// instance is exactly the wrong-instance-read bug this wiring fixes.
+func (o VaultOperator) resolveReader(engine graft.Engine, target string) (vault.VaultReader, error) {
+	if target != "" {
+		reader, err := vault.DefaultPool.GetClient(target, engine)
+		if err != nil {
+			return nil, fmt.Errorf("error selecting Vault target %q: %w", target, err)
+		}
+		DEBUG("vault: using pooled client for target %q", target)
+		return reader, nil
+	}
+
+	if vault.GlobalReader == nil {
+		if initErr := vault.InitializeClient(); initErr != nil {
+			return nil, fmt.Errorf("Error during Vault client initialization: %w", initErr)
+		}
+	}
+	DEBUG("vault: using default client")
+	return vault.GlobalReader, nil
+}
+
 // VaultTryOperator is a deprecated alias for VaultOperator
 // It maintains backward compatibility but logs a deprecation warning.
 type VaultTryOperator struct{}
+
+// SupportsTarget reports that vault-try honors "@target", matching vault:
+// it shares performVaultLookup and the same pooled-client selection.
+func (VaultTryOperator) SupportsTarget() bool {
+	return true
+}
 
 // Setup initializes the operator.
 func (VaultTryOperator) Setup() error {
@@ -650,7 +687,7 @@ func (o VaultTryOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 		// Use the shared vault infrastructure
 		vaultOp := VaultOperator{}
-		secret, err := vaultOp.performVaultLookup(engine, path)
+		secret, err := vaultOp.performVaultLookup(engine, ev.Target, path)
 		if err == nil {
 			// Success!
 			DEBUG("vault-try: path %d succeeded", i+1)

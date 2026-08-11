@@ -35,20 +35,23 @@ func parseBoolOrDefault(value string) bool {
 	return awsbackend.ParseBoolOrDefault(value)
 }
 
-
 // AwsOperator provides two operators;  (( awsparam "path" )) and (( awssecret "name_or_arn" ))
 // It will fetch parameters / secrets from the respective AWS service.
 //
-// AwsOperator does not support the `@target` operator-call syntax (e.g.
-// `(( awsparam@myaccount "path" ))`). The parser accepts that syntax and
-// records it on the parsed Expr, but pkg/graft's Opcall type (the object
-// whose Run method actually executes) has no field to carry it, so no
-// operator's Run ever observes a non-empty target. Multi-account AWS access
-// is still available today via per-target environment variables consumed
-// directly by internal/backends/aws.ClientPool (AWS_<TARGET>_REGION, etc.),
-// just not by parsing a target out of the operator call itself.
+// AwsOperator supports the `@target` operator-call syntax (e.g.
+// `(( awsparam@myaccount "path" ))`): Opcall.Run sets Evaluator.Target from
+// the parsed Expr's target before calling Run, and Run selects a
+// target-specific session from internal/backends/aws.ClientPool
+// (AWS_<TARGET>_REGION, etc.) when it is non-empty, falling back to the
+// existing plain-environment session otherwise.
 type AwsOperator struct {
 	variant string
+}
+
+// SupportsTarget reports that awsparam/awssecret honor "@target" (spec
+// cluster A7 §7).
+func (AwsOperator) SupportsTarget() bool {
+	return true
 }
 
 // Setup ...
@@ -127,20 +130,16 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	engine := graft.GetEngine(ev)
 	var value string
 	if !engine.GetOperatorState().IsAWSSkipped() {
-		awsSess, sessErr := awsbackend.DefaultPool.GetSession("default")
+		awsSess, cacheTarget, sessErr := o.resolveSession(ev.Target)
 		if sessErr != nil {
-			// Fall back to initializing from environment
-			awsSess, sessErr = awsbackend.InitializeSession(os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))
-			if sessErr != nil {
-				return nil, fmt.Errorf("error during AWS session initialization: %w", sessErr)
-			}
+			return nil, sessErr
 		}
 
 		switch o.variant {
 		case "awsparam":
-			value, err = o.getAwsParam(awsSess, key)
+			value, err = o.getAwsParam(awsSess, cacheTarget, key)
 		case "awssecret":
-			value, err = o.getAwsSecret(awsSess, key, params)
+			value, err = o.getAwsSecret(awsSess, cacheTarget, key, params)
 		}
 
 		if err != nil {
@@ -194,9 +193,39 @@ func parseAwsOpKey(key string) (string, url.Values, error) {
 	return split[0], values, nil
 }
 
+// resolveSession returns the AWS session to use and the pool cache
+// namespace it was resolved under. A non-empty target selects a pooled,
+// target-specific session and namespaces the cache under the target name,
+// erroring if that target has no configuration (spec cluster A7 §7): unlike
+// the no-target path, there is no fallback, since silently falling back to
+// the default session is exactly the wrong-account-read risk this wiring
+// closes. An empty target keeps the existing behavior verbatim: try the
+// "default" pooled session, then fall back to plain AWS_* environment
+// variables.
+func (o AwsOperator) resolveSession(target string) (*session.Session, string, error) {
+	if target != "" {
+		awsSess, err := awsbackend.DefaultPool.GetSession(target)
+		if err != nil {
+			return nil, "", fmt.Errorf("error selecting AWS target %q: %w", target, err)
+		}
+		return awsSess, target, nil
+	}
+
+	awsSess, sessErr := awsbackend.DefaultPool.GetSession("default")
+	if sessErr != nil {
+		// Fall back to initializing from environment
+		awsSess, sessErr = awsbackend.InitializeSession(os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))
+		if sessErr != nil {
+			return nil, "", fmt.Errorf("error during AWS session initialization: %w", sessErr)
+		}
+	}
+	return awsSess, "default", nil
+}
+
 // getAwsSecret fetches a secret using the AWS backend cache and session.
-func (o AwsOperator) getAwsSecret(awsSession *session.Session, secret string, params url.Values) (string, error) {
-	cache := awsbackend.DefaultPool.GetSecretCache("default")
+// cacheTarget namespaces the secret cache (see resolveSession).
+func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secret string, params url.Values) (string, error) {
+	cache := awsbackend.DefaultPool.GetSecretCache(cacheTarget)
 	if val, cached := cache[secret]; cached {
 		return val, nil
 	}
@@ -219,13 +248,14 @@ func (o AwsOperator) getAwsSecret(awsSession *session.Session, secret string, pa
 	}
 
 	value := awsSDK.StringValue(output.SecretString)
-	awsbackend.DefaultPool.SetSecretCache("default", secret, value)
+	awsbackend.DefaultPool.SetSecretCache(cacheTarget, secret, value)
 	return value, nil
 }
 
 // getAwsParam fetches a parameter using the AWS backend cache and session.
-func (o AwsOperator) getAwsParam(awsSession *session.Session, param string) (string, error) {
-	cache := awsbackend.DefaultPool.GetParamCache("default")
+// cacheTarget namespaces the parameter cache (see resolveSession).
+func (o AwsOperator) getAwsParam(awsSession *session.Session, cacheTarget, param string) (string, error) {
+	cache := awsbackend.DefaultPool.GetParamCache(cacheTarget)
 	if val, cached := cache[param]; cached {
 		return val, nil
 	}
@@ -243,7 +273,7 @@ func (o AwsOperator) getAwsParam(awsSession *session.Session, param string) (str
 	}
 
 	value := awsSDK.StringValue(output.Parameter.Value)
-	awsbackend.DefaultPool.SetParamCache("default", param, value)
+	awsbackend.DefaultPool.SetParamCache(cacheTarget, param, value)
 	return value, nil
 }
 

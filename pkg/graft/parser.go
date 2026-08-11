@@ -685,9 +685,11 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 		Operator: opName,
 		Target:   target,
 		Call: &Opcall{
-			src:  p.input,
-			op:   op,
-			args: args,
+			src:    p.input,
+			op:     op,
+			args:   args,
+			name:   opName,
+			target: target,
 		},
 	}, nil
 }
@@ -856,7 +858,15 @@ func (p *Parser) parseTarget() (*Expr, error) {
 	p.advance() // consume @
 
 	if p.current().Type != interfaces.TokenIdentifier {
-		return nil, fmt.Errorf("expected identifier after @")
+		// This is where form (a) — "(( vault prod@\"path:key\" ))", the
+		// target written as a bare argument followed by "@" — falls through
+		// to a parse error: "prod" parses as an ordinary argument, then "@"
+		// starts a new primary expression here, and whatever follows it
+		// (typically a string literal) is never a valid target identifier.
+		// Spec cluster A7 §7.2 redirects this to the supported form (b).
+		return nil, fmt.Errorf(
+			`vault target must be written as (( vault@<target> "path:key" )), not (( vault <target>@"path:key" ))`,
+		)
 	}
 
 	name := p.current().Literal

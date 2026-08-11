@@ -127,6 +127,20 @@ type Operator interface {
 	Phase() OperatorPhase
 }
 
+// TargetAware is implemented by operators that support selecting a backend
+// instance via "@target" call syntax (e.g. "(( vault@prod "path:key" ))").
+// Opcall.Run consults it before running any operator whose call carried a
+// target: operators that do not implement it, or that implement it
+// returning false, reject the target with a clear error instead of
+// silently discarding it — the bug documented in spec cluster A7 §7 (the
+// vault-target bug), where "(( vault@prod … ))" read from the default
+// Vault instance without any indication the target had been ignored.
+type TargetAware interface {
+	// SupportsTarget reports whether this operator can honor a non-empty
+	// Evaluator.Target during Run.
+	SupportsTarget() bool
+}
+
 // Opcall represents an operator call.
 type Opcall struct {
 	src       string
@@ -134,6 +148,14 @@ type Opcall struct {
 	canonical *tree.Cursor
 	op        Operator
 	args      []*Expr
+	name      string // the operator name as written, e.g. "vault" — used for the @target rejection error
+	target    string // the "@target" name, e.g. "prod" in "vault@prod"; "" if none was given
+}
+
+// Target returns the "@target" name for this operator call, or "" if none
+// was given.
+func (op *Opcall) Target() string {
+	return op.target
 }
 
 // Args returns the arguments for this operator call.
@@ -179,10 +201,28 @@ func (op *Opcall) Dependencies(ev *Evaluator, locs []*tree.Cursor) []*tree.Curso
 
 // Run executes this operator call.
 func (op *Opcall) Run(ev *Evaluator) (*Response, error) {
+	if op.target != "" {
+		ta, ok := op.op.(TargetAware)
+		if !ok || !ta.SupportsTarget() {
+			name := op.name
+			if name == "" {
+				name = "this"
+			}
+			err := fmt.Errorf("%s operator does not support an @target", name)
+			if op.where != nil {
+				return nil, fmt.Errorf("$.%s: %w", op.where, err)
+			}
+			return nil, fmt.Errorf("$.<generated>: %w", err)
+		}
+	}
+
 	was := ev.Here
+	wasTarget := ev.Target
 	ev.Here = op.where
+	ev.Target = op.target
 	r, err := op.op.Run(ev, op.args)
 	ev.Here = was
+	ev.Target = wasTarget
 
 	if err != nil {
 		if op.where != nil {
