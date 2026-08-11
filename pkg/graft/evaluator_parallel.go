@@ -2,6 +2,7 @@ package graft
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"sync/atomic"
 
@@ -30,13 +31,16 @@ func resetParallelStats() {
 //
 // It computes the dataflow dependency graph for the phase and builds a
 // parallel.Scheduler with one task per operator. Tasks that share no
-// dependencies are placed in the same wave by the scheduler and submitted
-// to the engine's WorkerPool.
+// dependencies are placed in the same wave by the scheduler and dispatched
+// to the engine's WorkerPool, one at a time in a deterministic (task-ID
+// sorted) order per wave - see runOpsWithScheduler.
 //
 // Tree mutations (RunOp) are serialized with a mutex because the
-// underlying map is not safe for concurrent writes. This still benefits
-// from correct wave-based ordering and lays the groundwork for
-// finer-grained parallelism in a future phase.
+// underlying map is not safe for concurrent writes; RunOp calls (including
+// any Vault/AWS/NATS I/O they perform) never actually overlap today. This
+// still benefits from correct wave-based dependency ordering and the
+// pool/scheduler infrastructure, and lays the groundwork for finer-grained
+// parallelism in a future phase.
 //
 // If no WorkerPool is available on the engine, execution falls back to
 // the sequential RunOps path.
@@ -81,6 +85,49 @@ func (ev *Evaluator) RunOpsParallel(ops []*Opcall) error {
 	return ev.runOpsWithScheduler(context.Background(), pool, ops)
 }
 
+// resolveOpIDForDependency maps a dependency cursor to the task ID of the
+// operator that produces it, mirroring dataFlowContext.findDependency /
+// findParentDependency (evaluator.go) exactly: try the path as-is, then its
+// canonical form, then walk parent prefixes (also trying each parent's
+// canonical form) until a producing operator is found. This parent-path
+// fallback is required because a dependency can reference a subtree of an
+// operator's result (e.g. `grab meta.vm.small` where `meta.vm` is itself
+// `(( grab ... ))`) - the operator's own path (`meta.vm`) never equals the
+// dependency path (`meta.vm.small`), so an exact-match-only lookup misses
+// the edge. Sequential and parallel evaluation must derive identical
+// dependency graphs; this keeps the two lookups in lockstep.
+func resolveOpIDForDependency(ev *Evaluator, opIDMap map[string]string, path *tree.Cursor) (string, bool) {
+	if id, found := opIDMap[path.String()]; found {
+		return id, true
+	}
+
+	if canon, err := path.Canonical(ev.Tree); err == nil {
+		if id, found := opIDMap[canon.String()]; found {
+			return id, true
+		}
+	}
+
+	parent := path.Copy()
+	for len(parent.Nodes) > 0 {
+		parent.Pop()
+		if len(parent.Nodes) == 0 {
+			break
+		}
+
+		if id, found := opIDMap[parent.String()]; found {
+			return id, true
+		}
+
+		if canon, err := parent.Canonical(ev.Tree); err == nil {
+			if id, found := opIDMap[canon.String()]; found {
+				return id, true
+			}
+		}
+	}
+
+	return "", false
+}
+
 // runOpsWithScheduler builds a parallel.Scheduler from the given ops,
 // computes inter-op dependencies, and executes via the pool.
 func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.WorkerPool, ops []*Opcall) error {
@@ -121,8 +168,7 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 			depCursors := taskOp.Dependencies(ev, allLocs)
 			seen := make(map[string]bool)
 			for _, depCursor := range depCursors {
-				depKey := depCursor.String()
-				if id, ok := opIDMap[depKey]; ok && id != taskID && !seen[id] {
+				if id, ok := resolveOpIDForDependency(ev, opIDMap, depCursor); ok && id != taskID && !seen[id] {
 					depIDs = append(depIDs, id)
 					seen[id] = true
 				}
@@ -148,20 +194,40 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 
 	parallelStats.schedulerRun.Add(1)
 
-	// Execute all tasks in dependency order via the pool
-	results, err := scheduler.Execute(ctx, pool)
+	// Compute dependency-ordered waves. Tasks within a wave have no
+	// dependency relationship to each other per the DAG, but independent
+	// operators can still contend for the same shared engine state (e.g.
+	// two unrelated static_ips claims racing for the same address - see
+	// op_static_ips.go's claimStaticIPMu). scheduler.Schedule builds each
+	// wave from Go map iteration, which is randomized per run, so the wave
+	// slice's element order is not itself deterministic.
+	waves, err := scheduler.Schedule()
 	if err != nil {
 		parallelStats.totalErrors.Add(1)
 		return err
 	}
 
-	// Collect errors from task results
 	errors := MultiError{Errors: []error{}}
-	for _, result := range results {
-		parallelStats.totalOps.Add(1)
-		if result.Error != nil {
-			parallelStats.totalErrors.Add(1)
-			errors.Append(result.Error)
+	for _, wave := range waves {
+		// Re-sort each wave by task ID (the operator's cursor path, e.g.
+		// "jobs.static_z1...") before dispatch, independent of whatever
+		// order scheduler.Schedule produced it in. Combined with
+		// pool.SubmitWaitContext below (one task in flight at a time,
+		// waiting for completion before submitting the next), this makes
+		// same-wave execution order reproducible across runs instead of
+		// depending on map iteration or goroutine-scheduling timing, without
+		// touching the RunOp serialization mutex above. RunOp calls were
+		// already fully serialized by that mutex (including any Vault/AWS
+		// I/O inside them, not just the tree write), so dispatching one at a
+		// time here removes no actual concurrency that previously existed.
+		sort.Slice(wave, func(i, j int) bool { return wave[i].ID < wave[j].ID })
+
+		for _, task := range wave {
+			parallelStats.totalOps.Add(1)
+			if taskErr := pool.SubmitWaitContext(ctx, task.Execute); taskErr != nil {
+				parallelStats.totalErrors.Add(1)
+				errors.Append(taskErr)
+			}
 		}
 	}
 

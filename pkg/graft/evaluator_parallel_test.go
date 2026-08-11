@@ -2,6 +2,7 @@ package graft
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/features"
@@ -358,6 +359,199 @@ b: (( grab a ))
 	}
 	if totalOps < 1 {
 		t.Errorf("expected total_ops >= 1, got %d", totalOps)
+	}
+}
+
+// paramShortCircuitFixture is a document with one unresolved (( param ))
+// (ParamPhase) and one broken (( grab )) of a nonexistent path (EvalPhase).
+// Matches spruce's evaluator.go Run(): a ParamPhase error must abort the
+// run before EvalPhase executes, so only the param error is ever reported.
+const paramShortCircuitFixture = `
+meta:
+  name: (( param "meta.name is required" ))
+broken:
+  value: (( grab does.not.exist ))
+`
+
+// TestPhaseGating_ParamShortCircuit_Sequential verifies that the default
+// (non-parallel) engine aborts evaluation at ParamPhase and never runs
+// EvalPhase, so a broken (( grab )) elsewhere in the document never
+// surfaces its own error alongside the param error.
+func TestPhaseGating_ParamShortCircuit_Sequential(t *testing.T) {
+	ansi.Color(false)
+	SilenceWarnings(true)
+
+	engine, err := CreateDefaultEngine()
+	if err != nil {
+		t.Fatalf("CreateDefaultEngine failed: %v", err)
+	}
+
+	doc, err := engine.ParseYAML([]byte(paramShortCircuitFixture))
+	if err != nil {
+		t.Fatalf("ParseYAML failed: %v", err)
+	}
+
+	_, err = engine.Evaluate(context.Background(), doc)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "meta.name is required") {
+		t.Errorf("expected param error in output, got: %s", msg)
+	}
+	if strings.Contains(msg, "does.not.exist") {
+		t.Errorf("EvalPhase (( grab )) error leaked through ParamPhase short-circuit: %s", msg)
+	}
+}
+
+// TestPhaseGating_ParamShortCircuit_Parallel verifies the parallel
+// evaluator path (RunPhaseParallel, driven by the same DefaultEngine.evaluate
+// phase loop) applies identical phase gating: a ParamPhase error still
+// aborts before EvalPhase runs, even with a worker pool attached.
+func TestPhaseGating_ParamShortCircuit_Parallel(t *testing.T) {
+	ansi.Color(false)
+	SilenceWarnings(true)
+
+	engine := newParallelEngine(t)
+
+	doc, err := engine.ParseYAML([]byte(paramShortCircuitFixture))
+	if err != nil {
+		t.Fatalf("ParseYAML failed: %v", err)
+	}
+
+	_, err = engine.Evaluate(context.Background(), doc)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "meta.name is required") {
+		t.Errorf("expected param error in output, got: %s", msg)
+	}
+	if strings.Contains(msg, "does.not.exist") {
+		t.Errorf("EvalPhase (( grab )) error leaked through ParamPhase short-circuit (parallel path): %s", msg)
+	}
+}
+
+// mergeEvalAccumulateFixture has one broken (( inject )) (MergePhase error,
+// no ParamPhase op present) and one broken (( grab )) (EvalPhase error).
+// Matches spruce's evaluator.go Run(): MergePhase errors are appended to a
+// running MultiError, not returned immediately, so ParamPhase and EvalPhase
+// still run and their errors are combined into a single report.
+const mergeEvalAccumulateFixture = `
+meta:
+  broken_inject: (( inject nonexistent.path.here ))
+result:
+  grabbed: (( grab does.not.exist ))
+`
+
+// mergeParamEvalFixture adds an unresolved (( param )) on top of
+// mergeEvalAccumulateFixture. Matches spruce: a ParamPhase error still
+// aborts before EvalPhase runs and is returned alone, dropping any
+// MergePhase errors accumulated earlier in the same run.
+const mergeParamEvalFixture = `
+meta:
+  broken_inject: (( inject nonexistent.path.here ))
+  name: (( param "meta.name is required" ))
+result:
+  grabbed: (( grab does.not.exist ))
+`
+
+// TestPhaseGating_MergeErrorsAccumulate_Sequential verifies the default
+// (non-parallel) engine continues past a MergePhase error into ParamPhase
+// and EvalPhase, combining the MergePhase and EvalPhase errors into one
+// report - matching spruce's Run(), which does not short-circuit on
+// MergePhase errors.
+func TestPhaseGating_MergeErrorsAccumulate_Sequential(t *testing.T) {
+	ansi.Color(false)
+	SilenceWarnings(true)
+
+	engine, err := CreateDefaultEngine()
+	if err != nil {
+		t.Fatalf("CreateDefaultEngine failed: %v", err)
+	}
+
+	doc, err := engine.ParseYAML([]byte(mergeEvalAccumulateFixture))
+	if err != nil {
+		t.Fatalf("ParseYAML failed: %v", err)
+	}
+
+	_, err = engine.Evaluate(context.Background(), doc)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "nonexistent") {
+		t.Errorf("expected MergePhase (( inject )) error in combined output, got: %s", msg)
+	}
+	if !strings.Contains(msg, "does.not.exist") {
+		t.Errorf("expected EvalPhase (( grab )) error in combined output (MergePhase error must not abort EvalPhase), got: %s", msg)
+	}
+}
+
+// TestPhaseGating_MergeErrorsAccumulate_Parallel verifies the parallel
+// evaluator path applies identical phase gating: a MergePhase error does
+// not abort ParamPhase/EvalPhase, even with a worker pool attached.
+func TestPhaseGating_MergeErrorsAccumulate_Parallel(t *testing.T) {
+	ansi.Color(false)
+	SilenceWarnings(true)
+
+	engine := newParallelEngine(t)
+
+	doc, err := engine.ParseYAML([]byte(mergeEvalAccumulateFixture))
+	if err != nil {
+		t.Fatalf("ParseYAML failed: %v", err)
+	}
+
+	_, err = engine.Evaluate(context.Background(), doc)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "nonexistent") {
+		t.Errorf("expected MergePhase (( inject )) error in combined output, got: %s", msg)
+	}
+	if !strings.Contains(msg, "does.not.exist") {
+		t.Errorf("expected EvalPhase (( grab )) error in combined output (MergePhase error must not abort EvalPhase, parallel path), got: %s", msg)
+	}
+}
+
+// TestPhaseGating_ParamErrorDropsMergeErrors_Sequential verifies that when
+// both a MergePhase error and a ParamPhase error occur in the same run, the
+// ParamPhase error still aborts before EvalPhase runs and is returned
+// alone - matching spruce's Run(), which returns paramErrs directly without
+// combining the MergePhase errors accumulated earlier in the same run.
+func TestPhaseGating_ParamErrorDropsMergeErrors_Sequential(t *testing.T) {
+	ansi.Color(false)
+	SilenceWarnings(true)
+
+	engine, err := CreateDefaultEngine()
+	if err != nil {
+		t.Fatalf("CreateDefaultEngine failed: %v", err)
+	}
+
+	doc, err := engine.ParseYAML([]byte(mergeParamEvalFixture))
+	if err != nil {
+		t.Fatalf("ParseYAML failed: %v", err)
+	}
+
+	_, err = engine.Evaluate(context.Background(), doc)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "meta.name is required") {
+		t.Errorf("expected param error in output, got: %s", msg)
+	}
+	if strings.Contains(msg, "nonexistent") {
+		t.Errorf("MergePhase (( inject )) error leaked through ParamPhase short-circuit: %s", msg)
+	}
+	if strings.Contains(msg, "does.not.exist") {
+		t.Errorf("EvalPhase (( grab )) error leaked through ParamPhase short-circuit: %s", msg)
 	}
 }
 
