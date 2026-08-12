@@ -326,6 +326,10 @@ func WithLogger(logger Logger) EngineOption {
 }
 
 // WithVaultClient sets the vault client for the engine.
+//
+// Deprecated: has no effect. Vault access is configured through
+// environment variables read by internal/backends/vault today; a
+// WithVault engine option carrying equivalent configuration is planned.
 func WithVaultClient(client VaultClient) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.VaultClient = client
@@ -333,6 +337,10 @@ func WithVaultClient(client VaultClient) EngineOption {
 }
 
 // WithAWSConfig sets the AWS configuration.
+//
+// Deprecated: has no effect. AWS access is configured through environment
+// variables read by internal/backends/aws today; a WithAWS engine option
+// carrying equivalent configuration is planned.
 func WithAWSConfig(cfg *AWSConfig) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.AWSConfig = cfg
@@ -372,6 +380,10 @@ func WithCustomOperator(name string, op Operator) EngineOption {
 }
 
 // WithVaultConfig configures vault settings.
+//
+// Deprecated: has no effect. Vault access is configured through
+// environment variables read by internal/backends/vault today; a
+// WithVault engine option carrying equivalent configuration is planned.
 func WithVaultConfig(address, token string) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.VaultAddress = address
@@ -394,6 +406,10 @@ func WithDebugLogging(enabled bool) EngineOption {
 }
 
 // WithAWSRegion sets the AWS region.
+//
+// Deprecated: has no effect. AWS access is configured through environment
+// variables read by internal/backends/aws today; a WithAWS engine option
+// carrying equivalent configuration is planned.
 func WithAWSRegion(region string) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.AWSRegion = region
@@ -470,7 +486,14 @@ func WithParallel(enabled bool) EngineOption {
 	}
 }
 
-// WithMemoryPools is a shorthand for enabling/disabling memory pools via feature flags.
+// WithMemoryPools is a shorthand for enabling/disabling memory pools via
+// feature flags.
+//
+// Deprecated: sets features.FeatureMemoryPools, but nothing in graft reads
+// that flag today - there is no pooling implementation to gate. The flag
+// is still set (and observable via Engine's feature-flag accessors) so
+// this option keeps compiling and remains forward-compatible with a future
+// pooling implementation.
 func WithMemoryPools(enabled bool) EngineOption {
 	return func(opts *EngineOptions) {
 		if opts.FeatureFlags == nil {
@@ -493,6 +516,10 @@ func WithYAMLCompat(compat *YAMLCompat) EngineOption {
 }
 
 // WithVaultSkipTLS disables TLS verification for Vault connections.
+//
+// Deprecated: has no effect. Vault TLS verification is configured through
+// environment variables read by internal/backends/vault today; a
+// WithVault engine option carrying equivalent configuration is planned.
 func WithVaultSkipTLS(skip bool) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.VaultSkipTLS = skip
@@ -500,6 +527,10 @@ func WithVaultSkipTLS(skip bool) EngineOption {
 }
 
 // WithAWSProfile sets the AWS credentials profile.
+//
+// Deprecated: has no effect. The AWS credentials profile is configured
+// through environment variables read by internal/backends/aws today; a
+// WithAWS engine option carrying equivalent configuration is planned.
 func WithAWSProfile(profile string) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.AWSProfile = profile
@@ -513,7 +544,10 @@ func WithMemoryConfig(cfg MemoryConfig) EngineOption {
 	}
 }
 
-// WithMaxWorkers sets the maximum number of worker goroutines (alias for WithConcurrency).
+// WithMaxWorkers sets the maximum number of worker goroutines.
+//
+// Deprecated: use WithConcurrency instead; the two are functionally
+// identical (both set only EngineOptions.MaxConcurrency).
 func WithMaxWorkers(n int) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.MaxConcurrency = n

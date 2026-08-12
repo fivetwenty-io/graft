@@ -233,3 +233,64 @@ func TestWithOperators_EmptyMapIsNoOp(t *testing.T) {
 		t.Fatalf("Evaluate failed: %v", err)
 	}
 }
+
+// TestWithMaxWorkers_AliasOfWithConcurrency proves the deprecated
+// WithMaxWorkers still sets exactly the field WithConcurrency does.
+func TestWithMaxWorkers_AliasOfWithConcurrency(t *testing.T) {
+	viaAlias, err := NewEngine(WithMaxWorkers(7))
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+	viaCanonical, err := NewEngine(WithConcurrency(7))
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+	if got := viaAlias.(*DefaultEngine).opts.MaxConcurrency; got != 7 {
+		t.Errorf("WithMaxWorkers(7): MaxConcurrency = %d, want 7", got)
+	}
+	if got := viaCanonical.(*DefaultEngine).opts.MaxConcurrency; got != 7 {
+		t.Errorf("WithConcurrency(7): MaxConcurrency = %d, want 7", got)
+	}
+}
+
+// TestDeprecatedOptions_StillCompileAndConstruct is the "assert they still
+// compile and don't crash" coverage the deprecated Vault/AWS/memory-pool
+// options need: each is applied to a real NewEngine call and must not
+// error or panic, even though (per their doc comments) most have no
+// observable effect until a backend configuration registry lands.
+func TestDeprecatedOptions_StillCompileAndConstruct(t *testing.T) {
+	deprecated := []struct {
+		name string
+		opt  EngineOption
+	}{
+		{"WithVaultClient", WithVaultClient(nil)},
+		{"WithAWSConfig", WithAWSConfig(&AWSConfig{Region: "us-east-1"})},
+		{"WithVaultConfig", WithVaultConfig("https://vault.example.com", "token")},
+		{"WithAWSRegion", WithAWSRegion("us-east-1")},
+		{"WithVaultSkipTLS", WithVaultSkipTLS(true)},
+		{"WithAWSProfile", WithAWSProfile("default")},
+		{"WithMemoryPools", WithMemoryPools(true)},
+		{"WithMaxWorkers", WithMaxWorkers(2)},
+	}
+
+	for _, d := range deprecated {
+		t.Run(d.name, func(t *testing.T) {
+			engine, err := NewEngine(d.opt)
+			if err != nil {
+				t.Fatalf("%s: NewEngine failed: %v", d.name, err)
+			}
+			if engine == nil {
+				t.Fatalf("%s: NewEngine returned a nil engine", d.name)
+			}
+			doc := mustParseYAMLDoc(t, engine, "key: value\n")
+			if _, err := engine.Evaluate(context.Background(), doc); err != nil {
+				t.Fatalf("%s: Evaluate failed on an otherwise-trivial document: %v", d.name, err)
+			}
+		})
+	}
+}
+
+// TestNewEngine_DefaultsMatchDefaultEngineOpts proves NewEngine() and
+// NewDefaultEngine() (via defaultEngineOpts) now share one default
+// configuration instead of the two different default sets that existed
+// before (CacheSize 1000/MaxConcurrency 10 vs 10000/4).
