@@ -2,7 +2,7 @@
 # Setup script to create sample files for file operator examples
 
 # Create directories
-mkdir -p scripts configs/dev configs/prod certificates
+mkdir -p scripts/default scripts/custom configs/dev configs/prod certificates
 
 # Create script files
 cat > scripts/startup.sh << 'EOF'
@@ -16,6 +16,16 @@ EOF
 cat > scripts/healthcheck.sh << 'EOF'
 #!/bin/bash
 curl -f http://localhost:${PORT:-8080}/health || exit 1
+EOF
+
+# dynamic-paths.yml selects between these by deployment.use_custom_script
+cp scripts/startup.sh scripts/default/startup.sh
+cat > scripts/custom/startup.sh << 'EOF'
+#!/bin/bash
+echo "Starting application (custom)..."
+export APP_NAME="${APP_NAME:-myapp}"
+export PORT="${PORT:-8080}"
+exec java -jar app-custom.jar
 EOF
 
 # Create config files
@@ -54,6 +64,10 @@ cat > configs/features.json << 'EOF'
   }
 }
 EOF
+
+# dynamic-paths.yml selects a versioned copy by features.version
+cp configs/features.json configs/features-v1.json
+cp configs/features.json configs/features-v2.json
 
 echo "Sample files created successfully!"
 echo "Run 'graft merge basic.yml' to see the examples in action."
