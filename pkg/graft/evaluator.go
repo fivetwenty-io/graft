@@ -248,15 +248,30 @@ func (ctx *dataFlowContext) scanSlice(v []interface{}) {
 }
 
 // buildDependencyGraph builds the dependency graph from all operators.
+//
+// ctx.ev.Here is set to each opcall's own path before calling its
+// Dependencies(), mirroring Opcall.Run's own "ev.Here = op.where" during
+// the later Run pass. Without it, ev.Here stays wherever the preceding
+// tree scan left it (the root, since scanValue's Push/Pop calls are
+// balanced) for every single call in this loop, not that opcall's own
+// position — an operator whose Dependencies() implementation resolves a
+// path relative to ev.Here (op_calc.go's calcBareNameDependencies, for a
+// bare named variable that is a sibling of the calc call's own path) then
+// always computes the wrong relative cursor, silently drops the one
+// dependency edge that would have ordered it correctly, and lets it run
+// before the sibling it actually needs.
 func (ctx *dataFlowContext) buildDependencyGraph() [][]*Opcall {
 	var g [][]*Opcall
+	savedHere := ctx.ev.Here
 	for _, a := range ctx.all {
+		ctx.ev.Here = a.where
 		for _, path := range a.Dependencies(ctx.ev, ctx.locs) {
 			if b := ctx.findDependency(path); b != nil {
 				g = append(g, []*Opcall{b, a})
 			}
 		}
 	}
+	ctx.ev.Here = savedHere
 	return g
 }
 

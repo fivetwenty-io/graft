@@ -172,10 +172,23 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 		}
 	}
 
-	// Add tasks to the scheduler
+	// Add tasks to the scheduler. This loop runs single-threaded, before
+	// any wave dispatch below starts goroutines, so mutating ev.Here here
+	// is safe.
+	savedHere := ev.Here
 	for _, op := range ops {
 		taskOp := op // capture for closure
 		taskID := taskOp.Where().String()
+
+		// ev.Here is set to this task's own path before computing its
+		// dependencies, mirroring Opcall.Run and
+		// dataFlowContext.buildDependencyGraph's sequential-path setup: an
+		// operator whose Dependencies() resolves a path relative to
+		// ev.Here (op_calc.go's calcBareNameDependencies, for a bare
+		// named calc variable that is a sibling of the calc call's own
+		// path) needs it to compute the right relative cursor, or the
+		// sibling edge is silently never added.
+		ev.Here = taskOp.Where()
 
 		// Compute dependency task IDs
 		var depIDs []string
@@ -201,6 +214,7 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 			continue
 		}
 	}
+	ev.Here = savedHere
 
 	parallelStats.schedulerRun.Add(1)
 
