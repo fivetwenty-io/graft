@@ -37,6 +37,137 @@ All backends share these design characteristics:
 
   Use `|| "default"` syntax
 
+## Custom Backend Registry (Extension Point)
+
+Everything below this section describes graft's own, always-on resolution
+path through `internal/backends`. Separately, `pkg/graft` exposes a
+`Backend` extension point that lets a library consumer plug a *different*
+secret/parameter source into the same four operators — this section covers
+that design; [Custom Backends](../developer-guide/custom-backends.md) is
+the how-to (minimal implementation, registration, testing) and
+[Backend Configuration Options](../developer-guide/library-api/options.md#backend-configuration-options)
+covers the two built-in `Backend` implementations (`WithVault`/`WithAWS`)
+that also go through this same registry.
+
+### Why a registry, not a direct dependency
+
+`internal/backends/{vault,aws,nats}` import `pkg/graft` (for `graft.Engine`
+and debug logging), so `pkg/graft` cannot import them back to construct
+adapters wrapping them without an import cycle. Rather than restructure
+that dependency direction, the registry inverts it: `pkg/graft` defines the
+`Backend` interface and a name-keyed registry
+(`Engine.RegisterBackend`/`GetBackend`/`ListBackends`/`UnregisterBackend`,
+or `WithBackend` at construction), and each of the `vault`/`awsparam`/
+`awssecret`/`nats` operators (`pkg/graft/operators`, which already imports
+both `pkg/graft` and `internal/backends`) consults the registry first,
+falling back to its existing `internal/backends` call unchanged when
+nothing is registered under its own name. The observable result is
+identical to "the registry started out seeded with a pass-through adapter
+over `internal/backends`, which the caller never overrode" — but with a
+simpler dependency graph and no such adapter actually written.
+
+### Feature flag
+
+The registry is consulted only when `features.FeatureBackendRegistry` is
+enabled on the engine — off by default, so an engine that never touches
+this extension point behaves byte-identical to one built before the
+registry existed. Toggle it with `graft.WithBackendRegistry(true)` (the
+only way to reach the flag from outside this module) or the
+`GRAFT_FEATURE_BACKEND_REGISTRY=true` environment variable, read by the
+`graft` CLI at startup. With the flag on and nothing registered under a
+given operator's name, behavior is still unchanged: that operator falls
+back to `internal/backends` exactly as if the flag were off.
+
+### The `Backend` interface
+
+```go
+type Backend interface {
+    Name() string
+    Get(ctx context.Context, path string) (interface{}, error)
+    GetBatch(ctx context.Context, paths []string) (map[string]interface{}, error)
+    Health(ctx context.Context) error
+    Close() error
+}
+
+// TargetedBackend is an optional capability (checked with a type
+// assertion) for backends that support "@target" call syntax.
+type TargetedBackend interface {
+    Backend
+    GetWithTarget(ctx context.Context, target, path string) (interface{}, error)
+}
+```
+
+A missing path is reported via `errors.Is(err, graft.ErrBackendNotFound)`,
+not a distinct error type. `GetBatch` exists on the interface because a
+batch API is a reasonable thing for a secret-store client to offer, but no
+graft operator calls it — `vault`/`awsparam`/`awssecret`/`nats` each
+resolve one path per operator call, and there is no batching call site
+anywhere in graft to design a real batched fetch against. Implementations
+that don't need real batching use `graft.SequentialGetBatch` (loops `Get`
+once per path); see [Custom Backends: Batching](../developer-guide/custom-backends.md#batching).
+
+### Generic wrapping, not backend-specific logic
+
+`RegisterBackend` wraps whatever is registered with the registry's own
+cache/retry/audit-logging behavior (`WithBackendCache`/`WithBackendRetry`/
+`WithAuditLogger`), rather than requiring each `Backend` implementation to
+build that itself:
+
+```go
+type RetryConfig struct {
+    MaxAttempts     int
+    InitialInterval time.Duration
+    MaxInterval     time.Duration
+    Multiplier      float64
+    RetryableErrors func(error) bool
+}
+
+type BackendCache interface {
+    Get(key string) (interface{}, bool)
+    Set(key string, value interface{}, ttl time.Duration)
+    Delete(key string)
+    Clear()
+}
+
+type AuditLogger interface {
+    LogAccess(ctx context.Context, backend, path string, success bool, err error)
+}
+```
+
+All three wrap only `Get`/`GetWithTarget` — not `GetBatch`, for the same
+reason `GetBatch` itself is unwired above — and only backends actually
+registered in the registry; they never touch `internal/backends`' own,
+separate behavior (its response caches described per-backend below, or
+NATS's native `Config.AuditLogging` trail). Graft ships no default
+`BackendCache` implementation and no cross-backend cache administration
+(stats, invalidate-by-prefix, clear-all, sometimes called a
+`CacheManager` elsewhere) — only this one per-backend interface, supplied
+by the caller. See
+[Generic retry, caching, and audit logging](../developer-guide/custom-backends.md#generic-retry-caching-and-audit-logging)
+for the full walkthrough and defaulting rules (e.g. `Multiplier <= 0`
+means constant delay, not exponential backoff).
+
+### Errors
+
+A non-not-found failure from a registered backend is wrapped as a
+`*graft.GraftError{Type: graft.ExternalError}` carrying a
+`*graft.BackendError` as its `Cause`:
+
+```go
+type BackendError struct {
+    Backend string
+    Target  string
+    Path    string
+    Message string
+    Cause   error
+}
+```
+
+`*graft.BackendError` is never the outermost error an operator returns —
+only reachable via `errors.As`. It has no `Operation`/`Retriable`/
+`RetryCount` fields; retry eligibility is decided by `RetryConfig`, not
+carried on the error.
+
 ## Vault / OpenBao
 
 ### Operator Syntax
@@ -61,17 +192,19 @@ password: (( vault (concat "secret/" env ":password") ))
 
 ### Configuration
 
+There is no `VaultConfig` type on the built-in (non-registry) path, and no `Timeout`/`MaxRetries`/`RetryDelay` fields anywhere in it. The real per-target config type is `vault.Target` (`internal/backends/vault/config.go`), built from environment variables by `ClientPool.getTargetConfig` — the same "there is no `X` type, real type is `Y`" shape as the AWS/NATS sections below:
+
 ```go
-type VaultConfig struct {
-    Address    string        // Vault server URL
-    Token      string        // Authentication token
-    Namespace  string        // Enterprise namespace
-    SkipVerify bool          // Skip TLS verification
-    Timeout    time.Duration // Request timeout
-    MaxRetries int           // Retry count
-    RetryDelay time.Duration // Delay between retries
+// internal/backends/vault/config.go
+type Target struct {
+    URL        string `yaml:"url"`
+    Token      string `yaml:"token"`
+    Namespace  string `yaml:"namespace"`
+    SkipVerify bool   `yaml:"skip_verify"`
 }
 ```
+
+Separately, `pkg/graft.VaultConfig` (`backend_vault.go:26-51`) is a different, real, public type — but it belongs to the custom backend registry's `WithVault`/`WithVaultTarget` engine options (see [Custom Backend Registry](#custom-backend-registry-extension-point) above and [Backend Configuration Options](../developer-guide/library-api/options.md#backend-configuration-options)), not to this always-on path. Its fields are `Address, Token, Namespace, SkipVerify, Timeout, PoolSize` — `Token`/`Namespace`/`SkipVerify` match `Target`'s names, `Address` is `Target.URL` under a different name, and `Timeout`/`PoolSize` have no `Target` equivalent at all. It is read only when a `WithVault` call registers a backend under `"vault"` with the registry feature flag on; this section's environment variables and `vault.Target` govern every other case.
 
 Environment variables:
 
@@ -93,66 +226,49 @@ Per-target environment variables:
 
 ### Connection Pool
 
+There is no `VaultClientPool`/`NewVaultClientPool` type — no such name exists anywhere in the Go source. The real type is `vault.ClientPool` (`internal/backends/vault/client.go`), a `sync.RWMutex`-guarded map of per-target `VaultReader`s, matching the `aws.ClientPool`/`nats.ClientPool` shape documented below:
+
 ```go
-type VaultClientPool struct {
-    clients map[string]*vaultapi.Client
-    configs map[string]*VaultConfig
+// internal/backends/vault/client.go (abridged)
+type ClientPool struct {
     mu      sync.RWMutex
+    clients map[string]VaultReader
+    configs map[string]*Target
 }
 
-func NewVaultClientPool() *VaultClientPool {
-    return &VaultClientPool{
-        clients: make(map[string]*vaultapi.Client),
-        configs: make(map[string]*VaultConfig),
-    }
+var DefaultPool = &ClientPool{
+    clients: make(map[string]VaultReader),
+    configs: make(map[string]*Target),
 }
 
-func (p *VaultClientPool) GetClient(target string) (*vaultapi.Client, error) {
-    p.mu.RLock()
-    if client, ok := p.clients[target]; ok {
-        p.mu.RUnlock()
+func (vcp *ClientPool) GetClient(targetName string, engine graft.Engine) (VaultReader, error) {
+    vcp.mu.RLock()
+    if client, exists := vcp.clients[targetName]; exists {
+        vcp.mu.RUnlock()
         return client, nil
     }
-    p.mu.RUnlock()
+    vcp.mu.RUnlock()
 
-    p.mu.Lock()
-    defer p.mu.Unlock()
-
-    // Double-check after acquiring write lock
-    if client, ok := p.clients[target]; ok {
-        return client, nil
-    }
-
-    // Create new client
-    config := p.getConfig(target)
-    client, err := p.createClient(config)
+    config, err := vcp.getTargetConfig(targetName, engine)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("vault target '%s' not found: %w", targetName, err)
     }
 
-    p.clients[target] = client
+    client, err := CreateClientFromConfig(config)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create vault client for target '%s': %w", targetName, err)
+    }
+
+    vcp.mu.Lock()
+    if existing, exists := vcp.clients[targetName]; exists {
+        vcp.mu.Unlock()
+        return existing, nil
+    }
+    vcp.clients[targetName] = client
+    vcp.configs[targetName] = config
+    vcp.mu.Unlock()
+
     return client, nil
-}
-
-func (p *VaultClientPool) getConfig(target string) *VaultConfig {
-    // Check for target-specific config
-    if cfg, ok := p.configs[target]; ok {
-        return cfg
-    }
-
-    // Build from environment
-    prefix := ""
-    if target != "" && target != "default" {
-        prefix = strings.ToUpper(target) + "_"
-    }
-
-    return &VaultConfig{
-        Address:    getEnv(prefix+"VAULT_ADDR", "https://127.0.0.1:8200"),
-        Token:      getEnv(prefix+"VAULT_TOKEN", ""),
-        Namespace:  getEnv(prefix+"VAULT_NAMESPACE", ""),
-        SkipVerify: getEnvBool(prefix+"VAULT_SKIP_VERIFY", false),
-        Timeout:    30 * time.Second,
-    }
 }
 ```
 
@@ -489,320 +605,75 @@ the real JetStream reads in `FetchFromKV`/`FetchFromObject`
 
 ## Caching Strategy
 
-### Cache Interface
+Two independent caches can be in play for the same `(( vault ... ))` call,
+depending on whether the custom backend registry (above) has anything
+registered under `"vault"`:
 
-```go
-type BackendCache interface {
-    Get(key string) (interface{}, bool)
-    Set(key string, value interface{}, ttl time.Duration)
-    Delete(key string)
-    Clear()
-}
-```
+- **The built-in path's own per-backend cache** — described per backend
+  above (Vault's [Request Deduplication](#request-deduplication) section,
+  AWS's `awsbackend.DefaultPool`, NATS's `cached_fetch.go`). No TTL for
+  Vault/AWS; a real TTL (`Config.CacheTTL`, default 5 minutes) for NATS.
+  See [Cache TTL](#cache-ttl) below.
+- **The registry's optional `BackendCache` wrapper**
+  (`WithBackendCache(name, c)`), which only applies to a backend actually
+  registered in the registry, with a fixed `graft.DefaultBackendCacheTTL`
+  (5 minutes) — see [Generic wrapping, not backend-specific logic](#generic-wrapping-not-backend-specific-logic)
+  above. Graft ships no default `BackendCache` implementation and no
+  cross-backend cache administration (stats, invalidate-by-prefix,
+  clear-all across every registered backend at once) — a caller that wants
+  that holds onto the `BackendCache` instances it hands to
+  `WithBackendCache` itself and administers them directly.
 
-### LRU Cache Implementation
-
-```go
-type LRUCache struct {
-    capacity int
-    items    map[string]*cacheItem
-    order    *list.List
-    mu       sync.RWMutex
-}
-
-type cacheItem struct {
-    key     string
-    value   interface{}
-    expires time.Time
-    element *list.Element
-}
-
-func NewLRUCache(capacity int) *LRUCache {
-    return &LRUCache{
-        capacity: capacity,
-        items:    make(map[string]*cacheItem),
-        order:    list.New(),
-    }
-}
-
-func (c *LRUCache) Get(key string) (interface{}, bool) {
-    c.mu.RLock()
-    item, ok := c.items[key]
-    if !ok {
-        c.mu.RUnlock()
-        return nil, false
-    }
-
-    if time.Now().After(item.expires) {
-        c.mu.RUnlock()
-        c.Delete(key)
-        return nil, false
-    }
-    c.mu.RUnlock()
-
-    // Move to front (most recently used)
-    c.mu.Lock()
-    c.order.MoveToFront(item.element)
-    c.mu.Unlock()
-
-    return item.value, true
-}
-
-func (c *LRUCache) Set(key string, value interface{}, ttl time.Duration) {
-    c.mu.Lock()
-    defer c.mu.Unlock()
-
-    // Update existing
-    if item, ok := c.items[key]; ok {
-        item.value = value
-        item.expires = time.Now().Add(ttl)
-        c.order.MoveToFront(item.element)
-        return
-    }
-
-    // Evict if at capacity
-    if len(c.items) >= c.capacity {
-        oldest := c.order.Back()
-        if oldest != nil {
-            oldItem := oldest.Value.(*cacheItem)
-            delete(c.items, oldItem.key)
-            c.order.Remove(oldest)
-        }
-    }
-
-    // Add new
-    item := &cacheItem{
-        key:     key,
-        value:   value,
-        expires: time.Now().Add(ttl),
-    }
-    item.element = c.order.PushFront(item)
-    c.items[key] = item
-}
-```
-
-### Multi-Tier Caching
-
-```go
-type CacheManager struct {
-    // L1: In-memory LRU
-    l1 *LRUCache
-
-    // L2: External cache (optional)
-    l2 ExternalCache
-
-    // TTL configuration
-    defaultTTL time.Duration
-    secretTTL  time.Duration
-}
-
-func (m *CacheManager) Get(key string) (interface{}, bool) {
-    // Check L1
-    if value, ok := m.l1.Get(key); ok {
-        return value, true
-    }
-
-    // Check L2
-    if m.l2 != nil {
-        if value, ok := m.l2.Get(key); ok {
-            // Promote to L1
-            m.l1.Set(key, value, m.defaultTTL)
-            return value, true
-        }
-    }
-
-    return nil, false
-}
-
-func (m *CacheManager) Set(key string, value interface{}, isSecret bool) {
-    ttl := m.defaultTTL
-    if isSecret {
-        ttl = m.secretTTL
-    }
-
-    m.l1.Set(key, value, ttl)
-
-    if m.l2 != nil && !isSecret {
-        m.l2.Set(key, value, ttl)
-    }
-}
-```
+The two never both apply to the same call: a registered custom backend
+bypasses `internal/backends` entirely (see
+[Why a registry, not a direct dependency](#why-a-registry-not-a-direct-dependency)
+above), so its cache behavior, if any, comes only from `WithBackendCache`.
 
 ## Error Handling
 
-### Backend Errors
+`errors.As(err, &backendErr)` against a `*graft.BackendError` (defined
+above under [Errors](#errors)) is the shape to check for a registry-mediated
+backend failure. Errors from the built-in (non-registry) path — a
+misconfigured Vault token, an AWS credentials failure, an unreachable NATS
+server — surface as whatever `internal/backends`/the AWS/Vault/NATS SDKs
+themselves return, wrapped by the calling operator in a `*graft.GraftError`
+with `Type: ExternalError` (`graft.NewExternalError`); they are not
+`*graft.BackendError`, which exists only for the registry.
 
-```go
-type BackendError struct {
-    Backend    string
-    Target     string
-    Operation  string
-    Path       string
-    Cause      error
-    RetryCount int
-    Retriable  bool
-}
-
-func (e *BackendError) Error() string {
-    return fmt.Sprintf("%s[%s] %s %s: %v",
-        e.Backend, e.Target, e.Operation, e.Path, e.Cause)
-}
-
-func (e *BackendError) Unwrap() error {
-    return e.Cause
-}
-```
-
-### Retry Logic
-
-```go
-type RetryConfig struct {
-    MaxRetries   int
-    InitialDelay time.Duration
-    MaxDelay     time.Duration
-}
-
-func withRetry(ctx context.Context, config RetryConfig, fn func() error) error {
-    var lastErr error
-
-    for attempt := 0; attempt <= config.MaxRetries; attempt++ {
-        err := fn()
-        if err == nil {
-            return nil
-        }
-
-        lastErr = err
-
-        // Check if retriable
-        if !isRetriable(err) {
-            return err
-        }
-
-        // Check context
-        select {
-        case <-ctx.Done():
-            return ctx.Err()
-        default:
-        }
-
-        // Wait before retry with exponential backoff
-        delay := config.InitialDelay * time.Duration(1<<attempt)
-        if delay > config.MaxDelay {
-            delay = config.MaxDelay
-        }
-
-        time.Sleep(delay)
-    }
-
-    return lastErr
-}
-
-func isRetriable(err error) bool {
-    // Network errors are retriable
-    var netErr net.Error
-    if errors.As(err, &netErr) {
-        return netErr.Temporary()
-    }
-
-    // Rate limit errors are retriable
-    if strings.Contains(err.Error(), "rate limit") {
-        return true
-    }
-
-    return false
-}
-```
+Retry behavior for a registry-registered backend is `WithBackendRetry`'s
+`RetryConfig` (documented above under
+[Generic wrapping, not backend-specific logic](#generic-wrapping-not-backend-specific-logic)).
+The built-in path's own retry behavior is backend-specific and pre-existing:
+the `hashicorp/vault/api` client's built-in 5xx retry (2 retries by
+default) for Vault, the AWS SDK's own retry policy for `awsparam`/
+`awssecret`, and `nats.CreateConnectionWithRetry` for NATS connection
+setup — none of it goes through `graft.RetryConfig`.
 
 ## Security Considerations
 
-### TLS Configuration
+### TLS
 
-```go
-type TLSConfig struct {
-    Enabled    bool
-    SkipVerify bool   // Only for development
-    CertFile   string
-    KeyFile    string
-    CAFile     string
-    MinVersion uint16
-}
-
-func (c *TLSConfig) Build() (*tls.Config, error) {
-    if !c.Enabled {
-        return nil, nil
-    }
-
-    config := &tls.Config{
-        InsecureSkipVerify: c.SkipVerify,
-        MinVersion:         c.MinVersion,
-    }
-
-    if c.MinVersion == 0 {
-        config.MinVersion = tls.VersionTLS12
-    }
-
-    // Load client certificate
-    if c.CertFile != "" && c.KeyFile != "" {
-        cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
-        if err != nil {
-            return nil, err
-        }
-        config.Certificates = []tls.Certificate{cert}
-    }
-
-    // Load CA certificate
-    if c.CAFile != "" {
-        caCert, err := os.ReadFile(c.CAFile)
-        if err != nil {
-            return nil, err
-        }
-        config.RootCAs = x509.NewCertPool()
-        config.RootCAs.AppendCertsFromPEM(caCert)
-    }
-
-    return config, nil
-}
-```
+`graft.TLSConfig` (`CertFile`, `KeyFile`, `CAFile`, `SkipVerify`,
+`ServerName`) is a reusable parameter bag for `Backend` implementations
+that need to establish their own TLS connections — graft's registry and
+operators never read it; it exists only so custom backends don't each
+invent an equivalent struct. The built-in Vault/AWS/NATS clients have their
+own, separate TLS configuration, already covered in their sections above
+(Vault's `VAULT_SKIP_VERIFY`, NATS's `CertFile`/`KeyFile`/`CAFile` on
+`nats.Target`).
 
 ### Audit Logging
 
-```go
-type AuditEvent struct {
-    Timestamp time.Time
-    Operation string
-    Backend   string
-    Target    string
-    Path      string
-    User      string
-    Success   bool
-    Error     string
-    Duration  time.Duration
-}
-
-type AuditLogger interface {
-    Log(event AuditEvent)
-}
-
-// Log backend operations
-func (c *VaultClient) Read(path string) (interface{}, error) {
-    start := time.Now()
-
-    value, err := c.client.Logical().Read(path)
-
-    c.audit.Log(AuditEvent{
-        Timestamp: start,
-        Operation: "read",
-        Backend:   "vault",
-        Target:    c.target,
-        Path:      path,
-        Success:   err == nil,
-        Error:     errString(err),
-        Duration:  time.Since(start),
-    })
-
-    return value, err
-}
-```
+`graft.AuditLogger` (defined above under
+[Generic wrapping, not backend-specific logic](#generic-wrapping-not-backend-specific-logic))
+is the one audit mechanism the registry provides:
+`LogAccess(ctx, backend, path string, success bool, err error)`, called
+once per `Get`/`GetWithTarget`, cache hit or miss, for a backend registered
+in the registry. It is unrelated to `internal/backends/nats.Config.AuditLogging`,
+NATS's own, separate, pre-existing audit trail for the built-in (non-registry)
+path — the two can be used together without conflict, since one covers
+registry-mediated backends and the other covers NATS's built-in client
+regardless of the registry.
 
 ## Performance Considerations
 
