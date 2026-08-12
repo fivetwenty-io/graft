@@ -52,6 +52,18 @@ func (e *MultiError) Count() int {
 	return len(e.Errors)
 }
 
+// Unwrap returns the aggregated errors for Go 1.20+ multi-error
+// unwrapping, so errors.Is/errors.As traverse into each error this
+// MultiError carries (e.g. errors.As(evalErr, &backendErr) reaching a
+// *BackendError nested inside one of e.Errors - see
+// docs/developer-guide/custom-backends.md's "Errors" section). This is
+// purely additive: it does not change Error()'s output, which remains the
+// byte-identical, genesis-parsed format described on that method's doc
+// comment.
+func (e MultiError) Unwrap() []error {
+	return e.Errors
+}
+
 // Append adds an error to this MultiError, unpacking nested MultiErrors.
 func (e *MultiError) Append(err error) {
 	if err == nil {
