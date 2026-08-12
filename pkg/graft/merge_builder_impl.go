@@ -28,6 +28,7 @@ type mergeBuilderImpl struct {
 	skipEvaluation bool
 	goPatch        bool
 	fallbackAppend bool
+	trackHistory   bool
 	arrayStrategy  ArrayMergeStrategy
 	error          error                 // Stores any error from construction
 	mergeMetadata  *merger.MergeMetadata // Accumulated metadata from merges
@@ -227,6 +228,87 @@ func (m *mergeBuilderImpl) WithArrayMergeStrategy(strategy ArrayMergeStrategy) M
 	return &newBuilder
 }
 
+// TrackHistory activates document-memory tracking for this merge chain.
+// See the MergeBuilder interface doc comment (api.go) and the History
+// interface doc comment (history.go) for what tracking actually records
+// and its engine-wide (not per-merge) scope.
+func (m *mergeBuilderImpl) TrackHistory() MergeBuilder {
+	if m.error != nil {
+		return m // Propagate error
+	}
+
+	newBuilder := *m // Copy the builder
+	newBuilder.trackHistory = true
+	return &newBuilder
+}
+
+// ensureHistoryTracking activates the engine's DocumentMemory before this
+// merge's own recording sites (mergeDocuments, performSimpleMergeAtPath,
+// performLegacyMerge) check tracker.IsEnabled(), so a merge chain that
+// only calls TrackHistory() - without engine-level WithHistoryTracking/
+// WithMemoryConfig - still gets recorded. Idempotent: DefaultEngine.
+// EnableMemoryTracking either creates a new, enabled DocumentMemory or
+// re-enables the existing one, so calling this on every Execute() is
+// safe whether or not tracking is already active. Only *DefaultEngine
+// exposes EnableMemoryTracking; a MergeBuilder built against any other
+// Engine implementation leaves TrackHistory() unable to lazily activate
+// tracking (the resulting Document's History() falls back to
+// emptyHistory{} unless that Engine implementation happens to already
+// have tracking enabled some other way).
+func (m *mergeBuilderImpl) ensureHistoryTracking() {
+	de, ok := m.engine.(*DefaultEngine)
+	if !ok {
+		return
+	}
+	de.EnableMemoryTracking()
+}
+
+// currentDocumentMemory returns the concrete *DocumentMemory behind the
+// engine's memory tracker, or nil if there is no engine, no tracker, or
+// the tracker is not a *DocumentMemory (interfaces.MemoryTracker's only
+// implementation in this package, but GetMemoryTracker's return type is
+// the interface, not the concrete type - see memory_interface.go).
+func (m *mergeBuilderImpl) currentDocumentMemory() *DocumentMemory {
+	if m.engine == nil {
+		return nil
+	}
+	tracker := m.engine.GetMemoryTracker()
+	if tracker == nil {
+		return nil
+	}
+	dm, ok := tracker.(*DocumentMemory)
+	if !ok {
+		return nil
+	}
+	return dm
+}
+
+// attachHistory sets doc's history field to a live view over the
+// engine's DocumentMemory, if tracking is active and doc is a *document
+// (every Execute() return path in this file produces one; go-patch
+// documents never reach here - see mergeDocuments' handling of
+// IsGoPatchDocument). A no-op otherwise, matching Document.History()'s
+// contract of returning emptyHistory{} rather than requiring every
+// caller to nil-check first. Attachment happens regardless of whether
+// this specific merge called TrackHistory(): DocumentMemory recording at
+// merge_builder_impl.go's other call sites (performSimpleMergeAtPath,
+// performLegacyMerge, mergeDocuments) is already gated only on
+// tracker.IsEnabled(), not on m.trackHistory, so a document produced on
+// an engine with WithHistoryTracking(true)/WithMemoryConfig set at
+// construction gets its history attached too, even if this particular
+// Execute() call never invoked TrackHistory().
+func (m *mergeBuilderImpl) attachHistory(doc Document) {
+	dm := m.currentDocumentMemory()
+	if dm == nil || !dm.IsEnabled() {
+		return
+	}
+	concrete, ok := doc.(*document)
+	if !ok {
+		return
+	}
+	concrete.history = newHistoryFromMemory(dm)
+}
+
 // Execute performs the merge operation.
 //
 //nolint:gocyclo // merge execution handles many edge cases and options
@@ -241,6 +323,16 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 	case <-m.ctx.Done():
 		return nil, m.ctx.Err()
 	default:
+	}
+
+	// TrackHistory must activate tracking before any merge or
+	// evaluation work starts: every recording site below (single-
+	// document merger.Merger.Merge, mergeDocuments, and the evaluation
+	// path applyPostProcessing eventually calls) checks the engine's
+	// tracker.IsEnabled() as it goes, so enabling it after the fact
+	// would silently lose this merge's own changes.
+	if m.trackHistory {
+		m.ensureHistoryTracking()
 	}
 
 	// start anchors ProcessMetadata.StartTime for any WithPostProcessors
@@ -1074,6 +1166,12 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 		return nil, err
 	}
 
+	// History is attached last, after post-processors have had their
+	// chance to replace the Document entirely (runPostProcessors
+	// rebuilds a fresh *document via NewDocumentFromInterface whenever
+	// m.postProcessors is non-empty) - attaching any earlier would be
+	// silently discarded by that rebuild.
+	m.attachHistory(processed)
 
 	return processed, nil
 }

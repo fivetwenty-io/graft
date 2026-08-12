@@ -102,6 +102,15 @@ type Document interface {
 	// indent as the per-level indentation string. See also
 	// Engine.ToJSONIndent, which additionally passes through evaluation.
 	ToJSONIndent(indent string) ([]byte, error)
+
+	// History returns this document's recorded change history:
+	// emptyHistory{} (a valid, empty History - never a nil interface)
+	// unless this exact Document value was returned by Execute() on a
+	// merge chain where document-memory tracking was active (see
+	// MergeBuilder.TrackHistory and WithHistoryTracking/
+	// WithHistoryConfig). See the History interface's own doc comment
+	// (history.go) for what is and is not recorded.
+	History() History
 }
 
 // Engine is the enhanced interface for using graft as a library.
@@ -276,6 +285,16 @@ type MergeBuilder interface {
 
 	// FallbackAppend uses append instead of inline for arrays by default
 	FallbackAppend() MergeBuilder
+
+	// TrackHistory activates document-memory tracking for this merge
+	// chain, lazily calling the engine's EnableMemoryTracking if it is
+	// not already active (only possible when the underlying Engine is
+	// *DefaultEngine - a no-op otherwise). The resulting Document's
+	// History() reflects every change DocumentMemory recorded on that
+	// engine, which is scoped to the whole engine rather than to this
+	// one merge if history tracking is also active for other merges on
+	// it - see the History interface's doc comment (history.go).
+	TrackHistory() MergeBuilder
 
 	// Execute performs the merge operation
 	Execute() (Document, error)

@@ -17,6 +17,16 @@ import (
 // document implements the Document interface.
 type document struct {
 	data map[string]interface{}
+
+	// history is non-nil only when this document was returned by
+	// Execute() on a merge chain where document-memory tracking was
+	// active (see mergeBuilderImpl.attachHistory in
+	// merge_builder_impl.go); nil for every document built any other
+	// way (NewDocument, ParseYAML/ParseJSON/ParseFile/ParseReader,
+	// Clone, Prune, CherryPick, SortKeys). History() returns
+	// emptyHistory{} when it is nil, so callers never see a nil History
+	// interface.
+	history *historyImpl
 }
 
 // NewDocument creates a new document from a map.
@@ -826,4 +836,21 @@ func sortKeysRecursive(v interface{}) interface{} {
 func (d *document) ToJSONIndent(indent string) ([]byte, error) {
 	jsonData := convertToJSONCompatible(d.data)
 	return json.MarshalIndent(jsonData, "", indent)
+}
+
+// History returns this document's recorded change history: a live view
+// over the DocumentMemory active when it was produced (see
+// mergeBuilderImpl.attachHistory), or emptyHistory{} - never a nil
+// interface - if no tracking was active. d.history is set only by
+// Execute() on the merge that produced this exact Document value; every
+// other constructor (NewDocument, Clone, Prune, CherryPick, SortKeys, the
+// Parse* family) leaves it nil, and this method returns emptyHistory{}
+// for those too. Promoted onto *goPatchDocument via embedding (see
+// gopatch_document.go); a go-patch document's embedded *document.history
+// is always nil, so it always returns emptyHistory{}.
+func (d *document) History() History {
+	if d.history == nil {
+		return emptyHistory{}
+	}
+	return d.history
 }

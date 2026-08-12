@@ -89,12 +89,13 @@ type VersionDiff struct {
 
 // HistoryFilter for querying history.
 type HistoryFilter struct {
-	Path      string           // Filter by path (supports wildcards)
+	Path      string           // Filter by path (matchPath is a prefix match today, despite the name; there is no wildcard expansion yet, and the prefix is not segment-aware - Path: "db" also matches a recorded path "dbextra")
 	Phase     *ChangePhase     // Filter by phase
 	Operation *ChangeOperation // Filter by operation
 	Source    string           // Filter by source
 	After     *time.Time       // Changes after this time
 	Before    *time.Time       // Changes before this time
+	Limit     int              // Maximum entries to return, 0 for unlimited. Applied last, after every other filter, keeping the first Limit matches in timeline (chronological) order - not the most recent Limit.
 }
 
 // DocumentMemory manages the complete history of a document.
@@ -387,6 +388,13 @@ func (dm *DocumentMemory) Query(filter HistoryFilter) []ChangeEvent {
 		}
 
 		results = append(results, event)
+
+		// Limit stops collection as soon as it is satisfied, so it caps
+		// the earliest Limit matches in timeline order rather than
+		// requiring a full scan followed by a truncation.
+		if filter.Limit > 0 && len(results) >= filter.Limit {
+			break
+		}
 	}
 
 	return results

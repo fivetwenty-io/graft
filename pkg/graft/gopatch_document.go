@@ -8,19 +8,21 @@ import (
 
 // goPatchDocument is a special document type that holds go-patch operations.
 //
-// It embeds document (by value, always at its zero value: data is always
-// nil here, since nothing ever sets it) so the C4 convenience methods
-// added to the Document interface (String/Int/Int64/Float64/Bool/Paths/
-// Has/SortKeys/ToJSONIndent) are promoted from *document rather than
-// reimplemented. Every method that existed on Document before those
-// additions is still explicitly defined below, and an explicit method
-// always takes precedence over a promoted one with the same name — so
-// embedding changes none of the "go-patch documents do not support ..."
-// behavior pinned by TestGoPatchDocument_UnsupportedOperations. Only the
-// newly promoted methods are affected, and they behave exactly as they
-// would for any document with no data: checked getters return their zero
-// value, Has returns false, Paths returns nil, SortKeys returns an empty
-// Document, and ToJSONIndent returns "{}".
+// It embeds document (by value, always at its zero value: data and
+// history are always nil here, since nothing ever sets them) so the C4
+// convenience methods added to the Document interface (String/Int/
+// Int64/Float64/Bool/Paths/Has/SortKeys/ToJSONIndent) and C3's later
+// History method are promoted from *document rather than reimplemented.
+// Every method that existed on Document before those additions is still
+// explicitly defined below, and an explicit method always takes
+// precedence over a promoted one with the same name — so embedding
+// changes none of the "go-patch documents do not support ..." behavior
+// pinned by TestGoPatchDocument_UnsupportedOperations. Only the newly
+// promoted methods are affected, and they behave exactly as they would
+// for any document with no data and no tracked history: checked getters
+// return their zero value, Has returns false, Paths returns nil,
+// SortKeys returns an empty Document, ToJSONIndent returns "{}", and
+// History returns emptyHistory{}.
 type goPatchDocument struct {
 	document
 	ops patch.Ops
