@@ -315,8 +315,27 @@ func (ctx *dataFlowContext) findParentDependency(path *tree.Cursor) *Opcall {
 	return nil
 }
 
-// DataFlow computes the dependency-ordered list of operators for a given phase.
-func (ev *Evaluator) DataFlow(phase OperatorPhase) ([]*Opcall, error) {
+// dataFlowGraph is the phase-scoped operator set and raw dependency edges
+// computed before Kahn's-algorithm sorting collapses them into DataFlow's
+// flat topological order. computeDataFlowGraph is the single place both
+// DataFlow's sequential sort and the public DependencyGraph projection
+// (depgraph.go) get this data from, so the two can never derive two
+// different dependency graphs for the same document and phase - see the
+// "three incompatible forms" note on Wave C's C9a plan section for why
+// that matters.
+type dataFlowGraph struct {
+	ctx   *dataFlowContext
+	edges [][]*Opcall // each element is {dependency, dependent}: edges[i][0] must run before edges[i][1]
+}
+
+// computeDataFlowGraph scans ev.Tree for phase's operator calls and builds
+// the raw dependency edge list: everything DataFlow does before handing
+// off to kahnSort. Extracted out of DataFlow (which now just calls this
+// and sorts the result) so depgraph.go's DependencyGraph can consume the
+// identical operator set and edges DataFlow's own sequential sort uses,
+// rather than re-deriving them with a second, possibly drifting, tree
+// walk.
+func (ev *Evaluator) computeDataFlowGraph(phase OperatorPhase) (*dataFlowGraph, error) {
 	ev.Here = &tree.Cursor{}
 	log.DEBUG("DataFlow: starting phase %v", phase)
 
@@ -345,14 +364,24 @@ func (ev *Evaluator) DataFlow(phase OperatorPhase) ([]*Opcall, error) {
 		log.TRACE("data flow -- g[%d] is { %s:%s, %s:%s }\n", i, node[0].where, node[0].src, node[1].where, node[1].src)
 	}
 
-	sortedKeys := ev.getSortedKeys(ctx.all, ctx.insertionOrder)
-	ops, err := ev.kahnSort(g, ctx.all, sortedKeys)
+	return &dataFlowGraph{ctx: ctx, edges: g}, nil
+}
+
+// DataFlow computes the dependency-ordered list of operators for a given phase.
+func (ev *Evaluator) DataFlow(phase OperatorPhase) ([]*Opcall, error) {
+	dfg, err := ev.computeDataFlowGraph(phase)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(ctx.errors.Errors) > 0 {
-		return nil, ctx.errors
+	sortedKeys := ev.getSortedKeys(dfg.ctx.all, dfg.ctx.insertionOrder)
+	ops, err := ev.kahnSort(dfg.edges, dfg.ctx.all, sortedKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(dfg.ctx.errors.Errors) > 0 {
+		return nil, dfg.ctx.errors
 	}
 	return ops, nil
 }
