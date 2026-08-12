@@ -851,23 +851,42 @@ func TestEngineMerging(t *testing.T) {
 			So(builder, ShouldNotBeNil)
 		})
 
-		Convey("MergeFiles should create merge builder", func() {
+		Convey("MergeFiles should return a builder whose Execute() errors, not panics, for missing files", func() {
 			builder := engine.MergeFiles(context.Background(), "/non/existent/file1.yml", "/non/existent/file2.yml")
 
-			// Should return a builder (may be nil for unimplemented functionality)
-			_ = builder
+			So(builder, ShouldNotBeNil)
+			result, err := builder.Execute()
+			So(err, ShouldNotBeNil)
+			So(result, ShouldBeNil)
 		})
 
-		Convey("MergeReaders should create merge builder", func() {
+		Convey("MergeReaders should create a merge builder that merges its inputs", func() {
 			yaml1 := testYAMLKey1Value1
 			yaml2 := `key2: value2`
 			reader1 := strings.NewReader(yaml1)
 			reader2 := strings.NewReader(yaml2)
 
 			builder := engine.MergeReaders(context.Background(), reader1, reader2)
+			So(builder, ShouldNotBeNil)
 
-			// Should return a builder (may be nil for unimplemented functionality)
-			_ = builder
+			result, err := builder.Execute()
+			So(err, ShouldBeNil)
+			So(result, ShouldNotBeNil)
+			val, getErr := result.GetString("key1")
+			So(getErr, ShouldBeNil)
+			So(val, ShouldEqual, "value1")
+			val2, getErr2 := result.GetString("key2")
+			So(getErr2, ShouldBeNil)
+			So(val2, ShouldEqual, "value2")
+		})
+
+		Convey("MergeReaders should return a builder whose Execute() errors, not panics, for a failing reader", func() {
+			builder := engine.MergeReaders(context.Background(), &erroringReader{})
+
+			So(builder, ShouldNotBeNil)
+			result, err := builder.Execute()
+			So(err, ShouldNotBeNil)
+			So(result, ShouldBeNil)
 		})
 	})
 }

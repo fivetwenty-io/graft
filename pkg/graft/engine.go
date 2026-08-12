@@ -645,16 +645,69 @@ func (e *DefaultEngine) Merge(ctx context.Context, docs ...Document) MergeBuilde
 	}
 }
 
-// MergeFiles creates a merge builder for files.
+// MergeFiles loads paths via ParseFile and returns a MergeBuilder over the
+// resulting documents, in path order (first is base, rest are overlays -
+// same convention as Merge). A load failure (missing file, unreadable
+// file, parse error) does not panic and does not abort immediately: it is
+// captured on the returned builder's error field, which every With*
+// method short-circuits on and Execute() reports first, so
+// engine.MergeFiles(ctx, paths...).WithPrune(...).Execute() surfaces the
+// load failure exactly as if it had happened inside Execute() itself.
 func (e *DefaultEngine) MergeFiles(ctx context.Context, paths ...string) MergeBuilder {
-	// Implementation will be added
-	return nil
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	docs := make([]Document, 0, len(paths))
+	for _, path := range paths {
+		doc, err := e.ParseFile(path)
+		if err != nil {
+			return &mergeBuilderImpl{engine: e, ctx: ctx, error: fmt.Errorf("failed to load merge file %s: %w", path, err)}
+		}
+		if doc == nil {
+			// ParseFile returns (nil, nil) for a blank/null/empty
+			// document (its ParseYAML/ParseJSON contract); merge that as
+			// an empty map, matching Merge's own treatment of a nil
+			// Document and mergeAllDocs' equivalent CLI behavior.
+			doc = NewDocument(make(map[string]interface{}))
+		}
+		docs = append(docs, doc)
+	}
+
+	return e.Merge(ctx, docs...)
 }
 
-// MergeReaders creates a merge builder for readers.
+// MergeReaders loads readers via ParseReader and returns a MergeBuilder
+// over the resulting documents, in reader order. Error handling mirrors
+// MergeFiles: a load failure is captured on the returned builder rather
+// than panicking or returning early with a bare nil interface.
 func (e *DefaultEngine) MergeReaders(ctx context.Context, readers ...io.Reader) MergeBuilder {
-	// Implementation will be added
-	return nil
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	docs := make([]Document, 0, len(readers))
+	for i, r := range readers {
+		doc, err := e.ParseReader(r)
+		if err != nil {
+			return &mergeBuilderImpl{engine: e, ctx: ctx, error: fmt.Errorf("failed to load merge reader %d: %w", i, err)}
+		}
+		if doc == nil {
+			doc = NewDocument(make(map[string]interface{}))
+		}
+		docs = append(docs, doc)
+	}
+
+	return e.Merge(ctx, docs...)
+}
+
+// logDebug reports msg to the engine's configured Logger (see WithLogger)
+// at debug level. It is a no-op when no Logger was configured, which is
+// the default.
+func (e *DefaultEngine) logDebug(format string, args ...interface{}) {
+	if e.opts.Logger != nil {
+		e.opts.Logger.Debug(fmt.Sprintf(format, args...))
+	}
 }
 
 // Evaluate processes operators in a document.
