@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -114,6 +115,68 @@ func ExampleEngine_MergeFiles() {
 	// 5432
 }
 
+// ExampleMergeBuilder_Base backs merge-builder.md's Base/Overlay/OverlayFile
+// section: Base sets position 0 in the builder's document list, Overlay
+// appends in-memory documents, and OverlayFile loads and appends a file,
+// all composing with the same precedence documents passed directly to
+// Engine.Merge would have.
+func ExampleMergeBuilder_Base() {
+	dir, err := os.MkdirTemp("", "graft-example-overlayfile")
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	defer os.RemoveAll(dir)
+
+	overridesPath := filepath.Join(dir, "overrides.yml")
+	if err := os.WriteFile(overridesPath, []byte("database:\n  port: 5433\n"), 0o644); err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	engine, _ := graft.NewEngine()
+	defaults, _ := engine.ParseYAML([]byte("name: myapp\ndatabase:\n  host: localhost\n  port: 5432\n"))
+	production, _ := engine.ParseYAML([]byte("database:\n  host: prod.example.com\n"))
+
+	// Merge(ctx) with no documents, then Base/Overlay/OverlayFile build up
+	// the document list: base first, overlays after, in call order.
+	result, err := engine.Merge(context.Background()).
+		Base(defaults).
+		Overlay(production).
+		OverlayFile(overridesPath).
+		Execute()
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	fmt.Println(result.String("name"))
+	fmt.Println(result.String("database.host"))
+	fmt.Println(result.Int("database.port"))
+	// Output:
+	// myapp
+	// prod.example.com
+	// 5433
+}
+
+// ExampleMergeBuilder_OverlayFile_missingFile shows the documented error
+// shape for a load failure: OverlayFile never panics or returns a nil
+// builder, and the error surfaces from Execute().
+func ExampleMergeBuilder_OverlayFile_missingFile() {
+	engine, _ := graft.NewEngine()
+	base, _ := engine.ParseYAML([]byte("name: myapp\n"))
+
+	_, err := engine.Merge(context.Background(), base).
+		OverlayFile("missing.yml").
+		Execute()
+
+	fmt.Println(err != nil)
+	fmt.Println(strings.Contains(err.Error(), "failed to load overlay file"))
+	// Output:
+	// true
+	// true
+}
+
 // ExampleDocument shows checked getters (zero value on any failure) next
 // to the type-safe getters, whose errors are comparable with errors.Is
 // against graft's sentinel errors.
@@ -172,4 +235,54 @@ func ExampleDiffDocuments() {
 	// true
 	// modified database.host: localhost -> db.example.com
 	// true true
+}
+
+// ExampleMergeBuilder_TrackHistory activates document-memory tracking for
+// one merge chain and reads the result back via Document.History(). A
+// merge-phase overwrite of an existing key records exactly one entry -
+// see history-api.md's "What Is Actually Recorded" for the full list of
+// what does and does not get tracked.
+func ExampleMergeBuilder_TrackHistory() {
+	engine, _ := graft.NewEngine()
+	base, _ := engine.ParseYAML([]byte("host: localhost\n"))
+	overlay, _ := engine.ParseYAML([]byte("host: production.com\n"))
+
+	result, err := engine.Merge(context.Background(), base, overlay).
+		TrackHistory().
+		Execute()
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	entries := result.History().ForPath("host")
+	fmt.Println(len(entries))
+	fmt.Println(entries[0].Phase, entries[0].NewValue)
+	// Output:
+	// 1
+	// MERGE production.com
+}
+
+// ExampleDocument_History shows that Document.History() never returns a
+// nil interface: a Document produced without tracking active returns an
+// empty, valid History whose methods return empty results.
+func ExampleDocument_History() {
+	engine, _ := graft.NewEngine()
+	base, _ := engine.ParseYAML([]byte("host: localhost\n"))
+	overlay, _ := engine.ParseYAML([]byte("host: production.com\n"))
+
+	// No TrackHistory() call and no engine-level history option: tracking
+	// stays off.
+	result, err := engine.Merge(context.Background(), base, overlay).Execute()
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	history := result.History()
+	fmt.Println(history != nil)
+	fmt.Println(len(history.Timeline()))
+	// Output:
+	// true
+	// 0
 }
