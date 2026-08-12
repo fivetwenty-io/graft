@@ -47,6 +47,16 @@ const (
 	// FeatureMemoryPools enables memory pooling for reduced allocations.
 	// This can improve performance in high-throughput scenarios.
 	FeatureMemoryPools = "memory_pools"
+
+	// FeatureBackendRegistry enables the pkg/graft custom-backend registry
+	// (graft.Backend/graft.WithBackend/Engine.RegisterBackend). When
+	// disabled (the default), the vault/awsparam/awssecret/nats operators
+	// resolve exclusively through internal/backends as before this flag
+	// existed. When enabled, those operators first consult the engine's
+	// backend registry for a custom backend registered under their name,
+	// falling back to internal/backends when none is registered. See
+	// docs/developer-guide/custom-backends.md.
+	FeatureBackendRegistry = "backend_registry"
 )
 
 // AllFeatures returns a slice of all defined feature flag names.
@@ -58,6 +68,7 @@ func AllFeatures() []string {
 		FeatureDebugLogging,
 		FeatureStrictTypeChecking,
 		FeatureMemoryPools,
+		FeatureBackendRegistry,
 	}
 }
 
@@ -86,6 +97,9 @@ func New() *FeatureFlags {
 //   - FeatureMetrics: Disabled to avoid overhead
 //   - FeatureDebugLogging: Disabled for production use
 //   - FeatureStrictTypeChecking: Disabled for backward compatibility
+//   - FeatureBackendRegistry: Disabled for one release while the
+//     package-global backend path and the registry path both exist; see
+//     docs/developer-guide/custom-backends.md.
 func DefaultFlags() *FeatureFlags {
 	ff := New()
 
@@ -98,6 +112,7 @@ func DefaultFlags() *FeatureFlags {
 	ff.flags[FeatureMetrics] = false
 	ff.flags[FeatureDebugLogging] = false
 	ff.flags[FeatureStrictTypeChecking] = false
+	ff.flags[FeatureBackendRegistry] = false
 
 	return ff
 }
@@ -172,6 +187,7 @@ func (ff *FeatureFlags) Reset(useDefaults bool) {
 		ff.flags[FeatureMetrics] = false
 		ff.flags[FeatureDebugLogging] = false
 		ff.flags[FeatureStrictTypeChecking] = false
+		ff.flags[FeatureBackendRegistry] = false
 	}
 }
 

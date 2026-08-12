@@ -31,16 +31,22 @@ const (
 	// EnvFeaturePools controls memory pooling.
 	// Set to "true", "1", or "yes" to enable.
 	EnvFeaturePools = "GRAFT_FEATURE_POOLS"
+
+	// EnvFeatureBackendRegistry controls the pkg/graft custom-backend
+	// registry (FeatureBackendRegistry). Set to "true", "1", or "yes" to
+	// enable.
+	EnvFeatureBackendRegistry = "GRAFT_FEATURE_BACKEND_REGISTRY"
 )
 
 // envMapping maps environment variable names to feature flag constants.
 var envMapping = map[string]string{
-	EnvFeatureParallel:    FeatureParallelEvaluation,
-	EnvFeatureCache:       FeatureCaching,
-	EnvFeatureMetrics:     FeatureMetrics,
-	EnvFeatureDebug:       FeatureDebugLogging,
-	EnvFeatureStrictTypes: FeatureStrictTypeChecking,
-	EnvFeaturePools:       FeatureMemoryPools,
+	EnvFeatureParallel:        FeatureParallelEvaluation,
+	EnvFeatureCache:           FeatureCaching,
+	EnvFeatureMetrics:         FeatureMetrics,
+	EnvFeatureDebug:           FeatureDebugLogging,
+	EnvFeatureStrictTypes:     FeatureStrictTypeChecking,
+	EnvFeaturePools:           FeatureMemoryPools,
+	EnvFeatureBackendRegistry: FeatureBackendRegistry,
 }
 
 // LoadFromEnv loads feature flag settings from environment variables.
@@ -52,12 +58,13 @@ var envMapping = map[string]string{
 //
 // Environment variable to flag mapping:
 //
-//   - GRAFT_FEATURE_PARALLEL     -> FeatureParallelEvaluation
-//   - GRAFT_FEATURE_CACHE        -> FeatureCaching
-//   - GRAFT_FEATURE_METRICS      -> FeatureMetrics
-//   - GRAFT_FEATURE_DEBUG        -> FeatureDebugLogging
-//   - GRAFT_FEATURE_STRICT_TYPES -> FeatureStrictTypeChecking
-//   - GRAFT_FEATURE_POOLS        -> FeatureMemoryPools
+//   - GRAFT_FEATURE_PARALLEL          -> FeatureParallelEvaluation
+//   - GRAFT_FEATURE_CACHE             -> FeatureCaching
+//   - GRAFT_FEATURE_METRICS           -> FeatureMetrics
+//   - GRAFT_FEATURE_DEBUG             -> FeatureDebugLogging
+//   - GRAFT_FEATURE_STRICT_TYPES      -> FeatureStrictTypeChecking
+//   - GRAFT_FEATURE_POOLS             -> FeatureMemoryPools
+//   - GRAFT_FEATURE_BACKEND_REGISTRY  -> FeatureBackendRegistry
 func (ff *FeatureFlags) LoadFromEnv() {
 	ff.mu.Lock()
 	defer ff.mu.Unlock()
@@ -86,12 +93,13 @@ func (ff *FeatureFlags) LoadFromEnvWithPrefix(prefix string) {
 
 	// Build custom mapping with the prefix
 	customMapping := map[string]string{
-		prefix + "FEATURE_PARALLEL":     FeatureParallelEvaluation,
-		prefix + "FEATURE_CACHE":        FeatureCaching,
-		prefix + "FEATURE_METRICS":      FeatureMetrics,
-		prefix + "FEATURE_DEBUG":        FeatureDebugLogging,
-		prefix + "FEATURE_STRICT_TYPES": FeatureStrictTypeChecking,
-		prefix + "FEATURE_POOLS":        FeatureMemoryPools,
+		prefix + "FEATURE_PARALLEL":         FeatureParallelEvaluation,
+		prefix + "FEATURE_CACHE":            FeatureCaching,
+		prefix + "FEATURE_METRICS":          FeatureMetrics,
+		prefix + "FEATURE_DEBUG":            FeatureDebugLogging,
+		prefix + "FEATURE_STRICT_TYPES":     FeatureStrictTypeChecking,
+		prefix + "FEATURE_POOLS":            FeatureMemoryPools,
+		prefix + "FEATURE_BACKEND_REGISTRY": FeatureBackendRegistry,
 	}
 
 	for envVar, flag := range customMapping {

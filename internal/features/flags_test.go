@@ -205,6 +205,7 @@ func TestAllFeatures(t *testing.T) {
 		FeatureDebugLogging:       true,
 		FeatureStrictTypeChecking: true,
 		FeatureMemoryPools:        true,
+		FeatureBackendRegistry:    true,
 	}
 
 	if len(features) != len(expectedFeatures) {
