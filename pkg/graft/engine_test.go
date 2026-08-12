@@ -733,8 +733,8 @@ func TestEngineConfigurationEdgeCases(t *testing.T) {
 	Convey("Engine Configuration Edge Cases", t, func() {
 		Convey("should handle extreme configuration values", func() {
 			engine, err := NewEngine(
-				WithCache(false, 0),    // Minimum cache
-				WithMaxWorkers(1),      // Minimum workers
+				WithCache(false, 0),          // Minimum cache
+				WithMaxWorkers(1),            // Minimum workers
 				WithDataflowOrder("unknown"), // Invalid order
 			)
 			So(err, ShouldBeNil)
@@ -895,40 +895,37 @@ func TestEngineOutputFormatting(t *testing.T) {
 	Convey("Engine Output Formatting", t, func() {
 		engine := NewDefaultEngine()
 
-		Convey("ToYAML should return not implemented error", func() {
+		Convey("ToYAML evaluates and serializes the document", func() {
 			yaml := testYAMLKey1Value1
 			doc, err := engine.ParseYAML([]byte(yaml))
 			So(err, ShouldBeNil)
 
 			result, err := engine.ToYAML(doc)
 
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "not implemented")
-			So(result, ShouldBeNil)
+			So(err, ShouldBeNil)
+			So(string(result), ShouldEqual, "key1: value1\n")
 		})
 
-		Convey("ToJSON should return not implemented error", func() {
+		Convey("ToJSON evaluates and serializes the document", func() {
 			yaml := testYAMLKey1Value1
 			doc, err := engine.ParseYAML([]byte(yaml))
 			So(err, ShouldBeNil)
 
 			result, err := engine.ToJSON(doc)
 
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "not implemented")
-			So(result, ShouldBeNil)
+			So(err, ShouldBeNil)
+			So(string(result), ShouldEqual, `{"key1":"value1"}`)
 		})
 
-		Convey("ToJSONIndent should return not implemented error", func() {
+		Convey("ToJSONIndent evaluates and serializes the document with the requested indent", func() {
 			yaml := testYAMLKey1Value1
 			doc, err := engine.ParseYAML([]byte(yaml))
 			So(err, ShouldBeNil)
 
 			result, err := engine.ToJSONIndent(doc, "  ")
 
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "not implemented")
-			So(result, ShouldBeNil)
+			So(err, ShouldBeNil)
+			So(string(result), ShouldEqual, "{\n  \"key1\": \"value1\"\n}")
 		})
 
 		Convey("Output formatters should handle nil document", func() {
@@ -1144,7 +1141,6 @@ func TestEngineConfiguration(t *testing.T) {
 		})
 	})
 }
-
 
 func TestCreateEngineFromOptions(t *testing.T) {
 	Convey("createEngineFromOptions", t, func() {

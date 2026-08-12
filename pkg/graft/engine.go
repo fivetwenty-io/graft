@@ -784,22 +784,63 @@ func (e *DefaultEngine) DiffWithOptions(a, b Document, opts *DiffOptions) DiffRe
 	return result
 }
 
-// ToYAML converts a document to YAML bytes.
+// ToYAML evaluates doc's operators (see Evaluate) and converts the
+// resulting document to YAML bytes via Document.ToYAML. Unlike
+// Document.ToYAML, which serializes doc as-is, this always evaluates
+// first - see Document.ToJSONIndent's doc comment (api.go) for the
+// Document-level/Engine-level distinction that also applies here. Returns
+// an error if doc is nil or evaluation fails; a nil doc's error does not
+// come from Evaluate (which would otherwise panic dereferencing a nil
+// Document), it is checked explicitly first.
+//
+// Mutates doc: like Evaluate, whose in-place behavior this inherits, doc
+// is resolved in place, not left untouched with only a new Document
+// returned. A caller that still needs doc's pre-evaluation state - e.g.
+// to call ToYAML/ToJSON/ToJSONIndent more than once and compare, or to
+// keep the original alongside the evaluated form - should pass
+// doc.Clone() (a genuine deep copy) instead of doc.
 func (e *DefaultEngine) ToYAML(doc Document) ([]byte, error) {
-	// Implementation will be added
-	return nil, fmt.Errorf("not implemented")
+	if doc == nil {
+		return nil, NewValidationError("ToYAML: document must be non-nil")
+	}
+	evaluated, err := e.Evaluate(context.Background(), doc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate document: %w", err)
+	}
+	return evaluated.ToYAML()
 }
 
-// ToJSON converts a document to JSON bytes.
+// ToJSON evaluates doc's operators (see Evaluate) and converts the
+// resulting document to JSON bytes via Document.ToJSON. See ToYAML's doc
+// comment for the evaluate-then-serialize contract, the nil handling, and
+// the doc-mutation caveat (pass doc.Clone() to avoid it) this shares with
+// ToJSON/ToJSONIndent.
 func (e *DefaultEngine) ToJSON(doc Document) ([]byte, error) {
-	// Implementation will be added
-	return nil, fmt.Errorf("not implemented")
+	if doc == nil {
+		return nil, NewValidationError("ToJSON: document must be non-nil")
+	}
+	evaluated, err := e.Evaluate(context.Background(), doc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate document: %w", err)
+	}
+	return evaluated.ToJSON()
 }
 
-// ToJSONIndent converts a document to indented JSON bytes.
+// ToJSONIndent evaluates doc's operators (see Evaluate) and converts the
+// resulting document to indented JSON bytes via Document.ToJSONIndent,
+// using indent as the per-level indentation string. See ToYAML's doc
+// comment for the evaluate-then-serialize contract, the nil handling, and
+// the doc-mutation caveat (pass doc.Clone() to avoid it) this shares with
+// ToYAML/ToJSON.
 func (e *DefaultEngine) ToJSONIndent(doc Document, indent string) ([]byte, error) {
-	// Implementation will be added
-	return nil, fmt.Errorf("not implemented")
+	if doc == nil {
+		return nil, NewValidationError("ToJSONIndent: document must be non-nil")
+	}
+	evaluated, err := e.Evaluate(context.Background(), doc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate document: %w", err)
+	}
+	return evaluated.ToJSONIndent(indent)
 }
 
 // UnregisterOperator removes an operator from the engine's registry clone.

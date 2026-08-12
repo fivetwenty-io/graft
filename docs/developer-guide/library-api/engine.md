@@ -430,6 +430,81 @@ fmt.Println("Database host:", host)
 
 - Backend failures (Vault, AWS, etc.) return a `BackendError`
 
+## Output Methods
+
+### ToYAML, ToJSON, ToJSONIndent
+
+Evaluate a document's operators (see [Evaluate](#evaluate)), then serialize the result.
+
+```go
+func (e *Engine) ToYAML(doc Document) ([]byte, error)
+func (e *Engine) ToJSON(doc Document) ([]byte, error)
+func (e *Engine) ToJSONIndent(doc Document, indent string) ([]byte, error)
+```
+
+**Parameters:**
+
+- `doc` - Document to evaluate and serialize
+
+- `indent` (`ToJSONIndent` only) - Per-level indentation string
+
+**Returns:**
+
+- `[]byte` - The evaluated document, serialized as YAML or JSON
+
+- `error` - Non-nil if `doc` is `nil` or evaluation fails
+
+**These evaluate first, unlike the same-named `Document` methods.** `Document.ToYAML`/`Document.ToJSON`/`Document.ToJSONIndent` (see [document.md](document.md)) serialize the document exactly as it stands, operator expressions included if any are still unresolved. `Engine.ToYAML`/`Engine.ToJSON`/`Engine.ToJSONIndent` evaluate `doc` first and serialize the evaluated result, combining `Evaluate` and the `Document`-level method in one call — useful for a document that was only parsed, not yet merged or evaluated.
+
+**Mutates `doc`.** Like `Evaluate`, whose in-place behavior these three inherit, `doc` is resolved in place — this is not a read-only serialization call despite the name. A caller that still needs `doc`'s pre-evaluation state should pass `doc.Clone()` (a genuine deep copy) instead of `doc`.
+
+**Example:**
+
+```go
+doc, _ := engine.ParseYAML([]byte(`
+meta:
+  env: production
+database:
+  host: (( grab meta.env ))
+`))
+
+// doc is evaluated in place by this call; calling ToJSON/ToJSONIndent on
+// the same doc below re-evaluates an already-evaluated document, which is
+// a no-op here since no unresolved operators remain. Pass doc.Clone() to
+// each call instead if doc's own pre-evaluation state still matters.
+yamlBytes, _ := engine.ToYAML(doc)
+fmt.Print(string(yamlBytes))
+// database:
+//   host: production
+// meta:
+//   env: production
+
+jsonBytes, _ := engine.ToJSON(doc)
+fmt.Println(string(jsonBytes))
+// {"database":{"host":"production"},"meta":{"env":"production"}}
+
+indentBytes, _ := engine.ToJSONIndent(doc, "  ")
+fmt.Println(string(indentBytes))
+// {
+//   "database": {
+//     "host": "production"
+//   },
+//   "meta": {
+//     "env": "production"
+//   }
+// }
+```
+
+**Edge Cases:**
+
+- A `nil` `doc` returns a `*GraftError` without attempting evaluation
+
+- An evaluation failure (missing reference, circular reference, backend error) is returned as-is, wrapped with `"failed to evaluate document: "` — nothing is serialized
+
+- A `Document` whose underlying data is not evaluable (e.g. a go-patch operation list from `NewGoPatchDocument`) fails at the `Evaluate` step, the same as calling `Evaluate` directly on it
+
+- `doc` itself ends up evaluated after the call, not just the returned bytes — see the mutation note above
+
 ## Operator Management Methods
 
 ### RegisterOperator
