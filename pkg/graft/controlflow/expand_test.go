@@ -91,7 +91,7 @@ func TestExpand_NoMarkers_ByteIdentical(t *testing.T) {
 		"just: text\nwith:\n  nested: [1, 2, 3]\n",
 	}
 	for _, src := range srcs {
-		out, err := Expand([]byte(src))
+		out, err := Expand(nil, []byte(src))
 		if err != nil {
 			t.Fatalf("Expand(%q): unexpected error: %v", src, err)
 		}
@@ -269,7 +269,7 @@ func TestExpand_ConcurrentCallsAreIndependent(t *testing.T) {
 	}
 	want := make([]string, len(srcs))
 	for i, s := range srcs {
-		out, err := Expand([]byte(s))
+		out, err := Expand(nil, []byte(s))
 		if err != nil {
 			t.Fatalf("srcs[%d]: %v", i, err)
 		}
@@ -283,7 +283,7 @@ func TestExpand_ConcurrentCallsAreIndependent(t *testing.T) {
 			defer wg.Done()
 			for n := 0; n < 20; n++ {
 				for i, s := range srcs {
-					out, err := Expand([]byte(s))
+					out, err := Expand(nil, []byte(s))
 					if err != nil {
 						t.Errorf("srcs[%d]: %v", i, err)
 						return

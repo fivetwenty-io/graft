@@ -19,12 +19,21 @@ import (
 type env struct {
 	scope    map[string]interface{}
 	bindings map[string]interface{}
+
+	// engine is the engine performing the parse that this control-flow
+	// expansion is part of (see Expand's doc comment). Every expression
+	// evaluated against this env resolves operators through it, so a
+	// custom operator registered on engine is visible inside
+	// conditions/iterables/subjects the same way it is everywhere else. A
+	// nil engine resolves identically to before engine-local registration
+	// existed.
+	engine graft.Engine
 }
 
 // newEnv creates the root environment for a document: the prescan scope,
 // with no loop bindings yet.
-func newEnv(scope map[string]interface{}) *env {
-	return &env{scope: scope}
+func newEnv(scope map[string]interface{}, engine graft.Engine) *env {
+	return &env{scope: scope, engine: engine}
 }
 
 // withBinding returns a new environment with name bound to value, shadowing
@@ -36,7 +45,7 @@ func (e *env) withBinding(name string, value interface{}) *env {
 		next[k] = v
 	}
 	next[name] = value
-	return &env{scope: e.scope, bindings: next}
+	return &env{scope: e.scope, bindings: next, engine: e.engine}
 }
 
 // tree returns the flattened map an expression should be evaluated against:
@@ -62,14 +71,26 @@ func (e *env) tree() map[string]interface{} {
 // rather than failing the whole scope. This is what every condition,
 // iterable, and case subject in the document is evaluated against, unless
 // a loop currently in scope has bound a shadowing name (see env).
-func buildPrescanScope(lines []scanLine, topLevel []item) (map[string]interface{}, error) {
+//
+// engine, when non-nil, both parses the remainder and evaluates its
+// operators — so a custom operator registered on engine resolves in the
+// prescan scope, not only in condition/iterable/subject expressions
+// evaluated later against that scope. A nil engine (only reachable when a
+// caller invokes this package directly rather than through
+// DefaultEngine.ParseYAML) falls back to a throwaway default engine for
+// parsing only, matching pre-P0-1 behavior.
+func buildPrescanScope(lines []scanLine, topLevel []item, engine graft.Engine) (map[string]interface{}, error) {
 	remainder := stripBlockLines(lines, topLevel)
 
-	engine, err := graft.NewEngine()
-	if err != nil {
-		return nil, fmt.Errorf("control flow: building prescan scope: %w", err)
+	scopeEngine := engine
+	if scopeEngine == nil {
+		var err error
+		scopeEngine, err = graft.NewEngine()
+		if err != nil {
+			return nil, fmt.Errorf("control flow: building prescan scope: %w", err)
+		}
 	}
-	doc, err := engine.ParseYAML([]byte(remainder))
+	doc, err := scopeEngine.ParseYAML([]byte(remainder))
 	if err != nil {
 		return nil, fmt.Errorf("control flow: prescan scope is not valid YAML once control-flow blocks are removed: %w", err)
 	}
@@ -81,7 +102,7 @@ func buildPrescanScope(lines []scanLine, topLevel []item) (map[string]interface{
 		return map[string]interface{}{}, nil
 	}
 
-	evaluateBestEffort(data)
+	evaluateBestEffort(data, engine)
 	return data, nil
 }
 
@@ -125,8 +146,9 @@ func stripBlockLines(lines []scanLine, topLevel []item) string {
 // conditions referencing an unresolved literal "(( ... ))" string will
 // themselves fail to resolve later and be treated as absent by the same
 // mechanism callers already use for missing keys.
-func evaluateBestEffort(data map[string]interface{}) {
+func evaluateBestEffort(data map[string]interface{}, engine graft.Engine) {
 	ev := &graft.Evaluator{Tree: data, DataflowOrder: "alphabetical"}
+	ev.SetEngine(engine)
 	if err := graft.SetupOperators(graft.EvalPhase); err != nil {
 		return
 	}
@@ -177,7 +199,7 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 		raw = "grab " + raw
 	}
 
-	op, err := graft.ParseOpcallWithParser(graft.EvalPhase, "(( "+raw+" ))")
+	op, err := graft.ParseOpcallWithParserForEngine(e.engine, graft.EvalPhase, "(( "+raw+" ))")
 	if err != nil {
 		return nil, fmt.Errorf("$.%s: invalid expression %q: %w", location, raw, err)
 	}
@@ -189,6 +211,7 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 	}
 
 	ev := &graft.Evaluator{Tree: e.tree()}
+	ev.SetEngine(e.engine)
 	resp, err := op.Run(ev)
 	if err != nil {
 		return nil, err // already "$.<location>: msg" via Opcall.Run

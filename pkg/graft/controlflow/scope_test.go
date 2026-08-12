@@ -10,7 +10,7 @@ import (
 func TestEvalExpr_BareIdentifierResolvesAsReference(t *testing.T) {
 	e := newEnv(map[string]interface{}{
 		"services": []interface{}{"api", "worker"},
-	})
+	}, nil)
 	val, err := evalExpr("services", e, "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -24,7 +24,7 @@ func TestEvalExpr_BareIdentifierResolvesAsReference(t *testing.T) {
 func TestEvalExpr_DottedReference(t *testing.T) {
 	e := newEnv(map[string]interface{}{
 		"features": map[string]interface{}{"debug": true},
-	})
+	}, nil)
 	val, err := evalExpr("features.debug", e, "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -35,7 +35,7 @@ func TestEvalExpr_DottedReference(t *testing.T) {
 }
 
 func TestEvalExpr_InfixComparison(t *testing.T) {
-	e := newEnv(map[string]interface{}{"environment": "production"})
+	e := newEnv(map[string]interface{}{"environment": "production"}, nil)
 	val, err := evalExpr(`environment == "production"`, e, "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -46,7 +46,7 @@ func TestEvalExpr_InfixComparison(t *testing.T) {
 }
 
 func TestEvalExpr_ExplicitGrab(t *testing.T) {
-	e := newEnv(map[string]interface{}{"environment": "production"})
+	e := newEnv(map[string]interface{}{"environment": "production"}, nil)
 	val, err := evalExpr(`grab environment == "production"`, e, "test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -57,7 +57,7 @@ func TestEvalExpr_ExplicitGrab(t *testing.T) {
 }
 
 func TestEvalExpr_MissingReferenceErrors(t *testing.T) {
-	e := newEnv(map[string]interface{}{})
+	e := newEnv(map[string]interface{}{}, nil)
 	_, err := evalExpr("nonexistent_key", e, "controlflow.if.L1")
 	if err == nil {
 		t.Fatal("expected an error for a missing reference")
@@ -80,7 +80,7 @@ func TestEvalTruthy(t *testing.T) {
 		"a": int64(1), "b": int64(0), "c": false, "d": "false",
 		"e": []interface{}{}, "e2": []interface{}{1},
 	}
-	e := newEnv(scope)
+	e := newEnv(scope, nil)
 	for _, c := range cases {
 		got, err := evalTruthy(c.expr, e, "test")
 		if err != nil {
@@ -93,7 +93,7 @@ func TestEvalTruthy(t *testing.T) {
 }
 
 func TestEnv_WithBindingShadowsScopeAndOuterBindings(t *testing.T) {
-	base := newEnv(map[string]interface{}{"svc": "from-scope"})
+	base := newEnv(map[string]interface{}{"svc": "from-scope"}, nil)
 	inner := base.withBinding("svc", "from-loop")
 
 	val, err := evalExpr("svc", inner, "test")
@@ -125,7 +125,7 @@ func TestBuildPrescanScope_StripsBlocksAndEvaluatesRemainder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseDocument: %v", err)
 	}
-	scope, err := buildPrescanScope(lines, top)
+	scope, err := buildPrescanScope(lines, top, nil)
 	if err != nil {
 		t.Fatalf("buildPrescanScope: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestBuildPrescanScope_UnresolvableOperatorLeavesKeyAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseDocument: %v", err)
 	}
-	scope, err := buildPrescanScope(lines, top)
+	scope, err := buildPrescanScope(lines, top, nil)
 	if err != nil {
 		t.Fatalf("buildPrescanScope should not itself fail when an operator is unresolvable: %v", err)
 	}

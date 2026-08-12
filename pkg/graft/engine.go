@@ -529,7 +529,7 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 	// callers. See pkg/graft/controlflow_hook.go for why this is a
 	// function-pointer hook rather than a direct import.
 	if ControlFlowExpander != nil {
-		expanded, cfErr := ControlFlowExpander(data)
+		expanded, cfErr := ControlFlowExpander(e, data)
 		if cfErr != nil {
 			return nil, NewParseError(fmt.Sprintf("control flow expansion failed: %s", cfErr.Error()), cfErr)
 		}

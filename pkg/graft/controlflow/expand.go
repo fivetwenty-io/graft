@@ -22,7 +22,14 @@ func init() {
 // with no control-flow markers is returned unchanged (same underlying
 // bytes) — the hard backward-compatibility requirement that no document
 // without control-flow constructs changes behavior at all.
-func Expand(source []byte) ([]byte, error) {
+//
+// engine is the engine performing the parse (DefaultEngine.ParseYAML passes
+// its own receiver via the ControlFlowExpander hook); it is threaded
+// through the prescan scope and every condition/iterable/subject
+// evaluation so a custom operator registered on engine resolves inside
+// control-flow expressions too. A nil engine resolves every operator
+// exactly as before engine-local registration existed.
+func Expand(engine graft.Engine, source []byte) ([]byte, error) {
 	text := string(source)
 	if !strings.Contains(text, "((") {
 		return source, nil
@@ -38,13 +45,13 @@ func Expand(source []byte) ([]byte, error) {
 		return nil, fmt.Errorf("control flow: %w", err)
 	}
 
-	scope, err := buildPrescanScope(lines, topLevel)
+	scope, err := buildPrescanScope(lines, topLevel, engine)
 	if err != nil {
 		return nil, err
 	}
 
 	x := newExpander(source)
-	bodyLines, err := x.expandItems(topLevel, newEnv(scope))
+	bodyLines, err := x.expandItems(topLevel, newEnv(scope, engine))
 	if err != nil {
 		return nil, err
 	}
