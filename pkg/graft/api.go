@@ -439,9 +439,12 @@ func WithLogger(logger Logger) EngineOption {
 
 // WithVaultClient sets the vault client for the engine.
 //
-// Deprecated: has no effect. Vault access is configured through
-// environment variables read by internal/backends/vault today; a
-// WithVault engine option carrying equivalent configuration is planned.
+// Deprecated: has no effect and never will - the VaultClient interface
+// (Get/List/Put) has no implementation anywhere in this module to satisfy
+// it, and there is no code path that would call it if one existed. Use
+// WithVault(VaultConfig{...}) instead: it registers a real, working Vault
+// backend (github.com/hashicorp/vault/api underneath) consulted when
+// WithBackendRegistry(true) is set.
 func WithVaultClient(client VaultClient) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.VaultClient = client
@@ -450,9 +453,13 @@ func WithVaultClient(client VaultClient) EngineOption {
 
 // WithAWSConfig sets the AWS configuration.
 //
-// Deprecated: has no effect. AWS access is configured through environment
-// variables read by internal/backends/aws today; a WithAWS engine option
-// carrying equivalent configuration is planned.
+// Deprecated: has no effect - the stored EngineOptions.AWSConfig is never
+// read by engine construction or by any AWS operator. Use
+// WithAWS(AWSConfig{...}) instead: despite the identical struct type
+// (AWSConfig is shared between both options), WithAWS actually threads its
+// argument into a real AWS session (github.com/aws/aws-sdk-go underneath)
+// registered as the "awsparam"/"awssecret" backends, consulted when
+// WithBackendRegistry(true) is set.
 func WithAWSConfig(cfg *AWSConfig) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.AWSConfig = cfg
@@ -493,9 +500,10 @@ func WithCustomOperator(name string, op Operator) EngineOption {
 
 // WithVaultConfig configures vault settings.
 //
-// Deprecated: has no effect. Vault access is configured through
-// environment variables read by internal/backends/vault today; a
-// WithVault engine option carrying equivalent configuration is planned.
+// Deprecated: has no effect - EngineOptions.VaultAddress/VaultToken are
+// never read. Use WithVault(VaultConfig{Address: address, Token: token})
+// instead - same two values, but it actually reaches a Vault server. See
+// WithVaultClient's doc comment for what WithVault provides.
 func WithVaultConfig(address, token string) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.VaultAddress = address
@@ -519,9 +527,9 @@ func WithDebugLogging(enabled bool) EngineOption {
 
 // WithAWSRegion sets the AWS region.
 //
-// Deprecated: has no effect. AWS access is configured through environment
-// variables read by internal/backends/aws today; a WithAWS engine option
-// carrying equivalent configuration is planned.
+// Deprecated: has no effect - EngineOptions.AWSRegion is never read. Use
+// WithAWS(AWSConfig{Region: region}) instead. See WithAWSConfig's doc
+// comment for what WithAWS provides.
 func WithAWSRegion(region string) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.AWSRegion = region
@@ -629,9 +637,9 @@ func WithYAMLCompat(compat *YAMLCompat) EngineOption {
 
 // WithVaultSkipTLS disables TLS verification for Vault connections.
 //
-// Deprecated: has no effect. Vault TLS verification is configured through
-// environment variables read by internal/backends/vault today; a
-// WithVault engine option carrying equivalent configuration is planned.
+// Deprecated: has no effect - EngineOptions.VaultSkipTLS is never read.
+// Use WithVault(VaultConfig{SkipVerify: skip, ...}) instead. See
+// WithVaultClient's doc comment for what WithVault provides.
 func WithVaultSkipTLS(skip bool) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.VaultSkipTLS = skip
@@ -640,9 +648,9 @@ func WithVaultSkipTLS(skip bool) EngineOption {
 
 // WithAWSProfile sets the AWS credentials profile.
 //
-// Deprecated: has no effect. The AWS credentials profile is configured
-// through environment variables read by internal/backends/aws today; a
-// WithAWS engine option carrying equivalent configuration is planned.
+// Deprecated: has no effect - EngineOptions.AWSProfile is never read. Use
+// WithAWS(AWSConfig{Profile: profile}) instead. See WithAWSConfig's doc
+// comment for what WithAWS provides.
 func WithAWSProfile(profile string) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.AWSProfile = profile

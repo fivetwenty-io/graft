@@ -256,8 +256,13 @@ func TestWithMaxWorkers_AliasOfWithConcurrency(t *testing.T) {
 // TestDeprecatedOptions_StillCompileAndConstruct is the "assert they still
 // compile and don't crash" coverage the deprecated Vault/AWS/memory-pool
 // options need: each is applied to a real NewEngine call and must not
-// error or panic, even though (per their doc comments) most have no
-// observable effect until a backend configuration registry lands.
+// error or panic, even though (per their doc comments) none has an
+// observable effect - WithVault/WithVaultTarget/WithAWS/WithAWSTarget
+// (backend_vault_test.go, backend_aws_test.go,
+// backend_vault_engine_test.go, backend_aws_engine_test.go) are the real,
+// working replacements for the Vault/AWS ones below; there is no
+// replacement for WithMaxWorkers other than WithConcurrency, and none for
+// WithMemoryPools.
 func TestDeprecatedOptions_StillCompileAndConstruct(t *testing.T) {
 	deprecated := []struct {
 		name string
