@@ -1302,16 +1302,21 @@ func readFile(file *YamlFile) ([]byte, error) {
 // resulting documents are merged (incrementally, to capture per-file raw
 // snapshots, rather than in one Execute() call).
 func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []graft.Document, error) {
-	// Create engine with settings from options (caller-provided first, then defaults).
-	// Concurrency/parallel-evaluation defaults come from options.EngineOpts
-	// (see configEngineOpts/resolveConcurrency) when a resolved config was
-	// supplied by the CLI; cache stays an unconditional default here,
-	// unaffected by config/feature wiring.
-	engineOpts := make([]graft.EngineOption, 0, len(options.EngineOpts)+1)
+	// Create engine with the cache default applied first, then
+	// caller-provided options (options.EngineOpts) layered on top, so a
+	// cache-related entry in options.EngineOpts overrides this default
+	// instead of being silently discarded. Concurrency/parallel-evaluation
+	// defaults come from options.EngineOpts (see
+	// configEngineOpts/resolveConcurrency) when a resolved config was
+	// supplied by the CLI. No caller today sets a cache option via
+	// options.EngineOpts (see configEngineOpts), so this ordering is
+	// behaviorally identical to before for every current invocation; the
+	// feature-flag gate on caching (see the comment in
+	// pkg/graft/engine.go createEngineFromOptions) is unaffected by this
+	// change either way.
+	engineOpts := make([]graft.EngineOption, 0, len(options.EngineOpts)+2)
+	engineOpts = append(engineOpts, graft.WithCache(true, 1000))
 	engineOpts = append(engineOpts, options.EngineOpts...)
-	engineOpts = append(engineOpts,
-		graft.WithCache(true, 1000),
-	)
 
 	// Set dataflow order if specified (default to alphabetical if not set)
 	dataflowOrder := options.DataflowOrder
