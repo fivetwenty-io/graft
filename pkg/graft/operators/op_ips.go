@@ -29,6 +29,13 @@ func (IpsOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor
 	for _, arg := range args {
 		switch arg.Type {
 		case Reference:
+			// arg.Reference is nil for a bare @name token that parsed as an
+			// orphaned target rather than a value reference: see
+			// operator_helpers.go's ResolveOperatorArgument doc comment on
+			// the same condition. It contributes no dependency.
+			if arg.Reference == nil {
+				continue
+			}
 			for _, other := range locs {
 				if other.Under(arg.Reference) {
 					l = append(l, other)

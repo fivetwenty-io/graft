@@ -28,6 +28,14 @@ func (InjectOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cur
 	for _, arg := range args {
 		switch arg.Type {
 		case Reference:
+			// arg.Reference is nil for a bare @name token that parsed as an
+			// orphaned target rather than an operator's own @target (see
+			// operator_helpers.go's ResolveOperatorArgument doc comment on
+			// the same condition). It contributes no dependency; Run will
+			// report the error when it tries to resolve the argument.
+			if arg.Reference == nil {
+				continue
+			}
 			for _, other := range locs {
 				canon, err := arg.Reference.Canonical(ev.Tree)
 				if err != nil {
@@ -66,6 +74,12 @@ func (InjectOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	for i, arg := range args {
 		// Special handling for references vs expressions
 		if arg.Type == Reference {
+			// arg.Reference is nil for a bare @name token that parsed as an
+			// orphaned target (no cursor to resolve): see
+			// ResolveOperatorArgument's doc comment on the same condition.
+			if arg.Reference == nil {
+				return nil, fmt.Errorf("unable to resolve reference: @%s is a target, not a value", arg.Name)
+			}
 			// Direct reference - resolve it directly
 			DEBUG("  arg[%d]: trying to resolve reference $.%s", i, arg.Reference)
 			s, err := arg.Reference.Resolve(ev.Tree)
