@@ -3,6 +3,7 @@ package log
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -15,6 +16,15 @@ var TraceOn = false
 
 // PrintStdErrf is a configurable hook to print to error output.
 var PrintStdErrf func(string, ...interface{})
+
+// Writer, when non-nil, receives DEBUG/TRACE output instead of
+// PrintStdErrf. It is a separate hook from PrintStdErrf (which also prints
+// user-facing CLI messages unrelated to DEBUG/TRACE) so redirecting
+// DEBUG/TRACE output - see pkg/graft.WithTraceOutput - does not also
+// redirect unrelated error output. Unset by default, matching historical
+// behavior (DEBUG/TRACE go through PrintStdErrf, which defaults to
+// os.Stderr).
+var Writer io.Writer
 
 //nolint:gochecknoinits // Default stderr handler must be set before any logging calls
 func init() {
@@ -34,6 +44,10 @@ func DEBUG(format string, args ...interface{}) {
 			lines[i] = "DEBUG> " + line
 		}
 		content = strings.Join(lines, "\n")
+		if Writer != nil {
+			fmt.Fprintf(Writer, "%s\n", content)
+			return
+		}
 		PrintStdErrf("%s\n", content)
 	}
 }
@@ -49,6 +63,10 @@ func TRACE(format string, args ...interface{}) {
 			lines[i] = "-----> " + line
 		}
 		content = strings.Join(lines, "\n")
+		if Writer != nil {
+			fmt.Fprintf(Writer, "%s\n", content)
+			return
+		}
 		PrintStdErrf("%s\n", content)
 	}
 }

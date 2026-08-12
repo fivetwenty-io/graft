@@ -566,7 +566,7 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 	switch result := genericResult.(type) {
 	case map[string]interface{}:
 		// Apply YAML 1.1 boolean compatibility conversions (yes/no/on/off → bool)
-		converted := DefaultYAMLCompat().ConvertMapValues(result)
+		converted := e.yamlCompat().ConvertMapValues(result)
 		converted = UnprotectYAML11QuotedBools(converted).(map[string]interface{})
 		return NewDocument(converted), nil
 	case map[interface{}]interface{}:
@@ -575,13 +575,23 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		for k, v := range result {
 			converted[fmt.Sprintf("%v", k)] = v
 		}
-		final := DefaultYAMLCompat().ConvertMapValues(converted)
+		final := e.yamlCompat().ConvertMapValues(converted)
 		final = UnprotectYAML11QuotedBools(final).(map[string]interface{})
 		return NewDocument(final), nil
 	default:
 		// Return plain error for compatibility with tests
 		return nil, fmt.Errorf("root of YAML document is not a hash/map")
 	}
+}
+
+// yamlCompat returns the YAML 1.1 compatibility settings ParseYAML applies:
+// the engine's configured YAMLCompat (see WithYAMLCompat) if one was
+// supplied, otherwise DefaultYAMLCompat().
+func (e *DefaultEngine) yamlCompat() *YAMLCompat {
+	if e.opts.YAMLCompat != nil {
+		return e.opts.YAMLCompat
+	}
+	return DefaultYAMLCompat()
 }
 
 // ParseMultiDocYAML splits multi-document YAML (separated by "\n---\n") and
@@ -715,6 +725,8 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
+	e.logDebug("Evaluate: starting evaluation")
 
 	// Get the raw data
 	data, ok := doc.RawData().(map[string]interface{})
@@ -1083,6 +1095,10 @@ func createEngineFromOptions(opts *EngineOptions) (Engine, error) {
 			engine.Pool = pool
 		}
 	}
+
+	// Apply WithTraceOutput/WithTraceLevel/WithDebugLogging, if any were
+	// supplied. A no-op when none were (see applyLogging).
+	applyLogging(opts)
 
 	return engine, nil
 }

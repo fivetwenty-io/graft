@@ -6,6 +6,112 @@ import (
 	"testing"
 	"time"
 )
+
+// capturingLogger records every message passed to it, proving WithLogger
+// has an observable effect instead of merely being stored on
+// EngineOptions.Logger and never read.
+type capturingLogger struct {
+	debugMsgs []string
+	infoMsgs  []string
+	warnMsgs  []string
+	errorMsgs []string
+}
+
+func (l *capturingLogger) Debug(msg string, _ ...interface{}) { l.debugMsgs = append(l.debugMsgs, msg) }
+func (l *capturingLogger) Info(msg string, _ ...interface{})  { l.infoMsgs = append(l.infoMsgs, msg) }
+func (l *capturingLogger) Warn(msg string, _ ...interface{})  { l.warnMsgs = append(l.warnMsgs, msg) }
+func (l *capturingLogger) Error(msg string, _ ...interface{}) { l.errorMsgs = append(l.errorMsgs, msg) }
+
+// TestWithLogger_ObservableEffect proves WithLogger's configured Logger is
+// actually consulted during evaluation, not merely stored and ignored.
+func TestWithLogger_ObservableEffect(t *testing.T) {
+	logger := &capturingLogger{}
+	engine, err := NewEngine(WithLogger(logger))
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+
+	doc := mustParseYAMLDoc(t, engine, "key: value\n")
+	if _, err := engine.Evaluate(context.Background(), doc); err != nil {
+		t.Fatalf("Evaluate failed: %v", err)
+	}
+
+	if len(logger.debugMsgs) == 0 {
+		t.Fatal("WithLogger's Logger received no Debug calls during Evaluate; WithLogger has no observable effect")
+	}
+}
+
+// TestWithLogger_NilLoggerIsNoOp proves an engine constructed without
+// WithLogger (the default) makes no logger calls - i.e. logDebug's nil
+// check actually gates the call, rather than logDebug being unconditional
+// and only appearing to be gated because every test happens to supply a
+// logger.
+func TestWithLogger_NilLoggerIsNoOp(t *testing.T) {
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+	doc := mustParseYAMLDoc(t, engine, "key: value\n")
+	// No logger configured; Evaluate must not panic or otherwise depend on
+	// e.opts.Logger being non-nil.
+	if _, err := engine.Evaluate(context.Background(), doc); err != nil {
+		t.Fatalf("Evaluate failed: %v", err)
+	}
+}
+
+// TestWithYAMLCompat_ObservableEffect proves WithYAMLCompat changes actual
+// parse behavior: with YAML 1.1 boolean conversion disabled, "yes"/"no"
+// stay strings instead of becoming booleans.
+func TestWithYAMLCompat_ObservableEffect(t *testing.T) {
+	yamlSrc := []byte("flag: yes\n")
+
+	withDefault, err := NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+	defaultDoc, err := withDefault.ParseYAML(yamlSrc)
+	if err != nil {
+		t.Fatalf("ParseYAML failed: %v", err)
+	}
+	if v, err := defaultDoc.GetBool("flag"); err != nil || !v {
+		t.Fatalf("default engine: expected flag to parse as boolean true, got value=%v err=%v", v, err)
+	}
+
+	withCompatOff, err := NewEngine(WithYAMLCompat(&YAMLCompat{ConvertYAML11Booleans: false}))
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+	compatOffDoc, err := withCompatOff.ParseYAML(yamlSrc)
+	if err != nil {
+		t.Fatalf("ParseYAML failed: %v", err)
+	}
+	got, err := compatOffDoc.GetString("flag")
+	if err != nil {
+		t.Fatalf("WithYAMLCompat(ConvertYAML11Booleans: false): expected flag to stay a string, GetString failed: %v", err)
+	}
+	if got != "yes" {
+		t.Fatalf("WithYAMLCompat(ConvertYAML11Booleans: false): flag = %q, want %q", got, "yes")
+	}
+}
+
+// TestWithYAMLCompat_NilIsIgnored proves a nil compat leaves the engine's
+// default YAML 1.1 compatibility behavior in effect instead of disabling
+// conversion entirely (a nil *YAMLCompat has no ConvertYAML11Booleans field
+// to consult).
+func TestWithYAMLCompat_NilIsIgnored(t *testing.T) {
+	engine, err := NewEngine(WithYAMLCompat(nil))
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+	doc, err := engine.ParseYAML([]byte("flag: yes\n"))
+	if err != nil {
+		t.Fatalf("ParseYAML failed: %v", err)
+	}
+	if v, err := doc.GetBool("flag"); err != nil || !v {
+		t.Fatalf("WithYAMLCompat(nil): expected default conversion behavior (flag=true), got value=%v err=%v", v, err)
+	}
+}
+
 // TestWithCacheSize_ObservableEffect proves WithCacheSize actually bounds
 // the constructed cache's capacity (via eviction), not merely
 // EngineOptions.CacheSize.
@@ -127,4 +233,3 @@ func TestWithOperators_EmptyMapIsNoOp(t *testing.T) {
 		t.Fatalf("Evaluate failed: %v", err)
 	}
 }
-

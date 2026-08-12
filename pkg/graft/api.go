@@ -289,12 +289,36 @@ type EngineOptions struct {
 	// operator result cache (see WithCacheTTL). Zero means no expiration.
 	CacheTTL time.Duration
 
+	// TraceOutput, when set (via WithTraceOutput), redirects graft's
+	// DEBUG/TRACE output. See WithTraceOutput for the process-wide-sink
+	// caveat.
+	TraceOutput io.Writer
+
+	// TraceLevel selects which of graft's DEBUG/TRACE output is produced
+	// when set via WithTraceLevel. Read traceLevelSet, not the zero value
+	// of TraceLevel, to tell "unset" apart from "explicitly set to
+	// TraceLevelNone".
+	TraceLevel TraceLevel
+
+	// traceLevelSet is true once WithTraceLevel has been applied,
+	// distinguishing "never configured" (leave process logging state
+	// untouched) from "explicitly set to TraceLevelNone" (turn output
+	// off). Unexported: only WithTraceLevel sets it.
+	traceLevelSet bool
+
+	// debugLoggingSet is true once WithDebugLogging has been applied,
+	// distinguishing "never configured" from "explicitly set", the same
+	// way traceLevelSet does for TraceLevel. Unexported: only
+	// WithDebugLogging sets it.
+	debugLoggingSet bool
 }
 
 // EngineOption is a functional option for configuring an engine.
 type EngineOption func(*EngineOptions)
 
-// WithLogger sets the logger for the engine.
+// WithLogger sets the logger the engine reports evaluation activity to.
+// A nil logger disables reporting (the default: an engine constructed
+// without WithLogger reports nothing).
 func WithLogger(logger Logger) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.Logger = logger
@@ -355,10 +379,17 @@ func WithVaultConfig(address, token string) EngineOption {
 	}
 }
 
-// WithDebugLogging enables debug logging.
+// WithDebugLogging enables or disables graft's DEBUG output (log.DebugOn),
+// the same knob the CLI's -d/--debug flag sets. See also WithTraceLevel,
+// which offers the same control plus TRACE output; if both are applied to
+// the same engine, WithTraceLevel wins. Like WithTraceOutput/
+// WithTraceLevel, this reaches into process-global logging state (DEBUG is
+// a package-level function, not per-engine) - see WithTraceOutput's doc
+// comment for the full caveat.
 func WithDebugLogging(enabled bool) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.DebugLogging = enabled
+		opts.debugLoggingSet = true
 	}
 }
 
@@ -449,10 +480,15 @@ func WithMemoryPools(enabled bool) EngineOption {
 	}
 }
 
-// WithYAMLCompat sets YAML compatibility options.
+// WithYAMLCompat sets YAML 1.1 backward-compatibility behavior (see
+// YAMLCompat) used when parsing YAML with ParseYAML. A nil compat is
+// ignored, leaving the engine's default (DefaultYAMLCompat(), which
+// converts yes/no/on/off-style scalars to booleans) in effect.
 func WithYAMLCompat(compat *YAMLCompat) EngineOption {
 	return func(opts *EngineOptions) {
-		opts.YAMLCompat = compat
+		if compat != nil {
+			opts.YAMLCompat = compat
+		}
 	}
 }
 

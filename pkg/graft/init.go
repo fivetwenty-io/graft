@@ -256,8 +256,9 @@ func Merge(dst, src interface{}) error {
 	return nil
 }
 
-// DebugOn returns true if debugging is enabled.
+// DebugOn returns true if debugging is enabled (log.DebugOn, toggled by the
+// CLI's -d/--debug flag or by an engine constructed with WithDebugLogging
+// or WithTraceLevel(TraceLevelDebug) / WithTraceLevel(TraceLevelTrace)).
 func DebugOn() bool {
-	// Check environment variable or global flag
-	return false
+	return log.DebugOn
 }
