@@ -180,6 +180,46 @@ engine, _ := graft.NewEngine(graft.WithHistoryConfig(graft.HistoryConfig{
 | `WithLogger(logger Logger)` | Sets the logger the engine reports evaluation activity to via `Debug()` calls; a `nil` logger (the default) reports nothing |
 | `WithYAMLCompat(compat *YAMLCompat)` | Sets YAML 1.1 backward-compatibility behavior used by `ParseYAML`; a `nil` compat is ignored, leaving the default (`yes`/`no`/`on`/`off`-style scalars convert to booleans) in effect |
 
+## Backend Configuration Options
+
+```go
+type VaultConfig struct {
+    Address    string
+    Token      string
+    Namespace  string
+    SkipVerify bool
+    Timeout    time.Duration
+    PoolSize   int
+}
+func WithVault(config VaultConfig) Option
+func WithVaultTarget(name string, config VaultConfig) Option
+
+func WithAWS(config AWSConfig) Option
+func WithAWSTarget(name string, config AWSConfig) Option
+```
+
+`WithVault`/`WithVaultTarget` and `WithAWS`/`WithAWSTarget` register real, working `Backend` implementations — a Vault KV reader built directly on `github.com/hashicorp/vault/api`, and an SSM/Secrets Manager reader built directly on `github.com/aws/aws-sdk-go` — under the names the `vault`, `awsparam`, and `awssecret` operators look up (`WithAWS` registers both `"awsparam"` and `"awssecret"` from one call, since one AWS session configuration serves both AWS operators). They are **not** adapters over `internal/backends/vault`/`internal/backends/aws`: that package imports `pkg/graft`, so `pkg/graft` cannot import it back without a cycle, so these are separate, from-scratch implementations. Concretely this means they do not share the built-in path's process-global client pool, its response cache, or (for Vault) its `.vault-token`/`.svtoken`-file fallback; each builds one client per configured target, lazily, on first use.
+
+Registering a backend this way has no effect on evaluation until `WithBackendRegistry(true)` is also set (or a supplied `*features.FeatureFlags` already enables `FeatureBackendRegistry`) — see [Custom Backends](../custom-backends.md). Without it, the `vault`/`awsparam`/`awssecret` operators keep using the environment-configured `internal/backends` path exactly as before, byte-identical to an engine that never called `WithVault`/`WithAWS` at all.
+
+```go
+srv := httptest.NewServer(vaultKVHandler) // stand-in for a real Vault server
+
+engine, err := graft.NewEngine(
+    graft.WithBackendRegistry(true),
+    graft.WithVault(graft.VaultConfig{Address: srv.URL, Token: "s.xxxx"}),
+    graft.WithVaultTarget("staging", graft.VaultConfig{Address: "https://vault-staging.example.com", Token: "s.yyyy"}),
+)
+```
+
+`(( vault "secret/db:password" ))` then reads through the `WithVault` configuration; `(( vault@staging "secret/db:password" ))` reads through the matching `WithVaultTarget("staging", ...)` configuration. A `@target` with no matching `WithVaultTarget`/`WithAWSTarget` call is a configuration error (distinct from a missing secret), not a silent fallback to the default target. Calling `WithVault`/`WithAWS` more than once, or combining either with `WithVaultTarget`/`WithAWSTarget` for the same target, applies to the same underlying backend: the last call for a given target wins, matching `WithBackend`'s own "last registration for a name wins" rule.
+
+`VaultConfig.PoolSize` and `AWSConfig.PoolSize` (an addition to the existing `AWSConfig` struct — `Region`, `Profile`, `Role`, `SkipAuth`, `Endpoint`, plus `AccessKeyID`/`SecretAccessKey`/`SessionToken`/`PoolSize`) set the underlying HTTP transport's `MaxIdleConnsPerHost`/`MaxIdleConns`; non-positive leaves Go's `http.Transport` zero-value default (2 per host) in effect. Retry and caching beyond what the underlying SDKs already do on their own are available by layering `WithBackendRetry("vault", ...)`/`WithBackendCache("vault", ...)` (and the `"awsparam"`/`"awssecret"` equivalents) on top, described in [Custom Backends](../custom-backends.md) — `WithVault`/`WithAWS` deliberately do not duplicate that.
+
+Not carried over from `internal/backends/aws.Target`: `S3ForcePathStyle`, `MaxRetries`, `HTTPTimeout`, MFA'd role assumption (`AssumeRoleDuration`/`ExternalID`/`SessionName`/`MfaSerial`), `CacheTTL`, `AuditLogging` (the last is available generically via `WithAuditLogger`, described in [Custom Backends](../custom-backends.md), instead). A bare `AWSConfig.Role` (no MFA) does work, via `sts:AssumeRole`. A key/secret ID reaches `Get`/`GetWithTarget` already stripped of its `?stage=...&key=...` query suffix by the operator, so stage/version secret selection is unavailable to a `WithAWS`-registered backend; it always fetches the latest/default version.
+
+`WithNATS`/`WithNATSTarget` are not implemented in this release (see [Cut from this page](#cut-from-this-page)).
+
 ## Deprecated Options
 
 These options compile and construct an engine without error, but have no effect. Each is superseded by real configuration described in its doc comment.
@@ -187,15 +227,13 @@ These options compile and construct an engine without error, but have no effect.
 | Option | Deprecated because | Configure instead via |
 |--------|---------------------|------------------------|
 | `WithMaxWorkers(n int)` | Functionally identical to `WithConcurrency` (both set only `MaxConcurrency`) | `WithConcurrency(n)` |
-| `WithVaultClient(client VaultClient)` | Vault access reads environment variables at call time; there is no injection seam yet | Environment variables read by `internal/backends/vault` |
-| `WithVaultConfig(address, token string)` | Same as above | Same as above |
-| `WithVaultSkipTLS(skip bool)` | Same as above | Same as above |
-| `WithAWSConfig(cfg *AWSConfig)` | AWS access reads environment variables at call time; there is no injection seam yet | Environment variables read by `internal/backends/aws` |
-| `WithAWSRegion(region string)` | Same as above | Same as above |
-| `WithAWSProfile(profile string)` | Same as above | Same as above |
+| `WithVaultClient(client VaultClient)` | The `VaultClient` interface has no implementation anywhere in this module, and nothing would call it if one existed | `WithVault(VaultConfig{...})` |
+| `WithVaultConfig(address, token string)` | `EngineOptions.VaultAddress`/`VaultToken` are never read | `WithVault(VaultConfig{Address: address, Token: token})` |
+| `WithVaultSkipTLS(skip bool)` | `EngineOptions.VaultSkipTLS` is never read | `WithVault(VaultConfig{SkipVerify: skip, ...})` |
+| `WithAWSConfig(cfg *AWSConfig)` | `EngineOptions.AWSConfig` is never read | `WithAWS(AWSConfig{...})` (same struct type, but actually used) |
+| `WithAWSRegion(region string)` | `EngineOptions.AWSRegion` is never read | `WithAWS(AWSConfig{Region: region})` |
+| `WithAWSProfile(profile string)` | `EngineOptions.AWSProfile` is never read | `WithAWS(AWSConfig{Profile: profile})` |
 | `WithMemoryPools(enabled bool)` | Sets a feature flag nothing reads — no pooling implementation exists to gate | N/A |
-
-A `WithVault`/`WithAWS` engine option carrying equivalent configuration through an injection seam is planned but not shipped.
 
 **Note:** the `Engine` interface separately has three no-op methods with related names — `WithLogger(logger) Engine`, `WithVaultClient(client) Engine`, `WithAWSConfig(cfg) Engine` — that return the receiver unchanged. These are distinct symbols from the `EngineOption`-returning functions of similar names above (`graft.WithLogger(logger) Option` is functional; `Engine.WithLogger(logger) Engine` is not).
 
@@ -207,14 +245,15 @@ func (e *DefaultEngine) Configure(opts ...Option) error
 
 `Configure` is a method on the concrete `*DefaultEngine`, not part of the `Engine` interface — call it directly on the value `NewEngine` returns, or type-assert an `Engine` to `*DefaultEngine` first.
 
-It applies `opts` as an incremental change over the engine's current configuration: a copy of the engine's existing options with `opts` applied on top, so any field `opts` doesn't touch keeps its current value. It validates the result fully before changing anything: an invalid `MaxConcurrency` (negative) returns an error without touching the engine's configuration, and so does one or more invalid pending custom-operator registrations (an empty name, or a nil `Operator`) — for the first invalid registration in sorted-name order, deterministically. Only once validation passes does it:
+It applies `opts` as an incremental change over the engine's current configuration: a copy of the engine's existing options with `opts` applied on top, so any field `opts` doesn't touch keeps its current value. It validates the result fully before changing anything: an invalid `MaxConcurrency` (negative) returns an error without touching the engine's configuration, and so does one or more invalid pending custom-operator or custom-backend registrations (an empty name, a nil `Operator`/`Backend`, or — for backends only — a `Backend` stored under a map key that disagrees with its own `Name()`) — for the first invalid registration in sorted-name order, deterministically. Only once validation passes does it:
 
 - re-derive the engine's cache from the resulting configuration (rebuilding it with the new size/TTL, or removing it, as `EnableCache`/`CacheSize`/`CacheTTL`/`CacheInstance` dictate — a rebuild discards the previous cache's contents and closes the outgoing cache; a call that changes none of those fields, nor the `FeatureCaching` flag that gates `EnableCache`, skips the rebuild entirely),
 - re-apply any `WithTraceOutput`/`WithTraceLevel`/`WithDebugLogging` change (subject to the same process-wide-sink caveat described above),
 - register every pending custom operator (`WithOperators`/`WithCustomOperator`) not already registered on this engine, in the same sorted-name order used for validation,
-- and keep the vault/AWS/NATS skip flags in sync with the resulting configuration.
+- keep the vault/AWS/NATS skip flags in sync with the resulting configuration,
+- and apply `WithBackendRegistry`/`WithBackend`/`WithBackendRetry`/`WithBackendCache`/`WithAuditLogger` (and, transitively, `WithVault`/`WithVaultTarget`/`WithAWS`/`WithAWSTarget`, which register through `WithBackend`) exactly as `NewEngine` does at construction: the feature flag first, then retry/cache/audit-logger configuration, then every pending backend registration in sorted-name order — see [Backend Configuration Options](#backend-configuration-options).
 
-Because pending operators are validated up front, registration is expected to always succeed; if it somehow does not, the rest of the configuration applied by that call has already taken effect — registration is the one step `Configure` cannot roll back.
+Because pending operators and backends are validated up front, registration is expected to always succeed; if it somehow does not, the rest of the configuration applied by that call has already taken effect — registration is the one step `Configure` cannot roll back.
 
 ```go
 engine, _ := graft.NewEngine()
@@ -229,7 +268,7 @@ err := engine.(*graft.DefaultEngine).Configure(
 
 ## Cut from this page
 
-`WithValidation(enabled bool)` and `WithAnalytics(enabled bool)` do not exist anywhere in `pkg/graft` and are not planned; they described no defined semantic. Pipeline-parallelism options (`WithPipeline`/`PipelineConfig`) and per-backend connection options (`WithVault`/`WithAWS`/`WithNATS` and their `*Target`/`*Config` types) are not implemented in this release; they are not documented here until they ship. History tracking (`WithHistoryTracking`/`WithHistoryConfig`) is implemented - see the [History Tracking](#history-tracking) section above and [History Interface](history-api.md).
+`WithValidation(enabled bool)` and `WithAnalytics(enabled bool)` do not exist anywhere in `pkg/graft` and are not planned; they described no defined semantic. Pipeline-parallelism options (`WithPipeline`/`PipelineConfig`) and NATS connection options (`WithNATS`/`WithNATSTarget`/`NATSConfig`) are not implemented in this release; they are not documented here until they ship. `WithVault`/`WithVaultTarget`/`WithAWS`/`WithAWSTarget` **are** implemented - see [Backend Configuration Options](#backend-configuration-options) above. History tracking (`WithHistoryTracking`/`WithHistoryConfig`) is implemented - see the [History Tracking](#history-tracking) section above and [History Interface](history-api.md).
 
 ## Related Documentation
 

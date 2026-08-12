@@ -176,6 +176,18 @@ Registering under any other name makes the backend reachable via
 `Engine.GetBackend` (for a custom operator you write yourself), but none of
 the built-in operators will consult it.
 
+Writing your own `"vault"`/`"awsparam"`/`"awssecret"` `Backend` (as the rest
+of this page does) is one way to fill those names. `graft.WithVault`/
+`graft.WithVaultTarget` and `graft.WithAWS`/`graft.WithAWSTarget`
+(`docs/developer-guide/library-api/options.md#backend-configuration-options`)
+are a ready-made alternative: they register real Vault/AWS-backed
+implementations built directly on `github.com/hashicorp/vault/api` and
+`github.com/aws/aws-sdk-go` from a config struct, so most callers who just
+want per-engine Vault/AWS configuration - as opposed to routing to an
+entirely different secret store - never need to implement `Backend`
+themselves for those three names. There is no `WithNATS` equivalent yet; a
+custom `"nats"` `Backend` still has to be hand-written.
+
 `awsparam` and `awssecret` are looked up separately: a backend registered as
 `"awssecret"` is never consulted by `(( awsparam ... ))`, and vice versa.
 
