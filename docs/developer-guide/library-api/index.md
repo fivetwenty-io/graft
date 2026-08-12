@@ -69,7 +69,7 @@ graph TB
 | `Engine` | Main entry point for all operations | [engine.md](engine.md) |
 | `Document` | Represents a parsed YAML/JSON document | [document.md](document.md) |
 | `MergeBuilder` | Fluent API for merge operations | [merge-builder.md](merge-builder.md) |
-| `Diff` | Represents differences between documents | [diff-api.md](diff-api.md) |
+| `DiffResult` | Represents differences between documents | [diff-api.md](diff-api.md) |
 | `History` | Tracks changes through operations | [history-api.md](history-api.md) |
 
 ## Data Flow
@@ -121,7 +121,6 @@ engine, err := graft.NewEngine()
 engine, err := graft.NewEngine(
     graft.WithCacheSize(1000),
     graft.WithCacheTTL(5 * time.Minute),
-    graft.WithHistoryTracking(true),
 )
 ```
 
@@ -149,9 +148,8 @@ result, err := engine.Merge(ctx, base, overlay).Execute()
 
 // Merge with options
 result, err := engine.Merge(ctx, base, overlay).
-    Prune("internal", "meta").
-    CherryPick("database", "server").
-    TrackHistory().
+    WithPrune("internal", "meta").
+    WithCherryPick("database", "server").
     Execute()
 ```
 
@@ -172,10 +170,10 @@ enabled := doc.Bool("features.debug")
 ### Comparing Documents
 
 ```go
-diff := engine.Diff(doc1, doc2)
+result := engine.Diff(doc1, doc2)
 
-if diff.HasChanges() {
-    for _, change := range diff.Changes() {
+if result.HasChanges() {
+    for _, change := range result.Changes() {
         fmt.Printf("%s: %v -> %v\n",
             change.Path, change.OldValue, change.NewValue)
     }
@@ -184,27 +182,19 @@ if diff.HasChanges() {
 
 ## Error Handling
 
-Graft uses structured errors that provide detailed context:
+Graft uses one structured error type, `*graft.GraftError`, with a `Type` field (`graft.ParseError`, `graft.MergeError`, `graft.EvaluationError`, `graft.OperatorError`, `graft.ConfigurationError`, `graft.ValidationError`, `graft.ExternalError`) to distinguish failure categories:
 
 ```go
 result, err := engine.Merge(ctx, base, overlay).Execute()
 if err != nil {
-    var evalErr *graft.EvaluationError
-    if errors.As(err, &evalErr) {
-        fmt.Printf("Evaluation failed at %s: %s\n",
-            evalErr.Path, evalErr.Message)
-        fmt.Printf("Operator: %s\n", evalErr.Operator)
-    }
-
-    var backendErr *graft.BackendError
-    if errors.As(err, &backendErr) {
-        fmt.Printf("Backend %s failed: %s\n",
-            backendErr.Backend, backendErr.Cause)
+    var graftErr *graft.GraftError
+    if errors.As(err, &graftErr) {
+        fmt.Printf("%s at %s: %s\n", graftErr.Type, graftErr.Path, graftErr.Message)
     }
 }
 ```
 
-See the individual interface documentation for complete error handling patterns.
+See [Engine Interface](engine.md#error-handling) for the full error model.
 
 ## Thread Safety
 
@@ -215,7 +205,7 @@ The Graft library provides specific thread safety guarantees:
 | `Engine` | Yes | Safe for concurrent use |
 | `Document` | Read-only | Not safe for concurrent modification |
 | `MergeBuilder` | No | Single-use, create per operation |
-| `Diff` | Yes | Safe for concurrent reads |
+| `DiffResult` | Yes | Safe for concurrent reads |
 | `History` | Yes | Safe for concurrent reads |
 
 ### Concurrent Document Access

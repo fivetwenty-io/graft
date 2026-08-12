@@ -7,6 +7,7 @@ The `Document` interface represents a parsed YAML/JSON document. It provides typ
 ```go
 type Document interface {
     // Type-safe getters (return error if not found or wrong type)
+    Get(path string) (interface{}, error)
     GetString(path string) (string, error)
     GetInt(path string) (int, error)
     GetInt64(path string) (int64, error)
@@ -16,9 +17,8 @@ type Document interface {
     GetStringSlice(path string) ([]string, error)
     GetMap(path string) (map[string]interface{}, error)
     GetMapStringString(path string) (map[string]string, error)
-    Get(path string) (interface{}, error)
 
-    // Checked getters (return zero value if not found)
+    // Checked getters (return zero value if not found or wrong type)
     String(path string) string
     Int(path string) int
     Int64(path string) int64
@@ -34,14 +34,13 @@ type Document interface {
     Paths() []string
     Has(path string) bool
     RawData() interface{}
-
-    // History (if tracking enabled)
-    History() History
+    GetData() interface{}
+    SortKeys() Document
 
     // Output
     ToYAML() ([]byte, error)
     ToJSON() ([]byte, error)
-    ToJSONIndent(prefix, indent string) ([]byte, error)
+    ToJSONIndent(indent string) ([]byte, error)
 
     // Operations
     Clone() Document
@@ -49,6 +48,8 @@ type Document interface {
     CherryPick(keys ...string) Document
 }
 ```
+
+`Document` is not intended to be implemented outside this package: `NewEngine`, `ParseFile`, `ParseReader`, and every merge/diff entry point only ever return one of the two in-repo implementations (the map-backed default, and the go-patch operation holder returned by `NewGoPatchDocument`). New methods may be added to this interface in a minor release.
 
 ## Path Syntax
 
@@ -120,6 +121,8 @@ if err != nil {
 }
 fmt.Println("Host:", host)
 ```
+
+`errors.Is(err, graft.ErrNotFound)` and `errors.Is(err, graft.ErrTypeMismatch)` work against every error returned by `Get`, `GetString`, `GetInt`, `GetInt64`, `GetFloat64`, `GetBool`, `GetSlice`, `GetMap`, `GetStringSlice`, and `GetMapStringString`. `errors.Is(err, graft.ErrInvalidPath)` works against a malformed path string passed to any of those, or to `Set`/`Delete`. None of the `Error()` message text changes as a result of this: the sentinel match works through `Unwrap()`, invisibly to the printed message.
 
 ### GetInt
 
@@ -524,6 +527,8 @@ doc.Set("value", "string")
 doc.Set("value.nested", "x")  // Error: cannot nest under string
 ```
 
+**Known gap:** unlike the `Get`/`GetString`/etc. family, `Set`'s (and [Delete](#delete)'s — the identical gap, for the identical reason) deeper traversal failures (descending into an existing scalar, or an out-of-range/invalid array index) are not guaranteed to satisfy `errors.Is(err, graft.ErrTypeMismatch)` or `errors.Is(err, graft.ErrNotFound)`. Check the returned error's message, not sentinel identity, for these cases.
+
 ### Delete
 
 Removes a value at the specified path.
@@ -577,7 +582,7 @@ fmt.Println("Top-level keys:", strings.Join(keys, ", "))
 
 ### Paths
 
-Returns all paths in the document (flattened).
+Returns every leaf path in the document (every path whose value is not itself a map or a list), in dotted canonical form (no `$` prefix), sorted lexicographically for stable output. A map or list with no elements contributes no path of its own, since it has no leaf value to report. Every returned path round-trips through `Get`.
 
 ```go
 func (d *Document) Paths() []string
@@ -585,7 +590,7 @@ func (d *Document) Paths() []string
 
 **Returns:**
 
-- `[]string` - List of all paths in the document
+- `[]string` - Sorted list of every leaf path in the document
 
 **Example:**
 
@@ -663,41 +668,27 @@ if m, ok := raw.(map[string]interface{}); ok {
 jsonBytes, _ := json.Marshal(doc.RawData())
 ```
 
-**Warning:** Modifying the raw data directly bypasses history tracking and can lead to inconsistent state.
+**Warning:** Modifying the raw data directly can lead to inconsistent state; prefer `Set`/`Delete`.
 
-## History Methods
+### SortKeys
 
-### History
-
-Returns the history of changes if tracking was enabled.
+Returns a new document built by a fresh recursive rebuild of every nested map and list.
 
 ```go
-func (d *Document) History() History
+func (d *Document) SortKeys() Document
 ```
 
 **Returns:**
 
-- `History` - The history interface (may be nil if not enabled)
+- `Document` - A new document with the same data as `d`
 
 **Example:**
 
 ```go
-history := doc.History()
-if history == nil {
-    fmt.Println("History tracking not enabled")
-    return
-}
-
-// Get changes for a specific path
-entries := history.ForPath("database.host")
-for _, entry := range entries {
-    fmt.Printf("[%s] %v -> %v (from %s:%d)\n",
-        entry.Phase, entry.OldValue, entry.NewValue,
-        entry.Source, entry.Line)
-}
+sorted := doc.SortKeys()
 ```
 
-See [History Interface](history-api.md) for complete history functionality.
+Go maps have no persistent key order, so `SortKeys` does not reorder anything in memory. It exists so callers get a deterministic-output guarantee from `ToJSON`/`ToYAML` without depending on a particular marshaler's default behavior — `ToJSON` (`encoding/json`) and `ToYAML` (`goccy/go-yaml`) already sort `map[string]interface{}` keys alphabetically when marshaling, with or without `SortKeys`. Iterating `sorted.RawData()`'s Go maps directly still sees Go's random map order.
 
 ## Output Methods
 
@@ -760,14 +751,12 @@ w.Write(json)
 Serializes the document to indented JSON format.
 
 ```go
-func (d *Document) ToJSONIndent(prefix, indent string) ([]byte, error)
+func (d *Document) ToJSONIndent(indent string) ([]byte, error)
 ```
 
 **Parameters:**
 
-- `prefix` - Prefix for each line
-
-- `indent` - Indentation string (e.g., "  " for 2 spaces)
+- `indent` - Per-level indentation string (e.g., "  " for 2 spaces)
 
 **Returns:**
 
@@ -779,15 +768,14 @@ func (d *Document) ToJSONIndent(prefix, indent string) ([]byte, error)
 
 ```go
 // Pretty print with 2-space indent
-json, err := doc.ToJSONIndent("", "  ")
+json, err := doc.ToJSONIndent("  ")
 if err != nil {
     return err
 }
 fmt.Println(string(json))
-
-// With prefix (useful for embedding)
-json, err = doc.ToJSONIndent("    ", "  ")
 ```
+
+`Engine.ToJSONIndent(doc, indent)` is the engine-level equivalent, additionally passing evaluated documents through the same call.
 
 ## Document Operations
 
@@ -886,18 +874,17 @@ minimal := doc.CherryPick("app", "database").Prune("secrets")
 
 ## Error Types
 
-Document methods return specific error types:
+`Document` getters return a `*graft.GraftError` wrapping one of three sentinel errors, comparable with `errors.Is`:
 
 ```go
-// Path not found
-var ErrNotFound = errors.New("path not found")
-
-// Type mismatch
-var ErrTypeMismatch = errors.New("type mismatch")
-
-// Invalid path syntax
-var ErrInvalidPath = errors.New("invalid path")
+var (
+    ErrNotFound     = errors.New("path not found")
+    ErrTypeMismatch = errors.New("type mismatch")
+    ErrInvalidPath  = errors.New("invalid path")
+)
 ```
+
+The printed `Error()` text is not one of these three strings verbatim — it is the existing, unchanged `GraftError`/`tree` message (e.g. `` `$.database.host` could not be found in the datastructure ``). Match on the sentinel with `errors.Is`, not on the message text.
 
 **Error Handling Example:**
 

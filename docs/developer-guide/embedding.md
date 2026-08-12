@@ -261,7 +261,7 @@ func main() {
 
     if *prune != "" {
         keys := strings.Split(*prune, ",")
-        builder = builder.Prune(keys...)
+        builder = builder.WithPrune(keys...)
     }
 
     // Execute
@@ -346,8 +346,7 @@ func (c *ConfigController) Reconcile(ctx context.Context, req reconcile.Request)
     // Merge
     docs := append([]graft.Document{base}, overlays...)
     result, err := c.engine.Merge(ctx, docs...).
-        Prune(template.Spec.Prune...).
-        TrackHistory().
+        WithPrune(template.Spec.Prune...).
         Execute()
     if err != nil {
         return reconcile.Result{}, err

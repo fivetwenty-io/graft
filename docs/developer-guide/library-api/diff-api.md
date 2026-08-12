@@ -1,11 +1,11 @@
 # Diff Interface
 
-The `Diff` interface represents differences between two documents. It provides methods to access changes, filter by type or path, and format output in various styles.
+`DiffResult` represents the differences between two documents. It provides methods to access changes, filter by type or path, format output in various styles, and serialize to JSON/YAML.
 
 ## Interface Definition
 
 ```go
-type Diff interface {
+type DiffResult interface {
     // Access to changes
     Changes() []Change
     HasChanges() bool
@@ -30,11 +30,15 @@ type Diff interface {
 }
 ```
 
+The interface is named `DiffResult`, not `Diff`: `pkg/graft` already exports a package-level function `Diff(a, b interface{}) (Diffable, error)` (the underlying spruce-inherited comparison engine `DiffResult` is built on), and a package cannot export both a function and a type of the same name.
+
+`DiffResult` is not intended to be implemented outside this package; `DiffDocuments` and `Engine.Diff`/`Engine.DiffWithOptions` are its only producers.
+
 ## Types
 
 ### Change
 
-Represents a single change between documents.
+Represents a single addition, removal, or modification found by diffing two documents.
 
 ```go
 type Change struct {
@@ -42,23 +46,21 @@ type Change struct {
     Path     string
     OldValue interface{}
     NewValue interface{}
-    Source   string
-    Line     int
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `Type` | `ChangeType` | The type of change (added, removed, modified, type changed) |
-| `Path` | `string` | Dot-notation path to the changed value |
-| `OldValue` | `interface{}` | Value in the first document (nil for additions) |
-| `NewValue` | `interface{}` | Value in the second document (nil for removals) |
-| `Source` | `string` | Source file or identifier |
-| `Line` | `int` | Line number in source (if available) |
+| `Type` | `ChangeType` | The kind of change (added, removed, modified, type changed) |
+| `Path` | `string` | Path to the changed value: dot-separated for map fields (`meta.name`), bracketed for list entries — a numeric index for simple lists (`servers[0]`) or a `field=value` predicate for keyed lists (`servers[name=web]`) |
+| `OldValue` | `interface{}` | Value at `Path` in the old document. `nil` for `ChangeAdded` |
+| `NewValue` | `interface{}` | Value at `Path` in the new document. `nil` for `ChangeRemoved` |
+
+`Change` has no `Source` (input filename) or `Line` (line number) field. Graft does not track value-level file/line provenance anywhere today; a `Change` only knows the path and the two values.
 
 ### ChangeType
 
-Indicates the type of change.
+Indicates the kind of change.
 
 ```go
 type ChangeType int
@@ -73,14 +75,16 @@ const (
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `ChangeAdded` | 0 | Path exists in second document but not first |
-| `ChangeRemoved` | 1 | Path exists in first document but not second |
-| `ChangeModified` | 2 | Path exists in both with different values |
-| `ChangeTypeChanged` | 3 | Path exists in both with different types |
+| `ChangeAdded` | 0 | Path exists in the new document but not the old |
+| `ChangeRemoved` | 1 | Path exists in the old document but not the new |
+| `ChangeModified` | 2 | Path exists in both, same graft value type, different value |
+| `ChangeTypeChanged` | 3 | Path exists in both, but the graft value type changed (e.g. a scalar became a map) |
+
+`ChangeType.String()` returns `"added"`, `"removed"`, `"modified"`, or `"type changed"` respectively; this is the value used in `ToJSON`/`ToYAML`'s `"type"` field and the `WriteChangeList`/`WriteMergeTree` renderers.
 
 ### DiffOptions
 
-Configures diff behavior and formatting.
+Configures diff computation and rendering.
 
 ```go
 type DiffOptions struct {
@@ -94,23 +98,27 @@ type DiffOptions struct {
     OmitHeader       bool
     ShowTypes        bool
 }
+
+func DefaultDiffOptions() *DiffOptions
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `Color` | `bool` | `false` | Enable ANSI color codes in output |
-| `Width` | `int` | `80` | Output width for side-by-side format |
-| `Context` | `int` | `3` | Lines of context in unified format |
-| `IgnorePaths` | `[]string` | `nil` | Paths to exclude from comparison |
-| `OnlyPaths` | `[]string` | `nil` | Only compare these paths |
-| `IgnoreArrayOrder` | `bool` | `false` | Treat arrays as unordered sets |
-| `IgnoreWhitespace` | `bool` | `false` | Ignore whitespace in string comparison |
-| `OmitHeader` | `bool` | `false` | Omit header in formatted output |
-| `ShowTypes` | `bool` | `false` | Show type information in output |
+| `Color` | `bool` | `false` | Enable ANSI color codes in rendered output |
+| `Width` | `int` | `80` | Target column width for `WriteSideBySide`; values `<= 0` fall back to 80 |
+| `Context` | `int` | `0` (unbounded) | Max lines of a changed value's YAML rendering `WriteUnified` shows before eliding the rest with a `... (N more lines)` marker |
+| `IgnorePaths` | `[]string` | `nil` | Exclude changes whose path matches one of these `PathMatches`-grammar patterns (`*` matches one segment, `**` matches zero or more). Applied after `OnlyPaths` |
+| `OnlyPaths` | `[]string` | `nil` | If non-empty, restrict to changes matching at least one pattern (same grammar). Applied before `IgnorePaths` |
+| `IgnoreArrayOrder` | `bool` | `false` | Treat non-keyed lists as multisets at any nesting depth. Keyed lists (entries with a `name`/`id`/`key` field) are already matched by key and are unaffected |
+| `IgnoreWhitespace` | `bool` | `false` | Trim and collapse whitespace runs in every string scalar, at any nesting depth, before comparing |
+| `OmitHeader` | `bool` | `false` | Suppress the `N changes detected:` summary line every renderer otherwise prints first |
+| `ShowTypes` | `bool` | `false` | Annotate each `WriteChangeList` entry with the graft value type (`scalar`/`map`/`simple list`/`keyed list`) of its old and new value |
 
-## Creating a Diff
+`DefaultDiffOptions()` returns `{Width: 80, Context: 0}` with every other field at its zero value — no color, no path filters, order- and whitespace-sensitive comparison. Passing `nil` for `opts` anywhere in this API is equivalent to passing `DefaultDiffOptions()`.
 
-Diff instances are created via the Engine:
+`IgnorePaths`/`OnlyPaths`/`IgnoreArrayOrder`/`IgnoreWhitespace` only take effect at diff-computation time (`DiffDocuments`, `Engine.Diff`, `Engine.DiffWithOptions`). Passing them to a `Write*` renderer call has no effect there — only `Width`/`Context`/`OmitHeader`/`ShowTypes`/`Color` are read at render time.
+
+## Computing a Diff
 
 ```go
 engine, _ := graft.NewEngine()
@@ -118,426 +126,226 @@ engine, _ := graft.NewEngine()
 doc1, _ := engine.ParseFile("before.yml")
 doc2, _ := engine.ParseFile("after.yml")
 
-// Basic diff
-diff := engine.Diff(doc1, doc2)
+// Default options
+result := engine.Diff(doc1, doc2)
 
-// Diff with options
-diff := engine.DiffWithOptions(doc1, doc2, &graft.DiffOptions{
+// Custom options
+result := engine.DiffWithOptions(doc1, doc2, &graft.DiffOptions{
     IgnorePaths:      []string{"metadata.timestamp"},
     IgnoreArrayOrder: true,
 })
+
+// Package-level equivalent, returning an error instead of swallowing it
+result, err := graft.DiffDocuments(doc1, doc2, nil)
 ```
+
+`Engine.Diff(a, b)` is `DiffWithOptions(a, b, DefaultDiffOptions())`. `Engine.DiffWithOptions` swallows any error from the underlying comparison into an empty `DiffResult` (its method signature has no `error` return); use the package-level `DiffDocuments` directly when you need the error — for example, a `nil` `Document` argument.
 
 ## Access Methods
 
 ### Changes
 
-Returns all changes between the documents.
+Returns every change found, in a deterministic order: within each map/list node, additions are listed before removals, which are listed before recursing into changed common entries (each in sorted-key order). This is not a globally path-sorted order, but it is stable across runs for the same input.
 
 ```go
-func (d *Diff) Changes() []Change
+func (r DiffResult) Changes() []Change
 ```
-
-**Returns:**
-
-- `[]Change` - Slice of all changes
 
 **Example:**
 
 ```go
-diff := engine.Diff(doc1, doc2)
+result := engine.Diff(doc1, doc2)
 
-for _, change := range diff.Changes() {
+for _, change := range result.Changes() {
     fmt.Printf("%s at %s\n", change.Type, change.Path)
 }
 ```
 
 ### HasChanges
 
-Returns whether any differences exist.
-
 ```go
-func (d *Diff) HasChanges() bool
+func (r DiffResult) HasChanges() bool
 ```
 
-**Returns:**
-
-- `bool` - True if documents differ
-
-**Example:**
+Reports whether `Changes()` is non-empty.
 
 ```go
-diff := engine.Diff(current, proposed)
+result := engine.Diff(current, proposed)
 
-if !diff.HasChanges() {
+if !result.HasChanges() {
     fmt.Println("No changes detected")
     return
 }
-
-// Process changes
-for _, change := range diff.Changes() {
-    handleChange(change)
-}
 ```
 
-### Added
-
-Returns only additions (paths in second document but not first).
+### Added / Removed / Modified
 
 ```go
-func (d *Diff) Added() []Change
+func (r DiffResult) Added() []Change    // Type == ChangeAdded
+func (r DiffResult) Removed() []Change  // Type == ChangeRemoved
+func (r DiffResult) Modified() []Change // Type == ChangeModified || Type == ChangeTypeChanged
 ```
 
-**Returns:**
-
-- `[]Change` - Slice of added changes
-
-**Example:**
+`Modified()` includes both value modifications and type changes — everything that is neither a pure addition nor a pure removal.
 
 ```go
-for _, change := range diff.Added() {
+for _, change := range result.Added() {
     fmt.Printf("+ %s: %v\n", change.Path, change.NewValue)
 }
-```
-
-### Removed
-
-Returns only removals (paths in first document but not second).
-
-```go
-func (d *Diff) Removed() []Change
-```
-
-**Returns:**
-
-- `[]Change` - Slice of removed changes
-
-**Example:**
-
-```go
-for _, change := range diff.Removed() {
+for _, change := range result.Removed() {
     fmt.Printf("- %s: %v\n", change.Path, change.OldValue)
 }
-```
-
-### Modified
-
-Returns only modifications (same path, different value).
-
-```go
-func (d *Diff) Modified() []Change
-```
-
-**Returns:**
-
-- `[]Change` - Slice of modified changes
-
-**Example:**
-
-```go
-for _, change := range diff.Modified() {
-    fmt.Printf("~ %s: %v -> %v\n",
-        change.Path, change.OldValue, change.NewValue)
+for _, change := range result.Modified() {
+    fmt.Printf("~ %s: %v -> %v\n", change.Path, change.OldValue, change.NewValue)
 }
 ```
 
 ### ChangesAtPath
 
-Returns changes at or under a specific path.
+Returns every change whose path is exactly `path`, or a descendant of it.
 
 ```go
-func (d *Diff) ChangesAtPath(path string) []Change
+func (r DiffResult) ChangesAtPath(path string) []Change
 ```
 
-**Parameters:**
-
-- `path` - Dot-notation path prefix
-
-**Returns:**
-
-- `[]Change` - Slice of changes at or under the path
-
-**Example:**
-
 ```go
-// Get all database-related changes
-dbChanges := diff.ChangesAtPath("database")
+dbChanges := result.ChangesAtPath("database")
 for _, change := range dbChanges {
-    fmt.Printf("%s: %v -> %v\n",
-        change.Path, change.OldValue, change.NewValue)
+    fmt.Printf("%s: %v -> %v\n", change.Path, change.OldValue, change.NewValue)
 }
-
-// Get changes to a specific key
-hostChanges := diff.ChangesAtPath("database.host")
 ```
 
 ## Output Formatters
 
-### WriteSideBySide
+Every `Write*` method accepts a `nil` `opts` (falls back to `DefaultDiffOptions()`).
 
-Writes a side-by-side comparison of the documents.
+### WriteChangeList
+
+One line per change, prefixed with `+`/`-`/`~`/`!`.
 
 ```go
-func (d *Diff) WriteSideBySide(w io.Writer, opts *DiffOptions) error
+func (r DiffResult) WriteChangeList(w io.Writer, opts *DiffOptions) error
 ```
 
-**Parameters:**
-
-- `w` - Writer for output
-
-- `opts` - Formatting options (nil for defaults)
-
-**Returns:**
-
-- `error` - Non-nil if writing fails
-
-**Example:**
-
 ```go
-diff := engine.Diff(before, after)
-
-diff.WriteSideBySide(os.Stdout, &graft.DiffOptions{
-    Color: true,
-    Width: 120,
-})
+result.WriteChangeList(os.Stdout, &graft.DiffOptions{ShowTypes: true})
 ```
 
 **Output:**
 
 ```
-before.yml                              | after.yml
-----------------------------------------|----------------------------------------
-database:                               | database:
-  host: localhost                       |   host: db.example.com
-  port: 5432                            |   port: 5432
-                                        |   pool_size: 10
-server:                                 | server:
-  port: 8080                            |   port: 9090
-  debug: true                           |
+2 changes detected:
+  + database.pool_size (none -> scalar) added: 10
+  ~ database.host (scalar -> scalar) modified: localhost -> db.example.com
 ```
 
 ### WriteUnified
 
-Writes a unified diff format (similar to `diff -u`).
+One `@@ path @@` hunk per change, with `-`/`+` lines for the old/new value's YAML rendering.
 
 ```go
-func (d *Diff) WriteUnified(w io.Writer, opts *DiffOptions) error
+func (r DiffResult) WriteUnified(w io.Writer, opts *DiffOptions) error
 ```
 
-**Parameters:**
-
-- `w` - Writer for output
-
-- `opts` - Formatting options (nil for defaults)
-
-**Returns:**
-
-- `error` - Non-nil if writing fails
-
-**Example:**
-
 ```go
-diff := engine.Diff(before, after)
-
-diff.WriteUnified(os.Stdout, &graft.DiffOptions{
-    Context: 3,
-    Color:   true,
-})
+result.WriteUnified(os.Stdout, &graft.DiffOptions{Context: 3})
 ```
 
 **Output:**
 
 ```
---- before.yml
-+++ after.yml
-@@ -1,6 +1,7 @@
- database:
--  host: localhost
-+  host: db.example.com
-   port: 5432
-+  pool_size: 10
- server:
--  port: 8080
--  debug: true
-+  port: 9090
+1 change detected:
+@@ database.host @@
+-localhost
++db.example.com
 ```
 
-### WriteChangeList
+### WriteSideBySide
 
-Writes a structured list of changes.
+Two columns (old value | new value) per change, each sized from `opts.Width`.
 
 ```go
-func (d *Diff) WriteChangeList(w io.Writer, opts *DiffOptions) error
+func (r DiffResult) WriteSideBySide(w io.Writer, opts *DiffOptions) error
 ```
-
-**Parameters:**
-
-- `w` - Writer for output
-
-- `opts` - Formatting options (nil for defaults)
-
-**Returns:**
-
-- `error` - Non-nil if writing fails
-
-**Example:**
 
 ```go
-diff := engine.Diff(before, after)
-
-diff.WriteChangeList(os.Stdout, &graft.DiffOptions{
-    ShowTypes: true,
-})
+result.WriteSideBySide(os.Stdout, &graft.DiffOptions{Color: true, Width: 60})
 ```
 
-**Output:**
+**Output (uncolored):**
 
 ```
-Changes:
-  MODIFIED database.host: "localhost" -> "db.example.com" (string)
-  ADDED    database.pool_size: 10 (int)
-  MODIFIED server.port: 8080 -> 9090 (int)
-  REMOVED  server.debug: true (bool)
-
-Summary: 2 modified, 1 added, 1 removed
+1 change detected:
+database.host
+  localhost                    | db.example.com
 ```
 
 ### WriteMergeTree
 
-Writes a merge tree showing the document structure with changes highlighted.
+Changes grouped into a tree that mirrors the document's path structure, one node per line, indented by depth.
 
 ```go
-func (d *Diff) WriteMergeTree(w io.Writer, opts *DiffOptions) error
+func (r DiffResult) WriteMergeTree(w io.Writer, opts *DiffOptions) error
 ```
 
-**Parameters:**
-
-- `w` - Writer for output
-
-- `opts` - Formatting options (nil for defaults)
-
-**Returns:**
-
-- `error` - Non-nil if writing fails
-
-**Example:**
-
 ```go
-diff := engine.Diff(before, after)
-
-diff.WriteMergeTree(os.Stdout, &graft.DiffOptions{
-    Color: true,
-})
+result.WriteMergeTree(os.Stdout, nil)
 ```
 
 **Output:**
 
 ```
+2 changes detected:
 database:
-  ~ host: localhost -> db.example.com
-    port: 5432
-  + pool_size: 10
-server:
-  ~ port: 8080 -> 9090
-  - debug: true
+  pool_size: + 10
+  host: ~ localhost -> db.example.com
 ```
+
+Each leaf line is `key: <marker> <value>` (add/remove) or `key: <marker> <old> -> <new>` (modify/type-change), where `<marker>` is `+`, `-`, `~`, or `!`.
 
 ## Serialization Methods
 
 ### ToJSON
 
-Serializes the diff to JSON format.
+Serializes `Changes()` as a compact (`json.Marshal`, no indentation), single-line JSON array of `{"type", "path", "old_value", "new_value"}` objects — not a `{"changes": [...]}` wrapper object, and with no `has_changes`/`summary` fields.
 
 ```go
-func (d *Diff) ToJSON() ([]byte, error)
+func (r DiffResult) ToJSON() ([]byte, error)
 ```
 
-**Returns:**
-
-- `[]byte` - JSON representation of the diff
-
-- `error` - Non-nil if serialization fails
-
-**Example:**
-
 ```go
-diff := engine.Diff(before, after)
-
-json, err := diff.ToJSON()
-if err != nil {
-    return err
-}
-fmt.Println(string(json))
+data, err := result.ToJSON()
 ```
 
 **Output:**
 
 ```json
-{
-  "has_changes": true,
-  "changes": [
-    {
-      "type": "modified",
-      "path": "database.host",
-      "old_value": "localhost",
-      "new_value": "db.example.com"
-    },
-    {
-      "type": "added",
-      "path": "database.pool_size",
-      "new_value": 10
-    }
-  ],
-  "summary": {
-    "added": 1,
-    "removed": 1,
-    "modified": 2
-  }
-}
+[{"type":"added","path":"database.pool_size","old_value":null,"new_value":10},{"type":"modified","path":"database.host","old_value":"localhost","new_value":"db.example.com"}]
 ```
 
 ### ToYAML
 
-Serializes the diff to YAML format.
+Same shape as `ToJSON`, rendered as a YAML sequence.
 
 ```go
-func (d *Diff) ToYAML() ([]byte, error)
+func (r DiffResult) ToYAML() ([]byte, error)
 ```
 
-**Returns:**
-
-- `[]byte` - YAML representation of the diff
-
-- `error` - Non-nil if serialization fails
-
-**Example:**
-
 ```go
-diff := engine.Diff(before, after)
-
-yaml, err := diff.ToYAML()
-if err != nil {
-    return err
-}
-fmt.Println(string(yaml))
+data, err := result.ToYAML()
 ```
 
 **Output:**
 
 ```yaml
-has_changes: true
-changes:
-  - type: modified
-    path: database.host
-    old_value: localhost
-    new_value: db.example.com
-  - type: added
-    path: database.pool_size
-    new_value: 10
-summary:
-  added: 1
-  removed: 1
-  modified: 2
+- type: added
+  path: database.pool_size
+  old_value: null
+  new_value: 10
+- type: modified
+  path: database.host
+  old_value: localhost
+  new_value: db.example.com
 ```
 
 ## Complete Examples
@@ -558,22 +366,20 @@ func compareConfigs(oldFile, newFile string) error {
         return fmt.Errorf("parse new: %w", err)
     }
 
-    diff := engine.DiffWithOptions(oldDoc, newDoc, &graft.DiffOptions{
+    result := engine.DiffWithOptions(oldDoc, newDoc, &graft.DiffOptions{
         IgnorePaths: []string{"metadata.generated_at"},
     })
 
-    if !diff.HasChanges() {
+    if !result.HasChanges() {
         fmt.Println("Configurations are identical")
         return nil
     }
 
-    fmt.Printf("Found %d changes:\n", len(diff.Changes()))
-    diff.WriteChangeList(os.Stdout, &graft.DiffOptions{
+    fmt.Printf("Found %d changes:\n", len(result.Changes()))
+    return result.WriteChangeList(os.Stdout, &graft.DiffOptions{
         Color:     true,
         ShowTypes: true,
     })
-
-    return nil
 }
 ```
 
@@ -583,72 +389,32 @@ func compareConfigs(oldFile, newFile string) error {
 func validateChanges(before, after graft.Document) error {
     engine, _ := graft.NewEngine()
 
-    diff := engine.Diff(before, after)
+    result := engine.Diff(before, after)
 
     // Check for disallowed changes
-    for _, change := range diff.Removed() {
+    for _, change := range result.Removed() {
         if strings.HasPrefix(change.Path, "security.") {
             return fmt.Errorf("cannot remove security settings: %s", change.Path)
         }
     }
 
     // Validate modifications
-    for _, change := range diff.Modified() {
+    for _, change := range result.Modified() {
         if change.Path == "database.host" {
-            if err := validateHost(change.NewValue.(string)); err != nil {
-                return fmt.Errorf("invalid database host: %w", err)
+            if host, ok := change.NewValue.(string); ok {
+                if err := validateHost(host); err != nil {
+                    return fmt.Errorf("invalid database host: %w", err)
+                }
             }
         }
     }
 
     // Log additions for audit
-    for _, change := range diff.Added() {
+    for _, change := range result.Added() {
         log.Printf("New configuration: %s = %v", change.Path, change.NewValue)
     }
 
     return nil
-}
-```
-
-### Generating Change Reports
-
-```go
-func generateChangeReport(before, after graft.Document) (*ChangeReport, error) {
-    engine, _ := graft.NewEngine()
-
-    diff := engine.Diff(before, after)
-
-    report := &ChangeReport{
-        Timestamp: time.Now(),
-        Summary: ChangeSummary{
-            Added:    len(diff.Added()),
-            Removed:  len(diff.Removed()),
-            Modified: len(diff.Modified()),
-        },
-        Changes: make([]ChangeEntry, 0, len(diff.Changes())),
-    }
-
-    for _, change := range diff.Changes() {
-        entry := ChangeEntry{
-            Path:   change.Path,
-            Type:   changeTypeString(change.Type),
-            Before: change.OldValue,
-            After:  change.NewValue,
-        }
-
-        // Categorize by severity
-        if strings.HasPrefix(change.Path, "security.") {
-            entry.Severity = "high"
-        } else if strings.HasPrefix(change.Path, "database.") {
-            entry.Severity = "medium"
-        } else {
-            entry.Severity = "low"
-        }
-
-        report.Changes = append(report.Changes, entry)
-    }
-
-    return report, nil
 }
 ```
 
@@ -659,112 +425,70 @@ func compareWithArrays(before, after graft.Document) {
     engine, _ := graft.NewEngine()
 
     // Standard comparison (arrays compared by index)
-    strictDiff := engine.Diff(before, after)
+    strict := engine.Diff(before, after)
 
-    // Set-based comparison (arrays compared by content)
-    setDiff := engine.DiffWithOptions(before, after, &graft.DiffOptions{
+    // Set-based comparison (arrays compared by content, at any depth)
+    unordered := engine.DiffWithOptions(before, after, &graft.DiffOptions{
         IgnoreArrayOrder: true,
     })
 
     fmt.Println("Strict comparison:")
-    strictDiff.WriteChangeList(os.Stdout, nil)
+    strict.WriteChangeList(os.Stdout, nil)
 
     fmt.Println("\nSet-based comparison:")
-    setDiff.WriteChangeList(os.Stdout, nil)
+    unordered.WriteChangeList(os.Stdout, nil)
 }
 ```
 
-**Example Documents:**
+With:
 
 ```yaml
 # before.yml
-servers:
-  - web1
-  - web2
-  - web3
-
+servers: [web1, web2, web3]
 # after.yml
-servers:
-  - web2
-  - web3
-  - web1
+servers: [web2, web3, web1]
 ```
 
-**Strict Comparison:**
-```
-Changes:
-  MODIFIED servers.0: "web1" -> "web2"
-  MODIFIED servers.2: "web3" -> "web1"
-```
-
-**Set-Based Comparison:**
-```
-No changes detected
-```
+the strict comparison reports `servers[0]` and `servers[2]` as modified; the `IgnoreArrayOrder` comparison reports no changes.
 
 ## Edge Cases
 
-### Empty Documents
+### Empty documents
 
 ```go
 empty, _ := engine.ParseYAML([]byte("{}"))
 populated, _ := engine.ParseFile("config.yml")
 
-diff := engine.Diff(empty, populated)
-// All paths in populated are "added"
-
-diff := engine.Diff(populated, empty)
-// All paths in populated are "removed"
+added := engine.Diff(empty, populated)   // every path in populated is "added"
+removed := engine.Diff(populated, empty) // every path in populated is "removed"
 ```
 
-### Null Values
+### Null values
 
 ```go
-// Document with explicit null
-doc1, _ := engine.ParseYAML([]byte(`
-key: null
-`))
+doc1, _ := engine.ParseYAML([]byte("key: null\n"))
+doc2, _ := engine.ParseYAML([]byte("other: value\n"))
 
-// Document without the key
-doc2, _ := engine.ParseYAML([]byte(`
-other: value
-`))
-
-diff := engine.Diff(doc1, doc2)
-// key is "removed" (null is still a value)
+result := engine.Diff(doc1, doc2)
+// "key" is removed (an explicit null is still a value) and "other" is added
 ```
 
-### Type Changes
+### Type changes
 
 ```go
-// String value
-doc1, _ := engine.ParseYAML([]byte(`
-port: "8080"
-`))
+doc1, _ := engine.ParseYAML([]byte(`port: "8080"`))
+doc2, _ := engine.ParseYAML([]byte(`port: 8080`))
 
-// Integer value
-doc2, _ := engine.ParseYAML([]byte(`
-port: 8080
-`))
-
-diff := engine.Diff(doc1, doc2)
-// port is ChangeTypeChanged (string -> int)
+result := engine.Diff(doc1, doc2)
+// "port" is a ChangeTypeChanged (string -> int)
 ```
 
 ## Thread Safety
 
-The Diff interface is thread-safe for concurrent reads. Multiple goroutines can safely:
-
-- Access changes
-
-- Format output
-
-- Serialize to JSON/YAML
+`DiffResult` is safe for concurrent reads: accessing changes, formatting output, and serializing to JSON/YAML from multiple goroutines is safe once the `DiffResult` has been produced.
 
 ## Related Documentation
 
 - [Engine Interface](engine.md) - Creating diffs
 
 - [Document Interface](document.md) - Working with documents
-
-- [History Interface](history-api.md) - Tracking changes over time

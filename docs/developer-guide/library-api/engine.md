@@ -10,28 +10,45 @@ type Engine interface {
     ParseYAML(data []byte) (Document, error)
     ParseJSON(data []byte) (Document, error)
     ParseFile(path string) (Document, error)
-    ParseReader(r io.Reader) (Document, error)
+    ParseReader(reader io.Reader) (Document, error)
 
     // Merging
     Merge(ctx context.Context, docs ...Document) MergeBuilder
-
-    // Diffing
-    Diff(a, b Document) Diff
-    DiffWithOptions(a, b Document, opts *DiffOptions) Diff
+    MergeFiles(ctx context.Context, paths ...string) MergeBuilder
+    MergeReaders(ctx context.Context, readers ...io.Reader) MergeBuilder
 
     // Evaluation
     Evaluate(ctx context.Context, doc Document) (Document, error)
 
+    // Diffing
+    Diff(a, b Document) DiffResult
+    DiffWithOptions(a, b Document, opts *DiffOptions) DiffResult
+
+    // Output
+    ToYAML(doc Document) ([]byte, error)
+    ToJSON(doc Document) ([]byte, error)
+    ToJSONIndent(doc Document, indent string) ([]byte, error)
+
     // Operators
     RegisterOperator(name string, op Operator) error
-    GetOperator(name string) (Operator, bool)
-    ListOperators() []OperatorInfo
     UnregisterOperator(name string) error
+    ListOperators() []string
+    GetOperator(name string) (Operator, bool)
 
     // Configuration
-    Configure(opts ...Option) error
+    WithLogger(logger Logger) Engine
+    WithVaultClient(client VaultClient) Engine
+    WithAWSConfig(config AWSConfig) Engine
+
+    // State access for operators
+    GetOperatorState() OperatorState
+    GetMemoryTracker() interfaces.MemoryTracker
 }
 ```
+
+`Engine` is not intended to be implemented outside this package; `NewEngine` only ever returns `*DefaultEngine`. `Configure` (see [Configuration Methods](#configuration-methods) below) is a method on `*DefaultEngine`, not part of this interface.
+
+`WithLogger`/`WithVaultClient`/`WithAWSConfig` are no-op methods that return the receiver unchanged — see [Deprecated Options](options.md#deprecated-options) for why, and for the distinct, functional `graft.WithLogger(logger) Option` of a similar name.
 
 ## Creating an Engine
 
@@ -63,11 +80,7 @@ engine, err := graft.NewEngine()
 engine, err := graft.NewEngine(
     graft.WithCacheSize(500),
     graft.WithCacheTTL(1 * time.Minute),
-    graft.WithHistoryTracking(true),
-    graft.WithVault(graft.VaultConfig{
-        Address: "https://vault.example.com",
-        Token:   os.Getenv("VAULT_TOKEN"),
-    }),
+    graft.WithTraceLevel(graft.TraceLevelDebug),
 )
 if err != nil {
     log.Fatalf("Failed to create engine: %v", err)
@@ -106,17 +119,15 @@ database:
 
 doc, err := engine.ParseYAML(yamlContent)
 if err != nil {
-    var parseErr *graft.ParseError
-    if errors.As(err, &parseErr) {
-        fmt.Printf("Parse error at line %d: %s\n",
-            parseErr.Position.Line, parseErr.Message)
-        if parseErr.Hint != "" {
-            fmt.Printf("Hint: %s\n", parseErr.Hint)
-        }
+    var graftErr *graft.GraftError
+    if errors.As(err, &graftErr) && graftErr.Type == graft.ParseError {
+        fmt.Printf("Parse error: %s\n", graftErr.Message)
     }
     return
 }
 ```
+
+See [Error Handling](#error-handling) below for the full `*graft.GraftError` shape and `ErrorType` values.
 
 ### ParseJSON
 
@@ -264,9 +275,8 @@ result, err := engine.Merge(ctx, base, defaults, env, overrides).Execute()
 
 // Merge with options
 result, err := engine.Merge(ctx, base, overlay).
-    Prune("meta", "internal").
-    CherryPick("database", "server").
-    TrackHistory().
+    WithPrune("meta", "internal").
+    WithCherryPick("database", "server").
     Execute()
 
 // With context timeout
@@ -277,14 +287,63 @@ result, err := engine.Merge(ctx, base, overlay).Execute()
 
 See [MergeBuilder API](merge-builder.md) for complete merge configuration options.
 
+### MergeFiles
+
+Loads each path via `ParseFile` and merges the results, in argument order.
+
+```go
+func (e *Engine) MergeFiles(ctx context.Context, paths ...string) MergeBuilder
+```
+
+**Parameters:**
+
+- `ctx` - Context for cancellation and timeout (a `nil` context is treated as `context.Background()`)
+
+- `paths` - One or more file paths to load and merge (first is base, rest are overlays)
+
+**Returns:**
+
+- `MergeBuilder` - Builder for configuring and executing the merge. If any path fails to load, the returned builder carries that error (wrapped as `failed to load merge file %s: %w`) instead of panicking or returning a bare `nil`; the error surfaces from `Execute()`.
+
+**Example:**
+
+```go
+ctx := context.Background()
+
+result, err := engine.MergeFiles(ctx, "base.yml", "override.yml").Execute()
+if err != nil {
+    log.Fatalf("merge failed: %v", err)
+}
+
+yaml, _ := result.ToYAML()
+fmt.Println(string(yaml))
+```
+
+### MergeReaders
+
+Loads each reader via `ParseReader` and merges the results, in argument order. Error handling mirrors `MergeFiles`: a load failure is captured on the returned builder rather than panicking.
+
+```go
+func (e *Engine) MergeReaders(ctx context.Context, readers ...io.Reader) MergeBuilder
+```
+
+**Example:**
+
+```go
+base := strings.NewReader("name: myapp\n")
+overlay := strings.NewReader("name: myapp-prod\n")
+
+result, err := engine.MergeReaders(ctx, base, overlay).Execute()
+```
+
 ## Diffing Methods
 
 ### Diff
 
-Compares two documents and returns their differences.
+Compares two documents and returns their differences, using `DefaultDiffOptions()`.
 
 ```go
-func (e *Engine) Diff(a, b Document) Diff
+func (e *Engine) Diff(a, b Document) DiffResult
 ```
 
 **Parameters:**
@@ -295,7 +354,7 @@ func (e *Engine) Diff(a, b Document) Diff
 
 **Returns:**
 
-- `Diff` - Object representing the differences
+- `DiffResult` - Object representing the differences (never `nil`; a `nil` `a`/`b` produces an empty result rather than an error, since this method has no error return — use the package-level `DiffDocuments` when you need that error)
 
 **Example:**
 
@@ -303,11 +362,11 @@ func (e *Engine) Diff(a, b Document) Diff
 before, _ := engine.ParseFile("config-v1.yml")
 after, _ := engine.ParseFile("config-v2.yml")
 
-diff := engine.Diff(before, after)
+result := engine.Diff(before, after)
 
-if diff.HasChanges() {
+if result.HasChanges() {
     fmt.Println("Documents differ:")
-    for _, change := range diff.Changes() {
+    for _, change := range result.Changes() {
         switch change.Type {
         case graft.ChangeAdded:
             fmt.Printf("  + %s: %v\n", change.Path, change.NewValue)
@@ -326,7 +385,7 @@ if diff.HasChanges() {
 Compares two documents with custom diff options.
 
 ```go
-func (e *Engine) DiffWithOptions(a, b Document, opts *DiffOptions) Diff
+func (e *Engine) DiffWithOptions(a, b Document, opts *DiffOptions) DiffResult
 ```
 
 **Parameters:**
@@ -335,25 +394,25 @@ func (e *Engine) DiffWithOptions(a, b Document, opts *DiffOptions) Diff
 
 - `b` - Second document
 
-- `opts` - Configuration options for the diff
+- `opts` - Configuration options for the diff (`nil` selects `DefaultDiffOptions()`)
 
 **Returns:**
 
-- `Diff` - Object representing the differences
+- `DiffResult` - Object representing the differences
 
 **DiffOptions:**
 
 ```go
 type DiffOptions struct {
     Color            bool     // Enable ANSI color codes
-    Width            int      // Output width for side-by-side
-    Context          int      // Lines of context in unified format
+    Width            int      // Output width for side-by-side (default 80)
+    Context          int      // Max lines shown per changed value in unified format (0 = unbounded, the default)
     IgnorePaths      []string // Paths to exclude from comparison
     OnlyPaths        []string // Only compare these paths
-    IgnoreArrayOrder bool     // Treat arrays as sets
-    IgnoreWhitespace bool     // Ignore whitespace differences
-    OmitHeader       bool     // Omit diff header
-    ShowTypes        bool     // Show type information
+    IgnoreArrayOrder bool     // Treat simple (non-keyed) arrays as multisets
+    IgnoreWhitespace bool     // Ignore whitespace differences in string scalars
+    OmitHeader       bool     // Omit the "N changes detected:" summary line
+    ShowTypes        bool     // Show type information in WriteChangeList
 }
 ```
 
@@ -408,11 +467,9 @@ database:
 ctx := context.Background()
 result, err := engine.Evaluate(ctx, doc)
 if err != nil {
-    var evalErr *graft.EvaluationError
-    if errors.As(err, &evalErr) {
-        fmt.Printf("Evaluation failed at path: %s\n", evalErr.Path)
-        fmt.Printf("Operator: %s\n", evalErr.Operator)
-        fmt.Printf("Arguments: %v\n", evalErr.Arguments)
+    var graftErr *graft.GraftError
+    if errors.As(err, &graftErr) && graftErr.Type == graft.EvaluationError {
+        fmt.Printf("Evaluation failed at %s: %s\n", graftErr.Path, graftErr.Message)
     }
     return
 }
@@ -428,7 +485,7 @@ fmt.Println("Database host:", host)
 
 - Missing required references (without fallback) return an error
 
-- Backend failures (Vault, AWS, etc.) return a `BackendError`
+- Backend failures (Vault, AWS, etc.) return a `*GraftError` with `Type == graft.ExternalError`
 
 ## Output Methods
 
@@ -587,35 +644,21 @@ if _, exists := engine.GetOperator("custom"); !exists {
 
 ### ListOperators
 
-Returns information about all registered operators.
+Returns the names of all registered operators.
 
 ```go
-func (e *Engine) ListOperators() []OperatorInfo
+func (e *Engine) ListOperators() []string
 ```
 
 **Returns:**
 
-- `[]OperatorInfo` - Information about each registered operator
-
-**OperatorInfo:**
-
-```go
-type OperatorInfo struct {
-    Name        string
-    MinArgs     int
-    MaxArgs     int
-    Phase       OperatorPhase
-    Description string
-}
-```
+- `[]string` - Registered operator names
 
 **Example:**
 
 ```go
-operators := engine.ListOperators()
-for _, op := range operators {
-    fmt.Printf("%-15s args: %d-%d  phase: %v\n",
-        op.Name, op.MinArgs, op.MaxArgs, op.Phase)
+for _, name := range engine.ListOperators() {
+    fmt.Println(name)
 }
 ```
 
@@ -650,43 +693,35 @@ err := engine.UnregisterOperator("grab")
 
 ### Configure
 
-Applies additional configuration options to an existing engine.
+Applies additional configuration options to an existing engine, as an incremental change over its current configuration.
 
 ```go
-func (e *Engine) Configure(opts ...Option) error
+func (e *DefaultEngine) Configure(opts ...Option) error
 ```
+
+`Configure` is a method on the concrete `*DefaultEngine`, not part of the `Engine` interface — type-assert an `Engine` down to `*DefaultEngine` to call it (`NewEngine` only ever returns a `*DefaultEngine`, so the assertion is safe).
 
 **Parameters:**
 
-- `opts` - One or more configuration options
+- `opts` - One or more configuration options, applied on top of the engine's existing configuration (a field `opts` doesn't touch keeps its current value)
 
 **Returns:**
 
-- `error` - Non-nil if configuration fails
+- `error` - Non-nil (leaving the engine's configuration unchanged) if the result is invalid, e.g. a negative concurrency
 
 **Example:**
 
 ```go
 engine, _ := graft.NewEngine()
+de := engine.(*graft.DefaultEngine)
 
-// Add Vault configuration later
-err := engine.Configure(
-    graft.WithVault(graft.VaultConfig{
-        Address: vaultAddr,
-        Token:   vaultToken,
-    }),
-)
-
-// Add a secondary Vault target
-err = engine.Configure(
-    graft.WithVaultTarget("staging", graft.VaultConfig{
-        Address: stagingVaultAddr,
-        Token:   stagingToken,
-    }),
+err := de.Configure(
+    graft.WithCacheSize(2000),
+    graft.WithTraceLevel(graft.TraceLevelDebug),
 )
 ```
 
-See [Configuration Options](options.md) for all available options.
+See [Configuration Options](options.md) for the full option list and `Configure`'s cache/trace/operator re-derivation behavior.
 
 ## Thread Safety
 
@@ -704,7 +739,7 @@ The Engine interface is fully thread-safe. Multiple goroutines can safely:
 
 ```go
 engine, _ := graft.NewEngine(
-    graft.WithVault(vaultConfig),
+    graft.WithCacheSize(1000),
 )
 
 var wg sync.WaitGroup
@@ -737,39 +772,46 @@ close(results)
 
 ## Error Handling
 
-All engine methods return detailed, structured errors:
+Every structured error engine methods return is a `*graft.GraftError`:
+
+```go
+type GraftError struct {
+    Type    ErrorType // "parse_error", "merge_error", "evaluation_error", "operator_error", "configuration_error", "validation_error", "external_error"
+    Message string
+    Path    string // set for evaluation/validation errors; "" otherwise
+    Cause   error  // unwraps via Unwrap(), so errors.Is/errors.As see through it
+}
+
+func (e *GraftError) Error() string
+func (e *GraftError) Unwrap() error
+```
+
+There is one error type, not one struct per failure category — switch on `Type`, not on distinct Go types:
 
 ```go
 result, err := engine.Merge(ctx, base, overlay).Execute()
 if err != nil {
-    // Check for specific error types
-    var parseErr *graft.ParseError
-    var evalErr *graft.EvaluationError
-    var mergeErr *graft.MergeError
-    var backendErr *graft.BackendError
-
-    switch {
-    case errors.As(err, &parseErr):
-        fmt.Printf("Parse error in %s at line %d: %s\n",
-            parseErr.Source, parseErr.Position.Line, parseErr.Message)
-
-    case errors.As(err, &evalErr):
-        fmt.Printf("Evaluation error at %s: %s\n",
-            evalErr.Path, evalErr.Message)
-
-    case errors.As(err, &mergeErr):
-        fmt.Printf("Merge conflict at %s between %s and %s\n",
-            mergeErr.Path, mergeErr.SourceA, mergeErr.SourceB)
-
-    case errors.As(err, &backendErr):
-        fmt.Printf("Backend %s failed after %d retries: %s\n",
-            backendErr.Backend, backendErr.RetryCount, backendErr.Cause)
-
-    default:
-        fmt.Printf("Unknown error: %v\n", err)
+    var graftErr *graft.GraftError
+    if errors.As(err, &graftErr) {
+        switch graftErr.Type {
+        case graft.ParseError:
+            fmt.Printf("Parse error: %s\n", graftErr.Message)
+        case graft.EvaluationError:
+            fmt.Printf("Evaluation error at %s: %s\n", graftErr.Path, graftErr.Message)
+        case graft.MergeError:
+            fmt.Printf("Merge error: %s\n", graftErr.Message)
+        case graft.ExternalError:
+            fmt.Printf("Backend error: %s\n", graftErr.Message)
+        default:
+            fmt.Printf("%s: %s\n", graftErr.Type, graftErr.Message)
+        }
+        return
     }
+    fmt.Printf("Unknown error: %v\n", err)
 }
 ```
+
+`ClassifyError(err) ErrorCode` additionally maps a `*GraftError` (or a well-known `tree`/filesystem error) to a stable, opt-in `ErrorCode` (e.g. `graft.CodeReferenceNotFound`, `graft.CodeTypeMismatch`) for machine-readable classification; see `pkg/graft/errors.go` and `docs/reference/error-codes.md`.
 
 ## Related Documentation
 

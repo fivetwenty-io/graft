@@ -1,24 +1,14 @@
 # Configuration Options
 
-Graft uses the functional options pattern for flexible, extensible configuration. This guide covers all available options for configuring the Engine and its components.
+Graft uses the functional options pattern to configure an `Engine`. This page covers every option `pkg/graft` actually exports, plus `Configure`, the runtime-reconfiguration entry point.
 
 ## Option Pattern Overview
 
-Options are functions that modify internal configuration. This pattern enables:
-
-- Clean default values
-
-- Extensibility without API changes
-
-- Self-documenting configuration
-
-- Compile-time safety
-
 ```go
-// Basic usage
+// Applied at construction
 engine, err := graft.NewEngine(
     graft.WithCacheSize(1000),
-    graft.WithHistoryTracking(true),
+    graft.WithCacheTTL(5 * time.Minute),
 )
 
 // Options can be stored and reused
@@ -29,22 +19,25 @@ opts := []graft.Option{
 engine, err := graft.NewEngine(opts...)
 ```
 
-## Engine Options
+`graft.Option` is an alias for `graft.EngineOption` (`type Option = EngineOption`), not a distinct type — a `[]graft.Option` and a `[]graft.EngineOption` are interchangeable, and every function below that returns `EngineOption` also satisfies `Option`.
 
-### Cache Configuration
+`NewEngine(opts...)` applies `opts` over the library's one documented default configuration: caching enabled with a 10000-entry cache, parallel evaluation disabled, 4 max concurrent workers, alphabetical dataflow order. `CreateDefaultEngine()` is `NewEngine()` with no options — a discoverable, explicitly-named "just give me a working engine" entry point.
 
-Control the internal caching system for parsed documents and external lookups.
+## Cache Options
 
 ```go
-// Set maximum number of cached items
-graft.WithCacheSize(size int) Option
-
-// Set time-to-live for cached items
-graft.WithCacheTTL(ttl time.Duration) Option
-
-// Disable caching entirely
-graft.WithCacheDisabled() Option
+func WithCache(enabled bool, size int) Option
+func WithCacheSize(size int) Option
+func WithCacheTTL(ttl time.Duration) Option
+func WithCacheDisabled() Option
+func WithCacheInstance(c cache.Cache) Option
 ```
+
+- `WithCache(enabled, size)` sets both `EnableCache` and `CacheSize` together.
+- `WithCacheSize(size)` sets only the cache's max entry count; it does not itself enable caching (see the engine's default, which is caching enabled). A non-positive `size` is ignored, leaving the current size unchanged.
+- `WithCacheTTL(ttl)` sets a default time-to-live: an entry set after this option takes effect expires and is evicted `ttl` after it was written. A zero or negative `ttl` disables expiration (entries live until evicted for capacity reasons). Has no effect if caching ends up disabled.
+- `WithCacheDisabled()` disables the engine's operator result cache; equivalent to `WithCache(false, 0)`.
+- `WithCacheInstance(c)` supplies a caller-built `cache.Cache` implementation directly, bypassing the size/TTL knobs above for that cache. Supplying a non-nil instance also enables caching.
 
 **Example:**
 
@@ -55,34 +48,32 @@ engine, _ := graft.NewEngine(
 )
 ```
 
-**Defaults:**
+**Note on feature flags:** `EnableCache` alone can still no-op if a `FeatureFlags` value passed via `WithFeatureFlags` (or `GRAFT_FEATURE_CACHE=false` in the environment) has caching disabled — supplying a pre-built `CacheInstance` bypasses that flag entirely, while the `EnableCache` boolean does not.
 
-| Option | Default Value |
-|--------|---------------|
-| CacheSize | 100 |
-| CacheTTL | 5 minutes |
-
-### Tracing and Debugging
-
-Enable detailed logging for debugging merge operations.
+## Tracing and Debugging
 
 ```go
-// Enable trace output to a writer
-graft.WithTraceOutput(w io.Writer) Option
+type TraceLevel int
 
-// Set trace level
-graft.WithTraceLevel(level TraceLevel) Option
-
-// Available trace levels
 const (
     TraceLevelNone TraceLevel = iota
-    TraceLevelError
-    TraceLevelWarn
-    TraceLevelInfo
+    TraceLevelError // reserved; currently behaves like TraceLevelNone
+    TraceLevelWarn  // reserved; currently behaves like TraceLevelNone
+    TraceLevelInfo  // reserved; currently behaves like TraceLevelNone
     TraceLevelDebug
     TraceLevelTrace
 )
+
+func WithTraceOutput(w io.Writer) Option
+func WithTraceLevel(level TraceLevel) Option
+func WithDebugLogging(enabled bool) Option
 ```
+
+The underlying `github.com/fivetwenty-io/graft/log` package only distinguishes two real output levels — debug and trace — so `TraceLevelError`/`TraceLevelWarn`/`TraceLevelInfo` are accepted for forward compatibility but currently behave identically to `TraceLevelNone` (both DEBUG and TRACE output disabled). `TraceLevelDebug` enables DEBUG output (matching the CLI's `-d`/`--debug` flag); `TraceLevelTrace` enables both DEBUG and TRACE output (matching `-t`/`--trace`).
+
+`WithDebugLogging(enabled)` is the same DEBUG on/off knob as `WithTraceLevel`, without the trace half; if both are applied to the same engine, `WithTraceLevel` wins.
+
+**Process-wide sink, not per-engine:** `DEBUG`/`TRACE` are package-level functions (`pkg/graft` and `pkg/graft/operators` both funnel into the same `log` package sink), not routed per `Engine` instance. `WithTraceOutput`/`WithTraceLevel`/`WithDebugLogging` therefore affect every `DEBUG`/`TRACE` call in the process, not only calls made through the engine that configured them. If a process constructs more than one engine with these options, the last one applied (at construction, or via `Configure`) wins process-wide. A `nil` writer passed to `WithTraceOutput` is a no-op, leaving any previously configured destination (or the `os.Stderr` default) unchanged.
 
 **Example:**
 
@@ -93,365 +84,96 @@ engine, _ := graft.NewEngine(
 )
 ```
 
-### History Tracking
-
-Enable tracking of all changes during merge and evaluation.
+## Custom Operators
 
 ```go
-// Enable or disable history tracking globally
-graft.WithHistoryTracking(enabled bool) Option
-
-// Configure history storage limits
-graft.WithHistoryConfig(config HistoryConfig) Option
-
-type HistoryConfig struct {
-    MaxEntriesPerPath int           // Max entries per path (0 = unlimited)
-    RetentionPeriod   time.Duration // How long to keep entries (0 = forever)
-    CompressValues    bool          // Compress stored values
-}
+func WithCustomOperator(name string, op Operator) Option
+func WithOperators(ops map[string]Operator) Option
 ```
+
+`WithCustomOperator` registers a single operator. `WithOperators` registers a set at once, merging into any operators already configured (via an earlier `WithCustomOperator`/`WithOperators` call) rather than replacing the set — each entry behaves exactly like a `WithCustomOperator(name, op)` call. A custom operator is visible under `name` during evaluation on this engine, shadowing a built-in operator of the same name if one exists.
 
 **Example:**
 
 ```go
 engine, _ := graft.NewEngine(
-    graft.WithHistoryTracking(true),
-    graft.WithHistoryConfig(graft.HistoryConfig{
-        MaxEntriesPerPath: 100,
-        RetentionPeriod:   24 * time.Hour,
-        CompressValues:    true,
+    graft.WithOperators(map[string]graft.Operator{
+        "env":       envOperator{},
+        "timestamp": timestampOperator{},
     }),
 )
 ```
 
-### Custom Operators
+## Other Engine Options
 
-Register custom operators at engine creation time.
+| Option | Effect |
+|--------|--------|
+| `WithConcurrency(n int)` | Sets `MaxConcurrency` for parallel evaluation |
+| `WithMetrics(enabled bool)` | Enables metrics collection |
+| `WithMetricsRegistry(r *metrics.Registry)` | Supplies a custom metrics registry; enables metrics |
+| `WithFeatureFlags(ff *features.FeatureFlags)` | Sets the engine's feature flag set |
+| `WithConfigInstance(cfg *config.Config)` | Sets the unified configuration instance |
+| `WithWorkerPool(pool *parallel.WorkerPool)` | Supplies a custom worker pool; enables parallel evaluation |
+| `WithCaching(enabled bool)` | Shorthand: sets `EnableCache` and the `FeatureCaching` flag together |
+| `WithParallel(enabled bool)` | Shorthand: sets `EnableParallel` and the `FeatureParallelEvaluation` flag together |
+| `WithMemoryConfig(cfg MemoryConfig)` | Configures document memory tracking behavior |
+| `WithDataflowOrder(order string)` | `"alphabetical"` (default) or `"insertion"` for dataflow output ordering |
+| `WithSkipVault(skip bool)` | Skips Vault-backed operator lookups |
+| `WithSkipAws(skip bool)` | Skips AWS-backed operator lookups |
+| `WithSkipNats(skip bool)` | Skips NATS-backed operator lookups |
+| `WithLogger(logger Logger)` | Sets the logger the engine reports evaluation activity to via `Debug()` calls; a `nil` logger (the default) reports nothing |
+| `WithYAMLCompat(compat *YAMLCompat)` | Sets YAML 1.1 backward-compatibility behavior used by `ParseYAML`; a `nil` compat is ignored, leaving the default (`yes`/`no`/`on`/`off`-style scalars convert to booleans) in effect |
 
-```go
-// Register a single custom operator
-graft.WithCustomOperator(name string, op Operator) Option
+## Deprecated Options
 
-// Register multiple operators
-graft.WithOperators(ops map[string]Operator) Option
-```
+These options compile and construct an engine without error, but have no effect. Each is superseded by real configuration described in its doc comment.
 
-**Example:**
+| Option | Deprecated because | Configure instead via |
+|--------|---------------------|------------------------|
+| `WithMaxWorkers(n int)` | Functionally identical to `WithConcurrency` (both set only `MaxConcurrency`) | `WithConcurrency(n)` |
+| `WithVaultClient(client VaultClient)` | Vault access reads environment variables at call time; there is no injection seam yet | Environment variables read by `internal/backends/vault` |
+| `WithVaultConfig(address, token string)` | Same as above | Same as above |
+| `WithVaultSkipTLS(skip bool)` | Same as above | Same as above |
+| `WithAWSConfig(cfg *AWSConfig)` | AWS access reads environment variables at call time; there is no injection seam yet | Environment variables read by `internal/backends/aws` |
+| `WithAWSRegion(region string)` | Same as above | Same as above |
+| `WithAWSProfile(profile string)` | Same as above | Same as above |
+| `WithMemoryPools(enabled bool)` | Sets a feature flag nothing reads — no pooling implementation exists to gate | N/A |
 
-```go
-engine, _ := graft.NewEngine(
-    graft.WithCustomOperator("env", graft.OperatorFunc(
-        func(ctx graft.EvalContext, args []interface{}) (interface{}, error) {
-            name := args[0].(string)
-            return os.Getenv(name), nil
-        },
-    )),
-)
-```
+A `WithVault`/`WithAWS` engine option carrying equivalent configuration through an injection seam is planned but not shipped.
 
-### Post-Processors
+**Note:** the `Engine` interface separately has three no-op methods with related names — `WithLogger(logger) Engine`, `WithVaultClient(client) Engine`, `WithAWSConfig(cfg) Engine` — that return the receiver unchanged. These are distinct symbols from the `EngineOption`-returning functions of similar names above (`graft.WithLogger(logger) Option` is functional; `Engine.WithLogger(logger) Engine` is not).
 
-Configure post-processing pipeline.
-
-```go
-// Add post-processors to the pipeline
-graft.WithPostProcessors(processors ...PostProcessor) Option
-
-// Enable built-in validators
-graft.WithValidation(enabled bool) Option
-
-// Enable analytics collection
-graft.WithAnalytics(enabled bool) Option
-```
-
-**Example:**
-
-```go
-engine, _ := graft.NewEngine(
-    graft.WithPostProcessors(
-        &SchemaValidator{Schema: mySchema},
-        &SecretDetector{Patterns: secretPatterns},
-    ),
-    graft.WithValidation(true),
-)
-```
-
-## Pipeline Options
-
-Configure parallel processing behavior.
+## Configure: runtime reconfiguration
 
 ```go
-graft.WithPipeline(config PipelineConfig) Option
-
-type PipelineConfig struct {
-    // File processing
-    FileParallelism     int  // Files processed in parallel (default: runtime.NumCPU())
-
-    // Evaluation
-    EvalParallelism     int  // Operators per wave (default: 16)
-
-    // Sub-tree merging
-    SubtreeParallelism  bool // Enable parallel sub-tree merge (default: true)
-    SubtreeThreshold    int  // Min keys to parallelize (default: 100)
-
-    // External calls
-    ExternalParallelism int           // Max concurrent external calls (default: 32)
-    BatchSize           int           // Requests per batch (default: 20)
-    BatchTimeout        time.Duration // Max wait for batch (default: 100ms)
-}
+func (e *DefaultEngine) Configure(opts ...Option) error
 ```
 
-**Example:**
+`Configure` is a method on the concrete `*DefaultEngine`, not part of the `Engine` interface — call it directly on the value `NewEngine` returns, or type-assert an `Engine` to `*DefaultEngine` first.
 
-```go
-engine, _ := graft.NewEngine(
-    graft.WithPipeline(graft.PipelineConfig{
-        FileParallelism:     8,
-        EvalParallelism:     16,
-        ExternalParallelism: 32,
-        SubtreeParallelism:  true,
-        SubtreeThreshold:    50,
-        BatchSize:           25,
-        BatchTimeout:        150 * time.Millisecond,
-    }),
-)
-```
+It applies `opts` as an incremental change over the engine's current configuration: a copy of the engine's existing options with `opts` applied on top, so any field `opts` doesn't touch keeps its current value. It validates the result fully before changing anything: an invalid `MaxConcurrency` (negative) returns an error without touching the engine's configuration, and so does one or more invalid pending custom-operator registrations (an empty name, or a nil `Operator`) — for the first invalid registration in sorted-name order, deterministically. Only once validation passes does it:
 
-### Pipeline Presets
+- re-derive the engine's cache from the resulting configuration (rebuilding it with the new size/TTL, or removing it, as `EnableCache`/`CacheSize`/`CacheTTL`/`CacheInstance` dictate — a rebuild discards the previous cache's contents and closes the outgoing cache; a call that changes none of those fields, nor the `FeatureCaching` flag that gates `EnableCache`, skips the rebuild entirely),
+- re-apply any `WithTraceOutput`/`WithTraceLevel`/`WithDebugLogging` change (subject to the same process-wide-sink caveat described above),
+- register every pending custom operator (`WithOperators`/`WithCustomOperator`) not already registered on this engine, in the same sorted-name order used for validation,
+- and keep the vault/AWS/NATS skip flags in sync with the resulting configuration.
 
-Pre-configured pipeline settings for common scenarios.
-
-```go
-// No parallelism - useful for debugging
-graft.WithPipeline(graft.PipelineSequential)
-
-// Low parallelism - resource constrained environments
-graft.WithPipeline(graft.PipelineConservative)
-
-// Balanced - default settings
-graft.WithPipeline(graft.PipelineBalanced)
-
-// Maximum parallelism - many external calls
-graft.WithPipeline(graft.PipelineHighThroughput)
-
-// Optimized for small, fast merges
-graft.WithPipeline(graft.PipelineLowLatency)
-```
-
-**Preset Comparison:**
-
-| Preset | FileParallelism | EvalParallelism | ExternalParallelism | SubtreeParallelism |
-|--------|-----------------|-----------------|---------------------|-------------------|
-| Sequential | 1 | 1 | 1 | false |
-| Conservative | 2 | 4 | 8 | false |
-| Balanced | NumCPU | 16 | 32 | true |
-| HighThroughput | NumCPU | 32 | 64 | true |
-| LowLatency | NumCPU | 8 | 16 | false |
-
-## Backend Options
-
-### Vault / OpenBao
-
-Configure HashiCorp Vault or OpenBao connections.
-
-```go
-// Configure default Vault connection
-graft.WithVault(config VaultConfig) Option
-
-// Configure named Vault target
-graft.WithVaultTarget(name string, config VaultConfig) Option
-
-type VaultConfig struct {
-    Address    string        // Vault server address
-    Token      string        // Authentication token
-    Namespace  string        // Vault namespace (enterprise)
-    SkipVerify bool          // Skip TLS verification
-    Timeout    time.Duration // Request timeout
-    PoolSize   int           // Connection pool size
-}
-```
-
-**Example:**
-
-```go
-engine, _ := graft.NewEngine(
-    // Default Vault
-    graft.WithVault(graft.VaultConfig{
-        Address:   "https://vault.example.com",
-        Token:     os.Getenv("VAULT_TOKEN"),
-        Namespace: "prod",
-        Timeout:   30 * time.Second,
-        PoolSize:  10,
-    }),
-    // Named target for staging
-    graft.WithVaultTarget("staging", graft.VaultConfig{
-        Address: "https://vault-staging.example.com",
-        Token:   os.Getenv("VAULT_STAGING_TOKEN"),
-    }),
-)
-```
-
-**Usage in YAML:**
-
-```yaml
-prod_secret: (( vault "secret/db:password" ))
-staging_secret: (( vault@staging "secret/db:password" ))
-```
-
-### AWS
-
-Configure AWS services (Parameter Store, Secrets Manager).
-
-```go
-// Configure default AWS connection
-graft.WithAWS(config AWSConfig) Option
-
-// Configure named AWS target
-graft.WithAWSTarget(name string, config AWSConfig) Option
-
-type AWSConfig struct {
-    Region    string // AWS region
-    Profile   string // AWS profile name
-    Endpoint  string // Custom endpoint (for testing)
-    AccessKey string // Static access key (optional)
-    SecretKey string // Static secret key (optional)
-    PoolSize  int    // Connection pool size
-}
-```
-
-**Example:**
-
-```go
-engine, _ := graft.NewEngine(
-    graft.WithAWS(graft.AWSConfig{
-        Region:  "us-west-2",
-        Profile: "production",
-    }),
-    graft.WithAWSTarget("staging", graft.AWSConfig{
-        Region:  "us-east-1",
-        Profile: "staging",
-    }),
-)
-```
-
-**Usage in YAML:**
-
-```yaml
-db_host: (( awsparam "/app/prod/db_host" ))
-api_key: (( awssecret "prod/api-credentials" ))
-staging_host: (( awsparam@staging "/app/db_host" ))
-```
-
-### NATS
-
-Configure NATS JetStream connections.
-
-```go
-// Configure default NATS connection
-graft.WithNATS(config NATSConfig) Option
-
-// Configure named NATS target
-graft.WithNATSTarget(name string, config NATSConfig) Option
-
-type NATSConfig struct {
-    URL      string        // NATS server URL
-    Token    string        // Authentication token
-    TLSCert  string        // TLS certificate path
-    TLSKey   string        // TLS key path
-    Timeout  time.Duration // Request timeout
-    PoolSize int           // Connection pool size
-}
-```
-
-**Example:**
-
-```go
-engine, _ := graft.NewEngine(
-    graft.WithNATS(graft.NATSConfig{
-        URL:     "nats://nats.example.com:4222",
-        Token:   os.Getenv("NATS_TOKEN"),
-        Timeout: 10 * time.Second,
-    }),
-)
-```
-
-**Usage in YAML:**
-
-```yaml
-config: (( nats "kv:config/settings" ))
-template: (( nats "obj:assets/template.yml" ))
-```
-
-## Applying Options at Runtime
-
-Options can be applied after engine creation using `Configure()`.
+Because pending operators are validated up front, registration is expected to always succeed; if it somehow does not, the rest of the configuration applied by that call has already taken effect — registration is the one step `Configure` cannot roll back.
 
 ```go
 engine, _ := graft.NewEngine()
 
-// Reconfigure at runtime
-err := engine.Configure(
+err := engine.(*graft.DefaultEngine).Configure(
     graft.WithCacheSize(2000),
-    graft.WithHistoryTracking(true),
+    graft.WithTraceLevel(graft.TraceLevelDebug),
 )
 ```
 
-**Note:** Not all options can be changed at runtime. Backend configurations and pipeline settings typically require a new engine instance.
+`UpdateOptions(opts EngineOptions)` is the older, non-incremental sibling: it replaces the engine's options wholesale, so any field not set on `opts` reverts to its zero value — including fields the engine was originally constructed with. Prefer `Configure` unless a full reset is what you want.
 
-## Complete Example
+## Cut from this page
 
-```go
-package main
-
-import (
-    "os"
-    "time"
-
-    "github.com/fivetwenty-io/graft/pkg/graft"
-)
-
-func main() {
-    engine, err := graft.NewEngine(
-        // Caching
-        graft.WithCacheSize(1000),
-        graft.WithCacheTTL(5 * time.Minute),
-
-        // Tracing
-        graft.WithTraceOutput(os.Stderr),
-        graft.WithTraceLevel(graft.TraceLevelInfo),
-
-        // History
-        graft.WithHistoryTracking(true),
-
-        // Pipeline
-        graft.WithPipeline(graft.PipelineBalanced),
-
-        // Vault
-        graft.WithVault(graft.VaultConfig{
-            Address: os.Getenv("VAULT_ADDR"),
-            Token:   os.Getenv("VAULT_TOKEN"),
-        }),
-
-        // AWS
-        graft.WithAWS(graft.AWSConfig{
-            Region:  "us-west-2",
-            Profile: "default",
-        }),
-
-        // Custom operator
-        graft.WithCustomOperator("timestamp", graft.OperatorFunc(
-            func(ctx graft.EvalContext, args []interface{}) (interface{}, error) {
-                return time.Now().Unix(), nil
-            },
-        )),
-    )
-    if err != nil {
-        panic(err)
-    }
-
-    // Use engine...
-}
-```
+`WithValidation(enabled bool)` and `WithAnalytics(enabled bool)` do not exist anywhere in `pkg/graft` and are not planned; they described no defined semantic. History tracking (`WithHistoryTracking`/`WithHistoryConfig`), post-processor pipeline options (`WithPostProcessors`), pipeline-parallelism options (`WithPipeline`/`PipelineConfig`), and per-backend connection options (`WithVault`/`WithAWS`/`WithNATS` and their `*Target`/`*Config` types) are not implemented in this release; they are not documented here until they ship.
 
 ## Related Documentation
 
@@ -462,5 +184,3 @@ func main() {
 - [MergeBuilder API](merge-builder.md) - Merge configuration
 
 - [Custom Operators](../custom-operators.md) - Creating operators
-
-- [Custom Backends](../custom-backends.md) - Creating backends

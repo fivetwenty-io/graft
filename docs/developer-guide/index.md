@@ -138,7 +138,6 @@ Configuration uses the functional options pattern for flexible, extensible confi
 engine, err := graft.NewEngine(
     graft.WithCacheSize(500),
     graft.WithCacheTTL(5 * time.Minute),
-    graft.WithVault(vaultConfig),
 )
 ```
 
@@ -161,19 +160,22 @@ The core library has zero dependencies on terminal or CLI packages. This ensures
 
 ```
 pkg/graft/
-├── api.go              # Public interfaces
-├── engine.go           # Engine implementation
-├── document.go         # Document implementation
-├── merge.go            # MergeBuilder implementation
-├── diff.go             # Diff implementation
-├── history.go          # History implementation
-├── options.go          # Functional options
-├── errors.go           # Error types
-├── mock.go             # Testing support
-├── interfaces/         # Internal interfaces
-├── operators/          # Operator implementations
-└── backends/           # Backend implementations
+├── api.go                   # Public interfaces (Engine, Document, MergeBuilder)
+├── engine.go                # Engine implementation
+├── document.go               # Document implementation
+├── gopatch_document.go       # go-patch Document implementation
+├── merge_builder_impl.go     # MergeBuilder implementation
+├── parse_file.go             # ParseFile/ParseReader/ParseMultiDocFile
+├── diff.go, diff_changes.go, # DiffResult: comparison engine, flattener,
+│   diff_options.go,          #   options, and renderers
+│   diff_render.go
+├── options.go, trace.go      # Functional options
+├── errors.go                 # Error types and sentinels
+├── interfaces/                # Shared interface types
+└── operators/                 # Built-in operator implementations
 ```
+
+Backend integrations (Vault, AWS, NATS) live under `internal/backends/`, not `pkg/graft/`.
 
 ## Getting Help
 
