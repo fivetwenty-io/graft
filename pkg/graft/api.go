@@ -718,6 +718,11 @@ type Logger interface {
 }
 
 // VaultClient interface for vault operations.
+//
+// Deprecated: nothing in graft consumes a VaultClient - WithVaultClient
+// stores it without effect. Use WithVault (backend_vault.go), which
+// registers a real Vault-backed Backend from a VaultConfig, or register
+// your own Backend implementation via WithBackend.
 type VaultClient interface {
 	Get(path string) (map[string]interface{}, error)
 	List(path string) ([]string, error)
