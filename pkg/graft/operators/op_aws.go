@@ -222,27 +222,73 @@ func (o AwsOperator) resolveSession(target string) (*session.Session, string, er
 	return awsSess, "default", nil
 }
 
+// awsSecretCacheKey builds the cache/dedup identity for a Secrets Manager
+// fetch from the base secret ID and its query qualifiers. Only "stage" and
+// "version" change what Secrets Manager returns for a given secret ID (see
+// buildAwsSecretInput), so those are the only qualifiers folded into the
+// identity: "db?version=1" and "db?version=2" must never share a cache
+// entry, but "db?version=1&key=username" and "db?version=1&key=password"
+// should, since "key" only selects a field from the already-fetched value
+// (see AwsOperator.Run's subkey extraction, which runs after this cache
+// lookup) and does not change the request sent to AWS. Reading fields with
+// params.Get rather than using the raw query string keeps param order from
+// mattering, so "db?version=1&stage=x" and "db?stage=x&version=1" produce
+// the same identity. An unqualified secret keeps the exact bare-key
+// identity it had before this fix, so existing cache entries for
+// unqualified specs are unaffected.
+//
+// version is folded in only when stage is absent, mirroring
+// buildAwsSecretInput's own precedence: stage wins when both are present,
+// and buildAwsSecretInput never looks at version in that case, so
+// "db?stage=x&version=1" and "db?stage=x&version=2" send the identical
+// request to Secrets Manager and must share one cache entry, not fragment
+// into two independent fetches for what is really the same request.
+func awsSecretCacheKey(secret string, params url.Values) string {
+	stage := params.Get("stage")
+	version := params.Get("version")
+	if stage == "" {
+		if version == "" {
+			return secret
+		}
+		return secret + "\x00version=" + version
+	}
+	return secret + "\x00stage=" + stage
+}
+
+// buildAwsSecretInput builds the Secrets Manager GetSecretValueInput for a
+// getAwsSecret fetch, applying the same stage/version precedence
+// (stage wins when both are present) that awsSecretCacheKey's identity
+// covers.
+func buildAwsSecretInput(secret string, params url.Values) *secretsmanager.GetSecretValueInput {
+	input := &secretsmanager.GetSecretValueInput{
+		SecretId: awsSDK.String(secret),
+	}
+
+	if stage := params.Get("stage"); stage != "" {
+		input.VersionStage = awsSDK.String(stage)
+	} else if version := params.Get("version"); version != "" {
+		input.VersionId = awsSDK.String(version)
+	}
+
+	return input
+}
+
 // getAwsSecret fetches a secret using the AWS backend cache and session.
 // cacheTarget namespaces the secret cache (see resolveSession).
 // GetOrFetchSecret both serves cached values without a network call and
-// coalesces concurrent requests for the same (target, secret) into one
-// backend request, rather than exposing the raw cache
-// map for an unsynchronized read as the previous implementation did.
+// coalesces concurrent requests for the same (target, cache identity) into
+// one backend request, rather than exposing the raw cache map for an
+// unsynchronized read as the previous implementation did. The cache
+// identity passed to GetOrFetchSecret is computed by awsSecretCacheKey, not
+// the bare secret string, so two specs for the same secret ID that request
+// different stage/version qualifiers (e.g. "db?version=1" vs
+// "db?version=2") get independent cache entries and independent fetches
+// instead of colliding on one.
 func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secret string, params url.Values) (string, error) {
-	return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, secret, func() (string, error) {
+	return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, awsSecretCacheKey(secret, params), func() (string, error) {
 		client := secretsmanager.New(awsSession)
 
-		input := &secretsmanager.GetSecretValueInput{
-			SecretId: awsSDK.String(secret),
-		}
-
-		if params.Get("stage") != "" {
-			input.VersionStage = awsSDK.String(params.Get("stage"))
-		} else if params.Get("version") != "" {
-			input.VersionId = awsSDK.String(params.Get("version"))
-		}
-
-		output, err := client.GetSecretValue(input)
+		output, err := client.GetSecretValue(buildAwsSecretInput(secret, params))
 		if err != nil {
 			return "", err
 		}
