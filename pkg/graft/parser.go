@@ -172,14 +172,25 @@ func (p *Parser) parseExpression() (*Expr, error) {
 }
 
 // parseExprWithPrecedence implements the precedence climbing algorithm.
-//
-//nolint:gocyclo // precedence climbing requires handling multiple operator types
 func (p *Parser) parseExprWithPrecedence(minPrec Precedence) (*Expr, error) {
 	left, err := p.parsePrimary()
 	if err != nil {
 		return nil, err
 	}
 
+	return p.continueExprWithPrecedence(left, minPrec)
+}
+
+// continueExprWithPrecedence runs the precedence-climbing loop starting
+// from an already-parsed left operand, instead of calling parsePrimary
+// itself first. parseExprWithPrecedence is the common case (left comes
+// from its own parsePrimary call); parseNestedOperator's fallback is the
+// other, reusing an already-parsed inner-group value as the left operand
+// of whatever expression continues at the enclosing group's level.
+//
+//nolint:gocyclo // precedence climbing requires handling multiple operator types
+func (p *Parser) continueExprWithPrecedence(left *Expr, minPrec Precedence) (*Expr, error) {
+	var err error
 	for {
 		tok := p.current()
 
@@ -1123,10 +1134,21 @@ func (p *Parser) parseUnaryMinus() (*Expr, error) {
 	}, nil
 }
 
-// parseNestedOperator parses a nested (( ... )) expression. Unlike a bare
-// "(", "((" is unambiguously an operator-call opener — it is never used for
-// arithmetic grouping — so it always claims the primary operator position
-// for its own contents, exactly mirroring ParseOpcall.
+// parseNestedOperator parses a "((" the tokenizer combined from two
+// adjacent '(' characters (see scanParentheses). Usually this is a
+// genuine nested marker used as an operand — e.g. the prune-default idiom
+// "grab X || (( prune ))", where the double parens let a zero-argument
+// bare operator claim the primary-call position regardless of what
+// follows it. But the tokenizer combines any two adjacent '(' regardless
+// of context, so the same "((" also appears where two ordinary,
+// independent grouping parens just happen to sit back to back, e.g.
+// "((A && B) || C)".
+//
+// The two shapes are told apart after parsing: a genuine marker's content
+// is immediately followed by "))". If a single ')' appears instead, the
+// "((" was really two separate opens — that ')' closes the inner one, and
+// the value just parsed becomes the left operand of whatever expression
+// continues at the outer group's level, up to its own closing ')'.
 func (p *Parser) parseNestedOperator() (*Expr, error) {
 	p.advance() // consume ((
 
@@ -1143,11 +1165,27 @@ func (p *Parser) parseNestedOperator() (*Expr, error) {
 		return nil, err
 	}
 
-	if err := p.expect(interfaces.TokenOperatorEnd); err != nil {
-		return nil, fmt.Errorf("expected '))' to close nested operator")
+	if p.current().Type == interfaces.TokenOperatorEnd {
+		p.advance()
+		return expr, nil
 	}
 
-	return expr, nil
+	if p.current().Type == interfaces.TokenRightParen {
+		p.advance() // consume the inner group's own ')'
+
+		outer, err := p.continueExprWithPrecedence(expr, PrecedenceLowest)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := p.expect(interfaces.TokenRightParen); err != nil {
+			return nil, fmt.Errorf("expected ')' to close parenthesized expression")
+		}
+
+		return outer, nil
+	}
+
+	return nil, fmt.Errorf("expected '))' to close nested operator")
 }
 
 // parseTarget parses a target reference @something.

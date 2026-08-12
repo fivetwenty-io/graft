@@ -44,6 +44,23 @@ func TestParenthesizedTernaryFirstArg(t *testing.T) {
 	}
 }
 
+// TestParenthesizedArithmeticFirstArg covers the same shape with a plain
+// arithmetic grouping instead of a ternary — the other example named in
+// the bug report (via the entangled Candidate C test).
+func TestParenthesizedArithmeticFirstArg(t *testing.T) {
+	doc, err := mergeYAML(t, "a: 1\nb: 2\nx: (( concat ((grab a) + (grab b)) \"!\" ))\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, err := doc.Get("x")
+	if err != nil {
+		t.Fatalf("failed to read x: %v", err)
+	}
+	if got != "3!" {
+		t.Fatalf("expected 3!, got %v", got)
+	}
+}
+
 // TestParenthesizedFirstArg_ThreeArguments pins more than one additional
 // argument still gets picked up after the parenthesized first one, not
 // just exactly one.
