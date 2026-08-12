@@ -104,6 +104,24 @@ engine, _ := graft.NewEngine(
 )
 ```
 
+## Post-Processors
+
+```go
+func WithPostProcessors(procs ...PostProcessor) Option
+```
+
+Registers `procs` to run, in phase-then-priority order, after evaluation, pruning, and cherry-picking finish on every merge the engine executes. `MergeBuilder.WithPostProcessors` adds further processors for one merge chain only; both sets combine rather than one replacing the other. Calling `WithPostProcessors` more than once, at either level, appends rather than replaces. See [Custom Post-Processors](../custom-post-processors.md) for the `PostProcessor` interface, the built-in constructors (`NewPruner`, `NewCherryPicker`, `NewKeySorter`, `NewSecurityRedactor`), and ordering rules.
+
+**Example:**
+
+```go
+engine, _ := graft.NewEngine(
+    graft.WithPostProcessors(
+        graft.NewSecurityRedactor([]string{"password", "secret"}, ""),
+    ),
+)
+```
+
 ## Other Engine Options
 
 | Option | Effect |
@@ -173,7 +191,7 @@ err := engine.(*graft.DefaultEngine).Configure(
 
 ## Cut from this page
 
-`WithValidation(enabled bool)` and `WithAnalytics(enabled bool)` do not exist anywhere in `pkg/graft` and are not planned; they described no defined semantic. History tracking (`WithHistoryTracking`/`WithHistoryConfig`), post-processor pipeline options (`WithPostProcessors`), pipeline-parallelism options (`WithPipeline`/`PipelineConfig`), and per-backend connection options (`WithVault`/`WithAWS`/`WithNATS` and their `*Target`/`*Config` types) are not implemented in this release; they are not documented here until they ship.
+`WithValidation(enabled bool)` and `WithAnalytics(enabled bool)` do not exist anywhere in `pkg/graft` and are not planned; they described no defined semantic. Pipeline-parallelism options (`WithPipeline`/`PipelineConfig`) and per-backend connection options (`WithVault`/`WithAWS`/`WithNATS` and their `*Target`/`*Config` types) are not implemented in this release; they are not documented here until they ship. History tracking (`WithHistoryTracking`/`WithHistoryConfig`) is implemented - see the [History Tracking](#history-tracking) section above and [History Interface](history-api.md).
 
 ## Related Documentation
 

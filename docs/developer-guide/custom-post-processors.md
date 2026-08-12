@@ -1,60 +1,56 @@
 # Creating Custom Post-Processors
 
-Post-processors run after merge and evaluation to validate, transform, or analyze the resulting document. This guide covers implementing custom post-processors for specialized workflows.
+Post-processors run after a merge's evaluation, pruning, and cherry-picking, as the last step before `Execute()` returns. This guide covers implementing custom post-processors and using graft's built-in ones.
 
 ## Post-Processor Interface
 
-Post-processors implement the `PostProcessor` interface:
+Post-processors implement the `graft.PostProcessor` interface:
 
 ```go
 type PostProcessor interface {
-    // Name returns the processor identifier
+    // Name identifies the processor; it appears in the error Execute()
+    // returns if Process fails.
     Name() string
 
-    // Phase returns when this processor runs
+    // Phase reports when this processor runs relative to others.
     Phase() PostProcessPhase
 
-    // Process executes the post-processor
-    Process(ctx context.Context, doc *Document, meta *ProcessMetadata) error
+    // Process transforms doc and returns the result. A non-nil error
+    // aborts Execute(): no later processor runs.
+    Process(ctx context.Context, doc graft.Document, meta *graft.ProcessMetadata) (graft.Document, error)
 }
 
-type PostProcessPhase int
+// PostProcessPhase is an alias for postprocess.Phase, not a distinct
+// type of its own - graft.PhaseEarly and postprocess.PhaseEarly are the
+// same value and interchangeable.
+type PostProcessPhase = postprocess.Phase
 
 const (
-    // Parallel phase - run concurrently with other parallel processors
-    PhaseParallel PostProcessPhase = iota
-
-    // Sequential phase - run in order after parallel phase
-    PhaseSequential
+    PhaseEarly  = postprocess.PhaseEarly  // runs first
+    PhaseNormal = postprocess.PhaseNormal // default phase
+    PhaseLate   = postprocess.PhaseLate   // runs last, immediately before Execute() returns
 )
 
 type ProcessMetadata struct {
-    // Source files that were merged
-    Sources []SourceInfo
-
-    // History if tracking enabled
-    History History
-
-    // Timing information
-    ParseDuration time.Duration
+    Sources       []string // always empty in this release
+    MergeCount    int
+    EvalCount     int      // always 0 in this release
+    StartTime     time.Time
+    Duration      time.Duration
+    ParseDuration time.Duration // always zero in this release
     MergeDuration time.Duration
     EvalDuration  time.Duration
-
-    // Custom metadata from operators
-    Custom map[string]interface{}
-}
-
-type SourceInfo struct {
-    Path  string
-    Size  int64
-    Keys  int
-    Lines int
+    Custom        map[string]interface{} // always nil in this release
 }
 ```
 
+Processors run in `Phase` order, then by priority within a phase (see [Ordering](#ordering) below). A processor that returns an error aborts `Execute()` immediately: `Execute()` returns `fmt.Errorf("post-processor %q failed: %w", proc.Name(), err)`, and no later processor runs.
+
+`ProcessMetadata.Sources`, `EvalCount`, `ParseDuration`, and `Custom` are always their zero value in this release - graft does not yet track file paths on the merge builder, does not count evaluated operators anywhere `Execute` can read it back, and parsing happens before a `MergeBuilder` exists at all (`ParseFile`/`ParseYAML`/`OverlayFile` all run ahead of `Execute`). `MergeCount`, `StartTime`, `Duration`, `MergeDuration`, and `EvalDuration` are accurate.
+
 ## Creating a Post-Processor
 
-### Simple Validator
+### Simple Field Checker
 
 ```go
 package processors
@@ -66,165 +62,123 @@ import (
     "github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// RequiredFieldsValidator ensures specified fields exist
-type RequiredFieldsValidator struct {
-    fields []string
+// requiredFieldsError is this package's own error type - graft does not
+// export a ValidationError type, so a custom processor defines whatever
+// error shape fits its own callers.
+type requiredFieldsError struct {
+    Processor string
+    Missing   []string
 }
 
-func NewRequiredFieldsValidator(fields ...string) *RequiredFieldsValidator {
-    return &RequiredFieldsValidator{fields: fields}
+func (e *requiredFieldsError) Error() string {
+    return fmt.Sprintf("%s: missing required fields: %v", e.Processor, e.Missing)
 }
 
-func (p *RequiredFieldsValidator) Name() string {
-    return "required-fields"
+// RequiredFieldsChecker fails the merge if any of Fields is missing from
+// the final document.
+type RequiredFieldsChecker struct {
+    Fields []string
 }
 
-func (p *RequiredFieldsValidator) Phase() graft.PostProcessPhase {
-    return graft.PhaseParallel // Can run concurrently
+func NewRequiredFieldsChecker(fields ...string) *RequiredFieldsChecker {
+    return &RequiredFieldsChecker{Fields: fields}
 }
 
-func (p *RequiredFieldsValidator) Process(
+func (p *RequiredFieldsChecker) Name() string { return "required-fields" }
+
+func (p *RequiredFieldsChecker) Phase() graft.PostProcessPhase {
+    return graft.PhaseEarly
+}
+
+func (p *RequiredFieldsChecker) Process(
     ctx context.Context,
-    doc *graft.Document,
+    doc graft.Document,
     meta *graft.ProcessMetadata,
-) error {
+) (graft.Document, error) {
     var missing []string
-
-    for _, field := range p.fields {
+    for _, field := range p.Fields {
         if !doc.Has(field) {
             missing = append(missing, field)
         }
     }
-
     if len(missing) > 0 {
-        return &graft.ValidationError{
-            Processor: p.Name(),
-            Message:   fmt.Sprintf("missing required fields: %v", missing),
-            Fields:    missing,
-        }
+        return nil, &requiredFieldsError{Processor: p.Name(), Missing: missing}
     }
-
-    return nil
+    return doc, nil
 }
 ```
 
-### Schema Validator
+### Document Transformation
 
 ```go
-type SchemaValidator struct {
-    schema *jsonschema.Schema
+type EnvironmentExpander struct{}
+
+func (p *EnvironmentExpander) Name() string { return "env-expander" }
+
+func (p *EnvironmentExpander) Phase() graft.PostProcessPhase {
+    return graft.PhaseNormal
 }
 
-func NewSchemaValidator(schemaPath string) (*SchemaValidator, error) {
-    schema, err := jsonschema.Compile(schemaPath)
-    if err != nil {
-        return nil, err
-    }
-    return &SchemaValidator{schema: schema}, nil
-}
-
-func (p *SchemaValidator) Name() string {
-    return "schema-validator"
-}
-
-func (p *SchemaValidator) Phase() graft.PostProcessPhase {
-    return graft.PhaseParallel
-}
-
-func (p *SchemaValidator) Process(
+func (p *EnvironmentExpander) Process(
     ctx context.Context,
-    doc *graft.Document,
+    doc graft.Document,
     meta *graft.ProcessMetadata,
-) error {
-    // Convert document to interface{} for validation
-    data := doc.RawData()
-
-    if err := p.schema.Validate(data); err != nil {
-        var validationErr *jsonschema.ValidationError
-        if errors.As(err, &validationErr) {
-            return &graft.ValidationError{
-                Processor: p.Name(),
-                Message:   "schema validation failed",
-                Details:   formatValidationErrors(validationErr),
+) (graft.Document, error) {
+    for _, path := range doc.Paths() {
+        val, err := doc.Get(path)
+        if err != nil {
+            continue
+        }
+        if str, ok := val.(string); ok {
+            if expanded := os.ExpandEnv(str); expanded != str {
+                if err := doc.Set(path, expanded); err != nil {
+                    return nil, fmt.Errorf("%s: %w", p.Name(), err)
+                }
             }
         }
-        return err
     }
-
-    return nil
+    return doc, nil
 }
 ```
 
-## Processing Phases
+## Ordering
 
-### Parallel Phase
-
-Parallel processors run concurrently and should not modify the document:
+Within a `Phase`, a processor that implements `PriorityPostProcessor` (adding `Priority() int`) controls its order relative to other processors in the same phase - lower runs first. A processor that only implements `PostProcessor` gets a default priority based on its phase alone (0 for `PhaseEarly`, 50 for `PhaseNormal`, 100 for `PhaseLate`), matching the built-ins' own defaults.
 
 ```go
-func (p *AnalyticsCollector) Phase() graft.PostProcessPhase {
-    return graft.PhaseParallel // Safe for concurrent execution
+type PriorityPostProcessor interface {
+    PostProcessor
+    Priority() int
 }
 
-func (p *AnalyticsCollector) Process(
-    ctx context.Context,
-    doc *graft.Document,
-    meta *graft.ProcessMetadata,
-) error {
-    // Read-only operations
-    paths := doc.Paths()
-    keyCount := len(paths)
-
-    // Collect statistics
-    p.metrics.Record("key_count", keyCount)
-    p.metrics.Record("merge_time_ms", meta.MergeDuration.Milliseconds())
-
-    return nil
-}
+func (p *RequiredFieldsChecker) Priority() int { return 10 }
 ```
 
-### Sequential Phase
-
-Sequential processors run in registration order and can modify the document:
-
-```go
-type KeySorter struct{}
-
-func (p *KeySorter) Name() string {
-    return "key-sorter"
-}
-
-func (p *KeySorter) Phase() graft.PostProcessPhase {
-    return graft.PhaseSequential // Must run in order
-}
-
-func (p *KeySorter) Process(
-    ctx context.Context,
-    doc *graft.Document,
-    meta *graft.ProcessMetadata,
-) error {
-    // Modify document - sort all map keys alphabetically
-    return doc.SortKeys()
-}
-```
+There is no parallel execution phase. Every processor runs sequentially, in phase-then-priority order; graft checks `ctx.Done()` between processors and stops (returning `ctx.Err()`) if the context is cancelled mid-pipeline.
 
 ## Registering Post-Processors
 
 ### At Engine Creation
 
+Processors registered via `graft.WithPostProcessors` at engine construction run on every merge that engine executes:
+
 ```go
 engine, _ := graft.NewEngine(
     graft.WithPostProcessors(
-        // Parallel processors (run concurrently)
-        NewRequiredFieldsValidator("database.host", "database.port"),
-        NewSchemaValidator("schema.json"),
-        &AnalyticsCollector{},
-
-        // Sequential processors (run in order)
-        &Pruner{Keys: []string{"internal", "meta"}},
-        &KeySorter{},
+        NewRequiredFieldsChecker("database.host", "database.port"),
+        &EnvironmentExpander{},
     ),
 )
+```
+
+### Per Merge
+
+`MergeBuilder.WithPostProcessors` adds processors for one merge chain only. Processors registered this way combine with (not replace) any engine-level ones - both sets are ordered together by phase-then-priority:
+
+```go
+result, err := engine.Merge(ctx, base, overlay).
+    WithPostProcessors(&EnvironmentExpander{}).
+    Execute()
 ```
 
 ### Conditional Registration
@@ -232,14 +186,11 @@ engine, _ := graft.NewEngine(
 ```go
 var processors []graft.PostProcessor
 
-// Always validate
-processors = append(processors, NewRequiredFieldsValidator("app.name"))
+processors = append(processors, NewRequiredFieldsChecker("app.name"))
 
-// Production-only validation
 if env == "production" {
     processors = append(processors,
-        NewSchemaValidator("strict-schema.json"),
-        &SecretDetector{},
+        graft.NewSecurityRedactor([]string{"password", "secret", "api_key"}, ""),
     )
 }
 
@@ -250,230 +201,103 @@ engine, _ := graft.NewEngine(
 
 ## Built-in Post-Processors
 
-Graft provides several built-in post-processors:
+Graft provides four built-in post-processor constructors, all returning `graft.PostProcessor`:
 
-### Pruner
+### `NewPruner`
 
-Removes specified keys from the output:
-
-```go
-graft.WithPostProcessors(
-    &graft.Pruner{Keys: []string{"meta", "internal", "debug"}},
-)
-```
-
-### CherryPicker
-
-Includes only specified keys:
+Removes the given dot-separated paths from the output:
 
 ```go
 graft.WithPostProcessors(
-    &graft.CherryPicker{Keys: []string{"database", "server", "features"}},
+    graft.NewPruner("meta", "internal", "debug"),
 )
 ```
 
-### SecurityRedactor
+Unlike `MergeBuilder.WithPrune` (which runs before any `WithPostProcessors` processor - see [Ordering](#ordering)), a processor built with `NewPruner` runs at its declared phase/priority position (`PhaseLate`), interleaved with other post-processors registered at that phase.
 
-Masks sensitive values in output:
+### `NewCherryPicker`
+
+Keeps only the given dot-separated paths, discarding everything else:
 
 ```go
 graft.WithPostProcessors(
-    &graft.SecurityRedactor{
-        Patterns: []string{"password", "secret", "api_key", "token"},
-        Mask:     "***REDACTED***",
-    },
+    graft.NewCherryPicker("database", "server", "features"),
 )
 ```
 
-## Advanced Patterns
+Same phase/priority caveat as `NewPruner` relative to `MergeBuilder.WithCherryPick`.
 
-### Conditional Processing
+### `NewKeySorter`
+
+Sorts the document's map keys recursively when `enabled` is `true` (a no-op otherwise, so it can be left registered and toggled by the argument alone):
 
 ```go
-type ConditionalValidator struct {
-    condition func(*graft.Document) bool
-    validator graft.PostProcessor
-}
+graft.WithPostProcessors(
+    graft.NewKeySorter(true),
+)
+```
 
-func (p *ConditionalValidator) Process(
-    ctx context.Context,
-    doc *graft.Document,
-    meta *graft.ProcessMetadata,
-) error {
-    if !p.condition(doc) {
-        return nil // Skip validation
-    }
-    return p.validator.Process(ctx, doc, meta)
-}
+### `NewSecurityRedactor`
 
-// Usage
-engine, _ := graft.NewEngine(
-    graft.WithPostProcessors(
-        &ConditionalValidator{
-            condition: func(doc *graft.Document) bool {
-                return doc.String("environment") == "production"
-            },
-            validator: NewStrictSchemaValidator(),
-        },
+Replaces the value of any map entry whose key matches one of `patterns` with `mask`. Patterns are matched against key names, case-insensitively, as regular expressions (a pattern that fails to compile as a regular expression is matched literally instead, so a caller-supplied pattern never causes a panic). An empty `mask` defaults to `"***REDACTED***"`:
+
+```go
+graft.WithPostProcessors(
+    graft.NewSecurityRedactor(
+        []string{"password", "secret", "api_key", "token"},
+        "***REDACTED***",
     ),
 )
 ```
 
-### Chained Processors
+`NewSecurityRedactor` replaces the entire value at a matching key - scalar, map, or slice - rather than attempting to redact part of a nested structure.
 
-```go
-type ProcessorChain struct {
-    processors []graft.PostProcessor
-}
+### Not provided
 
-func (p *ProcessorChain) Name() string {
-    return "chain"
-}
+Earlier drafts of this guide referenced `MetaKeyPruner`, `NullPruner`, and `SchemaValidator`. None of the three exists in `pkg/graft`, and none is planned:
 
-func (p *ProcessorChain) Phase() graft.PostProcessPhase {
-    return graft.PhaseSequential
-}
-
-func (p *ProcessorChain) Process(
-    ctx context.Context,
-    doc *graft.Document,
-    meta *graft.ProcessMetadata,
-) error {
-    for _, proc := range p.processors {
-        if err := proc.Process(ctx, doc, meta); err != nil {
-            return fmt.Errorf("%s: %w", proc.Name(), err)
-        }
-    }
-    return nil
-}
-```
-
-### Document Transformation
-
-```go
-type EnvironmentExpander struct{}
-
-func (p *EnvironmentExpander) Name() string {
-    return "env-expander"
-}
-
-func (p *EnvironmentExpander) Phase() graft.PostProcessPhase {
-    return graft.PhaseSequential
-}
-
-func (p *EnvironmentExpander) Process(
-    ctx context.Context,
-    doc *graft.Document,
-    meta *graft.ProcessMetadata,
-) error {
-    // Walk all string values and expand environment variables
-    for _, path := range doc.Paths() {
-        val, err := doc.Get(path)
-        if err != nil {
-            continue
-        }
-
-        if str, ok := val.(string); ok {
-            expanded := os.ExpandEnv(str)
-            if expanded != str {
-                doc.Set(path, expanded)
-            }
-        }
-    }
-
-    return nil
-}
-```
-
-### Report Generator
-
-```go
-type MergeReportGenerator struct {
-    output io.Writer
-}
-
-func (p *MergeReportGenerator) Name() string {
-    return "merge-report"
-}
-
-func (p *MergeReportGenerator) Phase() graft.PostProcessPhase {
-    return graft.PhaseParallel // Read-only, can run in parallel
-}
-
-func (p *MergeReportGenerator) Process(
-    ctx context.Context,
-    doc *graft.Document,
-    meta *graft.ProcessMetadata,
-) error {
-    report := struct {
-        Sources    []string      `json:"sources"`
-        TotalKeys  int           `json:"total_keys"`
-        Duration   time.Duration `json:"duration"`
-        ChangedPaths []string    `json:"changed_paths,omitempty"`
-    }{
-        TotalKeys: len(doc.Paths()),
-        Duration:  meta.ParseDuration + meta.MergeDuration + meta.EvalDuration,
-    }
-
-    for _, src := range meta.Sources {
-        report.Sources = append(report.Sources, src.Path)
-    }
-
-    if meta.History != nil {
-        report.ChangedPaths = meta.History.ChangedPaths()
-    }
-
-    return json.NewEncoder(p.output).Encode(report)
-}
-```
+- **`MetaKeyPruner`/`NullPruner`** - graft's real pruning model is path-based (`(( prune ))` in a document, `--prune`/`WithPrune` on the CLI/library, and `NewPruner` above), not keyed on a specific meta-key convention or on null values. Use `NewPruner` with the paths you want removed.
+- **`SchemaValidator`** - graft has no defined validation semantic anywhere in the library (see the [Configuration Options](library-api/options.md) page's own note on `WithValidation`). Write a custom `PostProcessor` like `RequiredFieldsChecker` above, or validate the document after `Execute()` returns using a schema library of your choice.
 
 ## Error Handling
 
-### Validation Errors
-
-```go
-&graft.ValidationError{
-    Processor: "schema-validator",
-    Message:   "validation failed",
-    Path:      "database.port",
-    Expected:  "integer",
-    Actual:    "string",
-    Details: []string{
-        "database.port: expected integer, got string",
-        "database.host: required field missing",
-    },
-}
-```
+A `PostProcessor`'s `Process` method returns `(graft.Document, error)`. `Execute()` wraps any non-nil error as `fmt.Errorf("post-processor %q failed: %w", proc.Name(), err)`, so callers can use `errors.Is`/`errors.As` against the original error through that wrapper. A processor is free to define its own error type - as `requiredFieldsError` does above - graft does not require or export a specific validation-error shape.
 
 ### Collecting Multiple Errors
 
 ```go
-type MultiValidator struct {
-    validators []graft.PostProcessor
+type multiCheckError struct {
+    Processor string
+    Errors    []error
 }
 
-func (p *MultiValidator) Process(
+func (e *multiCheckError) Error() string {
+    return fmt.Sprintf("%s: %d error(s)", e.Processor, len(e.Errors))
+}
+
+type MultiChecker struct {
+    checks []graft.PostProcessor
+}
+
+func (p *MultiChecker) Name() string { return "multi-check" }
+
+func (p *MultiChecker) Phase() graft.PostProcessPhase { return graft.PhaseNormal }
+
+func (p *MultiChecker) Process(
     ctx context.Context,
-    doc *graft.Document,
+    doc graft.Document,
     meta *graft.ProcessMetadata,
-) error {
-    var errors []error
-
-    for _, v := range p.validators {
-        if err := v.Process(ctx, doc, meta); err != nil {
-            errors = append(errors, err)
+) (graft.Document, error) {
+    var errs []error
+    for _, c := range p.checks {
+        if _, err := c.Process(ctx, doc, meta); err != nil {
+            errs = append(errs, err)
         }
     }
-
-    if len(errors) > 0 {
-        return &graft.ValidationError{
-            Processor: p.Name(),
-            Message:   fmt.Sprintf("%d validation errors", len(errors)),
-            Errors:    errors,
-        }
+    if len(errs) > 0 {
+        return nil, &multiCheckError{Processor: p.Name(), Errors: errs}
     }
-
-    return nil
+    return doc, nil
 }
 ```
 
@@ -482,8 +306,8 @@ func (p *MultiValidator) Process(
 ### Unit Testing
 
 ```go
-func TestRequiredFieldsValidator(t *testing.T) {
-    validator := NewRequiredFieldsValidator("database.host", "database.port")
+func TestRequiredFieldsChecker(t *testing.T) {
+    checker := NewRequiredFieldsChecker("database.host", "database.port")
 
     tests := []struct {
         name    string
@@ -509,17 +333,17 @@ database:
         },
     }
 
+    engine, _ := graft.NewEngine()
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
-            engine, _ := graft.NewEngine()
             doc, _ := engine.ParseYAML([]byte(tt.yaml))
+            _, err := checker.Process(context.Background(), doc, &graft.ProcessMetadata{})
 
-            err := validator.Process(context.Background(), doc, &graft.ProcessMetadata{})
-
-            if tt.wantErr {
-                assert.Error(t, err)
-            } else {
-                assert.NoError(t, err)
+            if tt.wantErr && err == nil {
+                t.Error("expected error, got nil")
+            }
+            if !tt.wantErr && err != nil {
+                t.Errorf("unexpected error: %v", err)
             }
         })
     }
@@ -532,8 +356,8 @@ database:
 func TestPostProcessorIntegration(t *testing.T) {
     engine, _ := graft.NewEngine(
         graft.WithPostProcessors(
-            NewRequiredFieldsValidator("app.name"),
-            &graft.Pruner{Keys: []string{"internal"}},
+            NewRequiredFieldsChecker("app.name"),
+            graft.NewPruner("internal"),
         ),
     )
 
@@ -547,9 +371,15 @@ internal:
 
     result, err := engine.Merge(context.Background(), doc).Execute()
 
-    assert.NoError(t, err)
-    assert.True(t, result.Has("app.name"))
-    assert.False(t, result.Has("internal"))
+    if err != nil {
+        t.Fatalf("Execute() error = %v", err)
+    }
+    if !result.Has("app.name") {
+        t.Error("expected app.name to survive")
+    }
+    if result.Has("internal") {
+        t.Error("expected internal to be pruned")
+    }
 }
 ```
 
@@ -557,32 +387,28 @@ internal:
 
 ### Do
 
-- Use `PhaseParallel` for read-only processors
+- Return a wrapped, distinguishable error type so callers can use `errors.As` against it through `Execute()`'s `post-processor %q failed: %w` wrapper
 
-- Return structured `ValidationError` with context
+- Check `ctx.Err()` in a long-running processor and return promptly if it is non-nil
 
-- Check context cancellation in long-running processors
+- Document what the processor validates or transforms, and which phase it expects to run in
 
-- Document what the processor validates or transforms
-
-- Test edge cases (empty documents, nil values)
+- Test edge cases (empty documents, missing paths, nil values)
 
 ### Don't
 
-- Modify documents in `PhaseParallel` processors
+- Assume document structure without checking (`doc.Has`, `doc.Get`, checked getters)
 
-- Assume document structure without checking
+- Retain `doc` or the `Document` `Process` returns past the call - both are backed by data `Execute` may reuse or discard once `Process` returns
 
-- Block indefinitely without respecting context
+- Block indefinitely without checking `ctx.Done()`
 
-- Swallow errors silently
-
-- Create side effects without documentation
+- Swallow errors silently - return them, or wrap them with context if you must transform them
 
 ## Related Documentation
 
-- [Configuration Options](library-api/options.md) - Post-processor configuration
+- [Configuration Options](library-api/options.md) - Engine-level `WithPostProcessors`
 
 - [Custom Operators](custom-operators.md) - Creating operators
 
-- [History API](library-api/history-api.md) - Accessing merge history
+- [MergeBuilder API](library-api/merge-builder.md) - `WithPostProcessors`, `WithPrune`, `WithCherryPick`

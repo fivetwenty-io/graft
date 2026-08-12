@@ -229,11 +229,13 @@ server:
 
 ### Testing Post-Processors
 
+`NewRequiredFieldsChecker` here is the example custom `graft.PostProcessor` built in [Custom Post-Processors](custom-post-processors.md#simple-field-checker), not part of `pkg/graft` itself:
+
 ```go
-func TestRequiredFieldsValidator(t *testing.T) {
+func TestRequiredFieldsChecker(t *testing.T) {
     engine, _ := graft.NewEngine(
         graft.WithPostProcessors(
-            NewRequiredFieldsValidator("app.name", "app.version"),
+            NewRequiredFieldsChecker("app.name", "app.version"),
         ),
     )
 

@@ -466,11 +466,14 @@ func (m *TenantConfigManager) GetValue(tenantID, path string) (interface{}, erro
 
 ### Validation Pipeline
 
+Post-processors run on the merge path (`Merge`/`MergeFiles`/`MergeReaders`'s `Execute()`), not on a bare `Evaluate()` call - calling `Evaluate` directly skips them. Graft has no built-in schema-validation post-processor (see [Custom Post-Processors](custom-post-processors.md#not-provided)); the example below checks required fields with a small custom `graft.PostProcessor` and redacts secrets with the built-in `graft.NewSecurityRedactor`:
+
 ```go
 package validation
 
 import (
     "context"
+    "fmt"
 
     "github.com/fivetwenty-io/graft/pkg/graft"
 )
@@ -479,27 +482,19 @@ type ConfigValidator struct {
     engine graft.Engine
 }
 
-func NewConfigValidator(schemaPath string) (*ConfigValidator, error) {
-    schema, err := NewSchemaValidator(schemaPath)
-    if err != nil {
-        return nil, err
-    }
-
+func NewConfigValidator() *ConfigValidator {
     engine, _ := graft.NewEngine(
         graft.WithPostProcessors(
-            schema,
-            NewRequiredFieldsValidator(
+            &requiredFieldsChecker{fields: []string{
                 "app.name",
                 "app.version",
                 "database.host",
-            ),
-            &graft.SecurityRedactor{
-                Patterns: []string{"password", "secret", "key"},
-            },
+            }},
+            graft.NewSecurityRedactor([]string{"password", "secret", "key"}, ""),
         ),
     )
 
-    return &ConfigValidator{engine: engine}, nil
+    return &ConfigValidator{engine: engine}
 }
 
 func (v *ConfigValidator) Validate(ctx context.Context, configPath string) error {
@@ -508,9 +503,7 @@ func (v *ConfigValidator) Validate(ctx context.Context, configPath string) error
         return fmt.Errorf("parse error: %w", err)
     }
 
-    // Evaluation triggers post-processors
-    _, err = v.engine.Evaluate(ctx, doc)
-    if err != nil {
+    if _, err := v.engine.Merge(ctx, doc).Execute(); err != nil {
         return fmt.Errorf("validation error: %w", err)
     }
 
@@ -528,6 +521,30 @@ func (v *ConfigValidator) ValidateAndMerge(ctx context.Context, paths ...string)
     }
 
     return v.engine.Merge(ctx, docs...).Execute()
+}
+
+// requiredFieldsChecker is a minimal graft.PostProcessor. See
+// [Custom Post-Processors](custom-post-processors.md) for the full
+// pattern, including a distinguishable error type and priority ordering.
+type requiredFieldsChecker struct {
+    fields []string
+}
+
+func (c *requiredFieldsChecker) Name() string { return "required-fields" }
+
+func (c *requiredFieldsChecker) Phase() graft.PostProcessPhase { return graft.PhaseEarly }
+
+func (c *requiredFieldsChecker) Process(
+    _ context.Context,
+    doc graft.Document,
+    _ *graft.ProcessMetadata,
+) (graft.Document, error) {
+    for _, field := range c.fields {
+        if !doc.Has(field) {
+            return nil, fmt.Errorf("missing required field: %s", field)
+        }
+    }
+    return doc, nil
 }
 ```
 
