@@ -253,6 +253,14 @@ type AdvancedTokenizer struct {
 	nextPosition int
 	nextLine     int
 	nextColumn   int
+
+	// groupStack tracks the still-open "(" / "((" groups, innermost last:
+	// true for a group opened by "((" (needs "))" to close), false for one
+	// opened by a bare "(" (needs a single ")"). scanParentheses consults
+	// the top entry to decide whether a ')' may combine with an
+	// immediately following ')' into a single TokenOperatorEnd, rather than
+	// combining unconditionally — see scanParentheses's doc comment.
+	groupStack []bool
 }
 
 // NewAdvancedTokenizer creates a new tokenizer with the given options.
@@ -468,17 +476,42 @@ func (t *AdvancedTokenizer) scanDollarSign(pos tokenPosition) Token {
 }
 
 // scanParentheses handles ( and ) characters.
+//
+// A ')' combines with an immediately following ')' into TokenOperatorEnd
+// only when the group it closes was itself opened by "((". groupStack
+// (innermost last) tracks how each open group was opened, so a bare-"("
+// group's close is always emitted alone: without this, "(join "," (grab
+// a)) ))" would swallow the inner group's own ')' into the outer
+// wrapper's "))", leaving the parser nothing to close "(join ...)" with.
+//
+// The opening side combines '(' with a following '(' unconditionally.
+// Whether an adjacent pair is a genuine nested marker-open ("(( prune ))"
+// as an operand) or two independent grouping opens ("((A && B) || C)")
+// isn't decidable here — both look identical until the parser sees what
+// follows the parsed content. parseNestedOperator resolves it after the
+// fact instead.
 func (t *AdvancedTokenizer) scanParentheses(ch rune, pos tokenPosition) (Token, bool) {
 	switch ch {
 	case '(':
 		if t.peek() == '(' {
 			t.advance(2)
+			t.groupStack = append(t.groupStack, true)
 			return t.makeTokenAt(TokenOperatorStart, "((", pos.start, pos.startLine, pos.startColumn), true
 		}
 		t.advance(1)
+		t.groupStack = append(t.groupStack, false)
 		return t.makeTokenAt(TokenLeftParen, "(", pos.start, pos.startLine, pos.startColumn), true
 	case ')':
-		if t.peek() == ')' {
+		// No tracked open group (e.g. a stray ')' with no matching '(' /
+		// "((" — already malformed input the parser will reject) falls
+		// back to the historical unconditional-combine behavior, changing
+		// nothing about how already-invalid input is reported.
+		needsDouble := true
+		if n := len(t.groupStack); n > 0 {
+			needsDouble = t.groupStack[n-1]
+			t.groupStack = t.groupStack[:n-1]
+		}
+		if needsDouble && t.peek() == ')' {
 			t.advance(2)
 			return t.makeTokenAt(TokenOperatorEnd, "))", pos.start, pos.startLine, pos.startColumn), true
 		}
