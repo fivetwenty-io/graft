@@ -125,7 +125,7 @@ func (le *LazyExpression) evaluateExpression() (interface{}, error) {
 		opName := le.expr.Op()
 		args := le.expr.Args()
 
-		operator := OperatorFor(opName)
+		operator := OperatorForEngine(le.evaluator.engine, opName)
 		if operator == nil {
 			return nil, fmt.Errorf("unknown operator: %s", opName)
 		}

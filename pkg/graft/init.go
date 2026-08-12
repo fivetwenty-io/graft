@@ -33,11 +33,29 @@ func init() {
 // The operators package sets this to its actual implementation.
 var ParseOpcallFunc func(phase OperatorPhase, src string) (*Opcall, error)
 
+// ParseOpcallForEngineFunc is the registered engine-aware parser function.
+// The operators package sets this to its actual implementation alongside
+// ParseOpcallFunc (same init(), same reason: operators imports graft, not
+// the reverse, so the parser can only be reached through a hook variable).
+var ParseOpcallForEngineFunc func(e Engine, phase OperatorPhase, src string) (*Opcall, error)
+
 // ParseOpcall parses an operator call expression.
 // It delegates to the registered parser function.
 func ParseOpcall(phase OperatorPhase, src string) (*Opcall, error) {
 	if ParseOpcallFunc != nil {
 		return ParseOpcallFunc(phase, src)
+	}
+	return nil, fmt.Errorf("parser not initialized - operators package must be imported")
+}
+
+// ParseOpcallForEngine parses an operator call expression, resolving
+// operator names against the engine's local registry (custom operators,
+// RegisterOperator overrides) before falling back to the process-global
+// DefaultRegistry. A nil engine, or an engine with no local override for an
+// operator name, resolves identically to ParseOpcall.
+func ParseOpcallForEngine(e Engine, phase OperatorPhase, src string) (*Opcall, error) {
+	if ParseOpcallForEngineFunc != nil {
+		return ParseOpcallForEngineFunc(e, phase, src)
 	}
 	return nil, fmt.Errorf("parser not initialized - operators package must be imported")
 }
@@ -78,6 +96,23 @@ func OperatorFor(name string) Operator {
 
 	// Return a NullOperator for unknown operators
 	return NullOperator{Missing: name}
+}
+
+// OperatorForEngine returns the operator for the given name, preferring the
+// engine's local registry (RegisterOperator overrides, WithCustomOperator
+// entries applied at construction) over the process-global DefaultRegistry.
+// A nil engine, or an engine that has no entry (local or inherited) for
+// name, resolves identically to OperatorFor: the engine's registry is a
+// full clone of DefaultRegistry at construction time, so any built-in
+// operator resolves through either path, and a genuinely unknown name falls
+// through to OperatorFor's NullOperator here too.
+func OperatorForEngine(e Engine, name string) Operator {
+	if e != nil {
+		if op, exists := e.GetOperator(name); exists {
+			return op
+		}
+	}
+	return OperatorFor(name)
 }
 
 // NullOperator is a placeholder operator for unknown operations.

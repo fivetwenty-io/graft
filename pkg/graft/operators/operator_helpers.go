@@ -113,8 +113,15 @@ func evaluateNestedOperator(ev *Evaluator, expr *Expr) (interface{}, error) {
 	opName := expr.Op()
 	args := expr.Args()
 
-	// Get the operator
-	op := OperatorFor(opName)
+	// Get the operator, preferring ev's engine-local registry so a custom
+	// operator registered via Engine.RegisterOperator / WithCustomOperator
+	// resolves the same nested (e.g. (( concat "a" (upper "b") ))) as it
+	// does at the top level. graft.EngineOf, not graft.GetEngine: this runs
+	// once per nested operator call, and GetEngine materializes a whole
+	// new default engine (with an unstoppable cache-cleanup goroutine) on
+	// every nil-engine Evaluator, which OperatorForEngine's own nil
+	// handling makes unnecessary here.
+	op := OperatorForEngine(graft.EngineOf(ev), opName)
 	if _, ok := op.(graft.NullOperator); ok {
 		return nil, fmt.Errorf("unknown operator: %s", opName)
 	}

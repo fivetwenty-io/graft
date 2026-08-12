@@ -45,7 +45,7 @@ func EvaluateInfix(ev *Evaluator, e *Expr) (interface{}, error) {
 		return nil, fmt.Errorf("unsupported expression type for evaluation: %d", e.Type)
 	}
 
-	op := OperatorFor(symbol)
+	op := OperatorForEngine(ev.engine, symbol)
 	if _, isNull := op.(NullOperator); isNull {
 		return nil, fmt.Errorf("unknown operator: %s", symbol)
 	}

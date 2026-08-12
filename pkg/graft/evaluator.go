@@ -145,7 +145,7 @@ func (ctx *dataFlowContext) checkValue(v interface{}) {
 
 	ctx.logDebugIfNeeded(s)
 
-	op, err := ParseOpcall(ctx.phase, s)
+	op, err := ParseOpcallForEngine(ctx.ev.engine, ctx.phase, s)
 	if err != nil {
 		ctx.errors.Append(err)
 		return
@@ -236,7 +236,7 @@ func (ctx *dataFlowContext) scanSlice(v []interface{}) {
 
 	for i, val := range v {
 		name := nameOfObj(val, fmt.Sprintf("%d", i))
-		op, _ := ParseOpcall(ctx.phase, name)
+		op, _ := ParseOpcallForEngine(ctx.ev.engine, ctx.phase, name)
 		if op == nil {
 			ctx.ev.Here.Push(name)
 		} else {

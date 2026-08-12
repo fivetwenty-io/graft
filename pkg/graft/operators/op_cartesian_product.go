@@ -41,8 +41,10 @@ func (CartesianProductOperator) Dependencies(ev *Evaluator, args []*Expr, locs [
 				}
 			}
 		case graft.OperatorCall:
-			// Get dependencies from nested operator
-			nestedOp := OperatorFor(arg.Op())
+			// Get dependencies from nested operator, preferring ev's
+			// engine-local registry (see evaluateNestedOperator).
+			// graft.EngineOf, not graft.GetEngine: see operator_helpers.go.
+			nestedOp := OperatorForEngine(graft.EngineOf(ev), arg.Op())
 			if _, ok := nestedOp.(graft.NullOperator); !ok {
 				nestedDeps := nestedOp.Dependencies(ev, arg.Args(), locs, auto)
 				l = append(l, nestedDeps...)

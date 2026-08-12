@@ -51,7 +51,7 @@ func init() {
 
 // AddToSortListIfNecessaryWithEngine is the engine-aware version.
 func AddToSortListIfNecessaryWithEngine(operator string, path string, engine graft.Engine) {
-	if opcall, err := ParseOpcall(MergePhase, operator); err == nil {
+	if opcall, err := graft.ParseOpcallForEngine(engine, MergePhase, operator); err == nil {
 		var byKey string
 		args := opcall.Args()
 		if len(args) == 2 {

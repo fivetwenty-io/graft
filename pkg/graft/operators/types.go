@@ -19,6 +19,7 @@ type (
 	OperatorPhase = graft.OperatorPhase
 	ExprType      = graft.ExprType
 	Operator      = graft.Operator
+	Engine        = graft.Engine
 )
 
 // Constants.
@@ -73,6 +74,15 @@ func TRACE(format string, args ...interface{}) {
 // OperatorFor returns the operator for the given name.
 func OperatorFor(name string) Operator {
 	return graft.OperatorFor(name)
+}
+
+// OperatorForEngine returns the operator for the given name, preferring the
+// engine's local registry over the process-global DefaultRegistry. Used for
+// nested operator resolution (an operator call as another operator's
+// argument, e.g. (( concat "a" (upper "b") ))) so a custom operator
+// registered on the engine is visible there too, not only at top level.
+func OperatorForEngine(e Engine, name string) Operator {
+	return graft.OperatorForEngine(e, name)
 }
 
 // ResolveEnv resolves environment variables in a slice of strings.

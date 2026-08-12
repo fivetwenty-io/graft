@@ -43,6 +43,13 @@ type Parser struct {
 	// and parseNestedOperator increment it on entry and decrement it on exit;
 	// exceeding maxNestingDepth is a hard parse error.
 	nestingDepth int
+
+	// engine, when non-nil, is consulted before DefaultRegistry for every
+	// operator-name lookup this parser makes (operatorFor). It is set once
+	// at construction (NewParserForEngine) and never reassigned — nested
+	// parses reuse the same Parser instance rather than constructing a new
+	// one, so the engine threads through recursion for free.
+	engine Engine
 }
 
 // maxNestingDepth bounds "(" / "((" nesting depth.
@@ -86,6 +93,21 @@ func NewParser(input string, phase OperatorPhase) *Parser {
 		input:     input,
 		phase:     phase,
 	}
+}
+
+// NewParserForEngine creates a new Parser whose operator-name lookups
+// (operatorFor) prefer the given engine's local registry over
+// DefaultRegistry. A nil engine behaves exactly like NewParser.
+func NewParserForEngine(input string, phase OperatorPhase, e Engine) *Parser {
+	p := NewParser(input, phase)
+	p.engine = e
+	return p
+}
+
+// operatorFor resolves an operator name through this parser's engine (if
+// any), falling back to the process-global DefaultRegistry.
+func (p *Parser) operatorFor(name string) Operator {
+	return OperatorForEngine(p.engine, name)
 }
 
 // tokenize converts input to tokens.
@@ -331,7 +353,7 @@ func (p *Parser) identifierOpensOpcallAt(idx int) bool {
 	if tok.Type != interfaces.TokenIdentifier {
 		return false
 	}
-	if _, isNull := OperatorFor(tok.Literal).(NullOperator); isNull {
+	if _, isNull := p.operatorFor(tok.Literal).(NullOperator); isNull {
 		return false
 	}
 
@@ -369,7 +391,7 @@ func (p *Parser) parseTernary(condition *Expr) (*Expr, error) {
 		Operator: "?:",
 		Call: &Opcall{
 			src: p.input,
-			op:  OperatorFor("?:"),
+			op:  p.operatorFor("?:"),
 			args: []*Expr{
 				condition,
 				trueExpr,
@@ -552,7 +574,7 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 	name := tok.Literal
 
 	// Check if this is a known operator (regardless of phase - let evaluator filter by phase)
-	op := OperatorFor(name)
+	op := p.operatorFor(name)
 	_, isNullOperator := op.(NullOperator)
 	isKnownOperator := !isNullOperator
 
@@ -732,7 +754,7 @@ func (p *Parser) nextTokenPlacesIdentifierInOperandPosition() bool {
 func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 	p.advance() // consume operator name
 
-	op := OperatorFor(opName)
+	op := p.operatorFor(opName)
 
 	// "(( calc * 2 ))" must parse identically to
 	// "(( calc "* 2" ))" — op_calc.go's leading-operator branch already
@@ -1298,7 +1320,7 @@ func (p *Parser) exprToOpcall(expr *Expr) (*Opcall, error) {
 	// Reference expressions just return the reference value
 	if expr.Type == Reference {
 		// Create a "grab" operator call for references
-		op := OperatorFor("grab")
+		op := p.operatorFor("grab")
 		if _, ok := op.(NullOperator); ok {
 			return nil, fmt.Errorf("grab operator not found")
 		}
@@ -1397,13 +1419,21 @@ func processEscapes(s string) string {
 
 // ParseOpcallWithParser parses an operator call using the new Parser.
 func ParseOpcallWithParser(phase OperatorPhase, src string) (*Opcall, error) {
+	return ParseOpcallWithParserForEngine(nil, phase, src)
+}
+
+// ParseOpcallWithParserForEngine parses an operator call using the new
+// Parser, resolving operator names against e's local registry before
+// falling back to DefaultRegistry. A nil engine behaves identically to
+// ParseOpcallWithParser.
+func ParseOpcallWithParserForEngine(e Engine, phase OperatorPhase, src string) (*Opcall, error) {
 	// Quick check - must start with (( and end with ))
 	src = strings.TrimSpace(src)
 	if !strings.HasPrefix(src, "((") || !strings.HasSuffix(src, "))") {
 		return nil, nil
 	}
 
-	parser := NewParser(src, phase)
+	parser := NewParserForEngine(src, phase, e)
 	opcall, err := parser.ParseOpcall()
 	if err != nil {
 		// For debugging
