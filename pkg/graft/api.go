@@ -15,6 +15,11 @@ import (
 
 // Document represents a YAML/JSON document in a more user-friendly format
 // This abstraction provides type-safe access to the internal map[string]interface{} representation.
+//
+// Document is not intended to be implemented outside this package. The
+// two in-repo implementations (the map-backed default and the go-patch
+// operation holder returned by NewGoPatchDocument) are exhaustive; new
+// methods may be added to this interface in minor releases.
 type Document interface {
 	// Get retrieves a value at the given path (e.g., "meta.instance_groups.0.name")
 	Get(path string) (interface{}, error)
@@ -100,6 +105,10 @@ type Document interface {
 }
 
 // Engine is the enhanced interface for using graft as a library.
+//
+// Engine is not intended to be implemented outside this package. NewEngine
+// only ever returns *DefaultEngine; new methods may be added to this
+// interface in minor releases.
 type Engine interface {
 	// Document operations
 	ParseYAML(data []byte) (Document, error)
@@ -208,6 +217,11 @@ const (
 )
 
 // MergeBuilder provides a fluent interface for merge operations.
+//
+// MergeBuilder is not intended to be implemented outside this package.
+// Engine.Merge/MergeFiles/MergeReaders only ever return the package's own
+// implementation; new methods may be added to this interface in minor
+// releases.
 type MergeBuilder interface {
 	// WithPrune specifies keys to remove from the final output
 	WithPrune(keys ...string) MergeBuilder
