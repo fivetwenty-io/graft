@@ -716,13 +716,32 @@ type VaultClient interface {
 	Put(path string, data map[string]interface{}) error
 }
 
-// AWSConfig holds AWS-specific configuration.
+// AWSConfig holds AWS-specific configuration, consumed both by the
+// existing (deprecated, no-op) WithAWSConfig engine option and by
+// WithAWS/WithAWSTarget (backend_aws.go), which do give it an observable
+// effect - see WithAWS's doc comment.
 type AWSConfig struct {
 	Region   string
 	Profile  string
 	Role     string
 	SkipAuth bool
 	Endpoint string // For testing with localstack
+
+	// AccessKeyID, SecretAccessKey, and SessionToken set static AWS
+	// credentials directly, bypassing the SDK's default provider chain
+	// (environment, shared config, EC2/ECS role). Only consumed by
+	// WithAWS/WithAWSTarget; the deprecated WithAWSConfig option still
+	// ignores every field, including these. Ignored entirely when SkipAuth
+	// is true.
+	AccessKeyID     string
+	SecretAccessKey string
+	SessionToken    string
+
+	// PoolSize sets the underlying HTTP transport's
+	// MaxIdleConnsPerHost/MaxIdleConns. Non-positive leaves Go's
+	// http.Transport zero-value default (2 idle connections per host) in
+	// effect. Only consumed by WithAWS/WithAWSTarget.
+	PoolSize int
 }
 
 // NewEngine creates a new engine instance with the given options, applied
