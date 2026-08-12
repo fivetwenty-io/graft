@@ -472,10 +472,23 @@ type Opcall struct {
 }
 ```
 
-There are no control-flow node types, and no visitor interface. Control flow
-never reaches the expression AST, and `Opcall.Run` dispatches directly on the
-`Operator` interface — `Setup`, `Run`, `Dependencies`, `Phase` — rather than
-through a traversal.
+There are no control-flow node types: control flow never reaches the
+expression AST, and `Opcall.Run` dispatches directly on the `Operator`
+interface — `Setup`, `Run`, `Dependencies`, `Phase` — rather than through a
+traversal.
+
+A tree-wide traversal over `Expr` is available separately: `graft.Walk(e,
+fn)` visits `e` and every reachable child (`Left`, `Right`,
+`Call.Args()`) in pre-order, following only the fields a given node
+actually populates rather than switching on `Type`; returning `false` from
+`fn` prunes that node's subtree without stopping the rest of the walk.
+`graft.Visitor` is a companion double-dispatch interface
+(`VisitLiteral`/`VisitReference`/`VisitOperatorCall`/`VisitBinaryOp`/
+`VisitUnaryOp`/`VisitEnvVar`, plus a `VisitOther` catch-all for every
+`ExprType` without a dedicated method) — `graft.Accept(e, v)` dispatches
+one node to the matching method without recursing; a `Visitor`
+implementation that wants a full-tree visit calls `Accept` or `Walk`
+itself from inside its own methods.
 
 An operator that accepts a target implements `TargetAware`. `Opcall.Run`
 consults it before running any call that carried one, so an operator that
