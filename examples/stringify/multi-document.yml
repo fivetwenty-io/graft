@@ -98,7 +98,15 @@ helm_values:
 
 # Generate multiple Kubernetes manifests
 kubernetes_manifests:
-  # Deployment manifest with embedded config
+  # Deployment manifest with embedded config.
+  #
+  # Note: a YAML block scalar (the `|` below) is a literal string --
+  # everything indented under it, including any line that starts with
+  # `#` or looks like graft syntax, is body text, never evaluated. The
+  # CONFIG env var's placeholder value shows where
+  # service_configs.api_config_yaml (computed above) would be embedded
+  # and re-indented by an external templating step; there is no
+  # `indent` operator in graft to do that inline.
   api_deployment: |
     apiVersion: apps/v1
     kind: Deployment
@@ -124,7 +132,7 @@ kubernetes_manifests:
             env:
             - name: CONFIG
               value: |
-                (( indent 16 service_configs.api_config_yaml ))
+                <service_configs.api_config_yaml, indented 16 spaces>
   
   # ConfigMap for each service
   configmaps:
@@ -153,41 +161,46 @@ kubernetes_manifests:
         config.yml: (( stringify services.notification_service ))
 
 # Generate environment-specific configurations
+#
+# Note: final_config below stringifies a `config` sub-key rather than
+# the whole environment node, since environments.development itself
+# would otherwise include final_config as one of its own keys --
+# stringifying a node that contains itself never resolves.
 environments:
   development:
-    global:
-      environment: development
-      log_level: debug
-      enable_profiling: true
-    
-    services: (( grab services ))
-    
-    overrides:
-      api_service:
-        port: 8080
-        routes:
-          - path: /debug
-            service: debug-service
-    
+    config:
+      services: (( grab services ))
+      global:
+        environment: development
+        log_level: debug
+        enable_profiling: true
+
+      overrides:
+        api_service:
+          port: 8080
+          routes:
+            - path: /debug
+              service: debug-service
+
     # Merge and stringify
-    final_config: (( stringify environments.development ))
-  
+    final_config: (( stringify environments.development.config ))
+
   production:
-    global:
-      environment: production
-      log_level: info
-      enable_profiling: false
-    
-    services: (( grab services ))
-    
-    overrides:
-      api_service:
-        health_check:
-          interval: 10s
-          timeout: 3s
-    
+    config:
+      services: (( grab services ))
+      global:
+        environment: production
+        log_level: info
+        enable_profiling: false
+
+      overrides:
+        api_service:
+          health_check:
+            interval: 10s
+            timeout: 3s
+
     # Merge and stringify
-    final_config: (( stringify environments.production ))
+    final_config: (( stringify environments.production.config ))
 
 # Generate documentation from configuration
 documentation:
@@ -211,6 +224,11 @@ documentation:
         configuration: (( stringify services.notification_service ))
   
   # Generate markdown documentation
+  #
+  # Note: the "```yaml (( stringify ... )) ```" line below is inside a
+  # YAML block scalar -- a literal string, never evaluated -- and is
+  # intentional: it shows the graft syntax a reader would use, as part
+  # of the generated docs' own body text, not a live expression.
   markdown_docs:
     api_gateway_md: |
       # API Gateway Configuration
@@ -267,10 +285,10 @@ output_formats:
   
   # Combined configuration
   combined:
+    services: (( grab services ))
     timestamp: "2024-01-15T10:00:00Z"
     version: "1.0.0"
-    services: (( grab services ))
-    
+
   combined_yaml: (( stringify output_formats.combined ))
 
 # CI/CD pipeline configuration

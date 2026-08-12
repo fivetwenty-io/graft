@@ -22,9 +22,36 @@ func (StringifyOperator) Phase() OperatorPhase {
 	return EvalPhase
 }
 
-// Dependencies ...
-func (StringifyOperator) Dependencies(_ *Evaluator, _ []*Expr, _ []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
-	return auto
+// Dependencies returns what keys the operator depends on. stringify
+// captures and YAML-marshals its whole target subtree, so any other
+// opcall whose location is under that target must resolve first — the
+// same problem InjectOperator.Dependencies (op_inject.go) already solves
+// for its own reference argument, by walking locs (every other opcall's
+// location in the document) for entries under the reference's own
+// canonical path. Without this, the dependency graph has no edge forcing
+// e.g. a nested "(( grab ... ))" under the target to run before
+// stringify, and stringify can capture (and permanently serialize) that
+// opcall's still-unevaluated marker text instead of its resolved value.
+func (StringifyOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
+	deps := make([]*tree.Cursor, 0, len(auto))
+	deps = append(deps, auto...)
+
+	for _, arg := range args {
+		if arg == nil || arg.Type != Reference || arg.Reference == nil {
+			continue
+		}
+		canon, err := arg.Reference.Canonical(ev.Tree)
+		if err != nil {
+			continue
+		}
+		for _, other := range locs {
+			if other.Under(canon) {
+				deps = append(deps, other)
+			}
+		}
+	}
+
+	return deps
 }
 
 // Run ...
