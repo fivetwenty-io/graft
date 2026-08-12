@@ -130,20 +130,35 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	engine := graft.GetEngine(ev)
 	var value string
 	if !engine.GetOperatorState().IsAWSSkipped() {
-		awsSess, cacheTarget, sessErr := o.resolveSession(ev.Target)
-		if sessErr != nil {
-			return nil, sessErr
-		}
+		// When features.FeatureBackendRegistry is enabled on ev's engine
+		// and a custom backend is registered under this operator's own
+		// name ("awsparam" or "awssecret"), it is consulted instead of
+		// internal/backends/aws below, using the same key the built-in
+		// path would fetch (before any "?key=..." subkey extraction,
+		// which - like the built-in path - runs uniformly afterward
+		// regardless of which source produced value).
+		if backend, ok := resolveCustomBackend(ev, o.variant); ok {
+			val, fetchErr := fetchFromBackend(backend, ev.Target, key)
+			if fetchErr != nil {
+				return nil, fmt.Errorf("$.%s error fetching %s: %w", key, o.variant, wrapBackendError(o.variant, ev.Target, key, fetchErr))
+			}
+			value = stringifyBackendValue(val)
+		} else {
+			awsSess, cacheTarget, sessErr := o.resolveSession(ev.Target)
+			if sessErr != nil {
+				return nil, sessErr
+			}
 
-		switch o.variant {
-		case "awsparam":
-			value, err = o.getAwsParam(awsSess, cacheTarget, key)
-		case "awssecret":
-			value, err = o.getAwsSecret(awsSess, cacheTarget, key, params)
-		}
+			switch o.variant {
+			case "awsparam":
+				value, err = o.getAwsParam(awsSess, cacheTarget, key)
+			case "awssecret":
+				value, err = o.getAwsSecret(awsSess, cacheTarget, key, params)
+			}
 
-		if err != nil {
-			return nil, fmt.Errorf("$.%s error fetching %s: %w", key, o.variant, err)
+			if err != nil {
+				return nil, fmt.Errorf("$.%s error fetching %s: %w", key, o.variant, err)
+			}
 		}
 
 		subkey := params.Get("key")

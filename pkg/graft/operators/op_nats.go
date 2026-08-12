@@ -267,6 +267,40 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 		return nil, ansi.Errorf("@R{first argument to nats operator must be a string}")
 	}
 
+	// When features.FeatureBackendRegistry is enabled on ev's engine and
+	// a custom backend is registered under the name "nats", it is
+	// consulted instead of internal/backends/nats below, using the raw
+	// path exactly as received - the "kv:"/"obj:" store-type prefix
+	// ParsePath validates a few lines down is a built-in-NATS-backend
+	// convention, not a Backend interface requirement, so a custom
+	// backend is never subjected to it. Unlike the vault/AWS operators,
+	// the result is returned as-is (not stringified): the built-in NATS
+	// path already returns arbitrary interface{} values from KV/Object
+	// stores (see the fetchFromKV/fetchFromObject call below), so a
+	// custom NATS backend gets the same latitude.
+	if backend, ok := resolveCustomBackend(ev, "nats"); ok {
+		// A second argument (`(( nats "kv:b/k" {"url": "..."} ))`) is the
+		// built-in internal/backends/nats connection config that
+		// parseNatsConfig below parses - a Backend implementation owns
+		// its own connection setup and has no parameter to receive it
+		// through (Backend.Get takes only ctx and path), so silently
+		// discarding it would accept a call whose second argument the
+		// custom backend can never honor. Reject it instead of ignoring
+		// it - see docs/developer-guide/custom-backends.md's "Which name
+		// to register under" section.
+		if len(args) > 1 {
+			return nil, ansi.Errorf("@R{nats operator's config argument is not supported against a custom \"nats\" backend - remove the second argument or configure the backend directly}")
+		}
+		val, fetchErr := fetchFromBackend(backend, ev.Target, path)
+		if fetchErr != nil {
+			return nil, wrapBackendError("nats", ev.Target, path, fetchErr)
+		}
+		return &graft.Response{
+			Type:  graft.Replace,
+			Value: val,
+		}, nil
+	}
+
 	// Parse the path to get store type and path
 	storeType, storePath, err := natsbackend.ParsePath(path)
 	if err != nil {

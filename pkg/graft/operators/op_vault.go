@@ -477,7 +477,7 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 		engine.GetOperatorState().AddVaultRef(key, []string{ev.Here.String()})
 
 		// Perform the vault lookup
-		secret, err := o.performVaultLookup(engine, ev.Target, key)
+		secret, err := o.performVaultLookup(ev, engine, ev.Target, key)
 		if err == nil {
 			// Success!
 			DEBUG("vault: path %d succeeded", i+1)
@@ -523,9 +523,33 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 // pooled, target-specific client when non-empty; an
 // empty target uses the default environment-initialized client, unchanged
 // from before target support existed.
-func (o VaultOperator) performVaultLookup(engine graft.Engine, target, key string) (string, error) {
+//
+// When features.FeatureBackendRegistry is enabled on ev's engine and a
+// custom backend is registered under the name "vault"
+// (resolveCustomBackend), that backend is consulted instead of the
+// internal/backends/vault path below, and key is passed to it exactly as
+// received - the "path/to/secret:key" colon convention validated a few
+// lines down is a built-in-Vault-reader concern, not a Backend interface
+// requirement, so a custom backend is never subjected to it.
+func (o VaultOperator) performVaultLookup(ev *graft.Evaluator, engine graft.Engine, target, key string) (string, error) {
 	if engine.GetOperatorState().IsVaultSkipped() {
 		return "REDACTED", nil
+	}
+
+	if backend, ok := resolveCustomBackend(ev, "vault"); ok {
+		val, fetchErr := fetchFromBackend(backend, target, key)
+		if fetchErr != nil {
+			if isBackendNotFound(fetchErr) {
+				// Match the built-in path's exact "secret <key> not
+				// found" shape (below) so the Genesis compatibility
+				// contract's not-found detection - "starts with `secret
+				// `, ends with ` not found`" - keeps working for custom
+				// backends.
+				return "", graft.WithCode(fmt.Errorf("secret %s not found", key), graft.CodeSecretNotFound)
+			}
+			return "", wrapBackendError("vault", target, key, fetchErr)
+		}
+		return stringifyBackendValue(val), nil
 	}
 
 	reader, err := o.resolveReader(engine, target)
@@ -686,7 +710,7 @@ func (o VaultTryOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 		// Use the shared vault infrastructure
 		vaultOp := VaultOperator{}
-		secret, err := vaultOp.performVaultLookup(engine, ev.Target, path)
+		secret, err := vaultOp.performVaultLookup(ev, engine, ev.Target, path)
 		if err == nil {
 			// Success!
 			DEBUG("vault-try: path %d succeeded", i+1)

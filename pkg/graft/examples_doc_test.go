@@ -17,6 +17,12 @@ import (
 	"time"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
+	// Registers vault/awsparam/awssecret/nats (and every other built-in
+	// operator) via init(), so ExampleWithBackend's "(( vault ... ))" call
+	// resolves. Other _test.go files in this test binary already import
+	// operators (e.g. errors_test.go), so this is redundant with the
+	// running binary today, but this file should not depend on that.
+	_ "github.com/fivetwenty-io/graft/pkg/graft/operators"
 )
 
 // ExampleNewEngine constructs an engine with functional options and
@@ -285,4 +291,96 @@ func ExampleDocument_History() {
 	// Output:
 	// true
 	// 0
+}
+
+// exampleMapBackend is a minimal graft.Backend backed by an in-memory map,
+// used only by ExampleWithBackend and ExampleDefaultEngine_RegisterBackend
+// below. See docs/developer-guide/custom-backends.md for a fuller
+// implementation sketch (retry, caching, a real upstream client).
+type exampleMapBackend struct {
+	name string
+	data map[string]string
+}
+
+func (b *exampleMapBackend) Name() string { return b.name }
+
+func (b *exampleMapBackend) Get(_ context.Context, path string) (interface{}, error) {
+	v, ok := b.data[path]
+	if !ok {
+		return nil, graft.ErrBackendNotFound
+	}
+	return v, nil
+}
+
+// GetBatch delegates to Get per path via graft.SequentialGetBatch - see
+// its doc comment for why: no graft operator calls GetBatch today, so
+// there is nothing to design real batching against.
+func (b *exampleMapBackend) GetBatch(ctx context.Context, paths []string) (map[string]interface{}, error) {
+	return graft.SequentialGetBatch(ctx, paths, b.Get)
+}
+
+func (b *exampleMapBackend) Health(context.Context) error { return nil }
+func (b *exampleMapBackend) Close() error                 { return nil }
+
+// ExampleWithBackend registers a custom backend under the name "vault" and
+// enables features.FeatureBackendRegistry via WithBackendRegistry (the
+// only way to enable it from outside this module - WithFeatureFlags takes
+// an internal/features type), so a "(( vault ... ))" call resolves through
+// the custom backend instead of a real Vault instance.
+func ExampleWithBackend() {
+	backend := &exampleMapBackend{
+		name: "vault",
+		data: map[string]string{"secret/db:password": "s3cr3t"},
+	}
+
+	engine, err := graft.NewEngine(
+		graft.WithBackend(backend),
+		graft.WithBackendRegistry(true),
+	)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	doc, err := engine.ParseYAML([]byte("password: (( vault \"secret/db:password\" ))\n"))
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	result, err := engine.Evaluate(context.Background(), doc)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	password, _ := result.GetString("password")
+	fmt.Println(password)
+	// Output:
+	// s3cr3t
+}
+
+// ExampleDefaultEngine_RegisterBackend registers a backend at runtime
+// (rather than via WithBackend at construction) and looks it up again with
+// GetBackend/ListBackends.
+func ExampleDefaultEngine_RegisterBackend() {
+	engine, err := graft.NewEngine(graft.WithBackendRegistry(true))
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	backend := &exampleMapBackend{name: "redis", data: map[string]string{"k": "v"}}
+	if err := engine.RegisterBackend(backend); err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	fmt.Println(engine.ListBackends())
+
+	got, ok := engine.GetBackend("redis")
+	fmt.Println(ok, got.Name())
+	// Output:
+	// [redis]
+	// true redis
 }
