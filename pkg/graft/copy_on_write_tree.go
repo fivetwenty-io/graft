@@ -6,6 +6,22 @@ import (
 	"sync/atomic"
 )
 
+// Dead code, kept deliberately (see the C9a dependency-graph-and-eval-plan
+// cluster notes in the graft library-API plan): COWNode is not the
+// document representation merging and evaluation actually use - that is
+// plain map[string]interface{} (merger/merge.go's Merge,
+// merge_builder_impl.go). There are zero COWNode/NewCOWTree references
+// anywhere in pkg/graft/merger or merge_builder_impl.go; NewCOWTree and
+// NewCOWEvaluator (cow_evaluator.go) are reached only from each other and
+// from this package's own COW-specific tests
+// (copy_on_write_tree_test.go, cow_evaluator_test.go,
+// cow_evaluator_evaluate_test.go, cow_evaluator_yaml_test.go). Do not
+// document this as "the real tree structure" - that would trade one
+// doc-vs-code gap for another. Deletion was considered and deliberately
+// deferred rather than done as a side effect of an unrelated cluster -
+// see the C9a work notes for the reachability evidence and the reasoning
+// for not deleting it in that pass.
+
 // COWNode represents a node in a Copy-on-Write tree.
 type COWNode struct {
 	value    interface{}

@@ -8,6 +8,21 @@ import (
 	"sync"
 )
 
+// Dead code, kept deliberately (see the C9a dependency-graph-and-eval-plan
+// cluster notes in the graft library-API plan): DAG has zero production
+// callers anywhere in this module. NewDAG is constructed only from this
+// package's own tests (parallel_test.go), GetWaves has only test callers
+// (including BenchmarkDAG_GetWaves), and the live parallel evaluation
+// path (Scheduler, in scheduler.go - the type runOpsWithScheduler and the
+// public graft.BuildEvalPlan both actually build and schedule) never
+// references DAG at all. Do not build new public API on top of this type
+// under the assumption it is an exercised implementation: it revives
+// untested-in-production code rather than reusing a working one. Deletion
+// was considered and deliberately deferred rather than done as a side
+// effect of an unrelated cluster - see the C9a work notes for the
+// reachability evidence and the reasoning for not deleting it in that
+// pass.
+
 // Node represents a node in the dependency graph.
 type Node struct {
 	// ID uniquely identifies this node
