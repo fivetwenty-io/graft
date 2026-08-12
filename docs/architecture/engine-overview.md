@@ -152,11 +152,13 @@ for the phase of each registered operator.
 `Evaluator.DataFlow` builds a dependency graph from each operator's
 declared `Dependencies()` and groups operators with no unmet dependency
 into waves (`pkg/graft/evaluator_parallel.go`, backed by
-`internal/parallel`'s scheduler and worker pool). Within a wave, every
-operator's own work — including any Vault/AWS/NATS network call — runs
-concurrently on its own goroutine; applying each result to the document
-tree is a separate, always-serialized step, since the tree is a plain Go
-map and not safe for concurrent writes. `internal/pools` supplies buffer
+`internal/parallel`'s scheduler and worker pool). Within a wave,
+order-sensitive operators run one at a time; every other operator's own
+work — including any Vault/AWS/NATS network call — runs concurrently on
+its own goroutine, and applying each result to the document tree is a
+separate, always-serialized step, since the tree is a plain Go map and
+not safe for concurrent writes. See
+[the parallel execution model](parallelism.md) for the partition rules. `internal/pools` supplies buffer
 and string pooling to reduce garbage-collection pressure under concurrent
 evaluation.
 

@@ -169,8 +169,12 @@ byte-identical to 1.30.0.
 
 - Parallel operator evaluation is enabled by default
 
-  Operator evaluation runs concurrently over a copy-on-write document tree.
-  Set `GRAFT_PARALLEL_ENABLED=false` to fall back to serial evaluation.
+  Operators are scheduled in dependency waves; within a wave,
+  order-sensitive operators (such as `static_ips`) run one at a time,
+  the rest run their work (including Vault/AWS/NATS calls)
+  concurrently, and results are applied to the document tree serially
+  in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
+  serial evaluation.
 
 [1.31.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.31.0
 [1.30.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.30.0
