@@ -160,11 +160,10 @@ map and not safe for concurrent writes. `internal/pools` supplies buffer
 and string pooling to reduce garbage-collection pressure under concurrent
 evaluation.
 
-`pkg/graft/copy_on_write_tree.go` and `pkg/graft/cow_evaluator.go` do
-implement a copy-on-write document tree, but nothing in the `merge`,
-`fan`, or `vaultinfo` command paths (or anywhere else in `pkg/graft`
-outside their own tests) constructs or uses it — it is not the mechanism
-behind `WithParallel` or wave-based evaluation described above.
+Historical note: the codebase once carried an unwired copy-on-write
+document tree (`COWTree`/`COWEvaluator`). It was never the mechanism
+behind `WithParallel` or the wave-based evaluation described above, and
+it has been removed.
 
 `graft.WithConcurrency`/`WithMaxWorkers` control concurrency; `graft.WithParallel`
 opts into wave-based concurrent operator evaluation. The CLI

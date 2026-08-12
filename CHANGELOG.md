@@ -127,6 +127,19 @@ byte-identical to 1.30.0.
   effect; use `WithAWS` or environment variables.
 - `WithMemoryPools` — sets a feature flag nothing reads.
 
+### Removed
+
+- The never-wired copy-on-write tree types and their helpers:
+  `COWNode`, `COWTree`, `COWEvaluator`, `EnhancedMigrationHelper`,
+  `COWTreeFactory`, `COWPerformanceMonitor`, `COWTreeComparator`, their
+  constructors, and the `ThreadSafeTree`/`TreeTransaction` interfaces
+  and `WorkerPool` type they were the only implementors of. Nothing in
+  graft outside their own tests ever constructed them; they were not
+  the mechanism behind parallel evaluation. These symbols predate
+  `pkg/graft` being a documented library surface (this release is the
+  first to declare one), which is why their removal ships in a minor
+  version.
+
 ## [1.30.0] - 2026-08-11
 
 ### Added
