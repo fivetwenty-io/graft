@@ -783,9 +783,28 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 			p.current().Type != interfaces.TokenEOF &&
 			p.current().Type != interfaces.TokenQuestion &&
 			p.current().Type != interfaces.TokenColon {
+			// A '-' immediately followed by a number (no space possible
+			// between them — the tokenizer always splits "-5" into a
+			// TokenMinus and a TokenInteger/TokenFloat pair; see
+			// parseUnaryMinus) is a negative-literal argument, not the
+			// infix-subtraction case isBinaryOperator's blanket check
+			// below assumes: each space-separated argument here is
+			// parsed as one standalone primary via parsePrimary, never
+			// through the full precedence-climbing expression parser, so
+			// there is no "previous operand" for a '-' at this position
+			// to subtract from in the first place — spruce parity: `((
+			// ips net -5 ))` is a documented negative-offset form.
+			// parsePrimary already dispatches TokenMinus to
+			// parseUnaryMinus, which builds the negative literal.
+			nextIsNumber := p.current().Type == interfaces.TokenMinus &&
+				func() bool {
+					next := p.tokenAt(p.pos + 1)
+					return next.Type == interfaces.TokenInteger || next.Type == interfaces.TokenFloat
+				}()
+
 			// Check for binary operators that would end the argument list
 			// Handle || as a LogicalOr marker for fallback expressions
-			if p.isBinaryOperator(p.current().Type) {
+			if p.isBinaryOperator(p.current().Type) && !nextIsNumber {
 				if p.current().Type == interfaces.TokenOr {
 					// Capture || and the fallback value as a LogicalOr expression
 					// This handles (( grab this || "that" )) and (( concat a || b  c || d ))
