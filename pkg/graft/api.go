@@ -599,28 +599,31 @@ type AWSConfig struct {
 	Endpoint string // For testing with localstack
 }
 
-// NewEngine creates a new engine instance with the given options.
+// NewEngine creates a new engine instance with the given options, applied
+// over the library's one documented default configuration
+// (defaultEngineOpts: caching enabled with a 10000-entry cache, parallel
+// evaluation disabled, 4 max concurrent workers, alphabetical dataflow
+// order). Earlier versions of NewEngine used a second, different default
+// set (1000-entry cache, 10 max workers); that drift is gone as of this
+// version - NewEngine and NewDefaultEngine now start from the same
+// defaults.
 func NewEngine(options ...EngineOption) (Engine, error) {
-	opts := &EngineOptions{
-		EnableCache:    true,
-		CacheSize:      1000,
-		MaxConcurrency: 10,
-		EnableMetrics:  false,
-	}
+	opts := defaultEngineOpts()
 
 	for _, option := range options {
-		option(opts)
+		option(&opts)
 	}
 
-	return createEngineFromOptions(opts)
+	return createEngineFromOptions(&opts)
 }
 
-// CreateDefaultEngine creates an engine with sensible defaults.
+// CreateDefaultEngine creates an engine with the library's default
+// configuration (see NewEngine). It is equivalent to NewEngine() with no
+// options; it exists as a discoverable, explicitly-named entry point for
+// callers who want "just give me a working engine" without needing to know
+// that an empty options list already does that.
 func CreateDefaultEngine() (Engine, error) {
-	return NewEngine(
-		WithCache(true, 1000),
-		WithConcurrency(10),
-	)
+	return NewEngine()
 }
 
 // TODO: Implement convenience functions after Engine implementation is complete

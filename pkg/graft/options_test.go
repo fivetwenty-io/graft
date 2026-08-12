@@ -294,3 +294,53 @@ func TestDeprecatedOptions_StillCompileAndConstruct(t *testing.T) {
 // NewDefaultEngine() (via defaultEngineOpts) now share one default
 // configuration instead of the two different default sets that existed
 // before (CacheSize 1000/MaxConcurrency 10 vs 10000/4).
+func TestNewEngine_DefaultsMatchDefaultEngineOpts(t *testing.T) {
+	want := defaultEngineOpts()
+
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+	got := engine.(*DefaultEngine).opts
+
+	if got.EnableCache != want.EnableCache {
+		t.Errorf("EnableCache = %v, want %v", got.EnableCache, want.EnableCache)
+	}
+	if got.CacheSize != want.CacheSize {
+		t.Errorf("CacheSize = %d, want %d", got.CacheSize, want.CacheSize)
+	}
+	if got.EnableParallel != want.EnableParallel {
+		t.Errorf("EnableParallel = %v, want %v", got.EnableParallel, want.EnableParallel)
+	}
+	if got.MaxConcurrency != want.MaxConcurrency {
+		t.Errorf("MaxConcurrency = %d, want %d", got.MaxConcurrency, want.MaxConcurrency)
+	}
+	if got.DataflowOrder != want.DataflowOrder {
+		t.Errorf("DataflowOrder = %q, want %q", got.DataflowOrder, want.DataflowOrder)
+	}
+}
+
+// TestCreateDefaultEngine_MatchesNewEngineDefaults proves CreateDefaultEngine
+// no longer carries its own, third default set (it used to hardcode
+// CacheSize 1000/MaxConcurrency 10 regardless of NewEngine's own defaults).
+func TestCreateDefaultEngine_MatchesNewEngineDefaults(t *testing.T) {
+	viaCreate, err := CreateDefaultEngine()
+	if err != nil {
+		t.Fatalf("CreateDefaultEngine failed: %v", err)
+	}
+	viaNew, err := NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine failed: %v", err)
+	}
+
+	got := viaCreate.(*DefaultEngine).opts
+	want := viaNew.(*DefaultEngine).opts
+	// EngineOptions contains a map field (CustomOperators), so it cannot be
+	// compared with == / !=; compare the fields default drift was actually
+	// about instead.
+	if got.EnableCache != want.EnableCache || got.CacheSize != want.CacheSize ||
+		got.EnableParallel != want.EnableParallel || got.MaxConcurrency != want.MaxConcurrency ||
+		got.DataflowOrder != want.DataflowOrder {
+		t.Errorf("CreateDefaultEngine() opts = %+v, want %+v (NewEngine() with no options)", got, want)
+	}
+}
