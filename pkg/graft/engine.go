@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -840,11 +841,221 @@ func (e *DefaultEngine) WithAWSConfig(_ AWSConfig) Engine {
 	return e
 }
 
-// UpdateOptions replaces the engine options and re-applies skip flags.
+// UpdateOptions replaces the engine options wholesale and re-applies the
+// skip flags derived from them. Any field not set on opts reverts to its
+// zero value, including fields the engine was originally constructed with
+// - unlike Configure, which applies opts as an incremental change over the
+// engine's current configuration.
 func (e *DefaultEngine) UpdateOptions(opts EngineOptions) {
 	e.opts = opts
 	e.skipVault = opts.SkipVault
 	e.skipAws = opts.SkipAws
+	e.skipNats = opts.SkipNats
+}
+
+// Configure applies opts as an incremental change over the engine's
+// current configuration - a copy of the engine's existing EngineOptions
+// with opts applied on top, so any field opts doesn't touch keeps its
+// current value - validates the result, and, if valid, makes it the
+// engine's new configuration.
+//
+// Configure validates fully before mutating any engine state, so a failed
+// call leaves the engine's configuration exactly as it was: an invalid
+// MaxConcurrency (negative) returns a *GraftError (see
+// NewConfigurationError), and one or more invalid pending custom-operator
+// registrations (an empty name, or a nil Operator - the same checks
+// UnifiedOperatorRegistry.Register performs) return that check's plain
+// (non-*GraftError) error, for the first invalid registration in
+// sorted-name order - deterministically, rather than whichever pending
+// operator Go's randomized map iteration happens to reach first.
+//
+// Once validation passes, Configure re-derives the engine's cache from the
+// resulting configuration (rebuilding it with the new size/TTL, or
+// removing it, as EnableCache/CacheSize/CacheTTL/CacheInstance dictate -
+// skipped entirely if none of those, nor the FeatureCaching flag that
+// gates EnableCache, changed), re-applies any WithTraceOutput/
+// WithTraceLevel/WithDebugLogging change (see WithTraceOutput for the
+// process-wide-sink caveat that also applies here), registers every
+// pending custom operator (WithOperators/WithCustomOperator) not already
+// registered on this engine, in the same sorted-name order used for
+// validation, and keeps skipVault/skipAws/skipNats in sync with the
+// resulting SkipVault/SkipAws/SkipNats fields. A previously built cache's
+// contents are discarded when the cache is rebuilt: Configure does not
+// attempt to carry cache entries forward across a resize. Because pending
+// operators were already validated above, registration is expected to
+// always succeed; if it somehow does not (its error is still returned),
+// the rest of the configuration applied by this call has already taken
+// effect - registration is the one step Configure cannot roll back.
+func (e *DefaultEngine) Configure(opts ...Option) error {
+	// Captured *before* the option loop runs (F14): some options (e.g.
+	// WithCaching) mutate their *features.FeatureFlags in place via Set,
+	// and when a Configure call supplies no WithFeatureFlags option,
+	// newOpts.FeatureFlags below is carried forward as the *same pointer*
+	// as e.Features - so reading e.IsFeatureEnabled after the loop would
+	// see the option's own mutation already applied, making a
+	// FeatureCaching flip invisible to the cache-affecting check further
+	// down. wasCachingEnabled, a plain bool, has no such aliasing problem.
+	wasCachingEnabled := e.IsFeatureEnabled(features.FeatureCaching)
+
+	newOpts := e.opts
+	// Carry the engine's already-resolved feature flags forward so a
+	// Configure call that never touches WithFeatureFlags doesn't silently
+	// reset them to nil (createEngineFromOptions only ever writes a
+	// resolved *features.FeatureFlags to e.Features, not back to
+	// e.opts.FeatureFlags, when the caller didn't supply one at
+	// construction).
+	if newOpts.FeatureFlags == nil {
+		newOpts.FeatureFlags = e.Features
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&newOpts)
+		}
+	}
+
+	if newOpts.MaxConcurrency < 0 {
+		return NewConfigurationError("concurrency must be non-negative")
+	}
+
+	// Validate every pending custom-operator registration - in
+	// deterministic sorted-name order (F12) - before mutating any engine
+	// state (F4). A Configure call that combines a valid option (e.g.
+	// WithSkipVault) with an invalid pending operator must not apply the
+	// valid part and then fail: it must leave the engine's configuration
+	// completely untouched.
+	pendingOperatorNames := pendingOperatorNames(newOpts.CustomOperators, e.localOperators)
+	if err := validatePendingOperators(pendingOperatorNames, newOpts.CustomOperators); err != nil {
+		return err
+	}
+
+	// Snapshot the fields that govern cache derivation *before* mutating
+	// engine state, so the switch below can tell whether this call
+	// actually needs to touch the cache at all. cache.NewCache starts a
+	// background cleanupLoop goroutine (internal/cache/shard.go) whenever
+	// CleanupInterval > 0 (the default); rebuilding on every Configure
+	// call - even ones that only touch a skip flag - orphaned that
+	// goroutine on every call, since the outgoing cache.Cache was never
+	// closed (F2). Skipping the rebuild when nothing cache-affecting
+	// changed avoids creating (and leaking) a cache we don't need to.
+	cacheAffectingChanged := e.opts.CacheInstance != newOpts.CacheInstance ||
+		e.opts.EnableCache != newOpts.EnableCache ||
+		e.opts.CacheSize != newOpts.CacheSize ||
+		e.opts.CacheTTL != newOpts.CacheTTL ||
+		wasCachingEnabled != featureCachingEnabled(newOpts.FeatureFlags)
+
+	e.opts = newOpts
+	e.skipVault = newOpts.SkipVault
+	e.skipAws = newOpts.SkipAws
+	e.skipNats = newOpts.SkipNats
+
+	if newOpts.FeatureFlags != nil {
+		e.Features = newOpts.FeatureFlags
+	}
+
+	applyLogging(&newOpts)
+
+	if cacheAffectingChanged {
+		outgoing := e.Cache
+
+		// Re-derive the cache. See the feature-flag-shadowing comment in
+		// createEngineFromOptions: EnableCache alone does not win over a
+		// disabled FeatureCaching flag, matching construction-time behavior.
+		switch {
+		case newOpts.CacheInstance != nil:
+			e.Cache = newOpts.CacheInstance
+		case newOpts.EnableCache && e.IsFeatureEnabled(features.FeatureCaching):
+			cacheOpts := []cache.Option{cache.WithMaxSize(newOpts.CacheSize)}
+			if newOpts.CacheTTL > 0 {
+				cacheOpts = append(cacheOpts, cache.WithTTL(newOpts.CacheTTL))
+			}
+			e.Cache = cache.NewCache(cacheOpts...)
+		default:
+			e.Cache = nil
+		}
+
+		closeOutgoingCache(outgoing, e.Cache)
+	}
+
+	for _, name := range pendingOperatorNames {
+		if err := e.RegisterOperator(name, newOpts.CustomOperators[name]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// pendingOperatorNames returns the names in customOperators not already
+// present in alreadyRegistered, sorted. Configure uses this both to
+// validate pending operator registrations and, once validation passes, to
+// apply them, in the same deterministic order (F12) - iterating
+// customOperators (a Go map) directly gave a different, randomized order
+// on every call, so which of several invalid registrations Configure
+// reported varied run to run.
+func pendingOperatorNames(customOperators map[string]Operator, alreadyRegistered map[string]bool) []string {
+	names := make([]string, 0, len(customOperators))
+	for name := range customOperators {
+		if alreadyRegistered[name] {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// validatePendingOperators replicates UnifiedOperatorRegistry.Register's
+// validation (empty name, nil Operator) for each name in names, against
+// customOperators, without registering anything. Configure calls this
+// before mutating any engine state (F4): a Configure call with one or
+// more invalid pending operators must leave the engine's configuration
+// exactly as it was, not partially applied up to the first failure.
+// names is expected to already be sorted (see pendingOperatorNames) so
+// the first error returned is deterministic.
+func validatePendingOperators(names []string, customOperators map[string]Operator) error {
+	for _, name := range names {
+		if name == "" {
+			return fmt.Errorf("operator name cannot be empty")
+		}
+		if customOperators[name] == nil {
+			return fmt.Errorf("operator implementation cannot be nil")
+		}
+	}
+	return nil
+}
+
+// featureCachingEnabled reports whether ff has features.FeatureCaching
+// enabled, mirroring DefaultEngine.IsFeatureEnabled's nil-safety (a nil
+// *features.FeatureFlags means every flag reads as disabled) without
+// requiring an engine receiver - Configure needs this to evaluate the
+// *pending* (not-yet-applied) feature flags alongside the engine's current
+// ones, to decide whether a Configure call changes anything cache-affecting.
+func featureCachingEnabled(ff *features.FeatureFlags) bool {
+	if ff == nil {
+		return false
+	}
+	return ff.IsEnabled(features.FeatureCaching)
+}
+
+// closeOutgoingCache closes outgoing if it is being replaced by a
+// different cache instance (including a nil one) and it implements an
+// optional Close() method. This stops resources like ShardedCache's
+// background cleanupLoop goroutine (internal/cache/shard.go) rather than
+// leaking it every time Configure rebuilds the cache. cache.Cache does not
+// itself declare Close() - DiskCache and HierarchicalCache expose
+// Close() error while ShardedCache (the type cache.NewCache actually
+// returns) exposes Close() with no return value - so this type-asserts to
+// the narrower, no-error shape rather than widening the shared interface.
+// A cache with no matching Close method, or one identical to the
+// replacement (a Configure call that resolves to the same instance), is
+// left alone.
+func closeOutgoingCache(outgoing, replacement cache.Cache) {
+	if outgoing == nil || outgoing == replacement {
+		return
+	}
+	if closer, ok := outgoing.(interface{ Close() }); ok {
+		closer.Close()
+	}
 }
 
 // GetOperatorState returns the operator state interface.
