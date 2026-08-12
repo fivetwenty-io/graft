@@ -464,7 +464,7 @@ y: (( grab x ))
 	ev := engine.createEvaluator(tree)
 
 	ctx := context.Background()
-	err := engine.evaluate(ctx, ev)
+	err := engine.evaluate(ctx, ev, false)
 	if err != nil {
 		t.Fatalf("engine.evaluate with parallel failed: %v", err)
 	}

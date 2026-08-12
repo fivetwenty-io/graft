@@ -368,8 +368,16 @@ func (e *DefaultEngine) GetMemoryTracker() interfaces.MemoryTracker {
 	return e.documentMemory
 }
 
+// forceParallel, when true, makes every phase use ev.RunPhaseParallel
+// regardless of e's FeatureParallelEvaluation flag - used by
+// EvaluateParallel (depgraph.go), which has already verified e.Pool is
+// non-nil before calling this, so RunPhaseParallel's own "no pool: fall
+// back to sequential" branch never triggers here. The default entry
+// point, Evaluate, passes false and keeps today's flag-gated behavior
+// unchanged.
+//
 //nolint:gocyclo // evaluation pipeline with multiple phases and post-processing is inherently complex
-func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator) error {
+func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParallel bool) error {
 	// Reset per-run prune/sort/used-IP markers on every exit path (success,
 	// any phase error, context cancellation, sort failure) so a reused
 	// engine never leaks one Merge().Execute() run's state into the next.
@@ -438,7 +446,7 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator) error {
 		}
 
 		var phaseErr error
-		if e.IsFeatureEnabled(features.FeatureParallelEvaluation) && e.Pool != nil {
+		if forceParallel || (e.IsFeatureEnabled(features.FeatureParallelEvaluation) && e.Pool != nil) {
 			phaseErr = ev.RunPhaseParallel(phase)
 		} else {
 			phaseErr = ev.RunPhase(phase)
@@ -780,7 +788,7 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 	}
 
 	// Run evaluation
-	err := e.evaluate(ctx, ev)
+	err := e.evaluate(ctx, ev, false)
 	if err != nil {
 		return nil, err
 	}
