@@ -193,11 +193,32 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 				return pos > 0, pos // End of input
 			}
 
-			// Allow either identifier, number, or bracket after dot
+			// Allow either identifier, number, bracket, or an embedded
+			// environment-variable segment after dot
 			switch {
 			case runes[pos] == '[':
 				// Continue with bracket parsing (handled in next iteration)
 				continue
+			case runes[pos] == '$':
+				// An embedded environment-variable segment, e.g.
+				// "X.$ENV.field" - spruce substitutes $VAR anywhere in a
+				// dotted reference path, not only as the reference's
+				// leading segment (the case == '$' branch above, which
+				// this mirrors). ResolveEnv (operators/types.go) already
+				// substitutes every "$..."-prefixed Reference.Nodes entry
+				// wherever it appears, not just the first, so matching the
+				// run as part of this one reference token is the only
+				// change needed. An invalid name (no identifier
+				// immediately after '$') leaves pos unadvanced, falling
+				// through the outer loop's default case below and
+				// stopping the match at the dot, same as any other
+				// invalid continuation.
+				if pos+1 < len(runes) && isIdentifierStart(runes[pos+1]) {
+					pos++ // consume '$'
+					for pos < len(runes) && isIdentifierContinue(runes[pos]) {
+						pos++
+					}
+				}
 			case unicode.IsDigit(runes[pos]):
 				// Consume numeric index
 				for pos < len(runes) && unicode.IsDigit(runes[pos]) {
