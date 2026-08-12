@@ -46,7 +46,7 @@ func (d *document) Get(path string) (interface{}, error) {
 
 	cursor, err := tree.ParseCursor(path)
 	if err != nil {
-		return nil, NewValidationError(fmt.Sprintf("invalid path '%s': %v", path, err))
+		return nil, NewValidationErrorWithCause(fmt.Sprintf("invalid path '%s': %v", path, err), err)
 	}
 
 	value, err := cursor.Resolve(d.data)
@@ -69,7 +69,7 @@ func (d *document) Set(path string, value interface{}) error {
 
 	cursor, err := tree.ParseCursor(path)
 	if err != nil {
-		return NewValidationError(fmt.Sprintf("invalid path '%s': %v", path, err))
+		return NewValidationErrorWithCause(fmt.Sprintf("invalid path '%s': %v", path, err), err)
 	}
 
 	return cursor.Set(d.data, value)
@@ -83,7 +83,7 @@ func (d *document) Delete(path string) error {
 
 	cursor, err := tree.ParseCursor(path)
 	if err != nil {
-		return NewValidationError(fmt.Sprintf("invalid path '%s': %v", path, err))
+		return NewValidationErrorWithCause(fmt.Sprintf("invalid path '%s': %v", path, err), err)
 	}
 
 	return cursor.Delete(d.data)
@@ -98,7 +98,7 @@ func (d *document) GetString(path string) (string, error) {
 	if str, ok := val.(string); ok {
 		return str, nil
 	}
-	return "", NewValidationError(fmt.Sprintf("value at path '%s' is not a string (got %T)", path, val))
+	return "", NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a string (got %T)", path, val), ErrTypeMismatch)
 }
 
 // GetInt retrieves an integer value at the given path.
@@ -118,14 +118,14 @@ func (d *document) GetInt(path string) (int, error) {
 		if v == float64(int(v)) {
 			return int(v), nil
 		}
-		return 0, NewValidationError(fmt.Sprintf("value at path '%s' is not a whole number (got %f)", path, v))
+		return 0, NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a whole number (got %f)", path, v), ErrTypeMismatch)
 	case float32:
 		if v == float32(int(v)) {
 			return int(v), nil
 		}
-		return 0, NewValidationError(fmt.Sprintf("value at path '%s' is not a whole number (got %f)", path, v))
+		return 0, NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a whole number (got %f)", path, v), ErrTypeMismatch)
 	default:
-		return 0, NewValidationError(fmt.Sprintf("value at path '%s' is not a number (got %T)", path, val))
+		return 0, NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a number (got %T)", path, val), ErrTypeMismatch)
 	}
 }
 
@@ -138,7 +138,7 @@ func (d *document) GetBool(path string) (bool, error) {
 	if b, ok := val.(bool); ok {
 		return b, nil
 	}
-	return false, NewValidationError(fmt.Sprintf("value at path '%s' is not a boolean (got %T)", path, val))
+	return false, NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a boolean (got %T)", path, val), ErrTypeMismatch)
 }
 
 // GetSlice retrieves a slice value at the given path.
@@ -150,7 +150,7 @@ func (d *document) GetSlice(path string) ([]interface{}, error) {
 	if slice, ok := val.([]interface{}); ok {
 		return slice, nil
 	}
-	return nil, NewValidationError(fmt.Sprintf("value at path '%s' is not a slice (got %T)", path, val))
+	return nil, NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a slice (got %T)", path, val), ErrTypeMismatch)
 }
 
 // GetMap retrieves a map value at the given path.
@@ -164,7 +164,7 @@ func (d *document) GetMap(path string) (map[string]interface{}, error) {
 	case map[string]interface{}:
 		return v, nil
 	default:
-		return nil, NewValidationError(fmt.Sprintf("value at path '%s' is not a map (got %T)", path, val))
+		return nil, NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a map (got %T)", path, val), ErrTypeMismatch)
 	}
 }
 
@@ -549,9 +549,9 @@ func (d *document) GetInt64(path string) (int64, error) {
 		if v == float64(int64(v)) {
 			return int64(v), nil
 		}
-		return 0, fmt.Errorf("value at path %s is a float, not an integer", path)
+		return 0, withHiddenCause(fmt.Sprintf("value at path %s is a float, not an integer", path), ErrTypeMismatch)
 	default:
-		return 0, fmt.Errorf("value at path %s is not an integer (got %T)", path, val)
+		return 0, withHiddenCause(fmt.Sprintf("value at path %s is not an integer (got %T)", path, val), ErrTypeMismatch)
 	}
 }
 
@@ -570,7 +570,7 @@ func (d *document) GetFloat64(path string) (float64, error) {
 	case int64:
 		return float64(v), nil
 	default:
-		return 0, fmt.Errorf("value at path %s is not a number (got %T)", path, val)
+		return 0, withHiddenCause(fmt.Sprintf("value at path %s is not a number (got %T)", path, val), ErrTypeMismatch)
 	}
 }
 
@@ -583,14 +583,14 @@ func (d *document) GetStringSlice(path string) ([]string, error) {
 
 	slice, ok := val.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("value at path %s is not a slice (got %T)", path, val)
+		return nil, withHiddenCause(fmt.Sprintf("value at path %s is not a slice (got %T)", path, val), ErrTypeMismatch)
 	}
 
 	result := make([]string, 0, len(slice))
 	for i, item := range slice {
 		str, ok := item.(string)
 		if !ok {
-			return nil, fmt.Errorf("item at index %d in slice at path %s is not a string (got %T)", i, path, item)
+			return nil, withHiddenCause(fmt.Sprintf("item at index %d in slice at path %s is not a string (got %T)", i, path, item), ErrTypeMismatch)
 		}
 		result = append(result, str)
 	}
@@ -606,14 +606,14 @@ func (d *document) GetMapStringString(path string) (map[string]string, error) {
 
 	rawMap, ok := val.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("value at path %s is not a map (got %T)", path, val)
+		return nil, withHiddenCause(fmt.Sprintf("value at path %s is not a map (got %T)", path, val), ErrTypeMismatch)
 	}
 
 	result := make(map[string]string)
 	for k, v := range rawMap {
 		value, ok := v.(string)
 		if !ok {
-			return nil, fmt.Errorf("map at path %s contains non-string value for key %s: %v", path, k, v)
+			return nil, withHiddenCause(fmt.Sprintf("map at path %s contains non-string value for key %s: %v", path, k, v), ErrTypeMismatch)
 		}
 		result[k] = value
 	}
