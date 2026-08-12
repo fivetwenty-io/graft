@@ -423,12 +423,10 @@ func TestDocumentMemory(t *testing.T) {
 
 	t.Run("integration with engine", func(t *testing.T) {
 		t.Run("track changes during merge and evaluation", func(t *testing.T) {
-			// TODO: This test requires nested path tracking during merge operations.
-			// Currently, the simple merge path only records top-level key changes (e.g., "base")
-			// but not nested paths (e.g., "base.value"). Implementing full nested path tracking
-			// requires passing path context through all merge functions.
-			// See: merge_builder_impl.go mergeInto() and mergeValues()
-			t.Skip("Skipping: nested path tracking during merge not yet implemented")
+			// Nested-path tracking during merge (e.g. "base.value", not just
+			// the top-level "base") was fixed by the P0-2 path-vocabulary
+			// unification (see history_path_vocab_test.go); this test no
+			// longer needs to skip.
 
 			// Create engine with memory tracking enabled
 			memCfg := MemoryConfig{Enabled: true}
@@ -436,14 +434,19 @@ func TestDocumentMemory(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create engine: %v", err)
 			}
-			de := engine.(*DefaultEngine)
-			de.EnableMemoryTracking()
 
-			// Parse documents
+			// computed.result exists (as a placeholder) in doc1 so doc2's
+			// merge-phase write to it is recorded as an overwrite of an
+			// existing path, not folded into a whole-subtree "add" of
+			// "computed" the way a brand-new nested key would be - see
+			// history_path_vocab_test.go's merger-route test for that
+			// different, whole-subtree case.
 			doc1, err := engine.ParseYAML([]byte(`
 base:
   value: 100
   name: "original"
+computed:
+  result: 0
 `))
 			if err != nil {
 				t.Fatalf("failed to parse doc1: %v", err)
@@ -479,13 +482,38 @@ computed:
 				t.Fatal("expected memory tracker to be DocumentMemory")
 			}
 
-			// Verify merge phase tracking
+			// base.value itself gets exactly one recorded version: the
+			// merge-phase overwrite from doc1's 100 to doc2's 200.
+			// "(( grab base.value ))" reads that value during evaluation but
+			// records its own target path (computed.result), not the path
+			// it reads from - so base.value's history stays merge-only.
 			history, err := docMemory.GetHistory("base.value")
 			if err != nil {
 				t.Fatalf("failed to get history: %v", err)
 			}
-			if len(history.Versions) < 2 {
-				t.Errorf("expected at least 2 versions for base.value, got %d", len(history.Versions))
+			if len(history.Versions) != 1 {
+				t.Errorf("expected 1 version for base.value, got %d", len(history.Versions))
+			}
+
+			// computed.result is the path that actually gets both a
+			// merge-phase entry (the raw "(( grab base.value ))" text) and
+			// an eval-phase entry (the resolved value) at the same
+			// canonical path - the cross-phase case P0-2 fixed.
+			computedHistory, err := docMemory.GetHistory("computed.result")
+			if err != nil {
+				t.Fatalf("failed to get history for computed.result: %v", err)
+			}
+			if len(computedHistory.Versions) != 2 {
+				t.Fatalf("expected 2 versions for computed.result (merge + eval), got %d", len(computedHistory.Versions))
+			}
+			if computedHistory.Versions[0].Phase != PhaseMerge {
+				t.Errorf("expected computed.result version 1 to be PhaseMerge, got %v", computedHistory.Versions[0].Phase)
+			}
+			if computedHistory.Versions[1].Phase != PhaseEval {
+				t.Errorf("expected computed.result version 2 to be PhaseEval, got %v", computedHistory.Versions[1].Phase)
+			}
+			if computedHistory.Versions[1].Value != 200 {
+				t.Errorf("expected computed.result's evaluated value to be 200, got %v (%T)", computedHistory.Versions[1].Value, computedHistory.Versions[1].Value)
 			}
 
 			// Check timeline
