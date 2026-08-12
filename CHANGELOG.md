@@ -5,6 +5,128 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.0] - 2026-08-12
+
+The library API release: `pkg/graft` is now a first-class Go library. The
+CLI surface and the genesis/spruce stderr contract are unchanged and
+byte-identical to 1.30.0.
+
+### Added
+
+- Parsing and merging entry points
+
+  `Engine.ParseFile`, `ParseReader`, `ParseMultiDocFile`, and
+  `ParseGoPatch` (with `DetectArrayRoot`, `RootIsArrayError`,
+  `NewRootIsArrayError`, `IsArrayError`) replace the former stubs.
+  `MergeFiles` and `MergeReaders` return a builder that carries load
+  errors to `Execute()` instead of a nil builder that panicked.
+  `MergeBuilder.Base`, `Overlay`, and `OverlayFile` compose document
+  sources onto a chain.
+
+- Document conveniences and sentinel errors
+
+  Checked getters `String`, `Int`, `Int64`, `Float64`, `Bool`, plus
+  `Has`, `Paths`, `SortKeys`, and `ToJSONIndent` on `Document`.
+  `ErrNotFound`, `ErrTypeMismatch`, and `ErrInvalidPath` sentinels work
+  with `errors.Is` against getter, `Set`, and `Delete` failures
+  (`NewValidationErrorWithCause` carries the chain; `Error()` strings
+  are unchanged). `MultiError` gained `Unwrap() []error`, so `errors.Is`
+  and `errors.As` see through aggregated evaluation errors.
+
+- Diff API
+
+  `DiffResult`, `Change`, `ChangeType`, `DiffOptions` (including
+  `IgnoreArrayOrder` and `IgnoreWhitespace`), `DiffDocuments`, renderers
+  `WriteSideBySide`, `WriteUnified`, `WriteChangeList`, `WriteMergeTree`,
+  and `Engine.Diff`/`DiffWithOptions`.
+
+- Engine options and runtime reconfiguration
+
+  `Option` alias, `WithCacheSize`, `WithCacheTTL`, `WithCacheDisabled`,
+  `WithOperators`, `WithTraceOutput`, `WithTraceLevel` (with
+  `TraceLevel`), and `DefaultEngine.Configure` for applying an option
+  delta to a live engine with validate-before-mutate semantics.
+  `WithLogger`, `WithDebugLogging`, and `WithYAMLCompat` are now
+  functional. `Engine.ToYAML`, `ToJSON`, and `ToJSONIndent` evaluate and
+  serialize instead of returning a not-implemented error; they resolve
+  the document in place (pass `doc.Clone()` to keep the original).
+
+- Post-processors
+
+  The open `PostProcessor` interface, `WithPostProcessors` (engine-wide
+  or per builder), built-ins via `NewPruner`, `NewCherryPicker`,
+  `NewKeySorter`, and `NewSecurityRedactor`; processors run at the tail
+  of `Execute()` after evaluation, pruning, and cherry-picking.
+
+- Merge history
+
+  `History`, `HistoryEntry`, `HistoryConfig`, `MergeBuilder.TrackHistory`,
+  `Document.History`, `WithHistoryTracking`, `WithHistoryConfig`, and
+  `HistoryFilter.Limit`. History is engine-scoped, off by default, and
+  near-free when off. List-element mutations and the interior of newly
+  added nested subtrees are not recorded; the docs state every gap.
+
+- Custom backends (behind a feature flag)
+
+  `Backend` and `TargetedBackend` with per-engine registration
+  (`RegisterBackend`, `GetBackend`, `ListBackends`, `UnregisterBackend`,
+  `WithBackend`), retry/cache/audit wrapping (`RetryConfig`, `TLSConfig`,
+  `BackendCache`, `AuditLogger`), `BackendError`, `ErrBackendNotFound`,
+  and `SequentialGetBatch`. Gated by `GRAFT_FEATURE_BACKEND_REGISTRY`
+  (default off; behavior with the flag off is byte-identical). The
+  vault, vault-try, awsparam, awssecret, and nats operators consult the
+  registry when enabled, falling back to the built-in backends.
+  `WithVault`/`WithVaultTarget` and `WithAWS`/`WithAWSTarget` register
+  real SDK-backed implementations from a config struct.
+
+- Testing support
+
+  `NewMockEngine` (seeded in-memory vault/awsparam/awssecret/nats
+  lookups with call recording), `OperatorFunc`, and `NewTestEvaluator`.
+
+- Dependency graph and expression traversal
+
+  `DependencyGraph`, `OperatorRef`, `EvalWave`, `BuildEvalPlan`,
+  `DefaultEngine.BuildDependencyGraph` and `EvaluateParallel` (with
+  `ErrNoWorkerPool`, `ErrInvalidEvalPlan`, `ErrDependencyCycle`) as a
+  read-only projection of the live evaluation orderings; `Walk`,
+  `Visitor`, and `Accept` over `Expr` with a `VisitOther` catch-all for
+  forward compatibility.
+
+- `EngineOf` nil-safe accessor for evaluator-attached engines, and
+  `WithBackendRegistry` to toggle the backend feature flag without
+  importing internal packages.
+
+### Changed
+
+- `Document.Prune` is variadic: `Prune(keys ...string)` (was
+  `Prune(key string)`). Single-argument call sites compile unchanged.
+- `NewEngine()` and `CreateDefaultEngine()` share one default
+  configuration: 10000-entry cache, 4 max concurrent workers,
+  alphabetical dataflow order (previously 1000/10 on one path).
+- Engine-local operator registration is real: `RegisterOperator` on an
+  engine affects that engine's evaluation everywhere, including
+  control-flow expansion and nested dependency analysis. The exported
+  `ControlFlowExpander` hook now receives the engine.
+- Merge history records changes under full dotted paths (`meta.key`),
+  not bare immediate keys.
+- A zero-document merge runs post-processors and history attachment;
+  with `WithCherryPick` it now returns the same error a non-empty merge
+  does instead of an empty document.
+- `Document`, `Engine`, `MergeBuilder`, and `DiffResult` are documented
+  as closed interfaces: methods may be added in minor releases;
+  implement `PostProcessor`, `Backend`, and `Visitor` instead.
+
+### Deprecated
+
+- `WithMaxWorkers` — use `WithConcurrency` (functionally identical).
+- `WithVaultClient`, `WithVaultConfig`, `WithVaultSkipTLS`, and the
+  `VaultClient` interface — never had an effect; use `WithVault` or
+  environment variables.
+- `WithAWSConfig`, `WithAWSProfile`, `WithAWSRegion` — never had an
+  effect; use `WithAWS` or environment variables.
+- `WithMemoryPools` — sets a feature flag nothing reads.
+
 ## [1.30.0] - 2026-08-11
 
 ### Added
@@ -37,4 +159,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Operator evaluation runs concurrently over a copy-on-write document tree.
   Set `GRAFT_PARALLEL_ENABLED=false` to fall back to serial evaluation.
 
+[1.31.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.31.0
 [1.30.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.30.0
