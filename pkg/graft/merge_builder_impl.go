@@ -183,9 +183,16 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 				AppendByDefault: m.fallbackAppend,
 			}
 
-			// Set memory tracker if available from the engine
-			if defaultEngine, ok := m.engine.(*DefaultEngine); ok && defaultEngine.documentMemory != nil {
-				mergerInstance.SetMemoryTracker(defaultEngine.documentMemory)
+			// Set memory tracker if available from the engine. Routed
+			// through GetMemoryTracker() (which returns a true nil, not an
+			// interface wrapping a nil *DocumentMemory) rather than a
+			// *DefaultEngine type assertion, so this matches the two other
+			// tracker-discovery sites in this file (prepareFirstDocument,
+			// performLegacyMerge) instead of duplicating the lookup.
+			if m.engine != nil {
+				if tracker := m.engine.GetMemoryTracker(); tracker != nil && tracker.IsEnabled() {
+					mergerInstance.SetMemoryTracker(tracker)
+				}
 			}
 
 			// Create an empty base and merge our document into it
@@ -319,7 +326,7 @@ func (m *mergeBuilderImpl) prepareFirstDocument(baseData map[string]interface{})
 		AppendByDefault: m.fallbackAppend,
 	}
 	if m.engine != nil {
-		if tracker := m.engine.GetMemoryTracker(); tracker != nil {
+		if tracker := m.engine.GetMemoryTracker(); tracker != nil && tracker.IsEnabled() {
 			mergerInstance.SetMemoryTracker(tracker)
 		}
 	}
@@ -359,7 +366,7 @@ func (m *mergeBuilderImpl) performLegacyMerge(base, overlay map[string]interface
 	}
 
 	if m.engine != nil {
-		if tracker := m.engine.GetMemoryTracker(); tracker != nil {
+		if tracker := m.engine.GetMemoryTracker(); tracker != nil && tracker.IsEnabled() {
 			mergerInstance.SetMemoryTracker(tracker)
 		}
 	}
