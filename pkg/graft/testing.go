@@ -41,6 +41,48 @@ func NewTestHelperWithOptions(t *testing.T, opts ...EngineOption) *TestHelper {
 	}
 }
 
+// NewTestEvaluator parses yamlStr and returns a real *Evaluator over its
+// root document, wired to a fresh default-configured engine exactly as
+// Engine.Evaluate would build one internally. It is the constructor to use
+// when unit-testing a custom Operator's Run method directly, in place of
+// the fictional EvalContext/NewMockEvalContext scheme once documented here:
+// Operator.Run receives (ev *Evaluator, args []*Expr), not an EvalContext,
+// and args arrive unevaluated — call EvaluateOperatorArgs(ev, args) inside
+// the operator under test if it needs resolved values.
+//
+// The document must parse to a map at its root; NewTestEvaluator calls
+// t.Fatalf and returns nil if yamlStr fails to parse or its root is not a
+// map, mirroring every other Must*/New* helper in this file.
+func NewTestEvaluator(t *testing.T, yamlStr string) *Evaluator {
+	t.Helper()
+
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatalf("NewTestEvaluator: failed to create engine: %v", err)
+		return nil
+	}
+
+	doc, err := engine.ParseYAML([]byte(yamlStr))
+	if err != nil {
+		t.Fatalf("NewTestEvaluator: failed to parse YAML: %v\nYAML:\n%s", err, yamlStr)
+		return nil
+	}
+
+	root, ok := doc.RawData().(map[string]interface{})
+	if !ok {
+		t.Fatalf("NewTestEvaluator: document root must be a map, got %T", doc.RawData())
+		return nil
+	}
+
+	de, ok := engine.(*DefaultEngine)
+	if !ok {
+		t.Fatalf("NewTestEvaluator: internal error: engine is not *DefaultEngine (%T)", engine)
+		return nil
+	}
+
+	return de.createEvaluator(root)
+}
+
 // ParseYAMLString parses YAML from string and returns a document.
 func (h *TestHelper) ParseYAMLString(yamlStr string) Document {
 	doc, err := h.engine.ParseYAML([]byte(yamlStr))
