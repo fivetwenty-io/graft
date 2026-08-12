@@ -46,6 +46,9 @@ type Document interface {
     Clone() Document
     Prune(keys ...string) Document
     CherryPick(keys ...string) Document
+
+    // History (see the History Interface page)
+    History() History
 }
 ```
 
@@ -811,7 +814,47 @@ for _, env := range []string{"dev", "staging", "prod"} {
 wg.Wait()
 ```
 
-**Note:** Clone does NOT copy history. The new document starts with a fresh history.
+**Note:** Clone does NOT copy history - the clone's `History()` returns an
+empty `History`, even if the original document's did not.
+
+### History
+
+Returns this document's recorded change history.
+
+```go
+func (d *Document) History() History
+```
+
+**Returns:**
+
+- `History` - Never a nil interface. Empty (every method returns an
+  empty result) unless this exact `Document` value was returned by
+  `Execute()` on a merge chain where document-memory tracking was active
+  (`MergeBuilder.TrackHistory()`, or the engine was constructed with
+  `WithHistoryTracking`/`WithHistoryConfig`/`WithMemoryConfig`).
+
+**Example:**
+
+```go
+result, err := engine.Merge(ctx, base, overlay).
+    TrackHistory().
+    Execute()
+if err != nil {
+    return err
+}
+
+for _, entry := range result.History().Timeline() {
+    fmt.Printf("%s: %v -> %v\n", entry.Path, entry.OldValue, entry.NewValue)
+}
+```
+
+See [History Interface](history-api.md) for the full `History`/
+`HistoryEntry` surface, what is and is not recorded, and history's
+engine-wide (not per-merge) scope. `History()` is promoted onto every
+go-patch document (`NewGoPatchDocument`'s result) the same way the
+checked getters are - see that constructor's own doc comment - and
+always returns an empty `History`, since a go-patch document never has
+merge-phase or eval-phase changes recorded against it.
 
 ### Prune
 

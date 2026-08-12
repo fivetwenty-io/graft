@@ -30,9 +30,19 @@ When any of `--history`/`--trace-path`/`--show-changes`/`--changes-only`
 are given, `merge` prints that report instead of the merged document. They
 are mutually exclusive — combining more than one is a usage error.
 
-There is currently no library API for history tracking (`graft.History`,
-`TrackHistory()`, etc., as sometimes described elsewhere, do not exist);
-the flags above are the only way to access it today.
+The flags above are backed by `internal/history`/`internal/histdiff`, a
+CLI-only snapshot-diff mechanism that re-runs the merge once per input
+file to capture each one's contribution (see Performance Considerations
+below). A separate library API also exists -
+[`graft.History`/`MergeBuilder.TrackHistory()`](../developer-guide/library-api/history-api.md)
+- backed by a different mechanism (`DocumentMemory`, wired directly into
+the merge and evaluation paths) with different coverage: it records
+map-key changes during merge and evaluation, but never a list-element
+mutation, and a newly added nested subtree only at its top-level key, not
+at every descendant path (see the [History API's gap list](../developer-guide/library-api/history-api.md#what-is-actually-recorded)
+for the exact rule). It also only records when a caller explicitly
+enables tracking. The two mechanisms do not share code or data; a library
+caller cannot use one to produce the other's output.
 
 ## History Output
 

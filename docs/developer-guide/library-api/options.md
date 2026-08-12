@@ -122,6 +122,44 @@ engine, _ := graft.NewEngine(
 )
 ```
 
+## History Tracking
+
+```go
+func WithHistoryTracking(enabled bool) Option
+func WithHistoryConfig(config HistoryConfig) Option
+```
+
+`WithHistoryTracking(true)` enables document-memory tracking at
+construction, using any `MemoryConfig` separately supplied via
+`WithMemoryConfig`/`WithHistoryConfig`, or a zero-value one otherwise.
+`WithHistoryTracking(false)` is a genuine no-op, not a way to turn
+tracking back off - it never calls `DisableMemoryTracking`, so it cannot
+undo a `WithMemoryConfig`/`WithHistoryConfig` call elsewhere in the same
+`NewEngine(...)` call. `WithHistoryConfig` is a smaller, documented-field
+view onto `MemoryConfig` (`MaxEntriesPerPath`, `RetentionPeriod`,
+`CompressValues`) that also enables tracking; `WithMemoryConfig` remains
+available directly for anything `HistoryConfig` does not expose.
+
+Tracking is off by default and costs nothing when off. Enabling it lets
+a merge's resulting `Document.History()` report the changes
+`DocumentMemory` recorded during merge and evaluation - see
+[History Interface](history-api.md) for the full `History`/
+`HistoryEntry`/`HistoryConfig` surface, what is and is not recorded, and
+`MergeBuilder.TrackHistory()`, the per-merge-chain alternative to
+enabling tracking at the engine level.
+
+**Example:**
+
+```go
+engine, _ := graft.NewEngine(graft.WithHistoryTracking(true))
+
+// Or with per-path/compression limits:
+engine, _ := graft.NewEngine(graft.WithHistoryConfig(graft.HistoryConfig{
+    MaxEntriesPerPath: 20,
+    CompressValues:    true,
+}))
+```
+
 ## Other Engine Options
 
 | Option | Effect |
@@ -134,7 +172,7 @@ engine, _ := graft.NewEngine(
 | `WithWorkerPool(pool *parallel.WorkerPool)` | Supplies a custom worker pool; enables parallel evaluation |
 | `WithCaching(enabled bool)` | Shorthand: sets `EnableCache` and the `FeatureCaching` flag together |
 | `WithParallel(enabled bool)` | Shorthand: sets `EnableParallel` and the `FeatureParallelEvaluation` flag together |
-| `WithMemoryConfig(cfg MemoryConfig)` | Configures document memory tracking behavior |
+| `WithMemoryConfig(cfg MemoryConfig)` | Configures document memory tracking behavior directly (the full 11-field `MemoryConfig`, vs. `WithHistoryConfig`'s smaller surface above) |
 | `WithDataflowOrder(order string)` | `"alphabetical"` (default) or `"insertion"` for dataflow output ordering |
 | `WithSkipVault(skip bool)` | Skips Vault-backed operator lookups |
 | `WithSkipAws(skip bool)` | Skips AWS-backed operator lookups |

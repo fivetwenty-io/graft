@@ -1,126 +1,205 @@
 # History Interface
 
-The `History` interface tracks changes to a document through merge and evaluation operations. It provides methods to query the history timeline, filter by path or operation, and serialize for auditing.
+`History` reports changes `pkg/graft` actually recorded to a merged
+document's `DocumentMemory`: which map keys a later overlay overwrote, and
+what operator evaluation resolved them to. It is a thin veneer over
+`DocumentMemory` (`document_memory.go`) - not a second tracking engine, and
+not the same mechanism as the CLI's `graft merge --history`/`--trace-path`/
+`--show-changes`/`--changes-only` flags (see
+[History Tracking](../../user-guide/history-tracking.md)), which are backed
+by `internal/history`/`internal/histdiff`, a separate, CLI-only
+snapshot-diff mechanism sharing no code or data with this API.
+
+History tracking is off by default and costs nothing when off: no engine
+enables it unless told to.
+
+## Enabling History Tracking
+
+```go
+// Per merge chain - lazily activates tracking on the engine if it is not
+// already active (only possible when the Engine is *DefaultEngine; a no-op
+// for any other Engine implementation).
+result, err := engine.Merge(ctx, base, overlay).
+    TrackHistory().
+    Execute()
+
+// Or at the engine level - every merge on this engine records, whether or
+// not that merge's own chain calls TrackHistory().
+engine, err := graft.NewEngine(graft.WithHistoryTracking(true))
+
+// Or with a smaller config surface than WithMemoryConfig's full
+// MemoryConfig (document.md and options.md cover WithMemoryConfig itself).
+// MaxEntriesPerPath is the only HistoryConfig field with an observable
+// effect in this release - see the HistoryConfig field table below for
+// CompressValues and RetentionPeriod, which are not:
+engine, err := graft.NewEngine(graft.WithHistoryConfig(graft.HistoryConfig{
+    MaxEntriesPerPath: 20,
+}))
+```
+
+Access the result:
+
+```go
+history := result.History()
+for _, entry := range history.Timeline() {
+    fmt.Printf("[%s] %s: %v -> %v\n", entry.Phase, entry.Path, entry.OldValue, entry.NewValue)
+}
+```
+
+`Document.History()` never returns a nil interface. A `Document` produced
+without tracking active - including every `goPatchDocument` - returns an
+empty, valid `History` whose methods return empty results rather than
+requiring a nil check first.
+
+## Engine-Wide Scope
+
+`DocumentMemory` belongs to the `*DefaultEngine` that created it, not to
+one merge. If tracking stays active across more than one `Execute()` call
+on the same engine, every tracked merge's `Document.History()` reflects
+every path any of those merges (or evaluations run on that engine) has
+ever recorded - not just its own. Build a fresh engine per merge to
+isolate history between them.
+
+This scope is also an unbounded-memory concern, not only a correctness
+one: every tracked merge on a long-lived engine keeps adding to one
+timeline that `HistoryConfig` cannot bound - see [HistoryConfig](#historyconfig)
+below. Use `WithMemoryConfig` directly, with `MaxTotalVersions`,
+`MaxMemoryMB`, and `CleanupInterval` all set deliberately, for a real
+bound.
+
+## What Is Actually Recorded
+
+Two recording sites feed `DocumentMemory`, both using the canonical
+dotted, no-`"$"`-prefix path form (`pkg/graft/tree.Cursor.String()`):
+
+- Merge-phase map-key writes (`merge_builder_impl.go`, `merger/merge.go`):
+  a later document overwriting, adding, or deleting a map key.
+- Evaluation-phase operator results (`evaluator.go`): an operator
+  resolving `op.where` to a concrete value.
+
+Everything else is a documented gap, not an oversight:
+
+- **List-element mutations are never recorded.** `merger` computes
+  list-element paths but only ever calls `RecordMergeChange` for map keys.
+  `AllPaths`/`ChangedPaths`/`Timeline`/`Query`/`ForPath` will never contain
+  a list-index path such as `"servers.0.name"`.
+- **A newly added nested subtree is recorded only at its top-level key,
+  not at every descendant path.** Merging `{"added": {"nested": {"leaf":
+  v}}}` onto a document that lacks `added` records exactly one entry, at
+  path `"added"`, carrying the whole subtree as `NewValue`;
+  `ForPath("added.nested.leaf")` returns nil. This differs from
+  overwriting an *existing* deep leaf, which does record at every level
+  (`"a"`, `"a.b"`, `"a.b.c"`) - only a value with a corresponding key
+  already present in the base document recurses far enough to record
+  per-key entries; a wholly new key is recorded once, as a whole-value
+  add, at the point it first appears.
+- **Only `PhaseMerge`/`OpMerge` and `PhaseEval`/`OpTransform` are ever
+  recorded.** `PhaseLoad`, `PhaseManual`, `PhasePostProcess`, `OpSet`,
+  `OpDelete`, `OpPrune`, and `OpReplace` have no producer: pruning,
+  cherry-picking, and `WithPostProcessors` post-processors run after
+  evaluation but record nothing.
+- **`HistoryEntry.Source` and `.Line` are always zero-valued.** Nothing in
+  the merge or evaluation path threads an input file identity down to
+  `DocumentMemory.RecordChange`, and graft's only line/column tracking
+  (`pkg/graft/interfaces/position.go`) is scoped to tokens inside a single
+  `(( ... ))` expression, never to merged values. `HistoryEntry.Operator`
+  carries the string `DocumentMemory` actually records at the recording
+  site instead - the literal merge verb (`"merge"`, `"add"`, `"delete"`)
+  for a merge-phase entry, or the operator name (e.g. `"grab"`, `"vault"`)
+  for an eval-phase entry.
 
 ## Interface Definition
 
 ```go
 type History interface {
-    // Path enumeration
     AllPaths() []string
     ChangedPaths() []string
-
-    // Path-specific history
     ForPath(path string) []HistoryEntry
-
-    // Queries
     Query(filter HistoryFilter) []HistoryEntry
-
-    // Timeline
     Timeline() []HistoryEntry
     TimelineAfter(t time.Time) []HistoryEntry
     TimelineBefore(t time.Time) []HistoryEntry
-
-    // Serialization
     ToJSON() ([]byte, error)
     ToYAML() ([]byte, error)
 }
 ```
 
+| Method | Returns |
+|--------|---------|
+| `AllPaths()` | Every path with at least one recorded entry, sorted. Not the same as `Document.Paths()`: a path can appear here without existing in the final document (if later pruned), and a path touched exactly once is included. |
+| `ChangedPaths()` | Paths with more than one recorded entry (touched by, for example, both an overlay overwrite and operator evaluation), sorted. |
+| `ForPath(path)` | Every recorded entry for `path`, oldest first. Nil if `path` has no recorded history. |
+| `Query(filter)` | Entries matching `filter` (see `HistoryFilter` below). |
+| `Timeline()` | Every recorded entry across every path, in recording order. |
+| `TimelineAfter(t)` / `TimelineBefore(t)` | Entries recorded strictly after/before `t`. |
+| `ToJSON()` / `ToYAML()` | `Timeline()` plus a summary block, serialized. |
+
 ## Types
 
 ### HistoryEntry
-
-Represents a single change in the document history.
 
 ```go
 type HistoryEntry struct {
     Index     int
     Path      string
-    Source    string
-    Line      int
+    Version   int
+    Timestamp time.Time
     Phase     HistoryPhase
     Operation HistoryOperation
     OldValue  interface{}
     NewValue  interface{}
+    Source    string
+    Line      int
     Operator  string
-    Evaluated interface{}
-    Timestamp time.Time
+    Evaluated bool
     Metadata  map[string]interface{}
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `Index` | `int` | Sequential index of this entry |
-| `Path` | `string` | Dot-notation path that changed |
-| `Source` | `string` | Source file or identifier |
-| `Line` | `int` | Line number in source |
-| `Phase` | `HistoryPhase` | When the change occurred |
-| `Operation` | `HistoryOperation` | Type of operation |
-| `OldValue` | `interface{}` | Previous value (nil for new) |
-| `NewValue` | `interface{}` | New value (nil for delete) |
-| `Operator` | `string` | Operator name (if evaluation phase) |
-| `Evaluated` | `interface{}` | Result of operator evaluation |
-| `Timestamp` | `time.Time` | When the change was recorded |
-| `Metadata` | `map[string]interface{}` | Additional context |
+| Field | Description |
+|-------|-------------|
+| `Index` | Position within the slice this entry was returned in (0-based) - the global order for `Timeline()`/`Query()`, or the per-path order for `ForPath()`. Not a single counter shared across methods. |
+| `Path` | Canonical dotted path (no `"$"` prefix) that changed. |
+| `Version` | `DocumentMemory`'s per-path version number, starting at 1. |
+| `Timestamp` | When `DocumentMemory` recorded the change. |
+| `Phase` | `PhaseMerge` or `PhaseEval` in this release; see "What Is Actually Recorded" above. |
+| `Operation` | `OpMerge` or `OpTransform` in this release. |
+| `OldValue` | The value immediately before this change. `Timeline()`/`Query()` populate this from the recording call site's own prior-value argument, accurate even on a path's first entry. `ForPath()` instead reconstructs it from the *previous recorded version* for the same path (matching `DocumentMemory.Compare`), which is `nil` on a path's first recorded entry even when `Timeline()`/`Query()` report a real prior value for that same change. Prefer `Timeline()`/`Query()` when the true prior value matters. |
+| `NewValue` | The value this change produced. |
+| `Source` | Always `""` in this release; reserved for input-file provenance, which nothing currently threads down to `DocumentMemory.RecordChange`. |
+| `Line` | Always `0` in this release; same reservation as `Source`. |
+| `Operator` | The raw string `DocumentMemory` recorded: the merge verb for a `PhaseMerge` entry, or the operator name for a `PhaseEval` entry - not exclusively an operator name despite the field name. |
+| `Evaluated` | `true` when `Phase` is `PhaseEval`. |
+| `Metadata` | Populated only for `ForPath()` results (from `NodeVersion`); always `nil` for `Timeline()`/`Query()` results (`ChangeEvent` carries no metadata). |
 
-### HistoryPhase
+### HistoryPhase / HistoryOperation
 
-Indicates when in the processing pipeline a change occurred.
+Aliases onto the existing `ChangePhase`/`ChangeOperation` types
+(`document_memory.go`) - no new vocabulary.
 
 ```go
-type HistoryPhase int
+type HistoryPhase = ChangePhase
+type HistoryOperation = ChangeOperation
 
 const (
-    PhaseLoad HistoryPhase = iota
-    PhaseMerge
-    PhaseEval
-    PhasePostProcess
+    PhaseLoad                    = PhaseInitial // alias; no producer in this release
+    PhasePostProcess ChangePhase = PhaseManual + 1 // no producer in this release
+)
+
+const (
+    HistorySet       = OpSet       // no producer in this release
+    HistoryMerge     = OpMerge
+    HistoryOverwrite = OpReplace   // no producer in this release
+    HistoryDelete    = OpDelete    // no producer in this release
+    HistoryTransform = OpTransform
+    HistoryPrune     = OpPrune     // no producer in this release
 )
 ```
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `PhaseLoad` | 0 | During initial document loading |
-| `PhaseMerge` | 1 | During document merging |
-| `PhaseEval` | 2 | During operator evaluation |
-| `PhasePostProcess` | 3 | During post-processing |
-
-```mermaid
-flowchart LR
-    Load[PhaseLoad] --> Merge[PhaseMerge] --> Eval[PhaseEval] --> Post[PhasePostProcess]
-```
-
-### HistoryOperation
-
-Indicates the type of change.
-
-```go
-type HistoryOperation int
-
-const (
-    HistorySet HistoryOperation = iota
-    HistoryMerge
-    HistoryOverwrite
-    HistoryDelete
-    HistoryTransform
-    HistoryPrune
-)
-```
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `HistorySet` | 0 | Value was set (new path) |
-| `HistoryMerge` | 1 | Values were merged |
-| `HistoryOverwrite` | 2 | Value was overwritten |
-| `HistoryDelete` | 3 | Value was deleted |
-| `HistoryTransform` | 4 | Value was transformed by operator |
-| `HistoryPrune` | 5 | Value was pruned from output |
+Only `HistoryMerge`/`PhaseMerge` and `HistoryTransform`/`PhaseEval` ever
+appear in a recorded `HistoryEntry`.
 
 ### HistoryFilter
-
-Filter criteria for querying history.
 
 ```go
 type HistoryFilter struct {
@@ -134,296 +213,131 @@ type HistoryFilter struct {
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `Path` | `string` | Filter by path prefix |
-| `Phase` | `*HistoryPhase` | Filter by phase (nil for any) |
-| `Operation` | `*HistoryOperation` | Filter by operation (nil for any) |
-| `Source` | `string` | Filter by source file |
-| `After` | `*time.Time` | Only entries after this time |
-| `Before` | `*time.Time` | Only entries before this time |
-| `Limit` | `int` | Maximum entries to return (0 for unlimited) |
+| Field | Description |
+|-------|-------------|
+| `Path` | Filter by path - a prefix match against the recorded path, not a wildcard pattern despite the field's original doc comment; there is no wildcard expansion implemented. The prefix is also not segment-aware: `Path: "db"` matches a recorded path `"dbextra"` too, not only `"db"` and its descendants. |
+| `Phase` | Filter by phase (`nil` for any). |
+| `Operation` | Filter by operation (`nil` for any). |
+| `Source` | Filter by the raw string `DocumentMemory` recorded at the site (see `HistoryEntry.Operator`'s doc comment) - this field's name predates the `HistoryEntry.Operator`/`Source` split and still matches the underlying `ChangeEvent.Source`, not `HistoryEntry.Source`. |
+| `After` / `Before` | Only entries after/before this time. |
+| `Limit` | Maximum entries to return, `0` for unlimited. Applied last, keeping the earliest `Limit` matches in timeline order - not the most recent `Limit`. |
 
-## Enabling History Tracking
+### HistoryConfig
 
-History tracking must be explicitly enabled:
-
-```go
-// Via engine options
-engine, _ := graft.NewEngine(
-    graft.WithHistoryTracking(true),
-)
-
-// Via merge builder
-result, err := engine.Merge(ctx, base, overlay).
-    TrackHistory().
-    Execute()
-
-// Access history from result
-history := result.History()
-```
-
-## Path Methods
-
-### AllPaths
-
-Returns all paths that appear in the document.
+A smaller, documented-field-only view onto `MemoryConfig`
+(`document_memory.go`'s 11-field struct), for `WithHistoryConfig`.
+`WithMemoryConfig` remains available directly for anything this does not
+expose.
 
 ```go
-func (h *History) AllPaths() []string
-```
-
-**Returns:**
-
-- `[]string` - All paths in the document
-
-**Example:**
-
-```go
-history := result.History()
-paths := history.AllPaths()
-for _, path := range paths {
-    fmt.Println(path)
+type HistoryConfig struct {
+    MaxEntriesPerPath int
+    RetentionPeriod   time.Duration
+    CompressValues    bool
 }
 ```
 
-### ChangedPaths
+| Field | Maps to | Description |
+|-------|---------|-------------|
+| `MaxEntriesPerPath` | `MemoryConfig.MaxVersionsPerNode` | Once a path has recorded this many versions, `DocumentMemory` drops its oldest to stay at the cap on every further record. `0` means unlimited. This caps **only** `NodeHistory.Versions`, the per-path storage `History.ForPath` reads. The timeline `History.Timeline`, `History.Query`, `History.AllPaths`, and `History.ChangedPaths` all read is never trimmed by this field (or by anything except `DocumentMemory.Clear`) - a path capped at `ForPath`'s count `1` can still be reported by `ChangedPaths` as having more than one entry, and `Timeline`/`Query` keep growing regardless of this setting. It does not bound engine-wide memory; see `WithMemoryConfig`'s `MaxTotalVersions`/`MaxMemoryMB`/`CleanupInterval` for a real bound. |
+| `CompressValues` | `MemoryConfig.EnableCompression` | Enables gzip+gob compression of old versions during cleanup - but, like `RetentionPeriod` below, has **no observable effect** through `WithHistoryConfig` in this release: compression only runs inside `performCleanup`, and `performCleanup` only runs when `MaxTotalVersions`/`MaxMemoryMB` (cleanup-by-size) or `CleanupInterval` (cleanup-by-ticker) is set, none of which `HistoryConfig` exposes. Setting `CompressValues` through `WithHistoryConfig` alone compresses nothing. Use `WithMemoryConfig` directly, with one of those fields set deliberately, for compression that actually runs. |
+| `RetentionPeriod` | `MemoryConfig.CompressAfter` only | The age threshold compression uses once cleanup runs. Deliberately does **not** set `MemoryConfig.CleanupInterval`: doing so would start a background goroutine ticker (`DocumentMemory.startBackgroundCleanup`) for the process lifetime from a single engine option, with no way to stop it short of a type assertion to `*DocumentMemory`. Without `CleanupInterval` (or a `MaxTotalVersions`/`MaxMemoryMB` limit, neither exposed by `HistoryConfig`), cleanup never runs on its own, so `RetentionPeriod` has **no observable effect** in this release. Use `WithMemoryConfig` directly, with `CleanupInterval` set deliberately, for real age-based cleanup. |
 
-Returns paths that were modified during processing.
-
-```go
-func (h *History) ChangedPaths() []string
-```
-
-**Returns:**
-
-- `[]string` - Paths with at least one history entry
-
-**Example:**
+## Functions
 
 ```go
-history := result.History()
-changed := history.ChangedPaths()
-
-fmt.Printf("%d paths were modified:\n", len(changed))
-for _, path := range changed {
-    entries := history.ForPath(path)
-    fmt.Printf("  %s (%d changes)\n", path, len(entries))
-}
+func WithHistoryTracking(enabled bool) Option
+func WithHistoryConfig(config HistoryConfig) Option
 ```
 
-## Path-Specific Methods
+`WithHistoryTracking` is a discoverable wrapper over
+`EngineOptions.EnableMemoryTracking`. `enabled=true` enables tracking with
+any `MemoryConfig` separately supplied via `WithMemoryConfig`/
+`WithHistoryConfig`, or a zero-value one otherwise. `enabled=false` is a
+genuine no-op, not a way to turn tracking back off - it never calls
+`DisableMemoryTracking`. If a `WithMemoryConfig`/`WithHistoryConfig` call
+elsewhere in the same `NewEngine(...)` call already enabled tracking,
+`WithHistoryTracking(false)` does not undo it. Call
+`engine.(*graft.DefaultEngine).DisableMemoryTracking()` after construction
+to turn tracking off once it is on.
 
-### ForPath
-
-Returns all history entries for a specific path.
+`WithHistoryConfig` enables tracking using `HistoryConfig`'s field
+mapping above; equivalent to `WithMemoryConfig(cfg)` plus
+`WithHistoryTracking(true)`.
 
 ```go
-func (h *History) ForPath(path string) []HistoryEntry
+func (b MergeBuilder) TrackHistory() MergeBuilder
+func (d Document) History() History
 ```
 
-**Parameters:**
+`TrackHistory()` activates tracking for one merge chain, lazily calling
+`EnableMemoryTracking` on the engine before the merge itself runs (a
+no-op if the `Engine` is not `*DefaultEngine`). `History()` returns the
+resulting `Document`'s recorded change history, or an empty `History` if
+tracking was never active for it.
 
-- `path` - Dot-notation path
+## Examples
 
-**Returns:**
-
-- `[]HistoryEntry` - All entries for this path, chronologically ordered
-
-**Example:**
+### Basic Timeline
 
 ```go
-history := result.History()
-
-entries := history.ForPath("database.host")
-for _, entry := range entries {
-    fmt.Printf("[%s] %s:%d\n", entry.Phase, entry.Source, entry.Line)
-    fmt.Printf("  %v -> %v\n", entry.OldValue, entry.NewValue)
-    if entry.Operator != "" {
-        fmt.Printf("  operator: %s\n", entry.Operator)
-    }
-}
-```
-
-**Output:**
-
-```
-[PhaseMerge] defaults.yml:5
-  <nil> -> localhost
-[PhaseMerge] production.yml:3
-  localhost -> (( vault "secret/db:host" ))
-[PhaseEval] production.yml:3
-  (( vault "secret/db:host" )) -> db.prod.example.com
-  operator: vault
-```
-
-## Query Methods
-
-### Query
-
-Returns history entries matching the filter criteria.
-
-```go
-func (h *History) Query(filter HistoryFilter) []HistoryEntry
-```
-
-**Parameters:**
-
-- `filter` - Filter criteria
-
-**Returns:**
-
-- `[]HistoryEntry` - Matching entries
-
-**Example:**
-
-```go
-history := result.History()
-
-// Find all vault evaluations
-evalPhase := graft.PhaseEval
-entries := history.Query(graft.HistoryFilter{
-    Phase: &evalPhase,
-})
-
-for _, entry := range entries {
-    if entry.Operator == "vault" {
-        fmt.Printf("Vault lookup at %s: %v\n", entry.Path, entry.Evaluated)
-    }
-}
-
-// Find all overwrites in production.yml
-overwriteOp := graft.HistoryOverwrite
-entries = history.Query(graft.HistoryFilter{
-    Source:    "production.yml",
-    Operation: &overwriteOp,
-})
-
-for _, entry := range entries {
-    fmt.Printf("Overwritten: %s (was %v, now %v)\n",
-        entry.Path, entry.OldValue, entry.NewValue)
-}
-
-// Find database changes during merge
-mergePhase := graft.PhaseMerge
-entries = history.Query(graft.HistoryFilter{
-    Path:  "database",
-    Phase: &mergePhase,
-    Limit: 10,
-})
-```
-
-## Timeline Methods
-
-### Timeline
-
-Returns all history entries in chronological order.
-
-```go
-func (h *History) Timeline() []HistoryEntry
-```
-
-**Returns:**
-
-- `[]HistoryEntry` - All entries, ordered by timestamp and index
-
-**Example:**
-
-```go
-history := result.History()
-
-fmt.Println("Processing timeline:")
-for _, entry := range history.Timeline() {
-    fmt.Printf("[%d] %s %s at %s\n",
-        entry.Index, entry.Phase, entry.Operation, entry.Path)
-}
-```
-
-### TimelineAfter
-
-Returns entries occurring after a specific time.
-
-```go
-func (h *History) TimelineAfter(t time.Time) []HistoryEntry
-```
-
-**Parameters:**
-
-- `t` - Cutoff time (exclusive)
-
-**Returns:**
-
-- `[]HistoryEntry` - Entries after the specified time
-
-**Example:**
-
-```go
-history := result.History()
-
-// Get entries from the last hour
-cutoff := time.Now().Add(-1 * time.Hour)
-recentEntries := history.TimelineAfter(cutoff)
-
-fmt.Printf("%d changes in the last hour\n", len(recentEntries))
-```
-
-### TimelineBefore
-
-Returns entries occurring before a specific time.
-
-```go
-func (h *History) TimelineBefore(t time.Time) []HistoryEntry
-```
-
-**Parameters:**
-
-- `t` - Cutoff time (exclusive)
-
-**Returns:**
-
-- `[]HistoryEntry` - Entries before the specified time
-
-**Example:**
-
-```go
-history := result.History()
-
-// Get entries before today
-midnight := time.Now().Truncate(24 * time.Hour)
-olderEntries := history.TimelineBefore(midnight)
-```
-
-## Serialization Methods
-
-### ToJSON
-
-Serializes the history to JSON format.
-
-```go
-func (h *History) ToJSON() ([]byte, error)
-```
-
-**Returns:**
-
-- `[]byte` - JSON representation
-
-- `error` - Non-nil if serialization fails
-
-**Example:**
-
-```go
-history := result.History()
-
-json, err := history.ToJSON()
+engine, err := graft.NewEngine(graft.WithHistoryTracking(true))
 if err != nil {
     return err
 }
 
-// Write to audit log
-os.WriteFile("audit.json", json, 0644)
+result, err := engine.Merge(ctx, base, overlay).Execute()
+if err != nil {
+    return err
+}
+
+for _, entry := range result.History().Timeline() {
+    fmt.Printf("[%s] %s: %v -> %v (%s)\n",
+        entry.Phase, entry.Path, entry.OldValue, entry.NewValue, entry.Operator)
+}
 ```
 
-**Output:**
+### Per-Path Debugging
+
+```go
+history := result.History()
+for _, path := range history.ChangedPaths() {
+    fmt.Printf("=== %s ===\n", path)
+    for i, entry := range history.ForPath(path) {
+        fmt.Printf("%d. [%s/%s] -> %v\n", i+1, entry.Phase, entry.Operation, entry.NewValue)
+    }
+}
+```
+
+### Filtered Query with a Limit
+
+```go
+evalPhase := graft.PhaseEval
+entries := history.Query(graft.HistoryFilter{
+    Phase: &evalPhase,
+    Limit: 10,
+})
+for _, entry := range entries {
+    fmt.Printf("%s evaluated to %v via %s\n", entry.Path, entry.NewValue, entry.Operator)
+}
+```
+
+### Serializing for an Audit Log
+
+```go
+data, err := history.ToJSON()
+if err != nil {
+    return err
+}
+os.WriteFile("audit.json", data, 0o644)
+```
+
+`ToJSON`/`ToYAML` output shape. Overwriting `database.host` records two
+entries, not one: the leaf key itself, and its parent map `database`
+(which the merge also rewrote, carrying the whole subtree as
+`old_value`/`new_value`) - the same recurse-when-the-key-already-exists
+behavior described in [What Is Actually Recorded](#what-is-actually-recorded)
+above:
 
 ```json
 {
@@ -431,302 +345,41 @@ os.WriteFile("audit.json", json, 0644)
     {
       "index": 0,
       "path": "database.host",
-      "source": "defaults.yml",
-      "line": 5,
-      "phase": "load",
-      "operation": "set",
-      "new_value": "localhost",
-      "timestamp": "2024-01-15T10:30:00Z"
+      "version": 1,
+      "timestamp": "2024-01-15T10:30:00Z",
+      "phase": "merge",
+      "operation": "merge",
+      "old_value": "localhost",
+      "new_value": "db.prod.example.com",
+      "operator": "merge",
+      "evaluated": false
     },
     {
       "index": 1,
-      "path": "database.host",
-      "source": "production.yml",
-      "line": 3,
+      "path": "database",
+      "version": 1,
+      "timestamp": "2024-01-15T10:30:00Z",
       "phase": "merge",
-      "operation": "overwrite",
-      "old_value": "localhost",
-      "new_value": "db.prod.example.com",
-      "timestamp": "2024-01-15T10:30:00Z"
+      "operation": "merge",
+      "old_value": { "host": "localhost" },
+      "new_value": { "host": "db.prod.example.com" },
+      "operator": "merge",
+      "evaluated": false
     }
   ],
   "summary": {
     "total_entries": 2,
-    "changed_paths": 1,
+    "changed_paths": 0,
     "by_phase": {
-      "load": 1,
-      "merge": 1
+      "merge": 2
     }
   }
 }
 ```
 
-### ToYAML
-
-Serializes the history to YAML format.
-
-```go
-func (h *History) ToYAML() ([]byte, error)
-```
-
-**Returns:**
-
-- `[]byte` - YAML representation
-
-- `error` - Non-nil if serialization fails
-
-**Example:**
-
-```go
-history := result.History()
-
-yaml, err := history.ToYAML()
-if err != nil {
-    return err
-}
-
-fmt.Println(string(yaml))
-```
-
-## Complete Examples
-
-### Audit Trail
-
-```go
-func generateAuditTrail(result graft.Document) (*AuditTrail, error) {
-    history := result.History()
-    if history == nil {
-        return nil, fmt.Errorf("history tracking not enabled")
-    }
-
-    trail := &AuditTrail{
-        GeneratedAt: time.Now(),
-        Entries:     make([]AuditEntry, 0),
-    }
-
-    for _, entry := range history.Timeline() {
-        audit := AuditEntry{
-            Timestamp: entry.Timestamp,
-            Path:      entry.Path,
-            Source:    fmt.Sprintf("%s:%d", entry.Source, entry.Line),
-            Phase:     phaseString(entry.Phase),
-            Operation: operationString(entry.Operation),
-        }
-
-        if entry.OldValue != nil {
-            audit.OldValue = fmt.Sprintf("%v", entry.OldValue)
-        }
-        if entry.NewValue != nil {
-            audit.NewValue = fmt.Sprintf("%v", entry.NewValue)
-        }
-        if entry.Operator != "" {
-            audit.Operator = entry.Operator
-        }
-
-        trail.Entries = append(trail.Entries, audit)
-    }
-
-    return trail, nil
-}
-```
-
-### Debugging Merge Issues
-
-```go
-func debugMerge(base, overlay graft.Document) {
-    engine, _ := graft.NewEngine()
-
-    result, err := engine.Merge(context.Background(), base, overlay).
-        TrackHistory().
-        Execute()
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    history := result.History()
-
-    // Show what happened to each changed path
-    for _, path := range history.ChangedPaths() {
-        fmt.Printf("\n=== %s ===\n", path)
-
-        entries := history.ForPath(path)
-        for i, entry := range entries {
-            fmt.Printf("%d. [%s] %s\n", i+1, entry.Phase, entry.Operation)
-            fmt.Printf("   Source: %s:%d\n", entry.Source, entry.Line)
-
-            if entry.OldValue != nil {
-                fmt.Printf("   From: %v\n", entry.OldValue)
-            }
-            if entry.NewValue != nil {
-                fmt.Printf("   To: %v\n", entry.NewValue)
-            }
-            if entry.Operator != "" {
-                fmt.Printf("   Operator: %s -> %v\n", entry.Operator, entry.Evaluated)
-            }
-        }
-    }
-}
-```
-
-### Tracking Sensitive Changes
-
-```go
-func trackSensitiveChanges(result graft.Document) []SecurityEvent {
-    history := result.History()
-    if history == nil {
-        return nil
-    }
-
-    sensitivePatterns := []string{
-        "password",
-        "secret",
-        "token",
-        "api_key",
-        "credentials",
-    }
-
-    events := []SecurityEvent{}
-
-    for _, entry := range history.Timeline() {
-        for _, pattern := range sensitivePatterns {
-            if strings.Contains(strings.ToLower(entry.Path), pattern) {
-                events = append(events, SecurityEvent{
-                    Timestamp: entry.Timestamp,
-                    Path:      entry.Path,
-                    Source:    entry.Source,
-                    Operation: operationString(entry.Operation),
-                    Operator:  entry.Operator,
-                })
-                break
-            }
-        }
-    }
-
-    return events
-}
-```
-
-### Value Provenance
-
-```go
-func traceValueOrigin(result graft.Document, path string) (*ValueProvenance, error) {
-    history := result.History()
-    if history == nil {
-        return nil, fmt.Errorf("history tracking not enabled")
-    }
-
-    entries := history.ForPath(path)
-    if len(entries) == 0 {
-        return nil, fmt.Errorf("no history for path: %s", path)
-    }
-
-    provenance := &ValueProvenance{
-        Path:         path,
-        CurrentValue: result.String(path),
-        Origin:       entries[0].Source,
-        OriginLine:   entries[0].Line,
-        Transformations: make([]Transformation, 0),
-    }
-
-    for i := 1; i < len(entries); i++ {
-        entry := entries[i]
-        transform := Transformation{
-            Source:    entry.Source,
-            Line:      entry.Line,
-            Phase:     phaseString(entry.Phase),
-            Operation: operationString(entry.Operation),
-            Before:    entry.OldValue,
-            After:     entry.NewValue,
-        }
-        if entry.Operator != "" {
-            transform.Operator = entry.Operator
-        }
-        provenance.Transformations = append(provenance.Transformations, transform)
-    }
-
-    return provenance, nil
-}
-```
-
-### Comparing History Across Merges
-
-```go
-func compareHistories(result1, result2 graft.Document) {
-    h1 := result1.History()
-    h2 := result2.History()
-
-    paths1 := make(map[string]bool)
-    for _, p := range h1.ChangedPaths() {
-        paths1[p] = true
-    }
-
-    paths2 := make(map[string]bool)
-    for _, p := range h2.ChangedPaths() {
-        paths2[p] = true
-    }
-
-    fmt.Println("Paths changed in first but not second:")
-    for p := range paths1 {
-        if !paths2[p] {
-            fmt.Printf("  %s\n", p)
-        }
-    }
-
-    fmt.Println("Paths changed in second but not first:")
-    for p := range paths2 {
-        if !paths1[p] {
-            fmt.Printf("  %s\n", p)
-        }
-    }
-
-    fmt.Println("Paths changed in both:")
-    for p := range paths1 {
-        if paths2[p] {
-            e1 := h1.ForPath(p)
-            e2 := h2.ForPath(p)
-            fmt.Printf("  %s: %d vs %d changes\n", p, len(e1), len(e2))
-        }
-    }
-}
-```
-
-## Performance Considerations
-
-History tracking adds memory and processing overhead:
-
-- Each change creates a `HistoryEntry` object
-
-- Entry values are stored (increases memory usage)
-
-- Timestamps are recorded for each entry
-
-**Best Practices:**
-
-- Enable history only when needed (debugging, auditing)
-
-- Use filters to limit query results
-
-- Consider disabling for high-volume production scenarios
-
-```go
-// Production: no history
-engine, _ := graft.NewEngine()
-result, _ := engine.Merge(ctx, base, overlay).Execute()
-
-// Development/debugging: with history
-engine, _ := graft.NewEngine(graft.WithHistoryTracking(true))
-result, _ := engine.Merge(ctx, base, overlay).TrackHistory().Execute()
-```
-
-## Thread Safety
-
-The History interface is thread-safe for concurrent reads. Multiple goroutines can safely:
-
-- Query history entries
-
-- Access the timeline
-
-- Serialize to JSON/YAML
+`summary.changed_paths` is a count (paths with more than one entry among
+`entries`), not a path list - `History.ChangedPaths()` returns the list
+form.
 
 ## Related Documentation
 
@@ -737,3 +390,7 @@ The History interface is thread-safe for concurrent reads. Multiple goroutines c
 - [Document Interface](document.md) - Accessing history from documents
 
 - [Diff Interface](diff-api.md) - Comparing documents
+
+- [History Tracking](../../user-guide/history-tracking.md) - The
+  CLI's separate `--history`/`--trace-path`/`--show-changes`/
+  `--changes-only` flags

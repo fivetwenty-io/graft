@@ -322,6 +322,15 @@ database:
 
 ### Testing with History
 
+A merge that overwrites an existing key records exactly one entry for
+that path (`NewValue` "production.com"), not one entry per input
+document. Reading the prior value back needs `Timeline()`/`Query()`, not
+`ForPath()`: `ForPath()`'s `OldValue` is nil on a path's first recorded
+entry, while `Timeline()`/`Query()` carry the real prior value ("localhost")
+for that same change - see
+[History Interface](library-api/history-api.md#historyentry) for the full
+`OldValue` asymmetry.
+
 ```go
 func TestMergeHistory(t *testing.T) {
     engine, _ := graft.NewEngine()
@@ -335,18 +344,22 @@ func TestMergeHistory(t *testing.T) {
 
     history := result.History()
 
-    // Check path was changed
     entries := history.ForPath("host")
-    if len(entries) != 2 {
-        t.Errorf("expected 2 history entries, got %d", len(entries))
+    if len(entries) != 1 {
+        t.Fatalf("expected 1 history entry, got %d", len(entries))
     }
 
-    // Verify change order
-    if entries[0].Value != "localhost" {
-        t.Error("first entry should be localhost")
+    if entries[0].NewValue != "production.com" {
+        t.Errorf("expected NewValue \"production.com\", got %v", entries[0].NewValue)
     }
-    if entries[1].Value != "production.com" {
-        t.Error("second entry should be production.com")
+    if entries[0].Phase != graft.PhaseMerge {
+        t.Errorf("expected Phase PhaseMerge, got %v", entries[0].Phase)
+    }
+
+    // Timeline()/Query() carry the accurate OldValue even on a path's
+    // first recorded entry; ForPath() does not (see history-api.md).
+    if got := history.Timeline()[0].OldValue; got != "localhost" {
+        t.Errorf("expected OldValue \"localhost\", got %v", got)
     }
 }
 ```
