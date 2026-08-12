@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -128,6 +129,27 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 	// Handle empty document list
 	if len(m.docs) == 0 {
 		return NewDocument(make(map[string]interface{})), nil
+	}
+
+	// Reject a cyclic document before any of the recursive tree walks below
+	// run: hasArrayOperators/hasArraysWithMaps/hasPruneOperators/
+	// hasSortOperators (called on every document just past this point, for
+	// both the single- and multi-document paths) and deepCopyMap/
+	// deepCopyValue (called during the merge itself) all recurse over
+	// map[string]interface{}/[]interface{} without their own visited
+	// tracking cost paid on every call; a single up-front walk here catches
+	// a self-referencing document — buildable through the library API via
+	// NewDocument(map[string]interface{}) with no validation of its own —
+	// before any of them can overflow the stack on it.
+	for i, doc := range m.docs {
+		if IsGoPatchDocument(doc) {
+			continue // go-patch documents carry patch.Ops, not raw map data
+		}
+		if data, ok := doc.RawData().(map[string]interface{}); ok {
+			if err := detectCyclicValue(data); err != nil {
+				return nil, fmt.Errorf("document %d: %w", i, err)
+			}
+		}
 	}
 
 	// Handle single document case. A lone go-patch document (no base to
@@ -290,7 +312,7 @@ func (m *mergeBuilderImpl) prepareFirstDocument(baseData map[string]interface{})
 		m.hasArraysWithMaps(baseData) ||
 		(m.hasPruneOperators(baseData) && !m.skipEvaluation)
 	if !needsProcessing {
-		return deepCopyMap(baseData), nil
+		return deepCopyMap(baseData)
 	}
 
 	mergerInstance := &merger.Merger{
@@ -342,9 +364,12 @@ func (m *mergeBuilderImpl) performLegacyMerge(base, overlay map[string]interface
 		}
 	}
 
-	baseCopy := deepCopyMap(base)
+	baseCopy, err := deepCopyMap(base)
+	if err != nil {
+		return err
+	}
 
-	err := mergerInstance.Merge(baseCopy, overlay)
+	err = mergerInstance.Merge(baseCopy, overlay)
 	if err != nil {
 		return m.convertMergerError(err)
 	}
@@ -461,7 +486,11 @@ func (m *mergeBuilderImpl) performSimpleMergeAtPath(base, overlay map[string]int
 		keyStr := fmt.Sprintf("%v", key)
 
 		if !exists {
-			base[key] = deepCopyValue(overlayValue)
+			copied, err := deepCopyValue(overlayValue)
+			if err != nil {
+				return err
+			}
+			base[key] = copied
 			if memTracker != nil {
 				_ = memTracker.RecordMergeChange(keyStr, nil, overlayValue, "add")
 			}
@@ -511,7 +540,7 @@ func (m *mergeBuilderImpl) mergeValuesAtPath(base, overlay interface{}, path []s
 
 	// If base is nil, use overlay
 	if base == nil {
-		return deepCopyValue(overlay), nil
+		return deepCopyValue(overlay)
 	}
 
 	// Handle map merging
@@ -519,8 +548,11 @@ func (m *mergeBuilderImpl) mergeValuesAtPath(base, overlay interface{}, path []s
 	overlayMap, overlayIsMap := overlay.(map[string]interface{})
 
 	if baseIsMap && overlayIsMap {
-		result := deepCopyMap(baseMap)
-		err := m.mergeIntoAtPath(result, overlayMap, path)
+		result, err := deepCopyMap(baseMap)
+		if err != nil {
+			return nil, err
+		}
+		err = m.mergeIntoAtPath(result, overlayMap, path)
 		if err != nil {
 			return nil, err
 		}
@@ -551,7 +583,7 @@ func (m *mergeBuilderImpl) mergeValuesAtPath(base, overlay interface{}, path []s
 			copy(result[len(overlayArray):], baseArray)
 			return result, nil
 		case ReplaceArrays:
-			return deepCopyValue(overlayArray), nil
+			return deepCopyValue(overlayArray)
 		case InlineArrays:
 			return m.mergeArraysInlineAtPath(baseArray, overlayArray, path)
 		default:
@@ -572,7 +604,7 @@ func (m *mergeBuilderImpl) mergeValuesAtPath(base, overlay interface{}, path []s
 		m.recordPriorCalcValue(path, base)
 	}
 
-	return deepCopyValue(overlay), nil
+	return deepCopyValue(overlay)
 }
 
 // mergeArraysInlineAtPath merges two arrays positionally, matching spruce's
@@ -593,11 +625,19 @@ func (m *mergeBuilderImpl) mergeArraysInlineAtPath(baseArray, overlayArray []int
 			}
 			merged = append(merged, elem)
 		} else {
-			merged = append(merged, deepCopyValue(overlayArray[i]))
+			copied, err := deepCopyValue(overlayArray[i])
+			if err != nil {
+				return nil, err
+			}
+			merged = append(merged, copied)
 		}
 	}
 	for i := len(overlayArray); i < len(baseArray); i++ {
-		merged = append(merged, deepCopyValue(baseArray[i]))
+		copied, err := deepCopyValue(baseArray[i])
+		if err != nil {
+			return nil, err
+		}
+		merged = append(merged, copied)
 	}
 	return merged, nil
 }
@@ -802,7 +842,11 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document) (Document, error) {
 		// evaluation, not merge-phase list ordering). The normal path applies
 		// queued sort paths as evaluator post-processing (see engine.go
 		// evaluate()), which is bypassed here, so apply them directly.
-		result = m.applySortPathsWithoutEvaluation(result)
+		sorted, err := m.applySortPathsWithoutEvaluation(result)
+		if err != nil {
+			return nil, err
+		}
+		result = sorted
 	}
 
 	// Collect prune keys from both sources:
@@ -923,18 +967,22 @@ func toInterfaceKeyValue(v interface{}) interface{} {
 // directly to the document without running the full evaluator, covering the
 // skip-eval path where engine.go's evaluate() (and its sort post-processing)
 // never runs. Unlike evaluate(), unresolvable or non-list sort targets are
-// skipped here rather than treated as errors.
-func (m *mergeBuilderImpl) applySortPathsWithoutEvaluation(doc Document) Document {
+// skipped here rather than treated as errors. A cyclic document is treated
+// as an error, same as every other deepCopyMap call site.
+func (m *mergeBuilderImpl) applySortPathsWithoutEvaluation(doc Document) (Document, error) {
 	sortPaths := m.engine.GetOperatorState().GetPathsToSort()
 	if len(sortPaths) == 0 {
-		return doc
+		return doc, nil
 	}
 
 	data, ok := doc.RawData().(map[string]interface{})
 	if !ok {
-		return doc // Return unchanged if not a map
+		return doc, nil // Return unchanged if not a map
 	}
-	result := deepCopyMap(data)
+	result, err := deepCopyMap(data)
+	if err != nil {
+		return nil, err
+	}
 
 	for path, sortKey := range sortPaths {
 		cleanPath := strings.TrimPrefix(path, "$.")
@@ -956,7 +1004,7 @@ func (m *mergeBuilderImpl) applySortPathsWithoutEvaluation(doc Document) Documen
 	}
 
 	m.engine.GetOperatorState().ResetPathsToSort()
-	return NewDocument(result)
+	return NewDocument(result), nil
 }
 
 // applyPruning removes specified keys from the document.
@@ -973,7 +1021,10 @@ func (m *mergeBuilderImpl) applyPruning(doc Document) (Document, error) {
 	if !ok {
 		return doc, nil // Return unchanged if not a map
 	}
-	result := deepCopyMap(data)
+	result, err := deepCopyMap(data)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, key := range m.pruneKeys {
 		if err := m.removeKey(result, key); err != nil {
@@ -1413,7 +1464,7 @@ func (m *mergeBuilderImpl) extractKey(data map[string]interface{}, keyPath strin
 		}
 	}
 
-	return deepCopyValue(current), nil
+	return deepCopyValue(current)
 }
 
 func (m *mergeBuilderImpl) setKey(data map[string]interface{}, keyPath string, value interface{}) error {
@@ -1457,28 +1508,131 @@ func (m *mergeBuilderImpl) setKey(data map[string]interface{}, keyPath string, v
 	return nil
 }
 
-// Deep copy helpers
-
-func deepCopyMap(src map[string]interface{}) map[string]interface{} {
-	dst := make(map[string]interface{})
-	for key, value := range src {
-		dst[key] = deepCopyValue(value)
-	}
-	return dst
+// detectCyclicValue reports whether v — a document's raw
+// map[string]interface{} data, or any value nested inside it — contains a
+// map or list that (transitively) contains itself. It walks the same two
+// container shapes deepCopyMap/deepCopyValue and this file's
+// hasArrayOperators/hasArraysWithMaps/hasPruneOperators/hasSortOperators
+// walkers recurse into, without allocating a copy, so Execute can reject a
+// cyclic document in one pass before any of those unrelated walkers get a
+// chance to run on it and overflow the stack themselves. Uses the same
+// on-stack (not permanent-seen) pointer tracking as deepCopyMapOnStack for
+// the same reason: a diamond-shaped, shared-but-acyclic structure must not
+// be misreported as cyclic.
+func detectCyclicValue(v interface{}) error {
+	return detectCyclicValueOnStack(v, make(map[uintptr]struct{}))
 }
 
-func deepCopyValue(src interface{}) interface{} {
+func detectCyclicValueOnStack(v interface{}, onStack map[uintptr]struct{}) error {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		if len(val) == 0 {
+			return nil
+		}
+		ptr := reflect.ValueOf(val).Pointer()
+		if _, cyclic := onStack[ptr]; cyclic {
+			return fmt.Errorf("cyclic reference detected: a map contains itself")
+		}
+		onStack[ptr] = struct{}{}
+		defer delete(onStack, ptr)
+		for _, item := range val {
+			if err := detectCyclicValueOnStack(item, onStack); err != nil {
+				return err
+			}
+		}
+	case []interface{}:
+		if len(val) == 0 {
+			return nil
+		}
+		ptr := reflect.ValueOf(val).Pointer()
+		if _, cyclic := onStack[ptr]; cyclic {
+			return fmt.Errorf("cyclic reference detected: a list contains itself")
+		}
+		onStack[ptr] = struct{}{}
+		defer delete(onStack, ptr)
+		for _, item := range val {
+			if err := detectCyclicValueOnStack(item, onStack); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Deep copy helpers
+//
+// Both functions track the map/list pointers currently on the recursion
+// stack (not every pointer ever seen) so a self-referencing value — a map
+// or list that transitively contains itself — is reported as an error
+// instead of recursing forever and overflowing the goroutine stack. Using
+// an on-stack set rather than a permanent "seen" set is required for
+// correctness, not just style: a diamond-shaped structure (the same map or
+// list instance legitimately reachable from two different sibling
+// branches) must still copy successfully, and it will revisit that
+// instance's pointer after the first branch has already finished with it
+// and popped it back off the stack.
+//
+// Every caller in this file can carry an error (they already return one
+// for other merge failures), so a cycle is always surfaced as an error
+// here rather than silently truncated.
+
+func deepCopyMap(src map[string]interface{}) (map[string]interface{}, error) {
+	return deepCopyMapOnStack(src, make(map[uintptr]struct{}))
+}
+
+func deepCopyMapOnStack(src map[string]interface{}, onStack map[uintptr]struct{}) (map[string]interface{}, error) {
+	// An empty (or nil) map cannot contain itself: there is nothing to
+	// recurse into, so it never needs a stack entry. Skipping it also
+	// avoids collisions between distinct empty/nil maps, which is Go
+	// pointer arithmetic can share a zero-value representation for.
+	if len(src) > 0 {
+		ptr := reflect.ValueOf(src).Pointer()
+		if _, cyclic := onStack[ptr]; cyclic {
+			return nil, fmt.Errorf("cyclic reference detected while copying: a map contains itself")
+		}
+		onStack[ptr] = struct{}{}
+		defer delete(onStack, ptr)
+	}
+
+	dst := make(map[string]interface{}, len(src))
+	for key, value := range src {
+		copied, err := deepCopyValueOnStack(value, onStack)
+		if err != nil {
+			return nil, err
+		}
+		dst[key] = copied
+	}
+	return dst, nil
+}
+
+func deepCopyValue(src interface{}) (interface{}, error) {
+	return deepCopyValueOnStack(src, make(map[uintptr]struct{}))
+}
+
+func deepCopyValueOnStack(src interface{}, onStack map[uintptr]struct{}) (interface{}, error) {
 	switch v := src.(type) {
 	case map[string]interface{}:
-		return deepCopyMap(v)
+		return deepCopyMapOnStack(v, onStack)
 	case []interface{}:
+		if len(v) > 0 {
+			ptr := reflect.ValueOf(v).Pointer()
+			if _, cyclic := onStack[ptr]; cyclic {
+				return nil, fmt.Errorf("cyclic reference detected while copying: a list contains itself")
+			}
+			onStack[ptr] = struct{}{}
+			defer delete(onStack, ptr)
+		}
 		dst := make([]interface{}, len(v))
 		for i, item := range v {
-			dst[i] = deepCopyValue(item)
+			copied, err := deepCopyValueOnStack(item, onStack)
+			if err != nil {
+				return nil, err
+			}
+			dst[i] = copied
 		}
-		return dst
+		return dst, nil
 	default:
-		return v // Primitives are copied by value
+		return v, nil // Primitives are copied by value
 	}
 }
 
