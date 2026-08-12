@@ -8,56 +8,52 @@ All operators implement the `Operator` interface:
 
 ```go
 type Operator interface {
-    // Evaluate executes the operator with given context and arguments
-    Evaluate(ctx EvalContext, args []interface{}) (interface{}, error)
+    // Setup performs one-time initialization before any Run call.
+    Setup() error
 
-    // Info returns metadata about the operator
-    Info() OperatorInfo
+    // Run evaluates the operator against its (unevaluated) call
+    // arguments. args is the raw expression tree for each argument, not
+    // resolved values - call EvaluateOperatorArgs(ev, args) first if the
+    // operator wants plain Go values instead.
+    Run(ev *Evaluator, args []*Expr) (*Response, error)
+
+    // Dependencies reports which paths this operator's call depends on,
+    // for dataflow ordering. Most operators return auto unchanged.
+    Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor
+
+    // Phase reports when this operator runs: MergePhase, EvalPhase, or
+    // ParamPhase.
+    Phase() OperatorPhase
 }
 
-type OperatorInfo struct {
-    Name        string   // Operator name (e.g., "concat")
-    Description string   // Human-readable description
-    MinArgs     int      // Minimum required arguments
-    MaxArgs     int      // Maximum arguments (-1 = unlimited)
-    ArgTypes    []string // Expected argument types for documentation
-    Returns     string   // Return type description
-    Examples    []string // Usage examples
-    Category    string   // Operator category (e.g., "string", "math")
-}
-
-type EvalContext interface {
-    // Document access
-    Document() Document
-    Path() string
-
-    // Reference resolution
-    Resolve(path string) (interface{}, error)
-
-    // Sub-expression evaluation
-    Evaluate(expr interface{}) (interface{}, error)
-
-    // Context and cancellation
-    Context() context.Context
-
-    // Engine access (for advanced operators)
-    Engine() Engine
+// Response is what Run returns: Type is Replace (substitute Value at the
+// call site) or Inject (merge Value into the parent structure).
+type Response struct {
+    Type  Action
+    Value interface{}
 }
 ```
+
+`ev *Evaluator` gives the operator access to the document being evaluated
+(`ev.Tree`), the current path (`ev.Here`), and the engine it is running
+under (needed only for advanced operators; most never touch it).
 
 ## Creating a Simple Operator
 
 ### Using OperatorFunc
 
-For simple operators, use the `OperatorFunc` helper:
+For simple operators with no custom `Setup` or `Dependencies` logic, use
+the `OperatorFunc` helper, which adapts a plain function into the
+`Operator` interface:
 
 ```go
-// Operator that returns the current timestamp
-timestampOp := graft.OperatorFunc(
-    func(ctx graft.EvalContext, args []interface{}) (interface{}, error) {
-        return time.Now().Unix(), nil
+// Operator that returns the current timestamp.
+timestampOp := &graft.OperatorFunc{
+    OpPhase: graft.EvalPhase,
+    Fn: func(ev *graft.Evaluator, args []*graft.Expr) (*graft.Response, error) {
+        return &graft.Response{Type: graft.Replace, Value: time.Now().Unix()}, nil
     },
-)
+}
 
 engine.RegisterOperator("timestamp", timestampOp)
 ```
@@ -418,22 +414,19 @@ func (o *CachedVaultOperator) Evaluate(ctx graft.EvalContext, args []interface{}
 
 ### Unit Testing
 
+`graft.NewTestEvaluator(t, yaml)` builds a real `*graft.Evaluator` over a
+fixture document, so an operator's `Run` method can be called directly
+without going through a full `Engine.Evaluate`:
+
 ```go
-func TestEnvOperator(t *testing.T) {
-    // Set test environment
-    os.Setenv("TEST_VAR", "test_value")
-    defer os.Unsetenv("TEST_VAR")
+func TestTimestampOperator(t *testing.T) {
+    ev := graft.NewTestEvaluator(t, `created_at: (( timestamp ))`)
 
-    op := &EnvOperator{}
-
-    // Create mock context
-    ctx := graft.NewMockEvalContext()
-
-    // Test evaluation
-    result, err := op.Evaluate(ctx, []interface{}{"TEST_VAR"})
+    resp, err := timestampOp.Run(ev, nil)
 
     assert.NoError(t, err)
-    assert.Equal(t, "test_value", result)
+    assert.Equal(t, graft.Replace, resp.Type)
+    assert.NotNil(t, resp.Value)
 }
 ```
 

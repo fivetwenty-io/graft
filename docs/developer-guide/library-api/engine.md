@@ -43,6 +43,19 @@ type Engine interface {
     // State access for operators
     GetOperatorState() OperatorState
     GetMemoryTracker() interfaces.MemoryTracker
+
+    // IsFeatureEnabled reports whether flag (an internal/features.Feature*
+    // constant) is enabled on this engine.
+    IsFeatureEnabled(flag string) bool
+
+    // Backends: custom secret/parameter backends, consulted by the
+    // vault/awsparam/awssecret/nats operators only when
+    // features.FeatureBackendRegistry is enabled - see
+    // [Creating Custom Backends](../custom-backends.md).
+    RegisterBackend(b Backend) error
+    GetBackend(name string) (Backend, bool)
+    ListBackends() []string
+    UnregisterBackend(name string) error
 }
 ```
 
@@ -585,13 +598,18 @@ func (e *Engine) RegisterOperator(name string, op Operator) error
 **Example:**
 
 ```go
-// Register a custom environment variable operator
-engine.RegisterOperator("env", graft.OperatorFunc(
-    func(ctx graft.EvalContext, args []interface{}) (interface{}, error) {
-        if len(args) != 1 {
+// Register a custom environment variable operator.
+engine.RegisterOperator("env", &graft.OperatorFunc{
+    OpPhase: graft.EvalPhase,
+    Fn: func(ev *graft.Evaluator, args []*graft.Expr) (*graft.Response, error) {
+        resolved, err := graft.EvaluateOperatorArgs(ev, args)
+        if err != nil {
+            return nil, err
+        }
+        if len(resolved) != 1 {
             return nil, fmt.Errorf("env requires exactly 1 argument")
         }
-        name, ok := args[0].(string)
+        name, ok := resolved[0].(string)
         if !ok {
             return nil, fmt.Errorf("env argument must be string")
         }
@@ -599,17 +617,20 @@ engine.RegisterOperator("env", graft.OperatorFunc(
         if value == "" {
             return nil, fmt.Errorf("environment variable %s not set", name)
         }
-        return value, nil
+        return &graft.Response{Type: graft.Replace, Value: value}, nil
     },
-))
+})
 
-// Now usable in documents
+// Now usable in documents.
 doc, _ := engine.ParseYAML([]byte(`
 api_key: (( env "API_KEY" ))
 `))
 ```
 
-See [Custom Operators](../custom-operators.md) for complete operator implementation guide.
+`RegisterOperator` takes any `graft.Operator` implementation. `OperatorFunc`
+adapts a plain function for operators that need no custom `Setup` or
+`Dependencies` logic - see [Custom Operators](../custom-operators.md) for
+the full `Operator` interface and a complete implementation guide.
 
 ### GetOperator
 

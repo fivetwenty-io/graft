@@ -58,43 +58,49 @@ database:
 ```go
 engine := graft.NewMockEngine()
 
-// Vault mocks
-engine.MockVault("secret/path:key", "value")
-engine.MockVaultPath("secret/path", map[string]interface{}{
-    "key1": "value1",
-    "key2": "value2",
-})
+// Vault mocks. MockVault takes the full "path:key" string as it appears
+// in the operator call; MockVaultPath is the same seed for callers who
+// have path and key as separate strings.
+engine.MockVault("secret/path:key1", "value1")
+engine.MockVaultPath("secret/path", "key2", "value2")
 
-// AWS Parameter Store mocks
+// AWS Parameter Store mocks. MockAWSParamJSON JSON-encodes value and
+// seeds the resulting string, matching how Parameter Store only ever
+// stores strings.
 engine.MockAWSParam("/path/to/param", "value")
-engine.MockAWSParamJSON("/path/to/json", `{"key": "value"}`)
+engine.MockAWSParamJSON("/path/to/json", map[string]interface{}{"key": "value"})
 
-// AWS Secrets Manager mocks
+// AWS Secrets Manager mocks. Unlike MockAWSParamJSON, the value is
+// returned as-is, since Secrets Manager secrets are not restricted to
+// strings.
 engine.MockAWSSecret("secret-name", "string-value")
 engine.MockAWSSecret("secret-name", map[string]string{
     "username": "user",
     "password": "pass",
 })
 
-// NATS mocks
+// NATS mocks.
 engine.MockNATS("kv:bucket/key", "value")
 engine.MockNATS("obj:bucket/file", []byte("file contents"))
 ```
 
 ### Mock Errors
 
+An unseeded path already reports "not found" without any error injection;
+`MockVaultError`/`MockAWSParamError` are for simulating other failures
+(there is no `MockAWSSecretError` or `MockNATSError` - an unseeded
+`awssecret`/`nats` lookup always reports "not found"):
+
 ```go
 engine := graft.NewMockEngine()
 
-// Mock backend error
-engine.MockVaultError("secret/missing", &graft.NotFoundError{
-    Path: "secret/missing",
-})
+// Mock an unreachable backend.
+engine.MockVaultError("secret/down:pass", errors.New("vault unreachable"))
 
-// Mock timeout
-engine.MockVaultError("secret/slow", context.DeadlineExceeded)
+// Mock a timeout.
+engine.MockVaultError("secret/slow:pass", context.DeadlineExceeded)
 
-// Mock custom error
+// Mock a custom error.
 engine.MockAWSParamError("/path", fmt.Errorf("access denied"))
 ```
 
@@ -389,6 +395,7 @@ func TestVaultIntegration(t *testing.T) {
     }
 
     engine, _ := graft.NewEngine(
+        graft.WithBackendRegistry(true),
         graft.WithVault(graft.VaultConfig{
             Address: vaultAddr,
             Token:   vaultToken,
