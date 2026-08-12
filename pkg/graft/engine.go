@@ -1023,12 +1023,31 @@ func createEngineFromOptions(opts *EngineOptions) (Engine, error) {
 		engine.Features = features.DefaultFlags()
 	}
 
-	// Apply caching options
+	// Apply caching options.
+	//
+	// EnableCache alone does not win over a disabled FeatureCaching flag:
+	// the CLI unconditionally requests WithCache(true, 1000) on every
+	// invocation (cmd/graft/main.go buildEngineAndDocs) and relies on
+	// GRAFT_FEATURE_CACHE=false (which clears FeatureCaching, see
+	// internal/features/env.go) suppressing the cache anyway - see
+	// cmd/graft/main_test.go TestConfigEngineOptsWiresFeatureFlags, which
+	// asserts exactly that even though WithCache(true, ..) was requested.
+	// A CacheInstance bypasses this gate entirely (below), which is the
+	// asymmetry: supplying a pre-built cache always wins, but the EnableCache
+	// boolean only wins when the feature flag also allows it.
 	if opts.CacheInstance != nil {
 		engine.Cache = opts.CacheInstance
 	} else if opts.EnableCache && engine.IsFeatureEnabled(features.FeatureCaching) {
-		// Create default cache if caching is enabled
-		engine.Cache = cache.NewCache(cache.WithMaxSize(opts.CacheSize))
+		// Create default cache if caching is enabled. CacheTTL, when set
+		// (WithCacheTTL), gives entries a default expiration; internal/cache's
+		// ShardedCache (built by both NewCache and NewTTLCache) already applies
+		// Options.TTL to every Set call, so no separate TTL-capable
+		// constructor is needed here.
+		cacheOpts := []cache.Option{cache.WithMaxSize(opts.CacheSize)}
+		if opts.CacheTTL > 0 {
+			cacheOpts = append(cacheOpts, cache.WithTTL(opts.CacheTTL))
+		}
+		engine.Cache = cache.NewCache(cacheOpts...)
 	}
 
 	// Apply metrics registry

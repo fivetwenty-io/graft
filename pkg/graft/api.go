@@ -3,6 +3,7 @@ package graft
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/fivetwenty-io/graft/internal/cache"
 	"github.com/fivetwenty-io/graft/internal/config"
@@ -283,6 +284,11 @@ type EngineOptions struct {
 	SkipVault bool
 	SkipAws   bool
 	SkipNats  bool
+
+	// CacheTTL sets a default time-to-live for entries in the engine's
+	// operator result cache (see WithCacheTTL). Zero means no expiration.
+	CacheTTL time.Duration
+
 }
 
 // EngineOption is a functional option for configuring an engine.
