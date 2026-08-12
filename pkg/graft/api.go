@@ -223,6 +223,32 @@ const (
 // implementation; new methods may be added to this interface in minor
 // releases.
 type MergeBuilder interface {
+	// Base sets the base document for the merge, replacing position 0 in
+	// the builder's document list - including a document supplied via
+	// engine.Merge(ctx, docs...)'s first argument. Calling Base more than
+	// once on the same chain replaces the previous base rather than
+	// accumulating; use Overlay/OverlayFile to add further documents. A
+	// nil doc is not validated here: Execute() panics on it later, the
+	// same pre-existing hazard as passing a nil Document to Engine.Merge
+	// directly.
+	Base(doc Document) MergeBuilder
+
+	// Overlay appends one or more documents to be merged, in call order,
+	// on top of the base and any earlier overlays (from Merge's own
+	// arguments, prior Overlay calls, or prior OverlayFile calls). A nil
+	// entry is not validated here; see Base's doc comment for the same
+	// pre-existing nil hazard.
+	Overlay(docs ...Document) MergeBuilder
+
+	// OverlayFile loads each path via the engine's ParseFile (the same
+	// extension-based YAML/JSON/go-patch auto-detection ParseFile
+	// documents, including the "-" == STDIN convention) and appends the
+	// resulting documents as overlays, in path order. A load failure does
+	// not panic and is not returned directly: it is captured on the
+	// returned builder and reported by Execute(), matching
+	// Engine.MergeFiles/MergeReaders' error-carrying-builder convention.
+	OverlayFile(paths ...string) MergeBuilder
+
 	// WithPrune specifies keys to remove from the final output
 	WithPrune(keys ...string) MergeBuilder
 

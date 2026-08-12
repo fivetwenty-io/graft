@@ -39,6 +39,104 @@ type mergeBuilderImpl struct {
 	priorCalcValues map[string]interface{}
 }
 
+// Base sets the base document for the merge - position 0 in the builder's
+// document list - replacing whatever previously occupied that slot,
+// including a document supplied via engine.Merge(ctx, docs...). Calling
+// Base more than once on the same chain replaces the previous base rather
+// than accumulating; use Overlay/OverlayFile to add further documents.
+//
+// Like every other With*-style method on this builder, Base does not
+// mutate the receiver: it returns a new builder holding a fresh document
+// slice (copied, not aliased, from the receiver's), so two Base calls
+// branching off the same starting builder produce independent results.
+func (m *mergeBuilderImpl) Base(doc Document) MergeBuilder {
+	if m.error != nil {
+		return m // Propagate error
+	}
+
+	newBuilder := *m
+	newDocs := make([]Document, len(m.docs))
+	copy(newDocs, m.docs)
+	if len(newDocs) == 0 {
+		newDocs = append(newDocs, doc)
+	} else {
+		newDocs[0] = doc
+	}
+	newBuilder.docs = newDocs
+	return &newBuilder
+}
+
+// Overlay appends one or more documents to the builder's document list, to
+// be merged, in call order, on top of whatever is already queued (the base
+// plus any earlier overlays).
+//
+// Overlay does not mutate the receiver: each call returns a new builder
+// holding a fresh document slice sized to its own contents, so branching
+// (m.Overlay(a) and m.Overlay(b) off the same m) does not alias.
+func (m *mergeBuilderImpl) Overlay(docs ...Document) MergeBuilder {
+	if m.error != nil {
+		return m // Propagate error
+	}
+	if len(docs) == 0 {
+		return m
+	}
+
+	newBuilder := *m
+	newDocs := make([]Document, len(m.docs), len(m.docs)+len(docs))
+	copy(newDocs, m.docs)
+	newDocs = append(newDocs, docs...)
+	newBuilder.docs = newDocs
+	return &newBuilder
+}
+
+// OverlayFile loads each path via the engine's ParseFile - the same
+// extension-based YAML/JSON/go-patch auto-detection and "-" == STDIN
+// convention ParseFile documents - and appends the resulting documents as
+// overlays, in path order.
+//
+// A load failure for any path does not panic and does not silently return
+// an unusable builder: it produces a fresh error-carrying builder, the
+// same convention DefaultEngine.MergeFiles/MergeReaders already establish
+// for construction-time failures. Every other builder method
+// short-circuits on that error, and Execute() reports it first, so
+// engine.Merge(ctx, base).OverlayFile("missing.yml").WithPrune(...).Execute()
+// surfaces the load failure exactly as if OverlayFile had been the last
+// call before Execute().
+func (m *mergeBuilderImpl) OverlayFile(paths ...string) MergeBuilder {
+	if m.error != nil {
+		return m // Propagate error
+	}
+	if len(paths) == 0 {
+		return m
+	}
+	if m.engine == nil {
+		// Defensive: every builder reachable from the public API carries a
+		// non-nil engine (Engine.Merge/MergeFiles/MergeReaders always set
+		// it). A handful of this package's own tests construct
+		// &mergeBuilderImpl{} directly to exercise unrelated helpers, so
+		// this path is not reachable through Engine, but it must still not
+		// panic if it is ever hit.
+		return &mergeBuilderImpl{ctx: m.ctx, error: errors.New("failed to load overlay file: no engine configured")}
+	}
+
+	docs := make([]Document, 0, len(paths))
+	for _, path := range paths {
+		doc, err := m.engine.ParseFile(path)
+		if err != nil {
+			return &mergeBuilderImpl{engine: m.engine, ctx: m.ctx, error: fmt.Errorf("failed to load overlay file: %w", err)}
+		}
+		if doc == nil {
+			// ParseFile returns (nil, nil) for a blank/null/empty document
+			// (its ParseYAML/ParseJSON contract); merge that as an empty
+			// map, matching MergeFiles' treatment of the same case.
+			doc = NewDocument(make(map[string]interface{}))
+		}
+		docs = append(docs, doc)
+	}
+
+	return m.Overlay(docs...)
+}
+
 // WithPrune adds keys to remove from the final output.
 func (m *mergeBuilderImpl) WithPrune(keys ...string) MergeBuilder {
 	if m.error != nil {
