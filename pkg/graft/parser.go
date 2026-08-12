@@ -266,14 +266,35 @@ func (p *Parser) parseExprWithPrecedence(minPrec Precedence) (*Expr, error) {
 // name stays a reference in operand position (`(( left == type ))` with a
 // "type:" key).
 func (p *Parser) parseOperand(minPrec Precedence) (*Expr, error) {
+	return p.withOpcallEligibility(func() (*Expr, error) {
+		return p.parseExprWithPrecedence(minPrec)
+	})
+}
+
+// withOpcallEligibility runs parseFn with p.opcallPos temporarily set to
+// p.pos when the token there satisfies identifierOpensOpcallAt's
+// two-token rule, restoring the prior value once parseFn returns.
+// parseOperand (a general operand — a binary operator's right side, a
+// ternary branch, a unary operand) and parseOperatorCall's own "||"
+// right-hand side (a fallback value inside a bare operator call's
+// space-separated argument list, e.g. the "grab fallback" in
+// "(( grab (concat ...) || grab fallback ))") both need this exact
+// eligibility check and override: without it, an operator identifier at
+// either position falls through to being parsed as a bare reference
+// instead of opening its own call, no matter how many arguments it
+// itself takes — the two-token rule is what makes `(( grab a && grab b
+// ))` evaluate both grabs, and skipping it for the second call site left
+// a bare (non-"@target") operator fallback broken both at the top level
+// and, doubly so, when nested inside another call's own argument.
+func (p *Parser) withOpcallEligibility(parseFn func() (*Expr, error)) (*Expr, error) {
 	if p.identifierOpensOpcallAt(p.pos) {
 		saved := p.opcallPos
 		p.opcallPos = p.pos
-		expr, err := p.parseExprWithPrecedence(minPrec)
+		expr, err := parseFn()
 		p.opcallPos = saved
 		return expr, err
 	}
-	return p.parseExprWithPrecedence(minPrec)
+	return parseFn()
 }
 
 // identifierOpensOpcallAt reports whether the token at index idx opens an
@@ -770,8 +791,12 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 					// This handles (( grab this || "that" )) and (( concat a || b  c || d ))
 					p.advance() // consume ||
 
-					// Parse the right side of the || (the fallback value)
-					right, err := p.parsePrimary()
+					// Parse the right side of the || (the fallback value).
+					// withOpcallEligibility lets a bare operator identifier
+					// here (no "@target", no explicit "(") open its own
+					// call under the same two-token rule parseOperand
+					// applies elsewhere — see its doc comment.
+					right, err := p.withOpcallEligibility(p.parsePrimary)
 					if err != nil {
 						return nil, err
 					}
