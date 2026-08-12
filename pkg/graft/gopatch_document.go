@@ -7,7 +7,22 @@ import (
 )
 
 // goPatchDocument is a special document type that holds go-patch operations.
+//
+// It embeds document (by value, always at its zero value: data is always
+// nil here, since nothing ever sets it) so the C4 convenience methods
+// added to the Document interface (String/Int/Int64/Float64/Bool/Paths/
+// Has/SortKeys/ToJSONIndent) are promoted from *document rather than
+// reimplemented. Every method that existed on Document before those
+// additions is still explicitly defined below, and an explicit method
+// always takes precedence over a promoted one with the same name — so
+// embedding changes none of the "go-patch documents do not support ..."
+// behavior pinned by TestGoPatchDocument_UnsupportedOperations. Only the
+// newly promoted methods are affected, and they behave exactly as they
+// would for any document with no data: checked getters return their zero
+// value, Has returns false, Paths returns nil, SortKeys returns an empty
+// Document, and ToJSONIndent returns "{}".
 type goPatchDocument struct {
+	document
 	ops patch.Ops
 }
 
@@ -61,7 +76,7 @@ func (g *goPatchDocument) RawData() interface{} {
 	return g.ops
 }
 
-func (g *goPatchDocument) Prune(key string) Document {
+func (g *goPatchDocument) Prune(keys ...string) Document {
 	return g // No-op for go-patch documents
 }
 

@@ -233,3 +233,62 @@ func TestGoPatchDocument_SupportedOperations(t *testing.T) {
 		})
 	})
 }
+
+// TestGoPatchDocument_C4PromotedMethods exercises the C4 convenience
+// methods (String/Int/Int64/Float64/Bool/Has/Paths/SortKeys/ToJSONIndent),
+// which goPatchDocument gets by embedding document rather than
+// reimplementing. A go-patch document's embedded document is always at its
+// zero value (data is nil, since nothing ever sets it), so every one of
+// these returns the same well-defined "empty document" result regardless
+// of the go-patch ops it holds; that is the intended behavior, not an
+// oversight (see the doc comment on goPatchDocument).
+func TestGoPatchDocument_C4PromotedMethods(t *testing.T) {
+	Convey("Go-patch document C4 promoted methods", t, func() {
+		doc := NewGoPatchDocument(patch.Ops{
+			patch.ReplaceOp{
+				Path:  patch.MustNewPointerFromString("/test"),
+				Value: "value",
+			},
+		})
+
+		Convey("checked getters return their zero value", func() {
+			So(doc.String("anything"), ShouldEqual, "")
+			So(doc.Int("anything"), ShouldEqual, 0)
+			So(doc.Int64("anything"), ShouldEqual, int64(0))
+			So(doc.Float64("anything"), ShouldEqual, 0.0)
+			So(doc.Bool("anything"), ShouldBeFalse)
+		})
+
+		Convey("Has returns false", func() {
+			So(doc.Has("anything"), ShouldBeFalse)
+		})
+
+		Convey("Paths returns empty", func() {
+			So(len(doc.Paths()), ShouldEqual, 0)
+		})
+
+		Convey("SortKeys returns a usable empty Document", func() {
+			sorted := doc.SortKeys()
+			So(sorted, ShouldNotBeNil)
+			So(sorted.Has("anything"), ShouldBeFalse)
+			So(len(sorted.Paths()), ShouldEqual, 0)
+		})
+
+		Convey("ToJSONIndent returns an empty JSON object", func() {
+			out, err := doc.ToJSONIndent("  ")
+			So(err, ShouldBeNil)
+			So(string(out), ShouldEqual, "{}")
+		})
+
+		Convey("Prune accepts variadic keys as a no-op", func() {
+			result := doc.Prune("key1", "key2")
+			So(result, ShouldEqual, doc)
+		})
+
+		Convey("existing unsupported-operation behavior is unaffected by embedding", func() {
+			_, err := doc.Get("path")
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "do not support Get operations")
+		})
+	})
+}

@@ -54,8 +54,10 @@ type Document interface {
 	// Clone creates a deep copy of the document
 	Clone() Document
 
-	// Prune removes a key from the document
-	Prune(key string) Document
+	// Prune removes one or more keys from the document, returning a new
+	// document with those keys removed. A key that does not resolve is
+	// silently skipped.
+	Prune(keys ...string) Document
 
 	// CherryPick creates a new document with only the specified keys
 	CherryPick(keys ...string) Document
@@ -68,6 +70,32 @@ type Document interface {
 	GetFloat64(path string) (float64, error)
 	GetStringSlice(path string) ([]string, error)
 	GetMapStringString(path string) (map[string]string, error)
+
+	// Checked getters return the zero value on any failure (missing path
+	// or wrong type) instead of an error. Use the Get*/GetString/GetInt/
+	// etc. forms above when the distinction between "missing" and
+	// "present but zero" matters.
+	String(path string) string
+	Int(path string) int
+	Int64(path string) int64
+	Float64(path string) float64
+	Bool(path string) bool
+
+	// Has reports whether path resolves to a value in the document.
+	Has(path string) bool
+
+	// Paths returns every leaf path in the document, in canonical dotted
+	// form (no "$" prefix), sorted for stable output.
+	Paths() []string
+
+	// SortKeys returns a new Document with map keys sorted recursively.
+	// See the *document implementation for what "sorted" guarantees.
+	SortKeys() Document
+
+	// ToJSONIndent converts the document to indented JSON bytes using
+	// indent as the per-level indentation string. See also
+	// Engine.ToJSONIndent, which additionally passes through evaluation.
+	ToJSONIndent(indent string) ([]byte, error)
 }
 
 // Engine is the enhanced interface for using graft as a library.

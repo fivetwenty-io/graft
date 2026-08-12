@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -359,19 +360,35 @@ func (d *document) navigateThroughList(list []interface{}, segment string) (elem
 	return nil, 0
 }
 
-// Prune removes a key from the document.
-func (d *document) Prune(key string) Document {
+// Prune removes one or more keys from the document, returning a new
+// document with those keys removed. Each key is resolved and pruned
+// independently against the same clone, in the order given; a key that
+// does not resolve (missing path, list index out of range) is silently
+// skipped, matching the prior single-key behavior. Calling Prune with no
+// keys returns an unmodified clone.
+func (d *document) Prune(keys ...string) Document {
 	cloned := d.Clone().(*document) //nolint:errcheck // Clone always returns *document
 
+	for _, key := range keys {
+		cloned.pruneKeyInPlace(key)
+	}
+
+	return cloned
+}
+
+// pruneKeyInPlace removes a single key from d's own data in place. Callers
+// must only invoke this on a document that is already an isolated clone
+// (see Prune); it mutates d.data directly rather than copying first.
+func (d *document) pruneKeyInPlace(key string) {
 	if !strings.Contains(key, ".") {
-		delete(cloned.data, key)
-		return cloned
+		delete(d.data, key)
+		return
 	}
 
 	segments := strings.Split(key, ".")
-	result := d.navigateForPrune(segments, cloned.data)
+	result := d.navigateForPrune(segments, d.data)
 	if !result.success {
-		return cloned
+		return
 	}
 
 	finalSegment := segments[len(segments)-1]
@@ -380,8 +397,6 @@ func (d *document) Prune(key string) Document {
 	} else {
 		delete(result.current, finalSegment)
 	}
-
-	return cloned
 }
 
 // pruneFromList removes an element from a list by index.
@@ -664,4 +679,151 @@ func CheckForCycles(root interface{}, maxDepth int) error {
 	}
 
 	return check(root, maxDepth)
+}
+
+// String returns the string value at path, or "" if the path does not
+// exist or the value is not a string. Use GetString for the
+// error-returning form.
+func (d *document) String(path string) string {
+	v, err := d.GetString(path)
+	if err != nil {
+		return ""
+	}
+	return v
+}
+
+// Int returns the int value at path, or 0 if the path does not exist or
+// the value is not a whole number. Use GetInt for the error-returning
+// form.
+func (d *document) Int(path string) int {
+	v, err := d.GetInt(path)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// Int64 returns the int64 value at path, or 0 if the path does not exist
+// or the value is not a whole number. Use GetInt64 for the
+// error-returning form.
+func (d *document) Int64(path string) int64 {
+	v, err := d.GetInt64(path)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// Float64 returns the float64 value at path, or 0 if the path does not
+// exist or the value is not a number. Use GetFloat64 for the
+// error-returning form.
+func (d *document) Float64(path string) float64 {
+	v, err := d.GetFloat64(path)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// Bool returns the bool value at path, or false if the path does not
+// exist or the value is not a boolean. Use GetBool for the
+// error-returning form.
+func (d *document) Bool(path string) bool {
+	v, err := d.GetBool(path)
+	if err != nil {
+		return false
+	}
+	return v
+}
+
+// Has reports whether path resolves to a value in the document.
+func (d *document) Has(path string) bool {
+	_, err := d.Get(path)
+	return err == nil
+}
+
+// Paths returns every leaf path in the document (every path whose value
+// is not itself a map or a list), in the same dotted, "$"-free canonical
+// form as tree.Cursor.String() and every path this package accepts as
+// input (e.g. "meta.instance_groups.0.name"), sorted lexicographically
+// for stable output. A map or list with no elements contributes no path
+// of its own, since it has no leaf value to report; every other returned
+// path round-trips through Get.
+func (d *document) Paths() []string {
+	var paths []string
+	collectPaths(d.data, "", &paths)
+	sort.Strings(paths)
+	return paths
+}
+
+// collectPaths recursively walks v, appending the dotted path of every
+// leaf (non-map, non-slice) value it finds to paths. prefix is the
+// already-built dotted path of v itself ("" at the document root).
+func collectPaths(v interface{}, prefix string, paths *[]string) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		for k, child := range val {
+			next := k
+			if prefix != "" {
+				next = prefix + "." + k
+			}
+			collectPaths(child, next, paths)
+		}
+	case []interface{}:
+		for i, child := range val {
+			next := strconv.Itoa(i)
+			if prefix != "" {
+				next = prefix + "." + next
+			}
+			collectPaths(child, next, paths)
+		}
+	default:
+		if prefix != "" {
+			*paths = append(*paths, prefix)
+		}
+	}
+}
+
+// SortKeys returns a new Document built by a fresh recursive rebuild of
+// every nested map and list. The result contains the same data as d;
+// "sorted" describes how that data serializes, not how it is stored — Go
+// maps have no persistent key order, and both this package's ToJSON
+// (encoding/json) and ToYAML (goccy/go-yaml) already sort map[string]
+// keys alphabetically when marshaling a plain map[string]interface{}.
+// This method exists so callers get that same deterministic-output
+// guarantee via RawData()/ToMap() without depending on a particular
+// marshaler's default behavior, and mirrors (independently of, and
+// without importing) postprocess.KeySorter's recursive-descent shape.
+func (d *document) SortKeys() Document {
+	sorted, _ := sortKeysRecursive(d.data).(map[string]interface{})
+	return &document{data: sorted}
+}
+
+// sortKeysRecursive rebuilds v, recursing into every nested map and list.
+func sortKeysRecursive(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{}, len(val))
+		for k, child := range val {
+			result[k] = sortKeysRecursive(child)
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(val))
+		for i, child := range val {
+			result[i] = sortKeysRecursive(child)
+		}
+		return result
+	default:
+		return val
+	}
+}
+
+// ToJSONIndent converts the document to indented JSON bytes, using indent
+// as the per-level indentation string and no line prefix. This is a
+// Document-level convenience; Engine.ToJSONIndent(doc, indent) remains
+// the engine-level equivalent.
+func (d *document) ToJSONIndent(indent string) ([]byte, error) {
+	jsonData := convertToJSONCompatible(d.data)
+	return json.MarshalIndent(jsonData, "", indent)
 }
