@@ -91,6 +91,17 @@ type DefaultEngine struct {
 
 	// Pool provides optional worker pool for parallel evaluation (nil if disabled)
 	Pool *parallel.WorkerPool
+
+	// backends is the custom-backend registry (C7, see backend.go). Only
+	// explicitly registered backends live here - never eager adapters
+	// for internal/backends/{vault,aws,nats}, see
+	// DefaultEngine.RegisterBackend's design note. Guarded by opMutex,
+	// the same lock RegisterOperator/GetOperator already take, rather
+	// than adding a sixth per-concern mutex.
+	backends      map[string]Backend
+	backendRetry  map[string]RetryConfig
+	backendCaches map[string]BackendCache
+	auditLogger   AuditLogger
 }
 
 // EngineMetrics tracks engine performance metrics.
@@ -988,6 +999,19 @@ func (e *DefaultEngine) Configure(opts ...Option) error {
 		return err
 	}
 
+	// Validate every pending backend registration (WithBackend, and
+	// transitively WithVault/WithVaultTarget/WithAWS/WithAWSTarget, all of
+	// which populate newOpts.Backends) before mutating any engine state,
+	// the same discipline applied to pending operators above. RegisterBackend
+	// performs these same two checks itself, but only at registration time -
+	// too late for Configure's all-or-nothing contract, since the feature
+	// flag, retry, cache, and audit-logger fields below would already be
+	// mutated by the time a bad backend surfaced.
+	pendingBackendNames := backendRegistrationNames(newOpts.Backends)
+	if err := validatePendingBackends(pendingBackendNames, newOpts.Backends); err != nil {
+		return err
+	}
+
 	// Snapshot the fields that govern cache derivation *before* mutating
 	// engine state, so the switch below can tell whether this call
 	// actually needs to touch the cache at all. cache.NewCache starts a
@@ -1042,6 +1066,72 @@ func (e *DefaultEngine) Configure(opts ...Option) error {
 		}
 	}
 
+	// Apply the backend registry fields, in the same order
+	// createEngineFromOptions applies them at construction: the feature
+	// flag, then retry/cache/audit-logger configuration, then the backends
+	// themselves - RegisterBackend reads e.backendRetry/e.backendCaches/
+	// e.auditLogger at registration time to build each backend's wrapper
+	// (registerBackendLocked), so those three must already reflect this
+	// call's values before any backend in pendingBackendNames registers.
+	// Already validated above, so RegisterBackend cannot fail here for the
+	// reasons validatePendingBackends checks; its error is still returned
+	// defensively rather than ignored.
+	if newOpts.backendRegistryEnabled != nil {
+		e.Features.Set(features.FeatureBackendRegistry, *newOpts.backendRegistryEnabled)
+	}
+	if newOpts.BackendRetryConfigs != nil {
+		e.backendRetry = newOpts.BackendRetryConfigs
+	}
+	if newOpts.BackendCaches != nil {
+		e.backendCaches = newOpts.BackendCaches
+	}
+	if newOpts.AuditLoggerInstance != nil {
+		e.auditLogger = newOpts.AuditLoggerInstance
+	}
+	for _, name := range pendingBackendNames {
+		if err := e.RegisterBackend(newOpts.Backends[name]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// backendRegistrationNames returns the names in backends, sorted, so
+// Configure applies (and validates) pending backend registrations in a
+// deterministic order - the same reasoning pendingOperatorNames documents
+// for pending custom-operator registrations.
+func backendRegistrationNames(backends map[string]Backend) []string {
+	names := make([]string, 0, len(backends))
+	for name := range backends {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// validatePendingBackends validates every backend in backends, in names
+// order, mirroring the two checks Engine.RegisterBackend performs (nil
+// backend, empty Name()) plus one Configure-specific check: a backend
+// whose Name() disagrees with the map key it is stored under would
+// silently register under a different name than the one Configure
+// validated, so that mismatch is rejected too. A map key is not itself an
+// input a caller directly controls when going through WithBackend (which
+// always keys by b.Name()), but EngineOptions.Backends is an exported
+// field, so a hand-built EngineOptions is possible.
+func validatePendingBackends(names []string, backends map[string]Backend) error {
+	for _, name := range names {
+		b := backends[name]
+		if b == nil {
+			return fmt.Errorf("backend must not be nil")
+		}
+		if b.Name() == "" {
+			return fmt.Errorf("backend Name() must not be empty")
+		}
+		if b.Name() != name {
+			return fmt.Errorf("backend registered under key %q reports Name() %q", name, b.Name())
+		}
+	}
 	return nil
 }
 
@@ -1285,6 +1375,7 @@ func newEngineFromOptions(opts *EngineOptions) *DefaultEngine {
 		skipVault:      opts.SkipVault,
 		skipAws:        opts.SkipAws,
 		skipNats:       opts.SkipNats,
+		backends:       make(map[string]Backend),
 		metrics: &EngineMetrics{
 			OperatorCalls: make(map[string]int64),
 		},
@@ -1397,6 +1488,32 @@ func createEngineFromOptions(opts *EngineOptions) (Engine, error) {
 	// Apply WithTraceOutput/WithTraceLevel/WithDebugLogging, if any were
 	// supplied. A no-op when none were (see applyLogging).
 	applyLogging(opts)
+
+	// Apply the backend registry (C7, see backend.go). WithBackendRegistry
+	// must be applied before the backends are registered (harmless either
+	// way for RegisterBackend itself, which does not consult the flag,
+	// but keeps the flag's final value settled before anything that might
+	// reason about it runs). Retry/cache configuration and the audit
+	// logger must also be set before the backends are registered, since
+	// RegisterBackend reads them at registration time to build each
+	// backend's wrapper.
+	if opts.backendRegistryEnabled != nil {
+		engine.Features.Set(features.FeatureBackendRegistry, *opts.backendRegistryEnabled)
+	}
+	if opts.BackendRetryConfigs != nil {
+		engine.backendRetry = opts.BackendRetryConfigs
+	}
+	if opts.BackendCaches != nil {
+		engine.backendCaches = opts.BackendCaches
+	}
+	if opts.AuditLoggerInstance != nil {
+		engine.auditLogger = opts.AuditLoggerInstance
+	}
+	for _, b := range opts.Backends {
+		if err := engine.RegisterBackend(b); err != nil {
+			return nil, err
+		}
+	}
 
 	return engine, nil
 }

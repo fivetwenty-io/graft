@@ -162,6 +162,19 @@ type Engine interface {
 
 	// Memory tracking
 	GetMemoryTracker() interfaces.MemoryTracker
+
+	// IsFeatureEnabled reports whether flag (an internal/features.Feature*
+	// constant) is enabled on this engine.
+	IsFeatureEnabled(flag string) bool
+
+	// Backend registry (C7): custom secret/parameter backends, consulted
+	// by the vault/awsparam/awssecret/nats operators only when
+	// features.FeatureBackendRegistry is enabled. See backend.go and
+	// docs/developer-guide/custom-backends.md.
+	RegisterBackend(b Backend) error
+	GetBackend(name string) (Backend, bool)
+	ListBackends() []string
+	UnregisterBackend(name string) error
 }
 
 // OperatorState provides state access for operators during evaluation.
@@ -386,6 +399,30 @@ type EngineOptions struct {
 	// way traceLevelSet does for TraceLevel. Unexported: only
 	// WithDebugLogging sets it.
 	debugLoggingSet bool
+
+	// Backends registers custom secret/parameter backends at construction
+	// time (see WithBackend). Consulted by the vault/awsparam/awssecret/
+	// nats operators only when features.FeatureBackendRegistry is
+	// enabled.
+	Backends map[string]Backend
+
+	// BackendRetryConfigs configures the registry's generic retry
+	// wrapper per backend name (see WithBackendRetry).
+	BackendRetryConfigs map[string]RetryConfig
+
+	// BackendCaches configures the registry's generic caching wrapper
+	// per backend name (see WithBackendCache).
+	BackendCaches map[string]BackendCache
+
+	// AuditLoggerInstance receives a LogAccess call for every registry-
+	// mediated backend Get/GetWithTarget call (see WithAuditLogger).
+	AuditLoggerInstance AuditLogger
+
+	// backendRegistryEnabled overrides features.FeatureBackendRegistry
+	// when non-nil (see WithBackendRegistry). nil means "leave whatever
+	// WithFeatureFlags/the default computed alone." Unexported: only
+	// WithBackendRegistry sets it.
+	backendRegistryEnabled *bool
 }
 
 // EngineOption is a functional option for configuring an engine.
