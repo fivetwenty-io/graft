@@ -81,4 +81,3 @@ func (PruneOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 func init() {
 	RegisterOp("prune", PruneOperator{})
 }
-

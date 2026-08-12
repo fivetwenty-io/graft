@@ -155,4 +155,3 @@ func sortList(path string, list []interface{}, key string) error {
 
 	return nil
 }
-
