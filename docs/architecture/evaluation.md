@@ -53,192 +53,97 @@ In this case:
 
 ### Dependency Extraction
 
-Each operator type knows how to report its dependencies:
+Each operator type knows how to report its dependencies, via the `Operator` interface's `Dependencies` method (`pkg/graft/interfaces.go`):
 
 ```go
 type Operator interface {
-    // Dependencies returns paths this operator reads from
-    Dependencies(args []*Expr, context *EvalContext) []*tree.Cursor
-
-    // Other methods...
+    Setup() error
+    Run(ev *Evaluator, args []*Expr) (*Response, error)
+    Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor
+    Phase() OperatorPhase
 }
 ```
+
+`locs` is every operator call location found so far in the current phase; `auto` is a starting set of dependency cursors `Opcall.Dependencies` has already collected from the call's own argument expressions (each `*Expr`'s own `Dependencies` walks references, nested operator calls, and binary/unary operands recursively) before handing off to the operator's own method.
 
 #### Example: grab Operator
 
 ```go
-func (o *GrabOperator) Dependencies(args []*Expr, ctx *EvalContext) []*tree.Cursor {
-    // First argument is the path to grab
-    if len(args) > 0 {
-        if ref, ok := args[0].(*Reference); ok {
-            return []*tree.Cursor{ref.ToCursor()}
-        }
-    }
-    return nil
-}
-```
-
-#### Example: concat Operator
-
-```go
-func (o *ConcatOperator) Dependencies(args []*Expr, ctx *EvalContext) []*tree.Cursor {
-    var deps []*tree.Cursor
+func (GrabOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
+    deps := make([]*tree.Cursor, 0, len(auto))
+    deps = append(deps, auto...)
     for _, arg := range args {
-        // Recursively extract dependencies from nested expressions
-        deps = append(deps, extractDependencies(arg, ctx)...)
+        if arg != nil {
+            deps = append(deps, arg.Dependencies(ev, locs)...)
+        }
     }
     return deps
 }
 ```
 
+`grab`'s own contribution is nothing beyond `auto` and each argument's own `Dependencies` - the reference itself, resolved to a cursor, is what `Expr.Dependencies` already added to `auto` for a plain `(( grab some.path ))`.
+
 ### Dependency Graph Construction
 
+The dependency machinery genuinely exists, but not as a document AST: `DependencyGraph` is a read-only snapshot built from the exact tree walk and edge computation the sequential evaluator's own `DataFlow` uses internally (`Evaluator.computeDataFlowGraph`), not a second, independently maintained graph implementation. Build one with `(*DefaultEngine).BuildDependencyGraph` (a method, not a free function, because operator registration is engine-local - `WithCustomOperator` - so the same document can report a different operator set depending on which engine built the graph):
+
 ```go
-type DependencyGraph struct {
-    nodes map[string]*OperatorNode   // Path -> Operator
-    edges map[string][]string        // Path -> Dependencies
+type OperatorRef struct {
+    Path     string        // canonical cursor path, e.g. "jobs.0.name"
+    Operator string        // operator name as written, e.g. "grab", "vault"
+    Args     []*graft.Expr // parsed argument expressions
+    Phase    graft.OperatorPhase
 }
 
-func BuildDependencyGraph(doc *Document) *DependencyGraph {
-    graph := &DependencyGraph{
-        nodes: make(map[string]*OperatorNode),
-        edges: make(map[string][]string),
-    }
+type DependencyGraph struct { /* unexported */ }
 
-    // Collect all operators with their paths
-    walkDocument(doc, func(path string, node *OperatorNode) {
-        graph.nodes[path] = node
-    })
+func (e *graft.DefaultEngine) BuildDependencyGraph(doc graft.Document, phase graft.OperatorPhase) (*DependencyGraph, error)
 
-    // Extract dependencies for each operator
-    for path, node := range graph.nodes {
-        deps := node.Operator.Dependencies(node.Args, ctx)
-        for _, dep := range deps {
-            depPath := dep.String()
-            // Only track dependencies on other operators
-            if _, isOperator := graph.nodes[depPath]; isOperator {
-                graph.edges[path] = append(graph.edges[path], depPath)
-            }
-        }
-    }
-
-    return graph
-}
+func (g *DependencyGraph) Nodes() []OperatorRef
+func (g *DependencyGraph) Dependencies(path string) []string // sorted paths that must run first
+func (g *DependencyGraph) Dependents(path string) []string   // sorted paths that must run after
+func (g *DependencyGraph) DetectCycles() [][]string
+func (g *DependencyGraph) TopologicalSort() ([]OperatorRef, error)
+func (g *DependencyGraph) ToDOT() string
 ```
+
+A `DependencyGraph` reflects `doc`'s operator calls at the moment it was built. It does not run any operator and does not update itself if `doc` changes afterward - call `BuildDependencyGraph` again for a fresh snapshot.
 
 ### Cycle Detection
 
-Circular dependencies are detected during graph construction:
-
-```go
-func (g *DependencyGraph) DetectCycles() [][]string {
-    var cycles [][]string
-    visited := make(map[string]bool)
-    recStack := make(map[string]bool)
-
-    var dfs func(node string, path []string) bool
-    dfs = func(node string, path []string) bool {
-        visited[node] = true
-        recStack[node] = true
-        path = append(path, node)
-
-        for _, dep := range g.edges[node] {
-            if !visited[dep] {
-                if dfs(dep, path) {
-                    return true
-                }
-            } else if recStack[dep] {
-                // Found cycle - extract it
-                cycleStart := indexOf(path, dep)
-                cycles = append(cycles, path[cycleStart:])
-                return true
-            }
-        }
-
-        recStack[node] = false
-        return false
-    }
-
-    for node := range g.nodes {
-        if !visited[node] {
-            dfs(node, nil)
-        }
-    }
-
-    return cycles
-}
-```
+`DetectCycles` walks the graph's dependency edges and returns every elementary cycle found, each as an ordered slice of canonical paths. `TopologicalSort` returns `ErrDependencyCycle` (wrapping the detected cycle detail) instead of a flattened order when the graph is cyclic - the same class of failure `Evaluator.DataFlow`'s `kahnSort` reports as `"cycle detected in operator data-flow graph"`, surfaced from the public API as a typed error rather than a hang or a panic.
 
 ## Wave-Based Execution
 
 ### Wave Definition
 
-A wave is a set of operators that can be executed in parallel because they have no dependencies on each other and all their dependencies have been resolved.
+A wave is a set of operator calls with no dependency relationship to each other and every dependency already satisfied by an earlier wave - the unit the live parallel scheduler dispatches concurrently.
 
 ```go
 type EvalWave struct {
     Operators []OperatorRef
-}
-
-type OperatorRef struct {
-    Path     string
-    Node     *OperatorNode
-    Priority int  // For ordering within wave
 }
 ```
 
 ### Wave Planning
 
 ```go
-func BuildEvalPlan(graph *DependencyGraph) []EvalWave {
-    var waves []EvalWave
-    remaining := copyMap(graph.nodes)
-    resolved := make(map[string]bool)
-
-    for len(remaining) > 0 {
-        wave := EvalWave{}
-
-        // Find operators with all dependencies resolved
-        for path, node := range remaining {
-            deps := graph.edges[path]
-            allResolved := true
-            for _, dep := range deps {
-                if !resolved[dep] {
-                    allResolved = false
-                    break
-                }
-            }
-
-            if allResolved {
-                wave.Operators = append(wave.Operators, OperatorRef{
-                    Path: path,
-                    Node: node,
-                })
-            }
-        }
-
-        if len(wave.Operators) == 0 {
-            // This shouldn't happen if cycle detection works
-            panic("no progress - circular dependency?")
-        }
-
-        // Sort operators within wave for determinism
-        sort.Slice(wave.Operators, func(i, j int) bool {
-            return wave.Operators[i].Path < wave.Operators[j].Path
-        })
-
-        // Mark as resolved and remove from remaining
-        for _, op := range wave.Operators {
-            resolved[op.Path] = true
-            delete(remaining, op.Path)
-        }
-
-        waves = append(waves, wave)
-    }
-
-    return waves
-}
+func BuildEvalPlan(g *DependencyGraph) []EvalWave
 ```
+
+`BuildEvalPlan` does not reimplement wave computation: it feeds `g`'s edges into `internal/parallel.Scheduler`, the exact scheduler type `runOpsWithScheduler` builds from live operator calls for `RunPhaseParallel` (see [Parallel Execution](#parallel-execution) below). Two operator calls land in the same wave here under precisely the condition the live parallel path would place them in the same wave. Each wave's `Operators` are sorted by `Path` for a reproducible result across calls, matching the tie-break `runOpsWithScheduler` applies when it later applies that wave's results to the tree.
+
+A cyclic graph makes `BuildEvalPlan` return `nil` rather than panic or hang; use `DetectCycles` or `TopologicalSort` for cycle detail.
+
+### Evaluating a plan in parallel
+
+```go
+func (e *graft.DefaultEngine) EvaluateParallel(ctx context.Context, doc graft.Document, waves []EvalWave) (graft.Document, error)
+```
+
+`EvaluateParallel` evaluates `doc` using the engine's real parallel execution path (`Evaluator.RunPhaseParallel`) forced on for every phase, rather than only when the engine happens to be configured for it. It requires a `WorkerPool` (`WithParallel(true)` or `WithWorkerPool`) and returns `ErrNoWorkerPool` if none is configured - `RunPhaseParallel` would otherwise silently fall back to sequential execution, which is exactly the "documented as parallel, secretly sequential" gap this API exists to avoid repeating.
+
+`waves` documents the caller's expected plan - typically `BuildDependencyGraph(doc, phase)` piped through `BuildEvalPlan` - and is validated against `doc`'s live dependency graph before anything runs: if it orders any operator call at or before a dependency the live path requires to run first, `EvaluateParallel` returns `ErrInvalidEvalPlan` without evaluating `doc`. Validation checks every phase, regardless of what `waves`' own `OperatorRef.Phase` fields say - a hand-built plan that leaves `Phase` unset is checked exactly as strictly as one that sets it. `waves`' own wave grouping does not drive execution - `RunPhaseParallel` computes and schedules its own waves internally - so `EvaluateParallel` stays a verified, read-only projection onto the one live execution path rather than a second, independently maintained one. A nil or empty `waves` skips validation.
 
 ### Example Wave Plan
 
