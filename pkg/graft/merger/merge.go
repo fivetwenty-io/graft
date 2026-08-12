@@ -292,6 +292,17 @@ func (m *Merger) Merge(a, b map[string]interface{}) error {
 	return m.Error()
 }
 
+// canonicalHistoryPath strips the merger's internal "$" root marker from a
+// merge path so it matches the canonical no-"$" dotted history vocabulary
+// (pkg/graft/tree.Cursor.String()) that evaluator.go and the normalized
+// merge_builder_impl.go recording calls already use (P0-2). Every path this
+// package builds is rooted at "$" (see Merge's initial mergeMap(a, b, "$")
+// call), so path always starts with "$." here; do not call this on strings
+// from any other source.
+func canonicalHistoryPath(path string) string {
+	return strings.TrimPrefix(path, "$.")
+}
+
 func (m *Merger) mergeMap(orig, n map[string]interface{}, node string) {
 	log.DEBUG("mergeMap: merging at node %s", node)
 	log.DEBUG("mergeMap: orig keys = %v", getMapKeys(orig))
@@ -316,9 +327,14 @@ func (m *Merger) mergeMap(orig, n map[string]interface{}, node string) {
 			// Always set the result, even if nil (null is a valid YAML value)
 			orig[k] = result
 
-			// Record change if memory tracking is enabled
+			// Record change if memory tracking is enabled. path carries the
+			// merger's internal "$" root marker (used in error messages the
+			// Genesis contract pins byte-for-byte); history recording uses
+			// the canonical no-"$" dotted vocabulary (P0-2) so a path
+			// touched in both the merge and eval phases lands in one
+			// NodeHistory bucket instead of two disjoint ones.
 			if m.memory != nil && m.memory.IsEnabled() {
-				_ = m.memory.RecordMergeChange(path, oldValue, result, "merge")
+				_ = m.memory.RecordMergeChange(canonicalHistoryPath(path), oldValue, result, "merge")
 			}
 		} else {
 			log.DEBUG("%s: not found upstream, adding it", path)
@@ -326,9 +342,10 @@ func (m *Merger) mergeMap(orig, n map[string]interface{}, node string) {
 			// Always add the result, even if nil (null is a valid YAML value)
 			orig[k] = result
 
-			// Record addition if memory tracking is enabled
+			// Record addition if memory tracking is enabled (see the
+			// canonicalHistoryPath note above).
 			if m.memory != nil && m.memory.IsEnabled() {
-				_ = m.memory.RecordMergeChange(path, nil, result, "add")
+				_ = m.memory.RecordMergeChange(canonicalHistoryPath(path), nil, result, "add")
 			}
 		}
 	}

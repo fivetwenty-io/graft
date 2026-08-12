@@ -475,15 +475,33 @@ func (m *mergeBuilderImpl) performSimpleMerge(base, overlay map[string]interface
 
 // performSimpleMergeAtPath is performSimpleMerge with the path context
 // mergeIntoAtPath threads through; see its doc comment.
+//
+// path is the canonical no-"$" dotted history vocabulary (P0-2, matching
+// pkg/graft/tree.Cursor.String()) of base/overlay's own location, one
+// segment per ancestor map key, root-relative (nil at the top level).
+// Recording calls join path with each iteration's own key rather than
+// recording the bare key alone: this function recurses into nested maps via
+// mergeValuesAtPath/mergeIntoAtPath, so without the prefix a change three
+// levels deep would be recorded under its bare leaf name (e.g. "host"),
+// indistinguishable from an unrelated sibling subtree's own "host" key, and
+// would never match the same path's eval-phase entry (which always carries
+// its full dotted location).
 func (m *mergeBuilderImpl) performSimpleMergeAtPath(base, overlay map[string]interface{}, path []string) error {
 	var memTracker interfaces.MemoryTracker
 	if m.engine != nil {
-		memTracker = m.engine.GetMemoryTracker()
+		if tracker := m.engine.GetMemoryTracker(); tracker != nil && tracker.IsEnabled() {
+			memTracker = tracker
+		}
 	}
+	pathPrefix := strings.Join(path, ".")
 
 	for key, overlayValue := range overlay {
 		baseValue, exists := base[key]
 		keyStr := fmt.Sprintf("%v", key)
+		recordPath := keyStr
+		if pathPrefix != "" {
+			recordPath = pathPrefix + "." + keyStr
+		}
 
 		if !exists {
 			copied, err := deepCopyValue(overlayValue)
@@ -492,7 +510,7 @@ func (m *mergeBuilderImpl) performSimpleMergeAtPath(base, overlay map[string]int
 			}
 			base[key] = copied
 			if memTracker != nil {
-				_ = memTracker.RecordMergeChange(keyStr, nil, overlayValue, "add")
+				_ = memTracker.RecordMergeChange(recordPath, nil, overlayValue, "add")
 			}
 			continue
 		}
@@ -511,13 +529,13 @@ func (m *mergeBuilderImpl) performSimpleMergeAtPath(base, overlay map[string]int
 		if merged == nil {
 			delete(base, key)
 			if memTracker != nil {
-				_ = memTracker.RecordMergeChange(keyStr, baseValue, nil, "delete")
+				_ = memTracker.RecordMergeChange(recordPath, baseValue, nil, "delete")
 			}
 		} else {
 			base[key] = merged
 			// Record the merge if value changed
 			if memTracker != nil && !valuesEqual(baseValue, merged) {
-				_ = memTracker.RecordMergeChange(keyStr, baseValue, merged, "merge")
+				_ = memTracker.RecordMergeChange(recordPath, baseValue, merged, "merge")
 			}
 		}
 	}
