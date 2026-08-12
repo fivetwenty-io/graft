@@ -6,123 +6,127 @@
 boolean_examples:
   # Basic true/false
   is_enabled: true
-  status: (( boolean_examples.is_enabled ? "active" : "inactive" ))
+  status: '(( boolean_examples.is_enabled ? "active" : "inactive" ))'
   # Result: "active"
   
   is_production: false
-  environment: (( boolean_examples.is_production ? "production" : "development" ))
+  environment: '(( boolean_examples.is_production ? "production" : "development" ))'
   # Result: "development"
   
   # Direct boolean in condition
-  direct_true: (( true ? "yes" : "no" ))
+  direct_true: '(( true ? "yes" : "no" ))'
   # Result: "yes"
   
-  direct_false: (( false ? "yes" : "no" ))
+  direct_false: '(( false ? "yes" : "no" ))'
   # Result: "no"
 
 # Numeric conditions
 numeric_examples:
   # Zero is falsy
   zero_value: 0
-  zero_result: (( numeric_examples.zero_value ? "non-zero" : "zero" ))
+  zero_result: '(( numeric_examples.zero_value ? "non-zero" : "zero" ))'
   # Result: "zero"
   
   # Non-zero is truthy
   positive: 42
-  positive_result: (( numeric_examples.positive ? "has value" : "no value" ))
+  positive_result: '(( numeric_examples.positive ? "has value" : "no value" ))'
   # Result: "has value"
   
   negative: -10
-  negative_result: (( numeric_examples.negative ? "has value" : "no value" ))
+  negative_result: '(( numeric_examples.negative ? "has value" : "no value" ))'
   # Result: "has value"
   
   # Comparison in condition
   count: 5
   threshold: 10
-  status: (( numeric_examples.count > numeric_examples.threshold ? "above" : "below" ))
+  status: '(( numeric_examples.count > numeric_examples.threshold ? "above" : "below" ))'
   # Result: "below"
 
 # String conditions
 string_examples:
   # Empty string is falsy
   empty: ""
-  empty_result: (( string_examples.empty ? "has content" : "empty" ))
+  empty_result: '(( string_examples.empty ? "has content" : "empty" ))'
   # Result: "empty"
   
   # Non-empty string is truthy
   name: "John"
-  name_result: (( string_examples.name ? string_examples.name : "Anonymous" ))
+  name_result: '(( string_examples.name ? string_examples.name : "Anonymous" ))'
   # Result: "John"
   
   # Space is truthy (not empty)
   space: " "
-  space_result: (( string_examples.space ? "not empty" : "empty" ))
+  space_result: '(( string_examples.space ? "not empty" : "empty" ))'
   # Result: "not empty"
   
   # String comparison
   env: "prod"
-  is_prod: (( string_examples.env == "prod" ? true : false ))
+  is_prod: '(( string_examples.env == "prod" ? true : false ))'
   # Result: true
 
 # Null/nil conditions
 null_examples:
   # Null is falsy
   null_value: null
-  null_result: (( null_examples.null_value ? "exists" : "missing" ))
+  null_result: '(( null_examples.null_value ? "exists" : "missing" ))'
   # Result: "missing"
   
   # YAML nil is falsy
   nil_value: ~
-  nil_result: (( null_examples.nil_value ? "exists" : "missing" ))
+  nil_result: '(( null_examples.nil_value ? "exists" : "missing" ))'
   # Result: "missing"
   
   # Default value pattern
   user_provided: null
   default_value: "default"
-  final_value: (( null_examples.user_provided ? null_examples.user_provided : null_examples.default_value ))
+  final_value: '(( null_examples.user_provided ? null_examples.user_provided : null_examples.default_value ))'
   # Result: "default"
 
 # Array conditions
 array_examples:
   # Empty array is falsy
   empty_list: []
-  empty_result: (( array_examples.empty_list ? "has items" : "empty" ))
+  empty_result: '(( array_examples.empty_list ? "has items" : "empty" ))'
   # Result: "empty"
   
   # Non-empty array is truthy
   items: ["a", "b", "c"]
-  items_result: (( array_examples.items ? "has items" : "empty" ))
+  items_result: '(( array_examples.items ? "has items" : "empty" ))'
   # Result: "has items"
   
-  # Array length check
+  # Truthy array picks the real list, falsy picks a fallback
+  #
+  # Note: graft has no `.length` array accessor; there is no length/count
+  # operator either. This picks between two whole values, not a count.
   users: ["alice", "bob"]
-  user_count: (( array_examples.users ? array_examples.users.length : 0 ))
-  # Result: 2
+  no_users: []
+  user_list: '(( array_examples.users ? array_examples.users : array_examples.no_users ))'
+  # Result: ["alice", "bob"]
   
   # First element or default
   values: [10, 20, 30]
-  first_value: (( array_examples.values ? array_examples.values.[0] : 0 ))
+  first_value: '(( array_examples.values ? array_examples.values.[0] : 0 ))'
   # Result: 10
 
 # Map conditions
 map_examples:
   # Empty map is falsy
   empty_config: {}
-  empty_result: (( map_examples.empty_config ? "configured" : "not configured" ))
+  empty_result: '(( map_examples.empty_config ? "configured" : "not configured" ))'
   # Result: "not configured"
   
   # Non-empty map is truthy
   settings:
     debug: true
     port: 8080
-  settings_result: (( map_examples.settings ? "has settings" : "no settings" ))
+  settings_result: '(( map_examples.settings ? "has settings" : "no settings" ))'
   # Result: "has settings"
   
   # Nested property check
   config:
     database:
       host: "localhost"
-  has_db: (( map_examples.config.database ? true : false ))
+  has_db: '(( map_examples.config.database ? true : false ))'
   # Result: true
 
 # Complex conditions
@@ -134,15 +138,15 @@ complex_examples:
     country: "US"
   
   # AND condition
-  can_access: (( complex_examples.user.age >= 18 && complex_examples.user.verified ? "granted" : "denied" ))
+  can_access: '(( complex_examples.user.age >= 18 && complex_examples.user.verified ? "granted" : "denied" ))'
   # Result: "granted"
   
   # OR condition
-  is_special: (( complex_examples.user.country == "US" || complex_examples.user.country == "CA" ? true : false ))
+  is_special: '(( complex_examples.user.country == "US" || complex_examples.user.country == "CA" ? true : false ))'
   # Result: true
   
   # NOT condition
-  is_international: (( ! (complex_examples.user.country == "US") ? true : false ))
+  is_international: '(( ! (complex_examples.user.country == "US") ? true : false ))'
   # Result: false
 
 # Nested ternary operations
@@ -151,33 +155,18 @@ nested_examples:
   env: "staging"
   
   # Simple nested
-  environment_type: (( 
-    nested_examples.env == "production" ? "prod" : 
-    nested_examples.env == "staging" ? "stage" : 
-    "dev" 
-  ))
+  environment_type: '(( nested_examples.env == "production" ? "prod" : nested_examples.env == "staging" ? "stage" : "dev" ))'
   # Result: "stage"
   
   # Score-based grading
   score: 85
-  grade: (( 
-    nested_examples.score >= 90 ? "A" :
-    nested_examples.score >= 80 ? "B" :
-    nested_examples.score >= 70 ? "C" :
-    nested_examples.score >= 60 ? "D" :
-    "F"
-  ))
+  grade: '(( nested_examples.score >= 90 ? "A" : nested_examples.score >= 80 ? "B" : nested_examples.score >= 70 ? "C" : nested_examples.score >= 60 ? "D" : "F" ))'
   # Result: "B"
   
   # Complex nested with different types
   user_type: "premium"
   user_limit: 1000
-  final_limit: (( 
-    nested_examples.user_type == "premium" ? 10000 :
-    nested_examples.user_type == "standard" ? 5000 :
-    nested_examples.user_limit > 0 ? nested_examples.user_limit :
-    1000
-  ))
+  final_limit: '(( nested_examples.user_type == "premium" ? 10000 : nested_examples.user_type == "standard" ? 5000 : nested_examples.user_limit > 0 ? nested_examples.user_limit : 1000 ))'
   # Result: 10000
 
 # Type flexibility
@@ -186,39 +175,49 @@ type_examples:
   mode: "advanced"
   
   # String or number
-  timeout: (( type_examples.mode == "debug" ? "unlimited" : 30 ))
+  timeout: '(( type_examples.mode == "debug" ? "unlimited" : 30 ))'
   # Result: 30
   
   # Object or string
-  database: (( type_examples.mode == "advanced" ? { host: "db.example.com", port: 5432 } : "sqlite://local.db" ))
+  #
+  # Note: (( )) expressions cannot construct map/array literals inline
+  # (`{ ... }` / `[ ... ]` as a ternary branch is a parse error); reference
+  # pre-defined values instead.
+  advanced_database:
+    host: "db.example.com"
+    port: 5432
+  simple_database: "sqlite://local.db"
+  database: '(( type_examples.mode == "advanced" ? type_examples.advanced_database : type_examples.simple_database ))'
   # Result: { host: "db.example.com", port: 5432 }
-  
+
   # Array or single value
-  allowed_origins: (( type_examples.mode == "development" ? ["*"] : ["https://app.example.com", "https://www.example.com"] ))
+  dev_origins: ["*"]
+  prod_origins: ["https://app.example.com", "https://www.example.com"]
+  allowed_origins: '(( type_examples.mode == "development" ? type_examples.dev_origins : type_examples.prod_origins ))'
   # Result: ["https://app.example.com", "https://www.example.com"]
 
 # Practical patterns
 patterns:
   # Environment-based URL
   is_production: false
-  api_url: (( patterns.is_production ? "https://api.example.com" : "http://localhost:8080" ))
+  api_url: '(( patterns.is_production ? "https://api.example.com" : "http://localhost:8080" ))'
   # Result: "http://localhost:8080"
   
   # Feature flag with default
   features:
     new_ui: true
-  ui_version: (( patterns.features.new_ui ? "v2" : "v1" ))
+  ui_version: '(( patterns.features.new_ui ? "v2" : "v1" ))'
   # Result: "v2"
   
   # Conditional resource allocation
   environment: "production"
-  instance_count: (( patterns.environment == "production" ? 5 : 1 ))
+  instance_count: '(( patterns.environment == "production" ? 5 : 1 ))'
   # Result: 5
   
   # Safe property access
   config:
     timeout: 0
-  timeout_ms: (( patterns.config.timeout > 0 ? patterns.config.timeout * 1000 : 30000 ))
+  timeout_ms: '(( patterns.config.timeout > 0 ? patterns.config.timeout * 1000 : 30000 ))'
   # Result: 30000
 
 # Using with other operators
@@ -226,18 +225,18 @@ combined_operators:
   # With grab
   source:
     value: "found"
-  target: (( (grab combined_operators.source.value) ? combined_operators.source.value : "default" ))
+  target: '(( (grab combined_operators.source.value) ? combined_operators.source.value : "default" ))'
   # Result: "found"
   
   # With concat
   prefix: "user"
   id: 123
-  identifier: (( combined_operators.id ? (concat combined_operators.prefix "-" combined_operators.id) : "anonymous" ))
+  identifier: '(( combined_operators.id ? (concat combined_operators.prefix "-" combined_operators.id) : "anonymous" ))'
   # Result: "user-123"
   
   # With calc
   base_price: 100
   discount_percent: 20
   has_discount: true
-  final_price: (( combined_operators.has_discount ? combined_operators.base_price * (100 - combined_operators.discount_percent) / 100 : combined_operators.base_price ))
-  # Result: 80
+  final_price: '(( combined_operators.has_discount ? combined_operators.base_price * (100 - combined_operators.discount_percent) / 100 : combined_operators.base_price ))'
+  # Result: 80.0

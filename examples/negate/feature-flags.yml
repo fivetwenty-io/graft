@@ -16,7 +16,10 @@ features:
 
 # Environment-based features
 meta:
-  environment: (( param "Please specify environment (dev/staging/prod)" ))
+  # (( param "..." )) errors until a later file overrides it -- see
+  # examples/params/ for the two-file pattern. This standalone file sets
+  # a literal value instead so it can run on its own.
+  environment: "dev"
   is_production: false  # Set based on environment
 
 feature_config:

@@ -16,13 +16,17 @@ old_style:
   # Would need another line to grab the actual config
 
 # New way - nested grab expressions
+#
+# Note: a dotted path cannot embed a parenthesized sub-expression
+# mid-path (meta.environments.(grab meta.current).host is a parse
+# error); build the path as a string with concat + grab instead.
 new_style:
   # Grab based on another grab
-  host: (( grab meta.environments.(grab meta.current).host ))
-  port: (( grab meta.environments.(grab meta.current).port ))
-  
+  host: (( grab (concat "meta.environments." (grab meta.current) ".host") ))
+  port: (( grab (concat "meta.environments." (grab meta.current) ".port") ))
+
   # Using concat to build the path
-  url: (( concat "https://" (grab meta.environments.(grab meta.current).host) ":" (grab meta.environments.(grab meta.current).port) ))
+  url: '(( concat "https://" new_style.host ":" new_style.port ))'
 
 # Even more complex nesting
 dynamic_config:

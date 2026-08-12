@@ -113,8 +113,8 @@ k8s_tls_secret:
   
   # Decoded for use in applications
   decoded_tls:
-    certificate: (( base64-decode k8s_tls_secret.data."tls.crt" ))
-    private_key: (( base64-decode k8s_tls_secret.data."tls.key" ))
+    certificate: (( base64-decode k8s_tls_secret.data.[tls.crt] ))
+    private_key: (( base64-decode k8s_tls_secret.data.[tls.key] ))
   
   # Use in ingress configuration
   ingress:

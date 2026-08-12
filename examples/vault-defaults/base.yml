@@ -1,4 +1,17 @@
 # Application configuration with vault lookups and defaults
+
+# Named defaults referenced as fallbacks below
+defaults:
+  app:
+    name: myapp
+    environment: development
+  database:
+    port: 5432
+    password: changeme
+  redis:
+    host: localhost
+    port: 6379
+
 meta:
   environment: (( grab defaults.app.environment ))
 

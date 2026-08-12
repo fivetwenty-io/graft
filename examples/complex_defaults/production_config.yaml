@@ -1,186 +1,195 @@
 # Production Configuration with Complex Defaults
 # Demonstrates real-world usage with sensible production defaults
+#
+# Note: (( )) cannot construct a map/array literal inline, and it cannot
+# evaluate a nested (( )) expression as a value inside one either, so
+# each default value below is written as ordinary nested YAML (with real
+# operator expressions on its leaves) and selected with
+# (( grab X || defaults.something )) instead of an inline literal.
+
+# Named default structures
+defaults:
+  server:
+    host: "0.0.0.0"
+    port: 8080
+    workers: 4
+    timeout: 30
+    keepalive: 75
+    max_connections: 1000
+    tls:
+      enabled: true
+      cert_path: "/etc/ssl/certs/app.crt"
+      key_path: "/etc/ssl/private/app.key"
+      min_version: "1.2"
+
+  database:
+    primary:
+      host: (( grab DB_HOST || "db-primary.internal" ))
+      port: 5432
+      name: (( concat app.name "_prod" ))
+      user: (( grab DB_USER || app.name ))
+      password: (( vault "secret/data/db:password" || "changeme" ))
+      pool:
+        min: 10
+        max: 50
+        acquire_timeout: 30000
+        idle_timeout: 600000
+        reap_interval: 1000
+        statement_timeout: 60000
+      ssl:
+        mode: "require"
+        ca: "/etc/ssl/certs/rds-ca.pem"
+    read_replicas:
+      - host: "db-replica-1.internal"
+        weight: 50
+      - host: "db-replica-2.internal"
+        weight: 50
+
+  cache:
+    redis:
+      cluster:
+        - host: "redis-1.internal"
+          port: 6379
+        - host: "redis-2.internal"
+          port: 6379
+        - host: "redis-3.internal"
+          port: 6379
+      password: (( vault "secret/data/redis:password" || "" ))
+      db: 0
+      timeout: 5000
+      retry_strategy:
+        retries: 3
+        factor: 2
+        min_timeout: 1000
+        max_timeout: 60000
+    ttl:
+      default: 3600
+      session: 86400
+      static: 604800
+
+  logging:
+    level: "info"
+    format: "json"
+    outputs:
+      - type: "stdout"
+        level: "info"
+      - type: "file"
+        path: "/var/log/app/app.log"
+        level: "debug"
+        rotate:
+          size: "100M"
+          keep: 10
+    redact: ["password", "token", "api_key", "secret"]
+
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+    collectors: ["process", "golang", "http", "db"]
+    custom:
+      request_duration_buckets: [0.001, 0.01, 0.1, 0.5, 1, 5, 10]
+      request_size_buckets: [100, 1000, 10000, 100000, 1000000]
+
+  tracing:
+    enabled: true
+    provider: "jaeger"
+    endpoint: "http://jaeger-collector.internal:14268/api/traces"
+    sampling:
+      type: "probabilistic"
+      rate: 0.1
+    tags:
+      service: (( app.name ))
+      environment: (( app.environment ))
+      version: (( grab APP_VERSION || "unknown" ))
+
+  cors_origins: ["https://app.example.com", "https://www.example.com"]
+  cors:
+    enabled: true
+    allowed_origins: (( grab CORS_ORIGINS || defaults.cors_origins ))
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["Content-Type", "Authorization", "X-Request-ID"]
+    exposed_headers: ["X-Request-ID"]
+    max_age: 86400
+    credentials: true
+
+  rate_limiting:
+    enabled: true
+    default:
+      requests: 100
+      window: "1m"
+    endpoints:
+      "/api/auth/login":
+        requests: 5
+        window: "15m"
+      "/api/auth/register":
+        requests: 3
+        window: "1h"
+      "/api/public":
+        requests: 1000
+        window: "1m"
+    by_ip: true
+    by_user: true
+    redis_prefix: (( concat app.name ":ratelimit:" ))
+
+  authentication:
+    jwt:
+      secret: (( vault "secret/data/jwt:secret" || "changeme" ))
+      algorithm: "RS256"
+      expiry: "1h"
+      refresh_expiry: "7d"
+      issuer: (( app.name ))
+      audience: [(( app.name ))]
+    oauth:
+      providers:
+        - name: "google"
+          client_id: (( vault "secret/data/oauth/google:client_id" || "" ))
+          client_secret: (( vault "secret/data/oauth/google:client_secret" || "" ))
+          scopes: ["email", "profile"]
+
+  feature_flags:
+    new_dashboard:
+      enabled: true
+      rollout:
+        percentage: 50
+        sticky: true
+        overrides:
+          users: ["admin@example.com"]
+          groups: ["beta_testers"]
+    experimental_api:
+      enabled: false
+      rollout:
+        percentage: 0
+    maintenance_mode:
+      enabled: false
+      message: "We're performing scheduled maintenance. Be back soon!"
+      allowed_ips: ["10.0.0.0/8"]
 
 # Application configuration with environment-specific overrides
 app:
   name: (( grab APP_NAME || "myapp" ))
   environment: (( grab ENVIRONMENT || "production" ))
-  
+
   # Server configuration with production defaults
-  server: (( grab server_config || {
-    host: "0.0.0.0",
-    port: 8080,
-    workers: 4,
-    timeout: 30,
-    keepalive: 75,
-    max_connections: 1000,
-    tls: {
-      enabled: true,
-      cert_path: "/etc/ssl/certs/app.crt",
-      key_path: "/etc/ssl/private/app.key",
-      min_version: "1.2"
-    }
-  } ))
-  
+  server: (( grab server_config || defaults.server ))
+
   # Database configuration with connection pooling
-  database: (( grab database || {
-    primary: {
-      host: (( grab DB_HOST || "db-primary.internal" )),
-      port: 5432,
-      name: (( concat app.name "_prod" )),
-      user: (( grab DB_USER || app.name )),
-      password: (( vault "secret/data/db:password" || "changeme" )),
-      pool: {
-        min: 10,
-        max: 50,
-        acquire_timeout: 30000,
-        idle_timeout: 600000,
-        reap_interval: 1000,
-        statement_timeout: 60000
-      },
-      ssl: { mode: "require", ca: "/etc/ssl/certs/rds-ca.pem" }
-    },
-    read_replicas: (( grab db_replicas || [
-      { host: "db-replica-1.internal", weight: 50 },
-      { host: "db-replica-2.internal", weight: 50 }
-    ] ))
-  } ))
-  
+  database: (( grab database_config || defaults.database ))
+
   # Caching configuration
-  cache: (( grab cache_config || {
-    redis: {
-      cluster: [
-        { host: "redis-1.internal", port: 6379 },
-        { host: "redis-2.internal", port: 6379 },
-        { host: "redis-3.internal", port: 6379 }
-      ],
-      password: (( vault "secret/data/redis:password" || "" )),
-      db: 0,
-      timeout: 5000,
-      retry_strategy: {
-        retries: 3,
-        factor: 2,
-        min_timeout: 1000,
-        max_timeout: 60000
-      }
-    },
-    ttl: {
-      default: 3600,
-      session: 86400,
-      static: 604800
-    }
-  } ))
+  cache: (( grab cache_config || defaults.cache ))
 
 # Observability configuration
 observability:
-  logging: (( grab logging_config || {
-    level: "info",
-    format: "json",
-    outputs: [
-      { type: "stdout", level: "info" },
-      { type: "file", path: "/var/log/app/app.log", level: "debug", rotate: { size: "100M", keep: 10 } }
-    ],
-    redact: [ "password", "token", "api_key", "secret" ]
-  } ))
-  
-  metrics: (( grab metrics_config || {
-    enabled: true,
-    port: 9090,
-    path: "/metrics",
-    collectors: [
-      "process",
-      "golang",
-      "http",
-      "db"
-    ],
-    custom: {
-      request_duration_buckets: [ 0.001, 0.01, 0.1, 0.5, 1, 5, 10 ],
-      request_size_buckets: [ 100, 1000, 10000, 100000, 1000000 ]
-    }
-  } ))
-  
-  tracing: (( grab tracing_config || {
-    enabled: true,
-    provider: "jaeger",
-    endpoint: "http://jaeger-collector.internal:14268/api/traces",
-    sampling: {
-      type: "probabilistic",
-      rate: 0.1
-    },
-    tags: {
-      service: (( app.name )),
-      environment: (( app.environment )),
-      version: (( grab APP_VERSION || "unknown" ))
-    }
-  } ))
+  logging: (( grab logging_config || defaults.logging ))
+  metrics: (( grab metrics_config || defaults.metrics ))
+  tracing: (( grab tracing_config || defaults.tracing ))
 
 # Security configuration
 security:
-  cors: (( grab cors_config || {
-    enabled: true,
-    allowed_origins: (( grab CORS_ORIGINS || [ "https://app.example.com", "https://www.example.com" ] )),
-    allowed_methods: [ "GET", "POST", "PUT", "DELETE", "OPTIONS" ],
-    allowed_headers: [ "Content-Type", "Authorization", "X-Request-ID" ],
-    exposed_headers: [ "X-Request-ID" ],
-    max_age: 86400,
-    credentials: true
-  } ))
-  
-  rate_limiting: (( grab rate_limits || {
-    enabled: true,
-    default: { requests: 100, window: "1m" },
-    endpoints: {
-      "/api/auth/login": { requests: 5, window: "15m" },
-      "/api/auth/register": { requests: 3, window: "1h" },
-      "/api/public": { requests: 1000, window: "1m" }
-    },
-    by_ip: true,
-    by_user: true,
-    redis_prefix: (( concat app.name ":ratelimit:" ))
-  } ))
-  
-  authentication: (( grab auth_config || {
-    jwt: {
-      secret: (( vault "secret/data/jwt:secret" || "changeme" )),
-      algorithm: "RS256",
-      expiry: "1h",
-      refresh_expiry: "7d",
-      issuer: (( app.name )),
-      audience: [ (( app.name )) ]
-    },
-    oauth: {
-      providers: [
-        {
-          name: "google",
-          client_id: (( vault "secret/data/oauth/google:client_id" || "" )),
-          client_secret: (( vault "secret/data/oauth/google:client_secret" || "" )),
-          scopes: [ "email", "profile" ]
-        }
-      ]
-    }
-  } ))
+  cors: (( grab cors_config || defaults.cors ))
+  rate_limiting: (( grab rate_limits || defaults.rate_limiting ))
+  authentication: (( grab auth_config || defaults.authentication ))
 
 # Feature flags with gradual rollout
 features:
-  flags: (( grab feature_flags || {
-    new_dashboard: {
-      enabled: true,
-      rollout: {
-        percentage: 50,
-        sticky: true,
-        overrides: {
-          users: [ "admin@example.com" ],
-          groups: [ "beta_testers" ]
-        }
-      }
-    },
-    experimental_api: {
-      enabled: false,
-      rollout: { percentage: 0 }
-    },
-    maintenance_mode: {
-      enabled: false,
-      message: "We're performing scheduled maintenance. Be back soon!",
-      allowed_ips: [ "10.0.0.0/8" ]
-    }
-  } ))
+  flags: (( grab feature_flags || defaults.feature_flags ))

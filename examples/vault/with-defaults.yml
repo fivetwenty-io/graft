@@ -16,11 +16,7 @@ application:
     password: (( vault "secret/production/db:password" || (grab dev_defaults.database_password) ))
     
     # Chain multiple fallbacks
-    username: (( 
-      vault "secret/production/db:username" || 
-      vault "secret/defaults/db:username" || 
-      "postgres" 
-    ))
+    username: '(( vault "secret/production/db:username" || vault "secret/defaults/db:username" || "postgres" ))'
     
     # Use environment-specific paths with fallback
     host: (( vault (concat "secret/" $ENV "/db:host") || "localhost" ))
@@ -28,17 +24,10 @@ application:
   
   api:
     # Fallback to environment variable, then default
-    key: (( 
-      vault "secret/api/keys:primary" || 
-      (grab $API_KEY) || 
-      (grab dev_defaults.api_key) 
-    ))
+    key: '(( vault "secret/api/keys:primary" || (grab $API_KEY) || (grab dev_defaults.api_key) ))'
     
     # Conditional secret paths
-    secret: (( grab $ENV == "production" 
-      ? (vault "secret/prod/api:secret") 
-      : (grab dev_defaults.api_key) 
-    ))
+    secret: '(( grab $ENV == "production" ? (vault "secret/prod/api:secret") : (grab dev_defaults.api_key) ))'
 
 # Feature-specific secrets with smart defaults
 features:
@@ -47,15 +36,9 @@ features:
   
   stripe:
     # Only fetch if payments enabled, otherwise use empty string
-    public_key: (( grab features.payments_enabled 
-      ? (vault "secret/stripe:public_key" || "pk_test_default") 
-      : "" 
-    ))
+    public_key: '(( grab features.payments_enabled ? (vault "secret/stripe:public_key" || "pk_test_default") : "" ))'
     
-    secret_key: (( grab features.payments_enabled 
-      ? (vault "secret/stripe:secret_key" || "sk_test_default") 
-      : "" 
-    ))
+    secret_key: '(( grab features.payments_enabled ? (vault "secret/stripe:secret_key" || "sk_test_default") : "" ))'
 
 # Multi-environment pattern with defaults
 environments:
@@ -75,27 +58,18 @@ environments:
 
 # Select current environment
 current_env: (( grab $ENVIRONMENT || "development" ))
-config: (( grab environments.(grab current_env) ))
+# Note: a dotted path cannot embed a parenthesized sub-expression
+# mid-path (environments.(grab current_env) is a parse error); build
+# the path with concat + grab instead.
+config: (( grab (concat "environments." current_env) ))
 
 # Advanced default patterns
 advanced_defaults:
   # Try multiple vault paths before defaulting
-  ssl_cert: (( 
-    vault "secret/tls/production:cert" ||
-    vault "secret/tls/wildcard:cert" ||
-    vault "secret/tls/self-signed:cert" ||
-    "generate-self-signed-cert-here" 
-  ))
+  ssl_cert: '(( vault "secret/tls/production:cert" || vault "secret/tls/wildcard:cert" || vault "secret/tls/self-signed:cert" || "generate-self-signed-cert-here" ))'
   
   # Build connection string with mixed vault/defaults
-  database_url: (( concat 
-    "postgresql://"
-    (vault "secret/db:username" || "postgres") ":"
-    (vault "secret/db:password" || "postgres") "@"
-    (vault "secret/db:host" || "localhost") ":"
-    (vault "secret/db:port" || "5432") "/"
-    (vault "secret/db:name" || "myapp_dev")
-  ))
+  database_url: '(( concat "postgresql://" (vault "secret/db:username" || "postgres") ":" (vault "secret/db:password" || "postgres") "@" (vault "secret/db:host" || "localhost") ":" (vault "secret/db:port" || "5432") "/" (vault "secret/db:name" || "myapp_dev") ))'
 
 # Validation pattern - ensure critical secrets exist
 validation:

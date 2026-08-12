@@ -36,38 +36,38 @@ app_config:
   
   # Final configuration with defaults
   final:
-    name: (( null app_config.provided.name ? app_config.defaults.name : app_config.provided.name ))
+    name: '(( (type app_config.provided.name == "null") ? app_config.defaults.name : app_config.provided.name ))'
     # Result: "MyApp"
     
-    version: (( null app_config.provided.version ? app_config.defaults.version : app_config.provided.version ))
+    version: '(( (type app_config.provided.version == "null") ? app_config.defaults.version : app_config.provided.version ))'
     # Result: "0.0.1" (empty string is null)
     
-    environment: (( null app_config.provided.environment ? app_config.defaults.environment : app_config.provided.environment ))
+    environment: '(( (type app_config.provided.environment == "null") ? app_config.defaults.environment : app_config.provided.environment ))'
     # Result: "development" (null value)
     
-    port: (( null app_config.provided.port ? app_config.defaults.port : app_config.provided.port ))
+    port: '(( (type app_config.provided.port == "null") ? app_config.defaults.port : app_config.provided.port ))'
     # Result: 8080 (not null)
     
-    host: (( null app_config.provided.host ? app_config.defaults.host : app_config.provided.host ))
+    host: '(( (type app_config.provided.host == "null") ? app_config.defaults.host : app_config.provided.host ))'
     # Result: "localhost" (empty string)
     
-    timeout: (( null app_config.provided.timeout ? app_config.defaults.timeout : app_config.provided.timeout ))
+    timeout: '(( (type app_config.provided.timeout == "null") ? app_config.defaults.timeout : app_config.provided.timeout ))'
     # Result: 30 (null value)
     
-    max_connections: (( null app_config.provided.max_connections ? app_config.defaults.max_connections : app_config.provided.max_connections ))
+    max_connections: '(( (type app_config.provided.max_connections == "null") ? app_config.defaults.max_connections : app_config.provided.max_connections ))'
     # Result: 100 (not null)
     
-    log_level: (( null app_config.provided.log_level ? app_config.defaults.log_level : app_config.provided.log_level ))
+    log_level: '(( (type app_config.provided.log_level == "null") ? app_config.defaults.log_level : app_config.provided.log_level ))'
     # Result: "info" (empty string)
     
     features:
-      analytics: (( null app_config.provided.features.analytics ? app_config.defaults.features.analytics : app_config.provided.features.analytics ))
+      analytics: '(( (type app_config.provided.features.analytics == "null") ? app_config.defaults.features.analytics : app_config.provided.features.analytics ))'
       # Result: true
       
-      caching: (( null app_config.provided.features.caching ? app_config.defaults.features.caching : app_config.provided.features.caching ))
+      caching: '(( (type app_config.provided.features.caching == "null") ? app_config.defaults.features.caching : app_config.provided.features.caching ))'
       # Result: true (null value gets default)
       
-      compression: (( null app_config.provided.features.compression ? app_config.defaults.features.compression : app_config.provided.features.compression ))
+      compression: '(( (type app_config.provided.features.compression == "null") ? app_config.defaults.features.compression : app_config.provided.features.compression ))'
       # Result: false (provided value, even though false)
 
 # Database configuration with defaults
@@ -100,20 +100,20 @@ database_config:
   
   # Merged configuration
   connection:
-    host: (( null database_config.user_config.host ? database_config.defaults.host : database_config.user_config.host ))
-    port: (( null database_config.user_config.port ? database_config.defaults.port : database_config.user_config.port ))
-    username: (( null database_config.user_config.username ? database_config.defaults.username : database_config.user_config.username ))
-    password: (( null database_config.user_config.password ? database_config.defaults.password : database_config.user_config.password ))
-    database: (( null database_config.user_config.database ? database_config.defaults.database : database_config.user_config.database ))
+    host: '(( (type database_config.user_config.host == "null") ? database_config.defaults.host : database_config.user_config.host ))'
+    port: '(( (type database_config.user_config.port == "null") ? database_config.defaults.port : database_config.user_config.port ))'
+    username: '(( (type database_config.user_config.username == "null") ? database_config.defaults.username : database_config.user_config.username ))'
+    password: '(( (type database_config.user_config.password == "null") ? database_config.defaults.password : database_config.user_config.password ))'
+    database: '(( (type database_config.user_config.database == "null") ? database_config.defaults.database : database_config.user_config.database ))'
     
     # Options with nested defaults
     options:
-      ssl: (( null database_config.user_config.options.ssl ? database_config.defaults.options.ssl : database_config.user_config.options.ssl ))
-      pool_size: (( null database_config.user_config.options.pool_size ? database_config.defaults.options.pool_size : database_config.user_config.options.pool_size ))
-      timeout: (( null database_config.user_config.options.timeout ? database_config.defaults.options.timeout : database_config.user_config.options.timeout ))
+      ssl: '(( (type database_config.user_config.options.ssl == "null") ? database_config.defaults.options.ssl : database_config.user_config.options.ssl ))'
+      pool_size: '(( (type database_config.user_config.options.pool_size == "null") ? database_config.defaults.options.pool_size : database_config.user_config.options.pool_size ))'
+      timeout: '(( (type database_config.user_config.options.timeout == "null") ? database_config.defaults.options.timeout : database_config.user_config.options.timeout ))'
       # User didn't provide these at all - use defaults
-      charset: (( null database_config.user_config.options.charset ? database_config.defaults.options.charset : database_config.user_config.options.charset ))
-      timezone: (( null database_config.user_config.options.timezone ? database_config.defaults.options.timezone : database_config.user_config.options.timezone ))
+      charset: '(( (type (grab database_config.user_config.options.charset || ~) == "null") ? database_config.defaults.options.charset : database_config.user_config.options.charset ))'
+      timezone: '(( (type (grab database_config.user_config.options.timezone || ~) == "null") ? database_config.defaults.options.timezone : database_config.user_config.options.timezone ))'
 
 # Cloud provider configuration
 cloud_config:
@@ -155,19 +155,24 @@ cloud_config:
   
   # Final configuration
   final:
-    provider: (( cloud_config.provided.provider ))  # Always use provided
-    region: (( null cloud_config.provided.region ? cloud_config.env_defaults.region : cloud_config.provided.region ))
+    provider: (( cloud_config.provided.provider )) # Always use provided
+    region: '(( (type cloud_config.provided.region == "null") ? cloud_config.env_defaults.region : cloud_config.provided.region ))'
     
     credentials:
       # Use environment variables if not provided
-      access_key: (( null cloud_config.provided.credentials.access_key ? "$AWS_ACCESS_KEY_ID" : cloud_config.provided.credentials.access_key ))
-      secret_key: (( null cloud_config.provided.credentials.secret_key ? "$AWS_SECRET_ACCESS_KEY" : cloud_config.provided.credentials.secret_key ))
+      access_key: '(( (type cloud_config.provided.credentials.access_key == "null") ? "$AWS_ACCESS_KEY_ID" : cloud_config.provided.credentials.access_key ))'
+      secret_key: '(( (type cloud_config.provided.credentials.secret_key == "null") ? "$AWS_SECRET_ACCESS_KEY" : cloud_config.provided.credentials.secret_key ))'
     
     instance:
-      type: (( null cloud_config.provided.instance.type ? cloud_config.env_defaults.instance.type : cloud_config.provided.instance.type ))
-      ami: (( null cloud_config.provided.instance.ami ? cloud_config.env_defaults.instance.ami : cloud_config.provided.instance.ami ))
-      security_groups: (( null cloud_config.provided.instance.security_groups || cloud_config.provided.instance.security_groups == [] ? cloud_config.env_defaults.instance.security_groups : cloud_config.provided.instance.security_groups ))
-      subnet: (( null cloud_config.provided.instance.subnet ? cloud_config.env_defaults.instance.subnet : cloud_config.provided.instance.subnet ))
+      type: '(( (type cloud_config.provided.instance.type == "null") ? cloud_config.env_defaults.instance.type : cloud_config.provided.instance.type ))'
+      ami: '(( (type cloud_config.provided.instance.ami == "null") ? cloud_config.env_defaults.instance.ami : cloud_config.provided.instance.ami ))'
+      # No inline array-literal comparison, and no more than one level of
+      # nested (( )) calls, so the "null or empty" check is split into
+      # two named helpers and combined without further nesting.
+      _sg_is_null: (( type cloud_config.provided.instance.security_groups == "null" ))
+      _sg_is_empty: (( empty cloud_config.provided.instance.security_groups ))
+      security_groups: '(( ! (! cloud_config.final.instance._sg_is_null && ! cloud_config.final.instance._sg_is_empty) ? cloud_config.env_defaults.instance.security_groups : cloud_config.provided.instance.security_groups ))'
+      subnet: '(( (type cloud_config.provided.instance.subnet == "null") ? cloud_config.env_defaults.instance.subnet : cloud_config.provided.instance.subnet ))'
 
 # Service endpoints with fallbacks
 services:
@@ -200,19 +205,19 @@ services:
   # Build final service map
   endpoints:
     api:
-      url: (( null services.configured.api.url ? services.defaults.api.url : services.configured.api.url ))
-      timeout: (( null services.configured.api.timeout ? services.defaults.api.timeout : services.configured.api.timeout ))
-      retry: (( null services.configured.api.retry ? services.defaults.api.retry : services.configured.api.retry ))
+      url: '(( (type services.configured.api.url == "null") ? services.defaults.api.url : services.configured.api.url ))'
+      timeout: '(( (type services.configured.api.timeout == "null") ? services.defaults.api.timeout : services.configured.api.timeout ))'
+      retry: '(( (type (grab services.configured.api.retry || ~) == "null") ? services.defaults.api.retry : services.configured.api.retry ))'
     
     auth:
-      url: (( null services.configured.auth.url ? services.defaults.auth.url : services.configured.auth.url ))
-      timeout: (( null services.configured.auth.timeout ? services.defaults.auth.timeout : services.configured.auth.timeout ))
-      retry: (( null services.configured.auth.retry ? services.defaults.auth.retry : services.configured.auth.retry ))
+      url: '(( (type services.configured.auth.url == "null") ? services.defaults.auth.url : services.configured.auth.url ))'
+      timeout: '(( (type services.configured.auth.timeout == "null") ? services.defaults.auth.timeout : services.configured.auth.timeout ))'
+      retry: '(( (type (grab services.configured.auth.retry || ~) == "null") ? services.defaults.auth.retry : services.configured.auth.retry ))'
     
     metrics:
-      url: (( null services.configured.metrics.url ? services.defaults.metrics.url : services.configured.metrics.url ))
-      timeout: (( null services.configured.metrics.timeout ? services.defaults.metrics.timeout : services.configured.metrics.timeout ))
-      retry: (( null services.configured.metrics.retry ? services.defaults.metrics.retry : services.configured.metrics.retry ))
+      url: '(( (type (grab services.configured.metrics.url || ~) == "null") ? services.defaults.metrics.url : services.configured.metrics.url ))'
+      timeout: '(( (type (grab services.configured.metrics.timeout || ~) == "null") ? services.defaults.metrics.timeout : services.configured.metrics.timeout ))'
+      retry: '(( (type (grab services.configured.metrics.retry || ~) == "null") ? services.defaults.metrics.retry : services.configured.metrics.retry ))'
 
 # List defaults with null checking
 list_configs:
@@ -231,18 +236,28 @@ list_configs:
     feature_flags: ["basic", "standard"]
   
   # Merge lists with defaults
+  #
+  # No inline array-literal comparison, and no more than one level of
+  # nested (( )) calls, so each "null or empty" check is split into two
+  # named helpers and combined without further nesting.
+  _origins_is_null: (( type list_configs.user_lists.allowed_origins == "null" ))
+  _origins_is_empty: (( empty list_configs.user_lists.allowed_origins ))
+  _ips_is_null: (( type list_configs.user_lists.blocked_ips == "null" ))
+  _ips_is_empty: (( empty list_configs.user_lists.blocked_ips ))
   final_lists:
     # Use user list if not empty, otherwise defaults
-    allowed_origins: (( null user_lists.allowed_origins || user_lists.allowed_origins == [] ? default_lists.allowed_origins : user_lists.allowed_origins ))
-    
+    allowed_origins: '(( ! (! list_configs._origins_is_null && ! list_configs._origins_is_empty) ? list_configs.default_lists.allowed_origins : list_configs.user_lists.allowed_origins ))'
+
     # Empty array - use defaults
-    blocked_ips: (( null user_lists.blocked_ips || user_lists.blocked_ips == [] ? default_lists.blocked_ips : user_lists.blocked_ips ))
-    
+    blocked_ips: '(( ! (! list_configs._ips_is_null && ! list_configs._ips_is_empty) ? list_configs.default_lists.blocked_ips : list_configs.user_lists.blocked_ips ))'
+
     # Null - use defaults
-    rate_limits: (( null user_lists.rate_limits ? default_lists.rate_limits : user_lists.rate_limits ))
-    
-    # Merge user and default flags
-    feature_flags: (( concat user_lists.feature_flags default_lists.feature_flags ))
+    rate_limits: '(( (type list_configs.user_lists.rate_limits == "null") ? list_configs.default_lists.rate_limits : list_configs.user_lists.rate_limits ))'
+
+    # Note: concat is string concatenation only, and there is no
+    # array-merge operator, so this picks the user list when non-empty
+    # rather than concatenating the two lists.
+    feature_flags: '(( ! (empty list_configs.user_lists.feature_flags) ? list_configs.user_lists.feature_flags : list_configs.default_lists.feature_flags ))'
 
 # Complex nested defaults
 nested_config:
@@ -284,18 +299,23 @@ nested_config:
   complete:
     server:
       http:
-        port: (( null nested_config.user.server.http.port ? nested_config.defaults.server.http.port : nested_config.user.server.http.port ))
-        host: (( null nested_config.user.server.http.host ? nested_config.defaults.server.http.host : nested_config.user.server.http.host ))
+        port: '(( (type nested_config.user.server.http.port == "null") ? nested_config.defaults.server.http.port : nested_config.user.server.http.port ))'
+        host: '(( (type (grab nested_config.user.server.http.host || ~) == "null") ? nested_config.defaults.server.http.host : nested_config.user.server.http.host ))'
       https:
-        port: (( null nested_config.user.server.https.port ? nested_config.defaults.server.https.port : nested_config.user.server.https.port ))
-        host: (( null nested_config.user.server.https.host ? nested_config.defaults.server.https.host : nested_config.user.server.https.host ))
-        cert: (( null nested_config.user.server.https.cert ? nested_config.defaults.server.https.cert : nested_config.user.server.https.cert ))
-        key: (( null nested_config.user.server.https.key ? nested_config.defaults.server.https.key : nested_config.user.server.https.key ))
+        port: '(( (type (grab nested_config.user.server.https.port || ~) == "null") ? nested_config.defaults.server.https.port : nested_config.user.server.https.port ))'
+        host: '(( (type (grab nested_config.user.server.https.host || ~) == "null") ? nested_config.defaults.server.https.host : nested_config.user.server.https.host ))'
+        cert: '(( (type (grab nested_config.user.server.https.cert || ~) == "null") ? nested_config.defaults.server.https.cert : nested_config.user.server.https.cert ))'
+        key: '(( (type (grab nested_config.user.server.https.key || ~) == "null") ? nested_config.defaults.server.https.key : nested_config.user.server.https.key ))'
     client:
-      timeout: (( null nested_config.user.client.timeout ? nested_config.defaults.client.timeout : nested_config.user.client.timeout ))
-      retries: (( null nested_config.user.client.retries ? nested_config.defaults.client.retries : nested_config.user.client.retries ))
-      backoff: (( null nested_config.user.client.backoff ? nested_config.defaults.client.backoff : nested_config.user.client.backoff ))
+      timeout: '(( (type nested_config.user.client.timeout == "null") ? nested_config.defaults.client.timeout : nested_config.user.client.timeout ))'
+      retries: '(( (type nested_config.user.client.retries == "null") ? nested_config.defaults.client.retries : nested_config.user.client.retries ))'
+      backoff: '(( (type (grab nested_config.user.client.backoff || ~) == "null") ? nested_config.defaults.client.backoff : nested_config.user.client.backoff ))'
     logging:
-      level: (( null nested_config.user.logging.level ? nested_config.defaults.logging.level : nested_config.user.logging.level ))
-      outputs: (( null nested_config.user.logging.outputs || nested_config.user.logging.outputs == [] ? nested_config.defaults.logging.outputs : nested_config.user.logging.outputs ))
-      format: (( null nested_config.user.logging.format ? nested_config.defaults.logging.format : nested_config.user.logging.format ))
+      level: '(( (type nested_config.user.logging.level == "null") ? nested_config.defaults.logging.level : nested_config.user.logging.level ))'
+      # No inline array-literal comparison, and no more than one level of
+      # nested (( )) calls, so the "null or empty" check is split into
+      # two named helpers and combined without further nesting.
+      _outputs_is_null: (( type nested_config.user.logging.outputs == "null" ))
+      _outputs_is_empty: (( empty nested_config.user.logging.outputs ))
+      outputs: '(( ! (! nested_config.complete.logging._outputs_is_null && ! nested_config.complete.logging._outputs_is_empty) ? nested_config.defaults.logging.outputs : nested_config.user.logging.outputs ))'
+      format: '(( (type (grab nested_config.user.logging.format || ~) == "null") ? nested_config.defaults.logging.format : nested_config.user.logging.format ))'

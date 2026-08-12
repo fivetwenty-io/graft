@@ -10,23 +10,10 @@ secrets:
   # Database credentials migration
   database:
     # Try new location first, fall back to legacy
-    host: (( 
-      vault@vault_v2 "secret/data/database:host" || 
-      vault@vault_v1 "secret/database:host" 
-    ))
-    port: (( 
-      vault@vault_v2 "secret/data/database:port" || 
-      vault@vault_v1 "secret/database:port" ||
-      5432
-    ))
-    username: (( 
-      vault@vault_v2 "secret/data/database:username" || 
-      vault@vault_v1 "secret/database:username" 
-    ))
-    password: (( 
-      vault@vault_v2 "secret/data/database:password" || 
-      vault@vault_v1 "secret/database:password" 
-    ))
+    host: '(( vault@vault_v2 "secret/data/database:host" || vault@vault_v1 "secret/database:host" ))'
+    port: '(( vault@vault_v2 "secret/data/database:port" || vault@vault_v1 "secret/database:port" || 5432 ))'
+    username: '(( vault@vault_v2 "secret/data/database:username" || vault@vault_v1 "secret/database:username" ))'
+    password: '(( vault@vault_v2 "secret/data/database:password" || vault@vault_v1 "secret/database:password" ))'
     
     # Migration status tracking
     migration_status:
@@ -39,10 +26,7 @@ secrets:
   api_keys:
     # Payment provider - critical, migrate carefully
     payment:
-      current: (( 
-        vault@vault_v2 "secret/data/api/payment:key" || 
-        vault@vault_v1 "secret/api/payment:key" 
-      ))
+      current: '(( vault@vault_v2 "secret/data/api/payment:key" || vault@vault_v1 "secret/api/payment:key" ))'
       # Keep both versions during migration
       v1: (( vault@vault_v1 "secret/api/payment:key" ))
       v2: (( vault@vault_v2 "secret/data/api/payment:key" || "not_migrated" ))
@@ -59,81 +43,44 @@ infrastructure:
   vpc:
     # Current region configuration
     current:
-      region: (( 
-        grab meta.migration_phase == "phase3" && "us-west-2" || "us-east-1" 
-      ))
-      vpc_id: (( 
-        grab meta.migration_phase == "phase3" && 
-        awsparam@aws_west "/infrastructure/vpc/id" ||
-        awsparam@aws_east "/infrastructure/vpc/id"
-      ))
+      region: '(( grab meta.migration_phase == "phase3" && "us-west-2" || "us-east-1" ))'
+      vpc_id: '(( grab meta.migration_phase == "phase3" && awsparam@aws_west "/infrastructure/vpc/id" || awsparam@aws_east "/infrastructure/vpc/id" ))'
       subnets:
-        private: (( 
-          grab meta.migration_phase == "phase3" && 
-          awsparam@aws_west "/infrastructure/subnets/private" ||
-          awsparam@aws_east "/infrastructure/subnets/private"
-        ))
-        public: (( 
-          grab meta.migration_phase == "phase3" && 
-          awsparam@aws_west "/infrastructure/subnets/public" ||
-          awsparam@aws_east "/infrastructure/subnets/public"
-        ))
+        private: '(( grab meta.migration_phase == "phase3" && awsparam@aws_west "/infrastructure/subnets/private" || awsparam@aws_east "/infrastructure/subnets/private" ))'
+        public: '(( grab meta.migration_phase == "phase3" && awsparam@aws_west "/infrastructure/subnets/public" || awsparam@aws_east "/infrastructure/subnets/public" ))'
     
     # Cross-region resources during migration
     cross_region:
       # VPC Peering
       peering_enabled: (( grab meta.migration_phase == "phase2" || grab meta.migration_phase == "phase3" ))
-      peering_id: (( 
-        grab cross_region.peering_enabled && 
-        awsparam@aws_migration "/vpc/peering/connection_id" || 
-        "" 
-      ))
+      peering_id: '(( grab infrastructure.vpc.cross_region.peering_enabled && awsparam@aws_migration "/vpc/peering/connection_id" || "" ))'
       
-      # Route tables for peering
+      # Route tables for peering (no inline array literal as fallback)
+      empty_routes: []
       routes:
-        east_to_west: (( 
-          grab cross_region.peering_enabled && 
-          awsparam@aws_east "/vpc/routes/to_west" || 
-          [] 
-        ))
-        west_to_east: (( 
-          grab cross_region.peering_enabled && 
-          awsparam@aws_west "/vpc/routes/to_east" || 
-          [] 
-        ))
+        east_to_west: '(( grab infrastructure.vpc.cross_region.peering_enabled && awsparam@aws_east "/vpc/routes/to_west" || infrastructure.vpc.cross_region.empty_routes ))'
+        west_to_east: '(( grab infrastructure.vpc.cross_region.peering_enabled && awsparam@aws_west "/vpc/routes/to_east" || infrastructure.vpc.cross_region.empty_routes ))'
 
   # RDS Migration (with read replica promotion)
   database:
     primary:
-      endpoint: ((
-        grab meta.migration_phase == "phase3" &&
-        awsparam@aws_west "/rds/primary/endpoint" ||
-        awsparam@aws_east "/rds/primary/endpoint"
-      ))
+      endpoint: '(( grab meta.migration_phase == "phase3" && awsparam@aws_west "/rds/primary/endpoint" || awsparam@aws_east "/rds/primary/endpoint" ))'
       
     replica:
-      endpoint: ((
-        grab meta.migration_phase != "phase3" &&
-        awsparam@aws_west "/rds/replica/endpoint" ||
-        ""
-      ))
+      endpoint: '(( grab meta.migration_phase != "phase3" && awsparam@aws_west "/rds/replica/endpoint" || "" ))'
       
     # Connection routing during migration
     connection:
       # Read/write split during migration
-      write_endpoint: (( grab database.primary.endpoint ))
-      read_endpoint: ((
-        grab database.replica.endpoint != "" &&
-        grab database.replica.endpoint ||
-        grab database.primary.endpoint
-      ))
+      write_endpoint: (( grab infrastructure.database.primary.endpoint ))
+      read_endpoint: '(( grab infrastructure.database.replica.endpoint != "" && grab infrastructure.database.replica.endpoint || grab infrastructure.database.primary.endpoint ))'
 
 # NATS Cluster Migration
 messaging:
   # Old cluster (to be decommissioned)
   legacy:
     enabled: (( grab meta.migration_phase != "phase3" ))
-    url: (( grab legacy.enabled && nats@nats_legacy "kv:config/url" || "" ))
+    url: (( grab messaging.legacy.enabled && nats@nats_legacy "kv:config/url" || "" ))
     
     # Export data for migration
     export_streams:
@@ -145,7 +92,7 @@ messaging:
   # New cluster
   modern:
     enabled: (( grab meta.migration_phase != "phase1" ))
-    url: (( grab modern.enabled && nats@nats_modern "kv:config/url" || "" ))
+    url: (( grab messaging.modern.enabled && nats@nats_modern "kv:config/url" || "" ))
     
     # Import data during migration
     import_status:
@@ -154,17 +101,13 @@ messaging:
   
   # Active configuration (switches based on phase)
   active:
-    url: ((
-      grab meta.migration_phase == "phase3" && grab messaging.modern.url ||
-      grab meta.migration_phase == "phase2" && grab messaging.modern.url ||
-      grab messaging.legacy.url
-    ))
+    url: '(( grab meta.migration_phase == "phase3" && grab messaging.modern.url || grab meta.migration_phase == "phase2" && grab messaging.modern.url || grab messaging.legacy.url ))'
     
     # Dual-write during phase 2
     dual_write: (( grab meta.migration_phase == "phase2" ))
     targets:
       - url: (( grab messaging.legacy.url ))
-        enabled: (( grab dual_write ))
+        enabled: (( grab messaging.active.dual_write ))
       - url: (( grab messaging.modern.url ))
         enabled: true
 
@@ -176,62 +119,39 @@ services:
     blue:
       endpoint: (( awsparam@blue "/services/api/endpoint" ))
       version: (( awsparam@blue "/services/api/version" ))
-      health: (( concat (grab blue.endpoint) "/health" ))
+      health: (( concat (grab services.api_gateway.blue.endpoint) "/health" ))
       
     # Green environment (new)
     green:
       endpoint: (( awsparam@green "/services/api/endpoint" ))
       version: (( awsparam@green "/services/api/version" ))
-      health: (( concat (grab green.endpoint) "/health" ))
+      health: (( concat (grab services.api_gateway.green.endpoint) "/health" ))
       
     # Active environment
-    active: ((
-      grab meta.migration_phase == "phase3" && "green" ||
-      grab meta.migration_phase == "phase2" && "canary" ||
-      "blue"
-    ))
+    active: '(( grab meta.migration_phase == "phase3" && "green" || grab meta.migration_phase == "phase2" && "canary" || "blue" ))'
     
     # Canary configuration for phase 2
     canary:
-      enabled: (( grab active == "canary" ))
+      enabled: (( grab services.api_gateway.active == "canary" ))
       weight_blue: 70
       weight_green: 30
       
     # Current endpoint based on active environment
-    endpoint: ((
-      grab active == "green" && grab green.endpoint ||
-      grab active == "blue" && grab blue.endpoint ||
-      grab active == "canary" && grab blue.endpoint
-    ))
+    endpoint: '(( grab services.api_gateway.active == "green" && grab services.api_gateway.green.endpoint || grab services.api_gateway.active == "blue" && grab services.api_gateway.blue.endpoint || grab services.api_gateway.active == "canary" && grab services.api_gateway.blue.endpoint ))'
 
 # Feature Flags for Migration Control
 features:
   # Infrastructure features
-  use_new_vpc: (( 
-    grab meta.migration_phase == "phase3" || 
-    nats@features "kv:migration/use_new_vpc" 
-  ))
+  use_new_vpc: '(( grab meta.migration_phase == "phase3" || nats@features "kv:migration/use_new_vpc" ))'
   
-  use_new_database: (( 
-    grab meta.migration_phase == "phase3" || 
-    nats@features "kv:migration/use_new_database" 
-  ))
+  use_new_database: '(( grab meta.migration_phase == "phase3" || nats@features "kv:migration/use_new_database" ))'
   
-  use_new_messaging: (( 
-    grab meta.migration_phase != "phase1" || 
-    nats@features "kv:migration/use_new_messaging" 
-  ))
+  use_new_messaging: '(( grab meta.migration_phase != "phase1" || nats@features "kv:migration/use_new_messaging" ))'
   
   # Application features
-  enable_migration_endpoints: (( 
-    grab meta.migration_phase == "phase2" || 
-    nats@features "kv:migration/enable_migration_endpoints" 
-  ))
+  enable_migration_endpoints: '(( grab meta.migration_phase == "phase2" || nats@features "kv:migration/enable_migration_endpoints" ))'
   
-  show_migration_banner: (( 
-    grab meta.migration_phase != "phase3" || 
-    nats@features "kv:migration/show_banner" 
-  ))
+  show_migration_banner: '(( grab meta.migration_phase != "phase3" || nats@features "kv:migration/show_banner" ))'
 
 # Migration Monitoring
 monitoring:
@@ -246,7 +166,7 @@ monitoring:
         unit: None
         
       - name: dual_write_enabled
-        value: (( grab messaging.dual_write && 1 || 0 ))
+        value: (( grab messaging.active.dual_write && 1 || 0 ))
         unit: None
         
       - name: canary_weight_green
@@ -264,12 +184,12 @@ monitoring:
     
     # Replication lag monitoring
     replication_lag:
-      enabled: (( grab database.replica.endpoint != "" ))
+      enabled: (( grab infrastructure.database.replica.endpoint != "" ))
       threshold_seconds: 60
       
     # Message queue lag
     queue_lag:
-      enabled: (( grab messaging.dual_write ))
+      enabled: (( grab messaging.active.dual_write ))
       threshold_messages: 1000
 
 # Rollback Configuration
@@ -308,11 +228,7 @@ timeline:
   
   phase2:
     name: "Dual Running"
-    status: (( 
-      grab meta.migration_phase == "phase3" && "completed" ||
-      grab meta.migration_phase == "phase2" && "active" ||
-      "pending" 
-    ))
+    status: '(( grab meta.migration_phase == "phase3" && "completed" || grab meta.migration_phase == "phase2" && "active" || "pending" ))'
     tasks:
       - "Enable dual writes"
       - "Start canary deployment"
@@ -336,4 +252,6 @@ status_summary:
   messaging_cluster: (( grab messaging.active.url ))
   api_environment: (( grab services.api_gateway.active ))
   features_enabled: (( grab features ))
-  next_steps: (( grab timeline.[(grab meta.migration_phase)].tasks ))
+  # Note: bracket-literal path segments resolve inconsistently with
+  # grab; build the path with concat + grab instead.
+  next_steps: (( grab (concat "timeline." meta.migration_phase ".tasks") ))

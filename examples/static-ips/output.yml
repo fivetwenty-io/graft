@@ -20,7 +20,7 @@ networks:
   subnets:
   - cloud_properties: random
     static:
-    - 192.168.0.2 - 192.168.0.10
+    - "192.168.0.2 - 192.168.0.10"
 properties:
   api_servers:
   - 192.168.0.3

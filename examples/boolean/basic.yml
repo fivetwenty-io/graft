@@ -53,18 +53,22 @@ and_operations:
     # Result: true
 
 # OR operator (||)
+#
+# Note: || is graft's fallback operator, not boolean OR — it returns
+# the left operand whenever the left operand resolves, even to false.
+# Real OR needs De Morgan's law: (A || B) == !(!A && !B).
 or_operations:
   # Basic OR operations
   simple:
     both_true: (( true || true ))
     # Result: true
-    
+
     true_or_false: (( true || false ))
     # Result: true
-    
-    false_or_true: (( false || true ))
+
+    false_or_true: (( ! (! false && ! true) ))
     # Result: true
-    
+
     both_false: (( false || false ))
     # Result: false
   
@@ -78,26 +82,30 @@ or_operations:
     has_access: (( or_operations.expressions.role == "admin" || or_operations.expressions.role == "moderator" || or_operations.expressions.vip ))
     # Result: true (role is "admin")
     
-    is_special: (( or_operations.expressions.status == "premium" || or_operations.expressions.status == "active" ))
+    is_special: (( ! (! (or_operations.expressions.status == "premium") && ! (or_operations.expressions.status == "active")) ))
     # Result: true (status is "active")
     
     needs_attention: (( or_operations.expressions.status == "pending" || or_operations.expressions.status == "error" || or_operations.expressions.status == "failed" ))
     # Result: false
   
   # Default values pattern
+  #
+  # Note: || only falls back when the left side fails to resolve (a
+  # missing key/reference). A key that is explicitly set to null is a
+  # resolved value, not a failure, so || would return null unchanged —
+  # these examples deliberately leave user_provided/primary/secondary
+  # undefined so the reference itself is what fails to resolve.
   defaults:
-    user_provided: null
     system_default: "default_value"
-    
-    # Use user value or default
+
+    # user_provided is not set; the reference fails to resolve, so ||
+    # falls back to system_default
     final_value: (( or_operations.defaults.user_provided || or_operations.defaults.system_default ))
     # Result: "default_value"
-    
-    # Chained defaults
-    primary: null
-    secondary: null
+
+    # Chained defaults: primary and secondary are not set
     tertiary: "fallback"
-    
+
     selected: (( or_operations.defaults.primary || or_operations.defaults.secondary || or_operations.defaults.tertiary ))
     # Result: "fallback"
 
@@ -157,29 +165,23 @@ combined_operations:
     trial_expired: false
     
   # Complex conditions
+  #
+  # Note: || is graft's fallback operator, not boolean OR — it returns
+  # the left operand whenever the left operand resolves, even to false.
+  # Real OR needs De Morgan's law: (A || B) == !(!A && !B).
   access:
     # Admin or authenticated premium user
-    can_access_premium: (( 
-      combined_operations.user.role == "admin" || 
-      (combined_operations.user.authenticated && combined_operations.user.subscription == "premium")
-    ))
+    can_access_premium: '(( ! (combined_operations.user.role != "admin" && ! (combined_operations.user.authenticated && combined_operations.user.subscription == "premium")) ))'
     # Result: true
-    
+
     # Not expired trial or paid subscription
-    has_valid_subscription: (( 
-      !combined_operations.user.trial_expired || 
-      combined_operations.user.subscription != "trial"
-    ))
+    has_valid_subscription: '(( ! (combined_operations.user.trial_expired && combined_operations.user.subscription == "trial") ))'
     # Result: true
-    
-    # Complex nested condition
-    full_access: (( 
-      combined_operations.user.authenticated && 
-      (combined_operations.user.role == "admin" || 
-       (combined_operations.user.role == "user" && 
-        combined_operations.user.subscription == "premium" && 
-        !combined_operations.user.trial_expired))
-    ))
+
+    # Complex nested condition: admin, or an authenticated premium user
+    # who hasn't had their trial expire
+    is_active_premium_user: (( combined_operations.user.role == "user" && combined_operations.user.subscription == "premium" && !combined_operations.user.trial_expired ))
+    full_access: '(( combined_operations.user.authenticated && ! (combined_operations.user.role != "admin" && ! combined_operations.access.is_active_premium_user) ))'
     # Result: true
 
 # Operator precedence
@@ -218,7 +220,10 @@ de_morgan:
   law1_left: (( ! (de_morgan.values.x && de_morgan.values.y) ))
   # Result: true
   
-  law1_right: (( ! de_morgan.values.x || ! de_morgan.values.y ))
+  # Note: a plain `! X || ! Y` here would use ||'s fallback semantics,
+  # not real OR, and could return the wrong side. Rewritten with
+  # De Morgan's law itself: (!X || !Y) == !(!!X && !!Y) == !(X && Y).
+  law1_right: (( ! (! ! de_morgan.values.x && ! ! de_morgan.values.y) ))
   # Result: true
   
   law1_equal: (( de_morgan.law1_left == de_morgan.law1_right ))
@@ -292,23 +297,23 @@ truth_tables:
   inputs:
     - p: true
       q: true
-      and_result: (( truth_tables.inputs.[0].p && truth_tables.inputs.[0].q ))  # true
-      or_result: (( truth_tables.inputs.[0].p || truth_tables.inputs.[0].q ))   # true
+      and_result: (( truth_tables.inputs.[0].p && truth_tables.inputs.[0].q )) # true
+      or_result: (( truth_tables.inputs.[0].p || truth_tables.inputs.[0].q )) # true
       
     - p: true
       q: false
-      and_result: (( truth_tables.inputs.[1].p && truth_tables.inputs.[1].q ))  # false
-      or_result: (( truth_tables.inputs.[1].p || truth_tables.inputs.[1].q ))   # true
+      and_result: (( truth_tables.inputs.[1].p && truth_tables.inputs.[1].q )) # false
+      or_result: (( truth_tables.inputs.[1].p || truth_tables.inputs.[1].q )) # true
       
     - p: false
       q: true
-      and_result: (( truth_tables.inputs.[2].p && truth_tables.inputs.[2].q ))  # false
-      or_result: (( truth_tables.inputs.[2].p || truth_tables.inputs.[2].q ))   # true
+      and_result: (( truth_tables.inputs.[2].p && truth_tables.inputs.[2].q )) # false
+      or_result: (( ! (! truth_tables.inputs.[2].p && ! truth_tables.inputs.[2].q) )) # true
       
     - p: false
       q: false
-      and_result: (( truth_tables.inputs.[3].p && truth_tables.inputs.[3].q ))  # false
-      or_result: (( truth_tables.inputs.[3].p || truth_tables.inputs.[3].q ))   # false
+      and_result: (( truth_tables.inputs.[3].p && truth_tables.inputs.[3].q )) # false
+      or_result: (( truth_tables.inputs.[3].p || truth_tables.inputs.[3].q )) # false
   
   # XOR pattern (exclusive OR)
   xor_pattern:
@@ -350,8 +355,9 @@ error_handling:
     queue_healthy: (( error_handling.services.queue.connected && error_handling.services.queue.responding ))
     # Result: false
     
-    # Any service down
-    has_failures: (( !error_handling.health.database_healthy || !error_handling.health.cache_healthy || !error_handling.health.queue_healthy ))
+    # Any service down (equivalent to !(all healthy), avoiding ||'s
+    # fallback semantics on already-resolved false values)
+    has_failures: (( ! (error_handling.health.database_healthy && error_handling.health.cache_healthy && error_handling.health.queue_healthy) ))
     # Result: true
     
     # All critical services up (database is critical, cache is not)
@@ -359,9 +365,5 @@ error_handling:
     # Result: true
     
     # System status
-    system_status: (( 
-      !error_handling.health.has_failures ? "healthy" :
-      error_handling.health.critical_services_ok ? "degraded" :
-      "critical"
-    ))
+    system_status: '(( !error_handling.health.has_failures ? "healthy" : error_handling.health.critical_services_ok ? "degraded" : "critical" ))'
     # Result: "degraded"

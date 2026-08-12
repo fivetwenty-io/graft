@@ -1,0 +1,3 @@
+auth_required: true
+rate_limit_per_minute: 600
+allowed_origins: ["https://app.example.com"]

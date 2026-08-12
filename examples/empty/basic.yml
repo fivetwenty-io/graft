@@ -75,8 +75,11 @@ nested:
   deep_check: (( empty nested.level1.level2.value ))           # false
   deep_empty: (( empty nested.level1.level2.empty ))           # true
   
-  # Check non-existent path (returns null, which is empty)
-  missing: (( empty nested.level1.level2.nonexistent ))        # true
+  # Check non-existent path
+  #
+  # Note: an undefined reference errors rather than resolving to nil, so
+  # this needs a grab fallback first.
+  missing: (( empty (grab nested.level1.level2.nonexistent || ~) )) # true
 
 # Combined empty checks
 combined:
@@ -90,7 +93,7 @@ combined:
   all_empty: (( empty combined.values.a && empty combined.values.b && empty combined.values.c ))  # true
   
   # Any empty
-  any_empty: (( empty combined.values.a || empty combined.values.d ))  # true
+  any_empty: (( (empty combined.values.a) || (empty combined.values.d) ))  # true
   
   # None empty
   none_empty: (( ! empty combined.values.a && ! empty combined.values.b && ! empty combined.values.c && ! empty combined.values.d ))  # false

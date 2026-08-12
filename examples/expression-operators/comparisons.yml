@@ -36,6 +36,6 @@ eligibility:
 
 # Using comparisons with ternary
 messages:
-  age_group: (( user.age < 18 ? "minor" : (user.age > 65 ? "senior" : "adult") ))
-  access_level: (( user.role == "admin" ? "full" : "limited" ))
-  grade: (( user.score >= 90 ? "A" : (user.score >= 80 ? "B" : (user.score >= 70 ? "C" : "F")) ))
+  age_group: '(( user.age < 18 ? "minor" : (user.age > 65 ? "senior" : "adult") ))'
+  access_level: '(( user.role == "admin" ? "full" : "limited" ))'
+  grade: '(( user.score >= 90 ? "A" : (user.score >= 80 ? "B" : (user.score >= 70 ? "C" : "F")) ))'

@@ -1,0 +1,55 @@
+# (( sort )) / (( sort by <key> )) markers for named-entries.yml
+#
+# graft merge on its own does not sort; these are merge-phase markers
+# that override the same keys named-entries.yml defined as lists.
+# Run: graft merge named-entries.yml named-entries-overrides.yml
+
+default_sort:
+  services: (( sort ))
+
+custom_key_sort:
+  by_id: (( sort by id ))
+  by_value: (( sort by value ))
+
+users:
+  by_name: (( sort ))
+  by_email: (( sort by email ))
+  by_role: (( sort by role ))
+  by_created: (( sort by created ))
+  by_last_login: (( sort by last_login ))
+
+servers:
+  by_name: (( sort ))
+  by_ip: (( sort by ip ))
+  by_cpu: (( sort by cpu ))
+  by_memory: (( sort by memory ))
+  by_datacenter: (( sort by datacenter ))
+
+applications:
+  sorted_by_name: (( sort ))
+  sorted_by_version: (( sort by version ))
+  sorted_by_replicas: (( sort by replicas ))
+  sorted_by_port: (( sort by port ))
+
+cloud_resources:
+  by_name: (( sort ))
+  by_type: (( sort by type ))
+  by_cost: (( sort by cost ))
+  by_region: (( sort by region ))
+
+tasks:
+  by_priority: (( sort by priority ))
+  by_scheduled: (( sort by scheduled ))
+  by_duration: (( sort by duration ))
+
+api_endpoints:
+  by_name: (( sort ))
+  by_path: (( sort by path ))
+  by_method: (( sort by method ))
+  by_rate_limit: (( sort by rate_limit ))
+
+departments:
+  by_name: (( sort ))
+  by_id: (( sort by id ))
+  by_size: (( sort by employees ))
+  by_budget: (( sort by budget ))

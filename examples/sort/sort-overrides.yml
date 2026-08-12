@@ -1,0 +1,39 @@
+# (( sort )) markers for basic.yml
+#
+# graft merge on its own does not sort; (( sort )) is a merge-phase
+# marker that has to override the same key an earlier document defined
+# as a list. Run: graft merge basic.yml sort-overrides.yml
+
+strings:
+  fruits: (( sort ))
+  mixed_case: (( sort ))
+  special_chars: (( sort ))
+
+numbers:
+  integers: (( sort ))
+  decimals: (( sort ))
+  with_negatives: (( sort ))
+
+edge_cases:
+  empty_array: (( sort ))
+  single_element: (( sort ))
+  with_duplicates: (( sort ))
+
+practical_strings:
+  files: (( sort ))
+  versions: (( sort ))
+  ip_addresses: (( sort ))
+
+dates:
+  iso_dates: (( sort ))
+  timestamps: (( sort ))
+
+environments:
+  env_list: (( sort ))
+
+identifiers:
+  uuids: (( sort ))
+  user_ids: (( sort ))
+
+mixed_lengths:
+  words: (( sort ))

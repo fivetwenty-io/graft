@@ -32,8 +32,13 @@ mobile_testing:
   all_combinations: (( cartesian-product mobile_testing.platforms mobile_testing.device_types mobile_testing.screen_sizes ))
   
   # Platform-specific matrices
-  ios_matrix: (( cartesian-product ["ios"] mobile_testing.device_types mobile_testing.os_versions.ios mobile_testing.screen_sizes ))
-  android_matrix: (( cartesian-product ["android"] mobile_testing.device_types mobile_testing.os_versions.android mobile_testing.screen_sizes ))
+  #
+  # Note: (( )) cannot construct an array literal inline, so the
+  # single-platform lists are named values instead.
+  ios_only: ["ios"]
+  android_only: ["android"]
+  ios_matrix: (( cartesian-product mobile_testing.ios_only mobile_testing.device_types mobile_testing.os_versions.ios mobile_testing.screen_sizes ))
+  android_matrix: (( cartesian-product mobile_testing.android_only mobile_testing.device_types mobile_testing.os_versions.android mobile_testing.screen_sizes ))
 
 # API testing scenarios
 api_testing:
@@ -70,7 +75,8 @@ database_testing:
   ssl_modes: ["disable", "require", "verify-full"]
   
   # Test matrix for PostgreSQL
-  postgres_matrix: (( cartesian-product ["postgresql"] database_testing.versions.postgresql database_testing.connection_modes database_testing.ssl_modes ))
+  postgresql_only: ["postgresql"]
+  postgres_matrix: (( cartesian-product database_testing.postgresql_only database_testing.versions.postgresql database_testing.connection_modes database_testing.ssl_modes ))
   
   # Test matrix for all databases (simplified)
   all_db_tests: (( cartesian-product database_testing.engines database_testing.connection_modes database_testing.ssl_modes ))

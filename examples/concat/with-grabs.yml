@@ -52,7 +52,7 @@ notifications:
   is_prod: (( grab meta.environment == "production" ))
   
   # Different prefixes based on environment
-  alert_prefix: (( concat "[" (grab notifications.is_prod ? "CRITICAL" : "INFO") "] " ))
+  alert_prefix: '(( concat "[" (grab notifications.is_prod ? "CRITICAL" : "INFO") "] " ))'
   
   # Build notification message
   deployment_message: (( concat (grab notifications.alert_prefix) "Deploying " (grab application.version_string) " to " (grab meta.environment) ))

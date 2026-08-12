@@ -29,7 +29,7 @@ tls:
 # Script selection based on conditions
 deployment:
   use_custom_script: false
-  script_type: (( grab deployment.use_custom_script ? "custom" : "default" ))
+  script_type: '(( grab deployment.use_custom_script ? "custom" : "default" ))'
   
   # Select script based on type
   startup_script: (( file (concat "scripts/" (grab deployment.script_type) "/startup.sh") ))
@@ -48,12 +48,9 @@ service:
   env: (( grab meta.environment ))
   
   # Complex path: configs/api/2.0/production/service.yaml
-  config_path: (( concat 
-    "configs/" 
-    (grab service.name) "/" 
-    (grab service.version) "/" 
-    (grab service.env) "/service.yaml" 
-  ))
-  
+  config_path: '(( concat "configs/" (grab service.name) "/" (grab service.version) "/" (grab service.env) "/service.yaml" ))'
+
+  # Illustrative only: setup.sh does not create this deep a path, so this
+  # is left commented out to keep the example runnable end to end.
   # Load the config (would use load for YAML parsing)
-  raw_config: (( file (grab service.config_path) ))
+  # raw_config: (( file (grab service.config_path) ))

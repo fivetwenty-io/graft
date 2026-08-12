@@ -102,13 +102,18 @@ task_queues:
   available_workers: (( shuffle task_queues.workers ))
   
   # Assign tasks to workers
+  #
+  # Note: each (( shuffle X )) call re-shuffles independently, so
+  # indexing three separate calls would not give three slots from one
+  # consistent order (and a dotted index cannot follow a call result
+  # directly anyway); index into the one shuffle above instead.
   task_assignment:
     - task_id: task-001
-      assigned_to: (( grab (shuffle task_queues.workers).0.id ))
+      assigned_to: (( grab task_queues.available_workers.0.id ))
     - task_id: task-002
-      assigned_to: (( grab (shuffle task_queues.workers).1.id ))
+      assigned_to: (( grab task_queues.available_workers.1.id ))
     - task_id: task-003
-      assigned_to: (( grab (shuffle task_queues.workers).2.id ))
+      assigned_to: (( grab task_queues.available_workers.2.id ))
 
 # CDN edge server selection
 cdn:

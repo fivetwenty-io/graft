@@ -1,5 +1,5 @@
 things:
-- name: first-thing
-  foo:  1
-- name: second-thing
-  bar:  2
+- foo: 1
+  name: first-thing
+- bar: 2
+  name: second-thing

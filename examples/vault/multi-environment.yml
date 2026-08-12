@@ -4,9 +4,13 @@
 # across multiple environments using consistent Vault paths
 
 # Environment-specific configuration
+#
+# (( param "..." )) errors until a later file overrides it -- see
+# examples/params/ for the two-file pattern. This standalone file sets
+# literal values instead so it can run on its own.
 meta:
-  environment: (( param "Please provide environment (dev/staging/prod)" ))
-  region: (( param "Please provide region (us-east-1/us-west-2/eu-west-1)" ))
+  environment: "prod"
+  region: "us-east-1"
   
   # Build Vault paths based on environment
   vault_prefix: (( concat "secret/" meta.environment "/" meta.region ))
@@ -24,8 +28,10 @@ application:
     username: (( vault meta.vault_prefix "/database:username" ))
     password: (( vault meta.vault_prefix "/database:password" ))
     
-    # Production has additional read replicas
-    read_replicas: (( grab meta.environment == "prod" ? database.prod_replicas : [] ))
+    # Production has additional read replicas (no inline array literal
+    # as a ternary branch, so the empty case is a named value)
+    no_replicas: []
+    read_replicas: '(( grab meta.environment == "prod" ? application.database.prod_replicas : application.database.no_replicas ))'
     prod_replicas:
       - host: db-read-1.prod.example.com
         port: 5432
@@ -75,22 +81,25 @@ infrastructure:
     pagerduty:
       # Only production has PagerDuty integration
       enabled: (( grab meta.environment == "prod" ))
-      integration_key: (( grab meta.environment == "prod" ? (vault "secret/prod/alerting:pagerduty_key") : null ))
+      integration_key: '(( grab meta.environment == "prod" ? (vault "secret/prod/alerting:pagerduty_key") : null ))'
 
 # SSL/TLS certificates by environment
+#
+# Note: these keys must match meta.environment's values (dev/staging/
+# prod) for the bracket lookup below to find them.
 tls:
   # Development uses self-signed
-  development:
+  dev:
     cert: (( vault "secret/dev/tls:self_signed_cert" ))
     key: (( vault "secret/dev/tls:self_signed_key" ))
-  
+
   # Staging uses Let's Encrypt staging
   staging:
     cert: (( vault "secret/staging/tls:letsencrypt_cert" ))
     key: (( vault "secret/staging/tls:letsencrypt_key" ))
-  
+
   # Production uses paid wildcard certificate
-  production:
+  prod:
     cert: (( vault "secret/prod/tls:wildcard_cert" ))
     key: (( vault "secret/prod/tls:wildcard_key" ))
     chain: (( vault "secret/prod/tls:cert_chain" ))

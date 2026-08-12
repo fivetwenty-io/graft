@@ -7,10 +7,10 @@
 config:
   # This will be kept because meta.keep exists
   enabled: (( grab meta.keep || (( prune )) ))
-  
+
   # This will be pruned because meta.missing doesn't exist
   optional_feature: (( grab meta.missing || (( prune )) ))
-  
+
   # Array example - missing indices will be pruned
   services:
     - name: (( grab meta.services.0.name || (( prune )) ))
@@ -23,11 +23,11 @@ config:
 values:
   # If this location has value 10, this will result in 20
   doubled: (( calc "* 2" ))
-  
+
   # If no current value exists, defaults to 0
   # So this results in 100
   added: (( calc "+ 100" ))
-  
+
   # Works with all operators: *, /, +, -, %, ^
   halved: (( calc "/ 2" ))
   incremented: (( calc "+ 1" ))

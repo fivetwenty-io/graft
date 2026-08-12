@@ -1,0 +1,3 @@
+version: v2
+api_format: json_api
+max_page_size: 100

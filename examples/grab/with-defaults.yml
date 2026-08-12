@@ -35,14 +35,15 @@ app_config:
   # Try environment-specific first, then fall back to defaults
   database: (( grab environments.$ENV.database || "localhost" ))
   cache: (( grab environments.$ENV.cache || "localhost:6379" ))
-  
+
   # Multiple fallback levels
   api_key: (( grab environments.$ENV.api_key || grab defaults.api_key || "development-key" ))
 
 # Conditional defaults based on other values
 smart_defaults:
-  is_production: (( grab ENV == "production" ))
+  is_production: (( (grab $ENV || "development") == "production" ))
   
-  # Different defaults based on environment
-  log_level: (( grab config.log_level || (grab smart_defaults.is_production ? "error" : "debug") ))
-  cache_ttl: (( grab config.cache_ttl || (grab smart_defaults.is_production ? 3600 : 60) ))
+  # Different defaults based on environment (no top-level `config` key
+  # exists, so this always falls through to the environment-based value)
+  log_level: '(( smart_defaults.is_production ? "error" : "debug" ))'
+  cache_ttl: '(( smart_defaults.is_production ? 3600 : 60 ))'

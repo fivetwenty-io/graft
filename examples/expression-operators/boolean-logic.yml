@@ -53,15 +53,23 @@ safety_checks:
   fallback_enabled: (( !system.health.cache || system.maintenance_mode ))
 
 # Truthiness examples
+#
+# Note: (( )) cannot construct an array/map literal inline, so the empty
+# and filled collections used below are named values instead.
 truthiness:
+  values:
+    empty_array: []
+    empty_map: {}
+    filled_array: [1, 2, 3]
+
   # These are all falsy
   empty_string: (( !"" ))        # true (empty string is falsy)
   zero: (( !0 ))                 # true (zero is falsy)
-  empty_array: (( ![] ))         # true (empty array is falsy)
-  empty_map: (( !{} ))           # true (empty map is falsy)
+  empty_array: (( ! truthiness.values.empty_array ))  # true (empty array is falsy)
+  empty_map: (( ! truthiness.values.empty_map ))      # true (empty map is falsy)
   false_value: (( !false ))      # true (false is falsy)
-  
+
   # These are all truthy
   non_empty_string: (( !"hello" ))  # false ("hello" is truthy)
   non_zero: (( !42 ))              # false (42 is truthy)
-  filled_array: (( ![1, 2, 3] ))   # false (non-empty array is truthy)
+  filled_array: (( ! truthiness.values.filled_array ))   # false (non-empty array is truthy)

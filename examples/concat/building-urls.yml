@@ -13,7 +13,11 @@ database:
   port: 5432
   name: myapp_prod
   user: app_user
-  password: (( vault "secret/db:password" || "default-pass" ))
+  # Note: || does not rescue a vault connection/init failure the way it
+  # rescues an unresolved reference, so a literal stands in here to keep
+  # this example runnable without a live Vault (see examples/vault/ for
+  # real vault usage).
+  password: "default-pass"
   
 redis:
   host: cache.example.com
@@ -32,14 +36,7 @@ connections:
   api_url: (( concat (grab config.protocol) "://" (grab config.host) ":" (grab config.port) (grab config.base_path) ))
   
   # Database connection string
-  database_url: (( concat 
-    (grab database.type) "://" 
-    (grab database.user) ":" 
-    (grab database.password) "@" 
-    (grab database.host) ":" 
-    (grab database.port) "/" 
-    (grab database.name) 
-  ))
+  database_url: '(( concat (grab database.type) "://" (grab database.user) ":" (grab database.password) "@" (grab database.host) ":" (grab database.port) "/" (grab database.name) ))'
   
   # Redis URL
   redis_url: (( concat "redis://" (grab redis.host) ":" (grab redis.port) "/" (grab redis.db) ))
@@ -68,8 +65,12 @@ environments:
 
 services:
   # Dynamic URL based on environment
+  #
+  # Note: a dotted path cannot embed a parenthesized sub-expression
+  # mid-path (environments.(expr).url is a parse error); build the path
+  # as a string first.
   current_env: staging
-  base_url: (( grab environments.(grab services.current_env).url ))
+  base_url: (( grab (concat "environments." (grab services.current_env) ".url") ))
   
   # Service endpoints
   user_service: (( concat (grab services.base_url) "/user-service" ))
@@ -82,7 +83,7 @@ advanced:
   custom_port: false
   
   # Build URL with conditional parts
-  protocol: (( grab advanced.use_ssl ? "https" : "http" ))
-  port: (( grab advanced.custom_port ? ":8443" : "" ))
+  protocol: '(( grab advanced.use_ssl ? "https" : "http" ))'
+  port: '(( grab advanced.custom_port ? ":8443" : "" ))'
   
   final_url: (( concat (grab advanced.protocol) "://api.example.com" (grab advanced.port) "/api" ))

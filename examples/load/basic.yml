@@ -17,8 +17,12 @@ app_config:
   # Access loaded data with grab
   primary_db: (( grab app_config.all_databases.postgres ))
   
-  # Or combine load with immediate access (using nested expressions)
-  mongodb_host: (( grab (load "configs/database.yml").mongodb.host ))
+  # Or combine load with immediate access
+  #
+  # Note: a dotted path cannot follow a call result directly
+  # ((load "...").mongodb.host is a parse error); grab the loaded map
+  # into a named value first.
+  mongodb_host: (( grab app_config.all_databases.mongodb.host ))
 
 # Load multiple configuration files
 redis_config:

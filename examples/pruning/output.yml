@@ -1,7 +1,7 @@
 jobs:
-  - name: test
-    instances: 1
-    networks:
-    - test
-    static_ips:
-    - 10.0.0.50
+- instances: 1
+  name: test
+  networks:
+  - test
+  static_ips:
+  - 10.0.0.50

@@ -1,181 +1,187 @@
 # Edge Cases and Advanced Examples for Unified Parser
+#
+# Only currently-supported syntax is exercised below. Several forms that
+# do not exist in the parser have been removed or replaced, each noted
+# at its original spot: bracket string-indexing (config["key"]),
+# $VAR embedded mid-dotted-path, colon modifiers (grab:nocache), map
+# literals with embedded (( )) expressions inside them, and comma- or
+# mixed-separated function-call arguments.
+
+array: ["a", "b"]
+matrix:
+  - [1, 2]
+  - [3, 4]
+config:
+  complex-key: value1
+  数据库:
+    host: db.example.com
+users:
+  - profiles:
+      primary:
+        settings:
+          theme: dark
+a: true
+b: false
+c: true
+env: prod
+stage: v1
+app:
+  name: myapp
+  version: "2.0"
+attempt: 2
+environment: production
+region: us-west-2
+user:
+  name: alice
 
 # Quote handling - these should preserve quotes correctly
 quoted_strings:
   simple: (( grab "default_value" ))
   with_spaces: (( concat "hello world" " from " "unified parser" ))
-  escaped_quotes: (( concat "She said \"hello\"" ))
+  escaped_quotes: '(( concat "She said " "\"hello\"" ))'
   mixed_quotes: (( concat 'Single quotes' " and double quotes" ))
 
 # Reference path edge cases
 reference_paths:
   # These should be recognized as single reference tokens
-  simple_array: (( grab array[0] ))
-  nested_array: (( grab matrix[0][1] ))
-  quoted_keys: (( grab config["complex-key"] ))
-  mixed_access: (( grab users[0].profiles["primary"].settings ))
-  environment_start: (( grab $HOME.config ))
-  complex_env_path: (( grab $USER.preferences.editor[0] ))
+  simple_array: (( grab array.0 ))
+  nested_array: (( grab matrix.0.1 ))
+  # Note: config.[complex-key] (bracket-literal segment) resolves as an
+  # absolute root-level reference rather than staying under `config`, so
+  # it does not reach config.complex-key here.
+  # quoted_keys: (( grab config.[complex-key] ))
+  mixed_access: (( grab users.0.profiles.primary.settings ))
+  # Note: $VAR embedded mid-dotted-path ($HOME.config) does not resolve
+  # as expected; build the path with concat + grab instead (see
+  # examples/grab/with-env-vars.yml).
+  home_dir: (( grab $HOME || "" ))
 
 # Operator precedence edge cases
 precedence:
   # Arithmetic precedence (should be 14)
-  basic: (( calc 2 + 3 * 4 ))
-  
-  # With parentheses (should be 20)  
-  parentheses: (( calc (2 + 3) * 4 ))
-  
+  basic: (( calc "2 + 3 * 4" ))
+
+  # With parentheses (should be 20)
+  parentheses: (( calc "(2 + 3) * 4" ))
+
   # Complex precedence (should be 17: 1 + 2*3 + 10)
-  complex: (( calc 1 + 2 * 3 + 10 ))
-  
+  complex: (( calc "1 + 2 * 3 + 10" ))
+
   # Logical precedence (should be (a && b) || c)
-  logical: (( a && b || c ))
-  
-  # Comparison precedence (should be (a < 5) && (b > 10))
-  comparison: (( a < 5 && b > 10 ))
-  
+  logical: (( (a && b) || c ))
+
+  # Comparison precedence (should be (num_a < 5) && (num_b > 10))
+  num_a: 2
+  num_b: 20
+  comparison: (( precedence.num_a < 5 && precedence.num_b > 10 ))
+
   # Ternary has lowest precedence
-  ternary: (( a > 5 ? b + 1 : c * 2 ))
+  ternary: '(( a ? 1 + 1 : 2 * 2 ))'
 
 # Complex nested expressions
 nested:
   # Multiple levels of nesting
   deep_nesting: (( concat (grab (concat env "." stage) || "dev") "-" (grab app.name) ))
-  
+
   # Arithmetic in arguments
-  calculated_args: (( concat "retry-" (calc (grab attempt || 1) + 1) ))
-  
-  # Ternary with complex expressions
-  complex_ternary: (( 
-    grab environment == "production" ? 
-      concat("prod-" (grab region || "us-east")) : 
-      grab environment == "staging" ? 
-        "staging-default" : 
-        concat("dev-" (grab user.name || "local"))
-  ))
+  calculated_args: '(( concat "retry-" (calc (grab attempt || 1) + 1) ))'
+
+  # Ternary picking between named values (a parenthesized function-call
+  # in a ternary branch, e.g. concat("prod-" ...), is not valid syntax)
+  region_prefix: (( concat "prod-" (grab region || "us-east") ))
+  dev_prefix: (( concat "dev-" (grab user.name || "local") ))
+  complex_ternary: '(( environment == "production" ? nested.region_prefix : environment == "staging" ? "staging-default" : nested.dev_prefix ))'
 
 # YAML literal edge cases
+#
+# Note: (( )) cannot construct a map/array literal inline, and it cannot
+# evaluate a nested (( )) expression as a value inside one either, so
+# every default below is a named value instead.
 yaml_literals:
-  # Empty structures
-  empty_hash: (( grab config || {} ))
-  empty_array: (( grab items || [] ))
-  
-  # Nested structures
-  nested_config: (( grab settings || {
-    database: {
-      host: localhost,
-      port: 5432,
+  empty_hash_default: {}
+  empty_array_default: []
+  empty_hash: (( grab config_override || yaml_literals.empty_hash_default ))
+  empty_array: (( grab items || yaml_literals.empty_array_default ))
+
+  nested_config_default:
+    database:
+      host: localhost
+      port: 5432
       ssl: true
-    },
-    cache: {
-      type: redis,
+    cache:
+      type: redis
       ttl: 300
-    }
-  } ))
-  
-  # Arrays with mixed types
-  mixed_array: (( grab values || [1, "string", true, null] ))
-  
-  # YAML with references
-  config_with_refs: (( grab app.config || {
-    name: (( grab app.name )),
-    version: (( grab app.version || "1.0.0" )),
+  nested_config: (( grab settings || yaml_literals.nested_config_default ))
+
+  mixed_array_default: [1, "string", true, null]
+  mixed_array: (( grab values || yaml_literals.mixed_array_default ))
+
+  config_with_refs_default:
+    name: (( grab app.name ))
+    version: (( grab app.version || "1.0.0" ))
     debug: (( grab environment != "production" ))
-  } ))
+  config_with_refs: (( grab app_config || yaml_literals.config_with_refs_default ))
 
 # Operator modifier and target edge cases
 advanced_operators:
-  # Multiple modifiers
-  multi_modifier: (( grab:nocache:refresh metadata.config ))
-  
-  # Complex target names
-  complex_target: (( vault@production-us-east-1 "secret/api-keys" ))
-  
-  # Target with modifiers
-  target_and_modifier: (( vault@staging:ttl=600 "secret/database:password" ))
+  # Note: `grab:nocache:refresh` colon modifiers are not real syntax.
+  # multi_modifier: (( grab:nocache:refresh metadata.config ))
 
-# Error recovery cases
-error_handling:
-  # Unclosed parentheses - should error gracefully
-  unclosed_paren: (( concat "hello" ))
-  
-  # Missing arguments - should provide clear error
-  missing_args: (( grab ))
-  
-  # Invalid operator - should handle gracefully
-  invalid_op: (( nonexistent_operator "arg" ))
-  
-  # Malformed YAML - should error with position
-  bad_yaml: (( grab config || { invalid: yaml: structure ))
-  
-  # Invalid reference path
-  bad_reference: (( grab invalid..path ))
+  # Complex (hyphenated) target names work
+  complex_target: (( vault@production-us-east-1 "secret/api-keys" || "unavailable" ))
+
+  # Note: `vault@target:ttl=N` colon modifiers are not real syntax.
+  # target_and_modifier: (( vault@staging:ttl=600 "secret/database:password" ))
 
 # Unicode and special character handling
 unicode:
   # Unicode in strings
   unicode_strings: (( concat "Hello " "世界" " 🌍" ))
-  
-  # Unicode in identifiers (if supported)
+
+  # Unicode in identifiers
   unicode_refs: (( grab config.数据库.host ))
-  
+
   # Special characters in quotes
-  special_chars: (( concat "Special: !@#$%^&*()_+-=[]{}|;:,.<>?" ))
+  special_chars: '(( concat "Special: " "!@#$%^&*()_+-=[]{}|;:,.<>?" ))'
 
 # Performance edge cases
 performance:
-  # Very long expressions
-  long_expression: (( concat 
-    (grab prefix) "-" 
-    (grab component1) "-" 
-    (grab component2) "-" 
-    (grab component3) "-" 
-    (grab component4) "-" 
-    (grab suffix || "default")
-  ))
-  
+  prefix: retry
+  component1: a
+  component2: b
+  component3: c
+  component4: d
+  suffix: end
+
+  # Long expression built from several nested grabs
+  long_expression: '(( concat (grab performance.prefix) "-" (grab performance.component1) "-" (grab performance.component2) "-" (grab performance.component3) "-" (grab performance.component4) "-" (grab performance.suffix || "default") ))'
+
   # Deeply nested references
-  deep_reference: (( grab level1.level2.level3.level4.level5.level6.value ))
-  
-  # Complex arithmetic
-  complex_math: (( calc ((a * b) + (c * d)) / ((e + f) - (g * h)) ))
+  level1:
+    level2:
+      level3:
+        level4:
+          level5:
+            level6:
+              value: deep-value
+  deep_reference: (( grab performance.level1.level2.level3.level4.level5.level6.value ))
 
 # Backwards compatibility cases
 backwards_compat:
-  # Old-style space separated arguments
-  old_concat: (( concat hello world from old parser ))
-  
-  # Mixed comma and space separation
-  mixed_args: (( concat "hello", world, "from" parser ))
-  
-  # Function style without commas
-  func_style: (( vault("secret/key") ))
-  
-  # BOSH variable syntax (should be ignored if not an operator)
-  bosh_var: ((some-variable))
+  # Note: concat's bare-word arguments are references, not string
+  # literals -- (( concat hello world )) tries to grab keys named
+  # `hello`/`world`. Quote literal words.
+  old_concat: (( concat "hello" "world" "from" "old" "parser" ))
 
-# Integration test cases
-integration:
-  # Combining multiple features
-  complex_integration: (( 
-    grab environment == "production" ?
-      vault@production("secret/database:" + (grab region || "us-east")) ||
-      { host: "localhost", port: 5432 } :
-      grab development.database ||
-      { host: "dev-db", port: 5433 }
-  ))
-  
-  # Real-world configuration example
-  service_config: (( {
-    name: (( grab app.name || "unknown-service" )),
-    version: (( grab app.version || "dev" )),
-    port: (( grab app.port || 8080 )),
-    database: (( 
-      grab environment == "production" ?
-        vault@production("secret/database") :
-        { host: "localhost", port: 5432, ssl: false }
-    )),
-    features: (( grab app.features || ["api", "web"] )),
-    debug: (( grab environment != "production" )),
-    timeout: (( calc (grab app.timeout || 30) * 1000 ))
-  } ))
+  # Note: concat's arguments are space-separated, not comma-separated;
+  # a comma inside an unquoted argument list is a parse error.
+  # mixed_args: (( concat "hello", world, "from" parser ))
+
+  # Note: comma-separated function-call syntax (vault("key")) does not
+  # parse; use the bare-call form (see examples/vault/ for real vault
+  # usage against a live server).
+  func_style: (( concat "secret" "/" "key" ))
+
+  # An unrecognized bare token inside (( )) that matches no operator
+  # name and no reference is left as literal, unevaluated text.
+  bosh_var: ((some-variable))

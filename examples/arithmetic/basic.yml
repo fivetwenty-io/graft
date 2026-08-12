@@ -40,7 +40,9 @@ modulo:
   no_remainder: (( 20 % 5 ))              # 0
   larger_divisor: (( 3 % 10 ))            # 3
   negative_dividend: (( -10 % 3 ))        # -1
-  with_floats: (( 10.5 % 3 ))             # 1.5
+  # Note: % requires integer operands; a float operand errors with
+  # "modulo operation requires integer operands".
+  # with_floats: (( 10.5 % 3 ))           # ERROR
 
 # Using references in calculations
 values:

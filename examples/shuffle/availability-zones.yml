@@ -27,41 +27,41 @@ instances:
     # Distribute across randomized AZs
     distribution:
       - name: web-1
-        az: (( grab (shuffle aws.available_azs).0 ))
+        az: (( grab aws.randomized_azs.0 ))
       - name: web-2
-        az: (( grab (shuffle aws.available_azs).1 ))
+        az: (( grab aws.randomized_azs.1 ))
       - name: web-3
-        az: (( grab (shuffle aws.available_azs).2 ))
+        az: (( grab aws.randomized_azs.2 ))
       - name: web-4
-        az: (( grab (shuffle aws.available_azs).0 ))
+        az: (( grab aws.randomized_azs.0 ))
       - name: web-5
-        az: (( grab (shuffle aws.available_azs).1 ))
+        az: (( grab aws.randomized_azs.1 ))
       - name: web-6
-        az: (( grab (shuffle aws.available_azs).2 ))
+        az: (( grab aws.randomized_azs.2 ))
   
   # App tier instances  
   app:
     count: 4
     distribution:
       - name: app-1
-        az: (( grab (shuffle aws.available_azs).0 ))
+        az: (( grab aws.randomized_azs.0 ))
       - name: app-2
-        az: (( grab (shuffle aws.available_azs).1 ))
+        az: (( grab aws.randomized_azs.1 ))
       - name: app-3
-        az: (( grab (shuffle aws.available_azs).0 ))
+        az: (( grab aws.randomized_azs.0 ))
       - name: app-4
-        az: (( grab (shuffle aws.available_azs).1 ))
+        az: (( grab aws.randomized_azs.1 ))
   
   # Database instances (different shuffle for spread)
   database:
     count: 3
     distribution:
       - name: db-primary
-        az: (( grab (shuffle aws.available_azs).0 ))
+        az: (( grab aws.randomized_azs.0 ))
       - name: db-replica-1
-        az: (( grab (shuffle aws.available_azs).1 ))
+        az: (( grab aws.randomized_azs.1 ))
       - name: db-replica-2
-        az: (( grab (shuffle aws.available_azs).2 ))
+        az: (( grab aws.randomized_azs.2 ))
 
 # Kubernetes node distribution
 kubernetes:
@@ -150,7 +150,8 @@ auto_scaling:
 
 # BOSH deployment AZ assignment
 bosh_deployment:
-  azs: (( shuffle ["z1", "z2", "z3"] ))
+  base_azs: ["z1", "z2", "z3"]
+  azs: (( shuffle bosh_deployment.base_azs ))
   
   instance_groups:
     - name: web
@@ -166,7 +167,7 @@ bosh_deployment:
     - name: database
       instances: 3
       # Shuffle independently for database tier
-      azs: (( shuffle ["z1", "z2", "z3"] ))
+      azs: (( shuffle bosh_deployment.base_azs ))
 
 # Disaster recovery site selection
 disaster_recovery:
@@ -187,7 +188,8 @@ ecs_placement:
       values: (( shuffle aws.available_azs ))
     
     - attribute: "ecs.instance-type"
-      values: (( shuffle ["t3.micro", "t3.small", "t3.medium", "t3.large"] ))
+      instance_type_pool: ["t3.micro", "t3.small", "t3.medium", "t3.large"]
+      values: (( shuffle ecs_placement.attributes.1.instance_type_pool ))
   
   # Task placement
   tasks:

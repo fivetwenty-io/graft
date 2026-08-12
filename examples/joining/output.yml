@@ -1,16 +1,13 @@
----
 meta:
+  additional:
+  - scim.read
+  - uaa.admin
+  - clients.secret
   authorities:
   - password.write
   - clients.write
   - clients.read
   - scim.write
-
-  additional:
-  - scim.read
-  - uaa.admin
-  - clients.secret
-
 properties:
   uaa:
     clients:

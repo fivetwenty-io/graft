@@ -33,10 +33,7 @@ user_profile:
     has_phone: (( ! empty user_profile.basic_info.phone ))
     
     # Check if address is complete
-    address_complete: (( ! empty user_profile.address.street && 
-                        ! empty user_profile.address.city && 
-                        ! empty user_profile.address.state && 
-                        ! empty user_profile.address.zip ))
+    address_complete: '(( ! empty user_profile.address.street && ! empty user_profile.address.city && ! empty user_profile.address.state && ! empty user_profile.address.zip ))'
     
     # Check nested objects
     has_preferences: (( ! empty user_profile.preferences ))
@@ -48,10 +45,10 @@ user_profile:
     
     # Profile completeness score
     completeness:
-      basic: (( user_profile.validation.has_email && user_profile.validation.has_phone ? 100 : 50 ))
-      address: (( user_profile.validation.address_complete ? 100 : 25 ))
-      preferences: (( user_profile.validation.has_custom_settings ? 100 : 50 ))
-      social: (( user_profile.validation.has_social_links ? 100 : 0 ))
+      basic: '(( user_profile.validation.has_email && user_profile.validation.has_phone ? 100 : 50 ))'
+      address: '(( user_profile.validation.address_complete ? 100 : 25 ))'
+      preferences: '(( user_profile.validation.has_custom_settings ? 100 : 50 ))'
+      social: '(( user_profile.validation.has_social_links ? 100 : 0 ))'
 
 # Array of objects validation
 inventory:
@@ -265,26 +262,26 @@ configuration:
   # Comprehensive checks
   emptiness_checks:
     strings:
-      empty_string: (( empty configuration.settings.string_empty ))  # true
-      space_string: (( empty configuration.settings.string_space ))  # false
+      empty_string: (( empty configuration.settings.string_empty )) # true
+      space_string: (( empty configuration.settings.string_space )) # false
     
     numbers:
-      zero_empty: (( empty configuration.settings.number_zero ))     # false
-      null_empty: (( empty configuration.settings.number_null ))     # true
+      zero_empty: (( empty configuration.settings.number_zero )) # false
+      null_empty: (( empty configuration.settings.number_null )) # true
     
     booleans:
-      false_empty: (( empty configuration.settings.bool_false ))     # false
-      null_empty: (( empty configuration.settings.bool_null ))       # true
+      false_empty: (( empty configuration.settings.bool_false )) # false
+      null_empty: (( empty configuration.settings.bool_null )) # true
     
     collections:
-      array_empty: (( empty configuration.settings.array_empty ))    # true
-      array_null: (( empty configuration.settings.array_null ))      # true
-      object_empty: (( empty configuration.settings.object_empty ))  # true
-      object_null: (( empty configuration.settings.object_null ))    # true
+      array_empty: (( empty configuration.settings.array_empty )) # true
+      array_null: (( empty configuration.settings.array_null )) # true
+      object_empty: (( empty configuration.settings.object_empty )) # true
+      object_null: (( empty configuration.settings.object_null )) # true
     
     nested:
-      deep_empty: (( empty configuration.settings.nested.deep.value ))  # true
-      deep_exists: (( ! empty configuration.settings.nested.deep ))     # true (object exists)
+      deep_empty: (( empty configuration.settings.nested.deep.value )) # true
+      deep_exists: (( ! empty configuration.settings.nested.deep )) # true (object exists)
 
 # Dynamic path validation
 dynamic_validation:

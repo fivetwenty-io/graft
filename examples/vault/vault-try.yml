@@ -27,38 +27,27 @@ migration_example:
 # Multi-tenant configuration
 # Different tenants might have secrets in different locations
 tenant:
-  name: (( param "Please provide tenant name" ))
+  name: "acme-corp"  # (( param "..." )) errors standalone; literal value for this demo
   
   # Try tenant-specific path, then shared path, then default
   database:
     host: db.example.com
     port: 5432
     name: (( concat "app_" tenant.name ))
-    username: (( vault-try 
-      (concat "secret/tenants/" tenant.name "/database:username")
-      "secret/shared/database:username"
-      "secret/defaults/database:username" ))
-    password: (( vault-try 
-      (concat "secret/tenants/" tenant.name "/database:password")
-      "secret/shared/database:password" ))
+    username: '(( vault-try (concat "secret/tenants/" tenant.name "/database:username") "secret/shared/database:username" "secret/defaults/database:username" ))'
+    password: '(( vault-try (concat "secret/tenants/" tenant.name "/database:password") "secret/shared/database:password" ))'
 
 # Environment-aware paths
 # Try environment-specific paths with increasing generality
 environment:
-  name: (( param "Please provide environment" ))
-  region: (( param "Please provide region" ))
+  name: "prod"  # (( param "..." )) errors standalone; literal value for this demo
+  region: "us-east-1"
   
   # Most specific to least specific
   config:
-    api_endpoint: (( vault-try
-      (concat "secret/" environment.name "/" environment.region "/config:api_endpoint")
-      (concat "secret/" environment.name "/config:api_endpoint")
-      "secret/global/config:api_endpoint" ))
+    api_endpoint: '(( vault-try (concat "secret/" environment.name "/" environment.region "/config:api_endpoint") (concat "secret/" environment.name "/config:api_endpoint") "secret/global/config:api_endpoint" ))'
     
-    feature_flags: (( vault-try
-      (concat "secret/" environment.name "/" environment.region "/features:flags")
-      (concat "secret/" environment.name "/features:flags")
-      "secret/global/features:default_flags" ))
+    feature_flags: '(( vault-try (concat "secret/" environment.name "/" environment.region "/features:flags") (concat "secret/" environment.name "/features:flags") "secret/global/features:default_flags" ))'
 
 # Cross-region failover
 # Try primary region first, then failover regions
@@ -70,15 +59,9 @@ failover_config:
   
   # Critical secrets with regional failover
   critical_secrets:
-    master_key: (( vault-try
-      (concat "secret/" failover_config.regions.primary "/critical:master_key")
-      (concat "secret/" failover_config.regions.secondary "/critical:master_key")
-      (concat "secret/" failover_config.regions.tertiary "/critical:master_key") ))
+    master_key: '(( vault-try (concat "secret/" failover_config.regions.primary "/critical:master_key") (concat "secret/" failover_config.regions.secondary "/critical:master_key") (concat "secret/" failover_config.regions.tertiary "/critical:master_key") ))'
     
-    encryption_key: (( vault-try
-      (concat "secret/" failover_config.regions.primary "/critical:encryption_key")
-      (concat "secret/" failover_config.regions.secondary "/critical:encryption_key")
-      (concat "secret/" failover_config.regions.tertiary "/critical:encryption_key") ))
+    encryption_key: '(( vault-try (concat "secret/" failover_config.regions.primary "/critical:encryption_key") (concat "secret/" failover_config.regions.secondary "/critical:encryption_key") (concat "secret/" failover_config.regions.tertiary "/critical:encryption_key") ))'
 
 # Version-specific secrets
 # Useful during application version migrations
@@ -88,12 +71,8 @@ app_version:
   
   # Try current version secrets, fall back to previous
   oauth:
-    client_id: (( vault-try
-      (concat "secret/oauth/" app_version.current ":client_id")
-      (concat "secret/oauth/" app_version.previous ":client_id") ))
-    client_secret: (( vault-try
-      (concat "secret/oauth/" app_version.current ":client_secret")
-      (concat "secret/oauth/" app_version.previous ":client_secret") ))
+    client_id: '(( vault-try (concat "secret/oauth/" app_version.current ":client_id") (concat "secret/oauth/" app_version.previous ":client_id") ))'
+    client_secret: '(( vault-try (concat "secret/oauth/" app_version.current ":client_secret") (concat "secret/oauth/" app_version.previous ":client_secret") ))'
 
 # Namespace migration
 # Moving from flat structure to namespaced structure
@@ -102,41 +81,29 @@ namespace_migration:
   # New: secret/myapp/prod/db/password
   
   old_style:
-    db_pass: (( vault-try
-      "secret/myapp/prod/db:password"
-      "secret/myapp-prod-db-password:value" ))
-    api_key: (( vault-try
-      "secret/myapp/prod/api:key"
-      "secret/myapp-prod-api-key:value" ))
+    db_pass: '(( vault-try "secret/myapp/prod/db:password" "secret/myapp-prod-db-password:value" ))'
+    api_key: '(( vault-try "secret/myapp/prod/api:key" "secret/myapp-prod-api-key:value" ))'
 
 # Team-based secret organization
 # Different teams might organize secrets differently
 team_secrets:
-  team: (( param "Please provide team name" ))
-  service: (( param "Please provide service name" ))
+  team: "platform"  # (( param "..." )) errors standalone; literal value for this demo
+  service: "auth"
   
   # Try team-specific organization, then standard
   credentials:
-    database: (( vault-try
-      (concat "secret/teams/" team_secrets.team "/" team_secrets.service "/db:connection_string")
-      (concat "secret/services/" team_secrets.service "/db:connection_string")
-      "secret/shared/databases:default_connection" ))
+    database: '(( vault-try (concat "secret/teams/" team_secrets.team "/" team_secrets.service "/db:connection_string") (concat "secret/services/" team_secrets.service "/db:connection_string") "secret/shared/databases:default_connection" ))'
     
-    monitoring: (( vault-try
-      (concat "secret/teams/" team_secrets.team "/monitoring:api_key")
-      "secret/shared/monitoring:api_key" ))
+    monitoring: '(( vault-try (concat "secret/teams/" team_secrets.team "/monitoring:api_key") "secret/shared/monitoring:api_key" ))'
 
 # Dynamic path construction with vault-try
 # Build paths based on multiple variables
 dynamic_paths:
   app: myapp
-  env: (( param "Please provide environment" ))
-  component: (( param "Please provide component name" ))
+  env: "prod"  # (( param "..." )) errors standalone; literal value for this demo
+  component: "api"
   
-  secret: (( vault-try
-    (concat "secret/" dynamic_paths.app "/" dynamic_paths.env "/" dynamic_paths.component ":config")
-    (concat "secret/" dynamic_paths.env "/" dynamic_paths.component ":config")
-    (concat "secret/" dynamic_paths.component ":default_config") ))
+  secret: '(( vault-try (concat "secret/" dynamic_paths.app "/" dynamic_paths.env "/" dynamic_paths.component ":config") (concat "secret/" dynamic_paths.env "/" dynamic_paths.component ":config") (concat "secret/" dynamic_paths.component ":default_config") ))'
 
 # Error handling example
 # vault-try returns null if all paths fail

@@ -24,14 +24,19 @@ meta:
   current_type: databases
 
 # Dynamic key extraction
+#
+# Note: a dotted path cannot embed a parenthesized sub-expression
+# mid-path (meta.configs.(grab meta.current_type) is a parse error);
+# build the path as a string with concat + grab instead.
 analysis:
   # Get keys from a dynamically selected section
-  available_services: (( keys (grab meta.configs.(grab meta.current_type)) ))
+  available_services: (( keys (grab (concat "meta.configs." (grab meta.current_type))) ))
   # If current_type is "databases": ["mongodb", "mysql", "postgres"]
   # If current_type is "caches": ["memcached", "redis"]
-  
+
   # Build a summary
-  summary: (( concat "Available " (grab meta.current_type) ": " (join ", " (keys (grab meta.configs.(grab meta.current_type)))) ))
+  service_names: (( join ", " (keys (grab (concat "meta.configs." (grab meta.current_type)))) ))
+  summary: '(( concat "Available " meta.current_type ": " analysis.service_names ))'
 
 # More complex example with multiple levels
 infrastructure:
@@ -58,10 +63,8 @@ deployment:
   all_regions: (( keys infrastructure.regions ))
   
   # Get zones for target region
-  available_zones: (( keys (grab infrastructure.regions.(grab deployment.target_region).zones) ))
-  
+  available_zones: (( keys (grab (concat "infrastructure.regions." (grab deployment.target_region) ".zones")) ))
+
   # Build deployment message
-  message: (( concat 
-    "Deploying to region " (grab deployment.target_region) 
-    " with zones: " (join ", " (keys (grab infrastructure.regions.(grab deployment.target_region).zones)))
-  ))
+  zone_names: (( join ", " (keys (grab (concat "infrastructure.regions." (grab deployment.target_region) ".zones"))) ))
+  message: '(( concat "Deploying to region " deployment.target_region " with zones: " deployment.zone_names ))'

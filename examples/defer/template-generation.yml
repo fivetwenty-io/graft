@@ -70,7 +70,7 @@ config_template:
     name: (( defer concat (grab service.name) "_" (grab environment) ))
   
   features:
-    debug: (( defer grab environment == "production" ? false : true ))
+    debug: '(( defer grab environment == "production" ? false : true ))'
     tracing: (( defer grab features.tracing || (grab environment == "production") ))
     
   external_services:

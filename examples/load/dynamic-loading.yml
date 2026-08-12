@@ -6,6 +6,7 @@ meta:
   config_version: (( grab $CONFIG_VERSION || "v2" ))
   customer: (( grab $CUSTOMER || "default" ))
   region: (( grab $REGION || "us-east-1" ))
+  environment: (( grab $ENVIRONMENT || "development" ))
 
 # Load configuration based on version
 versioned_config:
@@ -19,23 +20,14 @@ customer_config:
   
   # Customer might have region-specific overrides
   # Path: configs/customers/acme/regions/us-east-1.yml
-  regional: (( load (concat 
-    "configs/customers/" 
-    (grab meta.customer) 
-    "/regions/" 
-    (grab meta.region) 
-    ".yml"
-  ) || "null" ))
+  regional: '(( load (concat "configs/customers/" (grab meta.customer) "/regions/" (grab meta.region) ".yml" ) || "null" ))'
 
 # Load different file types based on preference
 data_format:
   prefer_json: false
   
   # Load either JSON or YAML based on preference
-  features: (( load (concat 
-    "configs/features" 
-    (grab data_format.prefer_json ? ".json" : ".yml")
-  )))
+  features: '(( load (concat "configs/features" (grab data_format.prefer_json ? ".json" : ".yml") )))'
 
 # Multi-file configuration loading
 components:
@@ -55,16 +47,10 @@ components:
 # Conditional loading
 optional_configs:
   # Load monitoring config only in production
-  monitoring: (( grab meta.environment == "production" 
-    ? (load "configs/monitoring.yml") 
-    : "null" 
-  ))
+  monitoring: '(( grab meta.environment == "production" ? (load "configs/monitoring.yml") : "null" ))'
   
   # Load debug config only in development
-  debug: (( grab meta.environment == "development" 
-    ? (load "configs/debug.yml") 
-    : "null" 
-  ))
+  debug: '(( grab meta.environment == "development" ? (load "configs/debug.yml") : "null" ))'
 
 # Building file paths from multiple parts
 modular_loading:
@@ -73,16 +59,17 @@ modular_loading:
   aspect: "security"
   
   # Load: configs/services/api/security.yml
-  config: (( load (concat 
-    (grab modular_loading.base_path) "/services/"
-    (grab modular_loading.service) "/"
-    (grab modular_loading.aspect) ".yml"
-  )))
+  config: '(( load (concat (grab modular_loading.base_path) "/services/" (grab modular_loading.service) "/" (grab modular_loading.aspect) ".yml" )))'
 
 # Error handling pattern
+#
+# Note: unlike grab, || does not rescue a `load` failure -- a missing
+# file still errors even with `|| fallback` appended, so every file
+# loaded below has to actually exist. Also, two bare (unparenthesized)
+# operator calls joined by || need explicit parens around each call.
 safe_loading:
-  # Use || operator to provide fallback if file doesn't exist
-  optional_config: (( load "configs/optional.yml" || "null" ))
-  
-  # Load with default fallback structure
-  with_defaults: (( load "configs/custom.yml" || load "configs/defaults.yml" ))
+  optional_config: (( load "configs/optional.yml" ))
+
+  # Load with default fallback structure -- both files must exist since
+  # || cannot rescue a missing custom.yml here
+  with_defaults: (( (load "configs/defaults.yml") ))

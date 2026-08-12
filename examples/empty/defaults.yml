@@ -24,12 +24,12 @@ app_config:
   
   # Resolved configuration
   final:
-    name: (( empty app_config.user.name ? app_config.defaults.name : app_config.user.name ))
-    port: (( empty app_config.user.port ? app_config.defaults.port : app_config.user.port ))
-    host: (( empty app_config.user.host ? app_config.defaults.host : app_config.user.host ))
-    timeout: (( empty app_config.user.timeout ? app_config.defaults.timeout : app_config.user.timeout ))
-    retries: (( empty app_config.user.retries ? app_config.defaults.retries : app_config.user.retries ))
-    log_level: (( empty app_config.user.log_level ? app_config.defaults.log_level : app_config.user.log_level ))
+    name: '(( empty app_config.user.name ? app_config.defaults.name : app_config.user.name ))'
+    port: '(( empty app_config.user.port ? app_config.defaults.port : app_config.user.port ))'
+    host: '(( empty app_config.user.host ? app_config.defaults.host : app_config.user.host ))'
+    timeout: '(( empty app_config.user.timeout ? app_config.defaults.timeout : app_config.user.timeout ))'
+    retries: '(( empty app_config.user.retries ? app_config.defaults.retries : app_config.user.retries ))'
+    log_level: '(( empty app_config.user.log_level ? app_config.defaults.log_level : app_config.user.log_level ))'
 
 # Environment-based defaults
 deployment:
@@ -55,8 +55,14 @@ deployment:
       debug: false
   
   # Select defaults based on environment
-  selected_env: (( empty deployment.env ? "development" : deployment.env ))
-  config: (( grab deployment.defaults.[deployment.selected_env] ))
+  #
+  # Note: X.[ref] bracket indexing only resolves `ref` when it is a
+  # plain, already-resolved scalar; a ref computed by another (( ))
+  # expression (like the ternary below) gets embedded as literal,
+  # unresolved source text instead. Build the path as a string via
+  # concat + grab instead.
+  selected_env: '(( empty deployment.env ? "development" : deployment.env ))'
+  config: (( grab (concat "deployment.defaults." deployment.selected_env) ))
 
 # Database connection with cascading defaults
 database:
@@ -86,22 +92,12 @@ database:
   
   # Resolve with fallback chain
   resolved:
-    host: (( ! empty database.connection.host ? database.connection.host : 
-             ! empty database.env_defaults.host ? database.env_defaults.host : 
-             database.global_defaults.host ))
-    port: (( ! empty database.connection.port ? database.connection.port : 
-             ! empty database.env_defaults.port ? database.env_defaults.port : 
-             database.global_defaults.port ))
-    username: (( ! empty database.connection.username ? database.connection.username : 
-                database.global_defaults.username ))
-    password: (( ! empty database.connection.password ? database.connection.password : 
-                database.global_defaults.password ))
-    database: (( ! empty database.connection.database ? database.connection.database : 
-                ! empty database.env_defaults.database ? database.env_defaults.database : 
-                database.global_defaults.database ))
-    ssl: (( ! empty database.connection.ssl ? database.connection.ssl : 
-           ! empty database.env_defaults.ssl ? database.env_defaults.ssl : 
-           database.global_defaults.ssl ))
+    host: '(( ! empty database.connection.host ? database.connection.host : ! empty database.env_defaults.host ? database.env_defaults.host : database.global_defaults.host ))'
+    port: '(( ! empty database.connection.port ? database.connection.port : ! empty database.env_defaults.port ? database.env_defaults.port : database.global_defaults.port ))'
+    username: '(( ! empty database.connection.username ? database.connection.username : database.global_defaults.username ))'
+    password: '(( ! empty database.connection.password ? database.connection.password : database.global_defaults.password ))'
+    database: '(( ! empty database.connection.database ? database.connection.database : ! empty database.env_defaults.database ? database.env_defaults.database : database.global_defaults.database ))'
+    ssl: '(( ! empty database.connection.ssl ? database.connection.ssl : ! empty database.env_defaults.ssl ? database.env_defaults.ssl : database.global_defaults.ssl ))'
 
 # Feature flags with smart defaults
 features:
@@ -130,14 +126,10 @@ features:
   
   # Resolved features
   enabled:
-    new_ui: (( ! empty features.overrides.new_ui ? features.overrides.new_ui : 
-              grab features.by_environment.[features.environment].new_ui ))
-    analytics: (( ! empty features.overrides.analytics ? features.overrides.analytics : 
-                 grab features.by_environment.[features.environment].analytics ))
-    monitoring: (( ! empty features.overrides.monitoring ? features.overrides.monitoring : 
-                  grab features.by_environment.[features.environment].monitoring ))
-    experimental: (( ! empty (grab features.overrides.experimental) ? features.overrides.experimental : 
-                    grab features.by_environment.[features.environment].experimental ))
+    new_ui: '(( ! empty features.overrides.new_ui ? features.overrides.new_ui : grab features.by_environment.[features.environment].new_ui ))'
+    analytics: '(( ! empty features.overrides.analytics ? features.overrides.analytics : grab features.by_environment.[features.environment].analytics ))'
+    monitoring: '(( ! empty features.overrides.monitoring ? features.overrides.monitoring : grab features.by_environment.[features.environment].monitoring ))'
+    experimental: '(( ! empty (grab features.overrides.experimental || ~) ? features.overrides.experimental : grab features.by_environment.[features.environment].experimental ))'
 
 # API client configuration with nested defaults
 api_clients:
@@ -168,15 +160,15 @@ api_clients:
   configured:
     service_a:
       endpoint: (( grab api_clients.service_a.endpoint ))
-      timeout: (( empty api_clients.service_a.timeout ? api_clients.client_defaults.timeout : api_clients.service_a.timeout ))
-      retries: (( empty api_clients.service_a.retries ? api_clients.client_defaults.retries : api_clients.service_a.retries ))
-      headers: (( empty api_clients.service_a.headers ? api_clients.client_defaults.headers : api_clients.service_a.headers ))
+      timeout: '(( empty api_clients.service_a.timeout ? api_clients.client_defaults.timeout : api_clients.service_a.timeout ))'
+      retries: '(( empty api_clients.service_a.retries ? api_clients.client_defaults.retries : api_clients.service_a.retries ))'
+      headers: '(( empty api_clients.service_a.headers ? api_clients.client_defaults.headers : api_clients.service_a.headers ))'
     
     service_b:
-      endpoint: (( empty api_clients.service_b.endpoint ? "https://api-b.example.com" : api_clients.service_b.endpoint ))
-      timeout: (( empty api_clients.service_b.timeout ? api_clients.client_defaults.timeout : api_clients.service_b.timeout ))
-      retries: (( empty api_clients.service_b.retries ? api_clients.client_defaults.retries : api_clients.service_b.retries ))
-      headers: (( empty api_clients.service_b.headers ? api_clients.client_defaults.headers : api_clients.service_b.headers ))
+      endpoint: '(( empty api_clients.service_b.endpoint ? "https://api-b.example.com" : api_clients.service_b.endpoint ))'
+      timeout: '(( empty api_clients.service_b.timeout ? api_clients.client_defaults.timeout : api_clients.service_b.timeout ))'
+      retries: '(( empty api_clients.service_b.retries ? api_clients.client_defaults.retries : api_clients.service_b.retries ))'
+      headers: '(( empty api_clients.service_b.headers ? api_clients.client_defaults.headers : api_clients.service_b.headers ))'
 
 # Resource limits with defaults
 resources:
@@ -220,11 +212,11 @@ resources:
   # Final resources
   final:
     requests:
-      memory: (( ! empty resources.specified.requests.memory ? resources.specified.requests.memory : resources.tier_defaults.requests.memory ))
-      cpu: (( empty resources.specified.requests.cpu ? resources.tier_defaults.requests.cpu : resources.specified.requests.cpu ))
+      memory: '(( ! empty resources.specified.requests.memory ? resources.specified.requests.memory : resources.tier_defaults.requests.memory ))'
+      cpu: '(( empty resources.specified.requests.cpu ? resources.tier_defaults.requests.cpu : resources.specified.requests.cpu ))'
     limits:
-      memory: (( empty resources.specified.limits.memory ? resources.tier_defaults.limits.memory : resources.specified.limits.memory ))
-      cpu: (( empty resources.specified.limits.cpu ? resources.tier_defaults.limits.cpu : resources.specified.limits.cpu ))
+      memory: '(( empty resources.specified.limits.memory ? resources.tier_defaults.limits.memory : resources.specified.limits.memory ))'
+      cpu: '(( empty resources.specified.limits.cpu ? resources.tier_defaults.limits.cpu : resources.specified.limits.cpu ))'
 
 # Complex default resolution with computed values
 computed_defaults:
@@ -241,8 +233,8 @@ computed_defaults:
   # Resolved values
   resolved:
     app_name: (( grab computed_defaults.input.app_name ))
-    environment: (( empty computed_defaults.input.environment ? computed_defaults.defaults.environment : computed_defaults.input.environment ))
-    base_domain: (( empty computed_defaults.input.base_domain ? computed_defaults.defaults.base_domain : computed_defaults.input.base_domain ))
+    environment: '(( empty computed_defaults.input.environment ? computed_defaults.defaults.environment : computed_defaults.input.environment ))'
+    base_domain: '(( empty computed_defaults.input.base_domain ? computed_defaults.defaults.base_domain : computed_defaults.input.base_domain ))'
     
     # Computed from resolved values
     full_domain: (( concat computed_defaults.resolved.app_name "." computed_defaults.resolved.environment "." computed_defaults.resolved.base_domain ))

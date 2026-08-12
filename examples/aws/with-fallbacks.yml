@@ -31,12 +31,16 @@ meta:
 config:
   # Production uses real values, others use defaults
   database:
-    host: (( grab meta.env == "prod" ? (awsparam "/prod/db/host") : "dev.db.local" ))
-    password: (( grab meta.env == "prod" ? (awssecret "prod/db/password") : "devpass123" ))
+    host: '(( grab meta.env == "prod" ? (awsparam "/prod/db/host") : "dev.db.local" ))'
+    password: '(( grab meta.env == "prod" ? (awssecret "prod/db/password") : "devpass123" ))'
     
   # Use parameter if exists, otherwise use environment-specific default
+  #
+  # Note: redis_defaults.[meta.env] (bracket segment with a computed
+  # reference) resolves inconsistently with grab; build the path with
+  # concat + grab instead.
   redis:
-    host: (( awsparam "/myapp/redis/host" || grab redis_defaults.[meta.env] ))
+    host: (( awsparam "/myapp/redis/host" || grab (concat "redis_defaults." meta.env) ))
 
 redis_defaults:
   dev: "localhost:6379"
@@ -48,13 +52,13 @@ features:
   # Optional features that can be disabled if configs are missing
   monitoring:
     enabled: (( awsparam "/features/monitoring/enabled" || false ))
-    endpoint: (( grab features.monitoring.enabled ? (awsparam "/features/monitoring/endpoint") : null ))
-    api_key: (( grab features.monitoring.enabled ? (awssecret "monitoring/api-key") : null ))
+    endpoint: '(( grab features.monitoring.enabled ? (awsparam "/features/monitoring/endpoint") : null ))'
+    api_key: '(( grab features.monitoring.enabled ? (awssecret "monitoring/api-key") : null ))'
   
   caching:
     enabled: (( awsparam "/features/caching/enabled" || true ))
     ttl: (( awsparam "/features/caching/ttl" || 3600 ))
-    redis_url: (( grab features.caching.enabled ? (awsparam "/features/caching/redis_url" || "redis://localhost:6379") : null ))
+    redis_url: '(( grab features.caching.enabled ? (awsparam "/features/caching/redis_url" || "redis://localhost:6379") : null ))'
 
 # Safe JSON extraction with defaults
 # If parameter doesn't exist or key is missing, use default
@@ -88,14 +92,10 @@ regional:
   
   # Try primary region first, then fallback
   config:
-    api_endpoint: (( awsparam (concat "/myapp/" regional.primary_region "/api/endpoint") || 
-                     awsparam (concat "/myapp/" regional.fallback_region "/api/endpoint") || 
-                     "https://api.example.com" ))
+    api_endpoint: '(( awsparam (concat "/myapp/" regional.primary_region "/api/endpoint") || awsparam (concat "/myapp/" regional.fallback_region "/api/endpoint") || "https://api.example.com" ))'
     
   secrets:
-    api_key: (( awssecret (concat "myapp/" regional.primary_region "/api-key") || 
-                awssecret (concat "myapp/" regional.fallback_region "/api-key") || 
-                "fallback-api-key" ))
+    api_key: '(( awssecret (concat "myapp/" regional.primary_region "/api-key") || awssecret (concat "myapp/" regional.fallback_region "/api-key") || "fallback-api-key" ))'
 
 # Conditional parameter loading
 conditional_params:
@@ -104,9 +104,9 @@ conditional_params:
   
   advanced_config:
     # These parameters are only loaded if not in basic mode
-    ml_endpoint: (( grab conditional_params.basic_mode ? null : (awsparam "/myapp/ml/endpoint" || null) ))
-    ml_api_key: (( grab conditional_params.basic_mode ? null : (awssecret "myapp/ml/api-key" || null) ))
-    ml_model_id: (( grab conditional_params.basic_mode ? null : (awsparam "/myapp/ml/model_id" || null) ))
+    ml_endpoint: '(( grab conditional_params.basic_mode ? null : (awsparam "/myapp/ml/endpoint" || null) ))'
+    ml_api_key: '(( grab conditional_params.basic_mode ? null : (awssecret "myapp/ml/api-key" || null) ))'
+    ml_model_id: '(( grab conditional_params.basic_mode ? null : (awsparam "/myapp/ml/model_id" || null) ))'
 
 # Development overrides
 development:
@@ -115,8 +115,8 @@ development:
   
   database:
     # Use AWS if enabled, otherwise local defaults
-    host: (( grab development.use_aws ? (awsparam "/dev/db/host" || "localhost") : "localhost" ))
-    password: (( grab development.use_aws ? (awssecret "dev/db/password" || "devpass") : "devpass" ))
+    host: '(( grab development.use_aws ? (awsparam "/dev/db/host" || "localhost") : "localhost" ))'
+    password: '(( grab development.use_aws ? (awssecret "dev/db/password" || "devpass") : "devpass" ))'
 
 # Validation with fallbacks
 validated_config:
@@ -129,19 +129,13 @@ validated_config:
   # Validate and constrain values
   final:
     # Ensure timeout is between 10 and 300
-    timeout: (( grab validated_config.raw.timeout < 10 ? 10 : 
-                grab validated_config.raw.timeout > 300 ? 300 : 
-                validated_config.raw.timeout ))
+    timeout: '(( grab validated_config.raw.timeout < 10 ? 10 : grab validated_config.raw.timeout > 300 ? 300 : validated_config.raw.timeout ))'
     
     # Ensure retries is between 0 and 10
-    retries: (( grab validated_config.raw.retries < 0 ? 0 : 
-                grab validated_config.raw.retries > 10 ? 10 : 
-                validated_config.raw.retries ))
+    retries: '(( grab validated_config.raw.retries < 0 ? 0 : grab validated_config.raw.retries > 10 ? 10 : validated_config.raw.retries ))'
     
     # Ensure batch_size is between 1 and 1000
-    batch_size: (( grab validated_config.raw.batch_size < 1 ? 1 : 
-                   grab validated_config.raw.batch_size > 1000 ? 1000 : 
-                   validated_config.raw.batch_size ))
+    batch_size: '(( grab validated_config.raw.batch_size < 1 ? 1 : grab validated_config.raw.batch_size > 1000 ? 1000 : validated_config.raw.batch_size ))'
 
 # Error aggregation
 health_check:
@@ -152,9 +146,7 @@ health_check:
     has_cache: (( ! empty (awsparam "/required/cache/host" || null) ))
     
   # Overall health
-  all_required_present: (( health_check.status.has_database && 
-                          health_check.status.has_api_key && 
-                          health_check.status.has_cache ))
+  all_required_present: '(( health_check.status.has_database && health_check.status.has_api_key && health_check.status.has_cache ))'
   
   # Fallback to minimal config if unhealthy
-  mode: (( grab health_check.all_required_present ? "full" : "degraded" ))
+  mode: '(( grab health_check.all_required_present ? "full" : "degraded" ))'

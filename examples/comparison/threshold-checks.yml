@@ -67,115 +67,56 @@ monitoring:
     # Result: 87.5
     
     disk_percent: (( (monitoring.current_metrics.disk.used_gb / monitoring.current_metrics.disk.total_gb) * 100 ))
-    # Result: 90
+    # Result: 90.0
   
   # Threshold checks
   alerts:
     cpu:
-      usage_alert: (( 
-        monitoring.current_metrics.cpu.usage_percent >= monitoring.thresholds.cpu.usage_critical ? "critical" :
-        monitoring.current_metrics.cpu.usage_percent >= monitoring.thresholds.cpu.usage_warning ? "warning" :
-        "ok"
-      ))
+      usage_alert: '(( monitoring.current_metrics.cpu.usage_percent >= monitoring.thresholds.cpu.usage_critical ? "critical" : monitoring.current_metrics.cpu.usage_percent >= monitoring.thresholds.cpu.usage_warning ? "warning" : "ok" ))'
       # Result: "warning" (78 >= 70 but < 90)
       
-      temperature_alert: (( 
-        monitoring.current_metrics.cpu.temperature_celsius >= monitoring.thresholds.cpu.temperature_critical ? "critical" :
-        monitoring.current_metrics.cpu.temperature_celsius >= monitoring.thresholds.cpu.temperature_warning ? "warning" :
-        "ok"
-      ))
+      temperature_alert: '(( monitoring.current_metrics.cpu.temperature_celsius >= monitoring.thresholds.cpu.temperature_critical ? "critical" : monitoring.current_metrics.cpu.temperature_celsius >= monitoring.thresholds.cpu.temperature_warning ? "warning" : "ok" ))'
       # Result: "ok" (72 < 75)
       
-      load_alert: (( 
-        monitoring.current_metrics.cpu.load_average >= monitoring.thresholds.cpu.load_critical ? "critical" :
-        monitoring.current_metrics.cpu.load_average >= monitoring.thresholds.cpu.load_warning ? "warning" :
-        "ok"
-      ))
+      load_alert: '(( monitoring.current_metrics.cpu.load_average >= monitoring.thresholds.cpu.load_critical ? "critical" : monitoring.current_metrics.cpu.load_average >= monitoring.thresholds.cpu.load_warning ? "warning" : "ok" ))'
       # Result: "ok" (3.2 < 4.0)
     
     memory:
-      usage_alert: (( 
-        monitoring.calculated.memory_percent >= monitoring.thresholds.memory.percent_critical ? "critical" :
-        monitoring.calculated.memory_percent >= monitoring.thresholds.memory.percent_warning ? "warning" :
-        "ok"
-      ))
+      usage_alert: '(( monitoring.calculated.memory_percent >= monitoring.thresholds.memory.percent_critical ? "critical" : monitoring.calculated.memory_percent >= monitoring.thresholds.memory.percent_warning ? "warning" : "ok" ))'
       # Result: "warning" (87.5 >= 80 but < 95)
       
-      swap_alert: (( 
-        monitoring.current_metrics.memory.swap_used_gb >= monitoring.thresholds.memory.swap_critical ? "critical" :
-        monitoring.current_metrics.memory.swap_used_gb >= monitoring.thresholds.memory.swap_warning ? "warning" :
-        "ok"
-      ))
+      swap_alert: '(( monitoring.current_metrics.memory.swap_used_gb >= monitoring.thresholds.memory.swap_critical ? "critical" : monitoring.current_metrics.memory.swap_used_gb >= monitoring.thresholds.memory.swap_warning ? "warning" : "ok" ))'
       # Result: "ok" (2 < 4)
     
     disk:
-      usage_alert: (( 
-        monitoring.calculated.disk_percent >= monitoring.thresholds.disk.percent_critical ? "critical" :
-        monitoring.calculated.disk_percent >= monitoring.thresholds.disk.percent_warning ? "warning" :
-        "ok"
-      ))
+      usage_alert: '(( monitoring.calculated.disk_percent >= monitoring.thresholds.disk.percent_critical ? "critical" : monitoring.calculated.disk_percent >= monitoring.thresholds.disk.percent_warning ? "warning" : "ok" ))'
       # Result: "warning" (90 >= 85 but < 95)
       
-      iops_alert: (( 
-        monitoring.current_metrics.disk.iops >= monitoring.thresholds.disk.iops_critical ? "critical" :
-        monitoring.current_metrics.disk.iops >= monitoring.thresholds.disk.iops_warning ? "warning" :
-        "ok"
-      ))
+      iops_alert: '(( monitoring.current_metrics.disk.iops >= monitoring.thresholds.disk.iops_critical ? "critical" : monitoring.current_metrics.disk.iops >= monitoring.thresholds.disk.iops_warning ? "warning" : "ok" ))'
       # Result: "warning" (5500 >= 5000 but < 8000)
       
-      latency_alert: (( 
-        monitoring.current_metrics.disk.latency_ms >= monitoring.thresholds.disk.latency_critical ? "critical" :
-        monitoring.current_metrics.disk.latency_ms >= monitoring.thresholds.disk.latency_warning ? "warning" :
-        "ok"
-      ))
+      latency_alert: '(( monitoring.current_metrics.disk.latency_ms >= monitoring.thresholds.disk.latency_critical ? "critical" : monitoring.current_metrics.disk.latency_ms >= monitoring.thresholds.disk.latency_warning ? "warning" : "ok" ))'
       # Result: "ok" (12 < 20)
     
     network:
-      bandwidth_alert: (( 
-        monitoring.current_metrics.network.bandwidth_mbps >= monitoring.thresholds.network.bandwidth_critical ? "critical" :
-        monitoring.current_metrics.network.bandwidth_mbps >= monitoring.thresholds.network.bandwidth_warning ? "warning" :
-        "ok"
-      ))
+      bandwidth_alert: '(( monitoring.current_metrics.network.bandwidth_mbps >= monitoring.thresholds.network.bandwidth_critical ? "critical" : monitoring.current_metrics.network.bandwidth_mbps >= monitoring.thresholds.network.bandwidth_warning ? "warning" : "ok" ))'
       # Result: "warning" (850 >= 800 but < 950)
       
-      packet_loss_alert: (( 
-        monitoring.current_metrics.network.packet_loss_percent >= monitoring.thresholds.network.packet_loss_critical ? "critical" :
-        monitoring.current_metrics.network.packet_loss_percent >= monitoring.thresholds.network.packet_loss_warning ? "warning" :
-        "ok"
-      ))
+      packet_loss_alert: '(( monitoring.current_metrics.network.packet_loss_percent >= monitoring.thresholds.network.packet_loss_critical ? "critical" : monitoring.current_metrics.network.packet_loss_percent >= monitoring.thresholds.network.packet_loss_warning ? "warning" : "ok" ))'
       # Result: "ok" (0.1 < 0.5)
       
-      connections_alert: (( 
-        monitoring.current_metrics.network.connections >= monitoring.thresholds.network.connections_critical ? "critical" :
-        monitoring.current_metrics.network.connections >= monitoring.thresholds.network.connections_warning ? "warning" :
-        "ok"
-      ))
+      connections_alert: '(( monitoring.current_metrics.network.connections >= monitoring.thresholds.network.connections_critical ? "critical" : monitoring.current_metrics.network.connections >= monitoring.thresholds.network.connections_warning ? "warning" : "ok" ))'
       # Result: "ok" (1500 < 2000)
   
   # Summary
   summary:
-    has_critical_alerts: (( 
-      monitoring.alerts.cpu.usage_alert == "critical" ||
-      monitoring.alerts.cpu.temperature_alert == "critical" ||
-      monitoring.alerts.memory.usage_alert == "critical" ||
-      monitoring.alerts.disk.usage_alert == "critical" ||
-      monitoring.alerts.network.bandwidth_alert == "critical"
-    ))
+    has_critical_alerts: '(( monitoring.alerts.cpu.usage_alert == "critical" || monitoring.alerts.cpu.temperature_alert == "critical" || monitoring.alerts.memory.usage_alert == "critical" || monitoring.alerts.disk.usage_alert == "critical" || monitoring.alerts.network.bandwidth_alert == "critical" ))'
     # Result: false
     
-    has_warnings: (( 
-      monitoring.alerts.cpu.usage_alert == "warning" ||
-      monitoring.alerts.memory.usage_alert == "warning" ||
-      monitoring.alerts.disk.usage_alert == "warning" ||
-      monitoring.alerts.network.bandwidth_alert == "warning"
-    ))
+    has_warnings: '(( monitoring.alerts.cpu.usage_alert == "warning" || monitoring.alerts.memory.usage_alert == "warning" || monitoring.alerts.disk.usage_alert == "warning" || monitoring.alerts.network.bandwidth_alert == "warning" ))'
     # Result: true
     
-    system_health: (( 
-      monitoring.summary.has_critical_alerts ? "critical" :
-      monitoring.summary.has_warnings ? "warning" :
-      "healthy"
-    ))
+    system_health: '(( monitoring.summary.has_critical_alerts ? "critical" : monitoring.summary.has_warnings ? "warning" : "healthy" ))'
     # Result: "warning"
 
 # Application performance thresholds
@@ -208,26 +149,13 @@ application:
   
   # Performance checks
   performance:
-    response_time_status: (( 
-      application.metrics.response_time_ms > application.sla.response_time.critical ? "sla_breach" :
-      application.metrics.response_time_ms > application.sla.response_time.warning ? "degraded" :
-      application.metrics.response_time_ms > application.sla.response_time.target ? "acceptable" :
-      "optimal"
-    ))
+    response_time_status: '(( application.metrics.response_time_ms > application.sla.response_time.critical ? "sla_breach" : application.metrics.response_time_ms > application.sla.response_time.warning ? "degraded" : application.metrics.response_time_ms > application.sla.response_time.target ? "acceptable" : "optimal" ))'
     # Result: "acceptable" (450 > 200 but <= 500)
     
-    error_rate_status: (( 
-      application.metrics.error_rate_percent > application.sla.error_rate.critical ? "sla_breach" :
-      application.metrics.error_rate_percent > application.sla.error_rate.warning ? "degraded" :
-      application.metrics.error_rate_percent > application.sla.error_rate.target ? "acceptable" :
-      "optimal"
-    ))
+    error_rate_status: '(( application.metrics.error_rate_percent > application.sla.error_rate.critical ? "sla_breach" : application.metrics.error_rate_percent > application.sla.error_rate.warning ? "degraded" : application.metrics.error_rate_percent > application.sla.error_rate.target ? "acceptable" : "optimal" ))'
     # Result: "degraded" (2.5 > 1.0 but <= 5.0)
     
-    meeting_sla: (( 
-      application.performance.response_time_status != "sla_breach" &&
-      application.performance.error_rate_status != "sla_breach"
-    ))
+    meeting_sla: '(( application.performance.response_time_status != "sla_breach" && application.performance.error_rate_status != "sla_breach" ))'
     # Result: true
   
   # Capacity thresholds
@@ -241,32 +169,16 @@ application:
       queue_critical: 500
     
     checks:
-      rps_status: (( 
-        application.metrics.requests_per_second >= application.capacity.thresholds.rps_critical ? "overload" :
-        application.metrics.requests_per_second >= application.capacity.thresholds.rps_warning ? "high" :
-        "normal"
-      ))
+      rps_status: '(( application.metrics.requests_per_second >= application.capacity.thresholds.rps_critical ? "overload" : application.metrics.requests_per_second >= application.capacity.thresholds.rps_warning ? "high" : "normal" ))'
       # Result: "normal" (1200 < 1500)
       
-      connection_status: (( 
-        application.metrics.active_connections >= application.capacity.thresholds.connections_critical ? "exhausted" :
-        application.metrics.active_connections >= application.capacity.thresholds.connections_warning ? "near_limit" :
-        "healthy"
-      ))
+      connection_status: '(( application.metrics.active_connections >= application.capacity.thresholds.connections_critical ? "exhausted" : application.metrics.active_connections >= application.capacity.thresholds.connections_warning ? "near_limit" : "healthy" ))'
       # Result: "healthy" (800 < 900)
       
-      queue_status: (( 
-        application.metrics.queue_depth >= application.capacity.thresholds.queue_critical ? "backed_up" :
-        application.metrics.queue_depth >= application.capacity.thresholds.queue_warning ? "growing" :
-        "normal"
-      ))
+      queue_status: '(( application.metrics.queue_depth >= application.capacity.thresholds.queue_critical ? "backed_up" : application.metrics.queue_depth >= application.capacity.thresholds.queue_warning ? "growing" : "normal" ))'
       # Result: "normal" (150 < 200)
     
-    needs_scaling: (( 
-      application.capacity.checks.rps_status != "normal" ||
-      application.capacity.checks.connection_status != "healthy" ||
-      application.capacity.checks.queue_status != "normal"
-    ))
+    needs_scaling: '(( application.capacity.checks.rps_status != "normal" || application.capacity.checks.connection_status != "healthy" || application.capacity.checks.queue_status != "normal" ))'
     # Result: false
 
 # Cost thresholds
@@ -298,20 +210,10 @@ cost_management:
   
   # Cost alerts
   alerts:
-    daily_status: (( 
-      cost_management.current.daily_spend >= cost_management.budgets.daily.max ? "exceeded" :
-      cost_management.current.daily_spend >= cost_management.budgets.daily.critical ? "critical" :
-      cost_management.current.daily_spend >= cost_management.budgets.daily.warning ? "warning" :
-      "ok"
-    ))
+    daily_status: '(( cost_management.current.daily_spend >= cost_management.budgets.daily.max ? "exceeded" : cost_management.current.daily_spend >= cost_management.budgets.daily.critical ? "critical" : cost_management.current.daily_spend >= cost_management.budgets.daily.warning ? "warning" : "ok" ))'
     # Result: "warning" (450 >= 400 but < 500)
     
-    monthly_status: (( 
-      cost_management.current.monthly_spend >= cost_management.budgets.monthly.max ? "exceeded" :
-      cost_management.current.monthly_spend >= cost_management.budgets.monthly.critical ? "critical" :
-      cost_management.current.monthly_spend >= cost_management.budgets.monthly.warning ? "warning" :
-      "ok"
-    ))
+    monthly_status: '(( cost_management.current.monthly_spend >= cost_management.budgets.monthly.max ? "exceeded" : cost_management.current.monthly_spend >= cost_management.budgets.monthly.critical ? "critical" : cost_management.current.monthly_spend >= cost_management.budgets.monthly.warning ? "warning" : "ok" ))'
     # Result: "warning" (12500 >= 10000 but < 15000)
     
     compute_over_budget: (( cost_management.current.compute_cost > cost_management.budgets.service_limits.compute ))
@@ -323,11 +225,7 @@ cost_management:
     network_over_budget: (( cost_management.current.network_cost > cost_management.budgets.service_limits.network ))
     # Result: false (2000 <= 3000)
     
-    any_service_over_budget: (( 
-      cost_management.alerts.compute_over_budget ||
-      cost_management.alerts.storage_over_budget ||
-      cost_management.alerts.network_over_budget
-    ))
+    any_service_over_budget: '(( cost_management.alerts.compute_over_budget || cost_management.alerts.storage_over_budget || cost_management.alerts.network_over_budget ))'
     # Result: false
   
   # Projections
@@ -336,7 +234,7 @@ cost_management:
     current_day: 15
     
     projected_monthly: (( (cost_management.current.monthly_spend / cost_management.projections.current_day) * cost_management.projections.days_in_month ))
-    # Result: 25000
+    # Result: 25000.0
     
     will_exceed_budget: (( cost_management.projections.projected_monthly > cost_management.budgets.monthly.max ))
     # Result: true (25000 > 20000)
@@ -381,66 +279,33 @@ security:
   
   # Security checks
   alerts:
-    login_attempts: (( 
-      security.metrics.failed_login_attempts >= security.thresholds.failed_logins.critical ? "attack_likely" :
-      security.metrics.failed_login_attempts >= security.thresholds.failed_logins.warning ? "suspicious" :
-      "normal"
-    ))
+    login_attempts: '(( security.metrics.failed_login_attempts >= security.thresholds.failed_logins.critical ? "attack_likely" : security.metrics.failed_login_attempts >= security.thresholds.failed_logins.warning ? "suspicious" : "normal" ))'
     # Result: "suspicious" (25 >= 20 but < 50)
     
-    request_analysis: (( 
-      security.metrics.suspicious_requests >= security.thresholds.suspicious_requests.critical ? "under_attack" :
-      security.metrics.suspicious_requests >= security.thresholds.suspicious_requests.warning ? "elevated_risk" :
-      "normal"
-    ))
+    request_analysis: '(( security.metrics.suspicious_requests >= security.thresholds.suspicious_requests.critical ? "under_attack" : security.metrics.suspicious_requests >= security.thresholds.suspicious_requests.warning ? "elevated_risk" : "normal" ))'
     # Result: "elevated_risk" (150 >= 100 but < 500)
     
-    ssl_status: (( 
-      security.metrics.ssl_cert_days_remaining <= security.thresholds.ssl_cert_expiry.critical ? "urgent" :
-      security.metrics.ssl_cert_days_remaining <= security.thresholds.ssl_cert_expiry.warning ? "renew_soon" :
-      "ok"
-    ))
+    ssl_status: '(( security.metrics.ssl_cert_days_remaining <= security.thresholds.ssl_cert_expiry.critical ? "urgent" : security.metrics.ssl_cert_days_remaining <= security.thresholds.ssl_cert_expiry.warning ? "renew_soon" : "ok" ))'
     # Result: "renew_soon" (25 <= 30 but > 7)
     
-    password_policy: (( 
-      security.metrics.password_age_days >= security.thresholds.password_rotation.critical ? "expired" :
-      security.metrics.password_age_days >= security.thresholds.password_rotation.warning ? "expiring_soon" :
-      "compliant"
-    ))
+    password_policy: '(( security.metrics.password_age_days >= security.thresholds.password_rotation.critical ? "expired" : security.metrics.password_age_days >= security.thresholds.password_rotation.warning ? "expiring_soon" : "compliant" ))'
     # Result: "expiring_soon" (85 >= 60 but < 90)
     
-    mfa_compliance: (( 
-      security.metrics.mfa_adoption_percent >= security.thresholds.mfa_adoption.target ? "excellent" :
-      security.metrics.mfa_adoption_percent >= security.thresholds.mfa_adoption.acceptable ? "good" :
-      security.metrics.mfa_adoption_percent >= security.thresholds.mfa_adoption.minimum ? "needs_improvement" :
-      "critical"
-    ))
+    mfa_compliance: '(( security.metrics.mfa_adoption_percent >= security.thresholds.mfa_adoption.target ? "excellent" : security.metrics.mfa_adoption_percent >= security.thresholds.mfa_adoption.acceptable ? "good" : security.metrics.mfa_adoption_percent >= security.thresholds.mfa_adoption.minimum ? "needs_improvement" : "critical" ))'
     # Result: "needs_improvement" (65 >= 50 but < 80)
   
   # Overall security posture
   security_score:
     # Calculate a simple security score
     components:
-      login_score: (( security.alerts.login_attempts == "normal" ? 100 : security.alerts.login_attempts == "suspicious" ? 50 : 0 ))
-      request_score: (( security.alerts.request_analysis == "normal" ? 100 : security.alerts.request_analysis == "elevated_risk" ? 50 : 0 ))
-      ssl_score: (( security.alerts.ssl_status == "ok" ? 100 : security.alerts.ssl_status == "renew_soon" ? 50 : 0 ))
-      password_score: (( security.alerts.password_policy == "compliant" ? 100 : security.alerts.password_policy == "expiring_soon" ? 50 : 0 ))
+      login_score: '(( security.alerts.login_attempts == "normal" ? 100 : security.alerts.login_attempts == "suspicious" ? 50 : 0 ))'
+      request_score: '(( security.alerts.request_analysis == "normal" ? 100 : security.alerts.request_analysis == "elevated_risk" ? 50 : 0 ))'
+      ssl_score: '(( security.alerts.ssl_status == "ok" ? 100 : security.alerts.ssl_status == "renew_soon" ? 50 : 0 ))'
+      password_score: '(( security.alerts.password_policy == "compliant" ? 100 : security.alerts.password_policy == "expiring_soon" ? 50 : 0 ))'
       mfa_score: (( security.metrics.mfa_adoption_percent ))
     
-    overall: (( (
-      security_score.components.login_score +
-      security_score.components.request_score +
-      security_score.components.ssl_score +
-      security_score.components.password_score +
-      security_score.components.mfa_score
-    ) / 5 ))
-    # Result: 53 (average of all component scores)
+    overall: '(( ( security.security_score.components.login_score + security.security_score.components.request_score + security.security_score.components.ssl_score + security.security_score.components.password_score + security.security_score.components.mfa_score ) / 5 ))'
+    # Result: 53.0 (average of all component scores)
     
-    grade: (( 
-      security_score.overall >= 90 ? "A" :
-      security_score.overall >= 80 ? "B" :
-      security_score.overall >= 70 ? "C" :
-      security_score.overall >= 60 ? "D" :
-      "F"
-    ))
+    grade: '(( security.security_score.overall >= 90 ? "A" : security.security_score.overall >= 80 ? "B" : security.security_score.overall >= 70 ? "C" : security.security_score.overall >= 60 ? "D" : "F" ))'
     # Result: "F" (53 < 60)

@@ -90,8 +90,8 @@ tenant_config:
 deployment:
   # Different path patterns per environment
   paths:
-    parameter_prefix: (( grab meta.env == "prod" ? "/production" : (concat "/" meta.env) ))
-    secret_prefix: (( grab meta.env == "prod" ? "production" : meta.env ))
+    parameter_prefix: '(( grab meta.env == "prod" ? "/production" : (concat "/" meta.env) ))'
+    secret_prefix: '(( grab meta.env == "prod" ? "production" : meta.env ))'
   
   # Use environment-specific prefixes
   config:

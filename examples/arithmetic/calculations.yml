@@ -23,17 +23,17 @@ geometry:
   circle:
     radius: 5
     pi: 3.14159
-    diameter: (( 2 * circle.radius ))                                           # 10
-    circumference: (( 2 * circle.pi * circle.radius ))                         # 31.4159
-    area: (( circle.pi * circle.radius * circle.radius ))                      # 78.53975
-  
+    diameter: (( 2 * geometry.circle.radius ))                                  # 10
+    circumference: (( 2 * geometry.circle.pi * geometry.circle.radius ))       # 31.4159
+    area: (( geometry.circle.pi * geometry.circle.radius * geometry.circle.radius ))  # 78.53975
+
   # Rectangle calculations
   rectangle:
     length: 12
     width: 8
-    perimeter: (( 2 * (rectangle.length + rectangle.width) ))                  # 40
-    area: (( rectangle.length * rectangle.width ))                             # 96
-    diagonal: (( (rectangle.length * rectangle.length + rectangle.width * rectangle.width) ))  # 208 (squared)
+    perimeter: (( 2 * (geometry.rectangle.length + geometry.rectangle.width) ))  # 40
+    area: (( geometry.rectangle.length * geometry.rectangle.width ))           # 96
+    diagonal: (( (geometry.rectangle.length * geometry.rectangle.length + geometry.rectangle.width * geometry.rectangle.width) ))  # 208 (squared)
 
 # Statistical calculations
 statistics:

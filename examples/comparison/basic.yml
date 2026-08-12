@@ -169,12 +169,8 @@ boolean_comparisons:
     false_equals_false: (( boolean_comparisons.values.false_val == boolean_comparisons.values.also_false ))
     # Result: true
     
-    # Boolean ordering (false < true)
-    false_less_than_true: (( boolean_comparisons.values.false_val < boolean_comparisons.values.true_val ))
-    # Result: true
-    
-    true_greater_than_false: (( boolean_comparisons.values.true_val > boolean_comparisons.values.false_val ))
-    # Result: true
+    # Note: `<`/`>` do not support bool operands ("cannot compare bool
+    # and bool"); there is no boolean ordering in graft, only ==/!=.
 
 # Mixed type comparisons
 mixed_comparisons:
@@ -292,12 +288,7 @@ chained_comparisons:
     # Result: true
     
     # Combined eligibility
-    fully_eligible: (( 
-      chained_comparisons.eligibility.valid_age && 
-      chained_comparisons.eligibility.high_score && 
-      chained_comparisons.eligibility.premium_level && 
-      chained_comparisons.user.verified 
-    ))
+    fully_eligible: '(( chained_comparisons.eligibility.valid_age && chained_comparisons.eligibility.high_score && chained_comparisons.eligibility.premium_level && chained_comparisons.user.verified ))'
     # Result: true
 
 # Practical use cases
@@ -322,39 +313,18 @@ practical_examples:
   
   # Alert conditions
   alerts:
-    cpu_status: (( 
-      practical_examples.metrics.cpu_usage >= practical_examples.thresholds.cpu_critical ? "critical" :
-      practical_examples.metrics.cpu_usage >= practical_examples.thresholds.cpu_warning ? "warning" :
-      "ok"
-    ))
+    cpu_status: '(( practical_examples.metrics.cpu_usage >= practical_examples.thresholds.cpu_critical ? "critical" : practical_examples.metrics.cpu_usage >= practical_examples.thresholds.cpu_warning ? "warning" : "ok" ))'
     # Result: "ok"
     
-    memory_status: (( 
-      practical_examples.metrics.memory_usage >= practical_examples.thresholds.memory_critical ? "critical" :
-      practical_examples.metrics.memory_usage >= practical_examples.thresholds.memory_warning ? "warning" :
-      "ok"
-    ))
+    memory_status: '(( practical_examples.metrics.memory_usage >= practical_examples.thresholds.memory_critical ? "critical" : practical_examples.metrics.memory_usage >= practical_examples.thresholds.memory_warning ? "warning" : "ok" ))'
     # Result: "warning"
     
-    disk_status: (( 
-      practical_examples.metrics.disk_usage >= practical_examples.thresholds.disk_critical ? "critical" :
-      practical_examples.metrics.disk_usage >= practical_examples.thresholds.disk_warning ? "warning" :
-      "ok"
-    ))
+    disk_status: '(( practical_examples.metrics.disk_usage >= practical_examples.thresholds.disk_critical ? "critical" : practical_examples.metrics.disk_usage >= practical_examples.thresholds.disk_warning ? "warning" : "ok" ))'
     # Result: "warning"
     
-    network_status: (( 
-      practical_examples.metrics.network_latency >= practical_examples.thresholds.latency_critical ? "critical" :
-      practical_examples.metrics.network_latency >= practical_examples.thresholds.latency_warning ? "warning" :
-      "ok"
-    ))
+    network_status: '(( practical_examples.metrics.network_latency >= practical_examples.thresholds.latency_critical ? "critical" : practical_examples.metrics.network_latency >= practical_examples.thresholds.latency_warning ? "warning" : "ok" ))'
     # Result: "warning"
     
     # Overall system health
-    system_healthy: (( 
-      practical_examples.alerts.cpu_status != "critical" &&
-      practical_examples.alerts.memory_status != "critical" &&
-      practical_examples.alerts.disk_status != "critical" &&
-      practical_examples.alerts.network_status != "critical"
-    ))
+    system_healthy: '(( practical_examples.alerts.cpu_status != "critical" && practical_examples.alerts.memory_status != "critical" && practical_examples.alerts.disk_status != "critical" && practical_examples.alerts.network_status != "critical" ))'
     # Result: true

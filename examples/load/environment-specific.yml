@@ -1,6 +1,7 @@
 ---
 # Loading environment-specific configurations
-# Run with: ENV=production graft merge environment-specific.yml
+# Run with: ENV=prod graft merge environment-specific.yml (matches
+# configs/environments/prod.yml -- there is no production.yml)
 
 meta:
   # Get environment from ENV variable, default to 'dev'
@@ -32,22 +33,17 @@ all_environments:
   prod: (( load "configs/environments/prod.yml" ))
 
 # Select current environment
-selected_config: (( grab all_environments.(grab meta.environment) ))
+#
+# Note: a dotted path cannot embed a parenthesized sub-expression
+# mid-path (all_environments.(grab meta.environment) is a parse error);
+# build the path with concat + grab instead.
+selected_config: (( grab (concat "all_environments." meta.environment) ))
 
 # Example of building connection strings from loaded config
 connections:
-  database_url: (( concat 
-    "postgresql://user:pass@"
-    (grab selected_config.database.host) ":"
-    (grab selected_config.database.port) "/"
-    (grab selected_config.database.name)
-    "?ssl=" (grab selected_config.database.ssl)
-  ))
+  database_url: '(( concat "postgresql://user:pass@" (grab selected_config.database.host) ":" (grab selected_config.database.port) "/" (grab selected_config.database.name) "?ssl=" (grab selected_config.database.ssl) ))'
   
-  api_endpoint: (( concat 
-    (grab selected_config.api.base_url)
-    "/v1"
-  ))
+  api_endpoint: '(( concat (grab selected_config.api.base_url) "/v1" ))'
 
 # Feature flags based on environment
 feature_flags:
@@ -60,5 +56,5 @@ feature_flags:
   
 # Validation example - ensure required fields exist
 validation:
-  has_database: (( grab selected_config.database || "error: no database config" ))
-  has_api: (( grab selected_config.api || "error: no api config" ))
+  has_database: '(( grab selected_config.database || "error: no database config" ))'
+  has_api: '(( grab selected_config.api || "error: no api config" ))'

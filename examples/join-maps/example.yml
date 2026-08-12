@@ -35,5 +35,5 @@ mixed_data:
     - server1.example.com
     - server2.example.com
   
-combined: (( join ", " mixed_data.service_ports mixed_data.servers ))
+combined: (( join ", " metadata.service_ports mixed_data.servers ))
 # Result: "api:9090, metrics:9091, web:8080, server1.example.com, server2.example.com"

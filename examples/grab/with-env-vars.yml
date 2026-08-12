@@ -34,7 +34,7 @@ deployment:
   database: (( grab configurations.$ENV.database ))
   cache: (( grab configurations.$ENV.cache ))
   debug_mode: (( grab configurations.$ENV.debug ))
-  
+
   # $REGION expands for region-specific config
   region_config: (( grab regions.$REGION ))
   ami: (( grab regions.$REGION.ami ))
@@ -53,6 +53,6 @@ services:
 api:
   # Using both $REGION and $ENV
   endpoint: (( grab services.primary.$REGION.$ENV ))
-  
+
   # With fallback to default
   url: (( grab services.primary.$REGION.$ENV || "http://localhost:8080" ))

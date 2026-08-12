@@ -1,60 +1,72 @@
 # Basic Null Operator Examples
 #
 # Demonstrates the basic usage of the null operator
+#
+# Note: the one-argument form (( null X )) does not parse — the
+# tokenizer reads bare `null` as the nil literal, not the operator name,
+# so `(( null X ))` errors with "expected '))' ... got IDENTIFIER". Only
+# the zero-argument form (( null )) (which returns nil) works. This file
+# uses the working equivalent (( type X == "null" )) instead, which also
+# matches the operator's real semantics: only an actual nil value counts
+# as null. Empty string/array/map are NOT null.
+#
+# References that do not exist at all still error ("could not be found
+# in the datastructure") rather than resolving to nil, so an undefined-key
+# check needs a `grab X || ~` fallback first.
 
 # Testing different types of null values
 null_checks:
   # Actual null/nil values
   explicit_null: null
-  is_null: (( null null_checks.explicit_null ))
+  is_null: (( (type null_checks.explicit_null == "null") ))
   # Result: true
-  
+
   yaml_null: ~
-  is_yaml_null: (( null null_checks.yaml_null ))
+  is_yaml_null: (( (type null_checks.yaml_null == "null") ))
   # Result: true
-  
-  # Empty values
+
+  # Empty values (NOT null under strict nil semantics)
   empty_string: ""
-  is_empty_string: (( null null_checks.empty_string ))
-  # Result: true
-  
+  is_empty_string: (( (type null_checks.empty_string == "null") ))
+  # Result: false
+
   empty_array: []
-  is_empty_array: (( null null_checks.empty_array ))
-  # Result: true
-  
+  is_empty_array: (( (type null_checks.empty_array == "null") ))
+  # Result: false
+
   empty_map: {}
-  is_empty_map: (( null null_checks.empty_map ))
+  is_empty_map: (( (type null_checks.empty_map == "null") ))
+  # Result: false
+
+  # Non-existent references (need a fallback to avoid an unresolved-path error)
+  is_undefined: (( (type (grab null_checks.non_existent_key || ~) == "null") ))
   # Result: true
-  
-  # Non-existent references
-  is_undefined: (( null null_checks.non_existent_key ))
-  # Result: true
-  
+
   # Non-null values
   string_value: "hello"
-  is_string_null: (( null null_checks.string_value ))
+  is_string_null: (( (type null_checks.string_value == "null") ))
   # Result: false
-  
+
   zero: 0
-  is_zero_null: (( null null_checks.zero ))
+  is_zero_null: (( (type null_checks.zero == "null") ))
   # Result: false
-  
+
   false_value: false
-  is_false_null: (( null null_checks.false_value ))
+  is_false_null: (( (type null_checks.false_value == "null") ))
   # Result: false
-  
+
   array_with_items: [1, 2, 3]
-  is_array_null: (( null null_checks.array_with_items ))
+  is_array_null: (( (type null_checks.array_with_items == "null") ))
   # Result: false
-  
+
   map_with_keys:
     key: value
-  is_map_null: (( null null_checks.map_with_keys ))
+  is_map_null: (( (type null_checks.map_with_keys == "null") ))
   # Result: false
-  
+
   # Space is not empty
   space_string: " "
-  is_space_null: (( null null_checks.space_string ))
+  is_space_null: (( (type null_checks.space_string == "null") ))
   # Result: false
 
 # Nested null checks
@@ -65,19 +77,19 @@ nested_data:
       data: ""
     level2_exists:
       value: "present"
-  
+
   # Check nested nulls
   checks:
-    nested_null: (( null nested_data.level1.level2.value ))
+    nested_null: (( (type nested_data.level1.level2.value == "null") ))
     # Result: true
-    
-    nested_empty: (( null nested_data.level1.level2.data ))
-    # Result: true
-    
-    nested_exists: (( null nested_data.level1.level2_exists.value ))
+
+    nested_empty: (( (type nested_data.level1.level2.data == "null") ))
+    # Result: false (empty string, not null)
+
+    nested_exists: (( (type nested_data.level1.level2_exists.value == "null") ))
     # Result: false
-    
-    deep_undefined: (( null nested_data.level1.level2.level3.level4 ))
+
+    deep_undefined: (( (type (grab nested_data.level1.level2.level3.level4 || ~) == "null") ))
     # Result: true
 
 # Arrays with null elements
@@ -88,22 +100,22 @@ array_nulls:
     - ""
     - []
     - "last"
-  
+
   # Check individual elements
   element_checks:
-    first: (( null array_nulls.mixed_array.[0] ))
+    first: (( (type array_nulls.mixed_array.[0] == "null") ))
     # Result: false
-    
-    second: (( null array_nulls.mixed_array.[1] ))
+
+    second: (( (type array_nulls.mixed_array.[1] == "null") ))
     # Result: true
-    
-    third: (( null array_nulls.mixed_array.[2] ))
-    # Result: true
-    
-    fourth: (( null array_nulls.mixed_array.[3] ))
-    # Result: true
-    
-    fifth: (( null array_nulls.mixed_array.[4] ))
+
+    third: (( (type array_nulls.mixed_array.[2] == "null") ))
+    # Result: false (empty string, not null)
+
+    fourth: (( (type array_nulls.mixed_array.[3] == "null") ))
+    # Result: false (empty array, not null)
+
+    fifth: (( (type array_nulls.mixed_array.[4] == "null") ))
     # Result: false
 
 # Common patterns
@@ -113,24 +125,28 @@ patterns:
     database_url: ""
     api_key: null
     debug_mode: false
-  
+
   # All null checks
   missing_config:
-    no_database: (( null patterns.config.database_url ))
+    no_database: (( (type patterns.config.database_url == "null") ))
+    # Result: false (empty string, not null)
+
+    no_api_key: (( (type patterns.config.api_key == "null") ))
     # Result: true
-    
-    no_api_key: (( null patterns.config.api_key ))
-    # Result: true
-    
-    no_debug: (( null patterns.config.debug_mode ))
+
+    no_debug: (( (type patterns.config.debug_mode == "null") ))
     # Result: false (false is not null)
-  
+
   # Combined checks
-  any_missing: (( null patterns.config.database_url || null patterns.config.api_key ))
-  # Result: true (at least one is null)
-  
-  all_present: (( ! (null patterns.config.database_url) && ! (null patterns.config.api_key) ))
-  # Result: false (not all are present)
+  #
+  # Note: || is graft's fallback operator, not boolean OR — it returns the
+  # left operand whenever the left operand resolves, even to false. Real
+  # OR needs De Morgan's law: (A || B) == !(!A && !B).
+  any_missing: (( ! (type patterns.config.database_url != "null" && type patterns.config.api_key != "null") ))
+  # Result: true (api_key is null)
+
+  all_present: (( ! ((type patterns.config.database_url == "null")) && ! ((type patterns.config.api_key == "null")) ))
+  # Result: false (api_key is null)
 
 # Edge cases
 edge_cases:
@@ -138,31 +154,31 @@ edge_cases:
   zero_int: 0
   zero_float: 0.0
   zero_checks:
-    int_null: (( null edge_cases.zero_int ))
+    int_null: (( (type edge_cases.zero_int == "null") ))
     # Result: false
-    float_null: (( null edge_cases.zero_float ))
+    float_null: (( (type edge_cases.zero_float == "null") ))
     # Result: false
-  
+
   # Booleans
   true_val: true
   false_val: false
   bool_checks:
-    true_null: (( null edge_cases.true_val ))
+    true_null: (( (type edge_cases.true_val == "null") ))
     # Result: false
-    false_null: (( null edge_cases.false_val ))
+    false_null: (( (type edge_cases.false_val == "null") ))
     # Result: false
-  
+
   # Special strings
   special_strings:
     null_string: "null"
     nil_string: "nil"
     none_string: "none"
   string_checks:
-    null_str: (( null edge_cases.special_strings.null_string ))
+    null_str: (( (type edge_cases.special_strings.null_string == "null") ))
     # Result: false (string "null" is not null)
-    nil_str: (( null edge_cases.special_strings.nil_string ))
+    nil_str: (( (type edge_cases.special_strings.nil_string == "null") ))
     # Result: false
-    none_str: (( null edge_cases.special_strings.none_string ))
+    none_str: (( (type edge_cases.special_strings.none_string == "null") ))
     # Result: false
 
 # Grab with null checks
@@ -171,17 +187,17 @@ references:
     present: "value"
     empty: ""
     missing: null
-  
+
   # Safe references with null checks
   safe_refs:
-    has_present: (( ! (null references.source.present) ))
+    has_present: (( ! ((type references.source.present == "null")) ))
     # Result: true
-    
-    has_empty: (( ! (null references.source.empty) ))
+
+    has_empty: (( ! ((type references.source.empty == "null")) ))
+    # Result: true (empty string is not null)
+
+    has_missing: (( ! ((type references.source.missing == "null")) ))
     # Result: false
-    
-    has_missing: (( ! (null references.source.missing) ))
-    # Result: false
-    
-    has_undefined: (( ! (null references.source.undefined) ))
+
+    has_undefined: (( ! ((type (grab references.source.undefined || ~) == "null")) ))
     # Result: false

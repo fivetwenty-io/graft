@@ -23,8 +23,8 @@ local_services:
       
       # Generate presigned URLs for testing
       test_urls:
-        upload: (( concat (grab aws.endpoint) "/" (grab s3.buckets.uploads) "/test-upload" ))
-        download: (( concat (grab aws.endpoint) "/" (grab s3.buckets.assets) "/test-asset" ))
+        upload: (( concat (grab local_services.aws.endpoint) "/" (grab local_services.aws.s3.buckets.uploads) "/test-upload" ))
+        download: (( concat (grab local_services.aws.endpoint) "/" (grab local_services.aws.s3.buckets.assets) "/test-asset" ))
     
     # DynamoDB tables
     dynamodb:
@@ -197,8 +197,11 @@ test_data:
 
 # Development Features
 features:
+  # No inline map literal as a fallback value, so this is a named value
+  # instead.
+  empty_features: {}
   # All features enabled for development
-  all_features: (( nats@dev "kv:features/all" || {} ))
+  all_features: (( nats@dev "kv:features/all" || features.empty_features ))
   
   # Individual feature flags
   new_ui: (( grab all_features.new_ui || true ))
@@ -223,8 +226,8 @@ branches:
     # Isolated queues
     queue_prefix: (( concat "dev-" (grab meta.feature_branch) "-" ))
     
-    # Branch-specific feature flags
-    features: (( nats@dev (concat "kv:branches/" (grab meta.feature_branch) "/features") || {} ))
+    # Branch-specific feature flags (no inline map literal as fallback)
+    features: (( nats@dev (concat "kv:branches/" (grab meta.feature_branch) "/features") || features.empty_features ))
   
   # Shared resources
   shared:
@@ -236,14 +239,7 @@ tools:
   # Database management
   database:
     # Connection string for local development
-    url: (( concat 
-      "postgresql://" 
-      (grab local_services.vault.dev_secrets.database.user) ":"
-      (grab local_services.vault.dev_secrets.database.password) "@"
-      (grab local_services.vault.dev_secrets.database.host) ":"
-      (grab local_services.vault.dev_secrets.database.port) "/"
-      (grab branches.feature_config.database_name)
-    ))
+    url: '(( concat "postgresql://" (grab local_services.vault.dev_secrets.database.user) ":" (grab local_services.vault.dev_secrets.database.password) "@" (grab local_services.vault.dev_secrets.database.host) ":" (grab local_services.vault.dev_secrets.database.port) "/" (grab branches.feature_config.database_name) ))'
     
     # Migration status
     migrations:
@@ -259,7 +255,7 @@ tools:
       name: (( concat "Dev - " (grab meta.developer) ))
       variables:
         - key: "base_url"
-          value: (( grab api.base_url ))
+          value: (( grab tools.api.base_url ))
         - key: "auth_token"
           value: (( grab test_data.tokens.admin ))
         - key: "test_user_email"

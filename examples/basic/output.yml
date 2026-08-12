@@ -1,7 +1,7 @@
 othertop: you can add new top level keys too
 top:
-  1: You can change types too
-  2:
+  "1": You can change types too
+  "2":
     even: drastically
     to: from scalars to maps/lists
   array1:

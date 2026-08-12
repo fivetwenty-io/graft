@@ -90,11 +90,7 @@ feature_dependencies:
 
   # Complex dependencies
   # Recommendations need both search AND analytics
-  can_show_recommendations: ((
-    grab feature_dependencies.recommendations_enabled &&
-    feature_dependencies.search_enabled &&
-    (negate feature_dependencies.analytics_disabled)
-  ))
+  can_show_recommendations: '(( grab feature_dependencies.recommendations_enabled && feature_dependencies.search_enabled && (negate feature_dependencies.analytics_disabled) ))'
 
   # Privacy mode disables analytics and recommendations
   privacy_mode: (( grab feature_dependencies.analytics_disabled ))
@@ -117,8 +113,8 @@ validation:
 
   # Validation results
   errors:
-    missing_password: (( grab validation.missing.password ))  # true
-    terms_not_accepted: (( grab validation.missing.terms ))   # false
+    missing_password: (( grab validation.missing.password )) # true
+    terms_not_accepted: (( grab validation.missing.terms )) # false
 
   # Overall validation
   has_errors: (( grab validation.errors.missing_password || validation.errors.terms_not_accepted ))
@@ -129,10 +125,10 @@ comparison:
   value: true
 
   # Using negate operator
-  using_negate: (( negate comparison.value ))  # false
+  using_negate: (( negate comparison.value )) # false
 
   # Using ! operator
-  using_bang: (( ! comparison.value ))  # false
+  using_bang: (( ! comparison.value )) # false
 
   # Both produce same result
   are_equivalent: true  # (( using_negate == using_bang ))
@@ -141,15 +137,15 @@ comparison:
 migration:
   # Feature migration status
   old_system_active: false
-  new_system_active: (( negate migration.old_system_active ))  # true
+  new_system_active: (( negate migration.old_system_active )) # true
 
   # Data migration
   migration_complete: true
-  migration_pending: (( negate migration.migration_complete ))  # false
+  migration_pending: (( negate migration.migration_complete )) # false
 
   # Rollback conditions
   should_rollback: false
-  continue_forward: (( negate migration.should_rollback ))  # true
+  continue_forward: (( negate migration.should_rollback )) # true
 
   # Dual running during migration
   run_both_systems: (( grab migration.old_system_active && migration.new_system_active ))

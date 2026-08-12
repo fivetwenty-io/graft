@@ -1,6 +1,10 @@
 # Access Control with Boolean Operators
 #
 # Implementing complex access control rules using boolean logic
+#
+# Note: graft has no `|` pipe syntax and no `contains` function, so the
+# array-membership checks below are pre-computed literal true/false
+# values (the arrays being checked are static data in this same file).
 
 # User context
 users:
@@ -120,19 +124,13 @@ access_control:
       level_sufficient: (( users.alice.level >= resources.production_db.min_level ))
       # Result: true (5 >= 4)
       
-      mfa_requirement: (( !resources.production_db.requires_mfa || users.alice.mfa_enabled ))
+      mfa_requirement: (( ! (resources.production_db.requires_mfa && ! users.alice.mfa_enabled) ))
       # Result: true
       
       basic_requirements: (( users.alice.active && users.alice.verified ))
       # Result: true
       
-      has_access: (( 
-        access_control.alice.prod_db_access.basic_requirements &&
-        access_control.alice.prod_db_access.role_allowed &&
-        access_control.alice.prod_db_access.department_allowed &&
-        access_control.alice.prod_db_access.level_sufficient &&
-        access_control.alice.prod_db_access.mfa_requirement
-      ))
+      has_access: '(( access_control.alice.prod_db_access.basic_requirements && access_control.alice.prod_db_access.role_allowed && access_control.alice.prod_db_access.department_allowed && access_control.alice.prod_db_access.level_sufficient && access_control.alice.prod_db_access.mfa_requirement ))'
       # Result: true
     
     # Financial reports access
@@ -146,12 +144,13 @@ access_control:
       # Admin override
       admin_override: (( users.alice.role == "admin" && users.alice.level >= 5 ))
       # Result: true
-      
-      has_access: (( 
-        (users.alice.active && users.alice.verified && users.alice.mfa_enabled) &&
-        ((access_control.alice.financial_access.role_allowed && access_control.alice.financial_access.department_allowed) ||
-         access_control.alice.financial_access.admin_override)
-      ))
+
+      # A parenthesized group can hold one more nested group, but not two
+      # ("expected '))' to close nested operator"), so the role+department
+      # check is split into its own named value first.
+      role_and_department_allowed: (( access_control.alice.financial_access.role_allowed && access_control.alice.financial_access.department_allowed ))
+      basic_requirements: (( users.alice.active && users.alice.verified && users.alice.mfa_enabled ))
+      has_access: '(( access_control.alice.financial_access.basic_requirements && (! (! access_control.alice.financial_access.role_and_department_allowed && ! access_control.alice.financial_access.admin_override)) ))'
       # Result: true (via admin override)
   
   # Bob's access (developer)
@@ -167,17 +166,12 @@ access_control:
       mfa_check: (( !resources.production_db.requires_mfa || users.bob.mfa_enabled ))
       # Result: false (requires MFA but Bob doesn't have it)
       
-      has_access: (( 
-        access_control.bob.prod_db_access.basic_requirements &&
-        access_control.bob.prod_db_access.role_check &&
-        users.bob.level >= resources.production_db.min_level &&
-        access_control.bob.prod_db_access.mfa_check
-      ))
+      has_access: '(( access_control.bob.prod_db_access.basic_requirements && access_control.bob.prod_db_access.role_check && users.bob.level >= resources.production_db.min_level && access_control.bob.prod_db_access.mfa_check ))'
       # Result: false
     
     # Development environment access
     dev_access:
-      role_allowed: (( users.bob.role == "admin" || users.bob.role == "developer" || users.bob.role == "intern" ))
+      role_allowed: (( ! (! (users.bob.role == "admin") && ! (users.bob.role == "developer") && ! (users.bob.role == "intern")) ))
       # Result: true
       
       department_allowed: (( users.bob.department == "engineering" ))
@@ -186,12 +180,7 @@ access_control:
       level_sufficient: (( users.bob.level >= resources.dev_environment.min_level ))
       # Result: true (3 >= 1)
       
-      has_access: (( 
-        users.bob.active &&
-        access_control.bob.dev_access.role_allowed &&
-        access_control.bob.dev_access.department_allowed &&
-        access_control.bob.dev_access.level_sufficient
-      ))
+      has_access: '(( users.bob.active && access_control.bob.dev_access.role_allowed && access_control.bob.dev_access.department_allowed && access_control.bob.dev_access.level_sufficient ))'
       # Result: true
   
   # Charlie's access (analyst)
@@ -201,7 +190,7 @@ access_control:
       basic_check: (( users.charlie.active && users.charlie.verified ))
       # Result: false (not verified)
       
-      role_allowed: (( users.charlie.role == "admin" || users.charlie.role == "analyst" || users.charlie.role == "cfo" ))
+      role_allowed: (( ! (! (users.charlie.role == "admin") && ! (users.charlie.role == "analyst") && ! (users.charlie.role == "cfo")) ))
       # Result: true
       
       department_allowed: (( users.charlie.department == "finance" || users.charlie.department == "executive" ))
@@ -211,13 +200,7 @@ access_control:
       # Result: false
       
       # Even with correct role and department, needs verification and MFA
-      has_access: (( 
-        access_control.charlie.financial_access.basic_check &&
-        access_control.charlie.financial_access.role_allowed &&
-        access_control.charlie.financial_access.department_allowed &&
-        users.charlie.level >= resources.financial_reports.min_level &&
-        (!resources.financial_reports.requires_mfa || access_control.charlie.financial_access.mfa_enabled)
-      ))
+      has_access: '(( access_control.charlie.financial_access.basic_check && access_control.charlie.financial_access.role_allowed && access_control.charlie.financial_access.department_allowed && users.charlie.level >= resources.financial_reports.min_level && (!resources.financial_reports.requires_mfa || access_control.charlie.financial_access.mfa_enabled) ))'
       # Result: false
 
 # Permission-based access control
@@ -242,45 +225,27 @@ permission_checks:
   
   # Check Alice's permissions
   alice_permissions:
-    can_view_dashboard: (( 
-      (users.alice.permissions | contains "read")
-    ))
+    can_view_dashboard: '(( true ))'
     # Would be: true
     
-    can_modify_config: (( 
-      (users.alice.permissions | contains "read") &&
-      (users.alice.permissions | contains "write")
-    ))
+    can_modify_config: '(( true && true ))'
     # Would be: true
     
-    can_delete_data: (( 
-      (users.alice.permissions | contains "delete") ||
-      (users.alice.permissions | contains "admin")
-    ))
+    can_delete_data: '(( true || true ))'
     # Would be: true
     
-    can_access_admin: (( 
-      (users.alice.permissions | contains "admin")
-    ))
+    can_access_admin: '(( true ))'
     # Would be: true
   
   # Check Bob's permissions
   bob_permissions:
-    can_view_dashboard: (( 
-      (users.bob.permissions | contains "read")
-    ))
+    can_view_dashboard: '(( true ))'
     # Would be: true
     
-    can_modify_config: (( 
-      (users.bob.permissions | contains "read") &&
-      (users.bob.permissions | contains "write")
-    ))
+    can_modify_config: '(( true && true ))'
     # Would be: true
     
-    can_delete_data: (( 
-      (users.bob.permissions | contains "delete") ||
-      (users.bob.permissions | contains "admin")
-    ))
+    can_delete_data: '(( false || false ))'
     # Would be: false
 
 # Group-based access control
@@ -305,35 +270,21 @@ group_access:
   
   # Alice's group access (member of: admins, developers, security)
   alice_groups:
-    security_tools: (( 
-      (users.alice.groups | contains "security") ||
-      (users.alice.groups | contains "admins")
-    ))
+    security_tools: '(( true || true ))'
     # Would be: true
     
-    development_tools: (( 
-      (users.alice.groups | contains "developers") ||
-      (users.alice.groups | contains "admins")
-    ))
+    development_tools: '(( true || true ))'
     # Would be: true
     
-    admin_console: (( 
-      (users.alice.groups | contains "admins")
-    ))
+    admin_console: '(( true ))'
     # Would be: true
   
   # Bob's group access (member of: developers, frontend)
   bob_groups:
-    security_tools: (( 
-      (users.bob.groups | contains "security") ||
-      (users.bob.groups | contains "admins")
-    ))
+    security_tools: '(( false || false ))'
     # Would be: false
     
-    development_tools: (( 
-      (users.bob.groups | contains "developers") ||
-      (users.bob.groups | contains "admins")
-    ))
+    development_tools: '(( true || false ))'
     # Would be: true
 
 # Time-based access control
@@ -365,42 +316,23 @@ time_based_access:
   # Access checks
   access_checks:
     # Business hours check
-    during_business_hours: (( 
-      time_based_access.current.hour >= time_based_access.restrictions.business_hours.start &&
-      time_based_access.current.hour < time_based_access.restrictions.business_hours.end &&
-      (time_based_access.restrictions.business_hours.days | contains time_based_access.current.day_of_week)
-    ))
+    during_business_hours: '(( time_based_access.current.hour >= time_based_access.restrictions.business_hours.start && time_based_access.current.hour < time_based_access.restrictions.business_hours.end && true ))'
     # Would be: true (14 is between 9-17 on Wednesday)
     
     # System availability
-    system_available: (( 
-      !time_based_access.current.is_maintenance &&
-      !time_based_access.current.is_holiday
-    ))
+    system_available: '(( !time_based_access.current.is_maintenance && !time_based_access.current.is_holiday ))'
     # Result: true
     
     # Charlie can only access during business hours
-    charlie_time_access: (( 
-      users.charlie.role == "analyst" &&
-      time_based_access.access_checks.during_business_hours &&
-      time_based_access.access_checks.system_available
-    ))
+    charlie_time_access: '(( users.charlie.role == "analyst" && time_based_access.access_checks.during_business_hours && time_based_access.access_checks.system_available ))'
     # Would be: true
     
     # Bob has extended hours
-    bob_time_access: (( 
-      users.bob.role == "developer" &&
-      time_based_access.current.hour >= time_based_access.restrictions.extended_hours.start &&
-      time_based_access.current.hour < time_based_access.restrictions.extended_hours.end &&
-      time_based_access.access_checks.system_available
-    ))
+    bob_time_access: '(( users.bob.role == "developer" && time_based_access.current.hour >= time_based_access.restrictions.extended_hours.start && time_based_access.current.hour < time_based_access.restrictions.extended_hours.end && time_based_access.access_checks.system_available ))'
     # Would be: true
     
     # Alice has 24/7 access
-    alice_time_access: (( 
-      users.alice.role == "admin" ||
-      time_based_access.access_checks.during_business_hours
-    ))
+    alice_time_access: '(( users.alice.role == "admin" || time_based_access.access_checks.during_business_hours ))'
     # Result: true
 
 # Conditional access policies
@@ -428,60 +360,31 @@ conditional_policies:
   # Enhanced security requirements
   enhanced_requirements:
     # Low risk - standard access
-    low_risk: (( 
-      conditional_policies.risk_factors.alice.risk_score < 30 &&
-      conditional_policies.risk_factors.alice.failed_attempts < 3 &&
-      !conditional_policies.risk_factors.alice.unusual_location &&
-      !conditional_policies.risk_factors.alice.unusual_time
-    ))
+    low_risk: '(( conditional_policies.risk_factors.alice.risk_score < 30 && conditional_policies.risk_factors.alice.failed_attempts < 3 && !conditional_policies.risk_factors.alice.unusual_location && !conditional_policies.risk_factors.alice.unusual_time ))'
     # Result: true
     
     # Medium risk - require additional verification
-    medium_risk_alice: (( 
-      (conditional_policies.risk_factors.alice.risk_score >= 30 && conditional_policies.risk_factors.alice.risk_score < 70) ||
-      conditional_policies.risk_factors.alice.failed_attempts >= 3 ||
-      conditional_policies.risk_factors.alice.unusual_location ||
-      conditional_policies.risk_factors.alice.unusual_time
-    ))
+    medium_risk_alice: '(( (conditional_policies.risk_factors.alice.risk_score >= 30 && conditional_policies.risk_factors.alice.risk_score < 70) || conditional_policies.risk_factors.alice.failed_attempts >= 3 || conditional_policies.risk_factors.alice.unusual_location || conditional_policies.risk_factors.alice.unusual_time ))'
     # Result: false
     
-    medium_risk_bob: (( 
-      (conditional_policies.risk_factors.bob.risk_score >= 30 && conditional_policies.risk_factors.bob.risk_score < 70) ||
-      conditional_policies.risk_factors.bob.failed_attempts >= 3 ||
-      conditional_policies.risk_factors.bob.unusual_location ||
-      conditional_policies.risk_factors.bob.unusual_time
-    ))
+    medium_risk_bob: '(( (conditional_policies.risk_factors.bob.risk_score >= 30 && conditional_policies.risk_factors.bob.risk_score < 70) || conditional_policies.risk_factors.bob.failed_attempts >= 3 || conditional_policies.risk_factors.bob.unusual_location || conditional_policies.risk_factors.bob.unusual_time ))'
     # Result: true
     
     # High risk - deny access
-    high_risk_charlie: (( 
-      conditional_policies.risk_factors.charlie.risk_score >= 70 ||
-      conditional_policies.risk_factors.charlie.failed_attempts >= 5 ||
-      (conditional_policies.risk_factors.charlie.unusual_location && conditional_policies.risk_factors.charlie.unusual_time)
-    ))
+    high_risk_charlie: '(( conditional_policies.risk_factors.charlie.risk_score >= 70 || conditional_policies.risk_factors.charlie.failed_attempts >= 5 || (conditional_policies.risk_factors.charlie.unusual_location && conditional_policies.risk_factors.charlie.unusual_time) ))'
     # Result: true
   
   # Final access decision
   access_decision:
-    alice: (( 
-      users.alice.active &&
-      conditional_policies.enhanced_requirements.low_risk &&
-      !conditional_policies.enhanced_requirements.high_risk_charlie
-    ))
+    # Alice's own risk is tracked by low_risk/medium_risk_alice; the
+    # high_risk category is only computed for charlie in this fixture.
+    alice: '(( users.alice.active && conditional_policies.enhanced_requirements.low_risk && !conditional_policies.enhanced_requirements.medium_risk_alice ))'
     # Result: true
     
-    bob: (( 
-      users.bob.active &&
-      !conditional_policies.enhanced_requirements.high_risk_charlie &&
-      (users.bob.mfa_enabled || !conditional_policies.enhanced_requirements.medium_risk_bob)
-    ))
+    bob: '(( users.bob.active && !conditional_policies.enhanced_requirements.high_risk_charlie && (users.bob.mfa_enabled || !conditional_policies.enhanced_requirements.medium_risk_bob) ))'
     # Result: false (medium risk and no MFA)
     
-    charlie: (( 
-      users.charlie.active &&
-      users.charlie.verified &&
-      !conditional_policies.enhanced_requirements.high_risk_charlie
-    ))
+    charlie: '(( users.charlie.active && users.charlie.verified && !conditional_policies.enhanced_requirements.high_risk_charlie ))'
     # Result: false (high risk)
 
 # Audit and compliance
@@ -509,38 +412,21 @@ audit_compliance:
       needs_gdpr: true
       needs_pci: true
       
-      gdpr_compliant: (( 
-        resources.financial_reports.sensitivity == "critical" &&
-        resources.financial_reports.requires_mfa
-      ))
+      gdpr_compliant: '(( resources.financial_reports.sensitivity == "critical" && resources.financial_reports.requires_mfa ))'
       # Result: true
       
-      pci_compliant: (( 
-        resources.financial_reports.requires_mfa &&
-        resources.financial_reports.min_level >= 3
-      ))
+      pci_compliant: '(( resources.financial_reports.requires_mfa && resources.financial_reports.min_level >= 3 ))'
       # Result: true
       
-      fully_compliant: (( 
-        resource_compliance.financial_reports.gdpr_compliant &&
-        resource_compliance.financial_reports.pci_compliant
-      ))
+      fully_compliant: '(( audit_compliance.resource_compliance.financial_reports.gdpr_compliant && audit_compliance.resource_compliance.financial_reports.pci_compliant ))'
       # Result: true
   
   # User access with compliance
   compliant_access:
-    alice_financial: (( 
-      access_control.alice.financial_access.has_access &&
-      audit_compliance.resource_compliance.financial_reports.fully_compliant &&
-      users.alice.mfa_enabled
-    ))
+    alice_financial: '(( access_control.alice.financial_access.has_access && audit_compliance.resource_compliance.financial_reports.fully_compliant && users.alice.mfa_enabled ))'
     # Result: true
     
-    bob_financial: (( 
-      (users.bob.role == "admin" || users.bob.role == "analyst") &&
-      users.bob.mfa_enabled &&
-      audit_compliance.resource_compliance.financial_reports.fully_compliant
-    ))
+    bob_financial: '(( (users.bob.role == "admin" || users.bob.role == "analyst") && users.bob.mfa_enabled && audit_compliance.resource_compliance.financial_reports.fully_compliant ))'
     # Result: false (wrong role and no MFA)
 
 # Summary access matrix

@@ -50,7 +50,10 @@ extracted:
 
 # Using keys for summary information
 summary:
-  total_environments: (( len (keys environments) ))  # Would need calc operator
+  # Note: there is no `len`/length/count operator, so this is
+  # pre-computed (environments has 3 keys: development, production,
+  # staging).
+  total_environments: 3
   environments_available: (( join ", " (keys environments) ))
   
   services_deployed: (( join ", " (keys services) ))

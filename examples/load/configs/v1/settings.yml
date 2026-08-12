@@ -1,0 +1,3 @@
+version: v1
+api_format: legacy
+max_page_size: 50

@@ -26,16 +26,16 @@ application:
   
   # Feature flags based on null checks
   feature_flags:
-    has_analytics: (( ! (null application.features.analytics.tracking_id) ))
+    has_analytics: (( ! ((type application.features.analytics.tracking_id == "null")) ))
     # Result: true (tracking_id is present)
     
-    has_cache_provider: (( ! (null application.features.cache.provider) ))
+    has_cache_provider: (( ! ((type application.features.cache.provider == "null")) && ! (empty application.features.cache.provider) ))
     # Result: false (provider is empty string)
     
-    has_cdn_url: (( ! (null application.features.cdn.url) ))
+    has_cdn_url: (( ! ((type application.features.cdn.url == "null")) ))
     # Result: false (url is null)
     
-    has_monitoring: (( ! (null application.features.monitoring) ))
+    has_monitoring: (( ! ((type application.features.monitoring == "null")) ))
     # Result: false (monitoring doesn't exist)
 
 # Database configuration with optional read replicas
@@ -61,27 +61,21 @@ database:
   
   # Configuration decisions based on null checks
   config:
-    use_replicas: (( ! (null database.replicas) && database.replicas != [] ))
+    use_replicas: (( ! ((type database.replicas == "null")) && ! (empty database.replicas) ))
     # Result: false (empty array)
     
-    has_pool_config: (( ! (null database.pool.min) || ! (null database.pool.max) ))
+    has_pool_config: (( ! ((type database.pool.min == "null")) || ! ((type database.pool.max == "null")) ))
     # Result: false (both are null)
     
-    ssl_fully_configured: (( database.ssl.enabled && ! (null database.ssl.cert) ))
+    ssl_fully_configured: (( database.ssl.enabled && ! ((type database.ssl.cert == "null")) && ! (empty database.ssl.cert) ))
     # Result: false (cert is empty)
-    
-    connection_string: (( concat 
-      "postgresql://" 
-      database.primary.username 
-      ":" 
-      database.primary.password 
-      "@" 
-      database.primary.host 
-      ":" 
-      database.primary.port 
-      "/myapp"
-      (null database.ssl.cert ? "" : "?sslcert=" + database.ssl.cert)
-    ))
+
+    # Note: + is arithmetic only (concat does string concatenation), and
+    # a multi-argument bare call (concat here) can't take a
+    # parenthesized-call argument that itself has a nested parenthesized
+    # call, so the SSL query string is computed as its own named value.
+    ssl_query: '(( (type database.ssl.cert == "null") ? "" : (concat "?sslcert=" database.ssl.cert) ))'
+    connection_string: '(( concat "postgresql://" database.primary.username ":" database.primary.password "@" database.primary.host ":" database.primary.port "/myapp" database.config.ssl_query ))'
 
 # Service discovery with optional endpoints
 services:
@@ -100,27 +94,27 @@ services:
   # Service availability checks
   availability:
     api:
-      has_internal: (( ! (null services.api.internal) ))
+      has_internal: (( ! ((type services.api.internal == "null")) ))
       # Result: true
-      has_external: (( ! (null services.api.external) ))
+      has_external: (( ! ((type services.api.external == "null")) ))
       # Result: true
-      fully_available: (( ! (null services.api.internal) && ! (null services.api.external) ))
+      fully_available: (( ! ((type services.api.internal == "null")) && ! ((type services.api.external == "null")) ))
       # Result: true
     
     auth:
-      has_internal: (( ! (null services.auth.internal) ))
+      has_internal: (( ! ((type services.auth.internal == "null")) ))
       # Result: true
-      has_external: (( ! (null services.auth.external) ))
+      has_external: (( ! ((type services.auth.external == "null")) ))
       # Result: false
-      fully_available: (( ! (null services.auth.internal) && ! (null services.auth.external) ))
+      fully_available: (( ! ((type services.auth.internal == "null")) && ! ((type services.auth.external == "null")) ))
       # Result: false
     
     cache:
-      has_internal: (( ! (null services.cache.internal) ))
+      has_internal: (( ! ((type services.cache.internal == "null")) && ! (empty services.cache.internal) ))
       # Result: false
-      has_external: (( ! (null services.cache.external) ))
+      has_external: (( ! ((type services.cache.external == "null")) ))
       # Result: true
-      fully_available: (( ! (null services.cache.internal) && ! (null services.cache.external) ))
+      fully_available: (( ! ((type services.cache.internal == "null")) && ! (empty services.cache.internal) && ! ((type services.cache.external == "null")) ))
       # Result: false
 
 # Cloud resource configuration
@@ -143,17 +137,13 @@ cloud:
   
   # Resource creation flags
   resources:
-    create_autoscaling: (( cloud.autoscaling.enabled && ! (null cloud.autoscaling.max) ))
+    create_autoscaling: (( cloud.autoscaling.enabled && ! ((type cloud.autoscaling.max == "null")) ))
     # Result: false (max is null)
     
-    create_load_balancer: (( 
-      cloud.load_balancer.enabled && 
-      ! (null cloud.load_balancer.type) && 
-      ! (null cloud.load_balancer.certificate_arn)
-    ))
+    create_load_balancer: '(( cloud.load_balancer.enabled && ! ((type cloud.load_balancer.type == "null")) && ! ((type cloud.load_balancer.certificate_arn == "null")) ))'
     # Result: false (multiple nulls)
     
-    create_cdn: (( ! (null cloud.cdn) && cloud.cdn != {} ))
+    create_cdn: (( ! ((type cloud.cdn == "null")) && ! (empty cloud.cdn) ))
     # Result: false (empty map)
 
 # Kubernetes deployment with optional resources
@@ -190,19 +180,26 @@ kubernetes:
   
   # Deployment configuration based on null checks
   config:
-    has_memory_limit: (( ! (null kubernetes.deployment.resources.limits.memory) ))
+    has_memory_limit: (( ! ((type kubernetes.deployment.resources.limits.memory == "null")) ))
     # Result: false
     
-    has_cpu_limit: (( ! (null kubernetes.deployment.resources.limits.cpu) ))
+    has_cpu_limit: (( ! ((type kubernetes.deployment.resources.limits.cpu == "null")) && ! (empty kubernetes.deployment.resources.limits.cpu) ))
     # Result: false
     
-    has_readiness_probe: (( ! (null kubernetes.deployment.probes.readiness) ))
+    has_readiness_probe: (( ! ((type kubernetes.deployment.probes.readiness == "null")) ))
     # Result: false
     
-    valid_env_vars: (( grab kubernetes.deployment.env | 
-      [[ var | var if ! (null var.value) ]] 
-    ))
-    # Filters out env vars with null/empty values
+    # Note: there is no array-filter/list-comprehension operator (the
+    # `| [[ ... ]]` form used here previously never parsed), so each
+    # entry's null-ness is checked individually instead of filtering the
+    # list down to only the valid entries.
+    env_var_checks:
+      app_env_set: (( ! ((type kubernetes.deployment.env.[0].value == "null")) ))
+      # Result: true
+      log_level_set: (( ! ((type kubernetes.deployment.env.[1].value == "null")) ))
+      # Result: true (empty string, not null)
+      feature_flag_set: (( ! ((type kubernetes.deployment.env.[2].value == "null")) ))
+      # Result: false (null)
 
 # Feature toggles with complex conditions
 feature_toggles:
@@ -215,13 +212,13 @@ feature_toggles:
   
   # Feature decisions
   features:
-    enable_beta: (( ! (null feature_toggles.configs.beta_users) && feature_toggles.configs.beta_users != [] ))
+    enable_beta: (( ! ((type feature_toggles.configs.beta_users == "null")) && ! (empty feature_toggles.configs.beta_users) ))
     # Result: true (has beta users)
     
-    enable_premium: (( ! (null feature_toggles.configs.premium_features) ))
+    enable_premium: (( ! ((type feature_toggles.configs.premium_features == "null")) ))
     # Result: false (premium_features is null)
     
-    enable_experimental: (( ! (null feature_toggles.configs.experimental) && feature_toggles.configs.experimental != {} ))
+    enable_experimental: (( ! ((type feature_toggles.configs.experimental == "null")) && ! (empty feature_toggles.configs.experimental) ))
     # Result: false (empty map)
     
     system_available: (( ! feature_toggles.configs.maintenance_mode ))
@@ -230,16 +227,22 @@ feature_toggles:
 # Conditional resource creation
 resources:
   # Optional S3 bucket
+  #
+  # cloud.cdn is {}, so bucket_name is a genuinely absent key (not just
+  # null) and needs a grab fallback to avoid an unresolved-path error.
   s3_bucket:
-    create: (( ! (null cloud.cdn.bucket_name) ))
-    name: (( null cloud.cdn.bucket_name ? "" : cloud.cdn.bucket_name ))
-  
+    create: (( ! ((type (grab cloud.cdn.bucket_name || ~) == "null")) ))
+    name: '(( (type (grab cloud.cdn.bucket_name || ~) == "null") ? "" : cloud.cdn.bucket_name ))'
+
   # Optional RDS instance
+  #
+  # Note: there is no array .length accessor or count/size operator, so
+  # this reports whether replicas exist rather than how many.
   rds_instance:
-    create: (( ! (null database.replicas) && database.replicas != [] ))
-    read_replica_count: (( null database.replicas ? 0 : database.replicas.length ))
+    create: (( ! ((type database.replicas == "null")) && ! (empty database.replicas) ))
+    has_read_replicas: (( ! (empty database.replicas) ))
   
   # Optional ElastiCache
   elasticache:
-    create: (( ! (null services.cache.internal) ))
-    endpoint: (( null services.cache.internal ? services.cache.external : services.cache.internal ))
+    create: (( ! ((type services.cache.internal == "null")) ))
+    endpoint: '(( (type services.cache.internal == "null") ? services.cache.external : services.cache.internal ))'

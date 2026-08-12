@@ -3,3 +3,7 @@ things:
   foo: (( grab deleteme.thing.foo ))
 - name: second-thing
   bar: (( grab deleteme.thing.bar ))
+
+# Once the values above have been grabbed out of it, prune the scratch
+# key so it doesn't show up in the final output.
+deleteme: (( prune ))
