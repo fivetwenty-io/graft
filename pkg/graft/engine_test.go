@@ -3,6 +3,7 @@ package graft
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -782,20 +783,45 @@ func TestEngineFileParsing(t *testing.T) {
 			doc, err := engine.ParseFile("/non/existent/file.yml")
 
 			So(err, ShouldNotBeNil)
+			So(os.IsNotExist(err), ShouldBeTrue)
 			So(doc, ShouldBeNil)
 		})
 
-		Convey("ParseReader should return not implemented error", func() {
+		Convey("ParseReader should parse YAML content", func() {
 			yamlContent := testYAMLKey1Value1
 			reader := strings.NewReader(yamlContent)
 
 			doc, err := engine.ParseReader(reader)
 
+			So(err, ShouldBeNil)
+			So(doc, ShouldNotBeNil)
+			val, getErr := doc.GetString("key1")
+			So(getErr, ShouldBeNil)
+			So(val, ShouldEqual, "value1")
+		})
+
+		Convey("ParseReader should propagate a reader error", func() {
+			doc, err := engine.ParseReader(&erroringReader{})
+
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "not implemented")
+			So(doc, ShouldBeNil)
+		})
+
+		Convey("ParseReader should return nil for an empty reader", func() {
+			doc, err := engine.ParseReader(strings.NewReader(""))
+
+			So(err, ShouldBeNil)
 			So(doc, ShouldBeNil)
 		})
 	})
+}
+
+// erroringReader is an io.Reader whose Read always fails, used to exercise
+// ParseReader's/MergeReaders' read-error path.
+type erroringReader struct{}
+
+func (r *erroringReader) Read(_ []byte) (int, error) {
+	return 0, fmt.Errorf("simulated read error")
 }
 
 func TestEngineMerging(t *testing.T) {

@@ -630,17 +630,7 @@ func (e *DefaultEngine) ParseJSON(data []byte) (Document, error) {
 	return NewDocument(result), nil
 }
 
-// ParseFile parses a file into a Document.
-func (e *DefaultEngine) ParseFile(path string) (Document, error) {
-	// Implementation will be added
-	return nil, fmt.Errorf("not implemented")
-}
-
-// ParseReader parses data from a reader into a Document.
-func (e *DefaultEngine) ParseReader(reader io.Reader) (Document, error) {
-	// Implementation will be added
-	return nil, fmt.Errorf("not implemented")
-}
+// ParseFile and ParseReader are implemented in parse_file.go.
 
 // Merge creates a new merge builder for combining documents.
 func (e *DefaultEngine) Merge(ctx context.Context, docs ...Document) MergeBuilder {

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,7 +15,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cppforlife/go-patch/patch"
 	"github.com/gonvenience/ytbx"
 	"github.com/homeport/dyff/pkg/dyff"
 	"github.com/mattn/go-isatty"
@@ -910,24 +908,6 @@ func main() {
 	}
 }
 
-func isArrayError(err error) bool {
-	var rootArrayErr RootIsArrayError
-	return errors.As(err, &rootArrayErr)
-}
-
-func parseGoPatch(data []byte) (patch.Ops, error) {
-	opdefs := []patch.OpDefinition{}
-	err := yaml.Unmarshal(data, &opdefs)
-	if err != nil {
-		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map. Tried parsing it as go-patch, but got}: %s\n", err)
-	}
-	ops, err := patch.NewOpsFromDefinitions(opdefs)
-	if err != nil {
-		return nil, ansi.Errorf("@R{Unable to parse go-patch definitions: %s\n", err)
-	}
-	return ops, nil
-}
-
 func parseYAML(data []byte) (map[string]interface{}, error) {
 	// Handle empty document
 	if len(bytes.TrimSpace(data)) == 0 {
@@ -951,7 +931,7 @@ func parseYAML(data []byte) (map[string]interface{}, error) {
 		log.DEBUG("YAML doc is null/empty, creating empty hash/map")
 		return make(map[string]interface{}), nil
 	case []interface{}:
-		return nil, RootIsArrayError{msg: ansi.Sprintf("@R{Root of YAML document is not a hash/map}: root is an array\n")}
+		return nil, graft.NewRootIsArrayError(ansi.Sprintf("@R{Root of YAML document is not a hash/map}: root is an array\n"))
 	default:
 		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: found %T\n", raw)
 	}
@@ -1408,9 +1388,9 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts) fi
 	// Check if it's a go-patch document
 	if options.EnableGoPatch {
 		_, parseErr := parseYAML(data)
-		if isArrayError(parseErr) {
+		if graft.IsArrayError(parseErr) {
 			log.DEBUG("Detected root of document as an array. Attempting go-patch parsing")
-			ops, patchErr := parseGoPatch(data)
+			ops, patchErr := graft.ParseGoPatch(data)
 			if patchErr != nil {
 				return fileParseResult{err: ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, patchErr.Error())}
 			}
@@ -1513,12 +1493,4 @@ func diffFiles(paths []string) (output string, hasDifferences bool, err error) {
 	}
 
 	return buf.String(), len(report.Diffs) > 0, nil
-}
-
-type RootIsArrayError struct {
-	msg string
-}
-
-func (r RootIsArrayError) Error() string {
-	return r.msg
 }

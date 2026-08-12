@@ -2713,7 +2713,58 @@ new_key: 10
 				stdout = ""
 				stderr = ""
 				main()
-				So(stderr, ShouldContainSubstring, "Root of YAML document is not a hash/map. Tried parsing it as go-patch, but got:")
+				// Byte-exact pin against HEAD (064cdea) behavior, captured via a
+				// HEAD-built binary: `graft merge --go-patch base.yml bad.yml`
+				// piped to a file (stderr is not a TTY, so ansi color renders as
+				// plain text). Full-string equality, not substring, catches
+				// silent drift in wording, capitalization, or trailing newlines.
+				So(stderr, ShouldEqual, "../../assets/go-patch/bad.yml: Root of YAML document is not a hash/map. Tried parsing it as go-patch, but got: [1:3] string was used where mapping is expected\n>  1 | - this\n         ^\n   2 | - isn't\n   3 | - gopatch\n\n\n")
+				So(stdout, ShouldEqual, "")
+			})
+			Convey("go-patch definition parsing errors are byte-exact with HEAD (F1 pin)", func() {
+				os.Args = []string{"graft", "merge", "--go-patch", "../../assets/go-patch/base.yml", "../../assets/go-patch/badtype.yml"}
+				stdout = ""
+				stderr = ""
+				main()
+				// Byte-exact pin against HEAD (064cdea) behavior. The old
+				// cmd/graft parseGoPatch used
+				// ansi.Errorf("@R{Unable to parse go-patch definitions: %s\n", err)
+				// - an unbalanced brace (no closing "}") that ansi's markup
+				// parser can never resolve, so it always printed the "@R{"
+				// prefix and capitalized "Unable" literally, regardless of
+				// color/TTY state. That literal text IS the observable
+				// contract; pkg/graft.ParseGoPatch reproduces it verbatim.
+				So(stderr, ShouldEqual, "../../assets/go-patch/badtype.yml: @R{Unable to parse go-patch definitions: Unknown operation [0] with type 'bogus' within\n{\n  \"Type\": \"bogus\",\n  \"Path\": \"/a\"\n}\n\n\n")
+				So(stdout, ShouldEqual, "")
+			})
+			Convey("go-patch parse-error stderr is byte-exact with HEAD under --color=on (F13 pin)", func() {
+				defer ansi.Color(false) // restore the test-suite default (see init()) for every later test
+				os.Args = []string{"graft", "--color", "on", "merge", "--go-patch", "../../assets/go-patch/base.yml", "../../assets/go-patch/bad.yml"}
+				stdout = ""
+				stderr = ""
+				main()
+				// Case B (yaml.Unmarshal failure): HEAD's inner ansi.Errorf had a
+				// *balanced* @R{...got} brace, so under color it rendered its own
+				// \x1b[31m...\x1b[0m pair; the outer ansi.Errorf("@m{%s}: @R{%s}\n",
+				// ...) wrap then nests ANOTHER \x1b[31m in front of that already-
+				// colored text (hence the doubled \x1b[31m\x1b[31m) and appends its
+				// own \x1b[0m at the very end. Restoring ParseGoPatch's case B to
+				// ansi.Errorf (see gopatch_parse.go) reproduces this exactly.
+				So(stderr, ShouldEqual, "\x1b[35m../../assets/go-patch/bad.yml\x1b[0m: \x1b[31m\x1b[31mRoot of YAML document is not a hash/map. Tried parsing it as go-patch, but got\x1b[0m: [1:3] string was used where mapping is expected\n>  1 | - this\n         ^\n   2 | - isn't\n   3 | - gopatch\n\x1b[0m\n\n")
+				So(stdout, ShouldEqual, "")
+			})
+			Convey("go-patch definition parsing errors are byte-exact with HEAD under --color=on (F13 pin)", func() {
+				defer ansi.Color(false) // restore the test-suite default (see init()) for every later test
+				os.Args = []string{"graft", "--color", "on", "merge", "--go-patch", "../../assets/go-patch/base.yml", "../../assets/go-patch/badtype.yml"}
+				stdout = ""
+				stderr = ""
+				main()
+				// Case A (NewOpsFromDefinitions failure): the unbalanced-brace
+				// "@R{Unable..." text is a literal constant in every color mode
+				// (see the F1 pin above), so only the *outer* wrap's @R{%s} markup
+				// renders here - a single \x1b[31m right after the literal "@R{"
+				// and a single \x1b[0m at the end, unaffected by this fix.
+				So(stderr, ShouldEqual, "\x1b[35m../../assets/go-patch/badtype.yml\x1b[0m: @R{\x1b[31mUnable to parse go-patch definitions: Unknown operation [0] with type 'bogus' within\n{\n  \"Type\": \"bogus\",\n  \"Path\": \"/a\"\n}\n\x1b[0m\n\n")
 				So(stdout, ShouldEqual, "")
 			})
 			Convey("go-patch handles named arrays with :before syntax (#283)", func() {
