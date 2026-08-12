@@ -756,6 +756,23 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 	// call is written: "(( base64 (file \"x\") ))", "(( file (concat ... ) ))",
 	// "(( grab (concat ... ) ))" (the `arguments` rule, where a `primary`
 	// may be a parenthesized group).
+	//
+	// This decision is a heuristic, not a certainty: the token right after
+	// "(" not looking like it opens its own operator call (identifierOpensOpcallAt)
+	// is also exactly what a parenthesized non-call expression used as the
+	// first space-separated argument looks like — "(flag ? \"a\" : \"b\")",
+	// "((grab a) + (grab b))". Rather than trying to tell the two apart
+	// up front, this block always runs first when the shape matches (it
+	// is a strict subset of "one parenthesized value", true for both
+	// interpretations), and the space-separated loop below always runs
+	// after it, unconditionally: for genuine "op(a, b)" function-call
+	// syntax, the token right after this block's closing ")" is always a
+	// terminator (")", "))", EOF, "?", ":"), so that loop's own condition
+	// makes it a no-op immediately, changing nothing. When this block
+	// instead consumed a single parenthesized argument that was meant to
+	// be followed by more space-separated arguments, the token after it is
+	// NOT a terminator, and the loop picks up exactly where the group left
+	// off, appending to the same args slice.
 	if p.current().Type == interfaces.TokenLeftParen && !p.identifierOpensOpcallAt(p.pos+1) {
 		p.advance() // consume (
 		for p.current().Type != interfaces.TokenRightParen && p.current().Type != interfaces.TokenEOF {
@@ -774,7 +791,8 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 		if err := p.expect(interfaces.TokenRightParen); err != nil {
 			return nil, err
 		}
-	} else {
+	}
+	{
 		// Space-separated arguments until )), a bare ")" (closing an
 		// operator call opened by a single "("), or
 		// another operator.
