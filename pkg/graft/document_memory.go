@@ -152,12 +152,12 @@ func NewDocumentMemory(config MemoryConfig) *DocumentMemory {
 
 // RecordChange records a change to a node.
 func (dm *DocumentMemory) RecordChange(path string, oldValue, newValue interface{}, phase ChangePhase, operation ChangeOperation, source string) error {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
 	if !dm.enabled {
 		return nil
 	}
-
-	dm.mu.Lock()
-	defer dm.mu.Unlock()
 
 	// Get or create history for this path
 	history, exists := dm.histories[path]

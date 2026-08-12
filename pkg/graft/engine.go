@@ -63,8 +63,17 @@ type DefaultEngine struct {
 	// Metrics and monitoring
 	metrics *EngineMetrics
 
-	// Document memory for tracking history
+	// Document memory for tracking history. memoryMutex guards the
+	// documentMemory field itself (assigning/reading the pointer), not
+	// DocumentMemory's own internals, which carry their own mu. Every
+	// merge on a shared engine reaches EnableMemoryTracking via
+	// mergeBuilderImpl.ensureHistoryTracking on Execute()'s hot path (not
+	// only at construction, like every other engine field this package
+	// guards with its own per-concern mutex - see opMutex, vaultMutex,
+	// ipMutex, pruneMutex, sortMutex above), so two goroutines merging on
+	// one engine can race on this field without it.
 	documentMemory *DocumentMemory
+	memoryMutex    sync.RWMutex
 
 	// New infrastructure systems (all optional)
 
@@ -328,8 +337,11 @@ func (e *DefaultEngine) createEvaluator(t map[string]interface{}) *Evaluator {
 	}
 
 	// Set memory tracker if available
-	if e.documentMemory != nil {
-		ev.SetMemoryTracker(e.documentMemory)
+	e.memoryMutex.RLock()
+	dm := e.documentMemory
+	e.memoryMutex.RUnlock()
+	if dm != nil {
+		ev.SetMemoryTracker(dm)
 	}
 
 	return ev
@@ -337,6 +349,8 @@ func (e *DefaultEngine) createEvaluator(t map[string]interface{}) *Evaluator {
 
 // GetMemoryTracker returns the memory tracker interface.
 func (e *DefaultEngine) GetMemoryTracker() interfaces.MemoryTracker {
+	e.memoryMutex.RLock()
+	defer e.memoryMutex.RUnlock()
 	if e.documentMemory == nil {
 		return nil
 	}
@@ -1107,11 +1121,23 @@ func (e *DefaultEngine) GetOperatorState() OperatorState {
 
 // GetDocumentMemory returns the document memory tracker.
 func (e *DefaultEngine) GetDocumentMemory() *DocumentMemory {
+	e.memoryMutex.RLock()
+	defer e.memoryMutex.RUnlock()
 	return e.documentMemory
 }
 
-// EnableMemoryTracking enables document memory tracking.
+// EnableMemoryTracking enables document memory tracking. Guarded by
+// memoryMutex end to end (not just around the field read/write) so two
+// goroutines calling this concurrently on a shared engine - the case
+// ensureHistoryTracking hits on every TrackHistory() Execute() - cannot
+// both observe a nil documentMemory and each construct their own
+// DocumentMemory, silently dropping one: the second caller through the
+// lock always sees the first caller's already-assigned instance and calls
+// Enable() on it instead.
 func (e *DefaultEngine) EnableMemoryTracking() {
+	e.memoryMutex.Lock()
+	defer e.memoryMutex.Unlock()
+
 	if e.documentMemory == nil {
 		// Create with default config if not already created
 		var memConfig MemoryConfig
@@ -1127,42 +1153,57 @@ func (e *DefaultEngine) EnableMemoryTracking() {
 
 // DisableMemoryTracking disables document memory tracking.
 func (e *DefaultEngine) DisableMemoryTracking() {
-	if e.documentMemory != nil {
-		e.documentMemory.Disable()
+	e.memoryMutex.RLock()
+	dm := e.documentMemory
+	e.memoryMutex.RUnlock()
+	if dm != nil {
+		dm.Disable()
 	}
 }
 
 // GetMemoryStats returns memory tracking statistics.
 func (e *DefaultEngine) GetMemoryStats() map[string]interface{} {
-	if e.documentMemory == nil {
+	e.memoryMutex.RLock()
+	dm := e.documentMemory
+	e.memoryMutex.RUnlock()
+	if dm == nil {
 		return map[string]interface{}{
 			"enabled": false,
 		}
 	}
-	return e.documentMemory.GetMemoryStats()
+	return dm.GetMemoryStats()
 }
 
 // ClearMemoryHistory clears all tracked history.
 func (e *DefaultEngine) ClearMemoryHistory() {
-	if e.documentMemory != nil {
-		e.documentMemory.Clear()
+	e.memoryMutex.RLock()
+	dm := e.documentMemory
+	e.memoryMutex.RUnlock()
+	if dm != nil {
+		dm.Clear()
 	}
 }
 
 // GetNodeHistory returns the history for a specific path.
 func (e *DefaultEngine) GetNodeHistory(path string) (*NodeHistory, error) {
-	if e.documentMemory == nil {
+	e.memoryMutex.RLock()
+	dm := e.documentMemory
+	e.memoryMutex.RUnlock()
+	if dm == nil {
 		return nil, fmt.Errorf("memory tracking is not enabled")
 	}
-	return e.documentMemory.GetHistory(path)
+	return dm.GetHistory(path)
 }
 
 // QueryMemoryHistory queries the history with filters.
 func (e *DefaultEngine) QueryMemoryHistory(filter HistoryFilter) []ChangeEvent {
-	if e.documentMemory == nil {
+	e.memoryMutex.RLock()
+	dm := e.documentMemory
+	e.memoryMutex.RUnlock()
+	if dm == nil {
 		return []ChangeEvent{}
 	}
-	return e.documentMemory.Query(filter)
+	return dm.Query(filter)
 }
 
 // Infrastructure system accessors
