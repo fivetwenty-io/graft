@@ -114,6 +114,14 @@ type Engine interface {
 	// Evaluate processes operators in a document
 	Evaluate(ctx context.Context, doc Document) (Document, error)
 
+	// Diff computes the differences between a and b using
+	// DefaultDiffOptions(). See DiffDocuments (diff_changes.go) for the
+	// underlying implementation.
+	Diff(a, b Document) DiffResult
+	// DiffWithOptions computes the differences between a and b using
+	// opts (nil selects DefaultDiffOptions()).
+	DiffWithOptions(a, b Document, opts *DiffOptions) DiffResult
+
 	// Output operations
 	ToYAML(doc Document) ([]byte, error)
 	ToJSON(doc Document) ([]byte, error)

@@ -1,0 +1,10 @@
+9 changes detected:
+  [32m+[0m added_key (none -> scalar) added: new
+  [31m-[0m removed_key (scalar -> none) removed: gone
+  [33m![0m flag (scalar -> map) changed type: "yes" -> nested: true
+  [36m~[0m meta.version (scalar -> scalar) modified: 1 -> 2
+  [32m+[0m servers[name=cache] (none -> map) added: name: cache; port: 6379
+  [31m-[0m servers[name=db] (map -> none) removed: name: db; port: 5432
+  [36m~[0m servers[name=web].port (scalar -> scalar) modified: 80 -> 8080
+  [32m+[0m tags[3] (none -> scalar) added: d
+  [36m~[0m tags[1] (scalar -> scalar) modified: b -> x

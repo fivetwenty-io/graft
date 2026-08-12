@@ -746,6 +746,31 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 	return NewDocument(ev.Tree), nil
 }
 
+// Diff computes the differences between a and b using
+// DefaultDiffOptions(). See DiffWithOptions.
+func (e *DefaultEngine) Diff(a, b Document) DiffResult {
+	return e.DiffWithOptions(a, b, DefaultDiffOptions())
+}
+
+// DiffWithOptions computes the differences between a and b using opts
+// (nil selects DefaultDiffOptions()), via the package-level DiffDocuments
+// (diff_changes.go). a and b are always graft Documents, whose RawData()
+// is always a map[string]interface{}, so DiffDocuments' error return
+// (surfaced only by Diff's own "diff not implemented for this type"
+// default branch and a nil-document guard, diff.go/diff_changes.go) is
+// unreachable for two non-nil Documents; the Engine method signatures
+// (api.go) match the plan's target library API and stay error-free. A nil
+// a or b -- a caller error, not a comparison result -- degrades to an
+// empty DiffResult rather than panicking, consistent with this method
+// having no error return to report it through.
+func (e *DefaultEngine) DiffWithOptions(a, b Document, opts *DiffOptions) DiffResult {
+	result, err := DiffDocuments(a, b, opts)
+	if err != nil {
+		return &diffResult{}
+	}
+	return result
+}
+
 // ToYAML converts a document to YAML bytes.
 func (e *DefaultEngine) ToYAML(doc Document) ([]byte, error) {
 	// Implementation will be added

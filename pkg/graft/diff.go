@@ -392,6 +392,44 @@ func diffSimpleLists(la, lb []interface{}) (DiffList, error) {
 	return x, nil
 }
 
+// canonicalizeArrayOrder returns a copy of v with every non-keyed
+// ("simple") list, at any nesting depth, sorted into a deterministic
+// canonical order (by the YAML encoding of each element). It is the
+// pre-pass behind DiffOptions.IgnoreArrayOrder (diff_options.go): running
+// the unmodified Diff/diffSimpleLists comparison below against two
+// canonicalized copies makes simple lists compare as multisets (same
+// elements, any order, no reported change), without threading any option
+// state through Diff itself, which stays exactly as it behaves on the
+// default path. Keyed lists (see keyed) are already matched by key rather
+// than position by diffKeyedLists, so their element order is left as-is;
+// only their entries are recursed into, in case they themselves contain
+// nested simple lists. Maps and scalars are copied/passed through
+// unchanged aside from the same recursion. v is not mutated.
+func canonicalizeArrayOrder(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(val))
+		for k, item := range val {
+			out[k] = canonicalizeArrayOrder(item)
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(val))
+		for i, item := range val {
+			out[i] = canonicalizeArrayOrder(item)
+		}
+		if keyed(val) != "" {
+			return out
+		}
+		sort.SliceStable(out, func(i, j int) bool {
+			return yamlmarshal(out[i]) < yamlmarshal(out[j])
+		})
+		return out
+	default:
+		return v
+	}
+}
+
 // diffKeyedLists computes the difference between two keyed lists.
 func diffKeyedLists(la, lb []interface{}) (DiffList, error) {
 	key := keyed(la)

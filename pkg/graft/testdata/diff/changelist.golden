@@ -1,0 +1,10 @@
+9 changes detected:
+  + added_key added: new
+  - removed_key removed: gone
+  ! flag changed type: "yes" -> nested: true
+  ~ meta.version modified: 1 -> 2
+  + servers[name=cache] added: name: cache; port: 6379
+  - servers[name=db] removed: name: db; port: 5432
+  ~ servers[name=web].port modified: 80 -> 8080
+  + tags[3] added: d
+  ~ tags[1] modified: b -> x

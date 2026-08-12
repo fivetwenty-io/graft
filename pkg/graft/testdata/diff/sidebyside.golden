@@ -1,0 +1,21 @@
+9 changes detected:
+added_key
+  null                                   | new
+removed_key
+  gone                                   | null
+flag
+  "yes"                                  | nested: true
+meta.version
+  1                                      | 2
+servers[name=cache]
+  null                                   | name: cache
+                                         | port: 6379
+servers[name=db]
+  name: db                               | null
+  port: 5432                             | 
+servers[name=web].port
+  80                                     | 8080
+tags[3]
+  null                                   | d
+tags[1]
+  b                                      | x
