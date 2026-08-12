@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cppforlife/go-patch/patch"
 
@@ -23,6 +24,7 @@ type mergeBuilderImpl struct {
 	docs           []Document
 	pruneKeys      []string
 	cherryPickKeys []string
+	postProcessors []PostProcessor
 	skipEvaluation bool
 	goPatch        bool
 	fallbackAppend bool
@@ -159,6 +161,23 @@ func (m *mergeBuilderImpl) WithCherryPick(keys ...string) MergeBuilder {
 	return &newBuilder
 }
 
+// WithPostProcessors appends processors to run, in Phase-then-Priority
+// order, after evaluation, pruning, and cherry-picking (see
+// applyPostProcessing and runPostProcessors). It adds to - rather than
+// replaces - any processors the engine was constructed with via the
+// package-level graft.WithPostProcessors EngineOption; both sets combine
+// and are ordered together by Phase-then-Priority, not by which one
+// registered a given processor. A nil entry in procs is ignored.
+func (m *mergeBuilderImpl) WithPostProcessors(procs ...PostProcessor) MergeBuilder {
+	if m.error != nil {
+		return m // Propagate error
+	}
+
+	newBuilder := *m
+	newBuilder.postProcessors = append(append([]PostProcessor(nil), m.postProcessors...), procs...)
+	return &newBuilder
+}
+
 // SkipEvaluation disables operator evaluation after merging.
 func (m *mergeBuilderImpl) SkipEvaluation() MergeBuilder {
 	if m.error != nil {
@@ -224,9 +243,23 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 	default:
 	}
 
-	// Handle empty document list
+	// start anchors ProcessMetadata.StartTime for any WithPostProcessors
+	// processors run by applyPostProcessing below, and is the base every
+	// mergeDuration passed to it is measured from.
+	start := time.Now()
+
+	// An empty document list still goes through applyPostProcessing (with
+	// a zero merge duration and no evaluation to run) rather than
+	// returning early: WithPostProcessors' doc comment, EngineOptions.
+	// PostProcessors' doc comment, and options.md all promise registered
+	// processors run "on every merge this engine executes", with no
+	// carve-out for zero documents. Returning early here would run no
+	// processor and attach no history for engine.Merge(ctx).Execute() or
+	// engine.MergeFiles(ctx).Execute() with no paths, silently breaking
+	// that promise and any TrackHistory()/engine-level tracking on such a
+	// call.
 	if len(m.docs) == 0 {
-		return NewDocument(make(map[string]interface{})), nil
+		return m.applyPostProcessing(NewDocument(make(map[string]interface{})), start, 0)
 	}
 
 	// Reject a cyclic document before any of the recursive tree walks below
@@ -310,12 +343,12 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 				return nil, err
 			}
 
-			return m.applyPostProcessing(NewDocument(base))
+			return m.applyPostProcessing(NewDocument(base), start, time.Since(start))
 		}
 
 		// No special processing needed, just clone
 		result := m.docs[0].Clone()
-		return m.applyPostProcessing(result)
+		return m.applyPostProcessing(result, start, time.Since(start))
 	}
 
 	// Merge multiple documents
@@ -324,7 +357,7 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 		return nil, err
 	}
 
-	return m.applyPostProcessing(result)
+	return m.applyPostProcessing(result, start, time.Since(start))
 }
 
 // mergeDocuments performs the actual document merging.
@@ -933,8 +966,12 @@ func isMergerError(err error) bool {
 	return errors.As(err, &multiErr)
 }
 
-// applyPostProcessing applies pruning, cherry-picking, and evaluation.
-func (m *mergeBuilderImpl) applyPostProcessing(doc Document) (Document, error) {
+// applyPostProcessing applies evaluation, pruning, cherry-picking, and
+// finally any WithPostProcessors processors, in that order. startTime and
+// mergeDuration come from Execute's timing of the merge phase that ran
+// before this call; both flow into the ProcessMetadata runPostProcessors
+// builds for user-supplied processors.
+func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time, mergeDuration time.Duration) (Document, error) {
 	result := doc
 
 	// go-patch operations are applied inline, at their position in the file
@@ -953,8 +990,11 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document) (Document, error) {
 	}
 
 	// Apply evaluation if not skipped
+	var evalDuration time.Duration
 	if !m.skipEvaluation {
+		evalStart := time.Now()
 		evaluated, err := m.applyEvaluation(result)
+		evalDuration = time.Since(evalStart)
 		if err != nil {
 			return nil, err
 		}
@@ -1026,7 +1066,16 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document) (Document, error) {
 		result = cherryPicked
 	}
 
-	return result, nil
+	// User-supplied post-processors (WithPostProcessors, either
+	// EngineOption- or MergeBuilder-registered) run last, after
+	// evaluation, pruning, and cherry-picking have all finished.
+	processed, err := m.runPostProcessors(result, startTime, mergeDuration, evalDuration)
+	if err != nil {
+		return nil, err
+	}
+
+
+	return processed, nil
 }
 
 // applyGoPatchToMap applies a single set of go-patch operations to data at

@@ -258,6 +258,16 @@ type MergeBuilder interface {
 	// WithArrayMergeStrategy sets how arrays are merged
 	WithArrayMergeStrategy(strategy ArrayMergeStrategy) MergeBuilder
 
+	// WithPostProcessors appends procs to the processors that run after
+	// evaluation, pruning, and cherry-picking - see applyPostProcessing's
+	// ordering, documented on the package-level graft.WithPostProcessors
+	// EngineOption. Processors supplied here run alongside, not instead
+	// of, any registered on the engine via that EngineOption: both sets
+	// are combined and ordered together by Phase-then-Priority (see
+	// PostProcessPhase, PriorityPostProcessor), not by which of the two
+	// registered them.
+	WithPostProcessors(procs ...PostProcessor) MergeBuilder
+
 	// SkipEvaluation skips operator evaluation after merging
 	SkipEvaluation() MergeBuilder
 
@@ -328,6 +338,12 @@ type EngineOptions struct {
 	// CacheTTL sets a default time-to-live for entries in the engine's
 	// operator result cache (see WithCacheTTL). Zero means no expiration.
 	CacheTTL time.Duration
+
+	// PostProcessors run after evaluation, pruning, and cherry-picking
+	// on every merge executed by this engine (see WithPostProcessors).
+	// A MergeBuilder's own WithPostProcessors call adds to this set for
+	// that one merge chain rather than replacing it.
+	PostProcessors []PostProcessor
 
 	// TraceOutput, when set (via WithTraceOutput), redirects graft's
 	// DEBUG/TRACE output. See WithTraceOutput for the process-wide-sink
@@ -612,6 +628,20 @@ func WithSkipAws(skip bool) EngineOption {
 func WithSkipNats(skip bool) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.SkipNats = skip
+	}
+}
+
+// WithPostProcessors registers procs to run, in Phase-then-Priority
+// order (see PostProcessPhase and PriorityPostProcessor), after
+// evaluation, pruning, and cherry-picking on every merge this engine
+// executes. Calling WithPostProcessors more than once, or combining it
+// with MergeBuilder.WithPostProcessors on individual merges, appends
+// rather than replaces - every processor from every call runs, ordered
+// by Phase-then-Priority rather than by which call registered it. A nil
+// entry in procs is ignored rather than causing a panic or an error.
+func WithPostProcessors(procs ...PostProcessor) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.PostProcessors = append(opts.PostProcessors, procs...)
 	}
 }
 

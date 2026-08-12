@@ -657,16 +657,21 @@ func (e *DefaultEngine) ParseJSON(data []byte) (Document, error) {
 
 // ParseFile and ParseReader are implemented in parse_file.go.
 
-// Merge creates a new merge builder for combining documents.
+// Merge creates a new merge builder for combining documents. Any
+// PostProcessors this engine was constructed with (graft.WithPostProcessors)
+// are copied onto the returned builder up front, so
+// MergeBuilder.WithPostProcessors can add further processors for this one
+// merge chain without mutating the engine's own configured set.
 func (e *DefaultEngine) Merge(ctx context.Context, docs ...Document) MergeBuilder {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	return &mergeBuilderImpl{
-		engine: e,
-		ctx:    ctx,
-		docs:   docs,
+		engine:         e,
+		ctx:            ctx,
+		docs:           docs,
+		postProcessors: append([]PostProcessor(nil), e.opts.PostProcessors...),
 	}
 }
 
