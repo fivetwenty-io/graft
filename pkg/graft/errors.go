@@ -222,6 +222,21 @@ func NewValidationError(message string) *GraftError {
 	}
 }
 
+// NewValidationErrorWithCause creates a validation error like
+// NewValidationError, but attaches cause to the Unwrap chain so
+// errors.Is/errors.As can see through it. Error() is unaffected: it never
+// references Cause, so this is a purely additive change for call sites
+// that were previously discarding the underlying error (see
+// tree.ErrNotFound, tree.ErrTypeMismatch, tree.ErrInvalidPath and their
+// pkg/graft re-exports below).
+func NewValidationErrorWithCause(message string, cause error) *GraftError {
+	return &GraftError{
+		Type:    ValidationError,
+		Message: message,
+		Cause:   cause,
+	}
+}
+
 // NewExternalError creates a new external service error.
 func NewExternalError(service, message string, cause error) *GraftError {
 	return &GraftError{
@@ -235,6 +250,54 @@ func NewExternalError(service, message string, cause error) *GraftError {
 func IsGraftError(err error) bool {
 	var graftErr *GraftError
 	return errors.As(err, &graftErr)
+}
+
+// Sentinel errors for errors.Is comparisons against Document getter
+// failures. These are the same values as tree.ErrInvalidPath,
+// tree.ErrTypeMismatch, and tree.ErrNotFound (re-exported here so library
+// callers never need to import pkg/graft/tree directly); the canonical
+// definitions and their Is() hookups onto SyntaxError/TypeMismatchError/
+// NotFoundError live in that package to avoid an import cycle (see the
+// comment above tree.ErrInvalidPath).
+//
+// errors.Is(err, ErrNotFound), errors.Is(err, ErrTypeMismatch), and
+// errors.Is(err, ErrInvalidPath) work against errors returned by Document's
+// Get/GetString/GetInt/GetInt64/GetFloat64/GetBool/GetSlice/GetMap/
+// GetStringSlice/GetMapStringString/Set/Delete, and against tree package
+// errors directly. None of the Error() strings produced by those methods
+// change as a result: Cause is invisible to Error().
+var (
+	// ErrNotFound indicates a path does not exist in the document.
+	ErrNotFound = tree.ErrNotFound
+
+	// ErrTypeMismatch indicates a path resolved to a value of a different
+	// type than the caller requested.
+	ErrTypeMismatch = tree.ErrTypeMismatch
+
+	// ErrInvalidPath indicates a path string could not be parsed.
+	ErrInvalidPath = tree.ErrInvalidPath
+)
+
+// hiddenCauseError preserves an existing, contractually pinned Error()
+// string exactly while attaching cause to the Unwrap chain. Used at call
+// sites (document.go's GetInt64/GetFloat64/GetStringSlice/
+// GetMapStringString) that previously returned a bare fmt.Errorf with no
+// wrapping: adding "%w" to those format strings would append the cause's
+// own Error() text to the message, which the genesis compatibility
+// contract forbids. This type carries the cause invisibly instead.
+type hiddenCauseError struct {
+	msg   string
+	cause error
+}
+
+func (e *hiddenCauseError) Error() string { return e.msg }
+func (e *hiddenCauseError) Unwrap() error { return e.cause }
+
+// withHiddenCause wraps msg, an already-fully-formatted error message,
+// with cause for errors.Is/errors.As, without altering the visible
+// message text.
+func withHiddenCause(msg string, cause error) error {
+	return &hiddenCauseError{msg: msg, cause: cause}
 }
 
 // Error codes
