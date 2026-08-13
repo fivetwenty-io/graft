@@ -790,10 +790,14 @@ func CreateDefaultEngine() (Engine, error) {
 // CreateDefaultEngine + ParseYAML + Merge().Execute() + ToYAML for callers
 // who need nothing but a merged document.
 //
-// Each call constructs a fresh default engine: no cache is shared between
-// calls and no custom operators, backends, or options apply. Callers who
-// want any of those should build an engine with NewEngine and use its
-// Merge builder directly. With no sources it returns an empty document
+// Each call constructs a fresh default engine, so no engine-local state
+// carries over between calls and no custom operators, backends, or
+// options apply. The built-in vault, AWS, and NATS secret caches are
+// package-global, not engine state: they persist across calls (as they do
+// across any two engines in one process), so a secret fetched by one call
+// can be served from cache to the next. Callers who want custom
+// configuration should build an engine with NewEngine and use its Merge
+// builder directly. With no sources it returns an empty document
 // ("{}\n").
 //
 // Like every use of this package that evaluates operators, the consuming

@@ -27,9 +27,13 @@ out, err = graft.QuickMergeFiles("base.yml", "prod.yml")
 
 Both parse their sources, merge them in order (later sources override
 earlier ones), evaluate operators, and return YAML bytes. Each call
-constructs a fresh default engine — no cache is shared between calls and
-no custom operators, backends, or options apply. Everything below is for
-callers who need more than that.
+constructs a fresh default engine — no engine-local state carries over
+between calls, and no custom operators, backends, or options apply. The
+built-in vault, AWS, and NATS secret caches are process-global rather
+than engine state, so they persist across calls: a secret fetched by one
+call can be served from cache to the next, exactly as it would be across
+any two engines in one process. Everything below is for callers who need
+more than that.
 
 ## Interface Definition
 
