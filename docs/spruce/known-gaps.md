@@ -203,9 +203,9 @@ argument to its raw string value, bypassing the YAML type coercion the
 normal `grab $NAME` substitution applies (`PORT=8080` stays the string
 `"8080"`), treats a set-but-empty variable as a valid empty string, and
 errors with `environment variable $NAME is not set` for an unset one.
-`(( raw_env "A" || raw_env "B" ))` keeps the raw-string behavior on
-either side, while a non-`raw_env` fallback such as a literal still
-coerces normally. Pinned by `pkg/graft/operators/op_raw_env_test.go`
+`(( raw_env $A || $B ))` keeps the raw-string behavior on either
+side, while a non-environment-variable fallback such as a literal
+still coerces normally. Pinned by `pkg/graft/operators/op_raw_env_test.go`
 and seven binary-comparison fixtures in the operator parity corpus.
 With this operator in place, no spruce operator is missing from graft.
 
