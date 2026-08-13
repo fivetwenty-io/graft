@@ -286,6 +286,12 @@ Each target is configured through per-target environment variables —
 `NATS_<TARGET>_URL` for `nats`. An unconfigured target errors at evaluation
 time naming the variables it expected.
 
+The vault, AWS, and NATS operators also honor the `:nocache`
+[expression modifier](expression-modifiers.md), written glued to the
+operator name before any target — `(( vault:nocache@production
+"path:key" ))` — which makes that single call bypass the per-run
+backend cache in both directions (no cached read, no cache write).
+
 The spruce spelling that puts the target on the path,
 `(( vault production@"path:key" ))`, is rejected outright:
 

@@ -51,6 +51,19 @@ prod_pass: (( vault@prod "secret/db:password" ))
 staging_pass: (( vault@staging "secret/db:password" ))
 ```
 
+### Bypassing the Cache
+
+Secrets are cached per target and path for the duration of a merge, so
+repeated references produce one Vault request. To make a single call
+skip that cache — never reading from it and never writing to it — add
+the `:nocache` [expression modifier](../../reference/expression-modifiers.md)
+to the operator name, before any target:
+
+```yaml
+otp: (( vault:nocache "secret/totp:code" ))
+prod_otp: (( vault:nocache@prod "secret/totp:code" ))
+```
+
 ## Configuration
 
 ### Environment Variables

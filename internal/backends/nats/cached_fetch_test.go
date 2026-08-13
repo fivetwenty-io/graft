@@ -43,11 +43,11 @@ func TestFetchFromKVCached_TargetNamespaced(t *testing.T) {
 		return "value-from-B", nil
 	}
 
-	valA, err := FetchFromKVCachedWith("targetA", "store/key", 5*time.Minute, false, fetchA)
+	valA, err := FetchFromKVCachedWith("targetA", "store/key", 5*time.Minute, false, false, fetchA)
 	if err != nil {
 		t.Fatalf("targetA: unexpected error: %v", err)
 	}
-	valB, err := FetchFromKVCachedWith("targetB", "store/key", 5*time.Minute, false, fetchB)
+	valB, err := FetchFromKVCachedWith("targetB", "store/key", 5*time.Minute, false, false, fetchB)
 	if err != nil {
 		t.Fatalf("targetB: unexpected error: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestFetchFromKVCached_TargetNamespaced(t *testing.T) {
 	}
 
 	// Re-fetching targetA must hit its own cache entry, not targetB's.
-	valA2, err := FetchFromKVCachedWith("targetA", "store/key", 5*time.Minute, false, fetchA)
+	valA2, err := FetchFromKVCachedWith("targetA", "store/key", 5*time.Minute, false, false, fetchA)
 	if err != nil {
 		t.Fatalf("targetA re-fetch: unexpected error: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestFetchFromKVCached_ConcurrentSameKeyDedupes(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			startGate.Wait()
-			v, err := FetchFromKVCachedWith("prod", "store/shared-key", 5*time.Minute, false, fetch)
+			v, err := FetchFromKVCachedWith("prod", "store/shared-key", 5*time.Minute, false, false, fetch)
 			results[idx] = v
 			errs[idx] = err
 		}(i)
@@ -129,14 +129,14 @@ func TestFetchFromObjectCached_TargetNamespaced(t *testing.T) {
 	t.Cleanup(ClearCache)
 
 	callsA, callsB := 0, 0
-	valA, err := FetchFromObjectCachedWith("targetA", "bucket/obj", 5*time.Minute, false, func() (interface{}, error) {
+	valA, err := FetchFromObjectCachedWith("targetA", "bucket/obj", 5*time.Minute, false, false, func() (interface{}, error) {
 		callsA++
 		return "obj-from-A", nil
 	})
 	if err != nil {
 		t.Fatalf("targetA: unexpected error: %v", err)
 	}
-	valB, err := FetchFromObjectCachedWith("targetB", "bucket/obj", 5*time.Minute, false, func() (interface{}, error) {
+	valB, err := FetchFromObjectCachedWith("targetB", "bucket/obj", 5*time.Minute, false, false, func() (interface{}, error) {
 		callsB++
 		return "obj-from-B", nil
 	})
@@ -171,7 +171,7 @@ func TestFetchFromKVCachedWith_AuditLogsOnMissAndHit(t *testing.T) {
 	fetch := func() (interface{}, error) { return "v", nil }
 
 	// Miss.
-	if _, err := FetchFromKVCachedWith("audit-target", "store/audit-key", 5*time.Minute, true, fetch); err != nil {
+	if _, err := FetchFromKVCachedWith("audit-target", "store/audit-key", 5*time.Minute, true, false, fetch); err != nil {
 		t.Fatalf("miss: unexpected error: %v", err)
 	}
 	if !anyContains(*logs, "AUDIT") || !anyContains(*logs, "store/audit-key") {
@@ -181,7 +181,7 @@ func TestFetchFromKVCachedWith_AuditLogsOnMissAndHit(t *testing.T) {
 	*logs = nil
 
 	// Hit - fetch must not run, but the access must still be audited.
-	if _, err := FetchFromKVCachedWith("audit-target", "store/audit-key", 5*time.Minute, true, func() (interface{}, error) {
+	if _, err := FetchFromKVCachedWith("audit-target", "store/audit-key", 5*time.Minute, true, false, func() (interface{}, error) {
 		t.Fatal("fetch should not run on a cache hit")
 		return nil, nil
 	}); err != nil {
@@ -201,10 +201,10 @@ func TestFetchFromKVCachedWith_NoAuditWhenDisabled(t *testing.T) {
 
 	fetch := func() (interface{}, error) { return "v", nil }
 
-	if _, err := FetchFromKVCachedWith("no-audit-target", "store/key", 5*time.Minute, false, fetch); err != nil {
+	if _, err := FetchFromKVCachedWith("no-audit-target", "store/key", 5*time.Minute, false, false, fetch); err != nil {
 		t.Fatalf("miss: unexpected error: %v", err)
 	}
-	if _, err := FetchFromKVCachedWith("no-audit-target", "store/key", 5*time.Minute, false, fetch); err != nil {
+	if _, err := FetchFromKVCachedWith("no-audit-target", "store/key", 5*time.Minute, false, false, fetch); err != nil {
 		t.Fatalf("hit: unexpected error: %v", err)
 	}
 	if anyContains(*logs, "AUDIT") {
@@ -222,7 +222,7 @@ func TestFetchFromKVCachedWith_MissAuditNotDoubled(t *testing.T) {
 	t.Cleanup(ClearCache)
 	logs := hookDebugFunc(t)
 
-	if _, err := FetchFromKVCachedWith("dup-target", "store/dup-key", 5*time.Minute, true, func() (interface{}, error) {
+	if _, err := FetchFromKVCachedWith("dup-target", "store/dup-key", 5*time.Minute, true, false, func() (interface{}, error) {
 		return "v", nil
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -249,7 +249,7 @@ func TestFetchFromKVCachedWith_HitRecordsMeasuredDuration(t *testing.T) {
 	t.Cleanup(ClearCache)
 
 	// Prime the cache with a miss.
-	if _, err := FetchFromKVCachedWith("measure-target", "store/measure-key", 5*time.Minute, false, func() (interface{}, error) {
+	if _, err := FetchFromKVCachedWith("measure-target", "store/measure-key", 5*time.Minute, false, false, func() (interface{}, error) {
 		return "v", nil
 	}); err != nil {
 		t.Fatalf("priming miss: unexpected error: %v", err)
@@ -257,7 +257,7 @@ func TestFetchFromKVCachedWith_HitRecordsMeasuredDuration(t *testing.T) {
 
 	before := GlobalMetrics.GetStats()["kv"]
 
-	if _, err := FetchFromKVCachedWith("measure-target", "store/measure-key", 5*time.Minute, false, func() (interface{}, error) {
+	if _, err := FetchFromKVCachedWith("measure-target", "store/measure-key", 5*time.Minute, false, false, func() (interface{}, error) {
 		t.Fatal("fetch should not run on a cache hit")
 		return nil, nil
 	}); err != nil {
@@ -283,7 +283,7 @@ func TestFetchFromObjectCachedWith_AuditLogsOnMissAndHit(t *testing.T) {
 	t.Cleanup(ClearCache)
 	logs := hookDebugFunc(t)
 
-	if _, err := FetchFromObjectCachedWith("audit-target", "bucket/audit-key", 5*time.Minute, true, func() (interface{}, error) {
+	if _, err := FetchFromObjectCachedWith("audit-target", "bucket/audit-key", 5*time.Minute, true, false, func() (interface{}, error) {
 		return "v", nil
 	}); err != nil {
 		t.Fatalf("miss: unexpected error: %v", err)
@@ -294,7 +294,7 @@ func TestFetchFromObjectCachedWith_AuditLogsOnMissAndHit(t *testing.T) {
 
 	*logs = nil
 
-	if _, err := FetchFromObjectCachedWith("audit-target", "bucket/audit-key", 5*time.Minute, true, func() (interface{}, error) {
+	if _, err := FetchFromObjectCachedWith("audit-target", "bucket/audit-key", 5*time.Minute, true, false, func() (interface{}, error) {
 		t.Fatal("fetch should not run on a cache hit")
 		return nil, nil
 	}); err != nil {
@@ -309,7 +309,7 @@ func TestFetchFromObjectCachedWith_HitRecordsMeasuredDuration(t *testing.T) {
 	ClearCache()
 	t.Cleanup(ClearCache)
 
-	if _, err := FetchFromObjectCachedWith("measure-target", "bucket/measure-key", 5*time.Minute, false, func() (interface{}, error) {
+	if _, err := FetchFromObjectCachedWith("measure-target", "bucket/measure-key", 5*time.Minute, false, false, func() (interface{}, error) {
 		return "v", nil
 	}); err != nil {
 		t.Fatalf("priming miss: unexpected error: %v", err)
@@ -317,7 +317,7 @@ func TestFetchFromObjectCachedWith_HitRecordsMeasuredDuration(t *testing.T) {
 
 	before := GlobalMetrics.GetStats()[StoreObj]
 
-	if _, err := FetchFromObjectCachedWith("measure-target", "bucket/measure-key", 5*time.Minute, false, func() (interface{}, error) {
+	if _, err := FetchFromObjectCachedWith("measure-target", "bucket/measure-key", 5*time.Minute, false, false, func() (interface{}, error) {
 		t.Fatal("fetch should not run on a cache hit")
 		return nil, nil
 	}); err != nil {

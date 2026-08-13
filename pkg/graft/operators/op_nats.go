@@ -35,14 +35,16 @@ func (NatsOperator) SupportsTarget() bool {
 // so the same store path on two different NATS clusters never collides
 // (mirroring the same fix in op_vault.go's performVaultLookup) and
 // coalesces concurrent identical requests into one backend call.
-func (n NatsOperator) fetchFromKV(js jetstream.JetStream, target, storePath string, config *natsbackend.Config) (interface{}, error) {
-	return natsbackend.FetchFromKVCached(target, js, storePath, config)
+// skipCache (the ":nocache" modifier) bypasses the cache read, the
+// coalescing, and the cache write for this one lookup.
+func (n NatsOperator) fetchFromKV(js jetstream.JetStream, target, storePath string, config *natsbackend.Config, skipCache bool) (interface{}, error) {
+	return natsbackend.FetchFromKVCached(target, js, storePath, config, skipCache)
 }
 
 // fetchFromObject retrieves a value from a NATS Object store; see
 // fetchFromKV for the cache/dedup behavior.
-func (n NatsOperator) fetchFromObject(js jetstream.JetStream, target, storePath string, config *natsbackend.Config) (interface{}, error) {
-	return natsbackend.FetchFromObjectCached(target, js, storePath, config)
+func (n NatsOperator) fetchFromObject(js jetstream.JetStream, target, storePath string, config *natsbackend.Config, skipCache bool) (interface{}, error) {
+	return natsbackend.FetchFromObjectCached(target, js, storePath, config, skipCache)
 }
 
 // parseNatsConfig extracts configuration from arguments.
@@ -291,7 +293,7 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 		if len(args) > 1 {
 			return nil, ansi.Errorf("@R{nats operator's config argument is not supported against a custom \"nats\" backend - remove the second argument or configure the backend directly}")
 		}
-		val, fetchErr := fetchFromBackend(backend, ev.Target, path)
+		val, fetchErr := fetchFromBackend(ev, backend, ev.Target, path)
 		if fetchErr != nil {
 			return nil, wrapBackendError("nats", ev.Target, path, fetchErr)
 		}
@@ -338,9 +340,9 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 	var value interface{}
 	switch storeType {
 	case natsbackend.StoreKV:
-		value, err = n.fetchFromKV(pc.JS, ev.Target, storePath, config)
+		value, err = n.fetchFromKV(pc.JS, ev.Target, storePath, config, ShouldSkipCache(ev))
 	case natsbackend.StoreObj:
-		value, err = n.fetchFromObject(pc.JS, ev.Target, storePath, config)
+		value, err = n.fetchFromObject(pc.JS, ev.Target, storePath, config, ShouldSkipCache(ev))
 	}
 
 	if err != nil {

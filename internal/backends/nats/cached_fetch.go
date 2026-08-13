@@ -33,9 +33,17 @@ var (
 // "Successfully retrieved"/"Failed to retrieve", still emitted there on
 // the miss path only), so this is the single place that line is emitted
 // from, covering both outcomes without doubling the miss case.
-func FetchFromKVCachedWith(target, storePath string, ttl time.Duration, auditLogging bool, fetch func() (interface{}, error)) (interface{}, error) {
+// skipCache (the ":nocache" expression modifier) bypasses the cache read,
+// the request coalescing, AND the cache write: a nocache fetch must
+// neither be served from nor poison/refresh the shared entry. The audit
+// line is still emitted - a nocache access is still an access.
+func FetchFromKVCachedWith(target, storePath string, ttl time.Duration, auditLogging, skipCache bool, fetch func() (interface{}, error)) (interface{}, error) {
 	if auditLogging {
 		debugLog("AUDIT: Accessing KV store: %s", storePath)
+	}
+
+	if skipCache {
+		return fetch()
 	}
 
 	startTime := time.Now()
@@ -55,10 +63,14 @@ func FetchFromKVCachedWith(target, storePath string, ttl time.Duration, auditLog
 }
 
 // FetchFromObjectCachedWith mirrors FetchFromKVCachedWith for the
-// object-store cache namespace.
-func FetchFromObjectCachedWith(target, storePath string, ttl time.Duration, auditLogging bool, fetch func() (interface{}, error)) (interface{}, error) {
+// object-store cache namespace, skipCache semantics included.
+func FetchFromObjectCachedWith(target, storePath string, ttl time.Duration, auditLogging, skipCache bool, fetch func() (interface{}, error)) (interface{}, error) {
 	if auditLogging {
 		debugLog("AUDIT: Accessing Object store: %s", storePath)
+	}
+
+	if skipCache {
+		return fetch()
 	}
 
 	startTime := time.Now()
@@ -79,16 +91,18 @@ func FetchFromObjectCachedWith(target, storePath string, ttl time.Duration, audi
 
 // FetchFromKVCached is the production entry point: target-namespaced,
 // deduped caching in front of FetchFromKV's real JetStream KV read.
-func FetchFromKVCached(target string, js jetstream.JetStream, storePath string, config *Config) (interface{}, error) {
-	return FetchFromKVCachedWith(target, storePath, config.CacheTTL, config.AuditLogging, func() (interface{}, error) {
+// skipCache bypasses the cache entirely (see FetchFromKVCachedWith).
+func FetchFromKVCached(target string, js jetstream.JetStream, storePath string, config *Config, skipCache bool) (interface{}, error) {
+	return FetchFromKVCachedWith(target, storePath, config.CacheTTL, config.AuditLogging, skipCache, func() (interface{}, error) {
 		return FetchFromKV(js, storePath, config)
 	})
 }
 
 // FetchFromObjectCached is the production entry point: target-namespaced,
 // deduped caching in front of FetchFromObject's real JetStream Object read.
-func FetchFromObjectCached(target string, js jetstream.JetStream, storePath string, config *Config) (interface{}, error) {
-	return FetchFromObjectCachedWith(target, storePath, config.CacheTTL, config.AuditLogging, func() (interface{}, error) {
+// skipCache bypasses the cache entirely (see FetchFromKVCachedWith).
+func FetchFromObjectCached(target string, js jetstream.JetStream, storePath string, config *Config, skipCache bool) (interface{}, error) {
+	return FetchFromObjectCachedWith(target, storePath, config.CacheTTL, config.AuditLogging, skipCache, func() (interface{}, error) {
 		return FetchFromObject(js, storePath, config)
 	})
 }

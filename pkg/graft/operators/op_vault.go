@@ -537,7 +537,7 @@ func (o VaultOperator) performVaultLookup(ev *graft.Evaluator, engine graft.Engi
 	}
 
 	if backend, ok := resolveCustomBackend(ev, "vault"); ok {
-		val, fetchErr := fetchFromBackend(backend, target, key)
+		val, fetchErr := fetchFromBackend(ev, backend, target, key)
 		if fetchErr != nil {
 			if isBackendNotFound(fetchErr) {
 				// Match the built-in path's exact "secret <key> not
@@ -573,7 +573,7 @@ func (o VaultOperator) performVaultLookup(ev *graft.Evaluator, engine graft.Engi
 	if target != "" {
 		cacheKey = target + "\x00" + leftPart
 	}
-	fullSecret, fetchErr := vault.SecretCache.GetOrFetch(cacheKey, func() (map[string]interface{}, error) {
+	fetch := func() (map[string]interface{}, error) {
 		DEBUG("vault: Cache MISS for `%s`", leftPart)
 		secretData, secretErr := vault.GetSecretWithReader(reader, leftPart)
 		if secretErr != nil {
@@ -585,7 +585,20 @@ func (o VaultOperator) performVaultLookup(ev *graft.Evaluator, engine graft.Engi
 			return nil, secretErr
 		}
 		return secretData, nil
-	})
+	}
+
+	var fullSecret map[string]interface{}
+	var fetchErr error
+	if ShouldSkipCache(ev) {
+		// ":nocache" bypasses both the cache read and the cache write: a
+		// nocache fetch must neither be served from nor poison/refresh
+		// the shared entry. The cache key above is never altered by the
+		// modifier.
+		DEBUG("vault: :nocache - bypassing secret cache for `%s`", leftPart)
+		fullSecret, fetchErr = fetch()
+	} else {
+		fullSecret, fetchErr = vault.SecretCache.GetOrFetch(cacheKey, fetch)
+	}
 	if fetchErr != nil {
 		return "", fetchErr
 	}

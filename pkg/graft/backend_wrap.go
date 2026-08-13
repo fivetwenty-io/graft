@@ -47,13 +47,21 @@ func (w *wrappedBackend) Get(ctx context.Context, path string) (interface{}, err
 // Get and wrappedTargetedBackend.GetWithTarget. cacheKey is path for Get,
 // "target\x00path" for GetWithTarget (see BackendCache's doc comment).
 // doFetch performs the real, unwrapped call.
+//
+// A ctx marked by WithNoCacheContext (the "(( op:nocache ... ))" modifier)
+// bypasses both the cache read and the cache write: a nocache fetch must
+// neither be served from nor poison/refresh the shared entry. Retry and
+// audit still apply. The cache key itself is never altered by the
+// modifier, so it cannot fragment or collide entries.
 func (w *wrappedBackend) fetch(ctx context.Context, target, path string, doFetch func() (interface{}, error)) (interface{}, error) {
 	cacheKey := path
 	if target != "" {
 		cacheKey = target + "\x00" + path
 	}
 
-	if w.cache != nil {
+	skipCache := noCacheFromContext(ctx)
+
+	if w.cache != nil && !skipCache {
 		if v, ok := w.cache.Get(cacheKey); ok {
 			w.logAccess(ctx, path, true, nil)
 			return v, nil
@@ -74,10 +82,28 @@ func (w *wrappedBackend) fetch(ctx context.Context, target, path string, doFetch
 		return nil, err
 	}
 
-	if w.cache != nil {
+	if w.cache != nil && !skipCache {
 		w.cache.Set(cacheKey, val, DefaultBackendCacheTTL)
 	}
 	return val, nil
+}
+
+// noCacheCtxKey marks a context produced by WithNoCacheContext.
+type noCacheCtxKey struct{}
+
+// WithNoCacheContext returns a context that instructs the registry's
+// caching wrapper to bypass both the cache read and the cache write for
+// backend calls made with it — the registry-side counterpart of the
+// "(( op:nocache ... ))" expression modifier. Retry and audit wrapping
+// are unaffected.
+func WithNoCacheContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noCacheCtxKey{}, true)
+}
+
+// noCacheFromContext reports whether ctx was marked by WithNoCacheContext.
+func noCacheFromContext(ctx context.Context) bool {
+	v, _ := ctx.Value(noCacheCtxKey{}).(bool)
+	return v
 }
 
 func (w *wrappedBackend) logAccess(ctx context.Context, path string, success bool, err error) {

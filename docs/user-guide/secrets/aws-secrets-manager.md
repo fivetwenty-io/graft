@@ -324,6 +324,11 @@ primary: (( awssecret "api-key" ))
 backup: (( awssecret "api-key" ))  # cached
 ```
 
+A single call can opt out of this cache — neither reading from it nor
+writing to it — with the `:nocache`
+[expression modifier](../../reference/expression-modifiers.md):
+`(( awssecret:nocache "api-key" ))`.
+
 ## See Also
 
 - [AWS Parameter Store](aws-ssm.md) - Simpler parameter storage

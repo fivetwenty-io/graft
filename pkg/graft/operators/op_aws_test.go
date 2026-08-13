@@ -352,7 +352,7 @@ func TestGetAwsSecret_UsesQualifiedCacheKey(t *testing.T) {
 			})
 			So(err, ShouldBeNil)
 
-			value, err := op.getAwsSecret(sess, target, base, params)
+			value, err := op.getAwsSecret(sess, target, base, params, false)
 			So(err, ShouldBeNil)
 			So(value, ShouldEqual, "preseeded-v42")
 		})
@@ -373,11 +373,11 @@ func TestGetAwsSecret_UsesQualifiedCacheKey(t *testing.T) {
 			})
 			So(err, ShouldBeNil)
 
-			v1, err := op.getAwsSecret(sess, target, base, p1)
+			v1, err := op.getAwsSecret(sess, target, base, p1, false)
 			So(err, ShouldBeNil)
 			So(v1, ShouldEqual, "preseeded-v1")
 
-			v2, err := op.getAwsSecret(sess, target, base, p2)
+			v2, err := op.getAwsSecret(sess, target, base, p2, false)
 			So(err, ShouldBeNil)
 			So(v2, ShouldEqual, "preseeded-v2")
 		})

@@ -7,6 +7,7 @@ This section provides quick reference guides and comprehensive listings for Graf
 | Reference | Description |
 |-----------|-------------|
 | [Operator Quick Reference](operator-quick-reference.md) | All operators with syntax and examples |
+| [Expression Modifiers](expression-modifiers.md) | The `:nocache` operator-name suffix |
 | [CLI Quick Reference](cli-quick-reference.md) | All commands and flags |
 | [Environment Variables](environment-variables.md) | Configuration environment variables |
 | [Error Codes](error-codes.md) | Error types and troubleshooting |
@@ -82,7 +83,11 @@ not part of that count.
 | `load` | Load and parse YAML/JSON |
 
 Any of these five backend operators accepts a named target written on the
-operator name: `(( vault@production "secret/db:password" ))`.
+operator name: `(( vault@production "secret/db:password" ))`. The
+vault/AWS/NATS operators also honor the `:nocache`
+[expression modifier](expression-modifiers.md), which exempts a single
+call from the per-run backend cache:
+`(( vault:nocache@production "secret/db:password" ))`.
 
 ### IP Arithmetic
 

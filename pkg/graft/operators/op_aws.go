@@ -138,7 +138,7 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		// which - like the built-in path - runs uniformly afterward
 		// regardless of which source produced value).
 		if backend, ok := resolveCustomBackend(ev, o.variant); ok {
-			val, fetchErr := fetchFromBackend(backend, ev.Target, key)
+			val, fetchErr := fetchFromBackend(ev, backend, ev.Target, key)
 			if fetchErr != nil {
 				return nil, fmt.Errorf("$.%s error fetching %s: %w", key, o.variant, wrapBackendError(o.variant, ev.Target, key, fetchErr))
 			}
@@ -151,9 +151,9 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 			switch o.variant {
 			case "awsparam":
-				value, err = o.getAwsParam(awsSess, cacheTarget, key)
+				value, err = o.getAwsParam(awsSess, cacheTarget, key, ShouldSkipCache(ev))
 			case "awssecret":
-				value, err = o.getAwsSecret(awsSess, cacheTarget, key, params)
+				value, err = o.getAwsSecret(awsSess, cacheTarget, key, params, ShouldSkipCache(ev))
 			}
 
 			if err != nil {
@@ -299,8 +299,11 @@ func buildAwsSecretInput(secret string, params url.Values) *secretsmanager.GetSe
 // different stage/version qualifiers (e.g. "db?version=1" vs
 // "db?version=2") get independent cache entries and independent fetches
 // instead of colliding on one.
-func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secret string, params url.Values) (string, error) {
-	return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, awsSecretCacheKey(secret, params), func() (string, error) {
+// skipCache (the ":nocache" modifier) bypasses GetOrFetchSecret entirely -
+// no cache read, no cache write, no request coalescing - so the lookup
+// neither serves from nor refreshes the shared entry.
+func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secret string, params url.Values, skipCache bool) (string, error) {
+	fetch := func() (string, error) {
 		client := secretsmanager.New(awsSession)
 
 		output, err := client.GetSecretValue(buildAwsSecretInput(secret, params))
@@ -309,14 +312,19 @@ func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secr
 		}
 
 		return awsSDK.StringValue(output.SecretString), nil
-	})
+	}
+	if skipCache {
+		return fetch()
+	}
+	return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, awsSecretCacheKey(secret, params), fetch)
 }
 
 // getAwsParam fetches a parameter using the AWS backend cache and session.
 // cacheTarget namespaces the parameter cache (see resolveSession); see
-// getAwsSecret for the GetOrFetchParam cache+dedup behavior.
-func (o AwsOperator) getAwsParam(awsSession *session.Session, cacheTarget, param string) (string, error) {
-	return awsbackend.DefaultPool.GetOrFetchParam(cacheTarget, param, func() (string, error) {
+// getAwsSecret for the GetOrFetchParam cache+dedup behavior and the
+// skipCache (":nocache") bypass semantics.
+func (o AwsOperator) getAwsParam(awsSession *session.Session, cacheTarget, param string, skipCache bool) (string, error) {
+	fetch := func() (string, error) {
 		client := ssm.New(awsSession)
 
 		input := &ssm.GetParameterInput{
@@ -330,7 +338,11 @@ func (o AwsOperator) getAwsParam(awsSession *session.Session, cacheTarget, param
 		}
 
 		return awsSDK.StringValue(output.Parameter.Value), nil
-	})
+	}
+	if skipCache {
+		return fetch()
+	}
+	return awsbackend.DefaultPool.GetOrFetchParam(cacheTarget, param, fetch)
 }
 
 // NewAwsParamOperator creates a new AWS Parameter Store operator.

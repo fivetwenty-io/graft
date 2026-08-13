@@ -390,6 +390,11 @@ primary: (( nats "kv:config/setting" ))
 backup: (( nats "kv:config/setting" ))  # cached
 ```
 
+A single call can opt out of this cache — neither reading from it nor
+writing to it — with the `:nocache`
+[expression modifier](../../reference/expression-modifiers.md):
+`(( nats:nocache "kv:config/setting" ))`.
+
 ## NATS vs Other Backends
 
 | Feature | NATS | Vault | AWS |

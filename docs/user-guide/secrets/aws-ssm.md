@@ -297,6 +297,11 @@ cache_host: (( awsparam "/app/config?key=cache.host" ))
 cache_ttl: (( awsparam "/app/config?key=cache.ttl" ))
 ```
 
+A single call can opt out of this cache — neither reading from it nor
+writing to it — with the `:nocache`
+[expression modifier](../../reference/expression-modifiers.md):
+`(( awsparam:nocache "/app/db/host" ))`.
+
 ## See Also
 
 - [AWS Secrets Manager](aws-secrets-manager.md) - For more complex secrets

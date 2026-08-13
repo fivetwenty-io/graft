@@ -50,8 +50,16 @@ func resolveCustomBackend(ev *graft.Evaluator, name string) (graft.Backend, bool
 // cannot be resolved in op_vault.go's resolveReader and op_aws.go's
 // resolveSession: silently ignoring the target risks reading from the
 // wrong instance, which is worse than failing).
-func fetchFromBackend(backend graft.Backend, target, path string) (interface{}, error) {
+//
+// When the running call carries the ":nocache" modifier (ShouldSkipCache
+// on ev), the context is marked with graft.WithNoCacheContext so the
+// registry's caching wrapper skips both its cache read and its cache
+// write for this one call.
+func fetchFromBackend(ev *graft.Evaluator, backend graft.Backend, target, path string) (interface{}, error) {
 	ctx := context.Background()
+	if ShouldSkipCache(ev) {
+		ctx = graft.WithNoCacheContext(ctx)
+	}
 
 	if target == "" {
 		return backend.Get(ctx, path)
