@@ -1,0 +1,213 @@
+# GoReleaser configuration for the graft CLI.
+# Docs: https://goreleaser.com
+#
+# Release targets:
+#   - darwin/amd64   (Intel Mac)
+#   - darwin/arm64   (Apple Silicon)
+#   - linux/amd64    (x86-64)
+#   - linux/arm64    (aarch64)
+#   - freebsd/amd64  (x86-64)
+#   - freebsd/arm64  (aarch64)
+#   - windows/amd64  (64-bit)
+#
+# Local snapshot:  goreleaser release --snapshot --clean
+# Local dry-run:   goreleaser build --snapshot --clean
+# Published by:    .github/workflows/release.yml on a v* tag.
+version: 2
+
+project_name: graft
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+    # Shell completions ship in the archives, packages, and the cask.
+    # `go run` can't set the binary name cobra reports in the generated
+    # scripts, so build once and generate from the built binary.
+    - mkdir -p ./completions/.bin
+    - go build -o ./completions/.bin/graft ./cmd/graft
+    - sh -c "./completions/.bin/graft completion bash > ./completions/graft.bash"
+    - sh -c "./completions/.bin/graft completion zsh  > ./completions/_graft"
+    - sh -c "./completions/.bin/graft completion fish > ./completions/graft.fish"
+
+builds:
+  - id: graft
+    main: ./cmd/graft
+    binary: graft
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    # Reproducible builds: pin the embedded timestamp to the commit.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w
+      # genesis's check_prereqs() requires the `-v`/`--version` output to
+      # contain a semver token >= 1.28.0; the tag provides it.
+      - -X main.Version={{ .Version }}
+    goos:
+      - linux
+      - darwin
+      - freebsd
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: graft
+    ids:
+      - graft
+    # tar.gz everywhere except Windows, which gets a .zip.
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    # e.g. graft_1.31.1_darwin_arm64.tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
+      # NB: literal (non-glob) sources need the full destination *file*
+      # path, not just the directory — goreleaser resolves a directory-only
+      # dst relative to the src file itself for non-glob sources, dropping
+      # the filename.
+      - src: completions/graft.bash
+        dst: share/bash-completion/completions/graft.bash
+      - src: completions/_graft
+        dst: share/zsh/site-functions/_graft
+      - src: completions/graft.fish
+        dst: share/fish/vendor_completions.d/graft.fish
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
+  algorithm: sha256
+
+nfpms:
+  - id: graft
+    package_name: graft
+    ids:
+      - graft
+    vendor: FiveTwenty Inc.
+    homepage: https://github.com/fivetwenty-io/graft
+    maintainer: Wayne E. Seguin <wayneeseguin@fivetwenty.io>
+    description: YAML/JSON merging and templating CLI, spruce-compatible.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: ./completions/graft.bash
+        dst: /usr/share/bash-completion/completions/graft
+      - src: ./completions/_graft
+        dst: /usr/share/zsh/site-functions/_graft
+      - src: ./completions/graft.fish
+        dst: /usr/share/fish/vendor_completions.d/graft.fish
+      - src: LICENSE
+        dst: /usr/share/doc/graft/LICENSE
+
+# Sign + notarize the darwin binaries so Gatekeeper accepts them on first
+# launch (Homebrew quarantines cask artifacts; an unsigned binary is killed
+# outright on Apple Silicon). Runs via quill, so it works on the Linux
+# release runner — no macOS runner needed. All values come from secrets;
+# when MACOS_SIGN_P12 is unset/empty the step is skipped entirely, so local
+# snapshots and releases without the Apple secrets still succeed
+# (envOrDefault keeps the unset-env case from failing template evaluation
+# under missingkey=error).
+notarize:
+  macos:
+    - enabled: '{{ if index .Env "MACOS_SIGN_P12" }}true{{ else }}false{{ end }}'
+      ids:
+        - graft
+      sign:
+        certificate: '{{ envOrDefault "MACOS_SIGN_P12" "" }}'
+        password: '{{ envOrDefault "MACOS_SIGN_PASSWORD" "" }}'
+      notarize:
+        issuer_id: '{{ envOrDefault "MACOS_NOTARY_ISSUER_ID" "" }}'
+        key_id: '{{ envOrDefault "MACOS_NOTARY_KEY_ID" "" }}'
+        key: '{{ envOrDefault "MACOS_NOTARY_KEY" "" }}'
+        wait: true
+        timeout: 30m
+
+homebrew_casks:
+  - name: graft
+    ids:
+      - graft
+    repository:
+      owner: fivetwenty-io
+      name: homebrew-tap
+      # goreleaser accepts ONLY the literal `{{ .Env.VAR_NAME }}` form here —
+      # no envOrDefault, no `index .Env`, no other interpolation. The
+      # skip_upload guard below covers releases without the tap secret.
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/fivetwenty-io/graft
+    description: YAML/JSON merging and templating CLI, spruce-compatible
+    # Skip pushing the cask whenever the tap token is not configured, so a
+    # release without the HOMEBREW_TAP_GITHUB_TOKEN secret still succeeds
+    # (`index .Env` is nil-safe under missingkey=error, unlike direct access).
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
+    binaries:
+      - graft
+    completions:
+      bash: share/bash-completion/completions/graft.bash
+      zsh: share/zsh/site-functions/_graft
+      fish: share/fish/vendor_completions.d/graft.fish
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "merge conflict"
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: fivetwenty-io
+    name: graft
+  draft: false
+  prerelease: auto
+  name_template: "graft {{ .Version }}"
+  header: |
+    ## graft {{ .Version }}
+
+    YAML/JSON merging and templating CLI — a drop-in replacement for
+    [spruce](https://github.com/geofffranks/spruce), including under
+    [Genesis](https://github.com/genesis-community/genesis).
+
+    ### Install
+
+    ```bash
+    brew install --cask fivetwenty-io/tap/graft
+    ```
+
+    Or download the archive for your platform from the assets below, verify
+    it against `graft_{{ .Version }}_SHA256SUMS`, extract, and place `graft`
+    on your `PATH`. Debian/RPM packages are also attached. The darwin
+    binaries are signed and notarized.
+
+    ### Using graft as spruce under Genesis (optional)
+
+    graft inspects how it was invoked (`argv[0]`), so a spruce-named symlink
+    reports itself as `spruce` and passes Genesis's version gate:
+
+    ```bash
+    ln -s "$(command -v graft)" /usr/local/bin/spruce
+    spruce -v   # spruce - Version {{ .Version }}
+    ```

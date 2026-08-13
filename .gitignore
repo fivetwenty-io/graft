@@ -10,6 +10,9 @@
 /bin/
 /dist/
 
+# Generated at release time by the .goreleaser.yaml before-hooks
+/completions/
+
 # Test binary, built with `go test -c`
 *.test
 
