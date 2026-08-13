@@ -1,6 +1,6 @@
 # Operator inventory: graft vs. spruce
 
-spruce registers 25 operator names. graft registers 47. This page lists both
+spruce registers 25 operator names. graft registers 48. This page lists both
 sets, operator by operator, and calls out the operators that exist in one
 tool but not the other.
 
@@ -36,6 +36,7 @@ exact byte-for-byte parity until confirmed (see [Known gaps](known-gaps.md)).
 | `shuffle` | Yes | Yes | Randomly reorders the combined elements of its arguments. |
 | `stringify` | Yes | Yes | YAML-marshals a referenced value to a string, or passes a literal through unchanged. |
 | `cartesian-product` | Yes | Yes | Combines multiple list/scalar arguments into the flat cartesian expansion of concatenated strings. graft additionally registers the shorter alias `cartesian` for the same implementation; spruce has no such alias. |
+| `raw_env` | Yes | Yes | Resolves a single `$ENVVAR`-style argument to its raw string value, bypassing YAML type coercion: `(( raw_env $PORT ))` keeps `"8080"` a string where `(( grab $PORT ))` yields the integer 8080. A set-but-empty variable is a valid (empty string) value. Fallback branches after `\|\|` get normal coercing evaluation — that asymmetry matches spruce. Checked directly: error strings (`environment variable $X is not set`, arity, non-env argument) are byte-identical to spruce's. |
 
 ## Operators present only in graft
 
@@ -60,18 +61,14 @@ separate `or` registration redundant.
 
 ## Operators present only in spruce
 
-| Operator | File | Notes |
-|---|---|---|
-| `raw_env` | `op_raw_env.go` | Resolves a single `$ENVVAR`-style argument to its raw string value, bypassing the YAML type coercion that graft's and spruce's normal `$VAR` substitution both apply. graft has no operator or file registered under this name or a similar one — this is a genuine gap, not a naming difference. A kit or deployment file that relies on `(( raw_env $SOME_VAR ))` to preserve a value's raw string form (for example, a value that would otherwise be parsed as a YAML number or boolean) has no direct graft equivalent today. |
-
-No other spruce operator is missing from graft; every other spruce operator
-name has a same-named, same-purpose registration in graft as shown in the
-table above.
+None. Every spruce operator name has a same-named, same-purpose registration
+in graft as shown in the table above. (`raw_env`, the last holdout, was added
+in graft 1.32.0.)
 
 ## Counting notes
 
 spruce's 25 registrations are 25 distinct implementations, with no aliases.
-graft's 47 registrations include two aliases pointing at one implementation
+graft's 48 registrations include two aliases pointing at one implementation
 (`cartesian-product` / `cartesian`) and one operator, `vault`, whose file
 (`op_vault.go`) also registers the separate `vault-try` implementation. Every
 other graft registration is a distinct implementation.

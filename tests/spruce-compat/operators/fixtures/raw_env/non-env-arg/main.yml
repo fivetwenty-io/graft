@@ -1,0 +1,2 @@
+other: value
+v: (( raw_env other ))

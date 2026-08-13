@@ -30,8 +30,8 @@ global flag (`--color`) and one new merge/fan flag (`--dataflow-order`) that
 spruce does not have; neither changes default behavior. See
 [CLI surface](cli-surface.md) for the full comparison.
 
-**Operators.** Every spruce operator except one, `raw_env`, has a
-same-named, same-purpose counterpart in graft. graft additionally ships
+**Operators.** Every spruce operator has a same-named, same-purpose
+counterpart in graft. graft additionally ships
 operators with no spruce equivalent: a fallback-chain vault
 lookup (`vault-try`), a NATS key-value backend (`nats`), string splitting
 (`split`), a ternary conditional (`?:`), first-class arithmetic operators
@@ -78,10 +78,8 @@ verified byte-for-byte against spruce's behavior, that is stated explicitly
 rather than assumed. [Known gaps](known-gaps.md) is the single place that
 tracks which of these differences count as open work, including a
 [Resolved](known-gaps.md#resolved) section for items that have since been
-closed. As of this writing, the open items are a missing `raw_env`
-operator, a few internal (non-parity) loose ends, and one
-still-unverified byte-level formatting question (trailing newline
-count); null rendering,
+closed. As of this writing, the open item is one still-unverified
+byte-level formatting question (trailing newline count); null rendering,
 map key ordering, the array-merge fallback warning, and parallel-evaluation
 determinism have all been confirmed against the spruce binary and are
 covered by dedicated tests.

@@ -1069,6 +1069,15 @@ func registerExternalOperators() {
 		Phase:       EvalPhase,
 		Precedence:  PrecedenceCall,
 	})
+
+	RegisterOperator("raw_env", OperatorInfo{
+		MinArgs:     1,
+		MaxArgs:     1,
+		Description: "Read environment variable as raw string without YAML coercion",
+		Category:    CategoryExternal,
+		Phase:       EvalPhase,
+		Precedence:  PrecedenceCall,
+	})
 }
 
 // registerTypeOperators registers type checking and conversion operators.

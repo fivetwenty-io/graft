@@ -501,7 +501,8 @@ var OperatorNames = map[string]bool{
 	"file": true,
 
 	// Environment
-	"env": true,
+	"env":     true,
+	"raw_env": true,
 
 	// IP/Network
 	"ip":   true,

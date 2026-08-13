@@ -13,9 +13,8 @@ Graft aims to run any Spruce configuration unchanged:
   and pruning — are preserved
 
 The differences that remain are catalogued in
-[Known Gaps](../spruce/known-gaps.md); the notable one for existing
-configurations is Spruce's `raw_env` operator, which graft does not
-register.
+[Known Gaps](../spruce/known-gaps.md); none of them affect existing
+configurations.
 
 ## Quick Migration
 
@@ -239,7 +238,7 @@ yaml, _ := result.ToYAML()
 | `calc` with a quoted expression | Yes | Yes |
 | `\|\|` fallback | Yes | Yes |
 | go-patch support | Yes | Yes |
-| `raw_env` | Yes | No |
+| `raw_env` | Yes | Yes |
 | Infix arithmetic — `(( a + b ))` | No | Yes |
 | Comparison operators — `==`, `!=`, `<`, `>`, `<=`, `>=` | No | Yes |
 | Boolean operators — `&&`, `!` | No | Yes |

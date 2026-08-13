@@ -288,6 +288,7 @@ func PopulateCompleteRegistry() error {
 		{"load", PrecedenceCall, LeftAssociative, 1, 1, EvalPhase},
 		{"param", PrecedenceCall, LeftAssociative, 1, 1, ParamPhase},
 		{"prune", PrecedenceCall, LeftAssociative, 0, -1, EvalPhase},
+		{"raw_env", PrecedenceCall, LeftAssociative, 1, 1, EvalPhase},
 		{"regexp", PrecedenceCall, LeftAssociative, 2, 3, EvalPhase},
 		{"sort", PrecedenceCall, LeftAssociative, 0, 1, EvalPhase},
 		{"split", PrecedenceCall, LeftAssociative, 2, 2, EvalPhase},

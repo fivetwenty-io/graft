@@ -506,6 +506,18 @@ Load and parse YAML/JSON file.
 external: (( load "extra-config.yml" ))
 ```
 
+### raw_env
+
+Read an environment variable as a raw string, with no YAML type coercion.
+A set-but-empty variable is a valid (empty string) value; an unset variable
+is an error. Fallback branches after `||` are evaluated normally, coercion
+included.
+
+```yaml
+port: (( raw_env $PORT ))            # "8080" stays a string
+debug: (( raw_env $DEBUG || false )) # unset -> boolean false (coerced)
+```
+
 ## IP Operations
 
 ### ips
