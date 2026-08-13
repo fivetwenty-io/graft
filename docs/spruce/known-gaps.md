@@ -215,7 +215,7 @@ With this operator in place, no spruce operator is missing from graft.
 implemented: `graft.QuickMerge(yamls ...string)` and
 `graft.QuickMergeFiles(paths ...string)` each build a default engine,
 merge their inputs left to right with full operator evaluation, and
-return the marshaled YAML string. Zero arguments yield `"{}\n"`.
+return the marshaled YAML bytes. Zero arguments yield `"{}\n"`.
 Pinned by `pkg/graft/quick_merge_test.go` and runnable examples in
 `pkg/graft/examples_doc_test.go`; documented in the
 [engine API guide](../developer-guide/library-api/engine.md).

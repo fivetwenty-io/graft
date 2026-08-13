@@ -8,6 +8,15 @@ For callers who need nothing but a merged document, two package-level
 helpers skip the engine entirely:
 
 ```go
+import (
+    "github.com/fivetwenty-io/graft/pkg/graft"
+
+    // Required once per program: registers the operators. Without it,
+    // any source containing an (( ... )) expression fails with
+    // "parser not initialized - operators package must be imported".
+    _ "github.com/fivetwenty-io/graft/pkg/graft/operators"
+)
+
 out, err := graft.QuickMerge(
     "name: myapp\nreplicas: 1\n",
     "replicas: 3\n",

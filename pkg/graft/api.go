@@ -795,6 +795,13 @@ func CreateDefaultEngine() (Engine, error) {
 // want any of those should build an engine with NewEngine and use its
 // Merge builder directly. With no sources it returns an empty document
 // ("{}\n").
+//
+// Like every use of this package that evaluates operators, the consuming
+// program must blank-import the operators package once, or every source
+// containing an (( ... )) expression fails with "parser not initialized -
+// operators package must be imported":
+//
+//	import _ "github.com/fivetwenty-io/graft/pkg/graft/operators"
 func QuickMerge(yamlSources ...string) ([]byte, error) {
 	engine, err := CreateDefaultEngine()
 	if err != nil {
@@ -822,8 +829,9 @@ func QuickMerge(yamlSources ...string) ([]byte, error) {
 // QuickMergeFiles is QuickMerge for files on disk: it loads each path,
 // merges them in order, evaluates operators, and returns the result as
 // YAML bytes. Load errors (missing or unparseable files) are reported by
-// Execute. Like QuickMerge, each call constructs a fresh default engine;
-// with no paths it returns an empty document ("{}\n").
+// Execute. Like QuickMerge, each call constructs a fresh default engine,
+// and the consuming program must blank-import the operators package (see
+// QuickMerge); with no paths it returns an empty document ("{}\n").
 func QuickMergeFiles(paths ...string) ([]byte, error) {
 	engine, err := CreateDefaultEngine()
 	if err != nil {
