@@ -215,7 +215,7 @@ type HistoryFilter struct {
 
 | Field | Description |
 |-------|-------------|
-| `Path` | Filter by path - a prefix match against the recorded path, not a wildcard pattern despite the field's original doc comment; there is no wildcard expansion implemented. The prefix is also not segment-aware: `Path: "db"` matches a recorded path `"dbextra"` too, not only `"db"` and its descendants. |
+| `Path` | Filter by path. A recorded path matches on exact equality, on the wildcard grammar `PathMatches` implements (`*` one segment, `**` zero or more, `[0]`, `[*]`, `[key=value]`), or on a segment-aware path prefix: `Path: "db"` matches `"db"` and `"db.host"` but not `"dbextra"`. Empty disables the filter. |
 | `Phase` | Filter by phase (`nil` for any). |
 | `Operation` | Filter by operation (`nil` for any). |
 | `Source` | Filter by the raw string `DocumentMemory` recorded at the site (see `HistoryEntry.Operator`'s doc comment) - this field's name predates the `HistoryEntry.Operator`/`Source` split and still matches the underlying `ChangeEvent.Source`, not `HistoryEntry.Source`. |

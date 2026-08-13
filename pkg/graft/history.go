@@ -228,11 +228,10 @@ type History interface {
 	ForPath(path string) []HistoryEntry
 
 	// Query returns entries matching filter, applying HistoryFilter's
-	// fields exactly as DocumentMemory.Query does (Path is a prefix
-	// match, not a wildcard pattern, despite HistoryFilter.Path's
-	// pre-existing doc comment, and not segment-aware - Path: "db" also
-	// matches a recorded path "dbextra"; Limit caps the earliest N
-	// matches).
+	// fields exactly as DocumentMemory.Query does. Path matches on exact
+	// equality, PathMatches wildcards (*, **, [0], [*], [key=value]), or
+	// a segment-aware path prefix - Path: "db" matches "db.host" but not
+	// "dbextra". Limit caps the earliest N matches.
 	Query(filter HistoryFilter) []HistoryEntry
 
 	// Timeline returns every recorded entry across every path, in

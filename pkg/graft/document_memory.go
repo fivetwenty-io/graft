@@ -89,7 +89,7 @@ type VersionDiff struct {
 
 // HistoryFilter for querying history.
 type HistoryFilter struct {
-	Path      string           // Filter by path (matchPath is a prefix match today, despite the name; there is no wildcard expansion yet, and the prefix is not segment-aware - Path: "db" also matches a recorded path "dbextra")
+	Path      string           // Filter by path: exact match, PathMatches wildcards (*, **, [0], [*], [key=value]), or segment-aware prefix ("db" matches "db.host" but not "dbextra"). Empty disables the filter.
 	Phase     *ChangePhase     // Filter by phase
 	Operation *ChangeOperation // Filter by operation
 	Source    string           // Filter by source
@@ -450,10 +450,18 @@ func (dm *DocumentMemory) pruneOldVersions(history *NodeHistory) {
 	}
 }
 
-// matchPath checks if a path matches a pattern (simple prefix match for now).
+// matchPath checks if a recorded history path matches a filter pattern. A
+// path matches when it equals the pattern, when PathMatches accepts it
+// (*, **, [0], [*], [key=value] wildcards - the same grammar diff filtering
+// uses), or when the pattern is a segment-aware path prefix of it, so
+// "db" matches "db.host" but not "dbextra" (the previous raw byte-prefix
+// check wrongly matched both). Recorded paths use the unified dotted no-$
+// form, which ParsePath handles directly.
 func matchPath(path, pattern string) bool {
-	// TODO: Implement proper wildcard matching
-	return path == pattern || (pattern != "" && len(path) >= len(pattern) && path[:len(pattern)] == pattern)
+	if path == pattern {
+		return true
+	}
+	return PathMatches(path, pattern) || PathHasPrefix(path, pattern)
 }
 
 // String returns a string representation of a ChangeOperation.

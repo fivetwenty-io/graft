@@ -309,6 +309,14 @@ func TestPathMatches(t *testing.T) {
 		// Complex patterns
 		{"items[0].name", "items.*.name", true},
 		{"items[0].name", "items.[0].name", true},
+
+		// Dotted-numeric list indices (the form diff change paths and
+		// recorded history paths actually use) satisfy bracket index
+		// patterns too.
+		{"items.0.name", "items.[0].name", true},
+		{"items.0.name", "items.[*].name", true},
+		{"items.0.name", "items.[1].name", false},
+		{"items.web.name", "items.[*].name", false},
 	}
 
 	for _, tt := range tests {

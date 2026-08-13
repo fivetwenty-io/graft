@@ -417,13 +417,32 @@ func matchSegments(pathSegs []PathSegment, patternSegs []string, pathIdx, patter
 	return false
 }
 
+// isAllDigits reports whether s is non-empty and entirely ASCII digits.
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // matchBracketPattern matches a path segment against a bracket pattern.
+// Index patterns ([0], [*]) also accept an all-digit field segment: both
+// diff change paths and recorded history paths spell list indices in
+// dotted form ("jobs.0.name"), which ParsePath classifies as fields, so
+// without this equivalence a bracket index pattern could never match
+// either caller's paths.
 func matchBracketPattern(pathSeg PathSegment, pattern string) bool {
 	inner := pattern[1 : len(pattern)-1]
 
 	// Wildcard index
 	if inner == "*" {
-		return pathSeg.Type == PathSegmentIndex || pathSeg.Type == PathSegmentKeyMatch
+		return pathSeg.Type == PathSegmentIndex || pathSeg.Type == PathSegmentKeyMatch ||
+			(pathSeg.Type == PathSegmentField && isAllDigits(pathSeg.Key))
 	}
 
 	// Key=* pattern (any value for key)
@@ -434,7 +453,8 @@ func matchBracketPattern(pathSeg PathSegment, pattern string) bool {
 
 	// Exact index match
 	if idx, err := strconv.Atoi(inner); err == nil {
-		return pathSeg.Type == PathSegmentIndex && pathSeg.Index == idx
+		return (pathSeg.Type == PathSegmentIndex && pathSeg.Index == idx) ||
+			(pathSeg.Type == PathSegmentField && pathSeg.Key == inner)
 	}
 
 	// Key=value match
