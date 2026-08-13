@@ -243,30 +243,6 @@ database:
 	fmt.Println(string(output))
 }
 
-// ExampleConvenienceFunctions demonstrates quick utility functions
-// TODO: Re-enable after implementing convenience functions
-// func ExampleConvenienceFunctions() {
-// 	// Quick merge from YAML strings
-// 	output, err := QuickMerge(`
-// name: myapp
-// version: 1.0
-// `, `
-// version: 2.0
-// environment: production
-// `)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	fmt.Println(string(output))
-//
-// 	// Quick merge from files
-// 	output, err = QuickMergeFiles("base.yml", "production.yml")
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	fmt.Println(string(output))
-// }
-
 // CustomUppercaseOperator is an example custom operator.
 type CustomUppercaseOperator struct{}
 

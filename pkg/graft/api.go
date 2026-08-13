@@ -784,45 +784,57 @@ func CreateDefaultEngine() (Engine, error) {
 	return NewEngine()
 }
 
-// TODO: Implement convenience functions after Engine implementation is complete
+// QuickMerge parses each YAML source, merges them in order (later sources
+// override earlier ones), evaluates operators, and returns the result as
+// YAML bytes. It is the one-call form of
+// CreateDefaultEngine + ParseYAML + Merge().Execute() + ToYAML for callers
+// who need nothing but a merged document.
+//
+// Each call constructs a fresh default engine: no cache is shared between
+// calls and no custom operators, backends, or options apply. Callers who
+// want any of those should build an engine with NewEngine and use its
+// Merge builder directly. With no sources it returns an empty document
+// ("{}\n").
+func QuickMerge(yamlSources ...string) ([]byte, error) {
+	engine, err := CreateDefaultEngine()
+	if err != nil {
+		return nil, err
+	}
 
-// QuickMerge is a convenience function for simple merge operations
-// func QuickMerge(yamlSources ...string) ([]byte, error) {
-// 	engine, err := DefaultEngine()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	var docs []Document
-// 	for _, source := range yamlSources {
-// 		doc, err := engine.ParseYAML([]byte(source))
-// 		if err != nil {
-// 			return nil, NewParseError("failed to parse YAML", err)
-// 		}
-// 		docs = append(docs, doc)
-// 	}
-//
-// 	result, err := engine.Merge(context.Background(), docs...).Execute()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	return engine.ToYAML(result)
-// }
+	ctx := context.Background()
+	docs := make([]Document, 0, len(yamlSources))
+	for _, source := range yamlSources {
+		doc, err := engine.ParseYAML([]byte(source))
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, doc)
+	}
 
-// QuickMergeFiles is a convenience function for merging files
-//
-//	func QuickMergeFiles(paths ...string) ([]byte, error) {
-//		engine, err := DefaultEngine()
-//		if err != nil {
-//			return nil, err
-//		}
-//
-//		result, err := engine.MergeFiles(context.Background(), paths...).Execute()
-//		if err != nil {
-//			return nil, err
-//		}
-//
-//		return engine.ToYAML(result)
-//	}
-//
+	result, err := engine.Merge(ctx, docs...).Execute()
+	if err != nil {
+		return nil, err
+	}
+
+	return engine.ToYAML(result)
+}
+
+// QuickMergeFiles is QuickMerge for files on disk: it loads each path,
+// merges them in order, evaluates operators, and returns the result as
+// YAML bytes. Load errors (missing or unparseable files) are reported by
+// Execute. Like QuickMerge, each call constructs a fresh default engine;
+// with no paths it returns an empty document ("{}\n").
+func QuickMergeFiles(paths ...string) ([]byte, error) {
+	engine, err := CreateDefaultEngine()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	result, err := engine.MergeFiles(ctx, paths...).Execute()
+	if err != nil {
+		return nil, err
+	}
+
+	return engine.ToYAML(result)
+}

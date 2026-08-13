@@ -2,6 +2,26 @@
 
 The `Engine` interface is the main entry point for all Graft operations. It provides methods for parsing documents, merging, diffing, evaluation, and operator management.
 
+## Quick start
+
+For callers who need nothing but a merged document, two package-level
+helpers skip the engine entirely:
+
+```go
+out, err := graft.QuickMerge(
+    "name: myapp\nreplicas: 1\n",
+    "replicas: 3\n",
+)
+
+out, err = graft.QuickMergeFiles("base.yml", "prod.yml")
+```
+
+Both parse their sources, merge them in order (later sources override
+earlier ones), evaluate operators, and return YAML bytes. Each call
+constructs a fresh default engine — no cache is shared between calls and
+no custom operators, backends, or options apply. Everything below is for
+callers who need more than that.
+
 ## Interface Definition
 
 ```go

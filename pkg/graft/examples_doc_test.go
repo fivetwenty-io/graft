@@ -121,6 +121,58 @@ func ExampleEngine_MergeFiles() {
 	// 5432
 }
 
+// ExampleQuickMerge backs engine.md's quick-start stanza: the one-call
+// package-level form for callers who need nothing but a merged document.
+// Each call constructs a fresh default engine (no shared cache, no custom
+// operators); anything fancier should build an engine with NewEngine.
+func ExampleQuickMerge() {
+	out, err := graft.QuickMerge(
+		"name: myapp\nreplicas: 1\n",
+		"replicas: 3\n",
+	)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	fmt.Print(string(out))
+	// Output:
+	// name: myapp
+	// replicas: 3
+}
+
+// ExampleQuickMergeFiles is ExampleQuickMerge for files on disk.
+func ExampleQuickMergeFiles() {
+	dir, err := os.MkdirTemp("", "graft-example-quickmerge")
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	defer os.RemoveAll(dir)
+
+	basePath := filepath.Join(dir, "base.yml")
+	overlayPath := filepath.Join(dir, "prod.yml")
+	if err := os.WriteFile(basePath, []byte("name: myapp\nreplicas: 1\n"), 0o644); err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	if err := os.WriteFile(overlayPath, []byte("replicas: 3\n"), 0o644); err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	out, err := graft.QuickMergeFiles(basePath, overlayPath)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	fmt.Print(string(out))
+	// Output:
+	// name: myapp
+	// replicas: 3
+}
+
 // ExampleMergeBuilder_Base backs merge-builder.md's Base/Overlay/OverlayFile
 // section: Base sets position 0 in the builder's document list, Overlay
 // appends in-memory documents, and OverlayFile loads and appends a file,
