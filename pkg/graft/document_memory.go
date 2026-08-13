@@ -359,7 +359,7 @@ func (dm *DocumentMemory) Query(filter HistoryFilter) []ChangeEvent {
 	results := make([]ChangeEvent, 0)
 
 	for _, event := range dm.timeline {
-		// Check path filter (simple prefix match for now)
+		// Check path filter (exact, wildcard, or segment-prefix match)
 		if filter.Path != "" && !matchPath(event.Path, filter.Path) {
 			continue
 		}
