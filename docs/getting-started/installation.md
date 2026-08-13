@@ -5,11 +5,22 @@ This guide covers all the ways to install Graft on your system.
 ## Requirements
 
 - **Go 1.26+** (for building from source or `go install`)
-- **Linux** or **macOS** on **amd64** or **arm64**, or **Windows** on **amd64**
+- **Linux**, **macOS**, or **FreeBSD** on **amd64** or **arm64**, or
+  **Windows** on **amd64**
 
 ## Installation Methods
 
-### Using Go Install (Recommended)
+### Homebrew (Recommended on macOS and Linux)
+
+```sh
+brew install --cask fivetwenty-io/tap/graft
+```
+
+Installs the `graft` binary and shell completions from the
+[fivetwenty-io tap](https://github.com/fivetwenty-io/homebrew-tap). The
+macOS binaries are signed and notarized.
+
+### Using Go Install
 
 If you have Go installed, this is the quickest method:
 
@@ -27,45 +38,46 @@ graft --version
 
 Download pre-built binaries from the [releases page](https://github.com/fivetwenty-io/graft/releases/).
 
-Release assets are named `graft-<version>-<os>-<arch>`, and the version is part
+Release assets are named `graft_<version>_<os>_<arch>`, and the version is part
 of both the tag and the filename. The examples below use `GRAFT_VERSION`; set it
-to the release you want.
+to the release you want. Debian and RPM packages are also attached to each
+release.
 
 #### Linux (amd64)
 
 ```sh
-GRAFT_VERSION=1.31.0
-curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
+GRAFT_VERSION=1.31.1
+curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft_${GRAFT_VERSION}_linux_amd64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
 
 #### Linux (arm64)
 
 ```sh
-GRAFT_VERSION=1.31.0
-curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-arm64.tar.gz | tar xz
+GRAFT_VERSION=1.31.1
+curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft_${GRAFT_VERSION}_linux_arm64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
 
 #### macOS (Intel)
 
 ```sh
-GRAFT_VERSION=1.31.0
-curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-darwin-amd64.tar.gz | tar xz
+GRAFT_VERSION=1.31.1
+curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft_${GRAFT_VERSION}_darwin_amd64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
 
 #### macOS (Apple Silicon)
 
 ```sh
-GRAFT_VERSION=1.31.0
-curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-darwin-arm64.tar.gz | tar xz
+GRAFT_VERSION=1.31.1
+curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft_${GRAFT_VERSION}_darwin_arm64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
 
 #### Windows (amd64)
 
-Download `graft-<version>-windows-amd64.zip` from the
+Download `graft_<version>_windows_amd64.zip` from the
 [releases page](https://github.com/fivetwenty-io/graft/releases/), extract
 `graft.exe`, and add its directory to your PATH.
 
@@ -198,13 +210,13 @@ chmod +x /usr/local/bin/graft
 
 ### Verifying Checksums
 
-Each release includes a single `graft-<version>-checksums.sha256` file covering
+Each release includes a single `graft_<version>_SHA256SUMS` file covering
 every artifact in that release. Download it alongside the archive and verify:
 
 ```sh
-GRAFT_VERSION=1.31.0
-curl -LO https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-checksums.sha256
-sha256sum --ignore-missing -c graft-${GRAFT_VERSION}-checksums.sha256
+GRAFT_VERSION=1.31.1
+curl -LO https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft_${GRAFT_VERSION}_SHA256SUMS
+sha256sum --ignore-missing -c graft_${GRAFT_VERSION}_SHA256SUMS
 ```
 
 On macOS, use `shasum -a 256 --ignore-missing -c` instead.
