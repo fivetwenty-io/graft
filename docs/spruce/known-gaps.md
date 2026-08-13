@@ -239,8 +239,7 @@ accepts `(( name:nocache args ))` (unknown modifiers are parse
 errors), the flag travels through `Opcall` and the evaluator to every
 backend cache, and a modified vault/awsparam/awssecret/nats call
 neither reads from nor writes to the shared per-run cache while plain
-calls keep sharing it under unchanged keys. Operators signal it
-outward via `Response.NoCache`. See
+calls keep sharing it under unchanged keys. See
 [Expression Modifiers](../reference/expression-modifiers.md) for the
 grammar, semantics, and spruce-compatibility notes. Pinned by
 `pkg/graft/nocache_test.go`, `pkg/graft/nocache_backend_test.go`, and

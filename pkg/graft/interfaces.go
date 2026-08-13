@@ -37,10 +37,6 @@ const (
 type Response struct {
 	Type  Action
 	Value interface{}
-	// NoCache marks a response produced under a ":nocache" modifier:
-	// cache layers must not store it (a nocache fetch must not poison or
-	// refresh a shared cache entry).
-	NoCache bool
 }
 
 // Expr represents a parsed expression.

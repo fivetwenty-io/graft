@@ -13,19 +13,3 @@ package operators
 func ShouldSkipCache(ev *Evaluator) bool {
 	return ev != nil && ev.NoCache
 }
-
-// WithNoCacheCheck marks (or unmarks) a response's NoCache flag so cache
-// layers between the operator and the document can decline to store it.
-// It mutates and returns the same response.
-func WithNoCacheCheck(result *Response, skipCache bool) *Response {
-	if result != nil {
-		result.NoCache = skipCache
-	}
-	return result
-}
-
-// IsNoCacheResponse reports whether a response was marked as
-// not-to-be-cached. Safe on a nil response.
-func IsNoCacheResponse(result *Response) bool {
-	return result != nil && result.NoCache
-}
