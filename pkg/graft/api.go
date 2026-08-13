@@ -807,6 +807,7 @@ func QuickMerge(yamlSources ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer releaseThrowawayEngine(engine)
 
 	ctx := context.Background()
 	docs := make([]Document, 0, len(yamlSources))
@@ -826,6 +827,19 @@ func QuickMerge(yamlSources ...string) ([]byte, error) {
 	return engine.ToYAML(result)
 }
 
+// releaseThrowawayEngine stops the background resources held by an engine
+// that QuickMerge/QuickMergeFiles built for a single call and is about to
+// drop. Today that is the engine cache: cache.NewCache (ShardedCache)
+// starts a cleanupLoop goroutine that only Close() stops, so an unclosed
+// throwaway engine leaks one goroutine per call for the process lifetime.
+// closeOutgoingCache's nil-replacement form performs the same optional
+// Close() type assertion Configure uses when it swaps a cache out.
+func releaseThrowawayEngine(engine Engine) {
+	if de, ok := engine.(*DefaultEngine); ok {
+		closeOutgoingCache(de.Cache, nil)
+	}
+}
+
 // QuickMergeFiles is QuickMerge for files on disk: it loads each path,
 // merges them in order, evaluates operators, and returns the result as
 // YAML bytes. Load errors (missing or unparseable files) are reported by
@@ -837,6 +851,7 @@ func QuickMergeFiles(paths ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer releaseThrowawayEngine(engine)
 
 	ctx := context.Background()
 	result, err := engine.MergeFiles(ctx, paths...).Execute()

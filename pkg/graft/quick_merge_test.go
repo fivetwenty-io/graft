@@ -3,7 +3,9 @@ package graft_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
 
@@ -69,4 +71,37 @@ func TestQuickMergeFiles(t *testing.T) {
 			So(string(out), ShouldEqual, "{}\n")
 		})
 	})
+}
+
+// TestQuickMergeReleasesEngineGoroutines pins that the throwaway engine a
+// QuickMerge call builds does not outlive the call: the engine's
+// ShardedCache starts a background cleanupLoop goroutine, and before
+// QuickMerge closed the cache each call leaked one goroutine for the
+// process lifetime — fatal for a service calling QuickMerge per request.
+func TestQuickMergeReleasesEngineGoroutines(t *testing.T) {
+	// Warm-up call, so anything lazily started process-wide on first use
+	// is already running before the baseline is taken.
+	if _, err := graft.QuickMerge("a: 1\n"); err != nil {
+		t.Fatalf("warm-up QuickMerge failed: %v", err)
+	}
+
+	before := runtime.NumGoroutine()
+	for i := 0; i < 20; i++ {
+		if _, err := graft.QuickMerge("a: 1\n"); err != nil {
+			t.Fatalf("QuickMerge failed: %v", err)
+		}
+	}
+
+	// Engine cache Close() is synchronous, but give the runtime a few
+	// scheduling turns to retire unrelated transients before judging.
+	var after int
+	for i := 0; i < 50; i++ {
+		after = runtime.NumGoroutine()
+		if after <= before+2 {
+			return
+		}
+		runtime.Gosched()
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("goroutines leaked across QuickMerge calls: %d before, %d after 20 calls", before, after)
 }
