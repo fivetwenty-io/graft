@@ -60,7 +60,7 @@ Learn how to use Graft effectively.
 
 - [Operators](user-guide/operators/)
 
-  All 47 operators for data manipulation, arithmetic, arrays, and external
+  All 48 operators for data manipulation, arithmetic, arrays, and external
   sources, plus the control-flow keywords
 
 - [Array Merging](user-guide/array-merging.md)
@@ -192,7 +192,7 @@ Help improve Graft.
 | Feature | Description |
 |---------|-------------|
 | **Spruce Compatible** | Spruce's operators, flags, and merge semantics |
-| **47 Operators** | References, strings, arithmetic, arrays, external sources |
+| **48 Operators** | References, strings, arithmetic, arrays, external sources |
 | **Control Flow** | if/elif/else/fi, for/done, while/done, case/when/esac |
 | **Predicates** | `field=value` selection in references and in `--prune`/`--cherry-pick` |
 | **Secrets Management** | Vault, AWS Parameter Store, AWS Secrets Manager, NATS |

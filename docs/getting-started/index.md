@@ -95,4 +95,4 @@ at every level, and emits list items at their parent key's indentation.
 - [Installation Guide](installation.md) - Get Graft on your system
 - [Quick Start](quick-start.md) - 5-minute tutorial
 - [CLI Commands](../user-guide/cli/) - Learn the command line interface
-- [Operators](../user-guide/operators/) - Explore all 47 operators
+- [Operators](../user-guide/operators/) - Explore all 48 operators

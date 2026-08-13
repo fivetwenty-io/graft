@@ -56,7 +56,7 @@ Use graft to:
   Runs spruce's operators, CLI flags, and merge semantics; the remaining
   differences are tracked in [Known Gaps](docs/spruce/known-gaps.md)
 
-- **47 Operators**
+- **48 Operators**
 
   References, strings, arithmetic, comparison and boolean logic, arrays,
   external sources, and IP arithmetic
@@ -179,7 +179,7 @@ Comprehensive documentation is available in the [docs/](docs/) directory:
 
 ## Operator Quick Reference
 
-All 47 registered operators:
+All 48 registered operators:
 
 | Category | Operators |
 |----------|-----------|
@@ -190,7 +190,7 @@ All 47 registered operators:
 | Comparison & Logic | `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `\|\|`, `!`, `? :` |
 | Array | `sort`, `shuffle`, `flatten`, `uniq`, `cartesian-product`, `cartesian` |
 | Secrets | `vault`, `vault-try`, `awsparam`, `awssecret`, `nats` |
-| External Sources | `file`, `load` |
+| External Sources | `file`, `load`, `raw_env` |
 | Merge structure | `inject`, `prune`, `param`, `defer` |
 | IP arithmetic | `ips`, `static_ips` |
 

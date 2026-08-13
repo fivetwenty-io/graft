@@ -5,6 +5,60 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.0] - Unreleased
+
+Closes the last five tracked entries in the
+[known-gaps register](docs/spruce/known-gaps.md), leaving one open
+documented divergence (mixed-key-type map encoding order).
+
+### Added
+
+- `raw_env` operator
+
+  `(( raw_env $NAME ))` resolves an environment variable to its raw
+  string value, bypassing the YAML type coercion normal `$NAME`
+  substitution applies: `PORT=8080` stays the string `"8080"`. A
+  set-but-empty variable is a valid empty string; an unset one errors.
+  Semantics and error strings match spruce byte for byte. This was the
+  last spruce operator missing from graft.
+
+- `:nocache` expression modifier
+
+  `(( vault:nocache "secret/db:password" ))` makes that single call
+  bypass the per-run backend cache in both directions — it never reads
+  a cached value and never writes one — while plain calls keep sharing
+  the cache under unchanged keys. Honored by `vault`/`vault-try`,
+  `awsparam`, `awssecret`, `nats`, and registry-registered custom
+  backends; inert on operators without a backend cache. Composes with
+  targets as `(( vault:nocache@prod ... ))`. An unknown modifier is a
+  parse error. See
+  [Expression Modifiers](docs/reference/expression-modifiers.md).
+
+- `graft.QuickMerge` and `graft.QuickMergeFiles` library functions
+
+  One-call conveniences that merge YAML strings or files left to right
+  with full operator evaluation and return the marshaled YAML output.
+
+- Wildcard history path filters
+
+  `HistoryFilter.Path` now matches with graft's wildcard grammar
+  (`*`, `**`, `[N]`, `[*]`, `[key=value]`) and segment-aware prefix
+  matching, instead of literal string comparison.
+
+### Fixed
+
+- Dangling or mistyped `(( sort ... ))` markers now fail the merge
+
+  A queued sort whose path no longer resolves after the merge (for
+  example, because a prune removed it) or resolves to a non-list value
+  now fails with exit code 2 and spruce's exact error text, instead of
+  silently passing the document through unsorted. Sorting also now runs
+  after all pruning (including `--prune` flags) and before
+  cherry-picking, matching spruce's post-processing order, and
+  `--skip-eval` follows the identical path. Behavior change: documents
+  that previously merged successfully with a dangling or mistyped sort
+  marker now fail, exactly as they do under spruce.
+
 ## [1.31.1] - 2026-08-13
 
 Release-engineering release: no code changes to the CLI or library beyond

@@ -27,7 +27,7 @@ Complete reference for all command-line operations.
 
 ### [Operators](operators/)
 
-All 47 registered operators, plus the control-flow keywords.
+All 48 registered operators, plus the control-flow keywords.
 
 - [Data Manipulation](operators/data-manipulation.md) - grab, concat, join, split, type, etc.
 - [Control Flow](operators/control-flow.md) - if/else, for, while, case

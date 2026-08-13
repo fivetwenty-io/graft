@@ -2,7 +2,7 @@
 
 Operators are the core of Graft's power. They allow you to dynamically compute values, reference other parts of your configuration, and integrate with external systems.
 
-Graft registers 47 operators. The tables below group them by what they are for;
+Graft registers 48 operators. The tables below group them by what they are for;
 [the operator reference](../../reference/operators.md) gives the exact arity,
 argument types, and error text for each one.
 
@@ -126,6 +126,7 @@ Load data from files and external systems.
 |----------|-------------|---------|
 | `file` | Read file contents | `(( file "path/to/file" ))` |
 | `load` | Load YAML/JSON file | `(( load "config.yml" ))` |
+| `raw_env` | Read env var as raw string | `(( raw_env $PORT ))` |
 
 ### Secrets (see [Secrets Guide](../secrets/))
 

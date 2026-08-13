@@ -254,7 +254,7 @@ graft merge base.yml production.yml | graft json
 Now that you've got the basics, explore more:
 
 - [CLI Commands](../user-guide/cli/) - Full command reference
-- [Operators](../user-guide/operators/) - All 47 operators
+- [Operators](../user-guide/operators/) - All 48 operators
 - [Array Merging](../user-guide/array-merging.md) - Advanced array operations
 - [Secrets Management](../user-guide/secrets/) - Integrate with Vault, AWS, NATS
 - [Examples](../examples/) - More practical examples

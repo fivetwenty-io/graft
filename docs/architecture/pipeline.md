@@ -228,7 +228,7 @@ result, err := engine.Merge(ctx, base, overlay).
 ### Array-Merge Markers
 
 These are applied by `pkg/graft/merger` while documents are combined, not by
-the operator registry, so they are not among the 47 registered operators:
+the operator registry, so they are not among the 48 registered operators:
 
 | Marker | Behavior |
 |----------|----------|

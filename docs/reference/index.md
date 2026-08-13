@@ -15,7 +15,7 @@ This section provides quick reference guides and comprehensive listings for Graf
 
 ## Operators by Category
 
-Graft registers 47 operators. The array-merge markers and the control-flow
+Graft registers 48 operators. The array-merge markers and the control-flow
 keywords listed further down are handled elsewhere in the pipeline and are
 not part of that count.
 
@@ -81,6 +81,7 @@ not part of that count.
 | `nats` | NATS JetStream KV and Object stores |
 | `file` | Read file contents |
 | `load` | Load and parse YAML/JSON |
+| `raw_env` | Read an environment variable as a raw, uncoerced string |
 
 Any of these five backend operators accepts a named target written on the
 operator name: `(( vault@production "secret/db:password" ))`. The

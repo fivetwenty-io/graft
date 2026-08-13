@@ -129,6 +129,37 @@ combined:
   secrets: (( grab secrets_config ))
 ```
 
+## raw_env
+
+Reads an environment variable as a raw, uncoerced string.
+
+```yaml
+# With PORT=8080 in the environment:
+port: (( raw_env $PORT ))     # the string "8080"
+grabbed: (( grab $PORT ))     # the integer 8080
+```
+
+Ordinary `$VAR` substitution parses the variable's value as YAML, so
+`8080` becomes a number and `true` becomes a boolean. `raw_env` skips
+that coercion and always returns the literal string. A set-but-empty
+variable is a valid empty string; an unset variable is an error:
+
+```
+environment variable $PORT is not set
+```
+
+`raw_env` takes exactly one argument, and it must be an environment
+variable reference. In a fallback chain, each `raw_env` side stays raw
+while non-`raw_env` alternatives coerce normally:
+
+```yaml
+# Raw string from $PRIMARY, else raw string from $SECONDARY
+host: (( raw_env $PRIMARY || raw_env $SECONDARY ))
+
+# Raw string from $PORT, else the integer 8080
+port: (( raw_env $PORT || 8080 ))
+```
+
 ## Differences: file vs load
 
 | Aspect | file | load |

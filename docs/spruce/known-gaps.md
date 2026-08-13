@@ -10,85 +10,6 @@ closed, so links from other pages into this file keep working.
 
 ## Open gaps
 
-### raw-env-operator-missing
-
-**Current behavior:** graft has no operator or file registered under
-`raw_env` or a similar name.
-
-**Expected behavior:** spruce's `raw_env` operator resolves a single
-`$ENVVAR`-style argument to its raw string value, bypassing the YAML
-type coercion that both tools' normal `$VAR` substitution applies. A
-value like `$PORT` normally gets parsed as a YAML number through
-ordinary substitution; `raw_env` keeps it as a literal string instead.
-
-**Impact:** a kit or deployment file using `(( raw_env $SOME_VAR ))` to
-preserve an environment variable's raw string form has no direct graft
-equivalent today. The impact on the Genesis drop-in use case is low:
-`raw_env` has zero occurrences in the sampled Genesis kits and
-deployments corpus.
-
-### wildcard-path-matching-stub
-
-**Current behavior:** wildcard path matching in the document-memory
-tracker is an explicit stub with no implementation.
-
-**Expected behavior:** N/A: internal graft feature, no spruce
-equivalent.
-
-**Impact:** any graft feature depending on wildcard path matching in
-document memory does not work yet. Deferred, and out of scope for the
-current parity effort.
-
-### no-cache-annotation-stub
-
-**Current behavior:** the "do not cache this result" annotation feature
-for expressions is partially built; both the metadata field and the
-logic that would act on it are marked incomplete.
-
-**Expected behavior:** N/A: internal graft feature, no spruce
-equivalent.
-
-**Impact:** operators cannot yet mark a result as non-cacheable. This
-is deferred and sits outside the current parity effort.
-
-### convenience-api-pending
-
-**Current behavior:** a set of planned convenience functions on the
-public Go API are commented out, pending the engine implementation
-being considered complete.
-
-**Expected behavior:** N/A: library-only surface, no spruce
-equivalent.
-
-**Impact:** embedders of graft as a Go library have a smaller
-convenience surface than intended. Also deferred, also outside the
-current parity effort.
-
-### sort-post-processing-silently-skips-two-error-cases
-
-**Current behavior:** after a `(( sort by X ))` marker is queued and
-the merge completes, graft's sort post-processing step
-(`pkg/graft/engine.go`'s `evaluate` and the equivalent
-`--skip-eval` path in `pkg/graft/merge_builder_impl.go`) resolves the
-queued path against the merged document. Two of its outcomes are
-silently skipped rather than reported: the path failing to resolve
-at all (for example, because a prune removed it), and the path
-resolving to something other than a list.
-
-**Expected behavior:** spruce treats both of these as hard errors:
-a `(( sort by X ))` marker that ends up pointing at a path that
-doesn't resolve, or at a non-list value, fails the merge with a
-non-zero exit code rather than passing the document through
-unsorted.
-
-**Impact:** a misconfigured or since-pruned sort marker produces a
-merge that succeeds silently in graft where spruce would fail
-loudly, masking the misconfiguration until something downstream
-notices the list is in the wrong order. Not observed in the sampled
-Genesis kits and deployments corpus. A related third case, a sort
-key on a homogeneous list that fails a type or key check, already
-fails the merge in both tools.
-
 ### mixed-key-type-map-encoding-order
 
 **Current behavior:** graft's internal document tree is always
@@ -255,6 +176,75 @@ evaluation. `resolveConcurrency` derives the default from an explicit
 `GRAFT_PARALLEL_MAX_WORKERS`) when present, otherwise from
 `runtime.NumCPU()` floored at `1`, so the worker pool now scales with
 the host machine by default.
+
+### sort-post-processing-silently-skips-two-error-cases
+
+**Resolved in 1.32.0.** A queued `(( sort ... ))` marker whose path
+fails to resolve after the merge (for example, because a prune removed
+it), or resolves to a non-list value, now fails the merge with exit
+code 2 and spruce's exact error text inside the standard
+`N error(s) detected:` framing, instead of passing the document through
+unsorted. Sort application also moved from the evaluator into the merge
+builder's post-processing, after all pruning (including `--prune`
+flags) and before cherry-picking, matching spruce's
+prune-sort-cherry-pick order; `--skip-eval` runs the identical code
+path, which also closed a third, undocumented case where a bad sort key
+was silently ignored under `--skip-eval`. Pinned by
+`pkg/graft/sort_postprocess_parity_test.go` and six binary-comparison
+fixtures in the operator parity corpus. Note the deliberate behavior
+change: documents that previously merged successfully with a dangling
+or mistyped sort marker now fail, exactly as they do under spruce.
+
+### raw-env-operator-missing
+
+**Resolved in 1.32.0.** `(( raw_env $NAME ))` is now registered, with
+spruce's exact semantics: it resolves a single environment-variable
+argument to its raw string value, bypassing the YAML type coercion the
+normal `grab $NAME` substitution applies (`PORT=8080` stays the string
+`"8080"`), treats a set-but-empty variable as a valid empty string, and
+errors with `environment variable $NAME is not set` for an unset one.
+`(( raw_env "A" || raw_env "B" ))` keeps the raw-string behavior on
+either side, while a non-`raw_env` fallback such as a literal still
+coerces normally. Pinned by `pkg/graft/operators/op_raw_env_test.go`
+and seven binary-comparison fixtures in the operator parity corpus.
+With this operator in place, no spruce operator is missing from graft.
+
+### convenience-api-pending
+
+**Resolved in 1.32.0.** The commented-out convenience functions are now
+implemented: `graft.QuickMerge(yamls ...string)` and
+`graft.QuickMergeFiles(paths ...string)` each build a default engine,
+merge their inputs left to right with full operator evaluation, and
+return the marshaled YAML string. Zero arguments yield `"{}\n"`.
+Pinned by `pkg/graft/quick_merge_test.go` and runnable examples in
+`pkg/graft/examples_doc_test.go`; documented in the
+[engine API guide](../developer-guide/library-api/engine.md).
+
+### wildcard-path-matching-stub
+
+**Resolved in 1.32.0.** History path filters
+(`graft.HistoryFilter.Path`) now match with the same wildcard grammar
+the rest of graft uses instead of a literal string comparison: exact
+paths, `*` (one segment), `**` (any depth), `[N]`/`[*]` index patterns
+(matching the dotted-numeric form recorded paths use), and
+`[key=value]` selectors, plus segment-aware prefix matching so a filter
+of `db` still covers `db.host` without also matching `dbextra`.
+Pinned by `pkg/graft/document_memory_path_filter_test.go`.
+
+### no-cache-annotation-stub
+
+**Resolved in 1.32.0.** The partially built annotation is now the
+`:nocache` expression modifier, implemented end to end: the parser
+accepts `(( name:nocache args ))` (unknown modifiers are parse
+errors), the flag travels through `Opcall` and the evaluator to every
+backend cache, and a modified vault/awsparam/awssecret/nats call
+neither reads from nor writes to the shared per-run cache while plain
+calls keep sharing it under unchanged keys. Operators signal it
+outward via `Response.NoCache`. See
+[Expression Modifiers](../reference/expression-modifiers.md) for the
+grammar, semantics, and spruce-compatibility notes. Pinned by
+`pkg/graft/nocache_test.go`, `pkg/graft/nocache_backend_test.go`, and
+`pkg/graft/operators/operator_nocache_support_test.go`.
 
 ## Related documents
 

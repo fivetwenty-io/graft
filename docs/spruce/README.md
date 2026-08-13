@@ -14,7 +14,7 @@ out to a `spruce` binary on `$PATH`) needs to account for.
 | Page | Covers |
 |---|---|
 | [CLI surface](cli-surface.md) | Every flag, subcommand, exit code, and environment variable, spruce vs. graft, in tables. |
-| [Operator inventory](operators.md) | The full operator set: which of spruce's 25 operators and graft's 47 registered operator names line up, which exist only in graft, and which exist only in spruce. |
+| [Operator inventory](operators.md) | The full operator set: which of spruce's 25 operators and graft's 48 registered operator names line up, which exist only in graft, and which exist only in spruce. |
 | [Merge semantics](merge-semantics.md) | Array-merge marker behavior (`append`, `replace`, `inject`, and so on) and the prune/sort "ghost" semantics where a marker queued at one merge step can survive being overwritten by a later document. |
 | [YAML formatting](yaml-formatting.md) | Differences in null rendering, key ordering, and trailing-newline behavior that follow from using a different YAML library. |
 | [Known gaps](known-gaps.md) | The open, tracked list of behavioral gaps between graft and spruce, in one place. |

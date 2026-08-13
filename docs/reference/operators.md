@@ -1,6 +1,6 @@
 # Operator Reference
 
-Full reference for the 47 operators graft registers in `pkg/graft/operators`.
+Full reference for the 48 operators graft registers in `pkg/graft/operators`.
 Every operator implements `Setup`, `Run`, `Dependencies`, and `Phase`
 (`pkg/graft/interfaces.go`); `Setup` is a no-op for every operator in this
 package — argument validation happens inside `Run`. The **Phase** column
@@ -38,13 +38,14 @@ below states when each operator runs relative to the rest of the document
 | `nats` | EvalPhase | External source |
 | `file` | EvalPhase | External source |
 | `load` | EvalPhase | External source |
+| `raw_env` | EvalPhase | External source |
 | `ips` | EvalPhase | IP arithmetic |
 | `static_ips` | EvalPhase | IP arithmetic |
 
 The array-merge markers (`append`, `prepend`, `replace`, `inline`, `merge`,
 `merge on <key>`, `(( delete ... ))`) are handled by `pkg/graft/merger`
 during the merge step rather than through the operator-registration
-mechanism above; they are not counted in the 47 registered operators.
+mechanism above; they are not counted in the 48 registered operators.
 
 The control-flow keywords (`if`/`elif`/`else`/`fi`, `for`/`done`,
 `while`/`done`, `case`/`when`/`default`/`esac`, and `range`) are not
@@ -352,6 +353,24 @@ Loads and parses a YAML/JSON file (local path or, per the `net/http`
 import in `op_load.go`, potentially a URL) and returns its parsed content.
 Requires exactly one argument; a map or list argument is rejected as "only
 string scalars are supported" for the location.
+
+#### raw_env
+
+```yaml
+port: (( raw_env $PORT ))
+```
+
+Resolves a single environment-variable argument to its raw string value,
+bypassing the YAML type coercion that ordinary `$VAR` substitution
+applies: with `PORT=8080`, `(( grab $PORT ))` yields the integer 8080
+while `(( raw_env $PORT ))` yields the string `"8080"`. A set-but-empty
+variable is a valid empty string; an unset one errors with "environment
+variable $PORT is not set". Requires exactly one argument, and that
+argument must be an environment-variable reference — "raw_env operator
+only accepts environment variable arguments" otherwise. In
+`(( raw_env $A || raw_env $B ))` each side keeps the raw-string
+behavior, while a non-`raw_env` fallback (a literal or document
+reference) still gets normal coercing evaluation, matching spruce.
 
 ### IP operators
 
