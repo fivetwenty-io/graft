@@ -1,23 +1,27 @@
 name: Release
 
+# Publish a GitHub Release with cross-platform binaries whenever a
+# semver tag (v1.2.3) is pushed. GoReleaser builds the matrix, archives
+# each target, generates SHA256SUMS, signs + notarizes the darwin
+# binaries, uploads everything to the release, and pushes the Homebrew
+# cask to fivetwenty-io/homebrew-tap. Tests must pass before anything
+# ships.
 on:
   push:
     tags:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: write # required to create the GitHub Release and upload assets
 
 jobs:
-  release:
-    name: Release
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # The Makefile derives VERSION from `git describe --tags
-          # --exact-match`, which needs the tag objects present.
           fetch-depth: 0
 
       - name: Set up Go
@@ -29,21 +33,78 @@ jobs:
       - name: Verify dependencies
         run: make deps
 
-      # ci.yml only runs on pushes to main and on pull requests, so a tag push
-      # would otherwise publish binaries that no workflow ever tested.
+      - name: Vet
+        run: go vet ./...
+
+      # ci.yml only runs on pushes to main and on pull requests, so a tag
+      # push would otherwise publish binaries that no workflow ever tested.
       - name: Run tests
         run: make test-short
 
-      - name: Build release artifacts
-        run: make package
+  goreleaser:
+    name: GoReleaser
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags for changelog generation
 
-      - name: Create GitHub release
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pushes the Homebrew cask to fivetwenty-io/homebrew-tap; the
+          # default GITHUB_TOKEN cannot write to another repo. Optional —
+          # homebrew_casks.skip_upload degrades gracefully when this secret
+          # is unset (an empty env value evaluates falsy in the goreleaser
+          # template, so the tap push is skipped rather than failing).
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # Apple code signing + notarization for the darwin binaries.
+          # Optional — notarize.macos.enabled degrades gracefully when
+          # MACOS_SIGN_P12 is unset, same pattern as the tap token above.
+          # MACOS_SIGN_P12: base64 of the Developer ID Application .p12
+          # (cert + key + Apple chain); MACOS_NOTARY_KEY: base64 of the
+          # App Store Connect API .p8 key.
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+
+      # The cask push degrades gracefully when HOMEBREW_TAP_GITHUB_TOKEN is
+      # unset, which also makes it silent: a vanished or broken secret would
+      # leave this run green while the tap keeps serving the previous
+      # version. On the canonical repo the cask must always ship, so fail
+      # the release unless the tap's cask advertises this tag's version.
+      # Forks (which lack the tap secret by design) skip this check.
+      - name: Verify tap cask version
+        if: github.repository == 'fivetwenty-io/graft'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes \
-            build/graft-*.tar.gz \
-            build/graft-*.zip \
-            build/graft-*-checksums.sha256
+          expected="${GITHUB_REF_NAME#v}"
+          for attempt in 1 2 3 4 5; do
+            published=$(gh api repos/fivetwenty-io/homebrew-tap/contents/Casks/graft.rb \
+              -H "Accept: application/vnd.github.raw" \
+              | sed -n 's/^[[:space:]]*version "\(.*\)"/\1/p')
+            if [ "$published" = "$expected" ]; then
+              echo "tap cask is at ${published}"
+              exit 0
+            fi
+            echo "attempt ${attempt}: tap cask at '${published:-<none>}', want '${expected}'"
+            sleep 15
+          done
+          echo "tap cask never reached ${expected}" >&2
+          exit 1
