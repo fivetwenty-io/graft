@@ -1081,6 +1081,19 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 		}
 	}
 
+	// Capture the queued (( sort by X )) paths now and clear the shared
+	// engine state immediately: evaluation's deferred per-run state reset
+	// would wipe them before the post-prune sort application below runs,
+	// and clearing here (rather than after applying) keeps a reused engine
+	// from leaking this run's markers into the next even when this run
+	// errors out first.
+	var sortPaths map[string]string
+	if m.engine != nil {
+		state := m.engine.GetOperatorState()
+		sortPaths = state.GetPathsToSort()
+		state.ResetPathsToSort()
+	}
+
 	// Apply evaluation if not skipped
 	var evalDuration time.Duration
 	if !m.skipEvaluation {
@@ -1091,17 +1104,6 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 			return nil, err
 		}
 		result = evaluated
-	} else if m.engine != nil {
-		// (( sort by X )) list ordering is applied by spruce even when
-		// evaluation is skipped (--skip-eval only disables scalar operator
-		// evaluation, not merge-phase list ordering). The normal path applies
-		// queued sort paths as evaluator post-processing (see engine.go
-		// evaluate()), which is bypassed here, so apply them directly.
-		sorted, err := m.applySortPathsWithoutEvaluation(result)
-		if err != nil {
-			return nil, err
-		}
-		result = sorted
 	}
 
 	// Collect prune keys from both sources:
@@ -1147,6 +1149,22 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 		if pruneErr != nil {
 			return nil, pruneErr
 		}
+	}
+
+	// Apply queued (( sort by X )) list ordering AFTER all pruning and
+	// BEFORE cherry-picking, matching spruce's post-processing order
+	// (prune, then sort, then cherry-pick). This runs in both evaluation
+	// modes: --skip-eval only disables the evaluator phases, not
+	// merge-phase list ordering. Every failure of a queued sort is fatal
+	// in spruce - an unresolvable (e.g. pruned-away) path, a non-list
+	// value, and an unsortable list all abort the merge - so the error
+	// propagates instead of being skipped.
+	if len(sortPaths) > 0 {
+		sorted, err := m.applySortPaths(result, sortPaths)
+		if err != nil {
+			return nil, err
+		}
+		result = sorted
 	}
 
 	// Apply cherry-picking AFTER evaluation and pruning
@@ -1233,48 +1251,43 @@ func toInterfaceKeyValue(v interface{}) interface{} {
 	}
 }
 
-// applySortPathsWithoutEvaluation applies queued (( sort by X )) list ordering
-// directly to the document without running the full evaluator, covering the
-// skip-eval path where engine.go's evaluate() (and its sort post-processing)
-// never runs. Unlike evaluate(), unresolvable or non-list sort targets are
-// skipped here rather than treated as errors. A cyclic document is treated
-// as an error, same as every other deepCopyMap call site.
-func (m *mergeBuilderImpl) applySortPathsWithoutEvaluation(doc Document) (Document, error) {
-	sortPaths := m.engine.GetOperatorState().GetPathsToSort()
-	if len(sortPaths) == 0 {
-		return doc, nil
-	}
-
+// applySortPaths applies queued (( sort by X )) list ordering to the document
+// through the same code spruce uses (Evaluator.SortPaths, a byte-exact port):
+// the path is resolved with tree.ParseCursor/Resolve - NOT a map-only
+// dotted-path walk, which errors on any path crossing a list index and would
+// turn valid paths into false failures - and the first bad path aborts with
+// spruce's exact error text (NotFoundError for an unresolvable path,
+// TypeMismatchError for a map/scalar, the SortList error for an unsortable
+// list). spruce reports at most one sort error per run; returning on the
+// first failure preserves that.
+func (m *mergeBuilderImpl) applySortPaths(doc Document, sortPaths map[string]string) (Document, error) {
 	data, ok := doc.RawData().(map[string]interface{})
 	if !ok {
 		return doc, nil // Return unchanged if not a map
 	}
-	result, err := deepCopyMap(data)
-	if err != nil {
-		return nil, err
-	}
 
-	for path, sortKey := range sortPaths {
-		cleanPath := strings.TrimPrefix(path, "$.")
-		value, err := getValueAtPath(result, cleanPath)
+	if m.skipEvaluation {
+		// Under --skip-eval the merge result can still alias the caller's
+		// input documents, so sort a deep copy rather than mutating shared
+		// slices. The evaluated path already owns its tree and sorts in
+		// place. A cyclic document is an error, same as every other
+		// deepCopyMap call site.
+		copied, err := deepCopyMap(data)
 		if err != nil {
-			// Path no longer resolves (e.g. pruned); nothing to sort.
-			continue
+			return nil, err
 		}
-		list, isList := value.([]interface{})
-		if !isList {
-			// Sort marker resolved to a non-list value; nothing to sort.
-			continue
-		}
-		if err := SortList(cleanPath, list, sortKey); err != nil {
-			// Preserve unsorted order rather than fail the whole merge;
-			// matches engine.go's evaluate(), which logs and continues.
-			continue
-		}
+		data = copied
+		doc = NewDocument(copied)
 	}
 
-	m.engine.GetOperatorState().ResetPathsToSort()
-	return NewDocument(result), nil
+	ev := &Evaluator{Tree: data}
+	if err := ev.SortPaths(sortPaths); err != nil {
+		// Wrap in MultiError so the CLI renders spruce's
+		// "N error(s) detected:\n - msg" framing with exit 2 instead of
+		// the generic "Merge failed: ..." wrapper.
+		return nil, MultiError{Errors: []error{err}}
+	}
+	return doc, nil
 }
 
 // applyPruning removes specified keys from the document.

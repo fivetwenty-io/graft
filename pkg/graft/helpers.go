@@ -100,31 +100,6 @@ func splitPath(path string) []string {
 	return parsePath(path)
 }
 
-// getValueAtPath retrieves a value from a nested map using a dot-separated path.
-func getValueAtPath(data interface{}, path string) (interface{}, error) {
-	if path == "" {
-		return data, nil
-	}
-
-	segments := parsePath(path)
-	current := data
-
-	for _, segment := range segments {
-		switch v := current.(type) {
-		case map[string]interface{}:
-			val, ok := v[segment]
-			if !ok {
-				return nil, fmt.Errorf("key %s not found", segment)
-			}
-			current = val
-		default:
-			return nil, fmt.Errorf("cannot index %T with string key", v)
-		}
-	}
-
-	return current, nil
-}
-
 // SortList sorts a list of items based on a sort key
 // This is a helper that delegates to the operators package implementation.
 //

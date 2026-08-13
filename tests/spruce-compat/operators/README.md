@@ -58,22 +58,28 @@ instead of raw bytes.
 `nats` has no spruce equivalent (spruce's operator set has no `nats`
 operator) and is not run against spruce; see `fixtures/nats/no-spruce-equivalent`.
 
-## Known, real divergences found while building this suite
+## Divergences found (and since fixed) while building this suite
 
-These are `FAIL` (not `INFO`) because they look like genuine gaps rather
-than intentional extensions:
+Two sort divergences were found by this suite and have been fixed; their
+fixtures now pass as regression pins:
 
 - **`(( sort by "name" ))` (quoted key)**: spruce rejects the list with
   `is a list with map entries, where some do not contain "name"` — spruce
   treats the quoted key literally rather than as the field name. graft
-  silently leaves the list unsorted and exits 0. See
-  `fixtures/sort/quoted-key-divergence/`.
+  used to leave the list silently unsorted and exit 0; it now fails with
+  spruce's exact error. See `fixtures/sort/quoted-key-divergence/`.
 
 - **orphaned `(( sort ))`** (no earlier document's array exists at the
   path being overwritten): spruce errors with `orphaned (( sort ))
-  operator at $.path, no list exists at that path`. graft leaves the
-  marker text unresolved in the output and exits 0. See
-  `fixtures/sort/orphaned-error/`.
+  operator at $.path, no list exists at that path`. graft used to leave
+  the marker text unresolved in the output and exit 0; it now emits the
+  same error. See `fixtures/sort/orphaned-error/`.
+
+The remaining post-merge sort failure cases (a queued sort whose path was
+pruned away, resolves to a map or a scalar, or names a sort key some list
+entries lack) are pinned — in both normal and `--skip-eval` modes — by the
+`fixtures/sort/unresolved-path*`, `non-list-*`, and `bad-sort-key-skip-eval`
+cases.
 
 Documented (non-failing) formatting-only divergences, kept for regression
 tracking:

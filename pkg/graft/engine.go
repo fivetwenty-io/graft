@@ -379,14 +379,16 @@ func (e *DefaultEngine) GetMemoryTracker() interfaces.MemoryTracker {
 //nolint:gocyclo // evaluation pipeline with multiple phases and post-processing is inherently complex
 func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParallel bool) error {
 	// Reset per-run prune/sort/used-IP markers on every exit path (success,
-	// any phase error, context cancellation, sort failure) so a reused
-	// engine never leaks one Merge().Execute() run's state into the next.
-	// The legacy Evaluator.Run() does the equivalent reset for prune/sort
-	// (evaluator.go ResetKeysToPrune/ResetPathsToSort) right after capturing
-	// them for post-processing; this live path consumes GetKeysToPrune/
-	// GetPathsToSort below but never resets, so a later unrelated Execute()
-	// call on the same engine silently inherits and re-applies this run's
-	// prune/sort markers. Deferring the reset (rather than resetting inline
+	// any phase error, context cancellation) so a reused engine never leaks
+	// one Merge().Execute() run's state into the next. The legacy
+	// Evaluator.Run() does the equivalent reset for prune/sort (evaluator.go
+	// ResetKeysToPrune/ResetPathsToSort) right after capturing them for
+	// post-processing; this live path consumes GetKeysToPrune below but
+	// never resets, so a later unrelated Execute() call on the same engine
+	// would silently inherit and re-apply this run's prune markers. (Sort
+	// markers are captured and cleared by applyPostProcessing before this
+	// function runs, but resetting them here too keeps direct Evaluate()
+	// callers leak-free.) Deferring the reset (rather than resetting inline
 	// after each Get) guarantees it fires exactly once per run regardless
 	// of which return statement is hit, while leaving this run's own
 	// post-processing below - which reads the markers before the deferred
@@ -507,42 +509,13 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 		}
 	}
 
-	// Post-processing: apply sort operations
-	sortPaths := e.GetPathsToSort()
-	log.DEBUG("Engine: Found %d sort paths to process: %v", len(sortPaths), sortPaths)
-	if len(sortPaths) > 0 {
-		for path, sortKey := range sortPaths {
-			// Remove the "$." prefix if present
-			cleanPath := strings.TrimPrefix(path, "$.")
-			log.DEBUG("Engine: Sorting path '%s' by key '%s'", cleanPath, sortKey)
-
-			// Navigate to the list at the path
-			value, err := getValueAtPath(ev.Tree, cleanPath)
-			if err != nil {
-				log.DEBUG("Engine: Failed to get value at path '%s': %v", cleanPath, err)
-				continue
-			}
-
-			// Check if it's a list
-			if list, ok := value.([]interface{}); ok {
-				// Sort the list in place. A sort failure (e.g. a quoted
-				// (( sort by "key" )) taken literally against maps keyed
-				// by the unquoted key) is fatal in spruce, not a
-				// best-effort skip, so it must fail evaluation here too.
-				if err := SortList(cleanPath, list, sortKey); err != nil {
-					log.DEBUG("Engine: Failed to sort list at path '%s': %v", cleanPath, err)
-					// Wrap in MultiError so the CLI renders spruce's
-					// "N error(s) detected:\n - $.path: msg" format
-					// instead of the generic "Merge failed: ..." wrapper
-					// used for raw, unaggregated errors.
-					return MultiError{Errors: []error{err}}
-				}
-				log.DEBUG("Engine: Successfully sorted list at path '%s'", cleanPath)
-			} else {
-				log.DEBUG("Engine: Value at path '%s' is not a list, skipping sort", cleanPath)
-			}
-		}
-	}
+	// Queued (( sort by X )) markers are NOT applied here: spruce sorts
+	// after ALL pruning (operator markers and --prune flags alike) and
+	// before cherry-picking, and the --prune flags are only applied by the
+	// merge builder after this function returns. applyPostProcessing
+	// (merge_builder_impl.go) captures the queued paths before evaluation
+	// and applies them at the spruce-equivalent point in both evaluation
+	// modes, treating every failure as fatal the way spruce does.
 
 	return nil
 }
