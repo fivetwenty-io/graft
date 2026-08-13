@@ -614,10 +614,13 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 
 		// If followed by a glued ":modifier" (op:nocache), it is a modified
 		// operator call — same argument-position rationale as @target
-		// above: "(( grab meta.a || vault:nocache "x" ))" puts the modified
-		// call on the right of ||, where the identifier would otherwise
-		// fall through to the reference branch and strand the ":modifier"
-		// tokens.
+		// above: a modified call on the right of || would otherwise fall
+		// through to the reference branch as a bare identifier, stranding
+		// the ":modifier" tokens and failing the parse before the modifier
+		// grammar (and its unknown-modifier error) is ever reached.
+		// Whether the surrounding operator then does anything useful with
+		// the right operand is that operator's own || semantics (grab, for
+		// one, treats the operand's result as a path to resolve).
 		if nextTok.Type == interfaces.TokenColon && p.modifierFollowsAt(p.pos-1) {
 			p.pos-- // back up one position
 			return p.parseOperatorCall(name)
