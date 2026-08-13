@@ -34,7 +34,7 @@ to the release you want.
 #### Linux (amd64)
 
 ```sh
-GRAFT_VERSION=1.30.0
+GRAFT_VERSION=1.31.0
 curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
@@ -42,7 +42,7 @@ sudo mv graft /usr/local/bin/
 #### Linux (arm64)
 
 ```sh
-GRAFT_VERSION=1.30.0
+GRAFT_VERSION=1.31.0
 curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-arm64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
@@ -50,7 +50,7 @@ sudo mv graft /usr/local/bin/
 #### macOS (Intel)
 
 ```sh
-GRAFT_VERSION=1.30.0
+GRAFT_VERSION=1.31.0
 curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-darwin-amd64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
@@ -58,7 +58,7 @@ sudo mv graft /usr/local/bin/
 #### macOS (Apple Silicon)
 
 ```sh
-GRAFT_VERSION=1.30.0
+GRAFT_VERSION=1.31.0
 curl -L https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-darwin-arm64.tar.gz | tar xz
 sudo mv graft /usr/local/bin/
 ```
@@ -202,7 +202,7 @@ Each release includes a single `graft-<version>-checksums.sha256` file covering
 every artifact in that release. Download it alongside the archive and verify:
 
 ```sh
-GRAFT_VERSION=1.30.0
+GRAFT_VERSION=1.31.0
 curl -LO https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-checksums.sha256
 sha256sum --ignore-missing -c graft-${GRAFT_VERSION}-checksums.sha256
 ```

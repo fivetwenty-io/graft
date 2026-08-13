@@ -28,7 +28,7 @@ jobs:
 
       - name: Install Graft
         run: |
-          GRAFT_VERSION=1.30.0
+          GRAFT_VERSION=1.31.0
           curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
@@ -69,7 +69,7 @@ jobs:
 
       - name: Install Graft
         run: |
-          GRAFT_VERSION=1.30.0
+          GRAFT_VERSION=1.31.0
           curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
@@ -120,7 +120,7 @@ jobs:
 
       - name: Install Graft
         run: |
-          GRAFT_VERSION=1.30.0
+          GRAFT_VERSION=1.31.0
           curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
@@ -172,7 +172,7 @@ jobs:
 
       - name: Install Graft
         run: |
-          GRAFT_VERSION=1.30.0
+          GRAFT_VERSION=1.31.0
           curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
@@ -213,7 +213,7 @@ stages:
   - deploy
 
 variables:
-  GRAFT_VERSION: "1.30.0"
+  GRAFT_VERSION: "1.31.0"
 
 .install_graft: &install_graft
   before_script:
@@ -302,7 +302,7 @@ deploy:production:
   before_script:
     # Install graft
     - apk add --no-cache curl
-    - GRAFT_VERSION=1.30.0
+    - GRAFT_VERSION=1.31.0
     - curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz -C /usr/local/bin
     # Authenticate to Vault using JWT
     - |
@@ -339,7 +339,7 @@ pipeline {
         stage('Install Graft') {
             steps {
                 sh '''
-                    GRAFT_VERSION=1.30.0
+                    GRAFT_VERSION=1.31.0
                     curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
                     mv graft /usr/local/bin/
                 '''
@@ -437,7 +437,7 @@ commands:
           name: Install Graft
           command: |
             apk add --no-cache curl
-            GRAFT_VERSION=1.30.0
+            GRAFT_VERSION=1.31.0
             curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz -C /usr/local/bin
 
 jobs:
@@ -700,7 +700,7 @@ jobs:
 
       - name: Install Graft
         run: |
-          GRAFT_VERSION=1.30.0
+          GRAFT_VERSION=1.31.0
           curl -sSL https://github.com/fivetwenty-io/graft/releases/download/v${GRAFT_VERSION}/graft-${GRAFT_VERSION}-linux-amd64.tar.gz | tar xz
           sudo mv graft /usr/local/bin/
 
