@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.1] - 2026-08-13
+
+Release-engineering release: no code changes to the CLI or library beyond
+the version string.
+
+### Added
+
+- Homebrew tap distribution
+
+  `brew install --cask fivetwenty-io/tap/graft` installs the binary and
+  shell completions. The cask in
+  [fivetwenty-io/homebrew-tap](https://github.com/fivetwenty-io/homebrew-tap)
+  is generated and pushed automatically on each release.
+
+- Signed and notarized macOS binaries
+
+  The darwin release binaries carry a FiveTwenty Inc. Developer ID
+  signature and Apple notarization, so Gatekeeper accepts them on first
+  launch (previously the quarantined ad-hoc-signed binaries were killed
+  outright on Apple Silicon).
+
+- Debian and RPM packages, FreeBSD builds (amd64/arm64), and bash, zsh,
+  and fish completions in every archive.
+
+### Changed
+
+- Releases are built and published by GoReleaser. Archive names changed
+  from `graft-<version>-<os>-<arch>` to `graft_<version>_<os>_<arch>`,
+  and the checksum file from `graft-<version>-checksums.sha256` to
+  `graft_<version>_SHA256SUMS`.
+
 ## [1.31.0] - 2026-08-12
 
 The library API release: `pkg/graft` is now a first-class Go library. The
@@ -193,5 +224,6 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.31.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.31.1
 [1.31.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.31.0
 [1.30.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.30.0
