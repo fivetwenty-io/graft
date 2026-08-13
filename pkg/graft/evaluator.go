@@ -30,6 +30,13 @@ type Evaluator struct {
 	// change to the Operator interface's signature.
 	Target string
 
+	// NoCache is true while an operator call written with the ":nocache"
+	// modifier (e.g. "(( vault:nocache "path:key" ))") is running.
+	// Opcall.Run sets and restores it around each op.Run exactly like
+	// Target, so backend-backed operators can bypass their caches for
+	// that one lookup without an Operator interface change.
+	NoCache bool
+
 	CheckOps []*Opcall
 
 	Only []string

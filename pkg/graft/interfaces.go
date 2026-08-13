@@ -37,6 +37,10 @@ const (
 type Response struct {
 	Type  Action
 	Value interface{}
+	// NoCache marks a response produced under a ":nocache" modifier:
+	// cache layers must not store it (a nocache fetch must not poison or
+	// refresh a shared cache entry).
+	NoCache bool
 }
 
 // Expr represents a parsed expression.
@@ -287,11 +291,14 @@ func (op *Opcall) Run(ev *Evaluator) (*Response, error) {
 
 	was := ev.Here
 	wasTarget := ev.Target
+	wasNoCache := ev.NoCache
 	ev.Here = op.where
 	ev.Target = op.target
+	ev.NoCache = op.noCache
 	r, err := op.op.Run(ev, op.args)
 	ev.Here = was
 	ev.Target = wasTarget
+	ev.NoCache = wasNoCache
 
 	if err != nil {
 		if op.where != nil {

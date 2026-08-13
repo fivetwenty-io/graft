@@ -1,36 +1,31 @@
 package operators
 
-// OperatorNoCacheSupport provides helper functions for operators to check nocache modifiers
+// Helpers connecting the parsed ":nocache" modifier to backend cache
+// layers. Opcall.Run publishes the running call's flag as ev.NoCache
+// (ambient per-call context, set and restored exactly like ev.Target), so
+// a caching operator needs no Operator interface change to honor it.
 
-// ShouldSkipCache checks if an operator call has the nocache modifier
-// This function should be called by operators that support caching.
+// ShouldSkipCache reports whether the operator call currently running was
+// written with the ":nocache" modifier (e.g. "(( vault:nocache ... ))").
+// Caching operators call this before both the cache read AND the cache
+// write: a nocache fetch must neither be served from nor refresh the
+// shared cache entry.
 func ShouldSkipCache(ev *Evaluator) bool {
-	// Check if the current operation has nocache modifier
-	// The evaluator would need to provide access to the current expression
-	// For now, we'll implement a simple version that checks the call stack
-
-	// For now, we'll use a simple implementation
-	// In practice, the evaluator would need to track the current expression being evaluated
-	// This would require changes to the Evaluator struct
-
-	return false
+	return ev != nil && ev.NoCache
 }
 
-// WithNoCacheCheck wraps an operator result to indicate cache behavior.
+// WithNoCacheCheck marks (or unmarks) a response's NoCache flag so cache
+// layers between the operator and the document can decline to store it.
+// It mutates and returns the same response.
 func WithNoCacheCheck(result *Response, skipCache bool) *Response {
-	// TODO: Add metadata to indicate this result should not be cached.
-	// This would be used by the caching layer.
-	// For now, we'll add a special marker that caching layers can check.
-	// In a real implementation, this might be a more sophisticated metadata system.
-	_ = skipCache // Reserved for future cache control implementation
+	if result != nil {
+		result.NoCache = skipCache
+	}
 	return result
 }
 
-// IsNoCacheResponse checks if a response should skip caching.
-func IsNoCacheResponse(result *Response, expr *Expr) bool {
-	// TODO: Phase 2 - implement IsNoCache on Expr
-	// if expr != nil && expr.IsNoCache() {
-	// 	return true
-	// }
-	return false
+// IsNoCacheResponse reports whether a response was marked as
+// not-to-be-cached. Safe on a nil response.
+func IsNoCacheResponse(result *Response) bool {
+	return result != nil && result.NoCache
 }

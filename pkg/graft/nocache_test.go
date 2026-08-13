@@ -111,6 +111,36 @@ func TestNoCacheModifierParsing(t *testing.T) {
 	})
 }
 
+// TestNoCacheAmbientEvaluatorFlag pins the threading contract: Opcall.Run
+// publishes the call's noCache flag as ev.NoCache for the duration of
+// op.Run and restores it after, exactly as it already does for ev.Target,
+// so backend operators can read it without an Operator interface change.
+func TestNoCacheAmbientEvaluatorFlag(t *testing.T) {
+	Convey("Opcall.Run sets and restores ev.NoCache around op.Run", t, func() {
+		var observed []bool
+		probe := &OperatorFunc{Fn: func(ev *Evaluator, _ []*Expr) (*Response, error) {
+			observed = append(observed, ev.NoCache)
+			return &Response{Type: Replace, Value: "x"}, nil
+		}}
+
+		ev := &Evaluator{Tree: map[string]interface{}{}}
+
+		plain := &Opcall{op: probe}
+		_, err := plain.Run(ev)
+		So(err, ShouldBeNil)
+
+		nocache := &Opcall{op: probe, noCache: true}
+		_, err = nocache.Run(ev)
+		So(err, ShouldBeNil)
+		So(ev.NoCache, ShouldBeFalse) // restored after the call
+
+		_, err = plain.Run(ev)
+		So(err, ShouldBeNil)
+
+		So(observed, ShouldResemble, []bool{false, true, false})
+	})
+}
+
 // TestNoCacheModifierEndToEnd proves the modifier is accepted through a
 // real merge and is semantically inert for a non-backend operator (the
 // backend cache bypass is wired separately).
