@@ -113,6 +113,36 @@ else
   pass "stepA0: 'spruce -v 2>/dev/null' produced output: $VERSION_LINE"
 fi
 
+# Step A0b: the version line must echo the name the binary was invoked
+# as (spruce prints os.Args[0] verbatim; graft does the same), so a
+# PATH-resolved `spruce` reports itself as spruce, not graft.
+case "$VERSION_LINE" in
+  "spruce - Version "*)
+    pass "stepA0b: version line echoes the invoked name: $VERSION_LINE" ;;
+  *)
+    fail "stepA0b: version line does not start with 'spruce - Version ': $VERSION_LINE" ;;
+esac
+
+# Step A0c: the same holds when the spruce name is a symlink to the
+# graft binary (the intended production deployment), not a copy. The
+# PATH handed to env holds ONLY the symlink dir, so a dangling symlink
+# cannot silently fall through to the $ALIAS_DIR copy, and env's own
+# PATH lookup (argv[0]="spruce") sidesteps the shell's command hash.
+if [ ! -x "$ALIAS_DIR/graft" ]; then
+  fail "stepA0c: graft binary missing at $ALIAS_DIR/graft; cannot build the symlink"
+else
+  SYMLINK_DIR="$TMP/symlink-bin"
+  mkdir -p "$SYMLINK_DIR"
+  ln -sf "$ALIAS_DIR/graft" "$SYMLINK_DIR/spruce"
+  SYMLINK_LINE="$(env PATH="$SYMLINK_DIR" spruce -v 2>/dev/null)"
+  case "$SYMLINK_LINE" in
+    "spruce - Version "*)
+      pass "stepA0c: graft symlinked as spruce reports itself as spruce: $SYMLINK_LINE" ;;
+    *)
+      fail "stepA0c: symlinked invocation did not report as spruce: $SYMLINK_LINE" ;;
+  esac
+fi
+
 # Step A1: mirror genesis's regex-extraction + semver-compare logic
 # in-line (Genesis.pm:440-469's semver()/by_semver()/new_enough(),
 # Commands.pm:1117's regex and minimum version), run standalone against

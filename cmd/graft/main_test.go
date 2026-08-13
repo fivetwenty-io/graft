@@ -390,6 +390,46 @@ func TestMain(t *testing.T) {
 				So(matches, ShouldNotBeNil)
 				So(semverAtLeast(matches[1], minGenesisVersion), ShouldBeTrue)
 			})
+			Convey("When '-v' precedes a subcommand", func() {
+				// spruce checks its Version flag before dispatching any
+				// verb: `spruce -v merge whatever` prints the version and
+				// exits 0 without touching the files. The nonexistent file
+				// below proves dispatch never happens.
+				os.Args = []string{"graft", "-v", "merge", "does-not-exist.yml"}
+				stdout = ""
+				stderr = ""
+				main()
+				So(stdout, ShouldStartWith, fmt.Sprintf("graft - Version %s", Version))
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+			})
+			Convey("When '-v' follows a subcommand", func() {
+				// Post-verb -v is ignored and the verb runs (spruce
+				// instead treats it as a filename and exits 2; the
+				// divergence is documented in the compat contract).
+				// Pinned so the version flag never short-circuits a
+				// scripted merge whose stdout becomes a manifest.
+				os.Args = []string{"graft", "merge", "-v", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				main()
+				So(stdout, ShouldNotContainSubstring, "Version")
+				So(stdout, ShouldNotEqual, "")
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+			})
+			Convey("When invoked under a different argv[0] name", func() {
+				// The version line echoes the name the binary was invoked
+				// as (os.Args[0], same as spruce), so a spruce-named
+				// symlink or copy reports itself as spruce to genesis.
+				os.Args = []string{"spruce", "-v"}
+				stdout = ""
+				stderr = ""
+				main()
+				So(stdout, ShouldStartWith, fmt.Sprintf("spruce - Version %s", Version))
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+			})
 		})
 		Convey("Should panic on errors merging docs", func() {
 			os.Args = []string{"graft", "merge", "../../assets/merge/bad.yml"}

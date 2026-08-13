@@ -621,6 +621,33 @@ func decodeInputFileDocument(f ytbx.InputFile) (interface{}, error) {
 	return v, nil
 }
 
+// versionFlagPrecedesVerb reports whether the -v/--version token the user
+// typed sits before the subcommand name on the command line. When no
+// subcommand was invoked (cmd is the root), any position counts as
+// preceding. args is os.Args[1:]. Combined shorthand groups containing 'v'
+// (e.g. -Dv) count as version tokens, matching pflag's parse.
+func versionFlagPrecedesVerb(cmd *cobra.Command, args []string) bool {
+	if !cmd.HasParent() {
+		return true
+	}
+	verb := cmd.CalledAs()
+	if verb == "" {
+		verb = cmd.Name()
+	}
+	for _, arg := range args {
+		if arg == verb {
+			return false
+		}
+		if arg == "--version" || strings.HasPrefix(arg, "--version=") ||
+			(strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") && strings.ContainsRune(arg[1:], 'v')) {
+			return true
+		}
+	}
+	// Neither the verb nor a version token found (unreachable in a normal
+	// parse); be conservative and let the subcommand run.
+	return false
+}
+
 // newRootCmd creates a fresh Cobra command tree. Called each time main() runs
 // so that tests calling main() multiple times get clean flag state.
 func newRootCmd() (*cobra.Command, *bool) {
@@ -654,7 +681,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 		Short:         "graft - YAML merging and operator evaluation",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			// Handle debug/trace flags
 			if envFlag("DEBUG") || debug {
 				log.DebugOn = true
@@ -662,6 +689,27 @@ func newRootCmd() (*cobra.Command, *bool) {
 			if envFlag("TRACE") || trace {
 				log.TraceOn = true
 				log.DebugOn = true
+			}
+
+			// A pre-verb version flag wins over any subcommand, matching
+			// spruce: its Version flag is checked before verb dispatch,
+			// so `spruce -v merge ...` prints the version and exits 0
+			// without reading any input. Handled here (not in the root
+			// RunE) so subcommands never run, and before config loading
+			// so `-v` cannot fail on a bad --config path.
+			//
+			// A post-verb `-v` (e.g. `graft merge -v file`) is ignored
+			// and the verb runs; spruce instead treats the token as a
+			// filename and exits 2. Honoring it here would be worse than
+			// either: a stray `-v` in a scripted merge would write a
+			// version string into the captured manifest with exit 0.
+			// The divergence is documented in
+			// docs/spruce/genesis-compat-contract.md.
+			if version && versionFlagPrecedesVerb(cmd, os.Args[1:]) {
+				printStdOutf("%s - Version %s\n", os.Args[0], Version)
+				aborted = true
+				exit(0)
+				return fmt.Errorf("version requested")
 			}
 
 			// Handle color flag
@@ -703,13 +751,8 @@ func newRootCmd() (*cobra.Command, *bool) {
 			if aborted {
 				return nil
 			}
-			// Root command with no subcommand
-			if version {
-				printStdOutf("%s - Version %s\n", os.Args[0], Version)
-				exit(0)
-				return nil
-			}
-			// No subcommand given: call usage
+			// No subcommand given: call usage. (-v/--version never
+			// reaches here; PersistentPreRunE handles it.)
 			usage()
 			return nil
 		},

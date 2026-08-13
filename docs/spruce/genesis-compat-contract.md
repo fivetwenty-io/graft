@@ -16,15 +16,30 @@ then a non-whitespace token." That token is checked against a minimum
 version of `1.28.0`; failing the check stops Genesis from running at
 all.
 
-Graft's `-v`/`--version` output already follows the same
-`"<program> - Version <version>"` shape spruce uses, so it satisfies the
-pattern match as long as a real version string is present. That version
-string is populated at build time via a linker flag
-(`-ldflags "-X main.Version=$(VERSION)"` in the Makefile); a binary
-built without that flag reports a development placeholder that will
-match the pattern syntactically but will not compare as a real semantic
-version, so any build intended to stand in for spruce needs the version
-flag set.
+Graft's `-v`/`--version` output follows the same
+`"<program> - Version <version>"` shape spruce uses, echoing the name
+the binary was invoked as (`os.Args[0]`, exactly like spruce), so a
+graft binary reached through a `spruce` symlink or copy reports itself
+as `spruce`. Like spruce, graft honors a version flag placed before
+the verb ahead of dispatch: `spruce -v merge ...` prints the version
+and exits 0 without reading input. Placed after the verb the two
+diverge deliberately: spruce treats the token as a filename and exits
+2 (`Error reading file -v`), while graft ignores the flag and runs the
+verb normally. Graft must never honor a post-verb `-v`: a stray flag
+in a scripted merge would write a version string into the captured
+manifest with exit 0 (see the "When '-v' follows a subcommand" pin in
+`cmd/graft/main_test.go`).
+
+The version string is populated at build time via a linker flag
+(`-ldflags "-X main.Version=$(VERSION)"` in the Makefile, taken from
+the exact git tag when one matches); a binary built without that flag
+falls back to a hardcoded copy of the current release version
+(`var Version`, `cmd/graft/main.go`), which is a real semver above the
+`1.28.0` minimum, so even an ad-hoc `go build` passes the gate. The
+fallback must be bumped alongside each release so untagged builds do
+not misreport an older version. A pre-verb `-v` is also handled before
+`--color` and `--config` validation, so the version probe succeeds
+even with a broken config file or `GRAFT_*` environment.
 
 ## The 16 invocation patterns
 

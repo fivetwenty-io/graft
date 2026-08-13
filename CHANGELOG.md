@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The library API release: `pkg/graft` is now a first-class Go library. The
 CLI surface and the genesis/spruce stderr contract are unchanged and
-byte-identical to 1.30.0.
+byte-identical to 1.30.0, except for the `-v` dispatch fix noted under
+Fixed.
 
 ### Added
 
@@ -139,6 +140,22 @@ byte-identical to 1.30.0.
   `pkg/graft` being a documented library surface (this release is the
   first to declare one), which is why their removal ships in a minor
   version.
+
+### Fixed
+
+- Pre-verb version flag precedence
+
+  A version flag placed before the verb now wins over the subcommand,
+  matching spruce: `graft -v merge ...` prints the version and exits 0
+  before dispatch (previously the flag was silently ignored and the
+  subcommand ran). Placed after the verb, the flag is still ignored
+  and the verb runs; spruce instead treats a post-verb `-v` as a
+  filename and exits 2. A pre-verb `-v` also skips `--color` and
+  `--config` validation, so it now exits 0 where a bad value
+  previously exited 1. The version line has always echoed the invoked
+  name (`os.Args[0]`), so a spruce-named symlink or copy reports
+  itself as `spruce` to genesis's version gate; that behavior is now
+  pinned by tests.
 
 ## [1.30.0] - 2026-08-11
 
