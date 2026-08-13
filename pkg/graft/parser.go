@@ -612,6 +612,17 @@ func (p *Parser) parseIdentifierOrOperator() (*Expr, error) {
 			return p.parseOperatorCall(name)
 		}
 
+		// If followed by a glued ":modifier" (op:nocache), it is a modified
+		// operator call — same argument-position rationale as @target
+		// above: "(( grab meta.a || vault:nocache "x" ))" puts the modified
+		// call on the right of ||, where the identifier would otherwise
+		// fall through to the reference branch and strand the ":modifier"
+		// tokens.
+		if nextTok.Type == interfaces.TokenColon && p.modifierFollowsAt(p.pos-1) {
+			p.pos-- // back up one position
+			return p.parseOperatorCall(name)
+		}
+
 		// If this was the token at opcallPos, it's the primary operator.
 		// Always treat the primary operator as an operator call.
 		if p.pos == p.opcallPos+1 { // one past opcallPos, i.e. right after consuming the operator name
@@ -755,6 +766,28 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 	p.advance() // consume operator name
 
 	op := p.operatorFor(opName)
+
+	// Check for :modifier (name:modifier, written without whitespace).
+	// The grammar is name[:modifier][@target]; only "nocache" is a valid
+	// modifier, and an unknown one is a loud parse error rather than a
+	// silent pass-through. A colon that is not glued to both the operator
+	// name and an identifier (e.g. the ternary "cond ? a : b", or a spaced
+	// "grab : nocache") is left alone for the stages below, which reject
+	// it exactly as they did before this syntax existed. spruce has no
+	// modifier syntax and leaves any (( op:anything ... )) string as
+	// unresolved literal text; graft has always hard-errored on those
+	// inputs instead, so this addition changes only inputs that previously
+	// failed to parse.
+	noCache := false
+	for p.modifierFollowsAt(p.pos - 1) {
+		modifier := p.tokenAt(p.pos + 1).Literal
+		if modifier != "nocache" {
+			return nil, fmt.Errorf("unknown operator modifier ':%s' for %s operator (only :nocache is supported)", modifier, opName)
+		}
+		noCache = true
+		p.advance() // consume ':'
+		p.advance() // consume modifier name
+	}
 
 	// "(( calc * 2 ))" must parse identically to
 	// "(( calc "* 2" ))" — op_calc.go's leading-operator branch already
@@ -903,18 +936,40 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 		}
 	}
 
-	return &Expr{
+	expr := &Expr{
 		Type:     OperatorCall,
 		Operator: opName,
 		Target:   target,
 		Call: &Opcall{
-			src:    p.input,
-			op:     op,
-			args:   args,
-			name:   opName,
-			target: target,
+			src:     p.input,
+			op:      op,
+			args:    args,
+			name:    opName,
+			target:  target,
+			noCache: noCache,
 		},
-	}, nil
+	}
+	if noCache {
+		expr.SetModifier("nocache")
+	}
+	return expr, nil
+}
+
+// modifierFollowsAt reports whether the token at nameIdx (an operator
+// name) is immediately followed by a ':' glued to it and an identifier
+// glued to the ':' — the shape of the `name:modifier` syntax. Offsets
+// come from the scanner, so any whitespace between the three tokens
+// breaks adjacency and this returns false, leaving the colon to be
+// rejected by the ordinary argument parsing exactly as it was before
+// modifiers existed.
+func (p *Parser) modifierFollowsAt(nameIdx int) bool {
+	name := p.tokenAt(nameIdx)
+	colon := p.tokenAt(nameIdx + 1)
+	mod := p.tokenAt(nameIdx + 2)
+	return colon.Type == interfaces.TokenColon &&
+		mod.Type == interfaces.TokenIdentifier &&
+		colon.Pos.Offset == name.End.Offset &&
+		mod.Pos.Offset == colon.End.Offset
 }
 
 // isCalcLeadingOperatorToken reports whether tok is one of the tokens that

@@ -1,150 +1,132 @@
-// TODO: Nocache tests removed - NewMemoizedEnhancedParser and enhanced parser not implemented
-//go:build ignore
-// +build ignore
-
 package graft
 
 import (
+	"context"
 	"testing"
-	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestNoCacheModifier(t *testing.T) {
-	Convey("NoCache Modifier Support", t, func() {
-		// Use a real registry with operators loaded
-		registry := NewOperatorRegistry()
-
-		Convey("Parse operator with nocache modifier", func() {
-			parser := NewMemoizedEnhancedParser(`vault:nocache "secret/path"`, registry)
-			expr, err := parser.Parse()
-
-			So(err, ShouldBeNil)
-			So(expr, ShouldNotBeNil)
-			So(expr.Type, ShouldEqual, OperatorCall)
-			So(expr.Op(), ShouldEqual, "vault")
-			So(expr.IsNoCache(), ShouldBeTrue)
+// These tests pin the expression-modifier surface: the Expr modifier
+// methods, the parser's `name[:modifier][@target]` grammar, and the
+// resulting Opcall flag. Only `nocache` is a valid modifier; an unknown
+// modifier is a loud parse error rather than a silent pass-through. The
+// modifier must be written without whitespace (grab:nocache) - a spaced
+// colon is not the modifier form and keeps its old parse-error behavior.
+//
+// spruce has no modifier syntax at all: it leaves any (( op:anything ... ))
+// string as unresolved literal text. graft has always hard-errored on those
+// inputs instead (a pre-existing, documented divergence), so giving
+// grab:nocache a meaning changes only inputs that previously failed to
+// parse - no working spruce or graft document changes behavior.
+func TestExprModifiers(t *testing.T) {
+	Convey("Expr modifier methods", t, func() {
+		Convey("zero value has no modifiers", func() {
+			e := &Expr{Type: OperatorCall, Operator: "vault"}
+			So(e.IsNoCache(), ShouldBeFalse)
+			So(e.HasModifier("nocache"), ShouldBeFalse)
+			So(e.GetModifiers(), ShouldBeEmpty)
 		})
 
-		Convey("Parse operator without nocache modifier", func() {
-			parser := NewMemoizedEnhancedParser(`vault "secret/path"`, registry)
-			expr, err := parser.Parse()
-
-			So(err, ShouldBeNil)
-			So(expr, ShouldNotBeNil)
-			So(expr.Type, ShouldEqual, OperatorCall)
-			So(expr.Op(), ShouldEqual, "vault")
-			So(expr.IsNoCache(), ShouldBeFalse)
+		Convey("SetModifier marks the expression", func() {
+			e := &Expr{Type: OperatorCall, Operator: "vault"}
+			e.SetModifier("nocache")
+			So(e.IsNoCache(), ShouldBeTrue)
+			So(e.HasModifier("nocache"), ShouldBeTrue)
+			So(e.GetModifiers(), ShouldResemble, []string{"nocache"})
 		})
 
-		Convey("Parse operator with multiple modifiers", func() {
-			parser := NewMemoizedEnhancedParser(`vault:nocache:debug "secret/path"`, registry)
-			expr, err := parser.Parse()
-
-			So(err, ShouldBeNil)
-			So(expr, ShouldNotBeNil)
-			So(expr.Type, ShouldEqual, OperatorCall)
-			So(expr.Op(), ShouldEqual, "vault")
-			So(expr.IsNoCache(), ShouldBeTrue)
-			So(expr.HasModifier("debug"), ShouldBeTrue)
+		Convey("SetModifier is idempotent", func() {
+			e := &Expr{}
+			e.SetModifier("nocache")
+			e.SetModifier("nocache")
+			So(e.GetModifiers(), ShouldResemble, []string{"nocache"})
 		})
 
-		Convey("Tokenizer handles operator modifiers", func() {
-			tokenizer := NewEnhancedTokenizer(`vault:nocache "secret/path"`)
-			tokens := tokenizer.Tokenize()
-
-			So(len(tokens), ShouldBeGreaterThan, 0)
-			// First token should be the operator with modifier
-			So(tokens[0].Type, ShouldEqual, TokenOperator)
-			So(tokens[0].Value, ShouldEqual, "vault:nocache")
-		})
-
-		Convey("Colon in ternary expressions still works", func() {
-			parser := NewMemoizedEnhancedParser("true ? 1 : 2", registry)
-			expr, err := parser.Parse()
-
-			So(err, ShouldBeNil)
-			So(expr, ShouldNotBeNil)
-			So(expr.Type, ShouldEqual, OperatorCall)
-			So(expr.Op(), ShouldEqual, "?:")
-		})
-
-		Convey("Modifier parsing", func() {
-			modifiers := make(map[string]bool)
-
-			// Test parseOperatorModifiers logic manually
-			parts := []string{"vault", "nocache"}
-			for i := 1; i < len(parts); i++ {
-				modifiers[parts[i]] = true
-			}
-
-			So(modifiers["nocache"], ShouldBeTrue)
-			So(len(modifiers), ShouldEqual, 1)
-		})
-
-		Convey("Expression modifier methods", func() {
-			expr := NewOperatorCall("vault", []*Expr{})
-
-			// Initially no modifiers
-			So(expr.IsNoCache(), ShouldBeFalse)
-			So(expr.HasModifier("nocache"), ShouldBeFalse)
-
-			// Set nocache modifier
-			expr.SetModifier("nocache", true)
-			So(expr.IsNoCache(), ShouldBeTrue)
-			So(expr.HasModifier("nocache"), ShouldBeTrue)
-
-			// Set another modifier
-			expr.SetModifier("debug", true)
-			So(expr.HasModifier("debug"), ShouldBeTrue)
-
-			// Get all modifiers
-			allMods := expr.GetModifiers()
-			So(len(allMods), ShouldEqual, 2)
-			So(allMods["nocache"], ShouldBeTrue)
-			So(allMods["debug"], ShouldBeTrue)
-		})
-
-		Convey("Cache respects nocache modifier", func() {
-			cache := NewParserMemoizationCache(100, time.Hour)
-
-			// Parse regular expression (should be cached)
-			parser1 := NewMemoizedEnhancedParser(`vault "secret/path"`, registry)
-			parser1.cache = cache
-			_, err1 := parser1.Parse()
-			So(err1, ShouldBeNil)
-
-			// Parse with nocache (should not be cached)
-			parser2 := NewMemoizedEnhancedParser(`vault:nocache "secret/path"`, registry)
-			parser2.cache = cache
-			expr2, err2 := parser2.Parse()
-			So(err2, ShouldBeNil)
-			So(expr2.IsNoCache(), ShouldBeTrue)
-
-			// Verify different cache behavior
-			metrics := cache.GetMetrics()
-			So(metrics.Size, ShouldBeGreaterThan, 0)
+		Convey("GetModifiers returns a sorted list", func() {
+			e := &Expr{}
+			e.SetModifier("zeta")
+			e.SetModifier("alpha")
+			So(e.GetModifiers(), ShouldResemble, []string{"alpha", "zeta"})
 		})
 	})
 }
 
-func BenchmarkNoCacheOperator(b *testing.B) {
-	registry := NewOperatorRegistry()
+func TestNoCacheModifierParsing(t *testing.T) {
+	parse := func(input string) (*Opcall, error) {
+		return NewParser(input, EvalPhase).ParseOpcall()
+	}
 
-	b.Run("WithNoCache", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			parser := NewMemoizedEnhancedParser(`vault:nocache "secret/data"`, registry)
-			expr, _ := parser.Parse()
-			_ = expr.IsNoCache()
-		}
+	Convey("Parsing the :nocache modifier", t, func() {
+		Convey("op:nocache parses and sets the flag", func() {
+			opcall, err := parse(`(( vault:nocache "secret/path" ))`)
+			So(err, ShouldBeNil)
+			So(opcall, ShouldNotBeNil)
+			So(opcall.NoCache(), ShouldBeTrue)
+			So(opcall.Args(), ShouldHaveLength, 1)
+		})
+
+		Convey("without the modifier the flag stays false", func() {
+			opcall, err := parse(`(( vault "secret/path" ))`)
+			So(err, ShouldBeNil)
+			So(opcall.NoCache(), ShouldBeFalse)
+		})
+
+		Convey("an unknown modifier is a parse error", func() {
+			_, err := parse(`(( grab:bogus meta.data ))`)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "unknown operator modifier")
+			So(err.Error(), ShouldContainSubstring, "bogus")
+		})
+
+		Convey("modifier composes with @target, in that order", func() {
+			opcall, err := parse(`(( vault:nocache@prod "secret/path" ))`)
+			So(err, ShouldBeNil)
+			So(opcall.NoCache(), ShouldBeTrue)
+			So(opcall.Target(), ShouldEqual, "prod")
+		})
+
+		Convey("target-then-modifier is not accepted", func() {
+			_, err := parse(`(( vault@prod:nocache "secret/path" ))`)
+			So(err, ShouldNotBeNil)
+		})
+
+		Convey("a spaced colon is not the modifier form", func() {
+			_, err := parse(`(( grab : nocache meta.data ))`)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldNotContainSubstring, "unknown operator modifier")
+		})
+
+		Convey("modifier works on the right side of ||", func() {
+			opcall, err := parse(`(( grab meta.a || vault:nocache "secret/path" ))`)
+			So(err, ShouldBeNil)
+			So(opcall, ShouldNotBeNil)
+		})
+
+		Convey("ternary ? : is unaffected", func() {
+			opcall, err := parse(`(( true ? 1 : 2 ))`)
+			So(err, ShouldBeNil)
+			So(opcall, ShouldNotBeNil)
+		})
 	})
+}
 
-	b.Run("WithoutNoCache", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			parser := NewMemoizedEnhancedParser(`vault "secret/data"`, registry)
-			expr, _ := parser.Parse()
-			_ = expr.IsNoCache()
-		}
+// TestNoCacheModifierEndToEnd proves the modifier is accepted through a
+// real merge and is semantically inert for a non-backend operator (the
+// backend cache bypass is wired separately).
+func TestNoCacheModifierEndToEnd(t *testing.T) {
+	Convey("A grab:nocache expression evaluates like plain grab", t, func() {
+		engine, err := NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte("meta:\n  data: hello\nv: (( grab:nocache meta.data ))\n"))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Merge(context.Background(), doc).Execute()
+		So(err, ShouldBeNil)
+
+		v, err := result.Get("v")
+		So(err, ShouldBeNil)
+		So(v, ShouldEqual, "hello")
 	})
 }

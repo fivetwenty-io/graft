@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/goccy/go-yaml"
 
@@ -56,6 +57,47 @@ type Expr struct {
 	Call           *Opcall
 	Pos            Position
 	evaluator      *Evaluator // Optional evaluator for nested operator calls
+	// modifiers holds `:modifier` annotations parsed from the operator
+	// name position (e.g. the "nocache" in "(( vault:nocache ... ))").
+	// nil means none; access through SetModifier/HasModifier/GetModifiers
+	// so the zero value stays valid. Deliberately excluded from String()
+	// and from anything that feeds cache keys or error text.
+	modifiers map[string]bool
+}
+
+// SetModifier records a `:modifier` annotation on the expression.
+func (e *Expr) SetModifier(name string) {
+	if e.modifiers == nil {
+		e.modifiers = make(map[string]bool, 1)
+	}
+	e.modifiers[name] = true
+}
+
+// HasModifier reports whether the expression carries the named modifier.
+// Safe on an expression with no modifiers.
+func (e *Expr) HasModifier(name string) bool {
+	return e != nil && e.modifiers[name]
+}
+
+// GetModifiers returns the expression's modifiers, sorted, or an empty
+// slice when there are none.
+func (e *Expr) GetModifiers() []string {
+	if e == nil || len(e.modifiers) == 0 {
+		return []string{}
+	}
+	mods := make([]string, 0, len(e.modifiers))
+	for m := range e.modifiers {
+		mods = append(mods, m)
+	}
+	sort.Strings(mods)
+	return mods
+}
+
+// IsNoCache reports whether the expression carries the `nocache` modifier,
+// which asks backend-backed operators (vault, awsparam, awssecret, nats)
+// to bypass their caches for this lookup.
+func (e *Expr) IsNoCache() bool {
+	return e.HasModifier("nocache")
 }
 
 // ExprType represents the type of expression.
@@ -170,12 +212,19 @@ type Opcall struct {
 	args      []*Expr
 	name      string // the operator name as written, e.g. "vault" — used for the @target rejection error
 	target    string // the "@target" name, e.g. "prod" in "vault@prod"; "" if none was given
+	noCache   bool   // set by the ":nocache" modifier, e.g. "vault:nocache"
 }
 
 // Target returns the "@target" name for this operator call, or "" if none
 // was given.
 func (op *Opcall) Target() string {
 	return op.target
+}
+
+// NoCache reports whether this call was written with the ":nocache"
+// modifier (e.g. "(( vault:nocache ... ))").
+func (op *Opcall) NoCache() bool {
+	return op.noCache
 }
 
 // Args returns the arguments for this operator call.
