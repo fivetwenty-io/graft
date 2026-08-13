@@ -180,6 +180,25 @@ func NewOpcall(op Operator, args []*Expr, src string) *Opcall {
 	}
 }
 
+// NewOpcallForExpr creates the operator call for evaluating a nested
+// OperatorCall expression, carrying the "@target" and ":nocache" modifier
+// the parser recorded on expr — NewOpcall cannot express either, and
+// dropping them made "(( concat "p-" (vault:nocache "x") ))" silently
+// serve a cached secret while the top-level form bypassed the cache. The
+// operator is passed in rather than taken from expr.Call so callers can
+// resolve it against the evaluating engine's registry (engine-local custom
+// operators; see operators' evaluateNestedOperator).
+func NewOpcallForExpr(op Operator, expr *Expr, src string) *Opcall {
+	return &Opcall{
+		op:      op,
+		args:    expr.Args(),
+		src:     src,
+		name:    expr.Op(),
+		target:  expr.Target,
+		noCache: expr.HasModifier("nocache"),
+	}
+}
+
 // DefaultKeyGenerator returns a key generator function
 // This seems to be used for generating unique keys, possibly for caching.
 func DefaultKeyGenerator() func() (string, error) {

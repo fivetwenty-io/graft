@@ -131,3 +131,41 @@ func TestNoCacheDoesNotContaminateCacheKeys(t *testing.T) {
 		t.Fatalf("cache key contaminated by modifier: entries %v", cache.entries)
 	}
 }
+
+// TestNoCacheHonoredOnNestedOperatorCalls pins that the modifier survives
+// argument position: (( concat "p-" (vault:nocache ...) )) must bypass
+// the backend cache exactly like the top-level form — every merge hits
+// the backend, and nothing is ever written to the cache. The nested
+// evaluation path builds its own Opcall (operators'
+// evaluateNestedOperator) rather than running the parser's, so a nested
+// call that drops the parsed flag silently serves a stale cached secret.
+func TestNoCacheHonoredOnNestedOperatorCalls(t *testing.T) {
+	cache := newRecordingCache()
+	m := NewMockEngine(WithBackendCache("vault", cache))
+	m.MockVault("secret/creds:pass", "s3cr3t")
+
+	src := "v: (( concat \"p-\" (vault:nocache \"secret/creds:pass\") ))\n"
+	for i := 1; i <= 3; i++ {
+		doc, err := m.ParseYAML([]byte(src))
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		result, err := m.Merge(context.Background(), doc).Execute()
+		if err != nil {
+			t.Fatalf("merge %d failed: %v", i, err)
+		}
+		v, err := result.Get("v")
+		if err != nil || v != "p-s3cr3t" {
+			t.Fatalf("merge %d: expected v to resolve to p-s3cr3t, got %v (err %v)", i, v, err)
+		}
+		if got := len(m.VaultCalls()); got != i {
+			t.Fatalf("merge %d: expected %d backend calls (no cache read), got %d", i, i, got)
+		}
+	}
+
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	if cache.sets != 0 {
+		t.Fatalf("nested nocache fetch wrote to the cache %d time(s)", cache.sets)
+	}
+}

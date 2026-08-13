@@ -111,7 +111,6 @@ func evaluateNestedOperator(ev *Evaluator, expr *Expr) (interface{}, error) {
 	}
 
 	opName := expr.Op()
-	args := expr.Args()
 
 	// Get the operator, preferring ev's engine-local registry so a custom
 	// operator registered via Engine.RegisterOperator / WithCustomOperator
@@ -126,8 +125,11 @@ func evaluateNestedOperator(ev *Evaluator, expr *Expr) (interface{}, error) {
 		return nil, fmt.Errorf("unknown operator: %s", opName)
 	}
 
-	// Create a temporary opcall for the nested operator
-	opcall := graft.NewOpcall(op, args, "")
+	// Create a temporary opcall for the nested operator. NewOpcallForExpr
+	// (not NewOpcall) so the "@target" and ":nocache" modifier parsed onto
+	// the expression reach Opcall.Run — a nested (( vault:nocache ... ))
+	// must bypass the backend cache exactly like the top-level form.
+	opcall := graft.NewOpcallForExpr(op, expr, "")
 
 	// Set the where field to the current evaluator's position
 	// This is important for operators like vault that use ev.Here
