@@ -231,7 +231,10 @@ type History interface {
 	// fields exactly as DocumentMemory.Query does. Path matches on exact
 	// equality, PathMatches wildcards (*, **, [0], [*], [key=value]), or
 	// a segment-aware path prefix - Path: "db" matches "db.host" but not
-	// "dbextra". Limit caps the earliest N matches.
+	// "dbextra". Prefix matching applies to literal paths only; a
+	// wildcard pattern matches at exactly its own depth ("db.*" matches
+	// "db.host" but not "db.host.port" - use "db.**" for any depth).
+	// Limit caps the earliest N matches.
 	Query(filter HistoryFilter) []HistoryEntry
 
 	// Timeline returns every recorded entry across every path, in
