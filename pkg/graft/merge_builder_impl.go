@@ -1263,7 +1263,24 @@ func toInterfaceKeyValue(v interface{}) interface{} {
 func (m *mergeBuilderImpl) applySortPaths(doc Document, sortPaths map[string]string) (Document, error) {
 	data, ok := doc.RawData().(map[string]interface{})
 	if !ok {
-		return doc, nil // Return unchanged if not a map
+		if len(sortPaths) == 0 {
+			return doc, nil
+		}
+		// A queued sort path can never resolve in a non-map root. No
+		// merge-path input is known to reach this (the merged root is
+		// always a map), but if one ever does — e.g. a post-processor
+		// replacing the document — fail exactly like an unresolvable
+		// sort path rather than silently dropping the queued markers,
+		// which is the silent skip this function's error handling exists
+		// to prevent. Report one path (the lexicographically first, for
+		// determinism), matching the one-sort-error-per-run behavior.
+		first := ""
+		for path := range sortPaths {
+			if first == "" || path < first {
+				first = path
+			}
+		}
+		return nil, MultiError{Errors: []error{tree.NotFoundError{Path: []string{first}}}}
 	}
 
 	if m.skipEvaluation {

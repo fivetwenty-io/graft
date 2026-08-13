@@ -2,6 +2,7 @@ package graft
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -106,4 +107,39 @@ func TestSortPostProcessingErrorParity(t *testing.T) {
 			So(list, ShouldResemble, []interface{}{"alpha", "charlie"})
 		}
 	})
+}
+
+// nonMapDoc is a Document whose root is not a map — unreachable through
+// the constructors and the merge path, but reachable in principle through
+// a post-processor that replaces the document.
+type nonMapDoc struct{ Document }
+
+func (nonMapDoc) RawData() interface{} { return []interface{}{"a", "b"} }
+
+// TestSortPathsNonMapRootFails pins the last silent-skip branch in
+// applySortPaths: queued sort markers against a non-map document root
+// must fail like any other unresolvable sort path, never be dropped.
+func TestSortPathsNonMapRootFails(t *testing.T) {
+	m := &mergeBuilderImpl{}
+
+	// No queued sorts: a non-map root passes through untouched.
+	doc, err := m.applySortPaths(nonMapDoc{}, nil)
+	if err != nil {
+		t.Fatalf("expected no error with no queued sorts, got %v", err)
+	}
+	if _, ok := doc.(nonMapDoc); !ok {
+		t.Fatalf("expected document to pass through unchanged")
+	}
+
+	// Queued sorts: fail with the unresolvable-path error, reporting the
+	// lexicographically first path.
+	_, err = m.applySortPaths(nonMapDoc{}, map[string]string{"zz.list": "name", "aa.list": "name"})
+	if err == nil {
+		t.Fatalf("expected queued sorts against a non-map root to fail")
+	}
+	for _, want := range []string{"$.aa.list", "could not be found in the datastructure"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("expected error containing %q, got %q", want, err.Error())
+		}
+	}
 }
