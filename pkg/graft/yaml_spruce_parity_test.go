@@ -552,3 +552,109 @@ func mustGet(t *testing.T, doc Document, path string) interface{} {
 	}
 	return v
 }
+
+// TestMarshalYAML_SpruceKeyOrder locks in the spruce-compatible two-tier
+// key order on encode: numeric-looking keys first (numerically), then
+// string keys in spruce's natural order (digit runs numeric, non-letters
+// before letters). Expected byte output verified against the live spruce
+// 1.35.16 binary on equivalent fixtures; key quoting is graft's own
+// (coerced numeric-looking keys stay quoted strings — a documented label
+// difference from spruce's bare typed keys).
+func TestMarshalYAML_SpruceKeyOrder(t *testing.T) {
+	cases := []struct {
+		name string
+		data interface{}
+		want string
+	}{
+		{
+			name: "mixed numeric and string keys",
+			data: map[string]interface{}{
+				"m": map[string]interface{}{
+					"10": 1, "2": 1, "9": 1, "10x": 1, "alpha": 1, "zulu": 1,
+				},
+			},
+			want: "m:\n  \"2\": 1\n  \"9\": 1\n  \"10\": 1\n  10x: 1\n  alpha: 1\n  zulu: 1\n",
+		},
+		{
+			name: "integer-only keys",
+			data: map[string]interface{}{
+				"ports": map[string]interface{}{"443": 1, "80": 1, "8080": 1},
+			},
+			want: "ports:\n  \"80\": 1\n  \"443\": 1\n  \"8080\": 1\n",
+		},
+		{
+			name: "embedded digit runs in string keys",
+			data: map[string]interface{}{
+				"jobs": map[string]interface{}{"item10": 1, "item9": 1, "item2": 1},
+				"azs":  map[string]interface{}{"z1a": 1, "z10a": 1, "z2b": 1},
+			},
+			want: "azs:\n  z1a: 1\n  z2b: 1\n  z10a: 1\njobs:\n  item2: 1\n  item9: 1\n  item10: 1\n",
+		},
+		{
+			name: "empty digit run counts as zero",
+			data: map[string]interface{}{
+				"int64_val": 1, "int_val": 1,
+			},
+			want: "int_val: 1\nint64_val: 1\n",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := MarshalYAML(tc.data)
+			if err != nil {
+				t.Fatalf("MarshalYAML returned error: %v", err)
+			}
+			if string(out) != tc.want {
+				t.Fatalf("output mismatch\n got:\n%s\nwant:\n%s", out, tc.want)
+			}
+		})
+	}
+}
+
+// TestMarshalYAML_SpruceKeyOrder_Punctuation covers the non-letter-
+// before-letter branch (which spans punctuation, not just digits):
+// spruce emits _x, |p, ~t, Zx, ax for these five keys. Asserted by
+// relative position rather than full bytes so goccy's own key-quoting
+// style stays out of scope.
+func TestMarshalYAML_SpruceKeyOrder_Punctuation(t *testing.T) {
+	out, err := MarshalYAML(map[string]interface{}{
+		"_x": 1, "Zx": 1, "ax": 1, "~t": 1, "|p": 1,
+	})
+	if err != nil {
+		t.Fatalf("MarshalYAML returned error: %v", err)
+	}
+	got := string(out)
+	lastIdx := -1
+	for _, key := range []string{"_x", "|p", "~t", "Zx", "ax"} {
+		idx := strings.Index(got, key)
+		if idx == -1 {
+			t.Fatalf("output missing key %q; full output:\n%s", key, got)
+		}
+		if idx < lastIdx {
+			t.Fatalf("key %q out of spruce order; full output:\n%s", key, got)
+		}
+		lastIdx = idx
+	}
+}
+
+// TestMarshalYAML_NonStringMapKeys locks in that a
+// map[interface{}]interface{} whose keys are not strings marshals
+// without panicking (goccy's MapItem encoder type-asserts .(string)
+// unchecked) and that the stringified keys join the normal ordering.
+func TestMarshalYAML_NonStringMapKeys(t *testing.T) {
+	out, err := MarshalYAML(map[string]interface{}{
+		"m": map[interface{}]interface{}{
+			10:      "ten",
+			2:       "two",
+			"alpha": "a",
+		},
+	})
+	if err != nil {
+		t.Fatalf("MarshalYAML returned error: %v", err)
+	}
+	want := "m:\n  \"2\": two\n  \"10\": ten\n  alpha: a\n"
+	if string(out) != want {
+		t.Fatalf("output mismatch\n got:\n%s\nwant:\n%s", out, want)
+	}
+}

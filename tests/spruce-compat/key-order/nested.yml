@@ -1,0 +1,9 @@
+top:
+  - name: one
+    props:
+      item10: 1
+      item2: 2
+  - name: two
+    props:
+      z10a: 1
+      z1a: 2

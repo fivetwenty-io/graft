@@ -1829,11 +1829,11 @@ int: 7776000
 				So(stdout, ShouldEqual, `properties:
   cc:
     quota_definitions:
-      q256MB:
-        non_basic_services_allowed: true
       q2GB:
         non_basic_services_allowed: true
       q4GB:
+        non_basic_services_allowed: true
+      q256MB:
         non_basic_services_allowed: true
 
 `)

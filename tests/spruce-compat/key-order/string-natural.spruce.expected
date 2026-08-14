@@ -1,0 +1,19 @@
+azs:
+  z1a: 1
+  z2b: 1
+  z10a: 1
+jobs:
+  item2: a
+  item9: c
+  item10: b
+metrics:
+  int_val: 1
+  int64_val: 2
+padding:
+  a1: 1
+  a01: 2
+  a001: 3
+runs:
+  a2b9: 1
+  a2b10: 2
+

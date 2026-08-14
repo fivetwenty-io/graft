@@ -1,0 +1,6 @@
+m:
+  -1: neg
+  1.5: fl
+  10: int
+  2x: s1
+  alpha: s2

@@ -1,0 +1,13 @@
+actions:
+  1: first
+  2: second
+  10: tenth
+exit_codes:
+  0: ok
+  1: warn
+  2: error
+ports:
+  80: http
+  443: https
+  8080: alt
+

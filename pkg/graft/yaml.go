@@ -2,7 +2,9 @@ package graft
 
 import (
 	"bytes"
+	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -11,8 +13,9 @@ import (
 
 // MarshalYAML serializes a value to YAML with 2-space indentation,
 // matching the output format expected by BOSH and CF ecosystem tools.
+// Map keys are emitted in spruce's two-tier order (see spruceKeyLess).
 func MarshalYAML(v interface{}) ([]byte, error) {
-	v = quoteSpecialFloatLookalikes(v)
+	v = prepareForEncode(v)
 
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf, yaml.Indent(2))
@@ -69,11 +72,13 @@ func (s forcedQuoteString) MarshalYAML() ([]byte, error) {
 	return []byte(strconv.Quote(string(s))), nil
 }
 
-// quoteSpecialFloatLookalikes walks v, replacing any string value that
-// needsExplicitQuote flags with a forcedQuoteString so it survives a
-// marshal/re-parse round trip as a string. It returns a new tree; the
-// input is not mutated.
-func quoteSpecialFloatLookalikes(v interface{}) interface{} {
+// prepareForEncode walks v, rebuilding the tree for the encoder: every
+// map becomes a yaml.MapSlice with its keys in spruceKeyLess order
+// (goccy's own encoder would sort them purely lexicographically), and
+// any string value that needsExplicitQuote flags becomes a
+// forcedQuoteString so it survives a marshal/re-parse round trip as a
+// string. It returns a new tree; the input is not mutated.
+func prepareForEncode(v interface{}) interface{} {
 	switch val := v.(type) {
 	case string:
 		if needsExplicitQuote(val) {
@@ -81,21 +86,31 @@ func quoteSpecialFloatLookalikes(v interface{}) interface{} {
 		}
 		return val
 	case map[string]interface{}:
-		out := make(map[string]interface{}, len(val))
-		for k, item := range val {
-			out[k] = quoteSpecialFloatLookalikes(item)
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			return spruceKeyLess(keys[i], keys[j])
+		})
+		out := make(yaml.MapSlice, 0, len(keys))
+		for _, k := range keys {
+			out = append(out, yaml.MapItem{Key: k, Value: prepareForEncode(val[k])})
 		}
 		return out
 	case map[interface{}]interface{}:
-		out := make(map[interface{}]interface{}, len(val))
+		// Stringify keys before building MapItems: goccy's MapSlice
+		// encoder type-asserts each key .(string) unchecked and would
+		// panic on anything else.
+		converted := make(map[string]interface{}, len(val))
 		for k, item := range val {
-			out[k] = quoteSpecialFloatLookalikes(item)
+			converted[fmt.Sprintf("%v", k)] = item
 		}
-		return out
+		return prepareForEncode(converted)
 	case []interface{}:
 		out := make([]interface{}, len(val))
 		for i, item := range val {
-			out[i] = quoteSpecialFloatLookalikes(item)
+			out[i] = prepareForEncode(item)
 		}
 		return out
 	default:
