@@ -124,7 +124,8 @@ server:
 ### Using Homebrew (macOS)
 
 ```sh
-brew install --cask fivetwenty-io/tap/graft
+brew trust fivetwenty-io/tap &&
+  brew install --cask fivetwenty-io/tap/graft
 ```
 
 ### Using Go

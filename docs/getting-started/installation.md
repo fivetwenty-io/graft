@@ -13,7 +13,8 @@ This guide covers all the ways to install Graft on your system.
 ### Homebrew (Recommended on macOS and Linux)
 
 ```sh
-brew install --cask fivetwenty-io/tap/graft
+brew trust fivetwenty-io/tap &&
+  brew install --cask fivetwenty-io/tap/graft
 ```
 
 Installs the `graft` binary and shell completions from the
