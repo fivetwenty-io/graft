@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `(( file ... ))` now fails with spruce's exact error text when the
+  file cannot be read (`tried to read file <path>: could not be read -
+  <os error>`) and when the argument resolves to a map or list
+  (`tried to read file <arg>, which is not a string scalar`), instead
+  of surfacing the raw Go error or trying to open the stringified
+  collection as a filename.
+
 ## [1.32.0] - 2026-08-13
 
 Closes the last five tracked entries in the

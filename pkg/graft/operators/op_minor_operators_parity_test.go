@@ -470,6 +470,53 @@ result: (( empty() ))
 		So(err, ShouldNotBeNil)
 		So(err.Error(), ShouldContainSubstring, "empty operator expects 1 argument, received 0")
 	})
+
+	Convey("file: unreadable file errors with spruce's exact wording", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`
+result: (( file "missing-file-for-parity-test.txt" ))
+`))
+		So(err, ShouldBeNil)
+
+		_, err = engine.Evaluate(context.TODO(), doc)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, "tried to read file missing-file-for-parity-test.txt: could not be read - open missing-file-for-parity-test.txt: no such file or directory")
+	})
+
+	Convey("file: reference resolving to a map argument errors with spruce's exact wording", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`
+meta:
+  thing:
+    nested: value
+result: (( file meta.thing ))
+`))
+		So(err, ShouldBeNil)
+
+		_, err = engine.Evaluate(context.TODO(), doc)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, "tried to read file meta.thing, which is not a string scalar")
+	})
+
+	Convey("file: reference resolving to a list argument errors with spruce's exact wording", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`
+meta:
+  items: [1, 2, 3]
+result: (( file meta.items ))
+`))
+		So(err, ShouldBeNil)
+
+		_, err = engine.Evaluate(context.TODO(), doc)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, "tried to read file meta.items, which is not a string scalar")
+	})
 }
 
 // indexOfSubstring returns the index of the first occurrence of substr in s,

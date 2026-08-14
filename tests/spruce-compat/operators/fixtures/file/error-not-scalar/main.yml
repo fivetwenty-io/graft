@@ -1,0 +1,4 @@
+meta:
+  thing:
+    nested: value
+result: (( file meta.thing ))

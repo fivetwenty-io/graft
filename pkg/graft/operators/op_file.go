@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -60,6 +61,12 @@ func (FileOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			return nil, fmt.Errorf("file operator argument resolved to nil")
 		}
 
+		switch val.(type) {
+		case map[interface{}]interface{}, map[string]interface{}, []interface{}:
+			DEBUG("file operator argument %v is not a string scalar", val)
+			return nil, ansi.Errorf("@R{tried to read file} @c{%s}@R{, which is not a string scalar}", args[0].String())
+		}
+
 		filename = fmt.Sprintf("%v", val)
 		DEBUG("using filename '%s'", filename)
 	case 2:
@@ -108,7 +115,7 @@ func (FileOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	if err != nil {
 		DEBUG("failed to read file")
 		DEBUG("error was: %s", err)
-		return nil, err
+		return nil, ansi.Errorf("@R{tried to read file} @c{%s}@R{: could not be read - %s}", filename, err)
 	}
 
 	contents := string(file)
