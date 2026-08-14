@@ -2,6 +2,7 @@ package graft
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -600,7 +601,7 @@ func TestDocument_Delete(t *testing.T) {
 
 func TestDocumentDelete(t *testing.T) {
 	doc := NewDocument(map[string]interface{}{
-		"keep": "yes",
+		"keep":   "yes",
 		"remove": "this",
 		"nested": map[string]interface{}{"a": 1, "b": 2},
 	})
@@ -677,7 +678,6 @@ func TestDocument_ToMap(t *testing.T) {
 		})
 	})
 }
-
 
 func TestPathParts(t *testing.T) {
 	Convey("Given various path strings", t, func() {
@@ -1167,5 +1167,53 @@ func TestCheckForCycles(t *testing.T) {
 	}
 	if err := CheckForCycles(deep, 10); err != nil {
 		t.Errorf("unexpected error on deeply nested but allowed data: %v", err)
+	}
+}
+
+// TestDocument_ToYAML_MatchesMarshalYAML locks in that the library
+// surface emits the same bytes as the CLI for the same tree: spruce's
+// two-tier key order and the special-float quoting guard both apply.
+// Before ToYAML routed through MarshalYAML it called yaml.Marshal
+// directly, so library output was lexicographically ordered and could
+// silently turn a ".nan" string into a float on re-parse.
+func TestDocument_ToYAML_MatchesMarshalYAML(t *testing.T) {
+	data := map[string]interface{}{
+		"m": map[string]interface{}{
+			"10":    1,
+			"2":     1,
+			"9":     1,
+			"item2": 1, "item10": 1,
+		},
+		"lookalike": ".nan",
+	}
+	doc := NewDocument(data)
+
+	got, err := doc.ToYAML()
+	if err != nil {
+		t.Fatalf("ToYAML returned error: %v", err)
+	}
+	want, err := MarshalYAML(data)
+	if err != nil {
+		t.Fatalf("MarshalYAML returned error: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("ToYAML and MarshalYAML disagree\nToYAML:\n%s\nMarshalYAML:\n%s", got, want)
+	}
+
+	gotStr := string(got)
+	wantOrder := []string{"\"2\": 1", "\"9\": 1", "\"10\": 1", "item2: 1", "item10: 1"}
+	lastIdx := -1
+	for _, key := range wantOrder {
+		idx := strings.Index(gotStr, key)
+		if idx == -1 {
+			t.Fatalf("output missing %q; full output:\n%s", key, gotStr)
+		}
+		if idx < lastIdx {
+			t.Fatalf("%q out of spruce order; full output:\n%s", key, gotStr)
+		}
+		lastIdx = idx
+	}
+	if !strings.Contains(gotStr, `lookalike: ".nan"`) {
+		t.Fatalf("special-float lookalike not quoted; full output:\n%s", gotStr)
 	}
 }

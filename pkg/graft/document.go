@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/goccy/go-yaml"
-
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -213,9 +211,11 @@ func convertToJSONCompatible(v interface{}) interface{} {
 	}
 }
 
-// ToYAML converts the document to YAML bytes.
+// ToYAML converts the document to YAML bytes. It routes through
+// MarshalYAML so library output carries the same spruce-compatible key
+// ordering and special-float quoting as CLI output.
 func (d *document) ToYAML() ([]byte, error) {
-	return yaml.Marshal(d.data)
+	return MarshalYAML(d.data)
 }
 
 // ToJSON converts the document to JSON bytes.
