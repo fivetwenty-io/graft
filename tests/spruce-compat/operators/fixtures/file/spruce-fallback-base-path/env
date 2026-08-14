@@ -1,1 +1,1 @@
-SPRUCE_FILE_BASE_PATH=/Users/wayneeseguin/w/fivetwenty/studios/ocfp/src/clis/graft/tests/spruce-compat/operators/fixtures/file/_support
+SPRUCE_FILE_BASE_PATH=@FIXTURES_DIR@/file/_support

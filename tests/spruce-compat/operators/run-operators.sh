@@ -71,8 +71,11 @@ run_case() {
   local -a flags=()
   while IFS= read -r line; do flags+=("$line"); done < <(read_lines "$case_dir/flags")
 
+  # @FIXTURES_DIR@ in env values expands to the absolute fixtures
+  # directory, so cases can point at _support data without baking in a
+  # machine-specific checkout path.
   local -a envpairs=()
-  while IFS= read -r line; do envpairs+=("$line"); done < <(read_lines "$case_dir/env")
+  while IFS= read -r line; do envpairs+=("${line//@FIXTURES_DIR@/$FIXTURES_DIR}"); done < <(read_lines "$case_dir/env")
 
   local mode="byte"
   [ -f "$case_dir/mode" ] && mode="$(cat "$case_dir/mode")"

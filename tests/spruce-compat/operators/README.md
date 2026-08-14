@@ -29,7 +29,7 @@ Each case is a directory under `fixtures/<operator>/<case-name>/`:
 |---|---|---|
 | `*.yml` | yes | Merge inputs, applied in sorted filename order |
 | `flags` | no | Extra CLI flags, one per line, appended after the verb |
-| `env` | no | `KEY=VALUE` lines, exported for both invocations |
+| `env` | no | `KEY=VALUE` lines, exported for both invocations; `@FIXTURES_DIR@` in a value expands to the absolute `fixtures/` directory |
 | `verb` | no | CLI verb to run (default `merge`); e.g. `vaultinfo`, `json` |
 | `mode` | no | `structural` for order-independent comparison (see below); default is byte-exact |
 | `expect-divergence` | no | Free-text reason; presence turns a mismatch into an `INFO` line instead of `FAIL` |
