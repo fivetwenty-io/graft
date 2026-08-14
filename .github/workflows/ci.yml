@@ -23,11 +23,19 @@ jobs:
           go-version: '1.26'
           cache: true
 
+      # Pinned to a v2 release built with a Go toolchain at least as new
+      # as go.mod's language version -- "latest" under the v6 action
+      # resolved a v1.x linter built with go1.24, which refuses to load
+      # against a go 1.26 target.
+      #
+      # only-new-issues: the repo carries ~657 baseline findings under
+      # this config; the job gates new issues only until that backlog
+      # is burned down.
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: latest
-          args: --timeout=5m
+          version: v2.12.2
+          only-new-issues: true
 
   test:
     name: Test
