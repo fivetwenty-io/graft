@@ -1,11 +1,9 @@
 package operators
 
 import (
-	"bytes"
 	"fmt"
 
-	"github.com/goccy/go-yaml"
-
+	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -97,21 +95,19 @@ func (StringifyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		}, nil
 	}
 
-	// For complex types, use YAML marshaling with 2-space indent
+	// For complex types, use the shared YAML marshal so stringified
+	// subtrees carry the same spruce-compatible key ordering as every
+	// other YAML emit.
 	DEBUG("converting complex type to YAML string")
-	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf, yaml.Indent(2))
-	if err := enc.Encode(val); err != nil {
+	out, err := graft.MarshalYAML(val)
+	if err != nil {
 		DEBUG("YAML marshaling failed: %s", err)
 		return nil, fmt.Errorf("unable to stringify value: %w", err)
 	}
-	enc.Close()
-
-	result := buf.String()
 
 	return &Response{
 		Type:  Replace,
-		Value: result,
+		Value: string(out),
 	}, nil
 }
 
