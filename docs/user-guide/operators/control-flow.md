@@ -72,8 +72,8 @@ resources:
   memory: 4Gi
 ```
 
-Keys come out alphabetically sorted, as in every graft merge; the branch you
-wrote is spliced in, not reordered around.
+Keys come out in graft's stable sorted order, as in every graft merge; the
+branch you wrote is spliced in, not reordered around.
 
 ### Multiple Branches
 

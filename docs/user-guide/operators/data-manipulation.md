@@ -3,8 +3,8 @@
 Operators for referencing and transforming data within your configuration.
 
 Every output block below is what `graft merge` actually prints: the whole
-merged document, map keys sorted alphabetically, and list items at the same
-indentation as their parent key. Where an example would otherwise be buried in
+merged document, map keys in graft's stable sorted order, and list items at the
+same indentation as their parent key. Where an example would otherwise be buried in
 the values it reads from, the `--prune` flag that removed them is shown with
 the command.
 

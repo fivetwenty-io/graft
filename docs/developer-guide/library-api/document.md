@@ -691,7 +691,7 @@ func (d *Document) SortKeys() Document
 sorted := doc.SortKeys()
 ```
 
-Go maps have no persistent key order, so `SortKeys` does not reorder anything in memory. It exists so callers get a deterministic-output guarantee from `ToJSON`/`ToYAML` without depending on a particular marshaler's default behavior — `ToJSON` (`encoding/json`) and `ToYAML` (`goccy/go-yaml`) already sort `map[string]interface{}` keys alphabetically when marshaling, with or without `SortKeys`. Iterating `sorted.RawData()`'s Go maps directly still sees Go's random map order.
+Go maps have no persistent key order, so `SortKeys` does not reorder anything in memory. It exists so callers get a deterministic-output guarantee from `ToJSON`/`ToYAML` without depending on a particular marshaler's default behavior — `ToJSON` (`encoding/json`) sorts keys lexicographically, and `ToYAML` emits keys in graft's spruce-compatible order (numeric-looking keys first, then a natural string sort; see `pkg/graft/keysort.go`), with or without `SortKeys`. Iterating `sorted.RawData()`'s Go maps directly still sees Go's random map order.
 
 ## Output Methods
 

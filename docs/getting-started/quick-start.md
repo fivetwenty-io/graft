@@ -94,8 +94,10 @@ Notice how:
 - `server.ssl` was added
 
 Notice the shape of the output too. Graft always prints the whole merged
-document, sorts map keys alphabetically at every level, and emits list items
-at their parent key's indentation rather than indented beneath it.
+document, sorts map keys at every level in the same stable order spruce
+uses (numeric-looking keys first, then strings with digit runs compared
+numerically — `item2` before `item10`), and emits list items at their
+parent key's indentation rather than indented beneath it.
 
 ## Step 3: Use Operators
 

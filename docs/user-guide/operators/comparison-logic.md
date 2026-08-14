@@ -13,7 +13,7 @@ anything else:
   whenever the left operand resolves, including when it resolves to `false`.
 
 Every output block below is what `graft merge` actually prints: the whole
-merged document, map keys sorted alphabetically. Where an example would
+merged document, map keys in graft's stable sorted order. Where an example would
 otherwise be buried in the values it reads from, the `--prune` flag that
 removed them is shown with the command.
 

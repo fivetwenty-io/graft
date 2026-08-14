@@ -87,8 +87,10 @@ features:
 - logging
 ```
 
-Graft prints the whole merged document with map keys sorted alphabetically
-at every level, and emits list items at their parent key's indentation.
+Graft prints the whole merged document with map keys sorted at every
+level in a stable, spruce-compatible order (numeric-looking keys first,
+then strings with digit runs compared numerically), and emits list items
+at their parent key's indentation.
 
 ## Next Steps
 

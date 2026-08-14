@@ -8,8 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.32.0] - Unreleased
 
 Closes the last five tracked entries in the
-[known-gaps register](docs/spruce/known-gaps.md), leaving one open
-documented divergence (mixed-key-type map encoding order).
+[known-gaps register](docs/spruce/known-gaps.md) and the ordering
+component of the sixth: map keys now encode in spruce's order. Three
+open entries remain in the register — the narrowed
+mixed-key-type-map-encoding-order entry (key typing, quoting, and
+label differences only) and two newly recorded divergences
+(y-n-boolean-values-not-coerced, stringify-block-scalar-style).
 
 ### Added
 
@@ -44,6 +48,42 @@ documented divergence (mixed-key-type map encoding order).
   `HistoryFilter.Path` now matches with graft's wildcard grammar
   (`*`, `**`, `[N]`, `[*]`, `[key=value]`) and segment-aware prefix
   matching, instead of literal string comparison.
+
+### Changed
+
+- Map keys are ordered like spruce on every YAML emit
+
+  Behavior change: graft used to sort map keys purely
+  lexicographically on encode (`item10` before `item9`, `10` before
+  `2`). It now uses a port of spruce's comparator
+  (`pkg/graft/keysort.go`): numeric-looking keys sort first,
+  numerically, followed by string keys in spruce's natural order —
+  digit runs compare numerically, non-letters sort before letters,
+  uppercase before lowercase. String-only key sets are byte-identical
+  to spruce; bare-numeric key sets match position-for-position (graft
+  keys stay quoted strings, spruce's stay bare and typed). Pinned by
+  the byte-exact runner `tests/spruce-compat/run-key-order.sh`.
+  Residual divergences are documented in
+  [known gaps](docs/spruce/known-gaps.md#mixed-key-type-map-encoding-order).
+
+- `Document.ToYAML` and `DefaultEngine.ToYAML` route through
+  `MarshalYAML`
+
+  Library change: both now produce the same bytes as the CLI for the
+  same tree, gaining the spruce-compatible key ordering and the
+  special-float quoting guard (a string value like `".nan"` used to
+  leave the library surface unquoted and silently re-parse as a
+  float). History YAML (`History().ToYAML`) intentionally keeps
+  goccy's lexicographic ordering: it is a graft-only diagnostic
+  surface with no spruce counterpart, and its DTO structs hold map
+  fields a tree-walk cannot reach.
+
+- `(( stringify ))` serializes through the shared marshal
+
+  Stringified subtrees carry the same spruce-compatible key order as
+  every other YAML emit. The outer scalar's presentation still
+  differs from spruce (quoted flow scalar vs literal block; see
+  [known gaps](docs/spruce/known-gaps.md#stringify-block-scalar-style)).
 
 ### Fixed
 

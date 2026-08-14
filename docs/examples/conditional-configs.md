@@ -15,9 +15,11 @@ below.
   iterates stays in the output like any other key. Drop it with `--prune` when
   it is only scaffolding.
 
-Graft prints the whole merged document with keys sorted alphabetically at every
-level, and list items at the same indentation as their parent key. Every output
-block below is exactly what the shown command prints.
+Graft prints the whole merged document with keys sorted at every level
+in a stable, spruce-compatible order (numeric-looking keys first, then
+strings with digit runs compared numerically), and list items at the
+same indentation as their parent key. Every output block below is
+exactly what the shown command prints.
 
 See [Control Flow Operators](../user-guide/operators/control-flow.md) for the
 complete reference.

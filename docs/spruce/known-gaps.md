@@ -12,28 +12,90 @@ closed, so links from other pages into this file keep working.
 
 ### mixed-key-type-map-encoding-order
 
-**Current behavior:** graft's internal document tree is always
-`map[string]interface{}`; any non-string YAML map key (an integer
-key like `10:`) is coerced to its string form as soon as the
-document is parsed (`pkg/graft/yaml_compat.go`'s `NormalizeMap`).
-When such a map is marshaled back out, its keys sort alongside
-ordinary string keys purely lexicographically, so `10` sorts before
-`2` and both sort before `9`.
+**Narrowed in 1.32.0.** The ordering component of this gap is fixed:
+graft now sorts keys on every YAML emit with a port of spruce's
+comparator (`pkg/graft/keysort.go`) — numeric-looking keys first,
+ordered numerically, then string keys in spruce's natural order
+(digit runs numeric, non-letters before letters). Maps with bare
+integer keys (`exit_codes: {0:, 1:, 2:}`, numbered curator actions),
+integer-and-string mixes, and string keys with embedded digit runs
+(`z1a`/`z2b`/`z10a`, `item2`/`item10`) all match spruce's key order
+position-for-position; string-only maps are byte-identical. Pinned
+by the byte-exact runner `tests/spruce-compat/run-key-order.sh`.
 
-**Expected behavior:** spruce's YAML library keeps non-string keys
-typed through encode and sorts them accordingly: numeric keys are
-compared and ordered numerically among themselves, and placed before
-string keys, rather than being interleaved lexicographically with
-them.
+**Remaining open scope — key typing, quoting, and labels:** graft's
+decoder coerces every key to a Go string as soon as the document is
+parsed, so a bare `10:` and a quoted `"10":` are indistinguishable
+by the time graft encodes. Three consequences:
 
-**Impact:** a document with a map that mixes integer and string keys
-at the same level (uncommon in Genesis kits and deployments, which
-use string keys throughout for job names, network names, and
-property paths) is marshaled with a different key order than
-spruce produces for the same input. Ordinary string-only and
-integer-only maps are unaffected; see [Map key
-ordering](yaml-formatting.md#known-differences) for the byte-parity
-guarantee that still holds for those cases.
+- **Labels.** spruce re-renders typed keys from their value (`10:`
+  bare; `1e3:` becomes `1000:`; `1.0:` becomes `1:`), while graft
+  keeps the source spelling as a quoted string (`"10":`, `"1e3":`).
+  Position matches; bytes differ.
+
+- **Quoted-numeric mixed maps (provably unreachable).** spruce
+  orders a bare `10:` in the numeric tier but a quoted `"10":` in
+  the string tier; graft cannot tell them apart, and classifies
+  every numeric-looking key into the numeric tier. For
+  `{3: a, "10": b, 2x: c}` spruce emits `3, 2x, "10"` while graft
+  emits `3, 10, 2x`. No comparator over coerced keys can satisfy
+  both this case and the bare-key case; graft targets the bare-key
+  ordering, which is what occurs in real kits and deployments.
+
+- **Exotic typed keys.** spruce types hex `0x10:` and octal `010:`
+  via YAML 1.1 (ordering them as 16 and 8), sorts bool keys as 0/1
+  among the numbers, and places a null key after numbers but before
+  strings. graft's coerced `"0x10"`, `"true"`, and `"null"` sort as
+  words in the string tier.
+
+**Mitigation:** for a byte-identical result across both tools, quote
+*all* keys of the affected map. That moves every key into spruce's
+string tier and equalizes the decoded key types downstream as well.
+Quoting only the numeric keys is not equivalent — it changes their
+spruce ordering from the numeric tier to the string tier.
+
+### y-n-boolean-values-not-coerced
+
+**Current behavior:** graft's YAML 1.1 compatibility layer coerces a
+bare `yes`, `no`, `on`, or `off` value (any case variant) to a
+boolean, but leaves a bare single-letter `y`, `Y`, `n`, or `N` as a
+string: `a: y` merges to `a: "y"`.
+
+**Expected behavior:** spruce's YAML 1.1-flavored parser treats the
+single-letter forms as booleans too: `a: y` merges to `a: true`, and
+`b: N` to `b: false` (confirmed against spruce 1.35.16).
+
+**Impact:** documents using bare single-letter YAML 1.1 booleans get
+a string where spruce produces a boolean, which can change comparison
+and ternary results as well as output bytes. Rare in practice —
+Genesis kits spell booleans `true`/`false` or `yes`/`no`. Quoting the
+value (`"y"`) keeps it a string in both tools; spelling it `yes`
+coerces in both.
+
+### stringify-block-scalar-style
+
+**Current behavior:** `(( stringify ))` of a map or list produces a
+multi-line string; when that string's own lines contain `": "` (as any
+stringified map's lines do), goccy refuses the literal block style and
+emits the value as a quoted flow scalar:
+`out: "host: web\nport: 80\n"`.
+
+**Expected behavior:** spruce emits the same string as a literal
+block:
+
+```yaml
+out: |
+  host: web
+  port: 80
+```
+
+**Impact:** the parsed value is identical in both tools (the inner
+key order also matches; stringify routes through the shared marshal
+since 1.32.0) — only the scalar's presentation style differs, so any
+consumer that re-parses the document sees no difference. Byte-level
+consumers of stringified output do. Independent of key ordering;
+would require a goccy encoder change or a custom block-scalar
+emitter to close.
 
 ## Resolved
 
@@ -142,11 +204,20 @@ unquoted null-like token.
 
 ### map-key-order-parity-unverified
 
-**Resolved.** Confirmed by the same spruce-vs-graft binary comparison
-and pinned by a test in `pkg/graft/yaml_spruce_parity_test.go`: graft's
-encoder emits map keys in alphabetical order on marshal, matching
-spruce's `yaml.v2`-family encode behavior, regardless of the native Go
-map's undefined iteration order in memory.
+**Resolved.** graft emits map keys in spruce's order on marshal,
+regardless of the native Go map's undefined iteration order in memory.
+An earlier version of this entry claimed both encoders sort
+"alphabetically" — that was wrong on both sides: spruce's
+`yaml.v2`-family encoder uses a two-tier numeric-then-natural sort
+(digit runs compare numerically, non-letters sort before letters), and
+graft's encoder used to be purely lexicographic, so key sets like
+`item9`/`item10` or `int_val`/`int64_val` diverged. Since 1.32.0 graft
+ports spruce's comparator (`pkg/graft/keysort.go`); order parity is
+pinned by `TestMarshalYAML_SpruceKeyOrder` in
+`pkg/graft/yaml_spruce_parity_test.go` and the byte-exact runner
+`tests/spruce-compat/run-key-order.sh`. Residual typing/quoting/label
+differences are tracked in
+[mixed-key-type-map-encoding-order](#mixed-key-type-map-encoding-order).
 
 ### array-fallback-warning-parity-unverified
 

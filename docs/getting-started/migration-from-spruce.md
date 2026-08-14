@@ -366,8 +366,12 @@ lines.
 
 ### Output ordering
 
-Graft sorts map keys alphabetically at every level, as Spruce does, so
-output is directly comparable between the two.
+Graft sorts map keys at every level with a port of Spruce's own
+comparator — numeric-looking keys first (numerically), then string keys
+with digit runs compared numerically (`item2` before `item10`) — so
+output key order is directly comparable between the two. See
+[YAML formatting differences](../spruce/yaml-formatting.md#known-differences)
+for the residual key-label differences on bare numeric keys.
 
 ### Environment variables
 

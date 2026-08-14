@@ -153,6 +153,28 @@ expects. Graft's `diff` command already does this: its default
 `--color auto` mode checks `isatty` on stdout before enabling color,
 confirmed by reading the source.
 
+## Output byte stability across versions
+
+Genesis re-parses almost every stdout it captures (manifests, JSON,
+`vaultinfo`), so map-key order is semantically invisible to it — but
+two output-bytes changes across graft versions are worth pinning here:
+
+- **1.32.0 key ordering.** graft's YAML output changed from purely
+  lexicographic key order to spruce's two-tier order (numeric-looking
+  keys first, then natural-sorted strings; see
+  [YAML formatting differences](yaml-formatting.md#known-differences)).
+  This moves graft's bytes *toward* spruce's: manifests whose key sets
+  contain digit runs (`z1a`/`z10a` AZs, numbered jobs) now serialize in
+  the same order spruce would emit. A byte-level comparison between a
+  pre-1.32.0 graft manifest and a regenerated one will show reordering
+  on such key sets exactly once, with identical parsed content.
+
+- **1.32.0 sort-marker failures.** Documents that previously merged
+  with a dangling or mistyped `(( sort ... ))` marker now fail with
+  exit 2 and spruce's exact error text (see the
+  [known-gaps entry](known-gaps.md#sort-post-processing-silently-skips-two-error-cases)),
+  also aligning with spruce.
+
 ## Related documents
 
 - [Merge semantics](merge-semantics.md)

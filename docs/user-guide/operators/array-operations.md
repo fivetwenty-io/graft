@@ -14,9 +14,9 @@ Two different things live in this page, and they are not interchangeable:
   return a value, and work inside a single file.
 
 Every output block below is what `graft merge` actually prints: the whole
-merged document, map keys sorted alphabetically, and list items at the same
-indentation as their parent key. Where an example would otherwise be buried in
-scaffolding, the `--prune` flag that removed it is shown with the command.
+merged document, map keys in graft's stable sorted order, and list items at the
+same indentation as their parent key. Where an example would otherwise be buried
+in scaffolding, the `--prune` flag that removed it is shown with the command.
 
 ## Array Merge Operators
 
