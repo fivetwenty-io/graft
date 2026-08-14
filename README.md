@@ -121,6 +121,12 @@ server:
 
 ## Installation
 
+### Using Homebrew (macOS)
+
+```sh
+brew install --cask fivetwenty-io/tap/graft
+```
+
 ### Using Go
 
 ```sh
@@ -133,6 +139,7 @@ Download from the [releases page](https://github.com/fivetwenty-io/graft/release
 
 - Linux (amd64, arm64)
 - macOS (amd64, arm64)
+- FreeBSD (amd64, arm64)
 - Windows (amd64)
 
 ### From Source
