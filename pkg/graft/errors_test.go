@@ -318,9 +318,9 @@ func TestClassifyError_CircularReference(t *testing.T) {
 func TestClassifyError_FileNotFound_ViaFileOperator(t *testing.T) {
 	// (( load )) checks os.Stat first and returns a generic "not a file or
 	// usable URI" error for a missing path, never exposing the underlying
-	// fs.ErrNotExist. (( file )) calls os.ReadFile directly and propagates
-	// its *fs.PathError unwrapped, so it is the CLI-reachable trigger for
-	// CodeFileNotFound.
+	// fs.ErrNotExist. (( file )) wraps the os.ReadFile error in spruce's
+	// "could not be read" wording but keeps the *fs.PathError reachable
+	// via Unwrap, so it is the CLI-reachable trigger for CodeFileNotFound.
 	err := mergeExprErr(t, "x: (( file \"/nonexistent/path/that/should/never/exist/graft-e2\" ))\n")
 	pe := firstPathError(t, err)
 	if pe.Code() != graft.CodeFileNotFound {

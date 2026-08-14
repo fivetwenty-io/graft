@@ -12,6 +12,17 @@ import (
 // FileOperator handles nested operator calls.
 type FileOperator struct{}
 
+// fileReadError renders spruce's exact read-failure wording while
+// preserving the underlying error chain, which ClassifyError needs to
+// map missing files and permission failures to E901/E902.
+type fileReadError struct {
+	msg   string
+	cause error
+}
+
+func (e *fileReadError) Error() string { return e.msg }
+func (e *fileReadError) Unwrap() error { return e.cause }
+
 // Setup ...
 func (FileOperator) Setup() error {
 	return nil
@@ -115,7 +126,10 @@ func (FileOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	if err != nil {
 		DEBUG("failed to read file")
 		DEBUG("error was: %s", err)
-		return nil, ansi.Errorf("@R{tried to read file} @c{%s}@R{: could not be read - %s}", filename, err)
+		return nil, &fileReadError{
+			msg:   ansi.Sprintf("@R{tried to read file} @c{%s}@R{: could not be read - %s}", filename, err),
+			cause: err,
+		}
 	}
 
 	contents := string(file)
