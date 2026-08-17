@@ -59,6 +59,17 @@ func spruceKeyLess(a, b string) bool {
 // do "inf"/"nan" lookalikes that strconv.ParseFloat would accept — spruce
 // types none of those as numbers from a bare base-10-looking scalar.
 func keyNumericValue(s string) (f float64, isInt bool, ok bool) {
+	// Typical keys are words; a base-10 number can only start with a
+	// digit, sign, or dot, so skip both strconv calls (and their
+	// allocated errors) for everything else. ParseFloat's other
+	// spellings ("inf", "nan") are rejected by the IsInf/IsNaN check
+	// below anyway, so skipping them here answers identically.
+	if s == "" {
+		return 0, false, false
+	}
+	if c := s[0]; (c < '0' || c > '9') && c != '-' && c != '+' && c != '.' {
+		return 0, false, false
+	}
 	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
 		return float64(n), true, true
 	}
