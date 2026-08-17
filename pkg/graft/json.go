@@ -30,10 +30,7 @@ func jsonifyData(data []byte, strict bool) (string, error) {
 		return "", ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", "type assertion to map[string]interface{} failed")
 	}
 
-	doc = DefaultYAMLCompat().ConvertMapValues(doc)
-	if unprotected, ok := UnprotectYAML11QuotedBools(doc).(map[string]interface{}); ok {
-		doc = unprotected
-	}
+	doc = DefaultYAMLCompat().ConvertAndUnprotect(doc)
 
 	doc_, err := deinterface(doc, strict)
 	if err != nil {

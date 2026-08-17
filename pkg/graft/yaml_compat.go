@@ -152,6 +152,70 @@ func (c *YAMLCompat) convertSlice(s []interface{}) []interface{} {
 	return s
 }
 
+// ConvertAndUnprotect applies ConvertMapValues and
+// UnprotectYAML11QuotedBools in a single walk. The parse path always
+// runs the two back to back - each a full tree traversal - and their
+// composition per value is order-independent to fuse: a marker-tagged
+// string never matches ConvertValue's bare words (the marker prefixes
+// it), so stripping the marker and skipping coercion is exactly what
+// the sequential pair produced. Numeric normalization stays gated on
+// ConvertYAML11Booleans, as in ConvertMapValues; marker stripping is
+// unconditional, as in UnprotectYAML11QuotedBools.
+func (c *YAMLCompat) ConvertAndUnprotect(data map[string]interface{}) map[string]interface{} {
+	for k, v := range data {
+		data[k] = c.convertAndUnprotectAny(v)
+	}
+	return data
+}
+
+func (c *YAMLCompat) convertAndUnprotectAny(v interface{}) interface{} {
+	switch val := v.(type) {
+	case string:
+		if strings.HasPrefix(val, yaml11QuotedBoolMarker) {
+			return strings.TrimPrefix(val, yaml11QuotedBoolMarker)
+		}
+		if c.ConvertYAML11Booleans {
+			return c.ConvertValue(val)
+		}
+		return val
+	case uint64:
+		if !c.ConvertYAML11Booleans {
+			return val
+		}
+		if val > uint64(^uint(0)>>1) {
+			return val
+		}
+		return int(val)
+	case int64:
+		if !c.ConvertYAML11Booleans {
+			return val
+		}
+		return int(val)
+	case float32:
+		if !c.ConvertYAML11Booleans {
+			return val
+		}
+		return float64(val)
+	case map[string]interface{}:
+		for k, item := range val {
+			val[k] = c.convertAndUnprotectAny(item)
+		}
+		return val
+	case map[interface{}]interface{}:
+		for k, item := range val {
+			val[k] = c.convertAndUnprotectAny(item)
+		}
+		return val
+	case []interface{}:
+		for i, item := range val {
+			val[i] = c.convertAndUnprotectAny(item)
+		}
+		return val
+	default:
+		return v
+	}
+}
+
 // yaml11QuotedBoolMarker prefixes a decoded string value that came from
 // an explicitly quoted YAML 1.1 boolean-lookalike scalar (e.g. "yes",
 // 'On'). ConvertValue's coercion switch matches on the bare words only,

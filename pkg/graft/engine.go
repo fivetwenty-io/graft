@@ -573,22 +573,15 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 	switch result := genericResult.(type) {
 	case map[string]interface{}:
 		// Apply YAML 1.1 boolean compatibility conversions (yes/no/on/off → bool)
-		converted := e.yamlCompat().ConvertMapValues(result)
-		if unprotected, ok := UnprotectYAML11QuotedBools(converted).(map[string]interface{}); ok {
-			converted = unprotected
-		}
-		return NewDocument(converted), nil
+		// and strip quoted-bool protection markers in one walk.
+		return NewDocument(e.yamlCompat().ConvertAndUnprotect(result)), nil
 	case map[interface{}]interface{}:
 		// yaml.v3 produces this when all root keys are non-strings
 		converted := make(map[string]interface{}, len(result))
 		for k, v := range result {
 			converted[fmt.Sprintf("%v", k)] = v
 		}
-		final := e.yamlCompat().ConvertMapValues(converted)
-		if unprotected, ok := UnprotectYAML11QuotedBools(final).(map[string]interface{}); ok {
-			final = unprotected
-		}
-		return NewDocument(final), nil
+		return NewDocument(e.yamlCompat().ConvertAndUnprotect(converted)), nil
 	default:
 		// Return plain error for compatibility with tests
 		return nil, fmt.Errorf("root of YAML document is not a hash/map")
