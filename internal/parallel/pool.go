@@ -343,16 +343,16 @@ func (wp *WorkerPool) Done() <-chan struct{} {
 	return wp.doneCh
 }
 
-// Cancelled returns a channel that's closed the instant the pool's
-// internal context is cancelled (ShutdownWait/ShutdownWaitTimeout),
+// Canceled returns a channel that's closed the instant the pool's
+// internal context is canceled (ShutdownWait/ShutdownWaitTimeout),
 // regardless of whether the graceful worker drain has finished - unlike
 // Done, which only closes once every worker has actually exited. A
 // worker abandons its current select the moment this fires and does not
 // drain any task still sitting in taskQueue, so a caller with its own
 // WaitGroup tracking tasks submitted via SubmitBlocking should select on
 // this alongside that WaitGroup to avoid blocking forever on tasks a
-// cancelled pool will never run.
-func (wp *WorkerPool) Cancelled() <-chan struct{} {
+// canceled pool will never run.
+func (wp *WorkerPool) Canceled() <-chan struct{} {
 	return wp.ctx.Done()
 }
 

@@ -318,7 +318,7 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 			}
 
 			// A bare wg.Wait() would block forever if the pool is
-			// cancelled after a task was already enqueued but before a
+			// canceled after a task was already enqueued but before a
 			// worker picks it up: workers abandon their current select
 			// the instant the pool's internal context is done, without
 			// draining taskQueue, so that task's deferred wg.Done() would
@@ -339,7 +339,7 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 				parallelStats.totalErrors.Add(1)
 				errors.Append(fmt.Errorf("wave evaluation canceled: %w", ctx.Err()))
 				return errors
-			case <-pool.Cancelled():
+			case <-pool.Canceled():
 				parallelStats.totalErrors.Add(1)
 				errors.Append(fmt.Errorf("worker pool shut down while a wave was in flight"))
 				return errors
