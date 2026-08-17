@@ -79,6 +79,20 @@ linters:
     goconst:
       min-len: 3
       min-occurrences: 3
+      # graft implements a language, so a large part of its string
+      # literals are that language's vocabulary and repeat by
+      # definition: once in the table that declares a word, and again in
+      # every switch that dispatches on it. Naming each word as a
+      # constant renames the grammar without making any of those sites
+      # safer, so the vocabulary is listed here instead. Anything not on
+      # this list is still reported.
+      #
+      # Covered: operator and merge-directive names, control-flow
+      # keywords and their aliases, YAML literal spellings, the type
+      # names used in type-switch dispatch, the field names graft
+      # searches to identify a list entry, and the REPL/CLI command
+      # names.
+      ignore-string-values: "^(?:grab|concat|join|defer|param|prune|inject|stringify|parse|static|static_ips|ips|vault|vault-try|openbao|awsparam|awssm|awssecret|nats|file|env|calc|cartesian|cartesian-product|empty|keys|values|sort|uniq|reverse|shuffle|min|max|sum|length|base64|base64-decode|negate|key-sorter|substr|split|flatten|trim|upper|lower|merge|index|first|last|replace|insert|delete|append|prepend|inline|load|none|this|if|elif|elsif|else|fi|endif|for|endfor|in|done|while|endwhile|case|endcase|when|default|esac|on|before|after|range|and|or|not|step|continue|breaks|config|output|diff|quit|graft|name|id|key|true|false|null|nil|yes|no|off|---|True|False|Null|Nil|Yes|No|On|Off|TRUE|FALSE|NULL|NIL|YES|NO|ON|OFF|EOF|NaN|-Inf|mod|string|int|int64|float|float64|bool|map|array|type)$"
 
     gocritic:
       enabled-tags:
@@ -160,6 +174,16 @@ linters:
 
       # Allow magic numbers in tests
       - path: _test\.go
+        linters:
+          - goconst
+
+      # Test-case tables and the documentation examples are fixture data:
+      # the repeated strings are the category labels and sample values a
+      # reader is meant to see spelled out.
+      - path: (unified_parser_test_cases|examples)\.go
+        linters:
+          - goconst
+      - path: examples/
         linters:
           - goconst
 
