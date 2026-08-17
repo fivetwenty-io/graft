@@ -33,6 +33,21 @@ type mergeBuilderImpl struct {
 	error          error                 // Stores any error from construction
 	mergeMetadata  *merger.MergeMetadata // Accumulated metadata from merges
 
+	// basePrune/baseSort remember whether any document that has
+	// contributed to the accumulated merge result contained a
+	// (( prune )) / (( sort ... )) marker. needsLegacyMerger reads them
+	// in place of re-walking the whole accumulated base on every
+	// overlay round. They are seeded by prepareFirstDocument and OR-ed
+	// with each overlay's own walk in mergeIntoAtPath, so they can only
+	// over-approximate (a marker later overwritten leaves its flag
+	// set), which routes a merge to the legacy merger unnecessarily -
+	// same output, since the legacy merger is the reference
+	// implementation the simple path mirrors - and never
+	// under-approximates: a marker can only enter the tree from a
+	// document, and every contributing document is recorded here.
+	basePrune bool
+	baseSort  bool
+
 	// priorCalcValues records, per canonical path string, the base value a
 	// "(( calc <leading-op> ... ))" value-modification expression
 	// overwrote during merge. Populated by
@@ -465,6 +480,10 @@ func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 	var result map[string]interface{}
 	haveResult := false
 
+	// Fresh flags per merge chain: a builder can Execute more than once.
+	m.basePrune = false
+	m.baseSort = false
+
 	for _, doc := range m.docs {
 		// Check context cancellation during merge
 		select {
@@ -490,6 +509,17 @@ func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 				return nil, err
 			}
 			result = patched
+			// A go-patch value can insert a literal "(( prune ))" /
+			// "(( sort ... ))" string the flag bookkeeping (which only
+			// sees merged documents) would otherwise miss, so re-walk
+			// the patched result - only while the flags are still
+			// false, and only for go-patch documents.
+			if !m.basePrune {
+				m.basePrune = m.hasPruneOperators(result)
+			}
+			if !m.baseSort {
+				m.baseSort = m.hasSortOperators(result)
+			}
 			continue
 		}
 
@@ -536,9 +566,15 @@ func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 // (( prune )) on a lone document is resolved by the evaluator, not by
 // merge-phase ghosting).
 func (m *mergeBuilderImpl) prepareFirstDocument(baseData map[string]interface{}) (map[string]interface{}, error) {
+	// Record this document's prune/sort markers for needsLegacyMerger's
+	// accumulated-base flags (see basePrune/baseSort).
+	prune := m.hasPruneOperators(baseData)
+	m.basePrune = m.basePrune || prune
+	m.baseSort = m.baseSort || m.hasSortOperators(baseData)
+
 	needsProcessing := m.hasArrayOperators(baseData) ||
 		m.hasArraysWithMaps(baseData) ||
-		(m.hasPruneOperators(baseData) && !m.skipEvaluation)
+		(prune && !m.skipEvaluation)
 	if !needsProcessing {
 		return deepCopyMap(baseData)
 	}
@@ -581,13 +617,26 @@ func (m *mergeBuilderImpl) prepareFirstDocument(baseData map[string]interface{})
 // intentionally left unconditional here too: once a (( prune )) marker has
 // been overwritten by a later document it must stay queued for removal
 // regardless of --skip-eval, matching spruce's merge.go behavior.
-func (m *mergeBuilderImpl) needsLegacyMerger(base, overlay map[string]interface{}) bool {
+//
+// The base side of the decision - "does the accumulated result contain a
+// prune or sort marker?" - is answered by the basePrune/baseSort flags
+// rather than two full walks of the (ever-growing) result per overlay
+// round. The flags OR in every contributing document's markers as it
+// arrives, so they can over-approximate after a marker is overwritten -
+// which only routes a merge to the legacy merger the simple path
+// mirrors, never the other way around. As before, this records prior
+// calc values and merges the whole pair through the legacy merger; the
+// overlay's own markers are walked here, on the (small) overlay only.
+func (m *mergeBuilderImpl) needsLegacyMerger(overlay map[string]interface{}) bool {
+	overlayPrune := m.hasPruneOperators(overlay)
+	m.basePrune = m.basePrune || overlayPrune
+	overlaySort := m.hasSortOperators(overlay)
+	m.baseSort = m.baseSort || overlaySort
+
 	return m.hasArrayOperators(overlay) ||
 		m.hasArraysWithMaps(overlay) ||
-		m.hasPruneOperators(overlay) ||
-		m.hasPruneOperators(base) ||
-		m.hasSortOperators(overlay) ||
-		m.hasSortOperators(base)
+		m.basePrune ||
+		m.baseSort
 }
 
 // performLegacyMerge uses the legacy merger for complex merge operations.
@@ -667,7 +716,7 @@ func (m *mergeBuilderImpl) mergeInto(base, overlay map[string]interface{}) error
 // prior-values at the correct key; it changes no
 // merge decision.
 func (m *mergeBuilderImpl) mergeIntoAtPath(base, overlay map[string]interface{}, path []string) error {
-	if m.needsLegacyMerger(base, overlay) {
+	if m.needsLegacyMerger(overlay) {
 		m.recordPriorCalcValuesUnder(base, overlay, path)
 		return m.performLegacyMerge(base, overlay)
 	}
