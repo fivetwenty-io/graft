@@ -226,6 +226,7 @@ func (hv *HistogramVec) WithLabelValues(values ...string) *Histogram {
 
 	labels := make(Labels, len(hv.labelNames))
 	for i, name := range hv.labelNames {
+		//nolint:gosec // len(values) == len(hv.labelNames) is checked above
 		labels[name] = values[i]
 	}
 	return hv.WithLabels(labels)

@@ -131,6 +131,7 @@ func (gv *GaugeVec) WithLabelValues(values ...string) *Gauge {
 
 	labels := make(Labels, len(gv.labelNames))
 	for i, name := range gv.labelNames {
+		//nolint:gosec // len(values) == len(gv.labelNames) is checked above
 		labels[name] = values[i]
 	}
 	return gv.WithLabels(labels)

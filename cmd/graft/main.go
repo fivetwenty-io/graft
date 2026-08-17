@@ -201,7 +201,7 @@ func handleFan(opts *mergeOpts) int {
 // from (see fanOutputPath). outputDir is created (including any missing
 // parents) if it does not already exist.
 func writeFanResultsToDir(results []fanResult, outputDir string) int {
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o750); err != nil {
 		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Unable to create output directory} @m{%s}: %s", outputDir, err.Error()))
 		return 2
 	}

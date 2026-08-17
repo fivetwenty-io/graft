@@ -233,15 +233,11 @@ func JoinPath(segments ...string) string {
 			continue
 		}
 
-		// Add dot separator if not first segment
+		// Add dot separator if not first segment. Bracket segments return
+		// above, so a previous segment ending in "]" carried the bracket
+		// inside a longer segment and still takes a separator.
 		if i > 0 && result.Len() > 0 {
-			// Don't add dot if previous segment ended with ]
-			prev := segments[i-1]
-			if prev != "" && prev[len(prev)-1] == ']' {
-				result.WriteString(".")
-			} else if result.Len() > 0 {
-				result.WriteString(".")
-			}
+			result.WriteString(".")
 		}
 
 		result.WriteString(seg)

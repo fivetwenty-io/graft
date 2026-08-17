@@ -1609,8 +1609,8 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 		index, isNum := isNumericIndex(finalPart)
 		if !isNum {
 			if field, value, isPredicate := tree.ParsePredicateSegment(finalPart); isPredicate {
-				if _, idx, found := tree.PredicateFind(parent, field, value); found {
-					index, isNum = int(idx), true
+				if _, idx, found := tree.PredicateFind(parent, field, value); found && idx < uint64(len(parent)) {
+					index, isNum = int(idx), true //nolint:gosec // guarded against len(parent) on the line above
 				}
 			}
 		}
@@ -1691,10 +1691,10 @@ func findNamedArrayEntry(arr []interface{}, name string) (interface{}, bool) {
 func findNamedArrayEntryWithIndex(arr []interface{}, name string) (int, interface{}, bool) {
 	if field, value, isPredicate := tree.ParsePredicateSegment(name); isPredicate {
 		entry, idx, found := tree.PredicateFind(arr, field, value)
-		if !found {
+		if !found || idx >= uint64(len(arr)) {
 			return -1, nil, false
 		}
-		return int(idx), entry, true
+		return int(idx), entry, true //nolint:gosec // guarded against len(arr) above
 	}
 
 	configuredKey := merger.GetIdentifierKey()

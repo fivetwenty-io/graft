@@ -173,6 +173,21 @@ linters:
         linters:
           - errcheck
 
+      # Credential-shaped literals in tests are fixture data: fake vault
+      # paths, dummy tokens, and the secret keys the operators are asked to
+      # resolve. None of them reach a real backend.
+      - path: _test\.go
+        linters:
+          - gosec
+        text: "G101"
+
+      # Tests exec the graft binary they just built, with a path the test
+      # itself constructs.
+      - path: _test\.go
+        linters:
+          - gosec
+        text: "G204"
+
       # Unchecked type assertions in tests. A failed assertion panics with
       # the exact file:line, which is already an unambiguous test failure,
       # and the tests navigate deeply nested YAML documents where a comma-ok

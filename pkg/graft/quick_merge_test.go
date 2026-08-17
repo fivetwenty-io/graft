@@ -50,8 +50,8 @@ func TestQuickMergeFiles(t *testing.T) {
 		dir := t.TempDir()
 		base := filepath.Join(dir, "base.yml")
 		override := filepath.Join(dir, "override.yml")
-		So(os.WriteFile(base, []byte("name: myapp\nreplicas: 1\n"), 0o644), ShouldBeNil)
-		So(os.WriteFile(override, []byte("replicas: 3\n"), 0o644), ShouldBeNil)
+		So(os.WriteFile(base, []byte("name: myapp\nreplicas: 1\n"), 0o600), ShouldBeNil)
+		So(os.WriteFile(override, []byte("replicas: 3\n"), 0o600), ShouldBeNil)
 
 		Convey("merges files in order", func() {
 			out, err := graft.QuickMergeFiles(base, override)

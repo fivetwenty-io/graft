@@ -118,6 +118,7 @@ func (cv *CounterVec) WithLabelValues(values ...string) *Counter {
 
 	labels := make(Labels, len(cv.labelNames))
 	for i, name := range cv.labelNames {
+		//nolint:gosec // len(values) == len(cv.labelNames) is checked above
 		labels[name] = values[i]
 	}
 	return cv.WithLabels(labels)

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -891,6 +892,11 @@ func normalizeYAMLValue(v interface{}) interface{} {
 		}
 		return val
 	case uint64:
+		if val > math.MaxInt {
+			// Too large for int on this platform; leave it as uint64
+			// rather than wrapping to a negative number.
+			return val
+		}
 		return int(val)
 	default:
 		return v

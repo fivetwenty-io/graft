@@ -125,7 +125,7 @@ func (c *Cursor) Canonical(o interface{}) (*Cursor, error) {
 			i, err := strconv.ParseUint(k, 10, 0)
 			if err == nil {
 				// if k is an integer (in string form), go by index
-				if int(i) >= len(val) {
+				if i >= uint64(len(val)) {
 					return nil, NotFoundError{
 						Path: canon.Nodes,
 					}
@@ -198,7 +198,7 @@ func (c *Cursor) Resolve(o interface{}) (interface{}, error) {
 			i, err := strconv.ParseUint(k, 10, 0)
 			if err == nil {
 				// if k is an integer (in string form), go by index
-				if int(i) >= len(val) {
+				if i >= uint64(len(val)) {
 					return nil, NotFoundError{
 						Path: path,
 					}

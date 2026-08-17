@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -218,9 +219,13 @@ func InitializeClient() error {
 	}
 
 	if token == "" {
-		b, err := os.ReadFile(fmt.Sprintf("%s/.vault-token", os.Getenv("HOME")))
-		if err == nil {
-			token = strings.TrimSuffix(string(b), "\n")
+		if home, herr := os.UserHomeDir(); herr == nil {
+			// The Vault CLI's own token sink; reading the invoking user's
+			// home directory is the documented lookup, not tainted input.
+			b, err := os.ReadFile(filepath.Join(home, ".vault-token")) //nolint:gosec // fixed filename under the user's own home
+			if err == nil {
+				token = strings.TrimSuffix(string(b), "\n")
+			}
 		}
 	}
 

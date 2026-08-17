@@ -33,10 +33,10 @@ func assertGolden(t *testing.T, name, got string) {
 
 	path := goldenPath(name)
 	if *updateGolden {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
 		}
-		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(got), 0o600); err != nil {
 			t.Fatalf("write golden file %s: %v", path, err)
 		}
 		return

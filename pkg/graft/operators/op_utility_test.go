@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strconv"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -189,7 +190,7 @@ result: (( shuffle items ))
 				var ordering string
 				for _, v := range resultSlice {
 					if intVal, ok := v.(int); ok {
-						ordering += string(rune('0' + intVal))
+						ordering += strconv.Itoa(intVal)
 					}
 				}
 				orderings[ordering] = true

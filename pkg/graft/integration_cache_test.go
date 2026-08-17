@@ -4,6 +4,7 @@ package graft
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -328,7 +329,7 @@ result: (( concat meta.value "-output" ))
 
 					yaml := []byte(`
 meta:
-  base: ` + string(rune('0'+idx)) + `
+  base: ` + strconv.Itoa(idx) + `
 result: (( calc "meta.base * 10" ))
 `)
 

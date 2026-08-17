@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"sort"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -416,7 +417,7 @@ func TestValidateOperatorArgs(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		name := tt.op + "_" + string(rune('0'+tt.count))
+		name := tt.op + "_" + strconv.Itoa(tt.count)
 		t.Run(name, func(t *testing.T) {
 			if got := ValidateOperatorArgs(tt.op, tt.count); got != tt.expected {
 				t.Errorf("ValidateOperatorArgs(%q, %d) = %v, want %v",

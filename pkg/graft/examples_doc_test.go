@@ -66,7 +66,7 @@ func ExampleEngine_ParseFile() {
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	path := filepath.Join(dir, "config.yml")
-	if err := os.WriteFile(path, []byte("name: myapp\nport: 8080\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("name: myapp\nport: 8080\n"), 0o600); err != nil {
 		fmt.Println("error:", err)
 		return
 	}
@@ -96,11 +96,11 @@ func ExampleEngine_MergeFiles() {
 
 	basePath := filepath.Join(dir, "base.yml")
 	overlayPath := filepath.Join(dir, "overlay.yml")
-	if err := os.WriteFile(basePath, []byte("name: myapp\ndatabase:\n  host: localhost\n  port: 5432\n"), 0o644); err != nil {
+	if err := os.WriteFile(basePath, []byte("name: myapp\ndatabase:\n  host: localhost\n  port: 5432\n"), 0o600); err != nil {
 		fmt.Println("error:", err)
 		return
 	}
-	if err := os.WriteFile(overlayPath, []byte("database:\n  host: prod.example.com\n"), 0o644); err != nil {
+	if err := os.WriteFile(overlayPath, []byte("database:\n  host: prod.example.com\n"), 0o600); err != nil {
 		fmt.Println("error:", err)
 		return
 	}
@@ -152,11 +152,11 @@ func ExampleQuickMergeFiles() {
 
 	basePath := filepath.Join(dir, "base.yml")
 	overlayPath := filepath.Join(dir, "prod.yml")
-	if err := os.WriteFile(basePath, []byte("name: myapp\nreplicas: 1\n"), 0o644); err != nil {
+	if err := os.WriteFile(basePath, []byte("name: myapp\nreplicas: 1\n"), 0o600); err != nil {
 		fmt.Println("error:", err)
 		return
 	}
-	if err := os.WriteFile(overlayPath, []byte("replicas: 3\n"), 0o644); err != nil {
+	if err := os.WriteFile(overlayPath, []byte("replicas: 3\n"), 0o600); err != nil {
 		fmt.Println("error:", err)
 		return
 	}
@@ -187,7 +187,7 @@ func ExampleMergeBuilder_Base() {
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	overridesPath := filepath.Join(dir, "overrides.yml")
-	if err := os.WriteFile(overridesPath, []byte("database:\n  port: 5433\n"), 0o644); err != nil {
+	if err := os.WriteFile(overridesPath, []byte("database:\n  port: 5433\n"), 0o600); err != nil {
 		fmt.Println("error:", err)
 		return
 	}
