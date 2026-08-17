@@ -930,9 +930,9 @@ func TypeOf(v interface{}) string {
 			return "array"
 		case reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128,
 			reflect.Chan, reflect.Func, reflect.Interface, reflect.Pointer, reflect.Struct, reflect.UnsafePointer:
-			return "unknown"
+			return valueTypeUnknown
 		}
-		return "unknown"
+		return valueTypeUnknown
 	}
 }
 

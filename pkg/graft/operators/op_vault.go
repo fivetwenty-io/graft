@@ -533,7 +533,7 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 // requirement, so a custom backend is never subjected to it.
 func (o VaultOperator) performVaultLookup(ev *graft.Evaluator, engine graft.Engine, target, key string) (string, error) {
 	if engine.GetOperatorState().IsVaultSkipped() {
-		return "REDACTED", nil
+		return redactedValue, nil
 	}
 
 	if backend, ok := resolveCustomBackend(ev, "vault"); ok {

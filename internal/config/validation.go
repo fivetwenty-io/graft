@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// msgCannotBeNegative is the message for every field that rejects a
+// negative value.
+const msgCannotBeNegative = "cannot be negative"
+
+// Accepted metrics formats, logging levels, and logging formats.
+const (
+	formatPrometheus = "prometheus"
+	formatJSON       = "json"
+	formatText       = "text"
+
+	levelDebug = "debug"
+	levelInfo  = "info"
+	levelWarn  = "warn"
+	levelError = "error"
+)
+
 // ValidationError represents a configuration validation error.
 type ValidationError struct {
 	Field   string
@@ -79,7 +95,7 @@ func validateEngine(cfg *EngineConfig) ValidationErrors {
 		errors = append(errors, ValidationError{
 			Field:   "engine.max_recursion",
 			Value:   cfg.MaxRecursion,
-			Message: "cannot be negative",
+			Message: msgCannotBeNegative,
 		})
 	}
 
@@ -96,7 +112,7 @@ func validateEngine(cfg *EngineConfig) ValidationErrors {
 		errors = append(errors, ValidationError{
 			Field:   "engine.timeout",
 			Value:   cfg.Timeout,
-			Message: "cannot be negative",
+			Message: msgCannotBeNegative,
 		})
 	}
 
@@ -120,7 +136,7 @@ func validateCache(cfg *CacheConfig) ValidationErrors {
 		errors = append(errors, ValidationError{
 			Field:   "cache.max_size",
 			Value:   cfg.MaxSize,
-			Message: "cannot be negative",
+			Message: msgCannotBeNegative,
 		})
 	}
 
@@ -129,7 +145,7 @@ func validateCache(cfg *CacheConfig) ValidationErrors {
 		errors = append(errors, ValidationError{
 			Field:   "cache.ttl",
 			Value:   cfg.TTL,
-			Message: "cannot be negative",
+			Message: msgCannotBeNegative,
 		})
 	}
 
@@ -154,7 +170,7 @@ func validateParallel(cfg *ParallelConfig) ValidationErrors {
 		errors = append(errors, ValidationError{
 			Field:   "parallel.min_workers",
 			Value:   cfg.MinWorkers,
-			Message: "cannot be negative",
+			Message: msgCannotBeNegative,
 		})
 	}
 
@@ -163,7 +179,7 @@ func validateParallel(cfg *ParallelConfig) ValidationErrors {
 		errors = append(errors, ValidationError{
 			Field:   "parallel.max_workers",
 			Value:   cfg.MaxWorkers,
-			Message: "cannot be negative",
+			Message: msgCannotBeNegative,
 		})
 	}
 
@@ -194,7 +210,7 @@ func validateMetrics(cfg *MetricsConfig) ValidationErrors {
 	var errors ValidationErrors
 
 	// Validate Format.
-	validFormats := []string{"prometheus", "json", "text"}
+	validFormats := []string{formatPrometheus, formatJSON, formatText}
 	if cfg.Format != "" && !contains(validFormats, strings.ToLower(cfg.Format)) {
 		errors = append(errors, ValidationError{
 			Field:   "metrics.format",
@@ -228,7 +244,7 @@ func validateLogging(cfg *LoggingConfig) ValidationErrors {
 	var errors ValidationErrors
 
 	// Validate Level.
-	validLevels := []string{"debug", "info", "warn", "error"}
+	validLevels := []string{levelDebug, levelInfo, levelWarn, levelError}
 	if cfg.Level != "" && !contains(validLevels, strings.ToLower(cfg.Level)) {
 		errors = append(errors, ValidationError{
 			Field:   "logging.level",
@@ -238,7 +254,7 @@ func validateLogging(cfg *LoggingConfig) ValidationErrors {
 	}
 
 	// Validate Format.
-	validFormats := []string{"json", "text"}
+	validFormats := []string{formatJSON, formatText}
 	if cfg.Format != "" && !contains(validFormats, strings.ToLower(cfg.Format)) {
 		errors = append(errors, ValidationError{
 			Field:   "logging.format",

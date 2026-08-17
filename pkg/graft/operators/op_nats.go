@@ -249,7 +249,7 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 	if engine.GetOperatorState().IsNATSSkipped() {
 		return &graft.Response{
 			Type:  graft.Replace,
-			Value: "REDACTED",
+			Value: redactedValue,
 		}, nil
 	}
 

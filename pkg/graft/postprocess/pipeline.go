@@ -27,9 +27,14 @@ const (
 
 // Processor name constants.
 const (
-	procNamePrune  = "prune"
-	procNameInject = "inject"
+	procNamePrune      = "prune"
+	procNameInject     = "inject"
+	procNameCherryPick = "cherry-pick"
 )
+
+// defaultPruneMarker is the value an evaluated (( prune )) leaves behind
+// for this pipeline to remove.
+const defaultPruneMarker = "(( prune ))"
 
 // String returns a string representation of the phase.
 func (p Phase) String() string {
@@ -320,7 +325,7 @@ type PruneProcessor struct {
 // NewPruneProcessor creates a new PruneProcessor.
 func NewPruneProcessor() *PruneProcessor {
 	return &PruneProcessor{
-		PruneMarker: "(( prune ))",
+		PruneMarker: defaultPruneMarker,
 	}
 }
 
@@ -396,7 +401,7 @@ func (p *PruneProcessor) isPruned(v interface{}) bool {
 	if s, ok := v.(string); ok {
 		marker := p.PruneMarker
 		if marker == "" {
-			marker = "(( prune ))"
+			marker = defaultPruneMarker
 		}
 		return strings.TrimSpace(s) == marker
 	}
@@ -621,7 +626,7 @@ func NewCherryPickProcessor(paths []string) *CherryPickProcessor {
 
 // Name returns the processor name.
 func (p *CherryPickProcessor) Name() string {
-	return "cherry-pick"
+	return procNameCherryPick
 }
 
 // Phase returns when the processor should run.

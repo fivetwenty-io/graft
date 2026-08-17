@@ -586,6 +586,11 @@ var debugCommandHelp = []debugHelpEntry{
 	{"quit", "Exit the debugger", "quit", "Exits the debugger without exporting."},
 }
 
+// noneDisplay is the placeholder shown for a side of a change that does
+// not exist, matching docs/user-guide/cli/debug.md's "<none> → true"
+// convention.
+const noneDisplay = "<none>"
+
 // changeOldDisplay/changeNewDisplay render a histdiff.Change's Old/New side
 // as the literal text "<none>" when that side is absent (an Added or
 // Removed change), matching docs/user-guide/cli/debug.md's
@@ -593,14 +598,14 @@ var debugCommandHelp = []debugHelpEntry{
 // string (not a value to pass through inlineValue again).
 func changeOldDisplay(c histdiff.Change) string {
 	if c.Kind == histdiff.Added {
-		return "<none>"
+		return noneDisplay
 	}
 	return inlineValue(c.Old)
 }
 
 func changeNewDisplay(c histdiff.Change) string {
 	if c.Kind == histdiff.Removed {
-		return "<none>"
+		return noneDisplay
 	}
 	return inlineValue(c.New)
 }

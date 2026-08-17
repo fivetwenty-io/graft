@@ -183,7 +183,7 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		// see evaluator.go and engine.go), return the literal "REDACTED"
 		// without making a backend call, matching spruce's op_aws.go and this
 		// package's vault/NATS operators (op_vault.go, op_nats.go).
-		value = "REDACTED"
+		value = redactedValue
 	}
 
 	return &Response{

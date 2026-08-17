@@ -163,6 +163,12 @@ func (s *Scope) TotalSize() int {
 // LoopLimitError - Error for loop safety limits
 // -----------------------------------------------------------------------------
 
+// The limit kinds a LoopLimitError.Type can carry.
+const (
+	loopLimitIterations = "iterations"
+	loopLimitDuration   = "duration"
+)
+
 // LoopLimitError is returned when a loop exceeds its safety limits.
 type LoopLimitError struct {
 	// Type indicates what limit was exceeded: "iterations" or "duration"
@@ -177,7 +183,7 @@ type LoopLimitError struct {
 
 // Error returns a human-readable error message.
 func (e *LoopLimitError) Error() string {
-	if e.Type == "iterations" {
+	if e.Type == loopLimitIterations {
 		return fmt.Sprintf("loop exceeded maximum iterations (%d)", e.Limit)
 	}
 	return fmt.Sprintf("loop exceeded maximum duration (%d seconds, %d iterations)",
@@ -186,12 +192,12 @@ func (e *LoopLimitError) Error() string {
 
 // IsIterationLimit returns true if the error is due to exceeding iteration limit.
 func (e *LoopLimitError) IsIterationLimit() bool {
-	return e.Type == "iterations"
+	return e.Type == loopLimitIterations
 }
 
 // IsDurationLimit returns true if the error is due to exceeding duration limit.
 func (e *LoopLimitError) IsDurationLimit() bool {
-	return e.Type == "duration"
+	return e.Type == loopLimitDuration
 }
 
 // -----------------------------------------------------------------------------
@@ -249,7 +255,7 @@ func (g *LoopGuard) Check() error {
 
 	if g.iterations > g.maxIterations {
 		return &LoopLimitError{
-			Type:       "iterations",
+			Type:       loopLimitIterations,
 			Limit:      g.maxIterations,
 			Iterations: g.iterations,
 		}
@@ -257,7 +263,7 @@ func (g *LoopGuard) Check() error {
 
 	if time.Since(g.startTime) > g.maxDuration {
 		return &LoopLimitError{
-			Type:       "duration",
+			Type:       loopLimitDuration,
 			Limit:      int(g.maxDuration.Seconds()),
 			Iterations: g.iterations,
 		}

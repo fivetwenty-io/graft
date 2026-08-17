@@ -157,8 +157,8 @@ func (c *Cursor) Canonical(o interface{}) (*Cursor, error) {
 		default:
 			return nil, TypeMismatchError{
 				Path:   canon.Nodes,
-				Wanted: "a map or a list",
-				Got:    "a scalar",
+				Wanted: wantedContainer,
+				Got:    gotScalar,
 			}
 		}
 	}
@@ -221,8 +221,8 @@ func (c *Cursor) Resolve(o interface{}) (interface{}, error) {
 			path = path[0 : len(path)-1]
 			return nil, TypeMismatchError{
 				Path:   path,
-				Wanted: "a map or a list",
-				Got:    "a scalar",
+				Wanted: wantedContainer,
+				Got:    gotScalar,
 				Value:  o,
 			}
 		}

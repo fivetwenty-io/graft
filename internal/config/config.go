@@ -111,12 +111,12 @@ func DefaultConfig() *Config {
 		},
 		Metrics: MetricsConfig{
 			Enabled:  false,
-			Format:   "prometheus",
+			Format:   formatPrometheus,
 			Endpoint: "/metrics",
 		},
 		Logging: LoggingConfig{
-			Level:  "info",
-			Format: "text",
+			Level:  levelInfo,
+			Format: formatText,
 		},
 	}
 }

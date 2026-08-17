@@ -23,6 +23,10 @@ const (
 	FormatText Format = "text"
 )
 
+// contentTypeJSON is the MIME type reported by every exporter whose
+// output is JSON.
+const contentTypeJSON = "application/json"
+
 // Exporter is the interface for exporting metrics in different formats.
 type Exporter interface {
 	// Export converts the given metrics to the exporter's format.

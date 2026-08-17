@@ -264,6 +264,14 @@ func writeHistoryFinalLine(buf *strings.Builder, ph history.PathHistory, unchang
 	fmt.Fprintf(buf, "  %-*s → %s%s\n", sourceColumnWidth, "Final", inlineValue(ph.Final), suffix)
 }
 
+// The classifications changeKind can return.
+const (
+	changeUnchanged = "unchanged"
+	changeAdded     = "added"
+	changeChanged   = "changed"
+	changeRemoved   = "removed"
+)
+
 // changeKind classifies a PathHistory for --show-changes/--changes-only:
 // "unchanged" (present since the first file, never touched again -
 // excluded from both reports), "added" (first appears after the first
@@ -272,15 +280,15 @@ func writeHistoryFinalLine(buf *strings.Builder, ph history.PathHistory, unchang
 // or "removed" (pruned/cherry-picked away by post-processing).
 func changeKind(ph history.PathHistory) string {
 	if !ph.FinalOK {
-		return "removed"
+		return changeRemoved
 	}
 	if len(ph.Entries) == 1 {
 		if ph.Entries[0].Phase == history.PhaseLoad {
-			return "unchanged"
+			return changeUnchanged
 		}
-		return "added"
+		return changeAdded
 	}
-	return "changed"
+	return changeChanged
 }
 
 // renderShowChanges implements `merge --show-changes`.
@@ -288,11 +296,11 @@ func renderShowChanges(all []history.PathHistory, fileCount int) string {
 	added, changed, removed := 0, 0, 0
 	for _, ph := range all {
 		switch changeKind(ph) {
-		case "added":
+		case changeAdded:
 			added++
-		case "changed":
+		case changeChanged:
 			changed++
-		case "removed":
+		case changeRemoved:
 			removed++
 		}
 	}
@@ -303,14 +311,14 @@ func renderShowChanges(all []history.PathHistory, fileCount int) string {
 
 	for _, ph := range all {
 		kind := changeKind(ph)
-		if kind == "unchanged" {
+		if kind == changeUnchanged {
 			continue
 		}
 
 		buf.WriteString("\n")
 		fmt.Fprintf(&buf, "%s:\n", ph.Path)
 
-		if kind == "added" {
+		if kind == changeAdded {
 			e := ph.Entries[0]
 			fmt.Fprintf(&buf, "  + %-*s %s\n", sourceColumnWidth-2, e.Source, inlineValue(e.Value))
 			continue
@@ -350,11 +358,11 @@ func renderChangesOnly(all []history.PathHistory) string {
 	}
 	var rows []row
 	for _, ph := range all {
-		if changeKind(ph) == "unchanged" {
+		if changeKind(ph) == changeUnchanged {
 			continue
 		}
 
-		old := "<none>"
+		old := noneDisplay
 		if ph.Entries[0].Phase == history.PhaseLoad {
 			old = inlineValue(ph.Entries[0].Value)
 		}

@@ -30,7 +30,7 @@ func NewOtelExporterWithResource(attrs map[string]string) *OtelExporter {
 
 // ContentType returns the MIME content type for OTLP JSON format.
 func (e *OtelExporter) ContentType() string {
-	return "application/json"
+	return contentTypeJSON
 }
 
 // Export converts the given metrics to OTLP JSON format.

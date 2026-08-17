@@ -9,6 +9,12 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
+// redactedValue is what the vault, AWS, and NATS operators substitute for
+// a secret when their backend is skipped, so a document can be merged
+// without credentials and without reaching a backend. Spruce emits the
+// same literal.
+const redactedValue = "REDACTED"
+
 // resolveCustomBackend looks up a custom backend registered under name on
 // the real engine bound to ev.
 //

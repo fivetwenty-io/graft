@@ -33,6 +33,10 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
+// stdinPath is the pseudo-path recorded for a file read from standard
+// input, which `-` on the command line is rewritten to.
+const stdinPath = "STDIN"
+
 // Version holds the current version of graft, overridden at build time via
 // `-ldflags "-X main.Version=..."` (see Makefile). The fallback below is a
 // real semver so that even an ad-hoc `go build`/`go run` without ldflags
@@ -247,7 +251,7 @@ func fanOutputPath(outputDir, docPath string) string {
 		}
 	}
 
-	if base == "STDIN" {
+	if base == stdinPath {
 		base = "stdin.yml"
 	}
 
@@ -1311,7 +1315,7 @@ func readFile(file *YamlFile) ([]byte, error) {
 	var err error
 
 	if file.Path == "-" {
-		file.Path = "STDIN"
+		file.Path = stdinPath
 		stat, statErr := os.Stdin.Stat()
 		if statErr != nil {
 			return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", statErr.Error())
@@ -1328,7 +1332,7 @@ func readFile(file *YamlFile) ([]byte, error) {
 			return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s\n", file.Path, err.Error())
 		}
 	}
-	if len(data) == 0 && file.Path == "STDIN" {
+	if len(data) == 0 && file.Path == stdinPath {
 		return nil, ansi.Errorf("@R{Error reading STDIN}: no data found. Did you forget to pipe data to STDIN, or specify yaml files to merge?")
 	}
 

@@ -49,8 +49,8 @@ func (c *Cursor) Glob(tree interface{}) ([]*Cursor, error) {
 			default:
 				return nil, TypeMismatchError{
 					Path:   path,
-					Wanted: "a map or a list",
-					Got:    "a scalar",
+					Wanted: wantedContainer,
+					Got:    gotScalar,
 				}
 			}
 		} else {
@@ -100,8 +100,8 @@ func (c *Cursor) Glob(tree interface{}) ([]*Cursor, error) {
 			default:
 				return nil, TypeMismatchError{
 					Path:   path[0:pos],
-					Wanted: "a map or a list",
-					Got:    "a scalar",
+					Wanted: wantedContainer,
+					Got:    gotScalar,
 				}
 			}
 		}

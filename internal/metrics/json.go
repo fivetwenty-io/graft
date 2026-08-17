@@ -21,7 +21,7 @@ func NewJSONExporter(prettyPrint bool) *JSONExporter {
 
 // ContentType returns the MIME content type for JSON format.
 func (e *JSONExporter) ContentType() string {
-	return "application/json"
+	return contentTypeJSON
 }
 
 // Export converts the given metrics to JSON format.

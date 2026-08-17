@@ -60,6 +60,13 @@ func (e SyntaxError) Is(target error) bool {
 	return target == ErrInvalidPath
 }
 
+// The phrasings a TypeMismatchError uses when a path descends into a
+// value that cannot be descended into.
+const (
+	wantedContainer = "a map or a list"
+	gotScalar       = "a scalar"
+)
+
 // TypeMismatchError represents a type mismatch during path resolution.
 type TypeMismatchError struct {
 	Path   []string
