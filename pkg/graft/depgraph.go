@@ -466,7 +466,7 @@ func (e *DefaultEngine) EvaluateParallel(ctx context.Context, doc Document, wave
 		}
 	}
 
-	e.logDebug("EvaluateParallel: starting evaluation")
+	e.logDebugf("EvaluateParallel: starting evaluation")
 
 	ev := e.createEvaluator(data)
 

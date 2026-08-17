@@ -39,7 +39,7 @@ var (
 // line is still emitted - a nocache access is still an access.
 func FetchFromKVCachedWith(target, storePath string, ttl time.Duration, auditLogging, skipCache bool, fetch func() (interface{}, error)) (interface{}, error) {
 	if auditLogging {
-		debugLog("AUDIT: Accessing KV store: %s", storePath)
+		debugLogf("AUDIT: Accessing KV store: %s", storePath)
 	}
 
 	if skipCache {
@@ -66,7 +66,7 @@ func FetchFromKVCachedWith(target, storePath string, ttl time.Duration, auditLog
 // object-store cache namespace, skipCache semantics included.
 func FetchFromObjectCachedWith(target, storePath string, ttl time.Duration, auditLogging, skipCache bool, fetch func() (interface{}, error)) (interface{}, error) {
 	if auditLogging {
-		debugLog("AUDIT: Accessing Object store: %s", storePath)
+		debugLogf("AUDIT: Accessing Object store: %s", storePath)
 	}
 
 	if skipCache {

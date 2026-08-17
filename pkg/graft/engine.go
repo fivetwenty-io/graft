@@ -727,10 +727,10 @@ func (e *DefaultEngine) MergeReaders(ctx context.Context, readers ...io.Reader) 
 	return e.Merge(ctx, docs...)
 }
 
-// logDebug reports msg to the engine's configured Logger (see WithLogger)
+// logDebugf reports msg to the engine's configured Logger (see WithLogger)
 // at debug level. It is a no-op when no Logger was configured, which is
 // the default.
-func (e *DefaultEngine) logDebug(format string, args ...interface{}) {
+func (e *DefaultEngine) logDebugf(format string, args ...interface{}) {
 	if e.opts.Logger != nil {
 		e.opts.Logger.Debug(fmt.Sprintf(format, args...))
 	}
@@ -742,7 +742,7 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 		ctx = context.Background()
 	}
 
-	e.logDebug("Evaluate: starting evaluation")
+	e.logDebugf("Evaluate: starting evaluation")
 
 	// Get the raw data
 	data, ok := doc.RawData().(map[string]interface{})

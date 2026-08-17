@@ -75,7 +75,7 @@ func (p *ConnectionPool) Cleanup() {
 		if pc.RefCount == 0 && now.Sub(pc.LastUsed) > PoolMaxIdleTime {
 			pc.Conn.Close()
 			delete(p.connections, key)
-			debugLog("closed idle NATS connection to %s", key)
+			debugLogf("closed idle NATS connection to %s", key)
 		}
 	}
 }
@@ -112,7 +112,7 @@ func (p *ConnectionPool) GetConnection(config *Config) (*PooledConnection, error
 	}
 
 	p.connections[key] = pc
-	debugLog("created new NATS connection to %s", key)
+	debugLogf("created new NATS connection to %s", key)
 
 	return pc, nil
 }
@@ -364,7 +364,7 @@ func CreateConnectionWithRetry(config *Config) (*nats.Conn, jetstream.JetStream,
 	retryInterval := config.RetryInterval
 	for attempt := 0; attempt <= config.Retries; attempt++ {
 		if attempt > 0 {
-			debugLog("retrying NATS connection (attempt %d/%d) after %v", attempt, config.Retries, retryInterval)
+			debugLogf("retrying NATS connection (attempt %d/%d) after %v", attempt, config.Retries, retryInterval)
 			time.Sleep(retryInterval)
 
 			// Apply backoff
@@ -381,7 +381,7 @@ func CreateConnectionWithRetry(config *Config) (*nats.Conn, jetstream.JetStream,
 			break
 		}
 
-		debugLog("failed to connect to NATS: %v", err)
+		debugLogf("failed to connect to NATS: %v", err)
 	}
 
 	if err != nil {
@@ -410,7 +410,7 @@ func CreateConnectionFromConfig(config *Config) (*nats.Conn, error) {
 	retryInterval := config.RetryInterval
 	for attempt := 0; attempt <= config.Retries; attempt++ {
 		if attempt > 0 {
-			debugLog("retrying NATS connection (attempt %d/%d) after %v", attempt, config.Retries, retryInterval)
+			debugLogf("retrying NATS connection (attempt %d/%d) after %v", attempt, config.Retries, retryInterval)
 			time.Sleep(retryInterval)
 
 			// Apply backoff
@@ -427,7 +427,7 @@ func CreateConnectionFromConfig(config *Config) (*nats.Conn, error) {
 			break
 		}
 
-		debugLog("failed to connect to NATS: %v", err)
+		debugLogf("failed to connect to NATS: %v", err)
 	}
 
 	if err != nil {
@@ -450,14 +450,14 @@ func BuildConnectionOptions(config *Config) ([]nats.Option, error) {
 		nats.ReconnectWait(config.RetryInterval),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
-				debugLog("NATS disconnected: %v", err)
+				debugLogf("NATS disconnected: %v", err)
 			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			debugLog("NATS reconnected to %s", nc.ConnectedUrl())
+			debugLogf("NATS reconnected to %s", nc.ConnectedUrl())
 		}),
 		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
-			debugLog("NATS error: %v", err)
+			debugLogf("NATS error: %v", err)
 		}),
 	}
 
@@ -555,7 +555,7 @@ func FetchFromKV(js jetstream.JetStream, storePath string, config *Config) (inte
 	retryInterval := config.RetryInterval
 	for attempt := 0; attempt <= config.Retries; attempt++ {
 		if attempt > 0 {
-			debugLog("retrying KV fetch (attempt %d/%d) after %v", attempt, config.Retries, retryInterval)
+			debugLogf("retrying KV fetch (attempt %d/%d) after %v", attempt, config.Retries, retryInterval)
 			time.Sleep(retryInterval)
 
 			// Apply backoff
@@ -632,7 +632,7 @@ func FetchFromKV(js jetstream.JetStream, storePath string, config *Config) (inte
 
 		// Audit logging for successful KV access
 		if config.AuditLogging {
-			debugLog("AUDIT: Successfully retrieved KV data from %s", storePath)
+			debugLogf("AUDIT: Successfully retrieved KV data from %s", storePath)
 		}
 
 		duration := time.Since(startTime)
@@ -642,7 +642,7 @@ func FetchFromKV(js jetstream.JetStream, storePath string, config *Config) (inte
 
 	// Audit logging for failed KV access
 	if config.AuditLogging {
-		debugLog("AUDIT: Failed to retrieve KV data from %s after %d attempts", storePath, config.Retries+1)
+		debugLogf("AUDIT: Failed to retrieve KV data from %s after %d attempts", storePath, config.Retries+1)
 	}
 
 	duration := time.Since(startTime)
@@ -677,7 +677,7 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 	retryInterval := config.RetryInterval
 	for attempt := 0; attempt <= config.Retries; attempt++ {
 		if attempt > 0 {
-			debugLog("retrying Object fetch (attempt %d/%d) after %v", attempt, config.Retries, retryInterval)
+			debugLogf("retrying Object fetch (attempt %d/%d) after %v", attempt, config.Retries, retryInterval)
 			time.Sleep(retryInterval)
 
 			// Apply backoff
@@ -706,7 +706,7 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 		// Get the object data using streaming for large objects
 		data, dataErr := StreamLargeObject(obj, objectName, config.StreamingThreshold)
 		if dataErr != nil {
-			debugLog("streaming error for object %s: %v", objectName, dataErr)
+			debugLogf("streaming error for object %s: %v", objectName, dataErr)
 			err = dataErr
 			continue
 		}
@@ -758,7 +758,7 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 
 		// Audit logging for successful Object access
 		if config.AuditLogging {
-			debugLog("AUDIT: Successfully retrieved Object data from %s (content-type: %s)", storePath, contentType)
+			debugLogf("AUDIT: Successfully retrieved Object data from %s (content-type: %s)", storePath, contentType)
 		}
 
 		duration := time.Since(startTime)
@@ -768,7 +768,7 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 
 	// Audit logging for failed Object access
 	if config.AuditLogging {
-		debugLog("AUDIT: Failed to retrieve Object data from %s after %d attempts", storePath, config.Retries+1)
+		debugLogf("AUDIT: Failed to retrieve Object data from %s after %d attempts", storePath, config.Retries+1)
 	}
 
 	duration := time.Since(startTime)
@@ -870,7 +870,7 @@ func parseBoolOrDefault(value string) bool {
 // Set this to integrate with the operator's DEBUG function.
 var DebugFunc func(format string, args ...interface{})
 
-func debugLog(format string, args ...interface{}) {
+func debugLogf(format string, args ...interface{}) {
 	if DebugFunc != nil {
 		DebugFunc(format, args...)
 	}
