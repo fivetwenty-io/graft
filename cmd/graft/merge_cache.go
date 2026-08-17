@@ -27,15 +27,149 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/gob"
 	"encoding/hex"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/fivetwenty-io/graft/internal/cache"
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/controlflow"
 )
+
+// persistentCacheTTL bounds how long a persistent cache entry may be
+// served. It exists to keep the cache directory from growing without
+// bound, not for correctness - entries are content-addressed, so a stale
+// hit is impossible; an unused entry just lingers until this age.
+const persistentCacheTTL = 7 * 24 * time.Hour
+
+// openMergeOutputCache returns the store for this invocation's output
+// cache, or nil when the cache must not participate: disabled by
+// configuration, a debug/trace run (its diagnostics have to come from a
+// real merge), or an unusable cache directory (cache trouble must never
+// break a merge).
+func openMergeOutputCache(opts *mergeOpts) *cache.FileStore {
+	if !opts.CacheCfg.L2Enabled || log.DebugOn || log.TraceOn {
+		return nil
+	}
+	dir := opts.CacheCfg.L2Path
+	if dir == "" {
+		base, err := os.UserCacheDir()
+		if err != nil {
+			return nil
+		}
+		dir = filepath.Join(base, "graft")
+	}
+	store, err := cache.OpenFileStore(filepath.Join(dir, "output"), persistentCacheTTL)
+	if err != nil {
+		return nil
+	}
+	return store
+}
+
+// cachedMergeOutput is one output-cache entry: the exact bytes a
+// successful merge wrote to stdout and stderr. Exit codes are not stored
+// because only exit-0 runs are ever cached.
+type cachedMergeOutput struct {
+	Stdout []byte
+	Stderr []byte
+}
+
+func encodeCachedOutput(out cachedMergeOutput) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(out); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeCachedOutput(data []byte) (cachedMergeOutput, bool) {
+	var out cachedMergeOutput
+	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&out); err != nil {
+		return cachedMergeOutput{}, false
+	}
+	return out, true
+}
+
+// handleMergeCached is handleMerge's merge execution with the output
+// cache in front: resolve and read every input up front, replay a hit's
+// stored stdout/stderr bytes, and on a miss run the ordinary merge with
+// stderr teed so a successful, cacheable run can be stored for next
+// time.
+func handleMergeCached(opts *mergeOpts, store *cache.FileStore) int {
+	files, err := resolveMergeInputFiles(opts)
+	if err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 2
+	}
+
+	inputs := make([][]byte, len(files))
+	for i := range files {
+		data, readErr := readFile(&files[i])
+		if readErr != nil {
+			// The message is the same one a cache-off run prints for
+			// this file; only the surfacing order can differ (the
+			// cache-off path reads and parses concurrently, so an
+			// earlier file's parse error could win the race). A read
+			// failing after a successful open is rare enough to accept
+			// that.
+			log.PrintStdErrf("%s\n", readErr.Error())
+			return 2
+		}
+		inputs[i] = data
+		files[i].Reader = io.NopCloser(bytes.NewReader(data))
+	}
+
+	key := mergeOutputCacheKey(opts, inputs, ansi.IsColorEnabled())
+	if data, ok := store.Get(key); ok {
+		if out, valid := decodeCachedOutput(data); valid {
+			if len(out.Stderr) > 0 {
+				log.PrintStdErrf("%s", string(out.Stderr))
+			}
+			printStdOutf("%s", string(out.Stdout))
+			return 0
+		}
+		// Corrupt entry: fall through to a real merge, which will
+		// overwrite it with a good one.
+	}
+
+	// Tee stderr so a stored entry can replay warnings byte-for-byte.
+	origErrf := log.PrintStdErrf
+	var stderrBuf bytes.Buffer
+	log.PrintStdErrf = func(format string, args ...interface{}) {
+		fmt.Fprintf(&stderrBuf, format, args...)
+		origErrf(format, args...)
+	}
+	defer func() { log.PrintStdErrf = origErrf }()
+
+	tree, _, err := mergeAllDocs(files, opts)
+	if err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 2
+	}
+
+	out, rc := renderMergedTree(tree)
+	if rc != 0 {
+		return rc
+	}
+	printStdOutf("%s", string(out))
+
+	if outputCacheable(inputs, opts.SkipEval) {
+		entry := cachedMergeOutput{Stdout: out, Stderr: stderrBuf.Bytes()}
+		if encoded, encErr := encodeCachedOutput(entry); encErr == nil {
+			_ = store.Put(key, encoded)
+		}
+	}
+	return 0
+}
 
 // pureOperators lists every registered operator whose evaluation is a
 // deterministic function of the input documents alone. An operator name

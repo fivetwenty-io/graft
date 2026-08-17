@@ -95,6 +95,13 @@ type mergeOpts struct {
 	ShowChanges bool
 	ChangesOnly bool
 	EngineOpts  []graft.EngineOption // Programmatic engine options (not from CLI flags)
+
+	// CacheCfg carries the resolved persistent-cache configuration
+	// (internal/config's CacheConfig, after GRAFT_CACHE_* environment
+	// overrides). The zero value disables the persistent cache, so
+	// callers that never set it - fan, debug, vaultinfo, tests -
+	// behave exactly as before it existed.
+	CacheCfg config.CacheConfig
 }
 
 // hasHistoryFlag reports whether any of the merge --history/--trace-path/
@@ -144,28 +151,45 @@ func handleMerge(opts *mergeOpts) int {
 		return handleMergeHistory(opts)
 	}
 
+	if store := openMergeOutputCache(opts); store != nil {
+		return handleMergeCached(opts, store)
+	}
+
 	tree, _, err := cmdMergeEval(opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
 	}
 
+	out, rc := renderMergedTree(tree)
+	if rc != 0 {
+		return rc
+	}
+	printStdOutf("%s", string(out))
+	return 0
+}
+
+// renderMergedTree turns a merged document tree into the exact bytes
+// `graft merge` writes to stdout (cycle check, YAML marshal, trailing
+// newline), printing any error to stderr and returning its exit code.
+// Shared by the plain and cache-aware merge paths so both emit
+// byte-identical output.
+func renderMergedTree(tree map[string]interface{}) ([]byte, int) {
 	log.TRACE("Converting the following data back to YML:")
 	log.TRACE("%#v", tree)
 
 	if cycleErr := graft.CheckForCycles(tree, 4096); cycleErr != nil {
 		log.PrintStdErrf("%s\n", cycleErr.Error())
-		return 2
+		return nil, 2
 	}
 
 	merged, err := graft.MarshalYAML(tree)
 	if err != nil {
 		log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
-		return 2
+		return nil, 2
 	}
 
-	printStdOutf("%s\n", string(merged))
-	return 0
+	return append(merged, '\n'), 0
 }
 
 func handleFan(opts *mergeOpts) int {
@@ -806,6 +830,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 				ShowChanges:    mergeShowChanges,
 				ChangesOnly:    mergeChangesOnly,
 				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
+				CacheCfg:       loadedConfig.Cache,
 			}
 			if mergeInteractive {
 				exit(handleDebug(args, opts, os.Stdin, os.Stdout))
