@@ -610,13 +610,13 @@ func (o VaultOperator) performVaultLookup(ev *graft.Evaluator, engine graft.Engi
 	return secret, nil
 }
 
-// resolveReader returns the VaultReader to use for a lookup: the pooled,
+// resolveReader returns the Reader to use for a lookup: the pooled,
 // target-specific reader when target is non-empty, otherwise the default
 // environment-initialized reader. A non-empty target
 // that cannot be resolved is a hard error — unlike the no-target path,
 // there is no fallback, since silently falling back to the default
 // instance is exactly the wrong-instance-read bug this wiring fixes.
-func (o VaultOperator) resolveReader(engine graft.Engine, target string) (vault.VaultReader, error) {
+func (o VaultOperator) resolveReader(engine graft.Engine, target string) (vault.Reader, error) {
 	if target != "" {
 		reader, err := vault.DefaultPool.GetClient(target, engine)
 		if err != nil {

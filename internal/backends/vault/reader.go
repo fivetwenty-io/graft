@@ -20,12 +20,12 @@ func (e *ErrNotFound) Error() string {
 	return fmt.Sprintf("secret %s not found", e.Path)
 }
 
-// VaultReader abstracts Vault secret reading for both KV v1 and v2 mounts.
-type VaultReader interface {
+// Reader abstracts Vault secret reading for both KV v1 and v2 mounts.
+type Reader interface {
 	ReadSecret(ctx context.Context, path string) (map[string]interface{}, error)
 }
 
-// vaultAPIReader implements VaultReader using hashicorp/vault/api. It
+// vaultAPIReader implements Reader using hashicorp/vault/api. It
 // resolves each logical path's mount KV version once (cached per mount)
 // so KV v2 mounts are read through their data/ API path — the same
 // transparent v1/v2 handling spruce gets from vaultkv.
@@ -40,8 +40,8 @@ type vaultAPIReader struct {
 	mountVersions map[string]int
 }
 
-// NewVaultReader creates a VaultReader wrapping the given api.Client.
-func NewVaultReader(client *api.Client) VaultReader {
+// NewReader creates a Reader wrapping the given api.Client.
+func NewReader(client *api.Client) Reader {
 	return &vaultAPIReader{
 		client:        client,
 		mountVersions: make(map[string]int),

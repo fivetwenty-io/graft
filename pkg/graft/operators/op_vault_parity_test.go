@@ -12,7 +12,7 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// countingVaultReader is a vaultbackend.VaultReader stub that records how many
+// countingVaultReader is a vaultbackend.Reader stub that records how many
 // times ReadSecret was invoked and by which path, so tests can assert on
 // backend-call counts (caching behavior, REDACT short-circuiting) without a
 // real Vault server.

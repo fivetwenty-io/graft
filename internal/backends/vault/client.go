@@ -22,25 +22,25 @@ import (
 // GlobalReader is the module-level vault reader, initialized lazily from
 // environment before evaluation starts and only read (never reassigned)
 // during evaluation, so concurrent RunOp calls reading it are safe.
-var GlobalReader VaultReader
+var GlobalReader Reader
 
 // ClientPool manages vault readers for different targets. clients/configs
 // are read and lazily populated from concurrent operator evaluation (see
 // pkg/graft/evaluator_parallel.go), so all access goes through mu.
 type ClientPool struct {
 	mu      sync.RWMutex
-	clients map[string]VaultReader
+	clients map[string]Reader
 	configs map[string]*Target
 }
 
 // DefaultPool is the global client pool for target-aware vault readers.
 var DefaultPool = &ClientPool{
-	clients: make(map[string]VaultReader),
+	clients: make(map[string]Reader),
 	configs: make(map[string]*Target),
 }
 
 // GetClient returns a vault reader for the specified target.
-func (vcp *ClientPool) GetClient(targetName string, engine graft.Engine) (VaultReader, error) {
+func (vcp *ClientPool) GetClient(targetName string, engine graft.Engine) (Reader, error) {
 	// Return existing client if available
 	vcp.mu.RLock()
 	if client, exists := vcp.clients[targetName]; exists {
@@ -173,7 +173,7 @@ func newAPIClient(addr string, token string, namespace string, skip bool) (*api.
 }
 
 // CreateClientFromConfig creates a vault reader from target configuration.
-func CreateClientFromConfig(config *Target) (VaultReader, error) {
+func CreateClientFromConfig(config *Target) (Reader, error) {
 	addr := os.ExpandEnv(config.URL)
 	token := os.ExpandEnv(config.Token)
 	namespace := os.ExpandEnv(config.Namespace)
@@ -183,7 +183,7 @@ func CreateClientFromConfig(config *Target) (VaultReader, error) {
 		return nil, err
 	}
 
-	return NewVaultReader(client), nil
+	return NewReader(client), nil
 }
 
 // InitializeClient initializes the global vault reader from environment variables.
@@ -236,13 +236,13 @@ func InitializeClient() error {
 		return err
 	}
 
-	GlobalReader = NewVaultReader(client)
+	GlobalReader = NewReader(client)
 
 	return nil
 }
 
-// GetSecretWithReader retrieves a secret using the provided VaultReader.
-func GetSecretWithReader(reader VaultReader, secret string) (map[string]interface{}, error) {
+// GetSecretWithReader retrieves a secret using the provided Reader.
+func GetSecretWithReader(reader Reader, secret string) (map[string]interface{}, error) {
 	graft.DEBUG("Fetching Vault secret at `%s'", secret)
 
 	ret, err := reader.ReadSecret(context.Background(), secret)

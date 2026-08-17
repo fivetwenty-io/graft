@@ -19,7 +19,7 @@ func TestClientPool_ConcurrentGetClient_MultiTarget(t *testing.T) {
 
 	for round := 0; round < rounds; round++ {
 		pool := &ClientPool{
-			clients: make(map[string]VaultReader),
+			clients: make(map[string]Reader),
 			configs: make(map[string]*Target),
 		}
 
@@ -77,7 +77,7 @@ func TestClientPool_ConcurrentGetClient_MultiTarget(t *testing.T) {
 // map access itself is not properly serialized).
 func TestClientPool_ConcurrentGetClient_SameTargetReusesClient(t *testing.T) {
 	pool := &ClientPool{
-		clients: make(map[string]VaultReader),
+		clients: make(map[string]Reader),
 		configs: make(map[string]*Target),
 	}
 
@@ -86,7 +86,7 @@ func TestClientPool_ConcurrentGetClient_SameTargetReusesClient(t *testing.T) {
 
 	const callers = 50
 	var wg sync.WaitGroup
-	results := make([]VaultReader, callers)
+	results := make([]Reader, callers)
 	errs := make([]error, callers)
 
 	for i := 0; i < callers; i++ {

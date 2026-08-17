@@ -22,7 +22,7 @@ import (
 // so graft's vault error text must match it byte-for-byte.
 var genesisSecretNotFoundRe = regexp.MustCompile(`^secret (.*) not found$`)
 
-// notFoundReader is a minimal vaultbackend.VaultReader stub that reports every
+// notFoundReader is a minimal vaultbackend.Reader stub that reports every
 // path as missing, mirroring a real Vault 404 response.
 type notFoundReader struct{}
 
@@ -30,7 +30,7 @@ func (notFoundReader) ReadSecret(_ context.Context, path string) (map[string]int
 	return nil, &vaultbackend.ErrNotFound{Path: path}
 }
 
-// missingSubkeyReader is a minimal vaultbackend.VaultReader stub whose secret
+// missingSubkeyReader is a minimal vaultbackend.Reader stub whose secret
 // exists but never contains the subkey the test asks for.
 type missingSubkeyReader struct{}
 
@@ -40,7 +40,7 @@ func (missingSubkeyReader) ReadSecret(_ context.Context, _ string) (map[string]i
 
 // withGlobalVaultReader swaps vaultbackend.GlobalReader for the duration of fn,
 // restoring the previous value afterward so other tests aren't affected.
-func withGlobalVaultReader(reader vaultbackend.VaultReader, fn func()) {
+func withGlobalVaultReader(reader vaultbackend.Reader, fn func()) {
 	previous := vaultbackend.GlobalReader
 	vaultbackend.GlobalReader = reader
 	defer func() { vaultbackend.GlobalReader = previous }()

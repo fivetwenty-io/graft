@@ -26,7 +26,7 @@ import (
 //     TestMultiErrorDefaultFormatUnchangedWithFalsyEnv,
 //     pkg/graft/errors_test.go.
 //   - "secret <key> not found" (contract:65-69): pinned hermetically (fake
-//     vaultbackend.VaultReader, no live Vault) by
+//     vaultbackend.Reader, no live Vault) by
 //     TestVaultOperatorNotFoundErrorText,
 //     pkg/graft/operators/op_vault_parity_test.go, and again by
 //     pkg/graft/operators/op_vault_errorcode_test.go.

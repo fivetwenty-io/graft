@@ -12,7 +12,7 @@ import (
 	api "github.com/hashicorp/vault/api"
 )
 
-func newTestReader(t *testing.T, url string) VaultReader {
+func newTestReader(t *testing.T, url string) Reader {
 	t.Helper()
 	cfg := api.DefaultConfig()
 	cfg.Address = url
@@ -21,7 +21,7 @@ func newTestReader(t *testing.T, url string) VaultReader {
 		t.Fatalf("failed to build vault client: %v", err)
 	}
 	client.SetToken("test-token")
-	return NewVaultReader(client)
+	return NewReader(client)
 }
 
 // TestReadSecretKV2MountDetection pins the spruce-parity behavior against a
