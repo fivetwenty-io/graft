@@ -92,10 +92,9 @@ func (ev *Evaluator) SetMemoryTracker(memory interfaces.MemoryTracker) {
 
 func nameOfObj(o interface{}, def string) string {
 	for _, field := range tree.NameFields {
-		switch val := o.(type) {
-		case map[string]interface{}:
-			if value, ok := val[field]; ok {
-				if s, ok := value.(string); ok {
+		if val, ok := o.(map[string]interface{}); ok {
+			if value, found := val[field]; found {
+				if s, isString := value.(string); isString {
 					return s
 				}
 			}

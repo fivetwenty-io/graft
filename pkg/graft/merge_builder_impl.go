@@ -721,7 +721,7 @@ func (m *mergeBuilderImpl) performSimpleMergeAtPath(base, overlay map[string]int
 
 	for key, overlayValue := range overlay {
 		baseValue, exists := base[key]
-		keyStr := fmt.Sprintf("%v", key)
+		keyStr := key
 		recordPath := keyStr
 		if pathPrefix != "" {
 			recordPath = pathPrefix + "." + keyStr
@@ -1698,8 +1698,7 @@ func findNamedArrayEntryWithIndex(arr []interface{}, name string) (int, interfac
 
 	for i, entry := range arr {
 		// Only check map entries
-		switch v := entry.(type) {
-		case map[string]interface{}:
+		if v, ok := entry.(map[string]interface{}); ok {
 			for _, idKey := range identifierKeys {
 				if val, exists := v[idKey]; exists && fmt.Sprintf("%v", val) == name {
 					return i, entry, true

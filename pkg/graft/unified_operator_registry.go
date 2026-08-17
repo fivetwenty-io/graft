@@ -303,13 +303,10 @@ func PopulateCompleteRegistry() error {
 		// Check if we already have a real (non-null) implementation
 		var impl Operator
 		if existing, exists := DefaultRegistry.Get(op.name); exists && existing.Implementation != nil {
-			// Check if the existing implementation is a NullOperator
-			if _, isNull := existing.Implementation.(NullOperator); !isNull {
-				impl = existing.Implementation
-			} else {
-				// Keep the NullOperator
-				impl = existing.Implementation
-			}
+			// Whatever is registered wins, NullOperator included: a
+			// NullOperator placeholder is what a not-yet-imported
+			// operator is supposed to resolve to.
+			impl = existing.Implementation
 		} else {
 			// No implementation found, use NullOperator
 			impl = NullOperator{Missing: op.name}

@@ -862,81 +862,79 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 			return nil, err
 		}
 	}
-	{
-		// Space-separated arguments until )), a bare ")" (closing an
-		// operator call opened by a single "("), or
-		// another operator.
-		for p.current().Type != interfaces.TokenOperatorEnd &&
-			p.current().Type != interfaces.TokenRightParen &&
-			p.current().Type != interfaces.TokenEOF &&
-			p.current().Type != interfaces.TokenQuestion &&
-			p.current().Type != interfaces.TokenColon {
-			// A '-' immediately followed by a number (no space possible
-			// between them — the tokenizer always splits "-5" into a
-			// TokenMinus and a TokenInteger/TokenFloat pair; see
-			// parseUnaryMinus) is a negative-literal argument, not the
-			// infix-subtraction case isBinaryOperator's blanket check
-			// below assumes: each space-separated argument here is
-			// parsed as one standalone primary via parsePrimary, never
-			// through the full precedence-climbing expression parser, so
-			// there is no "previous operand" for a '-' at this position
-			// to subtract from in the first place — spruce parity: `((
-			// ips net -5 ))` is a documented negative-offset form.
-			// parsePrimary already dispatches TokenMinus to
-			// parseUnaryMinus, which builds the negative literal.
-			nextIsNumber := p.current().Type == interfaces.TokenMinus &&
-				func() bool {
-					next := p.tokenAt(p.pos + 1)
-					return next.Type == interfaces.TokenInteger || next.Type == interfaces.TokenFloat
-				}()
+	// Space-separated arguments until )), a bare ")" (closing an
+	// operator call opened by a single "("), or
+	// another operator.
+	for p.current().Type != interfaces.TokenOperatorEnd &&
+		p.current().Type != interfaces.TokenRightParen &&
+		p.current().Type != interfaces.TokenEOF &&
+		p.current().Type != interfaces.TokenQuestion &&
+		p.current().Type != interfaces.TokenColon {
+		// A '-' immediately followed by a number (no space possible
+		// between them — the tokenizer always splits "-5" into a
+		// TokenMinus and a TokenInteger/TokenFloat pair; see
+		// parseUnaryMinus) is a negative-literal argument, not the
+		// infix-subtraction case isBinaryOperator's blanket check
+		// below assumes: each space-separated argument here is
+		// parsed as one standalone primary via parsePrimary, never
+		// through the full precedence-climbing expression parser, so
+		// there is no "previous operand" for a '-' at this position
+		// to subtract from in the first place — spruce parity: `((
+		// ips net -5 ))` is a documented negative-offset form.
+		// parsePrimary already dispatches TokenMinus to
+		// parseUnaryMinus, which builds the negative literal.
+		nextIsNumber := p.current().Type == interfaces.TokenMinus &&
+			func() bool {
+				next := p.tokenAt(p.pos + 1)
+				return next.Type == interfaces.TokenInteger || next.Type == interfaces.TokenFloat
+			}()
 
-			// Check for binary operators that would end the argument list
-			// Handle || as a LogicalOr marker for fallback expressions
-			if p.isBinaryOperator(p.current().Type) && !nextIsNumber {
-				if p.current().Type == interfaces.TokenOr {
-					// Capture || and the fallback value as a LogicalOr expression
-					// This handles (( grab this || "that" )) and (( concat a || b  c || d ))
-					p.advance() // consume ||
+		// Check for binary operators that would end the argument list
+		// Handle || as a LogicalOr marker for fallback expressions
+		if p.isBinaryOperator(p.current().Type) && !nextIsNumber {
+			if p.current().Type == interfaces.TokenOr {
+				// Capture || and the fallback value as a LogicalOr expression
+				// This handles (( grab this || "that" )) and (( concat a || b  c || d ))
+				p.advance() // consume ||
 
-					// Parse the right side of the || (the fallback value).
-					// withOpcallEligibility lets a bare operator identifier
-					// here (no "@target", no explicit "(") open its own
-					// call under the same two-token rule parseOperand
-					// applies elsewhere — see its doc comment.
-					right, err := p.withOpcallEligibility(p.parsePrimary)
-					if err != nil {
-						return nil, err
-					}
-
-					// Wrap the existing args and the fallback into a LogicalOr structure
-					// by creating a LogicalOr expression with left = last arg, right = fallback
-					if len(args) > 0 {
-						lastArg := args[len(args)-1]
-						args[len(args)-1] = &Expr{
-							Type:  LogicalOr,
-							Left:  lastArg,
-							Right: right,
-						}
-					}
-					// Handle optional comma after the LogicalOr expression
-					if p.current().Type == interfaces.TokenComma {
-						p.advance()
-					}
-					continue
+				// Parse the right side of the || (the fallback value).
+				// withOpcallEligibility lets a bare operator identifier
+				// here (no "@target", no explicit "(") open its own
+				// call under the same two-token rule parseOperand
+				// applies elsewhere — see its doc comment.
+				right, err := p.withOpcallEligibility(p.parsePrimary)
+				if err != nil {
+					return nil, err
 				}
-				break
-			}
 
-			arg, err := p.parsePrimary()
-			if err != nil {
-				return nil, err
+				// Wrap the existing args and the fallback into a LogicalOr structure
+				// by creating a LogicalOr expression with left = last arg, right = fallback
+				if len(args) > 0 {
+					lastArg := args[len(args)-1]
+					args[len(args)-1] = &Expr{
+						Type:  LogicalOr,
+						Left:  lastArg,
+						Right: right,
+					}
+				}
+				// Handle optional comma after the LogicalOr expression
+				if p.current().Type == interfaces.TokenComma {
+					p.advance()
+				}
+				continue
 			}
-			args = append(args, arg)
+			break
+		}
 
-			// Optional comma
-			if p.current().Type == interfaces.TokenComma {
-				p.advance()
-			}
+		arg, err := p.parsePrimary()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, arg)
+
+		// Optional comma
+		if p.current().Type == interfaces.TokenComma {
+			p.advance()
 		}
 	}
 

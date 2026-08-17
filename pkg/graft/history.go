@@ -562,7 +562,8 @@ func buildHistoryDocumentDTO(entries []HistoryEntry) historyDocumentDTO {
 	byPhase := make(map[string]int)
 	pathCounts := make(map[string]int)
 
-	for _, e := range entries {
+	for i := range entries {
+		e := &entries[i]
 		phase := strings.ToLower(e.Phase.String())
 		dtoEntries = append(dtoEntries, historyEntryDTO{
 			Index:     e.Index,

@@ -172,7 +172,7 @@ var mapKeyLineRe = regexp.MustCompile(`^(?:"[^"]*"|'[^']*'|[^-#\s][^:]*?):(\s|$)
 // (>) block scalar, optionally preceded by a mapping key or sequence
 // dash, and optionally followed by chomping/indent indicators and a
 // trailing comment.
-var blockScalarHeaderRe = regexp.MustCompile(`(?:^|:|-)[ \t]*[|>][+-]?[0-9]*[ \t]*(#.*)?$`)
+var blockScalarHeaderRe = regexp.MustCompile(`(?:^|:|-)[ \t]*[|>][+-]?\d*[ \t]*(#.*)?$`)
 
 // sanitizeBareSequenceTerminators works around a goccy/go-yaml v1.19.2
 // parser bug (confirmed against a standalone goccy repro; v1.19.2 is the

@@ -91,8 +91,7 @@ func listFind(l []interface{}, fields []string, key string) (interface{}, uint64
 			// Convert index to uint64 safely
 			idx := uint64(i) // #nosec G115 - i is from range loop, always >= 0
 
-			switch m := v.(type) {
-			case map[string]interface{}:
+			if m, isMap := v.(map[string]interface{}); isMap {
 				value, ok := m[field]
 				if ok && value == key {
 					return v, idx, true
