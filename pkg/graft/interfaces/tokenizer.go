@@ -104,6 +104,17 @@ func (p *SimpleReferencePattern) Match(input string, offset int) (matched bool, 
 			for pos < len(runes) && isIdentifierContinue(runes[pos]) {
 				pos++
 			}
+			// A '+' followed by an identifier character continues the
+			// same segment: genesis's vaultified manifests use map keys
+			// like "haproxy_ssl+certificate", and spruce lexes the whole
+			// whitespace-free token as one reference. A '+' before a
+			// digit is left alone so "count+1" stays arithmetic.
+			for pos+1 < len(runes) && runes[pos] == '+' && isIdentifierStart(runes[pos+1]) {
+				pos++ // consume '+'
+				for pos < len(runes) && isIdentifierContinue(runes[pos]) {
+					pos++
+				}
+			}
 		} else {
 			break // Not a valid continuation - exits the for loop
 		}
@@ -228,6 +239,16 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 				// Consume identifier
 				for pos < len(runes) && isIdentifierContinue(runes[pos]) {
 					pos++
+				}
+				// A '+' followed by an identifier character continues
+				// the same segment (genesis vaultified keys like
+				// "haproxy_ssl+certificate"); a '+' before a digit is
+				// left alone so "count+1" stays arithmetic.
+				for pos+1 < len(runes) && runes[pos] == '+' && isIdentifierStart(runes[pos+1]) {
+					pos++ // consume '+'
+					for pos < len(runes) && isIdentifierContinue(runes[pos]) {
+						pos++
+					}
 				}
 				// Predicate segment support: a dotted
 				// segment may carry an inline "field=value" predicate, e.g.

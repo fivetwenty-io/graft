@@ -95,6 +95,30 @@ func TestBoshPlaceholderPassthrough(t *testing.T) {
 		}
 	})
 
+	t.Run("dotted reference segment containing a plus resolves as one path", func(t *testing.T) {
+		// genesis's vaultified manifests write map keys like
+		// "haproxy_ssl+certificate" and reference them as
+		// (( concat meta.__vaultified.haproxy_ssl+certificate ... )).
+		// Spruce lexes the whole whitespace-free token as one reference;
+		// the '+' must not be read as addition.
+		got := passthroughGet(t, `meta:
+  __vaultified:
+    haproxy_ssl+certificate: CERT
+    haproxy_ssl+private_key: KEY
+x: (( concat meta.__vaultified.haproxy_ssl+certificate meta.__vaultified.haproxy_ssl+private_key ))
+`)
+		if got != "CERTKEY" {
+			t.Fatalf("expected CERTKEY, got %v (%T)", got, got)
+		}
+	})
+
+	t.Run("tight plus before a digit is still addition", func(t *testing.T) {
+		got := passthroughGet(t, "meta:\n  count: 4\nx: (( meta.count+1 ))\n")
+		if got != int64(5) {
+			t.Fatalf("expected 5, got %v (%T)", got, got)
+		}
+	})
+
 	t.Run("placeholders under a list survive verbatim", func(t *testing.T) {
 		doc, err := mergeYAML(t, "certs:\n- ((diego_instance_identity_ca.ca))\n- ((uaa_ssl.ca))\n")
 		if err != nil {
