@@ -82,8 +82,6 @@ func TestMustNewExporter(t *testing.T) {
 }
 
 // TestPrometheusExporter tests Prometheus format export.
-//
-//nolint:gocyclo // test function covers many export scenarios
 func TestPrometheusExporter(t *testing.T) {
 	exporter := NewPrometheusExporter()
 
@@ -181,8 +179,6 @@ func TestPrometheusExporter(t *testing.T) {
 }
 
 // TestOtelExporter tests OpenTelemetry format export.
-//
-//nolint:gocyclo // test function covers many OTEL export scenarios
 func TestOtelExporter(t *testing.T) {
 	exporter := NewOtelExporter()
 

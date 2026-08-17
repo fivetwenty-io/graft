@@ -12,7 +12,6 @@ const (
 	testHelloStr = "hello"
 )
 
-//nolint:gocyclo // test function covers all value type conversions
 func TestValue(t *testing.T) {
 	t.Run("String value", func(t *testing.T) {
 		v := NewValue(testHelloStr)

@@ -9,7 +9,6 @@ import (
 	_ "github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
-//nolint:gocyclo // test function covers comprehensive document memory functionality
 func TestDocumentMemory(t *testing.T) {
 	t.Run("basic functionality", func(t *testing.T) {
 		config := MemoryConfig{

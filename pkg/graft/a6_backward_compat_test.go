@@ -73,8 +73,6 @@ func TestA6EndToEnd_NewBehavior(t *testing.T) {
 
 // TestA6EndToEnd_BackwardCompat pins the §9.2 parse-shape invariants
 // relevant to A6 (B-1, B-2, B-4, B-11, B-12) end to end.
-//
-//nolint:gocyclo // five independent B-* pins, each with its own error checks; splitting would lose the single source-of-truth table this mirrors
 func TestA6EndToEnd_BackwardCompat(t *testing.T) {
 	t.Run("B-1: unregistered bare identifier alone passes through unchanged", func(t *testing.T) {
 		doc, err := mergeYAML(t, "a: 5\nx: (( a ))\n")

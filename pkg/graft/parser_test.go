@@ -107,8 +107,6 @@ func isNullOperatorCallNamed(opcall *Opcall, name string) bool {
 // TestParserPrecedenceTable pins the worked parses in spec §9.1. The
 // precedence constants themselves are pre-existing (operator_registry.go);
 // this only confirms parseExprWithPrecedence combines them as documented.
-//
-//nolint:gocyclo // one subtest per worked-parse row, each with its own shape checks; mirrors the spec table directly
 func TestParserPrecedenceTable(t *testing.T) {
 	t.Run("a + b * c parses as a + (b * c)", func(t *testing.T) {
 		e := mustParseInner(t, "a + b * c")
@@ -220,8 +218,6 @@ func TestParserPrecedenceTable(t *testing.T) {
 // TestA6BareReferenceOperand pins cluster A6 (spec §3): an unregistered bare
 // identifier at the operator-call-opening position becomes a reference, but
 // only when the next token places it in operand position.
-//
-//nolint:gocyclo // one subtest per lookahead case (B-1, B-2, H4, ternary, etc.), each with its own shape checks
 func TestA6BareReferenceOperand(t *testing.T) {
 	t.Run("bare identifier before == becomes a reference", func(t *testing.T) {
 		e := mustParseInner(t, `env == "production"`)

@@ -666,8 +666,6 @@ func TestOperatorSetup(t *testing.T) {
 }
 
 // deepEqual performs deep equality comparison for test assertions.
-//
-//nolint:gocyclo // deep comparison handles many type combinations
 func deepEqual(a, b interface{}) bool {
 	// Handle nil cases
 	if a == nil && b == nil {

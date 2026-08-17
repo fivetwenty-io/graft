@@ -461,8 +461,6 @@ func (m *mergeBuilderImpl) Execute() (Document, error) {
 // therefore only affects documents merged before it — later overlays keep
 // merging on top of the patched result, instead of every patch being hoisted
 // to the end of the whole file sequence.
-//
-//nolint:gocyclo // document merging has complex logic for go-patch and prune operators
 func (m *mergeBuilderImpl) mergeDocuments() (Document, error) {
 	var result map[string]interface{}
 	haveResult := false

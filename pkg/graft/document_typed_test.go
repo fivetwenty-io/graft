@@ -10,7 +10,6 @@ const (
 	testValue1 = "value1"
 )
 
-//nolint:gocyclo // test function covers all typed accessor methods
 func TestDocumentTypedMethods(t *testing.T) {
 	// Setup test data
 	data := map[string]interface{}{

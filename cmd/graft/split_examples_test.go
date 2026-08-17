@@ -41,7 +41,6 @@ func asFile(v interface{}) *os.File {
 	return f
 }
 
-//nolint:gocyclo // test function covers many split example scenarios
 func TestSplitExamples(t *testing.T) {
 	Convey("Split operator examples should merge correctly", t, func() {
 		// Get the project root directory

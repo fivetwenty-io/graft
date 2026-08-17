@@ -372,7 +372,6 @@ config:
 // Parallel Operator Execution Benchmarks (Simulated)
 // =============================================================================
 
-//nolint:gocyclo // benchmark function tests multiple parallel patterns
 func BenchmarkParallelOperatorExecution(b *testing.B) {
 	// Simulate parallel operator execution patterns
 
@@ -690,7 +689,6 @@ func BenchmarkChannelCoordination(b *testing.B) {
 // Work Distribution Patterns
 // =============================================================================
 
-//nolint:gocyclo // benchmark function tests multiple work distribution patterns
 func BenchmarkWorkDistribution(b *testing.B) {
 	workItems := 1000
 

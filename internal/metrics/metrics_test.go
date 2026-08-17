@@ -440,7 +440,7 @@ func TestHistogramConcurrency(t *testing.T) {
 
 	wg.Wait()
 
-	expected := uint64(goroutines * iterations) //nolint:gosec // G115: test values are small, no overflow risk
+	expected := uint64(goroutines * iterations)
 	if hist.Count() != expected {
 		t.Errorf("concurrent histogram count = %v, want %v", hist.Count(), expected)
 	}

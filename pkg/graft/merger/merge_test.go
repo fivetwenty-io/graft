@@ -144,7 +144,6 @@ func TestShouldKeyMergeArrayOfHashes(t *testing.T) {
 	})
 }
 
-//nolint:gocyclo // test function covers many array modification scenarios
 func TestGetArrayModifications(t *testing.T) {
 	shouldInsertAt := func(actual interface{}, expIndex ...interface{}) string {
 		modDef, ok := actual.(ModificationDefinition)

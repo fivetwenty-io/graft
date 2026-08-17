@@ -17,7 +17,6 @@ const (
 	testFormatJSON    = "json"
 )
 
-//nolint:gocyclo // test function verifies many default config values
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 

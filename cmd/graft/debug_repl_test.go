@@ -350,7 +350,7 @@ func TestDebugREPL(t *testing.T) {
 		defer restoreStdin()
 
 		stdoutPath := t.TempDir() + "/stdout.txt"
-		stdoutFile, err := os.Create(stdoutPath) //nolint:gosec // test-local temp file
+		stdoutFile, err := os.Create(stdoutPath)
 		if err != nil {
 			t.Fatalf("creating stdout capture file: %v", err)
 		}
@@ -420,7 +420,7 @@ func TestDebugREPL(t *testing.T) {
 		defer restoreStdin()
 
 		stdoutPath := t.TempDir() + "/stdout.txt"
-		stdoutFile, err := os.Create(stdoutPath) //nolint:gosec // test-local temp file
+		stdoutFile, err := os.Create(stdoutPath)
 		if err != nil {
 			t.Fatalf("creating stdout capture file: %v", err)
 		}

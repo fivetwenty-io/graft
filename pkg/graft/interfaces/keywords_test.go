@@ -558,8 +558,6 @@ func TestAllOperatorNames(t *testing.T) {
 }
 
 // TestGetKeywordInfo tests the GetKeywordInfo function.
-//
-//nolint:gocyclo // test function covers many keyword info scenarios
 func TestGetKeywordInfo(t *testing.T) {
 	t.Run("control flow keyword", func(t *testing.T) {
 		info := GetKeywordInfo("if")
@@ -699,8 +697,6 @@ func TestKeywordCategoryString(t *testing.T) {
 }
 
 // TestEdgeCases tests edge cases and boundary conditions.
-//
-//nolint:gocyclo // test function covers many edge case scenarios
 func TestEdgeCases(t *testing.T) {
 	t.Run("empty string", func(t *testing.T) {
 		if IsKeywordIdentifier("") {

@@ -63,8 +63,6 @@ func (JoinOperator) Dependencies(ev *Evaluator, args []*Expr, _ []*tree.Cursor, 
 }
 
 // Run ...
-//
-//nolint:gocyclo // join operator handles multiple argument types with list flattening
 func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("running (( join ... )) operation at $.%s", ev.Here)
 	defer DEBUG("done with (( join ... )) operation at $%s\n", ev.Here)

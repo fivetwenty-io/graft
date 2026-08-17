@@ -63,8 +63,6 @@ func (CartesianProductOperator) Dependencies(ev *Evaluator, args []*Expr, locs [
 }
 
 // Run executes the cartesian-product operator.
-//
-//nolint:gocyclo // cartesian product handles list generation with type validation
 func (CartesianProductOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("running (( cartesian-product ... )) operation at $.%s", ev.Here)
 	defer DEBUG("done with (( cartesian-product ... )) operation at $.%s\n", ev.Here)

@@ -442,8 +442,6 @@ func (p *InjectProcessor) InjectValue(v interface{}) (interface{}, error) {
 }
 
 // processInject recursively processes inject markers.
-//
-//nolint:gocyclo // inject handles both marker types and key prefixes in maps
 func (p *InjectProcessor) processInject(v interface{}) interface{} {
 	switch val := v.(type) {
 	case map[string]interface{}:

@@ -122,8 +122,6 @@ func resolveGrabArgValue(ev *Evaluator, arg *Expr) (interface{}, error) {
 }
 
 // Run ...
-//
-//nolint:gocyclo // grab operator handles multiple argument formats including nested expressions
 func (GrabOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("running (( grab ... )) operation at $.%s", ev.Here)
 	defer DEBUG("done with (( grab ... )) operation at $%s\n", ev.Here)

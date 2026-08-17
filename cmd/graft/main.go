@@ -1465,7 +1465,6 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts) fi
 	return fileParseResult{doc: doc}
 }
 
-//nolint:gocyclo // mergeAllDocs orchestrates complex document merging with multiple options
 func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
 	engine, docs, err := buildEngineAndDocs(files, options)
 	if err != nil {

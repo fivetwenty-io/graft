@@ -187,8 +187,6 @@ func CreateClientFromConfig(config *Target) (VaultReader, error) {
 }
 
 // InitializeClient initializes the global vault reader from environment variables.
-//
-//nolint:gocyclo // Vault client init handles multiple auth sources and TLS config
 func InitializeClient() error {
 	addr := os.Getenv("VAULT_ADDR")
 	token := os.Getenv("VAULT_TOKEN")
@@ -222,7 +220,7 @@ func InitializeClient() error {
 		if home, herr := os.UserHomeDir(); herr == nil {
 			// The Vault CLI's own token sink; reading the invoking user's
 			// home directory is the documented lookup, not tainted input.
-			b, err := os.ReadFile(filepath.Join(home, ".vault-token")) //nolint:gosec // fixed filename under the user's own home
+			b, err := os.ReadFile(filepath.Join(home, ".vault-token"))
 			if err == nil {
 				token = strings.TrimSuffix(string(b), "\n")
 			}

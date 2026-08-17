@@ -113,8 +113,6 @@ func TestEvaluateInfix_NestedArithmetic(t *testing.T) {
 // TestEvaluateInfix_ArithmeticCoercion pins the §1.5 coercion table for
 // performArithmetic: the live legacy function, not the dormant type
 // handlers (§0.1).
-//
-//nolint:gocyclo // one subtest per coercion-table row, each with its own error check; mirrors the spec table directly
 func TestEvaluateInfix_ArithmeticCoercion(t *testing.T) {
 	ev := &graft.Evaluator{Tree: map[string]interface{}{}}
 

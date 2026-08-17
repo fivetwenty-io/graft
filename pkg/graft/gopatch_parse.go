@@ -89,7 +89,6 @@ func ParseGoPatch(data []byte) (patch.Ops, error) {
 		// produce, but under --color=on it renders real ANSI codes around
 		// "...but got" (F13) - a plain fmt.Errorf can't reproduce that, so
 		// this must stay ansi.Errorf, not be simplified to fmt.Errorf.
-		//nolint:staticcheck // capitalized error text intentionally matches the pinned CLI message above
 		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map. Tried parsing it as go-patch, but got}: %s\n", err)
 	}
 
