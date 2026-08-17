@@ -986,7 +986,7 @@ func IsEmpty(v interface{}) bool {
 		switch rv.Kind() {
 		case reflect.Array, reflect.Chan, reflect.Map, reflect.Slice:
 			return rv.Len() == 0
-		case reflect.Ptr, reflect.Interface:
+		case reflect.Pointer, reflect.Interface:
 			return rv.IsNil()
 		case reflect.String:
 			return rv.Len() == 0
@@ -1014,7 +1014,7 @@ func IsNil(v interface{}) bool {
 
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
-	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func, reflect.Interface:
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func, reflect.Interface:
 		return rv.IsNil()
 	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,

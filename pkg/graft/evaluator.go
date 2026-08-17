@@ -108,7 +108,7 @@ func nameOfObj(o interface{}, def string) string {
 func getOperatorName(op Operator) string {
 	// Use reflection to get the type name
 	t := reflect.TypeOf(op)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	name := t.Name()
