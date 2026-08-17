@@ -72,6 +72,11 @@ linters:
       enable-all: true
       disable:
         - fieldalignment  # Too strict for general use
+        # Every hit is `err` redeclared by a `:=` inside a loop or an if,
+        # then checked on the next line. That is how Go reads, and the
+        # check has no way to tell it apart from the outer value being
+        # lost.
+        - shadow
 
     gocyclo:
       min-complexity: 15
