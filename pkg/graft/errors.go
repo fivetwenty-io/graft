@@ -332,92 +332,93 @@ func withHiddenCause(msg string, cause error) error {
 type ErrorCode string
 
 const (
-	// CodeParseError: YAML/JSON parsing or (( if/for/while/case ))
+	// CodeParseError means YAML/JSON parsing or (( if/for/while/case ))
 	// control-flow expansion failed before evaluation could begin.
 	// Triggered by GraftError{Type: ParseError}, e.g. Engine.ParseYAML,
 	// Engine.ParseJSON, or control-flow expansion (engine.go).
 	CodeParseError ErrorCode = "E100"
 
-	// CodePathSyntaxError: a graft reference/path expression (e.g. inside
-	// (( grab )) or (( sort by )) ) could not be parsed as a cursor.
-	// Triggered by tree.SyntaxError.
+	// CodePathSyntaxError means a graft reference/path expression (e.g.
+	// inside (( grab )) or (( sort by )) ) could not be parsed as a
+	// cursor. Triggered by tree.SyntaxError.
 	CodePathSyntaxError ErrorCode = "E101"
 
-	// CodeEvaluationError: a generic operator-evaluation failure that
+	// CodeEvaluationError means a generic operator-evaluation failure that
 	// does not fall into a more specific category below. Triggered by
 	// GraftError{Type: EvaluationError}.
 	CodeEvaluationError ErrorCode = "E200"
 
-	// CodeReferenceNotFound: a reference expression resolved to a path
-	// that does not exist in the document (e.g. (( grab missing.path ))).
-	// Triggered by tree.NotFoundError.
+	// CodeReferenceNotFound means a reference expression resolved to a
+	// path that does not exist in the document, e.g.
+	// (( grab missing.path )). Triggered by tree.NotFoundError.
 	CodeReferenceNotFound ErrorCode = "E201"
 
-	// CodeTypeMismatch: a path was expected to hold one kind of value
+	// CodeTypeMismatch means a path was expected to hold one kind of value
 	// (map, list, scalar) but held another. Triggered by
 	// tree.TypeMismatchError, raised both while resolving references
 	// during operator evaluation and while merging/sorting.
 	CodeTypeMismatch ErrorCode = "E202"
 
-	// CodeCircularReference: the operator data-flow graph has a cycle
-	// (e.g. (( grab a )) / (( grab b )) referencing each other).
-	// Triggered by the data-flow cycle detector (evaluator.go
+	// CodeCircularReference means the operator data-flow graph has a cycle
+	// (e.g. (( grab a )) / (( grab b )) referencing each other). Triggered
+	// by the data-flow cycle detector (evaluator.go
 	// kahnSort/CheckForCycles).
 	CodeCircularReference ErrorCode = "E203"
 
-	// CodeParamRequired: an (( param "..." )) placeholder was never
+	// CodeParamRequired means an (( param "..." )) placeholder was never
 	// overridden by a later document. Triggered by ParamOperator.
 	CodeParamRequired ErrorCode = "E204"
 
-	// CodeUnknownOperator: "(( someop ... ))" referenced an operator name
-	// that is not registered.
+	// CodeUnknownOperator means "(( someop ... ))" referenced an operator
+	// name that is not registered.
 	CodeUnknownOperator ErrorCode = "E205"
 
-	// CodeArgumentCount: an operator was called with the wrong number of
-	// arguments, or a required argument was missing/nil. Covers the
+	// CodeArgumentCount means an operator was called with the wrong number
+	// of arguments, or a required argument was missing/nil. Covers the
 	// "requires exactly/at least/one or two N argument(s)", "too few
 	// arguments supplied to (( ... ))", "no arguments specified to
-	// (( ... ))", and "<operator> operator expects N argument(s)" message
-	// families used across pkg/graft/operators.
+	// (( ... ))", and "<operator> operator expects N argument(s)"
+	// message families used across pkg/graft/operators.
 	CodeArgumentCount ErrorCode = "E206"
 
-	// CodeDivisionByZero: (( a / b )) or (( a % b )) with a zero (or
+	// CodeDivisionByZero means (( a / b )) or (( a % b )) with a zero (or
 	// null) divisor.
 	CodeDivisionByZero ErrorCode = "E207"
 
-	// CodeUnsupportedTarget: "(( op@target ... ))" was used on an
+	// CodeUnsupportedTarget means "(( op@target ... ))" was used on an
 	// operator that does not support @target selection.
 	CodeUnsupportedTarget ErrorCode = "E210"
 
-	// CodeMergeError: documents could not be merged for a reason other
-	// than a type mismatch. Triggered by GraftError{Type: MergeError}.
+	// CodeMergeError means documents could not be merged for a reason
+	// other than a type mismatch. Triggered by
+	// GraftError{Type: MergeError}.
 	CodeMergeError ErrorCode = "E300"
 
-	// CodeValidationError: a structural/path operation on the library
-	// Document or MergeBuilder API was invalid (empty path, path
-	// segment not found, array index out of bounds, navigating through
-	// a non-container value, etc). Triggered by
+	// CodeValidationError means a structural/path operation on the library
+	// Document or MergeBuilder API was invalid (empty path, path segment
+	// not found, array index out of bounds, navigating through a
+	// non-container value, etc). Triggered by
 	// GraftError{Type: ValidationError}.
 	CodeValidationError ErrorCode = "E301"
 
-	// CodeExternalError: a generic external-service integration failure
-	// raised via the library's NewExternalError constructor. No graft-
-	// internal call site currently constructs this; it exists for
+	// CodeExternalError means a generic external-service integration
+	// failure raised via the library's NewExternalError constructor. No
+	// graft-internal call site currently constructs this; it exists for
 	// library consumers implementing custom operators/backends.
 	CodeExternalError ErrorCode = "E400"
 
-	// CodeSecretNotFound: a Vault secret path or field did not exist.
+	// CodeSecretNotFound means a Vault secret path or field did not exist.
 	// Triggered by the vault operator's "secret <key> not found"
 	// normalization of internal/backends/vault.ErrNotFound.
 	CodeSecretNotFound ErrorCode = "E403"
 
-	// CodeConfigurationError: an engine/library configuration value was
-	// invalid (e.g. negative concurrency). Triggered by
+	// CodeConfigurationError means an engine/library configuration value
+	// was invalid (e.g. negative concurrency). Triggered by
 	// GraftError{Type: ConfigurationError}.
 	CodeConfigurationError ErrorCode = "E900"
 
-	// CodeFileNotFound: a file referenced by (( file )) does not exist.
-	// (( load )) does not trigger this: it checks os.Stat first and
+	// CodeFileNotFound means a file referenced by (( file )) does not
+	// exist. (( load )) does not trigger this: it checks os.Stat first and
 	// returns a generic "not a file or usable URI" message for a missing
 	// path rather than propagating fs.ErrNotExist. CLI merge input files
 	// don't trigger it either: their read errors are flattened into
@@ -425,8 +426,8 @@ const (
 	// destroying the fs.ErrNotExist chain (cmd/graft/main.go readFile).
 	CodeFileNotFound ErrorCode = "E901"
 
-	// CodePermissionDenied: a file referenced by (( file )) could not be
-	// read due to permissions. Same (( load ))/CLI-input caveats as
+	// CodePermissionDenied means a file referenced by (( file )) could not
+	// be read due to permissions. Same (( load ))/CLI-input caveats as
 	// CodeFileNotFound apply.
 	CodePermissionDenied ErrorCode = "E902"
 )
