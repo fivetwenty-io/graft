@@ -147,74 +147,8 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 	parallelStats.totalPhases.Add(1)
 
 	scheduler := parallel.NewScheduler()
-
-	// Collect all op locations for dependency computation
-	allLocs := make([]*tree.Cursor, 0, len(ops))
-	for _, op := range ops {
-		if op.Where() != nil {
-			allLocs = append(allLocs, op.Where())
-		}
-	}
-
-	// Build a lookup from cursor-string to task ID for dependency mapping,
-	// and from task ID back to the *Opcall (the scheduler's Task only
-	// carries an ID string plus arbitrary Data).
-	opIDMap := make(map[string]string, len(ops))
-	opByID := make(map[string]*Opcall, len(ops))
-	for _, op := range ops {
-		if op.Where() != nil {
-			id := op.Where().String()
-			opIDMap[id] = id
-			opByID[id] = op
-			if op.canonical != nil {
-				opIDMap[op.canonical.String()] = id
-			}
-		}
-	}
-
-	// Add tasks to the scheduler. This loop runs single-threaded, before
-	// any wave dispatch below starts goroutines, so mutating ev.Here here
-	// is safe.
-	savedHere := ev.Here
-	for _, op := range ops {
-		taskOp := op // capture for closure
-		taskID := taskOp.Where().String()
-
-		// ev.Here is set to this task's own path before computing its
-		// dependencies, mirroring Opcall.Run and
-		// dataFlowContext.buildDependencyGraph's sequential-path setup: an
-		// operator whose Dependencies() resolves a path relative to
-		// ev.Here (op_calc.go's calcBareNameDependencies, for a bare
-		// named calc variable that is a sibling of the calc call's own
-		// path) needs it to compute the right relative cursor, or the
-		// sibling edge is silently never added.
-		ev.Here = taskOp.Where()
-
-		// Compute dependency task IDs
-		var depIDs []string
-		if taskOp.op != nil {
-			depCursors := taskOp.Dependencies(ev, allLocs)
-			seen := make(map[string]bool)
-			for _, depCursor := range depCursors {
-				if id, ok := resolveOpIDForDependency(ev, opIDMap, depCursor); ok && id != taskID && !seen[id] {
-					depIDs = append(depIDs, id)
-					seen[id] = true
-				}
-			}
-		}
-
-		task := &parallel.Task{
-			ID:           taskID,
-			Dependencies: depIDs,
-		}
-
-		if err := scheduler.AddTask(task); err != nil {
-			// Duplicate task ID — skip (can happen with canonical/alias paths)
-			log.DEBUG("parallel: skipping duplicate task %s: %v", taskID, err)
-			continue
-		}
-	}
-	ev.Here = savedHere
+	allLocs, opIDMap, opByID := indexOps(ops)
+	ev.addSchedulerTasks(scheduler, ops, allLocs, opIDMap)
 
 	parallelStats.schedulerRun.Add(1)
 
@@ -242,126 +176,12 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 		// dispatch order below are reproducible across runs.
 		sort.Slice(wave, func(i, j int) bool { return wave[i].ID < wave[j].ID })
 
-		// Partition into operators that must run one at a time relative to
-		// each other (OrderSensitive) and operators eligible for true
-		// concurrent computeOp dispatch. Order within each group is
-		// preserved from the sort above.
-		var sequential, concurrent []parallel.Task
-		for _, task := range wave {
-			op := opByID[task.ID]
-			if op != nil && isOrderSensitiveOp(op) {
-				sequential = append(sequential, task)
-			} else {
-				concurrent = append(concurrent, task)
-			}
-		}
+		sequential, concurrent := partitionWave(wave, opByID)
 
-		// Sequential group: dispatch one at a time, compute+apply fused
-		// under treeMu, identical to pre-Wave-D behavior for these operators.
-		for _, task := range sequential {
-			op := opByID[task.ID]
-			parallelStats.totalOps.Add(1)
-			taskErr := pool.SubmitWaitContext(ctx, func(context.Context) error {
-				treeMu.Lock()
-				defer treeMu.Unlock()
-				return ev.RunOp(op)
-			})
-			if taskErr != nil {
-				parallelStats.totalErrors.Add(1)
-				errors.Append(taskErr)
-			}
-		}
+		ev.runSequentialTasks(ctx, pool, &treeMu, sequential, opByID, &errors)
 
-		// Concurrent group: fan out computeOp (the potentially slow
-		// Vault/AWS/NATS I/O) across the pool's workers, then apply every
-		// result serially in the fixed sorted order captured above.
-		if len(concurrent) > 0 {
-			type computeResult struct {
-				op       *Opcall
-				resp     *Response
-				oldValue interface{}
-				err      error
-			}
-
-			results := make([]computeResult, len(concurrent))
-			var wg sync.WaitGroup
-			wg.Add(len(concurrent))
-
-			for i, task := range concurrent {
-				idx := i
-				op := opByID[task.ID]
-				// SubmitBlocking (not SubmitContext): a wave can be far
-				// wider than the pool's task queue (large manifests
-				// routinely have 1000+ independent grab/vault/concat
-				// calls in one wave), and SubmitContext's non-blocking
-				// select turns a saturated queue into an immediate
-				// ErrPoolFull - which runOpsWithScheduler would then
-				// record as that operator's evaluation error, failing
-				// the merge outright. SubmitBlocking blocks until a slot
-				// frees instead, exerting backpressure on this loop
-				// rather than rejecting work the pool merely hasn't
-				// drained yet.
-				submitErr := pool.SubmitBlocking(ctx, func(context.Context) error {
-					defer wg.Done()
-					resp, oldValue, computeErr := ev.computeOp(op)
-					results[idx] = computeResult{op: op, resp: resp, oldValue: oldValue, err: computeErr}
-					return computeErr
-				})
-				if submitErr != nil {
-					// The pool itself is shut down, or ctx was canceled
-					// while blocked waiting for a slot - the task never
-					// ran, so account for its wg.Done() here and record
-					// the rejection as that task's error.
-					wg.Done()
-					results[idx] = computeResult{op: op, err: submitErr}
-				}
-			}
-
-			// A bare wg.Wait() would block forever if the pool is
-			// canceled after a task was already enqueued but before a
-			// worker picks it up: workers abandon their current select
-			// the instant the pool's internal context is done, without
-			// draining taskQueue, so that task's deferred wg.Done() would
-			// never fire. Select on the pool's cancellation signal (and
-			// the caller's ctx) alongside the WaitGroup so a shutdown or
-			// cancellation mid-wave returns a real error instead of
-			// hanging - reachable from the library API when a consumer
-			// shuts an in-flight engine's pool down concurrently.
-			waitDone := make(chan struct{})
-			go func() {
-				wg.Wait()
-				close(waitDone)
-			}()
-
-			select {
-			case <-waitDone:
-			case <-ctx.Done():
-				parallelStats.totalErrors.Add(1)
-				errors.Append(fmt.Errorf("wave evaluation canceled: %w", ctx.Err()))
-				return errors
-			case <-pool.Canceled():
-				parallelStats.totalErrors.Add(1)
-				errors.Append(fmt.Errorf("worker pool shut down while a wave was in flight"))
-				return errors
-			}
-
-			for _, r := range results {
-				parallelStats.totalOps.Add(1)
-				if r.err != nil {
-					parallelStats.totalErrors.Add(1)
-					errors.Append(r.err)
-					continue
-				}
-
-				treeMu.Lock()
-				applyErr := ev.applyResponse(r.op, r.resp, r.oldValue)
-				treeMu.Unlock()
-
-				if applyErr != nil {
-					parallelStats.totalErrors.Add(1)
-					errors.Append(applyErr)
-				}
-			}
+		if ev.runConcurrentTasks(ctx, pool, &treeMu, concurrent, opByID, &errors) {
+			return errors
 		}
 	}
 
@@ -369,6 +189,226 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 		return errors
 	}
 	return nil
+}
+
+// indexOps builds the lookups the scheduler needs from the ops of one
+// evaluation phase: every op location for dependency computation, a
+// cursor-string to task ID map (a canonical path maps to the same task ID
+// as the path it canonicalizes), and a task ID back to its *Opcall, since
+// the scheduler's Task carries only an ID string plus arbitrary Data.
+func indexOps(ops []*Opcall) (allLocs []*tree.Cursor, opIDMap map[string]string, opByID map[string]*Opcall) {
+	allLocs = make([]*tree.Cursor, 0, len(ops))
+	opIDMap = make(map[string]string, len(ops))
+	opByID = make(map[string]*Opcall, len(ops))
+
+	for _, op := range ops {
+		if op.Where() == nil {
+			continue
+		}
+
+		allLocs = append(allLocs, op.Where())
+
+		id := op.Where().String()
+		opIDMap[id] = id
+		opByID[id] = op
+		if op.canonical != nil {
+			opIDMap[op.canonical.String()] = id
+		}
+	}
+
+	return allLocs, opIDMap, opByID
+}
+
+// addSchedulerTasks registers one task per op, with the dependency edges
+// its operator reports. This runs single-threaded, before any wave
+// dispatch starts goroutines, so mutating ev.Here here is safe. A
+// duplicate task ID (which canonical/alias paths can produce) is skipped
+// rather than treated as an error.
+func (ev *Evaluator) addSchedulerTasks(scheduler *parallel.Scheduler, ops []*Opcall, allLocs []*tree.Cursor, opIDMap map[string]string) {
+	savedHere := ev.Here
+	defer func() { ev.Here = savedHere }()
+
+	for _, op := range ops {
+		taskOp := op // capture for closure
+		taskID := taskOp.Where().String()
+
+		// ev.Here is set to this task's own path before computing its
+		// dependencies, mirroring Opcall.Run and
+		// dataFlowContext.buildDependencyGraph's sequential-path setup: an
+		// operator whose Dependencies() resolves a path relative to
+		// ev.Here (op_calc.go's calcBareNameDependencies, for a bare
+		// named calc variable that is a sibling of the calc call's own
+		// path) needs it to compute the right relative cursor, or the
+		// sibling edge is silently never added.
+		ev.Here = taskOp.Where()
+
+		task := &parallel.Task{
+			ID:           taskID,
+			Dependencies: ev.dependencyIDs(taskOp, taskID, allLocs, opIDMap),
+		}
+
+		if err := scheduler.AddTask(task); err != nil {
+			log.DEBUG("parallel: skipping duplicate task %s: %v", taskID, err)
+			continue
+		}
+	}
+}
+
+// dependencyIDs maps the cursors op depends on to the task IDs of the ops
+// that produce them, dropping self-edges and duplicates. ev.Here must
+// already be set to op's own path - see addSchedulerTasks.
+func (ev *Evaluator) dependencyIDs(op *Opcall, taskID string, allLocs []*tree.Cursor, opIDMap map[string]string) []string {
+	if op.op == nil {
+		return nil
+	}
+
+	var depIDs []string
+	seen := make(map[string]bool)
+	for _, depCursor := range op.Dependencies(ev, allLocs) {
+		if id, ok := resolveOpIDForDependency(ev, opIDMap, depCursor); ok && id != taskID && !seen[id] {
+			depIDs = append(depIDs, id)
+			seen[id] = true
+		}
+	}
+	return depIDs
+}
+
+// partitionWave splits an already-sorted wave into the operators that
+// must run one at a time relative to each other (OrderSensitive) and the
+// operators eligible for true concurrent computeOp dispatch. Order within
+// each group is preserved from the caller's sort.
+func partitionWave(wave []parallel.Task, opByID map[string]*Opcall) (sequential, concurrent []parallel.Task) {
+	for _, task := range wave {
+		op := opByID[task.ID]
+		if op != nil && isOrderSensitiveOp(op) {
+			sequential = append(sequential, task)
+		} else {
+			concurrent = append(concurrent, task)
+		}
+	}
+	return sequential, concurrent
+}
+
+// runSequentialTasks dispatches the order-sensitive group one task at a
+// time, compute and apply fused under treeMu, identical to pre-Wave-D
+// behavior for these operators. Evaluation errors are collected in errs
+// rather than aborting the wave.
+func (ev *Evaluator) runSequentialTasks(ctx context.Context, pool *parallel.WorkerPool, treeMu *sync.Mutex, tasks []parallel.Task, opByID map[string]*Opcall, errs *MultiError) {
+	for _, task := range tasks {
+		op := opByID[task.ID]
+		parallelStats.totalOps.Add(1)
+		taskErr := pool.SubmitWaitContext(ctx, func(context.Context) error {
+			treeMu.Lock()
+			defer treeMu.Unlock()
+			return ev.RunOp(op)
+		})
+		if taskErr != nil {
+			parallelStats.totalErrors.Add(1)
+			errs.Append(taskErr)
+		}
+	}
+}
+
+// computeResult is one concurrent task's computeOp outcome, held until
+// every task in the wave has finished so the results can be applied to
+// the tree serially, in the wave's fixed sorted order.
+type computeResult struct {
+	op       *Opcall
+	resp     *Response
+	oldValue interface{}
+	err      error
+}
+
+// runConcurrentTasks fans computeOp (the potentially slow Vault/AWS/NATS
+// I/O) out across the pool's workers, then applies every result serially
+// in the order given. It reports whether the wave was abandoned - the
+// caller's context was canceled or the pool shut down mid-wave - in which
+// case no further wave may run.
+func (ev *Evaluator) runConcurrentTasks(ctx context.Context, pool *parallel.WorkerPool, treeMu *sync.Mutex, tasks []parallel.Task, opByID map[string]*Opcall, errs *MultiError) bool {
+	if len(tasks) == 0 {
+		return false
+	}
+
+	results := make([]computeResult, len(tasks))
+	var wg sync.WaitGroup
+	wg.Add(len(tasks))
+
+	for i, task := range tasks {
+		idx := i
+		op := opByID[task.ID]
+		// SubmitBlocking (not SubmitContext): a wave can be far
+		// wider than the pool's task queue (large manifests
+		// routinely have 1000+ independent grab/vault/concat
+		// calls in one wave), and SubmitContext's non-blocking
+		// select turns a saturated queue into an immediate
+		// ErrPoolFull - which this function would then record as
+		// that operator's evaluation error, failing the merge
+		// outright. SubmitBlocking blocks until a slot frees
+		// instead, exerting backpressure on this loop rather than
+		// rejecting work the pool merely hasn't drained yet.
+		submitErr := pool.SubmitBlocking(ctx, func(context.Context) error {
+			defer wg.Done()
+			resp, oldValue, computeErr := ev.computeOp(op)
+			results[idx] = computeResult{op: op, resp: resp, oldValue: oldValue, err: computeErr}
+			return computeErr
+		})
+		if submitErr != nil {
+			// The pool itself is shut down, or ctx was canceled
+			// while blocked waiting for a slot - the task never
+			// ran, so account for its wg.Done() here and record
+			// the rejection as that task's error.
+			wg.Done()
+			results[idx] = computeResult{op: op, err: submitErr}
+		}
+	}
+
+	// A bare wg.Wait() would block forever if the pool is
+	// canceled after a task was already enqueued but before a
+	// worker picks it up: workers abandon their current select
+	// the instant the pool's internal context is done, without
+	// draining taskQueue, so that task's deferred wg.Done() would
+	// never fire. Select on the pool's cancellation signal (and
+	// the caller's ctx) alongside the WaitGroup so a shutdown or
+	// cancellation mid-wave returns a real error instead of
+	// hanging - reachable from the library API when a consumer
+	// shuts an in-flight engine's pool down concurrently.
+	waitDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(waitDone)
+	}()
+
+	select {
+	case <-waitDone:
+	case <-ctx.Done():
+		parallelStats.totalErrors.Add(1)
+		errs.Append(fmt.Errorf("wave evaluation canceled: %w", ctx.Err()))
+		return true
+	case <-pool.Canceled():
+		parallelStats.totalErrors.Add(1)
+		errs.Append(fmt.Errorf("worker pool shut down while a wave was in flight"))
+		return true
+	}
+
+	for _, r := range results {
+		parallelStats.totalOps.Add(1)
+		if r.err != nil {
+			parallelStats.totalErrors.Add(1)
+			errs.Append(r.err)
+			continue
+		}
+
+		treeMu.Lock()
+		applyErr := ev.applyResponse(r.op, r.resp, r.oldValue)
+		treeMu.Unlock()
+
+		if applyErr != nil {
+			parallelStats.totalErrors.Add(1)
+			errs.Append(applyErr)
+		}
+	}
+
+	return false
 }
 
 // isOrderSensitiveOp reports whether op's underlying Operator implements

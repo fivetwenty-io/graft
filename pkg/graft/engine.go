@@ -997,20 +997,11 @@ func (e *DefaultEngine) Configure(opts ...Option) error {
 		return err
 	}
 
-	// Snapshot the fields that govern cache derivation *before* mutating
-	// engine state, so the switch below can tell whether this call
-	// actually needs to touch the cache at all. cache.NewCache starts a
-	// background cleanupLoop goroutine (internal/cache/shard.go) whenever
-	// CleanupInterval > 0 (the default); rebuilding on every Configure
-	// call - even ones that only touch a skip flag - orphaned that
-	// goroutine on every call, since the outgoing cache.Cache was never
-	// closed (F2). Skipping the rebuild when nothing cache-affecting
-	// changed avoids creating (and leaking) a cache we don't need to.
-	cacheAffectingChanged := e.opts.CacheInstance != newOpts.CacheInstance ||
-		e.opts.EnableCache != newOpts.EnableCache ||
-		e.opts.CacheSize != newOpts.CacheSize ||
-		e.opts.CacheTTL != newOpts.CacheTTL ||
-		wasCachingEnabled != featureCachingEnabled(newOpts.FeatureFlags)
+	// Asked *before* engine state is mutated, while the outgoing values
+	// are still readable; skipping the rebuild when nothing
+	// cache-affecting changed avoids creating (and leaking) a cache we
+	// don't need to.
+	cacheAffectingChanged := e.cacheConfigChanged(&newOpts, wasCachingEnabled)
 
 	e.opts = newOpts
 	e.skipVault = newOpts.SkipVault
@@ -1024,25 +1015,7 @@ func (e *DefaultEngine) Configure(opts ...Option) error {
 	applyLogging(&newOpts)
 
 	if cacheAffectingChanged {
-		outgoing := e.Cache
-
-		// Re-derive the cache. See the feature-flag-shadowing comment in
-		// createEngineFromOptions: EnableCache alone does not win over a
-		// disabled FeatureCaching flag, matching construction-time behavior.
-		switch {
-		case newOpts.CacheInstance != nil:
-			e.Cache = newOpts.CacheInstance
-		case newOpts.EnableCache && e.IsFeatureEnabled(features.FeatureCaching):
-			cacheOpts := []cache.Option{cache.WithMaxSize(newOpts.CacheSize)}
-			if newOpts.CacheTTL > 0 {
-				cacheOpts = append(cacheOpts, cache.WithTTL(newOpts.CacheTTL))
-			}
-			e.Cache = cache.NewCache(cacheOpts...)
-		default:
-			e.Cache = nil
-		}
-
-		closeOutgoingCache(outgoing, e.Cache)
+		e.rederiveCache(&newOpts)
 	}
 
 	for _, name := range pendingOperatorNames {
@@ -1051,16 +1024,62 @@ func (e *DefaultEngine) Configure(opts ...Option) error {
 		}
 	}
 
-	// Apply the backend registry fields, in the same order
-	// createEngineFromOptions applies them at construction: the feature
-	// flag, then retry/cache/audit-logger configuration, then the backends
-	// themselves - RegisterBackend reads e.backendRetry/e.backendCaches/
-	// e.auditLogger at registration time to build each backend's wrapper
-	// (registerBackendLocked), so those three must already reflect this
-	// call's values before any backend in pendingBackendNames registers.
-	// Already validated above, so RegisterBackend cannot fail here for the
-	// reasons validatePendingBackends checks; its error is still returned
-	// defensively rather than ignored.
+	if err := e.applyBackendOptions(&newOpts, pendingBackendNames); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// cacheConfigChanged reports whether this Configure call touches anything
+// the cache is derived from. cache.NewCache starts a background
+// cleanupLoop goroutine (internal/cache/shard.go) whenever CleanupInterval
+// > 0 (the default); rebuilding on every Configure call - even ones that
+// only touch a skip flag - orphaned that goroutine on every call, since
+// the outgoing cache.Cache was never closed (F2). It must be called
+// before e.opts is replaced, while the old values are still readable.
+func (e *DefaultEngine) cacheConfigChanged(newOpts *EngineOptions, wasCachingEnabled bool) bool {
+	return e.opts.CacheInstance != newOpts.CacheInstance ||
+		e.opts.EnableCache != newOpts.EnableCache ||
+		e.opts.CacheSize != newOpts.CacheSize ||
+		e.opts.CacheTTL != newOpts.CacheTTL ||
+		wasCachingEnabled != featureCachingEnabled(newOpts.FeatureFlags)
+}
+
+// rederiveCache rebuilds e.Cache from newOpts and closes the outgoing one
+// if nothing else is using it. See the feature-flag-shadowing comment in
+// createEngineFromOptions: EnableCache alone does not win over a disabled
+// FeatureCaching flag, matching construction-time behavior.
+func (e *DefaultEngine) rederiveCache(newOpts *EngineOptions) {
+	outgoing := e.Cache
+
+	switch {
+	case newOpts.CacheInstance != nil:
+		e.Cache = newOpts.CacheInstance
+	case newOpts.EnableCache && e.IsFeatureEnabled(features.FeatureCaching):
+		cacheOpts := []cache.Option{cache.WithMaxSize(newOpts.CacheSize)}
+		if newOpts.CacheTTL > 0 {
+			cacheOpts = append(cacheOpts, cache.WithTTL(newOpts.CacheTTL))
+		}
+		e.Cache = cache.NewCache(cacheOpts...)
+	default:
+		e.Cache = nil
+	}
+
+	closeOutgoingCache(outgoing, e.Cache)
+}
+
+// applyBackendOptions applies the backend registry fields, in the same
+// order createEngineFromOptions applies them at construction: the feature
+// flag, then retry/cache/audit-logger configuration, then the backends
+// themselves - RegisterBackend reads e.backendRetry/e.backendCaches/
+// e.auditLogger at registration time to build each backend's wrapper
+// (registerBackendLocked), so those three must already reflect this
+// call's values before any backend in names registers. Configure has
+// already validated them, so RegisterBackend cannot fail here for the
+// reasons validatePendingBackends checks; its error is still returned
+// defensively rather than ignored.
+func (e *DefaultEngine) applyBackendOptions(newOpts *EngineOptions, names []string) error {
 	if newOpts.backendRegistryEnabled != nil {
 		e.Features.Set(features.FeatureBackendRegistry, *newOpts.backendRegistryEnabled)
 	}
@@ -1073,12 +1092,12 @@ func (e *DefaultEngine) Configure(opts ...Option) error {
 	if newOpts.AuditLoggerInstance != nil {
 		e.auditLogger = newOpts.AuditLoggerInstance
 	}
-	for _, name := range pendingBackendNames {
+
+	for _, name := range names {
 		if err := e.RegisterBackend(newOpts.Backends[name]); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
