@@ -97,8 +97,48 @@ func prefersSingleQuote(s string) bool {
 			return false // needs escapes; leave to goccy's double-quote style
 		}
 	}
+	if plainScalarParseCannotFail(s) {
+		return false
+	}
 	var reparsed interface{}
 	return yaml.Unmarshal([]byte(s), &reparsed) != nil
+}
+
+// plainScalarParseCannotFail reports, from a byte scan, that parsing s
+// as a bare YAML scalar cannot possibly error - the classification the
+// yaml.Unmarshal fallback in prefersSingleQuote exists to make. It
+// whitelists the characters ordinary manifest strings are built from:
+// alphanumerics, `_ . / + = -` and single spaces, `@` beyond the first
+// byte (`@` is a reserved indicator only at the start), and `:` when not
+// followed by a space or end of string (a trailing or space-followed
+// colon turns the scalar into a mapping, which still parses - but maps,
+// like every successful parse, answer "no single quote" anyway; keeping
+// them out of the whitelist documents intent rather than correctness).
+// Anything else - flow indicators, anchors, tags, directives, quotes,
+// comments, commas, a leading dash - stays with the full parse. False
+// negatives only cost the parse; a false positive would change quoting,
+// so the whitelist is strict.
+func plainScalarParseCannotFail(s string) bool {
+	if s == "" {
+		return false
+	}
+	if s[0] == '-' || s[0] == '@' || s[0] == ' ' {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		case c == '_', c == '.', c == '/', c == '+', c == '=', c == ' ', c == '-', c == '@':
+		case c == ':':
+			if i+1 >= len(s) || s[i+1] == ' ' {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // singleQuotedString marshals as an explicitly single-quoted YAML
