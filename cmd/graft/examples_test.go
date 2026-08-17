@@ -636,7 +636,7 @@ func containsAny(s string, substrs []string) bool {
 }
 
 func contains(s, sub string) bool {
-	if len(sub) == 0 {
+	if sub == "" {
 		return true
 	}
 	for i := 0; i+len(sub) <= len(s); i++ {

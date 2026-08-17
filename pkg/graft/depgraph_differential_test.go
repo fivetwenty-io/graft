@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"bytes"
 	"context"
 	"sort"
 	"strconv"
@@ -346,7 +347,7 @@ func TestEvaluateParallel_DifferentialAgainstSequentialEvaluate(t *testing.T) {
 					t.Fatalf("iteration %d: parallel ToYAML: %v", i, err)
 				}
 
-				if string(gotYAML) != string(wantYAML) {
+				if !bytes.Equal(gotYAML, wantYAML) {
 					t.Fatalf("iteration %d: EvaluateParallel output differs from sequential Evaluate:\nsequential:\n%s\nparallel:\n%s", i, wantYAML, gotYAML)
 				}
 			}

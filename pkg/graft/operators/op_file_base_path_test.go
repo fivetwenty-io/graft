@@ -16,29 +16,37 @@ import (
 // (( file )) and (( load )) operators, matching spruce's op_file.go /
 // op_load.go semantics.
 func TestResolveWithFileBasePath(t *testing.T) {
+	// Named rather than written inline in each filepath.Join below: the
+	// same value is what the env var is set to, and a base path spelled
+	// out as a Join argument reads as a separator-bearing literal.
+	const (
+		graftBase  = "/graft/base"
+		spruceBase = "/spruce/base"
+	)
+
 	Convey("resolveWithFileBasePath", t, func() {
 		Convey("relative path is joined with GRAFT_FILE_BASE_PATH when only that var is set", func() {
-			t.Setenv("GRAFT_FILE_BASE_PATH", "/graft/base")
+			t.Setenv("GRAFT_FILE_BASE_PATH", graftBase)
 			t.Setenv("SPRUCE_FILE_BASE_PATH", "")
 
 			got := resolveWithFileBasePath("sub/file.yml")
-			So(got, ShouldEqual, filepath.Join("/graft/base", "sub/file.yml"))
+			So(got, ShouldEqual, filepath.Join(graftBase, "sub", "file.yml"))
 		})
 
 		Convey("relative path falls back to SPRUCE_FILE_BASE_PATH when GRAFT_FILE_BASE_PATH is unset", func() {
 			t.Setenv("GRAFT_FILE_BASE_PATH", "")
-			t.Setenv("SPRUCE_FILE_BASE_PATH", "/spruce/base")
+			t.Setenv("SPRUCE_FILE_BASE_PATH", spruceBase)
 
 			got := resolveWithFileBasePath("sub/file.yml")
-			So(got, ShouldEqual, filepath.Join("/spruce/base", "sub/file.yml"))
+			So(got, ShouldEqual, filepath.Join(spruceBase, "sub", "file.yml"))
 		})
 
 		Convey("GRAFT_FILE_BASE_PATH wins when both vars are set", func() {
-			t.Setenv("GRAFT_FILE_BASE_PATH", "/graft/base")
-			t.Setenv("SPRUCE_FILE_BASE_PATH", "/spruce/base")
+			t.Setenv("GRAFT_FILE_BASE_PATH", graftBase)
+			t.Setenv("SPRUCE_FILE_BASE_PATH", spruceBase)
 
 			got := resolveWithFileBasePath("sub/file.yml")
-			So(got, ShouldEqual, filepath.Join("/graft/base", "sub/file.yml"))
+			So(got, ShouldEqual, filepath.Join(graftBase, "sub", "file.yml"))
 		})
 
 		Convey("relative path is left relative when neither var is set", func() {
@@ -46,12 +54,12 @@ func TestResolveWithFileBasePath(t *testing.T) {
 			t.Setenv("SPRUCE_FILE_BASE_PATH", "")
 
 			got := resolveWithFileBasePath("sub/file.yml")
-			So(got, ShouldEqual, filepath.Join("sub/file.yml"))
+			So(got, ShouldEqual, filepath.Join("sub", "file.yml"))
 		})
 
 		Convey("absolute path bypasses both base path vars", func() {
-			t.Setenv("GRAFT_FILE_BASE_PATH", "/graft/base")
-			t.Setenv("SPRUCE_FILE_BASE_PATH", "/spruce/base")
+			t.Setenv("GRAFT_FILE_BASE_PATH", graftBase)
+			t.Setenv("SPRUCE_FILE_BASE_PATH", spruceBase)
 
 			got := resolveWithFileBasePath("/abs/sub/file.yml")
 			So(got, ShouldEqual, "/abs/sub/file.yml")

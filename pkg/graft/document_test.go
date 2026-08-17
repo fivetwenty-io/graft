@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -1196,7 +1197,7 @@ func TestDocument_ToYAML_MatchesMarshalYAML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalYAML returned error: %v", err)
 	}
-	if string(got) != string(want) {
+	if !bytes.Equal(got, want) {
 		t.Fatalf("ToYAML and MarshalYAML disagree\nToYAML:\n%s\nMarshalYAML:\n%s", got, want)
 	}
 

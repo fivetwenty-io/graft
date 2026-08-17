@@ -255,6 +255,9 @@ func TestBuildAuthOption_MutationCatches(t *testing.T) {
 	credsFile := writeTempCredsFile(t)
 
 	mutatedBuildAuthOption := func(config *Config) (nats.Option, error) {
+		// The duplicated Token arm below is the mutation itself: it is what
+		// buildAuthOption would look like with CredsFile support deleted.
+		//nolint:gocritic // dupCase is the defect this stand-in reproduces
 		switch {
 		case config.Token != "": // mutation: was `case config.CredsFile != "":` returning nats.UserCredentials(...)
 			return nats.Token(config.Token), nil

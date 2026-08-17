@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -353,7 +354,7 @@ func TestMarshalYAML_KeyOrderingDeterministic(t *testing.T) {
 		if err != nil {
 			t.Fatalf("MarshalYAML returned error on iteration %d: %v", i, err)
 		}
-		if string(out) != string(first) {
+		if !bytes.Equal(out, first) {
 			t.Fatalf("nondeterministic marshal output on iteration %d:\nfirst:\n%s\ngot:\n%s", i, first, out)
 		}
 	}

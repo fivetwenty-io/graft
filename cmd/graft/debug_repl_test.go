@@ -158,8 +158,8 @@ func TestDebugREPL(t *testing.T) {
 			So(out, ShouldContainSubstring, "Evaluation complete.")
 
 			// After continue: still the raw operator text (deferred).
-			deferredIdx := strings.Index(out, "Evaluation complete.")
-			afterContinue := out[deferredIdx:]
+			_, afterContinue, found := strings.Cut(out, "Evaluation complete.")
+			So(found, ShouldBeTrue)
 			So(afterContinue, ShouldContainSubstring, `(( grab meta.version ))`)
 
 			So(out, ShouldContainSubstring, "Evaluating: (( grab meta.version ))\n")

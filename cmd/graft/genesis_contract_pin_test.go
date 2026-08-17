@@ -107,7 +107,7 @@ func TestGenesisContractErrorCodesOptInPreservesScrapedShape(t *testing.T) {
 		t.Fatalf("captured message = %q, want %q", message, wantMessage)
 	}
 
-	if len(stderr) == 0 {
+	if stderr == "" {
 		t.Fatalf("expected non-empty stderr")
 	}
 }
