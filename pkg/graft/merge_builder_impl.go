@@ -552,8 +552,18 @@ func (m *mergeBuilderImpl) prepareFirstDocument(baseData map[string]interface{})
 		}
 	}
 
+	// Copy the first document before the merger stores its subtrees by
+	// reference into the result: later overlay rounds and the evaluator
+	// mutate the result in place, and those mutations must not reach
+	// the caller's document. The marker-free path above copies for the
+	// same reason.
+	baseCopy, err := deepCopyMap(baseData)
+	if err != nil {
+		return nil, err
+	}
+
 	emptyBase := make(map[string]interface{})
-	if err := mergerInstance.Merge(emptyBase, baseData); err != nil {
+	if err := mergerInstance.Merge(emptyBase, baseCopy); err != nil {
 		return nil, m.convertMergerError(err)
 	}
 
@@ -592,21 +602,26 @@ func (m *mergeBuilderImpl) performLegacyMerge(base, overlay map[string]interface
 		}
 	}
 
-	baseCopy, err := deepCopyMap(base)
+	// Merge into base in place, but hand the merger a deep copy of the
+	// overlay: the merger stores overlay subtrees by reference into the
+	// tree it builds, and later rounds (or the evaluator) mutate that
+	// tree in place, so an uncopied overlay would let those mutations
+	// reach the caller's overlay document. Copying the overlay instead
+	// of the base flips the per-round cost from O(accumulated result) -
+	// which this method used to deep-copy on every overlay - to
+	// O(overlay). On error the half-merged base is discarded by every
+	// caller, so in-place mutation needs no rollback copy.
+	overlayCopy, err := deepCopyMap(overlay)
 	if err != nil {
 		return err
 	}
 
-	err = mergerInstance.Merge(baseCopy, overlay)
+	err = mergerInstance.Merge(base, overlayCopy)
 	if err != nil {
 		return m.convertMergerError(err)
 	}
 
 	m.collectMergeMetadata(mergerInstance)
-
-	for key, value := range baseCopy {
-		base[key] = value
-	}
 	return nil
 }
 
@@ -1169,7 +1184,8 @@ func (m *mergeBuilderImpl) seedEngineState() map[string]string {
 // added only when actually present (a cheap top-level map lookup, not a
 // tree walk) rather than unconditionally: an unconditional append would
 // flip applyPruning's "anything to prune?" check to true for every
-// document, forcing its deepCopyMap over documents that never touched
+// document, forcing a prune pass (and, under --skip-eval, its deep
+// copy) over documents that never touched
 // control flow and have no other reason to be pruned or copied. It is
 // also gated on evaluation having run: under --skip-eval the loop bodies
 // still hold unresolved (( grab __graft_loop... )) references, and
@@ -1324,9 +1340,19 @@ func (m *mergeBuilderImpl) applyPruning(doc Document) (Document, error) {
 	if !ok {
 		return doc, nil // Return unchanged if not a map
 	}
-	result, err := deepCopyMap(data)
-	if err != nil {
-		return nil, err
+
+	// Same ownership rule as the sort step below: under --skip-eval the
+	// merge result can still alias the caller's input documents (e.g.
+	// AppendArrays inserts overlay elements by reference), so prune a
+	// deep copy. The evaluated path already owns its tree and prunes in
+	// place, skipping a full-tree copy on the hot path.
+	result := data
+	if m.skipEvaluation {
+		copied, err := deepCopyMap(data)
+		if err != nil {
+			return nil, err
+		}
+		result = copied
 	}
 
 	for _, key := range m.pruneKeys {
