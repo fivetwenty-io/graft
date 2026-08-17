@@ -28,14 +28,12 @@ jobs:
       # resolved a v1.x linter built with go1.24, which refuses to load
       # against a go 1.26 target.
       #
-      # only-new-issues: the repo carries ~657 baseline findings under
-      # this config; the job gates new issues only until that backlog
-      # is burned down.
+      # The tree is clean under this config, so the whole config is
+      # enforced -- there is no baseline left to grandfather in.
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
-          only-new-issues: true
 
   test:
     name: Test
