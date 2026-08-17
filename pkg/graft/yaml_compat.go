@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -22,6 +23,13 @@ var injectKeyDottedRe = regexp.MustCompile(`(?m)^(\s*(?:- )?)(\S+\.<<<):`)
 // it interprets <<< as a variant of the YAML merge key <<.
 // Handles both standalone (<<<:) and dotted path (foo.<<<:) forms.
 func QuoteInjectKeys(data []byte) []byte {
+	// Both regexes require a literal "<<<"; almost no document contains
+	// one, so skip the two full-buffer regex passes when none is present
+	// and hand the caller back the original slice.
+	if !bytes.Contains(data, []byte("<<<")) {
+		return data
+	}
+
 	// First quote dotted paths (must be first to avoid double-quoting)
 	data = injectKeyDottedRe.ReplaceAll(data, []byte(`${1}"${2}":`))
 	// Then quote standalone <<<:
