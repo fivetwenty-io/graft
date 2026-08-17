@@ -658,3 +658,33 @@ func TestMarshalYAML_NonStringMapKeys(t *testing.T) {
 		t.Fatalf("output mismatch\n got:\n%s\nwant:\n%s", out, want)
 	}
 }
+
+// TestMarshalYAML_SingleQuoteStyle locks in spruce's quote character for
+// strings that need quoting but contain nothing requiring escapes: spruce
+// (yaml.v2 family) emits them single-quoted (`'*.uaa.((system_domain))'`),
+// and downstream consumers depend on that byte shape — genesis's Credhub
+// entombment step regex-replaces `((...))`  with `""` inside the rendered
+// manifest before re-parsing it, which stays valid YAML inside single
+// quotes but is malformed inside double quotes (`"*.uaa."""`).
+func TestMarshalYAML_SingleQuoteStyle(t *testing.T) {
+	data := map[string]interface{}{
+		"uris": []interface{}{
+			"*.uaa.((system_domain))",
+			"uaa.((system_domain))",
+		},
+	}
+
+	out, err := MarshalYAML(data)
+	if err != nil {
+		t.Fatalf("MarshalYAML failed: %v", err)
+	}
+
+	got := string(out)
+	if !strings.Contains(got, "- '*.uaa.((system_domain))'") {
+		t.Errorf("expected single-quoted '*.uaa.((system_domain))', got:\n%s", got)
+	}
+	if !strings.Contains(got, "- uaa.((system_domain))") ||
+		strings.Contains(got, "'uaa.((system_domain))'") {
+		t.Errorf("expected plain (unquoted) uaa.((system_domain)), got:\n%s", got)
+	}
+}

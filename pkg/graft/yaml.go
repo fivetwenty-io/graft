@@ -14,6 +14,10 @@ import (
 // MarshalYAML serializes a value to YAML with 2-space indentation,
 // matching the output format expected by BOSH and CF ecosystem tools.
 // Map keys are emitted in spruce's two-tier order (see spruceKeyLess).
+// String values that cannot be written as plain scalars for syntax
+// reasons are single-quoted like spruce's emitter (see
+// prefersSingleQuote); type-lookalike strings keep goccy's double
+// quotes, which is also what spruce emits for those.
 func MarshalYAML(v interface{}) ([]byte, error) {
 	v = prepareForEncode(v)
 
@@ -72,6 +76,41 @@ func (s forcedQuoteString) MarshalYAML() ([]byte, error) {
 	return []byte(strconv.Quote(string(s))), nil
 }
 
+// prefersSingleQuote reports whether s is a string spruce's emitter
+// writes single-quoted: one that cannot be written as a plain scalar
+// for syntax reasons (a leading `*`, `&`, `%`, an opening bracket, and
+// so on — anything goccy's parser rejects outright as a bare scalar)
+// yet contains nothing that needs double-quote escapes. Type-lookalike
+// strings ("1.0", "yes", "null") parse fine as plain scalars — just to
+// a different type — and are excluded here: both spruce and goccy
+// double-quote those. The distinction matters beyond aesthetics:
+// genesis's Credhub entombment step regex-replaces `((...))` with `""`
+// inside the rendered manifest and re-parses it, which stays valid
+// YAML inside single quotes (`'*.uaa.""'`) but is malformed inside
+// double quotes (`"*.uaa."""`).
+func prefersSingleQuote(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			return false // needs escapes; leave to goccy's double-quote style
+		}
+	}
+	var reparsed interface{}
+	return yaml.Unmarshal([]byte(s), &reparsed) != nil
+}
+
+// singleQuotedString marshals as an explicitly single-quoted YAML
+// scalar via goccy's BytesMarshaler hook, for values prefersSingleQuote
+// has classified as spruce's single-quote class.
+type singleQuotedString string
+
+// MarshalYAML implements github.com/goccy/go-yaml's BytesMarshaler.
+func (s singleQuotedString) MarshalYAML() ([]byte, error) {
+	return []byte("'" + strings.ReplaceAll(string(s), "'", "''") + "'"), nil
+}
+
 // prepareForEncode walks v, rebuilding the tree for the encoder: every
 // map becomes a yaml.MapSlice with its keys in spruceKeyLess order
 // (goccy's own encoder would sort them purely lexicographically), and
@@ -83,6 +122,9 @@ func prepareForEncode(v interface{}) interface{} {
 	case string:
 		if needsExplicitQuote(val) {
 			return forcedQuoteString(val)
+		}
+		if prefersSingleQuote(val) {
+			return singleQuotedString(val)
 		}
 		return val
 	case map[string]interface{}:
