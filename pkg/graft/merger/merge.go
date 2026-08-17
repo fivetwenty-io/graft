@@ -1165,23 +1165,3 @@ func getMapKeys(m map[string]interface{}) []interface{} {
 	return keys
 }
 
-func convertToInterfaceMap(input interface{}) interface{} {
-	switch v := input.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{})
-		for k, val := range v {
-			result[k] = convertToInterfaceMap(val)
-		}
-		return result
-	case []interface{}:
-		// Also convert arrays that might contain maps
-		result := make([]interface{}, len(v))
-		for i, val := range v {
-			result[i] = convertToInterfaceMap(val)
-		}
-		return result
-	default:
-		// Return as-is for other types
-		return input
-	}
-}

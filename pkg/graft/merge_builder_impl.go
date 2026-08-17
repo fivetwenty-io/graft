@@ -698,13 +698,9 @@ func (m *mergeBuilderImpl) recordPriorCalcValuesUnder(base, overlay map[string]i
 	}
 }
 
-// performSimpleMerge performs a simple merge without legacy merger.
-func (m *mergeBuilderImpl) performSimpleMerge(base, overlay map[string]interface{}) error {
-	return m.performSimpleMergeAtPath(base, overlay, nil)
-}
-
-// performSimpleMergeAtPath is performSimpleMerge with the path context
-// mergeIntoAtPath threads through; see its doc comment.
+// performSimpleMergeAtPath merges overlay into base without the legacy
+// merger, carrying the path context mergeIntoAtPath threads through; see
+// its doc comment.
 //
 // path is the canonical no-"$" dotted history vocabulary (P0-2, matching
 // pkg/graft/tree.Cursor.String()) of base/overlay's own location, one
@@ -773,13 +769,9 @@ func (m *mergeBuilderImpl) performSimpleMergeAtPath(base, overlay map[string]int
 	return nil
 }
 
-// mergeValues merges two values based on their types.
-func (m *mergeBuilderImpl) mergeValues(base, overlay interface{}) (interface{}, error) {
-	return m.mergeValuesAtPath(base, overlay, nil)
-}
-
-// mergeValuesAtPath is mergeValues with the canonical path of base/overlay
-// within the overall document; see mergeIntoAtPath's doc comment.
+// mergeValuesAtPath merges two values based on their types, carrying the
+// canonical path of base/overlay within the overall document; see
+// mergeIntoAtPath's doc comment.
 func (m *mergeBuilderImpl) mergeValuesAtPath(base, overlay interface{}, path []string) (interface{}, error) {
 	// If overlay is nil, it means delete the key
 	if overlay == nil {

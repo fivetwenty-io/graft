@@ -4,35 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 )
-
-// deepMerge recursively merges src into dst and returns the result.
-func deepMerge(dst, src map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-
-	// Copy dst first
-	for k, v := range dst {
-		result[k] = deepCopy(v)
-	}
-
-	// Then merge src
-	for key, srcVal := range src {
-		if dstVal, exists := result[key]; exists {
-			// If both are maps, merge recursively
-			if srcMap, srcOk := srcVal.(map[string]interface{}); srcOk {
-				if dstMap, dstOk := dstVal.(map[string]interface{}); dstOk {
-					result[key] = deepMerge(dstMap, srcMap)
-					continue
-				}
-			}
-		}
-		// Otherwise, overwrite the value
-		result[key] = deepCopy(srcVal)
-	}
-
-	return result
-}
 
 // deepEqual performs a deep comparison of two values.
 func deepEqual(a, b interface{}) bool {
@@ -64,25 +36,6 @@ func deepCopyHelper(v interface{}) interface{} {
 	}
 }
 
-// joinPath joins path segments with dots.
-func joinPath(segments ...string) string {
-	var nonEmpty []string
-	for _, s := range segments {
-		if s != "" {
-			nonEmpty = append(nonEmpty, s)
-		}
-	}
-	return strings.Join(nonEmpty, ".")
-}
-
-// parsePath splits a dot-separated path into segments.
-func parsePath(path string) []string {
-	if path == "" {
-		return []string{}
-	}
-	return strings.Split(path, ".")
-}
-
 // DeepCopyMap creates a deep copy of a map[string]interface{}.
 func DeepCopyMap(m map[string]interface{}) map[string]interface{} {
 	if m == nil {
@@ -93,11 +46,6 @@ func DeepCopyMap(m map[string]interface{}) map[string]interface{} {
 		return nil
 	}
 	return result
-}
-
-// splitPath is an alias for parsePath for compatibility.
-func splitPath(path string) []string {
-	return parsePath(path)
 }
 
 // SortList sorts a list of items based on a sort key
