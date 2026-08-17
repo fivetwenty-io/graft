@@ -33,7 +33,7 @@ import (
 // `config` only ever affects operators evaluated *after* the change (via
 // `eval`/`continue`/`step`); a backend client already constructed and
 // pooled from an earlier evaluation may not pick up the new value - the
-// REPL has no hook into internal/pools' client cache to force a rebuild.
+// REPL has no hook into a backend's client cache to force a rebuild.
 // (NATS re-reads its environment on every operator evaluation, so it would
 // not have that caveat; Vault, which pools its client, does.)
 var debugConfigKeys = map[string]string{
