@@ -10,79 +10,64 @@ import (
 	_ "github.com/fivetwenty-io/graft/pkg/graft/operators" // registers vault/awsparam/awssecret/nats operators
 )
 
-// TestWithAWS_ObservableEffect_Param proves WithAWS's AWSConfig actually
-// reaches a live SSM GetParameter request: an httptest server standing in
-// for SSM serves a fixed response, and Endpoint/Region/SkipAuth are the
+// TestWithAWS_ObservableEffect proves WithAWS's AWSConfig actually reaches
+// a live AWS request: an httptest server standing in for SSM and Secrets
+// Manager serves a fixed response, and Endpoint/Region/SkipAuth are the
 // only way the AWS SDK is directed at it, so a correct read proves the
-// configured AWSConfig was used, not ignored.
-func TestWithAWS_ObservableEffect_Param(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/x-amz-json-1.1")
-		_, _ = w.Write([]byte(`{"Parameter":{"Name":"/c1b/demo","Value":"value-from-configured-backend"}}`))
-	}))
-	defer srv.Close()
-
-	engine, err := graft.NewEngine(
-		graft.WithBackendRegistry(true),
-		graft.WithAWS(graft.AWSConfig{Region: "us-east-1", Endpoint: srv.URL, SkipAuth: true}),
-	)
-	if err != nil {
-		t.Fatalf("NewEngine failed: %v", err)
+// configured AWSConfig was used, not ignored. Both operators are exercised
+// because the one WithAWS call configures both of their backends.
+func TestWithAWS_ObservableEffect(t *testing.T) {
+	cases := []struct {
+		name     string
+		response string
+		source   string
+	}{
+		{
+			name:     "awsparam",
+			response: `{"Parameter":{"Name":"/c1b/demo","Value":"value-from-configured-backend"}}`,
+			source:   `value: (( awsparam "/c1b/demo" ))` + "\n",
+		},
+		{
+			name:     "awssecret",
+			response: `{"Name":"db","SecretString":"value-from-configured-backend"}`,
+			source:   `value: (( awssecret "db" ))` + "\n",
+		},
 	}
 
-	doc, err := engine.ParseYAML([]byte(`value: (( awsparam "/c1b/demo" ))` + "\n"))
-	if err != nil {
-		t.Fatalf("ParseYAML failed: %v", err)
-	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/x-amz-json-1.1")
+				_, _ = w.Write([]byte(tc.response))
+			}))
+			defer srv.Close()
 
-	evaluated, err := engine.Evaluate(context.Background(), doc)
-	if err != nil {
-		t.Fatalf("Evaluate failed: %v", err)
-	}
+			engine, err := graft.NewEngine(
+				graft.WithBackendRegistry(true),
+				graft.WithAWS(graft.AWSConfig{Region: "us-east-1", Endpoint: srv.URL, SkipAuth: true}),
+			)
+			if err != nil {
+				t.Fatalf("NewEngine failed: %v", err)
+			}
 
-	got, err := evaluated.Get("value")
-	if err != nil {
-		t.Fatalf("Get(value) failed: %v", err)
-	}
-	if got != "value-from-configured-backend" {
-		t.Fatalf("expected value read through the WithAWS-configured backend, got %v", got)
-	}
-}
+			doc, err := engine.ParseYAML([]byte(tc.source))
+			if err != nil {
+				t.Fatalf("ParseYAML failed: %v", err)
+			}
 
-// TestWithAWS_ObservableEffect_Secret mirrors the Param test above for
-// awssecret / Secrets Manager, proving the same WithAWS call configures
-// both operators' backends.
-func TestWithAWS_ObservableEffect_Secret(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/x-amz-json-1.1")
-		_, _ = w.Write([]byte(`{"Name":"db","SecretString":"value-from-configured-backend"}`))
-	}))
-	defer srv.Close()
+			evaluated, err := engine.Evaluate(context.Background(), doc)
+			if err != nil {
+				t.Fatalf("Evaluate failed: %v", err)
+			}
 
-	engine, err := graft.NewEngine(
-		graft.WithBackendRegistry(true),
-		graft.WithAWS(graft.AWSConfig{Region: "us-east-1", Endpoint: srv.URL, SkipAuth: true}),
-	)
-	if err != nil {
-		t.Fatalf("NewEngine failed: %v", err)
-	}
-
-	doc, err := engine.ParseYAML([]byte(`value: (( awssecret "db" ))` + "\n"))
-	if err != nil {
-		t.Fatalf("ParseYAML failed: %v", err)
-	}
-
-	evaluated, err := engine.Evaluate(context.Background(), doc)
-	if err != nil {
-		t.Fatalf("Evaluate failed: %v", err)
-	}
-
-	got, err := evaluated.Get("value")
-	if err != nil {
-		t.Fatalf("Get(value) failed: %v", err)
-	}
-	if got != "value-from-configured-backend" {
-		t.Fatalf("expected value read through the WithAWS-configured backend, got %v", got)
+			got, err := evaluated.Get("value")
+			if err != nil {
+				t.Fatalf("Get(value) failed: %v", err)
+			}
+			if got != "value-from-configured-backend" {
+				t.Fatalf("expected value read through the WithAWS-configured backend, got %v", got)
+			}
+		})
 	}
 }
 

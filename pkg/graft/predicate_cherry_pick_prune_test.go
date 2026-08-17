@@ -150,20 +150,11 @@ func TestRemoveKey_PredicateMidPathSegmentNavigatesThrough(t *testing.T) {
 
 // --- End-to-end, through the public MergeBuilder API ---
 
-func TestCherryPick_PredicateSegmentEndToEnd(t *testing.T) {
-	engine, err := NewEngine()
-	if err != nil {
-		t.Fatalf("failed to create engine: %v", err)
-	}
-
-	doc := NewDocument(predicateTestServers())
-
-	result, err := engine.Merge(context.Background(), doc).
-		WithCherryPick("servers.name=primary").
-		Execute()
-	if err != nil {
-		t.Fatalf("cherry-pick failed: %v", err)
-	}
+// assertOnlyPrimaryServer checks that result's servers list holds exactly
+// the primary entry, which is what both a cherry-pick of the primary and a
+// prune of the secondary must leave behind.
+func assertOnlyPrimaryServer(t *testing.T, result Document) {
+	t.Helper()
 
 	data, ok := result.RawData().(map[string]interface{})
 	if !ok {
@@ -182,6 +173,24 @@ func TestCherryPick_PredicateSegmentEndToEnd(t *testing.T) {
 	}
 }
 
+func TestCherryPick_PredicateSegmentEndToEnd(t *testing.T) {
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatalf("failed to create engine: %v", err)
+	}
+
+	doc := NewDocument(predicateTestServers())
+
+	result, err := engine.Merge(context.Background(), doc).
+		WithCherryPick("servers.name=primary").
+		Execute()
+	if err != nil {
+		t.Fatalf("cherry-pick failed: %v", err)
+	}
+
+	assertOnlyPrimaryServer(t, result)
+}
+
 func TestPrune_PredicateSegmentEndToEnd(t *testing.T) {
 	engine, err := NewEngine()
 	if err != nil {
@@ -197,19 +206,5 @@ func TestPrune_PredicateSegmentEndToEnd(t *testing.T) {
 		t.Fatalf("prune failed: %v", err)
 	}
 
-	data, ok := result.RawData().(map[string]interface{})
-	if !ok {
-		t.Fatalf("result is not a map: %#v", result.RawData())
-	}
-	servers, ok := data["servers"].([]interface{})
-	if !ok {
-		t.Fatalf("servers is not a list: %#v", data["servers"])
-	}
-	if len(servers) != 1 {
-		t.Fatalf("got %d servers, want 1: %#v", len(servers), servers)
-	}
-	entry, ok := servers[0].(map[string]interface{})
-	if !ok || entry["name"] != "primary" {
-		t.Errorf("got %#v, want only the primary server remaining", servers[0])
-	}
+	assertOnlyPrimaryServer(t, result)
 }
