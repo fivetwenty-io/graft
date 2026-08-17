@@ -1024,11 +1024,7 @@ func (e *DefaultEngine) Configure(opts ...Option) error {
 		}
 	}
 
-	if err := e.applyBackendOptions(&newOpts, pendingBackendNames); err != nil {
-		return err
-	}
-
-	return nil
+	return e.applyBackendOptions(&newOpts, pendingBackendNames)
 }
 
 // cacheConfigChanged reports whether this Configure call touches anything
