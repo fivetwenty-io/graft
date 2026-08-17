@@ -1059,24 +1059,63 @@ func shouldKeyMergeArray(obj []interface{}) (bool, string) {
 	return false, ""
 }
 
+// keyMergeError is canKeyMergeArray's probe-failure error. The default
+// array merge (mergeArrayDefault) calls canKeyMergeArray speculatively
+// on every array pair and silently falls back when it fails, so on the
+// common path the error is created and discarded without ever being
+// printed. Formatting the ansi-colored message is deferred to Error()
+// so the discarded case costs a small allocation instead of a full
+// color-template render; the rendered text is byte-identical to the
+// eager ansi.Errorf calls this replaces.
+type keyMergeError struct {
+	kind     keyMergeErrKind
+	disp     string
+	node     string
+	key      string
+	idx      int
+	typeName string
+}
+
+type keyMergeErrKind int
+
+const (
+	keyMergeNilObject keyMergeErrKind = iota
+	keyMergeNotMap
+	keyMergeNotStringMap
+	keyMergeMissingKey
+)
+
+func (e *keyMergeError) Error() string {
+	switch e.kind {
+	case keyMergeNilObject:
+		return ansi.Sprintf("@m{%s.%d}: @R{%s object is nil - cannot merge by key}", e.node, e.idx, e.disp)
+	case keyMergeNotMap:
+		return ansi.Sprintf("@m{%s.%d}: @R{%s object is a} @c{%s}@R{, not a} @c{map} @R{- cannot merge by key}", e.node, e.idx, e.disp, e.typeName)
+	case keyMergeNotStringMap:
+		return ansi.Sprintf("@m{%s.%d}: @R{%s object is not a map[string]interface{} - cannot merge by key}", e.node, e.idx, e.disp)
+	default: // keyMergeMissingKey
+		return ansi.Sprintf("@m{%s.%d}: @R{%s object does not contain the key} @c{'%s'}@R{ - cannot merge by key}", e.node, e.idx, e.disp, e.key)
+	}
+}
+
 func canKeyMergeArray(disp string, array []interface{}, node string, key string) error {
 	// ensure that all elements of `array` are maps,
 	// and that they contain the key `key`
 
 	for i, o := range array {
 		if o == nil {
-			return ansi.Errorf("@m{%s.%d}: @R{%s object is nil - cannot merge by key}", node, i, disp)
+			return &keyMergeError{kind: keyMergeNilObject, disp: disp, node: node, idx: i}
 		}
 		if reflect.TypeOf(o).Kind() != reflect.Map {
-			return ansi.Errorf("@m{%s.%d}: @R{%s object is a} @c{%s}@R{, not a} @c{map} @R{- cannot merge by key}", node, i, disp, reflect.TypeOf(o).Kind().String())
+			return &keyMergeError{kind: keyMergeNotMap, disp: disp, node: node, idx: i, typeName: reflect.TypeOf(o).Kind().String()}
 		}
 
 		obj, ok := o.(map[string]interface{})
 		if !ok {
-			return ansi.Errorf("@m{%s.%d}: @R{%s object is not a map[string]interface{} - cannot merge by key}", node, i, disp)
+			return &keyMergeError{kind: keyMergeNotStringMap, disp: disp, node: node, idx: i}
 		}
 		if _, ok := obj[key]; !ok {
-			return ansi.Errorf("@m{%s.%d}: @R{%s object does not contain the key} @c{'%s'}@R{ - cannot merge by key}", node, i, disp, key)
+			return &keyMergeError{kind: keyMergeMissingKey, disp: disp, node: node, key: key, idx: i}
 		}
 
 		// Verify that the target key has a hashable value (i.e. a value that is not itself a hash or sequence)
