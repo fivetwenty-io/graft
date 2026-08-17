@@ -1,6 +1,6 @@
 module github.com/fivetwenty-io/graft
 
-go 1.26.1
+go 1.26.6
 
 require (
 	github.com/Knetic/govaluate v3.0.0+incompatible

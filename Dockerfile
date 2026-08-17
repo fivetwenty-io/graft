@@ -1,4 +1,4 @@
-FROM golang:1.26 AS builder
+FROM golang:1.26.6 AS builder
 
 # VERSION is empty on purpose: with no value the build stamps nothing and the
 # binary reports cmd/graft/main.go's compiled-in default, so this file is not
