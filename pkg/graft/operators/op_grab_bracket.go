@@ -33,14 +33,7 @@ func resolveGrabDynamicBrackets(arg *Expr, ev *Evaluator) error {
 	nodes := arg.Reference.Nodes
 	bracketed := arg.BracketedNodes
 
-	hasDynamic := false
-	for i, b := range bracketed {
-		if b && i < len(nodes) && isDynamicBracketNode(nodes[i]) {
-			hasDynamic = true
-			break
-		}
-	}
-	if !hasDynamic {
+	if !hasDynamicBracket(nodes, bracketed) {
 		return nil
 	}
 
@@ -52,17 +45,7 @@ func resolveGrabDynamicBrackets(arg *Expr, ev *Evaluator) error {
 			continue
 		}
 
-		cursor, err := tree.ParseCursor(node)
-		if err != nil {
-			return fmt.Errorf("invalid bracketed key reference %q: %w", node, err)
-		}
-
-		val, err := cursor.Resolve(ev.Tree)
-		if err != nil {
-			return fmt.Errorf("unable to resolve bracketed key reference %q: %w", node, err)
-		}
-
-		key, err := bracketKeyToNode(node, val)
+		key, err := resolveBracketNode(node, ev)
 		if err != nil {
 			return err
 		}
@@ -79,6 +62,35 @@ func resolveGrabDynamicBrackets(arg *Expr, ev *Evaluator) error {
 	}
 
 	return nil
+}
+
+// hasDynamicBracket reports whether any node is a bracketed segment that
+// needs resolving, which is what makes the substitution pass below worth
+// running at all. bracketed is indexed in parallel with nodes but is not
+// guaranteed to be as long.
+func hasDynamicBracket(nodes []string, bracketed []bool) bool {
+	for i, b := range bracketed {
+		if b && i < len(nodes) && isDynamicBracketNode(nodes[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveBracketNode resolves one dynamic bracketed node as a path
+// against ev.Tree and returns the map/list key its value stands for.
+func resolveBracketNode(node string, ev *Evaluator) (string, error) {
+	cursor, err := tree.ParseCursor(node)
+	if err != nil {
+		return "", fmt.Errorf("invalid bracketed key reference %q: %w", node, err)
+	}
+
+	val, err := cursor.Resolve(ev.Tree)
+	if err != nil {
+		return "", fmt.Errorf("unable to resolve bracketed key reference %q: %w", node, err)
+	}
+
+	return bracketKeyToNode(node, val)
 }
 
 // isDynamicBracketNode reports whether a bracketed path node should be

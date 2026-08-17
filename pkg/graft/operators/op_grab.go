@@ -85,40 +85,48 @@ func resolveGrabArgValue(ev *Evaluator, arg *Expr) (interface{}, error) {
 		return resolved, nil
 	}
 
-	// A nested (( grab ... )) call's result is already grab's own final,
-	// fully-resolved answer, not a computed path fragment like a nested
-	// concat's is — the documented `grab a.b || grab c.d` fallback
-	// pattern needs the right side's grab result used as-is, not re-grabbed.
-	//
-	// A nested (( prune )) call is excluded for a different reason:
-	// prune's own Run (op_prune.go) marks ev.Here for deletion as a side
-	// effect the moment it runs, and the key is dropped in post-processing
-	// regardless of what value ends up written here — but mid-evaluation
-	// that return value is ev.Here's own not-yet-replaced content, i.e.
-	// this marker's own raw source text, which is not a path. Using it
-	// as-is (like the grab case above) instead of trying to re-resolve it
-	// is what keeps `grab X || (( prune ))` working.
-	isPathExempt := arg.Type == OperatorCall && (arg.Op() == "grab" || arg.Op() == "prune")
-
-	if pathStr, ok := val.(string); ok && arg.Type != Literal && arg.Type != EnvVar && !isPathExempt {
-		// If the resolved value is a string from an expression (not a
-		// literal or env var), it might be a reference path.
-		cursor, cerr := tree.ParseCursor(pathStr)
-		if cerr != nil {
-			// Not a valid path, use the string value as-is. The parse
-			// failure is the signal, not an error to propagate.
-			return pathStr, nil //nolint:nilerr // a non-path string is a legitimate grab result
-		}
-		// It's a valid path, try to resolve it.
-		resolved, rerr := cursor.Resolve(ev.Tree)
-		if rerr != nil {
-			return nil, fmt.Errorf("unable to resolve `%s`: %w", pathStr, rerr)
-		}
-		return resolved, nil
+	if pathStr, ok := val.(string); ok && !valueIsFinal(arg) {
+		return resolveComputedPath(ev, pathStr)
 	}
 
 	// For literals and other non-string values, use them directly.
 	return val, nil
+}
+
+// valueIsFinal reports whether arg's resolved value is grab's answer
+// already, rather than a computed path string to resolve one more time.
+// Literals and env vars are self-evidently final. A nested (( grab ... ))
+// call's result is grab's own final, fully-resolved answer, not a
+// computed path fragment like a nested concat's is - the documented
+// `grab a.b || grab c.d` fallback pattern needs the right side's grab
+// result used as-is, not re-grabbed. A nested (( prune )) call is exempt
+// for a different reason: prune's own Run (op_prune.go) marks ev.Here for
+// deletion as a side effect the moment it runs, and the key is dropped in
+// post-processing regardless of what value ends up written here - but
+// mid-evaluation that return value is ev.Here's own not-yet-replaced
+// content, i.e. this marker's own raw source text, which is not a path.
+// Using it as-is is what keeps `grab X || (( prune ))` working.
+func valueIsFinal(arg *Expr) bool {
+	if arg.Type == Literal || arg.Type == EnvVar {
+		return true
+	}
+	return arg.Type == OperatorCall && (arg.Op() == "grab" || arg.Op() == "prune")
+}
+
+// resolveComputedPath resolves a string an expression produced as a
+// reference path. A string that does not parse as a path is not an error:
+// it is a legitimate grab result, returned as-is.
+func resolveComputedPath(ev *Evaluator, pathStr string) (interface{}, error) {
+	cursor, err := tree.ParseCursor(pathStr)
+	if err != nil {
+		return pathStr, nil //nolint:nilerr // a non-path string is a legitimate grab result
+	}
+
+	resolved, err := cursor.Resolve(ev.Tree)
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve `%s`: %w", pathStr, err)
+	}
+	return resolved, nil
 }
 
 // Run ...

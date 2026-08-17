@@ -271,36 +271,9 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 
 	// When features.FeatureBackendRegistry is enabled on ev's engine and
 	// a custom backend is registered under the name "nats", it is
-	// consulted instead of internal/backends/nats below, using the raw
-	// path exactly as received - the "kv:"/"obj:" store-type prefix
-	// ParsePath validates a few lines down is a built-in-NATS-backend
-	// convention, not a Backend interface requirement, so a custom
-	// backend is never subjected to it. Unlike the vault/AWS operators,
-	// the result is returned as-is (not stringified): the built-in NATS
-	// path already returns arbitrary interface{} values from KV/Object
-	// stores (see the fetchFromKV/fetchFromObject call below), so a
-	// custom NATS backend gets the same latitude.
-	if backend, ok := resolveCustomBackend(ev, "nats"); ok {
-		// A second argument (`(( nats "kv:b/k" {"url": "..."} ))`) is the
-		// built-in internal/backends/nats connection config that
-		// parseNatsConfig below parses - a Backend implementation owns
-		// its own connection setup and has no parameter to receive it
-		// through (Backend.Get takes only ctx and path), so silently
-		// discarding it would accept a call whose second argument the
-		// custom backend can never honor. Reject it instead of ignoring
-		// it - see docs/developer-guide/custom-backends.md's "Which name
-		// to register under" section.
-		if len(args) > 1 {
-			return nil, ansi.Errorf("@R{nats operator's config argument is not supported against a custom \"nats\" backend - remove the second argument or configure the backend directly}")
-		}
-		val, fetchErr := fetchFromBackend(ev, backend, ev.Target, path)
-		if fetchErr != nil {
-			return nil, wrapBackendError("nats", ev.Target, path, fetchErr)
-		}
-		return &graft.Response{
-			Type:  graft.Replace,
-			Value: val,
-		}, nil
+	// consulted instead of internal/backends/nats below.
+	if resp, handled, backendErr := runNatsCustomBackend(ev, args, path); handled {
+		return resp, backendErr
 	}
 
 	// Parse the path to get store type and path
@@ -353,6 +326,46 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 		Type:  graft.Replace,
 		Value: value,
 	}, nil
+}
+
+// runNatsCustomBackend consults a custom backend registered under the
+// name "nats" (features.FeatureBackendRegistry), reporting handled=false
+// when there is none and the built-in NATS path should run instead. The
+// raw path is passed exactly as received - the "kv:"/"obj:" store-type
+// prefix natsbackend.ParsePath validates is a built-in-backend
+// convention, not a Backend interface requirement, so a custom backend is
+// never subjected to it. Unlike the vault/AWS operators, the result is
+// returned as-is (not stringified): the built-in NATS path already
+// returns arbitrary interface{} values from KV/Object stores, so a custom
+// NATS backend gets the same latitude.
+func runNatsCustomBackend(ev *graft.Evaluator, args []*graft.Expr, path string) (*graft.Response, bool, error) {
+	backend, ok := resolveCustomBackend(ev, "nats")
+	if !ok {
+		return nil, false, nil
+	}
+
+	// A second argument (`(( nats "kv:b/k" {"url": "..."} ))`) is the
+	// built-in internal/backends/nats connection config that
+	// parseNatsConfig parses - a Backend implementation owns its own
+	// connection setup and has no parameter to receive it through
+	// (Backend.Get takes only ctx and path), so silently discarding it
+	// would accept a call whose second argument the custom backend can
+	// never honor. Reject it instead of ignoring it - see
+	// docs/developer-guide/custom-backends.md's "Which name to register
+	// under" section.
+	if len(args) > 1 {
+		return nil, true, ansi.Errorf("@R{nats operator's config argument is not supported against a custom \"nats\" backend - remove the second argument or configure the backend directly}")
+	}
+
+	val, err := fetchFromBackend(ev, backend, ev.Target, path)
+	if err != nil {
+		return nil, true, wrapBackendError("nats", ev.Target, path, err)
+	}
+
+	return &graft.Response{
+		Type:  graft.Replace,
+		Value: val,
+	}, true, nil
 }
 
 // ClearNatsCache clears the NATS cache (useful for testing).
