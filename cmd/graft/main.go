@@ -20,6 +20,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"github.com/fivetwenty-io/graft/internal/cache"
 	"github.com/fivetwenty-io/graft/internal/config"
 	"github.com/fivetwenty-io/graft/internal/features"
 	"github.com/fivetwenty-io/graft/internal/histdiff"
@@ -1426,6 +1427,12 @@ func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []g
 	// per file: peak memory grows with the number of documents held
 	// mid-parse at once, so an unbounded launch makes RSS proportional
 	// to file count for no throughput gain once every core is busy.
+	// The per-document parse cache (Layer 2) is shared by all workers;
+	// FileStore.Get/Put are safe for concurrent use. nil (the default -
+	// cache disabled, debug/trace run, unusable directory) restores the
+	// exact pre-cache behavior.
+	parseStore := openMergeParseCache(options)
+
 	results := make([]fileParseResult, len(files))
 	workers := runtime.NumCPU()
 	if workers > len(files) {
@@ -1444,7 +1451,7 @@ func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []g
 				// harmlessly, since each only touches its own index)
 				// would be unnecessarily fragile.
 				fileCopy := files[idx]
-				results[idx] = parseOneYamlFile(engine, fileCopy, options)
+				results[idx] = parseOneYamlFile(engine, fileCopy, options, parseStore)
 			}
 		}()
 	}
@@ -1481,7 +1488,10 @@ type fileParseResult struct {
 // handling go-patch detection and blank/null-document normalization
 // identically to the sequential loop it replaces in buildEngineAndDocs.
 // Safe to call concurrently for different files sharing the same engine.
-func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts) fileParseResult {
+// A non-nil parseStore serves and stores per-document parse results
+// (Layer 2 of the persistent cache, see merge_parse_cache.go); marker
+// documents and go-patch array documents are never cached.
+func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, parseStore *cache.FileStore) fileParseResult {
 	log.DEBUG("Processing file '%s'", file.Path)
 
 	data, readErr := readFile(&file)
@@ -1504,6 +1514,25 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts) fi
 		}
 	}
 
+	// Layer 2 lookup. Parsing a marker-free document is a pure function
+	// of its bytes, so a stored tree can stand in for a real parse. A
+	// document with control-flow markers evaluates operators during
+	// parse and must never be served from or stored into the cache;
+	// cacheKey doubles as that gate ("" = do not cache).
+	var cacheKey string
+	if parseStore != nil && !controlflow.HasMarkers(data) {
+		cacheKey = parseCacheKey(data)
+		if raw, ok := parseStore.Get(cacheKey); ok {
+			if tree, valid := decodeCachedTree(raw); valid {
+				// Each hit decodes a fresh tree, so the merge is free to
+				// mutate it in place without touching the stored entry.
+				return fileParseResult{doc: graft.NewDocument(tree)}
+			}
+			// Corrupt entry: fall through to a real parse, which will
+			// overwrite it with a good one.
+		}
+	}
+
 	// Parse as YAML
 	doc, parseDocErr := engine.ParseYAML(data)
 	if parseDocErr != nil {
@@ -1515,6 +1544,15 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts) fi
 		// spruce's behavior of merging such documents as {} no-ops.
 		log.DEBUG("YAML doc '%s' is null/empty, creating empty hash/map", file.Path)
 		doc = graft.NewDocument(make(map[string]interface{}))
+	}
+	if cacheKey != "" {
+		// Store immediately, before any merge can mutate the tree. An
+		// unencodable tree is simply not cached.
+		if m, ok := doc.RawData().(map[string]interface{}); ok {
+			if encoded, encErr := encodeCachedTree(m); encErr == nil {
+				_ = parseStore.Put(cacheKey, encoded)
+			}
+		}
 	}
 	return fileParseResult{doc: doc}
 }

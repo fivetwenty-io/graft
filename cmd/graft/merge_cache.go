@@ -51,12 +51,12 @@ import (
 // hit is impossible; an unused entry just lingers until this age.
 const persistentCacheTTL = 7 * 24 * time.Hour
 
-// openMergeOutputCache returns the store for this invocation's output
-// cache, or nil when the cache must not participate: disabled by
-// configuration, a debug/trace run (its diagnostics have to come from a
-// real merge), or an unusable cache directory (cache trouble must never
-// break a merge).
-func openMergeOutputCache(opts *mergeOpts) *cache.FileStore {
+// openPersistentStore returns the persistent store for one cache layer
+// (subdir "output" or "parse"), or nil when the cache must not
+// participate: disabled by configuration, a debug/trace run (its
+// diagnostics have to come from a real merge), or an unusable cache
+// directory (cache trouble must never break a merge).
+func openPersistentStore(opts *mergeOpts, subdir string) *cache.FileStore {
 	if !opts.CacheCfg.L2Enabled || log.DebugOn || log.TraceOn {
 		return nil
 	}
@@ -68,11 +68,17 @@ func openMergeOutputCache(opts *mergeOpts) *cache.FileStore {
 		}
 		dir = filepath.Join(base, "graft")
 	}
-	store, err := cache.OpenFileStore(filepath.Join(dir, "output"), persistentCacheTTL)
+	store, err := cache.OpenFileStore(filepath.Join(dir, subdir), persistentCacheTTL)
 	if err != nil {
 		return nil
 	}
 	return store
+}
+
+// openMergeOutputCache returns the store for this invocation's output
+// cache, or nil when the cache must not participate.
+func openMergeOutputCache(opts *mergeOpts) *cache.FileStore {
+	return openPersistentStore(opts, "output")
 }
 
 // cachedMergeOutput is one output-cache entry: the exact bytes a
