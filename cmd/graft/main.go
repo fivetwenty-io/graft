@@ -1385,21 +1385,36 @@ func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []g
 	// engine.ParseYAML performs no writes to engine state (verified: it
 	// only calls package-level parse helpers), so sharing one *DefaultEngine
 	// across these goroutines is safe.
+	// The fan-out is bounded to NumCPU workers rather than one goroutine
+	// per file: peak memory grows with the number of documents held
+	// mid-parse at once, so an unbounded launch makes RSS proportional
+	// to file count for no throughput gain once every core is busy.
 	results := make([]fileParseResult, len(files))
+	workers := runtime.NumCPU()
+	if workers > len(files) {
+		workers = len(files)
+	}
+	indices := make(chan int)
 	var wg sync.WaitGroup
-	for i := range files {
+	for w := 0; w < workers; w++ {
 		wg.Add(1)
-		idx := i
-		// Each goroutine gets its own copy of the YamlFile: readFile
-		// mutates its Path field for the "-"/STDIN case, and sharing that
-		// mutation across goroutines (even harmlessly, since each only
-		// touches its own index) would be unnecessarily fragile.
-		fileCopy := files[idx]
 		go func() {
 			defer wg.Done()
-			results[idx] = parseOneYamlFile(engine, fileCopy, options)
+			for idx := range indices {
+				// Each parse gets its own copy of the YamlFile: readFile
+				// mutates its Path field for the "-"/STDIN case, and
+				// sharing that mutation across goroutines (even
+				// harmlessly, since each only touches its own index)
+				// would be unnecessarily fragile.
+				fileCopy := files[idx]
+				results[idx] = parseOneYamlFile(engine, fileCopy, options)
+			}
 		}()
 	}
+	for i := range files {
+		indices <- i
+	}
+	close(indices)
 	wg.Wait()
 
 	// Preserve the sequential loop's behavior exactly: it stopped at the
