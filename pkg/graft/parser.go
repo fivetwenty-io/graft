@@ -151,11 +151,14 @@ func (p *Parser) advance() {
 	}
 }
 
-// expect checks if current token is of expected type and advances.
-func (p *Parser) expect(tokenType interfaces.TokenType) error {
-	if p.current().Type != tokenType {
+// expectRightParen checks that the current token closes a parenthesized
+// group and advances past it. Every place the grammar demands a specific
+// token demands this one; a second such token would generalize this back
+// into an expect(tokenType).
+func (p *Parser) expectRightParen() error {
+	if p.current().Type != interfaces.TokenRightParen {
 		return fmt.Errorf("expected %v, got %v at position %d",
-			tokenType, p.current().Type, p.current().Pos.Offset)
+			interfaces.TokenRightParen, p.current().Type, p.current().Pos.Offset)
 	}
 	p.advance()
 	return nil
@@ -858,7 +861,7 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 				break
 			}
 		}
-		if err := p.expect(interfaces.TokenRightParen); err != nil {
+		if err := p.expectRightParen(); err != nil {
 			return nil, err
 		}
 	}
@@ -1121,7 +1124,7 @@ func (p *Parser) parseParenthesized() (*Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := p.expect(interfaces.TokenRightParen); err != nil {
+		if err := p.expectRightParen(); err != nil {
 			return nil, fmt.Errorf("expected ')' to close parenthesized expression")
 		}
 		return expr, nil
@@ -1132,7 +1135,7 @@ func (p *Parser) parseParenthesized() (*Expr, error) {
 		return nil, err
 	}
 
-	if err := p.expect(interfaces.TokenRightParen); err != nil {
+	if err := p.expectRightParen(); err != nil {
 		return nil, fmt.Errorf("expected ')' to close parenthesized expression")
 	}
 
@@ -1257,7 +1260,7 @@ func (p *Parser) parseNestedOperator() (*Expr, error) {
 			return nil, err
 		}
 
-		if err := p.expect(interfaces.TokenRightParen); err != nil {
+		if err := p.expectRightParen(); err != nil {
 			return nil, fmt.Errorf("expected ')' to close parenthesized expression")
 		}
 

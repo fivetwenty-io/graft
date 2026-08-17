@@ -1330,9 +1330,7 @@ func (m *mergeBuilderImpl) applyPruning(doc Document) (Document, error) {
 	}
 
 	for _, key := range m.pruneKeys {
-		if err := m.removeKey(result, key); err != nil {
-			return nil, fmt.Errorf("prune %q: %w", key, err)
-		}
+		m.removeKey(result, key)
 	}
 
 	return NewDocument(result), nil
@@ -1517,10 +1515,10 @@ func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 // Helper functions for key manipulation
 
 //nolint:gocyclo // removeKey navigates nested maps and arrays with various path formats
-func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string) error {
+func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string) {
 	// Handle nested paths like "config.enabled" or "meta.list.1"
 	if keyPath == "" {
-		return nil
+		return
 	}
 
 	// Split path by dots
@@ -1528,7 +1526,7 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 	if len(parts) == 1 {
 		// Simple key
 		delete(data, keyPath)
-		return nil
+		return
 	}
 
 	// Navigate to the parent of the target, tracking the immediate container
@@ -1552,7 +1550,7 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 			value, exists := v[part]
 			if !exists {
 				// Path doesn't exist, nothing to remove
-				return nil
+				return
 			}
 			parentContainer, parentKey = v, part
 			current = value
@@ -1562,7 +1560,7 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 				// Numeric index
 				if idx < 0 || idx >= len(v) {
 					// Index out of bounds, nothing to remove
-					return nil
+					return
 				}
 				parentContainer, parentKey = v, idx
 				current = v[idx]
@@ -1571,7 +1569,7 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 				idx, entry, found := findNamedArrayEntryWithIndex(v, part)
 				if !found {
 					// Named entry not found, nothing to remove
-					return nil
+					return
 				}
 				parentContainer, parentKey = v, idx
 				current = entry
@@ -1581,7 +1579,7 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 			// more segments to traverse: the target doesn't exist under it.
 			// Matches spruce, where tree.Cursor.Resolve returns an error in
 			// this situation and the caller silently skips the prune.
-			return nil
+			return
 		}
 	}
 
@@ -1618,7 +1616,7 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 			}
 		}
 		if !isNum {
-			return nil
+			return
 		}
 		if index < 0 || index >= len(parent) {
 			// Index out of bounds, nothing to remove. The spruce binary
@@ -1626,7 +1624,7 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 			// intentionally diverges here and stays graceful, matching its
 			// own no-op-on-unresolved-path behavior for every other prune
 			// shape rather than crashing the whole merge.
-			return nil
+			return
 		}
 
 		// Splice the element out and write the shortened array back into the
@@ -1653,10 +1651,8 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 		// and still expects a final key/index under it: nothing to
 		// remove. Matches spruce's default case in Prune(), which logs
 		// and moves on without deleting anything or raising an error.
-		return nil
+		return
 	}
-
-	return nil
 }
 
 // isNumericIndex checks if a string is a valid numeric array index.

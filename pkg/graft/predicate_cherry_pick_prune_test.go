@@ -71,10 +71,7 @@ func TestRemoveKey_PredicateFinalSegmentDeletesMatchingEntry(t *testing.T) {
 	m := &mergeBuilderImpl{}
 	data := predicateTestServers()
 
-	err := m.removeKey(data, "servers.name=secondary")
-	if err != nil {
-		t.Fatalf("removeKey(servers.name=secondary) = %v, want nil", err)
-	}
+	m.removeKey(data, "servers.name=secondary")
 
 	servers, ok := data["servers"].([]interface{})
 	if !ok {
@@ -89,14 +86,11 @@ func TestRemoveKey_PredicateFinalSegmentDeletesMatchingEntry(t *testing.T) {
 	}
 }
 
-func TestRemoveKey_PredicateFinalSegmentNotFoundIsNilNotError(t *testing.T) {
+func TestRemoveKey_PredicateFinalSegmentNotFoundIsNoOp(t *testing.T) {
 	m := &mergeBuilderImpl{}
 	data := predicateTestServers()
 
-	err := m.removeKey(data, "servers.name=missing")
-	if err != nil {
-		t.Fatalf("removeKey(servers.name=missing) = %v, want nil (unresolved predicate is a no-op, matching every other unresolved prune path)", err)
-	}
+	m.removeKey(data, "servers.name=missing")
 
 	servers := data["servers"].([]interface{})
 	if len(servers) != 2 {
@@ -112,10 +106,7 @@ func TestRemoveKey_BareNamedFinalArraySegmentStillNoOp(t *testing.T) {
 	m := &mergeBuilderImpl{}
 	data := predicateTestServers()
 
-	err := m.removeKey(data, "servers.secondary")
-	if err != nil {
-		t.Fatalf("removeKey(servers.secondary) = %v, want nil", err)
-	}
+	m.removeKey(data, "servers.secondary")
 
 	servers := data["servers"].([]interface{})
 	if len(servers) != 2 {
@@ -130,10 +121,7 @@ func TestRemoveKey_PredicateMidPathSegmentNavigatesThrough(t *testing.T) {
 	m := &mergeBuilderImpl{}
 	data := predicateTestServers()
 
-	err := m.removeKey(data, "servers.name=primary.host")
-	if err != nil {
-		t.Fatalf("removeKey(servers.name=primary.host) = %v, want nil", err)
-	}
+	m.removeKey(data, "servers.name=primary.host")
 
 	servers := data["servers"].([]interface{})
 	primary, ok := servers[0].(map[string]interface{})

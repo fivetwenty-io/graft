@@ -178,7 +178,7 @@ func (s *debugSession) cmdLoad() {
 // final step, full evaluation), printing its progress line and any changed
 // paths, and reports whether a breakpoint fired. It is shared by `step`
 // (one call) and `continue` (a loop of calls).
-// stepOnce's third return value, failed, is F19's fix: a failed merge or
+// stepOnce's second return value, failed, is F19's fix: a failed merge or
 // evaluation prints its error and rewinds s.step (so a subsequent manual
 // `step` retries the same step, matching the pre-fix behavior plain `step`
 // already had), but the caller must know a failure happened rather than
@@ -187,7 +187,7 @@ func (s *debugSession) cmdLoad() {
 // cmdContinue's loop condition (`s.step < s.totalSteps`) doesn't change
 // when a step fails, so without an explicit failure signal it would retry
 // and re-fail the same step forever.
-func (s *debugSession) stepOnce() (hitBreakpoint bool, hitPath string, failed bool) {
+func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 	s.step++
 
 	if s.step < s.totalSteps {
@@ -198,7 +198,7 @@ func (s *debugSession) stepOnce() (hitBreakpoint bool, hitPath string, failed bo
 		if err != nil {
 			s.printf("%s\n", ansi.Sprintf("@R{Merge failed}: %s", err.Error()))
 			s.step--
-			return false, "", true
+			return false, true
 		}
 
 		changes, cmpErr := histdiff.Compare("before", s.tree, s.cached[fileIdx].Path, newTree)
@@ -212,10 +212,12 @@ func (s *debugSession) stepOnce() (hitBreakpoint bool, hitPath string, failed bo
 		for _, c := range changes {
 			if s.breakpoints[c.Path] {
 				s.printf("Breakpoint hit: %s\n  Current: %s\n", c.Path, changeNewDisplay(c))
-				return true, c.Path, false
+				// The path itself is already printed above; the
+				// caller only needs to know the loop must stop.
+				return true, false
 			}
 		}
-		return false, "", false
+		return false, false
 	}
 
 	// Final step: evaluate. Deferred paths are protected by rewriting their
@@ -236,7 +238,7 @@ func (s *debugSession) stepOnce() (hitBreakpoint bool, hitPath string, failed bo
 	if err != nil {
 		s.printf("%s\n", ansi.Sprintf("@R{Evaluation failed}: %s", err.Error()))
 		s.step--
-		return false, "", true
+		return false, true
 	}
 
 	changes, cmpErr := histdiff.Compare("<merged>", s.tree, "<evaluated>", evaluated)
@@ -246,11 +248,11 @@ func (s *debugSession) stepOnce() (hitBreakpoint bool, hitPath string, failed bo
 		for _, c := range changes {
 			if s.breakpoints[c.Path] {
 				s.printf("Breakpoint hit: %s\n  Current: %s\n", c.Path, changeNewDisplay(c))
-				return true, c.Path, false
+				return true, false
 			}
 		}
 	}
-	return false, "", false
+	return false, false
 }
 
 // cmdStep implements the `step` REPL command.
@@ -283,7 +285,7 @@ func (s *debugSession) cmdContinue() {
 		return
 	}
 	for s.step < s.totalSteps {
-		hit, _, failed := s.stepOnce()
+		hit, failed := s.stepOnce()
 		if hit || failed {
 			return
 		}

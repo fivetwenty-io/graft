@@ -25,11 +25,10 @@ import (
 // right external result by accident while conflating "nothing to prune
 // here" with "something is internally wrong" and hiding genuine errors
 // behind the same catch-all. These tests pin the corrected semantics:
-// removeKey returns nil (not an error) for every "path doesn't resolve"
-// case, and applyPruning propagates real errors instead of swallowing
-// everything.
+// every "path doesn't resolve" case leaves the document untouched, which
+// is why removeKey has no error to report at all.
 
-func TestRemoveKeyNamedFinalArraySegmentIsNilNotError(t *testing.T) {
+func TestRemoveKeyNamedFinalArraySegmentIsNoOp(t *testing.T) {
 	m := &mergeBuilderImpl{}
 	data := map[string]interface{}{
 		"items": []interface{}{
@@ -38,10 +37,7 @@ func TestRemoveKeyNamedFinalArraySegmentIsNilNotError(t *testing.T) {
 		},
 	}
 
-	err := m.removeKey(data, "items.beta")
-	if err != nil {
-		t.Fatalf("removeKey(items.beta) = %v, want nil (spruce treats a named final array segment as unresolved, not an error)", err)
-	}
+	m.removeKey(data, "items.beta")
 
 	items := data["items"].([]interface{})
 	if len(items) != 2 {
@@ -49,22 +45,19 @@ func TestRemoveKeyNamedFinalArraySegmentIsNilNotError(t *testing.T) {
 	}
 }
 
-func TestRemoveKeyScalarMidPathIsNilNotError(t *testing.T) {
+func TestRemoveKeyScalarMidPathIsNoOp(t *testing.T) {
 	m := &mergeBuilderImpl{}
 	data := map[string]interface{}{
 		"a": 1,
 	}
 
-	err := m.removeKey(data, "a.b")
-	if err != nil {
-		t.Fatalf("removeKey(a.b) = %v, want nil (navigating through a scalar with remaining path segments resolves to nothing, matching spruce's Resolve-error continue)", err)
-	}
+	m.removeKey(data, "a.b")
 	if data["a"] != 1 {
 		t.Fatalf("data mutated: a = %v, want unchanged 1", data["a"])
 	}
 }
 
-func TestRemoveKeyFinalSegmentOnScalarIsNilNotError(t *testing.T) {
+func TestRemoveKeyFinalSegmentOnScalarIsNoOp(t *testing.T) {
 	m := &mergeBuilderImpl{}
 	data := map[string]interface{}{
 		"outer": map[string]interface{}{
@@ -72,10 +65,7 @@ func TestRemoveKeyFinalSegmentOnScalarIsNilNotError(t *testing.T) {
 		},
 	}
 
-	err := m.removeKey(data, "outer.inner.deeper")
-	if err != nil {
-		t.Fatalf("removeKey(outer.inner.deeper) = %v, want nil (final parent is a scalar, matching spruce's default-case no-op)", err)
-	}
+	m.removeKey(data, "outer.inner.deeper")
 	inner := data["outer"].(map[string]interface{})["inner"]
 	if inner != 42 {
 		t.Fatalf("data mutated: inner = %v, want unchanged 42", inner)
