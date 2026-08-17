@@ -64,70 +64,53 @@ func mergeFileOntoConfig(data []byte, cfg *Config) error {
 		return err
 	}
 
-	if keys, ok := present["engine"]; ok {
-		if _, ok := keys["strict_mode"]; ok {
-			cfg.Engine.StrictMode = parsed.Engine.StrictMode
+	for section, keys := range present {
+		setters, known := fieldSetters[section]
+		if !known {
+			continue
 		}
-		if _, ok := keys["max_recursion"]; ok {
-			cfg.Engine.MaxRecursion = parsed.Engine.MaxRecursion
-		}
-		if _, ok := keys["timeout"]; ok {
-			cfg.Engine.Timeout = parsed.Engine.Timeout
-		}
-	}
-
-	if keys, ok := present["cache"]; ok {
-		if _, ok := keys["enabled"]; ok {
-			cfg.Cache.Enabled = parsed.Cache.Enabled
-		}
-		if _, ok := keys["max_size"]; ok {
-			cfg.Cache.MaxSize = parsed.Cache.MaxSize
-		}
-		if _, ok := keys["ttl"]; ok {
-			cfg.Cache.TTL = parsed.Cache.TTL
-		}
-		if _, ok := keys["l2_enabled"]; ok {
-			cfg.Cache.L2Enabled = parsed.Cache.L2Enabled
-		}
-		if _, ok := keys["l2_path"]; ok {
-			cfg.Cache.L2Path = parsed.Cache.L2Path
-		}
-	}
-
-	if keys, ok := present["parallel"]; ok {
-		if _, ok := keys["enabled"]; ok {
-			cfg.Parallel.Enabled = parsed.Parallel.Enabled
-		}
-		if _, ok := keys["min_workers"]; ok {
-			cfg.Parallel.MinWorkers = parsed.Parallel.MinWorkers
-		}
-		if _, ok := keys["max_workers"]; ok {
-			cfg.Parallel.MaxWorkers = parsed.Parallel.MaxWorkers
-		}
-	}
-
-	if keys, ok := present["metrics"]; ok {
-		if _, ok := keys["enabled"]; ok {
-			cfg.Metrics.Enabled = parsed.Metrics.Enabled
-		}
-		if _, ok := keys["format"]; ok {
-			cfg.Metrics.Format = parsed.Metrics.Format
-		}
-		if _, ok := keys["endpoint"]; ok {
-			cfg.Metrics.Endpoint = parsed.Metrics.Endpoint
-		}
-	}
-
-	if keys, ok := present["logging"]; ok {
-		if _, ok := keys["level"]; ok {
-			cfg.Logging.Level = parsed.Logging.Level
-		}
-		if _, ok := keys["format"]; ok {
-			cfg.Logging.Format = parsed.Logging.Format
+		for key := range keys {
+			if set, known := setters[key]; known {
+				set(cfg, &parsed)
+			}
 		}
 	}
 
 	return nil
+}
+
+// fieldSetters maps each config section, and each key within it, to the
+// copy of that one field from a parsed document onto the config being
+// built. mergeFileOntoConfig walks it with the keys the document actually
+// contains; a key with no entry here is one the file may spell but this
+// merge does not carry over.
+var fieldSetters = map[string]map[string]func(cfg, parsed *Config){
+	"engine": {
+		"strict_mode":   func(cfg, parsed *Config) { cfg.Engine.StrictMode = parsed.Engine.StrictMode },
+		"max_recursion": func(cfg, parsed *Config) { cfg.Engine.MaxRecursion = parsed.Engine.MaxRecursion },
+		"timeout":       func(cfg, parsed *Config) { cfg.Engine.Timeout = parsed.Engine.Timeout },
+	},
+	"cache": {
+		"enabled":    func(cfg, parsed *Config) { cfg.Cache.Enabled = parsed.Cache.Enabled },
+		"max_size":   func(cfg, parsed *Config) { cfg.Cache.MaxSize = parsed.Cache.MaxSize },
+		"ttl":        func(cfg, parsed *Config) { cfg.Cache.TTL = parsed.Cache.TTL },
+		"l2_enabled": func(cfg, parsed *Config) { cfg.Cache.L2Enabled = parsed.Cache.L2Enabled },
+		"l2_path":    func(cfg, parsed *Config) { cfg.Cache.L2Path = parsed.Cache.L2Path },
+	},
+	"parallel": {
+		"enabled":     func(cfg, parsed *Config) { cfg.Parallel.Enabled = parsed.Parallel.Enabled },
+		"min_workers": func(cfg, parsed *Config) { cfg.Parallel.MinWorkers = parsed.Parallel.MinWorkers },
+		"max_workers": func(cfg, parsed *Config) { cfg.Parallel.MaxWorkers = parsed.Parallel.MaxWorkers },
+	},
+	"metrics": {
+		"enabled":  func(cfg, parsed *Config) { cfg.Metrics.Enabled = parsed.Metrics.Enabled },
+		"format":   func(cfg, parsed *Config) { cfg.Metrics.Format = parsed.Metrics.Format },
+		"endpoint": func(cfg, parsed *Config) { cfg.Metrics.Endpoint = parsed.Metrics.Endpoint },
+	},
+	"logging": {
+		"level":  func(cfg, parsed *Config) { cfg.Logging.Level = parsed.Logging.Level },
+		"format": func(cfg, parsed *Config) { cfg.Logging.Format = parsed.Logging.Format },
+	},
 }
 
 // LoadOrDefault attempts to load configuration from the specified path.

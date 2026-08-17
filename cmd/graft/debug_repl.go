@@ -800,41 +800,38 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer) i
 		fields := strings.Fields(line)
 		cmd, args := fields[0], fields[1:]
 
-		switch cmd {
-		case "load":
-			sess.cmdLoad()
-		case "step":
-			sess.cmdStep()
-		case "continue":
-			sess.cmdContinue()
-		case "break":
-			sess.cmdBreak(strings.Join(args, " "))
-		case "unbreak":
-			sess.cmdUnbreak(strings.Join(args, " "))
-		case "breaks":
-			sess.cmdBreaks()
-		case "inspect":
-			sess.cmdInspect(strings.Join(args, " "))
-		case "history":
-			sess.cmdHistory(strings.Join(args, " "))
-		case "defer":
-			sess.cmdDefer(strings.Join(args, " "))
-		case "eval":
-			sess.cmdEval(strings.Join(args, " "))
-		case "config":
-			sess.cmdConfig(args)
-		case "output":
-			sess.cmdOutput()
-		case "diff":
-			sess.cmdDiff()
-		case "export":
-			sess.cmdExport(strings.Join(args, " "))
-		case "help":
-			sess.cmdHelp(strings.Join(args, " "))
-		case "quit", "exit":
+		if cmd == "quit" || cmd == "exit" {
 			return 0
-		default:
-			_, _ = fmt.Fprintf(out, "Unknown command: %s. Type 'help' for available commands.\n", cmd)
 		}
+
+		run, known := debugCommands[cmd]
+		if !known {
+			_, _ = fmt.Fprintf(out, "Unknown command: %s. Type 'help' for available commands.\n", cmd)
+			continue
+		}
+		run(sess, args)
 	}
+}
+
+// debugCommands maps each REPL command to the session method that runs
+// it, less "quit"/"exit", which end the loop itself. Most commands take
+// the rest of the line as a single free-form argument - a path, a
+// pattern, a filename - so they join their fields back together; only
+// config reads its arguments as separate words.
+var debugCommands = map[string]func(sess *debugSession, args []string){
+	"load":     func(sess *debugSession, _ []string) { sess.cmdLoad() },
+	"step":     func(sess *debugSession, _ []string) { sess.cmdStep() },
+	"continue": func(sess *debugSession, _ []string) { sess.cmdContinue() },
+	"break":    func(sess *debugSession, args []string) { sess.cmdBreak(strings.Join(args, " ")) },
+	"unbreak":  func(sess *debugSession, args []string) { sess.cmdUnbreak(strings.Join(args, " ")) },
+	"breaks":   func(sess *debugSession, _ []string) { sess.cmdBreaks() },
+	"inspect":  func(sess *debugSession, args []string) { sess.cmdInspect(strings.Join(args, " ")) },
+	"history":  func(sess *debugSession, args []string) { sess.cmdHistory(strings.Join(args, " ")) },
+	"defer":    func(sess *debugSession, args []string) { sess.cmdDefer(strings.Join(args, " ")) },
+	"eval":     func(sess *debugSession, args []string) { sess.cmdEval(strings.Join(args, " ")) },
+	"config":   func(sess *debugSession, args []string) { sess.cmdConfig(args) },
+	"output":   func(sess *debugSession, _ []string) { sess.cmdOutput() },
+	"diff":     func(sess *debugSession, _ []string) { sess.cmdDiff() },
+	"export":   func(sess *debugSession, args []string) { sess.cmdExport(strings.Join(args, " ")) },
+	"help":     func(sess *debugSession, args []string) { sess.cmdHelp(strings.Join(args, " ")) },
 }
