@@ -971,7 +971,31 @@ func newRootCmd() (*cobra.Command, *bool) {
 	debugCmd.Flags().BoolVar(&debugGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged (same meaning as merge --go-patch)")
 	debugCmd.Flags().BoolVar(&debugFallbackAppend, "fallback-append", false, "Use append semantics instead of inline for the default array-merge fallback (same meaning as merge --fallback-append)")
 
-	rootCmd.AddCommand(mergeCmd, fanCmd, jsonCmd, diffCmd, vaultinfoCmd, debugCmd)
+	// cache command
+	cacheCmd := &cobra.Command{
+		Use:   "cache",
+		Short: "Inspect and maintain the persistent merge cache",
+	}
+	cacheCmd.AddCommand(
+		&cobra.Command{
+			Use:   "stats",
+			Short: "Show cache directory, entry counts, and sizes",
+			RunE: func(_ *cobra.Command, _ []string) error {
+				exit(handleCacheStats(loadedConfig.Cache))
+				return nil
+			},
+		},
+		&cobra.Command{
+			Use:   "clear",
+			Short: "Remove every cached entry",
+			RunE: func(_ *cobra.Command, _ []string) error {
+				exit(handleCacheClear(loadedConfig.Cache))
+				return nil
+			},
+		},
+	)
+
+	rootCmd.AddCommand(mergeCmd, fanCmd, jsonCmd, diffCmd, vaultinfoCmd, debugCmd, cacheCmd)
 
 	return rootCmd, &aborted
 }

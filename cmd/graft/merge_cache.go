@@ -60,13 +60,9 @@ func openPersistentStore(opts *mergeOpts, subdir string) *cache.FileStore {
 	if !opts.CacheCfg.L2Enabled || log.DebugOn || log.TraceOn {
 		return nil
 	}
-	dir := opts.CacheCfg.L2Path
-	if dir == "" {
-		base, err := os.UserCacheDir()
-		if err != nil {
-			return nil
-		}
-		dir = filepath.Join(base, "graft")
+	dir, ok := persistentCacheRoot(opts.CacheCfg)
+	if !ok {
+		return nil
 	}
 	store, err := cache.OpenFileStore(filepath.Join(dir, subdir), persistentCacheTTL)
 	if err != nil {
