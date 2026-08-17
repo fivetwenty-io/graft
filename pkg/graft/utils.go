@@ -435,32 +435,38 @@ func isAllDigits(s string) bool {
 func matchBracketPattern(pathSeg PathSegment, pattern string) bool {
 	inner := pattern[1 : len(pattern)-1]
 
-	// Wildcard index
+	// Key=* pattern (any value for key). Located by the first "=*" in the
+	// pattern, so everything before it is the key.
+	if eqStarIdx := strings.Index(inner, "=*"); eqStarIdx != -1 {
+		return matchBracketKey(pathSeg, inner[:eqStarIdx])
+	}
+
+	// Key=value match
+	if eqIdx := strings.Index(inner, "="); eqIdx != -1 {
+		return matchBracketKey(pathSeg, inner[:eqIdx]) &&
+			pathSeg.Match.Value == unquotePathValue(inner[eqIdx+1:])
+	}
+
+	return matchBracketIndex(pathSeg, inner)
+}
+
+// matchBracketKey reports whether pathSeg is a key match on key, without
+// regard to the value it matches on.
+func matchBracketKey(pathSeg PathSegment, key string) bool {
+	return pathSeg.Type == PathSegmentKeyMatch && pathSeg.Match != nil && pathSeg.Match.Key == key
+}
+
+// matchBracketIndex matches the value-free bracket forms: "*", which any
+// list position satisfies, and a literal index.
+func matchBracketIndex(pathSeg PathSegment, inner string) bool {
 	if inner == "*" {
 		return pathSeg.Type == PathSegmentIndex || pathSeg.Type == PathSegmentKeyMatch ||
 			(pathSeg.Type == PathSegmentField && isAllDigits(pathSeg.Key))
 	}
 
-	// Key=* pattern (any value for key)
-	if eqStarIdx := strings.Index(inner, "=*"); eqStarIdx != -1 {
-		key := inner[:eqStarIdx]
-		return pathSeg.Type == PathSegmentKeyMatch && pathSeg.Match != nil && pathSeg.Match.Key == key
-	}
-
-	// Exact index match
 	if idx, err := strconv.Atoi(inner); err == nil {
 		return (pathSeg.Type == PathSegmentIndex && pathSeg.Index == idx) ||
 			(pathSeg.Type == PathSegmentField && pathSeg.Key == inner)
-	}
-
-	// Key=value match
-	if eqIdx := strings.Index(inner, "="); eqIdx != -1 {
-		key := inner[:eqIdx]
-		value := unquotePathValue(inner[eqIdx+1:])
-		return pathSeg.Type == PathSegmentKeyMatch &&
-			pathSeg.Match != nil &&
-			pathSeg.Match.Key == key &&
-			pathSeg.Match.Value == value
 	}
 
 	return false

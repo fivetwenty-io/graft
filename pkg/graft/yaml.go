@@ -233,27 +233,34 @@ func sanitizeBareSequenceTerminators(data []byte) []byte {
 			continue
 		}
 
-		next, nextIndent := nextSignificantLine(lines, i+1)
-		if next == "" {
-			continue // nothing follows -- a trailing bare dash at end-of-document parses correctly
+		if bareDashEndsSequence(lines, i+1, indent) {
+			lines[i] = strings.Repeat(" ", indent) + "- ~"
 		}
-		if nextIndent > indent {
-			continue // more-indented content is this item's own value, not the bug trigger
-		}
-		if next == "-" || strings.HasPrefix(next, "- ") || strings.HasPrefix(next, "-\t") {
-			continue // sibling sequence item, not a mapping key -- parses correctly already
-		}
-		if next == "---" || next == "..." {
-			continue // document boundary marker, not a mapping key
-		}
-		if !mapKeyLineRe.MatchString(next) {
-			continue // doesn't look like a mapping key line; leave alone
-		}
-
-		lines[i] = strings.Repeat(" ", indent) + "- ~"
 	}
 
 	return []byte(strings.Join(lines, "\n"))
+}
+
+// bareDashEndsSequence reports whether the bare dash at indent, whose
+// following lines start at index from, is the trailing item goccy
+// misparses: the next significant line has to be a mapping key at or
+// outside the dash's own indentation. Anything else -- end of document,
+// the dash's own more-indented value, a sibling sequence item, a document
+// boundary, or a line that is not a mapping key at all -- parses
+// correctly as written and is left alone.
+func bareDashEndsSequence(lines []string, from, indent int) bool {
+	next, nextIndent := nextSignificantLine(lines, from)
+	switch {
+	case next == "":
+		return false
+	case nextIndent > indent:
+		return false
+	case next == "-" || strings.HasPrefix(next, "- ") || strings.HasPrefix(next, "-\t"):
+		return false
+	case next == "---" || next == "...":
+		return false
+	}
+	return mapKeyLineRe.MatchString(next)
 }
 
 // nextSignificantLine returns the trimmed content and indentation of the

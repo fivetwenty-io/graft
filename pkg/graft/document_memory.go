@@ -351,6 +351,28 @@ func (dm *DocumentMemory) GetTimeline() []ChangeEvent {
 	return timeline
 }
 
+// selects reports whether event satisfies every set field of f. Limit is
+// not consulted here: it bounds how many selected events a caller keeps,
+// not whether any one of them matches.
+func (f HistoryFilter) selects(event *ChangeEvent) bool {
+	switch {
+	// Path matches exactly, by wildcard, or by segment prefix.
+	case f.Path != "" && !matchPath(event.Path, f.Path):
+		return false
+	case f.Phase != nil && event.Phase != *f.Phase:
+		return false
+	case f.Operation != nil && event.Operation != *f.Operation:
+		return false
+	case f.Source != "" && event.Source != f.Source:
+		return false
+	case f.After != nil && event.Timestamp.Before(*f.After):
+		return false
+	case f.Before != nil && event.Timestamp.After(*f.Before):
+		return false
+	}
+	return true
+}
+
 // Query returns changes matching the filter.
 func (dm *DocumentMemory) Query(filter HistoryFilter) []ChangeEvent {
 	dm.mu.RLock()
@@ -358,36 +380,13 @@ func (dm *DocumentMemory) Query(filter HistoryFilter) []ChangeEvent {
 
 	results := make([]ChangeEvent, 0)
 
-	for _, event := range dm.timeline {
-		// Check path filter (exact, wildcard, or segment-prefix match)
-		if filter.Path != "" && !matchPath(event.Path, filter.Path) {
+	for i := range dm.timeline {
+		event := &dm.timeline[i]
+		if !filter.selects(event) {
 			continue
 		}
 
-		// Check phase filter
-		if filter.Phase != nil && event.Phase != *filter.Phase {
-			continue
-		}
-
-		// Check operation filter
-		if filter.Operation != nil && event.Operation != *filter.Operation {
-			continue
-		}
-
-		// Check source filter
-		if filter.Source != "" && event.Source != filter.Source {
-			continue
-		}
-
-		// Check time filters
-		if filter.After != nil && event.Timestamp.Before(*filter.After) {
-			continue
-		}
-		if filter.Before != nil && event.Timestamp.After(*filter.Before) {
-			continue
-		}
-
-		results = append(results, event)
+		results = append(results, *event)
 
 		// Limit stops collection as soon as it is satisfied, so it caps
 		// the earliest Limit matches in timeline order rather than

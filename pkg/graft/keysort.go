@@ -69,6 +69,19 @@ func keyNumericValue(s string) (f float64, isInt bool, ok bool) {
 	return n, false, true
 }
 
+// digitRun reads the run of digits starting at index start, returning its
+// value and the index one past its last digit. A start position that is
+// not a digit yields the empty run — value 0, end == start — which is the
+// behavior naturalLess's third documented quirk depends on.
+func digitRun(rs []rune, start int) (int64, int) {
+	var value int64
+	end := start
+	for ; end < len(rs) && unicode.IsDigit(rs[end]); end++ {
+		value = value*10 + int64(rs[end]-'0')
+	}
+	return value, end
+}
+
 // naturalLess is a verbatim port of the string branch of the sorter in
 // spruce's vendored geofffranks/yaml (sorter.go, Copyright 2011-2016
 // Canonical Ltd., Apache License 2.0). Its quirks are kept deliberately —
@@ -96,14 +109,8 @@ func naturalLess(a, b string) bool {
 		if al || bl {
 			return bl
 		}
-		var ai, bi int
-		var an, bn int64
-		for ai = i; ai < len(ar) && unicode.IsDigit(ar[ai]); ai++ {
-			an = an*10 + int64(ar[ai]-'0')
-		}
-		for bi = i; bi < len(br) && unicode.IsDigit(br[bi]); bi++ {
-			bn = bn*10 + int64(br[bi]-'0')
-		}
+		an, ai := digitRun(ar, i)
+		bn, bi := digitRun(br, i)
 		if an != bn {
 			return an < bn
 		}
