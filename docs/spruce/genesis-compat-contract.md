@@ -97,6 +97,23 @@ wording, confirmed by reading the source; the ANSI color tags wrapping
 it are stripped in a non-tty context, which is how Genesis always
 invokes it.
 
+## Vault KV version detection
+
+Spruce's vault client (`vaultkv`) asks the server which KV engine
+version backs a mount before reading, via
+`sys/internal/ui/mounts/<path>`, and inserts the `data/` path segment a
+KV v2 read requires (`/v1/<mount>/data/<rest>`). Genesis-provisioned
+vaults (including OpenBao labs) mount `secret/` as KV v2, so a client
+that always reads `/v1/<mount>/<rest>` fails every lookup with
+"Invalid path for a versioned K/V secrets engine".
+
+Graft's vault reader (`internal/backends/vault/reader.go`) performs the
+same mount lookup, caches the detected version per mount, rewrites v2
+read paths to include `data/` (skipping paths that already carry the
+prefix), unwraps the KV v2 `data`/`metadata` response envelope, and
+degrades to v1 addressing when the mount endpoint is unavailable.
+Pinned by `internal/backends/vault/reader_kv2_test.go`.
+
 ## Multi-document JSON framing
 
 `spruce json` on multi-document input, and every pipeline that pipes

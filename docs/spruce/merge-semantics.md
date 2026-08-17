@@ -154,6 +154,45 @@ preserves the original value at a path when it is a map or list (rather
 than a scalar) so that other operators referencing that path during
 evaluation still see it; spruce does not make this distinction.
 
+## BOSH placeholder pass-through
+
+Spruce only evaluates `(( <registered-operator> [args...] ))`. Any other
+`(( ... ))` content passes through the merge byte-for-byte — bare
+references (`((meta.name))`, `(( meta.name ))`), single names
+(`((cf_admin_password))`), and text that is not parseable as an operator
+expression at all (`((genesis-entombed/uaa_ssl--key--fe75a2d0))`,
+`((/dns_healthcheck_tls.ca))`). These are BOSH/CredHub variable
+placeholders, and a later tool in the pipeline interpolates them; BOSH's
+placeholder regex allows no interior whitespace, so re-rendering
+`((x))` as `(( x ))` corrupts a manifest.
+
+Graft matches this (`ParseOpcallWithParserForEngine` in
+`pkg/graft/parser.go`, pinned by
+`pkg/graft/bosh_placeholder_passthrough_test.go`):
+
+- A whitespace-free inner text matching BOSH's placeholder shape that is
+  not a registered operator name passes through verbatim, even when a
+  matching key exists in the document — spruce never implicitly grabs.
+
+- An expression that fails to parse passes through verbatim unless it
+  starts with a registered operator name, in which case the parse error
+  is reported (a malformed `(( concat ... ))` is a real authoring
+  mistake, not a placeholder).
+
+- A top-level bare reference that parses cleanly still passes through
+  rather than being wrapped in an implicit `grab`. Bare references in
+  *operand* position (`(( env == "production" ))`) still evaluate.
+
+This means graft's earlier top-level implicit-grab behavior is gone:
+`x: (( meta.name ))` no longer resolves — write
+`x: (( grab meta.name ))`. Graft's own bundled examples were updated
+accordingly.
+
+Reference lexing also accepts `+` inside a path segment when followed by
+an identifier character (`meta.__vaultified.haproxy_ssl+certificate` is
+one reference, matching how Genesis's vaultified manifests name keys),
+while `+` before a digit remains arithmetic (`(( meta.count+1 ))`).
+
 ## Related documents
 
 - [YAML formatting differences](yaml-formatting.md)

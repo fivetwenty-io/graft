@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** top-level bare references are no longer implicitly
+  grabbed. `x: (( meta.name ))` now passes through the merge verbatim
+  as a BOSH/CredHub placeholder, matching spruce; write
+  `x: (( grab meta.name ))` to resolve it. Bare references in operand
+  position (`(( env == "production" ))`) still evaluate. Bundled
+  examples were updated to use explicit `grab`.
+
+### Fixed
+
+- BOSH/CredHub variable placeholders now survive a merge byte-for-byte:
+  tight placeholders (`((cf_admin_password))`) are no longer re-spaced,
+  and unparseable placeholder text such as
+  `((genesis-entombed/uaa_ssl--key--fe75a2d0))` and
+  `((/dns_healthcheck_tls.ca))` passes through untouched instead of
+  failing the merge. Expressions starting with a registered operator
+  still report parse errors.
+- The vault backend now detects KV v2 mounts via
+  `sys/internal/ui/mounts` (with per-mount caching), inserting the
+  `data/` path segment v2 reads require and unwrapping the v2 response
+  envelope, matching spruce's vaultkv behavior. Reads against
+  KV v2-mounted secrets engines previously failed with
+  "Invalid path for a versioned K/V secrets engine".
+- Strings that cannot be written as plain YAML scalars for syntax
+  reasons (e.g. `*.uaa.((system_domain))`) are now emitted
+  single-quoted like spruce, instead of double-quoted. Type-lookalike
+  strings (`"1.0"`, `"yes"`, `"null"`) keep double quotes, also
+  matching spruce.
+- Reference paths accept `+` inside a segment when followed by an
+  identifier character (`meta.__vaultified.haproxy_ssl+certificate`),
+  as produced by Genesis's vaultified manifests; `+` before a digit
+  remains arithmetic.
+
 ## [1.32.1] - 2026-08-14
 
 ### Fixed
