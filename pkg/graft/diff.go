@@ -29,7 +29,7 @@ func yamlmarshal(x interface{}) string {
 }
 
 func sortkeys(m map[string]Diffable) []string {
-	kk := make([]string, 0)
+	kk := make([]string, 0, len(m))
 	for k := range m {
 		kk = append(kk, k)
 	}

@@ -1101,16 +1101,12 @@ func getIndexOfEntry(list []interface{}, key string, name string) int {
 }
 
 func insertIntoList(orig []interface{}, idx int, list []interface{}) []interface{} {
-	prefix := make([]interface{}, idx)
-	copy(prefix, orig[0:idx])
+	out := make([]interface{}, 0, len(orig)+len(list))
+	out = append(out, orig[:idx]...)
+	out = append(out, list...)
+	out = append(out, orig[idx:]...)
 
-	sublist := make([]interface{}, len(list))
-	copy(sublist, list)
-
-	suffix := make([]interface{}, len(orig)-idx)
-	copy(suffix, orig[idx:])
-
-	return append(prefix, append(sublist, suffix...)...)
+	return out
 }
 
 func deleteIndexFromList(orig []interface{}, idx int) []interface{} {

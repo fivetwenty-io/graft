@@ -98,7 +98,7 @@ func ExtractUnconditionalPaths(deps []*TrackedDependency) []*tree.Cursor {
 
 // ExtractAllPaths extracts all dependency paths (both conditional and unconditional).
 func ExtractAllPaths(deps []*TrackedDependency) []*tree.Cursor {
-	paths := []*tree.Cursor{}
+	paths := make([]*tree.Cursor, 0, len(deps))
 	for _, dep := range deps {
 		paths = append(paths, dep.Path)
 	}

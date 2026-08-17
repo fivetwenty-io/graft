@@ -187,6 +187,14 @@ linters:
         linters:
           - goconst
 
+      # Tests collect a handful of names or errors to assert on, and
+      # several build the slice up a literal element at a time to exercise
+      # a growing value. Sizing those allocations says nothing about the
+      # code under test.
+      - path: _test\.go
+        linters:
+          - prealloc
+
       # Test-case tables and the documentation examples are fixture data:
       # the repeated strings are the category labels and sample values a
       # reader is meant to see spelled out.

@@ -179,7 +179,7 @@ func (d *document) GetMap(path string) (map[string]interface{}, error) {
 
 // Keys returns all top-level keys.
 func (d *document) Keys() []string {
-	var keys []string
+	keys := make([]string, 0, len(d.data))
 	for k := range d.data {
 		keys = append(keys, k)
 	}

@@ -87,12 +87,11 @@ func (e *OtelExporter) buildExportRequest(metrics []Metric) *otelExportMetricsSe
 // buildResourceAttributes builds OTLP resource attributes.
 func (e *OtelExporter) buildResourceAttributes() []*otelKeyValue {
 	// Default attributes
-	attrs := []*otelKeyValue{
-		{
-			Key:   "service.name",
-			Value: &otelAnyValue{StringValue: stringPtr("graft")},
-		},
-	}
+	attrs := make([]*otelKeyValue, 0, 1+len(e.ResourceAttributes))
+	attrs = append(attrs, &otelKeyValue{
+		Key:   "service.name",
+		Value: &otelAnyValue{StringValue: stringPtr("graft")},
+	})
 
 	// Add custom attributes
 	for k, v := range e.ResourceAttributes {

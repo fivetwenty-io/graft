@@ -755,8 +755,7 @@ func (ev *Evaluator) CherryPick(paths []string) error {
 							cherryValue = tmp
 
 						case []interface{}:
-							tmp := make([]interface{}, 0)
-							tmp = append(tmp, cherryValue)
+							tmp := []interface{}{cherryValue}
 
 							cherryName = parent.Nodes[len(parent.Nodes)-1]
 							cherryValue = tmp
