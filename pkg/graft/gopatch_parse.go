@@ -49,11 +49,97 @@ func IsArrayError(err error) bool {
 // (string, number, bool). It exists because ParseYAML's own non-map-root
 // error does not distinguish "array" from other invalid root shapes, and
 // a go-patch retry (ParseGoPatch) only makes sense for an array root.
+//
+// The reliable signal is IsArrayError: a byte-scan fast path may return
+// nil for documents whose full parse would have produced a syntax or
+// non-map-root error, so callers must fall through to their real parse
+// (which reports those errors itself) whenever IsArrayError is false.
 func DetectArrayRoot(data []byte) error {
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil
 	}
 
+	// Fast path: when a byte scan proves the root cannot be an array,
+	// skip the full classification parse. Callers that only ask
+	// IsArrayError get the same answer; callers that would have seen a
+	// syntax or non-map-root error surface it from their real parse
+	// immediately after.
+	if rootCannotBeArray(data) {
+		return nil
+	}
+
+	return detectArrayRootFull(data)
+}
+
+// rootCannotBeArray scans data's first content byte to prove, without
+// parsing, that the document root is not an array. It skips blank lines,
+// comment lines, and `---` document-start markers, then answers true only
+// for bytes that can never begin an array root: an alphanumeric, `_`,
+// quote, or `{` starts a plain/quoted scalar, a mapping key, or a flow
+// mapping. Anything else - `-`, `[`, node properties (`&`, `!`), YAML
+// directives, block scalars, and so on - stays ambiguous (false) and is
+// left to the full parse. False negatives are fine; a false positive
+// would misroute an array-rooted document, so the whitelist is strict.
+func rootCannotBeArray(data []byte) bool {
+	// Strip a UTF-8 BOM if present.
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+
+	for len(data) > 0 {
+		line := data
+		if idx := bytes.IndexByte(data, '\n'); idx >= 0 {
+			line = data[:idx]
+			data = data[idx+1:]
+		} else {
+			data = nil
+		}
+
+		line = bytes.TrimLeft(line, " \t\r")
+		if len(line) == 0 || line[0] == '#' {
+			continue
+		}
+
+		// `---` followed by whitespace or end of line is a document
+		// start; the root node may share its line.
+		if bytes.HasPrefix(line, []byte("---")) {
+			rest := line[3:]
+			if len(rest) == 0 {
+				continue
+			}
+			if rest[0] == ' ' || rest[0] == '\t' || rest[0] == '\r' {
+				rest = bytes.TrimLeft(rest, " \t\r")
+				if len(rest) == 0 || rest[0] == '#' {
+					continue
+				}
+				return isDefiniteNonArrayStart(rest[0])
+			}
+			// `---x` is a plain scalar, not a marker; fall through to
+			// classify its first byte (`-`), which stays ambiguous.
+		}
+
+		return isDefiniteNonArrayStart(line[0])
+	}
+
+	// Only blanks and comments: an empty document, but let the caller's
+	// existing blank check own that answer.
+	return false
+}
+
+// isDefiniteNonArrayStart reports whether a root node beginning with c
+// can never be an array.
+func isDefiniteNonArrayStart(c byte) bool {
+	switch {
+	case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		return true
+	case c == '_', c == '"', c == '\'', c == '{':
+		return true
+	}
+	return false
+}
+
+// detectArrayRootFull is DetectArrayRoot's original full-parse
+// classification, kept separate so the fast path can be tested for
+// equivalence against it.
+func detectArrayRootFull(data []byte) error {
 	var raw interface{}
 	if err := yaml.Unmarshal(QuoteInjectKeys(data), &raw); err != nil {
 		return fmt.Errorf("failed to parse YAML: %w", err)

@@ -384,8 +384,13 @@ func TestDetectArrayRoot(t *testing.T) {
 		{name: "array root", data: "- 1\n- 2\n", wantArray: true, wantErr: true},
 		{name: "empty", data: "", wantArray: false, wantErr: false},
 		{name: "blank document", data: "---\n", wantArray: false, wantErr: false},
-		{name: "scalar root", data: "1234\n", wantArray: false, wantErr: true},
-		{name: "invalid yaml", data: "key: [unterminated\n", wantArray: false, wantErr: true},
+		// The byte-probe fast path answers nil for anything it can prove
+		// is not array-rooted, even when a full parse would error; the
+		// caller's real parse owns reporting those errors.
+		{name: "scalar root", data: "1234\n", wantArray: false, wantErr: false},
+		{name: "invalid yaml", data: "key: [unterminated\n", wantArray: false, wantErr: false},
+		{name: "ambiguous scalar root", data: "-1234\n", wantArray: false, wantErr: true},
+		{name: "ambiguous invalid yaml", data: "- [unterminated\n", wantArray: false, wantErr: true},
 	}
 
 	for _, tt := range tests {

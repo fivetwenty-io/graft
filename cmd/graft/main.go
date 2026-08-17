@@ -1437,10 +1437,12 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts) fi
 		return fileParseResult{err: readErr}
 	}
 
-	// Check if it's a go-patch document
+	// Check if it's a go-patch document. DetectArrayRoot's byte probe
+	// answers "not an array" for the common map-rooted file without a
+	// throwaway classification parse; syntax errors surface from the
+	// real parse below either way.
 	if options.EnableGoPatch {
-		_, parseErr := parseYAML(data)
-		if graft.IsArrayError(parseErr) {
+		if graft.IsArrayError(graft.DetectArrayRoot(data)) {
 			log.DEBUG("Detected root of document as an array. Attempting go-patch parsing")
 			ops, patchErr := graft.ParseGoPatch(data)
 			if patchErr != nil {
