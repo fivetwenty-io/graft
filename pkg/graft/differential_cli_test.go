@@ -63,7 +63,9 @@ func buildGraftBinary(t *testing.T) string {
 			binPath += ".exe"
 		}
 
-		cmd := exec.Command("go", "build", "-o", binPath, "./cmd/graft")
+		// context.Background, not t.Context: the binary is built once and
+		// reused by every later test in this package.
+		cmd := exec.CommandContext(context.Background(), "go", "build", "-o", binPath, "./cmd/graft")
 		cmd.Dir = root
 		out, buildErr := cmd.CombinedOutput()
 		if buildErr != nil {
@@ -92,7 +94,7 @@ func runGraftMerge(t *testing.T, bin string, goPatch bool, paths ...string) stri
 	}
 	args = append(args, paths...)
 
-	cmd := exec.Command(bin, args...)
+	cmd := exec.CommandContext(t.Context(), bin, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

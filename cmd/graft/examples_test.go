@@ -468,7 +468,7 @@ func TestFileOperatorExamples(t *testing.T) {
 	restore := chdir(t, fileDir)
 	defer restore()
 
-	if out, err := exec.Command("bash", "setup.sh").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(t.Context(), "bash", "setup.sh").CombinedOutput(); err != nil {
 		t.Fatalf("examples/file/setup.sh failed: %s\n%s", err, out)
 	}
 	defer func() {

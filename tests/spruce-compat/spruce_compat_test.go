@@ -25,7 +25,7 @@ func TestSpruceCompatParity(t *testing.T) {
 		t.Skip("bash not found on PATH; the parity harness requires bash (genesis's own shell), not sh")
 	}
 
-	cmd := exec.Command("bash", "run.sh")
+	cmd := exec.CommandContext(t.Context(), "bash", "run.sh")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
