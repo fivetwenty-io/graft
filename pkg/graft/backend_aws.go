@@ -2,6 +2,7 @@ package graft
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -256,7 +257,8 @@ func getAWSOptionParam(ctx context.Context, sess *session.Session, name string) 
 		WithDecryption: awssdk.Bool(true),
 	})
 	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok && (awsErr.Code() == ssm.ErrCodeParameterNotFound || awsErr.Code() == ssm.ErrCodeResourceNotFoundException) {
+		var awsErr awserr.Error
+		if errors.As(err, &awsErr) && (awsErr.Code() == ssm.ErrCodeParameterNotFound || awsErr.Code() == ssm.ErrCodeResourceNotFoundException) {
 			return "", fmt.Errorf("%w: %s", ErrBackendNotFound, name)
 		}
 		return "", fmt.Errorf("aws: GetParameter %q: %w", name, err)
@@ -277,7 +279,8 @@ func getAWSOptionSecret(ctx context.Context, sess *session.Session, id string) (
 		SecretId: awssdk.String(id),
 	})
 	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == secretsmanager.ErrCodeResourceNotFoundException {
+		var awsErr awserr.Error
+		if errors.As(err, &awsErr) && awsErr.Code() == secretsmanager.ErrCodeResourceNotFoundException {
 			return "", fmt.Errorf("%w: %s", ErrBackendNotFound, id)
 		}
 		return "", fmt.Errorf("aws: GetSecretValue %q: %w", id, err)

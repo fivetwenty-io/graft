@@ -395,7 +395,7 @@ func (e *DefaultEngine) validateEvalPlan(data map[string]interface{}, waves []Ev
 		liveEv := e.createEvaluator(data)
 		dfg, err := liveEv.computeDataFlowGraph(phase)
 		if err != nil {
-			return fmt.Errorf("%w: could not compute live dependency graph for phase %v: %v", ErrInvalidEvalPlan, phase, err)
+			return fmt.Errorf("%w: could not compute live dependency graph for phase %v: %w", ErrInvalidEvalPlan, phase, err)
 		}
 
 		for _, pair := range dfg.edges {

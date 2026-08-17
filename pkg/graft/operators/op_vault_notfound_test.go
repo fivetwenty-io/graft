@@ -2,6 +2,7 @@ package operators
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"testing"
 
@@ -116,12 +117,14 @@ func extractOperatorErrorMessage(err error) string {
 }
 
 func asMultiError(err error, target *graft.MultiError) bool {
-	if me, ok := err.(graft.MultiError); ok {
+	var me graft.MultiError
+	if errors.As(err, &me) {
 		*target = me
 		return true
 	}
-	if me, ok := err.(*graft.MultiError); ok {
-		*target = *me
+	var mep *graft.MultiError
+	if errors.As(err, &mep) {
+		*target = *mep
 		return true
 	}
 	return false

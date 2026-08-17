@@ -54,12 +54,12 @@ func resolveGrabDynamicBrackets(arg *Expr, ev *Evaluator) error {
 
 		cursor, err := tree.ParseCursor(node)
 		if err != nil {
-			return fmt.Errorf("invalid bracketed key reference %q: %s", node, err)
+			return fmt.Errorf("invalid bracketed key reference %q: %w", node, err)
 		}
 
 		val, err := cursor.Resolve(ev.Tree)
 		if err != nil {
-			return fmt.Errorf("unable to resolve bracketed key reference %q: %s", node, err)
+			return fmt.Errorf("unable to resolve bracketed key reference %q: %w", node, err)
 		}
 
 		key, err := bracketKeyToNode(node, val)

@@ -105,8 +105,9 @@ func resolveGrabArgValue(ev *Evaluator, arg *Expr) (interface{}, error) {
 		// literal or env var), it might be a reference path.
 		cursor, cerr := tree.ParseCursor(pathStr)
 		if cerr != nil {
-			// Not a valid path, use the string value as-is.
-			return pathStr, nil
+			// Not a valid path, use the string value as-is. The parse
+			// failure is the signal, not an error to propagate.
+			return pathStr, nil //nolint:nilerr // a non-path string is a legitimate grab result
 		}
 		// It's a valid path, try to resolve it.
 		resolved, rerr := cursor.Resolve(ev.Tree)

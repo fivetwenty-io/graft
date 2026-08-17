@@ -52,9 +52,10 @@ func mergeExprErr(t *testing.T, yamlSrc string) error {
 func firstPathError(t *testing.T, err error) *graft.PathError {
 	t.Helper()
 	var multi graft.MultiError
-	if me, ok := err.(graft.MultiError); ok {
-		multi = me
-	} else if mep, ok := err.(*graft.MultiError); ok {
+	var mep *graft.MultiError
+	switch {
+	case errors.As(err, &multi):
+	case errors.As(err, &mep):
 		multi = *mep
 	}
 	if len(multi.Errors) > 0 {

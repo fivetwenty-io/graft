@@ -2,6 +2,7 @@ package graft
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -51,8 +52,8 @@ func TestSortPostProcessingErrorParity(t *testing.T) {
 
 	expectSingleSortError := func(err error, substrings ...string) {
 		So(err, ShouldNotBeNil)
-		multi, ok := err.(MultiError)
-		So(ok, ShouldBeTrue)
+		var multi MultiError
+		So(errors.As(err, &multi), ShouldBeTrue)
 		So(multi.Errors, ShouldHaveLength, 1)
 		for _, s := range substrings {
 			So(err.Error(), ShouldContainSubstring, s)
