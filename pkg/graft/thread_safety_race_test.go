@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/smartystreets/goconvey/convey"
 	yamlv3 "github.com/goccy/go-yaml"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 // parseYAML is a helper function to parse YAML into a map for tests

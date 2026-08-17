@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	api "github.com/hashicorp/vault/api"
 	"github.com/goccy/go-yaml"
+	api "github.com/hashicorp/vault/api"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"

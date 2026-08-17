@@ -71,7 +71,7 @@ func adaptiveMergeErrorLines(stderr string) []string {
 
 // TestGenesisAdaptiveMergeErrorFormat pins graft's merge/eval stderr format to
 // the exact contract genesis's _adaptive_merge parses:
-// `` - $.<path>: <message>`` (one error per line, no ANSI color codes on a
+// “ - $.<path>: <message>“ (one error per line, no ANSI color codes on a
 // non-tty stderr), with a MultiError's lines lexicographically sorted.
 func TestGenesisAdaptiveMergeErrorFormat(t *testing.T) {
 	Convey("graft merge stderr matches genesis's _adaptive_merge regex", t, func() {

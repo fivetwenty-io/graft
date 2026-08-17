@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/smartystreets/goconvey/convey"
 	yamlv3 "github.com/goccy/go-yaml"
+	. "github.com/smartystreets/goconvey/convey"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )

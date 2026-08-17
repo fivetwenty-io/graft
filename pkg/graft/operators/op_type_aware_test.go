@@ -709,8 +709,6 @@ func deepEqual(a, b interface{}) bool {
 		return false
 	}
 
-
-
 	// Default comparison
 	return a == b
 }

@@ -55,12 +55,12 @@ func TestYAMLCompatConvertMapValues(t *testing.T) {
 	compat := DefaultYAMLCompat()
 
 	data := map[string]interface{}{
-		"enabled": "yes",
+		"enabled":  "yes",
 		"disabled": "no",
-		"name": "hello",
-		"count": 42,
+		"name":     "hello",
+		"count":    42,
 		"nested": map[string]interface{}{
-			"flag": "on",
+			"flag":  "on",
 			"value": "world",
 		},
 		"list": []interface{}{"off", "keep", map[string]interface{}{"inner": "YES"}},

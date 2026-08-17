@@ -350,7 +350,7 @@ func TestSegmentsMatchWithContext(t *testing.T) {
 				Tree: map[string]interface{}{
 					"items": []interface{}{
 						map[string]interface{}{"value": 100}, // No name field
-						"simple-string", // Not a map
+						"simple-string",                      // Not a map
 					},
 				},
 			}
