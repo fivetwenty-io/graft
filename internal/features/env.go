@@ -78,6 +78,21 @@ func (ff *FeatureFlags) LoadFromEnv() {
 	}
 }
 
+// EnvOverride reports whether envVar carries a valid boolean in the
+// environment, and its parsed value, using the same value parsing as
+// LoadFromEnv. It lets callers distinguish an explicit setting from a
+// flag left at its default - needed for flags whose package default
+// disagrees with a config-tier default, where the merged FeatureFlags
+// value alone cannot tell "explicitly disabled" from "never set".
+func EnvOverride(envVar string) (value, explicit bool) {
+	raw := os.Getenv(envVar)
+	if raw == "" {
+		return false, false
+	}
+	v, ok := parseBool(raw)
+	return v, ok
+}
+
 // LoadFromEnvWithPrefix loads feature flags from environment variables
 // with a custom prefix. This is useful for testing or when running
 // multiple graft instances with different configurations.

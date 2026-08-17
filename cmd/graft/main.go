@@ -332,14 +332,17 @@ func expandFanTargets(paths []string) ([]string, error) {
 //
 // When cfg is non-nil, its Parallel section drives the engine's
 // parallel-evaluation default (parallel evaluation is enabled by default,
-// replacing the previously hardcoded WithConcurrency(10)):
-// cfg.Parallel.Enabled controls WithParallel, and resolveConcurrency
-// derives the worker count from cfg.Parallel.MaxWorkers (an explicit
-// file/env override) or runtime.NumCPU() floored at 1. graft.WithParallel
-// also flips the FeatureParallelEvaluation flag on the same *FeatureFlags
-// instance passed via WithFeatureFlags, so both of the engine's parallel
-// gates (EnableParallel and the feature flag) stay in sync from one
-// config-derived value.
+// replacing the previously hardcoded WithConcurrency(10)), and
+// resolveConcurrency derives the worker count from cfg.Parallel.MaxWorkers
+// (an explicit file/env override) or runtime.NumCPU() floored at 1.
+//
+// Parallel evaluation has two documented kill switches -
+// GRAFT_PARALLEL_ENABLED (config) and GRAFT_FEATURE_PARALLEL (feature
+// flag) - and either one set to false disables it: the effective value
+// is the AND of both gates. graft.WithParallel then writes that one
+// value to both EnableParallel and the FeatureParallelEvaluation flag on
+// the *FeatureFlags instance passed via WithFeatureFlags, keeping the
+// engine's two parallel gates in sync.
 func configEngineOpts(cfg *config.Config, ff *features.FeatureFlags) []graft.EngineOption {
 	var opts []graft.EngineOption
 	if cfg != nil {
@@ -349,8 +352,17 @@ func configEngineOpts(cfg *config.Config, ff *features.FeatureFlags) []graft.Eng
 		opts = append(opts, graft.WithFeatureFlags(ff))
 	}
 	if cfg != nil {
+		enabled := cfg.Parallel.Enabled
+		// FeatureParallelEvaluation defaults to false while the config
+		// tier defaults to true, so the merged flag value cannot say
+		// whether the operator asked for anything - only an explicit
+		// GRAFT_FEATURE_PARALLEL in the environment can, and an explicit
+		// false must win.
+		if v, explicit := features.EnvOverride(features.EnvFeatureParallel); explicit {
+			enabled = enabled && v
+		}
 		opts = append(opts,
-			graft.WithParallel(cfg.Parallel.Enabled),
+			graft.WithParallel(enabled),
 			graft.WithConcurrency(resolveConcurrency(cfg.Parallel)),
 		)
 	}

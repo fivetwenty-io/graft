@@ -245,10 +245,10 @@ func featurePrecedenceCases() []featurePrecedenceCase {
 			// (internal/features.DefaultFlags' own conservative default,
 			// intentionally left untouched). It is exercised here at the
 			// resolveStartupFeatureFlags level only; the CLI's actual "is
-			// parallel on" decision is driven by internal/config's
-			// Parallel.Enabled instead (see
-			// TestParallelPrecedenceConfigWinsOverFeatureFlag below), which
-			// is where the parallel-on-by-default guarantee lives.
+			// parallel on" decision ANDs internal/config's Parallel.Enabled
+			// with any explicit GRAFT_FEATURE_PARALLEL setting (see
+			// TestParallelPrecedenceEitherGateDisables below), which is
+			// where the parallel-on-by-default guarantee lives.
 			name: "parallel_evaluation", flag: features.FeatureParallelEvaluation,
 			envVar: features.EnvFeatureParallel, envValue: "true",
 			wantDef: false, wantEnv: true,
@@ -277,21 +277,17 @@ func TestFeatureFlagPrecedenceEnvOverDefault(t *testing.T) {
 	}
 }
 
-// TestParallelPrecedenceConfigWinsOverFeatureFlag documents and locks in
-// the tested contract for the one setting with two independent env-var
-// paths: internal/config.Parallel.Enabled (GRAFT_PARALLEL_ENABLED, wired to
-// be authoritative for the engine's EnableParallel option, so config drives
-// the parallel-on-by-default value and any file/env override of it) and
+// TestParallelPrecedenceEitherGateDisables locks in the contract for the
+// one setting with two independent env-var paths:
+// internal/config.Parallel.Enabled (GRAFT_PARALLEL_ENABLED) and
 // internal/features.FeatureParallelEvaluation (GRAFT_FEATURE_PARALLEL).
-// configEngineOpts applies graft.WithParallel(cfg.Parallel.Enabled) after
-// graft.WithFeatureFlags(ff), so cfg.Parallel.Enabled wins the final
-// engine.EnableParallel && IsFeatureEnabled(FeatureParallelEvaluation)
-// gate in both directions, regardless of GRAFT_FEATURE_PARALLEL - this is
-// intentional (the engine's EnableParallel/concurrency should come from the
-// resolved startup config, not a hardcoded or independently-set feature
-// flag), not a bug, and is asserted here so a future change can't silently
-// invert it.
-func TestParallelPrecedenceConfigWinsOverFeatureFlag(t *testing.T) {
+// Parallel evaluation runs only when both agree it should: an operator
+// who sets either variable to false gets what they asked for. The
+// previous wiring applied graft.WithParallel(cfg.Parallel.Enabled) after
+// graft.WithFeatureFlags(ff), silently clobbering an explicit
+// GRAFT_FEATURE_PARALLEL=false with the config default of true; that
+// left one documented kill switch inert, which is asserted away here.
+func TestParallelPrecedenceEitherGateDisables(t *testing.T) {
 	newEngine := func(t *testing.T, cfg *config.Config, ff *features.FeatureFlags) *graft.DefaultEngine {
 		t.Helper()
 		engine, err := graft.NewEngine(configEngineOpts(cfg, ff)...)
@@ -305,24 +301,29 @@ func TestParallelPrecedenceConfigWinsOverFeatureFlag(t *testing.T) {
 		return de
 	}
 
-	t.Run("config Parallel.Enabled=true wins over GRAFT_FEATURE_PARALLEL=false", func(t *testing.T) {
-		cfg := config.DefaultConfig() // Parallel.Enabled == true
-		ff := features.DefaultFlags()
-		ff.Disable(features.FeatureParallelEvaluation)
-
-		de := newEngine(t, cfg, ff)
+	t.Run("both gates default true keeps parallel on", func(t *testing.T) {
+		de := newEngine(t, config.DefaultConfig(), features.DefaultFlags())
 		if de.GetWorkerPool() == nil {
-			t.Error("expected a worker pool: cfg.Parallel.Enabled=true must win over a disabled feature flag")
+			t.Error("expected a worker pool: both gates default to enabled")
 		}
 	})
 
-	t.Run("config Parallel.Enabled=false wins over GRAFT_FEATURE_PARALLEL=true", func(t *testing.T) {
+	t.Run("GRAFT_FEATURE_PARALLEL=false disables despite config default", func(t *testing.T) {
+		t.Setenv(features.EnvFeatureParallel, "false")
+		cfg := config.DefaultConfig() // Parallel.Enabled == true
+
+		de := newEngine(t, cfg, resolveStartupFeatureFlags())
+		if de.GetWorkerPool() != nil {
+			t.Error("expected no worker pool: an explicit feature-flag disable must stick")
+		}
+	})
+
+	t.Run("config Parallel.Enabled=false disables despite feature flag", func(t *testing.T) {
+		t.Setenv(features.EnvFeatureParallel, "true")
 		cfg := config.DefaultConfig()
 		cfg.Parallel.Enabled = false
-		ff := features.DefaultFlags()
-		ff.Enable(features.FeatureParallelEvaluation)
 
-		de := newEngine(t, cfg, ff)
+		de := newEngine(t, cfg, resolveStartupFeatureFlags())
 		if de.GetWorkerPool() != nil {
 			t.Error("expected no worker pool: cfg.Parallel.Enabled=false must win over an enabled feature flag")
 		}
