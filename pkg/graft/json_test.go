@@ -13,7 +13,7 @@ func TestJSONifyFilesMultiDoc(t *testing.T) {
 	Convey("JSONifyFiles on multi-doc YAML", t, func() {
 		Convey("emits exactly one compact JSON string per document", func() {
 			data := []byte("name: first\nvalue: 1\n---\nname: second\nvalue: 2\n---\nname: third\nlist:\n- a\n- b\n")
-			lines, err := jsonifyDataMultiDoc(data, false)
+			lines, err := jsonifyDataMultiDoc(data)
 			So(err, ShouldBeNil)
 			So(len(lines), ShouldEqual, 3)
 
@@ -31,7 +31,7 @@ func TestJSONifyFilesMultiDoc(t *testing.T) {
 
 		Convey("a single-document input still yields exactly one JSON line", func() {
 			data := []byte("name: only\n")
-			lines, err := jsonifyDataMultiDoc(data, false)
+			lines, err := jsonifyDataMultiDoc(data)
 			So(err, ShouldBeNil)
 			So(len(lines), ShouldEqual, 1)
 			So(lines[0], ShouldEqual, `{"name":"only"}`)
@@ -39,7 +39,7 @@ func TestJSONifyFilesMultiDoc(t *testing.T) {
 
 		Convey("a trailing dangling document separator produces an empty document, which errors like spruce (no silent {} line)", func() {
 			data := []byte("name: first\n---\n")
-			_, err := jsonifyDataMultiDoc(data, false)
+			_, err := jsonifyDataMultiDoc(data)
 			So(err, ShouldNotBeNil)
 			So(err.Error(), ShouldContainSubstring, "Root of YAML document is not a hash/map")
 		})
@@ -94,7 +94,7 @@ func TestJSONifyFilesMultiDoc(t *testing.T) {
 
 		Convey("bool-lookalike coercion applies per-document across a multi-doc input", func() {
 			data := []byte("flag: yes\n---\nflag: \"yes\"\n")
-			lines, err := jsonifyDataMultiDoc(data, false)
+			lines, err := jsonifyDataMultiDoc(data)
 			So(err, ShouldBeNil)
 			So(len(lines), ShouldEqual, 2)
 			So(lines[0], ShouldEqual, `{"flag":true}`)
@@ -207,7 +207,9 @@ func writeTempFile(t *testing.T, dir, name, contents string) string {
 // (or the first error encountered). Extracted here so multi-doc splitting
 // behavior can be tested without going through the file/stdin plumbing in
 // JSONifyFiles.
-func jsonifyDataMultiDoc(data []byte, strict bool) ([]string, error) {
+func jsonifyDataMultiDoc(data []byte) ([]string, error) {
+	const strict = false
+
 	l := []string{}
 	for _, doc := range splitYAMLDocs(data) {
 		jsonData, err := jsonifyData(doc, strict)

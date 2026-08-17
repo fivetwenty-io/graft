@@ -18,9 +18,11 @@ import (
 // or genesis's adaptive-merge retry logic silently drops the error.
 var genesisAdaptiveMergeErrorRx = regexp.MustCompile(`^ - \$\.([^:]*): (.*)$`)
 
-// runGraftCapturingOutput invokes main() with the given CLI args and returns
-// the captured stdout/stderr, restoring the previous test hooks afterward.
-func runGraftCapturingOutput(t *testing.T, args []string) (stdout, stderr string, rc int) {
+// runGraftCapturingOutput invokes main() with the given CLI args and
+// returns the captured stderr, restoring the previous test hooks
+// afterward. Stdout is captured too - so it stays out of the test's own
+// output - but no caller asserts on it.
+func runGraftCapturingOutput(t *testing.T, args []string) (stderr string, rc int) {
 	t.Helper()
 
 	prevPrintStdOutf := printStdOutf
@@ -36,9 +38,7 @@ func runGraftCapturingOutput(t *testing.T, args []string) (stdout, stderr string
 		os.Args = prevArgs
 	}()
 
-	printStdOutf = func(format string, fmtArgs ...interface{}) {
-		stdout += fmt.Sprintf(format, fmtArgs...)
-	}
+	printStdOutf = func(string, ...interface{}) {}
 	log.PrintStdErrf = func(format string, fmtArgs ...interface{}) {
 		stderr += fmt.Sprintf(format, fmtArgs...)
 	}
@@ -53,7 +53,7 @@ func runGraftCapturingOutput(t *testing.T, args []string) (stdout, stderr string
 	os.Args = append([]string{"graft"}, args...)
 	main()
 
-	return stdout, stderr, rc
+	return stderr, rc
 }
 
 // adaptiveMergeErrorLines returns every stderr line that looks like it is
@@ -76,7 +76,7 @@ func adaptiveMergeErrorLines(stderr string) []string {
 func TestGenesisAdaptiveMergeErrorFormat(t *testing.T) {
 	Convey("graft merge stderr matches genesis's _adaptive_merge regex", t, func() {
 		Convey("a single unresolved-reference error is one regex-matching line", func() {
-			_, stderr, rc := runGraftCapturingOutput(t, []string{"merge", "../../assets/errors/multi.yml"})
+			stderr, rc := runGraftCapturingOutput(t, []string{"merge", "../../assets/errors/multi.yml"})
 
 			So(rc, ShouldEqual, 2)
 
@@ -94,7 +94,7 @@ func TestGenesisAdaptiveMergeErrorFormat(t *testing.T) {
 		})
 
 		Convey("multiple errors at the same level: one regex-matching line each, sorted by path", func() {
-			_, stderr, rc := runGraftCapturingOutput(t, []string{"merge", "../../assets/errors/multi2.yml"})
+			stderr, rc := runGraftCapturingOutput(t, []string{"merge", "../../assets/errors/multi2.yml"})
 
 			So(rc, ShouldEqual, 2)
 

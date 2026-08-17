@@ -75,7 +75,7 @@ import (
 func TestGenesisContractErrorCodesOptInPreservesScrapedShape(t *testing.T) {
 	t.Setenv("GRAFT_ERROR_CODES", "1")
 
-	_, stderr, rc := runGraftCapturingOutput(t, []string{"merge", "../../assets/errors/multi.yml"})
+	stderr, rc := runGraftCapturingOutput(t, []string{"merge", "../../assets/errors/multi.yml"})
 
 	if rc != 2 {
 		t.Fatalf("rc = %d, want 2", rc)

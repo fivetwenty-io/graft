@@ -64,12 +64,13 @@ func equalStringSets(a, b []string) bool {
 	return true
 }
 
-// runWithTimeout fails t if fn does not return within d - the guard
+// runWithTimeout fails t if fn does not return promptly - the guard
 // against DependencyGraph/BuildEvalPlan/TopologicalSort hanging on a
 // cyclic document instead of returning an error, which the plan's C9a
 // section requires explicitly.
-func runWithTimeout(t *testing.T, d time.Duration, fn func()) {
+func runWithTimeout(t *testing.T, fn func()) {
 	t.Helper()
+	const d = 5 * time.Second
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -285,7 +286,7 @@ func TestBuildEvalPlan_MatchesLiveParallelScheduler(t *testing.T) {
 			}
 
 			var waves []EvalWave
-			runWithTimeout(t, 5*time.Second, func() {
+			runWithTimeout(t, func() {
 				waves = BuildEvalPlan(graph)
 			})
 
@@ -366,7 +367,7 @@ func TestDependencyGraph_CycleMatchesLiveEvaluatorErrorClass(t *testing.T) {
 	data := parseYAMLForTest(t, yaml)
 
 	var liveErr error
-	runWithTimeout(t, 5*time.Second, func() {
+	runWithTimeout(t, func() {
 		_, liveErr = engine.Evaluate(context.Background(), NewDocument(data))
 	})
 	if liveErr == nil {
@@ -378,7 +379,7 @@ func TestDependencyGraph_CycleMatchesLiveEvaluatorErrorClass(t *testing.T) {
 
 	var graph *DependencyGraph
 	var buildErr error
-	runWithTimeout(t, 5*time.Second, func() {
+	runWithTimeout(t, func() {
 		graph, buildErr = engine.BuildDependencyGraph(NewDocument(parseYAMLForTest(t, yaml)), EvalPhase)
 	})
 	if buildErr != nil {
@@ -386,7 +387,7 @@ func TestDependencyGraph_CycleMatchesLiveEvaluatorErrorClass(t *testing.T) {
 	}
 
 	var cycles [][]string
-	runWithTimeout(t, 5*time.Second, func() {
+	runWithTimeout(t, func() {
 		cycles = graph.DetectCycles()
 	})
 	if len(cycles) == 0 {
@@ -394,7 +395,7 @@ func TestDependencyGraph_CycleMatchesLiveEvaluatorErrorClass(t *testing.T) {
 	}
 
 	var sortErr error
-	runWithTimeout(t, 5*time.Second, func() {
+	runWithTimeout(t, func() {
 		_, sortErr = graph.TopologicalSort()
 	})
 	if sortErr == nil {
@@ -402,7 +403,7 @@ func TestDependencyGraph_CycleMatchesLiveEvaluatorErrorClass(t *testing.T) {
 	}
 
 	var waves []EvalWave
-	runWithTimeout(t, 5*time.Second, func() {
+	runWithTimeout(t, func() {
 		waves = BuildEvalPlan(graph)
 	})
 	if waves != nil {

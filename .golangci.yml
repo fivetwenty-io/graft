@@ -187,6 +187,14 @@ linters:
         linters:
           - goconst
 
+      # A test fetch function that never fails still has to return an
+      # error: its signature is fixed by the caching/dedup API it is
+      # handed to, not by what this particular test does inside it.
+      - path: _test\.go
+        linters:
+          - unparam
+        text: 'result \d+ \(error\) is always nil'
+
       # Tests collect a handful of names or errors to assert on, and
       # several build the slice up a literal element at a time to exercise
       # a growing value. Sizing those allocations says nothing about the

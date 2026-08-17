@@ -63,8 +63,9 @@ func evalYAMLErr(t *testing.T, yamlSrc string) error {
 
 // staticIPsAt digs jobs[0].networks[0].static_ips out of an evaluated
 // document and returns it as a []interface{}.
-func staticIPsAt(t *testing.T, data map[string]interface{}, jobIdx, netIdx int) []interface{} {
+func staticIPsAt(t *testing.T, data map[string]interface{}) []interface{} {
 	t.Helper()
+	const jobIdx, netIdx = 0, 0
 
 	jobs, ok := data["jobs"].([]interface{})
 	if !ok || jobIdx >= len(jobs) {
@@ -135,7 +136,7 @@ networks:
   - static:
     - 10.0.0.2 - 10.0.0.5
 `)
-		got := ipStrings(t, staticIPsAt(t, data, 0, 0))
+		got := ipStrings(t, staticIPsAt(t, data))
 		assertStringSliceEqual(t, got, []string{"10.0.0.2", "10.0.0.3", "10.0.0.4"})
 	})
 
@@ -155,7 +156,7 @@ networks:
     static:
     - 10.0.0.10 - 10.0.0.12
 `)
-		got := ipStrings(t, staticIPsAt(t, data, 0, 0))
+		got := ipStrings(t, staticIPsAt(t, data))
 		assertStringSliceEqual(t, got, []string{"10.0.0.10"})
 	})
 
@@ -184,7 +185,7 @@ networks:
     static:
     - 10.2.2.2
 `)
-		got := ipStrings(t, staticIPsAt(t, data, 0, 0))
+		got := ipStrings(t, staticIPsAt(t, data))
 		assertStringSliceEqual(t, got, []string{"10.1.1.1", "10.2.2.2"})
 	})
 
@@ -206,7 +207,7 @@ networks:
     static:
     - 10.0.0.2
 `)
-		got := ipStrings(t, staticIPsAt(t, data, 0, 0))
+		got := ipStrings(t, staticIPsAt(t, data))
 		assertStringSliceEqual(t, got, []string{"10.0.0.1", "10.0.0.2"})
 	})
 }

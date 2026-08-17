@@ -8,10 +8,12 @@ import (
 	"testing"
 )
 
-// buildTestGraph parses yamlSrc with a fresh sequential engine and returns
-// the phase's DependencyGraph, failing the test on any error.
-func buildTestGraph(t *testing.T, engine *DefaultEngine, yamlSrc string, phase OperatorPhase) *DependencyGraph {
+// buildTestGraph parses yamlSrc with a fresh sequential engine and
+// returns the eval phase's DependencyGraph, failing the test on any
+// error.
+func buildTestGraph(t *testing.T, engine *DefaultEngine, yamlSrc string) *DependencyGraph {
 	t.Helper()
+	const phase = EvalPhase
 	tree := parseYAMLForTest(t, yamlSrc)
 	g, err := engine.BuildDependencyGraph(NewDocument(tree), phase)
 	if err != nil {
@@ -30,7 +32,7 @@ func sequentialTestEngine(t *testing.T) *DefaultEngine {
 
 func TestDependencyGraph_LinearChain(t *testing.T) {
 	engine := sequentialTestEngine(t)
-	g := buildTestGraph(t, engine, "a: (( grab c ))\nb: (( grab a ))\nc: hello\n", EvalPhase)
+	g := buildTestGraph(t, engine, "a: (( grab c ))\nb: (( grab a ))\nc: hello\n")
 
 	nodes := g.Nodes()
 	if len(nodes) != 2 {
@@ -69,7 +71,7 @@ func TestDependencyGraph_Diamond(t *testing.T) {
 		"left: (( grab base ))\n" +
 		"right: (( grab base ))\n" +
 		"joined: (( concat left right ))\n"
-	g := buildTestGraph(t, engine, yamlSrc, EvalPhase)
+	g := buildTestGraph(t, engine, yamlSrc)
 
 	if deps := g.Dependencies("joined"); len(deps) != 2 {
 		t.Fatalf("Dependencies(joined) = %v, want 2 entries (left, right)", deps)
@@ -104,7 +106,7 @@ func TestDependencyGraph_DisjointIslands(t *testing.T) {
 		"island_b:\n" +
 		"  x: seed\n" +
 		"  y: (( grab island_b.x ))\n"
-	g := buildTestGraph(t, engine, yamlSrc, EvalPhase)
+	g := buildTestGraph(t, engine, yamlSrc)
 
 	if len(g.Nodes()) != 2 {
 		t.Fatalf("expected 2 operator nodes, got %d: %+v", len(g.Nodes()), g.Nodes())
@@ -121,7 +123,7 @@ func TestDependencyGraph_DisjointIslands(t *testing.T) {
 
 func TestDependencyGraph_SelfCycle(t *testing.T) {
 	engine := sequentialTestEngine(t)
-	g := buildTestGraph(t, engine, "a: (( grab a ))\n", EvalPhase)
+	g := buildTestGraph(t, engine, "a: (( grab a ))\n")
 
 	cycles := g.DetectCycles()
 	if len(cycles) == 0 {
@@ -148,7 +150,7 @@ func TestDependencyGraph_SelfCycle(t *testing.T) {
 
 func TestDependencyGraph_MutualCycle(t *testing.T) {
 	engine := sequentialTestEngine(t)
-	g := buildTestGraph(t, engine, "a: (( grab b ))\nb: (( grab a ))\n", EvalPhase)
+	g := buildTestGraph(t, engine, "a: (( grab b ))\nb: (( grab a ))\n")
 
 	cycles := g.DetectCycles()
 	if len(cycles) == 0 {
@@ -174,7 +176,7 @@ func TestDependencyGraph_MutualCycle(t *testing.T) {
 
 func TestDependencyGraph_ToDOT(t *testing.T) {
 	engine := sequentialTestEngine(t)
-	g := buildTestGraph(t, engine, "a: (( grab c ))\nb: (( grab a ))\nc: hello\n", EvalPhase)
+	g := buildTestGraph(t, engine, "a: (( grab c ))\nb: (( grab a ))\nc: hello\n")
 
 	dot := g.ToDOT()
 	if !strings.HasPrefix(dot, "digraph DependencyGraph {") {
