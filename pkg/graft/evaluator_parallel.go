@@ -225,6 +225,15 @@ func indexOps(ops []*Opcall) (allLocs []*tree.Cursor, opIDMap map[string]string,
 // duplicate task ID (which canonical/alias paths can produce) is skipped
 // rather than treated as an error.
 func (ev *Evaluator) addSchedulerTasks(scheduler *parallel.Scheduler, ops []*Opcall, allLocs []*tree.Cursor, opIDMap map[string]string) {
+	// Enforce the single-threaded promise above rather than trusting
+	// it: overlapping computations would corrupt each other's ev.Here
+	// and produce wrong dependency edges silently. Panicking here puts
+	// the failure at the bug instead of in a mis-merged document.
+	if atomic.AddInt32(&ev.depComputing, 1) != 1 {
+		panic("graft: concurrent dependency computation on one Evaluator; ev.Here mutation requires single-threaded scheduling")
+	}
+	defer atomic.AddInt32(&ev.depComputing, -1)
+
 	savedHere := ev.Here
 	defer func() { ev.Here = savedHere }()
 

@@ -41,6 +41,14 @@ type Evaluator struct {
 
 	Only []string
 
+	// depComputing guards the dependency-computation phase, which
+	// mutates the shared Here cursor and therefore must never run
+	// concurrently with itself. addSchedulerTasks increments it on
+	// entry via atomic ops and panics if another computation is
+	// already in flight. A plain int32 (not atomic.Int32) so the
+	// deliberate shallow copy in computeOp stays vet-clean.
+	depComputing int32
+
 	// Reference to the engine (for accessing registries and state)
 	engine Engine
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
@@ -95,7 +96,10 @@ const (
 	eContextDefaultMerge = 1 << iota
 )
 
-var dontPrintWarning bool
+// dontPrintWarning is read by Warn from whichever goroutine an operator
+// happens to run on under parallel evaluation, so it is atomic rather
+// than a plain bool - see TestSilenceWarningsIsGoroutineSafe.
+var dontPrintWarning atomic.Bool
 
 // NewWarningError returns a new WarningError object that has the given warning
 // message and context(s) assigned. Assigning no context should mean that all
@@ -110,7 +114,7 @@ func NewWarningError(context ErrorContext, warning string, args ...interface{}) 
 // print when Warn is called. Calling it with false will make warnings visible
 // again. Warnings will print by default.
 func SilenceWarnings(should bool) {
-	dontPrintWarning = should
+	dontPrintWarning.Store(should)
 }
 
 // Error will return the configured warning message as a string.
@@ -126,7 +130,7 @@ func (e WarningError) HasContext(context ErrorContext) bool {
 
 // Warn prints the configured warning to stderr.
 func (e WarningError) Warn() {
-	if !dontPrintWarning {
+	if !dontPrintWarning.Load() {
 		log.PrintStdErrf("%s", ansi.Sprintf("@Y{warning:} %s\n", e.warning))
 	}
 }
