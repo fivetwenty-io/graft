@@ -1,3 +1,5 @@
+// Package parallel provides the worker pool, scheduler, rate limiters,
+// and monitoring used to evaluate independent operators concurrently.
 package parallel
 
 import (

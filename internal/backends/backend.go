@@ -1,3 +1,6 @@
+// Package backends defines the interfaces the secret backends
+// (vault, AWS, NATS) implement, so an operator can retrieve a value
+// without knowing which store it comes from.
 package backends
 
 import "context"
