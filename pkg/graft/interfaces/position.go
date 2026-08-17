@@ -327,15 +327,15 @@ func (pm *PositionMapper) FormatError(pos Position, length int, message, hint st
 
 	// Error location header
 	if pos.File != "" {
-		result.WriteString(fmt.Sprintf("Error at %s:%d:%d:\n", pos.File, pos.Line, pos.Column))
+		_, _ = fmt.Fprintf(&result, "Error at %s:%d:%d:\n", pos.File, pos.Line, pos.Column)
 	} else {
-		result.WriteString(fmt.Sprintf("Error at line %d, column %d:\n", pos.Line, pos.Column))
+		_, _ = fmt.Fprintf(&result, "Error at line %d, column %d:\n", pos.Line, pos.Column)
 	}
 
 	// Show the source line
 	lineText := pm.LineText(pos.Line)
 	if lineText != "" {
-		result.WriteString(fmt.Sprintf("  %s\n", lineText))
+		_, _ = fmt.Fprintf(&result, "  %s\n", lineText)
 
 		// Add caret/underline
 		if pos.Column >= 1 {
@@ -356,7 +356,7 @@ func (pm *PositionMapper) FormatError(pos Position, length int, message, hint st
 
 	// Optional hint
 	if hint != "" {
-		result.WriteString(fmt.Sprintf("\n\nHint: %s", hint))
+		_, _ = fmt.Fprintf(&result, "\n\nHint: %s", hint)
 	}
 
 	return result.String()

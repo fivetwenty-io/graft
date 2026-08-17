@@ -31,7 +31,7 @@ func TestRenderChangeListFormatsHeaderAndGroups(t *testing.T) {
 	if modifiedIdx < 0 || addedIdx < 0 || removedIdx < 0 {
 		t.Fatalf("missing expected entries in output:\n%s", out)
 	}
-	if !(modifiedIdx < addedIdx && addedIdx < removedIdx) {
+	if modifiedIdx >= addedIdx || addedIdx >= removedIdx {
 		t.Fatalf("entries out of order (modified=%d added=%d removed=%d):\n%s", modifiedIdx, addedIdx, removedIdx, out)
 	}
 

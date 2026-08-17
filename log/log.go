@@ -17,8 +17,8 @@ var TraceOn = false
 // PrintStdErrf is a configurable hook to print to error output.
 var PrintStdErrf func(string, ...interface{})
 
-// Writer, when non-nil, receives DEBUG/TRACE output instead of
-// PrintStdErrf. It is a separate hook from PrintStdErrf (which also prints
+// Writer receives DEBUG/TRACE output instead of PrintStdErrf when it is
+// non-nil. It is a separate hook from PrintStdErrf (which also prints
 // user-facing CLI messages unrelated to DEBUG/TRACE) so redirecting
 // DEBUG/TRACE output - see pkg/graft.WithTraceOutput - does not also
 // redirect unrelated error output. Unset by default, matching historical

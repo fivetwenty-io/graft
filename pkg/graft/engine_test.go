@@ -602,7 +602,7 @@ level1:
 			yamlBuilder := strings.Builder{}
 			yamlBuilder.WriteString("large_doc:\n")
 			for i := 0; i < 1000; i++ {
-				yamlBuilder.WriteString(fmt.Sprintf("  key_%d: value_%d\n", i, i))
+				_, _ = fmt.Fprintf(&yamlBuilder, "  key_%d: value_%d\n", i, i)
 			}
 
 			doc, err := engine.ParseYAML([]byte(yamlBuilder.String()))

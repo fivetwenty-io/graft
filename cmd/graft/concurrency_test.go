@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"runtime"
@@ -39,7 +40,7 @@ func TestBuildEngineAndDocsPreservesFileOrderUnderConcurrentParsing(t *testing.T
 		t.Fatalf("expected 3 docs, got %d", len(docs))
 	}
 
-	mergeBuilder := engine.Merge(nil, docs...)
+	mergeBuilder := engine.Merge(context.Background(), docs...)
 	merged, err := mergeBuilder.Execute()
 	if err != nil {
 		t.Fatalf("merge Execute() error = %v", err)
@@ -104,12 +105,10 @@ func TestParallelStaticIPClaimErrorDeterministic(t *testing.T) {
 
 	var baseline string
 	for i := 0; i < staticIPRaceDeterminismIterations; i++ {
-		files := []YamlFile{}
-		f, err := openFiles([]string{"../../assets/static_ips/multi-azs-same-ip-different-index.yml"})
+		files, err := openFiles([]string{"../../assets/static_ips/multi-azs-same-ip-different-index.yml"})
 		if err != nil {
 			t.Fatalf("iteration %d: openFiles() error = %v", i, err)
 		}
-		files = f
 
 		opts := &mergeOpts{
 			Files:      []string{"../../assets/static_ips/multi-azs-same-ip-different-index.yml"},

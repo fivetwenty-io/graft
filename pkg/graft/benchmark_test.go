@@ -349,7 +349,7 @@ func generateLargeYAML(itemCount int) []byte {
 	builder.WriteString("items:\n")
 
 	for i := 0; i < itemCount; i++ {
-		builder.WriteString(fmt.Sprintf(`  item_%d:
+		_, _ = fmt.Fprintf(&builder, `  item_%d:
     name: "item_%d"
     value: %d
     config:
@@ -359,7 +359,7 @@ func generateLargeYAML(itemCount int) []byte {
         - "tag_%d_1"
         - "tag_%d_2"
         - "tag_%d_3"
-`, i, i, i, i%2 == 0, 30+i%100, i, i, i))
+`, i, i, i, i%2 == 0, 30+i%100, i, i, i)
 	}
 
 	return []byte(builder.String())
@@ -373,8 +373,8 @@ func generateLargeJSON(itemCount int) []byte {
 		if i > 0 {
 			builder.WriteString(",")
 		}
-		builder.WriteString(fmt.Sprintf(`"item_%d":{"name":"item_%d","value":%d,"config":{"enabled":%t,"timeout":%d,"tags":["tag_%d_1","tag_%d_2","tag_%d_3"]}}`,
-			i, i, i, i%2 == 0, 30+i%100, i, i, i))
+		_, _ = fmt.Fprintf(&builder, `"item_%d":{"name":"item_%d","value":%d,"config":{"enabled":%t,"timeout":%d,"tags":["tag_%d_1","tag_%d_2","tag_%d_3"]}}`,
+			i, i, i, i%2 == 0, 30+i%100, i, i, i)
 	}
 
 	builder.WriteString("}}")
@@ -394,13 +394,13 @@ func generateDocumentWithManyOperators(operatorCount int) Document {
 	for i := 0; i < operatorCount; i++ {
 		switch i % 4 {
 		case 0:
-			builder.WriteString(fmt.Sprintf("  value_%d: (( concat meta.base_name \"_%d\" ))\n", i, i))
+			_, _ = fmt.Fprintf(&builder, "  value_%d: (( concat meta.base_name \"_%d\" ))\n", i, i)
 		case 1:
-			builder.WriteString(fmt.Sprintf("  value_%d: (( grab meta.version ))\n", i))
+			_, _ = fmt.Fprintf(&builder, "  value_%d: (( grab meta.version ))\n", i)
 		case 2:
-			builder.WriteString(fmt.Sprintf("  value_%d: (( calc meta.count + %d ))\n", i, i))
+			_, _ = fmt.Fprintf(&builder, "  value_%d: (( calc meta.count + %d ))\n", i, i)
 		case 3:
-			builder.WriteString(fmt.Sprintf("  value_%d: (( calc %d > 50 ? \"large\" : \"small\" ))\n", i, i))
+			_, _ = fmt.Fprintf(&builder, "  value_%d: (( calc %d > 50 ? \"large\" : \"small\" ))\n", i, i)
 		}
 	}
 

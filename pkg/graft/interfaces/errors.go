@@ -164,7 +164,7 @@ func (f *DefaultErrorFormatter) FormatError(err error, context *SourceContext) s
 		line := context.GetLineContent()
 		if line != "" {
 			if f.ShowLineNumbers {
-				result.WriteString(fmt.Sprintf("%4d | %s\n", context.Position.Line, line))
+				_, _ = fmt.Fprintf(&result, "%4d | %s\n", context.Position.Line, line)
 				result.WriteString("     | ")
 			} else {
 				result.WriteString(line + "\n")
@@ -183,10 +183,10 @@ func (f *DefaultErrorFormatter) FormatError(err error, context *SourceContext) s
 func (f *DefaultErrorFormatter) FormatMultipleErrors(errs []error, source string) string {
 	var result strings.Builder
 
-	result.WriteString(fmt.Sprintf("Found %d error(s):\n\n", len(errs)))
+	_, _ = fmt.Fprintf(&result, "Found %d error(s):\n\n", len(errs))
 
 	for i, err := range errs {
-		result.WriteString(fmt.Sprintf("Error %d:\n", i+1))
+		_, _ = fmt.Fprintf(&result, "Error %d:\n", i+1)
 
 		// Try to extract position information for context
 		if posErr, ok := err.(interface{ Position() Position }); ok {

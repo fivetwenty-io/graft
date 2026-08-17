@@ -359,7 +359,7 @@ result: (( keys data ))
 		var yamlBuilder strings.Builder
 		yamlBuilder.WriteString("data:\n")
 		for i := 0; i < 100; i++ {
-			yamlBuilder.WriteString(fmt.Sprintf("  key%d: value%d\n", i, i))
+			_, _ = fmt.Fprintf(&yamlBuilder, "  key%d: value%d\n", i, i)
 		}
 		yamlBuilder.WriteString("result: (( keys data ))\n")
 
@@ -473,7 +473,7 @@ config:
 		yamlBuilder.WriteString("meta:\n  base: app\n  version: 1.0\n")
 
 		for i := 0; i < 50; i++ {
-			yamlBuilder.WriteString(fmt.Sprintf("value%d: (( concat meta.base \"_%d\" ))\n", i, i))
+			_, _ = fmt.Fprintf(&yamlBuilder, "value%d: (( concat meta.base \"_%d\" ))\n", i, i)
 		}
 
 		engine, _ := graft.NewEngine()
@@ -824,13 +824,13 @@ func BenchmarkOperatorScaling(b *testing.B) {
 			for i := 0; i < count; i++ {
 				switch i % 4 {
 				case 0:
-					yamlBuilder.WriteString(fmt.Sprintf("value%d: (( concat meta.base \"_%d\" ))\n", i, i))
+					_, _ = fmt.Fprintf(&yamlBuilder, "value%d: (( concat meta.base \"_%d\" ))\n", i, i)
 				case 1:
-					yamlBuilder.WriteString(fmt.Sprintf("value%d: (( grab meta.version ))\n", i))
+					_, _ = fmt.Fprintf(&yamlBuilder, "value%d: (( grab meta.version ))\n", i)
 				case 2:
-					yamlBuilder.WriteString(fmt.Sprintf("value%d: (( calc %d + %d ))\n", i, i, i))
+					_, _ = fmt.Fprintf(&yamlBuilder, "value%d: (( calc %d + %d ))\n", i, i, i)
 				case 3:
-					yamlBuilder.WriteString(fmt.Sprintf("value%d: (( calc %d > 50 ? \"large\" : \"small\" ))\n", i, i))
+					_, _ = fmt.Fprintf(&yamlBuilder, "value%d: (( calc %d > 50 ? \"large\" : \"small\" ))\n", i, i)
 				}
 			}
 

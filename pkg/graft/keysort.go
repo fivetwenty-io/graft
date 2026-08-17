@@ -84,7 +84,7 @@ func naturalLess(a, b string) bool {
 	ar, br := []rune(a), []rune(b)
 	for i := 0; i < len(ar) && i < len(br); i++ {
 		if ar[i] == br[i] {
-			if !(unicode.IsDigit(ar[i]) && unicode.IsDigit(br[i])) {
+			if !unicode.IsDigit(ar[i]) || !unicode.IsDigit(br[i]) {
 				continue
 			}
 		}

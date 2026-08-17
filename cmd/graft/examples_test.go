@@ -427,7 +427,7 @@ func TestExamplesCredentialDependentDirsParse(t *testing.T) {
 
 			for _, e := range entries {
 				name := e.Name()
-				if e.IsDir() || !(hasSuffix(name, ".yml") || hasSuffix(name, ".yaml")) {
+				if e.IsDir() || (!hasSuffix(name, ".yml") && !hasSuffix(name, ".yaml")) {
 					continue
 				}
 				files, err := openFiles([]string{name})

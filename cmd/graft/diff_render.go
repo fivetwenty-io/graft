@@ -299,9 +299,10 @@ func renderSideBySide(fromLabel string, fromDoc interface{}, toLabel string, toD
 				rows = len(right)
 			}
 			colorFn := ansi.Yellow
-			if op.Tag == 'd' {
+			switch op.Tag {
+			case 'd':
 				colorFn = ansi.Red
-			} else if op.Tag == 'i' {
+			case 'i':
 				colorFn = ansi.Green
 			}
 			for i := 0; i < rows; i++ {

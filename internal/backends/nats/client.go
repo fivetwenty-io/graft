@@ -46,7 +46,7 @@ var (
 	PoolCleanupInterval = 1 * time.Minute
 )
 
-// Global connection pool.
+// ConnPool is the global NATS connection pool.
 var ConnPool = NewConnectionPool()
 
 // CleanupLoop periodically removes idle connections.

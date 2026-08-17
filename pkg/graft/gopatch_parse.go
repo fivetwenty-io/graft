@@ -89,7 +89,7 @@ func ParseGoPatch(data []byte) (patch.Ops, error) {
 		// produce, but under --color=on it renders real ANSI codes around
 		// "...but got" (F13) - a plain fmt.Errorf can't reproduce that, so
 		// this must stay ansi.Errorf, not be simplified to fmt.Errorf.
-		//nolint:stylecheck // capitalized error text intentionally matches the pinned CLI message above
+		//nolint:staticcheck // capitalized error text intentionally matches the pinned CLI message above
 		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map. Tried parsing it as go-patch, but got}: %s\n", err)
 	}
 
@@ -105,7 +105,7 @@ func ParseGoPatch(data []byte) (patch.Ops, error) {
 		// literal, brace-bug-and-all text IS the observable contract; keep
 		// it byte-identical, including the trailing "\n" the old format
 		// string carried.
-		//nolint:stylecheck // capitalized "@R{Unable" is the pinned literal HEAD text, brace bug included
+		//nolint:staticcheck // capitalized "@R{Unable" is the pinned literal HEAD text, brace bug included
 		return nil, fmt.Errorf("@R{Unable to parse go-patch definitions: %w\n", err)
 	}
 	return ops, nil
