@@ -243,6 +243,14 @@ func sanitizeBareSequenceTerminators(data []byte) []byte {
 		return data
 	}
 
+	// The rewrite can only ever touch a bare "-" line; skip the
+	// line-splitting pass entirely when no such line exists, and return
+	// the original slice when the scan below changes nothing.
+	if !hasBareDashLine(data) {
+		return data
+	}
+
+	changed := false
 	lines := strings.Split(string(data), "\n")
 
 	inBlockScalar := false
@@ -275,10 +283,45 @@ func sanitizeBareSequenceTerminators(data []byte) []byte {
 
 		if bareDashEndsSequence(lines, i+1, indent) {
 			lines[i] = strings.Repeat(" ", indent) + "- ~"
+			changed = true
 		}
 	}
 
+	if !changed {
+		return data
+	}
 	return []byte(strings.Join(lines, "\n"))
+}
+
+// hasBareDashLine reports whether any line's content is a bare "-",
+// optionally trailed by whitespace or a comment - the only line shape
+// bareDashLineRe (and therefore the sanitizer) can match.
+func hasBareDashLine(data []byte) bool {
+	for start := 0; start < len(data); {
+		line := data[start:]
+		if nl := bytes.IndexByte(line, '\n'); nl >= 0 {
+			line = line[:nl]
+			start += nl + 1
+		} else {
+			start = len(data)
+		}
+
+		i := 0
+		for i < len(line) && (line[i] == ' ' || line[i] == '\t') {
+			i++
+		}
+		if i == len(line) || line[i] != '-' {
+			continue
+		}
+		i++
+		for i < len(line) && (line[i] == ' ' || line[i] == '\t' || line[i] == '\r') {
+			i++
+		}
+		if i == len(line) || line[i] == '#' {
+			return true
+		}
+	}
+	return false
 }
 
 // bareDashEndsSequence reports whether the bare dash at indent, whose
