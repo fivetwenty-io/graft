@@ -366,8 +366,9 @@ func (p *Parser) identifierOpensOpcallAt(idx int) bool {
 	case interfaces.TokenRightParen, interfaces.TokenOperatorEnd, interfaces.TokenComma,
 		interfaces.TokenColon, interfaces.TokenDot, interfaces.TokenEOF:
 		return false
+	default:
+		return !p.isBinaryOperator(next.Type)
 	}
-	return !p.isBinaryOperator(next.Type)
 }
 
 // parseTernary handles condition ? trueExpr : falseExpr.
@@ -990,8 +991,9 @@ func isCalcLeadingOperatorToken(tok interfaces.Token) bool {
 		return true
 	case interfaces.TokenInvalid:
 		return tok.Literal == "^"
+	default:
+		return false
 	}
-	return false
 }
 
 // tryParseCalcRawSubstring implements the calc raw-substring capture. If the token
