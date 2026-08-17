@@ -79,6 +79,11 @@ linters:
     goconst:
       min-len: 3
       min-occurrences: 3
+      # Tests are already exempt from the report below, so counting their
+      # literals only inflates production sites into findings: a single
+      # return in a String() method looks repeated because a dozen tests
+      # assert on the word it returns.
+      ignore-tests: true
       # graft implements a language, so a large part of its string
       # literals are that language's vocabulary and repeat by
       # definition: once in the table that declares a word, and again in
