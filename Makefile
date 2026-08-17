@@ -17,7 +17,7 @@ BUILD_DIR := build
 # a fixed baseline (kept in sync with cmd/graft/main.go's default Version)
 # rather than a commit hash, since genesis's check_prereqs() requires the
 # `-v`/`--version` output to contain a semver token >= 1.28.0.
-VERSION := $(shell (git describe --tags --exact-match 2>/dev/null || echo "v1.32.1") | sed 's/^v//')
+VERSION := $(shell (git describe --tags --exact-match 2>/dev/null || echo "v1.32.2") | sed 's/^v//')
 LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
 GO_FILES := $(shell find . -name '*.go' -not -path "./vendor/*")
 COVERAGE_DIR := coverage

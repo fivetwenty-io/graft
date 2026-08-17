@@ -38,7 +38,7 @@ import (
 // real semver so that even an ad-hoc `go build`/`go run` without ldflags
 // still satisfies genesis's check_prereqs() minimum-version gate (spruce
 // compat requires >= 1.28.0, probed via `graft -v`/`--version`).
-var Version = "1.32.1"
+var Version = "1.32.2"
 
 var printStdOutf = func(format string, args ...interface{}) {
 	_, _ = fmt.Fprintf(os.Stdout, format, args...)
