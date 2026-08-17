@@ -104,7 +104,7 @@ func ParseGoPatch(data []byte) (patch.Ops, error) {
 		// literal, brace-bug-and-all text IS the observable contract; keep
 		// it byte-identical, including the trailing "\n" the old format
 		// string carried.
-		//nolint:staticcheck // capitalized "@R{Unable" is the pinned literal HEAD text, brace bug included
+		//nolint:staticcheck,revive // capitalized "@R{Unable" is the pinned literal HEAD text, brace bug included
 		return nil, fmt.Errorf("@R{Unable to parse go-patch definitions: %w\n", err)
 	}
 	return ops, nil

@@ -43,7 +43,7 @@ func namesOf(t *testing.T, list []interface{}) []interface{} {
 	return out
 }
 
-func mergeYAML(t *testing.T, engine Engine, ctx context.Context, docsYAML ...string) (Document, error) {
+func mergeYAML(ctx context.Context, t *testing.T, engine Engine, docsYAML ...string) (Document, error) {
 	t.Helper()
 	docs := make([]Document, len(docsYAML))
 	for i, y := range docsYAML {
@@ -68,7 +68,7 @@ jobs:
 		Convey("(( insert before <index> ))", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, base, `
+			result, err := mergeYAML(ctx, t, engine, base, `
 jobs:
 - (( insert before 1 ))
 - name: consul
@@ -82,7 +82,7 @@ jobs:
 		Convey("(( insert after <index> ))", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, base, `
+			result, err := mergeYAML(ctx, t, engine, base, `
 jobs:
 - (( insert after 1 ))
 - name: consul
@@ -96,7 +96,7 @@ jobs:
 		Convey(`(( insert before "<name>" ))`, func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, base, `
+			result, err := mergeYAML(ctx, t, engine, base, `
 jobs:
 - (( insert before "cell" ))
 - name: consul
@@ -110,7 +110,7 @@ jobs:
 		Convey(`(( insert after "<name>" ))`, func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, base, `
+			result, err := mergeYAML(ctx, t, engine, base, `
 jobs:
 - (( insert after "cell" ))
 - name: consul
@@ -124,7 +124,7 @@ jobs:
 		Convey("(( delete <index> ))", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, base, `
+			result, err := mergeYAML(ctx, t, engine, base, `
 jobs:
 - (( delete 1 ))
 `)
@@ -137,7 +137,7 @@ jobs:
 		Convey(`(( delete "<name>" ))`, func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, base, `
+			result, err := mergeYAML(ctx, t, engine, base, `
 jobs:
 - (( delete "cell" ))
 `)
@@ -150,7 +150,7 @@ jobs:
 		Convey("(( replace ))", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, base, `
+			result, err := mergeYAML(ctx, t, engine, base, `
 jobs:
 - (( replace ))
 - name: consul
@@ -164,7 +164,7 @@ jobs:
 		Convey("(( inline )) forces index-position merge instead of key-merge", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, base, `
+			result, err := mergeYAML(ctx, t, engine, base, `
 jobs:
 - (( inline ))
 - name: route
@@ -188,7 +188,7 @@ jobs:
 		Convey("(( merge )) key-merges by the default 'name' field", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, `
+			result, err := mergeYAML(ctx, t, engine, `
 jobs:
 - name: route
   instances: 1
@@ -214,7 +214,7 @@ jobs:
 		Convey("(( merge on <key> )) key-merges by an explicit field", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, `
+			result, err := mergeYAML(ctx, t, engine, `
 jobs:
 - id: route
   instances: 1
@@ -241,7 +241,7 @@ jobs:
 		Convey("default path (no marker): arrays of maps key-merge by name", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, base, `
+			result, err := mergeYAML(ctx, t, engine, base, `
 jobs:
 - name: cell
   instances: 3
@@ -257,7 +257,7 @@ jobs:
 		Convey("default path (no marker): scalar arrays fall back to inline replace", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, `
+			result, err := mergeYAML(ctx, t, engine, `
 list:
 - a
 - b
@@ -276,7 +276,7 @@ list:
 		Convey("nested arrays: a marker inside a key-merged parent array is resolved too", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, `
+			result, err := mergeYAML(ctx, t, engine, `
 groups:
 - name: g1
   members:
@@ -320,7 +320,7 @@ groups:
 
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx, `
+			result, err := mergeYAML(ctx, t, engine, `
 jobs:
 - ident: route
   instances: 1
@@ -346,7 +346,7 @@ jobs:
 		Convey("a marker chain spanning three documents resolves left to right", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			result, err := mergeYAML(t, engine, ctx,
+			result, err := mergeYAML(ctx, t, engine,
 				"jobs:\n- name: route\n",
 				"jobs:\n- (( append ))\n- name: cell\n",
 				"jobs:\n- (( append ))\n- name: consul\n",
@@ -420,7 +420,7 @@ jobs:
 			Convey(c.name, func() {
 				engine, err := NewEngine()
 				So(err, ShouldBeNil)
-				_, err = mergeYAML(t, engine, ctx, base, c.overlay)
+				_, err = mergeYAML(ctx, t, engine, base, c.overlay)
 				So(err, ShouldNotBeNil)
 				So(err.Error(), ShouldContainSubstring, c.contains)
 				So(err.Error(), ShouldNotContainSubstring, "failed to merge documents")
@@ -430,7 +430,7 @@ jobs:
 		Convey("arrays that cannot be key-merged report the specific field failure", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
-			_, err = mergeYAML(t, engine, ctx, `
+			_, err = mergeYAML(ctx, t, engine, `
 jobs:
 - id: route
 - notid: cell
