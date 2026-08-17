@@ -326,17 +326,22 @@ func canonicalHistoryPath(path string) string {
 }
 
 func (m *Merger) mergeMap(orig, n map[string]interface{}, node string) {
-	log.DEBUG("mergeMap: merging at node %s", node)
-	log.DEBUG("mergeMap: orig keys = %v", getMapKeys(orig))
-	log.DEBUG("mergeMap: new keys = %v", getMapKeys(n))
+	// Guarded: getMapKeys builds a fresh key slice per call, per node.
+	if log.DebugOn {
+		log.DEBUG("mergeMap: merging at node %s", node)
+		log.DEBUG("mergeMap: orig keys = %v", getMapKeys(orig))
+		log.DEBUG("mergeMap: new keys = %v", getMapKeys(n))
+	}
 	for k, val := range n {
 		path := fmt.Sprintf("%s.%v", node, k)
 		if s, ok := val.(string); ok && mergeRx.MatchString(s) {
 			m.Errors.Append(ansi.Errorf("@m{%s}: @R{inappropriate use of} @c{(( merge ))} @R{operator outside of a list} (this is @G{graft}, after all)", path))
 		}
 
-		// Debug logging
-		log.DEBUG("%s: val = %v (type: %T)", path, val, val)
+		// Guarded: boxing val twice per key escapes the whole subtree.
+		if log.DebugOn {
+			log.DEBUG("%s: val = %v (type: %T)", path, val, val)
+		}
 
 		// Note: We don't skip nil values here - in YAML, null is a valid value
 		// that should be preserved, not cause key deletion
@@ -388,7 +393,10 @@ func (m *Merger) MergeObj(orig interface{}, n interface{}, node string) interfac
 	// common requirement is that both original and new object values are strings
 	origString, origOk := orig.(string)
 	newString, newOk := n.(string)
-	log.DEBUG("MergeObj at %s: orig=%T(%v) new=%T(%v)", node, orig, orig, n, n)
+	// Guarded: this runs at every node and boxes both subtrees twice.
+	if log.DebugOn {
+		log.DEBUG("MergeObj at %s: orig=%T(%v) new=%T(%v)", node, orig, orig, n, n)
+	}
 	switch {
 	case origOk && pruneRx.MatchString(origString):
 		log.DEBUG("%s: a (( prune )) operator is about to be replaced, check if its path needs to be saved", node)
@@ -714,7 +722,10 @@ func (m *Merger) mergeArrayDefault(orig, n []interface{}, node string) []interfa
 
 //nolint:gocyclo // mergeArrayInline handles prune operators during inline merging
 func (m *Merger) mergeArrayInline(orig, n []interface{}, node string) []interface{} {
-	log.DEBUG("%s: mergeArrayInline - orig=%v (len=%d), new=%v (len=%d)", node, orig, len(orig), n, len(n))
+	// Guarded: boxes both whole arrays on every inline array merge.
+	if log.DebugOn {
+		log.DEBUG("%s: mergeArrayInline - orig=%v (len=%d), new=%v (len=%d)", node, orig, len(orig), n, len(n))
+	}
 
 	// First, scan the new array to identify which indices have prune operators
 	prunedIndices := make(map[int]bool)
@@ -1008,7 +1019,10 @@ func getArrayModifications(obj []interface{}, simpleList bool) []ModificationDef
 }
 
 func isSimpleList(list []interface{}) bool {
-	log.DEBUG("Going to validate if this is a simple list: %v", list)
+	// Guarded: boxes the whole list on every key-merge eligibility check.
+	if log.DebugOn {
+		log.DEBUG("Going to validate if this is a simple list: %v", list)
+	}
 
 	if len(list) == 0 {
 		return false
