@@ -202,7 +202,7 @@ func TestDocumentSortKeys(t *testing.T) {
 
 	sorted := doc.SortKeys()
 
-	if sorted == Document(doc) {
+	if sorted == doc {
 		t.Fatal("SortKeys() returned the same Document value, want a distinct one")
 	}
 

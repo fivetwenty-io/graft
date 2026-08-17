@@ -277,7 +277,7 @@ func (e *DefaultEngine) registerBackendLocked(b Backend) {
 // first and fall back to their existing internal/backends call unchanged
 // when the registry has nothing registered for their name - observably
 // identical to "seeded with a pass-through adapter, which was never
-// overridden."
+// overridden".
 func (e *DefaultEngine) RegisterBackend(b Backend) error {
 	if b == nil {
 		return NewValidationError("RegisterBackend: backend must not be nil")
