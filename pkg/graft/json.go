@@ -31,7 +31,9 @@ func jsonifyData(data []byte, strict bool) (string, error) {
 	}
 
 	doc = DefaultYAMLCompat().ConvertMapValues(doc)
-	doc = UnprotectYAML11QuotedBools(doc).(map[string]interface{})
+	if unprotected, ok := UnprotectYAML11QuotedBools(doc).(map[string]interface{}); ok {
+		doc = unprotected
+	}
 
 	doc_, err := deinterface(doc, strict)
 	if err != nil {

@@ -854,9 +854,8 @@ func parseDurationOrDefault(value string, defaultValue time.Duration) time.Durat
 }
 
 func parseIntOrDefault(value string, defaultValue int) int {
-	if i, err := fmt.Sscanf(value, "%d", new(int)); err == nil && i == 1 {
-		var result int
-		fmt.Sscanf(value, "%d", &result)
+	var result int
+	if n, err := fmt.Sscanf(value, "%d", &result); err == nil && n == 1 {
 		return result
 	}
 	return defaultValue

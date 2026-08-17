@@ -45,7 +45,7 @@ func DEBUG(format string, args ...interface{}) {
 		}
 		content = strings.Join(lines, "\n")
 		if Writer != nil {
-			fmt.Fprintf(Writer, "%s\n", content)
+			_, _ = fmt.Fprintf(Writer, "%s\n", content)
 			return
 		}
 		PrintStdErrf("%s\n", content)
@@ -64,7 +64,7 @@ func TRACE(format string, args ...interface{}) {
 		}
 		content = strings.Join(lines, "\n")
 		if Writer != nil {
-			fmt.Fprintf(Writer, "%s\n", content)
+			_, _ = fmt.Fprintf(Writer, "%s\n", content)
 			return
 		}
 		PrintStdErrf("%s\n", content)

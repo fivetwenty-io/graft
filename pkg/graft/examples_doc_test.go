@@ -63,7 +63,7 @@ func ExampleEngine_ParseFile() {
 		fmt.Println("error:", err)
 		return
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	path := filepath.Join(dir, "config.yml")
 	if err := os.WriteFile(path, []byte("name: myapp\nport: 8080\n"), 0o644); err != nil {
@@ -92,7 +92,7 @@ func ExampleEngine_MergeFiles() {
 		fmt.Println("error:", err)
 		return
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	basePath := filepath.Join(dir, "base.yml")
 	overlayPath := filepath.Join(dir, "overlay.yml")
@@ -148,7 +148,7 @@ func ExampleQuickMergeFiles() {
 		fmt.Println("error:", err)
 		return
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	basePath := filepath.Join(dir, "base.yml")
 	overlayPath := filepath.Join(dir, "prod.yml")
@@ -184,7 +184,7 @@ func ExampleMergeBuilder_Base() {
 		fmt.Println("error:", err)
 		return
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	overridesPath := filepath.Join(dir, "overrides.yml")
 	if err := os.WriteFile(overridesPath, []byte("database:\n  port: 5433\n"), 0o644); err != nil {

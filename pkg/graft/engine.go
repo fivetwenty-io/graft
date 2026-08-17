@@ -574,7 +574,9 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 	case map[string]interface{}:
 		// Apply YAML 1.1 boolean compatibility conversions (yes/no/on/off → bool)
 		converted := e.yamlCompat().ConvertMapValues(result)
-		converted = UnprotectYAML11QuotedBools(converted).(map[string]interface{})
+		if unprotected, ok := UnprotectYAML11QuotedBools(converted).(map[string]interface{}); ok {
+			converted = unprotected
+		}
 		return NewDocument(converted), nil
 	case map[interface{}]interface{}:
 		// yaml.v3 produces this when all root keys are non-strings
@@ -583,7 +585,9 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 			converted[fmt.Sprintf("%v", k)] = v
 		}
 		final := e.yamlCompat().ConvertMapValues(converted)
-		final = UnprotectYAML11QuotedBools(final).(map[string]interface{})
+		if unprotected, ok := UnprotectYAML11QuotedBools(final).(map[string]interface{}); ok {
+			final = unprotected
+		}
 		return NewDocument(final), nil
 	default:
 		// Return plain error for compatibility with tests

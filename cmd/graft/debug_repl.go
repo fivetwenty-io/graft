@@ -124,7 +124,7 @@ func (s *debugSession) freshFiles(n int) []YamlFile {
 }
 
 func (s *debugSession) printf(format string, args ...interface{}) {
-	fmt.Fprintf(s.out, format, args...)
+	_, _ = fmt.Fprintf(s.out, format, args...)
 }
 
 // rawMergeOpts returns a copy of the session's own opts (so --go-patch and
@@ -770,13 +770,13 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer) i
 		return 2
 	}
 
-	fmt.Fprintf(out, "Welcome to the Graft Debugger\nType 'help' for available commands.\n\n")
+	_, _ = fmt.Fprintf(out, "Welcome to the Graft Debugger\nType 'help' for available commands.\n\n")
 
 	scanner := bufio.NewScanner(in)
 	for {
-		fmt.Fprint(out, "graft> ")
+		_, _ = fmt.Fprint(out, "graft> ")
 		if !scanner.Scan() {
-			fmt.Fprintln(out)
+			_, _ = fmt.Fprintln(out)
 			// Scan also stops on a read error or a line longer than
 			// bufio.Scanner's 64KiB buffer; without this check that is
 			// indistinguishable from a clean EOF and every remaining
@@ -829,7 +829,7 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer) i
 		case "quit", "exit":
 			return 0
 		default:
-			fmt.Fprintf(out, "Unknown command: %s. Type 'help' for available commands.\n", cmd)
+			_, _ = fmt.Fprintf(out, "Unknown command: %s. Type 'help' for available commands.\n", cmd)
 		}
 	}
 }

@@ -173,6 +173,17 @@ linters:
         linters:
           - errcheck
 
+      # Unchecked type assertions in tests. A failed assertion panics with
+      # the exact file:line, which is already an unambiguous test failure,
+      # and the tests navigate deeply nested YAML documents where a comma-ok
+      # check per hop would bury the assertion being made. Error-returning
+      # calls in tests stay checked, and non-test code keeps
+      # check-type-assertions.
+      - path: _test\.go
+        linters:
+          - errcheck
+        text: "Error return value is not checked"
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0

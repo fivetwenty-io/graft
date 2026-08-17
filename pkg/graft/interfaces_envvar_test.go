@@ -9,8 +9,7 @@ import (
 
 func TestExprEvaluate_EnvVar_SimpleString(t *testing.T) {
 	const envName = "TEST_GRAFT_SIMPLE_STRING"
-	os.Setenv(envName, "hello world")
-	defer os.Unsetenv(envName)
+	t.Setenv(envName, "hello world")
 
 	expr := &graft.Expr{
 		Type: graft.EnvVar,
@@ -28,8 +27,7 @@ func TestExprEvaluate_EnvVar_SimpleString(t *testing.T) {
 
 func TestExprEvaluate_EnvVar_EmptyValue(t *testing.T) {
 	const envName = "TEST_GRAFT_EMPTY_VALUE"
-	os.Setenv(envName, "")
-	defer os.Unsetenv(envName)
+	t.Setenv(envName, "")
 
 	expr := &graft.Expr{
 		Type: graft.EnvVar,
@@ -47,8 +45,9 @@ func TestExprEvaluate_EnvVar_EmptyValue(t *testing.T) {
 
 func TestExprEvaluate_EnvVar_UnsetVariable(t *testing.T) {
 	const envName = "TEST_GRAFT_UNSET_VARIABLE"
-	os.Unsetenv(envName)
-	defer os.Unsetenv(envName)
+	if err := os.Unsetenv(envName); err != nil {
+		t.Fatalf("unsetenv %s: %v", envName, err)
+	}
 
 	expr := &graft.Expr{
 		Type: graft.EnvVar,
@@ -66,8 +65,7 @@ func TestExprEvaluate_EnvVar_UnsetVariable(t *testing.T) {
 
 func TestExprEvaluate_EnvVar_BooleanValue(t *testing.T) {
 	const envName = "TEST_GRAFT_BOOLEAN_VALUE"
-	os.Setenv(envName, "true")
-	defer os.Unsetenv(envName)
+	t.Setenv(envName, "true")
 
 	expr := &graft.Expr{
 		Type: graft.EnvVar,
@@ -89,8 +87,7 @@ func TestExprEvaluate_EnvVar_BooleanValue(t *testing.T) {
 
 func TestExprEvaluate_EnvVar_NumericValue(t *testing.T) {
 	const envName = "TEST_GRAFT_NUMERIC_VALUE"
-	os.Setenv(envName, "42")
-	defer os.Unsetenv(envName)
+	t.Setenv(envName, "42")
 
 	expr := &graft.Expr{
 		Type: graft.EnvVar,
@@ -112,8 +109,7 @@ func TestExprEvaluate_EnvVar_NumericValue(t *testing.T) {
 
 func TestExprEvaluate_EnvVar_JSONValue(t *testing.T) {
 	const envName = "TEST_GRAFT_JSON_VALUE"
-	os.Setenv(envName, `{"key":"value"}`)
-	defer os.Unsetenv(envName)
+	t.Setenv(envName, `{"key":"value"}`)
 
 	expr := &graft.Expr{
 		Type: graft.EnvVar,

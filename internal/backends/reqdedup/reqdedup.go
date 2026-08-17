@@ -33,5 +33,7 @@ func (g *Group[T]) Do(key string, fn func() (T, error)) (T, error) {
 		var zero T
 		return zero, err
 	}
-	return v.(T), nil
+	// fn returns T, so the singleflight value is always a T when err is nil.
+	res, _ := v.(T)
+	return res, nil
 }

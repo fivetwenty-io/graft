@@ -3977,7 +3977,7 @@ func TestExamples(t *testing.T) {
 		enc := yaml.NewEncoder(&buf, yaml.Indent(2))
 		err = enc.Encode(data)
 		So(err, ShouldBeNil)
-		enc.Close()
+		So(enc.Close(), ShouldBeNil)
 
 		return buf.String() + "\n"
 	}
