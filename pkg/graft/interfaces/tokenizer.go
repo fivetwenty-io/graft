@@ -65,26 +65,15 @@ func (p *SimpleReferencePattern) Match(input string, offset int) (matched bool, 
 	// and number is [0-9]+
 
 	runes := []rune(input[offset:])
-	if len(runes) == 0 {
+	if len(runes) == 0 || !isIdentifierStart(runes[0]) {
 		return false, 0
 	}
 
-	pos := 0
+	pos := consumeIdentifierRun(runes, 0)
 
-	// Must start with identifier
-	if !isIdentifierStart(runes[pos]) {
-		return false, 0
-	}
-
-	// Consume first identifier
-	for pos < len(runes) && isIdentifierContinue(runes[pos]) {
-		pos++
-	}
-
-	// Only match if there are dots (otherwise it's just a simple identifier)
+	// Only a multi-segment path is a match; a bare identifier is not.
 	hasDots := false
 
-	// Look for additional .identifier or .number segments
 	for pos < len(runes) && runes[pos] == '.' {
 		hasDots = true
 		pos++ // consume '.'
@@ -93,35 +82,50 @@ func (p *SimpleReferencePattern) Match(input string, offset int) (matched bool, 
 			break // End of input after dot
 		}
 
-		// Check if it's a number or identifier
-		if unicode.IsDigit(runes[pos]) {
-			// Consume numeric index
-			for pos < len(runes) && unicode.IsDigit(runes[pos]) {
-				pos++
-			}
-		} else if isIdentifierStart(runes[pos]) {
-			// Consume identifier
-			for pos < len(runes) && isIdentifierContinue(runes[pos]) {
-				pos++
-			}
-			// A '+' followed by an identifier character continues the
-			// same segment: genesis's vaultified manifests use map keys
-			// like "haproxy_ssl+certificate", and spruce lexes the whole
-			// whitespace-free token as one reference. A '+' before a
-			// digit is left alone so "count+1" stays arithmetic.
-			for pos+1 < len(runes) && runes[pos] == '+' && isIdentifierStart(runes[pos+1]) {
-				pos++ // consume '+'
-				for pos < len(runes) && isIdentifierContinue(runes[pos]) {
-					pos++
-				}
-			}
-		} else {
-			break // Not a valid continuation - exits the for loop
+		switch {
+		case unicode.IsDigit(runes[pos]):
+			pos = consumeDigitRun(runes, pos)
+		case isIdentifierStart(runes[pos]):
+			pos = consumeSegmentIdentifier(runes, pos)
+		default:
+			return hasDots && pos > 0, pos // not a valid continuation
 		}
 	}
 
-	// Only return match if we found dots (multi-segment path)
 	return hasDots && pos > 0, pos
+}
+
+// consumeIdentifierRun returns the index one past the identifier starting
+// at pos.
+func consumeIdentifierRun(runes []rune, pos int) int {
+	for pos < len(runes) && isIdentifierContinue(runes[pos]) {
+		pos++
+	}
+	return pos
+}
+
+// consumeDigitRun returns the index one past the digit run starting at
+// pos.
+func consumeDigitRun(runes []rune, pos int) int {
+	for pos < len(runes) && unicode.IsDigit(runes[pos]) {
+		pos++
+	}
+	return pos
+}
+
+// consumeSegmentIdentifier consumes an identifier appearing after a dot,
+// where a '+' followed by an identifier character continues the same
+// segment: genesis's vaultified manifests use map keys like
+// "haproxy_ssl+certificate", and spruce lexes the whole whitespace-free
+// token as one reference. A '+' before a digit is left alone so "count+1"
+// stays arithmetic. The leading segment of a path gets no such treatment.
+func consumeSegmentIdentifier(runes []rune, pos int) int {
+	pos = consumeIdentifierRun(runes, pos)
+	for pos+1 < len(runes) && runes[pos] == '+' && isIdentifierStart(runes[pos+1]) {
+		pos++ // consume '+'
+		pos = consumeIdentifierRun(runes, pos)
+	}
+	return pos
 }
 
 // ArrayReferencePattern matches paths with array indexing.

@@ -1059,30 +1059,7 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 	// go-patch operations are applied inline, at their position in the file
 	// sequence, by mergeDocuments; nothing left to do for them here.
 
-	// Pass merge metadata to engine before evaluation
-	if m.mergeMetadata != nil && m.engine != nil {
-		// Add prune paths to engine state
-		for _, path := range m.mergeMetadata.PrunePaths {
-			m.engine.GetOperatorState().AddKeyToPrune(path)
-		}
-		// Add sort paths to engine state
-		for path, order := range m.mergeMetadata.SortPaths {
-			m.engine.GetOperatorState().AddPathToSort(path, order)
-		}
-	}
-
-	// Capture the queued (( sort by X )) paths now and clear the shared
-	// engine state immediately: evaluation's deferred per-run state reset
-	// would wipe them before the post-prune sort application below runs,
-	// and clearing here (rather than after applying) keeps a reused engine
-	// from leaking this run's markers into the next even when this run
-	// errors out first.
-	var sortPaths map[string]string
-	if m.engine != nil {
-		state := m.engine.GetOperatorState()
-		sortPaths = state.GetPathsToSort()
-		state.ResetPathsToSort()
-	}
+	sortPaths := m.seedEngineState()
 
 	// Apply evaluation if not skipped
 	var evalDuration time.Duration
@@ -1096,37 +1073,7 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 		result = evaluated
 	}
 
-	// Collect prune keys from both sources:
-	// 1. Keys specified via --prune flag (m.pruneKeys)
-	// 2. Keys marked for pruning during evaluation via (( prune )) operator
-	allPruneKeys := make([]string, len(m.pruneKeys))
-	copy(allPruneKeys, m.pruneKeys)
-
-	if m.engine != nil {
-		// Add keys marked for pruning during evaluation
-		evalPruneKeys := m.engine.GetOperatorState().GetKeysToPrune()
-		allPruneKeys = append(allPruneKeys, evalPruneKeys...)
-	}
-
-	// __graft_loop is a reserved top-level key the control-flow preprocessor
-	// (pkg/graft/controlflow) uses to materialize for-loop variables so
-	// generated bodies can (( grab )) them during normal evaluation. It must
-	// never reach evaluated output. Gated on actually being present (a cheap
-	// top-level map lookup, not a tree walk) rather than appended
-	// unconditionally: an unconditional append would flip applyPruning's
-	// "anything to prune?" check to true for every document, forcing its
-	// deepCopyMap over documents that never touched control flow and have no
-	// other reason to be pruned or copied. Also gated on evaluation having
-	// run: under --skip-eval the loop bodies still hold unresolved
-	// (( grab __graft_loop... )) references, and dropping the bindings would
-	// strand every one of them in an intermediate meant to be merged again.
-	if !m.skipEvaluation {
-		if resultData, ok := result.RawData().(map[string]interface{}); ok {
-			if _, present := resultData["__graft_loop"]; present {
-				allPruneKeys = append(allPruneKeys, "__graft_loop")
-			}
-		}
-	}
+	allPruneKeys := m.collectPruneKeys(result)
 
 	// Apply pruning AFTER evaluation so that grab operators can reference values before they're pruned
 	if len(allPruneKeys) > 0 {
@@ -1182,6 +1129,72 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 	m.attachHistory(processed)
 
 	return processed, nil
+}
+
+// seedEngineState hands the merge metadata's prune and sort paths to the
+// engine's operator state and returns the queued (( sort by X )) paths.
+// Those paths are captured and cleared here, before evaluation, because
+// evaluation's deferred per-run state reset would wipe them before the
+// post-prune sort runs; clearing now rather than after applying also
+// keeps a reused engine from leaking this run's markers into the next
+// when this run errors out first.
+func (m *mergeBuilderImpl) seedEngineState() map[string]string {
+	if m.engine == nil {
+		return nil
+	}
+
+	state := m.engine.GetOperatorState()
+
+	if m.mergeMetadata != nil {
+		for _, path := range m.mergeMetadata.PrunePaths {
+			state.AddKeyToPrune(path)
+		}
+		for path, order := range m.mergeMetadata.SortPaths {
+			state.AddPathToSort(path, order)
+		}
+	}
+
+	sortPaths := state.GetPathsToSort()
+	state.ResetPathsToSort()
+	return sortPaths
+}
+
+// collectPruneKeys gathers every key to prune from result: the --prune
+// flags, the keys the (( prune )) operator marked during evaluation, and
+// the control-flow preprocessor's bindings.
+//
+// __graft_loop is a reserved top-level key pkg/graft/controlflow uses to
+// materialize for-loop variables so generated bodies can (( grab )) them
+// during normal evaluation. It must never reach evaluated output. It is
+// added only when actually present (a cheap top-level map lookup, not a
+// tree walk) rather than unconditionally: an unconditional append would
+// flip applyPruning's "anything to prune?" check to true for every
+// document, forcing its deepCopyMap over documents that never touched
+// control flow and have no other reason to be pruned or copied. It is
+// also gated on evaluation having run: under --skip-eval the loop bodies
+// still hold unresolved (( grab __graft_loop... )) references, and
+// dropping the bindings would strand every one of them in an intermediate
+// meant to be merged again.
+func (m *mergeBuilderImpl) collectPruneKeys(result Document) []string {
+	keys := make([]string, len(m.pruneKeys))
+	copy(keys, m.pruneKeys)
+
+	if m.engine != nil {
+		keys = append(keys, m.engine.GetOperatorState().GetKeysToPrune()...)
+	}
+
+	if m.skipEvaluation {
+		return keys
+	}
+
+	resultData, ok := result.RawData().(map[string]interface{})
+	if !ok {
+		return keys
+	}
+	if _, present := resultData["__graft_loop"]; present {
+		keys = append(keys, "__graft_loop")
+	}
+	return keys
 }
 
 // applyGoPatchToMap applies a single set of go-patch operations to data at
