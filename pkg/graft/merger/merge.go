@@ -15,6 +15,28 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 )
 
+// Operator-matching regexes for the merge walk, compiled once at package
+// init. These functions recurse over every node of every document, so the
+// patterns must not be compiled per call.
+var (
+	mergeRx    = regexp.MustCompile(`^\s*\Q((\E\s*merge\s*.*\Q))\E`)
+	pruneRx    = regexp.MustCompile(`^\s*\Q((\E\s*prune\s*\Q))\E`)
+	sortRx     = regexp.MustCompile(`^\s*\Q((\E\s*sort(?:\s+by\s+(.*?))?\s*\Q))\E$`)
+	keyMergeRx = regexp.MustCompile(`^\Q((\E\s*merge(?:\s+on\s+(.*?))?\s*\Q))\E$`)
+
+	mergeRegEx                = regexp.MustCompile(`^\Q((\E\s*merge\s*\Q))\E$`)
+	mergeOnKeyRegEx           = regexp.MustCompile(`^\Q((\E\s*merge\s+(on)\s+(.+)\s*\Q))\E$`)
+	replaceRegEx              = regexp.MustCompile(`^\Q((\E\s*replace\s*\Q))\E$`)
+	inlineRegEx               = regexp.MustCompile(`^\Q((\E\s*inline\s*\Q))\E$`)
+	appendRegEx               = regexp.MustCompile(`^\Q((\E\s*append\s*\Q))\E$`)
+	prependRegEx              = regexp.MustCompile(`^\Q((\E\s*prepend\s*\Q))\E$`)
+	insertByIdxRegEx          = regexp.MustCompile(`^\Q((\E\s*insert\s+(after|before)\s+(\d+)\s*\Q))\E$`)
+	insertByNameRegEx         = regexp.MustCompile(`^\Q((\E\s*insert\s+(after|before)\s+([^ ]+)?\s*"(.+)"\s*\Q))\E$`)
+	deleteByIdxRegEx          = regexp.MustCompile(`^\Q((\E\s*delete\s+(-?\d+)\s*\Q))\E$`)
+	deleteByNameRegEx         = regexp.MustCompile(`^\Q((\E\s*delete\s+([^ ]+)?\s*"(.+)"\s*\Q))\E$`)
+	deleteByNameUnquotedRegEx = regexp.MustCompile(`^\Q((\E\s*delete\s+([^ ]+)?\s*(.+)\s*\Q))\E$`)
+)
+
 // Default array merge key constant.
 const (
 	defaultArrayMergeKey = "name"
@@ -307,7 +329,6 @@ func (m *Merger) mergeMap(orig, n map[string]interface{}, node string) {
 	log.DEBUG("mergeMap: merging at node %s", node)
 	log.DEBUG("mergeMap: orig keys = %v", getMapKeys(orig))
 	log.DEBUG("mergeMap: new keys = %v", getMapKeys(n))
-	mergeRx := regexp.MustCompile(`^\s*\Q((\E\s*merge\s*.*\Q))\E`)
 	for k, val := range n {
 		path := fmt.Sprintf("%s.%v", node, k)
 		if s, ok := val.(string); ok && mergeRx.MatchString(s) {
@@ -355,11 +376,6 @@ func (m *Merger) mergeMap(orig, n map[string]interface{}, node string) {
 //
 //nolint:gocyclo // MergeObj handles prune/sort operators and multiple type combinations
 func (m *Merger) MergeObj(orig interface{}, n interface{}, node string) interface{} {
-	// regular expression to search for prune and sort operator to make their
-	// special behavior possible
-	pruneRx := regexp.MustCompile(`^\s*\Q((\E\s*prune\s*\Q))\E`)
-	sortRx := regexp.MustCompile(`^\s*\Q((\E\s*sort(?:\s+by\s+(.*?))?\s*\Q))\E$`)
-
 	// prune/sort operator special behavior I:
 	// operator is defined in the original object and will now be overwritten by
 	// the new value. Therefore, remember that the operator was here at that path
@@ -699,7 +715,6 @@ func (m *Merger) mergeArrayDefault(orig, n []interface{}, node string) []interfa
 //nolint:gocyclo // mergeArrayInline handles prune operators during inline merging
 func (m *Merger) mergeArrayInline(orig, n []interface{}, node string) []interface{} {
 	log.DEBUG("%s: mergeArrayInline - orig=%v (len=%d), new=%v (len=%d)", node, orig, len(orig), n, len(n))
-	pruneRx := regexp.MustCompile(`^\s*\Q((\E\s*prune\s*\Q))\E`)
 
 	// First, scan the new array to identify which indices have prune operators
 	prunedIndices := make(map[int]bool)
@@ -846,18 +861,6 @@ func getArrayModifications(obj []interface{}, simpleList bool) []ModificationDef
 	if len(obj) == 0 {
 		return result
 	}
-
-	mergeRegEx := regexp.MustCompile(`^\Q((\E\s*merge\s*\Q))\E$`)
-	mergeOnKeyRegEx := regexp.MustCompile(`^\Q((\E\s*merge\s+(on)\s+(.+)\s*\Q))\E$`)
-	replaceRegEx := regexp.MustCompile(`^\Q((\E\s*replace\s*\Q))\E$`)
-	inlineRegEx := regexp.MustCompile(`^\Q((\E\s*inline\s*\Q))\E$`)
-	appendRegEx := regexp.MustCompile(`^\Q((\E\s*append\s*\Q))\E$`)
-	prependRegEx := regexp.MustCompile(`^\Q((\E\s*prepend\s*\Q))\E$`)
-	insertByIdxRegEx := regexp.MustCompile(`^\Q((\E\s*insert\s+(after|before)\s+(\d+)\s*\Q))\E$`)
-	insertByNameRegEx := regexp.MustCompile(`^\Q((\E\s*insert\s+(after|before)\s+([^ ]+)?\s*"(.+)"\s*\Q))\E$`)
-	deleteByIdxRegEx := regexp.MustCompile(`^\Q((\E\s*delete\s+(-?\d+)\s*\Q))\E$`)
-	deleteByNameRegEx := regexp.MustCompile(`^\Q((\E\s*delete\s+([^ ]+)?\s*"(.+)"\s*\Q))\E$`)
-	deleteByNameUnquotedRegEx := regexp.MustCompile(`^\Q((\E\s*delete\s+([^ ]+)?\s*(.+)\s*\Q))\E$`)
 
 	for _, entry := range obj {
 		e, isString := entry.(string)
@@ -1027,14 +1030,12 @@ func shouldKeyMergeArray(obj []interface{}) (bool, string) {
 	key := getDefaultIdentifierKey()
 
 	if len(obj) >= 1 && obj[0] != nil && reflect.TypeOf(obj[0]).Kind() == reflect.String {
-		re := regexp.MustCompile(`^\Q((\E\s*merge(?:\s+on\s+(.*?))?\s*\Q))\E$`)
-
 		objStr, ok := obj[0].(string)
 		if !ok {
 			return false, ""
 		}
-		if re.MatchString(objStr) {
-			keys := re.FindStringSubmatch(objStr)
+		if keyMergeRx.MatchString(objStr) {
+			keys := keyMergeRx.FindStringSubmatch(objStr)
 			if keys[1] != "" {
 				key = keys[1]
 			}
@@ -1135,7 +1136,6 @@ func (m *Merger) addToPruneListIfNecessary(path string) {
 // addToSortListIfNecessary adds a path to the sort list with its sort order.
 func (m *Merger) addToSortListIfNecessary(operator, path string) {
 	// Extract sort order from operator if present
-	sortRx := regexp.MustCompile(`^\s*\Q((\E\s*sort(?:\s+by\s+(.*?))?\s*\Q))\E$`)
 	matches := sortRx.FindStringSubmatch(operator)
 
 	sortKey := ""
