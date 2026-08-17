@@ -166,24 +166,25 @@ func evaluateBestEffort(data map[string]interface{}, engine graft.Engine) {
 }
 
 // bareIdentifierRe matches a condition/iterable/subject that is nothing but
-// a single unqualified identifier, e.g. "services", "cloud_provider".
+// a single unqualified identifier or dotted reference path, e.g.
+// "services", "cloud_provider", "deployment.type".
 //
 // This needs special handling because of how graft's own parser treats a
-// bare word at the very first token of "(( ... ))" (spec §3 (A6), decision
-// B-1): an *unregistered* bare identifier there is deliberately left as
-// unparsed literal text (so a not-yet-evaluated "(( some_key ))" value can
-// survive a merge pass unresolved), and a bare identifier that *does*
-// collide with a registered operator name is parsed as a call to that
-// operator (H1). Neither reading is useful for a control-flow
+// whole-expression bare word or reference inside "(( ... ))" (spec §3 (A6),
+// decision B-1, and the BOSH-placeholder pass-through): both are
+// deliberately left as unparsed literal text (so a not-yet-evaluated
+// "(( some_key ))" or "((var.subkey))" placeholder can survive a merge
+// pass unresolved), and a bare identifier that *does* collide with a
+// registered operator name is parsed as a call to that operator (H1).
+// Neither reading is useful for a control-flow
 // condition/iterable/subject, which the docs consistently write as a bare
 // document key (`for svc in services`, `(( case cloud_provider ))`) and
 // which must always resolve to that key's value (spec decision C-1: "both
 // [bare and `grab`] work, shown producing the same output"). So a bare
-// identifier here is evaluated as an explicit "(( grab <name> ))" — the
-// same reference resolution a dotted path already gets for free by lexing
-// as a single TokenReference — sidestepping both the literal-passthrough
-// and operator-name-collision cases entirely.
-var bareIdentifierRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+// identifier or dotted path here is evaluated as an explicit
+// "(( grab <name> ))", sidestepping the literal-passthrough and
+// operator-name-collision cases entirely.
+var bareIdentifierRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*$`)
 
 // evalExpr evaluates raw graft expression text (no surrounding "(( ))")
 // against env's current tree and returns its Go value. location is used

@@ -173,7 +173,7 @@ field_dependencies:
     
     # Employee information required if has_employees
     employee_validation:
-      count_required: (( field_dependencies.business_form.has_employees ))
+      count_required: (( grab field_dependencies.business_form.has_employees ))
       # Result: true
       
       count_provided: '(( ! (field_dependencies.validations.employee_validation.count_required && ! (field_dependencies.business_form.employee_count > 0)) ))'
@@ -489,19 +489,19 @@ business_rules:
 # Validation summary
 validation_summary:
   all_validations:
-    user_registration: (( user_validation.is_valid ))
+    user_registration: (( grab user_validation.is_valid ))
     # Result: true
     
-    business_form: (( field_dependencies.form_valid ))
+    business_form: (( grab field_dependencies.form_valid ))
     # Result: true
     
-    app_configuration: (( config_validation.config_valid ))
+    app_configuration: (( grab config_validation.config_valid ))
     # Result: true
     
-    shipping_form: (( cross_field_validation.form_valid ))
+    shipping_form: (( grab cross_field_validation.form_valid ))
     # Result: true
     
-    business_order: (( business_rules.order_valid ))
+    business_order: (( grab business_rules.order_valid ))
     # Result: true
   
   # Overall system validation

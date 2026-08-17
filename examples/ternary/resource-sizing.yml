@@ -28,7 +28,7 @@ compute:
       # Auto-scaling
       autoscaling:
         enabled: '(( context.needs_ha ? true : false ))'
-        min: (( compute.instances.web.count ))
+        min: (( grab compute.instances.web.count ))
         max: '(( context.workload == "critical" ? 50 : context.workload == "high" ? 20 : context.is_production ? 10 : 3 ))'
         target_cpu: '(( context.workload == "critical" ? 60 : context.workload == "high" ? 70 : 80 ))'
     
@@ -171,7 +171,7 @@ storage:
     database:
       type: '(( context.workload == "critical" ? "io2" : context.is_production ? "gp3" : "gp2" ))'
       
-      size_gb: (( database.primary.storage_gb ))
+      size_gb: (( grab database.primary.storage_gb ))
       
       encryption: '(( context.is_production ? true : false ))'
 
@@ -258,14 +258,14 @@ cost_estimate:
 
 # Resource summary
 summary:
-  environment: (( context.environment ))
-  workload: (( context.workload ))
+  environment: (( grab context.environment ))
+  workload: (( grab context.workload ))
   
   total_instances: '(( compute.instances.web.count + compute.instances.worker.count ))'
   
   total_containers: '(( compute.containers.web.replicas + compute.containers.worker.replicas ))'
   
-  high_availability: (( context.needs_ha ))
-  multi_region: (( database.replicas.cross_region ))
+  high_availability: (( grab context.needs_ha ))
+  multi_region: (( grab database.replicas.cross_region ))
   
   estimated_monthly_cost: (( concat "$" cost_estimate.total ))

@@ -155,7 +155,7 @@ cloud_config:
   
   # Final configuration
   final:
-    provider: (( cloud_config.provided.provider )) # Always use provided
+    provider: (( grab cloud_config.provided.provider )) # Always use provided
     region: '(( (type cloud_config.provided.region == "null") ? cloud_config.env_defaults.region : cloud_config.provided.region ))'
     
     credentials:

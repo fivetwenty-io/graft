@@ -123,14 +123,14 @@ deployment:
   # Validate and set defaults
   validated:
     dev:
-      replicas: (( deployment.environments.dev.replicas ))
+      replicas: (( grab deployment.environments.dev.replicas ))
       resources: '(( empty deployment.environments.dev.resources ? deployment.dev_default_resources : deployment.environments.dev.resources ))'
     staging:
-      replicas: (( deployment.environments.staging.replicas ))
-      resources: (( deployment.environments.staging.resources ))
+      replicas: (( grab deployment.environments.staging.replicas ))
+      resources: (( grab deployment.environments.staging.resources ))
     prod:
       replicas: '(( empty deployment.environments.prod.replicas ? 3 : deployment.environments.prod.replicas ))'
-      resources: (( deployment.environments.prod.resources ))
+      resources: (( grab deployment.environments.prod.resources ))
 
 # Nested empty checks in complex structures
 api_config:

@@ -39,7 +39,7 @@ user_registration:
       last_name: (( ! ((type user_registration.input.last_name == "null")) ))
       # Result: false (null)
       
-      terms_accepted: (( user_registration.input.terms_accepted ))
+      terms_accepted: (( grab user_registration.input.terms_accepted ))
       # Result: true (must be true, not just non-null)
     
     # Optional field checks
@@ -201,7 +201,7 @@ config_validation:
     
     # Validation report
     report:
-      valid: (( config_validation.validations.all_valid ))
+      valid: (( grab config_validation.validations.all_valid ))
       sections:
         app: '(( config_validation.validations.app.is_valid ? "OK" : "Invalid: missing environment" ))'
         database: '(( config_validation.validations.database.is_valid ? "OK" : "Invalid: missing credentials" ))'
@@ -276,10 +276,10 @@ form_validation:
   # Final validation
   validation_summary:
     sections:
-      personal: (( form_validation.rules.personal.has_full_name ))
+      personal: (( grab form_validation.rules.personal.has_full_name ))
       contact: (( form_validation.rules.contact.has_primary_contact && form_validation.rules.contact.preferred_contact_valid ))
       employment: (( form_validation.rules.employment.valid_if_employed && form_validation.rules.employment.income_valid ))
-      preferences: (( form_validation.rules.preferences.notification_method_selected ))
+      preferences: (( grab form_validation.rules.preferences.notification_method_selected ))
     
     all_valid: '(( form_validation.validation_summary.sections.personal && form_validation.validation_summary.sections.contact && form_validation.validation_summary.sections.employment && form_validation.validation_summary.sections.preferences ))'
     # Result: false

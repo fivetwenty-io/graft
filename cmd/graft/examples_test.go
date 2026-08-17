@@ -182,9 +182,11 @@ func runnableExamples() []exampleCase {
 		{name: "unified-parser/edge-cases", files: []string{"unified-parser/edge-cases.yml"}, allowMarkers: map[string]string{
 			// documented in-file (see the comment above the key): an
 			// unrecognized bare token inside (( )) that matches no
-			// operator name and no reference is deliberately left as
-			// literal, unevaluated text.
-			"backwards_compat.bosh_var": "(( some-variable ))",
+			// operator name is deliberately left as literal,
+			// unevaluated text, byte-for-byte (BOSH's placeholder
+			// grammar allows no interior whitespace, so it must not
+			// be re-rendered with normalized spacing).
+			"backwards_compat.bosh_var": "((some-variable))",
 		}},
 		{name: "new-features-demo", files: []string{"new-features-demo.yml"}},
 

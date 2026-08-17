@@ -292,25 +292,25 @@ cost_optimization:
 # Summary of allocated resources
 resource_summary:
   compute:
-    instances: (( compute.scaling.final_instances ))
-    instance_type: (( compute.instance_selection.recommended_type ))
+    instances: (( grab compute.scaling.final_instances ))
+    instance_type: (( grab compute.instance_selection.recommended_type ))
     
   database:
-    instance_class: (( database.sizing.required_class ))
-    read_replicas: (( database.sizing.read_replicas ))
-    storage_gb: (( database.sizing.new_storage_size ))
+    instance_class: (( grab database.sizing.required_class ))
+    read_replicas: (( grab database.sizing.read_replicas ))
+    storage_gb: (( grab database.sizing.new_storage_size ))
     
   cache:
-    redis_nodes: (( cache.redis.num_nodes ))
-    node_type: (( cache.redis.node_type ))
+    redis_nodes: (( grab cache.redis.num_nodes ))
+    node_type: (( grab cache.redis.node_type ))
     
   cdn:
-    coverage: (( cdn.config.coverage ))
-    waf_rules: (( cdn.config.waf_rule_set ))
+    coverage: (( grab cdn.config.coverage ))
+    waf_rules: (( grab cdn.config.waf_rule_set ))
     
   kubernetes:
-    target_nodes: (( kubernetes.node_pools.general.target_nodes ))
-    gpu_enabled: (( kubernetes.node_pools.gpu.enabled ))
+    target_nodes: (( grab kubernetes.node_pools.general.target_nodes ))
+    gpu_enabled: (( grab kubernetes.node_pools.gpu.enabled ))
     
   estimated_hourly_cost: '(( compute.scaling.final_instances * 0.5 + (database.sizing.read_replicas + 1) * 2.0 + cache.redis.num_nodes * 0.8 + kubernetes.node_pools.general.target_nodes * 0.4 ))'
   # Result: 32.4 (24*0.5 + 3*2.0 + 3*0.8 + 30*0.4)

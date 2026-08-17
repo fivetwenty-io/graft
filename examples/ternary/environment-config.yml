@@ -194,7 +194,7 @@ monitoring:
   
   # Logging
   logging:
-    level: (( application.log_level ))
+    level: (( grab application.log_level ))
     prod_outputs: ["cloudwatch", "s3"]
     staging_outputs: ["cloudwatch"]
     dev_outputs: ["stdout", "file"]
@@ -249,14 +249,14 @@ jobs:
 
 # Summary configuration
 summary:
-  environment: (( environment.name ))
-  type: (( environment.type ))
+  environment: (( grab environment.name ))
+  type: (( grab environment.type ))
   endpoints:
     app: '(( environment.is_production ? "https://app.example.com" : environment.is_staging ? "https://staging.example.com" : "http://localhost:3000" ))'
-    api: (( api.base_url ))
+    api: (( grab api.base_url ))
     database: (( concat database.host ":" database.port "/" database.name ))
   features:
-    debug: (( application.debug ))
-    caching: (( application.performance.cache_enabled ))
-    monitoring: (( monitoring.metrics.enabled ))
-    emails: (( email.features.send_emails ))
+    debug: (( grab application.debug ))
+    caching: (( grab application.performance.cache_enabled ))
+    monitoring: (( grab monitoring.metrics.enabled ))
+    emails: (( grab email.features.send_emails ))

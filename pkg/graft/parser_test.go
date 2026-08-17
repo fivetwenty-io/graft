@@ -270,17 +270,20 @@ func TestA6BareReferenceOperand(t *testing.T) {
 	})
 
 	// B-1 (§9.2): the "anything else" arm must be preserved verbatim — a bare
-	// identifier at primary position with no following infix operator stays
-	// an operator call (the NullOperator literal pass-through), because
-	// defer / multi-pass genesis templating depends on unevaluated `(( a ))`
-	// surviving a pass unchanged.
-	t.Run("bare identifier alone at primary position stays an operator call", func(t *testing.T) {
-		opcall := mustParseOpcall(t, "a")
-		if !isNullOperatorCallNamed(opcall, "a") {
-			t.Fatalf("expected the NullOperator pass-through for 'a', got operator %#v", opcall.Operator())
+	// identifier at primary position with no following infix operator is not
+	// an operator call at all: ParseOpcallWithParser reports "not an opcall"
+	// (nil, nil) so the raw `(( a ))` text survives a pass byte-for-byte,
+	// because defer / multi-pass genesis templating and BOSH/CredHub
+	// placeholder interpolation depend on unevaluated `(( a ))` surviving a
+	// merge unchanged (BOSH's placeholder grammar allows no interior
+	// whitespace, so even re-rendering with normalized spacing corrupts it).
+	t.Run("bare identifier alone at primary position passes through as raw text", func(t *testing.T) {
+		opcall, err := ParseOpcallWithParser(EvalPhase, "(( a ))")
+		if err != nil {
+			t.Fatalf("ParseOpcallWithParser(\"a\") failed: %v", err)
 		}
-		if len(opcall.Args()) != 0 {
-			t.Fatalf("expected zero args for a lone bare identifier, got %d", len(opcall.Args()))
+		if opcall != nil {
+			t.Fatalf("expected nil Opcall (raw pass-through) for a lone bare identifier, got %#v", opcall)
 		}
 	})
 

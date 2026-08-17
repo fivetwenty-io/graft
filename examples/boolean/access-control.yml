@@ -104,13 +104,13 @@ access_control:
   # Alice's access (admin)
   alice:
     # Basic checks
-    is_active: (( users.alice.active ))
+    is_active: (( grab users.alice.active ))
     # Result: true
     
-    is_verified: (( users.alice.verified ))
+    is_verified: (( grab users.alice.verified ))
     # Result: true
     
-    has_mfa: (( users.alice.mfa_enabled ))
+    has_mfa: (( grab users.alice.mfa_enabled ))
     # Result: true
     
     # Production database access
@@ -196,7 +196,7 @@ access_control:
       department_allowed: (( users.charlie.department == "finance" || users.charlie.department == "executive" ))
       # Result: true
       
-      mfa_enabled: (( users.charlie.mfa_enabled ))
+      mfa_enabled: (( grab users.charlie.mfa_enabled ))
       # Result: false
       
       # Even with correct role and department, needs verification and MFA
@@ -432,15 +432,15 @@ audit_compliance:
 # Summary access matrix
 access_summary:
   alice:
-    production_db: (( access_control.alice.prod_db_access.has_access ))
+    production_db: (( grab access_control.alice.prod_db_access.has_access ))
     dev_environment: true  # Admin has access to all dev
-    financial_reports: (( access_control.alice.financial_access.has_access ))
+    financial_reports: (( grab access_control.alice.financial_access.has_access ))
     api_keys: true  # Admin role
     overall: "full_access"
     
   bob:
-    production_db: (( access_control.bob.prod_db_access.has_access ))
-    dev_environment: (( access_control.bob.dev_access.has_access ))
+    production_db: (( grab access_control.bob.prod_db_access.has_access ))
+    dev_environment: (( grab access_control.bob.dev_access.has_access ))
     financial_reports: false
     api_keys: false
     overall: "limited_access"
@@ -448,7 +448,7 @@ access_summary:
   charlie:
     production_db: false
     dev_environment: false
-    financial_reports: (( access_control.charlie.financial_access.has_access ))
+    financial_reports: (( grab access_control.charlie.financial_access.has_access ))
     api_keys: false
     overall: "restricted_access"
     

@@ -302,7 +302,7 @@ security:
       request_score: '(( security.alerts.request_analysis == "normal" ? 100 : security.alerts.request_analysis == "elevated_risk" ? 50 : 0 ))'
       ssl_score: '(( security.alerts.ssl_status == "ok" ? 100 : security.alerts.ssl_status == "renew_soon" ? 50 : 0 ))'
       password_score: '(( security.alerts.password_policy == "compliant" ? 100 : security.alerts.password_policy == "expiring_soon" ? 50 : 0 ))'
-      mfa_score: (( security.metrics.mfa_adoption_percent ))
+      mfa_score: (( grab security.metrics.mfa_adoption_percent ))
     
     overall: '(( ( security.security_score.components.login_score + security.security_score.components.request_score + security.security_score.components.ssl_score + security.security_score.components.password_score + security.security_score.components.mfa_score ) / 5 ))'
     # Result: 53.0 (average of all component scores)

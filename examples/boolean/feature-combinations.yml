@@ -171,7 +171,7 @@ dependencies:
   # AI/ML dependencies
   ai:
     # All AI features require basic analytics for data
-    base_requirement: (( features.analytics.basic_analytics ))
+    base_requirement: (( grab features.analytics.basic_analytics ))
     # Result: true
     
     # Recommendations require user history
@@ -200,25 +200,25 @@ bundles:
   starter:
     available: true
     includes:
-      basic_ui: (( features.core.new_ui ))
-      email_notifications: (( features.communication.email_notifications ))
-      basic_analytics: (( features.analytics.basic_analytics ))
-      social_login: (( features.user.social_login ))
+      basic_ui: (( grab features.core.new_ui ))
+      email_notifications: (( grab features.communication.email_notifications ))
+      basic_analytics: (( grab features.analytics.basic_analytics ))
+      social_login: (( grab features.user.social_login ))
     
     all_included: '(( bundles.starter.includes.basic_ui && bundles.starter.includes.email_notifications && bundles.starter.includes.basic_analytics && bundles.starter.includes.social_login ))'
     # Result: true
   
   # Professional bundle
   professional:
-    available: (( user_context.is_paid ))
+    available: (( grab user_context.is_paid ))
     # Result: true
     
     includes:
-      everything_in_starter: (( bundles.starter.all_included ))
-      advanced_ui: (( dependencies.ui.full_ui_experience ))
-      multi_channel_comms: (( dependencies.communication.multi_channel ))
-      advanced_analytics: (( dependencies.analytics.advanced_available ))
-      two_factor_auth: (( features.user.two_factor_auth ))
+      everything_in_starter: (( grab bundles.starter.all_included ))
+      advanced_ui: (( grab dependencies.ui.full_ui_experience ))
+      multi_channel_comms: (( grab dependencies.communication.multi_channel ))
+      advanced_analytics: (( grab dependencies.analytics.advanced_available ))
+      two_factor_auth: (( grab features.user.two_factor_auth ))
       payment_processing: (( features.payment.credit_cards && features.payment.paypal ))
     
     all_included: '(( bundles.professional.available && bundles.professional.includes.everything_in_starter && bundles.professional.includes.advanced_ui && bundles.professional.includes.multi_channel_comms && bundles.professional.includes.advanced_analytics && bundles.professional.includes.two_factor_auth && bundles.professional.includes.payment_processing ))'
@@ -226,13 +226,13 @@ bundles:
   
   # Enterprise bundle
   enterprise:
-    available: (( user_context.is_enterprise ))
+    available: (( grab user_context.is_enterprise ))
     # Result: false
     
     includes:
-      everything_in_professional: (( bundles.professional.all_included ))
-      sso: (( dependencies.auth.sso_available ))
-      full_analytics: (( dependencies.analytics.full_analytics ))
+      everything_in_professional: (( grab bundles.professional.all_included ))
+      sso: (( grab dependencies.auth.sso_available ))
+      full_analytics: (( grab dependencies.analytics.full_analytics ))
       ai_features: (( dependencies.ai.ai_maturity >= 40 ))
       priority_support: true
       sla_guarantee: true
@@ -371,7 +371,7 @@ activation_summary:
   total_features_available: '(( (dependencies.ui.dark_mode_available ? 1 : 0) + (dependencies.ui.responsive_available ? 1 : 0) + (dependencies.auth.enhanced_security ? 1 : 0) + (dependencies.communication.multi_channel ? 1 : 0) + (dependencies.analytics.full_analytics ? 1 : 0) + (dependencies.payment.has_multiple_options ? 1 : 0) + (dependencies.ai.ai_maturity > 0 ? 1 : 0) ))'
   # Result: 7
   
-  beta_features_active: (( beta_features.beta_count ))
+  beta_features_active: (( grab beta_features.beta_count ))
   # Result: 4
   
   # User satisfaction score (simplified)

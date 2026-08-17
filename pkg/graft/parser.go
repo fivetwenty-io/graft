@@ -4,6 +4,7 @@ package graft
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -1491,9 +1492,29 @@ func ParseOpcallWithParserForEngine(e Engine, phase OperatorPhase, src string) (
 		return nil, nil
 	}
 
+	inner := strings.TrimSuffix(strings.TrimPrefix(src, "(("), "))")
+	if tightBoshPlaceholderRe.MatchString(inner) && !isRegisteredOperatorName(e, inner) {
+		// A whitespace-free BOSH/CredHub variable placeholder like
+		// ((cf_admin_password)), ((var.subkey)), ((/absolute.path)), or
+		// genesis's ((genesis-entombed/name--key--sha1)). Spruce never
+		// treats these as operator calls; they must survive a merge
+		// byte-for-byte for a later tool to interpolate. A tight
+		// registered name like ((prune)) is still an operator call, as
+		// it is in spruce.
+		return nil, nil
+	}
+
 	parser := NewParserForEngine(src, phase, e)
 	opcall, err := parser.ParseOpcall()
 	if err != nil {
+		if !startsWithRegisteredOperator(e, inner) {
+			// Spruce only reports operator errors for expressions that
+			// begin with a registered operator name; anything else that
+			// fails to parse is not an operator call at all and flows
+			// through as literal text (BOSH placeholders with shapes the
+			// expression grammar rejects, multi-token free text, etc.).
+			return nil, nil
+		}
 		// For debugging
 		if os.Getenv("GRAFT_DEBUG") != "" {
 			fmt.Fprintf(os.Stderr, "Parser error for '%s': %v\n", src, err)
@@ -1501,5 +1522,74 @@ func ParseOpcallWithParserForEngine(e Engine, phase OperatorPhase, src string) (
 		return nil, err
 	}
 
+	if isBoshPlaceholder(opcall) {
+		return nil, nil
+	}
+
 	return opcall, nil
+}
+
+// tightBoshPlaceholderRe matches the BOSH variable-placeholder grammar: a
+// whitespace-free run of name characters (letters, digits, underscore,
+// dot, slash, dash), optionally prefixed with "!". Note it is matched
+// against the raw inner text of "(( ... ))" without trimming, so any
+// interior or edge whitespace disqualifies the shape.
+var tightBoshPlaceholderRe = regexp.MustCompile(`^!?[a-zA-Z0-9_./-]+$`)
+
+// leadingOperatorNameRe captures a leading operator-name-shaped token.
+var leadingOperatorNameRe = regexp.MustCompile(`^\s*([a-zA-Z][a-zA-Z0-9_-]*)`)
+
+// isRegisteredOperatorName reports whether name (exactly, in full) is a
+// registered operator in e's registry or the global default registry.
+func isRegisteredOperatorName(e Engine, name string) bool {
+	if _, isNull := OperatorForEngine(e, name).(NullOperator); isNull {
+		return false
+	}
+	return true
+}
+
+// startsWithRegisteredOperator reports whether the inner text of a
+// "(( ... ))" expression begins with a registered operator name — the
+// shape spruce commits to parsing as an operator call (and reports
+// errors for) rather than passing through as literal text.
+func startsWithRegisteredOperator(e Engine, inner string) bool {
+	m := leadingOperatorNameRe.FindStringSubmatch(inner)
+	if m == nil {
+		return false
+	}
+	return isRegisteredOperatorName(e, m[1])
+}
+
+// isBoshPlaceholder reports whether a parsed top-level opcall is really a
+// BOSH/CredHub-style variable placeholder that spruce would never treat as
+// an operator call: a bare reference like ((var.subkey)), or a lone
+// unregistered name like ((var)). Both shapes must flow through a merge
+// byte-for-byte (BOSH's placeholder grammar allows no interior whitespace,
+// so even re-rendering with normalized spacing corrupts them) for a later
+// tool — the BOSH director, CredHub, genesis — to interpolate. Spruce only
+// evaluates (( <registered-op> [args...] )); this restores that boundary
+// without touching operand-position reference semantics inside larger
+// expressions.
+func isBoshPlaceholder(opcall *Opcall) bool {
+	if opcall == nil {
+		return false
+	}
+
+	// exprToOpcall's synthetic grab wrap for a whole-expression bare
+	// reference: no operator name as written, exactly one Reference arg. A
+	// genuine (( grab x )) carries name "grab".
+	if opcall.name == "" && len(opcall.args) == 1 &&
+		opcall.args[0] != nil && opcall.args[0].Type == Reference {
+		return true
+	}
+
+	// A lone unregistered name, e.g. ((cf_admin_password)): parsed as an
+	// operator call with no arguments whose operator resolved to the
+	// NullOperator placeholder. With arguments it stays an opcall (the
+	// pinned B-2 behavior for (( bogus foo ))).
+	if _, isNull := opcall.op.(NullOperator); isNull && len(opcall.args) == 0 {
+		return true
+	}
+
+	return false
 }

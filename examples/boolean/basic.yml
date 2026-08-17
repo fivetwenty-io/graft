@@ -361,7 +361,7 @@ error_handling:
     # Result: true
     
     # All critical services up (database is critical, cache is not)
-    critical_services_ok: (( error_handling.health.database_healthy ))
+    critical_services_ok: (( grab error_handling.health.database_healthy ))
     # Result: true
     
     # System status
