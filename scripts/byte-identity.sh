@@ -50,6 +50,7 @@ capture() { # capture BIN OUTDIR
   run heavy-cherry  "$bin" merge --cherry-pick instance_groups "$WORK/big.yml" "$WORK/o01.yml" "$WORK/o02.yml"
   run heavy-prune   "$bin" merge --prune meta --prune releases "$WORK/big.yml" "$WORK/o01.yml"
   run json-big      "$bin" json "$WORK/big.yml"
+  run dense-eval    "$bin" merge "$WORK/dense.yml"
 
   local d files
   cd "$REPO/examples"

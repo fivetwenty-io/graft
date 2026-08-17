@@ -121,6 +121,54 @@ func genGoPatch(path string, n int) error {
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
+// genDense writes an operator-dense single document: ~1100 operator
+// calls over a small data section, mixing independent grabs/concats
+// with chained references, joins over lists, and calc arithmetic. The
+// merge phase is trivial here by design - evaluation dominates - so
+// this file is the workload for measuring parallel-evaluation changes
+// (worker pool sizing, scheduler behavior) where big.yml measures
+// parse/merge.
+func genDense(path string) error {
+	var b strings.Builder
+	b.WriteString("name: dense-eval-workload\n\nmeta:\n")
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&b, "  m%03d: %s-%d\n", i, word(i), i)
+	}
+	for i := 0; i < 50; i++ {
+		fmt.Fprintf(&b, "  n%02d: %d\n", i, i*3+1)
+	}
+	b.WriteString("  list:\n")
+	for i := 0; i < 8; i++ {
+		fmt.Fprintf(&b, "  - %s\n", word(i))
+	}
+
+	b.WriteString("\ngrabs:\n")
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&b, "  g%03d: (( grab meta.m%03d ))\n", i, i)
+	}
+	b.WriteString("\nconcats:\n")
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&b, "  c%03d: (( concat meta.m%03d \"/\" meta.m%03d ))\n", i, i, (i+37)%200)
+	}
+	b.WriteString("\nchains:\n")
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&b, "  h%03d: (( grab grabs.g%03d ))\n", i, i)
+	}
+	b.WriteString("\ndeeper:\n")
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&b, "  d%03d: (( concat chains.h%03d \"+\" concats.c%03d ))\n", i, i, i)
+	}
+	b.WriteString("\njoins:\n")
+	for i := 0; i < 100; i++ {
+		fmt.Fprintf(&b, "  j%03d: (( join \",\" meta.list ))\n", i)
+	}
+	b.WriteString("\ncalcs:\n")
+	for i := 0; i < 100; i++ {
+		fmt.Fprintf(&b, "  k%03d: (( calc \"meta.n%02d * 2 + %d\" ))\n", i, i%50, i)
+	}
+	return os.WriteFile(path, []byte(b.String()), 0o644)
+}
+
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: gen-workload <output-dir>")
@@ -144,4 +192,5 @@ func main() {
 	for n := 41; n <= 42; n++ {
 		fail(genGoPatch(filepath.Join(dir, fmt.Sprintf("o%02d.yml", n)), n))
 	}
+	fail(genDense(filepath.Join(dir, "dense.yml")))
 }
