@@ -18,7 +18,7 @@ import (
 
 	"github.com/gonvenience/ytbx"
 	"github.com/homeport/dyff/pkg/dyff"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "go.yaml.in/yaml/v3"
 )
 
 // Kind classifies the nature of a single semantic change.
@@ -63,7 +63,7 @@ type Change struct {
 // error messages), not in the returned Change values.
 //
 // Compare marshals from/to to YAML text via graft.MarshalYAML-compatible
-// encoding and re-parses them as gopkg.in/yaml.v3 nodes, the representation
+// encoding and re-parses them as go.yaml.in/yaml/v3 nodes, the representation
 // dyff.CompareInputFiles requires; a marshal or parse failure (e.g. a value
 // containing a Go type YAML cannot represent, or a document root dyff
 // cannot walk) is returned as an error rather than silently dropped.
@@ -242,7 +242,7 @@ func decodeNode(node *yamlv3.Node) (interface{}, error) {
 	return v, nil
 }
 
-// toYAMLNode marshals v to YAML text (via gopkg.in/yaml.v3, matching the
+// toYAMLNode marshals v to YAML text (via go.yaml.in/yaml/v3, matching the
 // representation ytbx/dyff already work in) and parses it back into a
 // document root node suitable for ytbx.InputFile.Documents.
 //
