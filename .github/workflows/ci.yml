@@ -10,12 +10,27 @@ permissions:
   contents: read
 
 jobs:
+  # Every job runs in a golang container: the self-hosted runner host is
+  # intentionally minimal, and mixing host jobs with container jobs
+  # leaves the shared workspace with files owned by two different uids
+  # (host runner user vs container root), which breaks checkout cleanup
+  # and trips git's dubious-ownership guard.
+  #
+  # The "Trust the checkout" step writes safe.directory at --system
+  # level (/etc/gitconfig): the checkout action writes it under its own
+  # HOME, which shell steps in the container do not share, so git run by
+  # go build's VCS stamping or by scripts would otherwise exit 128 on
+  # the runner-user-owned .git.
   lint:
     name: Lint
     runs-on: self-hosted
+    container: golang:1.26
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Trust the checkout despite mixed file owners
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -35,11 +50,6 @@ jobs:
         with:
           version: v2.12.2
 
-  # The self-hosted runner host is intentionally minimal (no make, no
-  # compilers). Jobs that build or test therefore run in a golang
-  # container, which carries make, gcc (for -race), and git; the host
-  # only needs docker. The lint job stays on the host because the
-  # golangci-lint action brings its own binary.
   test:
     name: Test
     runs-on: self-hosted
@@ -47,6 +57,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Trust the checkout despite mixed file owners
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -69,6 +82,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Trust the checkout despite mixed file owners
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -89,6 +105,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Trust the checkout despite mixed file owners
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -113,6 +132,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Trust the checkout despite mixed file owners
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -149,6 +171,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Trust the checkout despite mixed file owners
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -173,6 +198,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Trust the checkout despite mixed file owners
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v7
