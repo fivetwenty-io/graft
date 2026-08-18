@@ -112,7 +112,8 @@ linters:
       # searches to identify a list entry, the REPL/CLI command names,
       # and the config-file keys the loader table spells out section by
       # section.
-      ignore-string-values: "^(?:grab|concat|join|defer|param|prune|inject|stringify|parse|static|static_ips|ips|vault|vault-try|openbao|awsparam|awssm|awssecret|nats|file|env|calc|cartesian|cartesian-product|empty|keys|values|sort|uniq|reverse|shuffle|min|max|sum|length|base64|base64-decode|negate|key-sorter|substr|split|flatten|trim|upper|lower|merge|index|first|last|replace|insert|delete|append|prepend|inline|load|none|this|if|elif|elsif|else|fi|endif|for|endfor|in|done|while|endwhile|case|endcase|when|default|esac|on|before|after|range|and|or|not|step|continue|breaks|config|output|diff|quit|graft|name|id|key|enabled|true|false|null|nil|yes|no|off|---|True|False|Null|Nil|Yes|No|On|Off|TRUE|FALSE|NULL|NIL|YES|NO|ON|OFF|EOF|NaN|-Inf|mod|string|int|int64|float|float64|bool|map|array|type)$"
+      ignore-string-values:
+        - "^(?:grab|concat|join|defer|param|prune|inject|stringify|parse|static|static_ips|ips|vault|vault-try|openbao|awsparam|awssm|awssecret|nats|file|env|calc|cartesian|cartesian-product|empty|keys|values|sort|uniq|reverse|shuffle|min|max|sum|length|base64|base64-decode|negate|key-sorter|substr|split|flatten|trim|upper|lower|merge|index|first|last|replace|insert|delete|append|prepend|inline|load|none|this|if|elif|elsif|else|fi|endif|for|endfor|in|done|while|endwhile|case|endcase|when|default|esac|on|before|after|range|and|or|not|step|continue|breaks|config|output|diff|quit|graft|name|id|key|enabled|true|false|null|nil|yes|no|off|---|True|False|Null|Nil|Yes|No|On|Off|TRUE|FALSE|NULL|NIL|YES|NO|ON|OFF|EOF|NaN|-Inf|mod|string|int|int64|float|float64|bool|map|array|type)$"
 
     gocritic:
       enabled-tags:
