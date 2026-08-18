@@ -15,9 +15,13 @@ permissions:
   contents: write # required to create the GitHub Release and upload assets
 
 jobs:
+  # The self-hosted runner host is intentionally minimal (no make, no
+  # compilers), so both jobs run in a golang container; the host only
+  # needs docker.
   test:
     name: Test
     runs-on: self-hosted
+    container: golang:1.26
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -44,6 +48,7 @@ jobs:
   goreleaser:
     name: GoReleaser
     runs-on: self-hosted
+    container: golang:1.26
     needs: test
     steps:
       - name: Checkout code
@@ -93,11 +98,14 @@ jobs:
         if: github.repository == 'fivetwenty-io/graft'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # curl instead of gh: the golang job container has no gh CLI.
         run: |
           expected="${GITHUB_REF_NAME#v}"
           for attempt in 1 2 3 4 5; do
-            published=$(gh api repos/fivetwenty-io/homebrew-tap/contents/Casks/graft.rb \
+            published=$(curl -sf \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
               -H "Accept: application/vnd.github.raw" \
+              "https://api.github.com/repos/fivetwenty-io/homebrew-tap/contents/Casks/graft.rb" \
               | sed -n 's/^[[:space:]]*version "\(.*\)"/\1/p')
             if [ "$published" = "$expected" ]; then
               echo "tap cask is at ${published}"

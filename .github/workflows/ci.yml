@@ -35,9 +35,15 @@ jobs:
         with:
           version: v2.12.2
 
+  # The self-hosted runner host is intentionally minimal (no make, no
+  # compilers). Jobs that build or test therefore run in a golang
+  # container, which carries make, gcc (for -race), and git; the host
+  # only needs docker. The lint job stays on the host because the
+  # golangci-lint action brings its own binary.
   test:
     name: Test
     runs-on: self-hosted
+    container: golang:1.26
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -57,6 +63,7 @@ jobs:
   build:
     name: Build
     runs-on: self-hosted
+    container: golang:1.26
     needs: [lint, test]
     steps:
       - name: Checkout code
@@ -77,6 +84,7 @@ jobs:
   import-validation:
     name: Validate External Imports
     runs-on: self-hosted
+    container: golang:1.26
     needs: [lint, test]
     steps:
       - name: Checkout code
@@ -97,6 +105,7 @@ jobs:
   byte-identity:
     name: Byte Identity
     runs-on: self-hosted
+    container: golang:1.26
     needs: [lint, test]
     if: github.event_name == 'pull_request'
     steps:
@@ -134,6 +143,7 @@ jobs:
   cache-identity:
     name: Cache Identity
     runs-on: self-hosted
+    container: golang:1.26
     needs: [lint, test]
     steps:
       - name: Checkout code
@@ -158,6 +168,7 @@ jobs:
   spruce-compat:
     name: Spruce Compat
     runs-on: self-hosted
+    container: golang:1.26
     needs: [lint, test]
     steps:
       - name: Checkout code
