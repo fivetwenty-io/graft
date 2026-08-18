@@ -9,6 +9,13 @@ on:
 permissions:
   contents: read
 
+# One self-hosted runner serializes every job, so a superseded PR run
+# would keep the queue busy long after its result stopped mattering.
+# Cancel it when new commits arrive; never cancel main-branch runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Every job runs in a golang container: the self-hosted runner host is
   # intentionally minimal, and mixing host jobs with container jobs
@@ -21,19 +28,30 @@ jobs:
   # HOME, which shell steps in the container do not share, so git run by
   # go build's VCS stamping or by scripts would otherwise exit 128 on
   # the runner-user-owned .git.
+  #
+  # Actions are pinned to full commit SHAs (tags are movable, and these
+  # jobs execute on a lab runner); Dependabot's github-actions ecosystem
+  # keeps the pins current. persist-credentials is off everywhere: no
+  # job pushes, and the workspace persists between jobs on this runner.
+  #
+  # timeout-minutes on every job: a hung job would otherwise hold the
+  # single runner for GitHub's 6-hour default.
   lint:
     name: Lint
     runs-on: self-hosted
     container: golang:1.26
+    timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
           cache: true
@@ -46,7 +64,7 @@ jobs:
       # The tree is clean under this config, so the whole config is
       # enforced -- there is no baseline left to grandfather in.
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.12.2
 
@@ -54,15 +72,18 @@ jobs:
     name: Test
     runs-on: self-hosted
     container: golang:1.26
+    timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
           cache: true
@@ -77,16 +98,19 @@ jobs:
     name: Build
     runs-on: self-hosted
     container: golang:1.26
+    timeout-minutes: 30
     needs: [lint, test]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
           cache: true
@@ -101,16 +125,19 @@ jobs:
     name: Validate External Imports
     runs-on: self-hosted
     container: golang:1.26
+    timeout-minutes: 30
     needs: [lint, test]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
           cache: true
@@ -125,19 +152,21 @@ jobs:
     name: Byte Identity
     runs-on: self-hosted
     container: golang:1.26
+    timeout-minutes: 30
     needs: [lint, test]
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
           cache: true
@@ -166,16 +195,19 @@ jobs:
     name: Cache Identity
     runs-on: self-hosted
     container: golang:1.26
+    timeout-minutes: 30
     needs: [lint, test]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
           cache: true
@@ -194,16 +226,19 @@ jobs:
     name: Spruce Compat
     runs-on: self-hosted
     container: golang:1.26
+    timeout-minutes: 30
     needs: [lint, test]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
           cache: true

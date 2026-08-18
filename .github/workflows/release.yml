@@ -11,28 +11,34 @@ on:
     tags:
       - 'v*'
 
+# Read-only by default; only the goreleaser job elevates to
+# contents: write (creating the Release and uploading assets).
 permissions:
-  contents: write # required to create the GitHub Release and upload assets
+  contents: read
 
 jobs:
   # The self-hosted runner host is intentionally minimal (no make, no
   # compilers), so both jobs run in a golang container; the host only
-  # needs docker.
+  # needs docker. Actions are pinned to full commit SHAs (tags are
+  # movable, and these jobs execute on a lab runner); Dependabot's
+  # github-actions ecosystem keeps the pins current.
   test:
     name: Test
     runs-on: self-hosted
     container: golang:1.26
+    timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
           cache: true
@@ -52,24 +58,28 @@ jobs:
     name: GoReleaser
     runs-on: self-hosted
     container: golang:1.26
+    timeout-minutes: 60
     needs: test
+    permissions:
+      contents: write # create the GitHub Release and upload assets
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # full history + tags for changelog generation
+          persist-credentials: false
 
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
           cache: true
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
           version: '~> v2'
