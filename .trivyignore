@@ -1,0 +1,4 @@
+# DS-0026 wants a HEALTHCHECK instruction, which only makes sense for a
+# long-running service image. This image wraps the graft CLI: it runs a
+# command and exits, so there is no steady state to probe.
+DS-0026

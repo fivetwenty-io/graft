@@ -19,4 +19,9 @@ FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /out/graft /graft
 
+# Numeric uid:gid (nobody): scratch has no /etc/passwd to resolve names
+# against, and graft needs no privileges - it only reads the files and
+# environment it is handed.
+USER 65534:65534
+
 ENTRYPOINT ["/graft"]
