@@ -1,0 +1,26 @@
+# Weekly dependency update PRs. The github-actions ecosystem also keeps
+# the workflows' full-SHA action pins current (it updates the SHA and
+# its trailing version comment together).
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    # One PR for all patch/minor bumps keeps the single self-hosted
+    # runner's CI queue short; majors stay separate for review.
+    groups:
+      go-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
