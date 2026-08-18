@@ -5,7 +5,68 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.32.2] - 2026-08-17
+## [1.33.0] - 2026-08-17
+
+A performance release. Output is byte-for-byte identical to 1.32.2
+across the full compatibility corpus — every change below was gated in
+CI on producing the exact stdout, stderr, and exit code of the previous
+release — but merges are much faster: a heavy Genesis-style merge (one
+large manifest plus 45 overlays) drops from 1.77 s to 0.23 s, and to
+about 30 ms on a repeat run with the new persistent cache enabled.
+The same merge takes spruce about 1.25 s.
+
+### Added
+
+- Persistent merge cache (opt-in)
+
+  Set `GRAFT_CACHE_L2_ENABLED=true` (or `cache.l2_enabled: true`) and
+  graft caches work across invocations on disk, in two layers. The
+  output layer replays a previous run's exact stdout and stderr when a
+  merge is repeated with byte-identical inputs, identical flags, and
+  the same graft version — only *pure* invocations are stored, so any
+  operator that consults an external system (`vault`, `awsparam`,
+  `awssecret`, `nats`), the filesystem (`file`, `load`), the
+  environment (`raw_env`, `$VAR`), or randomness (`shuffle`), and any
+  control-flow document, disqualifies a run from output caching. The
+  parse layer stores each document's parsed tree keyed by its content
+  hash, so runs that miss the output layer still skip re-parsing
+  unchanged documents. Keys hash content, never paths or mtimes, so
+  Genesis-style temp files hit across runs and any edit misses.
+
+  A cached result is guaranteed byte-identical to an uncached run; a
+  new CI gate (`scripts/cache-identity.sh`) proves this across the
+  whole example corpus on every push. Debug and trace runs bypass the
+  cache, and cache trouble (unwritable directory, corrupt entry) is
+  never an error. Entries live under `GRAFT_CACHE_L2_PATH`, defaulting
+  to the OS user cache directory (`~/.cache/graft` on Linux,
+  `~/Library/Caches/graft` on macOS) — an empty `cache.l2_path` no
+  longer fails validation. Entries expire after seven days as
+  housekeeping. See [Caching](docs/features/extras.md#caching).
+
+- `graft cache stats` and `graft cache clear` subcommands
+
+  Report per-layer entry counts and sizes for the persistent cache,
+  and drop all stored entries.
+
+### Changed
+
+- The merge pipeline is roughly 7.5× faster on operator- and
+  document-heavy workloads, independent of any caching: merge-phase
+  regexes are compiled once, the two post-parse compatibility walks are
+  fused into one, string screening happens at the byte level before
+  expensive quote and array probing, overlays merge into the base
+  in-place instead of deep-copying it, parse fan-out is bounded to the
+  available cores, and costly debug dumps are gated on the debug flag.
+  With this release a plain uncached `graft merge` outruns spruce
+  about 5× on heavy inputs.
+
+- Parallel evaluation hardening: an explicit
+  `GRAFT_FEATURE_PARALLEL=false` now disables parallel evaluation even
+  though the config default is `true` (either kill switch set to
+  `false` wins), warning suppression is race-free under concurrent
+  workers, and the scheduler panics loudly if its single-threaded
+  dependency computation is ever entered concurrently instead of
+  silently corrupting dependency edges.
 
 ### Changed
 
@@ -365,6 +426,10 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.33.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.33.0
+[1.32.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.32.2
+[1.32.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.32.1
+[1.32.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.32.0
 [1.31.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.31.1
 [1.31.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.31.0
 [1.30.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.30.0
