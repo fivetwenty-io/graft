@@ -79,6 +79,13 @@ Use graft to:
   `graft diff` reports structural changes — added, removed, and changed
   paths — instead of a textual diff
 
+- **Fast, With an Opt-In Persistent Cache**
+
+  Heavy merges run several times faster than spruce; set
+  `GRAFT_CACHE_L2_ENABLED=true` to also cache across runs, replaying
+  byte-identical repeat merges near-instantly
+  ([details](docs/features/extras.md#caching))
+
 - **Embeddable Go Library**
 
   `pkg/graft` - embed configuration merging in your applications

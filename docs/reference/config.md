@@ -84,8 +84,8 @@ A partial file is valid. Any field not present in the file keeps its built-in de
 | Cache | Enabled | `cache.enabled` | bool | `true` | Enables the in-memory (L1) cache. |
 | Cache | MaxSize | `cache.max_size` | int | `10000` | Maximum number of entries in the cache. |
 | Cache | TTL | `cache.ttl` | duration | `5m` | Time-to-live for a cache entry. |
-| Cache | L2Enabled | `cache.l2_enabled` | bool | `false` | Enables the secondary, disk-backed cache tier. |
-| Cache | L2Path | `cache.l2_path` | string | `""` | Filesystem path for the L2 cache; required when `l2_enabled` is `true`. |
+| Cache | L2Enabled | `cache.l2_enabled` | bool | `false` | Enables the persistent (disk-backed) merge cache. |
+| Cache | L2Path | `cache.l2_path` | string | `""` | Directory for the persistent merge cache; empty means the OS user cache directory (e.g. `~/.cache/graft`). |
 | Parallel | Enabled | `parallel.enabled` | bool | `true` | Enables parallel evaluation of independent operations. |
 | Parallel | MinWorkers | `parallel.min_workers` | int | `1` | Minimum number of worker goroutines. |
 | Parallel | MaxWorkers | `parallel.max_workers` | int | `0` | Maximum number of worker goroutines; `0` auto-detects from the number of logical CPUs. |
@@ -101,11 +101,13 @@ A partial file is valid. Any field not present in the file keeps its built-in de
 
 Every field in the table above is parsed from the config file, overridden by its `GRAFT_*` environment variable, and validated on every graft invocation, but not every field is wired into the CLI's engine construction yet. Today:
 
-- The **Parallel** section (`parallel.enabled`, `parallel.min_workers`, `parallel.max_workers`) is fully wired: it drives whether `graft merge`, `graft fan`, and `graft vaultinfo` evaluate independent operations concurrently and how many worker goroutines they use. This is the one section where changing the config file or its environment variables produces an observable difference in how a merge runs (though never in what it outputs — see [Parallel Evaluation](../features/extras.md#parallel-evaluation) for the determinism guarantee).
+- The **Parallel** section (`parallel.enabled`, `parallel.min_workers`, `parallel.max_workers`) is fully wired: it drives whether `graft merge`, `graft fan`, and `graft vaultinfo` evaluate independent operations concurrently and how many worker goroutines they use. Changing it produces an observable difference in how a merge runs (though never in what it outputs — see [Parallel Evaluation](../features/extras.md#parallel-evaluation) for the determinism guarantee).
 
-- The **Cache**, **Engine**, **Metrics**, and **Logging** sections are loaded and validated, but the CLI's `merge`/`fan`/`vaultinfo` commands don't currently read them when building the engine. Concretely: caching is always attempted with a fixed 1000-entry cache regardless of `cache.enabled` or `cache.max_size`, and is turned on or off solely by the `caching` feature flag (see [Feature Flags](#feature-flags) below). `cache.ttl`, `cache.l2_enabled`, and `cache.l2_path` have no effect through the CLI. `engine.max_recursion` is not consulted — the CLI's own cycle check uses a fixed depth of 4096, independent of this field. `engine.strict_mode` and `engine.timeout` aren't read. No CLI command ever requests metrics collection, so `metrics.enabled`, `GRAFT_METRICS_ENABLED`, and the `metrics` feature flag currently have no observable effect either.
+- `cache.l2_enabled` and `cache.l2_path` (and their `GRAFT_CACHE_L2_*` environment variables) are wired: they enable and locate the [persistent merge cache](../features/extras.md#caching), which lets a repeat invocation replay a previous run's output or skip re-parsing unchanged documents. The `graft cache stats` and `graft cache clear` subcommands read the same settings.
 
-Setting any of these fields is not an error. The file loads, the environment variable applies, and `graft --config path.yaml merge ...` runs normally, but expect no change in behavior beyond the Parallel section until they're wired up. This page still documents every field's YAML key, environment variable, and validation rule for completeness and for programmatic use of the `internal/config` package outside the CLI.
+- The rest of the **Cache** section, and the **Engine**, **Metrics**, and **Logging** sections, are loaded and validated, but the CLI's `merge`/`fan`/`vaultinfo` commands don't currently read them when building the engine. Concretely: in-memory caching is always attempted with a fixed 1000-entry cache regardless of `cache.enabled` or `cache.max_size`, and is turned on or off solely by the `caching` feature flag (see [Feature Flags](#feature-flags) below). `cache.ttl` has no effect through the CLI. `engine.max_recursion` is not consulted — the CLI's own cycle check uses a fixed depth of 4096, independent of this field. `engine.strict_mode` and `engine.timeout` aren't read. No CLI command ever requests metrics collection, so `metrics.enabled`, `GRAFT_METRICS_ENABLED`, and the `metrics` feature flag currently have no observable effect either.
+
+Setting any of these fields is not an error. The file loads, the environment variable applies, and `graft --config path.yaml merge ...` runs normally, but expect no change in behavior beyond the Parallel section and the persistent merge cache until they're wired up. This page still documents every field's YAML key, environment variable, and validation rule for completeness and for programmatic use of the `internal/config` package outside the CLI.
 
 ## Environment Variables
 
@@ -161,7 +163,7 @@ Graft validates a configuration after loading it from a file and again after app
 
 - `cache.max_size` and `cache.ttl` must not be negative.
 
-- `cache.l2_path` is required when `cache.l2_enabled` is `true`.
+- `cache.l2_path` may be empty even when `cache.l2_enabled` is `true`; the OS user cache directory is used as the default.
 
 - `parallel.min_workers` and `parallel.max_workers` must not be negative, and `min_workers` must not exceed `max_workers` when `max_workers` is set.
 

@@ -72,7 +72,7 @@ for the field-by-field breakdown.
 | `GRAFT_CACHE_MAX_SIZE` | `cache.max_size` | `10000` |
 | `GRAFT_CACHE_TTL` | `cache.ttl` | `5m` |
 | `GRAFT_CACHE_L2_ENABLED` | `cache.l2_enabled` | `false` |
-| `GRAFT_CACHE_L2_PATH` | `cache.l2_path` | `""` |
+| `GRAFT_CACHE_L2_PATH` | `cache.l2_path` | `""` (OS user cache dir) |
 | `GRAFT_PARALLEL_ENABLED` | `parallel.enabled` | `true` |
 | `GRAFT_PARALLEL_MIN_WORKERS` | `parallel.min_workers` | `1` |
 | `GRAFT_PARALLEL_MAX_WORKERS` | `parallel.max_workers` | `0` (auto-detect) |

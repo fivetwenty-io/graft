@@ -12,7 +12,7 @@ Graft has two independent caching layers that are easy to conflate because both 
 
 Under parallel evaluation, concurrent requests for the *same* target-namespaced key are also coalesced into a single backend call rather than each independently missing the cache and fetching: if a wave contains ten operators all resolving `(( vault "secret/db:password" ))`, the first one to run triggers the fetch and the other nine wait on and share its result. Requests for *different* targets or different paths are never coalesced together — each is its own backend call, dispatched concurrently with the others in the same wave (see [Parallel Execution Model](../architecture/parallelism.md)).
 
-**General operator-result caching** is a separate, general-purpose in-memory cache (`internal/cache`, sharded across 16 internal shards, up to 1,000 entries by default) that the engine constructs on every run. `GRAFT_FEATURE_CACHE=false` disables it. Today, though, no CLI command's operator evaluation path reads from or writes to it — `vault`, `awsparam`, `awssecret`, and `nats` lookups go through their own backend-level caches described above, not this one. Setting `GRAFT_FEATURE_CACHE` therefore has no observable effect on `graft merge`, `graft fan`, or `graft vaultinfo` today. The `cache.*` config file fields and their `GRAFT_CACHE_*` environment variables (`enabled`, `max_size`, `ttl`, `l2_enabled`, `l2_path`) are parsed and validated but likewise not wired into the CLI; see [Which Settings Actually Affect a Merge](../reference/config.md#which-settings-actually-affect-a-merge) for the full breakdown. The underlying cache package also supports disk-backed (L2) storage, cache warming, and hit-rate analytics, but the CLI doesn't expose those today.
+**General operator-result caching** is a separate, general-purpose in-memory cache (`internal/cache`, sharded across 16 internal shards, up to 1,000 entries by default) that the engine constructs on every run. `GRAFT_FEATURE_CACHE=false` disables it. Today, though, no CLI command's operator evaluation path reads from or writes to it — `vault`, `awsparam`, `awssecret`, and `nats` lookups go through their own backend-level caches described above, not this one. Setting `GRAFT_FEATURE_CACHE` therefore has no observable effect on `graft merge`, `graft fan`, or `graft vaultinfo` today. The `cache.enabled`, `cache.max_size`, and `cache.ttl` config fields and their `GRAFT_CACHE_*` environment variables are parsed and validated but likewise not wired into the CLI; see [Which Settings Actually Affect a Merge](../reference/config.md#which-settings-actually-affect-a-merge) for the full breakdown. `cache.l2_enabled` and `cache.l2_path` *are* wired: they control the persistent merge cache described next.
 
 ```bash
 # Backend secret caching + request dedup is always on; there's nothing to
@@ -20,6 +20,27 @@ Under parallel evaluation, concurrent requests for the *same* target-namespaced 
 # unused general operator-result cache.
 graft merge base.yml overlay.yml
 ```
+
+**Persistent merge cache** is an opt-in, disk-backed cache that carries work across graft invocations — the other two caches above live and die with a single process. Enable it with `GRAFT_CACHE_L2_ENABLED=true` (or `cache.l2_enabled: true` in the config file). Entries land under `GRAFT_CACHE_L2_PATH` if set, otherwise under the OS user cache directory (`~/.cache/graft` on Linux, `~/Library/Caches/graft` on macOS).
+
+It has two layers:
+
+- The **output cache** replays a previous run's exact stdout and stderr bytes when a merge is invoked again with byte-identical input documents, identical flags, and the same graft version — without parsing, merging, or evaluating anything. Only *pure* invocations are stored: any operator that consults an external system (`vault`, `awsparam`, `awssecret`, `nats`), the filesystem (`file`, `load`), the environment (`raw_env`, `$VAR` references), or randomness (`shuffle`), and any document with control-flow markers, disqualifies the run from being cached (it still merges normally, and still benefits from the parse layer for its pure documents).
+
+- The **parse cache** stores each input document's parsed tree keyed by a hash of its bytes, so a repeat invocation that misses the output cache — a Genesis run where one overlay changed, say — still skips re-parsing every unchanged document.
+
+Both layers are content-addressed: keys hash the input bytes themselves, never paths or mtimes, so Genesis-style temp files hit across runs and any edit misses. A cached result is guaranteed byte-identical to what a cache-off run would produce — CI enforces this across the whole example corpus (`scripts/cache-identity.sh`). Debug and trace runs (`--debug`, `--trace`) bypass the cache entirely so their diagnostics always come from a real merge, and cache trouble (unwritable directory, corrupt entry) is never an error — graft just merges without it. Entries expire after seven days purely as housekeeping.
+
+Inspect or reset it with the `cache` subcommands:
+
+```bash
+GRAFT_CACHE_L2_ENABLED=true graft merge base.yml overlay.yml
+
+graft cache stats   # per-layer entry counts and sizes
+graft cache clear   # drop all stored entries
+```
+
+On a heavy Genesis-style merge (one large manifest plus 45 overlays), a warm output-cache hit turns a ~230 ms merge into ~30 ms.
 
 ## Metrics
 
