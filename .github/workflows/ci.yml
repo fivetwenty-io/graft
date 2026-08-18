@@ -257,3 +257,36 @@ jobs:
 
       - name: Run spruce/graft parity suite
         run: make test-spruce-compat
+
+  security:
+    name: Security Scan
+    runs-on: self-hosted
+    container: golang:1.26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Installed from the pinned release rather than via trivy-action:
+      # the action's own installer resolves "latest" unless pinned twice,
+      # and a plain binary drop keeps this job's moving parts visible.
+      - name: Install trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin v0.74.0
+
+      # Gate on HIGH/CRITICAL so unfixable advisories (e.g. the
+      # x/crypto/openpgp "unmaintained package" notice, severity
+      # UNKNOWN, pulled in transitively and never called -- govulncheck
+      # confirms) don't hold CI red with nothing to remediate.
+      # Suppressions with justifications live in .trivyignore.
+      - name: Scan repository
+        run: >-
+          trivy fs
+          --scanners vuln,secret,misconfig
+          --severity HIGH,CRITICAL
+          --exit-code 1
+          --skip-dirs .git
+          .
