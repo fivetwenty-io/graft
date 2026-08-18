@@ -149,14 +149,8 @@ func validateCache(cfg *CacheConfig) ValidationErrors {
 		})
 	}
 
-	// Validate L2Path if L2 is enabled.
-	if cfg.L2Enabled && cfg.L2Path == "" {
-		errors = append(errors, ValidationError{
-			Field:   "cache.l2_path",
-			Value:   cfg.L2Path,
-			Message: "l2_path is required when l2_enabled is true",
-		})
-	}
+	// An empty L2Path with L2 enabled is valid: the CLI falls back to
+	// a default directory under os.UserCacheDir().
 
 	return errors
 }

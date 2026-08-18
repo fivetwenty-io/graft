@@ -526,12 +526,13 @@ func TestValidate(t *testing.T) {
 		t.Error("Expected error for metrics endpoint without leading slash")
 	}
 
-	// L2 enabled without path.
+	// L2 enabled without path is valid: the CLI falls back to a
+	// default directory under os.UserCacheDir().
 	cfg = DefaultConfig()
 	cfg.Cache.L2Enabled = true
 	cfg.Cache.L2Path = ""
-	if err := Validate(cfg); err == nil {
-		t.Error("Expected error for L2 enabled without path")
+	if err := Validate(cfg); err != nil {
+		t.Errorf("Expected L2 enabled without path to be valid, got: %v", err)
 	}
 }
 
