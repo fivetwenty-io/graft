@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"sync"
@@ -27,7 +28,7 @@ func TestFileStorePutGet(t *testing.T) {
 	if !ok {
 		t.Fatal("Get after Put must hit")
 	}
-	if string(got) != string(want) {
+	if !bytes.Equal(got, want) {
 		t.Fatalf("Get returned %q, want %q", got, want)
 	}
 }
@@ -192,26 +193,26 @@ func TestFileStoreClearAndStats(t *testing.T) {
 		t.Fatalf("Put: %v", err)
 	}
 
-	count, bytes, err := store.Stats()
+	count, size, err := store.Stats()
 	if err != nil {
 		t.Fatalf("Stats: %v", err)
 	}
 	if count != 2 {
 		t.Fatalf("Stats count = %d, want 2", count)
 	}
-	if bytes != 12 {
-		t.Fatalf("Stats bytes = %d, want 12", bytes)
+	if size != 12 {
+		t.Fatalf("Stats bytes = %d, want 12", size)
 	}
 
 	if err := store.Clear(); err != nil {
 		t.Fatalf("Clear: %v", err)
 	}
-	count, bytes, err = store.Stats()
+	count, size, err = store.Stats()
 	if err != nil {
 		t.Fatalf("Stats after Clear: %v", err)
 	}
-	if count != 0 || bytes != 0 {
-		t.Fatalf("Stats after Clear = %d entries, %d bytes; want 0, 0", count, bytes)
+	if count != 0 || size != 0 {
+		t.Fatalf("Stats after Clear = %d entries, %d bytes; want 0, 0", count, size)
 	}
 	if _, ok := store.Get("a"); ok {
 		t.Fatal("Get after Clear must miss")

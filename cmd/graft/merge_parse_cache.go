@@ -34,20 +34,22 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/fivetwenty-io/graft/internal/cache"
 )
 
-func init() {
-	// Composite types that appear inside interface{} slots of parsed
-	// trees must be registered for gob to move them. Scalars (string,
-	// int, int64, uint64, float64, bool) are predefined by gob.
+// registerTreeGobTypes registers the composite types that appear inside
+// interface{} slots of parsed trees; gob needs them to move a tree.
+// Scalars (string, int, int64, uint64, float64, bool) are predefined by
+// gob. Run before every encode and decode, once per process.
+var registerTreeGobTypes = sync.OnceFunc(func() {
 	gob.Register(map[string]interface{}{})
 	gob.Register([]interface{}{})
 	gob.Register(map[interface{}]interface{}{})
 	gob.Register(time.Time{})
-}
+})
 
 // openMergeParseCache returns the parse-cache store for this invocation,
 // or nil when the cache must not participate (same gates as the output
@@ -81,6 +83,7 @@ type cachedParseTree struct {
 }
 
 func encodeCachedTree(tree map[string]interface{}) ([]byte, error) {
+	registerTreeGobTypes()
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(cachedParseTree{Tree: tree}); err != nil {
 		return nil, err
@@ -89,6 +92,7 @@ func encodeCachedTree(tree map[string]interface{}) ([]byte, error) {
 }
 
 func decodeCachedTree(data []byte) (map[string]interface{}, bool) {
+	registerTreeGobTypes()
 	var entry cachedParseTree
 	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&entry); err != nil {
 		return nil, false

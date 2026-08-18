@@ -178,24 +178,8 @@ func (c *YAMLCompat) convertAndUnprotectAny(v interface{}) interface{} {
 			return c.ConvertValue(val)
 		}
 		return val
-	case uint64:
-		if !c.ConvertYAML11Booleans {
-			return val
-		}
-		if val > uint64(^uint(0)>>1) {
-			return val
-		}
-		return int(val)
-	case int64:
-		if !c.ConvertYAML11Booleans {
-			return val
-		}
-		return int(val)
-	case float32:
-		if !c.ConvertYAML11Booleans {
-			return val
-		}
-		return float64(val)
+	case uint64, int64, float32:
+		return c.convertAndUnprotectNumber(val)
 	case map[string]interface{}:
 		for k, item := range val {
 			val[k] = c.convertAndUnprotectAny(item)
@@ -211,6 +195,28 @@ func (c *YAMLCompat) convertAndUnprotectAny(v interface{}) interface{} {
 			val[i] = c.convertAndUnprotectAny(item)
 		}
 		return val
+	default:
+		return v
+	}
+}
+
+// convertAndUnprotectNumber applies the compat pass's numeric
+// normalizations: int-sized integers become int, float32 widens to
+// float64, and an integer too large for int stays uint64 untouched.
+func (c *YAMLCompat) convertAndUnprotectNumber(v interface{}) interface{} {
+	if !c.ConvertYAML11Booleans {
+		return v
+	}
+	switch val := v.(type) {
+	case uint64:
+		if val > uint64(^uint(0)>>1) {
+			return val
+		}
+		return int(val)
+	case int64:
+		return int(val)
+	case float32:
+		return float64(val)
 	default:
 		return v
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 
@@ -84,7 +85,7 @@ func TestParseCacheTreeRoundTripFidelity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalYAML(decoded): %v", err)
 	}
-	if string(origYAML) != string(decodedYAML) {
+	if !bytes.Equal(origYAML, decodedYAML) {
 		t.Fatalf("round trip changed marshaled YAML:\norig:\n%s\ndecoded:\n%s", origYAML, decodedYAML)
 	}
 }

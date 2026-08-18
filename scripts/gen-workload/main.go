@@ -93,7 +93,7 @@ func genBig(path string) error {
 		props(&p, 2, 0, 4, g*131, 7)
 		b.WriteString(p.String())
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 func genOverlay(path string, n int) error {
@@ -109,7 +109,7 @@ func genOverlay(path string, n int) error {
 		b.WriteString("\nreleases:\n- (( append ))\n")
 		fmt.Fprintf(&b, "- name: extra-%d\n  version: 0.%d.0\n", n, n)
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 func genGoPatch(path string, n int) error {
@@ -118,7 +118,7 @@ func genGoPatch(path string, n int) error {
 		fmt.Fprintf(&b, "- type: replace\n  path: /meta/patched_%d_%d?\n  value: gp-%d-%d\n", n, k, n, k)
 	}
 	fmt.Fprintf(&b, "- type: replace\n  path: /meta/%s\n  value: go-patched-%d\n", word(n), n)
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 // genDense writes an operator-dense single document: ~1100 operator
@@ -166,7 +166,7 @@ func genDense(path string) error {
 	for i := 0; i < 100; i++ {
 		fmt.Fprintf(&b, "  k%03d: (( calc \"meta.n%02d * 2 + %d\" ))\n", i, i%50, i)
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 func main() {
@@ -174,8 +174,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: gen-workload <output-dir>")
 		os.Exit(1)
 	}
-	dir := os.Args[1]
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	dir := filepath.Clean(os.Args[1])
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

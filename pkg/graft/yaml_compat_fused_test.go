@@ -9,15 +9,15 @@ import (
 // care about; a fresh copy per use because both walks mutate in place.
 func fusedCompatTree() map[string]interface{} {
 	return map[string]interface{}{
-		"plain":     "value",
-		"bare-yes":  "yes",
-		"bare-off":  "Off",
-		"tagged":    yaml11QuotedBoolMarker + "yes",
-		"taggedOn":  yaml11QuotedBoolMarker + "On",
-		"number":    int64(42),
-		"unsigned":  uint64(7),
-		"huge":      uint64(1) << 63,
-		"floaty":    float32(1.5),
+		"plain":    "value",
+		"bare-yes": "yes",
+		"bare-off": "Off",
+		"tagged":   yaml11QuotedBoolMarker + "yes",
+		"taggedOn": yaml11QuotedBoolMarker + "On",
+		"number":   int64(42),
+		"unsigned": uint64(7),
+		"huge":     uint64(1) << 63,
+		"floaty":   float32(1.5),
 		"nested": map[string]interface{}{
 			"deep-no": "no",
 			"deep":    yaml11QuotedBoolMarker + "NO",
