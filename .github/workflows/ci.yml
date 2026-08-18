@@ -12,7 +12,7 @@ permissions:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -37,7 +37,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -56,7 +56,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [lint, test]
     steps:
       - name: Checkout code
@@ -76,7 +76,7 @@ jobs:
 
   import-validation:
     name: Validate External Imports
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [lint, test]
     steps:
       - name: Checkout code
@@ -96,7 +96,7 @@ jobs:
 
   byte-identity:
     name: Byte Identity
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [lint, test]
     if: github.event_name == 'pull_request'
     steps:
@@ -112,23 +112,28 @@ jobs:
           cache: true
 
       - name: Build head binary
-        run: go build -o /tmp/graft-head ./cmd/graft
+        run: go build -o "$RUNNER_TEMP/graft-head" ./cmd/graft
 
       # The PR base commit is the reference: every invocation shape in
       # the corpus must produce byte-identical stdout, stderr, and exit
       # codes across base and head. Intentional output changes must land
       # with their own justification and a corpus update.
+      #
+      # A self-hosted runner reuses its workspace, so a worktree left by
+      # an earlier run must be removed before this one can be added.
       - name: Build base binary
         run: |
-          git worktree add /tmp/base-tree "${{ github.event.pull_request.base.sha }}"
-          cd /tmp/base-tree && go build -o /tmp/graft-base ./cmd/graft
+          git worktree remove --force "$RUNNER_TEMP/base-tree" 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/base-tree"
+          git worktree add "$RUNNER_TEMP/base-tree" "${{ github.event.pull_request.base.sha }}"
+          cd "$RUNNER_TEMP/base-tree" && go build -o "$RUNNER_TEMP/graft-base" ./cmd/graft
 
       - name: Compare outputs
-        run: ./scripts/byte-identity.sh /tmp/graft-base /tmp/graft-head
+        run: ./scripts/byte-identity.sh "$RUNNER_TEMP/graft-base" "$RUNNER_TEMP/graft-head"
 
   cache-identity:
     name: Cache Identity
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [lint, test]
     steps:
       - name: Checkout code
@@ -141,18 +146,18 @@ jobs:
           cache: true
 
       - name: Build binary
-        run: go build -o /tmp/graft-head ./cmd/graft
+        run: go build -o "$RUNNER_TEMP/graft-head" ./cmd/graft
 
       # Every invocation shape in the corpus must produce byte-identical
       # stdout, stderr, and exit codes across cache-off, cache-on-cold,
       # and cache-on-warm runs: a cached result may only ever be a faster
       # route to the exact bytes a cache-off run produces.
       - name: Compare cache-off, cold, and warm outputs
-        run: ./scripts/cache-identity.sh /tmp/graft-head
+        run: ./scripts/cache-identity.sh "$RUNNER_TEMP/graft-head"
 
   spruce-compat:
     name: Spruce Compat
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [lint, test]
     steps:
       - name: Checkout code
