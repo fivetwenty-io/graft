@@ -1,0 +1,19 @@
+# The product's own defaults. Every environment starts here.
+meta:
+  environment: (( param "please set meta.environment" ))
+  domain: example.com
+  replicas: 2
+  cpu_per_replica: 2
+
+properties:
+  api:
+    url: (( concat "https://api." meta.domain ))
+    timeout: 30
+    admin_password: (( vault "secret/api:admin_password" ))
+  totals:
+    cpu: (( calc "meta.replicas * meta.cpu_per_replica" ))
+
+instance_groups:
+  - name: web
+    instances: (( grab meta.replicas ))
+    vm_type: small

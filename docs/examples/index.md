@@ -14,6 +14,16 @@ Step-by-step examples of merging YAML files, from simple overlays to complex mul
 - Using `grab` to reference values
 - Computed values with operators
 
+### [Inspecting a Merge](inspecting-a-merge.md)
+
+Debugging a merge that fails, using `graft debug` and `graft diff` on fixtures shipped in the repository.
+
+- Stepping through a merge one file at a time
+- Working past an operator you cannot resolve
+- Breakpoints on a suspicious path
+- Tracing which file set which value
+- Comparing two rendered environments
+
 ### [Conditional Configurations](conditional-configs.md)
 
 Dynamic configurations using control flow operators.

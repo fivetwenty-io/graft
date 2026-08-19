@@ -1,0 +1,7 @@
+# Capacity decisions, kept separate so they can change on their own.
+meta:
+  cpu_per_replica: 4
+
+instance_groups:
+  - name: web
+    vm_type: large

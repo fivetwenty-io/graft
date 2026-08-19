@@ -1,0 +1,9 @@
+# What production changes about the defaults.
+meta:
+  environment: prod
+  domain: prod.example.com
+  replicas: 6
+
+properties:
+  api:
+    timeout: 60

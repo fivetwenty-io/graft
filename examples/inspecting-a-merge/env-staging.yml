@@ -1,0 +1,5 @@
+# Staging, so the two environments can be compared against each other.
+meta:
+  environment: staging
+  domain: staging.example.com
+  replicas: 2

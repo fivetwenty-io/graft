@@ -139,6 +139,10 @@ Practical examples for common use cases.
 
   Simple merge operations
 
+- [Inspecting a Merge](examples/inspecting-a-merge.md)
+
+  Debugging a failing merge with `debug` and `diff`
+
 - [Conditional Configs](examples/conditional-configs.md)
 
   Using if/else and case statements
