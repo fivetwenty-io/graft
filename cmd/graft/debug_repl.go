@@ -409,7 +409,7 @@ func (s *debugSession) cmdHistory(path string) {
 //
 // A document the rewriter cannot make sense of is returned untouched
 // rather than reported as an error: a non-map root, most commonly a
-// go-patch document, has no dotted path to wrap, and re-marshalling a
+// go-patch document, has no dotted path to wrap, and re-marshaling a
 // document that gained no wrapping would only risk perturbing input the
 // merge engine is about to parse anyway.
 func (s *debugSession) deferredDocRewriter() historyDocRewriter {

@@ -149,7 +149,7 @@ func TestDebugREPL(t *testing.T) {
 			So(out, ShouldContainSubstring, "please set meta.environment")
 		})
 
-		Convey("history honours the session's deferred paths, as step and continue do", func() {
+		Convey("history honors the session's deferred paths, as step and continue do", func() {
 			out, rc := runDebugSession(deferredHistoryFiles, strings.Join([]string{
 				"load",
 				"defer meta.environment",
