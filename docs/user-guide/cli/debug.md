@@ -282,7 +282,8 @@ Path not found: no.such.path
 ### history
 
 Shows the same per-file entry list `graft merge --history` would show for
-one path — see [History Tracking](../history-tracking.md) for the full
+one path, with the session's deferred paths applied (see
+[defer](#defer)) — see [History Tracking](../history-tracking.md) for the full
 format:
 
 ```
@@ -295,7 +296,7 @@ database.host:
 
 ### defer
 
-Marks a path so the next evaluation step leaves its operator unresolved.
+Marks a path so evaluation leaves its operator unresolved.
 This rewrites the path's `(( op ... ))` text to `(( defer op ... ))` — the
 real spruce-compatible defer operator — so the effect is identical to
 writing `(( defer ))` in the source YAML by hand:
@@ -311,6 +312,37 @@ Evaluation complete.
 graft> inspect database.password
 (( grab meta.version ))
 ```
+
+Deferring applies to the whole session rather than to the next step
+alone, so it also covers `history`. That matters more than it sounds
+like it should. `history` recomputes the entire merge to trace one path,
+and an operator it cannot resolve stops that recompute before any tracing
+happens. An unreachable Vault path therefore makes `history` fail for
+every path you ask about, including unrelated ones. Defer the offending
+path first and the trace works:
+
+```
+graft> defer properties.api.admin_password
+Marked properties.api.admin_password for deferred evaluation
+
+graft> history meta.replicas
+meta.replicas:
+  [0] base.yml       → 2
+  [1] env-prod.yml   → 6
+  Final              → 6
+```
+
+To excuse every unreachable secret at once instead of naming them one at
+a time, set `REDACT` when you launch the session:
+
+```sh
+REDACT=1 graft debug base.yml env-prod.yml sizing.yml
+```
+
+Every Vault lookup then resolves to the literal `REDACTED` rather than
+failing, which keeps `step`, `continue`, `history`, and `output` all
+working and makes the session safe to paste into a ticket. `REDACT` is
+read from the environment at launch and is not settable from `config`.
 
 ### eval
 
@@ -533,6 +565,7 @@ graft> diff
 
 ## See Also
 
+- [Inspecting a Merge](../../examples/inspecting-a-merge.md) - A walkthrough that debugs a failing merge from first symptom to answer
 - [merge](merge.md) - Non-interactive merge
 - [History Tracking](../history-tracking.md) - History features
 - [Operators](../operators/) - Operator reference

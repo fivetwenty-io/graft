@@ -17,7 +17,7 @@ graft diff [flags] file1.yml file2.yml
 | `--changes` | | List all changes (original → new) |
 | `--context` | | Lines of context in unified diff |
 | `--width` | | Width for side-by-side view |
-| `--no-color` | | Disable colorized output |
+| `--no-color` | | Disable colorized output, overriding the global `--color` |
 | `--quiet` | `-q` | Exit with status only, no output |
 
 ## Output Formats
@@ -159,6 +159,42 @@ A wholly removed/added multi-key subtree (here, all of `meta`) is one
 entry at the subtree's own root, not flattened to each of its leaves —
 the same convention `graft diff`'s default report and `merge
 --show-changes` use for an entirely new/removed section.
+
+## Choosing One Rendering
+
+`--side-by-side`, `--unified`, and `--changes` are mutually exclusive.
+Passing more than one is refused rather than silently resolved in favor
+of whichever graft checks first:
+
+```sh
+graft diff --unified --side-by-side base.yml modified.yml
+```
+
+```
+--side-by-side, --unified, and --changes are mutually exclusive; pick one
+```
+
+## Color
+
+Color is decided in two stages, and the per-command flag wins.
+
+The global `--color` flag takes `on`, `off`, or `auto`, and defaults to
+`auto`. Under `auto`, graft colors its output only when standard output
+is a terminal, so a diff piped into a file or another program comes out
+as plain text without your asking for it.
+
+`--color=on` forces color on even when the destination is not a
+terminal. Use it when piping into a pager that understands escape
+sequences:
+
+```sh
+graft --color=on diff --changes base.yml modified.yml | less -R
+```
+
+`diff`'s own `--no-color` flag overrides whatever `--color` asked for, so
+`graft --color=on diff --changes --no-color` prints no escape sequences
+at all. Reach for it when a script sets `--color=on` globally and one
+command inside it needs clean text.
 
 ## Options
 
@@ -310,6 +346,8 @@ graft diff dev-merged.yml prod-merged.yml
 ```
 
 ## See Also
+
+- [Inspecting a Merge](../../examples/inspecting-a-merge.md) - A walkthrough that uses all four renderings on a real configuration
 
 - [merge](merge.md) - Merge configurations
 - [History Tracking](../history-tracking.md) - Track where values came from
