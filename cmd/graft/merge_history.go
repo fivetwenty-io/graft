@@ -17,7 +17,7 @@ import (
 // each path in the final document was derived. opts.validateHistoryFlags
 // must already have been checked by the caller (handleMerge).
 func handleMergeHistory(opts *mergeOpts) int {
-	steps, docCount, err := buildMergeHistorySteps(opts)
+	steps, docCount, err := buildMergeHistorySteps(opts, nil)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
@@ -55,6 +55,12 @@ type cachedMergeFile struct {
 	Data []byte
 }
 
+// historyDocRewriter transforms one input file's raw bytes before
+// buildMergeHistorySteps replays it. A rewriter must be total: it returns
+// the bytes it was given, unchanged, for any document it has nothing to
+// say about, rather than reporting an error.
+type historyDocRewriter func(data []byte) []byte
+
 // buildMergeHistorySteps replays a multi-file merge one file at a time
 // (each step's Data is the complete raw, unevaluated merge of every file up
 // to and including that one), then appends a synthetic evaluation step
@@ -72,7 +78,18 @@ type cachedMergeFile struct {
 // summary count (e.g. --show-changes's "Merge Summary: N files -> ..."
 // header) must use this, not len(opts.Files), or a -m invocation
 // understates the count: one CLI argument, several documents.
-func buildMergeHistorySteps(opts *mergeOpts) ([]history.StepState, int, error) {
+//
+// rewrite, when non-nil, transforms each input file's bytes once, after
+// they are read and before any merge replays them. It exists for `graft
+// debug`'s `history` command, which must apply the session's deferred
+// paths (see debugSession.cmdHistory) to every replay this function
+// performs - including the final evaluation step, which is where an
+// undeferred operator would otherwise abort the whole report. Rewriting
+// the input bytes rather than patching a merged tree is what makes the
+// deferral survive: every step below re-merges the files from scratch, so
+// a change applied anywhere else would be discarded. `merge --history`
+// passes nil and is unaffected.
+func buildMergeHistorySteps(opts *mergeOpts, rewrite historyDocRewriter) ([]history.StepState, int, error) {
 	files, err := resolveMergeInputFiles(opts)
 	if err != nil {
 		return nil, 0, err
@@ -86,6 +103,9 @@ func buildMergeHistorySteps(opts *mergeOpts) ([]history.StepState, int, error) {
 		data, readErr := readFile(&files[i])
 		if readErr != nil {
 			return nil, 0, readErr
+		}
+		if rewrite != nil {
+			data = rewrite(data)
 		}
 		cached[i] = cachedMergeFile{Path: files[i].Path, Data: data}
 	}

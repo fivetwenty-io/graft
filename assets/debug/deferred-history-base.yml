@@ -1,0 +1,3 @@
+meta:
+  environment: (( param "please set meta.environment" ))
+  replicas: 2

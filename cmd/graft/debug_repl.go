@@ -372,7 +372,14 @@ func (s *debugSession) cmdHistory(path string) {
 	// from s.cached's in-memory bytes; this matches a plain `graft debug`
 	// invocation's files still being present on disk (the same assumption
 	// resolveMergeInputFiles already makes for stdin-less invocations).
-	steps, _, err := buildMergeHistorySteps(&fileOpts)
+	//
+	// The session's deferred paths are applied to each of those files as
+	// they are read, so `defer` covers `history` exactly as it covers
+	// `step`/`continue`. Without this, one operator the session cannot
+	// resolve - an unreachable Vault path, an unfilled (( param )) - aborts
+	// the recompute and makes `history` report that operator's error for
+	// every path asked about, including unrelated ones.
+	steps, _, err := buildMergeHistorySteps(&fileOpts, s.deferredDocRewriter())
 	if err != nil {
 		s.printf("%s\n", ansi.Sprintf("@R{Error computing history}: %s", err.Error()))
 		return
@@ -394,6 +401,33 @@ func (s *debugSession) cmdHistory(path string) {
 	}
 	writeHistoryFinalLine(&buf, ph, len(ph.Entries) == 1)
 	s.out.Write([]byte(buf.String())) //nolint:errcheck // best-effort REPL output
+}
+
+// deferredDocRewriter returns a historyDocRewriter that wraps the
+// session's deferred paths in each document it is handed, or nil when
+// nothing is deferred (so `history` costs exactly what it did before).
+//
+// A document the rewriter cannot make sense of is returned untouched
+// rather than reported as an error: a non-map root, most commonly a
+// go-patch document, has no dotted path to wrap, and re-marshalling a
+// document that gained no wrapping would only risk perturbing input the
+// merge engine is about to parse anyway.
+func (s *debugSession) deferredDocRewriter() historyDocRewriter {
+	if len(s.deferred) == 0 {
+		return nil
+	}
+	return func(data []byte) []byte {
+		tree, err := parseYAML(data)
+		if err != nil {
+			return data
+		}
+		wrapped := applyDeferredWrapping(tree, s.deferred)
+		out, err := graft.MarshalYAML(wrapped)
+		if err != nil {
+			return data
+		}
+		return out
+	}
 }
 
 // cmdDefer implements `defer <path>`.

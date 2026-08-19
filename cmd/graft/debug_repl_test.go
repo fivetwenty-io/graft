@@ -38,6 +38,11 @@ func runDebugSessionWithOpts(files []string, opts *mergeOpts, script string) (st
 // with.
 func TestDebugREPL(t *testing.T) {
 	files := []string{"../../assets/history/base.yml", "../../assets/history/env.yml", "../../assets/history/secrets.yml"}
+	// deferredHistoryFiles carries an unfilled (( param )) whose evaluation
+	// always fails, with no external service involved, so it exercises how
+	// `history` behaves when the document holds an operator the session
+	// cannot resolve.
+	deferredHistoryFiles := []string{"../../assets/debug/deferred-history-base.yml", "../../assets/debug/deferred-history-override.yml"}
 
 	Convey("graft debug", t, func() {
 		Convey("load reports every file with its own top-level key count", func() {
@@ -134,6 +139,31 @@ func TestDebugREPL(t *testing.T) {
 			So(out, ShouldContainSubstring, "database.pool_size:\n")
 			So(out, ShouldContainSubstring, "10")
 			So(out, ShouldContainSubstring, "50")
+			So(out, ShouldContainSubstring, "Final")
+		})
+
+		Convey("history without defer still reports an unresolvable operator's error", func() {
+			out, rc := runDebugSession(deferredHistoryFiles, "load\nhistory meta.replicas\nquit\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "Error computing history")
+			So(out, ShouldContainSubstring, "please set meta.environment")
+		})
+
+		Convey("history honours the session's deferred paths, as step and continue do", func() {
+			out, rc := runDebugSession(deferredHistoryFiles, strings.Join([]string{
+				"load",
+				"defer meta.environment",
+				"history meta.replicas",
+				"quit",
+				"",
+			}, "\n"))
+			So(rc, ShouldEqual, 0)
+			// The deferred param no longer aborts the whole recompute, so an
+			// unrelated path reports its real per-file entries.
+			So(out, ShouldNotContainSubstring, "Error computing history")
+			So(out, ShouldContainSubstring, "meta.replicas:\n")
+			So(out, ShouldContainSubstring, "2")
+			So(out, ShouldContainSubstring, "6")
 			So(out, ShouldContainSubstring, "Final")
 		})
 
