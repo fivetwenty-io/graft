@@ -78,7 +78,7 @@ fallback's `AWS_PROFILE`/`AWS_REGION`/`AWS_ROLE`, and NATS's `NATS_URL` plus
 its `NATS_*` tuning variables are all read from the environment too, and
 none of them are settable from `config` today.
 
-## Editing, History, and Completion
+## Editing, Recall, and Completion
 
 When you run the debugger from a terminal, the prompt is a full line editor
 rather than a bare read of stdin. The keys behave the way they do in a
@@ -87,7 +87,7 @@ shell.
 | Key | Effect |
 |-----|--------|
 | Up / Down | Walk backward and forward through previous commands |
-| Ctrl+R | Search backward through history as you type |
+| Ctrl+R | Search backward through earlier commands as you type |
 | Ctrl+S | Search forward again after a Ctrl+R |
 | Tab | Complete the word under the cursor |
 | Ctrl+A / Ctrl+E | Jump to the start or end of the line |
@@ -111,20 +111,20 @@ before that there is no document to complete against. `unbreak` offers only
 the paths that actually have a breakpoint, `config` offers its three known
 keys, and `export` completes filenames from the working directory.
 
-History outlives the session. Commands are appended to `~/.graft/debug_history`,
-which is created readable only by you, and the next debug session starts with
-everything you typed in the last one. One kind of line is deliberately left
-out: setting a secret, as in `config vault.token s.something`, is never
-written to the file, though reading the same key with a bare
-`config vault.token` is.
+Command recall outlives the session. Commands are appended to
+`~/.graft/debug_history`, which is created readable only by you, and the next
+debug session starts with everything you typed in the last one. One kind of
+line is deliberately left out: setting a secret, as in
+`config vault.token s.something`, is never written to the file, though
+reading the same key with a bare `config vault.token` is.
 
-Note that the `history` command is a different thing entirely. It reports
-where a path's value came from across the merged files. Your own command
-history has no REPL command and lives on the arrow keys and Ctrl+R.
+The `history` command is unrelated to any of this. It reports where a path's
+value came from across the merged files. Recall has no command of its own and
+lives on the arrow keys and Ctrl+R.
 
 None of this applies when the debugger's input is a pipe or a file, as in
 `graft debug base.yml < script.txt`. There is no terminal to edit on, so
-graft reads the script a line at a time and writes no history.
+graft reads the script a line at a time and records nothing for recall.
 
 ## Session Example
 
