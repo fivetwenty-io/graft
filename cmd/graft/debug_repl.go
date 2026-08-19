@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -36,14 +36,18 @@ import (
 // REPL has no hook into a backend's client cache to force a rebuild.
 // (NATS re-reads its environment on every operator evaluation, so it would
 // not have that caveat; Vault, which pools its client, does.)
+// debugConfigKeyVaultToken is the one `config` key whose value is a
+// credential, which is why it is named rather than spelled out at each use.
+const debugConfigKeyVaultToken = "vault.token"
+
 var debugConfigKeys = map[string]string{
-	"vault.addr":      "VAULT_ADDR",
-	"vault.token":     "VAULT_TOKEN",
-	"vault.namespace": "VAULT_NAMESPACE",
+	"vault.addr":             "VAULT_ADDR",
+	debugConfigKeyVaultToken: "VAULT_TOKEN",
+	"vault.namespace":        "VAULT_NAMESPACE",
 }
 
 // debugConfigKeyOrder is debugConfigKeys' display order for a bare `config`.
-var debugConfigKeyOrder = []string{"vault.addr", "vault.token", "vault.namespace"}
+var debugConfigKeyOrder = []string{"vault.addr", debugConfigKeyVaultToken, "vault.namespace"}
 
 // debugSession holds one `graft debug` REPL's state: the cached source
 // files (re-parsed on every step/continue/eval, mirroring
@@ -601,25 +605,52 @@ func (s *debugSession) cmdHelp(command string) {
 
 type debugHelpEntry struct {
 	name, summary, usage, detail string
+	// arg is what this command's argument is, for Tab completion. A
+	// command with no argument, or one nothing can be offered for, is
+	// debugArgNone.
+	arg debugArgKind
+}
+
+// debugArgKind is the kind of thing a REPL command's argument names.
+type debugArgKind int
+
+const (
+	debugArgNone debugArgKind = iota
+	debugArgPath
+	debugArgBreakpoint
+	debugArgConfigKey
+	debugArgFile
+	debugArgCommand
+)
+
+// debugArgKindFor is the argument kind of the named command, or
+// debugArgNone for a command that takes none (or is not a command).
+func debugArgKindFor(name string) debugArgKind {
+	for _, c := range debugCommandHelp {
+		if c.name == name {
+			return c.arg
+		}
+	}
+	return debugArgNone
 }
 
 var debugCommandHelp = []debugHelpEntry{
-	{"load", "Load all documents", "load", "Parses every input file individually and establishes the first file as the starting document."},
-	{"step", "Execute next merge step", "step", "Merges the next file (or evaluates operators, on the final step)."},
-	{"continue", "Run to completion", "continue", "Repeats 'step' until the merge and evaluation are complete or a breakpoint is hit."},
-	{"break", "Set breakpoint on path", "break <path>", "Sets a breakpoint on a path. The debugger reports when this path changes during a later step or continue.\n\nExample:\n  break database.password"},
-	{"unbreak", "Remove breakpoint", "unbreak <path>", "Removes a previously set breakpoint."},
-	{"breaks", "List all breakpoints", "breaks", "Lists every breakpoint currently set."},
-	{"inspect", "Show current value at path", "inspect <path>", "Shows the current (raw or evaluated, depending on progress) value at path."},
-	{"history", "Show change history for path", "history <path>", "Shows the same per-file history 'merge --history' would show for path."},
-	{"defer", "Mark path for deferred evaluation", "defer <path>", "Marks path so its operator is left unevaluated (via the real (( defer ... )) operator) when 'step'/'continue' evaluates."},
-	{"eval", "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress."},
-	{"config", "View/set configuration", "config [key] [value]", "Views or sets a small set of Vault connection settings (vault.addr, vault.token, vault.namespace) for the rest of the session."},
-	{"output", "Show current document state", "output", "Prints the current document state as YAML."},
-	{"diff", "Show changes from original", "diff", "Shows the changes between the first loaded file and the current state."},
-	{"export", "Export current state to file", "export <file>", "Writes the current document state to file (YAML, or JSON if file ends in .json)."},
-	{"help", "Show help", "help [command]", "Lists every command, or shows detailed help for one command."},
-	{"quit", "Exit the debugger", "quit", "Exits the debugger without exporting."},
+	{"load", "Load all documents", "load", "Parses every input file individually and establishes the first file as the starting document.", debugArgNone},
+	{"step", "Execute next merge step", "step", "Merges the next file (or evaluates operators, on the final step).", debugArgNone},
+	{"continue", "Run to completion", "continue", "Repeats 'step' until the merge and evaluation are complete or a breakpoint is hit.", debugArgNone},
+	{"break", "Set breakpoint on path", "break <path>", "Sets a breakpoint on a path. The debugger reports when this path changes during a later step or continue.\n\nExample:\n  break database.password", debugArgPath},
+	{"unbreak", "Remove breakpoint", "unbreak <path>", "Removes a previously set breakpoint.", debugArgBreakpoint},
+	{"breaks", "List all breakpoints", "breaks", "Lists every breakpoint currently set.", debugArgNone},
+	{"inspect", "Show current value at path", "inspect <path>", "Shows the current (raw or evaluated, depending on progress) value at path.", debugArgPath},
+	{"history", "Show change history for path", "history <path>", "Shows the same per-file history 'merge --history' would show for path.", debugArgPath},
+	{"defer", "Mark path for deferred evaluation", "defer <path>", "Marks path so its operator is left unevaluated (via the real (( defer ... )) operator) when 'step'/'continue' evaluates.", debugArgPath},
+	{"eval", "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress.", debugArgPath},
+	{"config", "View/set configuration", "config [key] [value]", "Views or sets a small set of Vault connection settings (vault.addr, vault.token, vault.namespace) for the rest of the session.", debugArgConfigKey},
+	{"output", "Show current document state", "output", "Prints the current document state as YAML.", debugArgNone},
+	{"diff", "Show changes from original", "diff", "Shows the changes between the first loaded file and the current state.", debugArgNone},
+	{"export", "Export current state to file", "export <file>", "Writes the current document state to file (YAML, or JSON if file ends in .json).", debugArgFile},
+	{"help", "Show help", "help [command]", "Lists every command, or shows detailed help for one command.", debugArgCommand},
+	{"quit", "Exit the debugger", "quit", "Exits the debugger without exporting.", debugArgNone},
 }
 
 // noneDisplay is the placeholder shown for a side of a change that does
@@ -813,25 +844,27 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer) i
 
 	_, _ = fmt.Fprintf(out, "Welcome to the Graft Debugger\nType 'help' for available commands.\n\n")
 
-	scanner := bufio.NewScanner(in)
+	reader := newDebugLineReader(in, out, "graft> ", &debugCompleter{sess: sess})
+	defer func() { _ = reader.Close() }()
+
 	for {
-		_, _ = fmt.Fprint(out, "graft> ")
-		if !scanner.Scan() {
-			_, _ = fmt.Fprintln(out)
-			// Scan also stops on a read error or a line longer than
-			// bufio.Scanner's 64KiB buffer; without this check that is
-			// indistinguishable from a clean EOF and every remaining
-			// command is silently dropped.
-			if err := scanner.Err(); err != nil {
-				log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error reading debugger input}: %s", err.Error()))
-				return 2
+		raw, err := reader.ReadLine()
+		if err != nil {
+			// Ctrl+C abandons the line in hand, nothing more.
+			if errors.Is(err, errREPLInterrupted) {
+				continue
 			}
-			return 0
+			if errors.Is(err, io.EOF) {
+				return 0
+			}
+			log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error reading debugger input}: %s", err.Error()))
+			return 2
 		}
-		line := strings.TrimSpace(scanner.Text())
+		line := strings.TrimSpace(raw)
 		if line == "" {
 			continue
 		}
+		reader.SaveHistory(line)
 
 		fields := strings.Fields(line)
 		cmd, args := fields[0], fields[1:]

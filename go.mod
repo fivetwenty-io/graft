@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go v1.55.8
 	github.com/cppforlife/go-patch v0.2.0
 	github.com/dlclark/regexp2 v1.12.0
+	github.com/ergochat/readline v0.1.3
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/goccy/go-yaml v1.19.2
 	github.com/gonvenience/ytbx v1.5.0
