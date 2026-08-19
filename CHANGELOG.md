@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `graft debug`'s `history` command now applies the session's deferred
+  paths, as `step` and `continue` already did. Previously an operator the
+  session could not resolve, such as an unreachable Vault path or an
+  unfilled `(( param ))`, aborted the recompute that history tracking
+  depends on, so `history` reported that operator's error for every path
+  asked about, including unrelated ones. Deferring the offending path had
+  no effect because the command rebuilt the merge without consulting the
+  deferred set.
+
+### Documentation
+
+- Added [Inspecting a Merge](docs/examples/inspecting-a-merge.md), a
+  walkthrough that debugs a failing merge from its first symptom to a
+  full answer, with runnable fixtures in `examples/inspecting-a-merge/`.
+
+- Documented how `REDACT` lets a whole debug session tolerate unreachable
+  Vault paths, and how `graft diff` decides whether to color its output.
+
 ## [1.33.0] - 2026-08-17
 
 A performance release. Output is byte-for-byte identical to 1.32.2
