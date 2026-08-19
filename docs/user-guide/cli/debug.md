@@ -48,6 +48,7 @@ The debug REPL provides interactive control over the merge process:
 - View per-path change history
 - Set Vault connection settings for the rest of the session
 - Defer or force operator evaluation
+- Recall, search, and complete commands at the prompt
 
 ## REPL Commands
 
@@ -76,6 +77,54 @@ of environment variables graft reads: `VAULT_SKIP_VERIFY`, the AWS session
 fallback's `AWS_PROFILE`/`AWS_REGION`/`AWS_ROLE`, and NATS's `NATS_URL` plus
 its `NATS_*` tuning variables are all read from the environment too, and
 none of them are settable from `config` today.
+
+## Editing, History, and Completion
+
+When you run the debugger from a terminal, the prompt is a full line editor
+rather than a bare read of stdin. The keys behave the way they do in a
+shell.
+
+| Key | Effect |
+|-----|--------|
+| Up / Down | Walk backward and forward through previous commands |
+| Ctrl+R | Search backward through history as you type |
+| Ctrl+S | Search forward again after a Ctrl+R |
+| Tab | Complete the word under the cursor |
+| Ctrl+A / Ctrl+E | Jump to the start or end of the line |
+| Ctrl+W | Delete the word before the cursor |
+| Ctrl+C | Abandon the line in hand and prompt again |
+| Ctrl+D | Leave the debugger, the same as `quit` |
+
+Tab completion knows what each command takes. On the first word it offers
+command names, so `ins` followed by Tab becomes `inspect`. After a command
+that takes a path, it offers the document itself, one level per press:
+
+```
+graft> inspect meta.<TAB>
+meta.cpu_per_replica   meta.domain            meta.environment       meta.replicas
+```
+
+Those completions come from the tree as it stands at the current step, not
+from a fixed list, so a key that first appears in the second file shows up
+only once you have stepped that far. Run `load` first, since
+before that there is no document to complete against. `unbreak` offers only
+the paths that actually have a breakpoint, `config` offers its three known
+keys, and `export` completes filenames from the working directory.
+
+History outlives the session. Commands are appended to `~/.graft/debug_history`,
+which is created readable only by you, and the next debug session starts with
+everything you typed in the last one. One kind of line is deliberately left
+out: setting a secret, as in `config vault.token s.something`, is never
+written to the file, though reading the same key with a bare
+`config vault.token` is.
+
+Note that the `history` command is a different thing entirely. It reports
+where a path's value came from across the merged files. Your own command
+history has no REPL command and lives on the arrow keys and Ctrl+R.
+
+None of this applies when the debugger's input is a pipe or a file, as in
+`graft debug base.yml < script.txt`. There is no terminal to edit on, so
+graft reads the script a line at a time and writes no history.
 
 ## Session Example
 
