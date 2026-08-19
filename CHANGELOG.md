@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `graft debug` now runs its prompt through a real line editor when it is
+  attached to a terminal. Up and Down recall earlier commands, Ctrl+R
+  searches them, and Tab completes command names, document paths from the
+  tree at the current step, set breakpoints for `unbreak`, and the known
+  keys for `config`. History persists in `~/.graft/debug_history`, created
+  readable only by its owner, and a line that sets a secret such as
+  `config vault.token` is kept out of it. Piped and redirected input is
+  read exactly as before.
+
 ### Fixed
 
 - `graft debug`'s `history` command now applies the session's deferred
