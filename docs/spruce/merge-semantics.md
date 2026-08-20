@@ -124,8 +124,11 @@ later document, in both directions.
 
 - If an earlier document sets a real value at a path and a later
   document overwrites it with `(( prune ))`, the path is queued for
-  pruning going forward, and the marker is recorded even though the
-  original value is gone.
+  pruning and the earlier value stays where it is. Operators that
+  reference the path read that value rather than the marker, and the
+  path is removed from the final output afterwards. A `(( prune ))`
+  that lands on a path no earlier document set has nothing to preserve
+  and is left for the evaluator to resolve.
 
 The same before/after tracking applies to `(( sort by <key> ))`
 markers: whichever document last touched the path determines the sort
