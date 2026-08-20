@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A `(( prune ))` that overwrote a value an earlier document had set left
+  the marker in place instead of queueing the path and keeping the value.
+  Anything reading that path, such as `(( grab ))`, then read the literal
+  `(( prune ))` text rather than the value, and under `--skip-eval` the
+  marker reached the output. Multi-document files felt this most, since
+  each document is an overlay on the ones before it. Spruce queues the
+  path and leaves the earlier value in place for the rest of the merge;
+  graft now does the same, including for a `(( prune ))` merged in by
+  `(( inject ))`.
+
 - `graft debug`'s `history` command now applies the session's deferred
   paths, as `step` and `continue` already did. Previously an operator the
   session could not resolve, such as an unreachable Vault path or an
