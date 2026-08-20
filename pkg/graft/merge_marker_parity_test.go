@@ -306,3 +306,62 @@ networks:
 		})
 	})
 }
+
+// TestPruneOverwritingScalarKeepsOriginalValue pins the other direction of
+// prune's merge-phase behavior: a (( prune )) in a later document that lands
+// on a key an earlier document already set. Spruce (merge.go, "prune
+// operator special behavior II") queues the path for removal and leaves the
+// original value in place, so operators that reference the path still read
+// the value it had, and the key is gone from the output either way.
+func TestPruneOverwritingScalarKeepsOriginalValue(t *testing.T) {
+	Convey("A (( prune )) overwriting an existing value queues the path and keeps the value", t, func() {
+		ctx := context.Background()
+
+		Convey("a grab of the pruned path reads the original value, not the marker", func() {
+			engine, err := NewEngine()
+			So(err, ShouldBeNil)
+
+			first, err := engine.ParseYAML([]byte("params:\n  tmp: dev\n"))
+			So(err, ShouldBeNil)
+			second, err := engine.ParseYAML([]byte("kit:\n  scale: (( grab params.tmp ))\n"))
+			So(err, ShouldBeNil)
+			third, err := engine.ParseYAML([]byte("params:\n  tmp: (( prune ))\n"))
+			So(err, ShouldBeNil)
+
+			result, err := engine.Merge(ctx, first, second, third).Execute()
+			So(err, ShouldBeNil)
+
+			scale, err := result.GetString("kit.scale")
+			So(err, ShouldBeNil)
+			So(scale, ShouldEqual, "dev")
+
+			params, err := result.GetMap("params")
+			So(err, ShouldBeNil)
+			_, stillThere := params["tmp"]
+			So(stillThere, ShouldBeFalse)
+		})
+
+		Convey("the queued path is pruned under --skip-eval too", func() {
+			engine, err := NewEngine()
+			So(err, ShouldBeNil)
+
+			first, err := engine.ParseYAML([]byte("params:\n  tmp: dev\n  keep: 1\n"))
+			So(err, ShouldBeNil)
+			second, err := engine.ParseYAML([]byte("params:\n  tmp: (( prune ))\n"))
+			So(err, ShouldBeNil)
+
+			result, err := engine.Merge(ctx, first, second).SkipEvaluation().Execute()
+			So(err, ShouldBeNil)
+
+			out, err := result.ToYAML()
+			So(err, ShouldBeNil)
+			So(string(out), ShouldNotContainSubstring, "(( prune ))")
+
+			params, err := result.GetMap("params")
+			So(err, ShouldBeNil)
+			_, stillThere := params["tmp"]
+			So(stillThere, ShouldBeFalse)
+			So(params["keep"], ShouldEqual, 1)
+		})
+	})
+}

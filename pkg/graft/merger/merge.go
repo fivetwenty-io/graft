@@ -419,29 +419,25 @@ func (m *Merger) MergeObj(orig interface{}, n interface{}, node string) interfac
 			}
 		}
 
-		// For non-array contexts (regular map keys), when a prune operator
-		// is replacing existing content, we need to decide whether to:
-		// 1. Preserve the original value (if it might be referenced by other operators)
-		// 2. Return the prune operator (for standard evaluation)
+		// For non-array contexts (regular map keys), a prune operator
+		// landing on content an earlier document already set queues the
+		// path and leaves that content alone, whatever its type. The
+		// value stays readable by operators that reference the path -
+		// (( grab )) and friends see what was there, not the marker -
+		// and the queued path is removed from the output afterwards,
+		// which also covers --skip-eval, where no evaluator runs to
+		// resolve a marker left behind.
 		//
-		// Special case: if there's no original content (orig == nil),
-		// return the prune operator for evaluation
+		// With no original content there is nothing to preserve and
+		// nothing to queue: the marker is returned for the evaluator to
+		// resolve, and stays literal under --skip-eval, as in spruce.
 		if orig != nil {
-			// Check if the original value is complex (map or array)
-			// Complex values might be referenced by grab/inject operators
-			switch orig.(type) {
-			case map[string]interface{}, []interface{}:
-				log.DEBUG("%s: prune operator replacing complex content, marking for prune but preserving original value", node)
-				m.addToPruneListIfNecessary(node)
-				return orig // Keep original value for other operators to reference
-			default:
-				log.DEBUG("%s: prune operator replacing simple content, treating as regular string", node)
-				return newString // Return prune operator for evaluation
-			}
-		} else {
-			log.DEBUG("%s: prune operator with no original content, returning operator for evaluation", node)
-			return newString // Return prune operator for evaluation
+			log.DEBUG("%s: prune operator replacing existing content, marking for prune but preserving original value", node)
+			m.addToPruneListIfNecessary(node)
+			return orig
 		}
+		log.DEBUG("%s: prune operator with no original content, returning operator for evaluation", node)
+		return newString
 
 	case origOk && sortRx.MatchString(origString):
 		log.DEBUG("%s: a (( sort )) operator is about to be replaced, check if its path needs to be saved", node)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -958,10 +959,37 @@ func (ev *Evaluator) applyResponse(op *Opcall, resp *Response, oldValue interfac
 					return err
 				}
 				m[k] = merged
+				ev.queuePrunePathsFrom(mrg)
 			}
 		}
 	}
 	return nil
+}
+
+// queuePrunePathsFrom hands the paths a nested merge queued for pruning to
+// the run's prune list. (( inject )) merges the injected map into the
+// target with the same merger the merge phase uses, so an injected value
+// landing on a (( prune )) marker queues that path against that merger
+// rather than against the run. Spruce keeps a single package-level list, so
+// its nested merges reach the same place on their own; graft's list belongs
+// to the run, and without this hand-off the queued path would be dropped
+// and the key would survive into the output.
+func (ev *Evaluator) queuePrunePathsFrom(mrg *merger.Merger) {
+	metadata := mrg.GetMetadata()
+	if metadata == nil || len(metadata.PrunePaths) == 0 {
+		return
+	}
+
+	state := GetEngine(ev).GetOperatorState()
+	queued := state.GetKeysToPrune()
+	for _, path := range metadata.PrunePaths {
+		if slices.Contains(queued, path) {
+			continue
+		}
+		log.DEBUG("queueing '%s' for pruning, from a merge inside an operator", path)
+		state.AddKeyToPrune(path)
+		queued = append(queued, path)
+	}
 }
 
 // RunPhase executes all operators belonging to the specified phase.
