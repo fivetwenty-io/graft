@@ -43,6 +43,23 @@ env: production
 password: (( vault (concat "secret/" env "/db:password") ))
 ```
 
+### Path Segment From Another Vault Lookup
+
+A vault path segment can come from a prior `(( vault ... ))` lookup
+elsewhere in the tree. Graft's dependency ordering resolves `meta.path`
+first, then composes it into the second lookup's path:
+
+```yaml
+meta:
+  path: (( vault "secret/paths:root" ))
+
+value: (( vault "secret/paths:" meta.path ))
+```
+
+If `secret/paths` holds `{root: "child", child: "s3kr1t"}`, `meta.path`
+resolves to `child` and `value` resolves to `s3kr1t`. This works
+regardless of which field is declared first in the document.
+
 ### With Target
 
 ```yaml
@@ -263,6 +280,12 @@ secrets:
 Add `--json` for the same data as JSON, or `--paths-only` for just the
 sorted list of secret keys (`docs/user-guide/cli/vaultinfo.md` has the
 full flag reference).
+
+`vaultinfo` runs offline and never contacts Vault, so a path segment
+built from another `(( vault ... ))` lookup (see "Path Segment From
+Another Vault Lookup" above) currently reports `REDACTED` in place of
+the resolved segment instead of the real path. The merge-time
+evaluation itself is unaffected.
 
 ## Error Handling
 
