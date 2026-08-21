@@ -31,6 +31,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `graft merge` now begins its output with a `---` document-start
+  line, so the result can be inlined into or concatenated with other
+  YAML documents without hand-editing. The same applies to the files
+  `graft fan --output-dir` writes; fan's stdout already carried the
+  marker per document. This is a graft addition, not spruce parity —
+  spruce's `merge` emits bare YAML — and it is invisible to anything
+  that re-parses the output, including every Genesis pipeline in the
+  compat contract. `graft json`, `graft vaultinfo`, and `graft diff`
+  are unchanged, and the output cache never replays entries written
+  before this change.
+
 - Deleting a list entry that is not there is no longer an error. A
   `(( delete "name" ))` or `(( delete <value> ))` whose target is
   absent from the base list now merges through silently, so an overlay
