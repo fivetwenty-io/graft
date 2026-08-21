@@ -194,11 +194,15 @@ func TestMergeRedactCompatUnchangedByNewFlags(t *testing.T) {
 	}
 }
 
-// TestMergeRedactWinsOverSkipVaultFlag confirms REDACT=1 wins outright
-// even when --skip-vault is also given: the flag alone selects defer
-// mode, but REDACT=1 forces redact mode regardless (graft.OperatorState.
-// IsRedactMode, engine.go's evaluate) - so, like the REDACT-only case
-// above, this is a clean exit-0 merge, not a partial one.
+// TestMergeRedactWinsOverSkipVaultFlag is the pinned guardrail on Item
+// 2's exit-3-for-any-deferral contract: REDACT=1 wins outright even
+// when --skip-vault is also given - the flag alone selects defer mode,
+// but REDACT=1 forces redact mode regardless (graft.OperatorState.
+// IsRedactMode, engine.go's evaluate). Since redact mode substitutes
+// "REDACTED" rather than deferring, AddDeferredPath is never called
+// (op_skip_defer.go), so this stays a clean exit-0 merge - never 3 - in
+// every combination with --skip-vault/--skip-aws/--skip-nats, exactly
+// like the REDACT-only case above.
 func TestMergeRedactWinsOverSkipVaultFlag(t *testing.T) {
 	t.Setenv("REDACT", "1")
 	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "../../assets/skip-defer/vault.yml"})

@@ -111,11 +111,17 @@ so no separate flag is needed.
 composable in one invocation (`graft merge --skip-vault --skip-aws
 base.yml`).
 
-A merge that deferred anything exits `3`, not `0` (a "successful partial
-merge"), and reports the deferred keys as YAML comments by default -
-`--report-deferred` controls placement, the same flag
+Exit code reflects whether anything actually deferred, not whether the
+flag was given: a `--skip-vault` merge against a document with no vault
+calls at all exits `0`, same as a plain merge; only a merge that
+genuinely deferred at least one key exits `3` instead (a "successful
+partial merge"), and reports the deferred keys as YAML comments by
+default - `--report-deferred` controls placement, the same flag
 [Adaptive Merge](../adaptive-merge.md) (`graft merge --defer-on-error`)
-uses for its own deferrals.
+uses for its own deferrals, including `none` for fully silenced output
+(exit code `3` still tells the difference). `REDACT=1` never produces
+exit `3`, even combined with `--skip-vault`: it redacts instead of
+deferring, so it always exits `0` on success.
 
 This is a different behavior from `REDACT=1` (see
 [Environment Variables reference](../../reference/environment-variables.md)),

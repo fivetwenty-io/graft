@@ -179,9 +179,16 @@ The output is valid YAML: merge it again later, once Vault is reachable,
 and the deferred expression evaluates normally. `--skip-aws` and
 `--skip-nats` do the same for `(( awsparam ... ))`/`(( awssecret ... ))`
 and `(( nats ... ))`; all three are composable
-(`graft merge --skip-vault --skip-aws config.yml`). See
+(`graft merge --skip-vault --skip-aws config.yml`).
+
+The example above exits `3` (a "successful partial merge"), since it
+actually deferred `database.password` - not `0`. A `--skip-vault` merge
+against a document with no vault calls exits `0`, exactly like a plain
+merge: the exit code reflects whether anything was deferred, not
+whether the flag was given. `REDACT=1` always exits `0` on success, even
+combined with `--skip-vault` - it redacts instead of deferring. See
 [Vault Integration: Merging Without Vault Access](../secrets/vault.md#merging-without-vault-access)
-for the full write-up, including how this differs from `REDACT=1`.
+for the full write-up.
 
 ### Adaptive Merge
 
