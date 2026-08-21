@@ -264,6 +264,65 @@ func TestDebugREPL(t *testing.T) {
 			So(out, ShouldContainSubstring, `password: "1.0"`)
 		})
 
+		Convey("history and output agree on an operator (( prune )) marker: both show it removed", func() {
+			pruneFiles := []string{"../../assets/history/prune-marker.yml", "../../assets/history/prune-override.yml"}
+			out, rc := runDebugSession(pruneFiles, "load\ncontinue\noutput\nhistory secret\nquit\n")
+			So(rc, ShouldEqual, 0)
+
+			// output: an operator (( prune )) is unconditional, applied by
+			// the engine itself independent of any CLI flag, so it is gone
+			// from the tree by the final step even though output otherwise
+			// shows the pre-(--prune-flag) document. Scope this assertion to
+			// the output section only (before the later 'history' command's
+			// own "secret:" header line).
+			outputSection := out[:strings.Index(out, "graft> secret:")]
+			So(outputSection, ShouldContainSubstring, "database:\n  host: db.prod.example.com\n")
+			So(outputSection, ShouldNotContainSubstring, "secret:")
+
+			// history: the same removal, reported as a proper entry rather
+			// than a bare absence.
+			So(out, ShouldContainSubstring, "secret:\n")
+			So(out, ShouldContainSubstring, "→ (( prune ))\n")
+			So(out, ShouldContainSubstring, "Final              → <pruned>\n")
+		})
+
+		Convey("history and output agree under the --prune flag: both stay on the pre-prune tree while stepping", func() {
+			out, rc := runDebugSessionWithOpts(files, &mergeOpts{Prune: []string{"database.port"}},
+				"load\ncontinue\noutput\nhistory database.port\nquit\n")
+			So(rc, ShouldEqual, 0)
+			// --prune is a CLI flag, not an operator marker: output never
+			// applies it, so database.port survives to 'output'.
+			So(out, ShouldContainSubstring, "port: 5432\n")
+			// history must show the same survival, not a spurious removal.
+			So(out, ShouldContainSubstring, "database.port:\n")
+			So(out, ShouldNotContainSubstring, "<pruned>")
+			So(out, ShouldContainSubstring, "Final              → 5432")
+		})
+
+		Convey("prune-report before the merge completes tells the user to finish stepping first", func() {
+			out, rc := runDebugSessionWithOpts(files, &mergeOpts{Prune: []string{"database.port"}},
+				"load\nprune-report\nquit\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "Merge not complete yet.")
+		})
+
+		Convey("prune-report with no --prune/--cherry-pick flags says so", func() {
+			out, rc := runDebugSession(files, "load\ncontinue\nprune-report\nquit\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "No --prune/--cherry-pick flags were given for this session.\n")
+		})
+
+		Convey("prune-report, once the merge completes, reports what --prune would remove without touching output", func() {
+			out, rc := runDebugSessionWithOpts(files, &mergeOpts{Prune: []string{"database.port"}},
+				"load\ncontinue\noutput\nprune-report\nquit\n")
+			So(rc, ShouldEqual, 0)
+			// output is unaffected by the flag.
+			So(out, ShouldContainSubstring, "port: 5432\n")
+			// prune-report names the path the flag would remove.
+			So(out, ShouldContainSubstring, "Paths --prune/--cherry-pick would remove")
+			So(out, ShouldContainSubstring, "  - database.port\n")
+		})
+
 		Convey("diff shows changes from the first loaded file to the current state", func() {
 			out, rc := runDebugSession(files, "load\ncontinue\ndiff\nquit\n")
 			So(rc, ShouldEqual, 0)
@@ -471,6 +530,51 @@ func TestDebugREPL(t *testing.T) {
 		So(stderr, ShouldNotEqual, "usage was called")
 		So(rc, ShouldEqual, 0)
 		So(stdout, ShouldContainSubstring, `new_key: (( vault "secret/blork:blork" ))`)
+	})
+
+	Convey("graft debug --prune/--cherry-pick are registered CLI flags, not usage errors", t, func() {
+		var stderr string
+		log.PrintStdErrf = func(format string, args ...interface{}) {
+			stderr += fmt.Sprintf(format, args...)
+		}
+		rc := 256
+		exit = func(code int) { rc = code }
+		usage = func() {
+			stderr = "usage was called"
+			exit(1)
+		}
+
+		script := t.TempDir() + "/script.txt"
+		if err := os.WriteFile(script, []byte("load\ncontinue\nprune-report\nquit\n"), 0o600); err != nil {
+			t.Fatalf("writing script: %v", err)
+		}
+		restoreStdin := setStdinFromFile(t, script)
+		defer restoreStdin()
+
+		stdoutPath := t.TempDir() + "/stdout.txt"
+		stdoutFile, err := os.Create(stdoutPath)
+		if err != nil {
+			t.Fatalf("creating stdout capture file: %v", err)
+		}
+		originalStdout := os.Stdout
+		os.Stdout = stdoutFile
+		defer func() { os.Stdout = originalStdout }()
+
+		os.Args = []string{"graft", "debug", "--prune", "database.port",
+			"../../assets/history/base.yml", "../../assets/history/env.yml"}
+		stderr = ""
+		main()
+		_ = stdoutFile.Close()
+		os.Stdout = originalStdout
+
+		captured, readErr := os.ReadFile(stdoutPath)
+		So(readErr, ShouldBeNil)
+		stdout := string(captured)
+
+		So(stderr, ShouldNotEqual, "usage was called")
+		So(rc, ShouldEqual, 0)
+		So(stdout, ShouldContainSubstring, "Paths --prune/--cherry-pick would remove")
+		So(stdout, ShouldContainSubstring, "  - database.port\n")
 	})
 
 	// F19 regression: cmdContinue must stop after the first failing step,

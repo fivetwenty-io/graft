@@ -226,6 +226,11 @@ type OperatorState interface {
 	AddKeyToPrune(key string)
 	GetKeysToPrune() []string
 	ResetKeysToPrune()
+	// GetLastEvaluatedPrunedPaths returns the operator-queued (( prune ))
+	// paths the most recent Evaluate() call actually removed, surviving
+	// past that call's own reset of GetKeysToPrune - see DefaultEngine's
+	// doc comment.
+	GetLastEvaluatedPrunedPaths() []string
 
 	// Sort operations
 	AddPathToSort(path, order string)

@@ -196,6 +196,88 @@ func TestTrack(t *testing.T) {
 			So(result[0].Path, ShouldEqual, "feature_flags")
 			So(result[0].Final, ShouldResemble, map[string]interface{}{})
 		})
+
+		Convey("a path removed by an operator (( prune )) during evaluation - not CLI --prune/--cherry-pick - is still marked Removed and Final is unavailable", func() {
+			// No PhasePost step at all here: this is what buildMergeHistorySteps
+			// produces for an operator (( prune )) with no --prune/--cherry-pick
+			// CLI flag - the removal shows up as a PhaseEval step (the
+			// evaluate() call that applies the operator's queued prune paths
+			// before returning), not a synthetic PhasePost step.
+			steps := []StepState{
+				{Label: "base.yml", Phase: PhaseLoad, Data: map[string]interface{}{
+					"secret":   "(( prune ))",
+					"database": map[string]interface{}{"host": "localhost"},
+				}},
+				{Label: "<evaluated>", Phase: PhaseEval, Data: map[string]interface{}{
+					"database": map[string]interface{}{"host": "localhost"},
+				}},
+			}
+			result, err := Track(steps)
+			So(err, ShouldBeNil)
+			byPath := indexByPath(result)
+
+			secret := byPath["secret"]
+			So(len(secret.Entries), ShouldEqual, 2)
+			So(secret.Entries[0].Value, ShouldEqual, "(( prune ))")
+			last := secret.Entries[1]
+			So(last.Phase, ShouldEqual, PhaseEval)
+			So(last.Removed, ShouldBeTrue)
+			So(last.Value, ShouldBeNil)
+			// The entry's displayed source is rewritten to "<pruned>" (matching
+			// the CLI-flag POST-step convention) rather than the generic
+			// "<evaluated>" step label it technically came from, so a removal
+			// this way reads identically to a --prune/--cherry-pick removal.
+			So(last.Source, ShouldEqual, "<pruned>")
+			So(secret.FinalOK, ShouldBeFalse)
+			So(secret.Final, ShouldBeNil)
+		})
+
+		Convey("an explicit YAML null is never confused with a removal", func() {
+			steps := []StepState{
+				{Label: "base.yml", Phase: PhaseLoad, Data: map[string]interface{}{
+					"optional": "set",
+				}},
+				{Label: "override.yml", Phase: PhaseMerge, Data: map[string]interface{}{
+					"optional": nil,
+				}},
+			}
+			result, err := Track(steps)
+			So(err, ShouldBeNil)
+			byPath := indexByPath(result)
+
+			optional := byPath["optional"]
+			last := optional.Entries[len(optional.Entries)-1]
+			So(last.Removed, ShouldBeFalse)
+			So(last.Value, ShouldBeNil)
+			So(last.Source, ShouldEqual, "override.yml")
+			So(optional.FinalOK, ShouldBeTrue)
+			So(optional.Final, ShouldBeNil)
+		})
+
+		Convey("a step's explicit PrunedPaths marks a path Removed", func() {
+			// A defensive/explicit signal: buildMergeHistorySteps attaches
+			// the operator-queued prune paths it surfaced from the engine,
+			// so Track does not have to rely solely on incidental Kind
+			// classification to recognize a pruned path.
+			steps := []StepState{
+				{Label: "base.yml", Phase: PhaseLoad, Data: map[string]interface{}{
+					"secret": "(( prune ))",
+				}},
+				{
+					Label:       "<evaluated>",
+					Phase:       PhaseEval,
+					Data:        map[string]interface{}{},
+					PrunedPaths: []string{"secret"},
+				},
+			}
+			result, err := Track(steps)
+			So(err, ShouldBeNil)
+			byPath := indexByPath(result)
+			secret := byPath["secret"]
+			last := secret.Entries[len(secret.Entries)-1]
+			So(last.Removed, ShouldBeTrue)
+			So(secret.FinalOK, ShouldBeFalse)
+		})
 	})
 }
 

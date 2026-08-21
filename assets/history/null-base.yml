@@ -1,0 +1,5 @@
+database:
+  pool_size: 10
+tags:
+  - a
+  - b

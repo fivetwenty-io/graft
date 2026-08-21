@@ -1,0 +1,2 @@
+database:
+  host: db.prod.example.com

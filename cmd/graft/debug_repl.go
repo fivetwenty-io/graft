@@ -360,7 +360,11 @@ func (s *debugSession) cmdInspect(path string) {
 
 // cmdHistory implements `history <path>`: the same per-path entry list
 // `merge --history` would show for path, computed from the debug session's
-// files under the same opts.
+// files under the same opts - except --prune/--cherry-pick, which are
+// deliberately excluded (see below), so `history` agrees with `output`/
+// `export` throughout stepping. Run `prune-report` once the session is
+// fully evaluated to see what --prune/--cherry-pick would additionally
+// remove.
 func (s *debugSession) cmdHistory(path string) {
 	if path == "" {
 		s.printf("Usage: history <path>\n")
@@ -372,6 +376,14 @@ func (s *debugSession) cmdHistory(path string) {
 	for i, c := range s.cached {
 		fileOpts.Files[i] = c.Path
 	}
+	// output/export always show the session's pre-(CLI-flag)-prune tree
+	// (stepOnce's own evalOpts strips Prune/CherryPick for the same
+	// reason); history must agree; only a --prune/--cherry-pick flag's
+	// effect is excluded here, not an operator (( prune )) marker's -
+	// that always applies unconditionally, in the engine itself,
+	// independent of any CLI flag, so it stays visible in both.
+	fileOpts.Prune = nil
+	fileOpts.CherryPick = nil
 	// buildMergeHistorySteps re-resolves files from opts.Files by path, not
 	// from s.cached's in-memory bytes; this matches a plain `graft debug`
 	// invocation's files still being present on disk (the same assumption
@@ -511,6 +523,59 @@ func envOrNotSet(envVar string) string {
 	return "(not set)"
 }
 
+// cmdPruneReport implements `prune-report`: the paths --prune/--cherry-pick
+// (given as flags to `graft debug`) would remove from the document, computed
+// but never applied to `output`/`export`/`history` - see cmdHistory's doc
+// comment for why those stay on the pre-(CLI-flag)-prune tree throughout
+// stepping. Only meaningful once the session is fully evaluated: a
+// --prune/--cherry-pick path is resolved against the final document the same
+// way `merge` itself resolves it (after evaluation), so reporting against a
+// partially-merged tree could name paths that do not exist yet, or miss ones
+// evaluation has not produced.
+func (s *debugSession) cmdPruneReport() {
+	if !s.loaded {
+		s.printf("No documents loaded. Run 'load' first.\n")
+		return
+	}
+	if s.step < s.totalSteps {
+		s.printf("Merge not complete yet. Run 'continue' (or enough 'step's) before 'prune-report'.\n")
+		return
+	}
+	if len(s.opts.Prune) == 0 && len(s.opts.CherryPick) == 0 {
+		s.printf("No --prune/--cherry-pick flags were given for this session.\n")
+		return
+	}
+
+	reportOpts := *s.opts
+	reportOpts.SkipEval = true // s.tree is already fully evaluated
+	pruned, _, err := mergeAllDocs([]YamlFile{{Path: "<current>", Reader: io.NopCloser(strings.NewReader(mustYAML(s.tree)))}}, &reportOpts)
+	if err != nil {
+		s.printf("%s\n", ansi.Sprintf("@R{Error computing prune report}: %s", err.Error()))
+		return
+	}
+
+	changes, cmpErr := histdiff.Compare("<current>", s.tree, "<pruned>", pruned)
+	if cmpErr != nil {
+		s.printf("%s\n", ansi.Sprintf("@R{Error computing prune report}: %s", cmpErr.Error()))
+		return
+	}
+
+	removed := make([]histdiff.Change, 0, len(changes))
+	for _, c := range changes {
+		if c.Kind == histdiff.Removed {
+			removed = append(removed, c)
+		}
+	}
+	if len(removed) == 0 {
+		s.printf("--prune/--cherry-pick would not remove any path from the current document.\n")
+		return
+	}
+	s.printf("Paths --prune/--cherry-pick would remove (not applied to 'output'/'export'/'history'):\n")
+	for _, c := range removed {
+		s.printf("  - %s\n", c.Path)
+	}
+}
+
 // cmdOutput implements `output`: the current document state as YAML.
 func (s *debugSession) cmdOutput() {
 	if !s.loaded {
@@ -646,7 +711,8 @@ var debugCommandHelp = []debugHelpEntry{
 	{"defer", "Mark path for deferred evaluation", "defer <path>", "Marks path so its operator is left unevaluated (via the real (( defer ... )) operator) when 'step'/'continue' evaluates.", debugArgPath},
 	{"eval", "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress.", debugArgPath},
 	{"config", "View/set configuration", "config [key] [value]", "Views or sets a small set of Vault connection settings (vault.addr, vault.token, vault.namespace) for the rest of the session.", debugArgConfigKey},
-	{"output", "Show current document state", "output", "Prints the current document state as YAML.", debugArgNone},
+	{"output", "Show current document state", "output", "Prints the current document state as YAML. Always shows the pre-(--prune/--cherry-pick)-flag tree, even once fully evaluated; see 'prune-report'.", debugArgNone},
+	{"prune-report", "Show what --prune/--cherry-pick would remove", "prune-report", "Once the session is fully evaluated, reports the paths this session's --prune/--cherry-pick flags would remove. Does not change 'output'/'export'/'history', which always show the pre-flag tree.", debugArgNone},
 	{"diff", "Show changes from original", "diff", "Shows the changes between the first loaded file and the current state.", debugArgNone},
 	{"export", "Export current state to file", "export <file>", "Writes the current document state to file (YAML, or JSON if file ends in .json).", debugArgFile},
 	{"help", "Show help", "help [command]", "Lists every command, or shows detailed help for one command.", debugArgCommand},
@@ -888,19 +954,20 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer) i
 // pattern, a filename - so they join their fields back together; only
 // config reads its arguments as separate words.
 var debugCommands = map[string]func(sess *debugSession, args []string){
-	"load":     func(sess *debugSession, _ []string) { sess.cmdLoad() },
-	"step":     func(sess *debugSession, _ []string) { sess.cmdStep() },
-	"continue": func(sess *debugSession, _ []string) { sess.cmdContinue() },
-	"break":    func(sess *debugSession, args []string) { sess.cmdBreak(strings.Join(args, " ")) },
-	"unbreak":  func(sess *debugSession, args []string) { sess.cmdUnbreak(strings.Join(args, " ")) },
-	"breaks":   func(sess *debugSession, _ []string) { sess.cmdBreaks() },
-	"inspect":  func(sess *debugSession, args []string) { sess.cmdInspect(strings.Join(args, " ")) },
-	"history":  func(sess *debugSession, args []string) { sess.cmdHistory(strings.Join(args, " ")) },
-	"defer":    func(sess *debugSession, args []string) { sess.cmdDefer(strings.Join(args, " ")) },
-	"eval":     func(sess *debugSession, args []string) { sess.cmdEval(strings.Join(args, " ")) },
-	"config":   func(sess *debugSession, args []string) { sess.cmdConfig(args) },
-	"output":   func(sess *debugSession, _ []string) { sess.cmdOutput() },
-	"diff":     func(sess *debugSession, _ []string) { sess.cmdDiff() },
-	"export":   func(sess *debugSession, args []string) { sess.cmdExport(strings.Join(args, " ")) },
-	"help":     func(sess *debugSession, args []string) { sess.cmdHelp(strings.Join(args, " ")) },
+	"load":         func(sess *debugSession, _ []string) { sess.cmdLoad() },
+	"step":         func(sess *debugSession, _ []string) { sess.cmdStep() },
+	"continue":     func(sess *debugSession, _ []string) { sess.cmdContinue() },
+	"break":        func(sess *debugSession, args []string) { sess.cmdBreak(strings.Join(args, " ")) },
+	"unbreak":      func(sess *debugSession, args []string) { sess.cmdUnbreak(strings.Join(args, " ")) },
+	"breaks":       func(sess *debugSession, _ []string) { sess.cmdBreaks() },
+	"inspect":      func(sess *debugSession, args []string) { sess.cmdInspect(strings.Join(args, " ")) },
+	"history":      func(sess *debugSession, args []string) { sess.cmdHistory(strings.Join(args, " ")) },
+	"defer":        func(sess *debugSession, args []string) { sess.cmdDefer(strings.Join(args, " ")) },
+	"eval":         func(sess *debugSession, args []string) { sess.cmdEval(strings.Join(args, " ")) },
+	"config":       func(sess *debugSession, args []string) { sess.cmdConfig(args) },
+	"output":       func(sess *debugSession, _ []string) { sess.cmdOutput() },
+	"prune-report": func(sess *debugSession, _ []string) { sess.cmdPruneReport() },
+	"diff":         func(sess *debugSession, _ []string) { sess.cmdDiff() },
+	"export":       func(sess *debugSession, args []string) { sess.cmdExport(strings.Join(args, " ")) },
+	"help":         func(sess *debugSession, args []string) { sess.cmdHelp(strings.Join(args, " ")) },
 }

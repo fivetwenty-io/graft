@@ -146,11 +146,30 @@ func buildMergeHistorySteps(opts *mergeOpts, rewrite historyDocRewriter) ([]hist
 	evalOpts := *opts
 	evalOpts.Prune = nil
 	evalOpts.CherryPick = nil
-	evaluatedData, _, evalErr := mergeAllDocs(freshFiles(len(cached)), &evalOpts)
+	evaluatedData, evalEngine, evalErr := mergeAllDocs(freshFiles(len(cached)), &evalOpts)
 	if evalErr != nil {
 		return nil, 0, evalErr
 	}
-	steps = append(steps, history.StepState{Label: "<evaluated>", Phase: history.PhaseEval, Data: evaluatedData})
+
+	// Surface the paths an operator (( prune )) marker actually removed
+	// during this evaluation: evaluate() applies them to the tree
+	// unconditionally (independent of --prune/--cherry-pick), so
+	// evaluatedData already reflects the removal, but GetKeysToPrune's own
+	// state is reset before mergeAllDocs returns - GetLastEvaluatedPrunedPaths
+	// is what survives (pkg/graft/engine.go). Attaching them to this step
+	// lets Track mark the corresponding Entry Removed (and print "<pruned>")
+	// instead of leaving it indistinguishable from a path that merely
+	// evaluated to an explicit YAML null.
+	var evalPrunedPaths []string
+	if evalEngine != nil {
+		evalPrunedPaths = evalEngine.GetOperatorState().GetLastEvaluatedPrunedPaths()
+	}
+	steps = append(steps, history.StepState{
+		Label:       "<evaluated>",
+		Phase:       history.PhaseEval,
+		Data:        evaluatedData,
+		PrunedPaths: evalPrunedPaths,
+	})
 
 	if len(opts.Prune) > 0 || len(opts.CherryPick) > 0 {
 		postData, _, postErr := mergeAllDocs(freshFiles(len(cached)), opts)
@@ -250,7 +269,7 @@ func renderTracePath(ph history.PathHistory) string {
 		}
 		writeHistoryEntryLine(&buf, e)
 		switch {
-		case e.Phase == history.PhasePost:
+		case e.Removed:
 			buf.WriteString("      Type: removed\n")
 		case looksLikeOperator(e.Value):
 			fmt.Fprintf(&buf, "      Type: operator (%s)\n", operatorName(e.Value))
@@ -263,9 +282,16 @@ func renderTracePath(ph history.PathHistory) string {
 	return buf.String()
 }
 
+// writeHistoryEntryLine prints one "[N] source → value" line. Only an entry
+// that is genuinely Removed (an operator (( prune )) marker or a
+// --prune/--cherry-pick CLI flag actually took this path out of the
+// document - history.Entry's doc comment) prints "<pruned>"; every other
+// entry recorded at a PhasePost step (a sibling path in the same step that
+// merely changed value, e.g. a list that shrank when one of its elements
+// was pruned by index) prints its real new value like any other entry.
 func writeHistoryEntryLine(buf *strings.Builder, e history.Entry) {
 	source := fmt.Sprintf("[%d] %s", e.Index, e.Source)
-	if e.Phase == history.PhasePost {
+	if e.Removed {
 		fmt.Fprintf(buf, "  %-*s → <pruned>\n", sourceColumnWidth, source)
 		return
 	}
@@ -345,7 +371,7 @@ func renderShowChanges(all []history.PathHistory, fileCount int) string {
 		}
 
 		for i, e := range ph.Entries {
-			if e.Phase == history.PhasePost {
+			if e.Removed {
 				buf.WriteString("  - <pruned>\n")
 				continue
 			}

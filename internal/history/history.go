@@ -55,13 +55,24 @@ func (p Phase) String() string {
 }
 
 // Entry is one recorded change to a single path at one step. Value is nil
-// for a PhasePost removal entry (the path was pruned/cherry-picked away);
-// every other phase always carries the path's new value at that step.
+// when Removed is true (the path was pruned/cherry-picked away, by an
+// operator (( prune )) marker or a --prune/--cherry-pick CLI flag alike);
+// every other entry always carries the path's new value at that step,
+// including an explicit YAML null (Removed false, Value nil) - Removed is
+// what tells the two apart, since both otherwise leave Value nil.
+//
+// Source is normally the originating step's Label, except when Removed is
+// true: it is then rewritten to "<pruned>" regardless of which step
+// actually produced the removal (a PhasePost CLI-flag step already used
+// that label; a PhaseEval operator (( prune )) removal is relabeled to
+// match, so every removal reads identically no matter which mechanism
+// caused it - see Track).
 type Entry struct {
-	Index  int
-	Source string
-	Phase  Phase
-	Value  interface{}
+	Index   int
+	Source  string
+	Phase   Phase
+	Value   interface{}
+	Removed bool
 }
 
 // PathHistory is the ordered history of one path across every step it
@@ -80,10 +91,21 @@ type PathHistory struct {
 // file path for a per-file merge step, or a sentinel like "<evaluated>"/
 // "<pruned>" for the synthetic evaluation/post-processing steps), and Phase
 // classifies the step per the Phase constants above.
+//
+// PrunedPaths, when non-empty, names the paths this step's Data reflects as
+// explicitly, authoritatively removed by pruning (as opposed to a path
+// whose absence Track can only infer from the raw diff) - the operator-
+// queued (( prune )) paths a caller surfaced from the engine after
+// evaluating this step, for example. Track treats a path in PrunedPaths as
+// Removed even if, for some reason, histdiff does not independently
+// classify it as histdiff.Removed at this step; every path Track already
+// classifies as Removed via histdiff needs no entry here. It is nil for
+// every step but a caller-identified prune step.
 type StepState struct {
-	Label string
-	Phase Phase
-	Data  map[string]interface{}
+	Label       string
+	Phase       Phase
+	Data        map[string]interface{}
+	PrunedPaths []string
 }
 
 // Track computes per-path history across a sequence of StepStates, each
@@ -127,6 +149,8 @@ func Track(steps []StepState) ([]PathHistory, error) {
 			return nil, fmt.Errorf("history: comparing step %d (%s): %w", i, step.Label, err)
 		}
 
+		prunedAt := stepPathSet(step.PrunedPaths)
+
 		for _, c := range changes {
 			ph, exists := byPath[c.Path]
 			if !exists {
@@ -135,15 +159,37 @@ func Track(steps []StepState) ([]PathHistory, error) {
 				order = append(order, c.Path)
 			}
 
+			// A path is Removed either because histdiff itself classified
+			// it that way (the path is simply absent from this step's
+			// Data - the normal case for both an operator (( prune ))
+			// during evaluation and a --prune/--cherry-pick CLI flag) or
+			// because the caller explicitly named it in this step's
+			// PrunedPaths (StepState's doc comment) - a defensive,
+			// authoritative signal that does not depend on histdiff's
+			// classification agreeing. Removed is never true for a path
+			// whose new value is merely an explicit YAML null: that stays
+			// Kind Modified/Added with New nil, not Kind Removed.
+			removed := c.Kind == histdiff.Removed || prunedAt[c.Path]
+
 			var value interface{}
-			if c.Kind != histdiff.Removed {
+			if !removed && c.Kind != histdiff.Removed {
 				value = c.New
 			}
+
+			source := step.Label
+			if removed {
+				// Every removal reads identically regardless of which
+				// mechanism (operator (( prune )), --prune, --cherry-pick)
+				// or which step (PhaseEval or PhasePost) caused it.
+				source = "<pruned>"
+			}
+
 			ph.Entries = append(ph.Entries, Entry{
-				Index:  i,
-				Source: step.Label,
-				Phase:  step.Phase,
-				Value:  value,
+				Index:   i,
+				Source:  source,
+				Phase:   step.Phase,
+				Value:   value,
+				Removed: removed,
 			})
 		}
 
@@ -156,7 +202,7 @@ func Track(steps []StepState) ([]PathHistory, error) {
 	for _, path := range order {
 		ph := byPath[path]
 		last := ph.Entries[len(ph.Entries)-1]
-		if last.Phase == PhasePost && last.Value == nil {
+		if last.Removed {
 			ph.FinalOK = false
 			ph.Final = nil
 		} else {
@@ -166,6 +212,17 @@ func Track(steps []StepState) ([]PathHistory, error) {
 		result = append(result, *ph)
 	}
 	return result, nil
+}
+
+// stepPathSet builds a set from a StepState's PrunedPaths for O(1)
+// membership checks in Track's per-change loop. Returns an empty (non-nil)
+// map for a nil/empty input, so a caller can always index it directly.
+func stepPathSet(paths []string) map[string]bool {
+	set := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		set[p] = true
+	}
+	return set
 }
 
 // flattenPaths walks data recursively and returns a single-level map keyed

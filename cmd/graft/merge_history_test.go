@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
 
+	"github.com/fivetwenty-io/graft/internal/history"
 	"github.com/fivetwenty-io/graft/log"
 )
 
@@ -222,6 +224,99 @@ server:
 `)
 		})
 
+		Convey("--history on an operator (( prune )) shows the file where the prune arrived and Final → <pruned>", func() {
+			reset()
+			os.Args = []string{"graft", "merge", "--history",
+				"../../assets/history/prune-marker.yml", "../../assets/history/prune-override.yml"}
+			main()
+			So(stderr, ShouldEqual, "")
+			So(rc, ShouldEqual, 0)
+			So(stdout, ShouldEqual, `Merge History:
+
+database.host:
+  [0] ../../assets/history/prune-marker.yml → localhost
+  [1] ../../assets/history/prune-override.yml → db.prod.example.com
+  Final              → db.prod.example.com
+
+secret:
+  [0] ../../assets/history/prune-marker.yml → (( prune ))
+  [2] <pruned>       → <pruned>
+  Final              → <pruned>
+`)
+		})
+
+		Convey("--show-changes on an operator (( prune )) counts a removal, with no --prune/--cherry-pick flag given", func() {
+			reset()
+			os.Args = []string{"graft", "merge", "--show-changes",
+				"../../assets/history/prune-marker.yml", "../../assets/history/prune-override.yml"}
+			main()
+			So(stderr, ShouldEqual, "")
+			So(rc, ShouldEqual, 0)
+			So(stdout, ShouldEqual, `Merge Summary: 2 files → 2 keys (1 changed, 0 added, 1 removed)
+
+database.host:
+  ✗ ../../assets/history/prune-marker.yml localhost
+  ✓ ../../assets/history/prune-override.yml db.prod.example.com
+
+secret:
+  ✗ ../../assets/history/prune-marker.yml (( prune ))
+  - <pruned>
+`)
+		})
+
+		Convey("--trace-path on an operator (( prune )) marks the removal entry Type: removed", func() {
+			reset()
+			os.Args = []string{"graft", "merge", "--trace-path", "secret",
+				"../../assets/history/prune-marker.yml", "../../assets/history/prune-override.yml"}
+			main()
+			So(stderr, ShouldEqual, "")
+			So(rc, ShouldEqual, 0)
+			So(stdout, ShouldEqual, `secret:
+  [0] ../../assets/history/prune-marker.yml → (( prune ))
+      Type: operator (prune)
+
+  [2] <pruned>       → <pruned>
+      Type: removed
+
+  Final              → <pruned>
+`)
+		})
+
+		Convey("a key overridden to an explicit YAML null is never rendered as <pruned>", func() {
+			// The overlay also carries an unrelated (( append )) array
+			// marker (on "tags"), routing the whole document through the
+			// legacy merger (pkg/graft/merger), which preserves an
+			// explicit null overlay value as-is. Two plain files with no
+			// array/prune/sort markers anywhere instead route through the
+			// engine's simple-merge fast path, which - unrelated to
+			// history or prune - treats a null overlay value as "delete
+			// this key", so that combination would not exercise this case
+			// at all: the key would vanish from the raw merge step itself,
+			// before history ever sees a null to distinguish from a prune.
+			reset()
+			os.Args = []string{"graft", "merge", "--history",
+				"../../assets/history/null-base.yml", "../../assets/history/null-override.yml"}
+			main()
+			So(stderr, ShouldEqual, "")
+			So(rc, ShouldEqual, 0)
+			So(stdout, ShouldEqual, `Merge History:
+
+database.pool_size:
+  [0] ../../assets/history/null-base.yml → 10
+  [1] ../../assets/history/null-override.yml → ~
+  Final              → ~
+
+tags:
+  [0] ../../assets/history/null-base.yml → - a …
+  Final              → - a …  (unchanged)
+
+tags[0]:
+  [1] ../../assets/history/null-override.yml → c
+  Final              → c  (unchanged)
+`)
+			So(stdout, ShouldNotContainSubstring, "<pruned>")
+		})
+
 		Convey("--history on a merge error reports the error and exits 2, printing no report", func() {
 			reset()
 			os.Args = []string{"graft", "merge", "--history",
@@ -231,5 +326,69 @@ server:
 			So(stderr, ShouldNotEqual, "")
 			So(rc, ShouldEqual, 2)
 		})
+	})
+}
+
+// TestMergeHistoryPostPhaseRenderingOnlyLabelsGenuineRemovals locks the
+// renderer functions directly (writeHistoryEntryLine, writeHistoryFinalLine,
+// renderShowChanges) against a hand-built history.PathHistory whose PhasePost
+// step holds a sibling entry that is NOT Removed (e.g. a parent map/list
+// that merely shrank when a --prune/--cherry-pick flag removed one of its
+// other children, or was otherwise touched but not removed at that exact
+// path) alongside one that IS. Before the fix, these renderers keyed off
+// e.Phase == history.PhasePost alone, so every entry recorded at that step -
+// removed or not - printed "<pruned>", corrupting the "merely shrank" case's
+// real value.
+func TestMergeHistoryPostPhaseRenderingOnlyLabelsGenuineRemovals(t *testing.T) {
+	Convey("a PhasePost entry that is not Removed prints its real value, not <pruned>", t, func() {
+		// Both entries' Source is realistically "<pruned>" here: that is
+		// the step LABEL buildMergeHistorySteps gives the synthetic
+		// --prune/--cherry-pick post-processing step, regardless of
+		// whether any given path was actually removed by it - only
+		// Removed (and, downstream, the rendered VALUE) tells the two
+		// apart. "tags" here represents a list that merely shrank (one
+		// element pruned by index): it is present in the step's own Data
+		// with a different value, not absent from it.
+		survived := history.PathHistory{
+			Path: "tags",
+			Entries: []history.Entry{
+				{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: []interface{}{"a", "b", "c"}},
+				{Index: 1, Source: "<pruned>", Phase: history.PhasePost, Value: []interface{}{"a", "c"}, Removed: false},
+			},
+			Final:   []interface{}{"a", "c"},
+			FinalOK: true,
+		}
+		removed := history.PathHistory{
+			Path: "secret",
+			Entries: []history.Entry{
+				{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: "shh"},
+				{Index: 1, Source: "<pruned>", Phase: history.PhasePost, Value: nil, Removed: true},
+			},
+			FinalOK: false,
+		}
+
+		var buf strings.Builder
+		for _, e := range survived.Entries {
+			writeHistoryEntryLine(&buf, e)
+		}
+		writeHistoryFinalLine(&buf, survived, false)
+		So(buf.String(), ShouldNotContainSubstring, "→ <pruned>")
+		So(buf.String(), ShouldContainSubstring, "- a …")
+
+		buf.Reset()
+		for _, e := range removed.Entries {
+			writeHistoryEntryLine(&buf, e)
+		}
+		writeHistoryFinalLine(&buf, removed, false)
+		So(buf.String(), ShouldContainSubstring, "→ <pruned>")
+
+		out := renderShowChanges([]history.PathHistory{survived, removed}, 1)
+		So(out, ShouldContainSubstring, "tags:\n")
+		tagsSection := out[strings.Index(out, "tags:\n"):strings.Index(out, "secret:\n")]
+		So(tagsSection, ShouldNotContainSubstring, "- <pruned>")
+		So(tagsSection, ShouldContainSubstring, "- a …")
+
+		secretSection := out[strings.Index(out, "secret:\n"):]
+		So(secretSection, ShouldContainSubstring, "- <pruned>\n")
 	})
 }

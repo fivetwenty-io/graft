@@ -58,6 +58,15 @@ type DefaultEngine struct {
 	keysToPrune []string
 	pruneMutex  sync.RWMutex
 
+	// lastEvaluatedPrunedPaths is a snapshot of the operator-queued
+	// (( prune )) paths (dotted, no "$." prefix) actually removed by the
+	// most recent Evaluate() call on this engine, captured just before
+	// evaluate()'s deferred resetPerRunState clears keysToPrune - see
+	// evaluate()'s "Post-processing: apply operator-level pruning" step
+	// and GetLastEvaluatedPrunedPaths. Guarded by pruneMutex alongside
+	// keysToPrune, the state it is derived from.
+	lastEvaluatedPrunedPaths []string
+
 	// Sort state
 	pathsToSort map[string]string
 	sortMutex   sync.RWMutex
@@ -329,6 +338,26 @@ func (e *DefaultEngine) IsNATSSkipped() bool {
 	return e.skipNats
 }
 
+// GetLastEvaluatedPrunedPaths returns a copy of the operator-queued
+// (( prune )) paths this engine's most recent Evaluate() call actually
+// removed. Unlike GetKeysToPrune, this survives past Evaluate() returning
+// (resetPerRunState's defer clears keysToPrune, not this field), so a
+// caller inspecting the engine after a merge - cmd/graft/merge_history.go's
+// buildMergeHistorySteps, distinguishing a path an operator pruned away
+// from one that merely evaluated to an explicit YAML null - can still see
+// what was pruned. Returns nil if Evaluate() has not run on this engine
+// yet, or its most recent run queued no prunes.
+func (e *DefaultEngine) GetLastEvaluatedPrunedPaths() []string {
+	e.pruneMutex.RLock()
+	defer e.pruneMutex.RUnlock()
+	if len(e.lastEvaluatedPrunedPaths) == 0 {
+		return nil
+	}
+	paths := make([]string, len(e.lastEvaluatedPrunedPaths))
+	copy(paths, e.lastEvaluatedPrunedPaths)
+	return paths
+}
+
 // ResetKeysToPrune clears the keys to prune list.
 func (e *DefaultEngine) ResetKeysToPrune() {
 	e.pruneMutex.Lock()
@@ -532,16 +561,36 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 	if len(prunePaths) > 0 {
 		// Convert tree paths to Document paths and remove them
 		doc := NewDocument(ev.Tree)
+		cleanedPaths := make([]string, 0, len(prunePaths))
 		for _, path := range prunePaths {
 			// Remove the "$." prefix if present
 			cleanPath := strings.TrimPrefix(path, "$.")
 			log.DEBUG("Engine: Pruning path '%s' (cleaned: '%s')", path, cleanPath)
 			doc = doc.Prune(cleanPath)
+			cleanedPaths = append(cleanedPaths, cleanPath)
 		}
 		// Update the evaluator tree with the pruned document
 		if pruned, ok := doc.RawData().(map[string]interface{}); ok {
 			ev.Tree = pruned
 		}
+
+		// Stash the paths this run actually pruned, in the same "$."-free
+		// dotted form buildMergeHistorySteps' own flattened path keys use,
+		// so history reporting (cmd/graft/merge_history.go) can tell a
+		// path an operator (( prune )) removed from a path that merely
+		// evaluated to an explicit YAML null - both otherwise leave the
+		// evaluated tree with that key simply absent or nil respectively.
+		// GetKeysToPrune's own state is cleared by resetPerRunState's
+		// defer before this function returns, so this snapshot is the
+		// only way a caller after Evaluate() returns can see it. See
+		// GetLastEvaluatedPrunedPaths.
+		e.pruneMutex.Lock()
+		e.lastEvaluatedPrunedPaths = cleanedPaths
+		e.pruneMutex.Unlock()
+	} else {
+		e.pruneMutex.Lock()
+		e.lastEvaluatedPrunedPaths = nil
+		e.pruneMutex.Unlock()
 	}
 
 	// Queued (( sort by X )) markers are NOT applied here: spruce sorts

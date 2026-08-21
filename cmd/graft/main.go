@@ -1127,6 +1127,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 
 	// debug command
 	var debugGoPatch, debugFallbackAppend bool
+	var debugPrune, debugCherryPick []string
 
 	debugCmd := &cobra.Command{
 		Use:   "debug [files...]",
@@ -1135,6 +1136,8 @@ func newRootCmd() (*cobra.Command, *bool) {
 			opts := &mergeOpts{
 				EnableGoPatch:  debugGoPatch,
 				FallbackAppend: debugFallbackAppend,
+				Prune:          debugPrune,
+				CherryPick:     debugCherryPick,
 				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
 			}
 			exit(handleDebug(args, opts, os.Stdin, os.Stdout))
@@ -1143,6 +1146,8 @@ func newRootCmd() (*cobra.Command, *bool) {
 	}
 	debugCmd.Flags().BoolVar(&debugGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged (same meaning as merge --go-patch)")
 	debugCmd.Flags().BoolVar(&debugFallbackAppend, "fallback-append", false, "Use append semantics instead of inline for the default array-merge fallback (same meaning as merge --fallback-append)")
+	debugCmd.Flags().StringArrayVar(&debugPrune, "prune", nil, "Specify keys to prune from final output (same meaning as merge --prune; may be specified more than once). 'output'/'export' and 'history' show the pre-prune document while stepping - use 'prune-report' once the session is fully evaluated to see what this would remove")
+	debugCmd.Flags().StringArrayVar(&debugCherryPick, "cherry-pick", nil, "The opposite of --prune: specify keys to cherry-pick from final output (same meaning as merge --cherry-pick; may be specified more than once). Same 'output'/'history' caveat as --prune")
 
 	// cache command
 	cacheCmd := &cobra.Command{
