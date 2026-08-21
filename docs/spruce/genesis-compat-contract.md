@@ -209,6 +209,20 @@ two output-bytes changes across graft versions are worth pinning here:
   [known-gaps entry](known-gaps.md#sort-post-processing-silently-skips-two-error-cases)),
   also aligning with spruce.
 
+- **`merge` gains a leading `---\n`.** `graft merge`'s stdout now leads
+  with a `---\n` document-start line before the merged document (see
+  [CLI surface: stdin, stdout, and file arguments](cli-surface.md) for
+  the exact contract), so the output can be piped straight into another
+  document. Unlike the 1.32.0 changes above, this is *not* a move toward
+  spruce parity: `spruce merge` does not emit a leading `---`
+  (`cmd/spruce/main.go`'s `merge` case writes bare `"%s\n"`; only
+  `spruce fan` prepends `"---\n"` per document, which graft's own `fan`
+  already matched). It is harmless to Genesis either way - `---` is
+  YAML's document-start marker, not content, so every re-parse pattern
+  above (4, 5, 6, and the `--multi-doc`/`--go-patch`/`--skip-eval`
+  combinations) sees the same document whether or not the marker is
+  present.
+
 ## Related documents
 
 - [Merge semantics](merge-semantics.md)

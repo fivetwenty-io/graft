@@ -87,9 +87,11 @@ graft merge [flags] [files...]
 
 Merges one or more YAML/JSON files (or go-patch documents) and evaluates
 graft operators against the result, writing the merged YAML document to
-stdout followed by a single trailing newline. With no files given, `merge`
-reads from stdin; passing `-` as a filename also reads stdin for that
-position.
+stdout: a leading `---\n` document-start line (so the output can be piped
+straight into another YAML document), the merged document, then a
+trailing newline (`renderMergedTree`, cmd/graft/main.go). With no files
+given, `merge` reads from stdin; passing `-` as a filename also reads
+stdin for that position.
 
 | Flag | Description |
 |---|---|
