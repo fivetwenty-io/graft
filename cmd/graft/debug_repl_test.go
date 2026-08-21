@@ -323,6 +323,111 @@ func TestDebugREPL(t *testing.T) {
 			So(out, ShouldContainSubstring, "  - database.port\n")
 		})
 
+		Convey("autodefer defers the root chain only, and output/export/history agree afterward", func() {
+			cascadeFiles := []string{"../../assets/skip-defer/transitive-grab.yml"}
+			out, rc := runDebugSession(cascadeFiles, strings.Join([]string{
+				"load",
+				"autodefer",
+				"output",
+				"history meta.password",
+				"quit",
+			}, "\n")+"\n")
+			So(rc, ShouldEqual, 0)
+
+			// Summary: exactly the root vault failure, not its grab
+			// dependent - the cascade is not double-reported.
+			So(out, ShouldContainSubstring, "Autodefer: 1 key deferred:\n")
+			So(out, ShouldContainSubstring, "deferred $.meta.password: ")
+			So(out, ShouldContainSubstring, "Vault client initialization")
+			So(out, ShouldNotContainSubstring, "database.password")
+
+			// output: both the root and its grab dependent still carry the
+			// deferred expression, not a resolved value or an error.
+			outputSection := out[:strings.Index(out, "graft> meta.password:")]
+			So(outputSection, ShouldContainSubstring, `password: (( vault "secret/db:password" ))`)
+			count := strings.Count(outputSection, `(( vault "secret/db:password" ))`)
+			So(count, ShouldEqual, 2) // meta.password and database.password (the grab copy)
+
+			// history: agrees, Final is the same deferred expression, not
+			// <pruned> and not an error.
+			So(out, ShouldContainSubstring, "meta.password:\n")
+			So(out, ShouldContainSubstring, `Final              → (( vault "secret/db:password" ))`)
+			So(out, ShouldNotContainSubstring, "<pruned>")
+		})
+
+		Convey("autodefer with nothing failing is a no-op with a clear message", func() {
+			out, rc := runDebugSession(files, "load\ncontinue\nautodefer\nquit\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "Autodefer: no failing operators - nothing to defer.\n")
+		})
+
+		Convey("autodefer composes with a prior manual defer: an already-deferred path is protected, not re-attempted or re-reported", func() {
+			cascadeFiles := []string{"../../assets/skip-defer/transitive-grab.yml"}
+			out, rc := runDebugSession(cascadeFiles, strings.Join([]string{
+				"load",
+				"defer meta.password",
+				"autodefer",
+				"inspect",
+				"quit",
+			}, "\n")+"\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "Marked meta.password for deferred evaluation\n")
+			// Nothing new failed: the manual defer already protected the
+			// only failing path, so autodefer's own loop finds no new
+			// failure to report.
+			So(out, ShouldContainSubstring, "Autodefer: no failing operators - nothing to defer.\n")
+			So(out, ShouldNotContainSubstring, "Autodefer: 1 key deferred")
+			// The manual defer entry survives untouched (no reason, since
+			// autodefer never re-attributed it).
+			So(out, ShouldContainSubstring, "Deferred 1 path:\n  - meta.password\n")
+		})
+
+		Convey("autodefer on a genuine cycle is a hard failure, keeping the original error and leaving the session untouched", func() {
+			cycleFiles := []string{"../../assets/skip-defer/cycle.yml"}
+			out, rc := runDebugSession(cycleFiles, strings.Join([]string{
+				"load",
+				"autodefer",
+				"inspect",
+				"quit",
+			}, "\n")+"\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "Autodefer failed")
+			So(out, ShouldContainSubstring, "cycle detected")
+			// The session's tree is unchanged (still the raw, unevaluated
+			// merge) and nothing was recorded as deferred.
+			So(out, ShouldContainSubstring, "a: (( grab b ))")
+			So(out, ShouldContainSubstring, "b: (( grab a ))")
+			So(out, ShouldNotContainSubstring, "Deferred")
+		})
+
+		Convey("inspect lists deferred paths with reasons where known, manual and autodefer alike", func() {
+			cascadeFiles := []string{"../../assets/skip-defer/transitive-grab.yml"}
+			out, rc := runDebugSession(cascadeFiles, strings.Join([]string{
+				"load",
+				"defer database.password",
+				"autodefer",
+				"inspect",
+				"quit",
+			}, "\n")+"\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "Deferred 2 paths:\n")
+			// Manual defer: no reason.
+			So(out, ShouldContainSubstring, "  - database.password\n")
+			// Autodefer: root-cause reason attached.
+			So(out, ShouldContainSubstring, "  - meta.password: ")
+			So(out, ShouldContainSubstring, "Vault client initialization")
+		})
+
+		Convey("help autodefer describes the command; autodefer completes as a command name", func() {
+			out, rc := runDebugSession(files, "help autodefer\nquit\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "autodefer\n\nRuns the same defer-on-error retry loop")
+
+			c := &debugCompleter{sess: &debugSession{loaded: true, tree: map[string]interface{}{}, breakpoints: map[string]bool{}, deferred: map[string]string{}}}
+			So(completionsFor(c, "autodef"), ShouldResemble, []string{"autodefer "})
+			So(completionsFor(c, "autodefer "), ShouldBeEmpty) // takes no argument
+		})
+
 		Convey("diff shows changes from the first loaded file to the current state", func() {
 			out, rc := runDebugSession(files, "load\ncontinue\ndiff\nquit\n")
 			So(rc, ShouldEqual, 0)

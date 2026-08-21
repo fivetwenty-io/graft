@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,7 +74,13 @@ type debugSession struct {
 	tree map[string]interface{}
 
 	breakpoints map[string]bool
-	deferred    map[string]bool
+	// deferred is every path the session has chosen not to evaluate,
+	// mapped to why: "" for a manual `defer <path>` (no reason recorded -
+	// a human just said so), or the original operator error for a path
+	// `autodefer` found and deferred on its own (see cmdAutodefer).
+	// applyDeferredWrapping only ever reads the keys; cmdInspect is what
+	// surfaces the reasons.
+	deferred map[string]string
 
 	out io.Writer
 }
@@ -113,7 +120,7 @@ func newDebugSession(files []string, opts *mergeOpts, out io.Writer) (*debugSess
 		opts:        opts,
 		totalSteps:  total,
 		breakpoints: map[string]bool{},
-		deferred:    map[string]bool{},
+		deferred:    map[string]string{},
 		out:         out,
 	}, nil
 }
@@ -339,7 +346,10 @@ func (s *debugSession) cmdBreaks() {
 
 // cmdInspect implements `inspect [path]`: the current value at path (the
 // whole document if path is empty), from whatever phase the session is
-// currently in (raw merge or evaluated).
+// currently in (raw merge or evaluated), followed by the session's full
+// deferred-path list (manual `defer` and `autodefer` alike) when it has
+// one - regardless of whether the inspected path itself is deferred, so a
+// bare `inspect` surfaces the whole picture in one place.
 func (s *debugSession) cmdInspect(path string) {
 	if !s.loaded {
 		s.printf("No documents loaded. Run 'load' first.\n")
@@ -356,6 +366,24 @@ func (s *debugSession) cmdInspect(path string) {
 		return
 	}
 	s.out.Write(raw) //nolint:errcheck // best-effort REPL output
+
+	if len(s.deferred) == 0 {
+		return
+	}
+	paths := make([]string, 0, len(s.deferred))
+	for p := range s.deferred {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	s.printf("\nDeferred %s:\n", pluralCount(len(paths), "path"))
+	for _, p := range paths {
+		reason := s.deferred[p]
+		if reason == "" {
+			s.printf("  - %s\n", p)
+			continue
+		}
+		s.printf("  - %s: %s\n", p, reason)
+	}
 }
 
 // cmdHistory implements `history <path>`: the same per-path entry list
@@ -452,8 +480,77 @@ func (s *debugSession) cmdDefer(path string) {
 		s.printf("Usage: defer <path>\n")
 		return
 	}
-	s.deferred[path] = true
+	s.deferred[path] = "" // manual defer: no root-cause reason recorded
 	s.printf("Marked %s for deferred evaluation\n", path)
+}
+
+// cmdAutodefer implements `autodefer`: runs the same defer-on-error retry
+// loop `graft merge --defer-on-error`/`--adaptive` uses (runAdaptiveMerge,
+// adaptive_merge.go) against the session's current tree, wrapping each
+// newly-failing operator in "(( defer ... ))" and retrying to a fixed
+// point instead of leaving the session stuck on the first failure.
+//
+// Composition with a prior manual `defer`: the session's own deferred set
+// is applied first (applyDeferredWrapping, the same protection stepOnce's
+// final-step evaluation gives it), so a path the user already deferred is
+// never re-attempted, never re-fails, and never gets a redundant second
+// entry in the summary below - runAdaptiveMerge only ever sees and reports
+// genuinely new failures. Every path autodefer newly defers is folded
+// into s.deferred (with its root-cause reason), so a later `step`/
+// `continue`/`history` protects it exactly as a manual `defer` would, and
+// `inspect` can list it (see cmdInspect).
+//
+// A hard failure (a true cycle, or the loop not converging) leaves the
+// session's tree and deferred set exactly as they were before this call -
+// runAdaptiveMerge returns before recording anything new on a hard
+// failure (see its own doc comment), so there is nothing to roll back.
+func (s *debugSession) cmdAutodefer() {
+	if !s.loaded {
+		s.printf("No documents loaded. Run 'load' first.\n")
+		return
+	}
+
+	deferredTree := applyDeferredWrapping(s.tree, s.deferred)
+	autodeferOpts := *s.opts
+	autodeferOpts.SkipEval = false
+	// Prune/CherryPick deliberately excluded, matching cmdHistory/output's
+	// own pre-(--prune/--cherry-pick)-flag convention (Item 5): those
+	// flags apply once, to a normal merge's final result, and would
+	// otherwise strip data before the loop below (and any later
+	// inspect/step) can see it. Use `prune-report` to see what they would
+	// remove.
+	autodeferOpts.Prune = nil
+	autodeferOpts.CherryPick = nil
+
+	engine, docs, err := buildEngineAndDocs(
+		[]YamlFile{{Path: "<merged>", Reader: io.NopCloser(strings.NewReader(mustYAML(deferredTree)))}},
+		&autodeferOpts,
+	)
+	if err != nil {
+		s.printf("%s\n", ansi.Sprintf("@R{Error preparing autodefer}: %s", err.Error()))
+		return
+	}
+
+	result, err := runAdaptiveMerge(context.Background(), engine, docs, adaptiveMergeOptions{
+		FallbackAppend: s.opts.FallbackAppend,
+	})
+	if err != nil {
+		s.printf("%s\n", ansi.Sprintf("@R{Autodefer failed}: %s", err.Error()))
+		return
+	}
+
+	if len(result.Deferred) == 0 {
+		s.printf("Autodefer: no failing operators - nothing to defer.\n")
+	} else {
+		s.printf("Autodefer: %s deferred:\n", pluralCount(len(result.Deferred), "key"))
+		for _, d := range result.Deferred {
+			s.printf("  deferred $.%s: %s\n", d.Path, d.Reason)
+			s.deferred[d.Path] = d.Reason
+		}
+	}
+
+	s.tree = result.Tree
+	s.step = s.totalSteps
 }
 
 // cmdEval implements `eval <path>`: forces immediate evaluation of the
@@ -709,6 +806,7 @@ var debugCommandHelp = []debugHelpEntry{
 	{"inspect", "Show current value at path", "inspect <path>", "Shows the current (raw or evaluated, depending on progress) value at path.", debugArgPath},
 	{"history", "Show change history for path", "history <path>", "Shows the same per-file history 'merge --history' would show for path.", debugArgPath},
 	{"defer", "Mark path for deferred evaluation", "defer <path>", "Marks path so its operator is left unevaluated (via the real (( defer ... )) operator) when 'step'/'continue' evaluates.", debugArgPath},
+	{"autodefer", "Defer every failing operator and retry", "autodefer", "Runs the same defer-on-error retry loop 'graft merge --defer-on-error'/'--adaptive' uses against the session's current tree: wraps each failing operator in (( defer ... )) and retries to a fixed point, hard-failing on a true cycle with the original error. Composes with paths already deferred via 'defer' - they are protected, not re-attempted - and every path this discovers is added to the session's deferred set too, so 'output'/'export'/'history'/'inspect' all agree afterward. Prints a summary: how many keys were deferred, each with its root-cause reason.", debugArgNone},
 	{"eval", "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress.", debugArgPath},
 	{"config", "View/set configuration", "config [key] [value]", "Views or sets a small set of Vault connection settings (vault.addr, vault.token, vault.namespace) for the rest of the session.", debugArgConfigKey},
 	{"output", "Show current document state", "output", "Prints the current document state as YAML. Always shows the pre-(--prune/--cherry-pick)-flag tree, even once fully evaluated; see 'prune-report'.", debugArgNone},
@@ -835,8 +933,10 @@ func parseIndexSegment(seg string) (int, bool) {
 // applyDeferredWrapping returns a deep copy of tree with every deferred
 // path whose current value is an unevaluated "(( op ... ))" expression
 // rewritten to "(( defer op ... ))" (see stepOnce's doc comment). Paths not
-// present, or not currently an operator expression, are left alone.
-func applyDeferredWrapping(tree map[string]interface{}, deferred map[string]bool) map[string]interface{} {
+// present, or not currently an operator expression, are left alone. Only
+// deferred's keys matter here (each path's mapped reason is display-only,
+// surfaced by cmdInspect).
+func applyDeferredWrapping(tree map[string]interface{}, deferred map[string]string) map[string]interface{} {
 	if len(deferred) == 0 {
 		return tree
 	}
@@ -979,6 +1079,7 @@ var debugCommands = map[string]func(sess *debugSession, args []string){
 	"inspect":      func(sess *debugSession, args []string) { sess.cmdInspect(strings.Join(args, " ")) },
 	"history":      func(sess *debugSession, args []string) { sess.cmdHistory(strings.Join(args, " ")) },
 	"defer":        func(sess *debugSession, args []string) { sess.cmdDefer(strings.Join(args, " ")) },
+	"autodefer":    func(sess *debugSession, _ []string) { sess.cmdAutodefer() },
 	"eval":         func(sess *debugSession, args []string) { sess.cmdEval(strings.Join(args, " ")) },
 	"config":       func(sess *debugSession, args []string) { sess.cmdConfig(args) },
 	"output":       func(sess *debugSession, _ []string) { sess.cmdOutput() },

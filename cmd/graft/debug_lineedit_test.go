@@ -50,7 +50,7 @@ func completerFixture() *debugCompleter {
 			},
 		},
 		breakpoints: map[string]bool{"meta.replicas": true},
-		deferred:    map[string]bool{},
+		deferred:    map[string]string{},
 	}}
 }
 
