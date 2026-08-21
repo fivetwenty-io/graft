@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flag is opt-in; without it vaultinfo never contacts Vault, even when
   one is configured and reachable.
 
+- `graft debug` now accepts `--prune` and `--cherry-pick`, matching
+  `merge --interactive`. While stepping, `output`, `export`, and
+  `history` all show the document before those flags are applied, and
+  a new `prune-report` REPL command lists what they would remove once
+  the session is fully evaluated, so the views no longer disagree.
+
 ### Changed
 
 - `graft merge` now begins its output with a `---` document-start
@@ -61,6 +67,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anchor and out-of-range index operations still error as before.
 
 ### Fixed
+
+- Merge history now reports keys removed by a `(( prune ))` operator.
+  The operator queues its path inside the engine, so history's
+  per-file replays only saw the key vanish as a nil value, rendering
+  `~` — indistinguishable from a key legitimately set to null. History
+  entries now carry an explicit removed flag: `Final` prints
+  `<pruned>`, `--show-changes` counts the key as removed rather than
+  changed, and `--trace-path` shows the marker at the step where it
+  arrived. A key set to an explicit YAML null still renders `~`. Also
+  fixed alongside: a post-phase history entry was labeled `<pruned>`
+  even when it was a parent map that merely shrank; only genuinely
+  removed paths carry the label now.
 
 - `graft vaultinfo` no longer reports corrupted keys when a vault path
   is composed from another vault-sourced value. The offline scan skips
