@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `config vault.token` is kept out of it. Piped and redirected input is
   read exactly as before.
 
+- `graft vaultinfo --resolve` performs live Vault lookups instead of
+  the default offline scan, so paths composed from other vault-sourced
+  values are reported fully concrete when a Vault is reachable. The
+  flag is opt-in; without it vaultinfo never contacts Vault, even when
+  one is configured and reachable.
+
 ### Changed
 
 - `graft merge` now begins its output with a `---` document-start
@@ -55,6 +61,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anchor and out-of-range index operations still error as before.
 
 ### Fixed
+
+- `graft vaultinfo` no longer reports corrupted keys when a vault path
+  is composed from another vault-sourced value. The offline scan skips
+  lookups and used to substitute the literal `REDACTED`, which then
+  leaked into composed paths as `secret/paths:REDACTED`, a key that
+  does not exist. A skipped lookup now leaves a symbolic reference in
+  its place, so the same document reports
+  `secret/paths:<secret/paths:root>`, naming the lookup the segment
+  comes from. This covers `vault-try` too. Document values themselves
+  are unchanged: `REDACT=1 graft merge` output still reads `REDACTED`,
+  and fixtures without composed paths are byte-identical. A path
+  composed from a `grab` of a redacted value, rather than from the
+  vault lookup directly, still shows the flat text.
 
 - `NO_COLOR` and `TERM=dumb` are honored again. The environment checks
   ran at startup but the command-line color handling then overwrote
