@@ -1020,6 +1020,7 @@ func (ev *Evaluator) Run(prune, picks []string) error {
 		state.SetSkipVault(true)
 		state.SetSkipAws(true)
 		state.SetSkipNats(true)
+		state.SetRedactMode(true)
 	}
 
 	if !ev.SkipEval {

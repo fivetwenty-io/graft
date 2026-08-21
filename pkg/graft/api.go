@@ -191,10 +191,11 @@ type OperatorState interface {
 	GetVaultRefs() map[string][]string
 	ResetVaultRefs()
 
-	// Vault skip-lookup placeholder tracking. When IsVaultSkipped(), a
-	// (( vault ... ))/(( vault-try ... )) lookup still returns the
-	// literal string "REDACTED" as its document value - unchanged, so
-	// document output (and REDACT=1) stays byte-identical - but
+	// Vault skip-lookup placeholder tracking. When IsVaultSkipped() and
+	// IsRedactMode() (REDACT=1, or vaultinfo's own internal skip - see
+	// WithRedact), a (( vault ... ))/(( vault-try ... )) lookup still
+	// returns the literal string "REDACTED" as its document value -
+	// unchanged, so document output stays byte-identical - but
 	// RecordVaultPlaceholder also remembers, out of band, which tree
 	// path that lookup wrote to and which vault key it would have
 	// looked up. A later vault-path-building argument that directly
@@ -202,15 +203,45 @@ type OperatorState interface {
 	// vaultArgProcessor) consults VaultPlaceholderFor to render a
 	// symbolic "<path/to/secret:key>" reference instead of
 	// concatenating the literal "REDACTED" text into a new, corrupted
-	// vault path.
+	// vault path. When IsVaultSkipped() but not IsRedactMode() (the
+	// --skip-vault/--skip-aws/--skip-nats CLI flags), the operator
+	// defers itself instead (see AddDeferredPath) and this placeholder
+	// path is not used.
 	RecordVaultPlaceholder(treePath, vaultKey string)
 	VaultPlaceholderFor(treePath string) (vaultKey string, ok bool)
 	ResetVaultPlaceholders()
 
-	// Skip setters (for REDACT mode)
+	// Skip setters (for REDACT mode and the --skip-vault/--skip-aws/
+	// --skip-nats flags alike; IsRedactMode below distinguishes which)
 	SetSkipVault(v bool)
 	SetSkipAws(v bool)
 	SetSkipNats(v bool)
+
+	// Redact mode selects which of the two behaviors a skipped backend
+	// (SetSkipVault/SetSkipAws/SetSkipNats above) produces: true (set by
+	// REDACT=1 - engine.go's evaluate - or explicitly via WithRedact,
+	// which vaultinfo's own internal skip uses to keep its exact prior
+	// behavior) means "return the literal REDACTED sentinel", matching
+	// graft's behavior before the --skip-<backend> flags existed. false
+	// (the default a --skip-<backend> flag alone leaves it at) means
+	// "defer": each affected operator leaves its own "(( ... ))"
+	// expression intact in the output instead, so a later merge with
+	// the backend reachable can still evaluate it (see op_skip_defer.go
+	// and AddDeferredPath). REDACT=1 always wins when both are active
+	// (SetRedactMode(true) is unconditional in engine.go's evaluate),
+	// which is what keeps REDACT's behavior byte-for-byte regardless of
+	// any --skip-<backend> flag also given.
+	SetRedactMode(v bool)
+	IsRedactMode() bool
+
+	// Deferred-path bookkeeping: every tree path a --skip-<backend> flag
+	// (not REDACT) caused to defer instead of evaluating, recorded by
+	// op_skip_defer.go's deferSkippedCall. This is intentionally minimal
+	// (paths only, no per-path error/reason) - Phase 4's
+	// --report-deferred machinery is expected to build on it.
+	AddDeferredPath(path string)
+	GetDeferredPaths() []string
+	ResetDeferredPaths()
 
 	// AWS skip
 	IsAWSSkipped() bool
@@ -387,6 +418,15 @@ type EngineOptions struct {
 	SkipVault bool
 	SkipAws   bool
 	SkipNats  bool
+
+	// Redact selects the skipped-backend behavior for the SkipVault/
+	// SkipAws/SkipNats flags above: true reproduces graft's original
+	// "return the literal REDACTED sentinel" behavior (see WithRedact);
+	// false (the default) makes a skipped operator defer itself instead,
+	// leaving its own "(( ... ))" expression intact in the output. REDACT=1
+	// forces this to true at evaluation time regardless of what Redact
+	// was constructed with (see engine.go's evaluate).
+	Redact bool
 
 	// CacheTTL sets a default time-to-live for entries in the engine's
 	// operator result cache (see WithCacheTTL). Zero means no expiration.
@@ -713,6 +753,21 @@ func WithSkipAws(skip bool) EngineOption {
 func WithSkipNats(skip bool) EngineOption {
 	return func(opts *EngineOptions) {
 		opts.SkipNats = skip
+	}
+}
+
+// WithRedact selects the "return the literal REDACTED sentinel" behavior
+// for any of WithSkipVault/WithSkipAws/WithSkipNats also given, instead
+// of the default "defer" behavior (leave the operator's own
+// "(( ... ))" expression intact) a --skip-<backend> flag alone produces.
+// vaultinfo's own internal use of WithSkipVault(true)
+// (cmd/graft/main.go's handleVaultInfo) pairs it with WithRedact(true)
+// to keep its pre-existing behavior unchanged; REDACT=1 achieves the
+// same effect at evaluation time regardless of this option (see
+// engine.go's evaluate), so redact=false here does not defeat REDACT=1.
+func WithRedact(redact bool) EngineOption {
+	return func(opts *EngineOptions) {
+		opts.Redact = redact
 	}
 }
 

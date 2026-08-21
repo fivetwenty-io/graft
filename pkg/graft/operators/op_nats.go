@@ -247,6 +247,12 @@ func (n NatsOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 
 	engine := graft.GetEngine(ev)
 	if engine.GetOperatorState().IsNATSSkipped() {
+		if !engine.GetOperatorState().IsRedactMode() {
+			// --skip-nats (not REDACT=1): defer this call entirely,
+			// without resolving any argument, instead of contacting
+			// NATS or substituting "REDACTED" - see op_skip_defer.go.
+			return deferSkippedCall(ev, engine, "nats", args), nil
+		}
 		return &graft.Response{
 			Type:  graft.Replace,
 			Value: redactedValue,

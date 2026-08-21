@@ -1,0 +1,4 @@
+database:
+  password: (( vault "secret/db:password" ))
+static:
+  greeting: (( concat "hello, " "world" ))

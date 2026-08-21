@@ -82,6 +82,18 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		return nil, fmt.Errorf("%s operator requires at least one argument", o.variant)
 	}
 
+	// --skip-aws (not REDACT=1 - see IsRedactMode) defers this call
+	// entirely, without resolving any argument, instead of contacting
+	// AWS or substituting "REDACTED". Checked here, before argument
+	// resolution, so a value this call's own arguments depend on need
+	// not resolve either. The REDACT-mode "return REDACTED" substitution
+	// (further below) is unchanged, and still resolves arguments first,
+	// exactly as before this flag existed - see op_skip_defer.go.
+	engine := graft.GetEngine(ev)
+	if engine.GetOperatorState().IsAWSSkipped() && !engine.GetOperatorState().IsRedactMode() {
+		return deferSkippedCall(ev, engine, o.variant, args), nil
+	}
+
 	var l []string
 	for i, arg := range args {
 		// Use ResolveOperatorArgument to support nested expressions
@@ -127,7 +139,6 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 	DEBUG("     [0]: Using %s key '%s'\n", o.variant, key)
 
-	engine := graft.GetEngine(ev)
 	var value string
 	if !engine.GetOperatorState().IsAWSSkipped() {
 		// When features.FeatureBackendRegistry is enabled on ev's engine

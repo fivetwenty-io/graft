@@ -10,15 +10,20 @@ import (
 // composed from another, skipped vault lookup (assets/vault/self-
 // reference.yml; also exercised live, with a real stub Vault, by
 // TestVaultOperatorPathComposedFromAnotherVaultLookup in
-// op_vault_selfreference_test.go). Under graft.WithSkipVault(true)
-// (vaultinfo's default, and REDACT=1), a vault lookup's *document value*
-// is still the flat literal "REDACTED" - byte-identical, unaffected by
-// this fix - but a second (( vault ... )) call that builds its own path
-// from a direct reference to that first lookup's tree node must render a
-// symbolic "<path/to/secret:key>" instead of concatenating the literal
-// word "REDACTED" into a corrupted path.
+// op_vault_selfreference_test.go). Under graft.WithSkipVault(true) +
+// graft.WithRedact(true) (redact mode - vaultinfo's own internal skip,
+// and REDACT=1), a vault lookup's *document value* is still the flat
+// literal "REDACTED" - byte-identical, unaffected by this fix - but a
+// second (( vault ... )) call that builds its own path from a direct
+// reference to that first lookup's tree node must render a symbolic
+// "<path/to/secret:key>" instead of concatenating the literal word
+// "REDACTED" into a corrupted path. Redact mode is what makes this
+// scenario meaningful in the first place: without graft.WithRedact(true)
+// (the --skip-vault CLI flag's own default), a skipped vault lookup
+// defers itself instead (see op_skip_defer_test.go) and never produces a
+// flat "REDACTED" value or a composed key to test here.
 func TestVaultOperatorSkipVaultPathComposition(t *testing.T) {
-	engine, err := graft.NewEngine(graft.WithSkipVault(true))
+	engine, err := graft.NewEngine(graft.WithSkipVault(true), graft.WithRedact(true))
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
 	}
@@ -41,7 +46,7 @@ func TestVaultOperatorSkipVaultPathComposition(t *testing.T) {
 // TestVaultOperatorPathComposedFromAnotherVaultLookupReverseOrder's live
 // counterpart).
 func TestVaultOperatorSkipVaultPathCompositionReverseOrder(t *testing.T) {
-	engine, err := graft.NewEngine(graft.WithSkipVault(true))
+	engine, err := graft.NewEngine(graft.WithSkipVault(true), graft.WithRedact(true))
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
 	}
@@ -65,7 +70,7 @@ func TestVaultOperatorSkipVaultPathCompositionReverseOrder(t *testing.T) {
 // composing a path from vault-try's result also renders the symbolic
 // form instead of the flat "REDACTED" text.
 func TestVaultTryOperatorSkipVaultPathComposition(t *testing.T) {
-	engine, err := graft.NewEngine(graft.WithSkipVault(true))
+	engine, err := graft.NewEngine(graft.WithSkipVault(true), graft.WithRedact(true))
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
 	}

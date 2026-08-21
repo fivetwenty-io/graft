@@ -393,6 +393,17 @@ func (o VaultOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		return nil, fmt.Errorf("vault operator requires at least one argument")
 	}
 
+	// --skip-vault (not REDACT=1 - see IsRedactMode) defers this call
+	// entirely, without resolving any argument, instead of contacting
+	// Vault or substituting "REDACTED". Checked at this entry point
+	// (rather than deep inside performVaultLookup, where the REDACT-mode
+	// substitution below still happens unchanged) so a value this call's
+	// own arguments depend on need not resolve either - see
+	// op_skip_defer.go.
+	if engine.GetOperatorState().IsVaultSkipped() && !engine.GetOperatorState().IsRedactMode() {
+		return deferSkippedCall(ev, engine, "vault", args), nil
+	}
+
 	// Detect if we need enhanced parsing for sub-operators
 	if o.needsEnhancedParsing(args) {
 		DEBUG("vault: using enhanced parsing with sub-operators")
@@ -547,6 +558,13 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 // lines down is a built-in-Vault-reader concern, not a Backend interface
 // requirement, so a custom backend is never subjected to it.
 func (o VaultOperator) performVaultLookup(ev *graft.Evaluator, engine graft.Engine, target, key string) (string, error) {
+	// By the time execution reaches here, IsVaultSkipped() can only be
+	// true because of redact mode (REDACT=1, or vaultinfo's own
+	// WithRedact(true)): the non-redact "--skip-vault flag" case already
+	// returned a deferred "(( vault ... ))" string from VaultOperator.Run/
+	// VaultTryOperator.Run's own entry-point check, before either ever
+	// calls this method. This function itself does not need to check
+	// IsRedactMode(), only IsVaultSkipped().
 	if engine.GetOperatorState().IsVaultSkipped() {
 		// Remember which vault key this skip-vault sentinel stands in
 		// for, keyed by the tree path it is about to be written to
@@ -699,6 +717,13 @@ func (o VaultTryOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 	// Get engine
 	engine := graft.GetEngine(ev)
+
+	// --skip-vault (not REDACT=1) defers this call entirely, without
+	// resolving any path or the default - see VaultOperator.Run's
+	// identical check and op_skip_defer.go.
+	if engine.GetOperatorState().IsVaultSkipped() && !engine.GetOperatorState().IsRedactMode() {
+		return deferSkippedCall(ev, engine, "vault-try", args), nil
+	}
 
 	// Try each vault path in order
 	for i, pathExpr := range vaultPaths {

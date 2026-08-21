@@ -541,6 +541,67 @@ func TestEngineVaultServiceMethods(t *testing.T) {
 	})
 }
 
+// TestEngineSkipBackendFlagsAreIndependent pins plans/dennis-feedback-
+// gaps.md's Item 3 "one flag per backend, composable" requirement at the
+// engine-options level: WithSkipVault/WithSkipAws/WithSkipNats each
+// affect only their own backend's skip flag, never any other, and
+// WithRedact defaults to false (defer mode) unless explicitly set -
+// REDACT=1 (engine.go's evaluate) is what forces it true, not any of the
+// skip options themselves.
+func TestEngineSkipBackendFlagsAreIndependent(t *testing.T) {
+	Convey("Engine skip-backend flags are independent", t, func() {
+		Convey("WithSkipVault(true) alone skips only vault, and leaves redact mode false", func() {
+			engine, err := NewEngine(WithSkipVault(true))
+			So(err, ShouldBeNil)
+			state := engine.GetOperatorState()
+			So(state.IsVaultSkipped(), ShouldBeTrue)
+			So(state.IsAWSSkipped(), ShouldBeFalse)
+			So(state.IsNATSSkipped(), ShouldBeFalse)
+			So(state.IsRedactMode(), ShouldBeFalse)
+		})
+
+		Convey("WithSkipAws(true) alone skips only AWS", func() {
+			engine, err := NewEngine(WithSkipAws(true))
+			So(err, ShouldBeNil)
+			state := engine.GetOperatorState()
+			So(state.IsVaultSkipped(), ShouldBeFalse)
+			So(state.IsAWSSkipped(), ShouldBeTrue)
+			So(state.IsNATSSkipped(), ShouldBeFalse)
+			So(state.IsRedactMode(), ShouldBeFalse)
+		})
+
+		Convey("WithSkipNats(true) alone skips only NATS", func() {
+			engine, err := NewEngine(WithSkipNats(true))
+			So(err, ShouldBeNil)
+			state := engine.GetOperatorState()
+			So(state.IsVaultSkipped(), ShouldBeFalse)
+			So(state.IsAWSSkipped(), ShouldBeFalse)
+			So(state.IsNATSSkipped(), ShouldBeTrue)
+			So(state.IsRedactMode(), ShouldBeFalse)
+		})
+
+		Convey("all three compose: each skip flag is independently settable in one engine", func() {
+			engine, err := NewEngine(WithSkipVault(true), WithSkipAws(true), WithSkipNats(true))
+			So(err, ShouldBeNil)
+			state := engine.GetOperatorState()
+			So(state.IsVaultSkipped(), ShouldBeTrue)
+			So(state.IsAWSSkipped(), ShouldBeTrue)
+			So(state.IsNATSSkipped(), ShouldBeTrue)
+		})
+
+		Convey("WithRedact(true) is independent of the skip flags themselves", func() {
+			engine, err := NewEngine(WithSkipVault(true), WithRedact(true))
+			So(err, ShouldBeNil)
+			state := engine.GetOperatorState()
+			So(state.IsVaultSkipped(), ShouldBeTrue)
+			So(state.IsRedactMode(), ShouldBeTrue)
+			// AWS/NATS untouched by WithSkipVault or WithRedact.
+			So(state.IsAWSSkipped(), ShouldBeFalse)
+			So(state.IsNATSSkipped(), ShouldBeFalse)
+		})
+	})
+}
+
 func TestEngineAWSServiceMethods(t *testing.T) {
 	Convey("Engine AWS Service Methods", t, func() {
 		engine := NewDefaultEngine()

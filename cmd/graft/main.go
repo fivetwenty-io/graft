@@ -587,8 +587,16 @@ func resolveStartupConfig(configPath string) (*config.Config, error) {
 // "secret/path:REDACTED". Passing resolve performs real Vault lookups
 // instead, reporting concrete composed paths when Vault is reachable, at
 // the cost of requiring one.
+//
+// graft.WithRedact(!resolve) pairs with WithSkipVault so this stays in
+// "redact" mode (see graft.OperatorState.IsRedactMode) rather than the
+// --skip-vault CLI flag's "defer" mode: vaultinfo's own document
+// leaf values must keep returning the flat "REDACTED" sentinel exactly
+// as before the --skip-vault/--skip-aws/--skip-nats flags existed, which
+// is what op_vault.go's RecordVaultPlaceholder tracking (and this
+// function's symbolic-path rendering above) was built against.
 func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config, ff *features.FeatureFlags, jsonOutput, pathsOnly, resolve bool) int {
-	engineOpts := append([]graft.EngineOption{graft.WithSkipVault(!resolve)}, configEngineOpts(cfg, ff)...)
+	engineOpts := append([]graft.EngineOption{graft.WithSkipVault(!resolve), graft.WithRedact(!resolve)}, configEngineOpts(cfg, ff)...)
 	opts := &mergeOpts{
 		Files:         vaultFiles,
 		EnableGoPatch: enableGoPatch,
@@ -976,11 +984,29 @@ func newRootCmd() (*cobra.Command, *bool) {
 	var mergeDataflowOrder string
 	var mergeHistory, mergeShowChanges, mergeChangesOnly, mergeInteractive bool
 	var mergeTracePath string
+	var mergeSkipVault, mergeSkipAws, mergeSkipNats bool
 
 	mergeCmd := &cobra.Command{
 		Use:   "merge [files...]",
 		Short: "Merge multiple YAML/JSON files",
 		RunE: func(_ *cobra.Command, args []string) error {
+			// --skip-vault/--skip-aws/--skip-nats defer the affected
+			// operators (leave their own "(( ... ))" expression intact,
+			// see pkg/graft/operators/op_skip_defer.go) rather than
+			// contacting the backend or substituting "REDACTED"; REDACT=1
+			// is unaffected and keeps its existing redacting behavior
+			// regardless of these flags (graft.OperatorState.IsRedactMode,
+			// forced by REDACT=1 in pkg/graft/engine.go's evaluate).
+			engineOpts := configEngineOpts(loadedConfig, loadedFeatureFlags)
+			if mergeSkipVault {
+				engineOpts = append(engineOpts, graft.WithSkipVault(true))
+			}
+			if mergeSkipAws {
+				engineOpts = append(engineOpts, graft.WithSkipAws(true))
+			}
+			if mergeSkipNats {
+				engineOpts = append(engineOpts, graft.WithSkipNats(true))
+			}
 			opts := &mergeOpts{
 				SkipEval:       mergeSkipEval,
 				Prune:          mergePrune,
@@ -994,7 +1020,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 				TracePath:      mergeTracePath,
 				ShowChanges:    mergeShowChanges,
 				ChangesOnly:    mergeChangesOnly,
-				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
+				EngineOpts:     engineOpts,
 				CacheCfg:       loadedConfig.Cache,
 			}
 			if mergeInteractive {
@@ -1006,6 +1032,9 @@ func newRootCmd() (*cobra.Command, *bool) {
 		},
 	}
 	mergeCmd.Flags().BoolVar(&mergeSkipEval, "skip-eval", false, "Do not evaluate graft logic after merging docs")
+	mergeCmd.Flags().BoolVar(&mergeSkipVault, "skip-vault", false, "Defer (( vault ... ))/(( vault-try ... )) calls instead of contacting Vault, leaving the expression intact in the output (also covers OpenBao: same API, same operator). REDACT=1 is unaffected and keeps returning \"REDACTED\" regardless of this flag.")
+	mergeCmd.Flags().BoolVar(&mergeSkipAws, "skip-aws", false, "Defer (( awsparam ... ))/(( awssecret ... )) calls instead of contacting AWS, leaving the expression intact in the output. REDACT=1 is unaffected.")
+	mergeCmd.Flags().BoolVar(&mergeSkipNats, "skip-nats", false, "Defer (( nats ... )) calls instead of contacting NATS, leaving the expression intact in the output. REDACT=1 is unaffected.")
 	mergeCmd.Flags().StringArrayVar(&mergePrune, "prune", nil, "Specify keys to prune from final output (may be specified more than once)")
 	mergeCmd.Flags().StringArrayVar(&mergeCherryPick, "cherry-pick", nil, "The opposite of prune, specify keys to cherry-pick from final output (may be specified more than once)")
 	mergeCmd.Flags().BoolVar(&mergeFallbackAppend, "fallback-append", false, "Default merge normally tries to key merge, then inline. This flag says do an append instead of an inline.")

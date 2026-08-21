@@ -1,0 +1,5 @@
+meta:
+  password: (( vault "secret/db:password" ))
+
+database:
+  password: (( grab meta.password ))

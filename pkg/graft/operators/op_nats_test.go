@@ -67,10 +67,16 @@ func TestParseNatsPath(t *testing.T) {
 	})
 }
 
+// TestNatsOperatorSkipMode pins both of WithSkipNats(true)'s two
+// behaviors (plans/dennis-feedback-gaps.md's Item 3): by itself (the
+// --skip-nats CLI flag's own default), it defers - leaves the operator's
+// own "(( ... ))" expression intact; paired with WithRedact(true)
+// (REDACT=1, or vaultinfo-style internal skips), it keeps graft's
+// original "return the literal REDACTED sentinel" behavior instead.
 func TestNatsOperatorSkipMode(t *testing.T) {
 	Convey("NATS Operator Skip Mode", t, func() {
-		Convey("when SkipNats is true via engine option", func() {
-			Convey("nats should return REDACTED", func() {
+		Convey("when SkipNats is true via engine option alone (defer, the default)", func() {
+			Convey("nats defers with its own expression intact", func() {
 				engine, err := graft.NewEngine(graft.WithSkipNats(true))
 				So(err, ShouldBeNil)
 
@@ -85,7 +91,26 @@ config: (( nats "kv:mybucket/mykey" ))
 
 				config, err := result.Get("config")
 				So(err, ShouldBeNil)
-				// When SkipNats is true, returns REDACTED
+				So(config, ShouldEqual, `(( nats "kv:mybucket/mykey" ))`)
+			})
+		})
+
+		Convey("when SkipNats and Redact are both true (REDACT=1 / vaultinfo-style)", func() {
+			Convey("nats should return REDACTED", func() {
+				engine, err := graft.NewEngine(graft.WithSkipNats(true), graft.WithRedact(true))
+				So(err, ShouldBeNil)
+
+				yaml := []byte(`
+config: (( nats "kv:mybucket/mykey" ))
+`)
+				doc, err := engine.ParseYAML(yaml)
+				So(err, ShouldBeNil)
+
+				result, err := engine.Evaluate(context.TODO(), doc)
+				So(err, ShouldBeNil)
+
+				config, err := result.Get("config")
+				So(err, ShouldBeNil)
 				So(config, ShouldEqual, "REDACTED")
 			})
 		})

@@ -393,10 +393,19 @@ func timeSeed() int64 {
 	return atomic.AddInt64(&timeSeedCounter, 1)
 }
 
+// TestAwsOperatorSkipMode pins both of WithSkipAws(true)'s two behaviors
+// (plans/dennis-feedback-gaps.md's Item 3): by itself (the --skip-aws CLI
+// flag's own default), it defers - leaves the operator's own "(( ... ))"
+// expression intact - so a document merged this way can be merged again
+// once AWS is reachable; paired with WithRedact(true) (REDACT=1, or
+// vaultinfo-style internal skips), it keeps graft's original "return the
+// literal REDACTED sentinel" behavior instead, matching the vault and
+// NATS operators (op_vault.go, op_nats.go) and spruce's op_aws.go
+// semantics.
 func TestAwsOperatorSkipMode(t *testing.T) {
 	Convey("AWS Operator Skip Mode", t, func() {
-		Convey("when SkipAws is true via engine option", func() {
-			Convey("awssecret should return REDACTED", func() {
+		Convey("when SkipAws is true via engine option alone (defer, the default)", func() {
+			Convey("awssecret defers with its own expression intact", func() {
 				engine, err := graft.NewEngine(graft.WithSkipAws(true))
 				So(err, ShouldBeNil)
 
@@ -411,13 +420,10 @@ secret: (( awssecret "prod/database/password" ))
 
 				secret, err := result.Get("secret")
 				So(err, ShouldBeNil)
-				// When SkipAws is true, returns the literal "REDACTED" instead of
-				// the actual value, matching the vault and NATS operators
-				// (op_vault.go, op_nats.go) and spruce's op_aws.go semantics.
-				So(secret, ShouldEqual, "REDACTED")
+				So(secret, ShouldEqual, `(( awssecret "prod/database/password" ))`)
 			})
 
-			Convey("awsparam should return REDACTED", func() {
+			Convey("awsparam defers with its own expression intact", func() {
 				engine, err := graft.NewEngine(graft.WithSkipAws(true))
 				So(err, ShouldBeNil)
 
@@ -432,9 +438,44 @@ param: (( awsparam "/config/app/setting" ))
 
 				param, err := result.Get("param")
 				So(err, ShouldBeNil)
-				// When SkipAws is true, returns the literal "REDACTED" instead of
-				// the actual value, matching the vault and NATS operators
-				// (op_vault.go, op_nats.go) and spruce's op_aws.go semantics.
+				So(param, ShouldEqual, `(( awsparam "/config/app/setting" ))`)
+			})
+		})
+
+		Convey("when SkipAws and Redact are both true (REDACT=1 / vaultinfo-style)", func() {
+			Convey("awssecret should return REDACTED", func() {
+				engine, err := graft.NewEngine(graft.WithSkipAws(true), graft.WithRedact(true))
+				So(err, ShouldBeNil)
+
+				yaml := []byte(`
+secret: (( awssecret "prod/database/password" ))
+`)
+				doc, err := engine.ParseYAML(yaml)
+				So(err, ShouldBeNil)
+
+				result, err := engine.Evaluate(context.TODO(), doc)
+				So(err, ShouldBeNil)
+
+				secret, err := result.Get("secret")
+				So(err, ShouldBeNil)
+				So(secret, ShouldEqual, "REDACTED")
+			})
+
+			Convey("awsparam should return REDACTED", func() {
+				engine, err := graft.NewEngine(graft.WithSkipAws(true), graft.WithRedact(true))
+				So(err, ShouldBeNil)
+
+				yaml := []byte(`
+param: (( awsparam "/config/app/setting" ))
+`)
+				doc, err := engine.ParseYAML(yaml)
+				So(err, ShouldBeNil)
+
+				result, err := engine.Evaluate(context.TODO(), doc)
+				So(err, ShouldBeNil)
+
+				param, err := result.Get("param")
+				So(err, ShouldBeNil)
 				So(param, ShouldEqual, "REDACTED")
 			})
 		})

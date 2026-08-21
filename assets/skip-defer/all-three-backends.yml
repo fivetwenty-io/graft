@@ -1,0 +1,5 @@
+secrets:
+  vault_value: (( vault "secret/db:password" ))
+  aws_param: (( awsparam "/config/app/setting" ))
+  aws_secret: (( awssecret "prod/database/password" ))
+  nats_value: (( nats "kv:mybucket/mykey" ))

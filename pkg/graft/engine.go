@@ -44,6 +44,24 @@ type DefaultEngine struct {
 	// vaultMutex alongside vaultRefs. See RecordVaultPlaceholder.
 	vaultPlaceholders map[string]string
 
+	// redactMode selects, for skipVault/skipAws/skipNats above, whether a
+	// skipped backend returns the flat "REDACTED" sentinel (true) or
+	// defers itself, leaving its own "(( ... ))" expression intact
+	// (false, the default). Set at construction by WithRedact, and
+	// unconditionally forced true by REDACT=1 (see evaluate) regardless
+	// of construction options - unguarded, like skipVault/skipAws/
+	// skipNats themselves (see their own fields' comments for why that
+	// is safe in practice).
+	redactMode bool
+
+	// deferredPaths lists every tree path (Cursor.String()) a
+	// --skip-vault/--skip-aws/--skip-nats flag (redactMode false) caused
+	// to defer instead of evaluating - see op_skip_defer.go. Guarded by
+	// deferMutex. Intentionally minimal (paths only): Phase 4's
+	// --report-deferred machinery is expected to build on this.
+	deferredPaths []string
+	deferMutex    sync.RWMutex
+
 	// AWS state (client and cache live in internal/backends/aws)
 	skipAws bool
 
@@ -205,6 +223,46 @@ func (e *DefaultEngine) AddVaultRef(path string, keys []string) {
 // IsVaultSkipped returns true if Vault operations should be skipped.
 func (e *DefaultEngine) IsVaultSkipped() bool {
 	return e.skipVault
+}
+
+// SetRedactMode sets whether a skipped backend (skipVault/skipAws/
+// skipNats) returns the flat "REDACTED" sentinel (true) or defers itself
+// (false). See the redactMode field's doc comment.
+func (e *DefaultEngine) SetRedactMode(v bool) {
+	e.redactMode = v
+}
+
+// IsRedactMode returns true if a skipped backend should return the flat
+// "REDACTED" sentinel rather than defer itself.
+func (e *DefaultEngine) IsRedactMode() bool {
+	return e.redactMode
+}
+
+// AddDeferredPath records that path (Cursor.String()) deferred instead
+// of evaluating, because of a --skip-vault/--skip-aws/--skip-nats flag
+// (not REDACT - see IsRedactMode). See the deferredPaths field's doc
+// comment.
+func (e *DefaultEngine) AddDeferredPath(path string) {
+	e.deferMutex.Lock()
+	defer e.deferMutex.Unlock()
+	e.deferredPaths = append(e.deferredPaths, path)
+}
+
+// GetDeferredPaths returns a copy of the tree paths deferred so far.
+func (e *DefaultEngine) GetDeferredPaths() []string {
+	e.deferMutex.RLock()
+	defer e.deferMutex.RUnlock()
+
+	paths := make([]string, len(e.deferredPaths))
+	copy(paths, e.deferredPaths)
+	return paths
+}
+
+// ResetDeferredPaths clears the deferred-path list.
+func (e *DefaultEngine) ResetDeferredPaths() {
+	e.deferMutex.Lock()
+	defer e.deferMutex.Unlock()
+	e.deferredPaths = nil
 }
 
 // IsAWSSkipped returns true if AWS operations should be skipped.
@@ -478,12 +536,19 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 	// backend call, matching spruce's evaluator.go REDACT semantics. This
 	// check must live on the DefaultEngine.Evaluate path (not only on the
 	// legacy Evaluator.Run path) because Evaluate is what the CLI merge
-	// path (MergeBuilder) actually calls.
+	// path (MergeBuilder) actually calls. SetRedactMode(true) is
+	// unconditional here, overriding whatever WithRedact/EngineOptions
+	// constructed the engine with, same as the three SetSkip* calls below
+	// already did before redact mode existed - this is what keeps
+	// REDACT=1 byte-for-byte regardless of any --skip-<backend> flag also
+	// given (those flags alone leave redactMode false, deferring instead;
+	// see op_skip_defer.go).
 	if os.Getenv("REDACT") != "" {
 		state := e.GetOperatorState()
 		state.SetSkipVault(true)
 		state.SetSkipAws(true)
 		state.SetSkipNats(true)
+		state.SetRedactMode(true)
 	}
 
 	// Record evaluation start time if metrics are enabled
@@ -1453,6 +1518,7 @@ func newEngineFromOptions(opts *EngineOptions) *DefaultEngine {
 		skipVault:         opts.SkipVault,
 		skipAws:           opts.SkipAws,
 		skipNats:          opts.SkipNats,
+		redactMode:        opts.Redact,
 		backends:          make(map[string]Backend),
 		metrics: &EngineMetrics{
 			OperatorCalls: make(map[string]int64),
