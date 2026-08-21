@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -1117,6 +1118,95 @@ quux: quux
 			main()
 			So(stdout, ShouldEqual, "")
 			So(stderr, ShouldContainSubstring, "parse_error: failed to parse YAML")
+		})
+
+		Convey("vaultinfo renders a path composed from another vault lookup symbolically, not as a corrupted \"...:REDACTED\" path", func() {
+			// assets/vault/self-reference.yml: meta.path is itself a
+			// (( vault ... )) lookup; value's own (( vault ... )) call
+			// builds its path by concatenating a literal prefix with
+			// meta.path. Skipping vault (vaultinfo's default) must not
+			// leak the flat "REDACTED" sentinel into the composed key.
+			os.Args = []string{"graft", "vaultinfo", "../../assets/vault/self-reference.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldNotContainSubstring, "REDACTED")
+			So(stdout, ShouldEqual, `secrets:
+- key: secret/paths:<secret/paths:root>
+  references:
+  - value
+- key: secret/paths:root
+  references:
+  - meta.path
+
+`)
+		})
+
+		Convey("vaultinfo --json renders the same composed path symbolically, not as a corrupted \"...:REDACTED\" path", func() {
+			os.Args = []string{"graft", "vaultinfo", "--json", "../../assets/vault/self-reference.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldNotContainSubstring, "REDACTED")
+
+			var decoded yamlVaultRefs
+			So(json.Unmarshal([]byte(stdout), &decoded), ShouldBeNil)
+			keys := make([]string, len(decoded.Secrets))
+			for i, s := range decoded.Secrets {
+				keys[i] = s.Key
+			}
+			So(keys, ShouldContain, "secret/paths:<secret/paths:root>")
+			So(keys, ShouldContain, "secret/paths:root")
+		})
+
+		Convey("vaultinfo without composed paths is unaffected: no fixture in this block gained a \"REDACTED\" key", func() {
+			// Regression guard for the symbolic-composition fix above:
+			// every fixture in this Convey block (single/duplicate/
+			// novault/concat/merge1+merge2), none of which composes a
+			// path from another vault lookup, must never show
+			// "REDACTED" in its vaultinfo output either. Their exact
+			// byte-identical output is already pinned by the individual
+			// Convey cases above this one; this only adds the explicit
+			// "never REDACTED" claim as its own assertion.
+			for _, fixture := range []string{
+				"../../assets/vaultinfo/single.yml",
+				"../../assets/vaultinfo/duplicate.yml",
+				"../../assets/vaultinfo/novault.yml",
+				"../../assets/vaultinfo/concat.yml",
+			} {
+				os.Args = []string{"graft", "vaultinfo", fixture}
+				stdout = ""
+				stderr = ""
+				main()
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldNotContainSubstring, "REDACTED")
+			}
+		})
+
+		Convey("REDACT=1 merge output still shows the flat \"REDACTED\" sentinel, even for a value composed from another vault lookup", func() {
+			// Pins that the symbolic "<path/to/secret:key>" form is
+			// confined to vault-path composition (op_vault.go's
+			// vaultArgProcessor) and never leaks into a document's own
+			// rendered value: under REDACT=1 (a plain `merge`, not
+			// vaultinfo), both meta.path and value must still read
+			// exactly "REDACTED", matching pre-fix behavior byte for
+			// byte, even though value's own vault path was internally
+			// composed from meta.path's skip-vault placeholder.
+			_ = os.Setenv("REDACT", "1")
+			os.Args = []string{"graft", "merge", "../../assets/vault/self-reference.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `---
+meta:
+  path: REDACTED
+value: REDACTED
+
+`)
+			_ = os.Setenv("REDACT", "")
 		})
 
 		Convey("Adding (dynamic) prune support for list entries (edge case scenario)", func() {

@@ -191,6 +191,22 @@ type OperatorState interface {
 	GetVaultRefs() map[string][]string
 	ResetVaultRefs()
 
+	// Vault skip-lookup placeholder tracking. When IsVaultSkipped(), a
+	// (( vault ... ))/(( vault-try ... )) lookup still returns the
+	// literal string "REDACTED" as its document value - unchanged, so
+	// document output (and REDACT=1) stays byte-identical - but
+	// RecordVaultPlaceholder also remembers, out of band, which tree
+	// path that lookup wrote to and which vault key it would have
+	// looked up. A later vault-path-building argument that directly
+	// references that same tree path (see op_vault.go's
+	// vaultArgProcessor) consults VaultPlaceholderFor to render a
+	// symbolic "<path/to/secret:key>" reference instead of
+	// concatenating the literal "REDACTED" text into a new, corrupted
+	// vault path.
+	RecordVaultPlaceholder(treePath, vaultKey string)
+	VaultPlaceholderFor(treePath string) (vaultKey string, ok bool)
+	ResetVaultPlaceholders()
+
 	// Skip setters (for REDACT mode)
 	SetSkipVault(v bool)
 	SetSkipAws(v bool)

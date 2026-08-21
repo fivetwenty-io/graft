@@ -39,6 +39,11 @@ type DefaultEngine struct {
 	vaultMutex sync.RWMutex
 	skipVault  bool
 
+	// vaultPlaceholders maps a tree path (Cursor.String()) to the vault
+	// key a skip-vault sentinel written there stands in for, guarded by
+	// vaultMutex alongside vaultRefs. See RecordVaultPlaceholder.
+	vaultPlaceholders map[string]string
+
 	// AWS state (client and cache live in internal/backends/aws)
 	skipAws bool
 
@@ -265,6 +270,36 @@ func (e *DefaultEngine) GetVaultRefs() map[string][]string {
 		result[k] = refs
 	}
 	return result
+}
+
+// RecordVaultPlaceholder remembers that treePath received the
+// skip-vault sentinel for vaultKey, so a later vault-path-building
+// reference to treePath can render a symbolic "<vaultKey>" form (see
+// VaultPlaceholderFor and op_vault.go's vaultArgProcessor) instead of
+// the literal "REDACTED" text.
+func (e *DefaultEngine) RecordVaultPlaceholder(treePath, vaultKey string) {
+	e.vaultMutex.Lock()
+	defer e.vaultMutex.Unlock()
+	if e.vaultPlaceholders == nil {
+		e.vaultPlaceholders = make(map[string]string)
+	}
+	e.vaultPlaceholders[treePath] = vaultKey
+}
+
+// VaultPlaceholderFor reports the vault key a skip-vault sentinel
+// written at treePath stands in for, if any.
+func (e *DefaultEngine) VaultPlaceholderFor(treePath string) (string, bool) {
+	e.vaultMutex.RLock()
+	defer e.vaultMutex.RUnlock()
+	key, ok := e.vaultPlaceholders[treePath]
+	return key, ok
+}
+
+// ResetVaultPlaceholders clears the vault placeholder tracking map.
+func (e *DefaultEngine) ResetVaultPlaceholders() {
+	e.vaultMutex.Lock()
+	defer e.vaultMutex.Unlock()
+	e.vaultPlaceholders = make(map[string]string)
 }
 
 // ResetVaultRefs clears the vault references map.
@@ -1359,16 +1394,17 @@ func (e *DefaultEngine) SetWorkerPool(pool *parallel.WorkerPool) {
 // createEngineFromOptions instead.
 func newEngineFromOptions(opts *EngineOptions) *DefaultEngine {
 	e := &DefaultEngine{
-		opts:           *opts,
-		registry:       DefaultRegistry.Clone(),
-		localOperators: make(map[string]bool),
-		vaultRefs:      make(map[string][]string),
-		usedIPs:        make(map[string]string),
-		pathsToSort:    make(map[string]string),
-		skipVault:      opts.SkipVault,
-		skipAws:        opts.SkipAws,
-		skipNats:       opts.SkipNats,
-		backends:       make(map[string]Backend),
+		opts:              *opts,
+		registry:          DefaultRegistry.Clone(),
+		localOperators:    make(map[string]bool),
+		vaultRefs:         make(map[string][]string),
+		vaultPlaceholders: make(map[string]string),
+		usedIPs:           make(map[string]string),
+		pathsToSort:       make(map[string]string),
+		skipVault:         opts.SkipVault,
+		skipAws:           opts.SkipAws,
+		skipNats:          opts.SkipNats,
+		backends:          make(map[string]Backend),
 		metrics: &EngineMetrics{
 			OperatorCalls: make(map[string]int64),
 		},

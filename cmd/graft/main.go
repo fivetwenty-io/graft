@@ -578,8 +578,17 @@ func resolveStartupConfig(configPath string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config, ff *features.FeatureFlags, jsonOutput, pathsOnly bool) int {
-	engineOpts := append([]graft.EngineOption{graft.WithSkipVault(true)}, configEngineOpts(cfg, ff)...)
+// handleVaultInfo lists vault references found in vaultFiles. By default
+// (resolve == false) it never contacts Vault: lookups are skipped
+// (graft.WithSkipVault(true)), so the command stays usable offline, and a
+// path composed from another vault lookup renders as a symbolic
+// "<path/to/secret:key>" reference (see op_vault.go's
+// vaultArgProcessor.resolveToString) rather than the corrupted, literal
+// "secret/path:REDACTED". Passing resolve performs real Vault lookups
+// instead, reporting concrete composed paths when Vault is reachable, at
+// the cost of requiring one.
+func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config, ff *features.FeatureFlags, jsonOutput, pathsOnly, resolve bool) int {
+	engineOpts := append([]graft.EngineOption{graft.WithSkipVault(!resolve)}, configEngineOpts(cfg, ff)...)
 	opts := &mergeOpts{
 		Files:         vaultFiles,
 		EnableGoPatch: enableGoPatch,
@@ -1101,19 +1110,20 @@ func newRootCmd() (*cobra.Command, *bool) {
 	diffCmd.Flags().BoolVarP(&diffQuiet, "quiet", "q", false, "Exit with status only, no output")
 
 	// vaultinfo command
-	var vaultInfoGoPatch, vaultInfoJSON, vaultInfoPathsOnly bool
+	var vaultInfoGoPatch, vaultInfoJSON, vaultInfoPathsOnly, vaultInfoResolve bool
 
 	vaultinfoCmd := &cobra.Command{
 		Use:   "vaultinfo [files...]",
 		Short: "List vault references in the given files",
 		RunE: func(_ *cobra.Command, args []string) error {
-			exit(handleVaultInfo(args, vaultInfoGoPatch, loadedConfig, loadedFeatureFlags, vaultInfoJSON, vaultInfoPathsOnly))
+			exit(handleVaultInfo(args, vaultInfoGoPatch, loadedConfig, loadedFeatureFlags, vaultInfoJSON, vaultInfoPathsOnly, vaultInfoResolve))
 			return nil
 		},
 	}
 	vaultinfoCmd.Flags().BoolVar(&vaultInfoGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged")
 	vaultinfoCmd.Flags().BoolVar(&vaultInfoJSON, "json", false, "Output as JSON instead of YAML")
 	vaultinfoCmd.Flags().BoolVar(&vaultInfoPathsOnly, "paths-only", false, "Output only the Vault secret paths (one per line, or a JSON array with --json), not their referring locations")
+	vaultinfoCmd.Flags().BoolVar(&vaultInfoResolve, "resolve", false, "Perform live Vault lookups instead of skipping them (requires a reachable Vault); reports concrete values for paths composed from other vault lookups instead of a symbolic <path/to/secret:key> reference")
 
 	// debug command
 	var debugGoPatch, debugFallbackAppend bool

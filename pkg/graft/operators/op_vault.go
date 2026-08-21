@@ -87,6 +87,21 @@ func (p *vaultArgProcessor) detectMultiplePathArgs(ev *Evaluator) bool {
 
 // resolveToString resolves an expression and converts it to a string.
 func (p *vaultArgProcessor) resolveToString(ev *Evaluator, expr *Expr) (string, error) {
+	// A direct reference to a tree path that a skip-vault sentinel was
+	// written to (RecordVaultPlaceholder, performVaultLookup) renders as
+	// a symbolic "<path/to/secret:key>" instead of resolving normally -
+	// resolving it normally would return the literal "REDACTED" text,
+	// silently concatenating that word into a new, corrupted vault path
+	// (docs/user-guide/secrets/vault.md's former "known limitation").
+	// Only a *direct* reference is covered: an intermediate (( grab ))
+	// alias to the same node is out of scope, since it does not
+	// participate in vault-path composition itself.
+	if expr != nil && expr.Type == Reference && expr.Reference != nil {
+		if key, ok := graft.GetEngine(ev).GetOperatorState().VaultPlaceholderFor(expr.Reference.String()); ok {
+			return "<" + key + ">", nil
+		}
+	}
+
 	// Check if we need to handle sub-operators
 	if p.hasSubOps {
 		result, err := p.resolveWithSubOperators(ev, expr)
@@ -533,6 +548,13 @@ func (o VaultOperator) tryVaultPaths(ev *Evaluator, engine graft.Engine, paths [
 // requirement, so a custom backend is never subjected to it.
 func (o VaultOperator) performVaultLookup(ev *graft.Evaluator, engine graft.Engine, target, key string) (string, error) {
 	if engine.GetOperatorState().IsVaultSkipped() {
+		// Remember which vault key this skip-vault sentinel stands in
+		// for, keyed by the tree path it is about to be written to
+		// (ev.Here), so a later vault-path-building reference to this
+		// same path can render "<key>" instead of the literal
+		// "REDACTED" text (see vaultArgProcessor.resolveToString).
+		// Shared by vault-try too (it calls this same method).
+		engine.GetOperatorState().RecordVaultPlaceholder(ev.Here.String(), key)
 		return redactedValue, nil
 	}
 
