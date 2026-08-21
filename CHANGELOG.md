@@ -41,6 +41,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a new `prune-report` REPL command lists what they would remove once
   the session is fully evaluated, so the views no longer disagree.
 
+- `graft merge` accepts `--skip-vault`, `--skip-aws`, and
+  `--skip-nats`, one flag per secrets backend and freely combinable.
+  A skipped backend's operator calls — `(( vault ))`, `(( vault-try ))`,
+  `(( awsparam ))`, `(( awssecret ))`, and `(( nats ))` — are left
+  intact in the output, exactly as if wrapped in `(( defer ))`, with
+  `:nocache` and `@target` modifiers preserved, so the document can be
+  merged again once the backend is reachable. Values composed from a
+  deferred lookup, such as a `(( grab ))` of a skipped vault value,
+  defer along with it instead of erroring. OpenBao speaks the Vault
+  API through the same operator, so `--skip-vault` covers it. The
+  `REDACT` environment variable is unchanged and still substitutes
+  `REDACTED`; when both are given, `REDACT` wins. Library callers get
+  the same choice through the new `WithRedact` engine option, which
+  pairs with the existing `WithSkipVault`, `WithSkipAws`, and
+  `WithSkipNats` options to pick redaction over deferral.
+
 ### Changed
 
 - `graft merge` now begins its output with a `---` document-start
