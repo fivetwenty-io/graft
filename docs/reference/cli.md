@@ -108,6 +108,15 @@ stdin for that position.
 | `--show-changes` | Print a merge/evaluation change summary instead of the merged document. |
 | `--changes-only` | Print only the paths that changed during merge/evaluation instead of the merged document. |
 | `--interactive` | Launch the interactive debug REPL instead of merging directly; equivalent to `graft debug <files...>`. See [graft debug](#graft-debug) below. |
+| `--skip-vault` | Defer `(( vault ... ))`/`(( vault-try ... ))` calls instead of contacting Vault: each leaves its own expression intact in the output (e.g. `(( vault "secret/db:password" ))`), so the document can be merged again once Vault is reachable. Covers OpenBao too (same API, same operator). Composable with `--skip-aws`/`--skip-nats`. `REDACT=1` is unaffected and keeps returning `"REDACTED"` regardless of this flag. |
+| `--skip-aws` | Same defer behavior as `--skip-vault`, for `(( awsparam ... ))`/`(( awssecret ... ))`. |
+| `--skip-nats` | Same defer behavior as `--skip-vault`, for `(( nats ... ))`. |
+
+A value composed from a deferred call - a `(( grab ))` of a field that
+itself deferred, or a vault path segment built from another deferred
+vault lookup - defers transitively too, since the deferred call's own
+document value is just its own expression text, copied like any other
+string.
 
 Every merge internally runs with caching enabled
 (`graft.WithCache(true, 1000)`); cache size isn't currently exposed as a
@@ -388,7 +397,7 @@ graft vaultinfo --resolve config.yml
 |---|---|
 | `DEBUG` | Same as `--debug`, if set to a truthy value (anything but empty, `"false"`, or `"0"`). |
 | `TRACE` | Same as `--trace`, if set to a truthy value. Also implies `DEBUG`-level logging. |
-| `REDACT` | Any non-empty value sets skip-vault, skip-AWS, and skip-NATS state for the run. `vault`/`vault-try`, `nats`, and `awsparam`/`awssecret` all return the literal string `"REDACTED"` in place of the real value. |
+| `REDACT` | Any non-empty value sets skip-vault, skip-AWS, and skip-NATS state for the run, in "redact" mode: `vault`/`vault-try`, `nats`, and `awsparam`/`awssecret` all return the literal string `"REDACTED"` in place of the real value. This differs from the `--skip-vault`/`--skip-aws`/`--skip-nats` flags, whose own default is "defer" (leave the expression intact) rather than redact; `REDACT=1` always wins over those flags when both are active. |
 | `DEFAULT_ARRAY_MERGE_KEY` | Overrides the identifier key (`name` by default) used for by-key array merges in `pkg/graft/merger`. |
 
 `internal/config`'s `GRAFT_*` environment variables (engine strict mode,

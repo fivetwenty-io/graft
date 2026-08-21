@@ -81,6 +81,45 @@ otp: (( vault:nocache "secret/totp:code" ))
 prod_otp: (( vault:nocache@prod "secret/totp:code" ))
 ```
 
+### Merging Without Vault Access
+
+`graft merge --skip-vault` merges everything except what needs Vault:
+every `(( vault ... ))`/`(( vault-try ... ))` call defers instead of
+contacting Vault, leaving its own expression intact in the output rather
+than failing the merge or substituting a placeholder value:
+
+```sh
+graft merge --skip-vault base.yml overlay.yml
+```
+
+```yaml
+database:
+  password: (( vault "secret/db:password" ))
+```
+
+The output is valid YAML that can be merged again later, once Vault is
+reachable, and evaluates cleanly at that point. A value composed from a
+deferred call defers transitively too - a `(( grab ))` of a field that
+itself deferred, or a vault path segment built from another deferred
+vault lookup - since the deferred call's document value is just its own
+expression text, copied like any other string. `--skip-vault` also
+covers OpenBao: it speaks the same API through the same `vault` operator,
+so no separate flag is needed.
+
+`--skip-aws` and `--skip-nats` do the same for `(( awsparam ... ))`/
+`(( awssecret ... ))` and `(( nats ... ))` respectively, and all three are
+composable in one invocation (`graft merge --skip-vault --skip-aws
+base.yml`).
+
+This is a different behavior from `REDACT=1` (see
+[Environment Variables reference](../../reference/environment-variables.md)),
+which returns the literal string `"REDACTED"` instead of deferring - a
+document full of
+`REDACTED` strings cannot be merged again later, but a document full of
+intact vault expressions can. `REDACT=1` always wins when both are
+active: it keeps its existing redacting behavior regardless of whether
+`--skip-vault`/`--skip-aws`/`--skip-nats` are also given.
+
 ## Configuration
 
 ### Environment Variables

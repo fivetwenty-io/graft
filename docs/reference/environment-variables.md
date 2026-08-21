@@ -13,7 +13,7 @@ or planned variables are listed.
 | `TRACE` | `false` | Enable trace (verbose) logging. Same truthiness rule as `DEBUG`. |
 | `NO_COLOR` | - | Disable colorized output. Any non-empty value disables color. |
 | `TERM` | - | `TERM=dumb` also disables colorized output. |
-| `REDACT` | - | Any non-empty value makes `vault`, `awsparam`/`awssecret`, and `nats` operators return the literal string `"REDACTED"` instead of making a backend call. |
+| `REDACT` | - | Any non-empty value makes `vault`, `awsparam`/`awssecret`, and `nats` operators return the literal string `"REDACTED"` instead of making a backend call. Always wins over `merge --skip-vault`/`--skip-aws`/`--skip-nats` when both are set — those flags alone defer the expression instead of redacting it; see [CLI Reference: graft merge](cli.md#graft-merge). |
 | `DEFAULT_ARRAY_MERGE_KEY` | `name` | The identifier key used to match array-of-maps entries across documents during a merge. |
 | `GRAFT_FILE_BASE_PATH` | - | Base path prepended to relative paths passed to `(( file ))` and `(( load ))`. Checked before `SPRUCE_FILE_BASE_PATH`. |
 | `SPRUCE_FILE_BASE_PATH` | - | Fallback for `GRAFT_FILE_BASE_PATH`, used when it is unset, so spruce-configured environments keep working unchanged. |

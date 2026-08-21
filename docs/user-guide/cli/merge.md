@@ -25,6 +25,9 @@ Files are merged left to right. Values in later files override values in earlier
 | `--show-changes` | | Show merge change tree |
 | `--changes-only` | | Show only changed paths |
 | `--interactive` | | Enter debugging REPL (equivalent to `graft debug`; no short form) |
+| `--skip-vault` | | Defer `(( vault ... ))`/`(( vault-try ... ))` calls (leave the expression intact) instead of contacting Vault or OpenBao. Composable with `--skip-aws`/`--skip-nats`. |
+| `--skip-aws` | | Same, for `(( awsparam ... ))`/`(( awssecret ... ))` |
+| `--skip-nats` | | Same, for `(( nats ... ))` |
 
 ## Basic Usage
 
@@ -147,6 +150,35 @@ database:
   host: localhost
   port: 5432
 ```
+
+### Skip Backends
+
+Merge everything except what needs a backend you don't have access to
+right now:
+
+```sh
+graft merge --skip-vault config.yml
+```
+
+**config.yml:**
+```yaml
+database:
+  password: (( vault "secret/db:password" ))
+```
+
+**With --skip-vault (no Vault contact, no error):**
+```yaml
+database:
+  password: (( vault "secret/db:password" ))
+```
+
+The output is valid YAML: merge it again later, once Vault is reachable,
+and the deferred expression evaluates normally. `--skip-aws` and
+`--skip-nats` do the same for `(( awsparam ... ))`/`(( awssecret ... ))`
+and `(( nats ... ))`; all three are composable
+(`graft merge --skip-vault --skip-aws config.yml`). See
+[Vault Integration: Merging Without Vault Access](../secrets/vault.md#merging-without-vault-access)
+for the full write-up, including how this differs from `REDACT=1`.
 
 ## History and Tracing
 

@@ -49,6 +49,9 @@ graft merge [flags] file1.yml [file2.yml ...]
 | `--show-changes` | Show merge change tree |
 | `--changes-only` | Show only changed paths |
 | `--interactive` | Enter debugging REPL (equivalent to `graft debug`; no short form) |
+| `--skip-vault` | Defer `(( vault ... ))`/`(( vault-try ... ))` calls (leave the expression intact) instead of contacting Vault or OpenBao; composable with `--skip-aws`/`--skip-nats`. `REDACT=1` overrides this and redacts instead. |
+| `--skip-aws` | Same, for `(( awsparam ... ))`/`(( awssecret ... ))` |
+| `--skip-nats` | Same, for `(( nats ... ))` |
 
 ### Examples
 
@@ -290,7 +293,7 @@ graft> quit
 |----------|-------------|
 | `DEBUG` | Same as `--debug`: enable debug logging (any value but empty, `"false"`, or `"0"`) |
 | `TRACE` | Same as `--trace`: enable trace logging, also implies `DEBUG` (any value but empty, `"false"`, or `"0"`) |
-| `REDACT` | Any non-empty value skips Vault/AWS/NATS resolution and returns `"REDACTED"` in place of real secret values |
+| `REDACT` | Any non-empty value skips Vault/AWS/NATS resolution and returns `"REDACTED"` in place of real secret values. Wins over `merge --skip-vault`/`--skip-aws`/`--skip-nats` (see above), which defer instead of redact when REDACT isn't set. |
 | `DEFAULT_ARRAY_MERGE_KEY` | Overrides the identifier key (`name` by default) used for by-key array merges |
 
 There is no `GRAFT_COLOR` or `GRAFT_TRACE` — color is controlled by
