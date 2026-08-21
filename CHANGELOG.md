@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A global `--no-color` flag, available on every command, that disables
+  ANSI color outright. It always wins, including over an explicit
+  `--color`. The `--color` flag itself now takes `on`, `off`, or `auto`
+  (bare `--color` means `on`), accepts the value with either `=` or a
+  space, and lives on the root command, so any subcommand understands
+  it. When neither flag is given, color resolves automatically: the
+  `NO_COLOR` and `TERM=dumb` conventions are honored first, then
+  whether the output stream is a terminal — stderr for diagnostics, and
+  stdout for `graft diff`'s rendered output, so a redirected diff stays
+  free of escape codes even from an interactive shell.
+
 - `graft debug` now runs its prompt through a real line editor when it is
   attached to a terminal. Up and Down recall earlier commands, Ctrl+R
   searches them, and Tab completes command names, document paths from the
@@ -18,7 +29,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `config vault.token` is kept out of it. Piped and redirected input is
   read exactly as before.
 
+### Changed
+
+- Deleting a list entry that is not there is no longer an error. A
+  `(( delete "name" ))` or `(( delete <value> ))` whose target is
+  absent from the base list now merges through silently, so an overlay
+  can say "make sure `cflinuxfs2` is gone" without caring whether it
+  was ever present. This is a deliberate divergence from spruce, which
+  rejects the merge. Deleting from an empty list is likewise a no-op,
+  and an overlay list containing only delete markers no longer
+  materializes the key at all when the base never had it — a base
+  without `features:` stays without it, while a base with
+  `features: []` keeps its empty list. `(( insert ))` with a missing
+  anchor and out-of-range index operations still error as before.
+
 ### Fixed
+
+- `NO_COLOR` and `TERM=dumb` are honored again. The environment checks
+  ran at startup but the command-line color handling then overwrote
+  their result, so graft colored its diagnostics anyway. The precedence
+  is now: an explicit `--color`/`--no-color` first, then the
+  environment, then terminal detection.
 
 - A `(( prune ))` that overwrote a value an earlier document had set left
   the marker in place instead of queueing the path and keeping the value.
@@ -47,6 +78,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documented how `REDACT` lets a whole debug session tolerate unreachable
   Vault paths, and how `graft diff` decides whether to color its output.
+
+- Documented building a Vault path from another Vault lookup — a
+  `(( vault ))` whose path embeds a `(( grab ))` of a value that is
+  itself fetched from Vault — with a regression test and fixture
+  (`assets/vault/self-reference.yml`) pinning the resolution order.
+  Noted that `vaultinfo` currently prints `REDACTED` inside such
+  composed paths, since it skips the lookups the path depends on.
+
+- Added a Delete-if-Present section to the array merging guide covering
+  the scalar-list delete semantics above, with the empty-list,
+  absent-key, and mixed-overlay cases spelled out.
 
 ## [1.33.0] - 2026-08-17
 
