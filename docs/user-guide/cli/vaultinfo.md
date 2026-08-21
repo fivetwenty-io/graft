@@ -15,6 +15,7 @@ graft vaultinfo [flags] file1.yml file2.yml ...
 | `--go-patch` | | Enable the use of go-patch when parsing files to be merged |
 | `--json` | | Output as JSON instead of YAML |
 | `--paths-only` | | Output only the Vault secret keys (one per line, or a JSON array with `--json`), not their referring locations |
+| `--resolve` | | Perform live Vault lookups instead of skipping them (requires a reachable Vault); reports concrete values for paths composed from other Vault lookups instead of a symbolic `<path/to/secret:key>` reference |
 
 ## Overview
 
@@ -153,6 +154,61 @@ graft vaultinfo --paths-only --json config.yml
   "secret/db:username"
 ]
 ```
+
+## Composed Paths and `--resolve`
+
+`vaultinfo` runs offline by default: it never contacts Vault, so a path
+segment built from another `(( vault ... ))` lookup elsewhere in the
+document can't be resolved to its real value. Instead of silently
+reporting the corrupted, literal path `secret/paths:REDACTED`, it renders
+a symbolic reference back to the lookup it came from:
+
+```yaml
+meta:
+  path: (( vault "secret/paths:root" ))
+
+value: (( vault "secret/paths:" meta.path ))
+```
+
+```sh
+graft vaultinfo config.yml
+```
+
+```yaml
+secrets:
+- key: secret/paths:<secret/paths:root>
+  references:
+  - value
+- key: secret/paths:root
+  references:
+  - meta.path
+```
+
+`<secret/paths:root>` means "whatever `secret/paths:root` resolves to at
+merge time" — it is not itself a Vault path to look up. Add `--resolve`
+to perform real Vault lookups instead of skipping them, reporting the
+concrete composed path when Vault is reachable:
+
+```sh
+graft vaultinfo --resolve config.yml
+```
+
+```yaml
+secrets:
+- key: secret/paths:child
+  references:
+  - value
+- key: secret/paths:root
+  references:
+  - meta.path
+```
+
+`--resolve` is opt-in specifically so `vaultinfo` stays usable offline by
+default (its main audit/pre-flight use cases below don't need it); reach
+for it only when you need the concrete composed path and have Vault
+access on hand. `graft merge` itself has always resolved composed paths
+correctly at evaluation time, with or without `--resolve` — only
+`vaultinfo`'s own offline reporting is affected either way.
 
 ## Use Cases
 

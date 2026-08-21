@@ -131,6 +131,16 @@ lowercase, and graft's own test suite confirms it, asserting output like
 `secrets:\n- key: secret/bar:beep\n  references:`, matching the shape
 Genesis expects once piped through `json`.
 
+The `key` field's *value* is always a plain string; its shape is
+unaffected by whether it names a literal Vault path (`secret/db:pass`)
+or, for a path segment composed from another `(( vault ... ))` lookup
+without `--resolve`, a symbolic reference to that lookup
+(`secret/paths:<secret/paths:root>` — see
+[vaultinfo](../user-guide/cli/vaultinfo.md#composed-paths-and---resolve)).
+Genesis's own stderr-based retry loop (pattern 8's `` - $.<path>:``
+scrape, described above) reads graft's stderr, not this `key` field, so
+it is unaffected either way.
+
 ## Exit codes
 
 | Code | Meaning |

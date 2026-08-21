@@ -321,7 +321,7 @@ graft diff --quiet before.yml after.yml; echo $?
 graft vaultinfo [flags] [files...]
 ```
 
-Merges the given files while skipping Vault resolution
+Merges the given files while skipping Vault resolution by default
 (`graft.WithSkipVault(true)`) and prints every Vault reference found,
 sorted by secret key, with each secret's referring paths sorted
 underneath it. The default output is YAML:
@@ -338,16 +338,25 @@ secrets:
 | `--go-patch` | Same meaning as `merge --go-patch`. |
 | `--json` | Same `secrets`/`key`/`references` shape as the default, as indented JSON, instead of YAML. |
 | `--paths-only` | Only the secret keys (not their referring locations), one per line — or, combined with `--json`, a JSON array of the same keys. |
+| `--resolve` | Perform real Vault lookups instead of skipping them (requires a reachable Vault). |
 
-Neither new flag changes the default (no-flag) output, which stays
+None of these flags change the default (no-flag, no-`--resolve`) output
+for a fixture with no vault-from-vault path composition, which stays
 byte-identical for genesis's scraping of it
-(`docs/spruce/genesis-compat-contract.md`).
+(`docs/spruce/genesis-compat-contract.md`). A path segment built from
+another `(( vault ... ))` lookup is the one exception: without
+`--resolve`, it renders as a symbolic `<path/to/secret:key>` reference
+rather than the corrupted, literal `secret/paths:REDACTED` graft used to
+report (see [vaultinfo](../user-guide/cli/vaultinfo.md#composed-paths-and---resolve)
+for the full example); with `--resolve`, it reports the concrete
+resolved path instead.
 
 ```bash
 graft vaultinfo config.yml
 graft vaultinfo --json config.yml
 graft vaultinfo --paths-only config.yml
 graft vaultinfo --paths-only --json config.yml
+graft vaultinfo --resolve config.yml
 ```
 
 ## Exit codes

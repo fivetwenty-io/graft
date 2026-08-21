@@ -207,6 +207,7 @@ graft vaultinfo [flags] file.yml [file2.yml ...]
 |------|-------------|
 | `--json` | Output as JSON |
 | `--paths-only` | Show only paths, not locations |
+| `--resolve` | Perform live Vault lookups instead of skipping them (requires a reachable Vault); reports concrete values for paths composed from other vault lookups |
 
 ### Examples
 
@@ -222,6 +223,9 @@ graft vaultinfo base.yml overlay.yml secrets.yml
 
 # Paths only
 graft vaultinfo --paths-only config.yml
+
+# Resolve composed paths against a reachable Vault
+graft vaultinfo --resolve config.yml
 ```
 
 ## graft debug

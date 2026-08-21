@@ -281,11 +281,42 @@ Add `--json` for the same data as JSON, or `--paths-only` for just the
 sorted list of secret keys (`docs/user-guide/cli/vaultinfo.md` has the
 full flag reference).
 
-`vaultinfo` runs offline and never contacts Vault, so a path segment
-built from another `(( vault ... ))` lookup (see "Path Segment From
-Another Vault Lookup" above) currently reports `REDACTED` in place of
-the resolved segment instead of the real path. The merge-time
-evaluation itself is unaffected.
+`vaultinfo` runs offline and never contacts Vault by default, so it
+cannot resolve a path segment built from another `(( vault ... ))`
+lookup (see "Path Segment From Another Vault Lookup" above) to its real
+value. Instead of silently reporting the corrupted, literal path
+`secret/paths:REDACTED`, it renders a symbolic reference to the lookup
+it came from:
+
+```yaml
+secrets:
+- key: secret/paths:<secret/paths:root>
+  references:
+  - value
+- key: secret/paths:root
+  references:
+  - meta.path
+```
+
+`<secret/paths:root>` means "whatever `secret/paths:root` resolves to
+at merge time" — it is not a literal path to look up in Vault. Pass
+`--resolve` to have `vaultinfo` perform real Vault lookups instead of
+skipping them (requires a reachable Vault), which reports the concrete
+composed path instead:
+
+```yaml
+secrets:
+- key: secret/paths:child
+  references:
+  - value
+- key: secret/paths:root
+  references:
+  - meta.path
+```
+
+The merge-time evaluation itself (`graft merge`, not `vaultinfo`) has
+always resolved this correctly and is unaffected either way; only
+`vaultinfo`'s offline reporting was affected.
 
 ## Error Handling
 
