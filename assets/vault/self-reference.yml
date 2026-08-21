@@ -1,0 +1,4 @@
+meta:
+  path: (( vault "secret/paths:root" ))
+
+value: (( vault "secret/paths:" meta.path ))
