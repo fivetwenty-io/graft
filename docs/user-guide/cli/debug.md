@@ -23,13 +23,28 @@ it cannot also read a document from stdin the way `merge`/`json` do.
 |------|-------------|
 | `--go-patch` | Same meaning as `merge --go-patch`: parse an array-rooted file as a [go-patch](https://github.com/cppforlife/go-patch) document instead of erroring on a non-map root. Applies to every merge the session performs (`load`'s base document, each `step`, `diff`'s recomputed base). |
 | `--fallback-append` | Same meaning as `merge --fallback-append`: use append semantics instead of inline for the default array-merge fallback. |
+| `--prune <key>` | Same meaning as `merge --prune`: mark a key to remove from the final output. May be given more than once. Does not affect `step`/`output`/`export`/`history` while stepping — see below — use `prune-report` to see what it would remove. |
+| `--cherry-pick <key>` | Same meaning as `merge --cherry-pick`: the opposite of `--prune`, keep only the given keys. Same `output`/`history` caveat as `--prune`. |
 
-These are the only two flags `debug` itself accepts. `--prune` and
-`--cherry-pick` are cleared for the session's own raw merge steps (they
-only make sense once, on the final result, and would otherwise strip data
-`step`/`inspect` need to show), and `--skip-eval`/`--dataflow-order`/
-`--history`/`--trace-path`/`--show-changes`/`--changes-only` have no
-meaning for an interactive session.
+`--skip-eval`/`--dataflow-order`/`--history`/`--trace-path`/
+`--show-changes`/`--changes-only` have no meaning for an interactive
+session and are not accepted.
+
+### --prune/--cherry-pick stay out of the stepping tree
+
+A `(( prune ))` operator marker is unconditional: the engine applies it
+during evaluation regardless of any flag, so it is already gone by the
+final `step`, and `output`/`export`/`history` all show it removed.
+
+`--prune`/`--cherry-pick`, by contrast, are CLI flags applied once, on the
+final result of a plain `merge` — they only make sense there, and would
+otherwise strip data `step`/`inspect` need to show along the way. So the
+session's own `step`/`continue` merges never apply them, and `output`,
+`export`, and `history` deliberately agree on that: all three show the
+pre-`--prune`/`--cherry-pick` document throughout stepping, even after the
+final step. Run `prune-report` once the session is fully evaluated to see
+what those flags would additionally remove, without changing what
+`output`/`export`/`history` show.
 
 One exception applies to the `merge --interactive` spelling only: because
 input files are resolved before the REPL starts, `-m`/`--multi-doc` does
@@ -66,6 +81,7 @@ The debug REPL provides interactive control over the merge process:
 | `eval <path>` | Immediately evaluate the operator at path, regardless of `defer` |
 | `config [key] [value]` | View or set `vault.addr`/`vault.token`/`vault.namespace` for this session |
 | `output` | Show the current document state as YAML |
+| `prune-report` | Once the session is fully evaluated, show what the session's `--prune`/`--cherry-pick` flags would remove, without applying them |
 | `diff` | Show changes from the first loaded file to the current state |
 | `export <file>` | Export the current state to file (YAML, or JSON if the name ends `.json`) |
 | `help [command]` | Show command list, or detail for one command |
@@ -343,6 +359,20 @@ database.host:
   Final              → db.prod.example.com
 ```
 
+Like `output`, `history` ignores this session's `--prune`/`--cherry-pick`
+flags (see [--prune/--cherry-pick stay out of the stepping tree](#--prunecherry-pick-stay-out-of-the-stepping-tree)),
+but always reflects an operator `(( prune ))` marker, whose removal renders
+as `<pruned>` — never a bare absence, and never confused with a path whose
+value is a genuine YAML null:
+
+```
+graft> history secret
+secret:
+  [0] base.yml       → (( prune ))
+  [2] <pruned>       → <pruned>
+  Final              → <pruned>
+```
+
 ### defer
 
 Marks a path so evaluation leaves its operator unresolved.
@@ -432,7 +462,11 @@ client (from an earlier evaluation) to reconnect with the new value.
 
 ### output
 
-Show the current document state as YAML:
+Show the current document state as YAML. This always reflects an operator
+`(( prune ))` marker (unconditional, applied by the engine during
+evaluation), but never a `--prune`/`--cherry-pick` flag's effect — see
+[--prune/--cherry-pick stay out of the stepping tree](#--prunecherry-pick-stay-out-of-the-stepping-tree)
+and [prune-report](#prune-report):
 
 ```
 graft> output
@@ -445,6 +479,31 @@ meta:
   version: "1.0"
 server:
   timeout: 60
+```
+
+### prune-report
+
+Once the session is fully evaluated, reports the paths this session's
+`--prune`/`--cherry-pick` flags would remove — without applying them to
+`output`/`export`/`history`, which always show the pre-flag document:
+
+```
+graft> continue
+[3/3] Evaluating operators...
+Evaluation complete.
+
+graft> prune-report
+Paths --prune/--cherry-pick would remove (not applied to 'output'/'export'/'history'):
+  - database.port
+```
+
+Before the merge is complete, or when no `--prune`/`--cherry-pick` flag
+was given, `prune-report` says so instead of guessing:
+
+```
+graft> load
+graft> prune-report
+Merge not complete yet. Run 'continue' (or enough 'step's) before 'prune-report'.
 ```
 
 ### diff
@@ -493,6 +552,7 @@ Available commands:
   eval            Force evaluate operator at path
   config          View/set configuration
   output          Show current document state
+  prune-report    Show what --prune/--cherry-pick would remove
   diff            Show changes from original
   export          Export current state to file
   help            Show help

@@ -233,15 +233,74 @@ Every history entry is tagged with the step that produced it:
 |-------|-------------|
 | LOAD | The first input file |
 | MERGE | A later input file overwriting or adding a value |
-| EVAL | Operator evaluation |
+| EVAL | Operator evaluation, including an operator `(( prune ))` marker taking effect |
 | POST | `--prune`/`--cherry-pick` removing a path |
 
 The phase itself isn't printed directly in either `--history`'s or
-`--trace-path`'s output; the `[N]` step index and the
-file/`<evaluated>`/`<pruned>` source convey it (an EVAL-phase entry's
-source is always `<evaluated>`, a POST-phase entry's is always
-`<pruned>`), and `--trace-path`'s `Type:` line distinguishes an
-unevaluated operator expression from a plain value at each step.
+`--trace-path`'s output; the `[N]` step index and the source column convey
+it. A non-removed EVAL-phase entry's source is `<evaluated>`; a removed
+entry's source is always `<pruned>`, whichever phase actually produced the
+removal (EVAL for an operator `(( prune ))` marker, POST for a
+`--prune`/`--cherry-pick` flag) — see [Pruned Paths](#pruned-paths) below.
+`--trace-path`'s `Type:` line distinguishes an unevaluated operator
+expression, a removal, or a plain value at each step.
+
+## Pruned Paths
+
+An operator `(( prune ))` marker is unconditional: the engine removes the
+path during evaluation regardless of any CLI flag, so history already
+shows it removed even without `--prune`/`--cherry-pick`:
+
+```yaml
+# base.yml
+secret: (( prune ))
+database:
+  host: localhost
+```
+
+```yaml
+# override.yml
+database:
+  host: db.prod.example.com
+```
+
+```sh
+graft merge --history base.yml override.yml
+```
+
+**Output:**
+```
+Merge History:
+
+database.host:
+  [0] base.yml       → localhost
+  [1] override.yml   → db.prod.example.com
+  Final              → db.prod.example.com
+
+secret:
+  [0] base.yml       → (( prune ))
+  [2] <pruned>       → <pruned>
+  Final              → <pruned>
+```
+
+`[0]` shows the file the `(( prune ))` marker came from, still literal and
+unevaluated (matching how any other operator expression appears before the
+evaluation step resolves it); the removal itself is entry `[2]`, at the
+evaluation step, labeled `<pruned>` rather than `<evaluated>` because this
+path did not survive evaluation. `--show-changes`, `--changes-only`, and
+`--trace-path` all classify this the same way a `--prune`/`--cherry-pick`
+removal is classified — a removed path counts toward `--show-changes`'
+"removed" total, not "changed".
+
+A removed path's `Final` is never confused with a path whose value is
+genuinely a YAML null (`~`): only an actual removal renders `<pruned>`, a
+null value renders `~` like any other value.
+
+Removal is also always reported at the exact path removed, never smeared
+onto an unrelated sibling. Pruning one element out of a list, or one key
+out of a map with other surviving keys, marks only that path `<pruned>`;
+a parent that merely lost one child, but still exists with the rest of its
+data, shows its real remaining value, not `<pruned>`.
 
 ## History Entry Details
 
@@ -250,9 +309,10 @@ Each history entry carries:
 | Field | Description |
 |-------|-------------|
 | Index | The step's position in the overall merge (files, then evaluation, then optional post-processing) |
-| Source | The file path, or `<evaluated>`/`<pruned>` for the synthetic steps |
+| Source | The file path, or `<evaluated>`/`<pruned>` for the synthetic steps (see [Pruned Paths](#pruned-paths) for when a removal recorded during evaluation is labeled `<pruned>` rather than `<evaluated>`) |
 | Phase | LOAD / MERGE / EVAL / POST |
-| Value | The value at that step (absent — printed as `<pruned>` — for a POST removal) |
+| Removed | Whether this path was pruned/cherry-picked away here, by an operator `(( prune ))` marker or a `--prune`/`--cherry-pick` flag alike |
+| Value | The value at that step; nil both for a removal (Removed is true) and for a path whose value is genuinely a YAML null (Removed is false) — Removed is what tells the two apart |
 
 There is no `Line` field: graft does not track which line of a source file
 contributed a merged value.
