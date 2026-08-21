@@ -147,6 +147,97 @@ jobs:
 			So(namesOf(t, jobs), ShouldResemble, []interface{}{"route"})
 		})
 
+		Convey(`(( delete "<name>" )) is a silent no-op when the target is absent (delete-if-present)`, func() {
+			engine, err := NewEngine()
+			So(err, ShouldBeNil)
+			result, err := mergeYAML(ctx, t, engine, base, `
+jobs:
+- (( delete "nonexistent" ))
+`)
+			So(err, ShouldBeNil)
+			jobs, err := result.GetSlice("jobs")
+			So(err, ShouldBeNil)
+			So(namesOf(t, jobs), ShouldResemble, []interface{}{"route", "cell"})
+			out, err := result.ToYAML()
+			So(err, ShouldBeNil)
+			So(string(out), ShouldNotContainSubstring, "(( delete")
+		})
+
+		Convey(`(( delete "<name>" )) is a silent no-op against an empty base list`, func() {
+			engine, err := NewEngine()
+			So(err, ShouldBeNil)
+			result, err := mergeYAML(ctx, t, engine, `
+jobs: []
+`, `
+jobs:
+- (( delete "nonexistent" ))
+`)
+			So(err, ShouldBeNil)
+			jobs, err := result.GetSlice("jobs")
+			So(err, ShouldBeNil)
+			So(jobs, ShouldResemble, []interface{}{})
+		})
+
+		Convey(`(( delete "<name>" )) does not materialize an absent base key`, func() {
+			engine, err := NewEngine()
+			So(err, ShouldBeNil)
+			result, err := mergeYAML(ctx, t, engine, `
+other: value
+`, `
+jobs:
+- (( delete "nonexistent" ))
+`)
+			So(err, ShouldBeNil)
+			_, err = result.GetSlice("jobs")
+			So(err, ShouldNotBeNil)
+
+			out, err := result.ToYAML()
+			So(err, ShouldBeNil)
+			So(string(out), ShouldNotContainSubstring, "jobs")
+		})
+
+		Convey(`(( delete "<name>" )) still no-ops (list unchanged) against a base key that exists as an empty list`, func() {
+			engine, err := NewEngine()
+			So(err, ShouldBeNil)
+			result, err := mergeYAML(ctx, t, engine, `
+jobs: []
+`, `
+jobs:
+- (( delete "nonexistent" ))
+`)
+			So(err, ShouldBeNil)
+			jobs, err := result.GetSlice("jobs")
+			So(err, ShouldBeNil)
+			So(jobs, ShouldResemble, []interface{}{})
+		})
+
+		Convey(`(( delete "<name>" )) mixed with a literal entry still materializes the absent key`, func() {
+			engine, err := NewEngine()
+			So(err, ShouldBeNil)
+			result, err := mergeYAML(ctx, t, engine, `
+other: value
+`, `
+jobs:
+- name: keep
+- (( delete "nonexistent" ))
+`)
+			So(err, ShouldBeNil)
+			jobs, err := result.GetSlice("jobs")
+			So(err, ShouldBeNil)
+			So(namesOf(t, jobs), ShouldResemble, []interface{}{"keep"})
+		})
+
+		Convey(`single-document merge (no separate base) with a pure-delete-only array does not materialize the key`, func() {
+			engine, err := NewEngine()
+			So(err, ShouldBeNil)
+			doc, err := engine.ParseYAML([]byte("jobs:\n- (( delete \"nonexistent\" ))\n"))
+			So(err, ShouldBeNil)
+			result, err := engine.Merge(ctx, doc).Execute()
+			So(err, ShouldBeNil)
+			_, err = result.GetSlice("jobs")
+			So(err, ShouldNotBeNil)
+		})
+
 		Convey("(( replace ))", func() {
 			engine, err := NewEngine()
 			So(err, ShouldBeNil)
@@ -388,11 +479,6 @@ jobs:
 			overlay  string
 			contains string
 		}{
-			{
-				name:     "delete missing name",
-				overlay:  "jobs:\n- (( delete \"nonexistent\" ))\n",
-				contains: `unable to find specified modification point with 'name: nonexistent'`,
-			},
 			{
 				name:     "delete out-of-bounds index",
 				overlay:  "jobs:\n- (( delete 99 ))\n",

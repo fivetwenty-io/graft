@@ -363,6 +363,15 @@ func (m *Merger) mergeMap(orig, n map[string]interface{}, node string) {
 				_ = m.memory.RecordMergeChange(canonicalHistoryPath(path), oldValue, result, "merge")
 			}
 		} else {
+			// delete-if-present against a key the base document doesn't
+			// have at all: the delete has nothing to act on, and the key
+			// itself must not be materialized (not even as an empty
+			// list) - see isPureDeleteOnlyArray's doc comment.
+			if arr, ok := val.([]interface{}); ok && isPureDeleteOnlyArray(arr) {
+				log.DEBUG("%s: not found upstream, skipping (pure delete-if-present array against an absent key)", path)
+				continue
+			}
+
 			log.DEBUG("%s: not found upstream, adding it", path)
 			result := m.MergeObj(nil, deepCopy(val), path)
 			// Always add the result, even if nil (null is a valid YAML value)
@@ -526,7 +535,18 @@ func (m *Merger) MergeObj(orig interface{}, n interface{}, node string) interfac
 
 //nolint:gocyclo // mergeArray handles many array modification operations
 func (m *Merger) mergeArray(orig []interface{}, n []interface{}, node string) []interface{} {
-	modificationDefinitions := getArrayModifications(n, isSimpleList(orig))
+	simpleList := isSimpleList(orig)
+	if len(orig) == 0 {
+		// isSimpleList has no entries to inspect on an empty original
+		// array, so it always reports "not simple" - which used to
+		// misroute a keyed delete/insert marker into map-key lookup even
+		// when the incoming list is plainly scalar (e.g. an absent base
+		// key merging a literal scalar entry alongside a delete marker
+		// would fail canKeyMergeArray against that literal). Fall back to
+		// the incoming list's own literal content to decide instead.
+		simpleList = !containsMapEntry(n)
+	}
+	modificationDefinitions := getArrayModifications(n, simpleList)
 	log.DEBUG("%s: performing %d modification operations against list", node, len(modificationDefinitions))
 	log.DEBUG("%s: original list has %d items, new list has %d items", node, len(orig), len(n))
 
@@ -608,8 +628,11 @@ func (m *Merger) mergeArray(orig []interface{}, n []interface{}, node string) []
 				// Look up the index of the specified insertion point (based on solely on its name)
 				idx = getIndexOfSimpleEntry(result, name)
 				if idx < 0 {
-					m.Errors.Append(ansi.Errorf("@m{%s}: @R{unable to find specified modification point with} @c{'%s'}", node, name))
-					return nil
+					// delete-if-present: a delete target that is not in the
+					// original list is a silent no-op, not an error. This
+					// intentionally diverges from insert, whose target must
+					// always exist.
+					continue
 				}
 			}
 		default: // Index look-up based on key and name
@@ -657,6 +680,13 @@ func (m *Merger) mergeArray(orig []interface{}, n []interface{}, node string) []
 			// Look up the index of the specified insertion point (based on its key/name)
 			idx = getIndexOfEntry(result, key, name)
 			if idx < 0 {
+				if isDelete {
+					// delete-if-present: a delete target that is not in the
+					// original list is a silent no-op, not an error. This
+					// intentionally diverges from insert, whose target must
+					// always exist.
+					continue
+				}
 				m.Errors.Append(ansi.Errorf("@m{%s}: @R{unable to find specified modification point with} @c{'%s: %s'}", node, key, name))
 				return nil
 			}
@@ -1012,6 +1042,53 @@ func getArrayModifications(obj []interface{}, simpleList bool) []ModificationDef
 	}
 
 	return result
+}
+
+// containsMapEntry reports whether list has any map[string]interface{}
+// entry among its elements. Array-merge marker strings and literal
+// scalars are both plain strings, so this only ever flags genuine
+// list-of-maps content; used to classify an empty original array (which
+// isSimpleList can't classify on its own) from the incoming list's own
+// literal shape instead.
+func containsMapEntry(list []interface{}) bool {
+	for _, item := range list {
+		if _, ok := item.(map[string]interface{}); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// isPureDeleteOnlyArray reports whether arr consists solely of delete
+// markers (index or name/value form), with no other array-merge markers
+// and no literal data entries. Used to detect the delete-if-present
+// case where the base document has no key at all for this array: since
+// delete-if-present is a no-op when the target is missing, materializing
+// the key at all - even as an empty list - would be wrong. An absent key
+// and an empty list are different downstream (an empty `foo: []` can
+// override a lower-precedence document's non-empty default for `foo`;
+// an absent key leaves it alone).
+func isPureDeleteOnlyArray(arr []interface{}) bool {
+	if len(arr) == 0 {
+		return false
+	}
+
+	mods := getArrayModifications(arr, !containsMapEntry(arr))
+	if len(mods) < 2 {
+		// No operators matched at all - the whole array is literal data.
+		return false
+	}
+	if len(mods[0].list) > 0 {
+		// Literal entries outside of (before/after) any marker: this is
+		// not a pure-delete-only array, so the key still gets created.
+		return false
+	}
+	for _, mod := range mods[1:] {
+		if mod.listOp != listOpDelete {
+			return false
+		}
+	}
+	return true
 }
 
 func isSimpleList(list []interface{}) bool {

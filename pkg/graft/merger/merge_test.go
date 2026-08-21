@@ -2134,7 +2134,7 @@ func TestMergeArray(t *testing.T) {
 				So(err, ShouldBeNil)
 			})
 
-			Convey("throw an error when delete point cannot be found", func() {
+			Convey("silently no-op when a named delete point cannot be found (delete-if-present)", func() {
 				orig := []interface{}{
 					map[string]interface{}{"name": "first", "release": "v1"},
 					map[string]interface{}{"name": "second", "release": "v1"},
@@ -2144,12 +2144,110 @@ func TestMergeArray(t *testing.T) {
 					"(( delete name \"not-existing\" ))",
 				}
 
+				expect := []interface{}{
+					map[string]interface{}{"name": "first", "release": "v1"},
+					map[string]interface{}{"name": "second", "release": "v1"},
+				}
+
+				m := &Merger{}
+				a := m.mergeArray(orig, array, "node-path")
+				err := m.Error()
+				So(a, ShouldResemble, expect)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("silently no-op when a scalar delete-by-value target cannot be found, quoted (delete-if-present)", func() {
+				orig := []interface{}{"first", "second", "third"}
+				array := []interface{}{"(( delete \"not-existing\" ))"}
+				expect := []interface{}{"first", "second", "third"}
+
+				m := &Merger{}
+				a := m.mergeArray(orig, array, "node-path")
+				err := m.Error()
+				So(a, ShouldResemble, expect)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("silently no-op when a scalar delete-by-value target cannot be found, unquoted (delete-if-present)", func() {
+				orig := []interface{}{"first", "second", "third"}
+				array := []interface{}{"(( delete not-existing ))"}
+				expect := []interface{}{"first", "second", "third"}
+
+				m := &Merger{}
+				a := m.mergeArray(orig, array, "node-path")
+				err := m.Error()
+				So(a, ShouldResemble, expect)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("scalar delete-by-value still removes the entry when present", func() {
+				orig := []interface{}{"first", "second", "third"}
+				array := []interface{}{"(( delete \"second\" ))"}
+				expect := []interface{}{"first", "third"}
+
+				m := &Merger{}
+				a := m.mergeArray(orig, array, "node-path")
+				err := m.Error()
+				So(a, ShouldResemble, expect)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("silently no-op when a named delete point cannot be found, explicit key (delete-if-present)", func() {
+				orig := []interface{}{
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+				}
+
+				array := []interface{}{
+					"(( delete id \"not-existing\" ))",
+				}
+
+				expect := []interface{}{
+					map[string]interface{}{"id": "first", "release": "v1"},
+					map[string]interface{}{"id": "second", "release": "v1"},
+				}
+
+				m := &Merger{}
+				a := m.mergeArray(orig, array, "node-path")
+				err := m.Error()
+				So(a, ShouldResemble, expect)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("silently no-op when deleting a value from an empty original list", func() {
+				orig := []interface{}{}
+				array := []interface{}{"(( delete \"not-existing\" ))"}
+				expect := []interface{}{}
+
+				m := &Merger{}
+				a := m.mergeArray(orig, array, "node-path")
+				err := m.Error()
+				So(a, ShouldResemble, expect)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("silently no-op when deleting a named entry from an empty original list", func() {
+				orig := []interface{}{}
+				array := []interface{}{"(( delete id \"not-existing\" ))"}
+				expect := []interface{}{}
+
+				m := &Merger{}
+				a := m.mergeArray(orig, array, "node-path")
+				err := m.Error()
+				So(a, ShouldResemble, expect)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("out-of-bounds index delete remains an error, even under delete-if-present", func() {
+				orig := []interface{}{"first", "second", "third"}
+				array := []interface{}{"(( delete 42 ))"}
+
 				m := &Merger{}
 				a := m.mergeArray(orig, array, "node-path")
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
-				So(err.Error(), ShouldContainSubstring, "unable to find specified modification point with 'name: not-existing'")
+				So(err.Error(), ShouldContainSubstring, "unable to modify the list, because specified index 42 is out of bounds")
 			})
 
 			Convey("throw an error when key cannot be found in original list", func() {
@@ -2297,5 +2395,65 @@ top_replace:
 		valueIs(merged, "array.nested.attrs.replace.0", "two")
 		valueIs(merged, "nested.replace.0", "two")
 		valueIs(merged, "top_replace.0", "b")
+	})
+
+	Convey("Merge() with delete-if-present against an absent base key", t, func() {
+		Convey("a pure-delete-only overlay array does not create the absent key", func() {
+			orig := map[string]interface{}{}
+			other := YAML(`
+features:
+- (( delete "missing" ))
+`)
+
+			merged, err := Merge(orig, other)
+			So(err, ShouldBeNil)
+
+			// features must not exist at all - not present as an empty
+			// list, since an absent key and an empty list are different
+			// downstream (an empty features: [] can override a kit
+			// default that an absent key would leave alone).
+			notPresent(merged, "features")
+			So(merged, ShouldNotContainKey, "features")
+
+			out, marshalErr := yamlv3.Marshal(merged)
+			So(marshalErr, ShouldBeNil)
+			So(string(out), ShouldNotContainSubstring, "(( delete")
+			So(string(out), ShouldNotContainSubstring, "features")
+		})
+
+		Convey("a delete marker mixed with a literal entry still creates the key, with the literal", func() {
+			orig := map[string]interface{}{}
+			other := YAML(`
+features:
+- keep
+- (( delete "missing" ))
+`)
+
+			merged, err := Merge(orig, other)
+			So(err, ShouldBeNil)
+
+			valueIs(merged, "features.0", "keep")
+		})
+
+		Convey("an existing empty base list stays an empty list, not absent", func() {
+			orig := YAML(`
+features: []
+`)
+			other := YAML(`
+features:
+- (( delete "missing" ))
+`)
+
+			merged, err := Merge(orig, other)
+			So(err, ShouldBeNil)
+
+			c, cerr := tree.ParseCursor("features")
+			So(cerr, ShouldBeNil)
+			v, verr := c.Resolve(merged)
+			So(verr, ShouldBeNil)
+			list, ok := v.([]interface{})
+			So(ok, ShouldBeTrue)
+			So(list, ShouldResemble, []interface{}{})
+		})
 	})
 }
