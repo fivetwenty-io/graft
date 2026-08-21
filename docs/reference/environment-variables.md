@@ -20,9 +20,13 @@ or planned variables are listed.
 | `GRAFT_MAX_LOOP_ITERATIONS` | `1000` | Iteration cap for `(( while ))` loops. The `--max-loop-iterations` CLI flag overrides this variable when both are set. |
 
 There is no `GRAFT_COLOR`, `GRAFT_DEBUG`, or `GRAFT_TRACE` variable. Color
-is controlled by the `--color` CLI flag (`on`/`off`/`auto`) together with
-`NO_COLOR`/`TERM` above; debug and trace logging are controlled by the
-`-D`/`--debug` and `-T`/`--trace` flags or by `DEBUG`/`TRACE`.
+is controlled by the `--color`/`--no-color` CLI flags together with
+`NO_COLOR`/`TERM` above: an explicit `--color`/`--no-color` wins over
+both variables, but with neither flag given, `NO_COLOR`/`TERM=dumb`
+disable color even on a terminal (see
+[docs/reference/cli.md](cli.md#color-flags) for the full precedence
+order). Debug and trace logging are controlled by the `-D`/`--debug` and
+`-T`/`--trace` flags or by `DEBUG`/`TRACE`.
 
 ### Loop Iteration Cap
 

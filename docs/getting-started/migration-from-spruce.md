@@ -289,7 +289,8 @@ Graft adds:
 | `--max-loop-iterations` | Raise or lower the `(( while ))` iteration cap (default 1000) |
 | `--dataflow-order` | Order of operations in dataflow output: `alphabetical` or `insertion` |
 | `--config` | Path to a YAML configuration file |
-| `--color` | Control color output (`on`/`off`/`auto`) |
+| `--color` | Force colorized output on (default: `auto`) |
+| `--no-color` | Force colorized output off, overriding `--color` |
 
 ## Migration Tips
 

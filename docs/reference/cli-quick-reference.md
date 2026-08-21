@@ -21,7 +21,8 @@ Complete reference of all Graft CLI commands and flags.
 | `--trace` | `-T` | Enable trace logging (verbose) |
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
-| `--color` | | Color output: `on`, `off`, `auto` |
+| `--color` | | Force colorized output on (default: `auto`) |
+| `--no-color` | | Force colorized output off, overriding `--color` |
 | `--config <path>` | | Path to a YAML configuration file |
 | `--max-loop-iterations <n>` | | `(( while ))` iteration cap (default 1000) |
 
@@ -99,11 +100,12 @@ graft diff [flags] file1.yml file2.yml
 | `--unified` | `-u` | Unified diff format (git-style), grouped by top-level key |
 | `--changes` | | List all changes (original → new), grouped by kind |
 | `--context <n>` | | Lines of context in unified diff (default 3) |
-| `--no-color` | | Disable colorized output |
 | `--width <n>` | | Total width for side-by-side view (default 80) |
 | `--quiet` | `-q` | Exit with status only, no output |
 
 At most one of `--side-by-side`/`--unified`/`--changes` may be given.
+`--color`/`--no-color` (Global Flags above) work here too; they're not
+`diff`-specific flags.
 
 ### Examples
 
@@ -287,9 +289,11 @@ graft> quit
 | `REDACT` | Any non-empty value skips Vault/AWS/NATS resolution and returns `"REDACTED"` in place of real secret values |
 | `DEFAULT_ARRAY_MERGE_KEY` | Overrides the identifier key (`name` by default) used for by-key array merges |
 
-There is no `GRAFT_COLOR` or `GRAFT_TRACE` — color is controlled only by
-`--color`, and CLI debug/trace logging only by the bare `DEBUG`/`TRACE`
-variables above or their `-D`/`-T` flag equivalents. (`GRAFT_DEBUG` does
+There is no `GRAFT_COLOR` or `GRAFT_TRACE` — color is controlled by
+`--color`/`--no-color` together with the standard `NO_COLOR`/`TERM`
+variables (see [CLI Reference: Color flags](cli.md#color-flags)), and CLI
+debug/trace logging only by the bare `DEBUG`/`TRACE` variables above or
+their `-D`/`-T` flag equivalents. (`GRAFT_DEBUG` does
 exist, but it is not a general logging switch: `pkg/graft/parser.go` reads
 it to print operator-expression parser errors to stderr, in addition to
 the normal error report. Leave it unset for machine-readable stderr.) See

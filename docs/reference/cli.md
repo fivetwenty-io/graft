@@ -15,13 +15,33 @@ subcommand.
 | `--debug` | `-D` | Enable debug logging. Equivalent to setting the `DEBUG` environment variable to a non-empty, non-`false`/`0` value. |
 | `--trace` | `-T` | Enable trace logging (implies `--debug`). Equivalent to setting the `TRACE` environment variable. |
 | `--version` | `-v` | Print `<program> - Version <version>` to stdout and exit `0`. Only takes effect when no subcommand is given. |
-| `--color` | | Control ANSI color output: `on`, `off`, or `auto` (default). `auto` colors output only when stderr is a terminal. An invalid value prints an error and exits `1` before any subcommand runs. |
+| `--color` | | Force colorized output on: bare `--color`. Default is `auto` (color only when `NO_COLOR` is unset, `TERM` isn't `dumb`, and stderr is a terminal); see [Color flags](#color-flags) below. |
+| `--no-color` | | Force colorized output off, overriding `--color`. Wins if both are given. |
 | `--config <path>` | | Path to a YAML configuration file. See [Config flag](#--config-flag) below. |
 | `--max-loop-iterations <n>` | | Iteration cap for `(( while ))` loops, default `1000`. Also settable with `GRAFT_MAX_LOOP_ITERATIONS`; the flag wins when both are given. Exceeding the cap is a hard error (exit `2`), not a truncation. |
 
 graft reads `DEBUG`/`TRACE` directly from the process environment
 (`os.Getenv`); a value counts as "set" unless it is empty, `"false"`
 (case-insensitive), or `"0"`.
+
+### Color flags
+
+`--color`/`--no-color` apply to every subcommand, including `diff`
+(`--no-color` is this same global flag, not a `diff`-specific one).
+Precedence, highest first:
+
+1. `--no-color` - forces color off, and wins outright over `--color` when
+   both are given.
+2. `--color` - forces color on. A bare `--color` is equivalent to
+   `--color=on`; the value forms `--color=on`/`--color=off`/`--color=auto`
+   (and `=true`/`=false`) are also accepted for script compatibility, but
+   are otherwise undocumented.
+3. Otherwise (neither flag given, or `--color=auto`): auto-detect, color
+   only when `NO_COLOR` is unset or empty, `TERM` is not `dumb`, and
+   stderr is a terminal.
+
+An unrecognized `--color` value (anything other than the forms above)
+prints an error and exits `1` before any subcommand runs.
 
 ### --config flag
 
@@ -266,9 +286,10 @@ dyff's own human-readable report; `--changes`, `--unified`, and
 `--side-by-side` select an alternate rendering of the same underlying
 comparison instead (`internal/histdiff.Compare`, also what `merge
 --history`/`--show-changes`/`--changes-only` are built on). `diff` honors
-the root `--color` flag (`auto` by default, colored only when stdout is a
-terminal). Calling `diff` with a number of positional arguments other than
-two prints usage and exits `1`, independent of the exit-code rules below.
+the root `--color`/`--no-color` flags (`auto` by default, colored only
+when stderr is a terminal; see [Color flags](#color-flags) above). Calling
+`diff` with a number of positional arguments other than two prints usage
+and exits `1`, independent of the exit-code rules below.
 
 | Flag | Description |
 |---|---|
@@ -277,7 +298,6 @@ two prints usage and exits `1`, independent of the exit-code rules below.
 | `--changes` | `Changes (N modified, M added, K removed):` list, grouped by kind then sorted by path. |
 | `--context <n>` | Context lines around each `--unified` hunk (default `3`). |
 | `--width <n>` | Total output width for `--side-by-side` (default `80`). |
-| `--no-color` | Disable colorized output for this command, overriding `--color`. |
 | `-q`, `--quiet` | Suppress output; only the exit code is meaningful. |
 
 At most one of `--side-by-side`/`--unified`/`--changes` may be given;

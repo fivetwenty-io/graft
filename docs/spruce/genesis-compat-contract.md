@@ -166,9 +166,26 @@ its output stream, not when writing to a pipe. A drop-in replacement's
 diff coloring must key off the same kind of terminal detection
 (`isatty` on the output file descriptor), not always-on or always-off
 coloring, so that Genesis's pty wrapper produces the colorized output it
-expects. Graft's `diff` command already does this: its default
-`--color auto` mode checks `isatty` on stdout before enabling color,
-confirmed by reading the source.
+expects.
+
+Graft's `diff` command does this, with neither `--color` nor
+`--no-color` given (auto mode, the default): its default report (no
+`--changes`/`--unified`/`--side-by-side` flag) is colored by
+[dyff](https://github.com/homeport/dyff)/bunt's own `isatty` check on
+stdout, independent of graft's `--color` flag entirely; the
+`--changes`/`--unified`/`--side-by-side` renderers are colored by
+graft's own `--color` auto-detection, which also keys off `isatty` on
+stdout (not stderr - see [Color flags](../reference/cli.md#color-flags)
+for the full precedence, including how an explicit `--color`/
+`--no-color` overrides this). Either way, confirmed by reading the
+source: graft's diff coloring, in the mode Genesis relies on, checks
+`isatty` on stdout, matching spruce.
+
+This distinction (stdout vs. graft's stderr-based auto-detection for
+every other command's diagnostics) is invisible to Genesis's own pty
+wrapper: `fake_tty`/`script` attaches both stdout and stderr to a pty,
+so both file descriptors report as terminals to graft regardless of
+which one a given code path checks.
 
 ## Output byte stability across versions
 

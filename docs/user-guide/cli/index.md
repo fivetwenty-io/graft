@@ -23,27 +23,36 @@ These flags work with all commands:
 | `--trace` | `-T` | Enable trace logging (verbose) |
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
-| `--color` | | Color output: `on`, `off`, `auto` |
+| `--color` | | Force colorized output on |
+| `--no-color` | | Force colorized output off, overriding `--color` |
 
 ## Color Output
 
-Control colorized output:
+Control colorized output with the global `--color`/`--no-color` flags
+(full precedence rules in
+[CLI Reference: Color flags](../../reference/cli.md#color-flags)):
 
 ```sh
-# Force color
-graft merge --color=on file.yml
+# Force color on
+graft merge --color file.yml
 
 # Disable color
-graft merge --color=off file.yml
+graft merge --no-color file.yml
 
-# Auto-detect (default)
-graft merge --color=auto file.yml
+# Auto-detect (default: neither flag given)
+graft merge file.yml
 ```
 
-**Auto-detection behavior:**
+`--color=on`/`--color=off`/`--color=auto` also still work, kept for
+script compatibility with older graft versions.
 
-- Color enabled when stdout is a terminal (TTY)
-- Color disabled when piping to a file or another command
+**Auto-detection behavior** (neither flag given):
+
+- Color enabled only when `NO_COLOR` is unset, `TERM` isn't `dumb`, and
+  the relevant output stream is a terminal (TTY) - stderr for most
+  commands' diagnostics, stdout for `diff`'s own colored output
+  ([diff command](diff.md#color))
+- Color disabled when that stream is piped to a file or another command
 
 **Environment variable:**
 

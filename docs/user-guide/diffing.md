@@ -169,17 +169,18 @@ with both the old and new value visible — there is no separate symbol for
 
 ## Color Coding
 
-Output is colorized by default when writing to a terminal, following the
-root `--color` flag (`auto`/`on`/`off`).
+Output is colorized by default when writing to a terminal, following
+graft's global `--color`/`--no-color` flags (see
+[CLI Reference: Color flags](../reference/cli.md#color-flags)); `diff`
+doesn't have flags of its own for this.
 
-Disable color for one invocation regardless of `--color`:
+Disable color for one invocation:
 
 ```sh
 graft diff --no-color base.yml modified.yml
 ```
 
-`--no-color` is a `diff`-only flag; the root `--color off` flag does the
-same thing:
+`--color off` does the same thing:
 
 ```sh
 graft diff --color off base.yml modified.yml

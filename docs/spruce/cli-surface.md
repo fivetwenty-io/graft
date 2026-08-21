@@ -16,7 +16,7 @@ practical behavior lines up closely, with the differences called out below.
 | `-D`, `--debug` | Yes | Yes | Same effect: enables debug logging. |
 | `-T`, `--trace` | Yes | Yes | Same effect: enables trace logging and implicitly turns on debug logging. |
 | `-v`, `--version` | Yes | Yes | Same output format on both: `<argv0> - Version <version>`, printed to stdout, exit code 0. |
-| `--color {on\|off\|auto}` | No | Yes | graft-only. spruce always auto-detects color via a TTY check with no override flag; graft adds an explicit `--color` persistent flag (default `auto`, which behaves like spruce's TTY check). |
+| `--color`, `--no-color` | No | Yes | graft-only. spruce always auto-detects color via a TTY check with no override flag; graft adds explicit `--color`/`--no-color` persistent flags (default: neither given, which behaves like spruce's TTY check - see [CLI Reference: Color flags](../reference/cli.md#color-flags)). |
 | `-h`, `--help` | Yes, per subcommand | Yes, built into cobra | spruce defines `--help`/`-h` per subcommand and prints usage + exits 1 on request or parse failure. graft gets equivalent help output for free from cobra; an unrecognized command or bad flags still exits 1 via graft's own `usage()` fallback. |
 | `--config <path>` | No | Yes | graft-only. A persistent root flag pointing at a YAML configuration file (`internal/config`). Absent, graft behaves exactly like the pre-config default. When present, the file is loaded as the base configuration and `GRAFT_*` environment variables are layered on top; see [Configuration reference](../reference/config.md) for the full precedence order and which settings actually change merge behavior. |
 
@@ -67,7 +67,7 @@ entirely when stdin is piped) to read YAML from stdin, and both write merged
 YAML to stdout with a single trailing newline appended after whatever the
 YAML marshaler produces. Errors go to stderr in both, formatted with the same
 `@R{...}`/`@c{...}`/`@m{...}` ANSI color-tag convention (color enabled only
-on a real TTY, or forced by graft's `--color on`).
+on a real TTY, or forced by graft's `--color`).
 
 ## Related pages
 

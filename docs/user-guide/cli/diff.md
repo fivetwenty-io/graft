@@ -17,8 +17,11 @@ graft diff [flags] file1.yml file2.yml
 | `--changes` | | List all changes (original → new) |
 | `--context` | | Lines of context in unified diff |
 | `--width` | | Width for side-by-side view |
-| `--no-color` | | Disable colorized output, overriding the global `--color` |
 | `--quiet` | `-q` | Exit with status only, no output |
+
+`--color`/`--no-color` (see [Color](#color) below) are global flags, not
+`diff`-specific ones, so they aren't in the table above, but they work
+the same way here as with every other command.
 
 ## Output Formats
 
@@ -176,25 +179,28 @@ graft diff --unified --side-by-side base.yml modified.yml
 
 ## Color
 
-Color is decided in two stages, and the per-command flag wins.
+`--color` and `--no-color` are graft's global flags (see
+[CLI Reference: Color flags](../../reference/cli.md#color-flags));
+`diff` doesn't have its own version of either.
 
-The global `--color` flag takes `on`, `off`, or `auto`, and defaults to
-`auto`. Under `auto`, graft colors its output only when standard output
-is a terminal, so a diff piped into a file or another program comes out
-as plain text without your asking for it.
+With neither flag given (the default, "auto"), graft colors `diff`'s
+output only when `NO_COLOR` is unset, `TERM` isn't `dumb`, and standard
+output is a terminal, so a diff piped into a file or another program
+comes out as plain text without your asking for it. This applies both to
+the default dyff report and to `--changes`/`--unified`/`--side-by-side`.
 
-`--color=on` forces color on even when the destination is not a
+A bare `--color` forces color on even when the destination is not a
 terminal. Use it when piping into a pager that understands escape
 sequences:
 
 ```sh
-graft --color=on diff --changes base.yml modified.yml | less -R
+graft --color diff --changes base.yml modified.yml | less -R
 ```
 
-`diff`'s own `--no-color` flag overrides whatever `--color` asked for, so
-`graft --color=on diff --changes --no-color` prints no escape sequences
-at all. Reach for it when a script sets `--color=on` globally and one
-command inside it needs clean text.
+`--no-color` forces color off and wins outright when both are given, so
+`graft --color diff --changes --no-color` prints no escape sequences at
+all. Reach for it when a script sets `--color` globally and one command
+inside it needs clean text.
 
 ## Options
 

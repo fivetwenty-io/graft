@@ -13,10 +13,12 @@ Configure Graft behavior through environment variables and options.
 | `NO_COLOR` | Disable colorized output (any non-empty value) | - |
 
 There is no `GRAFT_COLOR`, `GRAFT_DEBUG`, or `GRAFT_TRACE` variable. Color
-is controlled by the `--color` CLI flag (`on`/`off`/`auto`) and by
-`NO_COLOR`/`TERM=dumb`; debug and trace logging are controlled by the
-`-D`/`--debug` and `-T`/`--trace` flags or by the `DEBUG`/`TRACE`
-environment variables above.
+is controlled by the `--color`/`--no-color` CLI flags together with
+`NO_COLOR`/`TERM=dumb` (see
+[CLI Reference: Color flags](../reference/cli.md#color-flags) for the full
+precedence); debug and trace logging are controlled by the `-D`/`--debug`
+and `-T`/`--trace` flags or by the `DEBUG`/`TRACE` environment variables
+above.
 
 ### Vault Configuration
 
@@ -114,7 +116,8 @@ export NATS_PRODUCTION_TOKEN="prod-token"
 |------|-------|-------------|
 | `--debug` | `-D` | Enable debug logging |
 | `--trace` | `-T` | Enable trace logging |
-| `--color` | | Color output: `on`, `off`, `auto` |
+| `--color` | | Force colorized output on (default: `auto`) |
+| `--no-color` | | Force colorized output off, overriding `--color` |
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
 

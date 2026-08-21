@@ -26,8 +26,9 @@ out to a `spruce` binary on `$PATH`) needs to account for.
 `vaultinfo`) matches spruce's one-for-one, with the same flags on each
 subcommand and the same three-way exit-code scheme (0 success, 1 usage
 error or `diff`-found-differences, 2 runtime error). graft adds one new
-global flag (`--color`) and one new merge/fan flag (`--dataflow-order`) that
-spruce does not have; neither changes default behavior. See
+pair of global flags (`--color`/`--no-color`) and one new merge/fan flag
+(`--dataflow-order`) that spruce does not have; none change default
+behavior. See
 [CLI surface](cli-surface.md) for the full comparison.
 
 **Operators.** Every spruce operator has a same-named, same-purpose
