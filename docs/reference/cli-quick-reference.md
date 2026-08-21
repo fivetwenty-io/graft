@@ -248,6 +248,8 @@ graft debug [flags] file1.yml [file2.yml ...]
 |------|-------------|
 | `--go-patch` | Same meaning as `merge --go-patch`; applied to every merge the session performs |
 | `--fallback-append` | Same meaning as `merge --fallback-append`; applied to every merge the session performs |
+| `--prune <key>` | Same meaning as `merge --prune`; may repeat. Not applied to `step`/`output`/`export`/`history` - see `prune-report` |
+| `--cherry-pick <key>` | Same meaning as `merge --cherry-pick`; may repeat. Same caveat as `--prune` |
 
 ### REPL Commands
 
@@ -259,12 +261,14 @@ graft debug [flags] file1.yml [file2.yml ...]
 | `break <path>` | Set breakpoint on path |
 | `unbreak <path>` | Remove breakpoint from path |
 | `breaks` | List all breakpoints |
-| `inspect <path>` | Show current value at path |
+| `inspect [path]` | Show current value at path (whole document if omitted), plus the deferred list if non-empty |
 | `history <path>` | Show change history for path |
 | `defer <path>` | Mark path for deferred evaluation |
+| `autodefer` | Defer every failing operator and retry, to a fixed point |
 | `eval <path>` | Force evaluate operator at path |
 | `config [key] [value]` | View/set configuration |
 | `output` | Show current document state |
+| `prune-report` | Show what `--prune`/`--cherry-pick` would remove, once fully evaluated |
 | `diff` | Show changes from original |
 | `export <file>` | Export current state to file |
 | `help [command]` | Show help |

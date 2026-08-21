@@ -300,17 +300,23 @@ EOF — it never reads a merge document from stdin.
 |---|---|
 | `--go-patch` | Same meaning as `merge --go-patch`; applied to every merge the session performs. |
 | `--fallback-append` | Same meaning as `merge --fallback-append`; applied to every merge the session performs. |
+| `--prune <key>` | Same meaning as `merge --prune`; may be given more than once. Not applied to the session's own `step`/`output`/`export`/`history` (they always show the pre-prune tree); see `prune-report`. |
+| `--cherry-pick <key>` | Same meaning as `merge --cherry-pick`; may be given more than once. Same `--prune` caveat. |
 
-These are the only two `merge` flags `debug`/`merge --interactive` honor.
-`--prune`/`--cherry-pick` are cleared for the session's own internal merge
-steps regardless of whether they were given (they would strip data
-`step`/`inspect` need mid-session); the remaining `merge` flags are not
-accepted by `debug` and have no meaning for an interactive session (though
-`merge --interactive --skip-eval`, for example, parses without error since
-it is `merge`'s own flag set — it is simply ignored once the REPL takes
-over). The one exception is `-m`/`--multi-doc` under `merge --interactive`:
-input files are resolved before the REPL starts, so it really does split
-each `---`-separated document into its own step.
+These are the only `merge` flags `debug`/`merge --interactive` honor. The
+remaining `merge` flags are not accepted by `debug` and have no meaning
+for an interactive session (though `merge --interactive --skip-eval`, for
+example, parses without error since it is `merge`'s own flag set — it is
+simply ignored once the REPL takes over). The one exception is
+`-m`/`--multi-doc` under `merge --interactive`: input files are resolved
+before the REPL starts, so it really does split each `---`-separated
+document into its own step.
+
+The REPL's own `prune-report` command reports what `--prune`/`--cherry-pick`
+would remove once the session is fully evaluated, without applying it, and
+`autodefer` runs the same defer-on-error retry loop `merge --defer-on-error`/
+`--adaptive` uses against the session's current tree — see
+`docs/user-guide/cli/debug.md` for both.
 
 ```bash
 graft debug base.yml overlay.yml

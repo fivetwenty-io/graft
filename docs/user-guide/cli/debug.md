@@ -62,7 +62,7 @@ The debug REPL provides interactive control over the merge process:
 - Inspect values at any point
 - View per-path change history
 - Set Vault connection settings for the rest of the session
-- Defer or force operator evaluation
+- Defer or force operator evaluation, manually or automatically (`autodefer`)
 - Recall, search, and complete commands at the prompt
 
 ## REPL Commands
@@ -78,6 +78,7 @@ The debug REPL provides interactive control over the merge process:
 | `inspect [path]` | Show the current value at path (the whole document if omitted) |
 | `history <path>` | Show the same per-file history `merge --history` would for path |
 | `defer <path>` | Leave the operator at path unevaluated on the next `step`/`continue` |
+| `autodefer` | Defer every failing operator and retry, to a fixed point — the same loop as `merge --defer-on-error` |
 | `eval <path>` | Immediately evaluate the operator at path, regardless of `defer` |
 | `config [key] [value]` | View or set `vault.addr`/`vault.token`/`vault.namespace` for this session |
 | `output` | Show the current document state as YAML |
@@ -390,7 +391,15 @@ Evaluation complete.
 
 graft> inspect database.password
 (( grab meta.version ))
+
+Deferred 1 path:
+  - database.password
 ```
+
+`inspect` — with or without a path — appends the session's full deferred
+list whenever it has one, each path with its reason where one is known
+(see [autodefer](#autodefer)): a manual `defer` has none (a human just
+said so), an `autodefer` deferral shows the operator error that caused it.
 
 Deferring applies to the whole session rather than to the next step
 alone, so it also covers `history`. That matters more than it sounds
@@ -422,6 +431,59 @@ Every Vault lookup then resolves to the literal `REDACTED` rather than
 failing, which keeps `step`, `continue`, `history`, and `output` all
 working and makes the session safe to paste into a ticket. `REDACT` is
 read from the environment at launch and is not settable from `config`.
+
+### autodefer
+
+Runs the same defer-on-error retry loop `graft merge --defer-on-error`/
+`--adaptive` uses (see [Adaptive Merge](../adaptive-merge.md)) against
+the session's current tree: every operator that fails is wrapped in
+`(( defer ... ))` and the merge retries, to a fixed point, instead of
+leaving the session stuck on the first failure. A true cycle — nothing
+left to defer — is a hard failure, reported with the original error, and
+leaves the session's tree and deferred set untouched.
+
+```yaml
+# secrets.yml
+meta:
+  password: (( vault "secret/db:password" ))
+database:
+  connection: (( grab meta.password ))
+```
+
+```
+graft> load
+Loaded 1 document:
+  [0] secrets.yml (2 keys)
+
+graft> autodefer
+Autodefer: 1 key deferred:
+  deferred $.meta.password: Error during Vault client initialization: ...
+
+graft> output
+database:
+  connection: (( vault "secret/db:password" ))
+meta:
+  password: (( vault "secret/db:password" ))
+```
+
+`autodefer` runs its own evaluation of the session's current tree — it
+does not require `step`/`continue` to have reached the final step first,
+and evaluates from wherever the session currently is.
+
+Only `meta.password` — the root cause — is reported; `database.connection`
+is a `(( grab ))` of the deferred value, so it stays deferred too without
+an error of its own (the same cascade attribution
+[Adaptive Merge: Cascades and Dependents](../adaptive-merge.md#cascades-and-dependents)
+describes). `output`/`export`/`history`/`inspect` all agree with this
+result afterward — there is no `--report-deferred`-style comment block in
+the REPL; the summary above is printed once, as plain text, at the
+`autodefer` prompt itself.
+
+`autodefer` composes with a prior manual `defer`: an already-deferred path
+is protected going in, so it is never re-attempted and never reported a
+second time, and running `autodefer` again after one path is already
+deferred (manually or by an earlier `autodefer`) reports "no failing
+operators - nothing to defer" if that was the only failure.
 
 ### eval
 
@@ -549,6 +611,7 @@ Available commands:
   inspect         Show current value at path
   history         Show change history for path
   defer           Mark path for deferred evaluation
+  autodefer       Defer every failing operator and retry
   eval            Force evaluate operator at path
   config          View/set configuration
   output          Show current document state
@@ -676,5 +739,6 @@ graft> diff
 
 - [Inspecting a Merge](../../examples/inspecting-a-merge.md) - A walkthrough that debugs a failing merge from first symptom to answer
 - [merge](merge.md) - Non-interactive merge
+- [Adaptive Merge](../adaptive-merge.md) - `--defer-on-error`/`--adaptive`, the non-interactive counterpart to `autodefer`
 - [History Tracking](../history-tracking.md) - History features
 - [Operators](../operators/) - Operator reference

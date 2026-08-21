@@ -155,6 +155,34 @@ database:
 An invalid `--report-deferred` value is a usage error (exit `1`),
 independent of whether the merge would have deferred anything at all.
 
+## In the Debugger
+
+`graft debug` has the same defer-on-error loop as its own REPL command,
+`autodefer` - useful for stepping up to the point of a failure, then
+letting the debugger clear it instead of retrying the whole merge from the
+command line. See [debug Command: autodefer](cli/debug.md#autodefer) for
+the full walkthrough; the short version:
+
+```
+graft> continue
+[2/2] Evaluating operators...
+[Merge failed reported inline, or the value stays an unresolved expression]
+
+graft> autodefer
+Autodefer: 1 key deferred:
+  deferred $.database.password: Error during Vault client initialization: ...
+
+graft> output
+database:
+  host: db.prod.example.com
+  password: (( vault "secret/db:password" ))
+```
+
+`output`/`export`/`history`/`inspect` all agree afterward: the deferred
+expression is exactly what a CLI `--defer-on-error` merge would have
+produced, without the `--report-deferred` comment block (the REPL prints
+the same summary as plain text at the `autodefer` prompt instead).
+
 ## Compatibility
 
 `--defer-on-error` is strictly opt-in: a plain `graft merge` (the
@@ -173,5 +201,6 @@ format over the merge, and the two are not composable.
 ## See Also
 
 - [merge Command](cli/merge.md) - Full flag reference
+- [debug Command](cli/debug.md) - The interactive REPL's `autodefer` command
 - [Vault Integration: Merging Without Vault Access](secrets/vault.md#merging-without-vault-access) - The related `--skip-vault`/`--skip-aws`/`--skip-nats` flags
 - [History Tracking](history-tracking.md) - `--history`/`--trace-path`/`--show-changes`/`--changes-only`
