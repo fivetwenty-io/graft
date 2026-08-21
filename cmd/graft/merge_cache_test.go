@@ -1,6 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+	"strconv"
 	"testing"
 )
 
@@ -213,5 +217,66 @@ func TestMergeOutputCacheKeyEnvAndVersion(t *testing.T) {
 	bumped := mergeOutputCacheKey(opts, inputs, false)
 	if bumped == before {
 		t.Error("graft version must salt the key")
+	}
+}
+
+// legacyV1MergeOutputCacheKey reproduces the pre-"---\n"-prefix output
+// cache key exactly as mergeOutputCacheKey computed it before
+// renderMergedTree started prepending "---\n" to merge output, using
+// mergeOutputCacheKey's own field-writer shape (length-delimited, same
+// field order) but the old "graft-merge-output-v1" schema string. It
+// exists only for TestMergeOutputCacheKeySchemaVersionBumped below.
+func legacyV1MergeOutputCacheKey(opts *mergeOpts, inputs [][]byte, colorEnabled bool) string {
+	h := sha256.New()
+	field := func(s string) {
+		var lenBuf [10]byte
+		h.Write(strconv.AppendInt(lenBuf[:0], int64(len(s)), 10))
+		h.Write([]byte{':'})
+		h.Write([]byte(s))
+	}
+
+	field("graft-merge-output-v1")
+	field(Version)
+	field(strconv.FormatBool(opts.SkipEval))
+	field(strconv.FormatBool(opts.MultiDoc))
+	field(strconv.FormatBool(opts.EnableGoPatch))
+	field(strconv.FormatBool(opts.FallbackAppend))
+	field(opts.DataflowOrder)
+	field(strconv.Itoa(len(opts.Prune)))
+	for _, p := range opts.Prune {
+		field(p)
+	}
+	field(strconv.Itoa(len(opts.CherryPick)))
+	for _, c := range opts.CherryPick {
+		field(c)
+	}
+	field(os.Getenv("DEFAULT_ARRAY_MERGE_KEY"))
+	field(strconv.FormatBool(colorEnabled))
+	field(strconv.Itoa(len(inputs)))
+	for _, data := range inputs {
+		sum := sha256.Sum256(data)
+		field(string(sum[:]))
+	}
+
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// TestMergeOutputCacheKeySchemaVersionBumped is the cache-replay-safety
+// regression for the "---\n" merge-output-prefix fix: an output-cache
+// entry a v1-schema (pre-fix) graft binary stored - bare YAML, no
+// leading "---\n" - must never be replayed by the current binary as if
+// it were valid for identical opts/inputs/color, even when Version is
+// unchanged (an unreleased/dev build, where the Version field alone
+// would not salt the key differently). Bumping the schema string to
+// "graft-merge-output-v2" (mergeOutputCacheKey) guarantees this
+// independently of Version.
+func TestMergeOutputCacheKeySchemaVersionBumped(t *testing.T) {
+	opts := &mergeOpts{DataflowOrder: "alphabetical", Prune: []string{"a"}}
+	inputs := docs("a: 1\n", "b: 2\n")
+
+	legacyKey := legacyV1MergeOutputCacheKey(opts, inputs, false)
+	currentKey := mergeOutputCacheKey(opts, inputs, false)
+	if legacyKey == currentKey {
+		t.Fatal("current key must differ from the pre-\"---\\n\"-prefix (v1) key for identical opts/inputs, so a v1 cache entry can never be replayed as a hit")
 	}
 }

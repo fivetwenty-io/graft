@@ -209,7 +209,8 @@ server.timeout:
 			main()
 			So(stderr, ShouldEqual, "")
 			So(rc, ShouldEqual, 0)
-			So(stdout, ShouldEqual, `database:
+			So(stdout, ShouldEqual, `---
+database:
   host: db.prod.example.com
   pool_size: 50
   port: 5432

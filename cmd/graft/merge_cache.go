@@ -363,7 +363,13 @@ func mergeOutputCacheKey(opts *mergeOpts, inputs [][]byte, colorEnabled bool) st
 		h.Write([]byte(s))
 	}
 
-	field("graft-merge-output-v1")
+	// v2: renderMergedTree now prepends "---\n" to merge output (see its
+	// doc comment). The key is already salted with the graft Version
+	// field below, but that only guards a *released* version bump; an
+	// unreleased/dev build (Version unchanged) must not be able to
+	// replay a v1 entry's pre-"---\n" bytes, so the schema string itself
+	// is bumped too.
+	field("graft-merge-output-v2")
 	field(Version)
 	field(strconv.FormatBool(opts.SkipEval))
 	field(strconv.FormatBool(opts.MultiDoc))

@@ -105,10 +105,12 @@ func runGraftMerge(t *testing.T, bin string, goPatch bool, paths ...string) stri
 }
 
 // libraryMerge runs the same merge through engine.MergeFiles(...).
-// Execute() and serializes the result exactly as handleMerge
-// (cmd/graft/main.go) serializes its own CLI result: via
-// graft.MarshalYAML on the raw merged map, plus the trailing newline
-// printStdOutf("%s\n", ...) adds.
+// Execute() and serializes the result exactly as renderMergedTree
+// (cmd/graft/main.go, handleMerge's shared render step) serializes the
+// CLI's own result: a leading "---\n" document-start marker (a
+// graft-only addition, not a spruce-parity one - see renderMergedTree's
+// doc comment), graft.MarshalYAML on the raw merged map, then the
+// trailing newline.
 func libraryMerge(t *testing.T, paths ...string) string {
 	t.Helper()
 
@@ -122,7 +124,7 @@ func libraryMerge(t *testing.T, paths ...string) string {
 	if err != nil {
 		t.Fatalf("graft.MarshalYAML() error = %v", err)
 	}
-	return string(out) + "\n"
+	return "---\n" + string(out) + "\n"
 }
 
 // TestMergeFilesDifferential_CLIParity is the permanent differential

@@ -279,10 +279,20 @@ func handleMerge(opts *mergeOpts) int {
 }
 
 // renderMergedTree turns a merged document tree into the exact bytes
-// `graft merge` writes to stdout (cycle check, YAML marshal, trailing
-// newline), printing any error to stderr and returning its exit code.
-// Shared by the plain and cache-aware merge paths so both emit
-// byte-identical output.
+// `graft merge` writes to stdout (cycle check, YAML marshal, leading
+// "---\n" document-start marker, trailing newline), so the output can be
+// piped straight into another YAML document, printing any error to
+// stderr and returning its exit code. Shared by the plain and
+// cache-aware merge paths so both emit byte-identical output.
+//
+// This is a graft-only addition, not a spruce-parity fix: spruce's own
+// `merge` case (cmd/spruce/main.go, sibling repo) writes bare
+// `fmt.Fprintf(os.Stdout, "%s\n", string(merged))`, with no leading
+// "---\n" - only spruce's `fan` case prepends "---\n" per document
+// (which graft's own fan, handleFan below, already matches). See
+// docs/spruce/cli-surface.md's "stdin, stdout, and file arguments"
+// section and docs/spruce/genesis-compat-contract.md's "Output byte
+// stability across versions" for the full writeup.
 func renderMergedTree(tree map[string]interface{}) ([]byte, int) {
 	log.TRACE("Converting the following data back to YML:")
 	log.TRACE("%#v", tree)
@@ -298,7 +308,8 @@ func renderMergedTree(tree map[string]interface{}) ([]byte, int) {
 		return nil, 2
 	}
 
-	return append(merged, '\n'), 0
+	out := append([]byte("---\n"), merged...)
+	return append(out, '\n'), 0
 }
 
 func handleFan(opts *mergeOpts) int {
@@ -356,8 +367,14 @@ func writeFanResultsToDir(results []fanResult, outputDir string) int {
 		}
 
 		outPath := fanOutputPath(outputDir, result.Path)
+		// Leading "---\n" for consistency with fan's own stdout path
+		// (handleFan above, "---\n%s\n") and with merge's output
+		// (renderMergedTree): every merged document graft writes starts
+		// with a document-start marker, whether it goes to stdout or to
+		// a file.
+		content := append([]byte("---\n"), merged...)
 		// #nosec G306 - fan output is meant to be readable configuration data, matching the permissions of merge/json's stdout-redirected output
-		if err := os.WriteFile(outPath, merged, 0o644); err != nil {
+		if err := os.WriteFile(outPath, content, 0o644); err != nil {
 			log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Unable to write output file} @m{%s}: %s", outPath, err.Error()))
 			return 2
 		}

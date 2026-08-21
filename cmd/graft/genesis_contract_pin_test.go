@@ -1,7 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
 	"testing"
+
+	"github.com/fivetwenty-io/graft/log"
 )
 
 // This file is the Phase-0 index for R3/R3b (see
@@ -109,5 +115,82 @@ func TestGenesisContractErrorCodesOptInPreservesScrapedShape(t *testing.T) {
 
 	if stderr == "" {
 		t.Fatalf("expected non-empty stderr")
+	}
+}
+
+// TestGenesisContractSkipEvalJSONPipelineSurvivesMergeDashDashDash pins
+// contract pattern 10 (genesis-compat-contract.md:60): `graft merge
+// --multi-doc --go-patch --skip-eval files... | graft json`, used to
+// build the unevaluated tree genesis looks values up in for
+// deferred-operator rewriting. `graft merge` output now leads with a
+// "---\n" document-start marker (renderMergedTree, cmd/graft/main.go);
+// this drives both commands through main() in sequence, piping the
+// first's captured stdout into the second's stdin exactly as the shell
+// pipe does, and confirms `graft json` still parses it - the leading
+// "---\n" is standard YAML (a document-start marker), not new content,
+// so it must not need any special handling downstream.
+func TestGenesisContractSkipEvalJSONPipelineSurvivesMergeDashDashDash(t *testing.T) {
+	prevPrintStdOutf := printStdOutf
+	prevPrintStdErrf := log.PrintStdErrf
+	prevExit := exit
+	prevUsage := usage
+	prevArgs := os.Args
+	prevStdin := os.Stdin
+	defer func() {
+		printStdOutf = prevPrintStdOutf
+		log.PrintStdErrf = prevPrintStdErrf
+		exit = prevExit
+		usage = prevUsage
+		os.Args = prevArgs
+		os.Stdin = prevStdin
+	}()
+
+	var stdout, stderr string
+	rc := 256
+	printStdOutf = func(format string, args ...interface{}) {
+		stdout += fmt.Sprintf(format, args...)
+	}
+	log.PrintStdErrf = func(format string, args ...interface{}) {
+		stderr += fmt.Sprintf(format, args...)
+	}
+	exit = func(code int) { rc = code }
+	usage = func() { exit(1) }
+
+	os.Args = []string{"graft", "merge", "--skip-eval", "../../assets/merge/first.yml"}
+	main()
+	if rc != 0 {
+		t.Fatalf("merge --skip-eval rc = %d, stderr: %s", rc, stderr)
+	}
+	if !strings.HasPrefix(stdout, "---\n") {
+		t.Fatalf("merge --skip-eval stdout does not lead with \"---\\n\" (test premise broken): %q", stdout)
+	}
+	mergedOutput := stdout
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	go func() {
+		defer func() { _ = w.Close() }()
+		_, _ = w.WriteString(mergedOutput)
+	}()
+	os.Stdin = r
+
+	stdout, stderr, rc = "", "", 256
+	os.Args = []string{"graft", "json"}
+	main()
+	if rc != 0 {
+		t.Fatalf("json rc = %d, stderr: %s", rc, stderr)
+	}
+	if stdout == "" {
+		t.Fatal("json produced no output")
+	}
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json output did not parse as JSON: %v\noutput: %s", err, stdout)
+	}
+	if _, ok := decoded["array_append"]; !ok {
+		t.Fatalf("decoded JSON missing expected key %q (from assets/merge/first.yml): %v", "array_append", decoded)
 	}
 }

@@ -95,6 +95,47 @@ func TestMergeCacheHitReplaysStoredBytes(t *testing.T) {
 	}
 }
 
+// TestMergeCacheNeverReplaysPreDashDashDashPrefixEntry is the
+// cache-replay-safety regression for the "---\n" merge-output-prefix fix
+// (renderMergedTree): an entry stored under the key a pre-fix (v1
+// schema) graft binary would have derived for these exact opts/inputs -
+// bare YAML, no leading "---\n" - must never be served as a hit by the
+// current binary. mergeOutputCacheKeySchemaVersionBumped (merge_cache_
+// test.go) proves the two keys differ in isolation; this proves that
+// difference actually prevents the stale bytes from reaching stdout
+// end-to-end, through the real store/handleMerge path.
+func TestMergeCacheNeverReplaysPreDashDashDashPrefixEntry(t *testing.T) {
+	dir := t.TempDir()
+	cacheDir := filepath.Join(dir, "cache")
+	docContent := "meta:\n  name: thing\nout: (( grab meta.name ))\n"
+	doc := writeDoc(t, dir, "a.yml", docContent)
+
+	// Simulate a v1-binary-populated cache: store the bare-YAML (no
+	// "---\n") bytes a pre-fix graft would have produced, under the key
+	// a pre-fix graft would have derived for it.
+	store := outputStore(t, cacheDir)
+	legacyKey := legacyV1MergeOutputCacheKey(&mergeOpts{Files: []string{doc}}, docs(docContent), false)
+	legacyEntry, encErr := encodeCachedOutput(cachedMergeOutput{Stdout: []byte("meta:\n  name: thing\nout: thing\n")})
+	if encErr != nil {
+		t.Fatalf("encodeCachedOutput: %v", encErr)
+	}
+	if err := store.Put(legacyKey, legacyEntry); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	out, stderr, rc := cacheTestRun(t, cacheDir, &mergeOpts{Files: []string{doc}})
+	if rc != 0 {
+		t.Fatalf("rc = %d, stderr: %s", rc, stderr)
+	}
+	if out == "meta:\n  name: thing\nout: thing\n" {
+		t.Fatal("replayed a pre-\"---\\n\"-prefix (v1) cache entry instead of running a fresh merge")
+	}
+	want := "---\nmeta:\n  name: thing\nout: thing\n\n"
+	if out != want {
+		t.Fatalf("stdout = %q, want %q (fresh merge, v1 entry ignored)", out, want)
+	}
+}
+
 // TestMergeCacheMissAndHitAreByteIdentical is the drop-in guarantee for
 // the cache itself: cold and warm runs must produce identical bytes.
 func TestMergeCacheMissAndHitAreByteIdentical(t *testing.T) {

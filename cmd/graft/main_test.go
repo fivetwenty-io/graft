@@ -447,7 +447,8 @@ func TestMain(t *testing.T) {
 			stdout = ""
 			stderr = ""
 			main()
-			So(stdout, ShouldEqual, `array_append:
+			So(stdout, ShouldEqual, `---
+array_append:
 - one
 - two
 - three
@@ -483,12 +484,28 @@ map:
 `)
 			So(stderr, ShouldEqual, "")
 		})
+		Convey("merge output starts with a \"---\" document-start line, so it can be inlined into other documents", func() {
+			// Graft-only addition, not a spruce-parity fix: spruce's own
+			// `merge` writes bare `fmt.Fprintf(os.Stdout, "%s\n", ...)`,
+			// no leading "---\n" (cmd/spruce/main.go, sibling repo); only
+			// spruce's `fan` prepends "---\n" per document, which
+			// graft's own fan already matched. See renderMergedTree's
+			// doc comment (main.go) and docs/spruce/cli-surface.md.
+			os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			lines := strings.Split(stdout, "\n")
+			So(lines[0], ShouldEqual, "---")
+		})
 		Convey("Should output merged yaml with multi-doc enabled", func() {
 			os.Args = []string{"graft", "merge", "-m", "../../assets/merge/multi-doc.yml"}
 			stdout = ""
 			stderr = ""
 			main()
-			So(stdout, ShouldEqual, `doc:
+			So(stdout, ShouldEqual, `---
+doc:
   data:
     test01: stuff
     test02: morestuff
@@ -534,7 +551,8 @@ map:
 			stdout = ""
 			stderr = ""
 			main()
-			So(stdout, ShouldEqual, `injected_jobs:
+			So(stdout, ShouldEqual, `---
+injected_jobs:
   .: (( inject jobs ))
 jobs:
 - name: consul
@@ -556,7 +574,8 @@ properties:
 			stdout = ""
 			stderr = ""
 			main()
-			So(stdout, ShouldEqual, `injected_jobs:
+			So(stdout, ShouldEqual, `---
+injected_jobs:
   .: (( inject jobs ))
 param: (( param "Fill this in later" ))
 properties:
@@ -573,7 +592,8 @@ properties:
 			stdout = ""
 			stderr = ""
 			main()
-			So(stdout, ShouldEqual, `properties:
+			So(stdout, ShouldEqual, `---
+properties:
   loggregator: true
   no_eval: (( grab property ))
   no_prune: (( prune ))
@@ -587,7 +607,8 @@ properties:
 			stdout = ""
 			stderr = ""
 			main()
-			So(stdout, ShouldEqual, `jobs:
+			So(stdout, ShouldEqual, `---
+jobs:
 - name: my-server
   static_ips:
   - 192.168.1.0
@@ -614,7 +635,8 @@ properties:
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `jobs:
+			So(stdout, ShouldEqual, `---
+jobs:
 - instances: 1
   name: api_z1
   networks:
@@ -660,7 +682,8 @@ properties:
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `properties:
+			So(stdout, ShouldEqual, `---
+properties:
   client: {}
 
 `)
@@ -671,7 +694,8 @@ properties:
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `value: null
+			So(stdout, ShouldEqual, `---
+value: null
 
 `)
 		})
@@ -681,7 +705,8 @@ properties:
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `name1: name
+			So(stdout, ShouldEqual, `---
+name1: name
 name2: name
 name3: name
 name4: name
@@ -702,7 +727,8 @@ name4: name
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `jobs:
+			So(stdout, ShouldEqual, `---
+jobs:
 - instances: 3
   name: api_z1
   networks:
@@ -731,7 +757,8 @@ properties:
 			stdout = ""
 			stderr = ""
 			main()
-			So(stdout, ShouldEqual, `content:
+			So(stdout, ShouldEqual, `---
+content:
   meta_test:
     stuff: "---\nmeta:\n  filename: test.yml\n\ncontent:\n  meta_test:\n    stuff: (( file meta.filename ))\n"
 meta:
@@ -746,7 +773,8 @@ meta:
 			stdout = ""
 			stderr = ""
 			main()
-			So(stdout, ShouldEqual, `cpu: 3
+			So(stdout, ShouldEqual, `---
+cpu: 3
 nested:
   key:
     override: true
@@ -783,7 +811,8 @@ storage: 4096
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `ident: c=mjolnir/prod;1234567890-abcdef
+			So(stdout, ShouldEqual, `---
+ident: c=mjolnir/prod;1234567890-abcdef
 
 `)
 		})
@@ -793,7 +822,8 @@ storage: 4096
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `url: http://domain.example.com/?v=1.3&rev=42
+			So(stdout, ShouldEqual, `---
+url: http://domain.example.com/?v=1.3&rev=42
 
 `)
 		})
@@ -811,7 +841,8 @@ storage: 4096
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `bar: quux.bar
+			So(stdout, ShouldEqual, `---
+bar: quux.bar
 baz: quux.bar.baz
 foo: quux.bar.baz.foo
 quux: quux
@@ -1095,7 +1126,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `meta:
+			So(stdout, ShouldEqual, `---
+meta:
   list:
   - one
   - three
@@ -1227,7 +1259,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `meta:
+			So(stdout, ShouldEqual, `---
+meta:
   list:
   - one
   - three
@@ -1242,7 +1275,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `jobs:
+			So(stdout, ShouldEqual, `---
+jobs:
 - name: web
   networks:
   - net-a
@@ -1262,7 +1296,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `jobs:
+			So(stdout, ShouldEqual, `---
+jobs:
 - name: web
   networks:
   - net-a
@@ -1282,7 +1317,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `jobs:
+			So(stdout, ShouldEqual, `---
+jobs:
 - instances: 2
   name: main-job
   templates:
@@ -1309,7 +1345,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `list:
+			So(stdout, ShouldEqual, `---
+list:
 - name: A
   release: A
   version: A
@@ -1332,7 +1369,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `test1: t2
+			So(stdout, ShouldEqual, `---
+test1: t2
 
 `)
 		})
@@ -1344,7 +1382,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `test1: t2
+			So(stdout, ShouldEqual, `---
+test1: t2
 
 `)
 		})
@@ -1356,7 +1395,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `list:
+			So(stdout, ShouldEqual, `---
+list:
 - name: zero
   params:
     fail-fast: false
@@ -1379,7 +1419,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `meta:
+			So(stdout, ShouldEqual, `---
+meta:
   list:
   - one
   - two
@@ -1395,7 +1436,8 @@ quux: quux
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `meta:
+			So(stdout, ShouldEqual, `---
+meta:
   list:
   - Leonel Messi
   - Oliver Kahn
@@ -1423,7 +1465,8 @@ stuff:
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `jobs:
+			So(stdout, ShouldEqual, `---
+jobs:
 - instances: 1
   name: pepe
   networks:
@@ -1449,7 +1492,8 @@ networks:
 
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `jobs:
+			So(stdout, ShouldEqual, `---
+jobs:
 - instances: 1
   name: bosh
   networks:
@@ -1477,7 +1521,8 @@ networks:
 
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `jobs:
+				So(stdout, ShouldEqual, `---
+jobs:
 - azs:
   - z1
   instances: 2
@@ -1514,7 +1559,8 @@ networks:
 
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `jobs:
+				So(stdout, ShouldEqual, `---
+jobs:
 - azs:
   - z1
   - z2
@@ -1579,7 +1625,8 @@ networks:
 
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `jobs:
+				So(stdout, ShouldEqual, `---
+jobs:
 - azs:
   - z1
   instances: 1
@@ -1654,7 +1701,8 @@ networks:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `meta:
+				So(stdout, ShouldEqual, `---
+meta:
   first: {}
   second: []
   third: ""
@@ -1692,7 +1740,8 @@ networks:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `b:
+				So(stdout, ShouldEqual, `---
+b:
 - hello
 - world
 greeting: hello
@@ -1714,7 +1763,8 @@ z:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `properties:
+				So(stdout, ShouldEqual, `---
+properties:
   homework:
     ceil: 9
     floor: 3
@@ -1733,7 +1783,8 @@ z:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `jobs:
+				So(stdout, ShouldEqual, `---
+jobs:
 - instances: 4
   name: big_ones
 - instances: 1
@@ -1811,7 +1862,8 @@ z:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `float: 7.7760001e+06
+				So(stdout, ShouldEqual, `---
+float: 7.7760001e+06
 int: 7776000
 
 `)
@@ -1825,7 +1877,8 @@ int: 7776000
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `properties:
+				So(stdout, ShouldEqual, `---
+properties:
   cc:
     quota_definitions:
       q2GB:
@@ -1846,7 +1899,8 @@ int: 7776000
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `float_list:
+				So(stdout, ShouldEqual, `---
+float_list:
 - 1.42
 - 2.42
 - 3.42
@@ -1943,7 +1997,8 @@ name_list:
 					stderr = ""
 					main()
 					So(stderr, ShouldEqual, "")
-					So(stdout, ShouldEqual, `yet:
+					So(stdout, ShouldEqual, `---
+yet:
   another:
     yaml:
       structure:
@@ -1985,7 +2040,8 @@ name_list:
 					stderr = ""
 					main()
 					So(stderr, ShouldEqual, "")
-					So(stdout, ShouldEqual, `params:
+					So(stdout, ShouldEqual, `---
+params:
   users:
   - color: green
     name: bob
@@ -2001,7 +2057,8 @@ name_list:
 					stderr = ""
 					main()
 					So(stderr, ShouldEqual, "")
-					So(stdout, ShouldEqual, `params:
+					So(stdout, ShouldEqual, `---
+params:
   users:
   - color: green
     name: bob
@@ -2048,7 +2105,8 @@ name_list:
 					stderr = ""
 					main()
 					So(stderr, ShouldEqual, "")
-					So(stdout, ShouldEqual, `yet:
+					So(stdout, ShouldEqual, `---
+yet:
   another:
     yaml:
       structure:
@@ -2068,7 +2126,8 @@ name_list:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `properties:
+				So(stdout, ShouldEqual, `---
+properties:
   hahn:
     flags: open
     id: b503e54a-c872-4643-a09c-5480c5940d0c
@@ -2085,7 +2144,8 @@ name_list:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `releases:
+				So(stdout, ShouldEqual, `---
+releases:
 - name: vb
 
 `)
@@ -2097,7 +2157,8 @@ name_list:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `meta:
+				So(stdout, ShouldEqual, `---
+meta:
   some:
     deep:
       structure:
@@ -2114,7 +2175,8 @@ name_list:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `meta:
+				So(stdout, ShouldEqual, `---
+meta:
   some:
     deep:
       structure:
@@ -2140,7 +2202,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `properties:
+				So(stdout, ShouldEqual, `---
+properties:
   hahn:
     flags: open
     id: b503e54a-c872-4643-a09c-5480c5940d0c
@@ -2174,7 +2237,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `list:
+				So(stdout, ShouldEqual, `---
+list:
 - desc: The second one
   key: two
   version: v2
@@ -2188,7 +2252,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `list:
+				So(stdout, ShouldEqual, `---
+list:
 - desc: The second one
   id: two
   version: v2
@@ -2202,7 +2267,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `list:
+				So(stdout, ShouldEqual, `---
+list:
 - desc: The second one
   name: two
   version: v2
@@ -2216,7 +2282,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `list:
+				So(stdout, ShouldEqual, `---
+list:
 - desc: The fifth one
   name: five
   version: v5
@@ -2235,7 +2302,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `list:
+				So(stdout, ShouldEqual, `---
+list:
   "10":
   - desc: The first one
     name: one
@@ -2265,7 +2333,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `map:
+				So(stdout, ShouldEqual, `---
+map:
   other: value
   subkey: this is the real subkey
 
@@ -2278,7 +2347,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `params:
+				So(stdout, ShouldEqual, `---
+params:
   mode: default
   name: sandbox-thing
   type: thing
@@ -2293,7 +2363,8 @@ releases:
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `array:
+			So(stdout, ShouldEqual, `---
+array:
 - thing: 1
   value: foo
 - thing: 2
@@ -2310,7 +2381,8 @@ releases:
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `array:
+			So(stdout, ShouldEqual, `---
+array:
 - thing: 1
   value: baz
 - thing: 2
@@ -2339,7 +2411,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `foo: (( thing ))
+				So(stdout, ShouldEqual, `---
+foo: (( thing ))
 
 `)
 			})
@@ -2350,7 +2423,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `foo: (( "thing" ))
+				So(stdout, ShouldEqual, `---
+foo: (( "thing" ))
 
 `)
 			})
@@ -2361,7 +2435,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `foo: (( nil ))
+				So(stdout, ShouldEqual, `---
+foo: (( nil ))
 
 `)
 			})
@@ -2372,7 +2447,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `foo: (( 123 ))
+				So(stdout, ShouldEqual, `---
+foo: (( 123 ))
 
 `)
 			})
@@ -2383,7 +2459,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `foo: (( 1.23 ))
+				So(stdout, ShouldEqual, `---
+foo: (( 1.23 ))
 
 `)
 			})
@@ -2394,7 +2471,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `foo: (( $TESTVAR ))
+				So(stdout, ShouldEqual, `---
+foo: (( $TESTVAR ))
 
 `)
 			})
@@ -2405,7 +2483,8 @@ releases:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `foo: (( thing ))
+				So(stdout, ShouldEqual, `---
+foo: (( thing ))
 thing: (( thing ))
 
 `)
@@ -2417,7 +2496,8 @@ thing: (( thing ))
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `foo: (( grab this || "that" ))
+				So(stdout, ShouldEqual, `---
+foo: (( grab this || "that" ))
 
 `)
 			})
@@ -2428,7 +2508,8 @@ thing: (( thing ))
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `foo: (( grab thing ))
+				So(stdout, ShouldEqual, `---
+foo: (( grab thing ))
 grab: beep
 thing: boop
 
@@ -2443,7 +2524,8 @@ thing: boop
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `some:
+				So(stdout, ShouldEqual, `---
+some:
   yaml:
     structure:
       certificate: |
@@ -2485,7 +2567,8 @@ thing: boop
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `some:
+				So(stdout, ShouldEqual, `---
+some:
   yaml:
     structure:
       certificate: "-----BEGIN CERTIFICATE----- QSBzcHJ1Y2UgaXMgYSB0cmVlIG9mIHRoZSBnZW51cyBQaWNlYSAvcGHJqsuIc2nL kMmZLyxbMV0gYSBnZW51cyBvZiBhYm91dCAzNSBzcGVjaWVzIG9mIGNvbmlmZXJv dXMgZXZlcmdyZWVuIHRyZWVzIGluIHRoZSBGYW1pbHkgUGluYWNlYWUsIGZvdW5k IGluIHRoZSBub3J0aGVybiB0ZW1wZXJhdGUgYW5kIGJvcmVhbCAodGFpZ2EpIHJl Z2lvbnMgb2YgdGhlIGVhcnRoLiBTcHJ1Y2VzIGFyZSBsYXJnZSB0cmVlcywgZnJv bSBhYm91dCAyMOKAkzYwIG1ldHJlcyAoYWJvdXQgNjDigJMyMDAgZmVldCkgdGFs bCB3aGVuIG1hdHVyZSwgYW5kIGNhbiBiZSBkaXN0aW5ndWlzaGVkIGJ5IHRoZWly IHdob3JsZWQgYnJhbmNoZXMgYW5kIGNvbmljYWwgZm9ybS4gVGhlIG5lZWRsZXMs IG9yIGxlYXZlcywgb2Ygc3BydWNlIHRyZWVzIGFyZSBhdHRhY2hlZCBzaW5nbHkg dG8gdGhlIGJyYW5jaGVzIGluIGEgc3BpcmFsIGZhc2hpb24sIGVhY2ggbmVlZGxl IG9uIGEgc21hbGwgcGVnLWxpa2Ugc3RydWN0dXJlLiBUaGUgbmVlZGxlcyBhcmUg c2hlZCB3aGVuIDTigJMxMCB5ZWFycyBvbGQsIGxlYXZpbmcgdGhlIGJyYW5jaGVz IHJvdWdoIHdpdGggdGhlIHJldGFpbmVkIHBlZ3MgKGFuIGVhc3kgbWVhbnMgb2Yg ZGlzdGluZ3Vpc2hpbmcgdGhlbSBmcm9tIG90aGVyIHNpbWlsYXIgZ2VuZXJhLCB3 aGVyZSB0aGUgYnJhbmNoZXMgYXJlIGZhaXJseSBzbW9vdGgpLgoKU3BydWNlcyBh cmUgdXNlZCBhcyBmb29kIHBsYW50cyBieSB0aGUgbGFydmFlIG9mIHNvbWUgTGVw aWRvcHRlcmEgKG1vdGggYW5kIGJ1dHRlcmZseSkgc3BlY2llczsgc2VlIGxpc3Qg b2YgTGVwaWRvcHRlcmEgdGhhdCBmZWVkIG9uIHNwcnVjZXMuIFRoZXkgYXJlIGFs c28gdXNlZCBieSB0aGUgbGFydmFlIG9mIGdhbGwgYWRlbGdpZHMgKEFkZWxnZXMg c3BlY2llcykuCgpJbiB0aGUgbW91bnRhaW5zIG9mIHdlc3Rlcm4gU3dlZGVuIHNj aWVudGlzdHMgaGF2ZSBmb3VuZCBhIE5vcndheSBzcHJ1Y2UgdHJlZSwgbmlja25h bWVkIE9sZCBUamlra28sIHdoaWNoIGJ5IHJlcHJvZHVjaW5nIHRocm91Z2ggbGF5 ZXJpbmcgaGFzIHJlYWNoZWQgYW4gYWdlIG9mIDksNTUwIHllYXJzIGFuZCBpcyBj bGFpbWVkIHRvIGJlIHRoZSB3b3JsZCdzIG9sZGVzdCBrbm93biBsaXZpbmcgdHJl ZS4K -----END CERTIFICATE-----"
@@ -2500,7 +2583,8 @@ thing: boop
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `empty_nil:
+				So(stdout, ShouldEqual, `---
+empty_nil:
 - null
 - more stuff
 explicit_nil:
@@ -2526,7 +2610,8 @@ nested_nil:
 				So(stderr, ShouldEqual, `warning: $.array-of-maps.0: new object's key 'name' cannot have a value which is a hash or sequence - cannot merge by key
 warning: Falling back to inline merge strategy
 `)
-				So(stdout, ShouldEqual, `array-of-maps:
+				So(stdout, ShouldEqual, `---
+array-of-maps:
 - name:
     subkey1: true
     subkey2: false
@@ -2541,7 +2626,8 @@ warning: Falling back to inline merge strategy
 				So(stderr, ShouldEqual, `warning: $.array-of-maps.0: new object's key 'name' cannot have a value which is a hash or sequence - cannot merge by key
 warning: Falling back to inline merge strategy
 `)
-				So(stdout, ShouldEqual, `array-of-maps:
+				So(stdout, ShouldEqual, `---
+array-of-maps:
 - name:
   - subkey1
   - subkey2
@@ -2583,7 +2669,7 @@ warning: Falling back to inline merge strategy
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, "foo: -> 3 <-\n\n")
+				So(stdout, ShouldEqual, "---\nfoo: -> 3 <-\n\n")
 			})
 
 			Convey("We can handle ints bigger than 2^63 - 1", func() {
@@ -2593,7 +2679,7 @@ warning: Falling back to inline merge strategy
 				main()
 				So(stderr, ShouldEqual, "")
 				// Note: Large integers beyond float64 precision are converted to scientific notation
-				So(stdout, ShouldEqual, "foo: -> 6.239871649276491e+24 <-\n\n")
+				So(stdout, ShouldEqual, "---\nfoo: -> 6.239871649276491e+24 <-\n\n")
 			})
 		})
 
@@ -2603,7 +2689,8 @@ warning: Falling back to inline merge strategy
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `ips:
+			So(stdout, ShouldEqual, `---
+ips:
 - 1.2.3.4
 - 2.2.3.4
 ips_with_port:
@@ -2620,7 +2707,8 @@ join_ips_with_port: 1.2.3.4:80,2.2.3.4:80
 			stderr = ""
 			main()
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, `groups:
+			So(stdout, ShouldEqual, `---
+groups:
 - jobs:
   - master-isolation-tests
   - master-integration-tests
@@ -2648,7 +2736,8 @@ meta:
 
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `serverFiles:
+				So(stdout, ShouldEqual, `---
+serverFiles:
   prometheus.yml:
     scrape_configs:
     - name: one
@@ -2664,7 +2753,8 @@ meta:
 
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `serverFiles:
+				So(stdout, ShouldEqual, `---
+serverFiles:
   prometheus.yml:
     scrape_configs:
     - name: one
@@ -2680,7 +2770,8 @@ meta:
 
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `serverFiles:
+				So(stdout, ShouldEqual, `---
+serverFiles:
   prometheus.yml:
     scrape_configs:
     - name: one
@@ -2696,7 +2787,8 @@ meta:
 
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `serverFiles:
+				So(stdout, ShouldEqual, `---
+serverFiles:
   prometheus.yml:
     scrape_configs:
     - job_name: one
@@ -2713,7 +2805,8 @@ meta:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `array:
+				So(stdout, ShouldEqual, `---
+array:
 - 10
 - 5
 - 6
@@ -2812,7 +2905,8 @@ new_key: 10
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `array:
+				So(stdout, ShouldEqual, `---
+array:
 - 4
 - 5
 - 6
@@ -2835,7 +2929,8 @@ key2:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `key: overlay
+				So(stdout, ShouldEqual, `---
+key: overlay
 
 `)
 			})
@@ -2845,7 +2940,8 @@ key2:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `key: patched
+				So(stdout, ShouldEqual, `---
+key: patched
 
 `)
 			})
@@ -2858,7 +2954,8 @@ key2:
 				stderr = ""
 				main()
 				So(stderr, ShouldEqual, "")
-				So(stdout, ShouldEqual, `array:
+				So(stdout, ShouldEqual, `---
+array:
 - id: first
   value: 123
 - id: second
@@ -4126,11 +4223,11 @@ meta:
 
 		devOut, err := os.ReadFile(filepath.Join(outDir, "dev.yml"))
 		So(err, ShouldBeNil)
-		So(string(devOut), ShouldEqual, "application: my-app\nmeta:\n  environment: development\n  name: development\n")
+		So(string(devOut), ShouldEqual, "---\napplication: my-app\nmeta:\n  environment: development\n  name: development\n")
 
 		prodOut, err := os.ReadFile(filepath.Join(outDir, "prod.yml"))
 		So(err, ShouldBeNil)
-		So(string(prodOut), ShouldEqual, "application: my-app\nmeta:\n  environment: production\n  name: production\n")
+		So(string(prodOut), ShouldEqual, "---\napplication: my-app\nmeta:\n  environment: production\n  name: production\n")
 	})
 
 	Convey("graft fan --output-dir with a directory target creates the output directory and names files after the target files", t, func() {
@@ -4295,7 +4392,10 @@ func TestExamples(t *testing.T) {
 			main()
 
 			So(stderr, ShouldEqual, "")
-			So(stdout, ShouldEqual, YAML(expect))
+			// graft merge output leads with "---\n" (renderMergedTree);
+			// YAML(expect) re-marshals the fixture's bare content, so the
+			// prefix is added here rather than by YAML() itself.
+			So(stdout, ShouldEqual, "---\n"+YAML(expect))
 			So(rc, ShouldEqual, 0)
 		}
 
