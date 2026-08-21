@@ -89,9 +89,13 @@ Merges one or more YAML/JSON files (or go-patch documents) and evaluates
 graft operators against the result, writing the merged YAML document to
 stdout: a leading `---\n` document-start line (so the output can be piped
 straight into another YAML document), the merged document, then a
-trailing newline (`renderMergedTree`, cmd/graft/main.go). With no files
-given, `merge` reads from stdin; passing `-` as a filename also reads
-stdin for that position.
+trailing newline (`renderMergedTree`, cmd/graft/main.go). If anything was
+deferred (`--defer-on-error`/`--adaptive`, or a `--skip-vault`/
+`--skip-aws`/`--skip-nats` flag), a `--report-deferred` comment block is
+woven in too - see [Adaptive merge](#adaptive-merge---defer-on-error)
+below; a merge that never defers anything is unaffected either way. With
+no files given, `merge` reads from stdin; passing `-` as a filename also
+reads stdin for that position.
 
 | Flag | Description |
 |---|---|
@@ -111,12 +115,25 @@ stdin for that position.
 | `--skip-vault` | Defer `(( vault ... ))`/`(( vault-try ... ))` calls instead of contacting Vault: each leaves its own expression intact in the output (e.g. `(( vault "secret/db:password" ))`), so the document can be merged again once Vault is reachable. Covers OpenBao too (same API, same operator). Composable with `--skip-aws`/`--skip-nats`. `REDACT=1` is unaffected and keeps returning `"REDACTED"` regardless of this flag. |
 | `--skip-aws` | Same defer behavior as `--skip-vault`, for `(( awsparam ... ))`/`(( awssecret ... ))`. |
 | `--skip-nats` | Same defer behavior as `--skip-vault`, for `(( nats ... ))`. |
+| `--defer-on-error` | Adaptive merge: on an operator failure, defer that expression (and any dependent path a later retry round reveals) and re-merge, instead of failing the whole merge. See [Adaptive merge](#adaptive-merge---defer-on-error) below. |
+| `--adaptive` | Alias for `--defer-on-error`. |
+| `--report-deferred <placement>` | Where to report deferred keys (from `--defer-on-error`/`--adaptive` or `--skip-vault`/`--skip-aws`/`--skip-nats`) as YAML comments in the output: `beginning` (default), `inline`, `end`, or `none`. See [Adaptive merge](#adaptive-merge---defer-on-error). |
 
 A value composed from a deferred call - a `(( grab ))` of a field that
 itself deferred, or a vault path segment built from another deferred
 vault lookup - defers transitively too, since the deferred call's own
 document value is just its own expression text, copied like any other
 string.
+
+A `--skip-<backend>` flag exits `3` (a "successful partial merge")
+*only* when it actually deferred something - a document with nothing
+for that backend to skip merges cleanly and exits `0`, exactly as
+without the flag. The same is true of `--defer-on-error`/`--adaptive`:
+`0` if nothing ever failed, `3` if anything was deferred, in any
+combination of these flags. `REDACT=1` never produces exit `3`: it
+redacts (returns the literal `"REDACTED"` string) rather than deferring,
+regardless of which of these flags are also given, so it always exits
+`0` on success like a plain merge. See [Exit codes](#exit-codes) below.
 
 Every merge internally runs with caching enabled
 (`graft.WithCache(true, 1000)`); cache size isn't currently exposed as a
@@ -189,6 +206,81 @@ after the first file are omitted), each entry marked `✗` (overwritten),
 `--changes-only` prints a compact `Changed paths (X of M):` list, one line
 per added/changed/removed path, `<old> → <new>` (`<none>` for an added
 path's old side, `<removed>` for a removed path's new side).
+
+#### Adaptive merge (`--defer-on-error`)
+
+`--defer-on-error` (alias `--adaptive`) merges everything it can instead
+of failing on the first operator error: on a failure, it wraps that
+expression in `(( defer ... ))` and re-merges, repeating until the merge
+succeeds (cleanly, or partially with every deferred expression intact)
+or no further path can be deferred - at which point the original error
+is reported and `merge` exits normally (`2`, or `1` for a usage error),
+exactly as it would without this flag. A genuine operator-dependency
+cycle is always this kind of hard failure: it has no path to defer, so
+it is reported immediately.
+
+A `(( grab ))` of a deferred value copies its still-unevaluated
+expression text cleanly, so it defers transitively too, with no comment
+of its own (see `--report-deferred` below - only the path with the
+actual failure is reported). A value-transforming operator like
+`(( concat ))` that reads a deferred value does not itself fail (there
+is nothing to defer), but embeds the deferred text into a larger string
+that is no longer itself a re-evaluable expression on a later merge -
+a limitation inherent to `(( defer ... ))` itself (shared by `graft
+debug`'s own manual defer-and-retry), not something this flag corrects.
+
+`--defer-on-error` cannot be combined with `--history`/`--trace-path`/
+`--show-changes`/`--changes-only` (exit `1`); given with nothing that
+ever fails, it is byte-identical to a plain merge, including exit code
+`0`.
+
+`--report-deferred <placement>` controls how deferred keys - from
+`--defer-on-error`/`--adaptive`, or from a `--skip-vault`/`--skip-aws`/
+`--skip-nats` flag - are reported, in-band as YAML comments so the
+report travels with the document and the output stays valid, re-mergeable
+YAML. Comments are placed after the leading `---` document-start line;
+the parser ignores them entirely on a later merge.
+
+- `beginning` (default): a summary block at the top, one line per
+  deferred key with its original error (or, for a `--skip-<backend>`
+  deferral, a `skipped (--skip-<backend>)` reason):
+
+  ```yaml
+  ---
+  # graft: 2 keys deferred
+  # graft: deferred $.meta.cert: vault "secret/certs:pem": connection refused
+  # graft: deferred $.props.password: vault "secret/db:pass": connection refused
+  meta:
+    cert: (( vault "secret/certs:pem" ))
+  props:
+    password: (( vault "secret/db:pass" ))
+  ```
+
+- `inline`: the comment is attached directly above each deferred key
+  instead, with no path (its position already conveys it):
+
+  ```yaml
+  props:
+    # graft: deferred: vault "secret/db:pass": connection refused
+    password: (( vault "secret/db:pass" ))
+  ```
+
+- `end`: the same summary block as `beginning`, appended after the
+  document instead.
+
+- `none`: no comments at all. Exit code `3` (see [Exit codes](#exit-codes))
+  still distinguishes a partial merge from a clean one, so a caller that
+  wants the deferred-key report fully silenced can still tell the two
+  apart programmatically.
+
+An invalid `--report-deferred` value exits `1` with a clear error,
+independent of whether the merge would have deferred anything at all.
+
+```bash
+graft merge --defer-on-error base.yml overlay.yml
+graft merge --adaptive --report-deferred=inline base.yml overlay.yml
+graft merge --defer-on-error --report-deferred=none base.yml overlay.yml
+```
 
 ### graft debug
 
@@ -372,9 +464,10 @@ graft vaultinfo --resolve config.yml
 
 | Code | Meaning |
 |---|---|
-| `0` | Success. For `diff`, success additionally means no differences were found. `debug` always exits `0` on a normal `quit`/`exit`/EOF, regardless of what happened during the session. |
-| `1` | Usage error (no subcommand given, unknown command, invalid flag, or an invalid `--color` value); combining mutually exclusive flags (`merge`'s `--history`/`--trace-path`/`--show-changes`/`--changes-only`, or `diff`'s `--side-by-side`/`--unified`/`--changes`); or, specifically for `diff`, differences were found between the two files. |
+| `0` | Success, and (for `merge`) nothing was deferred. For `diff`, success additionally means no differences were found. `debug` always exits `0` on a normal `quit`/`exit`/EOF, regardless of what happened during the session. |
+| `1` | Usage error (no subcommand given, unknown command, invalid flag, an invalid `--color` value, or an invalid `--report-deferred` value); combining mutually exclusive flags (`merge`'s `--history`/`--trace-path`/`--show-changes`/`--changes-only`, `merge --defer-on-error` with any of those four, or `diff`'s `--side-by-side`/`--unified`/`--changes`); or, specifically for `diff`, differences were found between the two files. |
 | `2` | Runtime error: file read failure, parse failure, merge failure, cycle detected, evaluation failure, YAML marshal failure, or (for `merge --trace-path`) no history recorded for the given path. |
+| `3` | `merge` only: a successful *partial* merge - at least one path was deferred, from `--defer-on-error`/`--adaptive` or a `--skip-vault`/`--skip-aws`/`--skip-nats` flag. See [Adaptive merge](#adaptive-merge---defer-on-error). |
 
 ## stdin / stdout / stderr
 

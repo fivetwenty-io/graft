@@ -28,6 +28,9 @@ Files are merged left to right. Values in later files override values in earlier
 | `--skip-vault` | | Defer `(( vault ... ))`/`(( vault-try ... ))` calls (leave the expression intact) instead of contacting Vault or OpenBao. Composable with `--skip-aws`/`--skip-nats`. |
 | `--skip-aws` | | Same, for `(( awsparam ... ))`/`(( awssecret ... ))` |
 | `--skip-nats` | | Same, for `(( nats ... ))` |
+| `--defer-on-error` | | Adaptive merge: defer a failing expression and re-merge instead of failing outright. See [Adaptive Merge](../adaptive-merge.md). |
+| `--adaptive` | | Alias for `--defer-on-error` |
+| `--report-deferred <placement>` | | Where to report deferred keys as YAML comments: `beginning` (default), `inline`, `end`, `none` |
 
 ## Basic Usage
 
@@ -179,6 +182,21 @@ and `(( nats ... ))`; all three are composable
 (`graft merge --skip-vault --skip-aws config.yml`). See
 [Vault Integration: Merging Without Vault Access](../secrets/vault.md#merging-without-vault-access)
 for the full write-up, including how this differs from `REDACT=1`.
+
+### Adaptive Merge
+
+`--defer-on-error` (alias `--adaptive`) merges everything it can instead
+of failing on the first operator error - not just a backend you told
+graft to skip, but any operator failure at all:
+
+```sh
+graft merge --defer-on-error base.yml secrets.yml
+```
+
+A failure exits `3` instead of `0` (a "successful partial merge") with
+the deferred keys reported as YAML comments by default; see
+[Adaptive Merge](../adaptive-merge.md) for the full write-up, including
+cascade behavior and `--report-deferred`'s four placements.
 
 ## History and Tracing
 

@@ -70,6 +70,15 @@ Track where each value in a merged document came from.
 - `merge --trace-path` - One path's full derivation
 - `merge --show-changes` / `--changes-only` - What changed
 
+### [Adaptive Merge](adaptive-merge.md)
+
+Merge everything a document allows, deferring the rest instead of
+failing outright.
+
+- `merge --defer-on-error` / `--adaptive` - Defer any failing operator and re-merge
+- `merge --report-deferred` - Report deferred keys as YAML comments
+- Exit code `3` for a successful partial merge
+
 ### [Configuration](configuration.md)
 
 Environment variables and settings.

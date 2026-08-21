@@ -52,6 +52,9 @@ graft merge [flags] file1.yml [file2.yml ...]
 | `--skip-vault` | Defer `(( vault ... ))`/`(( vault-try ... ))` calls (leave the expression intact) instead of contacting Vault or OpenBao; composable with `--skip-aws`/`--skip-nats`. `REDACT=1` overrides this and redacts instead. |
 | `--skip-aws` | Same, for `(( awsparam ... ))`/`(( awssecret ... ))` |
 | `--skip-nats` | Same, for `(( nats ... ))` |
+| `--defer-on-error` | Adaptive merge: defer a failing expression and re-merge instead of failing outright. See [Adaptive Merge](../user-guide/adaptive-merge.md). |
+| `--adaptive` | Alias for `--defer-on-error` |
+| `--report-deferred <placement>` | Where to report deferred keys as YAML comments: `beginning` (default), `inline`, `end`, `none` |
 
 ### Examples
 
@@ -389,14 +392,15 @@ graft diff -y staging.yml prod.yml
 
 ## Exit Codes
 
-graft uses three exit codes across every command (see
+graft uses four exit codes across every command (see
 [CLI Reference](cli.md#exit-codes) for the full per-command breakdown):
 
 | Code | Description |
 |------|-------------|
-| 0 | Success (for `diff`, no differences found) |
+| 0 | Success (for `diff`, no differences found; for `merge`, nothing was deferred) |
 | 1 | Usage error, or mutually exclusive flags combined, or (`diff` only) differences found |
 | 2 | Runtime error: file read/parse failure, merge/evaluation failure, or similar |
+| 3 | `merge` only: a successful *partial* merge - at least one path was deferred (`--defer-on-error`/`--adaptive`, or a `--skip-<backend>` flag) |
 
 ## See Also
 

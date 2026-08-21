@@ -111,6 +111,12 @@ so no separate flag is needed.
 composable in one invocation (`graft merge --skip-vault --skip-aws
 base.yml`).
 
+A merge that deferred anything exits `3`, not `0` (a "successful partial
+merge"), and reports the deferred keys as YAML comments by default -
+`--report-deferred` controls placement, the same flag
+[Adaptive Merge](../adaptive-merge.md) (`graft merge --defer-on-error`)
+uses for its own deferrals.
+
 This is a different behavior from `REDACT=1` (see
 [Environment Variables reference](../../reference/environment-variables.md)),
 which returns the literal string `"REDACTED"` instead of deferring - a

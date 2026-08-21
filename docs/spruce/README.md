@@ -25,11 +25,16 @@ out to a `spruce` binary on `$PATH`) needs to account for.
 **CLI surface.** graft's command structure (`merge`, `fan`, `json`, `diff`,
 `vaultinfo`) matches spruce's one-for-one, with the same flags on each
 subcommand and the same three-way exit-code scheme (0 success, 1 usage
-error or `diff`-found-differences, 2 runtime error). graft adds one new
-pair of global flags (`--color`/`--no-color`) and several new merge
-flags spruce does not have - `--dataflow-order` and the composable
+error or `diff`-found-differences, 2 runtime error) by default. graft
+adds one new pair of global flags (`--color`/`--no-color`) and several
+new merge flags spruce does not have - `--dataflow-order`; the composable
 `--skip-vault`/`--skip-aws`/`--skip-nats` (defer each backend's operator
-calls instead of contacting it); none change default behavior. See
+calls instead of contacting it); and `--defer-on-error`/`--adaptive`
+(defer any failing operator and re-merge instead of failing outright,
+reporting deferred keys via `--report-deferred`) - none change default
+behavior, but the last two introduce a fourth exit code, `3`, for a
+"successful partial merge" (only reachable when one of those flags is
+used and something was actually deferred). See
 [CLI surface](cli-surface.md) for the full comparison.
 
 **Operators.** Every spruce operator has a same-named, same-purpose

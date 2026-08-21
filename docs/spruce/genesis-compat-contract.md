@@ -150,7 +150,14 @@ it is unaffected either way.
 | `2` | Runtime error during merge, evaluation, or JSON conversion. |
 
 Graft's exit codes already follow this same three-way scheme across
-`merge`, `fan`, `json`, `diff`, and `vaultinfo`.
+`merge`, `fan`, `json`, `diff`, and `vaultinfo` - none of the 16
+invocation patterns above use any flag that changes this. `graft merge`
+additionally exits `3` ("successful partial merge") when `--defer-on-error`/
+`--adaptive` or `--skip-vault`/`--skip-aws`/`--skip-nats` actually
+deferred something; all four are opt-in flags Genesis does not currently
+pass, so this is additive and does not affect any pattern here. See
+[docs/user-guide/adaptive-merge.md](../user-guide/adaptive-merge.md) if
+Genesis integration work ever wants to adopt it.
 
 ## PATH-only resolution
 

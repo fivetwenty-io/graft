@@ -24,7 +24,7 @@ practical behavior lines up closely, with the differences called out below.
 
 | Command | spruce flags | graft flags | Notes |
 |---|---|---|---|
-| `merge [files...]` | `--skip-eval`, `--prune` (repeatable), `--cherry-pick` (repeatable), `--fallback-append`, `--go-patch`, `-m`/`--multi-doc` | Same five, plus `--dataflow-order <alphabetical\|insertion>`, `--skip-vault`, `--skip-aws`, `--skip-nats` | `--dataflow-order` is graft-only; it controls the order operators run in when there is no dependency constraint between them, defaulting to alphabetical. `--skip-vault`/`--skip-aws`/`--skip-nats` are also graft-only: each defers its backend's operator calls (leaves the `(( ... ))` expression intact in the output) instead of contacting the backend, composably per backend; `REDACT` (both binaries) is unaffected and still redacts to the literal string `"REDACTED"` regardless of these flags. |
+| `merge [files...]` | `--skip-eval`, `--prune` (repeatable), `--cherry-pick` (repeatable), `--fallback-append`, `--go-patch`, `-m`/`--multi-doc` | Same five, plus `--dataflow-order <alphabetical\|insertion>`, `--skip-vault`, `--skip-aws`, `--skip-nats`, `--defer-on-error`/`--adaptive`, `--report-deferred <placement>` | `--dataflow-order` is graft-only; it controls the order operators run in when there is no dependency constraint between them, defaulting to alphabetical. `--skip-vault`/`--skip-aws`/`--skip-nats` are also graft-only: each defers its backend's operator calls (leaves the `(( ... ))` expression intact in the output) instead of contacting the backend, composably per backend; `REDACT` (both binaries) is unaffected and still redacts to the literal string `"REDACTED"` regardless of these flags. `--defer-on-error` (alias `--adaptive`) is graft-only too: it defers *any* failing operator, not just a skipped backend, and retries; `--report-deferred` controls how deferred keys from either mechanism are reported as YAML comments in the output (`beginning`/`inline`/`end`/`none`). A merge that deferred anything, from any of these flags, exits `3` instead of `0` - see [Exit codes](#exit-codes) below. |
 | `fan [files...]` | Same flags as `merge` | Same flags as `merge`, including `--dataflow-order` | Behavior matches: first file is the source document, the rest are targets; each target is merged against the source independently, and results are written as separate `---`-separated YAML documents. |
 | `json [files...]` | `--strict` | `--strict` | Same behavior: converts YAML to JSON without running the merge/eval engine. `--strict` rejects non-string map keys instead of silently stringifying and dropping collisions. |
 | `diff [file1] [file2]` | No subcommand-specific flags (root `--color`-equivalent is implicit) | No subcommand-specific flags (uses root `--color`) | Both require exactly two file arguments and both are backed by the `dyff` library for the actual comparison and report rendering. |
@@ -32,17 +32,24 @@ practical behavior lines up closely, with the differences called out below.
 
 ## Exit codes
 
-Both binaries use the same three-way scheme:
+Both binaries share the same three-way scheme by default, and graft adds
+a fourth code, `3`, that spruce has no equivalent for:
 
 | Code | Meaning | spruce | graft |
 |---|---|---|---|
 | 0 | Success | Yes | Yes |
 | 1 | Usage error, missing/invalid arguments, unrecognized command, or `diff` found differences | Yes | Yes |
 | 2 | Runtime error during merge, evaluation, JSON conversion, or vault-info collection | Yes | Yes |
+| 3 | `merge` only: a successful *partial* merge - at least one path was deferred, via `--defer-on-error`/`--adaptive` or a `--skip-vault`/`--skip-aws`/`--skip-nats` flag | No such concept | Yes |
 
 `diff` on two files with no semantic differences returns 0; if it finds
 differences, it returns 1 after printing the human-readable report to
 stdout. A malformed or unreadable input file for `diff` returns 2 instead.
+
+Exit code `3` is only reachable when one of graft's own deferral flags is
+given and something was actually deferred; a plain `graft merge` (no such
+flag) never returns it, so this is not a divergence for anything not
+already opted into graft-only behavior.
 
 ## Environment variables
 
