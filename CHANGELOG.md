@@ -41,6 +41,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a new `prune-report` REPL command lists what they would remove once
   the session is fully evaluated, so the views no longer disagree.
 
+- `graft merge --defer-on-error` (alias `--adaptive`) retries a
+  failing merge by wrapping failing operator expressions in
+  `(( defer ))` and re-running until the document merges or stops
+  making progress, so one unreachable backend no longer fails the
+  whole document. Each deferred key is reported as a YAML comment in
+  the output itself, attributed to its root-cause error rather than
+  the cascade it triggered; `--report-deferred=beginning|inline|end|none`
+  controls placement, defaulting to a block at the top. A data-flow
+  cycle remains a hard failure with its original error, and a merge
+  with nothing to defer produces byte-identical output to a plain
+  merge. Any merge whose output contains deferred expressions,
+  whether from `--defer-on-error` or the skip-backend flags below,
+  exits with the new code 3, so scripts can tell a partial document
+  from a complete one even with reporting silenced; `REDACT=1` still
+  exits 0. One known limitation, shared with `(( defer ))` itself: a
+  value that embeds a deferred expression mid-string, such as a
+  `(( concat ))` of one, is emitted as plain text and is not
+  re-evaluable on a later merge.
+
 - `graft merge` accepts `--skip-vault`, `--skip-aws`, and
   `--skip-nats`, one flag per secrets backend and freely combinable.
   A skipped backend's operator calls — `(( vault ))`, `(( vault-try ))`,
@@ -52,7 +71,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   defer along with it instead of erroring. OpenBao speaks the Vault
   API through the same operator, so `--skip-vault` covers it. The
   `REDACT` environment variable is unchanged and still substitutes
-  `REDACTED`; when both are given, `REDACT` wins. Library callers get
+  `REDACTED`; when both are given, `REDACT` wins. A skip-flag merge
+  that actually deferred something exits 3 and participates in
+  `--report-deferred`, with the skip flag named as the reason; one
+  with nothing to skip exits 0 as usual. Library callers get
   the same choice through the new `WithRedact` engine option, which
   pairs with the existing `WithSkipVault`, `WithSkipAws`, and
   `WithSkipNats` options to pick redaction over deferral.
