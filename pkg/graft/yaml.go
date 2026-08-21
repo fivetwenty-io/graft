@@ -19,10 +19,57 @@ import (
 // prefersSingleQuote); type-lookalike strings keep goccy's double
 // quotes, which is also what spruce emits for those.
 func MarshalYAML(v interface{}) ([]byte, error) {
+	return MarshalYAMLWithComments(v, nil)
+}
+
+// YAMLHeadComment attaches a block of comment lines (rendered "# "-
+// prefixed, one per entry in Lines) directly above one node in
+// MarshalYAMLWithComments' output. Path uses graft/spruce's dotted
+// document-path syntax (e.g. "meta.password", or "jobs.0.name" for a
+// list index - no leading "$."); MarshalYAMLWithComments converts it to
+// the bracket-indexed form goccy/go-yaml's own path syntax requires
+// ("$.jobs[0].name") internally, so callers never need to know that
+// detail (or depend on goccy/go-yaml's types directly).
+type YAMLHeadComment struct {
+	Path  string
+	Lines []string
+}
+
+// MarshalYAMLWithComments serializes v exactly like MarshalYAML (same
+// spruce key ordering and quoting rules - both share this
+// implementation, MarshalYAML is comments == nil), then additionally
+// attaches each entry in comments as a head comment placed directly
+// above the node at its Path.
+//
+// A comments entry whose Path cannot be converted to a valid
+// goccy/go-yaml path (see graftPathToYAMLPath) is skipped rather than
+// failing the whole encode: comment placement is best-effort, never
+// load-bearing for the document's own data. cmd/graft's
+// "graft merge --report-deferred=inline" is the only current caller,
+// attaching one comment per deferred key directly above that key.
+func MarshalYAMLWithComments(v interface{}, comments []YAMLHeadComment) ([]byte, error) {
 	v = prepareForEncode(v)
 
+	opts := []yaml.EncodeOption{yaml.Indent(2)}
+	if len(comments) > 0 {
+		cm := yaml.CommentMap{}
+		for _, c := range comments {
+			if len(c.Lines) == 0 {
+				continue
+			}
+			yamlPath, ok := graftPathToYAMLPath(c.Path)
+			if !ok {
+				continue
+			}
+			cm[yamlPath] = append(cm[yamlPath], yaml.HeadComment(c.Lines...))
+		}
+		if len(cm) > 0 {
+			opts = append(opts, yaml.WithComment(cm))
+		}
+	}
+
 	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf, yaml.Indent(2))
+	enc := yaml.NewEncoder(&buf, opts...)
 	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}
@@ -30,6 +77,60 @@ func MarshalYAML(v interface{}) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// graftPathToYAMLPath converts a graft/spruce dotted document path (no
+// leading "$.", a purely-numeric segment meaning a list index - e.g.
+// "jobs.0.name") to the "$."-rooted, bracket-indexed path string
+// goccy/go-yaml's yaml.PathString (and so yaml.WithComment's CommentMap
+// keys) requires (e.g. "$.jobs[0].name"). Reports ok=false for an empty
+// path, or one containing a "$", "[", "]", or "'" character graft's own
+// dotted-path syntax has no escaping convention for and that would
+// otherwise be misparsed or rejected by yaml.PathString.
+//
+// A map key that is itself all-digits (e.g. a key literally named "0")
+// is indistinguishable from a list index in this syntax and is treated
+// as a list index - a pre-existing ambiguity in graft's own dotted-path
+// representation (tree.Cursor.String()), not one this conversion
+// introduces; see docs/user-guide/adaptive-merge.md's inline-placement
+// caveat.
+func graftPathToYAMLPath(path string) (string, bool) {
+	if path == "" {
+		return "", false
+	}
+	var b strings.Builder
+	b.WriteString("$")
+	for _, seg := range strings.Split(path, ".") {
+		if seg == "" {
+			continue
+		}
+		if isAllDigitsSegment(seg) {
+			b.WriteString("[")
+			b.WriteString(seg)
+			b.WriteString("]")
+			continue
+		}
+		if strings.ContainsAny(seg, "$[]'") {
+			return "", false
+		}
+		b.WriteString(".")
+		b.WriteString(seg)
+	}
+	return b.String(), true
+}
+
+// isAllDigitsSegment reports whether seg consists entirely of ASCII
+// digits (and is non-empty) - graftPathToYAMLPath's list-index test.
+func isAllDigitsSegment(seg string) bool {
+	if seg == "" {
+		return false
+	}
+	for _, r := range seg {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // specialFloatLookalikeRe narrows down candidate strings before paying

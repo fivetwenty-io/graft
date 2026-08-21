@@ -12,10 +12,19 @@ import (
 
 // This file tests plans/dennis-feedback-gaps.md's Item 3: the
 // --skip-vault/--skip-aws/--skip-nats merge flags, and their "defer,
-// not REDACTED" semantics (op_skip_defer.go, pkg/graft/operators).
+// not REDACTED" semantics (op_skip_defer.go, pkg/graft/operators), plus
+// Item 2's exit-code-3 contract for a merge that deferred anything
+// (adaptive_merge_test.go and deferred_report_test.go cover Item 2's own
+// --defer-on-error/--report-deferred machinery directly).
 // TestVaultInfoResolveReportsConcretePaths (vaultinfo_resolve_test.go,
 // this package) already exercises vaultinfo's own redact-mode use of
 // WithSkipVault; these tests are the merge-flag side.
+//
+// Every test below that actually defers something passes
+// --report-deferred=none, isolating the defer-mechanics assertions
+// (which path deferred, transitive grab, per-backend independence,
+// round-trip) from the comment-report format itself, covered separately
+// in deferred_report_test.go.
 
 // runMerge invokes main() with the given CLI args and returns the
 // captured stdout/stderr/exit code, restoring the previous test hooks
@@ -54,11 +63,12 @@ func runMerge(t *testing.T, args []string) (stdout, stderr string, rc int) {
 
 // TestMergeSkipVaultFlag pins the core Item 3 requirement: --skip-vault
 // with no Vault reachable leaves the (( vault ... )) expression intact
-// in the output and exits 0 (a clean merge, not an error).
+// in the output and exits 3 (a successful partial merge - Item 2's
+// exit-code contract, since something was deferred - not an error).
 func TestMergeSkipVaultFlag(t *testing.T) {
-	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "../../assets/skip-defer/vault.yml"})
-	if rc != 0 {
-		t.Fatalf("rc = %d, stderr: %s", rc, stderr)
+	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "--report-deferred=none", "../../assets/skip-defer/vault.yml"})
+	if rc != 3 {
+		t.Fatalf("rc = %d, want 3 (successful partial merge), stderr: %s", rc, stderr)
 	}
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
@@ -73,9 +83,9 @@ func TestMergeSkipVaultFlag(t *testing.T) {
 // TestMergeSkipVaultFlag for the other two backends, each against a
 // fixture containing only its own operator.
 func TestMergeSkipAwsFlag(t *testing.T) {
-	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-aws", "../../assets/skip-defer/all-three-backends.yml", "--skip-vault", "--skip-nats"})
-	if rc != 0 {
-		t.Fatalf("rc = %d, stderr: %s", rc, stderr)
+	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-aws", "--report-deferred=none", "../../assets/skip-defer/all-three-backends.yml", "--skip-vault", "--skip-nats"})
+	if rc != 3 {
+		t.Fatalf("rc = %d, want 3, stderr: %s", rc, stderr)
 	}
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
@@ -89,9 +99,9 @@ func TestMergeSkipAwsFlag(t *testing.T) {
 }
 
 func TestMergeSkipNatsFlag(t *testing.T) {
-	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "--skip-aws", "--skip-nats", "../../assets/skip-defer/all-three-backends.yml"})
-	if rc != 0 {
-		t.Fatalf("rc = %d, stderr: %s", rc, stderr)
+	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "--skip-aws", "--skip-nats", "--report-deferred=none", "../../assets/skip-defer/all-three-backends.yml"})
+	if rc != 3 {
+		t.Fatalf("rc = %d, want 3, stderr: %s", rc, stderr)
 	}
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
@@ -104,11 +114,11 @@ func TestMergeSkipNatsFlag(t *testing.T) {
 // TestMergeSkipAllThreeBackendsCompose confirms the three flags are
 // composable in a single invocation (Item 3's "one flag per backend,
 // composable" requirement): every operator in a fixture using all three
-// backends defers, and the merge still succeeds.
+// backends defers, and the merge still succeeds (partially).
 func TestMergeSkipAllThreeBackendsCompose(t *testing.T) {
-	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "--skip-aws", "--skip-nats", "../../assets/skip-defer/all-three-backends.yml"})
-	if rc != 0 {
-		t.Fatalf("rc = %d, stderr: %s", rc, stderr)
+	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "--skip-aws", "--skip-nats", "--report-deferred=none", "../../assets/skip-defer/all-three-backends.yml"})
+	if rc != 3 {
+		t.Fatalf("rc = %d, want 3, stderr: %s", rc, stderr)
 	}
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
@@ -130,9 +140,9 @@ func TestMergeSkipAllThreeBackendsCompose(t *testing.T) {
 // same document (a plain (( concat )) call) still evaluates normally
 // under --skip-vault, rather than every field mysteriously deferring.
 func TestMergeSkipVaultDoesNotDeferOtherOperators(t *testing.T) {
-	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "../../assets/skip-defer/vault-and-plain.yml"})
-	if rc != 0 {
-		t.Fatalf("rc = %d, stderr: %s", rc, stderr)
+	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "--report-deferred=none", "../../assets/skip-defer/vault-and-plain.yml"})
+	if rc != 3 {
+		t.Fatalf("rc = %d, want 3, stderr: %s", rc, stderr)
 	}
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
@@ -150,9 +160,9 @@ func TestMergeSkipVaultDoesNotDeferOtherOperators(t *testing.T) {
 // (by simply copying the still-unevaluated-looking expression text), so
 // the whole document round-trips instead of only the direct vault call.
 func TestMergeSkipVaultGrabDefersTransitively(t *testing.T) {
-	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "../../assets/skip-defer/transitive-grab.yml"})
-	if rc != 0 {
-		t.Fatalf("rc = %d, stderr: %s", rc, stderr)
+	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "--report-deferred=none", "../../assets/skip-defer/transitive-grab.yml"})
+	if rc != 3 {
+		t.Fatalf("rc = %d, want 3, stderr: %s", rc, stderr)
 	}
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
@@ -166,7 +176,9 @@ func TestMergeSkipVaultGrabDefersTransitively(t *testing.T) {
 // TestMergeRedactCompatUnchangedByNewFlags pins the CRITICAL compat
 // requirement: REDACT=1 (no --skip-vault flag at all) keeps its existing
 // redacting behavior byte-for-byte, unaffected by the new flags' mere
-// existence.
+// existence - including the exit code: REDACT mode redacts, it never
+// defers (op_skip_defer.go's AddDeferredPath is only reached on the
+// non-redact branch), so this stays a clean, exit-0 merge.
 func TestMergeRedactCompatUnchangedByNewFlags(t *testing.T) {
 	t.Setenv("REDACT", "1")
 	stdout, stderr, rc := runMerge(t, []string{"merge", "../../assets/skip-defer/vault.yml"})
@@ -185,7 +197,8 @@ func TestMergeRedactCompatUnchangedByNewFlags(t *testing.T) {
 // TestMergeRedactWinsOverSkipVaultFlag confirms REDACT=1 wins outright
 // even when --skip-vault is also given: the flag alone selects defer
 // mode, but REDACT=1 forces redact mode regardless (graft.OperatorState.
-// IsRedactMode, engine.go's evaluate).
+// IsRedactMode, engine.go's evaluate) - so, like the REDACT-only case
+// above, this is a clean exit-0 merge, not a partial one.
 func TestMergeRedactWinsOverSkipVaultFlag(t *testing.T) {
 	t.Setenv("REDACT", "1")
 	stdout, stderr, rc := runMerge(t, []string{"merge", "--skip-vault", "../../assets/skip-defer/vault.yml"})
@@ -211,9 +224,9 @@ func TestMergeSkipVaultRoundTrip(t *testing.T) {
 	vaultbackend.SecretCache.Reset()
 	defer vaultbackend.SecretCache.Reset()
 
-	firstOut, firstErr, firstRC := runMerge(t, []string{"merge", "--skip-vault", "../../assets/vault/self-reference.yml"})
-	if firstRC != 0 {
-		t.Fatalf("first (deferred) merge rc = %d, stderr: %s", firstRC, firstErr)
+	firstOut, firstErr, firstRC := runMerge(t, []string{"merge", "--skip-vault", "--report-deferred=none", "../../assets/vault/self-reference.yml"})
+	if firstRC != 3 {
+		t.Fatalf("first (deferred) merge rc = %d, want 3, stderr: %s", firstRC, firstErr)
 	}
 	if firstErr != "" {
 		t.Fatalf("first (deferred) merge stderr = %q, want empty", firstErr)
@@ -228,7 +241,7 @@ func TestMergeSkipVaultRoundTrip(t *testing.T) {
 	withGlobalVaultReader(selfReferencingPathReader{}, func() {
 		secondOut, secondErr, secondRC := runMerge(t, []string{"merge", deferredFile})
 		if secondRC != 0 {
-			t.Fatalf("second (live) merge rc = %d, stderr: %s", secondRC, secondErr)
+			t.Fatalf("second (live) merge rc = %d, want 0 (nothing deferred this time), stderr: %s", secondRC, secondErr)
 		}
 		if secondErr != "" {
 			t.Fatalf("second (live) merge stderr = %q, want empty", secondErr)

@@ -537,6 +537,45 @@ func (e *PathError) Code() ErrorCode {
 	return ClassifyError(e.Cause)
 }
 
+// PartialEvaluationError wraps an evaluation failure with the
+// partially-evaluated document tree that existed at the moment of
+// failure: every operator that already succeeded holds its resolved
+// value, and every operator that failed (or was never reached, e.g. a
+// dependent of a failed operator) still carries its original,
+// unevaluated "(( ... ))" text. Engine.Evaluate returns this instead of
+// a bare error whenever evaluation fails, so a caller that wants a
+// partial result - graft merge --defer-on-error/--adaptive; see
+// cmd/graft's adaptive-merge loop - can retrieve Tree via errors.As.
+//
+// This is purely additive for every other caller: Error() delegates
+// verbatim to Err's own message (preserving the genesis-compat-contract
+// "N error(s) detected:\n - $.path: msg" byte format that MultiError.
+// Error() produces - see that method's doc comment), and Unwrap()
+// exposes Err for further errors.Is/errors.As traversal (e.g.
+// mergeBuilderImpl's isMergerError, which does errors.As(err,
+// &multiErr) and does not need to change), so a caller that only checks
+// "err != nil", or unwraps to a *MultiError/*PathError/other error type
+// as it already does today, sees no behavior change at all.
+type PartialEvaluationError struct {
+	// Err is the original evaluation error (typically a MultiError of
+	// *PathError values, one per failed operator - see RunOps).
+	Err error
+	// Tree is the partially-evaluated document as of the failure. Never
+	// nil (Engine.Evaluate always supplies one, via NewDocument, which
+	// is itself nil-safe).
+	Tree Document
+}
+
+// Error returns Err's message verbatim.
+func (e *PartialEvaluationError) Error() string {
+	return e.Err.Error()
+}
+
+// Unwrap exposes Err for errors.Is/errors.As.
+func (e *PartialEvaluationError) Unwrap() error {
+	return e.Err
+}
+
 // ClassifyError returns the ErrorCode for err, or "" if err does not match
 // any known code. It checks, in order: an explicit CodedError anywhere in
 // err's Unwrap chain (GraftError.Code(), or a WithCode tag); well-known

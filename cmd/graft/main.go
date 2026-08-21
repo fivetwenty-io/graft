@@ -156,6 +156,22 @@ type mergeOpts struct {
 	// callers that never set it - fan, debug, vaultinfo, tests -
 	// behave exactly as before it existed.
 	CacheCfg config.CacheConfig
+
+	// DeferOnError selects `graft merge --defer-on-error`/`--adaptive`'s
+	// retry loop (adaptive_merge.go) instead of a single evaluation pass:
+	// an operator failure defers that expression (and any other newly-
+	// failing path each subsequent round reveals) instead of failing the
+	// whole merge, until the merge succeeds or no further progress is
+	// possible. false (the default) is a plain merge, byte-identical to
+	// before this flag existed.
+	DeferOnError bool
+
+	// ReportDeferred is the raw --report-deferred value, defaulting to
+	// defaultReportPlacement ("beginning") at the flag registration
+	// itself; see deferred_report.go. Applies whenever anything
+	// deferred, from either DeferOnError's own loop or a --skip-vault/
+	// --skip-aws/--skip-nats flag (EngineOpts above).
+	ReportDeferred string
 }
 
 // hasHistoryFlag reports whether any of the merge --history/--trace-path/
@@ -251,30 +267,110 @@ func applyNoColorOverride(colorOverride *bool, noColor bool) *bool {
 	return colorOverride
 }
 
+// handleMerge runs a normal merge and prints the result, unless
+// opts.DeferOnError selects the adaptive-merge retry loop instead (see
+// handleAdaptiveMerge). Either way, a merge that deferred anything -
+// DeferOnError's own loop, or a --skip-vault/--skip-aws/--skip-nats flag
+// (tracked on the engine regardless of which path evaluates it) - is a
+// "successful partial merge": rendered with opts.ReportDeferred's
+// comment placement (renderMergedTreeWithReport) and reported via exit
+// code 3, distinct from both a clean merge (0) and a hard failure
+// (existing nonzero codes, unchanged). A merge that never defers
+// anything is completely unaffected by any of this machinery existing -
+// renderMergedTreeWithReport(tree, nil, placement) is byte-identical to
+// the plain renderMergedTree(tree) it replaces.
 func handleMerge(opts *mergeOpts) int {
 	if err := opts.validateHistoryFlags(); err != nil {
 		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{%s}", err.Error()))
+		return 1
+	}
+	if opts.DeferOnError && opts.hasHistoryFlag() {
+		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{--defer-on-error/--adaptive cannot be combined with --history/--trace-path/--show-changes/--changes-only}"))
 		return 1
 	}
 	if opts.hasHistoryFlag() {
 		return handleMergeHistory(opts)
 	}
 
-	if store := openMergeOutputCache(opts); store != nil {
-		return handleMergeCached(opts, store)
+	placement, err := parseReportPlacement(opts.ReportDeferred)
+	if err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 1
 	}
 
-	tree, _, err := cmdMergeEval(opts)
+	if opts.DeferOnError {
+		return handleAdaptiveMerge(opts, placement)
+	}
+
+	if store := openMergeOutputCache(opts); store != nil {
+		return handleMergeCached(opts, store, placement)
+	}
+
+	tree, engine, err := cmdMergeEval(opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
 	}
 
-	out, rc := renderMergedTree(tree)
+	var deferred []graft.DeferredPath
+	if engine != nil {
+		deferred = engine.GetOperatorState().GetDeferredPaths()
+	}
+
+	out, rc := renderMergedTreeWithReport(tree, deferred, placement)
 	if rc != 0 {
 		return rc
 	}
 	printStdOutf("%s", string(out))
+	if len(deferred) > 0 {
+		return 3
+	}
+	return 0
+}
+
+// handleAdaptiveMerge implements `graft merge --defer-on-error`/
+// `--adaptive`: resolves input files and builds the engine exactly like
+// a normal merge (buildEngineAndDocs), then drives runAdaptiveMerge's
+// retry loop (adaptive_merge.go) and renders its result the same way a
+// normal merge does. A hard failure (runAdaptiveMerge's own error
+// return - a construction-time failure, a genuine operator-dependency
+// cycle, or the merge simply never converging) prints and exits exactly
+// like a normal merge failure would: runAdaptiveMerge's error is either
+// the *graft.PartialEvaluationError-wrapped MultiError a plain merge
+// would have failed with (Error() delegates to it verbatim, preserving
+// the genesis-compat-contract stderr format) or a plain construction
+// error, either way unaffected by having gone through the adaptive loop.
+func handleAdaptiveMerge(opts *mergeOpts, placement reportPlacement) int {
+	files, err := resolveMergeInputFiles(opts)
+	if err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 2
+	}
+
+	engine, docs, err := buildEngineAndDocs(files, opts)
+	if err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 2
+	}
+
+	result, err := runAdaptiveMerge(context.TODO(), engine, docs, adaptiveMergeOptions{
+		FallbackAppend: opts.FallbackAppend,
+		CherryPick:     opts.CherryPick,
+		Prune:          opts.Prune,
+	})
+	if err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 2
+	}
+
+	out, rc := renderMergedTreeWithReport(result.Tree, result.Deferred, placement)
+	if rc != 0 {
+		return rc
+	}
+	printStdOutf("%s", string(out))
+	if len(result.Deferred) > 0 {
+		return 3
+	}
 	return 0
 }
 
@@ -293,23 +389,16 @@ func handleMerge(opts *mergeOpts) int {
 // docs/spruce/cli-surface.md's "stdin, stdout, and file arguments"
 // section and docs/spruce/genesis-compat-contract.md's "Output byte
 // stability across versions" for the full writeup.
+//
+// This is now a thin wrapper around renderMergedTreeWithReport
+// (deferred_report.go), which subsumes it exactly (a nil/empty deferred
+// slice is byte-identical to this function's own prior, standalone
+// implementation) - kept under its original name since it is the
+// natural entry point for the "no --report-deferred involved at all"
+// case (e.g. `graft fan`, which has no deferred-path concept of its
+// own).
 func renderMergedTree(tree map[string]interface{}) ([]byte, int) {
-	log.TRACE("Converting the following data back to YML:")
-	log.TRACE("%#v", tree)
-
-	if cycleErr := graft.CheckForCycles(tree, 4096); cycleErr != nil {
-		log.PrintStdErrf("%s\n", cycleErr.Error())
-		return nil, 2
-	}
-
-	merged, err := graft.MarshalYAML(tree)
-	if err != nil {
-		log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
-		return nil, 2
-	}
-
-	out := append([]byte("---\n"), merged...)
-	return append(out, '\n'), 0
+	return renderMergedTreeWithReport(tree, nil, reportPlacementNone)
 }
 
 func handleFan(opts *mergeOpts) int {
@@ -985,6 +1074,8 @@ func newRootCmd() (*cobra.Command, *bool) {
 	var mergeHistory, mergeShowChanges, mergeChangesOnly, mergeInteractive bool
 	var mergeTracePath string
 	var mergeSkipVault, mergeSkipAws, mergeSkipNats bool
+	var mergeDeferOnError, mergeAdaptive bool
+	var mergeReportDeferred string
 
 	mergeCmd := &cobra.Command{
 		Use:   "merge [files...]",
@@ -1022,6 +1113,11 @@ func newRootCmd() (*cobra.Command, *bool) {
 				ChangesOnly:    mergeChangesOnly,
 				EngineOpts:     engineOpts,
 				CacheCfg:       loadedConfig.Cache,
+				// --adaptive is a plain alias for --defer-on-error (the
+				// canonical name, see docs/reference/cli.md); either one
+				// given selects the adaptive-merge retry loop.
+				DeferOnError:   mergeDeferOnError || mergeAdaptive,
+				ReportDeferred: mergeReportDeferred,
 			}
 			if mergeInteractive {
 				exit(handleDebug(args, opts, os.Stdin, os.Stdout))
@@ -1035,6 +1131,9 @@ func newRootCmd() (*cobra.Command, *bool) {
 	mergeCmd.Flags().BoolVar(&mergeSkipVault, "skip-vault", false, "Defer (( vault ... ))/(( vault-try ... )) calls instead of contacting Vault, leaving the expression intact in the output (also covers OpenBao: same API, same operator). REDACT=1 is unaffected and keeps returning \"REDACTED\" regardless of this flag.")
 	mergeCmd.Flags().BoolVar(&mergeSkipAws, "skip-aws", false, "Defer (( awsparam ... ))/(( awssecret ... )) calls instead of contacting AWS, leaving the expression intact in the output. REDACT=1 is unaffected.")
 	mergeCmd.Flags().BoolVar(&mergeSkipNats, "skip-nats", false, "Defer (( nats ... )) calls instead of contacting NATS, leaving the expression intact in the output. REDACT=1 is unaffected.")
+	mergeCmd.Flags().BoolVar(&mergeDeferOnError, "defer-on-error", false, "On an operator failure, defer that expression (and any dependent path a later retry round reveals) and re-merge, instead of failing the whole merge. Exits 3 (not 0) if anything was deferred. See --report-deferred.")
+	mergeCmd.Flags().BoolVar(&mergeAdaptive, "adaptive", false, "Alias for --defer-on-error.")
+	mergeCmd.Flags().StringVar(&mergeReportDeferred, "report-deferred", string(defaultReportPlacement), "Where to report deferred keys (from --defer-on-error/--adaptive or --skip-vault/--skip-aws/--skip-nats) as YAML comments in the output: beginning, inline, end, or none")
 	mergeCmd.Flags().StringArrayVar(&mergePrune, "prune", nil, "Specify keys to prune from final output (may be specified more than once)")
 	mergeCmd.Flags().StringArrayVar(&mergeCherryPick, "cherry-pick", nil, "The opposite of prune, specify keys to cherry-pick from final output (may be specified more than once)")
 	mergeCmd.Flags().BoolVar(&mergeFallbackAppend, "fallback-append", false, "Default merge normally tries to key merge, then inline. This flag says do an append instead of an inline.")

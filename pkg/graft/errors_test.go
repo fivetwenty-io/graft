@@ -1,6 +1,7 @@
 package graft_test
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"regexp"
@@ -461,4 +462,185 @@ func TestGraftErrorCodeExhaustive(t *testing.T) {
 			}
 		})
 	}
+}
+
+// --- PartialEvaluationError (plans/dennis-feedback-gaps.md Item 2's
+// "engineering gap": Evaluate discarded ev.Tree on error) ------------------
+
+// TestEngineEvaluateReturnsPartialEvaluationErrorOnFailure pins the core
+// engineering-gap fix: Engine.Evaluate, on an evaluation failure, wraps
+// the error in *graft.PartialEvaluationError carrying the partially-
+// evaluated tree (every operator that already succeeded holds its real
+// value; the one that failed still carries its own "(( ... ))" text) -
+// exactly what graft merge --defer-on-error's adaptive loop needs to
+// retry with.
+func TestEngineEvaluateReturnsPartialEvaluationErrorOnFailure(t *testing.T) {
+	engine, err := graft.NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	doc, err := engine.ParseYAML([]byte(`
+meta:
+  password: (( vault "secret/db:password" ))
+database:
+  connection: (( grab meta.password ))
+`))
+	if err != nil {
+		t.Fatalf("ParseYAML: %v", err)
+	}
+
+	result, evalErr := engine.Evaluate(context.Background(), doc)
+	if evalErr == nil {
+		t.Fatal("expected an evaluation error (no Vault reachable in this environment)")
+	}
+	if result != nil {
+		t.Fatalf("expected a nil Document alongside the error, got %v", result)
+	}
+
+	var partial *graft.PartialEvaluationError
+	if !errors.As(evalErr, &partial) {
+		t.Fatalf("expected *graft.PartialEvaluationError, got %T: %v", evalErr, evalErr)
+	}
+	if partial.Tree == nil {
+		t.Fatal("PartialEvaluationError.Tree must not be nil")
+	}
+
+	tree, ok := partial.Tree.RawData().(map[string]interface{})
+	if !ok {
+		t.Fatalf("Tree.RawData() = %T, want map[string]interface{}", partial.Tree.RawData())
+	}
+	dbSection, ok := tree["database"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("tree[\"database\"] = %T, want map[string]interface{}", tree["database"])
+	}
+	// grab's dependent copies the still-raw vault text rather than
+	// erroring - a genuinely different failing operator's dependents
+	// would still show their own *PathError, but a plain grab/copy of a
+	// failed sibling's raw expression text is not itself an error.
+	if dbSection["connection"] != `(( vault "secret/db:password" ))` {
+		t.Fatalf("database.connection = %v, want the raw vault expression", dbSection["connection"])
+	}
+
+	// Error() must delegate verbatim to the wrapped error - the genesis-
+	// compat-contract byte format (MultiError.Error()) is unaffected by
+	// this wrapping.
+	var multi graft.MultiError
+	if !errors.As(evalErr, &multi) {
+		t.Fatalf("expected the wrapped error to still be reachable as *graft.MultiError via errors.As, got %T", partial.Err)
+	}
+	if evalErr.Error() != multi.Error() {
+		t.Fatalf("PartialEvaluationError.Error() = %q, want the wrapped MultiError's own Error() text %q", evalErr.Error(), multi.Error())
+	}
+
+	// Unwrap() exposes the *PathError for the one failing operator.
+	var pe *graft.PathError
+	if !errors.As(evalErr, &pe) {
+		t.Fatalf("expected a *graft.PathError reachable via errors.As, got none")
+	}
+	if pe.Path != "meta.password" {
+		t.Fatalf("PathError.Path = %q, want %q", pe.Path, "meta.password")
+	}
+}
+
+// TestEngineEvaluateSuccessUnaffectedByPartialEvaluationError confirms a
+// clean (non-failing) Evaluate call is completely unaffected by the
+// PartialEvaluationError wrapping: still returns (Document, nil).
+func TestEngineEvaluateSuccessUnaffectedByPartialEvaluationError(t *testing.T) {
+	engine, err := graft.NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	doc, err := engine.ParseYAML([]byte("a: 1\nb: (( grab a ))\n"))
+	if err != nil {
+		t.Fatalf("ParseYAML: %v", err)
+	}
+	result, evalErr := engine.Evaluate(context.Background(), doc)
+	if evalErr != nil {
+		t.Fatalf("Evaluate() error = %v, want nil", evalErr)
+	}
+	if result == nil {
+		t.Fatal("expected a non-nil Document on success")
+	}
+	b, err := result.GetInt("b")
+	if err != nil || b != 1 {
+		t.Fatalf("b = %v (err %v), want 1", b, err)
+	}
+}
+
+// --- MarshalYAMLWithComments (graft merge --report-deferred=inline) -------
+
+func TestMarshalYAMLWithCommentsNilIsIdenticalToMarshalYAML(t *testing.T) {
+	tree := map[string]interface{}{"a": 1, "b": map[string]interface{}{"c": "d"}}
+	plain, err := graft.MarshalYAML(tree)
+	if err != nil {
+		t.Fatalf("MarshalYAML: %v", err)
+	}
+	withNil, err := graft.MarshalYAMLWithComments(tree, nil)
+	if err != nil {
+		t.Fatalf("MarshalYAMLWithComments(nil): %v", err)
+	}
+	if string(plain) != string(withNil) {
+		t.Fatalf("MarshalYAMLWithComments(v, nil) = %q, want MarshalYAML(v)'s own output %q", withNil, plain)
+	}
+}
+
+func TestMarshalYAMLWithCommentsPlacesHeadCommentAboveMapKey(t *testing.T) {
+	tree := map[string]interface{}{
+		"meta": map[string]interface{}{
+			"password": `(( vault "secret/db:password" ))`,
+		},
+		"other": "value",
+	}
+	out, err := graft.MarshalYAMLWithComments(tree, []graft.YAMLHeadComment{
+		{Path: "meta.password", Lines: []string{" graft: deferred $.meta.password: some reason"}},
+	})
+	if err != nil {
+		t.Fatalf("MarshalYAMLWithComments: %v", err)
+	}
+	want := "meta:\n  # graft: deferred $.meta.password: some reason\n  password: (( vault \"secret/db:password\" ))\nother: value\n"
+	if string(out) != want {
+		t.Fatalf("output =\n%s\nwant:\n%s", out, want)
+	}
+}
+
+func TestMarshalYAMLWithCommentsListIndexPath(t *testing.T) {
+	tree := map[string]interface{}{
+		"jobs": []interface{}{
+			map[string]interface{}{"name": "one"},
+			map[string]interface{}{"name": `(( vault "secret/db:name" ))`},
+		},
+	}
+	out, err := graft.MarshalYAMLWithComments(tree, []graft.YAMLHeadComment{
+		{Path: "jobs.1.name", Lines: []string{" graft: deferred $.jobs.1.name: some reason"}},
+	})
+	if err != nil {
+		t.Fatalf("MarshalYAMLWithComments: %v", err)
+	}
+	if !bytesContainsString(out, "# graft: deferred $.jobs.1.name: some reason") {
+		t.Fatalf("output missing the expected comment line:\n%s", out)
+	}
+	if !bytesContainsString(out, `name: (( vault "secret/db:name" ))`) {
+		t.Fatalf("output missing the deferred list-entry value:\n%s", out)
+	}
+}
+
+func TestMarshalYAMLWithCommentsUnresolvablePathIsSkippedNotFatal(t *testing.T) {
+	tree := map[string]interface{}{"a": 1}
+	out, err := graft.MarshalYAMLWithComments(tree, []graft.YAMLHeadComment{
+		{Path: "", Lines: []string{" graft: unreachable"}},
+		{Path: "a['weird]", Lines: []string{" graft: also unreachable"}},
+	})
+	if err != nil {
+		t.Fatalf("MarshalYAMLWithComments: %v", err)
+	}
+	if bytesContainsString(out, "unreachable") {
+		t.Fatalf("expected unresolvable comment paths to be silently skipped, got:\n%s", out)
+	}
+	if string(out) != "a: 1\n" {
+		t.Fatalf("output = %q, want %q (document unaffected by the skipped comments)", out, "a: 1\n")
+	}
+}
+
+func bytesContainsString(b []byte, s string) bool {
+	return regexp.MustCompile(regexp.QuoteMeta(s)).Match(b)
 }

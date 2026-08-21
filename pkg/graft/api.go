@@ -234,13 +234,17 @@ type OperatorState interface {
 	SetRedactMode(v bool)
 	IsRedactMode() bool
 
-	// Deferred-path bookkeeping: every tree path a --skip-<backend> flag
-	// (not REDACT) caused to defer instead of evaluating, recorded by
-	// op_skip_defer.go's deferSkippedCall. This is intentionally minimal
-	// (paths only, no per-path error/reason) - Phase 4's
-	// --report-deferred machinery is expected to build on it.
-	AddDeferredPath(path string)
-	GetDeferredPaths() []string
+	// Deferred-path bookkeeping: every tree path that ended up deferred -
+	// left with its own "(( ... ))" expression intact instead of a
+	// resolved value - and why. Two sources feed this, both read back
+	// together by cmd/graft's --report-deferred comment rendering
+	// (graft merge --defer-on-error/--adaptive, and any of --skip-vault/
+	// --skip-aws/--skip-nats): op_skip_defer.go's deferSkippedCall
+	// records a skip-flag deferral the moment an operator defers itself
+	// during evaluation; the adaptive-merge loop (cmd/graft) records its
+	// own deferrals as it discovers them across retry rounds.
+	AddDeferredPath(path, reason string)
+	GetDeferredPaths() []DeferredPath
 	ResetDeferredPaths()
 
 	// AWS skip
@@ -274,6 +278,18 @@ type OperatorState interface {
 	// Warning suppression
 	SuppressWarnings() bool
 	SetSuppressWarnings(v bool)
+}
+
+// DeferredPath is one deferred tree path recorded via OperatorState.
+// AddDeferredPath: Path is the dotted document path (Cursor.String()
+// form, no leading "$."), and Reason is a short, human-readable
+// explanation - either the original operator error (graft merge
+// --defer-on-error/--adaptive) or a fixed "skipped (--skip-<backend>)"
+// string (the --skip-vault/--skip-aws/--skip-nats flags) - suitable for
+// direct display, e.g. in cmd/graft's --report-deferred comments.
+type DeferredPath struct {
+	Path   string
+	Reason string
 }
 
 // ArrayMergeStrategy defines how arrays are merged.

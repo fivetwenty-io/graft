@@ -54,12 +54,12 @@ type DefaultEngine struct {
 	// is safe in practice).
 	redactMode bool
 
-	// deferredPaths lists every tree path (Cursor.String()) a
-	// --skip-vault/--skip-aws/--skip-nats flag (redactMode false) caused
-	// to defer instead of evaluating - see op_skip_defer.go. Guarded by
-	// deferMutex. Intentionally minimal (paths only): Phase 4's
-	// --report-deferred machinery is expected to build on this.
-	deferredPaths []string
+	// deferredPaths lists every tree path deferred so far, from either
+	// source: a --skip-vault/--skip-aws/--skip-nats flag (redactMode
+	// false - see op_skip_defer.go), or graft merge --defer-on-error/
+	// --adaptive's own retry loop (cmd/graft). Guarded by deferMutex. Read
+	// back by cmd/graft's --report-deferred comment rendering.
+	deferredPaths []DeferredPath
 	deferMutex    sync.RWMutex
 
 	// AWS state (client and cache live in internal/backends/aws)
@@ -239,21 +239,19 @@ func (e *DefaultEngine) IsRedactMode() bool {
 }
 
 // AddDeferredPath records that path (Cursor.String()) deferred instead
-// of evaluating, because of a --skip-vault/--skip-aws/--skip-nats flag
-// (not REDACT - see IsRedactMode). See the deferredPaths field's doc
-// comment.
-func (e *DefaultEngine) AddDeferredPath(path string) {
+// of evaluating, and why. See the deferredPaths field's doc comment.
+func (e *DefaultEngine) AddDeferredPath(path, reason string) {
 	e.deferMutex.Lock()
 	defer e.deferMutex.Unlock()
-	e.deferredPaths = append(e.deferredPaths, path)
+	e.deferredPaths = append(e.deferredPaths, DeferredPath{Path: path, Reason: reason})
 }
 
-// GetDeferredPaths returns a copy of the tree paths deferred so far.
-func (e *DefaultEngine) GetDeferredPaths() []string {
+// GetDeferredPaths returns a copy of the paths deferred so far.
+func (e *DefaultEngine) GetDeferredPaths() []DeferredPath {
 	e.deferMutex.RLock()
 	defer e.deferMutex.RUnlock()
 
-	paths := make([]string, len(e.deferredPaths))
+	paths := make([]DeferredPath, len(e.deferredPaths))
 	copy(paths, e.deferredPaths)
 	return paths
 }
@@ -909,7 +907,15 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 	// Run evaluation
 	err := e.evaluate(ctx, ev, false)
 	if err != nil {
-		return nil, err
+		// ev.Tree is always populated by this point (createEvaluator set
+		// it before evaluate() ran, and evaluate() only ever accumulates
+		// errors onto it - it never discards or resets the tree itself),
+		// so it is always the best partial result available for this
+		// failure: every operator that already ran is resolved, and
+		// every operator that failed still carries its own "(( ... ))"
+		// text. See PartialEvaluationError's doc comment for why
+		// wrapping here is safe for every existing caller.
+		return nil, &PartialEvaluationError{Err: err, Tree: NewDocument(ev.Tree)}
 	}
 
 	// Return evaluated document

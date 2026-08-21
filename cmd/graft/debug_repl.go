@@ -850,17 +850,33 @@ func applyDeferredWrapping(tree map[string]interface{}, deferred map[string]bool
 		if !isStr {
 			continue
 		}
-		trimmed := strings.TrimSpace(s)
-		if !strings.HasPrefix(trimmed, "((") || !strings.HasSuffix(trimmed, "))") {
-			continue
+		if wrapped, changed := deferWrapIfOperator(s); changed {
+			setDottedPath(out, path, wrapped)
 		}
-		inner := strings.TrimSpace(trimmed[2 : len(trimmed)-2])
-		if strings.HasPrefix(inner, "defer ") {
-			continue // already deferred
-		}
-		setDottedPath(out, path, "(( defer "+inner+" ))")
 	}
 	return out
+}
+
+// deferWrapIfOperator rewrites s to "(( defer <inner> ))" when s is an
+// unevaluated "(( ... ))" operator call not already wrapped in defer,
+// reporting changed=true. Any other string (already defer-wrapped, or
+// not an operator call at all - ordinary data) is returned unchanged
+// with changed=false. Shared by applyDeferredWrapping's path-keyed
+// rewrite above (a human-chosen set of paths, via graft debug's
+// cmdDefer) and adaptive_merge.go's deferAllUnevaluatedOperators (every
+// still-unevaluated-looking leaf in a tree, via graft merge
+// --defer-on-error's retry loop) - both need the exact same "is this
+// text an operator call, and if so what do I wrap it as" decision.
+func deferWrapIfOperator(s string) (wrapped string, changed bool) {
+	trimmed := strings.TrimSpace(s)
+	if !strings.HasPrefix(trimmed, "((") || !strings.HasSuffix(trimmed, "))") {
+		return s, false
+	}
+	inner := strings.TrimSpace(trimmed[2 : len(trimmed)-2])
+	if strings.HasPrefix(inner, "defer ") {
+		return s, false // already deferred
+	}
+	return "(( defer " + inner + " ))", true
 }
 
 func deepCopyTree(v interface{}) map[string]interface{} {

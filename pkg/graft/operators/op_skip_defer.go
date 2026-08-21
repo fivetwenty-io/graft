@@ -1,6 +1,9 @@
 package operators
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // This file implements the shared "--skip-vault"/"--skip-aws"/
 // "--skip-nats" defer behavior: when one of these CLI flags (not
@@ -24,10 +27,30 @@ import "strings"
 // of erroring - see docs/user-guide/secrets/vault.md and
 // plans/dennis-feedback-gaps.md's Item 3 "transitive defer" requirement.
 func deferSkippedCall(ev *Evaluator, engine Engine, name string, args []*Expr) *Response {
-	engine.GetOperatorState().AddDeferredPath(ev.Here.String())
+	reason := fmt.Sprintf("skipped (--skip-%s)", skipFlagBackend(name))
+	engine.GetOperatorState().AddDeferredPath(ev.Here.String(), reason)
 	return &Response{
 		Type:  Replace,
 		Value: reconstructDeferredCall(operatorNameWithModifiers(name, ev), args),
+	}
+}
+
+// skipFlagBackend maps an operator name to the --skip-<backend> flag
+// name that defers it (cmd/graft's merge flags), for deferSkippedCall's
+// reason text: "vault"/"vault-try" both defer under --skip-vault,
+// "awsparam"/"awssecret" under --skip-aws, and "nats" under --skip-nats.
+// An unrecognized name (defensive only - every caller today passes one
+// of the five above) passes through unchanged rather than panicking.
+func skipFlagBackend(operatorName string) string {
+	switch operatorName {
+	case "vault", "vault-try":
+		return "vault"
+	case "awsparam", "awssecret":
+		return "aws"
+	case "nats":
+		return "nats"
+	default:
+		return operatorName
 	}
 }
 

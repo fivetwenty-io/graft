@@ -105,8 +105,9 @@ func decodeCachedOutput(data []byte) (cachedMergeOutput, bool) {
 // cache in front: resolve and read every input up front, replay a hit's
 // stored stdout/stderr bytes, and on a miss run the ordinary merge with
 // stderr teed so a successful, cacheable run can be stored for next
-// time.
-func handleMergeCached(opts *mergeOpts, store *cache.FileStore) int {
+// time. placement is the already-validated --report-deferred placement
+// (see parseReportPlacement, called once by handleMerge).
+func handleMergeCached(opts *mergeOpts, store *cache.FileStore, placement reportPlacement) int {
 	files, err := resolveMergeInputFiles(opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
@@ -152,13 +153,24 @@ func handleMergeCached(opts *mergeOpts, store *cache.FileStore) int {
 	}
 	defer func() { log.PrintStdErrf = origErrf }()
 
-	tree, _, err := mergeAllDocs(files, opts)
+	tree, engine, err := mergeAllDocs(files, opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
 	}
 
-	out, rc := renderMergedTree(tree)
+	// A merge that deferred anything (--skip-vault/--skip-aws/--skip-nats;
+	// --defer-on-error never reaches this cache path at all - see
+	// handleMerge) always used at least one vault/awsparam/awssecret/nats
+	// call, which outputCacheable below already excludes from caching
+	// unconditionally, so reporting it here costs this cache path
+	// nothing on the common (no-deferral, fully cacheable) path.
+	var deferred []graft.DeferredPath
+	if engine != nil {
+		deferred = engine.GetOperatorState().GetDeferredPaths()
+	}
+
+	out, rc := renderMergedTreeWithReport(tree, deferred, placement)
 	if rc != 0 {
 		return rc
 	}
@@ -169,6 +181,9 @@ func handleMergeCached(opts *mergeOpts, store *cache.FileStore) int {
 		if encoded, encErr := encodeCachedOutput(entry); encErr == nil {
 			_ = store.Put(key, encoded)
 		}
+	}
+	if len(deferred) > 0 {
+		return 3
 	}
 	return 0
 }
