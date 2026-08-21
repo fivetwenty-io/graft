@@ -245,7 +245,33 @@ func stripColorPrefix(s, prefix string) string {
 //nolint:gochecknoinits // Environment-based color detection must happen at startup
 func init() {
 	// Auto-detect if terminal supports colors
-	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
+	if !EnvAllowsColor() {
 		colorEnabled = false
 	}
+}
+
+// EnvAllowsColor reports whether the NO_COLOR and TERM environment
+// variables permit color output: false when NO_COLOR is set to any
+// non-empty value (https://no-color.org), or when TERM is "dumb"; true
+// otherwise. It does not consider whether output is a terminal - see
+// ResolveColor for that.
+func EnvAllowsColor() bool {
+	return os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
+}
+
+// ResolveColor decides whether color output should be enabled, given an
+// optional explicit override and whether the relevant output stream is a
+// terminal. Precedence, highest first:
+//
+//  1. explicit - non-nil when the caller passed an explicit flag such as
+//     --color/--no-color; its value wins outright.
+//  2. environment - EnvAllowsColor() (NO_COLOR/TERM) must permit color.
+//  3. isTTY - the output stream must be a terminal.
+//
+// Both 2 and 3 must hold for color to be enabled when explicit is nil.
+func ResolveColor(explicit *bool, isTTY bool) bool {
+	if explicit != nil {
+		return *explicit
+	}
+	return EnvAllowsColor() && isTTY
 }

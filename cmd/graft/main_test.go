@@ -16,7 +16,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
-	"github.com/mattn/go-isatty"
 	. "github.com/smartystreets/goconvey/convey"
 
 	"github.com/fivetwenty-io/graft/internal/config"
@@ -2779,7 +2778,7 @@ new_key: 10
 			})
 			Convey("go-patch parse-error stderr is byte-exact with HEAD under --color=on (F13 pin)", func() {
 				defer ansi.Color(false) // restore the test-suite default (see init()) for every later test
-				os.Args = []string{"graft", "--color", "on", "merge", "--go-patch", "../../assets/go-patch/base.yml", "../../assets/go-patch/bad.yml"}
+				os.Args = []string{"graft", "--color=on", "merge", "--go-patch", "../../assets/go-patch/base.yml", "../../assets/go-patch/bad.yml"}
 				stdout = ""
 				stderr = ""
 				main()
@@ -2795,7 +2794,7 @@ new_key: 10
 			})
 			Convey("go-patch definition parsing errors are byte-exact with HEAD under --color=on (F13 pin)", func() {
 				defer ansi.Color(false) // restore the test-suite default (see init()) for every later test
-				os.Args = []string{"graft", "--color", "on", "merge", "--go-patch", "../../assets/go-patch/base.yml", "../../assets/go-patch/badtype.yml"}
+				os.Args = []string{"graft", "--color=on", "merge", "--go-patch", "../../assets/go-patch/base.yml", "../../assets/go-patch/badtype.yml"}
 				stdout = ""
 				stderr = ""
 				main()
@@ -2873,24 +2872,145 @@ key2:
 		})
 
 		Convey("Color Options", func() {
-			Convey("--color flag validation", func() {
-				// Test invalid color option
-				os.Args = []string{"graft", "--color", "invalid", "merge", "../../assets/merge/first.yml"}
+			// writeColorTestFile creates a scratch merge document whose
+			// evaluation fails (via an unresolved (( grab ))), so its
+			// stderr is routed through ansi.Errorf and carries ANSI
+			// escapes exactly when color is enabled - the signal every
+			// test below checks for. Cleaned up by the returned func.
+			writeColorTestFile := func(name string) (path string, cleanup func()) {
+				path = filepath.Join(t.TempDir(), name)
+				err := os.WriteFile(path, []byte("test:\n  value: (( grab missing.key ))"), 0o600)
+				So(err, ShouldBeNil)
+				return path, func() { _ = os.Remove(path) }
+			}
+
+			Convey("--color=bogus is rejected with a clear error", func() {
+				os.Args = []string{"graft", "--color=bogus", "merge", "../../assets/merge/first.yml"}
 				stdout = ""
 				stderr = ""
 				rc = 256
 
 				main()
 				So(rc, ShouldEqual, 1)
-				So(stderr, ShouldContainSubstring, "Invalid --color option: invalid")
+				So(stderr, ShouldContainSubstring, `Invalid --color value: "bogus"`)
 			})
 
-			Convey("--color on forces color output", func() {
-				// Create a test file that will produce an error with color
-				testFile := "../../assets/test_color.yml"
-				err := os.WriteFile(testFile, []byte("test:\n  value: (( grab missing.key ))"), 0o600)
-				So(err, ShouldBeNil)
-				defer func() { _ = os.Remove(testFile) }()
+			Convey("bare --color forces color output on and does not consume the next argument", func() {
+				testFile, cleanup := writeColorTestFile("test_color_bare.yml")
+				defer cleanup()
+
+				os.Args = []string{"graft", "--color", "merge", testFile}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 2)
+				So(stderr, ShouldContainSubstring, "\x1b[")
+			})
+
+			Convey("--color=on forces color output on (legacy value form)", func() {
+				testFile, cleanup := writeColorTestFile("test_color_on.yml")
+				defer cleanup()
+
+				os.Args = []string{"graft", "--color=on", "merge", testFile}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 2)
+				So(stderr, ShouldContainSubstring, "\x1b[")
+			})
+
+			Convey("--color=off disables color output", func() {
+				testFile, cleanup := writeColorTestFile("test_color_off.yml")
+				defer cleanup()
+
+				os.Args = []string{"graft", "--color=off", "merge", testFile}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 2)
+				So(stderr, ShouldNotContainSubstring, "\x1b[")
+			})
+
+			Convey("--color=auto defers to NO_COLOR/TERM/tty(stderr) detection, same as omitting the flag", func() {
+				testFile, cleanup := writeColorTestFile("test_color_auto.yml")
+				defer cleanup()
+
+				os.Args = []string{"graft", "--color=auto", "merge", testFile}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 2)
+				// go test's stderr is never a tty, so auto resolves to off.
+				So(stderr, ShouldNotContainSubstring, "\x1b[")
+			})
+
+			Convey("--no-color disables color output", func() {
+				testFile, cleanup := writeColorTestFile("test_no_color.yml")
+				defer cleanup()
+
+				os.Args = []string{"graft", "--no-color", "merge", testFile}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 2)
+				So(stderr, ShouldNotContainSubstring, "\x1b[")
+			})
+
+			Convey("--no-color wins when --color=on is also given", func() {
+				testFile, cleanup := writeColorTestFile("test_no_color_wins.yml")
+				defer cleanup()
+
+				os.Args = []string{"graft", "--color=on", "--no-color", "merge", testFile}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 2)
+				So(stderr, ShouldNotContainSubstring, "\x1b[")
+			})
+
+			Convey("merge: bare --color does not swallow the following filename", func() {
+				os.Args = []string{"graft", "merge", "--color", "../../assets/merge/first.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldNotEqual, "")
+			})
+
+			Convey("vaultinfo: bare --color does not swallow the following filename", func() {
+				os.Args = []string{"graft", "vaultinfo", "--color", "../../assets/vaultinfo/single.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(stderr, ShouldEqual, "")
+				So(stdout, ShouldEqual, `secrets:
+- key: secret/bar:beep
+  references:
+  - meta.foo
+
+`)
+			})
+
+			Convey("space-separated \"--color on file.yml\" is restored by argv normalization (F2 regression pin)", func() {
+				testFile, cleanup := writeColorTestFile("test_color_space_on.yml")
+				defer cleanup()
 
 				os.Args = []string{"graft", "--color", "on", "merge", testFile}
 				stdout = ""
@@ -2899,16 +3019,12 @@ key2:
 
 				main()
 				So(rc, ShouldEqual, 2)
-				// Check for ANSI escape sequences in error output
 				So(stderr, ShouldContainSubstring, "\x1b[")
 			})
 
-			Convey("--color off disables color output", func() {
-				// Create a test file that will produce an error without color
-				testFile := "../../assets/test_color_off.yml"
-				err := os.WriteFile(testFile, []byte("test:\n  value: (( grab missing.key ))"), 0o600)
-				So(err, ShouldBeNil)
-				defer func() { _ = os.Remove(testFile) }()
+			Convey("space-separated \"--color off\" is restored by argv normalization (F2 regression pin)", func() {
+				testFile, cleanup := writeColorTestFile("test_color_space_off.yml")
+				defer cleanup()
 
 				os.Args = []string{"graft", "--color", "off", "merge", testFile}
 				stdout = ""
@@ -2917,8 +3033,23 @@ key2:
 
 				main()
 				So(rc, ShouldEqual, 2)
-				// Check that no ANSI escape sequences are in error output
 				So(stderr, ShouldNotContainSubstring, "\x1b[")
+			})
+
+			Convey("\"--color -- on\" stops normalization at the -- terminator, leaving \"on\" a filename", func() {
+				// After "--", every remaining argument is positional, so
+				// "on" is a (nonexistent) file argument to merge, not
+				// --color's value; --color stays bare, forcing color on.
+				os.Args = []string{"graft", "merge", "--color", "--", "on"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 2)
+				So(stdout, ShouldEqual, "")
+				So(stderr, ShouldContainSubstring, "\x1b[")
+				So(stderr, ShouldContainSubstring, "on")
 			})
 		})
 
@@ -3261,7 +3392,7 @@ key2:
 			})
 
 			Convey("--color=off and --color=on are both honored without error and stay uncolored off a real tty", func() {
-				os.Args = []string{"graft", "diff", "--color", "off", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				os.Args = []string{"graft", "diff", "--color=off", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
 				stdout = ""
 				stderr = ""
 				rc = 256
@@ -3269,7 +3400,7 @@ key2:
 				So(rc, ShouldEqual, 1)
 				So(stdout, ShouldNotContainSubstring, "\x1b[")
 
-				os.Args = []string{"graft", "diff", "--color", "on", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				os.Args = []string{"graft", "diff", "--color=on", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
 				stdout = ""
 				stderr = ""
 				rc = 256
@@ -3278,7 +3409,7 @@ key2:
 			})
 
 			Convey("--color=bogus is rejected as a usage error", func() {
-				os.Args = []string{"graft", "diff", "--color", "bogus", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				os.Args = []string{"graft", "diff", "--color=bogus", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
 				stdout = ""
 				stderr = ""
 				rc = 256
@@ -3386,7 +3517,7 @@ key2:
 			})
 
 			Convey("--no-color disables color even when --color=on is given", func() {
-				os.Args = []string{"graft", "diff", "--color", "on", "--no-color", "--changes", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				os.Args = []string{"graft", "diff", "--color=on", "--no-color", "--changes", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
 				stdout = ""
 				stderr = ""
 				rc = 256
@@ -3394,41 +3525,212 @@ key2:
 				So(rc, ShouldEqual, 1)
 				So(stdout, ShouldNotContainSubstring, "\x1b[")
 			})
+
+			Convey("space-separated \"--color off a.yml a.yml\" exits 0 on identical files, not a false CI failure (F2 regression pin)", func() {
+				// Before normalizeLegacyColorArgs, NoOptDefVal made a
+				// bare --color consume no argument, so "off" was read as
+				// the first positional file and "a.yml" as the second,
+				// leaving the real second file unconsumed - which used
+				// to alias onto diff's "differences found"/usage exit
+				// codes and silently break scripts/CI using this legacy
+				// space-separated form.
+				os.Args = []string{"graft", "diff", "--color", "off", "../../assets/merge/first.yml", "../../assets/merge/first.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+				So(stdout, ShouldNotContainSubstring, "\x1b[")
+			})
+
+			Convey("colored rendering to stdout follows stdout's own tty state in auto mode, not stderr's (F1 regression pin)", func() {
+				// Simulates an interactive shell piping diff's colored
+				// output to a file: stderr is a tty, stdout is not.
+				// Before the fix, auto-mode color for diff's --changes/
+				// --unified/--side-by-side renderers (which write to
+				// stdout) was decided by stderr's tty state, so this
+				// scenario wrongly wrote ANSI escapes into the
+				// redirected file.
+				origStderrTTY, origStdoutTTY := isStderrTTY, isStdoutTTY
+				defer func() { isStderrTTY, isStdoutTTY = origStderrTTY, origStdoutTTY }()
+
+				isStderrTTY = func() bool { return true }
+				isStdoutTTY = func() bool { return false }
+
+				os.Args = []string{"graft", "diff", "--changes", "../../assets/diff/base.yml", "../../assets/diff/modified.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldNotContainSubstring, "\x1b[")
+
+				// Flip the two: stdout is now the tty, stderr is not.
+				// Proves the resolution is actually driven by stdout's
+				// state (not a leftover global stuck at one value) by
+				// getting the opposite answer.
+				isStderrTTY = func() bool { return false }
+				isStdoutTTY = func() bool { return true }
+
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldContainSubstring, "\x1b[")
+			})
 		})
 	})
 }
 
-// TestHandleColorFlag locks the --color decision logic used by handleDiff
-// and the root command's PersistentPreRunE: "on"/"off" are explicit
-// overrides, "auto"/"" defer to isatty(stderr), and anything else is
-// rejected.
-func TestHandleColorFlag(t *testing.T) {
-	Convey("handleColorFlag()", t, func() {
-		Convey("'on' forces color on and is valid", func() {
-			enabled, valid := handleColorFlag("on")
-			So(valid, ShouldBeTrue)
-			So(enabled, ShouldBeTrue)
+// TestNormalizeLegacyColorArgs locks the argv rewrite that restores the
+// pre-existing space-separated `--color <value>` form, which registering
+// --color with a NoOptDefVal otherwise breaks (see the function's doc
+// comment).
+func TestNormalizeLegacyColorArgs(t *testing.T) {
+	Convey("normalizeLegacyColorArgs()", t, func() {
+		Convey("folds --color on <value> into --color=<value>", func() {
+			got := normalizeLegacyColorArgs([]string{"graft", "merge", "--color", "on", "file.yml"})
+			So(got, ShouldResemble, []string{"graft", "merge", "--color=on", "file.yml"})
 		})
-		Convey("'off' forces color off and is valid", func() {
-			enabled, valid := handleColorFlag("off")
-			So(valid, ShouldBeTrue)
-			So(enabled, ShouldBeFalse)
+		Convey("folds --color off into --color=off", func() {
+			got := normalizeLegacyColorArgs([]string{"graft", "diff", "--color", "off", "a.yml", "b.yml"})
+			So(got, ShouldResemble, []string{"graft", "diff", "--color=off", "a.yml", "b.yml"})
 		})
-		Convey("'auto' and '' defer to isatty(stderr) and are valid", func() {
-			want := isatty.IsTerminal(os.Stderr.Fd())
-			enabled, valid := handleColorFlag("auto")
-			So(valid, ShouldBeTrue)
-			So(enabled, ShouldEqual, want)
+		Convey("folds the auto/true/false legacy forms too", func() {
+			So(normalizeLegacyColorArgs([]string{"--color", "auto"}), ShouldResemble, []string{"--color=auto"})
+			So(normalizeLegacyColorArgs([]string{"--color", "true"}), ShouldResemble, []string{"--color=true"})
+			So(normalizeLegacyColorArgs([]string{"--color", "false"}), ShouldResemble, []string{"--color=false"})
+		})
+		Convey("matching is case-insensitive", func() {
+			got := normalizeLegacyColorArgs([]string{"--color", "ON", "file.yml"})
+			So(got, ShouldResemble, []string{"--color=ON", "file.yml"})
+		})
+		Convey("a bare --color followed by a non-legacy-value argument is left untouched", func() {
+			got := normalizeLegacyColorArgs([]string{"graft", "merge", "--color", "file.yml"})
+			So(got, ShouldResemble, []string{"graft", "merge", "--color", "file.yml"})
+		})
+		Convey("a bare --color as the last argument is left untouched", func() {
+			got := normalizeLegacyColorArgs([]string{"graft", "merge", "--color"})
+			So(got, ShouldResemble, []string{"graft", "merge", "--color"})
+		})
+		Convey("--color=on (already the equals form) is left untouched", func() {
+			got := normalizeLegacyColorArgs([]string{"graft", "merge", "--color=on", "file.yml"})
+			So(got, ShouldResemble, []string{"graft", "merge", "--color=on", "file.yml"})
+		})
+		Convey("stops folding at a literal -- terminator", func() {
+			got := normalizeLegacyColorArgs([]string{"graft", "merge", "--color", "--", "on"})
+			So(got, ShouldResemble, []string{"graft", "merge", "--color", "--", "on"})
+		})
+		Convey("only folds the pair immediately after --color, not further --", func() {
+			got := normalizeLegacyColorArgs([]string{"--color", "on", "--color", "off", "f.yml"})
+			So(got, ShouldResemble, []string{"--color=on", "--color=off", "f.yml"})
+		})
+		Convey("an empty argument list is left untouched", func() {
+			got := normalizeLegacyColorArgs([]string{})
+			So(got, ShouldResemble, []string{})
+		})
+	})
+}
 
-			enabled, valid = handleColorFlag("")
-			So(valid, ShouldBeTrue)
-			So(enabled, ShouldEqual, want)
+// TestColorFlagValue locks the --color decision logic used by the root
+// command's PersistentPreRunE: a value from Set("on") - what NoOptDefVal
+// supplies for a bare --color - and the legacy "on"/"true" forms are
+// explicit overrides to on; "off"/"false" are explicit overrides to off;
+// "auto"/""/never-given carry no explicit override (callers fall back to
+// ansi.ResolveColor's env/tty detection); anything else is rejected by
+// resolve(), without Set() itself ever erroring (see colorFlagValue's
+// doc comment for why).
+func TestColorFlagValue(t *testing.T) {
+	Convey("colorFlagValue", t, func() {
+		Convey("never given resolves to no explicit override", func() {
+			var c colorFlagValue
+			override, ok := c.resolve()
+			So(ok, ShouldBeTrue)
+			So(override, ShouldBeNil)
 		})
-		Convey("an unrecognized value is invalid", func() {
-			enabled, valid := handleColorFlag("bogus")
-			So(valid, ShouldBeFalse)
-			So(enabled, ShouldBeFalse)
+		Convey("Set(\"on\") forces color on", func() {
+			var c colorFlagValue
+			So(c.Set("on"), ShouldBeNil)
+			override, ok := c.resolve()
+			So(ok, ShouldBeTrue)
+			So(override, ShouldNotBeNil)
+			So(*override, ShouldBeTrue)
 		})
+		Convey("Set(\"off\") forces color off", func() {
+			var c colorFlagValue
+			So(c.Set("off"), ShouldBeNil)
+			override, ok := c.resolve()
+			So(ok, ShouldBeTrue)
+			So(override, ShouldNotBeNil)
+			So(*override, ShouldBeFalse)
+		})
+		Convey("Set(\"auto\") and Set(\"\") carry no explicit override", func() {
+			var c colorFlagValue
+			So(c.Set("auto"), ShouldBeNil)
+			override, ok := c.resolve()
+			So(ok, ShouldBeTrue)
+			So(override, ShouldBeNil)
+
+			var c2 colorFlagValue
+			So(c2.Set(""), ShouldBeNil)
+			override2, ok2 := c2.resolve()
+			So(ok2, ShouldBeTrue)
+			So(override2, ShouldBeNil)
+		})
+		Convey("legacy \"true\"/\"false\" value forms are accepted", func() {
+			var c colorFlagValue
+			So(c.Set("true"), ShouldBeNil)
+			override, ok := c.resolve()
+			So(ok, ShouldBeTrue)
+			So(*override, ShouldBeTrue)
+
+			var c2 colorFlagValue
+			So(c2.Set("false"), ShouldBeNil)
+			override2, ok2 := c2.resolve()
+			So(ok2, ShouldBeTrue)
+			So(*override2, ShouldBeFalse)
+		})
+		Convey("matching is case-insensitive", func() {
+			var c colorFlagValue
+			So(c.Set("ON"), ShouldBeNil)
+			override, ok := c.resolve()
+			So(ok, ShouldBeTrue)
+			So(*override, ShouldBeTrue)
+		})
+		Convey("an unrecognized value is invalid but Set() itself does not error", func() {
+			var c colorFlagValue
+			So(c.Set("bogus"), ShouldBeNil)
+			override, ok := c.resolve()
+			So(ok, ShouldBeFalse)
+			So(override, ShouldBeNil)
+		})
+	})
+}
+
+// TestNewRootCmdColorFlags locks the --color/--no-color flag wiring
+// PersistentPreRunE relies on: --color is a persistent flag with
+// NoOptDefVal "on" (so a bare --color forces color on instead of
+// consuming the next argument - the swallowed-filename bug this rework
+// fixes), and --no-color is a separate persistent bool flag inherited by
+// every subcommand, including diff, rather than redeclared there.
+func TestNewRootCmdColorFlags(t *testing.T) {
+	Convey("newRootCmd() --color/--no-color wiring", t, func() {
+		rootCmd, _ := newRootCmd()
+
+		colorFlag := rootCmd.PersistentFlags().Lookup("color")
+		So(colorFlag, ShouldNotBeNil)
+		So(colorFlag.NoOptDefVal, ShouldEqual, "on")
+
+		noColorFlag := rootCmd.PersistentFlags().Lookup("no-color")
+		So(noColorFlag, ShouldNotBeNil)
+		So(noColorFlag.DefValue, ShouldEqual, "false")
+
+		diffCmd, _, err := rootCmd.Find([]string{"diff"})
+		So(err, ShouldBeNil)
+		So(diffCmd.Flags().Lookup("no-color"), ShouldBeNil)
+		So(diffCmd.InheritedFlags().Lookup("no-color"), ShouldNotBeNil)
 	})
 }
 

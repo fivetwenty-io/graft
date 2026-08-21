@@ -59,6 +59,68 @@ func TestColorFunctions(t *testing.T) {
 	})
 }
 
+func TestEnvAllowsColor(t *testing.T) {
+	Convey("EnvAllowsColor()", t, func() {
+		Convey("NO_COLOR unset and TERM not dumb allows color", func() {
+			t.Setenv("NO_COLOR", "")
+			t.Setenv("TERM", "xterm-256color")
+			So(EnvAllowsColor(), ShouldBeTrue)
+		})
+		Convey("NO_COLOR set to any non-empty value disallows color", func() {
+			t.Setenv("NO_COLOR", "1")
+			t.Setenv("TERM", "xterm-256color")
+			So(EnvAllowsColor(), ShouldBeFalse)
+		})
+		Convey("TERM=dumb disallows color even when NO_COLOR is unset", func() {
+			t.Setenv("NO_COLOR", "")
+			t.Setenv("TERM", termDumb)
+			So(EnvAllowsColor(), ShouldBeFalse)
+		})
+		Convey("both NO_COLOR and TERM=dumb disallow color", func() {
+			t.Setenv("NO_COLOR", "1")
+			t.Setenv("TERM", termDumb)
+			So(EnvAllowsColor(), ShouldBeFalse)
+		})
+	})
+}
+
+func TestResolveColor(t *testing.T) {
+	Convey("ResolveColor()", t, func() {
+		Convey("an explicit on override beats NO_COLOR and a non-tty", func() {
+			t.Setenv("NO_COLOR", "1")
+			t.Setenv("TERM", "xterm-256color")
+			on := true
+			So(ResolveColor(&on, false), ShouldBeTrue)
+		})
+		Convey("an explicit off override beats a tty and an unset NO_COLOR", func() {
+			t.Setenv("NO_COLOR", "")
+			t.Setenv("TERM", "xterm-256color")
+			off := false
+			So(ResolveColor(&off, true), ShouldBeFalse)
+		})
+		Convey("no override, env allows color, is a tty: color on", func() {
+			t.Setenv("NO_COLOR", "")
+			t.Setenv("TERM", "xterm-256color")
+			So(ResolveColor(nil, true), ShouldBeTrue)
+		})
+		Convey("no override, env allows color, not a tty: color off", func() {
+			t.Setenv("NO_COLOR", "")
+			t.Setenv("TERM", "xterm-256color")
+			So(ResolveColor(nil, false), ShouldBeFalse)
+		})
+		Convey("no override, NO_COLOR set, is a tty: color off", func() {
+			t.Setenv("NO_COLOR", "1")
+			t.Setenv("TERM", "xterm-256color")
+			So(ResolveColor(nil, true), ShouldBeFalse)
+		})
+		Convey("no override, TERM=dumb, is a tty: color off", func() {
+			t.Setenv("NO_COLOR", "")
+			t.Setenv("TERM", termDumb)
+			So(ResolveColor(nil, true), ShouldBeFalse)
+		})
+	})
+}
+
 func TestColorDisabled(t *testing.T) {
 	Convey("When color is disabled", t, func() {
 		Color(false)

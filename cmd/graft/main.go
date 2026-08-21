@@ -59,6 +59,59 @@ var usage = func() {
 	exit(1)
 }
 
+// isStderrTTY and isStdoutTTY report whether stderr/stdout are attached to
+// a terminal. They back --color's "auto" resolution (stderr for ordinary
+// diagnostics, stdout for `diff`'s colored --changes/--unified/
+// --side-by-side output - see handleDiffRender) and are function vars,
+// like exit/usage/printStdOutf above, so tests can simulate an
+// interactive-shell-with-redirected-output scenario (one stream a tty,
+// the other not) without a real pty.
+var isStderrTTY = func() bool { return isatty.IsTerminal(os.Stderr.Fd()) }
+var isStdoutTTY = func() bool { return isatty.IsTerminal(os.Stdout.Fd()) }
+
+// legacyColorValues are the value tokens normalizeLegacyColorArgs folds
+// into "--color=<value>" form when they immediately follow a bare
+// "--color" argument.
+var legacyColorValues = map[string]bool{
+	"on": true, "off": true, "auto": true, "true": true, "false": true,
+}
+
+// normalizeLegacyColorArgs restores the pre-existing space-separated
+// `--color <value>` form (e.g. `graft merge --color on file.yml`), which
+// registering --color with a NoOptDefVal (so a bare --color forces color
+// on without consuming the next argument) would otherwise break: without
+// this, "on" would be read as a positional file argument instead of
+// --color's value. It rewrites a "--color" argument immediately followed
+// by one of legacyColorValues (case-insensitively) into a single
+// "--color=<value>" argument, so pflag parses <value> as --color's
+// argument again.
+//
+// Scanning stops at a literal "--" argument terminator - everything
+// after it is positional, per POSIX/pflag convention, so
+// `graft merge --color -- on` keeps "on" as a filename and leaves
+// --color bare (forcing color on). This normalization only misfires for
+// a file literally named exactly "on"/"off"/"auto"/"true"/"false" passed
+// immediately after a bare --color; use `--color -- <file>` or
+// `--color=<file>`... (there is no such --color value, so route around it
+// with `--`) to avoid that.
+func normalizeLegacyColorArgs(args []string) []string {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			out = append(out, args[i:]...)
+			break
+		}
+		if arg == "--color" && i+1 < len(args) && legacyColorValues[strings.ToLower(args[i+1])] {
+			out = append(out, "--color="+args[i+1])
+			i++
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out
+}
+
 func envFlag(varname string) bool {
 	val := os.Getenv(varname)
 	return val != "" && !strings.EqualFold(val, "false") && val != "0"
@@ -129,18 +182,73 @@ func (o *mergeOpts) validateHistoryFlags() error {
 	return nil
 }
 
-func handleColorFlag(colorOpt string) (bool, bool) {
-	switch colorOpt {
-	case "on":
-		return true, true
-	case "off":
-		return false, true
-	case "auto", "":
-		return isatty.IsTerminal(os.Stderr.Fd()), true
-	default:
-		log.PrintStdErrf("Invalid --color option: %s. Must be 'on', 'off', or 'auto'.\n", colorOpt)
-		return false, false
+// colorFlagValue implements pflag.Value for the root --color flag. It is
+// registered with NoOptDefVal set to "on" (see newRootCmd), so a bare
+// `--color` calls Set("on") - forcing color on without consuming the next
+// argument, unlike the plain string flag it replaces. `--color=on`,
+// `--color=off`, `--color=auto`, and the legacy `--color=true`/
+// `--color=false` forms are also accepted (undocumented in --help, kept
+// for script compatibility).
+//
+// Set never returns an error: like graft's other flags that need
+// friendlier error text than Cobra's generic parse-error path prints
+// (SilenceErrors is on; see --config's handling in PersistentPreRunE), an
+// unrecognized value is stored as given and rejected later, in
+// PersistentPreRunE, with a clear message.
+type colorFlagValue struct {
+	raw   string // exact value passed to Set; unset until Set is called at all
+	given bool
+}
+
+func (c *colorFlagValue) String() string {
+	if !c.given {
+		return "auto"
 	}
+	return c.raw
+}
+
+func (c *colorFlagValue) Set(s string) error {
+	c.raw = s
+	c.given = true
+	return nil
+}
+
+func (c *colorFlagValue) Type() string { return "string" }
+
+// resolve validates the flag's value (if any was given) and returns the
+// explicit on/off override it selects. override is nil when no explicit
+// choice was made (the flag was never given, or was given as
+// "auto"/""), meaning callers should fall back to environment/TTY
+// detection. ok is false when an explicit value was given but is not one
+// of the recognized forms.
+func (c *colorFlagValue) resolve() (override *bool, ok bool) {
+	if !c.given {
+		return nil, true
+	}
+	switch strings.ToLower(c.raw) {
+	case "on", "true":
+		v := true
+		return &v, true
+	case "off", "false":
+		v := false
+		return &v, true
+	case "auto", "":
+		return nil, true
+	default:
+		return nil, false
+	}
+}
+
+// applyNoColorOverride returns colorOverride unchanged unless noColor is
+// set, in which case it always returns an explicit "off" override:
+// --no-color wins outright over --color when both are given (see
+// PersistentPreRunE and docs/reference/cli.md's Color flags section).
+func applyNoColorOverride(colorOverride *bool, noColor bool) *bool {
+	if noColor {
+		off := false
+		return &off
+	}
+	return colorOverride
 }
 
 func handleMerge(opts *mergeOpts) int {
@@ -527,7 +635,6 @@ func handleJSON(opts jsonOpts) int {
 // leaving all three false keeps the pre-existing dyff HumanReport default,
 // byte-for-byte.
 type diffOpts struct {
-	NoColor    bool
 	SideBySide bool
 	Unified    bool
 	Changes    bool
@@ -536,13 +643,17 @@ type diffOpts struct {
 	Quiet      bool
 }
 
-func handleDiff(files []string, colorOpt string, opts diffOpts) int {
-	if colorOpt == "auto" || colorOpt == "" {
-		ansi.Color(isatty.IsTerminal(os.Stdout.Fd()))
-	}
-	if opts.NoColor {
-		ansi.Color(false)
-	}
+// handleDiff assumes ordinary (stderr-directed) color has already been
+// resolved: the root command's PersistentPreRunE applies --color/
+// --no-color (and NO_COLOR/TERM/TTY fallback) via ansi.Color before any
+// subcommand's RunE runs, including `diff`'s own --no-color (a global
+// persistent flag - see newRootCmd), so the usage/mutually-exclusive/
+// load-error diagnostics below (all on stderr) need no further color
+// handling here. colorOverride is threaded through to handleDiffRender
+// only because its --changes/--unified/--side-by-side renderers write
+// colorized output to stdout, not stderr, and so need their own
+// auto-mode resolution against stdout's TTY state - see there.
+func handleDiff(files []string, colorOverride *bool, opts diffOpts) int {
 	if len(files) != 2 {
 		usage()
 		return 1
@@ -560,6 +671,10 @@ func handleDiff(files []string, colorOpt string, opts diffOpts) int {
 	}
 
 	if selected == 0 {
+		// The default dyff HumanReport path does its own stdout TTY
+		// detection internally (dyff/bunt), independent of graft's
+		// --color flag; left alone here, matching TestDiffFiles's
+		// documented contract.
 		output, differences, err := diffFiles(files)
 		if err != nil {
 			log.PrintStdErrf("%s\n", err)
@@ -574,14 +689,14 @@ func handleDiff(files []string, colorOpt string, opts diffOpts) int {
 		return 0
 	}
 
-	return handleDiffRender(files, opts)
+	return handleDiffRender(files, colorOverride, opts)
 }
 
 // handleDiffRender implements the `--side-by-side`/`--unified`/`--changes`
 // alternate diff renderings, all built from the same
 // internal/histdiff.Compare semantic diff (itself built on dyff, matching
 // the default diffFiles path) rather than a second diff algorithm.
-func handleDiffRender(files []string, opts diffOpts) int {
+func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
 	fromLabel, fromDoc, toLabel, toDoc, err := loadDiffDocuments(files)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err)
@@ -594,6 +709,19 @@ func handleDiffRender(files []string, opts diffOpts) int {
 		return 2
 	}
 
+	// The renderers below write their colorized output straight to
+	// stdout via printStdOutf, so in auto mode (colorOverride == nil)
+	// their color must follow stdout's own TTY state, not stderr's -
+	// otherwise `graft diff --changes a b > file` in an interactive
+	// shell (stderr a tty, stdout redirected) would wrongly write ANSI
+	// escapes into the file. An explicit --color/--no-color still wins
+	// regardless of stream. Restored immediately after rendering, before
+	// the stderr error path below, so a render error still reports using
+	// the stderr-appropriate resolution PersistentPreRunE already
+	// applied, not the stdout one used just above.
+	stderrColor := ansi.IsColorEnabled()
+	ansi.Color(ansi.ResolveColor(colorOverride, isStdoutTTY()))
+
 	var output string
 	switch {
 	case opts.Changes:
@@ -603,6 +731,7 @@ func handleDiffRender(files []string, opts diffOpts) int {
 	case opts.SideBySide:
 		output, err = renderSideBySide(fromLabel, fromDoc, toLabel, toDoc, opts.Width)
 	}
+	ansi.Color(stderrColor)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
@@ -693,7 +822,8 @@ func versionFlagPrecedesVerb(cmd *cobra.Command, args []string) bool {
 // so that tests calling main() multiple times get clean flag state.
 func newRootCmd() (*cobra.Command, *bool) {
 	var debug, trace, version bool
-	var colorOpt string
+	var colorVal colorFlagValue
+	var noColor bool
 	var configPath string
 
 	// Track whether PersistentPreRunE signaled an abort (e.g., invalid color)
@@ -753,14 +883,20 @@ func newRootCmd() (*cobra.Command, *bool) {
 				return fmt.Errorf("version requested")
 			}
 
-			// Handle color flag
-			colorEnabled, colorValid := handleColorFlag(colorOpt)
+			// Handle color flags. --no-color wins outright over --color
+			// when both are given; otherwise an explicit --color (on/off,
+			// or the legacy on/off/true/false/auto value forms) wins over
+			// environment/TTY auto-detection. See colorFlagValue and
+			// ansi.ResolveColor for the full precedence rule.
+			colorOverride, colorValid := colorVal.resolve()
 			if !colorValid {
 				aborted = true
+				log.PrintStdErrf("Invalid --color value: %q. Must be 'on', 'off', or 'auto'.\n", colorVal.raw)
 				exit(1)
 				return fmt.Errorf("invalid color option")
 			}
-			ansi.Color(colorEnabled)
+			colorOverride = applyNoColorOverride(colorOverride, noColor)
+			ansi.Color(ansi.ResolveColor(colorOverride, isStderrTTY()))
 
 			// (( while )) loops are capped to prevent runaway/non-terminating
 			// expansion (docs/user-guide/operators/control-flow.md's
@@ -802,7 +938,9 @@ func newRootCmd() (*cobra.Command, *bool) {
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "D", false, "Enable debugging")
 	rootCmd.PersistentFlags().BoolVarP(&trace, "trace", "T", false, "Enable trace mode debugging (very verbose)")
 	rootCmd.PersistentFlags().BoolVarP(&version, "version", "v", false, "Display version information")
-	rootCmd.PersistentFlags().StringVar(&colorOpt, "color", "", "Control color output (on/off/auto, default: auto)")
+	rootCmd.PersistentFlags().Var(&colorVal, "color", "Force colorized output on; bare --color, --color=on. --no-color forces it off and wins if both are given. Default: auto (color only when NO_COLOR is unset, TERM != dumb, and stderr is a terminal)")
+	rootCmd.PersistentFlags().Lookup("color").NoOptDefVal = "on"
+	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colorized output, overriding --color; wins if both are given")
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Path to a YAML configuration file (see internal/config); absent means unchanged default behavior")
 	rootCmd.PersistentFlags().IntVar(&maxLoopIterations, "max-loop-iterations", 0, "Maximum (( while )) loop iterations before erroring (default: 1000, or GRAFT_MAX_LOOP_ITERATIONS)")
 
@@ -910,15 +1048,24 @@ func newRootCmd() (*cobra.Command, *bool) {
 	jsonCmd.Flags().BoolVar(&jsonMultiDoc, "multi-doc", false, "Wrap multiple JSON documents into a single JSON array instead of one object per line")
 
 	// diff command
-	var diffNoColor, diffSideBySide, diffUnified, diffChanges, diffQuiet bool
+	var diffSideBySide, diffUnified, diffChanges, diffQuiet bool
 	var diffContext, diffWidth int
 
 	diffCmd := &cobra.Command{
 		Use:   "diff [file1] [file2]",
 		Short: "Show the semantic differences between two YAML files",
 		RunE: func(_ *cobra.Command, args []string) error {
-			exit(handleDiff(args, colorOpt, diffOpts{
-				NoColor:    diffNoColor,
+			// --no-color is the root command's persistent flag (see
+			// newRootCmd), inherited here rather than redeclared, so
+			// `graft diff --no-color` keeps working without a duplicate
+			// flag registration. colorVal has already been validated by
+			// PersistentPreRunE by the time RunE runs, so its resolve()
+			// error return is intentionally ignored here; the resulting
+			// override is passed through to handleDiff for its
+			// stdout-directed colored renderers (see handleDiffRender).
+			colorOverride, _ := colorVal.resolve()
+			colorOverride = applyNoColorOverride(colorOverride, noColor)
+			exit(handleDiff(args, colorOverride, diffOpts{
 				SideBySide: diffSideBySide,
 				Unified:    diffUnified,
 				Changes:    diffChanges,
@@ -934,7 +1081,6 @@ func newRootCmd() (*cobra.Command, *bool) {
 	diffCmd.Flags().BoolVar(&diffChanges, "changes", false, "List all changes (original -> new) grouped by change type")
 	diffCmd.Flags().IntVar(&diffContext, "context", -1, "Lines of context around each change in --unified output (default: 3)")
 	diffCmd.Flags().IntVar(&diffWidth, "width", 0, "Total output width for --side-by-side (default: 80)")
-	diffCmd.Flags().BoolVar(&diffNoColor, "no-color", false, "Disable colorized output for this command, overriding --color")
 	diffCmd.Flags().BoolVarP(&diffQuiet, "quiet", "q", false, "Exit with status only, no output")
 
 	// vaultinfo command
@@ -1001,6 +1147,8 @@ func newRootCmd() (*cobra.Command, *bool) {
 }
 
 func main() {
+	os.Args = normalizeLegacyColorArgs(os.Args)
+
 	rootCmd, aborted := newRootCmd()
 
 	err := rootCmd.Execute()
