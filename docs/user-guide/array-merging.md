@@ -339,16 +339,112 @@ services:
 ```
 
 Writing `(( delete "name=deprecated" ))` looks for an entry whose `name` is the
-literal string `name=deprecated`, and fails:
+literal string `name=deprecated`.
+
+A list whose entries do not all have the `name` (or specified) key fails,
+naming the index of the first entry that's missing it:
+
+```yaml
+# base.yml
+items:
+  - name: keep
+  - value: 42
+
+# overlay.yml
+items:
+  - (( delete "x" ))
+```
 
 ```
- - $.services: unable to find specified modification point with 'name: name=deprecated'
+ - $.items.1: original object does not contain the key 'name' - cannot merge by key
 ```
 
-A list whose entries have no `name` key cannot be deleted from by string:
+### Delete by Value (Scalar Lists)
+
+A list of scalars (strings, numbers) has no `name` key to match against, so
+delete matches on the entry's value instead:
+
+```yaml
+# base.yml
+tags:
+  - staging
+  - deprecated
+  - internal
+
+# overlay.yml
+tags:
+  - (( delete "deprecated" ))
+
+# Result
+tags:
+  - staging
+  - internal
+```
+
+Quoting is optional when the value has no whitespace: `(( delete deprecated ))`
+works the same as `(( delete "deprecated" ))`.
+
+### Delete-If-Present
+
+Both delete-by-name and delete-by-value are delete-if-present: if the target
+entry is not in the base list, the merge succeeds and the list is left
+unchanged (no error, no leftover marker).
+
+If the base document has a `features: []` key already, deleting a missing
+entry from it leaves it as `features: []`:
+
+```yaml
+# base.yml
+features: []
+
+# overlay.yml
+features:
+  - (( delete "not-there" ))
+
+# Result
+features: []
+```
+
+If the base document has no `features` key at all, an overlay array made up
+entirely of delete markers does not create the key either - an absent key and
+an empty list are different downstream (an empty `features: []` can override
+a lower-precedence document's non-empty default; an absent key leaves it
+alone):
+
+```yaml
+# base.yml has no "features" key at all
+
+# overlay.yml
+features:
+  - (( delete "not-there" ))
+
+# Result: merge succeeds, no "features" key is added
+```
+
+An overlay array that mixes a delete marker with a real entry still creates
+the key, since there's real data for it to hold:
+
+```yaml
+# base.yml has no "features" key at all
+
+# overlay.yml
+features:
+  - keep
+  - (( delete "not-there" ))
+
+# Result
+features:
+  - keep
+```
+
+This intentionally diverges from spruce, which raises an error when the
+delete target cannot be found.
+
+Deleting by index is unaffected: an index is a positional claim rather than a
+set-membership claim, so an out-of-bounds index still fails with:
 
 ```
- - $.items.0: original object does not contain the key 'name' - cannot merge by key
+ - $.services: unable to modify the list, because specified index 6 is out of bounds
 ```
 
 ## Combining Operators
@@ -489,7 +585,8 @@ With this flag, arrays without explicit operators use append instead of inline.
 | insert after | `(( insert after N ))` | Insert after index N |
 | insert before | `(( insert before N ))` | Insert before index N |
 | delete | `(( delete N ))` | Remove index N |
-| delete | `(( delete "name-value" ))` | Remove the entry with that `name` |
+| delete | `(( delete "name-value" ))` | Remove the entry with that `name` (list of maps), if present |
+| delete | `(( delete "value" ))` | Remove the matching entry (scalar list), if present |
 
 ## See Also
 
