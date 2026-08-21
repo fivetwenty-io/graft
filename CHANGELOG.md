@@ -41,6 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a new `prune-report` REPL command lists what they would remove once
   the session is fully evaluated, so the views no longer disagree.
 
+- A new `autodefer` command in `graft debug` runs the same adaptive
+  defer-on-error loop from the current session state, folding each
+  newly deferred path into the session's defer set with its
+  root-cause reason, so `output`, `export`, `history`, and later
+  stepping stay consistent. Manually deferred paths are respected and
+  never re-attempted, a true cycle remains a hard failure with its
+  original error, and `inspect` now lists the session's deferred
+  paths with their reasons.
+
 - `graft merge --defer-on-error` (alias `--adaptive`) retries a
   failing merge by wrapping failing operator expressions in
   `(( defer ))` and re-running until the document merges or stops
