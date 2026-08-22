@@ -115,8 +115,8 @@ func parseInternal(data []byte) (*node, error) {
 # Format code
 go fmt ./...
 
-# Lint
-golangci-lint run
+# Lint (runs golangci-lint at CI's pinned version and toolchain)
+make golangci
 ```
 
 ### Naming Conventions
@@ -201,8 +201,12 @@ assert.ErrorIs(t, err, graft.ErrNotFound)
 2. **Run linter**
 
    ```bash
-   golangci-lint run
+   make golangci
    ```
+
+   Better yet, install the checked-in git hooks once with `make hooks`;
+   the pre-push hook then runs the same lint, security, and test gates
+   CI runs, so a push cannot fail CI without failing locally first.
 
 3. **Update documentation** if adding features
 
