@@ -48,13 +48,27 @@ func parseReportPlacement(s string) (reportPlacement, error) {
 	}
 }
 
-// renderMergedTreeWithReport is renderMergedTree (main.go) extended with
-// --report-deferred support. Output is byte-identical to renderMergedTree
-// whenever deferred is empty or placement is "none" - plans/dennis-
+// renderMergedTreeWithReport turns a merged document tree into the exact
+// bytes `graft merge` writes to stdout (cycle check, YAML marshal,
+// leading "---\n" document-start marker, trailing newline), so the
+// output can be piped straight into another YAML document, printing any
+// error to stderr and returning its exit code - plus --report-deferred
+// comment placement. Shared by the plain and cache-aware merge paths so
+// both emit byte-identical output. With deferred empty or placement
+// "none" the report machinery adds nothing - plans/dennis-
 // feedback-gaps.md Item 2's "a merge with no deferrals stays byte-
 // identical to today" requirement - so a merge that never defers
 // anything (--defer-on-error given but nothing failed, or no skip flag
-// given at all) is completely unaffected by this function existing.
+// given at all) renders exactly the pre-report bytes.
+//
+// The leading "---\n" is a graft-only addition, not a spruce-parity
+// fix: spruce's own `merge` case (cmd/spruce/main.go, sibling repo)
+// writes bare `fmt.Fprintf(os.Stdout, "%s\n", string(merged))`, with no
+// leading "---\n" - only spruce's `fan` case prepends "---\n" per
+// document (which graft's own fan, handleFan in main.go, already
+// matches). See docs/spruce/cli-surface.md's "stdin, stdout, and file
+// arguments" section and docs/spruce/genesis-compat-contract.md's
+// "Output byte stability across versions" for the full writeup.
 func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.DeferredPath, placement reportPlacement) ([]byte, int) {
 	log.TRACE("Converting the following data back to YML:")
 	log.TRACE("%#v", tree)
@@ -97,7 +111,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 	}
 }
 
-// marshalMergedDocument is renderMergedTree's own document assembly
+// marshalMergedDocument is renderMergedTreeWithReport's own document assembly
 // ("---\n" + optional leading block + marshaled document + trailing
 // newline), factored out so both the plain path and the "beginning"
 // --report-deferred placement share it.

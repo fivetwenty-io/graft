@@ -1,13 +1,10 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"strings"
 	"testing"
 
 	vaultbackend "github.com/fivetwenty-io/graft/internal/backends/vault"
-	"github.com/fivetwenty-io/graft/log"
 )
 
 // This file tests plans/dennis-feedback-gaps.md's Item 3: the
@@ -26,39 +23,12 @@ import (
 // round-trip) from the comment-report format itself, covered separately
 // in deferred_report_test.go.
 
-// runMerge invokes main() with the given CLI args and returns the
-// captured stdout/stderr/exit code, restoring the previous test hooks
-// and os.Args afterward. Mirrors runVaultinfo (vaultinfo_resolve_test.go)
-// for the merge command.
+// runMerge invokes main() with the given merge CLI args via
+// runGraftCommand (testsupport_test.go), named for the merge command
+// like runVaultinfo (vaultinfo_resolve_test.go) is for vaultinfo.
 func runMerge(t *testing.T, args []string) (stdout, stderr string, rc int) {
 	t.Helper()
-
-	prevPrintStdOutf := printStdOutf
-	prevPrintStdErrf := log.PrintStdErrf
-	prevExit := exit
-	prevUsage := usage
-	prevArgs := os.Args
-	defer func() {
-		printStdOutf = prevPrintStdOutf
-		log.PrintStdErrf = prevPrintStdErrf
-		exit = prevExit
-		usage = prevUsage
-		os.Args = prevArgs
-	}()
-
-	printStdOutf = func(format string, fmtArgs ...interface{}) {
-		stdout += fmt.Sprintf(format, fmtArgs...)
-	}
-	log.PrintStdErrf = func(format string, fmtArgs ...interface{}) {
-		stderr += fmt.Sprintf(format, fmtArgs...)
-	}
-	rc = 256 // sentinel: unset if exit is never called
-	exit = func(code int) { rc = code }
-	usage = func() { exit(1) }
-
-	os.Args = append([]string{"graft"}, args...)
-	main()
-	return stdout, stderr, rc
+	return runGraftCommand(t, args)
 }
 
 // TestMergeSkipVaultFlag pins the core Item 3 requirement: --skip-vault
@@ -242,7 +212,7 @@ func TestMergeSkipVaultRoundTrip(t *testing.T) {
 
 	deferredFile := writeDoc(t, t.TempDir(), "deferred.yml", firstOut)
 
-	withGlobalVaultReader(selfReferencingPathReader{}, func() {
+	withGlobalVaultReader(func() {
 		secondOut, secondErr, secondRC := runMerge(t, []string{"merge", deferredFile})
 		if secondRC != 0 {
 			t.Fatalf("second (live) merge rc = %d, want 0 (nothing deferred this time), stderr: %s", secondRC, secondErr)

@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"testing"
 
 	vaultbackend "github.com/fivetwenty-io/graft/internal/backends/vault"
-	"github.com/fivetwenty-io/graft/log"
 )
 
 // selfReferencingPathReader stubs a single Vault mount, "secret/paths",
@@ -26,48 +23,22 @@ func (selfReferencingPathReader) ReadSecret(_ context.Context, path string) (map
 	}, nil
 }
 
-// withGlobalVaultReader swaps vaultbackend.GlobalReader for the duration
-// of fn, restoring the previous value afterward so other tests aren't
-// affected.
-func withGlobalVaultReader(reader vaultbackend.Reader, fn func()) {
+// withGlobalVaultReader swaps vaultbackend.GlobalReader for
+// selfReferencingPathReader (the one stub every caller uses) for the
+// duration of fn, restoring the previous value afterward so other tests
+// aren't affected.
+func withGlobalVaultReader(fn func()) {
 	previous := vaultbackend.GlobalReader
-	vaultbackend.GlobalReader = reader
+	vaultbackend.GlobalReader = selfReferencingPathReader{}
 	defer func() { vaultbackend.GlobalReader = previous }()
 	fn()
 }
 
-// runVaultinfo invokes main() with the given vaultinfo args and returns
-// the captured stdout/stderr/exit code, restoring the previous test
-// hooks and os.Args afterward.
+// runVaultinfo invokes main() with the given vaultinfo args via
+// runGraftCommand (testsupport_test.go).
 func runVaultinfo(t *testing.T, args []string) (stdout, stderr string, rc int) {
 	t.Helper()
-
-	prevPrintStdOutf := printStdOutf
-	prevPrintStdErrf := log.PrintStdErrf
-	prevExit := exit
-	prevUsage := usage
-	prevArgs := os.Args
-	defer func() {
-		printStdOutf = prevPrintStdOutf
-		log.PrintStdErrf = prevPrintStdErrf
-		exit = prevExit
-		usage = prevUsage
-		os.Args = prevArgs
-	}()
-
-	printStdOutf = func(format string, fmtArgs ...interface{}) {
-		stdout += fmt.Sprintf(format, fmtArgs...)
-	}
-	log.PrintStdErrf = func(format string, fmtArgs ...interface{}) {
-		stderr += fmt.Sprintf(format, fmtArgs...)
-	}
-	rc = 256 // sentinel: unset if exit is never called
-	exit = func(code int) { rc = code }
-	usage = func() { exit(1) }
-
-	os.Args = append([]string{"graft"}, args...)
-	main()
-	return stdout, stderr, rc
+	return runGraftCommand(t, args)
 }
 
 // TestVaultInfoResolveReportsConcretePaths pins `vaultinfo --resolve`:
@@ -82,7 +53,7 @@ func TestVaultInfoResolveReportsConcretePaths(t *testing.T) {
 	vaultbackend.SecretCache.Reset()
 	defer vaultbackend.SecretCache.Reset()
 
-	withGlobalVaultReader(selfReferencingPathReader{}, func() {
+	withGlobalVaultReader(func() {
 		stdout, stderr, rc := runVaultinfo(t, []string{"vaultinfo", "--resolve", "../../assets/vault/self-reference.yml"})
 
 		if rc != 0 {
@@ -115,7 +86,7 @@ func TestVaultInfoWithoutResolveStaysSkippedEvenWithAReachableVault(t *testing.T
 	vaultbackend.SecretCache.Reset()
 	defer vaultbackend.SecretCache.Reset()
 
-	withGlobalVaultReader(selfReferencingPathReader{}, func() {
+	withGlobalVaultReader(func() {
 		stdout, stderr, rc := runVaultinfo(t, []string{"vaultinfo", "../../assets/vault/self-reference.yml"})
 
 		if rc != 0 {

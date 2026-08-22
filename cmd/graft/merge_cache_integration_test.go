@@ -97,7 +97,7 @@ func TestMergeCacheHitReplaysStoredBytes(t *testing.T) {
 
 // TestMergeCacheNeverReplaysPreDashDashDashPrefixEntry is the
 // cache-replay-safety regression for the "---\n" merge-output-prefix fix
-// (renderMergedTree): an entry stored under the key a pre-fix (v1
+// (renderMergedTreeWithReport): an entry stored under the key a pre-fix (v1
 // schema) graft binary would have derived for these exact opts/inputs -
 // bare YAML, no leading "---\n" - must never be served as a hit by the
 // current binary. mergeOutputCacheKeySchemaVersionBumped (merge_cache_

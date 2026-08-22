@@ -422,11 +422,15 @@ func TestMergeHistoryPostPhaseRenderingOnlyLabelsGenuineRemovals(t *testing.T) {
 
 		out := renderShowChanges([]history.PathHistory{survived, removed}, 1)
 		So(out, ShouldContainSubstring, "tags:\n")
-		tagsSection := out[strings.Index(out, "tags:\n"):strings.Index(out, "secret:\n")]
+		tagsStart := strings.Index(out, "tags:\n")
+		secretStart := strings.Index(out, "secret:\n")
+		So(tagsStart, ShouldBeGreaterThanOrEqualTo, 0)
+		So(secretStart, ShouldBeGreaterThanOrEqualTo, 0)
+		tagsSection := out[tagsStart:secretStart]
 		So(tagsSection, ShouldNotContainSubstring, "- <pruned>")
 		So(tagsSection, ShouldContainSubstring, "- a …")
 
-		secretSection := out[strings.Index(out, "secret:\n"):]
+		secretSection := out[secretStart:]
 		So(secretSection, ShouldContainSubstring, "- <pruned>\n")
 	})
 }

@@ -69,11 +69,15 @@ var usage = func() {
 var isStderrTTY = func() bool { return isatty.IsTerminal(os.Stderr.Fd()) }
 var isStdoutTTY = func() bool { return isatty.IsTerminal(os.Stdout.Fd()) }
 
+// colorValueAuto is --color's TTY-detection mode: the flag's default, its
+// String() presentation, and one of resolve's recognized values.
+const colorValueAuto = "auto"
+
 // legacyColorValues are the value tokens normalizeLegacyColorArgs folds
 // into "--color=<value>" form when they immediately follow a bare
 // "--color" argument.
 var legacyColorValues = map[string]bool{
-	"on": true, "off": true, "auto": true, "true": true, "false": true,
+	"on": true, "off": true, colorValueAuto: true, "true": true, "false": true,
 }
 
 // normalizeLegacyColorArgs restores the pre-existing space-separated
@@ -218,7 +222,7 @@ type colorFlagValue struct {
 
 func (c *colorFlagValue) String() string {
 	if !c.given {
-		return "auto"
+		return colorValueAuto
 	}
 	return c.raw
 }
@@ -248,7 +252,7 @@ func (c *colorFlagValue) resolve() (override *bool, ok bool) {
 	case "off", "false":
 		v := false
 		return &v, true
-	case "auto", "":
+	case colorValueAuto, "":
 		return nil, true
 	default:
 		return nil, false
@@ -278,7 +282,7 @@ func applyNoColorOverride(colorOverride *bool, noColor bool) *bool {
 // (existing nonzero codes, unchanged). A merge that never defers
 // anything is completely unaffected by any of this machinery existing -
 // renderMergedTreeWithReport(tree, nil, placement) is byte-identical to
-// the plain renderMergedTree(tree) it replaces.
+// the plain pre-report rendering it replaced.
 func handleMerge(opts *mergeOpts) int {
 	if err := opts.validateHistoryFlags(); err != nil {
 		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{%s}", err.Error()))
@@ -374,33 +378,6 @@ func handleAdaptiveMerge(opts *mergeOpts, placement reportPlacement) int {
 	return 0
 }
 
-// renderMergedTree turns a merged document tree into the exact bytes
-// `graft merge` writes to stdout (cycle check, YAML marshal, leading
-// "---\n" document-start marker, trailing newline), so the output can be
-// piped straight into another YAML document, printing any error to
-// stderr and returning its exit code. Shared by the plain and
-// cache-aware merge paths so both emit byte-identical output.
-//
-// This is a graft-only addition, not a spruce-parity fix: spruce's own
-// `merge` case (cmd/spruce/main.go, sibling repo) writes bare
-// `fmt.Fprintf(os.Stdout, "%s\n", string(merged))`, with no leading
-// "---\n" - only spruce's `fan` case prepends "---\n" per document
-// (which graft's own fan, handleFan below, already matches). See
-// docs/spruce/cli-surface.md's "stdin, stdout, and file arguments"
-// section and docs/spruce/genesis-compat-contract.md's "Output byte
-// stability across versions" for the full writeup.
-//
-// This is now a thin wrapper around renderMergedTreeWithReport
-// (deferred_report.go), which subsumes it exactly (a nil/empty deferred
-// slice is byte-identical to this function's own prior, standalone
-// implementation) - kept under its original name since it is the
-// natural entry point for the "no --report-deferred involved at all"
-// case (e.g. `graft fan`, which has no deferred-path concept of its
-// own).
-func renderMergedTree(tree map[string]interface{}) ([]byte, int) {
-	return renderMergedTreeWithReport(tree, nil, reportPlacementNone)
-}
-
 func handleFan(opts *mergeOpts) int {
 	results, err := cmdFanEval(opts)
 	if err != nil {
@@ -458,7 +435,7 @@ func writeFanResultsToDir(results []fanResult, outputDir string) int {
 		outPath := fanOutputPath(outputDir, result.Path)
 		// Leading "---\n" for consistency with fan's own stdout path
 		// (handleFan above, "---\n%s\n") and with merge's output
-		// (renderMergedTree): every merged document graft writes starts
+		// (renderMergedTreeWithReport): every merged document graft writes starts
 		// with a document-start marker, whether it goes to stdout or to
 		// a file.
 		content := append([]byte("---\n"), merged...)
@@ -604,6 +581,28 @@ func configEngineOpts(cfg *config.Config, ff *features.FeatureFlags) []graft.Eng
 			graft.WithParallel(enabled),
 			graft.WithConcurrency(resolveConcurrency(cfg.Parallel)),
 		)
+	}
+	return opts
+}
+
+// mergeEngineOpts extends configEngineOpts with the merge command's
+// --skip-vault/--skip-aws/--skip-nats options. Each flag defers its
+// backend's operators (leaves their own "(( ... ))" expression intact,
+// see pkg/graft/operators/op_skip_defer.go) rather than contacting the
+// backend or substituting "REDACTED"; REDACT=1 is unaffected and keeps
+// its existing redacting behavior regardless of these flags
+// (graft.OperatorState.IsRedactMode, forced by REDACT=1 in
+// pkg/graft/engine.go's evaluate).
+func mergeEngineOpts(cfg *config.Config, ff *features.FeatureFlags, skipVault, skipAws, skipNats bool) []graft.EngineOption {
+	opts := configEngineOpts(cfg, ff)
+	if skipVault {
+		opts = append(opts, graft.WithSkipVault(true))
+	}
+	if skipAws {
+		opts = append(opts, graft.WithSkipAws(true))
+	}
+	if skipNats {
+		opts = append(opts, graft.WithSkipNats(true))
 	}
 	return opts
 }
@@ -1081,23 +1080,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 		Use:   "merge [files...]",
 		Short: "Merge multiple YAML/JSON files",
 		RunE: func(_ *cobra.Command, args []string) error {
-			// --skip-vault/--skip-aws/--skip-nats defer the affected
-			// operators (leave their own "(( ... ))" expression intact,
-			// see pkg/graft/operators/op_skip_defer.go) rather than
-			// contacting the backend or substituting "REDACTED"; REDACT=1
-			// is unaffected and keeps its existing redacting behavior
-			// regardless of these flags (graft.OperatorState.IsRedactMode,
-			// forced by REDACT=1 in pkg/graft/engine.go's evaluate).
-			engineOpts := configEngineOpts(loadedConfig, loadedFeatureFlags)
-			if mergeSkipVault {
-				engineOpts = append(engineOpts, graft.WithSkipVault(true))
-			}
-			if mergeSkipAws {
-				engineOpts = append(engineOpts, graft.WithSkipAws(true))
-			}
-			if mergeSkipNats {
-				engineOpts = append(engineOpts, graft.WithSkipNats(true))
-			}
+			engineOpts := mergeEngineOpts(loadedConfig, loadedFeatureFlags, mergeSkipVault, mergeSkipAws, mergeSkipNats)
 			opts := &mergeOpts{
 				SkipEval:       mergeSkipEval,
 				Prune:          mergePrune,

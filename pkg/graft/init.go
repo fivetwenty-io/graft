@@ -141,7 +141,7 @@ func (n NullOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	// This allows the template to be processed again later or remain as-is
 
 	// Reconstruct the original operator call
-	var argStrings []string
+	argStrings := make([]string, 0, len(args))
 	for _, arg := range args {
 		argStrings = append(argStrings, renderPassthroughArg(arg))
 	}
@@ -208,6 +208,11 @@ func renderPassthroughArg(e *Expr) string {
 			argStrs[i] = renderPassthroughArg(arg)
 		}
 		return fmt.Sprintf("%s %s", op, strings.Join(argStrs, " "))
+
+	case List, Or, Negate, Addition, Subtraction, Multiplication, Division, Modulo,
+		Equal, NotEqual, LessThan, LessThanOrEqual, GreaterThan, GreaterThanOrEqual,
+		LogicalAnd, RegexpMatch, BoshVar, VaultGroup, VaultChoice:
+		return e.String()
 	}
 	return e.String()
 }

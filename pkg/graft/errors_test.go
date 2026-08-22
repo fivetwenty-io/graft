@@ -1,6 +1,7 @@
 package graft_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io/fs"
@@ -505,13 +506,13 @@ database:
 		t.Fatal("PartialEvaluationError.Tree must not be nil")
 	}
 
-	tree, ok := partial.Tree.RawData().(map[string]interface{})
+	treeData, ok := partial.Tree.RawData().(map[string]interface{})
 	if !ok {
 		t.Fatalf("Tree.RawData() = %T, want map[string]interface{}", partial.Tree.RawData())
 	}
-	dbSection, ok := tree["database"].(map[string]interface{})
+	dbSection, ok := treeData["database"].(map[string]interface{})
 	if !ok {
-		t.Fatalf("tree[\"database\"] = %T, want map[string]interface{}", tree["database"])
+		t.Fatalf("treeData[\"database\"] = %T, want map[string]interface{}", treeData["database"])
 	}
 	// grab's dependent copies the still-raw vault text rather than
 	// erroring - a genuinely different failing operator's dependents
@@ -570,28 +571,28 @@ func TestEngineEvaluateSuccessUnaffectedByPartialEvaluationError(t *testing.T) {
 // --- MarshalYAMLWithComments (graft merge --report-deferred=inline) -------
 
 func TestMarshalYAMLWithCommentsNilIsIdenticalToMarshalYAML(t *testing.T) {
-	tree := map[string]interface{}{"a": 1, "b": map[string]interface{}{"c": "d"}}
-	plain, err := graft.MarshalYAML(tree)
+	treeData := map[string]interface{}{"a": 1, "b": map[string]interface{}{"c": "d"}}
+	plain, err := graft.MarshalYAML(treeData)
 	if err != nil {
 		t.Fatalf("MarshalYAML: %v", err)
 	}
-	withNil, err := graft.MarshalYAMLWithComments(tree, nil)
+	withNil, err := graft.MarshalYAMLWithComments(treeData, nil)
 	if err != nil {
 		t.Fatalf("MarshalYAMLWithComments(nil): %v", err)
 	}
-	if string(plain) != string(withNil) {
+	if !bytes.Equal(plain, withNil) {
 		t.Fatalf("MarshalYAMLWithComments(v, nil) = %q, want MarshalYAML(v)'s own output %q", withNil, plain)
 	}
 }
 
 func TestMarshalYAMLWithCommentsPlacesHeadCommentAboveMapKey(t *testing.T) {
-	tree := map[string]interface{}{
+	treeData := map[string]interface{}{
 		"meta": map[string]interface{}{
 			"password": `(( vault "secret/db:password" ))`,
 		},
 		"other": "value",
 	}
-	out, err := graft.MarshalYAMLWithComments(tree, []graft.YAMLHeadComment{
+	out, err := graft.MarshalYAMLWithComments(treeData, []graft.YAMLHeadComment{
 		{Path: "meta.password", Lines: []string{" graft: deferred $.meta.password: some reason"}},
 	})
 	if err != nil {
@@ -604,13 +605,13 @@ func TestMarshalYAMLWithCommentsPlacesHeadCommentAboveMapKey(t *testing.T) {
 }
 
 func TestMarshalYAMLWithCommentsListIndexPath(t *testing.T) {
-	tree := map[string]interface{}{
+	treeData := map[string]interface{}{
 		"jobs": []interface{}{
 			map[string]interface{}{"name": "one"},
 			map[string]interface{}{"name": `(( vault "secret/db:name" ))`},
 		},
 	}
-	out, err := graft.MarshalYAMLWithComments(tree, []graft.YAMLHeadComment{
+	out, err := graft.MarshalYAMLWithComments(treeData, []graft.YAMLHeadComment{
 		{Path: "jobs.1.name", Lines: []string{" graft: deferred $.jobs.1.name: some reason"}},
 	})
 	if err != nil {
@@ -625,8 +626,8 @@ func TestMarshalYAMLWithCommentsListIndexPath(t *testing.T) {
 }
 
 func TestMarshalYAMLWithCommentsUnresolvablePathIsSkippedNotFatal(t *testing.T) {
-	tree := map[string]interface{}{"a": 1}
-	out, err := graft.MarshalYAMLWithComments(tree, []graft.YAMLHeadComment{
+	treeData := map[string]interface{}{"a": 1}
+	out, err := graft.MarshalYAMLWithComments(treeData, []graft.YAMLHeadComment{
 		{Path: "", Lines: []string{" graft: unreachable"}},
 		{Path: "a['weird]", Lines: []string{" graft: also unreachable"}},
 	})

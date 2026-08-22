@@ -275,7 +275,9 @@ func TestDebugREPL(t *testing.T) {
 			// shows the pre-(--prune-flag) document. Scope this assertion to
 			// the output section only (before the later 'history' command's
 			// own "secret:" header line).
-			outputSection := out[:strings.Index(out, "graft> secret:")]
+			historyHeaderStart := strings.Index(out, "graft> secret:")
+			So(historyHeaderStart, ShouldBeGreaterThanOrEqualTo, 0)
+			outputSection := out[:historyHeaderStart]
 			So(outputSection, ShouldContainSubstring, "database:\n  host: db.prod.example.com\n")
 			So(outputSection, ShouldNotContainSubstring, "secret:")
 
@@ -343,7 +345,9 @@ func TestDebugREPL(t *testing.T) {
 
 			// output: both the root and its grab dependent still carry the
 			// deferred expression, not a resolved value or an error.
-			outputSection := out[:strings.Index(out, "graft> meta.password:")]
+			historyHeaderStart := strings.Index(out, "graft> meta.password:")
+			So(historyHeaderStart, ShouldBeGreaterThanOrEqualTo, 0)
+			outputSection := out[:historyHeaderStart]
 			So(outputSection, ShouldContainSubstring, `password: (( vault "secret/db:password" ))`)
 			count := strings.Count(outputSection, `(( vault "secret/db:password" ))`)
 			So(count, ShouldEqual, 2) // meta.password and database.password (the grab copy)

@@ -216,7 +216,7 @@ func TestMergeDeferOnErrorRoundTrip(t *testing.T) {
 
 	deferredFile := writeDoc(t, t.TempDir(), "deferred.yml", firstOut)
 
-	withGlobalVaultReader(selfReferencingPathReader{}, func() {
+	withGlobalVaultReader(func() {
 		secondOut, secondErr, secondRC := runMerge(t, []string{"merge", deferredFile})
 		if secondRC != 0 {
 			t.Fatalf("second (live) merge rc = %d, want 0, stderr: %s", secondRC, secondErr)

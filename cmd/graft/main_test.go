@@ -490,8 +490,9 @@ map:
 			// `merge` writes bare `fmt.Fprintf(os.Stdout, "%s\n", ...)`,
 			// no leading "---\n" (cmd/spruce/main.go, sibling repo); only
 			// spruce's `fan` prepends "---\n" per document, which
-			// graft's own fan already matched. See renderMergedTree's
-			// doc comment (main.go) and docs/spruce/cli-surface.md.
+			// graft's own fan already matched. See
+			// renderMergedTreeWithReport's doc comment
+			// (deferred_report.go) and docs/spruce/cli-surface.md.
 			os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
 			stdout = ""
 			stderr = ""
@@ -4538,7 +4539,8 @@ func TestExamples(t *testing.T) {
 			main()
 
 			So(stderr, ShouldEqual, "")
-			// graft merge output leads with "---\n" (renderMergedTree);
+			// graft merge output leads with "---\n"
+			// (renderMergedTreeWithReport);
 			// YAML(expect) re-marshals the fixture's bare content, so the
 			// prefix is added here rather than by YAML() itself.
 			So(stdout, ShouldEqual, "---\n"+YAML(expect))

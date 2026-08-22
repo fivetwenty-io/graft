@@ -123,7 +123,8 @@ func TestGenesisContractErrorCodesOptInPreservesScrapedShape(t *testing.T) {
 // --multi-doc --go-patch --skip-eval files... | graft json`, used to
 // build the unevaluated tree genesis looks values up in for
 // deferred-operator rewriting. `graft merge` output now leads with a
-// "---\n" document-start marker (renderMergedTree, cmd/graft/main.go);
+// "---\n" document-start marker (renderMergedTreeWithReport,
+// cmd/graft/deferred_report.go);
 // this drives both commands through main() in sequence, piping the
 // first's captured stdout into the second's stdin exactly as the shell
 // pipe does, and confirms `graft json` still parses it - the leading

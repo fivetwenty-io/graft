@@ -369,6 +369,8 @@ func isTokenByte(c byte) bool {
 // mergeOutputCacheKey derives the output-cache key for one merge
 // invocation. Every field is written length-delimited into the hash so
 // adjacent values can never collide by concatenation.
+//
+//nolint:dupl // legacyV1MergeOutputCacheKey (merge_cache_test.go) is a deliberate frozen copy of this shape; sharing code would defeat that pin
 func mergeOutputCacheKey(opts *mergeOpts, inputs [][]byte, colorEnabled bool) string {
 	h := sha256.New()
 	field := func(s string) {
@@ -378,8 +380,8 @@ func mergeOutputCacheKey(opts *mergeOpts, inputs [][]byte, colorEnabled bool) st
 		h.Write([]byte(s))
 	}
 
-	// v2: renderMergedTree now prepends "---\n" to merge output (see its
-	// doc comment). The key is already salted with the graft Version
+	// v2: renderMergedTreeWithReport now prepends "---\n" to merge output
+	// (see its doc comment). The key is already salted with the graft Version
 	// field below, but that only guards a *released* version bump; an
 	// unreleased/dev build (Version unchanged) must not be able to
 	// replay a v1 entry's pre-"---\n" bytes, so the schema string itself

@@ -221,11 +221,13 @@ func TestMergeOutputCacheKeyEnvAndVersion(t *testing.T) {
 }
 
 // legacyV1MergeOutputCacheKey reproduces the pre-"---\n"-prefix output
-// cache key exactly as mergeOutputCacheKey computed it before
-// renderMergedTree started prepending "---\n" to merge output, using
+// cache key exactly as mergeOutputCacheKey computed it before merge
+// output (renderMergedTreeWithReport) gained its "---\n" prefix, using
 // mergeOutputCacheKey's own field-writer shape (length-delimited, same
 // field order) but the old "graft-merge-output-v1" schema string. It
 // exists only for TestMergeOutputCacheKeySchemaVersionBumped below.
+//
+//nolint:dupl // deliberate frozen copy of mergeOutputCacheKey's v1 shape; sharing code with prod would defeat the pin
 func legacyV1MergeOutputCacheKey(opts *mergeOpts, inputs [][]byte, colorEnabled bool) string {
 	h := sha256.New()
 	field := func(s string) {

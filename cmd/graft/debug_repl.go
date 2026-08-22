@@ -50,6 +50,11 @@ var debugConfigKeys = map[string]string{
 // debugConfigKeyOrder is debugConfigKeys' display order for a bare `config`.
 var debugConfigKeyOrder = []string{"vault.addr", debugConfigKeyVaultToken, "vault.namespace"}
 
+// mergedDocPath is the synthetic YamlFile path label the REPL uses when
+// re-merging the session's own tree through mergeAllDocs (and as the
+// "before" label in histdiff comparisons against it).
+const mergedDocPath = "<merged>"
+
 // debugSession holds one `graft debug` REPL's state: the cached source
 // files (re-parsed on every step/continue/eval, mirroring
 // buildMergeHistorySteps' cachedMergeFile replay approach so evaluation
@@ -245,14 +250,14 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 	evalOpts.SkipEval = false
 	evalOpts.Prune = nil
 	evalOpts.CherryPick = nil
-	evaluated, _, err := mergeAllDocs([]YamlFile{{Path: "<merged>", Reader: io.NopCloser(strings.NewReader(mustYAML(deferredTree)))}}, &evalOpts)
+	evaluated, _, err := mergeAllDocs([]YamlFile{{Path: mergedDocPath, Reader: io.NopCloser(strings.NewReader(mustYAML(deferredTree)))}}, &evalOpts)
 	if err != nil {
 		s.printf("%s\n", ansi.Sprintf("@R{Evaluation failed}: %s", err.Error()))
 		s.step--
 		return false, true
 	}
 
-	changes, cmpErr := histdiff.Compare("<merged>", s.tree, "<evaluated>", evaluated)
+	changes, cmpErr := histdiff.Compare(mergedDocPath, s.tree, "<evaluated>", evaluated)
 	s.tree = evaluated
 
 	if cmpErr == nil {
@@ -523,7 +528,7 @@ func (s *debugSession) cmdAutodefer() {
 	autodeferOpts.CherryPick = nil
 
 	engine, docs, err := buildEngineAndDocs(
-		[]YamlFile{{Path: "<merged>", Reader: io.NopCloser(strings.NewReader(mustYAML(deferredTree)))}},
+		[]YamlFile{{Path: mergedDocPath, Reader: io.NopCloser(strings.NewReader(mustYAML(deferredTree)))}},
 		&autodeferOpts,
 	)
 	if err != nil {
@@ -573,7 +578,7 @@ func (s *debugSession) cmdEval(path string) {
 	evalOpts.SkipEval = false
 	evalOpts.CherryPick = []string{path}
 	evalOpts.Prune = nil
-	result, _, err := mergeAllDocs([]YamlFile{{Path: "<merged>", Reader: io.NopCloser(strings.NewReader(mustYAML(s.tree)))}}, &evalOpts)
+	result, _, err := mergeAllDocs([]YamlFile{{Path: mergedDocPath, Reader: io.NopCloser(strings.NewReader(mustYAML(s.tree)))}}, &evalOpts)
 	if err != nil {
 		s.printf("%s\n", ansi.Sprintf("@R{Evaluation failed}: %s", err.Error()))
 		return
@@ -796,6 +801,14 @@ func debugArgKindFor(name string) debugArgKind {
 	return debugArgNone
 }
 
+// debugCmdAutodefer/debugCmdPruneReport name the two multi-word REPL
+// commands used in both the help table below and the debugCommands
+// dispatch map, so the two tables cannot drift apart on the spelling.
+const (
+	debugCmdAutodefer   = "autodefer"
+	debugCmdPruneReport = "prune-report"
+)
+
 var debugCommandHelp = []debugHelpEntry{
 	{"load", "Load all documents", "load", "Parses every input file individually and establishes the first file as the starting document.", debugArgNone},
 	{"step", "Execute next merge step", "step", "Merges the next file (or evaluates operators, on the final step).", debugArgNone},
@@ -806,11 +819,11 @@ var debugCommandHelp = []debugHelpEntry{
 	{"inspect", "Show current value at path", "inspect <path>", "Shows the current (raw or evaluated, depending on progress) value at path.", debugArgPath},
 	{"history", "Show change history for path", "history <path>", "Shows the same per-file history 'merge --history' would show for path.", debugArgPath},
 	{"defer", "Mark path for deferred evaluation", "defer <path>", "Marks path so its operator is left unevaluated (via the real (( defer ... )) operator) when 'step'/'continue' evaluates.", debugArgPath},
-	{"autodefer", "Defer every failing operator and retry", "autodefer", "Runs the same defer-on-error retry loop 'graft merge --defer-on-error'/'--adaptive' uses against the session's current tree: wraps each failing operator in (( defer ... )) and retries to a fixed point, hard-failing on a true cycle with the original error. Composes with paths already deferred via 'defer' - they are protected, not re-attempted - and every path this discovers is added to the session's deferred set too, so 'output'/'export'/'history'/'inspect' all agree afterward. Prints a summary: how many keys were deferred, each with its root-cause reason.", debugArgNone},
+	{debugCmdAutodefer, "Defer every failing operator and retry", debugCmdAutodefer, "Runs the same defer-on-error retry loop 'graft merge --defer-on-error'/'--adaptive' uses against the session's current tree: wraps each failing operator in (( defer ... )) and retries to a fixed point, hard-failing on a true cycle with the original error. Composes with paths already deferred via 'defer' - they are protected, not re-attempted - and every path this discovers is added to the session's deferred set too, so 'output'/'export'/'history'/'inspect' all agree afterward. Prints a summary: how many keys were deferred, each with its root-cause reason.", debugArgNone},
 	{"eval", "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress.", debugArgPath},
 	{"config", "View/set configuration", "config [key] [value]", "Views or sets a small set of Vault connection settings (vault.addr, vault.token, vault.namespace) for the rest of the session.", debugArgConfigKey},
 	{"output", "Show current document state", "output", "Prints the current document state as YAML. Always shows the pre-(--prune/--cherry-pick)-flag tree, even once fully evaluated; see 'prune-report'.", debugArgNone},
-	{"prune-report", "Show what --prune/--cherry-pick would remove", "prune-report", "Once the session is fully evaluated, reports the paths this session's --prune/--cherry-pick flags would remove. Does not change 'output'/'export'/'history', which always show the pre-flag tree.", debugArgNone},
+	{debugCmdPruneReport, "Show what --prune/--cherry-pick would remove", debugCmdPruneReport, "Once the session is fully evaluated, reports the paths this session's --prune/--cherry-pick flags would remove. Does not change 'output'/'export'/'history', which always show the pre-flag tree.", debugArgNone},
 	{"diff", "Show changes from original", "diff", "Shows the changes between the first loaded file and the current state.", debugArgNone},
 	{"export", "Export current state to file", "export <file>", "Writes the current document state to file (YAML, or JSON if file ends in .json).", debugArgFile},
 	{"help", "Show help", "help [command]", "Lists every command, or shows detailed help for one command.", debugArgCommand},
@@ -1070,21 +1083,21 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer) i
 // pattern, a filename - so they join their fields back together; only
 // config reads its arguments as separate words.
 var debugCommands = map[string]func(sess *debugSession, args []string){
-	"load":         func(sess *debugSession, _ []string) { sess.cmdLoad() },
-	"step":         func(sess *debugSession, _ []string) { sess.cmdStep() },
-	"continue":     func(sess *debugSession, _ []string) { sess.cmdContinue() },
-	"break":        func(sess *debugSession, args []string) { sess.cmdBreak(strings.Join(args, " ")) },
-	"unbreak":      func(sess *debugSession, args []string) { sess.cmdUnbreak(strings.Join(args, " ")) },
-	"breaks":       func(sess *debugSession, _ []string) { sess.cmdBreaks() },
-	"inspect":      func(sess *debugSession, args []string) { sess.cmdInspect(strings.Join(args, " ")) },
-	"history":      func(sess *debugSession, args []string) { sess.cmdHistory(strings.Join(args, " ")) },
-	"defer":        func(sess *debugSession, args []string) { sess.cmdDefer(strings.Join(args, " ")) },
-	"autodefer":    func(sess *debugSession, _ []string) { sess.cmdAutodefer() },
-	"eval":         func(sess *debugSession, args []string) { sess.cmdEval(strings.Join(args, " ")) },
-	"config":       func(sess *debugSession, args []string) { sess.cmdConfig(args) },
-	"output":       func(sess *debugSession, _ []string) { sess.cmdOutput() },
-	"prune-report": func(sess *debugSession, _ []string) { sess.cmdPruneReport() },
-	"diff":         func(sess *debugSession, _ []string) { sess.cmdDiff() },
-	"export":       func(sess *debugSession, args []string) { sess.cmdExport(strings.Join(args, " ")) },
-	"help":         func(sess *debugSession, args []string) { sess.cmdHelp(strings.Join(args, " ")) },
+	"load":              func(sess *debugSession, _ []string) { sess.cmdLoad() },
+	"step":              func(sess *debugSession, _ []string) { sess.cmdStep() },
+	"continue":          func(sess *debugSession, _ []string) { sess.cmdContinue() },
+	"break":             func(sess *debugSession, args []string) { sess.cmdBreak(strings.Join(args, " ")) },
+	"unbreak":           func(sess *debugSession, args []string) { sess.cmdUnbreak(strings.Join(args, " ")) },
+	"breaks":            func(sess *debugSession, _ []string) { sess.cmdBreaks() },
+	"inspect":           func(sess *debugSession, args []string) { sess.cmdInspect(strings.Join(args, " ")) },
+	"history":           func(sess *debugSession, args []string) { sess.cmdHistory(strings.Join(args, " ")) },
+	"defer":             func(sess *debugSession, args []string) { sess.cmdDefer(strings.Join(args, " ")) },
+	debugCmdAutodefer:   func(sess *debugSession, _ []string) { sess.cmdAutodefer() },
+	"eval":              func(sess *debugSession, args []string) { sess.cmdEval(strings.Join(args, " ")) },
+	"config":            func(sess *debugSession, args []string) { sess.cmdConfig(args) },
+	"output":            func(sess *debugSession, _ []string) { sess.cmdOutput() },
+	debugCmdPruneReport: func(sess *debugSession, _ []string) { sess.cmdPruneReport() },
+	"diff":              func(sess *debugSession, _ []string) { sess.cmdDiff() },
+	"export":            func(sess *debugSession, args []string) { sess.cmdExport(strings.Join(args, " ")) },
+	"help":              func(sess *debugSession, args []string) { sess.cmdHelp(strings.Join(args, " ")) },
 }
