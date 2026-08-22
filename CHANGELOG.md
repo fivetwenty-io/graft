@@ -113,6 +113,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `features: []` keeps its empty list. `(( insert ))` with a missing
   anchor and out-of-range index operations still error as before.
 
+- `(( insert after "x" ))` and `(( insert before "x" ))` now work on
+  simple lists, anchoring on the entry whose value is `x`; on lists of
+  maps the anchor still matches the `name` key (or the key given
+  explicitly). Comparison is by string, the first match wins, and a
+  missing anchor is still an error, since an insertion point is a
+  positional claim. Spruce rejects the named form on scalar lists
+  outright with a key-merge error, so this is a deliberate divergence,
+  companion to delete-by-value. Alongside it, the duplicate check for
+  named inserts now covers the first list entry: an inserted entry
+  colliding with it used to slip through and duplicate silently, a
+  bug shared with spruce.
+
 ### Fixed
 
 - A key explicitly overridden to null is kept as a null, matching
