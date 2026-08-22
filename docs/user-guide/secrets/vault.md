@@ -350,7 +350,13 @@ secrets:
 ```
 
 `<secret/paths:root>` means "whatever `secret/paths:root` resolves to
-at merge time" — it is not a literal path to look up in Vault. Pass
+at merge time" — it is not a literal path to look up in Vault. The
+symbolic form is used whether the path segment references the other
+lookup's node directly or through one or more `(( grab ))` aliases,
+including a `grab` call nested inline in the vault arguments. A segment
+computed with `(( concat ... ))` from such a lookup is the remaining
+known limitation: it still reports the literal `REDACTED` text in the
+composed key. Pass
 `--resolve` to have `vaultinfo` perform real Vault lookups instead of
 skipping them (requires a reachable Vault), which reports the concrete
 composed path instead:

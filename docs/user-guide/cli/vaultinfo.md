@@ -306,7 +306,13 @@ password: (( vault "secret/db:password" || "default" ))
 password: (( vault (concat "secret/" env "/db:password") ))
 ```
 
-**Note:** Dynamic paths (using `concat` or `grab`) are shown as expressions, not resolved paths.
+**Note:** Dynamic paths are resolved before reporting. A path segment
+that comes from another `(( vault ... ))` lookup — referenced directly
+or routed through `(( grab ))` aliases — is rendered symbolically as
+`<path/to/secret:key>`, since `vaultinfo` runs offline and cannot know
+its real value (see `docs/user-guide/secrets/vault.md`). A segment
+computed with `(( concat ... ))` from such a lookup is a known
+limitation: it reports the literal `REDACTED` text in the composed key.
 
 ## Examples
 
