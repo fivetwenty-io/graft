@@ -255,6 +255,15 @@ jobs:
         run: go install github.com/geofffranks/spruce/cmd/spruce@latest
         continue-on-error: true
 
+      # The parity suite's canonicalizer (tests/spruce-compat/lib/canon.py)
+      # needs PyYAML, which the golang container image does not ship.
+      # Unlike the spruce install above this must NOT be best-effort:
+      # without it every yaml-mode comparison errors rather than skips.
+      - name: Install PyYAML for the canonicalizer
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq python3-yaml
+
       - name: Run spruce/graft parity suite
         run: make test-spruce-compat
 
