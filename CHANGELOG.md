@@ -115,6 +115,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A key explicitly overridden to null is kept as a null, matching
+  spruce. The simple-merge fast path used to read a nil overlay value
+  as "delete this key", so `b: null` in an overlay silently removed
+  `b` — but only for an existing map key, and only when the documents
+  happened to route through the fast path; new keys, list elements,
+  and any merge involving an array operator, prune, or sort already
+  preserved the null. Both merge paths now agree, and `--history`
+  credits the overlay file instead of rendering the change as
+  `<pruned>`. Anything that relied on `key: null` as an undocumented
+  delete idiom will now see the key survive with a null value; the
+  supported way to remove a key remains `--prune` or `(( prune ))`.
+
 - Merge history now reports keys removed by a `(( prune ))` operator.
   The operator queues its path inside the engine, so history's
   per-file replays only saw the key vanish as a nil value, rendering
@@ -136,9 +148,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `secret/paths:<secret/paths:root>`, naming the lookup the segment
   comes from. This covers `vault-try` too. Document values themselves
   are unchanged: `REDACT=1 graft merge` output still reads `REDACTED`,
-  and fixtures without composed paths are byte-identical. A path
-  composed from a `grab` of a redacted value, rather than from the
-  vault lookup directly, still shows the flat text.
+  and fixtures without composed paths are byte-identical. The symbolic
+  form follows the value through `(( grab ))` as well: an alias of a
+  redacted lookup, a chain of aliases, or an inline `(grab ...)`
+  argument all report the composed key symbolically instead of
+  corrupting it with the flat text. A path built with `(( concat ))`
+  remains the known limitation and still shows `REDACTED`.
 
 - `NO_COLOR` and `TERM=dumb` are honored again. The environment checks
   ran at startup but the command-line color handling then overwrote
