@@ -5,7 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.35.0] - 2026-08-21
+
+A resilience release. A merge no longer has to be all-or-nothing:
+`--defer-on-error` retries around failing operators, the `--skip-*`
+flags defer whole secrets backends, and both leave re-mergeable
+expressions in the output with the new exit code 3 marking a partial
+document. The debugger gains the same adaptive loop plus prune
+awareness, and several long-standing merge bugs (null overrides,
+prune history, composed vault paths) are fixed.
 
 ### Added
 
@@ -19,15 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whether the output stream is a terminal — stderr for diagnostics, and
   stdout for `graft diff`'s rendered output, so a redirected diff stays
   free of escape codes even from an interactive shell.
-
-- `graft debug` now runs its prompt through a real line editor when it is
-  attached to a terminal. Up and Down recall earlier commands, Ctrl+R
-  searches them, and Tab completes command names, document paths from the
-  tree at the current step, set breakpoints for `unbreak`, and the known
-  keys for `config`. Recall persists in `~/.graft/debug_history`, created
-  readable only by its owner, and a line that sets a secret such as
-  `config vault.token` is kept out of it. Piped and redirected input is
-  read exactly as before.
 
 - `graft vaultinfo --resolve` performs live Vault lookups instead of
   the default offline scan, so paths composed from other vault-sourced
@@ -193,6 +192,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is now: an explicit `--color`/`--no-color` first, then the
   environment, then terminal detection.
 
+### Documentation
+
+- Documented building a Vault path from another Vault lookup — a
+  `(( vault ))` whose path embeds a `(( grab ))` of a value that is
+  itself fetched from Vault — with a regression test and fixture
+  (`assets/vault/self-reference.yml`) pinning the resolution order.
+  `vaultinfo` reports such composed paths with symbolic references,
+  per the fix above.
+
+- Added a Delete-if-Present section to the array merging guide covering
+  the scalar-list delete semantics above, with the empty-list,
+  absent-key, and mixed-overlay cases spelled out.
+
+## [1.34.1] - 2026-08-20
+
+### Fixed
+
 - A `(( prune ))` that overwrote a value an earlier document had set left
   the marker in place instead of queueing the path and keeping the value.
   Anything reading that path, such as `(( grab ))`, then read the literal
@@ -202,6 +218,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path and leaves the earlier value in place for the rest of the merge;
   graft now does the same, including for a `(( prune ))` merged in by
   `(( inject ))`.
+
+## [1.34.0] - 2026-08-19
+
+### Added
+
+- `graft debug` now runs its prompt through a real line editor when it is
+  attached to a terminal. Up and Down recall earlier commands, Ctrl+R
+  searches them, and Tab completes command names, document paths from the
+  tree at the current step, set breakpoints for `unbreak`, and the known
+  keys for `config`. Recall persists in `~/.graft/debug_history`, created
+  readable only by its owner, and a line that sets a secret such as
+  `config vault.token` is kept out of it. Piped and redirected input is
+  read exactly as before.
+
+### Fixed
 
 - `graft debug`'s `history` command now applies the session's deferred
   paths, as `step` and `continue` already did. Previously an operator the
@@ -220,17 +251,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documented how `REDACT` lets a whole debug session tolerate unreachable
   Vault paths, and how `graft diff` decides whether to color its output.
-
-- Documented building a Vault path from another Vault lookup — a
-  `(( vault ))` whose path embeds a `(( grab ))` of a value that is
-  itself fetched from Vault — with a regression test and fixture
-  (`assets/vault/self-reference.yml`) pinning the resolution order.
-  Noted that `vaultinfo` currently prints `REDACTED` inside such
-  composed paths, since it skips the lookups the path depends on.
-
-- Added a Delete-if-Present section to the array merging guide covering
-  the scalar-list delete semantics above, with the empty-list,
-  absent-key, and mixed-overlay cases spelled out.
 
 ## [1.33.0] - 2026-08-17
 
@@ -653,6 +673,9 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.35.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.35.0
+[1.34.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.34.1
+[1.34.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.34.0
 [1.33.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.33.0
 [1.32.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.32.2
 [1.32.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.32.1
