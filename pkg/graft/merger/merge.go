@@ -615,7 +615,7 @@ func (m *Merger) mergeArray(orig []interface{}, n []interface{}, node string) []
 			if idx == -1 {
 				idx = len(result)
 			}
-		case modificationDefinition.key == "" && modificationDefinition.name != "":
+		case modificationDefinition.key == "" && modificationDefinition.name != "": // Simple list: the entry value itself is the anchor
 			name := modificationDefinition.name
 			isDelete := modificationDefinition.listOp == listOpDelete
 			if isDelete {
@@ -624,21 +624,33 @@ func (m *Merger) mergeArray(orig []interface{}, n []interface{}, node string) []
 					m.Errors.Append(ansi.Errorf("@m{%s}: @R{item in array directly after} @c{(( delete \"%s\" ))} @r{must be one of the array operators 'append', 'prepend', 'delete', or 'insert'}", node, name))
 					return nil
 				}
+			}
 
-				// Look up the index of the specified insertion point (based on solely on its name)
-				idx = getIndexOfSimpleEntry(result, name)
-				if idx < 0 {
+			// Look up the index of the specified modification point (based solely on the entry value)
+			idx = getIndexOfSimpleEntry(result, name)
+			if idx < 0 {
+				if isDelete {
 					// delete-if-present: a delete target that is not in the
 					// original list is a silent no-op, not an error. This
 					// intentionally diverges from insert, whose target must
 					// always exist.
 					continue
 				}
+				m.Errors.Append(ansi.Errorf("@m{%s}: @R{unable to find specified modification point with} @c{'%s'}", node, name))
+				return nil
 			}
 		default: // Index look-up based on key and name
 			key := modificationDefinition.key
 			name := modificationDefinition.name
 			isDelete := modificationDefinition.listOp == listOpDelete
+
+			// getArrayModifications only keeps an explicit key against a
+			// simple list so it can be rejected here - a scalar entry has no
+			// key to match on, and the marker must never leak into the output
+			if simpleList {
+				m.Errors.Append(ansi.Errorf("@m{%s}: @R{unable to insert, because the keyed insertion point} @c{'%s: %s'} @R{cannot target entries in a list of scalars}", node, key, name))
+				return nil
+			}
 
 			// Sanity check original list, list must contain key/id based entries
 			if err := canKeyMergeArray("original", result, node, key); err != nil {
@@ -670,7 +682,7 @@ func (m *Merger) mergeArray(orig []interface{}, n []interface{}, node string) []
 					if !ok {
 						continue
 					}
-					if getIndexOfEntry(result, key, entryNameVal) > 0 {
+					if getIndexOfEntry(result, key, entryNameVal) >= 0 {
 						m.Errors.Append(ansi.Errorf("@m{%s}: @R{unable to insert, because new list entry} @c{'%s: %s'} @R{is detected multiple times}", node, key, entryNameVal))
 						return nil
 					}
@@ -965,7 +977,11 @@ func getArrayModifications(obj []interface{}, simpleList bool) []ModificationDef
 				key := strings.TrimSpace(captures[2])
 				name := strings.TrimSpace(captures[3])
 
-				if key == "" {
+				// A simple list has no identifier key - the anchor is the
+				// entry value itself, so the key must stay empty. An explicit
+				// key on a simple list is kept for mergeArray to reject with
+				// a targeted error rather than silently dropping the marker.
+				if !simpleList && key == "" {
 					key = getDefaultIdentifierKey()
 				}
 
