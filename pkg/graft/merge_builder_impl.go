@@ -814,17 +814,10 @@ func (m *mergeBuilderImpl) performSimpleMergeAtPath(base, overlay map[string]int
 		if err != nil {
 			return err
 		}
-		if merged == nil {
-			delete(base, key)
-			if memTracker != nil {
-				_ = memTracker.RecordMergeChange(recordPath, baseValue, nil, "delete")
-			}
-		} else {
-			base[key] = merged
-			// Record the merge if value changed
-			if memTracker != nil && !valuesEqual(baseValue, merged) {
-				_ = memTracker.RecordMergeChange(recordPath, baseValue, merged, "merge")
-			}
+		base[key] = merged
+		// Record the merge if value changed
+		if memTracker != nil && !valuesEqual(baseValue, merged) {
+			_ = memTracker.RecordMergeChange(recordPath, baseValue, merged, "merge")
 		}
 	}
 
@@ -835,7 +828,8 @@ func (m *mergeBuilderImpl) performSimpleMergeAtPath(base, overlay map[string]int
 // canonical path of base/overlay within the overall document; see
 // mergeIntoAtPath's doc comment.
 func (m *mergeBuilderImpl) mergeValuesAtPath(base, overlay interface{}, path []string) (interface{}, error) {
-	// If overlay is nil, it means delete the key
+	// A nil overlay is a null VALUE to store, never a key deletion —
+	// matching spruce and the legacy merger (merger/merge.go mergeMap).
 	if overlay == nil {
 		return nil, nil
 	}

@@ -283,16 +283,12 @@ secret:
 		})
 
 		Convey("a key overridden to an explicit YAML null is never rendered as <pruned>", func() {
-			// The overlay also carries an unrelated (( append )) array
-			// marker (on "tags"), routing the whole document through the
-			// legacy merger (pkg/graft/merger), which preserves an
-			// explicit null overlay value as-is. Two plain files with no
-			// array/prune/sort markers anywhere instead route through the
-			// engine's simple-merge fast path, which - unrelated to
-			// history or prune - treats a null overlay value as "delete
-			// this key", so that combination would not exercise this case
-			// at all: the key would vanish from the raw merge step itself,
-			// before history ever sees a null to distinguish from a prune.
+			// The overlay's unrelated (( append )) array marker (on
+			// "tags") routes the whole document through the legacy merger
+			// (pkg/graft/merger), which preserves an explicit null overlay
+			// value as-is. The sibling case below exercises the same null
+			// override on the engine's simple-merge fast path (two plain
+			// files, no markers), which preserves it identically.
 			reset()
 			os.Args = []string{"graft", "merge", "--history",
 				"../../assets/history/null-base.yml", "../../assets/history/null-override.yml"}
@@ -313,6 +309,48 @@ tags:
 tags[0]:
   [1] ../../assets/history/null-override.yml → c
   Final              → c  (unchanged)
+`)
+			So(stdout, ShouldNotContainSubstring, "<pruned>")
+		})
+
+		Convey("a null override on the simple-merge fast path keeps the key, crediting the overlay file", func() {
+			// No array/prune/sort markers anywhere, so the merge routes
+			// through the engine's simple-merge fast path rather than the
+			// legacy merger — the combination that once deleted the key
+			// outright, leaving --history to render <pruned> with the
+			// source file lost.
+			reset()
+			os.Args = []string{"graft", "merge", "--history",
+				"../../assets/history/null-base.yml", "../../assets/history/null-fast-override.yml"}
+			main()
+			So(stderr, ShouldEqual, "")
+			So(rc, ShouldEqual, 0)
+			So(stdout, ShouldEqual, `Merge History:
+
+database.pool_size:
+  [0] ../../assets/history/null-base.yml → 10
+  [1] ../../assets/history/null-fast-override.yml → ~
+  Final              → ~
+
+tags:
+  [0] ../../assets/history/null-base.yml → - a …
+  Final              → - a …  (unchanged)
+`)
+			So(stdout, ShouldNotContainSubstring, "<pruned>")
+		})
+
+		Convey("--show-changes counts a fast-path null override as a change, not a removal", func() {
+			reset()
+			os.Args = []string{"graft", "merge", "--show-changes",
+				"../../assets/history/null-base.yml", "../../assets/history/null-fast-override.yml"}
+			main()
+			So(stderr, ShouldEqual, "")
+			So(rc, ShouldEqual, 0)
+			So(stdout, ShouldEqual, `Merge Summary: 2 files → 2 keys (1 changed, 0 added, 0 removed)
+
+database.pool_size:
+  ✗ ../../assets/history/null-base.yml 10
+  ✓ ../../assets/history/null-fast-override.yml ~
 `)
 			So(stdout, ShouldNotContainSubstring, "<pruned>")
 		})

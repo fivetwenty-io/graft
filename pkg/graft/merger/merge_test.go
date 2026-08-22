@@ -2457,3 +2457,58 @@ features:
 		})
 	})
 }
+
+// TestMergeNullOverridePreservesKeys pins the legacy merger's deliberate
+// null handling (mergeMap: null is a valid YAML value, not a key delete):
+// an overlay key explicitly set to null overwrites the base value with
+// null rather than removing the key.
+func TestMergeNullOverridePreservesKeys(t *testing.T) {
+	YAML := func(s string) map[string]interface{} {
+		data := make(map[string]interface{})
+		err := yamlv3.Unmarshal(quoteInjectKeys([]byte(s)), &data)
+		So(err, ShouldBeNil)
+		return normalizeYAMLMap(data)
+	}
+
+	presentAsNull := func(m map[string]interface{}, key string) {
+		v, ok := m[key]
+		So(ok, ShouldBeTrue)
+		So(v, ShouldBeNil)
+	}
+
+	Convey("Merge() preserves explicit null overlay values", t, func() {
+		Convey("an existing scalar key overridden to null stays present as null", func() {
+			merged, err := Merge(YAML("a: 1\nb: 2\n"), YAML("b: ~\n"))
+			So(err, ShouldBeNil)
+
+			presentAsNull(merged, "b")
+			So(merged["a"], ShouldEqual, 1)
+		})
+
+		Convey("a map value overridden to null stays present as null", func() {
+			merged, err := Merge(YAML("a: 1\nb:\n  x: 1\n"), YAML("b: ~\n"))
+			So(err, ShouldBeNil)
+
+			presentAsNull(merged, "b")
+			So(merged["a"], ShouldEqual, 1)
+		})
+
+		Convey("a nested map key overridden to null stays present as null", func() {
+			merged, err := Merge(YAML("outer:\n  keep: 1\n  gone: 2\n"), YAML("outer:\n  gone: ~\n"))
+			So(err, ShouldBeNil)
+
+			outer, ok := merged["outer"].(map[string]interface{})
+			So(ok, ShouldBeTrue)
+			presentAsNull(outer, "gone")
+			So(outer["keep"], ShouldEqual, 1)
+		})
+
+		Convey("a brand-new null key is materialized as null", func() {
+			merged, err := Merge(YAML("a: 1\n"), YAML("b: ~\n"))
+			So(err, ShouldBeNil)
+
+			presentAsNull(merged, "b")
+			So(merged["a"], ShouldEqual, 1)
+		})
+	})
+}
