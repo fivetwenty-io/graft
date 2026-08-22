@@ -1185,6 +1185,62 @@ quux: quux
 			}
 		})
 
+		Convey("vaultinfo renders a path segment routed through a (( grab )) alias symbolically, not as a corrupted \"...:REDACTED\" path", func() {
+			// assets/vault/grab-alias.yml routes meta.path (itself a
+			// (( vault ... )) lookup) into later vault-path composition
+			// through grab aliases: a single alias as one path segment
+			// (tree_value), an alias as the whole path (whole_value), a
+			// two-step grab chain (chained_value), and a grab call nested
+			// directly inside the vault arguments (nested_value). All four
+			// must render the symbolic "<secret/paths:root>" form instead
+			// of leaking the flat "REDACTED" sentinel into the key.
+			os.Args = []string{"graft", "vaultinfo", "../../assets/vault/grab-alias.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldNotContainSubstring, "REDACTED")
+			So(stdout, ShouldEqual, `secrets:
+- key: <secret/paths:root>
+  references:
+  - whole_value
+- key: secret/paths:<secret/paths:root>
+  references:
+  - chained_value
+  - nested_value
+  - tree_value
+- key: secret/paths:root
+  references:
+  - meta.path
+
+`)
+		})
+
+		Convey("REDACT=1 merge output still shows the flat \"REDACTED\" sentinel for values routed through (( grab )) aliases", func() {
+			// The alias-edge bookkeeping that fixes vaultinfo's composed
+			// keys (op_grab.go's placeholder forwarding) must not change
+			// any rendered document value: under REDACT=1, every leaf of
+			// the grab-alias fixture still reads exactly "REDACTED".
+			_ = os.Setenv("REDACT", "1")
+			os.Args = []string{"graft", "merge", "../../assets/vault/grab-alias.yml"}
+			stdout = ""
+			stderr = ""
+			main()
+			So(stderr, ShouldEqual, "")
+			So(stdout, ShouldEqual, `---
+alias: REDACTED
+chained: REDACTED
+chained_value: REDACTED
+meta:
+  path: REDACTED
+nested_value: REDACTED
+tree_value: REDACTED
+whole_value: REDACTED
+
+`)
+			_ = os.Setenv("REDACT", "")
+		})
+
 		Convey("REDACT=1 merge output still shows the flat \"REDACTED\" sentinel, even for a value composed from another vault lookup", func() {
 			// Pins that the symbolic "<path/to/secret:key>" form is
 			// confined to vault-path composition (op_vault.go's

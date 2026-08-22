@@ -85,21 +85,42 @@ func (p *vaultArgProcessor) detectMultiplePathArgs(ev *Evaluator) bool {
 	return pathCount > 1
 }
 
+// symbolicPlaceholder reports the symbolic "<path/to/secret:key>" form
+// for an argument that leads to a tree path a skip-vault sentinel was
+// written to (RecordVaultPlaceholder, performVaultLookup): a direct
+// reference to such a path, or a single-argument nested (( grab ... ))
+// call routed to one - grab's Run forwards the source's placeholder to
+// its own tree path (op_grab.go), so tree-level aliases resolve through
+// the reference case, while this recursion covers a grab nested inline
+// in the vault arguments without evaluating it. Anything else (notably a
+// concat-built segment) is not covered and resolves normally.
+func (p *vaultArgProcessor) symbolicPlaceholder(ev *Evaluator, expr *Expr) (string, bool) {
+	if expr == nil {
+		return "", false
+	}
+	if expr.Type == Reference && expr.Reference != nil {
+		if key, ok := graft.GetEngine(ev).GetOperatorState().VaultPlaceholderFor(expr.Reference.String()); ok {
+			return "<" + key + ">", true
+		}
+		return "", false
+	}
+	if expr.Type == OperatorCall && expr.Op() == "grab" {
+		if args := expr.Args(); len(args) == 1 {
+			return p.symbolicPlaceholder(ev, args[0])
+		}
+	}
+	return "", false
+}
+
 // resolveToString resolves an expression and converts it to a string.
 func (p *vaultArgProcessor) resolveToString(ev *Evaluator, expr *Expr) (string, error) {
-	// A direct reference to a tree path that a skip-vault sentinel was
-	// written to (RecordVaultPlaceholder, performVaultLookup) renders as
-	// a symbolic "<path/to/secret:key>" instead of resolving normally -
-	// resolving it normally would return the literal "REDACTED" text,
-	// silently concatenating that word into a new, corrupted vault path
-	// (docs/user-guide/secrets/vault.md's former "known limitation").
-	// Only a *direct* reference is covered: an intermediate (( grab ))
-	// alias to the same node is out of scope, since it does not
-	// participate in vault-path composition itself.
-	if expr != nil && expr.Type == Reference && expr.Reference != nil {
-		if key, ok := graft.GetEngine(ev).GetOperatorState().VaultPlaceholderFor(expr.Reference.String()); ok {
-			return "<" + key + ">", nil
-		}
+	// A path segment carrying a skip-vault sentinel renders symbolically
+	// instead of resolving normally - resolving it normally would return
+	// the literal "REDACTED" text, silently concatenating that word into
+	// a new, corrupted vault path (docs/user-guide/secrets/vault.md's
+	// former "known limitation").
+	if key, ok := p.symbolicPlaceholder(ev, expr); ok {
+		return key, nil
 	}
 
 	// Check if we need to handle sub-operators

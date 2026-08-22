@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -113,6 +114,30 @@ func valueIsFinal(arg *Expr) bool {
 	return arg.Type == OperatorCall && (arg.Op() == "grab" || arg.Op() == "prune")
 }
 
+// forwardVaultPlaceholder forwards a skip-vault placeholder along a grab
+// alias edge: when a single-argument grab's resolved value is exactly
+// the skip-vault sentinel and its argument is a direct reference to a
+// tree path a placeholder was recorded for (performVaultLookup, or an
+// earlier grab in a chain), the same placeholder is recorded for grab's
+// own tree path. That lets a later (( vault ... )) call that composes
+// its path through this alias render the symbolic "<path/to/secret:key>"
+// form (vaultArgProcessor.symbolicPlaceholder) instead of the literal
+// "REDACTED" text. The grab result itself is untouched - REDACT=1 merge
+// output stays byte-identical.
+func forwardVaultPlaceholder(ev *Evaluator, arg *Expr, val interface{}) {
+	str, ok := val.(string)
+	if !ok || str != redactedValue {
+		return
+	}
+	if arg == nil || arg.Type != Reference || arg.Reference == nil {
+		return
+	}
+	state := graft.GetEngine(ev).GetOperatorState()
+	if key, ok := state.VaultPlaceholderFor(arg.Reference.String()); ok {
+		state.RecordVaultPlaceholder(ev.Here.String(), key)
+	}
+}
+
 // resolveComputedPath resolves a string an expression produced as a
 // reference path. A string that does not parse as a path is not an error:
 // it is a legitimate grab result, returned as-is.
@@ -160,6 +185,7 @@ func (GrabOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 	case 1:
 		DEBUG("  called with only one argument; returning value as-is")
+		forwardVaultPlaceholder(ev, args[0], vals[0])
 		return &Response{
 			Type:  Replace,
 			Value: vals[0],

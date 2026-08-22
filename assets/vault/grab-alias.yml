@@ -1,0 +1,14 @@
+meta:
+  path: (( vault "secret/paths:root" ))
+
+alias: (( grab meta.path ))
+
+chained: (( grab alias ))
+
+tree_value: (( vault "secret/paths:" alias ))
+
+whole_value: (( vault alias ))
+
+chained_value: (( vault "secret/paths:" chained ))
+
+nested_value: (( vault "secret/paths:" (grab meta.path) ))

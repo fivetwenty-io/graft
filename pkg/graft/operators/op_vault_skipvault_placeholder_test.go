@@ -86,6 +86,102 @@ func TestVaultTryOperatorSkipVaultPathComposition(t *testing.T) {
 	assertComposedVaultKeyRecorded(t, engine, "secret/paths:<secret/paths:root>", "secret/paths:REDACTED")
 }
 
+// TestVaultOperatorSkipVaultGrabAliasComposition pins the same symbolic
+// composition when the skipped lookup's tree node is routed through an
+// intermediate (( grab )) alias (assets/vault/grab-alias.yml's
+// tree_value shape): grab copies the flat sentinel, so it must also
+// forward the source path's placeholder to its own tree path for the
+// later vault-path-building reference to find.
+func TestVaultOperatorSkipVaultGrabAliasComposition(t *testing.T) {
+	engine, err := graft.NewEngine(graft.WithSkipVault(true), graft.WithRedact(true))
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+
+	yamlDoc := "meta:\n  path: (( vault \"secret/paths:root\" ))\nalias: (( grab meta.path ))\nvalue: (( vault \"secret/paths:\" alias ))\n"
+	doc, err := evaluateYAML(t, engine, yamlDoc)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	assertRedactedLeaf(t, doc, "meta.path")
+	assertRedactedLeaf(t, doc, "alias")
+	assertRedactedLeaf(t, doc, "value")
+	assertComposedVaultKeyRecorded(t, engine, "secret/paths:<secret/paths:root>", "secret/paths:REDACTED")
+}
+
+// TestVaultOperatorSkipVaultGrabAliasWholePath pins the alias-as-whole-
+// path shape: (( vault alias )) with no literal segments at all must
+// report the bare symbolic key, not the bare "REDACTED" text.
+func TestVaultOperatorSkipVaultGrabAliasWholePath(t *testing.T) {
+	engine, err := graft.NewEngine(graft.WithSkipVault(true), graft.WithRedact(true))
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+
+	yamlDoc := "meta:\n  path: (( vault \"secret/paths:root\" ))\nalias: (( grab meta.path ))\nvalue: (( vault alias ))\n"
+	doc, err := evaluateYAML(t, engine, yamlDoc)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	assertRedactedLeaf(t, doc, "alias")
+	assertRedactedLeaf(t, doc, "value")
+	assertComposedVaultKeyRecorded(t, engine, "<secret/paths:root>", "REDACTED")
+}
+
+// TestVaultOperatorSkipVaultChainedGrabComposition pins that the
+// placeholder forwarding is transitive: each grab in an alias chain
+// records its own tree path, so the vault call at the end of the chain
+// still composes symbolically. Ordering holds because each grab depends
+// on its source (GrabOperator.Dependencies) and so runs after it.
+func TestVaultOperatorSkipVaultChainedGrabComposition(t *testing.T) {
+	engine, err := graft.NewEngine(graft.WithSkipVault(true), graft.WithRedact(true))
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+
+	yamlDoc := "meta:\n  path: (( vault \"secret/paths:root\" ))\na: (( grab meta.path ))\nb: (( grab a ))\nvalue: (( vault \"secret/paths:\" b ))\n"
+	doc, err := evaluateYAML(t, engine, yamlDoc)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	assertRedactedLeaf(t, doc, "a")
+	assertRedactedLeaf(t, doc, "b")
+	assertRedactedLeaf(t, doc, "value")
+	assertComposedVaultKeyRecorded(t, engine, "secret/paths:<secret/paths:root>", "secret/paths:REDACTED")
+}
+
+// TestVaultOperatorSkipVaultNestedGrabComposition pins the grab call
+// nested directly inside the vault arguments:
+// (( vault "secret/paths:" (grab meta.path) )). The symbolic probe must
+// look through the OperatorCall to its reference argument. It also pins
+// that the placeholder finally recorded for the vault op's own tree path
+// is the composed key (performVaultLookup writes it last), not a stale
+// entry a nested-grab evaluation might have left behind for that path.
+func TestVaultOperatorSkipVaultNestedGrabComposition(t *testing.T) {
+	engine, err := graft.NewEngine(graft.WithSkipVault(true), graft.WithRedact(true))
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+
+	yamlDoc := "meta:\n  path: (( vault \"secret/paths:root\" ))\nvalue: (( vault \"secret/paths:\" (grab meta.path) ))\n"
+	doc, err := evaluateYAML(t, engine, yamlDoc)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+
+	assertRedactedLeaf(t, doc, "meta.path")
+	assertRedactedLeaf(t, doc, "value")
+	assertComposedVaultKeyRecorded(t, engine, "secret/paths:<secret/paths:root>", "secret/paths:REDACTED")
+
+	key, ok := engine.GetOperatorState().VaultPlaceholderFor("value")
+	if !ok || key != "secret/paths:<secret/paths:root>" {
+		t.Fatalf("VaultPlaceholderFor(\"value\") = %q, %v; want the composed key %q recorded last", key, ok, "secret/paths:<secret/paths:root>")
+	}
+}
+
 // assertRedactedLeaf fails t unless doc's string value at path is the
 // flat literal "REDACTED" - confirming a skip-vault sentinel's document
 // value is unaffected by the symbolic-composition fix.
