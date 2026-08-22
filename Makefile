@@ -24,6 +24,13 @@ COVERAGE_DIR := coverage
 COVERAGE_FILE := $(COVERAGE_DIR)/coverage.out
 COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 INSTALL_PATH ?= /usr/local/bin
+# CI's Lint job pins both of these (.github/workflows/ci.yml); keep them in
+# sync so a local `make golangci` reproduces CI byte-for-byte. The
+# GOTOOLCHAIN pin also matters locally on its own: golangci-lint is built
+# with go1.26 and panics type-checking against a newer local toolchain's
+# standard library.
+GOLANGCI_LINT_VERSION := v2.12.2
+LINT_GOTOOLCHAIN := go1.26.6
 
 # Platform detection
 GOOS := $(shell go env GOOS)
@@ -272,13 +279,13 @@ deadcode: ## Run deadcode to find unused code
 	@deadcode -test ./... || true
 	@printf "$(GREEN)✓ Deadcode analysis complete$(RESET)\n"
 
-golangci: ## Run golangci-lint comprehensive linter
-	@printf "$(GREEN)Running golangci-lint...$(RESET)\n"
-	@command -v golangci-lint >/dev/null 2>&1 || { \
-		printf "$(YELLOW)Installing golangci-lint...$(RESET)\n"; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin; \
+golangci: ## Run golangci-lint at CI's pinned version and toolchain
+	@printf "$(GREEN)Running golangci-lint $(GOLANGCI_LINT_VERSION)...$(RESET)\n"
+	@golangci-lint version 2>/dev/null | grep -q "version $(patsubst v%,%,$(GOLANGCI_LINT_VERSION)) " || { \
+		printf "$(YELLOW)Installing golangci-lint $(GOLANGCI_LINT_VERSION)...$(RESET)\n"; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
 	}
-	@golangci-lint run ./...
+	@GOTOOLCHAIN=$(LINT_GOTOOLCHAIN) golangci-lint run ./...
 	@printf "$(GREEN)✓ Golangci-lint complete$(RESET)\n"
 
 ##@ Security
@@ -408,25 +415,17 @@ validate-imports-example: ## Run standalone import validation example
 pre-commit: fmt vet build ## Run all pre-commit checks (fmt, vet, build)
 	@printf "$(GREEN)✓ All pre-commit checks passed!$(RESET)\n"
 
-pre-push: security test ## Run all pre-push checks (security, test)
+pre-push: lint golangci security test ## Run all pre-push checks (lint, golangci, security, test)
 	@printf "$(GREEN)✓ All pre-push checks passed!$(RESET)\n"
 
 hooks: hooks-install ## Install git hooks (alias for hooks-install)
 
-hooks-install: ## Install pre-commit and pre-push hooks
-	@printf "$(GREEN)Installing git hooks...$(RESET)\n"
-	@mkdir -p .githooks
-	@echo '#!/bin/bash' > .githooks/pre-commit
-	@echo 'make pre-commit' >> .githooks/pre-commit
-	@chmod +x .githooks/pre-commit
-	@echo '#!/bin/bash' > .githooks/pre-push
-	@echo 'make pre-push' >> .githooks/pre-push
-	@chmod +x .githooks/pre-push
+hooks-install: ## Point git at the checked-in .githooks hooks
 	@git config core.hooksPath .githooks
 	@printf "$(GREEN)✓ Git hooks installed successfully$(RESET)\n"
 	@printf "$(CYAN)Hooks location: .githooks/$(RESET)\n"
 	@printf "  - pre-commit: fmt, vet, build\n"
-	@printf "  - pre-push: security, tests\n"
+	@printf "  - pre-push: lint, golangci, security, tests\n"
 
 hooks-uninstall: ## Remove git hooks configuration
 	@printf "$(YELLOW)Removing git hooks...$(RESET)\n"

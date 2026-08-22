@@ -1,0 +1,5 @@
+#!/bin/bash
+# Runs `make pre-commit` (fmt, vet, build). Installed by `make hooks`,
+# which points core.hooksPath at this directory. Bypass a single commit
+# with `git commit --no-verify`.
+exec make pre-commit
