@@ -127,6 +127,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An argument-bearing `(( delete ... ))` marker outside a list is now
+  rejected with `inappropriate use of (( delete )) operator outside of
+  a list` instead of surviving the merge as literal text. The marker
+  only has meaning as a list entry; used as a map value over a scalar,
+  map, or absent key, both merge paths used to copy the marker string
+  into the output as data. Both paths now produce the identical error,
+  whichever document position carries the marker, including the first
+  file. Spruce rejects the same input too, from its evaluation phase
+  with different wording, so no valid spruce document is affected. The
+  bare `(( delete ))` form keeps its spruce-parity passthrough as
+  literal text.
+
+- An unregistered operator call with arguments now passes through the
+  merge intact. The passthrough rendered every non-literal argument as
+  `...`, so `(( bogus foo ))` came out as `(( bogus ... ))`, corrupting
+  the expression for any later merge that does know the operator.
+  Arguments now round-trip as their real source text: references by
+  path, environment variables as `$NAME`, literals quoted, nested
+  calls and `||` alternatives recursed.
+
 - A key explicitly overridden to null is kept as a null, matching
   spruce. The simple-merge fast path used to read a nil overlay value
   as "delete this key", so `b: null` in an overlay silently removed
