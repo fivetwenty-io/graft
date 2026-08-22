@@ -319,7 +319,7 @@ trivy: ## Run Trivy container and dependency scanner
 		printf "$(CYAN)  Or visit: https://aquasecurity.github.io/trivy$(RESET)\n"; \
 		exit 1; \
 	}
-	@trivy fs --scanners vuln,misconfig,secret --severity HIGH,CRITICAL --skip-dirs vendor .
+	@trivy fs --scanners vuln,misconfig,secret --severity HIGH,CRITICAL --exit-code 1 --skip-dirs .git --skip-dirs vendor .
 	@printf "$(GREEN)✓ Trivy scan complete$(RESET)\n"
 
 ##@ Combined Checks
@@ -415,7 +415,13 @@ validate-imports-example: ## Run standalone import validation example
 pre-commit: fmt vet build ## Run all pre-commit checks (fmt, vet, build)
 	@printf "$(GREEN)✓ All pre-commit checks passed!$(RESET)\n"
 
-pre-push: lint golangci security test ## Run all pre-push checks (lint, golangci, security, test)
+# Mirrors CI's push-gating jobs (Lint, Security Scan, Test): golangci at
+# the pinned version, trivy with the same scanners and severities, and the
+# full test suite. gosec and govulncheck stay in `security`/`check-all`
+# for on-demand runs -- CI does not gate on them, and standalone gosec
+# does not honor the //nolint annotations golangci-lint does, so gating
+# here would block pushes CI would accept.
+pre-push: lint golangci trivy test ## Run all pre-push checks (lint, golangci, trivy, test)
 	@printf "$(GREEN)✓ All pre-push checks passed!$(RESET)\n"
 
 hooks: hooks-install ## Install git hooks (alias for hooks-install)
@@ -425,7 +431,7 @@ hooks-install: ## Point git at the checked-in .githooks hooks
 	@printf "$(GREEN)✓ Git hooks installed successfully$(RESET)\n"
 	@printf "$(CYAN)Hooks location: .githooks/$(RESET)\n"
 	@printf "  - pre-commit: fmt, vet, build\n"
-	@printf "  - pre-push: lint, golangci, security, tests\n"
+	@printf "  - pre-push: lint, golangci, trivy, tests\n"
 
 hooks-uninstall: ## Remove git hooks configuration
 	@printf "$(YELLOW)Removing git hooks...$(RESET)\n"
