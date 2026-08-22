@@ -143,16 +143,7 @@ func (n NullOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	// Reconstruct the original operator call
 	var argStrings []string
 	for _, arg := range args {
-		if arg.Type == Literal {
-			if s, ok := arg.Literal.(string); ok {
-				argStrings = append(argStrings, fmt.Sprintf("%q", s))
-			} else {
-				argStrings = append(argStrings, fmt.Sprintf("%v", arg.Literal))
-			}
-		} else {
-			// For non-literal args, use a placeholder
-			argStrings = append(argStrings, "...")
-		}
+		argStrings = append(argStrings, renderPassthroughArg(arg))
 	}
 
 	var argsStr string
@@ -169,6 +160,56 @@ func (n NullOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		Type:  Replace,
 		Value: originalCall,
 	}, nil
+}
+
+// renderPassthroughArg reconstructs an argument's original source text for
+// the unregistered-operator passthrough, so the call round-trips intact
+// for a later pass (multi-pass genesis templating, engines with the
+// operator registered). Mirrors op_defer.go's reconstructExpr, the same
+// reconstruction defer uses.
+func renderPassthroughArg(e *Expr) string {
+	if e == nil {
+		return ""
+	}
+
+	switch e.Type {
+	case Literal:
+		if e.Literal == nil {
+			return "nil"
+		}
+		if s, ok := e.Literal.(string); ok {
+			return fmt.Sprintf("%q", s)
+		}
+		return fmt.Sprintf("%v", e.Literal)
+
+	case Reference:
+		if e.Reference != nil {
+			return e.Reference.String()
+		}
+		return ""
+
+	case EnvVar:
+		return fmt.Sprintf("$%s", e.Name)
+
+	case LogicalOr:
+		return fmt.Sprintf("%s || %s", renderPassthroughArg(e.Left), renderPassthroughArg(e.Right))
+
+	case OperatorCall:
+		op := e.Op()
+		if op == "" {
+			return e.String()
+		}
+		args := e.Args()
+		if len(args) == 0 {
+			return op
+		}
+		argStrs := make([]string, len(args))
+		for i, arg := range args {
+			argStrs[i] = renderPassthroughArg(arg)
+		}
+		return fmt.Sprintf("%s %s", op, strings.Join(argStrs, " "))
+	}
+	return e.String()
 }
 
 // NewOpcall creates a new operator call.

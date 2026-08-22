@@ -88,7 +88,10 @@ func TestA6EndToEnd_BackwardCompat(t *testing.T) {
 		}
 	})
 
-	t.Run("B-2: unregistered operator with an argument passes through mangled", func(t *testing.T) {
+	t.Run("B-2: unregistered operator with an argument passes through intact", func(t *testing.T) {
+		// The reference argument round-trips as its real source text
+		// (NullOperator's renderPassthroughArg), not the "..."
+		// placeholder that used to mangle the call.
 		doc, err := mergeYAML(t, "foo: 5\nx: (( bogus foo ))\n")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -97,8 +100,8 @@ func TestA6EndToEnd_BackwardCompat(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to read x: %v", err)
 		}
-		if got != "(( bogus ... ))" {
-			t.Fatalf("expected '(( bogus ... ))', got %v (%T)", got, got)
+		if got != "(( bogus foo ))" {
+			t.Fatalf("expected '(( bogus foo ))', got %v (%T)", got, got)
 		}
 	})
 
