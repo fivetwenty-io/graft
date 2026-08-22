@@ -479,6 +479,29 @@ set-membership claim, so an out-of-bounds index still fails with:
  - $.services: unable to modify the list, because specified index 6 is out of bounds
 ```
 
+### Delete Outside a List
+
+Argument-bearing delete markers are only valid as list entries. A marker in
+map-value position fails the merge, whatever the base holds at that key:
+
+```yaml
+# base.yml
+scalarkey: hello
+
+# overlay.yml
+scalarkey: (( delete "hello" ))
+```
+
+```
+ - $.scalarkey: inappropriate use of (( delete )) operator outside of a list
+```
+
+Spruce rejects the same input too, from its evaluation phase (`(( delete ))
+operator not defined`) rather than the merge phase.
+
+The bare, argument-less `(( delete ))` form is the exception: it passes
+through as literal text wherever it appears, matching spruce.
+
 ## Combining Operators
 
 ### Append and Merge

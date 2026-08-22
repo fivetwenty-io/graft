@@ -21,6 +21,7 @@ can chain in one array.
 | `(( insert after "<name>" ))` / `(( insert before "<name>" ))` | New entries are inserted relative to a named entry. | Implemented, with two deliberate divergences: graft also anchors on the entry value in a list of scalars, where spruce fails the merge, and graft rejects a new entry that duplicates the first list entry, which spruce's duplicate check misses. See [known gaps](known-gaps.md#named-insert-works-on-scalar-lists). |
 | `(( delete <idx> ))` | The entry at a numeric position is removed. | Implemented, matches spruce. |
 | `(( delete "<name>" ))` | The entry matching a name is removed. | Implemented, matches spruce. |
+| `(( delete ... ))` outside a list | An argument-bearing delete in map-value position fails the merge. | Implemented; both tools error, from different layers: graft's merge phase says `inappropriate use of (( delete )) operator outside of a list`, spruce's eval phase says `(( delete )) operator not defined`. The bare `(( delete ))` form passes through as literal text in both. |
 | `(( merge ))` | Entries are merged by the default identifier key. | Implemented, matches spruce, for arrays that reach the marker-aware merge path (see below). |
 | `(( merge on <key> ))` | Entries are merged by an explicit identifier key. | Same as above. |
 | `(( inline ))` | Entries are merged pairwise by position. | Implemented, matches spruce. |
