@@ -18,7 +18,7 @@ can chain in one array.
 | `(( append ))` | New entries are added to the end of the array. | Implemented, matches spruce. |
 | `(( prepend ))` | New entries are added to the start of the array. | Implemented, matches spruce. |
 | `(( insert after <idx> ))` / `(( insert before <idx> ))` | New entries are inserted at a numeric position. | Implemented, matches spruce. |
-| `(( insert after "<name>" ))` / `(( insert before "<name>" ))` | New entries are inserted relative to a named entry. | Implemented, matches spruce. |
+| `(( insert after "<name>" ))` / `(( insert before "<name>" ))` | New entries are inserted relative to a named entry. | Implemented, with two deliberate divergences: graft also anchors on the entry value in a list of scalars, where spruce fails the merge, and graft rejects a new entry that duplicates the first list entry, which spruce's duplicate check misses. See [known gaps](known-gaps.md#named-insert-works-on-scalar-lists). |
 | `(( delete <idx> ))` | The entry at a numeric position is removed. | Implemented, matches spruce. |
 | `(( delete "<name>" ))` | The entry matching a name is removed. | Implemented, matches spruce. |
 | `(( merge ))` | Entries are merged by the default identifier key. | Implemented, matches spruce, for arrays that reach the marker-aware merge path (see below). |

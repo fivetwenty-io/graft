@@ -286,6 +286,38 @@ steps:
   - deploy
 ```
 
+### Insert by Name or Value
+
+The quoted string form anchors on the entry whose `name` is the given value
+in a list of maps, and on the entry value itself in a list of scalars:
+
+```yaml
+# base.yml
+pipeline:
+  - checkout
+  - build
+  - deploy
+
+# overlay.yml
+pipeline:
+  - (( insert after "build" ))
+  - test
+
+# Result
+pipeline:
+  - checkout
+  - build
+  - test      # Inserted
+  - deploy
+```
+
+Matching compares strings, so a numeric entry like `2` is never matched by
+`(( insert after "2" ))`. When the value appears more than once, the first
+match wins. Unlike delete, a missing anchor fails the merge with
+`unable to find specified modification point`. The keyed form
+`(( insert after <key> "<value>" ))` is only valid on a list of maps and is
+rejected on a list of scalars.
+
 ## delete
 
 Remove elements from an array.
@@ -584,6 +616,8 @@ With this flag, arrays without explicit operators use append instead of inline.
 | merge | `(( merge on key ))` | Merge by key field |
 | insert after | `(( insert after N ))` | Insert after index N |
 | insert before | `(( insert before N ))` | Insert before index N |
+| insert after | `(( insert after "name-value" ))` | Insert after the entry with that `name` (list of maps) |
+| insert after | `(( insert after "value" ))` | Insert after the matching entry (scalar list) |
 | delete | `(( delete N ))` | Remove index N |
 | delete | `(( delete "name-value" ))` | Remove the entry with that `name` (list of maps), if present |
 | delete | `(( delete "value" ))` | Remove the matching entry (scalar list), if present |

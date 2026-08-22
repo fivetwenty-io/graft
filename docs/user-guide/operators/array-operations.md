@@ -219,10 +219,14 @@ steps:
 - `(( insert after N ))` / `(( insert before N ))` — position by index
 
 - `(( insert after "<value>" ))` / `(( insert before "<value>" ))` — position
-  next to the entry whose `name` is `<value>`
+  next to the entry whose `name` is `<value>` (list of maps), or next to the
+  entry equal to `<value>` (list of scalars). Matching is by string
+  comparison, so non-string scalars such as numbers are never matched; the
+  first match wins when the value appears more than once; a missing anchor
+  fails the merge
 
 - `(( insert after <key> "<value>" ))` — position next to the entry whose
-  `<key>` is `<value>`
+  `<key>` is `<value>`; only valid on a list of maps
 
 ### delete
 

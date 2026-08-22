@@ -4,7 +4,10 @@ This page lists every open item between graft's current implementation
 and full parity with spruce, plus a few internal graft loose ends that
 fall outside parity scope but are worth recording. Each open entry states
 current behavior, the behavior expected for parity (where spruce has an
-equivalent), and the impact. A separate [Resolved](#resolved) section
+equivalent), and the impact. A
+[Deliberate divergences](#deliberate-divergences) section records the
+places where graft intentionally does not match spruce and intends to
+keep it that way. A separate [Resolved](#resolved) section
 keeps a record of items that were open at some point and have since been
 closed, so links from other pages into this file keep working.
 
@@ -96,6 +99,54 @@ consumer that re-parses the document sees no difference. Byte-level
 consumers of stringified output do. Independent of key ordering;
 would require a goccy encoder change or a custom block-scalar
 emitter to close.
+
+## Deliberate divergences
+
+Places where graft intentionally behaves differently from spruce. These
+are not open gaps: the divergence is the desired behavior, and closing
+it to match spruce would reintroduce the problem it fixes.
+
+### named-insert-works-on-scalar-lists
+
+**Graft behavior:** `(( insert after "<value>" ))` and
+`(( insert before "<value>" ))` on a list of scalars anchor on the entry
+value itself: with a base of `[checkout, build, deploy]`, inserting
+after `"build"` places the new entries between `build` and `deploy`.
+Matching compares strings only (a numeric `2` is never matched by
+`"2"`), the first match wins on duplicates, and a missing anchor fails
+the merge with `unable to find specified modification point with
+'<value>'` — mirroring how the named delete already treats simple
+lists, except that delete-if-present stays a silent no-op while a
+missing insert anchor is an error. The keyed form
+`(( insert after <key> "<value>" ))` is rejected on a list of scalars
+with `unable to insert, because the keyed insertion point
+'<key>: <value>' cannot target entries in a list of scalars`.
+
+**Spruce behavior:** spruce (verified against v1.34.1) routes every
+named insert through map-key lookup, so on a list of scalars the merge
+always fails with `original object is a string, not a map - cannot
+merge by key`, even though its documentation shows the named form.
+
+**Impact:** overlays can position new scalar entries relative to
+existing ones instead of falling back to numeric indices. Documents
+that relied on the spruce error to catch a misplaced marker now merge
+successfully on lists of scalars.
+
+### insert-duplicate-check-covers-first-entry
+
+**Graft behavior:** the duplicate detection for keyed inserts treats a
+new entry whose identifier matches the *first* entry of the original
+list like any other collision: inserting `name: alpha` into
+`[alpha, bravo, charlie]` fails with `unable to insert, because new
+list entry 'name: alpha' is detected multiple times`.
+
+**Spruce behavior:** spruce's duplicate check tests the found index
+with `> 0`, so a collision at index 0 goes undetected and the
+duplicate entry is silently inserted.
+
+**Impact:** an insert that would silently produce two entries with the
+same identifier under spruce now fails loudly. This is an off-by-one
+fix, not a semantic redesign; only index-0 collisions change behavior.
 
 ## Resolved
 

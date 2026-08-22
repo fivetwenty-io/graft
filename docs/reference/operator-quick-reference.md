@@ -353,7 +353,8 @@ items:
 
 ### insert
 
-Insert at specific position.
+Insert at specific position. The string form matches on the entry's `name`
+value in a list of maps, and on the entry value itself in a list of scalars.
 
 ```yaml
 items:
@@ -361,7 +362,7 @@ items:
   - inserted_item
 
 items:
-  - (( insert after "target" )) # By the entry's name value
+  - (( insert after "target" )) # By name value (maps) or entry value (scalars)
   - inserted_after
 ```
 
