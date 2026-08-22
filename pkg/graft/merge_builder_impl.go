@@ -574,6 +574,7 @@ func (m *mergeBuilderImpl) prepareFirstDocument(baseData map[string]interface{})
 
 	needsProcessing := m.hasArrayOperators(baseData) ||
 		m.hasArraysWithMaps(baseData) ||
+		m.hasMapValueDeleteMarkers(baseData) ||
 		(prune && !m.skipEvaluation)
 	if !needsProcessing {
 		return deepCopyMap(baseData)
@@ -635,6 +636,7 @@ func (m *mergeBuilderImpl) needsLegacyMerger(overlay map[string]interface{}) boo
 
 	return m.hasArrayOperators(overlay) ||
 		m.hasArraysWithMaps(overlay) ||
+		m.hasMapValueDeleteMarkers(overlay) ||
 		m.basePrune ||
 		m.baseSort
 }
@@ -1012,6 +1014,30 @@ func (m *mergeBuilderImpl) arrayHasOperators(array []interface{}) bool {
 				strings.Contains(str, "(( merge") || // matches (( merge )) and (( merge on key ))
 				strings.Contains(str, "(( insert") || // matches various insert forms
 				strings.Contains(str, "(( delete") { // matches various delete forms
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasMapValueDeleteMarkers reports whether any map VALUE in data (at any
+// map-nesting depth) is an argument-bearing (( delete ... )) marker. Such a
+// document must route through the legacy merger so mergeMap's guard rejects
+// it — the marker only has meaning as a list entry, and the simple path
+// would otherwise copy it into the output as literal data. List elements
+// are deliberately not scanned: delete markers there are the legal form
+// (and lists containing maps already route to the legacy merger via
+// hasArraysWithMaps).
+func (m *mergeBuilderImpl) hasMapValueDeleteMarkers(data map[string]interface{}) bool {
+	for _, value := range data {
+		switch v := value.(type) {
+		case string:
+			if merger.IsDeleteMarkerWithArgs(v) {
+				return true
+			}
+		case map[string]interface{}:
+			if m.hasMapValueDeleteMarkers(v) {
 				return true
 			}
 		}

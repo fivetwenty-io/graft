@@ -35,7 +35,21 @@ var (
 	deleteByIdxRegEx          = regexp.MustCompile(`^\Q((\E\s*delete\s+(-?\d+)\s*\Q))\E$`)
 	deleteByNameRegEx         = regexp.MustCompile(`^\Q((\E\s*delete\s+([^ ]+)?\s*"(.+)"\s*\Q))\E$`)
 	deleteByNameUnquotedRegEx = regexp.MustCompile(`^\Q((\E\s*delete\s+([^ ]+)?\s*(.+)\s*\Q))\E$`)
+
+	// Any argument-bearing delete form (the \S excludes the bare
+	// "(( delete ))", which passes through as literal text for spruce
+	// parity — see mergeMap's guard).
+	deleteOutsideListRegEx = regexp.MustCompile(`^\Q((\E\s*delete\s+\S.*\Q))\E$`)
 )
+
+// IsDeleteMarkerWithArgs reports whether s is an argument-bearing
+// (( delete ... )) marker — the form mergeMap rejects outside a list. The
+// bare "(( delete ))" is not one (it passes through for spruce parity).
+// Exported so the simple-merge fast path can route documents carrying the
+// marker to this merger and its guard.
+func IsDeleteMarkerWithArgs(s string) bool {
+	return deleteOutsideListRegEx.MatchString(s)
+}
 
 // Default array merge key constant.
 const (
@@ -336,6 +350,14 @@ func (m *Merger) mergeMap(orig, n map[string]interface{}, node string) {
 		path := fmt.Sprintf("%s.%v", node, k)
 		if s, ok := val.(string); ok && mergeRx.MatchString(s) {
 			m.Errors.Append(ansi.Errorf("@m{%s}: @R{inappropriate use of} @c{(( merge ))} @R{operator outside of a list} (this is @G{graft}, after all)", path))
+		}
+		// Argument-bearing delete only has meaning as a list entry;
+		// anywhere else it would survive the merge as literal data (spruce
+		// rejects the same input from its eval phase). The bare
+		// "(( delete ))" form is deliberately not guarded: spruce passes
+		// it through as literal text, and graft keeps that parity.
+		if s, ok := val.(string); ok && deleteOutsideListRegEx.MatchString(s) {
+			m.Errors.Append(ansi.Errorf("@m{%s}: @R{inappropriate use of} @c{(( delete ))} @R{operator outside of a list}", path))
 		}
 
 		// Guarded: boxing val twice per key escapes the whole subtree.
