@@ -51,6 +51,18 @@ read_lines() {
   done < "$file"
 }
 
+# strip_leading_marker FILE -> removes the first line when it is exactly
+# "---". graft deliberately starts merge output with a document marker
+# (see the merge document marker changelog entry); spruce does not.
+# Applied to both tools' stdout so the comparison is symmetric, and only
+# to the first line so interior multi-doc separators still count.
+strip_leading_marker() {
+  local file="$1"
+  if [ "$(head -n1 "$file" 2>/dev/null)" = "---" ]; then
+    tail -n +2 "$file" > "$file.stripped" && mv "$file.stripped" "$file"
+  fi
+}
+
 run_case() {
   local op="$1" case_dir="$2" case_name="$3"
 
@@ -91,6 +103,9 @@ run_case() {
   local g_exit=$?
   ( env "${envpairs[@]}" "$SPRUCE_BIN" "$verb" "${flags[@]}" "${files[@]}" >"$s_out" 2>"$s_err" )
   local s_exit=$?
+
+  strip_leading_marker "$g_out"
+  strip_leading_marker "$s_out"
 
   local matched=1
 
