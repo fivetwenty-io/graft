@@ -1,0 +1,5 @@
+jobs:
+  - name: web
+    instances: 2
+  - name: worker
+    instances: 1

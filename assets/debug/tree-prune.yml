@@ -1,0 +1,3 @@
+config:
+  keep: 1
+  secret: (( prune ))

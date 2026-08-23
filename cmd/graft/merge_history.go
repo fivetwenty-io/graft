@@ -284,7 +284,7 @@ func renderHistory(all []history.PathHistory) string {
 		for _, e := range ph.Entries {
 			writeHistoryEntryLine(&buf, e)
 		}
-		writeHistoryFinalLine(&buf, ph, len(ph.Entries) == 1)
+		writeHistoryFinalLine(&buf, ph, "Final", len(ph.Entries) == 1)
 	}
 	return buf.String()
 }
@@ -310,7 +310,7 @@ func renderTracePath(ph history.PathHistory) string {
 		}
 	}
 	buf.WriteString("\n")
-	writeHistoryFinalLine(&buf, ph, false)
+	writeHistoryFinalLine(&buf, ph, "Final", false)
 	return buf.String()
 }
 
@@ -335,16 +335,19 @@ func writeHistoryEntryLine(buf *strings.Builder, e history.Entry) {
 	fmt.Fprintf(buf, "  %s\n", historyEntryLine(e))
 }
 
-func writeHistoryFinalLine(buf *strings.Builder, ph history.PathHistory, unchanged bool) {
+// writeHistoryFinalLine prints a block's summary line. history's blocks
+// label it "Final"; the debugger's tree --history labels it with the
+// step the replay stopped at ("As of step N").
+func writeHistoryFinalLine(buf *strings.Builder, ph history.PathHistory, label string, unchanged bool) {
 	if !ph.FinalOK {
-		fmt.Fprintf(buf, "  %-*s → <pruned>\n", sourceColumnWidth, "Final")
+		fmt.Fprintf(buf, "  %-*s → <pruned>\n", sourceColumnWidth, label)
 		return
 	}
 	suffix := ""
 	if unchanged {
 		suffix = "  (unchanged)"
 	}
-	fmt.Fprintf(buf, "  %-*s → %s%s\n", sourceColumnWidth, "Final", inlineValue(ph.Final), suffix)
+	fmt.Fprintf(buf, "  %-*s → %s%s\n", sourceColumnWidth, label, inlineValue(ph.Final), suffix)
 }
 
 // The classifications changeKind can return.

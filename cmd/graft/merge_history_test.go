@@ -409,7 +409,7 @@ func TestMergeHistoryPostPhaseRenderingOnlyLabelsGenuineRemovals(t *testing.T) {
 		for _, e := range survived.Entries {
 			writeHistoryEntryLine(&buf, e)
 		}
-		writeHistoryFinalLine(&buf, survived, false)
+		writeHistoryFinalLine(&buf, survived, "Final", false)
 		So(buf.String(), ShouldNotContainSubstring, "→ <pruned>")
 		So(buf.String(), ShouldContainSubstring, "- a …")
 
@@ -417,7 +417,7 @@ func TestMergeHistoryPostPhaseRenderingOnlyLabelsGenuineRemovals(t *testing.T) {
 		for _, e := range removed.Entries {
 			writeHistoryEntryLine(&buf, e)
 		}
-		writeHistoryFinalLine(&buf, removed, false)
+		writeHistoryFinalLine(&buf, removed, "Final", false)
 		So(buf.String(), ShouldContainSubstring, "→ <pruned>")
 
 		out := renderShowChanges([]history.PathHistory{survived, removed}, 1)

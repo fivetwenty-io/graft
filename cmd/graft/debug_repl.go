@@ -448,7 +448,7 @@ func (s *debugSession) cmdHistory(path string) {
 	for _, e := range ph.Entries {
 		writeHistoryEntryLine(&buf, e)
 	}
-	writeHistoryFinalLine(&buf, ph, len(ph.Entries) == 1)
+	writeHistoryFinalLine(&buf, ph, "Final", len(ph.Entries) == 1)
 	s.out.Write([]byte(buf.String())) //nolint:errcheck // best-effort REPL output
 }
 
@@ -818,6 +818,7 @@ var debugCommandHelp = []debugHelpEntry{
 	{"breaks", "List all breakpoints", "breaks", "Lists every breakpoint currently set.", debugArgNone},
 	{"inspect", "Show current value at path", "inspect <path>", "Shows the current (raw or evaluated, depending on progress) value at path.", debugArgPath},
 	{"history", "Show change history for path", "history <path>", "Shows the same per-file history 'merge --history' would show for path.", debugArgPath},
+	{"tree", "Show tree of the document at path", treeUsage, "Prints a box-drawing tree of the document (or the subtree at path) as of the session's current step, with map keys in cyan, list indices dim, and still-unevaluated (( ... )) operators in yellow. A leading $ or $. on the path is accepted.\n\nFlags:\n  --depth N, -d N   limit display depth, N >= 1 (deeper containers collapse to {N keys}/[N items], hiding annotations beneath them)\n  --keys, -k        structure only, no leaf values (--annotate overrides it)\n  --annotate, -a    inline each node's history entries, up to the current step\n  --history, -H     append per-path history blocks, up to the current step (requires a path)\n  --no-color        plain output for this command\n\nUnlike 'history', which reports the whole run, --annotate/--history stop at the session's current step; each block ends with an 'As of step N' line. History never descends into lists. Tab completion completes the path when it is the first word after tree.\n\nExample:\n  tree database --annotate", debugArgPath},
 	{"defer", "Mark path for deferred evaluation", "defer <path>", "Marks path so its operator is left unevaluated (via the real (( defer ... )) operator) when 'step'/'continue' evaluates.", debugArgPath},
 	{debugCmdAutodefer, "Defer every failing operator and retry", debugCmdAutodefer, "Runs the same defer-on-error retry loop 'graft merge --defer-on-error'/'--adaptive' uses against the session's current tree: wraps each failing operator in (( defer ... )) and retries to a fixed point, hard-failing on a true cycle with the original error. Composes with paths already deferred via 'defer' - they are protected, not re-attempted - and every path this discovers is added to the session's deferred set too, so 'output'/'export'/'history'/'inspect' all agree afterward. Prints a summary: how many keys were deferred, each with its root-cause reason.", debugArgNone},
 	{"eval", "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress.", debugArgPath},
@@ -1081,7 +1082,7 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer) i
 // it, less "quit"/"exit", which end the loop itself. Most commands take
 // the rest of the line as a single free-form argument - a path, a
 // pattern, a filename - so they join their fields back together; only
-// config reads its arguments as separate words.
+// config and tree read their arguments as separate words.
 var debugCommands = map[string]func(sess *debugSession, args []string){
 	"load":              func(sess *debugSession, _ []string) { sess.cmdLoad() },
 	"step":              func(sess *debugSession, _ []string) { sess.cmdStep() },
@@ -1091,6 +1092,7 @@ var debugCommands = map[string]func(sess *debugSession, args []string){
 	"breaks":            func(sess *debugSession, _ []string) { sess.cmdBreaks() },
 	"inspect":           func(sess *debugSession, args []string) { sess.cmdInspect(strings.Join(args, " ")) },
 	"history":           func(sess *debugSession, args []string) { sess.cmdHistory(strings.Join(args, " ")) },
+	"tree":              func(sess *debugSession, args []string) { sess.cmdTree(args) },
 	"defer":             func(sess *debugSession, args []string) { sess.cmdDefer(strings.Join(args, " ")) },
 	debugCmdAutodefer:   func(sess *debugSession, _ []string) { sess.cmdAutodefer() },
 	"eval":              func(sess *debugSession, args []string) { sess.cmdEval(strings.Join(args, " ")) },

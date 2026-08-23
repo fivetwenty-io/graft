@@ -273,3 +273,147 @@ func joinHistKey(prefix, key string) string {
 	}
 	return prefix + "." + seg
 }
+
+// cmdTree implements the `tree` REPL command: a box-drawing tree of the
+// subtree at a path, from the session's current tree (so it reflects step
+// progress exactly like `inspect`). --annotate/--history add per-path
+// history truncated to the session's current step - unlike `history`,
+// which always reports the full run.
+func (s *debugSession) cmdTree(args []string) {
+	if !s.loaded {
+		s.printf("No documents loaded. Run 'load' first.\n")
+		return
+	}
+	opts, err := parseTreeArgs(args)
+	if err != nil {
+		s.printf("%s\nUsage: %s\n", err.Error(), treeUsage)
+		return
+	}
+	if opts.help {
+		s.printf("Usage: %s\nSee 'help tree' for details.\n", treeUsage)
+		return
+	}
+	value, ok := lookupDottedPath(s.tree, opts.path)
+	if !ok {
+		s.printf("Path not found: %s\n", opts.path)
+		return
+	}
+
+	if opts.noColor && ansi.IsColorEnabled() {
+		ansi.Color(false)
+		defer ansi.Color(true)
+	}
+
+	// Compute history first (annotations render inline), but never let a
+	// history failure suppress the tree itself: render, then explain.
+	phs, ann, histNote := s.treeHistoryData(opts)
+
+	s.printf("%s", renderDebugTree(value, opts, ann))
+
+	if histNote != "" {
+		s.printf("\nNote: %s\n", histNote)
+		return
+	}
+	if opts.historyList {
+		s.printTreeHistoryList(phs)
+	}
+}
+
+// treeHistoryData computes cmdTree's per-path history when --annotate or
+// --history was requested (split out of cmdTree to keep its cyclomatic
+// complexity under the lint gate's threshold; behavior is unchanged).
+// phs is the filtered PathHistory list; ann maps each path to its entries
+// for inline annotation, populated only for --annotate; histNote is a
+// history-computation error to report without suppressing the tree
+// render itself.
+func (s *debugSession) treeHistoryData(opts treeOptions) (phs []history.PathHistory, ann map[string][]history.Entry, histNote string) {
+	if !opts.annotate && !opts.historyList {
+		return nil, nil, ""
+	}
+	var histErr error
+	phs, histErr = s.subtreeHistories(opts.path)
+	if histErr != nil {
+		return nil, nil, histErr.Error()
+	}
+	if opts.annotate {
+		ann = make(map[string][]history.Entry, len(phs))
+		for _, ph := range phs {
+			ann[ph.Path] = ph.Entries
+		}
+	}
+	return phs, ann, ""
+}
+
+// printTreeHistoryList prints cmdTree's --history tail: one block per
+// path in phs, or a message when nothing was tracked under the path
+// (split out of cmdTree alongside treeHistoryData; behavior unchanged).
+func (s *debugSession) printTreeHistoryList(phs []history.PathHistory) {
+	if len(phs) == 0 {
+		s.printf("\nNo history recorded under this path.\n")
+		return
+	}
+	var buf strings.Builder
+	for i, ph := range phs {
+		if i > 0 {
+			buf.WriteString("\n")
+		}
+		writeTreeHistoryBlock(&buf, ph, s.step)
+	}
+	s.printf("\n%s", buf.String())
+}
+
+// subtreeHistories computes per-path history truncated to the session's
+// current step and filtered to paths at or under path. It mirrors
+// cmdHistory's setup: files re-resolved from disk, --prune/--cherry-pick
+// excluded, and the session's deferred paths applied to every replay.
+func (s *debugSession) subtreeHistories(path string) ([]history.PathHistory, error) {
+	prefix, insideList := historyKeyForPath(path)
+	if insideList {
+		return nil, fmt.Errorf("history does not descend into lists; ask for the list's own path instead")
+	}
+
+	fileOpts := *s.opts
+	fileOpts.Files = make([]string, len(s.cached))
+	for i, c := range s.cached {
+		fileOpts.Files[i] = c.Path
+	}
+	fileOpts.Prune = nil
+	fileOpts.CherryPick = nil
+	steps, _, err := buildMergeHistorySteps(&fileOpts, s.deferredDocRewriter(), s.step)
+	if err != nil {
+		return nil, err
+	}
+	all, err := history.Track(steps)
+	if err != nil {
+		return nil, err
+	}
+	return filterPathHistories(all, prefix), nil
+}
+
+// filterPathHistories keeps only the histories at or under prefix (a
+// history-flattened path; "" keeps everything).
+func filterPathHistories(all []history.PathHistory, prefix string) []history.PathHistory {
+	if prefix == "" {
+		return all
+	}
+	var out []history.PathHistory
+	for _, ph := range all {
+		if ph.Path == prefix || strings.HasPrefix(ph.Path, prefix+".") {
+			out = append(out, ph)
+		}
+	}
+	return out
+}
+
+// writeTreeHistoryBlock prints one path's history in the exact format
+// `history <path>` uses, with the final line labeled "As of step N"
+// instead of "Final": the tracked steps stop at the session's current
+// step, and a targeted `eval <path>` can move the live tree ahead of
+// that step, so the label names the step rather than claiming currency.
+func writeTreeHistoryBlock(buf *strings.Builder, ph history.PathHistory, step int) {
+	fmt.Fprintf(buf, "%s:\n", ph.Path)
+	for _, e := range ph.Entries {
+		writeHistoryEntryLine(buf, e)
+	}
+	writeHistoryFinalLine(buf, ph, fmt.Sprintf("As of step %d", step), len(ph.Entries) == 1)
+}
