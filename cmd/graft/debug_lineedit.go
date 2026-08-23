@@ -284,7 +284,14 @@ func (c *debugCompleter) completeArgument(cmd string, argIndex int, word string)
 	case debugArgCommand:
 		return debugCommandCandidates()
 	case debugArgConfigKey:
-		keys := make([]string, 0, len(debugConfigKeyOrder))
+		// debugConfigKeyTheme completes here alongside debugConfigKeyOrder's
+		// vault.* keys without joining that slice: debugConfigKeyOrder also
+		// drives the bare `config` listing loop and the "Known keys: ..."
+		// text in cmdConfig's unknown-key message, neither of which theme
+		// belongs in (theme is handled before that map lookup - see
+		// cmdConfig's doc comment).
+		keys := make([]string, 0, len(debugConfigKeyOrder)+1)
+		keys = append(keys, debugConfigKeyTheme+" ")
 		for _, key := range debugConfigKeyOrder {
 			keys = append(keys, key+" ")
 		}

@@ -109,6 +109,11 @@ func TestDebugCompleter(t *testing.T) {
 			So(completionsFor(c, "config vault.addr http"), ShouldBeEmpty)
 		})
 
+		Convey("completes the theme key alongside the vault.* keys for config", func() {
+			So(completionsFor(c, "config th"), ShouldResemble, []string{"theme "})
+			So(completionsFor(c, "config "), ShouldResemble, []string{"theme ", "vault.addr ", "vault.namespace ", "vault.token "})
+		})
+
 		Convey("completes command names for help", func() {
 			So(completionsFor(c, "help ins"), ShouldResemble, []string{"inspect "})
 		})
