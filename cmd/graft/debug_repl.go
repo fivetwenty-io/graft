@@ -205,7 +205,10 @@ func (s *debugSession) cmdLoad() {
 
 	base, _, err := mergeAllDocs(s.freshFiles(1), s.rawMergeOpts())
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error loading} @m{%s}: %s", s.cached[0].Path, ansi.StripEscapes(err.Error())))
+		s.printf("%s %s: %s\n",
+			s.style(roleError, "Error loading"),
+			s.style(roleFile, s.cached[0].Path),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 	s.tree = base
@@ -237,7 +240,9 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 
 		newTree, _, err := mergeAllDocs(s.freshFiles(fileIdx+1), s.rawMergeOpts())
 		if err != nil {
-			s.printf("%s\n", ansi.Sprintf("@R{Merge failed}: %s", ansi.StripEscapes(err.Error())))
+			s.printf("%s: %s\n",
+				s.style(roleError, "Merge failed"),
+				ansi.StripEscapes(err.Error()))
 			s.step--
 			return false, true
 		}
@@ -284,7 +289,9 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 	evalOpts.CherryPick = nil
 	evaluated, _, err := mergeAllDocs([]YamlFile{{Path: mergedDocPath, Reader: io.NopCloser(strings.NewReader(mustYAML(deferredTree)))}}, &evalOpts)
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Evaluation failed}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Evaluation failed"),
+			ansi.StripEscapes(err.Error()))
 		s.step--
 		return false, true
 	}
@@ -402,7 +409,9 @@ func (s *debugSession) cmdInspect(path string) {
 	}
 	raw, err := graft.MarshalYAML(value)
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error rendering value}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Error rendering value"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 	s.out.Write(raw) //nolint:errcheck // best-effort REPL output
@@ -465,12 +474,16 @@ func (s *debugSession) cmdHistory(path string) {
 	// every path asked about, including unrelated ones.
 	steps, _, err := buildMergeHistorySteps(&fileOpts, s.deferredDocRewriter(), -1)
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error computing history}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Error computing history"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 	all, err := history.Track(steps)
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error computing history}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Error computing history"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 	ph, found := findPathHistory(all, path)
@@ -567,7 +580,9 @@ func (s *debugSession) cmdAutodefer() {
 		&autodeferOpts,
 	)
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error preparing autodefer}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Error preparing autodefer"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 
@@ -575,7 +590,9 @@ func (s *debugSession) cmdAutodefer() {
 		FallbackAppend: s.opts.FallbackAppend,
 	})
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Autodefer failed}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Autodefer failed"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 
@@ -615,12 +632,16 @@ func (s *debugSession) cmdEval(path string) {
 	evalOpts.Prune = nil
 	result, _, err := mergeAllDocs([]YamlFile{{Path: mergedDocPath, Reader: io.NopCloser(strings.NewReader(mustYAML(s.tree)))}}, &evalOpts)
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Evaluation failed}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Evaluation failed"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 	resolved, ok := lookupDottedPath(result, path)
 	if !ok {
-		s.printf("%s\n", ansi.Sprintf("@R{Evaluation did not produce a value at} @m{%s}", path))
+		s.printf("%s %s\n",
+			s.style(roleError, "Evaluation did not produce a value at"),
+			s.style(rolePath, path))
 		return
 	}
 	s.printf("%s %s\n", s.style(roleSuccess, "Result:"), inlineValue(resolved))
@@ -692,13 +713,17 @@ func (s *debugSession) cmdPruneReport() {
 	reportOpts.SkipEval = true // s.tree is already fully evaluated
 	pruned, _, err := mergeAllDocs([]YamlFile{{Path: "<current>", Reader: io.NopCloser(strings.NewReader(mustYAML(s.tree)))}}, &reportOpts)
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error computing prune report}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Error computing prune report"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 
 	changes, cmpErr := histdiff.Compare("<current>", s.tree, "<pruned>", pruned)
 	if cmpErr != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error computing prune report}: %s", ansi.StripEscapes(cmpErr.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Error computing prune report"),
+			ansi.StripEscapes(cmpErr.Error()))
 		return
 	}
 
@@ -726,7 +751,9 @@ func (s *debugSession) cmdOutput() {
 	}
 	raw, err := graft.MarshalYAML(s.tree)
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error rendering document}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Error rendering document"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 	s.out.Write(raw) //nolint:errcheck // best-effort REPL output
@@ -741,12 +768,16 @@ func (s *debugSession) cmdDiff() {
 	}
 	base, _, err := mergeAllDocs(s.freshFiles(1), s.rawMergeOpts())
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error computing diff}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Error computing diff"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 	changes, err := histdiff.Compare(s.cached[0].Path, base, "<current>", s.tree)
 	if err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error computing diff}: %s", ansi.StripEscapes(err.Error())))
+		s.printf("%s: %s\n",
+			s.style(roleError, "Error computing diff"),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 	s.printf("%s %s:\n\n", s.style(roleHeading, "Changes from"), s.style(roleFile, s.cached[0].Path))
@@ -775,14 +806,18 @@ func (s *debugSession) cmdExport(path string) {
 	if strings.HasSuffix(path, ".json") {
 		jsonBytes, jsonErr := json.MarshalIndent(s.tree, "", "  ")
 		if jsonErr != nil {
-			s.printf("%s\n", ansi.Sprintf("@R{Error encoding JSON}: %s", ansi.StripEscapes(jsonErr.Error())))
+			s.printf("%s: %s\n",
+				s.style(roleError, "Error encoding JSON"),
+				ansi.StripEscapes(jsonErr.Error()))
 			return
 		}
 		out = jsonBytes
 	} else {
 		raw, err := graft.MarshalYAML(s.tree)
 		if err != nil {
-			s.printf("%s\n", ansi.Sprintf("@R{Error rendering document}: %s", ansi.StripEscapes(err.Error())))
+			s.printf("%s: %s\n",
+				s.style(roleError, "Error rendering document"),
+				ansi.StripEscapes(err.Error()))
 			return
 		}
 		out = raw
@@ -790,7 +825,10 @@ func (s *debugSession) cmdExport(path string) {
 
 	// #nosec G306 - export output is meant to be readable configuration data
 	if err := os.WriteFile(path, out, 0o644); err != nil {
-		s.printf("%s\n", ansi.Sprintf("@R{Error writing} @m{%s}: %s", path, ansi.StripEscapes(err.Error())))
+		s.printf("%s %s: %s\n",
+			s.style(roleError, "Error writing"),
+			s.style(roleFile, path),
+			ansi.StripEscapes(err.Error()))
 		return
 	}
 	s.printf("%s %s\n", s.style(roleSuccess, "Exported to"), s.style(roleFile, path))

@@ -420,3 +420,84 @@ func TestDebugColorOnGuardMessages(t *testing.T) {
 		t.Errorf("path-not-found guard not styled roleWarn:\n%s", out)
 	}
 }
+
+// TestDebugColorOnErrors locks Category P's role migration (Error-Site
+// Migration, plans/debugger-colorizing.md): every stdout error site's
+// literal label renders roleError through the per-session styler, the
+// colon after it stays outside any styled span, and - for the
+// two-argument shape - the interpolated file name gets roleFile. The
+// error-derived text itself carries no role styling at all (only the
+// decision-13 strip wraps it), so it never matches roleError's own
+// escape sequence.
+func TestDebugColorOnErrors(t *testing.T) {
+	t.Run("one-argument shape: a merge failure styles only its label", func(t *testing.T) {
+		goPatchFiles := []string{"../../assets/history/base.yml", "../../assets/vaultinfo/go-patch.yml"}
+		out, rc := runDebugSessionWithUI(goPatchFiles, &mergeOpts{}, colorOnUI, "load\nstep\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0", rc)
+		}
+		if !strings.Contains(out, styled(roleError, "Merge failed")+": ") {
+			t.Errorf("Merge failed label not styled roleError with an unstyled colon after it:\n%s", out)
+		}
+		if strings.Contains(out, styled(roleError, "root of YAML document is not a hash/map")) {
+			t.Errorf("error-derived text must never carry roleError styling:\n%s", out)
+		}
+	})
+
+	t.Run("one-argument shape: an evaluation failure styles only its label", func(t *testing.T) {
+		evalFailureFiles := []string{"../../assets/debug/eval-failure.yml"}
+		out, rc := runDebugSessionWithUI(evalFailureFiles, &mergeOpts{}, colorOnUI, "load\ncontinue\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0", rc)
+		}
+		if !strings.Contains(out, styled(roleError, "Evaluation failed")+": ") {
+			t.Errorf("Evaluation failed label not styled roleError:\n%s", out)
+		}
+	})
+
+	t.Run("one-argument shape: error computing history styles only its label", func(t *testing.T) {
+		deferredHistoryFiles := []string{"../../assets/debug/deferred-history-base.yml", "../../assets/debug/deferred-history-override.yml"}
+		out, rc := runDebugSessionWithUI(deferredHistoryFiles, &mergeOpts{}, colorOnUI, "load\nhistory meta.replicas\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0", rc)
+		}
+		if !strings.Contains(out, styled(roleError, "Error computing history")+": ") {
+			t.Errorf("Error computing history label not styled roleError:\n%s", out)
+		}
+	})
+
+	t.Run("one-argument shape: autodefer failed styles only its label", func(t *testing.T) {
+		out, rc := runDebugSessionWithUI([]string{"../../assets/skip-defer/cycle.yml"}, &mergeOpts{}, colorOnUI, "load\nautodefer\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0", rc)
+		}
+		if !strings.Contains(out, styled(roleError, "Autodefer failed")+": ") {
+			t.Errorf("Autodefer failed label not styled roleError:\n%s", out)
+		}
+	})
+
+	t.Run("two-argument shape: error loading styles the label roleError and the file roleFile", func(t *testing.T) {
+		out, rc := runDebugSessionWithUI([]string{"../../assets/vaultinfo/go-patch.yml"}, &mergeOpts{}, colorOnUI, "load\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0", rc)
+		}
+		want := styled(roleError, "Error loading") + " " + styled(roleFile, "../../assets/vaultinfo/go-patch.yml") + ": "
+		if !strings.Contains(out, want) {
+			t.Errorf("Error loading not rendered as roleError label + roleFile path:\n%s", out)
+		}
+	})
+
+	t.Run("two-argument shape: error writing styles the label roleError and the file roleFile", func(t *testing.T) {
+		dir := t.TempDir()
+		target := dir + "/missing-subdir/out.yml"
+		out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI,
+			fmt.Sprintf("load\ncontinue\nexport %s\nquit\n", target))
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0", rc)
+		}
+		want := styled(roleError, "Error writing") + " " + styled(roleFile, target) + ": "
+		if !strings.Contains(out, want) {
+			t.Errorf("Error writing not rendered as roleError label + roleFile path:\n%s", out)
+		}
+	})
+}

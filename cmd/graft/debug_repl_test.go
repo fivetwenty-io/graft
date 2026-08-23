@@ -822,3 +822,107 @@ func TestDebugREPL(t *testing.T) {
 		So(sessColorOn.styler.enabled, ShouldBeTrue)
 	})
 }
+
+// TestDebugNoEscapeFullOutput locks the full guarantee of decision 13
+// (plans/debugger-colorizing.md): now that the 18 error sites render
+// their labels through the per-session styler instead of the 18 sites'
+// own "@R{...}" markup (this phase's migration), a scripted session's
+// entire output carries zero \x1b bytes, not just the error-derived
+// argument the narrower test above already covers. Forcing
+// ansi.Color(true) (deferred restore, same convention) still matters:
+// before this phase, those labels rendered through that same global
+// flag, so an unforced run - or one against pre-migration code - would
+// either pass vacuously or leak the labels' own escapes, never proving
+// the guarantee this phase delivers. Every session below stays
+// color-off throughout regardless of the forced global: a bytes.Buffer
+// is never a terminal and none of these sessions pass a ColorOverride,
+// so s.style is identity at every call site - forcing the global only
+// matters for engine errors, which build their text via
+// ansi.Sprintf/Errorf against that same global at construction time.
+func TestDebugNoEscapeFullOutput(t *testing.T) {
+	prevColor := ansi.IsColorEnabled()
+	ansi.Color(true)
+	defer ansi.Color(prevColor)
+
+	assertNoEscapes := func(t *testing.T, label, out string) {
+		t.Helper()
+		if strings.ContainsRune(out, '\x1b') {
+			t.Errorf("%s: output contains an escape byte:\n%q", label, out)
+		}
+	}
+
+	t.Run("a full command tour across every category carries no escapes", func(t *testing.T) {
+		dir := t.TempDir()
+		target := dir + "/tour-export.yml"
+		script := strings.Join([]string{
+			"load",
+			"break database.pool_size",
+			"continue", // hits the breakpoint mid-merge
+			"breaks",
+			"unbreak database.pool_size",
+			"breaks",
+			"continue", // runs the remaining merge step plus evaluation to completion
+			"diff",
+			"defer database.password",
+			"inspect",
+			"autodefer",
+			"eval database.password",
+			"config",
+			"config vault.token",
+			"config bogus.key",
+			"prune-report",
+			"export " + target,
+			"help",
+			"help bogus",
+			"frobnicate",
+			"quit",
+		}, "\n") + "\n"
+		out, rc := runDebugSession(debugColorizeTestFiles, script)
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		assertNoEscapes(t, "full command tour", out)
+	})
+
+	t.Run("guard messages issued before load carry no escapes", func(t *testing.T) {
+		out, rc := runDebugSession(debugColorizeTestFiles, strings.Join([]string{
+			"step",
+			"break",
+			"unbreak",
+			"defer",
+			"export",
+			"load",
+			"inspect no.such.path",
+			"eval no.such.path",
+			"quit",
+		}, "\n")+"\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		assertNoEscapes(t, "guard messages", out)
+	})
+
+	t.Run("a merge failure carries no escapes", func(t *testing.T) {
+		goPatchFiles := []string{"../../assets/history/base.yml", "../../assets/vaultinfo/go-patch.yml"}
+		out, rc := runDebugSession(goPatchFiles, "load\nstep\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, "Merge failed") {
+			t.Fatalf("test setup: expected a merge failure in the output:\n%s", out)
+		}
+		assertNoEscapes(t, "merge failure", out)
+	})
+
+	t.Run("an evaluation failure carries no escapes", func(t *testing.T) {
+		evalFailureFiles := []string{"../../assets/debug/eval-failure.yml"}
+		out, rc := runDebugSession(evalFailureFiles, "load\ncontinue\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, "Evaluation failed") {
+			t.Fatalf("test setup: expected an evaluation failure in the output:\n%s", out)
+		}
+		assertNoEscapes(t, "evaluation failure", out)
+	})
+}
