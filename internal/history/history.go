@@ -233,7 +233,7 @@ func stepPathSet(paths []string) map[string]bool {
 // diffing needs this flattened shape rather than comparing nested maps
 // directly.
 //
-// Each segment is escaped (escapePathSegment) before joining, so a literal
+// Each segment is escaped (EscapePathSegment) before joining, so a literal
 // map key containing a "." or "[" - the two characters this function's own
 // joining, and graft's broader dotted-path syntax (pkg/graft/utils.go's
 // ParsePath), both treat as structural separators - cannot collide with an
@@ -256,7 +256,7 @@ func flattenInto(flat map[string]interface{}, prefix string, v interface{}) {
 		return
 	}
 	for k, sub := range m {
-		seg := escapePathSegment(k)
+		seg := EscapePathSegment(k)
 		path := seg
 		if prefix != "" {
 			path = prefix + "." + seg
@@ -265,7 +265,7 @@ func flattenInto(flat map[string]interface{}, prefix string, v interface{}) {
 	}
 }
 
-// escapePathSegment quotes seg (graft's existing quoted-segment path
+// EscapePathSegment quotes seg (graft's existing quoted-segment path
 // syntax, e.g. `"a.b".c` - see pkg/graft/utils.go's ParsePath, which
 // already accepts this form) when it contains a "." or "[", the two
 // characters that would otherwise be ambiguous with flattenInto's own
@@ -274,7 +274,7 @@ func flattenInto(flat map[string]interface{}, prefix string, v interface{}) {
 // case (plain identifier keys) renders exactly as before - a history
 // report for `database.host` still reads "database.host", not
 // `"database"."host"`.
-func escapePathSegment(seg string) string {
+func EscapePathSegment(seg string) string {
 	if strings.ContainsAny(seg, ".[") {
 		return `"` + seg + `"`
 	}

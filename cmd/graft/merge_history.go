@@ -314,20 +314,25 @@ func renderTracePath(ph history.PathHistory) string {
 	return buf.String()
 }
 
-// writeHistoryEntryLine prints one "[N] source → value" line. Only an entry
-// that is genuinely Removed (an operator (( prune )) marker or a
+// historyEntryLine renders one entry's "[N] source → value" line body
+// (no leading indent, no newline) - the shared format for history
+// blocks and the tree's annotation lines. Only an entry that is
+// genuinely Removed (an operator (( prune )) marker or a
 // --prune/--cherry-pick CLI flag actually took this path out of the
-// document - history.Entry's doc comment) prints "<pruned>"; every other
-// entry recorded at a PhasePost step (a sibling path in the same step that
-// merely changed value, e.g. a list that shrank when one of its elements
-// was pruned by index) prints its real new value like any other entry.
-func writeHistoryEntryLine(buf *strings.Builder, e history.Entry) {
+// document - history.Entry's doc comment) prints "<pruned>"; every
+// other entry recorded at a PhasePost step prints its real new value.
+func historyEntryLine(e history.Entry) string {
 	source := fmt.Sprintf("[%d] %s", e.Index, e.Source)
+	val := inlineValue(e.Value)
 	if e.Removed {
-		fmt.Fprintf(buf, "  %-*s → <pruned>\n", sourceColumnWidth, source)
-		return
+		val = "<pruned>"
 	}
-	fmt.Fprintf(buf, "  %-*s → %s\n", sourceColumnWidth, source, inlineValue(e.Value))
+	return fmt.Sprintf("%-*s → %s", sourceColumnWidth, source, val)
+}
+
+// writeHistoryEntryLine prints one indented historyEntryLine.
+func writeHistoryEntryLine(buf *strings.Builder, e history.Entry) {
+	fmt.Fprintf(buf, "  %s\n", historyEntryLine(e))
 }
 
 func writeHistoryFinalLine(buf *strings.Builder, ph history.PathHistory, unchanged bool) {
