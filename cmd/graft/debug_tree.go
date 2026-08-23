@@ -320,8 +320,7 @@ func (s *debugSession) cmdTree(args []string) {
 }
 
 // treeHistoryData computes cmdTree's per-path history when --annotate or
-// --history was requested (split out of cmdTree to keep its cyclomatic
-// complexity under the lint gate's threshold; behavior is unchanged).
+// --history was requested.
 // phs is the filtered PathHistory list; ann maps each path to its entries
 // for inline annotation, populated only for --annotate; histNote is a
 // history-computation error to report without suppressing the tree
@@ -345,8 +344,7 @@ func (s *debugSession) treeHistoryData(opts treeOptions) (phs []history.PathHist
 }
 
 // printTreeHistoryList prints cmdTree's --history tail: one block per
-// path in phs, or a message when nothing was tracked under the path
-// (split out of cmdTree alongside treeHistoryData; behavior unchanged).
+// path in phs, or a message when nothing was tracked under the path.
 func (s *debugSession) printTreeHistoryList(phs []history.PathHistory) {
 	if len(phs) == 0 {
 		s.printf("\nNo history recorded under this path.\n")
