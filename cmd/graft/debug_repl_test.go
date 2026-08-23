@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -26,7 +27,7 @@ func runDebugSession(files []string, script string) (stdout string, rc int) {
 // threaded through the session's own merge calls (F14).
 func runDebugSessionWithOpts(files []string, opts *mergeOpts, script string) (stdout string, rc int) {
 	var out bytes.Buffer
-	rc = handleDebug(files, opts, strings.NewReader(script), &out)
+	rc = handleDebug(files, opts, strings.NewReader(script), &out, debugUIOptions{})
 	return out.String(), rc
 }
 
@@ -219,7 +220,7 @@ func TestDebugREPL(t *testing.T) {
 			// bufio.Scanner's default buffer is 64KiB; a longer line makes
 			// Scan return false exactly as a clean EOF does.
 			script := "inspect " + strings.Repeat("x", 70000) + "\nload\nquit\n"
-			rc := handleDebug([]string{"../../assets/history/base.yml"}, &mergeOpts{}, strings.NewReader(script), &out)
+			rc := handleDebug([]string{"../../assets/history/base.yml"}, &mergeOpts{}, strings.NewReader(script), &out, debugUIOptions{})
 
 			So(rc, ShouldEqual, 2)
 			So(stderr, ShouldContainSubstring, "Error reading debugger input")
@@ -517,7 +518,7 @@ func TestDebugREPL(t *testing.T) {
 		log.PrintStdErrf = func(format string, args ...interface{}) {
 			stderr += fmt.Sprintf(format, args...)
 		}
-		rc := handleDebug(nil, &mergeOpts{}, strings.NewReader(""), &out)
+		rc := handleDebug(nil, &mergeOpts{}, strings.NewReader(""), &out, debugUIOptions{})
 		So(rc, ShouldEqual, 1)
 		So(out.String(), ShouldEqual, "")
 		So(stderr, ShouldContainSubstring, "graft debug requires at least one file")
@@ -704,7 +705,7 @@ func TestDebugREPL(t *testing.T) {
 		done := make(chan result, 1)
 		go func() {
 			var out bytes.Buffer
-			rc := handleDebug(goPatchFiles, &mergeOpts{}, strings.NewReader("load\ncontinue\nquit\n"), &out)
+			rc := handleDebug(goPatchFiles, &mergeOpts{}, strings.NewReader("load\ncontinue\nquit\n"), &out, debugUIOptions{})
 			done <- result{out.String(), rc}
 		}()
 
@@ -728,7 +729,7 @@ func TestDebugREPL(t *testing.T) {
 		done := make(chan result, 1)
 		go func() {
 			var out bytes.Buffer
-			rc := handleDebug(evalFailureFiles, &mergeOpts{}, strings.NewReader("load\ncontinue\nquit\n"), &out)
+			rc := handleDebug(evalFailureFiles, &mergeOpts{}, strings.NewReader("load\ncontinue\nquit\n"), &out, debugUIOptions{})
 			done <- result{out.String(), rc}
 		}()
 
@@ -794,5 +795,30 @@ func TestDebugREPL(t *testing.T) {
 			So(out, ShouldNotContainSubstring, "\x1b[36m$.nonexistent\x1b[0m")
 			So(out, ShouldNotContainSubstring, "\x1b[31m`\x1b[0m")
 		})
+	})
+
+	// A debugSession resolves its styler once, at construction, against
+	// its own out writer via the writerIsTTY seam (never against
+	// stderr - that is the package-global ansi flag's job). Faking
+	// writerIsTTY true, the way --no-color's ColorOverride=false must
+	// still win outright, proves the override beats a terminal that
+	// would otherwise auto-enable color; the companion true/nil case
+	// proves the same faked terminal actually drives the auto-mode
+	// answer, not a stuck constant.
+	Convey("a debug session resolves its styler against its own writer, honoring an explicit override over a faked terminal", t, func() {
+		prevWriterIsTTY := writerIsTTY
+		writerIsTTY = func(io.Writer) bool { return true }
+		defer func() { writerIsTTY = prevWriterIsTTY }()
+
+		noColor := false
+		var out bytes.Buffer
+		sess, err := newDebugSession(files, &mergeOpts{}, &out, debugUIOptions{ColorOverride: &noColor})
+		So(err, ShouldBeNil)
+		So(sess.styler.enabled, ShouldBeFalse)
+
+		color := true
+		sessColorOn, err := newDebugSession(files, &mergeOpts{}, &out, debugUIOptions{ColorOverride: &color})
+		So(err, ShouldBeNil)
+		So(sessColorOn.styler.enabled, ShouldBeTrue)
 	})
 }

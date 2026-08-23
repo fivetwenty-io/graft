@@ -1103,7 +1103,13 @@ func newRootCmd() (*cobra.Command, *bool) {
 				ReportDeferred: mergeReportDeferred,
 			}
 			if mergeInteractive {
-				exit(handleDebug(args, opts, os.Stdin, os.Stdout))
+				// Matches diffCmd's RunE below: colorVal has already been
+				// validated by PersistentPreRunE by the time RunE runs, so
+				// its resolve() error return is intentionally ignored
+				// here.
+				colorOverride, _ := colorVal.resolve()
+				colorOverride = applyNoColorOverride(colorOverride, noColor)
+				exit(handleDebug(args, opts, os.Stdin, os.Stdout, debugUIOptions{ColorOverride: colorOverride}))
 				return nil
 			}
 			exit(handleMerge(opts))
@@ -1251,7 +1257,12 @@ func newRootCmd() (*cobra.Command, *bool) {
 				CherryPick:     debugCherryPick,
 				EngineOpts:     configEngineOpts(loadedConfig, loadedFeatureFlags),
 			}
-			exit(handleDebug(args, opts, os.Stdin, os.Stdout))
+			// Matches diffCmd's RunE above: colorVal has already been
+			// validated by PersistentPreRunE by the time RunE runs, so
+			// its resolve() error return is intentionally ignored here.
+			colorOverride, _ := colorVal.resolve()
+			colorOverride = applyNoColorOverride(colorOverride, noColor)
+			exit(handleDebug(args, opts, os.Stdin, os.Stdout, debugUIOptions{ColorOverride: colorOverride}))
 			return nil
 		},
 	}

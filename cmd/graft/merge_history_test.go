@@ -434,3 +434,72 @@ func TestMergeHistoryPostPhaseRenderingOnlyLabelsGenuineRemovals(t *testing.T) {
 		So(secretSection, ShouldContainSubstring, "- <pruned>\n")
 	})
 }
+
+// TestMergeHistoryByteStability pins `merge --history` and
+// `merge --trace-path`'s exact bytes, via the real CLI entry point
+// (runGraftCommand), ahead of extracting historyEntryLine/
+// writeHistoryFinalLine's formatting into a shared parts helper the
+// debugger's own `history` command will reuse. That extraction must
+// reproduce these bytes unchanged; if it doesn't, this test - not a
+// REPL transcript - is what shows the regression.
+func TestMergeHistoryByteStability(t *testing.T) {
+	files := []string{"../../assets/history/base.yml", "../../assets/history/env.yml", "../../assets/history/secrets.yml"}
+
+	t.Run("--history", func(t *testing.T) {
+		stdout, stderr, rc := runGraftCommand(t, append([]string{"merge", "--history"}, files...))
+		if rc != 0 {
+			t.Fatalf("rc = %d, stderr = %q", rc, stderr)
+		}
+		want := `Merge History:
+
+database.host:
+  [0] ../../assets/history/base.yml → localhost
+  [1] ../../assets/history/env.yml → db.prod.example.com
+  Final              → db.prod.example.com
+
+database.password:
+  [2] ../../assets/history/secrets.yml → (( grab meta.version ))
+  [3] <evaluated>    → "1.0"
+  Final              → "1.0"
+
+database.pool_size:
+  [0] ../../assets/history/base.yml → 10
+  [1] ../../assets/history/env.yml → 50
+  Final              → 50
+
+database.port:
+  [0] ../../assets/history/base.yml → 5432
+  Final              → 5432  (unchanged)
+
+meta.version:
+  [0] ../../assets/history/base.yml → "1.0"
+  Final              → "1.0"  (unchanged)
+
+server.timeout:
+  [1] ../../assets/history/env.yml → 60
+  Final              → 60  (unchanged)
+`
+		if stdout != want {
+			t.Errorf("stdout =\n%s\nwant\n%s", stdout, want)
+		}
+	})
+
+	t.Run("--trace-path", func(t *testing.T) {
+		stdout, stderr, rc := runGraftCommand(t, append([]string{"merge", "--trace-path", "database.password"}, files...))
+		if rc != 0 {
+			t.Fatalf("rc = %d, stderr = %q", rc, stderr)
+		}
+		want := `database.password:
+  [2] ../../assets/history/secrets.yml → (( grab meta.version ))
+      Type: operator (grab)
+
+  [3] <evaluated>    → "1.0"
+      Type: value
+
+  Final              → "1.0"
+`
+		if stdout != want {
+			t.Errorf("stdout =\n%s\nwant\n%s", stdout, want)
+		}
+	})
+}

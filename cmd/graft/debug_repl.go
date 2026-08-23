@@ -88,14 +88,23 @@ type debugSession struct {
 	deferred map[string]string
 
 	out io.Writer
+
+	// styler renders this session's own formatted output in the
+	// resolved color/theme (see resolveDebugStyler); it is the zero
+	// debugStyler, and so identity, whenever color is off. Nothing
+	// calls styler.apply for real output yet - later work threads it
+	// through the print sites listed in the category-to-role map.
+	styler debugStyler
 }
 
 // newDebugSession loads and caches every input file's raw bytes (without
 // merging), matching the REPL's `load` command: files are read once up
 // front so later replays (step/continue/eval all re-run mergeAllDocs on
 // fresh YamlFile readers) don't depend on any reader being seekable or
-// reusable.
-func newDebugSession(files []string, opts *mergeOpts, out io.Writer) (*debugSession, error) {
+// reusable. ui is resolved once, here, into the session's styler (see
+// resolveDebugStyler), against out - never against stderr, which is
+// what the package-global ansi flag resolves against.
+func newDebugSession(files []string, opts *mergeOpts, out io.Writer, ui debugUIOptions) (*debugSession, error) {
 	resolvedOpts := *opts
 	resolvedOpts.Files = files
 	yamlFiles, err := resolveMergeInputFiles(&resolvedOpts)
@@ -127,6 +136,7 @@ func newDebugSession(files []string, opts *mergeOpts, out io.Writer) (*debugSess
 		breakpoints: map[string]bool{},
 		deferred:    map[string]string{},
 		out:         out,
+		styler:      resolveDebugStyler(ui, out),
 	}, nil
 }
 
@@ -1021,8 +1031,11 @@ func mustYAML(v interface{}) string {
 
 // handleDebug runs the `graft debug` REPL: a line-oriented command loop
 // reading from in and writing to out, implementing the commands
-// docs/user-guide/cli/debug.md documents (see debugCommandHelp).
-func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer) int {
+// docs/user-guide/cli/debug.md documents (see debugCommandHelp). ui
+// carries the session's color/theme choice, resolved by the caller
+// (both `graft debug` and `graft merge --interactive`'s RunE closures)
+// from --color/--no-color and, from a later phase, --theme/GRAFT_THEME.
+func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, ui debugUIOptions) int {
 	if len(files) == 0 {
 		// Unlike merge/fan/json/vaultinfo, debug can't fall back to reading
 		// a document from stdin: stdin is the REPL's own command input
@@ -1032,7 +1045,7 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer) i
 		return 1
 	}
 
-	sess, err := newDebugSession(files, opts, out)
+	sess, err := newDebugSession(files, opts, out, ui)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
