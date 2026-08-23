@@ -271,12 +271,17 @@ func applyNoColorOverride(colorOverride *bool, noColor bool) *bool {
 	return colorOverride
 }
 
-// resolveThemeTier resolves --theme/GRAFT_THEME/default precedence
-// (flag > env > default), decoupled from cobra and os.Getenv so it
-// unit-tests without process-wide env mutation. flagChanged and
-// flagValue mirror cmd.Flags().Changed("theme") and themeVal (whose
-// registered default is "auto"); envValue is GRAFT_THEME's value (""
-// meaning unset); envMisspellingSet is whether GRAFT_UI_THEME is set.
+// resolveThemeTier resolves --theme/GRAFT_THEME/config-file/default
+// precedence (flag > env > file > default), decoupled from cobra,
+// os.Getenv, and the filesystem so it unit-tests without process-wide
+// env mutation or a real config file. flagChanged and flagValue mirror
+// cmd.Flags().Changed("theme") and themeVal (whose registered default is
+// "auto"); envValue is GRAFT_THEME's value ("" meaning unset); fileValue
+// and fileWarn are resolveThemeFileValue's own already-validated result
+// (fileValue is "" when no file supplied a usable value; fileWarn is
+// only non-empty when a discovered file set ui.theme to a name
+// isValidThemeName rejects); envMisspellingSet is whether GRAFT_UI_THEME
+// is set.
 //
 // Returns the resolved theme name, whether the flag's own value was
 // valid (only checked when flagChanged; false means the caller must
@@ -284,9 +289,15 @@ func applyNoColorOverride(colorOverride *bool, noColor bool) *bool {
 // stderr warning lines to print, in order: an invalid GRAFT_THEME value
 // warns and falls through to flagValue (the default tier, per decision
 // 14 - never exit 1, so a bad GRAFT_THEME can never abort an unrelated
-// graft command); the GRAFT_UI_THEME misspelling notice fires only when
-// GRAFT_THEME itself is unset, so the two warnings never both appear.
-func resolveThemeTier(flagChanged bool, flagValue, envValue string, envMisspellingSet bool) (theme string, flagValid bool, warnings []string) {
+// graft command) and, unlike the file tier below, ends the function
+// immediately (an env value, valid or invalid, always outranks a file
+// value). Otherwise fileWarn (if any) is reported and fileValue (if any)
+// is used; the GRAFT_UI_THEME misspelling notice is then evaluated
+// unconditionally - it is orthogonal to whatever the file tier decided,
+// and is suppressed only when GRAFT_THEME itself is set (decision 8,
+// plans/colorizing-backlog-closeout.md): a file value and the
+// misspelling warning can both be present in the same call's result.
+func resolveThemeTier(flagChanged bool, flagValue, envValue, fileValue, fileWarn string, envMisspellingSet bool) (theme string, flagValid bool, warnings []string) {
 	if flagChanged {
 		if !isValidThemeName(flagValue) {
 			return "", false, nil
@@ -301,12 +312,21 @@ func resolveThemeTier(flagChanged bool, flagValue, envValue string, envMisspelli
 		}
 		return envValue, true, nil
 	}
-	if envMisspellingSet {
-		return flagValue, true, []string{fmt.Sprintf(
-			"%s is not a recognized graft environment variable and was ignored; did you mean %s?",
-			themeEnvVarMisspelling, themeEnvVar)}
+
+	theme = flagValue // the registered --theme default ("auto"), used unless the file tier below supplies a value
+	if fileWarn != "" {
+		warnings = append(warnings, fileWarn)
+	} else if fileValue != "" {
+		theme = fileValue
 	}
-	return flagValue, true, nil
+
+	if envMisspellingSet {
+		warnings = append(warnings, fmt.Sprintf(
+			"%s is not a recognized graft environment variable and was ignored; did you mean %s?",
+			themeEnvVarMisspelling, themeEnvVar))
+	}
+
+	return theme, true, warnings
 }
 
 // handleMerge runs a normal merge and prints the result, unless
@@ -1067,18 +1087,25 @@ func newRootCmd() (*cobra.Command, *bool) {
 			colorOverride = applyNoColorOverride(colorOverride, noColor)
 			ansi.Color(ansi.ResolveColor(colorOverride, isStderrTTY()))
 
-			// --theme/GRAFT_THEME resolution: flag > env > default
-			// ("auto"), the same shape as --max-loop-iterations
-			// (pkg/graft/controlflow/config.go). An invalid --theme
-			// value is a hard error, exit 1, mirroring --color's
-			// invalid-value path immediately above (decision 14).
-			// Validation never touches config.Validate, so it can
-			// never abort an unrelated graft command. resolveThemeTier
-			// is a pure function so the precedence and warning logic
-			// unit-tests without cobra or process-wide env mutation.
+			// --theme/GRAFT_THEME/config-file resolution: flag > env >
+			// file > default ("auto"), the same shape as
+			// --max-loop-iterations (pkg/graft/controlflow/config.go).
+			// An invalid --theme value is a hard error, exit 1,
+			// mirroring --color's invalid-value path immediately above
+			// (decision 14). Validation never touches config.Validate,
+			// so it can never abort an unrelated graft command.
+			// resolveThemeFileValue is a standalone reader, independent
+			// of resolveStartupConfig below (it never touches
+			// internal/config - see its doc comment), so it is read
+			// here unconditionally rather than sourced from
+			// loadedConfig; resolveThemeTier is a pure function so the
+			// precedence and warning logic unit-tests without cobra,
+			// process-wide env mutation, or a real config file.
+			fileThemeValue, _, fileThemeWarn := resolveThemeFileValue(themeConfigSearchPaths())
 			theme, themeFlagValid, themeWarnings := resolveThemeTier(
 				cmd.Flags().Changed("theme"), themeVal,
-				os.Getenv(themeEnvVar), os.Getenv(themeEnvVarMisspelling) != "")
+				os.Getenv(themeEnvVar), fileThemeValue, fileThemeWarn,
+				os.Getenv(themeEnvVarMisspelling) != "")
 			if !themeFlagValid {
 				aborted = true
 				log.PrintStdErrf("Invalid --theme value: %q. Must be one of: %s.\n", themeVal, knownThemeNamesJoined())

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
@@ -172,6 +174,157 @@ func TestResolveDebugStyler(t *testing.T) {
 		st := resolveDebugStyler(debugUIOptions{}, &out)
 		if !st.enabled {
 			t.Error("resolveDebugStyler() enabled = false in auto mode against a faked TTY with a permissive environment, want true")
+		}
+	})
+}
+
+// writeThemeConfigFile writes a graft.yaml-shaped file with the given raw
+// YAML content at path, creating parent directories as needed.
+func writeThemeConfigFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("writing %s: %v", path, err)
+	}
+}
+
+// TestResolveThemeFileValue exercises resolveThemeFileValue directly
+// against explicit search-path lists: a valid ui.theme value, an invalid
+// one, a missing file, and malformed YAML, per
+// plans/colorizing-backlog-closeout.md Phase 2 step 1.
+func TestResolveThemeFileValue(t *testing.T) {
+	t.Run("a valid ui.theme value is returned", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "graft.yaml")
+		writeThemeConfigFile(t, path, "ui:\n  theme: light\n")
+
+		value, found, warn := resolveThemeFileValue([]string{path})
+		if !found || value != "light" || warn != "" {
+			t.Errorf("resolveThemeFileValue() = (%q, %v, %q), want (\"light\", true, \"\")", value, found, warn)
+		}
+	})
+
+	t.Run("an invalid ui.theme value warns and reports no usable value", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "graft.yaml")
+		writeThemeConfigFile(t, path, "ui:\n  theme: bogus\n")
+
+		value, found, warn := resolveThemeFileValue([]string{path})
+		if found || value != "" {
+			t.Errorf("resolveThemeFileValue() = (%q, %v, _), want (\"\", false, _) for an invalid value", value, found)
+		}
+		if warn == "" || !strings.Contains(warn, "bogus") || !strings.Contains(warn, path) {
+			t.Errorf("resolveThemeFileValue() warn = %q, want it to name the bad value and the file path", warn)
+		}
+	})
+
+	t.Run("no file present in any search path reports no value and no warning", func(t *testing.T) {
+		dir := t.TempDir()
+		value, found, warn := resolveThemeFileValue([]string{filepath.Join(dir, "does-not-exist.yaml")})
+		if found || value != "" || warn != "" {
+			t.Errorf("resolveThemeFileValue() = (%q, %v, %q), want (\"\", false, \"\")", value, found, warn)
+		}
+	})
+
+	t.Run("malformed YAML is silently ignored, never a hard error", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "graft.yaml")
+		writeThemeConfigFile(t, path, "ui: [this is not: valid: yaml\n")
+
+		value, found, warn := resolveThemeFileValue([]string{path})
+		if found || value != "" || warn != "" {
+			t.Errorf("resolveThemeFileValue() = (%q, %v, %q), want (\"\", false, \"\") for malformed YAML", value, found, warn)
+		}
+	})
+
+	t.Run("a file present but with no ui.theme key reports no value", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "graft.yaml")
+		writeThemeConfigFile(t, path, "engine:\n  strict_mode: true\n")
+
+		value, found, warn := resolveThemeFileValue([]string{path})
+		if found || value != "" || warn != "" {
+			t.Errorf("resolveThemeFileValue() = (%q, %v, %q), want (\"\", false, \"\")", value, found, warn)
+		}
+	})
+
+	t.Run("the first existing file in search-path order wins, even without a theme key", func(t *testing.T) {
+		firstPath := filepath.Join(t.TempDir(), "first.yaml")
+		writeThemeConfigFile(t, firstPath, "engine:\n  strict_mode: true\n") // exists, no ui.theme
+
+		secondPath := filepath.Join(t.TempDir(), "second.yaml")
+		writeThemeConfigFile(t, secondPath, "ui:\n  theme: light\n") // would supply a value, but comes second
+
+		missingPath := filepath.Join(t.TempDir(), "missing.yaml") // does not exist, tried first
+
+		value, found, warn := resolveThemeFileValue([]string{missingPath, firstPath, secondPath})
+		if found || value != "" || warn != "" {
+			t.Errorf("resolveThemeFileValue() = (%q, %v, %q), want (\"\", false, \"\"): first *existing* file (firstPath) wins, second.yaml must never be consulted", value, found, warn)
+		}
+	})
+
+	t.Run("a missing first path falls through to the next existing one", func(t *testing.T) {
+		missingPath := filepath.Join(t.TempDir(), "missing.yaml")
+		presentPath := filepath.Join(t.TempDir(), "graft.yaml")
+		writeThemeConfigFile(t, presentPath, "ui:\n  theme: mono\n")
+
+		value, found, warn := resolveThemeFileValue([]string{missingPath, presentPath})
+		if !found || value != "mono" || warn != "" {
+			t.Errorf("resolveThemeFileValue() = (%q, %v, %q), want (\"mono\", true, \"\")", value, found, warn)
+		}
+	})
+}
+
+// TestThemeConfigSearchPaths locks the three documented search paths and
+// their order (docs/reference/config.md): ./graft.yaml, then
+// $HOME/.graft/config.yaml, then /etc/graft/config.yaml when /etc exists.
+func TestThemeConfigSearchPaths(t *testing.T) {
+	paths := themeConfigSearchPaths()
+	if len(paths) < 2 {
+		t.Fatalf("themeConfigSearchPaths() = %v, want at least 2 entries", paths)
+	}
+	if paths[0] != "./graft.yaml" {
+		t.Errorf("themeConfigSearchPaths()[0] = %q, want %q", paths[0], "./graft.yaml")
+	}
+	if paths[1] != "~/.graft/config.yaml" {
+		t.Errorf("themeConfigSearchPaths()[1] = %q, want %q", paths[1], "~/.graft/config.yaml")
+	}
+	if _, err := os.Stat("/etc"); err == nil {
+		if len(paths) != 3 || paths[2] != "/etc/graft/config.yaml" {
+			t.Errorf("themeConfigSearchPaths() = %v, want a third entry %q on a system with /etc", paths, "/etc/graft/config.yaml")
+		}
+	}
+}
+
+// TestResolveThemeFileValueEndToEndSearchOrder proves the full pipeline
+// (themeConfigSearchPaths + resolveThemeFileValue) picks up a graft.yaml
+// from the current directory ahead of $HOME/.graft/config.yaml, and falls
+// back to the home-directory file when no ./graft.yaml exists - using a
+// real chdir and a faked $HOME, matching this package's existing
+// cwd/HOME test conventions (see chdir in examples_test.go, t.Setenv).
+func TestResolveThemeFileValueEndToEndSearchOrder(t *testing.T) {
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+	writeThemeConfigFile(t, filepath.Join(fakeHome, ".graft", "config.yaml"), "ui:\n  theme: light\n")
+
+	t.Run("$HOME/.graft/config.yaml is used when no ./graft.yaml exists", func(t *testing.T) {
+		workDir := t.TempDir()
+		restore := chdir(t, workDir)
+		defer restore()
+
+		value, found, warn := resolveThemeFileValue(themeConfigSearchPaths())
+		if !found || value != "light" || warn != "" {
+			t.Errorf("resolveThemeFileValue() = (%q, %v, %q), want (\"light\", true, \"\")", value, found, warn)
+		}
+	})
+
+	t.Run("./graft.yaml wins over $HOME/.graft/config.yaml", func(t *testing.T) {
+		workDir := t.TempDir()
+		restore := chdir(t, workDir)
+		defer restore()
+		writeThemeConfigFile(t, filepath.Join(workDir, "graft.yaml"), "ui:\n  theme: mono\n")
+
+		value, found, warn := resolveThemeFileValue(themeConfigSearchPaths())
+		if !found || value != "mono" || warn != "" {
+			t.Errorf("resolveThemeFileValue() = (%q, %v, %q), want (\"mono\", true, \"\")", value, found, warn)
 		}
 	})
 }

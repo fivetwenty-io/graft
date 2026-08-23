@@ -1,24 +1,29 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mattn/go-isatty"
+
+	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/internal/utils/termbg"
 )
 
 // themeEnvVar is the environment variable --theme's value falls back to
-// when the flag is not given (flag > env > default, see
-// newRootCmd/PersistentPreRunE). Named GRAFT_THEME rather than
-// GRAFT_UI_THEME: the mechanical GRAFT_<SECTION>_<FIELD> convention
-// (internal/config/env.go) serves config-file-backed subsystem knobs,
-// and the theme has no config-file tier this release, so it follows
-// prior art's short form instead (BAT_THEME). This is the one
-// deliberate exception to that convention, which is why
+// when the flag is not given (flag > env > file > default, see
+// newRootCmd/PersistentPreRunE/resolveThemeTier). Named GRAFT_THEME
+// rather than GRAFT_UI_THEME: the mechanical GRAFT_<SECTION>_<FIELD>
+// convention (internal/config/env.go) serves config-file-backed
+// subsystem knobs, and the theme's own file tier is a standalone
+// ui.theme reader (resolveThemeFileValue) independent of that package,
+// so the env var follows prior art's short form instead (BAT_THEME).
+// This is the one deliberate exception to that convention, which is why
 // themeEnvVarMisspelling exists: it warns anyone who reaches for the
 // mechanical name instead.
 const themeEnvVar = "GRAFT_THEME"
@@ -58,6 +63,104 @@ func isValidThemeName(name string) bool {
 // text: "auto, dark, light, mono".
 func knownThemeNamesJoined() string {
 	return strings.Join(knownThemeNames, ", ")
+}
+
+// themeConfigSearchPaths returns the three documented config-file
+// locations, in search order: ./graft.yaml (current directory),
+// ~/.graft/config.yaml (user config directory, unexpanded - see
+// expandThemeConfigPath), then /etc/graft/config.yaml, the last only on
+// a system that has an /etc directory at all. This mirrors
+// internal/config's getSearchPaths() exactly (docs/reference/config.md),
+// duplicated here rather than imported: resolveThemeFileValue is a
+// standalone reader that never depends on internal/config, so it does
+// not activate that package's other 16 Config fields as a side effect
+// (see decision 5, plans/colorizing-backlog-closeout.md).
+func themeConfigSearchPaths() []string {
+	paths := []string{"./graft.yaml", "~/.graft/config.yaml"}
+	if _, err := os.Stat("/etc"); err == nil {
+		paths = append(paths, "/etc/graft/config.yaml")
+	}
+	return paths
+}
+
+// expandThemeConfigPath expands a leading "~" to the user's home
+// directory, leaving every other path (including "" and already-absolute
+// or relative paths) unchanged. Mirrors internal/config's expandPath,
+// duplicated for the same reason as themeConfigSearchPaths.
+func expandThemeConfigPath(path string) (string, error) {
+	if path == "" || path[0] != '~' {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("getting home directory: %w", err)
+	}
+	return filepath.Join(home, path[1:]), nil
+}
+
+// themeFileConfig decodes only the ui.theme key out of a config-file
+// document, ignoring every other key present. This is the entire reason
+// resolveThemeFileValue does not reuse internal/config.Load: that
+// package's Load/mergeFileOntoConfig/ApplyEnv/Validate machinery is
+// built around its full 5-section, 16-field Config struct as one unit,
+// with no "load just one key" entry point - wiring it in here would
+// silently activate the other 15 fields (2 of them, parallel.* and
+// cache.l2_*, have observable effects today) for every invocation near a
+// discovered file, a separate, larger decision this reader is scoped to
+// avoid by construction (decision 5).
+type themeFileConfig struct {
+	UI struct {
+		Theme string `yaml:"theme"`
+	} `yaml:"ui"`
+}
+
+// resolveThemeFileValue searches searchPaths in order and reads ui.theme
+// from the first file that exists there - "first existing file wins",
+// matching internal/config.LoadWithSearch's own search-order contract,
+// not "first file that happens to set ui.theme": a later path is never
+// consulted once an earlier one is found on disk, even if that file is
+// unreadable, fails to parse, or simply omits ui.theme.
+//
+// It never returns a hard error: a missing path, a permission-denied
+// read, or malformed YAML all resolve to ("", false, "") - "no file
+// value found" - since this tier must never abort an unrelated graft
+// command (matching resolveThemeTier's env-tier soft-fail precedent).
+// The one case that does produce a non-empty warn is a file that is
+// found, parses, and sets ui.theme to a value isValidThemeName rejects:
+// that returns ("", false, "<warning>"), the same soft-fail-and-warn
+// shape resolveThemeTier already gives an invalid GRAFT_THEME value.
+func resolveThemeFileValue(searchPaths []string) (value string, found bool, warn string) {
+	for _, path := range searchPaths {
+		expanded, err := expandThemeConfigPath(path)
+		if err != nil {
+			continue
+		}
+		if _, statErr := os.Stat(expanded); statErr != nil {
+			continue // no file at this candidate path; try the next one
+		}
+
+		// The first existing candidate stops the search here,
+		// regardless of what happens next (decision: "first existing
+		// file wins", not "first file with a usable ui.theme").
+		data, readErr := os.ReadFile(filepath.Clean(expanded))
+		if readErr != nil {
+			return "", false, ""
+		}
+		var cfg themeFileConfig
+		if yaml.Unmarshal(data, &cfg) != nil {
+			return "", false, ""
+		}
+		if cfg.UI.Theme == "" {
+			return "", false, ""
+		}
+		if !isValidThemeName(cfg.UI.Theme) {
+			return "", false, fmt.Sprintf(
+				"Invalid ui.theme value in %s: %q. Must be one of: %s. Using default.",
+				expanded, cfg.UI.Theme, knownThemeNamesJoined())
+		}
+		return cfg.UI.Theme, true, ""
+	}
+	return "", false, ""
 }
 
 // normalizeThemeName returns name unchanged, except for the empty
