@@ -153,6 +153,16 @@ func (s *debugSession) printf(format string, args ...interface{}) {
 	_, _ = fmt.Fprintf(s.out, format, args...)
 }
 
+// style renders str in role r through the session's own resolved
+// styler - identity (str unchanged) whenever color is off, so every
+// existing bytes.Buffer test's plain-mode assertions keep matching
+// byte for byte (see debugStyler.apply). Call sites style the label
+// parts of a line, not the whole formatted line, so punctuation such as
+// the colon after a heading stays outside the escape span.
+func (s *debugSession) style(r debugRole, str string) string {
+	return s.styler.apply(r, str)
+}
+
 // rawMergeOpts returns a copy of the session's own opts (so --go-patch and
 // --fallback-append, the two merge flags meaningful to a raw structural
 // merge, are honored) with SkipEval forced on and any --prune/--cherry-pick
@@ -176,7 +186,7 @@ func (s *debugSession) rawMergeOpts() *mergeOpts {
 // where `step` begins by merging the *second* file onto an already-loaded
 // first one.
 func (s *debugSession) cmdLoad() {
-	s.printf("Loaded %s:\n", pluralCount(len(s.cached), "document"))
+	s.printf("%s\n", s.style(roleHeading, fmt.Sprintf("Loaded %s:", pluralCount(len(s.cached), "document"))))
 	for i, c := range s.cached {
 		singleOpts := *s.opts
 		singleOpts.Prune = nil
@@ -187,7 +197,10 @@ func (s *debugSession) cmdLoad() {
 		if err == nil {
 			keyCount = len(data)
 		}
-		s.printf("  [%d] %s (%s)\n", i, c.Path, pluralCount(keyCount, "key"))
+		s.printf("  %s %s %s\n",
+			s.style(roleCounter, fmt.Sprintf("[%d]", i)),
+			s.style(roleFile, c.Path),
+			s.style(roleMuted, fmt.Sprintf("(%s)", pluralCount(keyCount, "key"))))
 	}
 
 	base, _, err := mergeAllDocs(s.freshFiles(1), s.rawMergeOpts())
@@ -218,7 +231,9 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 
 	if s.step < s.totalSteps {
 		fileIdx := s.step
-		s.printf("[%d/%d] Merging %s...\n", s.step, s.totalSteps, s.cached[fileIdx].Path)
+		s.printf("%s Merging %s...\n",
+			s.style(roleCounter, fmt.Sprintf("[%d/%d]", s.step, s.totalSteps)),
+			s.style(roleFile, s.cached[fileIdx].Path))
 
 		newTree, _, err := mergeAllDocs(s.freshFiles(fileIdx+1), s.rawMergeOpts())
 		if err != nil {
@@ -230,14 +245,21 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 		changes, cmpErr := histdiff.Compare("before", s.tree, s.cached[fileIdx].Path, newTree)
 		if cmpErr == nil {
 			for _, c := range changes {
-				s.printf("  %s: %s → %s\n", c.Path, changeOldDisplay(c), changeNewDisplay(c))
+				s.printf("  %s: %s %s %s\n",
+					s.style(rolePath, c.Path),
+					s.styleChangeValue(roleValueOld, changeOldDisplay(c)),
+					s.style(roleMuted, "→"),
+					s.styleChangeValue(roleValueNew, changeNewDisplay(c)))
 			}
 		}
 		s.tree = newTree
 
 		for _, c := range changes {
 			if s.breakpoints[c.Path] {
-				s.printf("Breakpoint hit: %s\n  Current: %s\n", c.Path, changeNewDisplay(c))
+				s.printf("%s %s\n  Current: %s\n",
+					s.style(roleBreak, "Breakpoint hit:"),
+					s.style(rolePath, c.Path),
+					s.styleChangeValue(roleValueNew, changeNewDisplay(c)))
 				// The path itself is already printed above; the
 				// caller only needs to know the loop must stop.
 				return true, false
@@ -253,7 +275,7 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 	// expression instead of resolving it - the same mechanism a hand-authored
 	// "(( defer ... ))" in the source YAML would trigger, not a REPL-only
 	// simulation of deferral.
-	s.printf("[%d/%d] Evaluating operators...\n", s.step, s.totalSteps)
+	s.printf("%s Evaluating operators...\n", s.style(roleCounter, fmt.Sprintf("[%d/%d]", s.step, s.totalSteps)))
 
 	deferredTree := applyDeferredWrapping(s.tree, s.deferred)
 	evalOpts := *s.opts
@@ -273,7 +295,10 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 	if cmpErr == nil {
 		for _, c := range changes {
 			if s.breakpoints[c.Path] {
-				s.printf("Breakpoint hit: %s\n  Current: %s\n", c.Path, changeNewDisplay(c))
+				s.printf("%s %s\n  Current: %s\n",
+					s.style(roleBreak, "Breakpoint hit:"),
+					s.style(rolePath, c.Path),
+					s.styleChangeValue(roleValueNew, changeNewDisplay(c)))
 				return true, false
 			}
 		}
@@ -284,11 +309,11 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 // cmdStep implements the `step` REPL command.
 func (s *debugSession) cmdStep() {
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 	if s.step >= s.totalSteps {
-		s.printf("Merge complete. Nothing more to step.\n")
+		s.printf("%s\n", s.style(roleSuccess, "Merge complete. Nothing more to step."))
 		return
 	}
 	s.stepOnce()
@@ -303,11 +328,11 @@ func (s *debugSession) cmdStep() {
 // forever (F19).
 func (s *debugSession) cmdContinue() {
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 	if s.step >= s.totalSteps {
-		s.printf("Merge complete. Nothing more to run.\n")
+		s.printf("%s\n", s.style(roleSuccess, "Merge complete. Nothing more to run."))
 		return
 	}
 	for s.step < s.totalSteps {
@@ -316,36 +341,36 @@ func (s *debugSession) cmdContinue() {
 			return
 		}
 	}
-	s.printf("Evaluation complete.\n")
+	s.printf("%s\n", s.style(roleSuccess, "Evaluation complete."))
 }
 
 // cmdBreak/cmdUnbreak/cmdBreaks implement `break <path>`, `unbreak <path>`,
 // and `breaks`.
 func (s *debugSession) cmdBreak(path string) {
 	if path == "" {
-		s.printf("Usage: break <path>\n")
+		s.printf("%s\n", s.style(roleWarn, "Usage: break <path>"))
 		return
 	}
 	s.breakpoints[path] = true
-	s.printf("Breakpoint set on %s\n", path)
+	s.printf("%s\n", s.style(roleSuccess, fmt.Sprintf("Breakpoint set on %s", path)))
 }
 
 func (s *debugSession) cmdUnbreak(path string) {
 	if path == "" {
-		s.printf("Usage: unbreak <path>\n")
+		s.printf("%s\n", s.style(roleWarn, "Usage: unbreak <path>"))
 		return
 	}
 	if !s.breakpoints[path] {
-		s.printf("No breakpoint on %s\n", path)
+		s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("No breakpoint on %s", path)))
 		return
 	}
 	delete(s.breakpoints, path)
-	s.printf("Breakpoint removed\n")
+	s.printf("%s\n", s.style(roleSuccess, "Breakpoint removed"))
 }
 
 func (s *debugSession) cmdBreaks() {
 	if len(s.breakpoints) == 0 {
-		s.printf("No breakpoints set.\n")
+		s.printf("%s\n", s.style(roleMuted, "No breakpoints set."))
 		return
 	}
 	paths := make([]string, 0, len(s.breakpoints))
@@ -353,9 +378,9 @@ func (s *debugSession) cmdBreaks() {
 		paths = append(paths, p)
 	}
 	sort.Strings(paths)
-	s.printf("Breakpoints:\n")
+	s.printf("%s\n", s.style(roleHeading, "Breakpoints:"))
 	for _, p := range paths {
-		s.printf("  - %s\n", p)
+		s.printf("  - %s\n", s.style(rolePath, p))
 	}
 }
 
@@ -367,12 +392,12 @@ func (s *debugSession) cmdBreaks() {
 // bare `inspect` surfaces the whole picture in one place.
 func (s *debugSession) cmdInspect(path string) {
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 	value, ok := lookupDottedPath(s.tree, path)
 	if !ok {
-		s.printf("Path not found: %s\n", path)
+		s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Path not found: %s", path)))
 		return
 	}
 	raw, err := graft.MarshalYAML(value)
@@ -390,14 +415,14 @@ func (s *debugSession) cmdInspect(path string) {
 		paths = append(paths, p)
 	}
 	sort.Strings(paths)
-	s.printf("\nDeferred %s:\n", pluralCount(len(paths), "path"))
+	s.printf("\n%s\n", s.style(roleHeading, fmt.Sprintf("Deferred %s:", pluralCount(len(paths), "path"))))
 	for _, p := range paths {
 		reason := s.deferred[p]
 		if reason == "" {
-			s.printf("  - %s\n", p)
+			s.printf("  - %s\n", s.style(rolePath, p))
 			continue
 		}
-		s.printf("  - %s: %s\n", p, reason)
+		s.printf("  - %s: %s\n", s.style(rolePath, p), s.style(roleMuted, reason))
 	}
 }
 
@@ -492,11 +517,11 @@ func (s *debugSession) deferredDocRewriter() historyDocRewriter {
 // cmdDefer implements `defer <path>`.
 func (s *debugSession) cmdDefer(path string) {
 	if path == "" {
-		s.printf("Usage: defer <path>\n")
+		s.printf("%s\n", s.style(roleWarn, "Usage: defer <path>"))
 		return
 	}
 	s.deferred[path] = "" // manual defer: no root-cause reason recorded
-	s.printf("Marked %s for deferred evaluation\n", path)
+	s.printf("%s\n", s.style(roleSuccess, fmt.Sprintf("Marked %s for deferred evaluation", path)))
 }
 
 // cmdAutodefer implements `autodefer`: runs the same defer-on-error retry
@@ -521,7 +546,7 @@ func (s *debugSession) cmdDefer(path string) {
 // failure (see its own doc comment), so there is nothing to roll back.
 func (s *debugSession) cmdAutodefer() {
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 
@@ -555,11 +580,11 @@ func (s *debugSession) cmdAutodefer() {
 	}
 
 	if len(result.Deferred) == 0 {
-		s.printf("Autodefer: no failing operators - nothing to defer.\n")
+		s.printf("%s\n", s.style(roleMuted, "Autodefer: no failing operators - nothing to defer."))
 	} else {
-		s.printf("Autodefer: %s deferred:\n", pluralCount(len(result.Deferred), "key"))
+		s.printf("%s\n", s.style(roleHeading, fmt.Sprintf("Autodefer: %s deferred:", pluralCount(len(result.Deferred), "key"))))
 		for _, d := range result.Deferred {
-			s.printf("  deferred $.%s: %s\n", d.Path, d.Reason)
+			s.printf("  deferred %s: %s\n", s.style(rolePath, "$."+d.Path), s.style(roleMuted, d.Reason))
 			s.deferred[d.Path] = d.Reason
 		}
 	}
@@ -574,15 +599,15 @@ func (s *debugSession) cmdAutodefer() {
 // resolved value at that path.
 func (s *debugSession) cmdEval(path string) {
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 	value, ok := lookupDottedPath(s.tree, path)
 	if !ok {
-		s.printf("Path not found: %s\n", path)
+		s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Path not found: %s", path)))
 		return
 	}
-	s.printf("Evaluating: %s\n", inlineValue(value))
+	s.printf("%s %s\n", s.style(roleHeading, "Evaluating:"), inlineValue(value))
 
 	evalOpts := *s.opts
 	evalOpts.SkipEval = false
@@ -598,12 +623,17 @@ func (s *debugSession) cmdEval(path string) {
 		s.printf("%s\n", ansi.Sprintf("@R{Evaluation did not produce a value at} @m{%s}", path))
 		return
 	}
-	s.printf("Result: %s\n", inlineValue(resolved))
+	s.printf("%s %s\n", s.style(roleSuccess, "Result:"), inlineValue(resolved))
 	setDottedPath(s.tree, path, resolved)
 }
 
 // cmdConfig implements `config`/`config <key>`/`config <key> <value>`; see
 // debugConfigKeys' doc comment for scope.
+// cmdConfig's three arms never style a value line: the bare listing,
+// the single-key "Current:" line, and any future arm all print plain
+// text unconditionally, because vault.token's value is a live
+// credential (decision 12, plans/debugger-colorizing.md). Only the
+// key-name-only confirmation/warning lines below get a role.
 func (s *debugSession) cmdConfig(args []string) {
 	switch len(args) {
 	case 0:
@@ -613,18 +643,18 @@ func (s *debugSession) cmdConfig(args []string) {
 	case 1:
 		envVar, known := debugConfigKeys[args[0]]
 		if !known {
-			s.printf("Unknown config key: %s. Known keys: %s\n", args[0], strings.Join(debugConfigKeyOrder, ", "))
+			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Unknown config key: %s. Known keys: %s", args[0], strings.Join(debugConfigKeyOrder, ", "))))
 			return
 		}
 		s.printf("Current: %s\n", envOrNotSet(envVar))
 	default:
 		envVar, known := debugConfigKeys[args[0]]
 		if !known {
-			s.printf("Unknown config key: %s. Known keys: %s\n", args[0], strings.Join(debugConfigKeyOrder, ", "))
+			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Unknown config key: %s. Known keys: %s", args[0], strings.Join(debugConfigKeyOrder, ", "))))
 			return
 		}
 		_ = os.Setenv(envVar, strings.Join(args[1:], " "))
-		s.printf("Updated %s\n", args[0])
+		s.printf("%s\n", s.style(roleSuccess, fmt.Sprintf("Updated %s", args[0])))
 	}
 }
 
@@ -646,15 +676,15 @@ func envOrNotSet(envVar string) string {
 // evaluation has not produced.
 func (s *debugSession) cmdPruneReport() {
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 	if s.step < s.totalSteps {
-		s.printf("Merge not complete yet. Run 'continue' (or enough 'step's) before 'prune-report'.\n")
+		s.printf("%s\n", s.style(roleWarn, "Merge not complete yet. Run 'continue' (or enough 'step's) before 'prune-report'."))
 		return
 	}
 	if len(s.opts.Prune) == 0 && len(s.opts.CherryPick) == 0 {
-		s.printf("No --prune/--cherry-pick flags were given for this session.\n")
+		s.printf("%s\n", s.style(roleMuted, "No --prune/--cherry-pick flags were given for this session."))
 		return
 	}
 
@@ -679,19 +709,19 @@ func (s *debugSession) cmdPruneReport() {
 		}
 	}
 	if len(removed) == 0 {
-		s.printf("--prune/--cherry-pick would not remove any path from the current document.\n")
+		s.printf("%s\n", s.style(roleMuted, "--prune/--cherry-pick would not remove any path from the current document."))
 		return
 	}
-	s.printf("Paths --prune/--cherry-pick would remove (not applied to 'output'/'export'/'history'):\n")
+	s.printf("%s\n", s.style(roleHeading, "Paths --prune/--cherry-pick would remove (not applied to 'output'/'export'/'history'):"))
 	for _, c := range removed {
-		s.printf("  - %s\n", c.Path)
+		s.printf("  - %s\n", s.style(rolePath, c.Path))
 	}
 }
 
 // cmdOutput implements `output`: the current document state as YAML.
 func (s *debugSession) cmdOutput() {
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 	raw, err := graft.MarshalYAML(s.tree)
@@ -706,7 +736,7 @@ func (s *debugSession) cmdOutput() {
 // session's current state.
 func (s *debugSession) cmdDiff() {
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 	base, _, err := mergeAllDocs(s.freshFiles(1), s.rawMergeOpts())
@@ -719,9 +749,13 @@ func (s *debugSession) cmdDiff() {
 		s.printf("%s\n", ansi.Sprintf("@R{Error computing diff}: %s", ansi.StripEscapes(err.Error())))
 		return
 	}
-	s.printf("Changes from %s:\n\n", s.cached[0].Path)
+	s.printf("%s %s:\n\n", s.style(roleHeading, "Changes from"), s.style(roleFile, s.cached[0].Path))
 	for _, c := range changes {
-		s.printf("  %s: %s → %s\n", c.Path, changeOldDisplay(c), changeNewDisplay(c))
+		s.printf("  %s: %s %s %s\n",
+			s.style(rolePath, c.Path),
+			s.styleChangeValue(roleValueOld, changeOldDisplay(c)),
+			s.style(roleMuted, "→"),
+			s.styleChangeValue(roleValueNew, changeNewDisplay(c)))
 	}
 }
 
@@ -729,11 +763,11 @@ func (s *debugSession) cmdDiff() {
 // to file as YAML, or as JSON if file ends in ".json".
 func (s *debugSession) cmdExport(path string) {
 	if path == "" {
-		s.printf("Usage: export <file>\n")
+		s.printf("%s\n", s.style(roleWarn, "Usage: export <file>"))
 		return
 	}
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 
@@ -759,15 +793,18 @@ func (s *debugSession) cmdExport(path string) {
 		s.printf("%s\n", ansi.Sprintf("@R{Error writing} @m{%s}: %s", path, ansi.StripEscapes(err.Error())))
 		return
 	}
-	s.printf("Exported to %s\n", path)
+	s.printf("%s %s\n", s.style(roleSuccess, "Exported to"), s.style(roleFile, path))
 }
 
 // cmdHelp implements `help`/`help <command>`.
 func (s *debugSession) cmdHelp(command string) {
 	if command == "" {
-		s.printf("Available commands:\n")
+		s.printf("%s\n", s.style(roleHeading, "Available commands:"))
 		for _, c := range debugCommandHelp {
-			s.printf("  %-15s %s\n", c.name, c.summary)
+			// The name is padded to width before styling, not after,
+			// so the escape codes wrapping it never count toward the
+			// column width and the summary column stays aligned.
+			s.printf("  %s %s\n", s.style(roleCommand, fmt.Sprintf("%-15s", c.name)), c.summary)
 		}
 		return
 	}
@@ -777,7 +814,7 @@ func (s *debugSession) cmdHelp(command string) {
 			return
 		}
 	}
-	s.printf("No help available for %q.\n", command)
+	s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("No help available for %q.", command)))
 }
 
 type debugHelpEntry struct {
@@ -863,6 +900,18 @@ func changeNewDisplay(c histdiff.Change) string {
 		return noneDisplay
 	}
 	return inlineValue(c.New)
+}
+
+// styleChangeValue renders an already-rendered change-line display
+// string (changeOldDisplay/changeNewDisplay's return value) in role,
+// except the literal "<none>" placeholder, which always renders
+// roleMuted regardless of which side of the change it is on (Category
+// E, plans/debugger-colorizing.md).
+func (s *debugSession) styleChangeValue(role debugRole, display string) string {
+	if display == noneDisplay {
+		return s.style(roleMuted, display)
+	}
+	return s.style(role, display)
 }
 
 // lookupDottedPath resolves a dot-joined path (optionally with "[N]" index
@@ -1051,9 +1100,11 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, u
 		return 2
 	}
 
-	_, _ = fmt.Fprintf(out, "Welcome to the Graft Debugger\nType 'help' for available commands.\n\n")
+	sess.printf("%s\n%s\n\n",
+		sess.style(roleBanner, "Welcome to the Graft Debugger"),
+		sess.style(roleMuted, "Type 'help' for available commands."))
 
-	reader := newDebugLineReader(in, out, "graft> ", &debugCompleter{sess: sess})
+	reader := newDebugLineReader(in, out, debugPromptString(sess), &debugCompleter{sess: sess})
 	defer func() { _ = reader.Close() }()
 
 	for {
@@ -1084,11 +1135,20 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, u
 
 		run, known := debugCommands[cmd]
 		if !known {
-			_, _ = fmt.Fprintf(out, "Unknown command: %s. Type 'help' for available commands.\n", cmd)
+			sess.printf("%s\n", sess.style(roleWarn, fmt.Sprintf("Unknown command: %s. Type 'help' for available commands.", cmd)))
 			continue
 		}
 		run(sess, args)
 	}
+}
+
+// debugPromptString builds the REPL prompt: rolePrompt applied to the
+// literal "graft>", with the trailing space left outside the styled
+// span so mono's reverse video never paints a floating block (Prompt
+// and Input Contrast, plans/debugger-colorizing.md). Plain-mode bytes
+// are exactly "graft> ", unchanged from before this phase.
+func debugPromptString(s *debugSession) string {
+	return s.style(rolePrompt, "graft>") + " "
 }
 
 // debugCommands maps each REPL command to the session method that runs
