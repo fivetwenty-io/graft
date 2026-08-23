@@ -216,6 +216,14 @@ const (
 	roleYAMLAnchor
 	roleYAMLComment
 
+	// roleInput is the command line a person is typing at the "graft>"
+	// prompt, rendered live by debugInputPainter (debug_painter.go). It
+	// closes the one contrast gap the prompt-only styling left: the
+	// prompt itself is styled, but what a person types after it used
+	// plain terminal rendering. See TestDebugThemePromptStyleIsReservedToPrompt:
+	// its style must never collide with rolePrompt's in any theme.
+	roleInput
+
 	// debugRoleCount is the number of roles above, used to size each
 	// theme's style table and to walk every role in tests.
 	debugRoleCount
@@ -254,6 +262,7 @@ var debugThemeDark = &debugTheme{
 		roleYAMLLiteral: "33",   // yellow
 		roleYAMLAnchor:  "2",    // dim
 		roleYAMLComment: "2",    // dim
+		roleInput:       "36",   // cyan, distinct from rolePrompt's bold magenta
 	},
 }
 
@@ -281,6 +290,7 @@ var debugThemeLight = &debugTheme{
 		roleYAMLLiteral: "36", // cyan renders dark teal on light palettes
 		roleYAMLAnchor:  "2",
 		roleYAMLComment: "2",
+		roleInput:       "34", // blue, matching rolePath/roleYAMLKey above
 	},
 }
 
@@ -312,6 +322,12 @@ var debugThemeMono = &debugTheme{
 		roleYAMLLiteral: "", // plain
 		roleYAMLAnchor:  "2",
 		roleYAMLComment: "2",
+		// roleInput uses bold, the same weight several non-reserved
+		// mono roles above already use. Mono's one contrast reservation
+		// is rolePrompt's reverse video (see the type comment above);
+		// input line is not reverse video, so plain bold is consistent
+		// with the rest of this table, not a new exception.
+		roleInput: "1",
 	},
 }
 
