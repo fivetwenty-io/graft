@@ -3,11 +3,61 @@ package main
 import (
 	"io"
 	"os"
+	"strings"
 
 	"github.com/mattn/go-isatty"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
+
+// themeEnvVar is the environment variable --theme's value falls back to
+// when the flag is not given (flag > env > default, see
+// newRootCmd/PersistentPreRunE). Named GRAFT_THEME rather than
+// GRAFT_UI_THEME: the mechanical GRAFT_<SECTION>_<FIELD> convention
+// (internal/config/env.go) serves config-file-backed subsystem knobs,
+// and the theme has no config-file tier this release, so it follows
+// prior art's short form instead (BAT_THEME). This is the one
+// deliberate exception to that convention, which is why
+// themeEnvVarMisspelling exists: it warns anyone who reaches for the
+// mechanical name instead.
+const themeEnvVar = "GRAFT_THEME"
+
+// themeEnvVarMisspelling is the mechanical-convention name a user might
+// reasonably reach for instead of themeEnvVar. When it is set and
+// themeEnvVar is not, PersistentPreRunE warns once on stderr so the
+// mistake is not silently ignored (see docs/reference/environment-variables.md).
+const themeEnvVarMisspelling = "GRAFT_UI_THEME"
+
+// Theme name spellings, defined once so --theme/GRAFT_THEME parsing,
+// each debugTheme's name field, and resolveDebugTheme's dispatch never
+// drift from one another.
+const (
+	themeNameAuto  = "auto"
+	themeNameDark  = "dark"
+	themeNameLight = "light"
+	themeNameMono  = "mono"
+)
+
+// knownThemeNames are every --theme/GRAFT_THEME value graft recognizes.
+// "auto" is the default: background auto-detection, falling back to
+// dark until full detection lands (see resolveDebugTheme).
+var knownThemeNames = []string{themeNameAuto, themeNameDark, themeNameLight, themeNameMono}
+
+// isValidThemeName reports whether name is one of knownThemeNames.
+func isValidThemeName(name string) bool {
+	for _, n := range knownThemeNames {
+		if name == n {
+			return true
+		}
+	}
+	return false
+}
+
+// knownThemeNamesJoined renders knownThemeNames for error and warning
+// text: "auto, dark, light, mono".
+func knownThemeNamesJoined() string {
+	return strings.Join(knownThemeNames, ", ")
+}
 
 // debugRole names what a piece of `graft debug` REPL output is - a
 // path, a success message, a YAML key - never what color it gets. A
@@ -57,7 +107,7 @@ type debugTheme struct {
 // debugThemeDark is the default fallback theme: legible on the dark
 // terminal backgrounds most developer terminals use.
 var debugThemeDark = &debugTheme{
-	name: "dark",
+	name: themeNameDark,
 	styles: [debugRoleCount]ansi.Style{
 		rolePrompt:      "1;35", // bold magenta
 		roleBanner:      "1",    // bold
@@ -84,7 +134,7 @@ var debugThemeDark = &debugTheme{
 // weak on a white background) and swaps the prompt-adjacent roles to
 // blue; every role not listed here renders exactly as debugThemeDark.
 var debugThemeLight = &debugTheme{
-	name: "light",
+	name: themeNameLight,
 	styles: [debugRoleCount]ansi.Style{
 		rolePrompt:      "1;35", // bold magenta, same as dark
 		roleBanner:      "1",
@@ -115,7 +165,7 @@ var debugThemeLight = &debugTheme{
 // their meaning in the words, and mono has to leave something plain
 // somewhere for the reservation to mean anything.
 var debugThemeMono = &debugTheme{
-	name: "mono",
+	name: themeNameMono,
 	styles: [debugRoleCount]ansi.Style{
 		rolePrompt:      "7", // reverse video
 		roleBanner:      "1", // bold
@@ -203,16 +253,18 @@ func resolveDebugStyler(ui debugUIOptions, out io.Writer) debugStyler {
 }
 
 // resolveDebugTheme maps a theme name to its table. "auto" is not yet
-// backed by background detection, and there is no --theme flag yet to
-// reject an unrecognized name at the point of use; both fall back to
-// dark, the documented default.
+// backed by background detection (a later phase wires that in), so it
+// falls back to dark, the documented default, same as "", themeNameDark
+// itself, and any name resolveThemeTier did not already reject at the
+// point of use (--theme's own invalid-flag error, or GRAFT_THEME's
+// invalid-value warning; see resolveThemeTier in main.go).
 func resolveDebugTheme(name string) *debugTheme {
 	switch name {
-	case "light":
+	case themeNameLight:
 		return debugThemeLight
-	case "mono":
+	case themeNameMono:
 		return debugThemeMono
-	default: // "", "dark", "auto", and anything unrecognized
+	default: // "", themeNameDark, themeNameAuto, and anything unrecognized
 		return debugThemeDark
 	}
 }

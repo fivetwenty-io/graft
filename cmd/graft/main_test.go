@@ -3297,6 +3297,109 @@ array:
 			})
 		})
 
+		Convey("Theme Options", func() {
+			Convey("--theme=bogus is rejected with a clear error and exits 1, mirroring --color", func() {
+				os.Args = []string{"graft", "--theme=bogus", "merge", "../../assets/merge/first.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 1)
+				So(stderr, ShouldContainSubstring, `Invalid --theme value: "bogus"`)
+				So(stderr, ShouldContainSubstring, "auto, dark, light, mono")
+			})
+
+			Convey("each known theme name is accepted without error", func() {
+				for _, name := range []string{"auto", "dark", "light", "mono"} {
+					os.Args = []string{"graft", "--theme", name, "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+					stdout = ""
+					stderr = ""
+					rc = 256
+
+					main()
+					So(rc, ShouldEqual, 0)
+					So(stderr, ShouldEqual, "")
+				}
+			})
+
+			Convey("GRAFT_THEME selects the theme when --theme is not given", func() {
+				_ = os.Setenv("GRAFT_THEME", "mono")
+				defer func() { _ = os.Unsetenv("GRAFT_THEME") }()
+
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+			})
+
+			Convey("an invalid GRAFT_THEME warns once and falls through to the default instead of failing", func() {
+				_ = os.Setenv("GRAFT_THEME", "bogus")
+				defer func() { _ = os.Unsetenv("GRAFT_THEME") }()
+
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldContainSubstring, `Invalid GRAFT_THEME value: "bogus"`)
+				So(stderr, ShouldContainSubstring, "Using default")
+			})
+
+			Convey("--theme wins over GRAFT_THEME", func() {
+				_ = os.Setenv("GRAFT_THEME", "light")
+				defer func() { _ = os.Unsetenv("GRAFT_THEME") }()
+
+				os.Args = []string{"graft", "--theme", "mono", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+			})
+
+			Convey("GRAFT_UI_THEME alone warns that it is not the recognized variable", func() {
+				_ = os.Setenv("GRAFT_UI_THEME", "light")
+				defer func() { _ = os.Unsetenv("GRAFT_UI_THEME") }()
+
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldContainSubstring, "GRAFT_UI_THEME")
+				So(stderr, ShouldContainSubstring, "GRAFT_THEME")
+			})
+
+			Convey("GRAFT_THEME set alongside GRAFT_UI_THEME suppresses the misspelling warning", func() {
+				_ = os.Setenv("GRAFT_THEME", "dark")
+				_ = os.Setenv("GRAFT_UI_THEME", "light")
+				defer func() {
+					_ = os.Unsetenv("GRAFT_THEME")
+					_ = os.Unsetenv("GRAFT_UI_THEME")
+				}()
+
+				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+
+				main()
+				So(rc, ShouldEqual, 0)
+				So(stderr, ShouldEqual, "")
+			})
+		})
+
 		Convey("Config Options", func() {
 			Convey("--config flag absent leaves default behavior unchanged", func() {
 				os.Args = []string{"graft", "merge", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
@@ -3975,6 +4078,87 @@ func TestNewRootCmdColorFlags(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(diffCmd.Flags().Lookup("no-color"), ShouldBeNil)
 		So(diffCmd.InheritedFlags().Lookup("no-color"), ShouldNotBeNil)
+	})
+}
+
+// TestNewRootCmdThemeFlag locks the --theme flag's wiring: it is a root
+// persistent flag next to --color/--no-color (decision 6), defaults to
+// "auto", is inherited by every subcommand (including debug and merge,
+// which are the only ones that currently consume it), and its help text
+// scopes it honestly to the debugger surfaces rather than implying it
+// affects every command (decision 6's "help text scopes it honestly").
+func TestNewRootCmdThemeFlag(t *testing.T) {
+	Convey("newRootCmd() --theme wiring", t, func() {
+		rootCmd, _ := newRootCmd()
+
+		themeFlag := rootCmd.PersistentFlags().Lookup("theme")
+		So(themeFlag, ShouldNotBeNil)
+		So(themeFlag.DefValue, ShouldEqual, "auto")
+		So(themeFlag.Usage, ShouldContainSubstring, "auto, dark, light, mono")
+		So(themeFlag.Usage, ShouldContainSubstring, "debugger")
+
+		debugCmd, _, err := rootCmd.Find([]string{"debug"})
+		So(err, ShouldBeNil)
+		So(debugCmd.Flags().Lookup("theme"), ShouldBeNil)
+		So(debugCmd.InheritedFlags().Lookup("theme"), ShouldNotBeNil)
+
+		mergeCmd, _, err := rootCmd.Find([]string{"merge"})
+		So(err, ShouldBeNil)
+		So(mergeCmd.InheritedFlags().Lookup("theme"), ShouldNotBeNil)
+	})
+}
+
+// TestThemeFlagAppliesToDebugSession proves --theme is not just parsed
+// but actually threaded into handleDebug's colorized output (via
+// debugUIOptions.Theme, set from resolvedTheme at both call sites in
+// newRootCmd). It forces color on (--color on) and drives the REPL to
+// print a roleWarn line ("No documents loaded", emitted by "step"
+// before "load"), then asserts the escape sequence matches mono's
+// roleWarn style ("\x1b[1m", bold-only) rather than dark's ("\x1b[33m",
+// yellow) - the default --theme would resolve to.
+func TestThemeFlagAppliesToDebugSession(t *testing.T) {
+	Convey("graft debug --theme mono colorizes with the mono theme, not the dark default", t, func() {
+		var stderr string
+		log.PrintStdErrf = func(format string, args ...interface{}) {
+			stderr += fmt.Sprintf(format, args...)
+		}
+		rc := 256
+		exit = func(code int) { rc = code }
+		usage = func() {
+			stderr = "usage was called"
+			exit(1)
+		}
+
+		script := t.TempDir() + "/script.txt"
+		if err := os.WriteFile(script, []byte("step\nquit\n"), 0o600); err != nil {
+			t.Fatalf("writing script: %v", err)
+		}
+		restoreStdin := setStdinFromFile(t, script)
+		defer restoreStdin()
+
+		stdoutPath := t.TempDir() + "/stdout.txt"
+		stdoutFile, err := os.Create(stdoutPath)
+		if err != nil {
+			t.Fatalf("creating stdout capture file: %v", err)
+		}
+		originalStdout := os.Stdout
+		os.Stdout = stdoutFile
+		defer func() { os.Stdout = originalStdout }()
+
+		os.Args = []string{"graft", "--color", "on", "--theme", "mono", "debug", "../../assets/merge/first.yml"}
+		stderr = ""
+		main()
+		_ = stdoutFile.Close()
+		os.Stdout = originalStdout
+
+		captured, readErr := os.ReadFile(stdoutPath)
+		So(readErr, ShouldBeNil)
+		stdout := string(captured)
+
+		So(stderr, ShouldNotEqual, "usage was called")
+		So(rc, ShouldEqual, 0)
+		So(stdout, ShouldContainSubstring, debugThemeMono.styles[roleWarn].Apply("No documents loaded. Run 'load' first."))
+		So(stdout, ShouldNotContainSubstring, debugThemeDark.styles[roleWarn].Apply("No documents loaded. Run 'load' first."))
 	})
 }
 

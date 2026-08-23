@@ -271,6 +271,44 @@ func applyNoColorOverride(colorOverride *bool, noColor bool) *bool {
 	return colorOverride
 }
 
+// resolveThemeTier resolves --theme/GRAFT_THEME/default precedence
+// (flag > env > default), decoupled from cobra and os.Getenv so it
+// unit-tests without process-wide env mutation. flagChanged and
+// flagValue mirror cmd.Flags().Changed("theme") and themeVal (whose
+// registered default is "auto"); envValue is GRAFT_THEME's value (""
+// meaning unset); envMisspellingSet is whether GRAFT_UI_THEME is set.
+//
+// Returns the resolved theme name, whether the flag's own value was
+// valid (only checked when flagChanged; false means the caller must
+// print the invalid-value error and exit 1, mirroring --color), and any
+// stderr warning lines to print, in order: an invalid GRAFT_THEME value
+// warns and falls through to flagValue (the default tier, per decision
+// 14 - never exit 1, so a bad GRAFT_THEME can never abort an unrelated
+// graft command); the GRAFT_UI_THEME misspelling notice fires only when
+// GRAFT_THEME itself is unset, so the two warnings never both appear.
+func resolveThemeTier(flagChanged bool, flagValue, envValue string, envMisspellingSet bool) (theme string, flagValid bool, warnings []string) {
+	if flagChanged {
+		if !isValidThemeName(flagValue) {
+			return "", false, nil
+		}
+		return flagValue, true, nil
+	}
+	if envValue != "" {
+		if !isValidThemeName(envValue) {
+			return flagValue, true, []string{fmt.Sprintf(
+				"Invalid %s value: %q. Must be one of: %s. Using default.",
+				themeEnvVar, envValue, knownThemeNamesJoined())}
+		}
+		return envValue, true, nil
+	}
+	if envMisspellingSet {
+		return flagValue, true, []string{fmt.Sprintf(
+			"%s is not a recognized graft environment variable and was ignored; did you mean %s?",
+			themeEnvVarMisspelling, themeEnvVar)}
+	}
+	return flagValue, true, nil
+}
+
 // handleMerge runs a normal merge and prints the result, unless
 // opts.DeferOnError selects the adaptive-merge retry loop instead (see
 // handleAdaptiveMerge). Either way, a merge that deferred anything -
@@ -946,7 +984,16 @@ func newRootCmd() (*cobra.Command, *bool) {
 	var debug, trace, version bool
 	var colorVal colorFlagValue
 	var noColor bool
+	var themeVal string
 	var configPath string
+
+	// resolvedTheme is --theme/GRAFT_THEME's resolved value ("auto",
+	// "dark", "light", or "mono"), computed once in PersistentPreRunE
+	// and captured by the debug/merge RunE closures below, the same
+	// pattern colorVal/noColor use for --color. Not a package var: this
+	// closure exists precisely so repeated main() calls in tests get
+	// clean state (see the doc comment above newRootCmd).
+	var resolvedTheme string
 
 	// Track whether PersistentPreRunE signaled an abort (e.g., invalid color)
 	var aborted bool
@@ -1020,6 +1067,29 @@ func newRootCmd() (*cobra.Command, *bool) {
 			colorOverride = applyNoColorOverride(colorOverride, noColor)
 			ansi.Color(ansi.ResolveColor(colorOverride, isStderrTTY()))
 
+			// --theme/GRAFT_THEME resolution: flag > env > default
+			// ("auto"), the same shape as --max-loop-iterations
+			// (pkg/graft/controlflow/config.go). An invalid --theme
+			// value is a hard error, exit 1, mirroring --color's
+			// invalid-value path immediately above (decision 14).
+			// Validation never touches config.Validate, so it can
+			// never abort an unrelated graft command. resolveThemeTier
+			// is a pure function so the precedence and warning logic
+			// unit-tests without cobra or process-wide env mutation.
+			theme, themeFlagValid, themeWarnings := resolveThemeTier(
+				cmd.Flags().Changed("theme"), themeVal,
+				os.Getenv(themeEnvVar), os.Getenv(themeEnvVarMisspelling) != "")
+			if !themeFlagValid {
+				aborted = true
+				log.PrintStdErrf("Invalid --theme value: %q. Must be one of: %s.\n", themeVal, knownThemeNamesJoined())
+				exit(1)
+				return fmt.Errorf("invalid theme option")
+			}
+			for _, w := range themeWarnings {
+				log.PrintStdErrf("%s\n", w)
+			}
+			resolvedTheme = theme
+
 			// (( while )) loops are capped to prevent runaway/non-terminating
 			// expansion (docs/user-guide/operators/control-flow.md's
 			// documented default is 1000). --max-loop-iterations overrides
@@ -1063,6 +1133,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	rootCmd.PersistentFlags().Var(&colorVal, "color", "Force colorized output on; bare --color, --color=on. --no-color forces it off and wins if both are given. Default: auto (color only when NO_COLOR is unset, TERM != dumb, and stderr is a terminal)")
 	rootCmd.PersistentFlags().Lookup("color").NoOptDefVal = "on"
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colorized output, overriding --color; wins if both are given")
+	rootCmd.PersistentFlags().StringVar(&themeVal, "theme", "auto", "Color theme for colorized output (auto, dark, light, mono). Currently applies to the debugger REPL. Precedence: --theme flag, then GRAFT_THEME, then auto.")
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Path to a YAML configuration file (see internal/config); absent means unchanged default behavior")
 	rootCmd.PersistentFlags().IntVar(&maxLoopIterations, "max-loop-iterations", 0, "Maximum (( while )) loop iterations before erroring (default: 1000, or GRAFT_MAX_LOOP_ITERATIONS)")
 
@@ -1109,7 +1180,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 				// here.
 				colorOverride, _ := colorVal.resolve()
 				colorOverride = applyNoColorOverride(colorOverride, noColor)
-				exit(handleDebug(args, opts, os.Stdin, os.Stdout, debugUIOptions{ColorOverride: colorOverride}))
+				exit(handleDebug(args, opts, os.Stdin, os.Stdout, debugUIOptions{ColorOverride: colorOverride, Theme: resolvedTheme}))
 				return nil
 			}
 			exit(handleMerge(opts))
@@ -1262,7 +1333,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 			// its resolve() error return is intentionally ignored here.
 			colorOverride, _ := colorVal.resolve()
 			colorOverride = applyNoColorOverride(colorOverride, noColor)
-			exit(handleDebug(args, opts, os.Stdin, os.Stdout, debugUIOptions{ColorOverride: colorOverride}))
+			exit(handleDebug(args, opts, os.Stdin, os.Stdout, debugUIOptions{ColorOverride: colorOverride, Theme: resolvedTheme}))
 			return nil
 		},
 	}

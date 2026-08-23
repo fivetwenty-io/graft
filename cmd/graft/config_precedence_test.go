@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -364,4 +365,142 @@ func TestDefaultTierReproducesCompatBaseline(t *testing.T) {
 	if de.GetMetricsRegistry() != nil {
 		t.Error("default tier: expected metrics off (a nil metrics registry)")
 	}
+}
+
+// --theme is the first setting with a working CLI flag tier (see this
+// file's header note above): flag > env > default, resolved by
+// resolveThemeTier (cmd/graft/main.go), exercised here directly rather
+// than through resolveStartupConfig since --theme has no internal/config
+// or config-file tier at all this release.
+
+// TestThemePrecedenceFlagOverEnvOverDefault proves resolveThemeTier's
+// three tiers: default ("auto", nothing set), env only (GRAFT_THEME
+// wins over the default), and flag plus env together (the flag must
+// win over GRAFT_THEME).
+func TestThemePrecedenceFlagOverEnvOverDefault(t *testing.T) {
+	t.Run("default tier: neither flag nor env set", func(t *testing.T) {
+		theme, valid, warnings := resolveThemeTier(false, "auto", "", false)
+		if !valid {
+			t.Fatalf("resolveThemeTier() flagValid = false, want true")
+		}
+		if theme != "auto" {
+			t.Errorf("resolveThemeTier() theme = %q, want %q", theme, "auto")
+		}
+		if len(warnings) != 0 {
+			t.Errorf("resolveThemeTier() warnings = %v, want none", warnings)
+		}
+	})
+
+	t.Run("env tier: GRAFT_THEME wins over the default", func(t *testing.T) {
+		theme, valid, warnings := resolveThemeTier(false, "auto", "light", false)
+		if !valid {
+			t.Fatalf("resolveThemeTier() flagValid = false, want true")
+		}
+		if theme != "light" {
+			t.Errorf("resolveThemeTier() theme = %q, want %q (env must override default)", theme, "light")
+		}
+		if len(warnings) != 0 {
+			t.Errorf("resolveThemeTier() warnings = %v, want none", warnings)
+		}
+	})
+
+	t.Run("flag tier: --theme wins over GRAFT_THEME", func(t *testing.T) {
+		theme, valid, warnings := resolveThemeTier(true, "mono", "light", false)
+		if !valid {
+			t.Fatalf("resolveThemeTier() flagValid = false, want true")
+		}
+		if theme != "mono" {
+			t.Errorf("resolveThemeTier() theme = %q, want %q (flag must override env)", theme, "mono")
+		}
+		if len(warnings) != 0 {
+			t.Errorf("resolveThemeTier() warnings = %v, want none", warnings)
+		}
+	})
+}
+
+// TestThemeInvalidValuePerTier proves decision 14's asymmetric
+// invalid-value policy: an invalid --theme flag value is rejected
+// (flagValid = false, so the caller exits 1), while an invalid
+// GRAFT_THEME value warns once and falls through to the default tier
+// instead of failing.
+func TestThemeInvalidValuePerTier(t *testing.T) {
+	t.Run("invalid flag value is rejected, not silently substituted", func(t *testing.T) {
+		theme, valid, warnings := resolveThemeTier(true, "bogus", "", false)
+		if valid {
+			t.Fatalf("resolveThemeTier() flagValid = true for %q, want false", "bogus")
+		}
+		if theme != "" {
+			t.Errorf("resolveThemeTier() theme = %q on an invalid flag, want empty (caller must not use it)", theme)
+		}
+		if len(warnings) != 0 {
+			t.Errorf("resolveThemeTier() warnings = %v, want none (the caller prints its own exit-1 message)", warnings)
+		}
+	})
+
+	t.Run("invalid env value warns and falls through to the default tier", func(t *testing.T) {
+		theme, valid, warnings := resolveThemeTier(false, "auto", "bogus", false)
+		if !valid {
+			t.Fatalf("resolveThemeTier() flagValid = false, want true (an invalid env value must never abort)")
+		}
+		if theme != "auto" {
+			t.Errorf("resolveThemeTier() theme = %q, want %q (falls through to the flag's own default)", theme, "auto")
+		}
+		if len(warnings) != 1 {
+			t.Fatalf("resolveThemeTier() warnings = %v, want exactly one", warnings)
+		}
+		if !strings.Contains(warnings[0], "bogus") || !strings.Contains(warnings[0], themeEnvVar) {
+			t.Errorf("resolveThemeTier() warning = %q, want it to name %q and the bad value", warnings[0], themeEnvVar)
+		}
+	})
+
+	t.Run("an explicit --theme flag still validated even when GRAFT_THEME is also set", func(t *testing.T) {
+		theme, valid, warnings := resolveThemeTier(true, "bogus", "dark", false)
+		if valid {
+			t.Fatalf("resolveThemeTier() flagValid = true for %q, want false", "bogus")
+		}
+		if theme != "" || len(warnings) != 0 {
+			t.Errorf("resolveThemeTier() = (%q, %v), want (\"\", nil) on an invalid flag", theme, warnings)
+		}
+	})
+}
+
+// TestThemeEnvVarMisspellingWarning proves GRAFT_UI_THEME - the
+// mechanical GRAFT_<SECTION>_<FIELD> name a user might reach for instead
+// of GRAFT_THEME - triggers a one-line warning only when GRAFT_THEME
+// itself is unset; the two warnings never both appear, since a set
+// GRAFT_THEME (valid or not) already tells the resolver which var the
+// user meant.
+func TestThemeEnvVarMisspellingWarning(t *testing.T) {
+	t.Run("GRAFT_UI_THEME alone warns and resolves to the default", func(t *testing.T) {
+		theme, valid, warnings := resolveThemeTier(false, "auto", "", true)
+		if !valid || theme != "auto" {
+			t.Fatalf("resolveThemeTier() = (%q, %v), want (\"auto\", true)", theme, valid)
+		}
+		if len(warnings) != 1 {
+			t.Fatalf("resolveThemeTier() warnings = %v, want exactly one", warnings)
+		}
+		if !strings.Contains(warnings[0], themeEnvVarMisspelling) || !strings.Contains(warnings[0], themeEnvVar) {
+			t.Errorf("resolveThemeTier() warning = %q, want it to name both %q and %q", warnings[0], themeEnvVarMisspelling, themeEnvVar)
+		}
+	})
+
+	t.Run("GRAFT_THEME set alongside GRAFT_UI_THEME suppresses the misspelling warning", func(t *testing.T) {
+		theme, valid, warnings := resolveThemeTier(false, "auto", "light", true)
+		if !valid || theme != "light" {
+			t.Fatalf("resolveThemeTier() = (%q, %v), want (\"light\", true)", theme, valid)
+		}
+		if len(warnings) != 0 {
+			t.Errorf("resolveThemeTier() warnings = %v, want none: GRAFT_THEME is set, so GRAFT_UI_THEME is not the mistake here", warnings)
+		}
+	})
+
+	t.Run("an explicit --theme flag also suppresses the misspelling warning", func(t *testing.T) {
+		theme, valid, warnings := resolveThemeTier(true, "dark", "", true)
+		if !valid || theme != "dark" {
+			t.Fatalf("resolveThemeTier() = (%q, %v), want (\"dark\", true)", theme, valid)
+		}
+		if len(warnings) != 0 {
+			t.Errorf("resolveThemeTier() warnings = %v, want none: an explicit flag wins outright", warnings)
+		}
+	})
 }
