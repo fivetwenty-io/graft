@@ -323,9 +323,9 @@ func renderTracePath(ph history.PathHistory) string {
 // other entry recorded at a PhasePost step prints its real new value.
 func historyEntryLine(e history.Entry) string {
 	source := fmt.Sprintf("[%d] %s", e.Index, e.Source)
-	val := inlineValue(e.Value)
-	if e.Removed {
-		val = "<pruned>"
+	val := "<pruned>"
+	if !e.Removed {
+		val = inlineValue(e.Value)
 	}
 	return fmt.Sprintf("%-*s → %s", sourceColumnWidth, source, val)
 }
