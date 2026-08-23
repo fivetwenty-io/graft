@@ -14,6 +14,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/histdiff"
 	"github.com/fivetwenty-io/graft/internal/history"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/utils/termbg"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
@@ -106,6 +107,15 @@ type debugSession struct {
 	// updated only by cmdConfigTheme.
 	themeName string
 
+	// detectedBackground is the terminal background handleDebug already
+	// detected before constructing this session (see
+	// withDetectedBackground/resolveDebugStyler), cached here so a later
+	// `config theme auto` (cmdConfigTheme) reuses the same answer
+	// instead of re-querying the terminal mid-session. termbg.Unknown
+	// for every session that never ran detection (color off, a
+	// non-terminal writer, or an explicit non-auto theme).
+	detectedBackground termbg.Background
+
 	// reader is the session's own input source, set by handleDebug once
 	// it constructs one, so cmdConfigTheme can restyle the live prompt
 	// (SetPrompt) after a `config theme <name>` switch without
@@ -148,14 +158,15 @@ func newDebugSession(files []string, opts *mergeOpts, out io.Writer, ui debugUIO
 	}
 
 	return &debugSession{
-		cached:      cached,
-		opts:        opts,
-		totalSteps:  total,
-		breakpoints: map[string]bool{},
-		deferred:    map[string]string{},
-		out:         out,
-		styler:      resolveDebugStyler(ui, out),
-		themeName:   normalizeThemeName(ui.Theme),
+		cached:             cached,
+		opts:               opts,
+		totalSteps:         total,
+		breakpoints:        map[string]bool{},
+		deferred:           map[string]string{},
+		out:                out,
+		styler:             resolveDebugStyler(ui, out),
+		themeName:          normalizeThemeName(ui.Theme),
+		detectedBackground: ui.DetectedBackground,
 	}, nil
 }
 
@@ -766,7 +777,7 @@ func (s *debugSession) cmdConfigTheme(name string) {
 
 	s.themeName = name
 	if s.styler.enabled {
-		s.styler.theme = resolveDebugTheme(name)
+		s.styler.theme = resolveDebugThemeFor(name, s.detectedBackground)
 		if s.reader != nil {
 			s.reader.SetPrompt(debugPromptString(s))
 		}
@@ -780,15 +791,16 @@ func (s *debugSession) cmdConfigTheme(name string) {
 
 // currentThemeDisplay renders the session's current theme selection for
 // `config`/`config theme`: the resolved palette's own name, with an
-// " (auto)" suffix when the selection itself is "auto" (today always
-// resolving to dark - background auto-detection is a later phase; see
-// resolveDebugTheme), matching the plan's "dark (auto)"/"light" display.
-// It never touches the styler: displaying the preference costs nothing
-// even when color is disabled and no theme is resolved at all.
+// " (auto)" suffix when the selection itself is "auto" - "dark (auto)"
+// or "light (auto)" depending on what detection found at startup (see
+// detectedBackground), "dark (auto)" for any session that never ran
+// detection at all. It never touches the styler: displaying the
+// preference costs nothing even when color is disabled and no theme is
+// resolved at all.
 func (s *debugSession) currentThemeDisplay() string {
 	resolved := s.styler.theme
 	if resolved == nil {
-		resolved = resolveDebugTheme(s.themeName)
+		resolved = resolveDebugThemeFor(s.themeName, s.detectedBackground)
 	}
 	if s.themeName == themeNameAuto {
 		return resolved.name + " (auto)"
@@ -1248,6 +1260,12 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, u
 		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Missing Input}: graft debug requires at least one file (e.g. %s)", "graft debug base.yml overlay.yml"))
 		return 1
 	}
+
+	// Background auto-detection, if it runs at all, happens here: before
+	// the session (and its banner) exist, and before newDebugLineReader
+	// below constructs the readline instance, so no redraw can
+	// interleave with the query (see withDetectedBackground).
+	ui = withDetectedBackground(ui, in, out)
 
 	sess, err := newDebugSession(files, opts, out, ui)
 	if err != nil {

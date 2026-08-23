@@ -8,6 +8,7 @@ import (
 	"github.com/mattn/go-isatty"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/utils/termbg"
 )
 
 // themeEnvVar is the environment variable --theme's value falls back to
@@ -242,10 +243,19 @@ type debugUIOptions struct {
 	// regardless of whether out is a terminal.
 	ColorOverride *bool
 	// Theme is the resolved theme name: "", "auto", "dark", "light",
-	// or "mono". An unrecognized name, "auto", and "" all currently
-	// resolve to debugThemeDark; background auto-detection (picking
-	// dark or light for "auto") is not wired in yet.
+	// or "mono". An unrecognized name and "" both fall back to
+	// debugThemeDark, same as "dark" itself; "auto" resolves against
+	// DetectedBackground (see resolveDebugThemeFor).
 	Theme string
+	// DetectedBackground is the terminal background handleDebug already
+	// detected before constructing the session (see
+	// withDetectedBackground/termbg.Detect), consulted only when Theme
+	// resolves to "auto". Its zero value, termbg.Unknown, is exactly
+	// right for every caller that never ran detection - an explicit
+	// theme, color disabled, a non-terminal writer, or any existing
+	// test - so "auto" then falls back to dark, matching
+	// resolveDebugTheme's own pre-detection behavior.
+	DetectedBackground termbg.Background
 }
 
 // writerIsTTY reports whether out is a terminal, so resolveDebugStyler
@@ -272,15 +282,17 @@ func resolveDebugStyler(ui debugUIOptions, out io.Writer) debugStyler {
 	if !ansi.ResolveColor(ui.ColorOverride, writerIsTTY(out)) {
 		return debugStyler{}
 	}
-	return debugStyler{theme: resolveDebugTheme(ui.Theme), enabled: true}
+	return debugStyler{theme: resolveDebugThemeFor(ui.Theme, ui.DetectedBackground), enabled: true}
 }
 
-// resolveDebugTheme maps a theme name to its table. "auto" is not yet
-// backed by background detection (a later phase wires that in), so it
-// falls back to dark, the documented default, same as "", themeNameDark
-// itself, and any name resolveThemeTier did not already reject at the
-// point of use (--theme's own invalid-flag error, or GRAFT_THEME's
-// invalid-value warning; see resolveThemeTier in main.go).
+// resolveDebugTheme maps a theme name to its table, treating "auto" the
+// same as "dark": callers with a detected background to consult should
+// use resolveDebugThemeFor instead. Kept as its own function (rather
+// than resolveDebugThemeFor(name, termbg.Unknown)) because callers that
+// have no background info at all - and never will, such as a color-off
+// session's currentThemeDisplay fallback - read more plainly calling
+// this than passing a zero value for a parameter that plays no part in
+// their case.
 func resolveDebugTheme(name string) *debugTheme {
 	switch name {
 	case themeNameLight:
@@ -290,4 +302,57 @@ func resolveDebugTheme(name string) *debugTheme {
 	default: // "", themeNameDark, themeNameAuto, and anything unrecognized
 		return debugThemeDark
 	}
+}
+
+// resolveDebugThemeFor resolves name into its theme table exactly as
+// resolveDebugTheme does, except for "auto" (and "", which
+// normalizeThemeName treats the same way): there, it consults bg -
+// termbg.Light resolves the light theme, and termbg.Dark and the zero
+// value termbg.Unknown (reported by every session that skipped
+// detection: color off, a non-terminal writer, or an explicit theme)
+// both resolve dark, the documented fallback. Both the initial
+// resolution (resolveDebugStyler, against the background handleDebug
+// already detected) and a later `config theme auto`
+// (debugSession.cmdConfigTheme, against the session's own cached
+// detectedBackground) go through this one function so they can never
+// disagree about what "auto" means right now.
+func resolveDebugThemeFor(name string, bg termbg.Background) *debugTheme {
+	if normalizeThemeName(name) == themeNameAuto {
+		if bg == termbg.Light {
+			return debugThemeLight
+		}
+		return debugThemeDark
+	}
+	return resolveDebugTheme(name)
+}
+
+// withDetectedBackground runs termbg.Detect once, before the session
+// (and its banner) exist, and returns ui with DetectedBackground filled
+// in. It is a no-op copy of ui for every case detection cannot, or need
+// not, run: the theme does not resolve to "auto", color would resolve
+// off (ansi.ResolveColor, the same precedence resolveDebugStyler itself
+// uses, so the two decisions can never disagree), or in/out are not
+// both a real *os.File terminal - a bytes.Buffer/strings.Reader test
+// session, a piped script, or anything termbg.Detect's own isatty guard
+// would report Unknown for anyway. Called once, from handleDebug,
+// before newDebugSession and before newDebugLineReader constructs the
+// readline instance, so no readline redraw can interleave with the
+// query (see plans/debugger-colorizing.md, Background Auto-Detection).
+func withDetectedBackground(ui debugUIOptions, in io.Reader, out io.Writer) debugUIOptions {
+	if normalizeThemeName(ui.Theme) != themeNameAuto {
+		return ui
+	}
+	if !ansi.ResolveColor(ui.ColorOverride, writerIsTTY(out)) {
+		return ui
+	}
+	inFile, ok := in.(*os.File)
+	if !ok {
+		return ui
+	}
+	outFile, ok := out.(*os.File)
+	if !ok {
+		return ui
+	}
+	ui.DetectedBackground = termbg.Detect(inFile, outFile)
+	return ui
 }
