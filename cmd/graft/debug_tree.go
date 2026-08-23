@@ -130,12 +130,15 @@ func renderDebugTree(value interface{}, opts treeOptions, ann map[string][]histo
 	if label == "" {
 		label = "$"
 	}
-	rootKey, _ := historyKeyForPath(opts.path)
+	// A root inside a list has no history path of its own; treating the
+	// truncated key as valid would borrow the enclosing list's entries.
+	rootKey, insideList := historyKeyForPath(opts.path)
+	rootOK := !insideList
 
 	if isTreeContainer(value) {
 		buf.WriteString(ansi.Cyan(label) + "\n")
-		writeTreeAnnotations(&buf, "", ann, rootKey, true)
-		writeTreeChildren(&buf, "", value, 1, opts, ann, rootKey, true)
+		writeTreeAnnotations(&buf, "", ann, rootKey, rootOK)
+		writeTreeChildren(&buf, "", value, 1, opts, ann, rootKey, rootOK)
 		return buf.String()
 	}
 
@@ -144,7 +147,7 @@ func renderDebugTree(value interface{}, opts treeOptions, ann map[string][]histo
 	} else {
 		buf.WriteString(ansi.Cyan(label) + ": " + treeValueDisplay(value) + "\n")
 	}
-	writeTreeAnnotations(&buf, "", ann, rootKey, true)
+	writeTreeAnnotations(&buf, "", ann, rootKey, rootOK)
 	return buf.String()
 }
 

@@ -198,6 +198,15 @@ func TestRenderDebugTree(t *testing.T) {
 			So(strings.Count(out, fmt.Sprintf("%-*s → top", sourceColumnWidth, "[0] base.yml")), ShouldEqual, 1)
 		})
 
+		Convey("a root inside a list never borrows the list's entries", func() {
+			ann := map[string][]history.Entry{
+				"jobs": {{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: []interface{}{"x"}}},
+				"name": {{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: "top"}},
+			}
+			out := renderDebugTree(map[string]interface{}{"name": "web"}, treeOptions{path: "jobs.[0]"}, ann)
+			So(out, ShouldNotContainSubstring, "[0] base.yml")
+		})
+
 		Convey("--depth collapse hides annotations beneath the cutoff", func() {
 			ann := map[string][]history.Entry{
 				"database.host": {{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: "localhost"}},
