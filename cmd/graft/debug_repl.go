@@ -414,7 +414,7 @@ func (s *debugSession) cmdInspect(path string) {
 			ansi.StripEscapes(err.Error()))
 		return
 	}
-	s.out.Write(raw) //nolint:errcheck // best-effort REPL output
+	s.writeYAML(raw)
 
 	if len(s.deferred) == 0 {
 		return
@@ -756,7 +756,7 @@ func (s *debugSession) cmdOutput() {
 			ansi.StripEscapes(err.Error()))
 		return
 	}
-	s.out.Write(raw) //nolint:errcheck // best-effort REPL output
+	s.writeYAML(raw)
 }
 
 // cmdDiff implements `diff`: changes from the first loaded file to the
