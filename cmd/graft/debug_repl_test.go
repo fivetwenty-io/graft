@@ -10,6 +10,7 @@ import (
 
 	. "github.com/smartystreets/goconvey/convey"
 
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
 )
 
@@ -746,5 +747,52 @@ func TestDebugREPL(t *testing.T) {
 		out, rc := runDebugSession(goPatchFiles, "load\nstep\nquit\n")
 		So(rc, ShouldEqual, 0)
 		So(strings.Count(out, "Merge failed"), ShouldEqual, 1)
+	})
+
+	// Decision 13 (plans/debugger-colorizing.md): engine errors bake their
+	// color in via ansi.Sprintf/Errorf at the moment Error() is called,
+	// against whatever the package-global ansi.Color state is then - so an
+	// error built while color happens to be on carries live escape codes
+	// inside err.Error() itself, independent of what the debugger does with
+	// it afterward. That is today's redirect leak: `graft debug ... >
+	// out.txt` with stderr still a terminal bakes those escapes into the
+	// file. Forcing ansi.Color(true) here (deferred restore, following
+	// debug_tree_test.go's prevColor/Reset convention) is essential: the
+	// suite-wide init() in main_test.go disables color, so an unforced
+	// version of this test would pass vacuously without ever exercising
+	// the leak.
+	//
+	// This locks only the half of decision 13 this phase delivers: the
+	// error-derived argument at each of the 18 stdout error sites is
+	// escape-free once stripped. The literal "@R{...}" labels at those
+	// same sites (e.g. "Merge failed", "Evaluation failed") still render
+	// through that same global flag until the role migration replaces
+	// them with the per-session styler, so this test does not assert the
+	// full output is free of every escape byte - only that none of the
+	// bytes baked into the underlying error survive. The full "zero \x1b
+	// bytes anywhere in the output" guarantee is a later regression test.
+	Convey("engine-baked escapes inside error text do not survive into debugger output under forced color", t, func() {
+		prevColor := ansi.IsColorEnabled()
+		ansi.Color(true)
+		Reset(func() { ansi.Color(prevColor) })
+
+		Convey("a merge failure keeps its message but loses the error's own baked-in color", func() {
+			goPatchFiles := []string{"../../assets/history/base.yml", "../../assets/vaultinfo/go-patch.yml"}
+			out, rc := runDebugSession(goPatchFiles, "load\nstep\nquit\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "../../assets/vaultinfo/go-patch.yml: root of YAML document is not a hash/map")
+			So(out, ShouldNotContainSubstring, "\x1b[35m../../assets/vaultinfo/go-patch.yml\x1b[0m")
+			So(out, ShouldNotContainSubstring, "\x1b[31mroot of YAML document is not a hash/map\x1b[0m")
+		})
+
+		Convey("an evaluation failure keeps its message but loses the error's own baked-in color", func() {
+			evalFailureFiles := []string{"../../assets/debug/eval-failure.yml"}
+			out, rc := runDebugSession(evalFailureFiles, "load\ncontinue\nquit\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "1 error(s) detected:\n - $.bad: unable to resolve `nonexistent.path`: `$.nonexistent` could not be found in the datastructure")
+			So(out, ShouldNotContainSubstring, "\x1b[31m1\x1b[0m error(s) detected:")
+			So(out, ShouldNotContainSubstring, "\x1b[36m$.nonexistent\x1b[0m")
+			So(out, ShouldNotContainSubstring, "\x1b[31m`\x1b[0m")
+		})
 	})
 }
