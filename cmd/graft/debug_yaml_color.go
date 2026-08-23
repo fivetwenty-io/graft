@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"unicode/utf8"
 
 	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
@@ -71,29 +72,68 @@ func colorizeYAML(raw []byte, st debugStyler) []byte {
 	return styled
 }
 
-// yamlTokenStarts resolves every token's start offset (0-based) in raw,
-// converting the lexer's 1-based Token.Position.Offset, and validates
-// that the sequence is usable for reconstruction: every offset must fall
-// within raw, and offsets must never decrease from one token to the
-// next. A lexer/scanner quirk that violates either property (an invalid
-// token, or - measured during this design's research - the position
-// drift a Comment token's trailing-newline lookahead introduces into
-// every token after it, which can in principle compound past a later
-// token's start) is exactly what this check exists to catch, handing the
-// caller a clean "give up" signal instead of a corrupt slice.
+// yamlRuneByteOffsets maps every rune index in raw to that rune's byte
+// offset: table[i] is the byte offset of the rune at rune-index i, for
+// every i from 0 up to and including raw's total rune count, with the
+// final entry (index == the rune count) holding the sentinel len(raw)
+// for a position exactly at the end of raw. goccy/go-yaml's scanner
+// counts source positions in runes (its Scanner.source is a []rune and
+// every Position.Offset it hands out advances by rune, not byte, counts
+// - confirmed against this module's pinned github.com/goccy/go-yaml
+// v1.19.2 by reading scanner.Scanner.progress/progressColumn/
+// progressOnly, and empirically: tokenizing "k: 東京\nz: 1\n" reports the
+// "z" token's offset as 7, the correct 1-based *rune* position, where a
+// byte-based scheme would report 9 for the same token because 東 and 京
+// are three bytes each), so yamlTokenStarts must translate through this
+// table before it can slice raw, which is indexed in bytes.
+//
+// A byte in the middle of an invalid UTF-8 sequence decodes as one
+// replacement rune per byte here (via utf8.DecodeRune), matching how
+// Go's built-in []rune(string) conversion - what the scanner applies to
+// its input - handles the same bytes, so this table's rune indexing
+// stays aligned with the scanner's even on malformed input.
+func yamlRuneByteOffsets(raw []byte) []int {
+	table := make([]int, 0, len(raw)+1)
+	for i := 0; i < len(raw); {
+		table = append(table, i)
+		_, size := utf8.DecodeRune(raw[i:])
+		i += size
+	}
+	table = append(table, len(raw))
+	return table
+}
+
+// yamlTokenStarts resolves every token's start offset (0-based, in
+// bytes) in raw, translating the lexer's 1-based, rune-counted
+// Token.Position.Offset through yamlRuneByteOffsets, and validates that
+// the sequence is usable for reconstruction: every offset must resolve
+// to a rune index within raw's rune count (inclusive of the end-of-raw
+// sentinel), and the resolved rune indices must never decrease from one
+// token to the next (translating through yamlRuneByteOffsets, a strictly
+// increasing function of rune index, preserves that ordering in byte
+// terms as well). A lexer/scanner quirk that violates either property
+// (an invalid token, or - measured during this design's research - the
+// position drift a Comment token's trailing-newline lookahead introduces
+// into every token after it, which can in principle compound past a
+// later token's start) is exactly what this check exists to catch,
+// handing the caller a clean "give up" signal instead of a corrupt
+// slice.
 func yamlTokenStarts(raw []byte, tokens token.Tokens) ([]int, bool) {
+	runeOffsets := yamlRuneByteOffsets(raw)
+	maxRuneIndex := len(runeOffsets) - 1
+
 	starts := make([]int, len(tokens))
-	prev := 0
+	prevRuneIndex := 0
 	for i, tok := range tokens {
 		if tok.Position == nil {
 			return nil, false
 		}
-		start := tok.Position.Offset - 1
-		if start < 0 || start > len(raw) || start < prev {
+		runeIndex := tok.Position.Offset - 1
+		if runeIndex < 0 || runeIndex > maxRuneIndex || runeIndex < prevRuneIndex {
 			return nil, false
 		}
-		starts[i] = start
-		prev = start
+		starts[i] = runeOffsets[runeIndex]
+		prevRuneIndex = runeIndex
 	}
 	return starts, true
 }
