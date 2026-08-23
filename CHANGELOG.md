@@ -7,11 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-08-23
+
+A debugger release. The new `tree` command draws the document, or any
+subtree of it, as a colorized box-drawing tree at the session's current
+step, so structure is readable without paging through YAML. Annotation
+flags fold provenance into the same view: which file set a value, and
+what it looked like at each earlier step.
+
 ### Added
 
 - The debugger gained a `tree` command: a colorized box-drawing tree of
   the current document at a path, with `--annotate`/`--history` showing
-  per-path provenance up to the session's current step.
+  per-path provenance up to the session's current step. Depth is capped
+  with `--depth`, keys alone are listed with `--keys`, and `--no-color`
+  drops the ANSI styling.
 
 ## [1.35.0] - 2026-08-21
 
@@ -681,6 +691,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.36.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.36.0
 [1.35.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.35.0
 [1.34.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.34.1
 [1.34.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.34.0
