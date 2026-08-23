@@ -4,7 +4,6 @@ package ansi
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 )
 
@@ -113,24 +112,163 @@ func (s Style) Apply(text string) string {
 	return "\033[" + string(s) + "m" + text + ResetCode
 }
 
-// csiPattern matches a full ANSI CSI sequence: ESC "[", any parameter
-// bytes (0x30-0x3F) and intermediate bytes (0x20-0x2F), then a single
-// final byte (0x40-0x7E). This covers SGR color/style codes (final byte
-// "m") as well as other CSI sequences such as cursor movement, which can
-// end up embedded in error text alongside color codes.
-//
-//nolint:gocritic // [@-~] is the CSI final-byte range 0x40-0x7E, not a typo
-var csiPattern = regexp.MustCompile("\033\\[[0-9:;<=>?]*[ !\"#$%&'()*+,\\-./]*[@-~]")
+// stTerminator is the second byte of the two-byte String Terminator
+// (ESC \), which closes an OSC, DCS, SOS, PM, or APC sequence.
+const stTerminator = '\\'
 
-// StripEscapes removes ANSI CSI escape sequences (including SGR color
-// and style codes) from s, leaving every other byte untouched. A
-// sequence missing its final byte, such as truncated or malformed
-// input, is left in place rather than guessed at. It has no dependency
-// on colorEnabled: call it whenever the origin of s is unknown, such as
-// an error message that may have been rendered with color already baked
-// in.
+// StripEscapes removes ANSI/ECMA-48 escape sequences from s, leaving
+// every other byte untouched: CSI (SGR color/style codes, cursor
+// movement, and other final bytes 0x40-0x7E), OSC (terminal titles, OSC
+// 8 hyperlinks, terminated by BEL or the String Terminator ESC \), DCS/
+// SOS/PM/APC (the same string-terminated shape as OSC but ST-only, no
+// BEL), the remaining two-byte Fe escapes not already claimed by one of
+// those introducers, and 3-byte charset-select sequences (ESC,
+// intermediate 0x20-0x2F, final 0x30-0x7E). A sequence missing its
+// terminator, such as truncated or malformed input, is left in place
+// rather than guessed at or eaten to end-of-string: an unterminated OSC/
+// DCS/SOS/PM/APC has no natural end short of a real terminator, and
+// stripping to end-of-string would risk deleting legitimate trailing
+// content that merely follows a stray ESC byte. C1 single-byte forms
+// (e.g. 0x9B for CSI) are not recognized: over valid UTF-8 those byte
+// values only occur as continuation bytes, never as a stand-alone escape
+// introducer. It has no dependency on colorEnabled: call it whenever the
+// origin of s is unknown, such as an error message that may carry raw
+// bytes from a user-supplied document value (an operator argument, for
+// example) alongside any color codes already baked in.
 func StripEscapes(s string) string {
-	return csiPattern.ReplaceAllString(s, "")
+	if strings.IndexByte(s, '\033') == -1 {
+		return s
+	}
+
+	var out strings.Builder
+	out.Grow(len(s))
+
+	i := 0
+	for i < len(s) {
+		if end, ok := consumeEscape(s, i); ok {
+			i = end
+			continue
+		}
+		// Not a recognized, terminated escape: leave the byte in place
+		// and keep scanning from the next one, matching the
+		// truncated-CSI precedent this behavior already had.
+		out.WriteByte(s[i])
+		i++
+	}
+
+	return out.String()
+}
+
+// consumeEscape recognizes one complete, terminated escape sequence
+// starting at s[i] and classifies it by the byte following ESC: "["
+// begins a CSI sequence, "]" an OSC sequence, "P"/"X"/"^"/"_" a DCS/SOS/
+// PM/APC sequence, an intermediate byte (0x20-0x2F) a 3-byte
+// charset-select sequence, and any remaining Fe byte (0x40-0x5F) a plain
+// two-byte escape. It returns the index past the sequence and true on
+// success. It returns i and false when s[i] is not ESC, ESC is the last
+// byte of s, or the sequence it introduces is never terminated - the
+// caller then treats s[i] as an ordinary byte.
+func consumeEscape(s string, i int) (int, bool) {
+	if s[i] != '\033' || i+1 >= len(s) {
+		return i, false
+	}
+
+	next := s[i+1]
+	if next == '[' {
+		return scanCSI(s, i+2)
+	}
+	if next == ']' {
+		return scanStringTerminated(s, i+2, true)
+	}
+	if isStringTerminatedIntroducer(next) {
+		return scanStringTerminated(s, i+2, false)
+	}
+	if end, ok := scanCharsetSelect(s, i); ok {
+		return end, true
+	}
+	if isFeByte(next) {
+		return i + 2, true
+	}
+
+	return i, false
+}
+
+// isStringTerminatedIntroducer reports whether b introduces a DCS, SOS,
+// PM, or APC sequence - the four escape classes that share OSC's
+// string-terminated shape but, unlike OSC, accept only the two-byte
+// String Terminator (never BEL) to close.
+func isStringTerminatedIntroducer(b byte) bool {
+	switch b {
+	case 'P', 'X', '^', '_':
+		return true
+	default:
+		return false
+	}
+}
+
+// isFeByte reports whether b falls in the Fe range (0x40-0x5F): the
+// second byte of a plain two-byte escape not already claimed by one of
+// the CSI/OSC/DCS/SOS/PM/APC introducers above.
+func isFeByte(b byte) bool {
+	return b >= 0x40 && b <= 0x5F
+}
+
+// scanCharsetSelect recognizes a 3-byte charset-select sequence starting
+// at s[i] (the ESC byte): an intermediate byte (0x20-0x2F) followed by a
+// final byte (0x30-0x7E), such as "ESC ( B" (select ASCII into G0). It
+// returns the index past the final byte and true on success, or i and
+// false if the string ends too soon or the bytes are out of range.
+func scanCharsetSelect(s string, i int) (int, bool) {
+	if i+2 >= len(s) {
+		return i, false
+	}
+	intermediate, final := s[i+1], s[i+2]
+	if intermediate < 0x20 || intermediate > 0x2F {
+		return i, false
+	}
+	if final < 0x30 || final > 0x7E {
+		return i, false
+	}
+	return i + 3, true
+}
+
+// scanCSI consumes a CSI sequence's parameter bytes (0x30-0x3F),
+// intermediate bytes (0x20-0x2F), and single final byte (0x40-0x7E),
+// where start is the index right after "ESC [". It returns the index
+// past the final byte and true on success, or start and false if an
+// invalid byte or end of string is reached first.
+func scanCSI(s string, start int) (int, bool) {
+	for i := start; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 0x30 && c <= 0x3F, c >= 0x20 && c <= 0x2F:
+			continue
+		case c >= 0x40 && c <= 0x7E:
+			return i + 1, true
+		default:
+			return start, false
+		}
+	}
+	return start, false
+}
+
+// scanStringTerminated consumes an OSC/DCS/SOS/PM/APC sequence's
+// payload, where start is the index right after its introducer ("ESC ]",
+// "ESC P", "ESC X", "ESC ^", or "ESC _"). OSC (allowBEL true) accepts
+// either BEL (0x07) or the two-byte String Terminator (ESC \) to close;
+// the others (allowBEL false) accept only the String Terminator. It
+// returns the index past the terminator and true on success, or start
+// and false if no terminator is found before end of string.
+func scanStringTerminated(s string, start int, allowBEL bool) (int, bool) {
+	for i := start; i < len(s); i++ {
+		switch {
+		case allowBEL && s[i] == '\a':
+			return i + 1, true
+		case s[i] == '\033' && i+1 < len(s) && s[i+1] == stTerminator:
+			return i + 2, true
+		}
+	}
+	return start, false
 }
 
 // Sprintf formats with color codes like @R{red text} @c{cyan text}.

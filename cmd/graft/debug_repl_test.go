@@ -929,4 +929,16 @@ func TestDebugNoEscapeFullOutput(t *testing.T) {
 		}
 		assertNoEscapes(t, "evaluation failure", out)
 	})
+
+	t.Run("a param operator message carrying OSC bytes carries no escapes", func(t *testing.T) {
+		paramEscapeFiles := []string{"../../assets/debug/param-escape.yml"}
+		out, rc := runDebugSession(paramEscapeFiles, "load\ncontinue\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, "Evaluation failed") {
+			t.Fatalf("test setup: expected an evaluation failure in the output:\n%s", out)
+		}
+		assertNoEscapes(t, "param operator OSC bytes", out)
+	})
 }

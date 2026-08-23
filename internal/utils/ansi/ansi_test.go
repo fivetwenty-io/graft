@@ -553,6 +553,58 @@ func TestStripEscapes(t *testing.T) {
 			twice := StripEscapes(once)
 			So(twice, ShouldEqual, once)
 		})
+
+		Convey("removes an OSC sequence terminated with BEL", func() {
+			So(StripEscapes("a\033]0;title\007b"), ShouldEqual, "ab")
+		})
+
+		Convey("removes an OSC sequence terminated with ST (ESC \\\\)", func() {
+			So(StripEscapes("a\033]8;;http://example.com\033\\link\033]8;;\033\\b"), ShouldEqual, "alinkb")
+		})
+
+		Convey("leaves an unterminated OSC sequence untouched", func() {
+			So(StripEscapes("a\033]0;broken title"), ShouldEqual, "a\033]0;broken title")
+		})
+
+		Convey("removes a DCS sequence terminated with ST", func() {
+			So(StripEscapes("a\033Psome dcs payload\033\\b"), ShouldEqual, "ab")
+		})
+
+		Convey("leaves an unterminated DCS sequence untouched", func() {
+			So(StripEscapes("a\033Punterminated"), ShouldEqual, "a\033Punterminated")
+		})
+
+		Convey("removes an SOS/PM/APC sequence terminated with ST", func() {
+			So(StripEscapes("a\033_app data\033\\b"), ShouldEqual, "ab")
+		})
+
+		Convey("leaves an unterminated SOS/PM/APC sequence untouched", func() {
+			So(StripEscapes("a\033^unterminated"), ShouldEqual, "a\033^unterminated")
+		})
+
+		Convey("removes a two-byte Fe escape, such as Reverse Index", func() {
+			So(StripEscapes("a\033Mb"), ShouldEqual, "ab")
+		})
+
+		Convey("removes a charset-select sequence, such as select ASCII into G0", func() {
+			So(StripEscapes("a\033(Bb"), ShouldEqual, "ab")
+		})
+
+		Convey("leaves a charset-select sequence missing its final byte untouched", func() {
+			So(StripEscapes("a\033("), ShouldEqual, "a\033(")
+		})
+
+		Convey("removes an OSC sequence and a CSI sequence in the same string", func() {
+			So(StripEscapes("\033]0;title\007\033[31merror\033[0m"), ShouldEqual, "error")
+		})
+
+		Convey("leaves plain UTF-8 text with no escape bytes untouched", func() {
+			So(StripEscapes("café ☃ \U0001F600"), ShouldEqual, "café ☃ \U0001F600")
+		})
+
+		Convey("does not damage a multi-byte rune adjacent to a stripped CSI sequence", func() {
+			So(StripEscapes("\033[31mé\033[0m"), ShouldEqual, "é")
+		})
 	})
 }
 
