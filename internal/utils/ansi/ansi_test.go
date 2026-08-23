@@ -470,6 +470,89 @@ func TestANSICodes(t *testing.T) {
 		Convey("Cyan foreground code is correct", func() {
 			So(CyanFg, ShouldEqual, "\033[36m")
 		})
+
+		Convey("Underline code is correct", func() {
+			So(UnderlineCode, ShouldEqual, "\033[4m")
+		})
+
+		Convey("Reverse code is correct", func() {
+			So(ReverseCode, ShouldEqual, "\033[7m")
+		})
+	})
+}
+
+func TestStyleApply(t *testing.T) {
+	Convey("Style.Apply", t, func() {
+		Convey("wraps text in its SGR parameters and a reset", func() {
+			s := Style("1;35")
+			So(s.Apply("graft>"), ShouldEqual, "\033[1;35mgraft>\033[0m")
+		})
+
+		Convey("an empty Style returns the text unchanged", func() {
+			s := Style("")
+			So(s.Apply("plain"), ShouldEqual, "plain")
+		})
+
+		Convey("applies unconditionally when color is disabled", func() {
+			Color(false)
+			defer Color(true)
+			s := Style("1")
+			So(s.Apply("bold"), ShouldEqual, "\033[1mbold\033[0m")
+		})
+
+		Convey("applies unconditionally when color is enabled", func() {
+			Color(true)
+			s := Style("7")
+			So(s.Apply("prompt"), ShouldEqual, "\033[7mprompt\033[0m")
+		})
+
+		Convey("empty text still gets wrapped when the style is non-empty", func() {
+			s := Style("2")
+			So(s.Apply(""), ShouldEqual, "\033[2m\033[0m")
+		})
+	})
+}
+
+func TestStripEscapes(t *testing.T) {
+	Convey("StripEscapes", t, func() {
+		Convey("removes a single SGR sequence", func() {
+			So(StripEscapes(RedFg+"error"+ResetCode), ShouldEqual, "error")
+		})
+
+		Convey("removes multiple SGR sequences", func() {
+			input := RedFg + "error" + ResetCode + ": " + YellowFg + "warning" + ResetCode
+			So(StripEscapes(input), ShouldEqual, "error: warning")
+		})
+
+		Convey("removes a compound SGR parameter list", func() {
+			So(StripEscapes("\033[1;35mgraft>\033[0m"), ShouldEqual, "graft>")
+		})
+
+		Convey("removes non-SGR CSI sequences, such as cursor movement", func() {
+			So(StripEscapes("a\033[2Kb\033[1;1Hc"), ShouldEqual, "abc")
+		})
+
+		Convey("leaves plain text with no escape bytes untouched", func() {
+			So(StripEscapes("plain text, no escapes here"), ShouldEqual, "plain text, no escapes here")
+		})
+
+		Convey("leaves an unterminated CSI sequence untouched", func() {
+			So(StripEscapes("broken\033[1;35"), ShouldEqual, "broken\033[1;35")
+		})
+
+		Convey("leaves a bare ESC byte with no following bracket untouched", func() {
+			So(StripEscapes("a\033b"), ShouldEqual, "a\033b")
+		})
+
+		Convey("handles the empty string", func() {
+			So(StripEscapes(""), ShouldEqual, "")
+		})
+
+		Convey("is idempotent: stripping already-plain text is a no-op", func() {
+			once := StripEscapes(RedFg + "error" + ResetCode)
+			twice := StripEscapes(once)
+			So(twice, ShouldEqual, once)
+		})
 	})
 }
 

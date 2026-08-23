@@ -4,6 +4,7 @@ package ansi
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -21,16 +22,18 @@ func IsColorEnabled() bool {
 
 // ANSI escape codes.
 const (
-	ResetCode = "\033[0m"
-	BoldCode  = "\033[1m"
-	DimCode   = "\033[2m"
-	RedFg     = "\033[31m"
-	GreenFg   = "\033[32m"
-	YellowFg  = "\033[33m"
-	BlueFg    = "\033[34m"
-	MagentaFg = "\033[35m"
-	CyanFg    = "\033[36m"
-	WhiteFg   = "\033[37m"
+	ResetCode     = "\033[0m"
+	BoldCode      = "\033[1m"
+	DimCode       = "\033[2m"
+	UnderlineCode = "\033[4m"
+	ReverseCode   = "\033[7m"
+	RedFg         = "\033[31m"
+	GreenFg       = "\033[32m"
+	YellowFg      = "\033[33m"
+	BlueFg        = "\033[34m"
+	MagentaFg     = "\033[35m"
+	CyanFg        = "\033[36m"
+	WhiteFg       = "\033[37m"
 )
 
 // Red wraps the string in red ANSI color codes.
@@ -87,6 +90,45 @@ func Dim(s string) string {
 		return s
 	}
 	return DimCode + s + ResetCode
+}
+
+// Style is a set of SGR (Select Graphic Rendition) attributes, expressed
+// as the parameter list of a CSI SGR sequence (for example "1;35" for
+// bold magenta), with no leading "\033[" and no trailing "m". The zero
+// value is the empty Style, which renders as no styling at all.
+type Style string
+
+// Apply wraps text in this Style's escape code and a trailing reset,
+// unconditionally. Unlike every other helper in this package, which
+// early-returns plain text when colorEnabled is false, Apply always
+// renders its escape codes: it has no opinion on whether color output
+// belongs on the stream it is writing to. Callers own that decision -
+// resolve it once (see ResolveColor) and only call Apply when the
+// answer is yes, the way debugStyler in cmd/graft does. An empty Style
+// returns text unchanged.
+func (s Style) Apply(text string) string {
+	if s == "" {
+		return text
+	}
+	return "\033[" + string(s) + "m" + text + ResetCode
+}
+
+// csiPattern matches a full ANSI CSI sequence: ESC "[", any parameter
+// bytes (0x30-0x3F) and intermediate bytes (0x20-0x2F), then a single
+// final byte (0x40-0x7E). This covers SGR color/style codes (final byte
+// "m") as well as other CSI sequences such as cursor movement, which can
+// end up embedded in error text alongside color codes.
+var csiPattern = regexp.MustCompile("\033\\[[0-9:;<=>?]*[ !\"#$%&'()*+,\\-./]*[@-~]")
+
+// StripEscapes removes ANSI CSI escape sequences (including SGR color
+// and style codes) from s, leaving every other byte untouched. A
+// sequence missing its final byte, such as truncated or malformed
+// input, is left in place rather than guessed at. It has no dependency
+// on colorEnabled: call it whenever the origin of s is unknown, such as
+// an error message that may have been rendered with color already baked
+// in.
+func StripEscapes(s string) string {
+	return csiPattern.ReplaceAllString(s, "")
 }
 
 // Sprintf formats with color codes like @R{red text} @c{cyan text}.
