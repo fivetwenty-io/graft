@@ -3,8 +3,11 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"strings"
 	"testing"
+
+	"github.com/ergochat/readline"
 )
 
 // styledMono renders text in role's mono-theme style, mirroring
@@ -32,6 +35,89 @@ func TestScannerLineReaderSetPrompt(t *testing.T) {
 	want := "graft> mono> "
 	if out.String() != want {
 		t.Errorf("prompts printed = %q, want %q", out.String(), want)
+	}
+}
+
+// recordingLineReader is a debugLineReader test double that records
+// SetPrompt/SetPainter calls without a live terminal, so a test can check
+// cmdConfigTheme installs a specific painter without going through the
+// scanner path (whose SetPainter is a no-op, see
+// TestScannerLineReaderSetPainterIsNoop) or a real readline instance.
+type recordingLineReader struct {
+	prompt       string
+	promptCalls  int
+	painter      readline.Painter
+	painterCalls int
+}
+
+func (r *recordingLineReader) ReadLine() (string, error) { return "", io.EOF }
+func (r *recordingLineReader) SaveHistory(string)        {}
+func (r *recordingLineReader) SetPrompt(prompt string) {
+	r.prompt = prompt
+	r.promptCalls++
+}
+func (r *recordingLineReader) SetPainter(painter readline.Painter) {
+	r.painter = painter
+	r.painterCalls++
+}
+func (r *recordingLineReader) Close() error { return nil }
+
+var _ debugLineReader = (*recordingLineReader)(nil)
+
+// TestCmdConfigThemeInstallsMatchingPainter proves a theme switch swaps
+// the input-line painter alongside the prompt (decision 12): the reader
+// must receive a painter that renders in the *new* theme's roleInput
+// style, not the one the session started with.
+func TestCmdConfigThemeInstallsMatchingPainter(t *testing.T) {
+	var out bytes.Buffer
+	sess, err := newDebugSession(debugColorizeTestFiles, &mergeOpts{}, &out, colorOnUI)
+	if err != nil {
+		t.Fatalf("newDebugSession() error = %v", err)
+	}
+	rec := &recordingLineReader{}
+	sess.reader = rec
+
+	sess.cmdConfigTheme("mono")
+
+	if rec.painterCalls != 1 {
+		t.Fatalf("SetPainter called %d times, want 1", rec.painterCalls)
+	}
+	if rec.painter == nil {
+		t.Fatal("SetPainter received a nil painter")
+	}
+
+	got := rec.painter([]rune("x"), 1)
+
+	monoSt := debugStyler{enabled: true, theme: debugThemeMono}
+	wantMono := monoSt.apply(roleInput, "x")
+	if string(got) != wantMono {
+		t.Errorf("installed painter renders as %q, want mono's roleInput style %q", string(got), wantMono)
+	}
+
+	darkSt := debugStyler{enabled: true, theme: debugThemeDark}
+	dark := darkSt.apply(roleInput, "x")
+	if string(got) == dark {
+		t.Errorf("installed painter still renders in dark's roleInput style: %q", string(got))
+	}
+}
+
+// TestCmdConfigThemeSkipsPainterWhenColorDisabled proves the same
+// color-off gate that guards SetPrompt also guards SetPainter: a
+// disabled session's `config theme` never touches the reader's painter
+// at all (decision 10 extended to the live-reader install site).
+func TestCmdConfigThemeSkipsPainterWhenColorDisabled(t *testing.T) {
+	var out bytes.Buffer
+	sess, err := newDebugSession(debugColorizeTestFiles, &mergeOpts{}, &out, debugUIOptions{})
+	if err != nil {
+		t.Fatalf("newDebugSession() error = %v", err)
+	}
+	rec := &recordingLineReader{}
+	sess.reader = rec
+
+	sess.cmdConfigTheme("mono")
+
+	if rec.painterCalls != 0 {
+		t.Errorf("SetPainter called %d times with color disabled, want 0", rec.painterCalls)
 	}
 }
 

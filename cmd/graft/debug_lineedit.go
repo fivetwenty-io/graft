@@ -38,6 +38,14 @@ type debugLineReader interface {
 	// <name>` (debug_repl.go's cmdConfigTheme) restyles the prompt
 	// without tearing the reader down and losing history/state.
 	SetPrompt(prompt string)
+	// SetPainter replaces the readline.Painter used to render the line
+	// being typed, the input-line counterpart to SetPrompt: cmdConfigTheme
+	// calls both together on a `config theme <name>` switch, so the
+	// prompt and the text after it restyle in the same moment. The
+	// scanner path has no live redraw to restyle (it only ever prints a
+	// prompt once, before the read that follows), so its implementation
+	// is a no-op.
+	SetPainter(painter readline.Painter)
 	Close() error
 }
 
@@ -50,29 +58,44 @@ var (
 // terminal, and the plain scanner otherwise. Both ends have to be a
 // terminal: the editor redraws the line it is editing, which is meaningless
 // when output is a file or a pipe. If the editor cannot be started for any
-// reason the scanner takes over, so the debugger still runs.
-func newDebugLineReader(in io.Reader, out io.Writer, prompt string, completer readline.AutoCompleter) debugLineReader {
+// reason the scanner takes over, so the debugger still runs. st is the
+// session's already-resolved styler (handleDebug constructs the session,
+// and so resolves its styler, before calling this - see newDebugSession),
+// used to build the initial input-line painter (debugInputPainter); it is
+// safe to pass unconditionally, since that painter is itself identity
+// when st is disabled or has no theme resolved.
+func newDebugLineReader(in io.Reader, out io.Writer, prompt string, completer readline.AutoCompleter, st debugStyler) debugLineReader {
 	if debugInputIsInteractive(in, out) {
 		historyFile := debugHistoryFile()
-		rl, err := readline.NewFromConfig(&readline.Config{
-			Prompt:            prompt,
-			Stdin:             in,
-			Stdout:            out,
-			HistoryFile:       historyFile,
-			HistorySearchFold: true,
-			// History is saved by hand (see SaveHistory) so a line that
-			// carries a secret never reaches the file.
-			DisableAutoSaveHistory: true,
-			// "\n" is readline's spelling of "print nothing here"; the
-			// REPL prints its own newline when input ends.
-			EOFPrompt:    "\n",
-			AutoComplete: completer,
-		})
+		rl, err := readline.NewFromConfig(debugReadlineConfig(in, out, prompt, completer, historyFile, st))
 		if err == nil {
 			return &readlineLineReader{rl: rl, historyFile: historyFile, out: out}
 		}
 	}
 	return &scannerLineReader{scanner: bufio.NewScanner(in), out: out, prompt: prompt}
+}
+
+// debugReadlineConfig builds the readline.Config newDebugLineReader passes
+// to readline.NewFromConfig on the interactive path. Split into its own
+// function so a test can inspect the constructed config - in particular,
+// that Painter is wired to debugInputPainter(st) - without a real terminal
+// or readline instance.
+func debugReadlineConfig(in io.Reader, out io.Writer, prompt string, completer readline.AutoCompleter, historyFile string, st debugStyler) *readline.Config {
+	return &readline.Config{
+		Prompt:            prompt,
+		Stdin:             in,
+		Stdout:            out,
+		HistoryFile:       historyFile,
+		HistorySearchFold: true,
+		// History is saved by hand (see SaveHistory) so a line that
+		// carries a secret never reaches the file.
+		DisableAutoSaveHistory: true,
+		// "\n" is readline's spelling of "print nothing here"; the
+		// REPL prints its own newline when input ends.
+		EOFPrompt:    "\n",
+		AutoComplete: completer,
+		Painter:      debugInputPainter(st),
+	}
 }
 
 func debugInputIsInteractive(in io.Reader, out io.Writer) bool {
@@ -118,6 +141,12 @@ func (r *scannerLineReader) SetPrompt(prompt string) {
 	r.prompt = prompt
 }
 
+// SetPainter is a no-op: the scanner prints a prompt once, reads one
+// line, and never redraws it, so it has nothing a painter could restyle
+// in place. It still has to exist so cmdConfigTheme can call SetPainter
+// unconditionally on whichever debugLineReader is active.
+func (r *scannerLineReader) SetPainter(readline.Painter) {}
+
 func (r *scannerLineReader) Close() error { return nil }
 
 // readlineLineReader is the interactive path: arrow keys walk the history,
@@ -154,6 +183,16 @@ func (r *readlineLineReader) SaveHistory(line string) {
 // Input Contrast section).
 func (r *readlineLineReader) SetPrompt(prompt string) {
 	r.rl.SetPrompt(prompt)
+}
+
+// SetPainter replaces the live config's Painter, the same
+// GetConfig/mutate/SetConfig round trip readline.Instance.SetPrompt uses
+// internally (readline has no SetPainter of its own to delegate to, so
+// this repeats that pattern by hand for the one field it doesn't cover).
+func (r *readlineLineReader) SetPainter(painter readline.Painter) {
+	cfg := r.rl.GetConfig()
+	cfg.Painter = painter
+	_ = r.rl.SetConfig(cfg)
 }
 
 func (r *readlineLineReader) Close() error {

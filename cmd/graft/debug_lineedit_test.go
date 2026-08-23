@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/ergochat/readline"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -166,7 +169,7 @@ func TestDebugLineReaderSelection(t *testing.T) {
 	Convey("the REPL's input source", t, func() {
 		Convey("falls back to the plain scanner when stdin is not a terminal", func() {
 			var out bytes.Buffer
-			r := newDebugLineReader(strings.NewReader("inspect meta\n"), &out, "graft> ", nil)
+			r := newDebugLineReader(strings.NewReader("inspect meta\n"), &out, "graft> ", nil, debugStyler{})
 			defer func() { _ = r.Close() }()
 
 			line, err := r.ReadLine()
@@ -178,4 +181,97 @@ func TestDebugLineReaderSelection(t *testing.T) {
 			So(err, ShouldEqual, io.EOF)
 		})
 	})
+}
+
+// TestDebugReadlineConfigInstallsPainter locks Phase 5's construction-time
+// wiring: newDebugLineReader's readline path must carry a Painter built
+// from the session's own styler (debugInputPainter), not the library's
+// identity default. Tested against debugReadlineConfig directly - the
+// seam newDebugLineReader itself builds its readline.Config from - so
+// this needs no real terminal or readline instance.
+func TestDebugReadlineConfigInstallsPainter(t *testing.T) {
+	st := debugStyler{enabled: true, theme: debugThemeDark}
+	cfg := debugReadlineConfig(strings.NewReader(""), io.Discard, "graft> ", nil, "", st)
+
+	if cfg.Painter == nil {
+		t.Fatal("debugReadlineConfig() Config.Painter is nil, want debugInputPainter(st)")
+	}
+	got := cfg.Painter([]rune("foo"), 3)
+	want := st.apply(roleInput, "foo")
+	if string(got) != want {
+		t.Errorf("Config.Painter([]rune(%q), 3) = %q, want %q", "foo", string(got), want)
+	}
+}
+
+// TestDebugReadlineConfigPainterIsIdentityWhenColorOff proves the wiring
+// carries a disabled styler through faithfully: the constructed config
+// still gets a non-nil Painter (debugInputPainter never returns nil), but
+// that painter is a strict identity, matching every other "color off
+// means zero escape bytes" call site in the debugger.
+func TestDebugReadlineConfigPainterIsIdentityWhenColorOff(t *testing.T) {
+	cfg := debugReadlineConfig(strings.NewReader(""), io.Discard, "graft> ", nil, "", debugStyler{})
+	if cfg.Painter == nil {
+		t.Fatal("debugReadlineConfig() Config.Painter is nil, want an identity painter, not none")
+	}
+	line := []rune("foo")
+	got := cfg.Painter(line, 3)
+	if !reflect.DeepEqual(got, line) {
+		t.Errorf("Config.Painter(disabled)(%v) = %v, want unchanged", line, got)
+	}
+}
+
+// TestReadlineLineReaderSetPainter proves SetPainter round-trips through
+// GetConfig/mutate/SetConfig, the same pattern SetPrompt already uses
+// internally, and leaves every other field - Prompt here, standing in
+// for the rest - untouched. This is exercised against a real
+// readline.Instance: readline.NewFromConfig works with any io.Reader for
+// Stdin (the library only needs a real terminal for raw-mode/ANSI setup,
+// which it gates on the test process's actual stdin being a tty - almost
+// never true under `go test` - not on the Stdin field's concrete type),
+// so no pty is needed here.
+func TestReadlineLineReaderSetPainter(t *testing.T) {
+	rl, err := readline.NewFromConfig(&readline.Config{
+		Prompt: "graft> ",
+		Stdin:  strings.NewReader(""),
+		Stdout: io.Discard,
+	})
+	if err != nil {
+		t.Fatalf("readline.NewFromConfig() error = %v", err)
+	}
+	r := &readlineLineReader{rl: rl, out: io.Discard}
+	defer func() { _ = r.Close() }()
+
+	st := debugStyler{enabled: true, theme: debugThemeDark}
+	r.SetPainter(debugInputPainter(st))
+
+	cfg := rl.GetConfig()
+	if cfg.Painter == nil {
+		t.Fatal("SetPainter did not install a Painter on the live config")
+	}
+	got := cfg.Painter([]rune("foo"), 3)
+	want := st.apply(roleInput, "foo")
+	if string(got) != want {
+		t.Errorf("installed painter([]rune(%q), 3) = %q, want %q", "foo", string(got), want)
+	}
+	if cfg.Prompt != "graft> " {
+		t.Errorf("SetPainter() changed Prompt to %q, want unchanged %q", cfg.Prompt, "graft> ")
+	}
+}
+
+// TestScannerLineReaderSetPainterIsNoop proves the scanner path's
+// SetPainter compiles into a genuine no-op and never panics: it is
+// called unconditionally from cmdConfigTheme whichever reader is active
+// (gated only on the styler being enabled, not on reader type), so the
+// scanner path must tolerate the call without changing any of its own
+// state.
+func TestScannerLineReaderSetPainterIsNoop(t *testing.T) {
+	var out bytes.Buffer
+	r := &scannerLineReader{scanner: bufio.NewScanner(strings.NewReader("")), out: &out, prompt: "graft> "}
+
+	st := debugStyler{enabled: true, theme: debugThemeDark}
+	r.SetPainter(debugInputPainter(st))
+
+	if r.prompt != "graft> " {
+		t.Errorf("SetPainter() changed scannerLineReader state: prompt = %q, want unchanged %q", r.prompt, "graft> ")
+	}
 }

@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   section](docs/user-guide/cli/debug.md#colors-and-themes) for the full
   behavior.
 
+- The `graft debug` REPL now colorizes the command line as it is typed,
+  in a new `roleInput` style distinct from the `graft>` prompt's own
+  style. `config theme <name>` restyles the in-progress line along with
+  the prompt, so both switch palettes together.
+
 ## [1.37.0] - 2026-08-23
 
 A theming release. The debugger REPL gained themeable colorized

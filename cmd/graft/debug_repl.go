@@ -781,9 +781,10 @@ func (s *debugSession) cmdConfig(args []string) {
 // tiers can never disagree on what a valid name is). An unknown name
 // changes nothing and reports the mismatch; a known name updates the
 // session's recorded selection and, when color is enabled, re-resolves
-// the styler's theme and restyles the live prompt through the session's
-// reader (see debugSession.reader/SetPrompt) so later output and the
-// prompt agree immediately. Session-only throughout: no config file, no
+// the styler's theme and restyles the live prompt and input line through
+// the session's reader (see debugSession.reader/SetPrompt/SetPainter) so
+// later output, the prompt, and what the user is about to type all agree
+// immediately. Session-only throughout: no config file, no
 // environment variable (see docs/user-guide/cli/debug.md's asymmetry
 // note against vault.* keys, which do set one).
 func (s *debugSession) cmdConfigTheme(name string) {
@@ -797,6 +798,7 @@ func (s *debugSession) cmdConfigTheme(name string) {
 		s.styler.theme = resolveDebugThemeFor(name, s.detectedBackground)
 		if s.reader != nil {
 			s.reader.SetPrompt(debugPromptString(s))
+			s.reader.SetPainter(debugInputPainter(s.styler))
 		}
 	}
 
@@ -1298,7 +1300,7 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, u
 		sess.style(roleBanner, "Welcome to the Graft Debugger"),
 		sess.style(roleMuted, "Type 'help' for available commands."))
 
-	reader := newDebugLineReader(in, out, debugPromptString(sess), &debugCompleter{sess: sess})
+	reader := newDebugLineReader(in, out, debugPromptString(sess), &debugCompleter{sess: sess}, sess.styler)
 	sess.reader = reader
 	defer func() { _ = reader.Close() }()
 
