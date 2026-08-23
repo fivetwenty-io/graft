@@ -206,10 +206,18 @@ func TestDebugConfigThemeWithColorDisabled(t *testing.T) {
 
 // TestDebugColorOnConfigThemeStaysPlain extends the credential-guard
 // posture (decision 12, TestDebugColorOnConfigStaysPlain) to the new
-// theme rows: with color on, every "theme:"/"Current:" line stays
-// unstyled, the same rule every other config value line follows. This
-// is an additional test alongside the existing guard, not a
-// replacement for it.
+// theme rows: with color on, every line carrying the theme's own value
+// ("dark", the session's own theme throughout this script - it never
+// switches to mono until the very last line, which this test does not
+// inspect) stays unstyled, the same rule every other config value line
+// follows. This is an additional test alongside the existing guard, not
+// a replacement for it.
+//
+// Selecting lines by the value text itself, not by a "theme:"/"Current:"
+// prefix, is what makes this mutation-proof: a whole-line-styled row
+// starts with an escape byte and so would never match either prefix,
+// silently skipping the row the test exists to check (the same blind
+// spot TestDebugColorOnConfigStaysPlain had for the credential guard).
 func TestDebugColorOnConfigThemeStaysPlain(t *testing.T) {
 	out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, strings.Join([]string{
 		"config",
@@ -220,10 +228,17 @@ func TestDebugColorOnConfigThemeStaysPlain(t *testing.T) {
 	if rc != 0 {
 		t.Fatalf("rc = %d, want 0:\n%s", rc, out)
 	}
-	for _, line := range strings.Split(out, "\n") {
-		plain := strings.HasPrefix(line, "theme:") || strings.HasPrefix(line, "Current:")
-		if plain && strings.ContainsRune(line, '\x1b') {
+	foundThemeValueLine := false
+	for _, line := range strings.Split(debugPromptStripped(out), "\n") {
+		if !strings.Contains(line, "dark") {
+			continue
+		}
+		foundThemeValueLine = true
+		if strings.ContainsRune(line, '\x1b') {
 			t.Errorf("theme value line contains an escape byte: %q", line)
 		}
+	}
+	if !foundThemeValueLine {
+		t.Fatalf("test setup: no output line contained the theme value at all:\n%s", out)
 	}
 }

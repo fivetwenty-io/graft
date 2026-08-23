@@ -40,6 +40,21 @@ func styled(role debugRole, text string) string {
 	return debugThemeDark.styles[role].Apply(text)
 }
 
+// debugPromptStripped removes every occurrence of the dark-theme prompt
+// (colorOnUI's theme throughout the credential/theme-value guard tests
+// that use this helper) from out, so a per-line escape-byte check does
+// not trip on the prompt's own legitimate rolePrompt styling: the
+// scanner-path reader (scannerLineReader.ReadLine, debug_lineedit.go)
+// prints the prompt with no trailing newline, so it merges onto the
+// same "\n"-delimited line as the first line of whatever the following
+// command prints. Without stripping it first, a line-level check would
+// flag every such merged line as carrying an escape byte regardless of
+// whether the config/theme value itself is styled - a false positive
+// unrelated to decision 12.
+func debugPromptStripped(out string) string {
+	return strings.ReplaceAll(out, styled(rolePrompt, "graft>")+" ", "")
+}
+
 func TestDebugColorOnBanner(t *testing.T) {
 	out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "quit\n")
 	if rc != 0 {
@@ -258,11 +273,25 @@ func TestDebugColorOnEval(t *testing.T) {
 	}
 }
 
+// debugColorizeTestVaultToken is the live-credential value
+// TestDebugColorOnConfigStaysPlain sets VAULT_TOKEN to. Selecting output
+// lines by containing this exact value (rather than by a line prefix
+// such as "vault.token:") is what makes the guard mutation-proof: a
+// whole-line-styled config row starts with an escape byte and so would
+// never match a "vault.token:" prefix, silently skipping the very line
+// the test exists to check. Containment on the credential's own text
+// has no such blind spot - the value appears in the line regardless of
+// what, if anything, precedes it.
+const debugColorizeTestVaultToken = "s.super-secret-token"
+
 // TestDebugColorOnConfigStaysPlain locks decision 12: with color on, no
 // arm of `config` styles a value - the bare listing, the single-key
 // "Current:" line, or the credential key itself - because vault.token's
-// value is a live credential. The whole rendered line, not a substring,
-// is asserted escape-free, per the Test Plan's credential-guard case.
+// value is a live credential. Every line containing the live credential
+// value is asserted escape-free in full (not merely past some assumed
+// prefix), per the Test Plan's credential-guard case, and the test fails
+// outright if no such line is found at all, so it can never pass
+// vacuously.
 func TestDebugColorOnConfigStaysPlain(t *testing.T) {
 	restoreToken, hadToken := os.LookupEnv("VAULT_TOKEN")
 	restoreAddr, hadAddr := os.LookupEnv("VAULT_ADDR")
@@ -284,7 +313,7 @@ func TestDebugColorOnConfigStaysPlain(t *testing.T) {
 			_ = os.Unsetenv("VAULT_ADDR")
 		}
 	}()
-	_ = os.Setenv("VAULT_TOKEN", "s.super-secret-token")
+	_ = os.Setenv("VAULT_TOKEN", debugColorizeTestVaultToken)
 
 	out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, strings.Join([]string{
 		"config",
@@ -297,17 +326,18 @@ func TestDebugColorOnConfigStaysPlain(t *testing.T) {
 		t.Fatalf("rc = %d, want 0", rc)
 	}
 
-	for _, line := range strings.Split(out, "\n") {
-		plain := strings.HasPrefix(line, "vault.addr:") ||
-			strings.HasPrefix(line, "vault.token:") ||
-			strings.HasPrefix(line, "vault.namespace:") ||
-			strings.HasPrefix(line, "Current:")
-		if plain && strings.ContainsRune(line, '\x1b') {
-			t.Errorf("config value line contains an escape byte: %q", line)
+	foundCredentialLine := false
+	for _, line := range strings.Split(debugPromptStripped(out), "\n") {
+		if !strings.Contains(line, debugColorizeTestVaultToken) {
+			continue
+		}
+		foundCredentialLine = true
+		if strings.ContainsRune(line, '\x1b') {
+			t.Errorf("line containing the live credential value carries an escape byte: %q", line)
 		}
 	}
-	if !strings.Contains(out, "s.super-secret-token") {
-		t.Fatalf("test setup: the credential never appeared in output at all:\n%s", out)
+	if !foundCredentialLine {
+		t.Fatalf("test setup: no output line contained the live credential value at all:\n%s", out)
 	}
 	if !strings.Contains(out, styled(roleSuccess, "Updated vault.addr")) {
 		t.Errorf("Updated confirmation not styled roleSuccess:\n%s", out)
