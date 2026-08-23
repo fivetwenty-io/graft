@@ -491,13 +491,41 @@ func (s *debugSession) cmdHistory(path string) {
 		s.printf("No history recorded for path: %s\n", path)
 		return
 	}
-	var buf strings.Builder
-	fmt.Fprintf(&buf, "%s:\n", ph.Path)
+	s.printf("%s:\n", s.style(rolePath, ph.Path))
 	for _, e := range ph.Entries {
-		writeHistoryEntryLine(&buf, e)
+		s.writeHistoryLine(entryLineParts(e), false)
 	}
-	writeHistoryFinalLine(&buf, ph, "Final", len(ph.Entries) == 1)
-	s.out.Write([]byte(buf.String())) //nolint:errcheck // best-effort REPL output
+	s.writeHistoryLine(finalLineParts(ph, "Final", len(ph.Entries) == 1), true)
+}
+
+// writeHistoryLine formats one historyLineParts (an entry row, or the
+// trailing Final row when isFinal) through the session's styler,
+// matching Category H of the debugger's plan of record: the source
+// column - "[N] source" for an entry, "Final" for the trailing row -
+// styles roleFile; the arrow between source and value is always
+// roleMuted; a genuine removal's value ("<pruned>", from
+// history.Entry.Removed or PathHistory.FinalOK false, never from the
+// value's own text - see historyLineParts) styles roleMuted; the
+// trailing Final row's real value styles roleValueNew; every other
+// entry's value stays unstyled ("values default").
+//
+// The source column is padded to sourceColumnWidth as plain text
+// *before* styling (pad-then-style), so the escape bytes roleFile adds
+// never count toward %-*s's width and so never throw off the column's
+// alignment.
+func (s *debugSession) writeHistoryLine(p historyLineParts, isFinal bool) {
+	paddedSource := fmt.Sprintf("%-*s", sourceColumnWidth, p.source)
+	value := p.value
+	switch {
+	case p.pruned:
+		value = s.style(roleMuted, value)
+	case isFinal:
+		value = s.style(roleValueNew, value)
+	}
+	s.printf("  %s %s %s\n",
+		s.style(roleFile, paddedSource),
+		s.style(roleMuted, "→"),
+		value)
 }
 
 // deferredDocRewriter returns a historyDocRewriter that wraps the

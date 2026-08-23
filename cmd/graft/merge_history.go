@@ -191,7 +191,7 @@ func buildMergeHistorySteps(opts *mergeOpts, rewrite historyDocRewriter, limit i
 		if postErr != nil {
 			return nil, 0, postErr
 		}
-		steps = append(steps, history.StepState{Label: "<pruned>", Phase: history.PhasePost, Data: postData})
+		steps = append(steps, history.StepState{Label: prunedDisplay, Phase: history.PhasePost, Data: postData})
 	}
 
 	return steps, len(cached), nil
@@ -228,6 +228,12 @@ func findPathHistory(all []history.PathHistory, path string) (history.PathHistor
 // "[N] source" / "Final" column, wide enough for the "Final" label itself
 // plus a few characters of breathing room before the "→".
 const sourceColumnWidth = 18
+
+// prunedDisplay is the placeholder a history line shows for a genuine
+// removal (history.Entry.Removed, or PathHistory.FinalOK false) - never
+// printed just because a real value's own text happens to match it (see
+// historyLineParts).
+const prunedDisplay = "<pruned>"
 
 // inlineValue renders a history Entry/Final value as a single display
 // string. Multi-line YAML (a nested map/list value) is collapsed to its
@@ -314,20 +320,62 @@ func renderTracePath(ph history.PathHistory) string {
 	return buf.String()
 }
 
+// historyLineParts is one history line's unpadded, unstyled pieces: the
+// left ("[N] source" for an entry, or a label like "Final"/"As of step
+// N" for a block's summary row) and right (the display value, "<pruned>"
+// when pruned is true) halves of the "source → value" shape every
+// history renderer prints, plus whether this is a genuine removal
+// (history.Entry.Removed, or PathHistory.FinalOK false) rather than a
+// value that merely happens to look like one.
+//
+// Both `merge --history`'s own renderers (below) and the debugger's
+// `history` command (debug_repl.go's cmdHistory) build their line from
+// these parts rather than one wrapping the other's rendered, padded
+// string - decision 9 of the debugger colorizing plan: a wrapper over
+// already-formatted text cannot style the source column without
+// re-parsing it, which would be fragile against a value that itself
+// contains "→" or the literal text "<pruned>" (see
+// TestDebugColorOnHistoryNoReparsing, cmd/graft).
+type historyLineParts struct {
+	source string
+	value  string
+	pruned bool
+}
+
+// entryLineParts extracts one history.Entry's historyLineParts. Only an
+// entry that is genuinely Removed (an operator (( prune )) marker or a
+// --prune/--cherry-pick CLI flag actually took this path out of the
+// document - history.Entry's doc comment) reports pruned; every other
+// entry recorded at a PhasePost step carries its real new value.
+func entryLineParts(e history.Entry) historyLineParts {
+	source := fmt.Sprintf("[%d] %s", e.Index, e.Source)
+	if e.Removed {
+		return historyLineParts{source: source, value: prunedDisplay, pruned: true}
+	}
+	return historyLineParts{source: source, value: inlineValue(e.Value)}
+}
+
+// finalLineParts extracts a block's summary row's historyLineParts.
+// unchanged appends "  (unchanged)" to a real final value (history's
+// blocks pass len(ph.Entries) == 1; the debugger's tree --history has
+// its own notion of unchanged and passes it directly).
+func finalLineParts(ph history.PathHistory, label string, unchanged bool) historyLineParts {
+	if !ph.FinalOK {
+		return historyLineParts{source: label, value: prunedDisplay, pruned: true}
+	}
+	value := inlineValue(ph.Final)
+	if unchanged {
+		value += "  (unchanged)"
+	}
+	return historyLineParts{source: label, value: value}
+}
+
 // historyEntryLine renders one entry's "[N] source → value" line body
 // (no leading indent, no newline) - the shared format for history
-// blocks and the tree's annotation lines. Only an entry that is
-// genuinely Removed (an operator (( prune )) marker or a
-// --prune/--cherry-pick CLI flag actually took this path out of the
-// document - history.Entry's doc comment) prints "<pruned>"; every
-// other entry recorded at a PhasePost step prints its real new value.
+// blocks and the tree's annotation lines.
 func historyEntryLine(e history.Entry) string {
-	source := fmt.Sprintf("[%d] %s", e.Index, e.Source)
-	val := "<pruned>"
-	if !e.Removed {
-		val = inlineValue(e.Value)
-	}
-	return fmt.Sprintf("%-*s → %s", sourceColumnWidth, source, val)
+	p := entryLineParts(e)
+	return fmt.Sprintf("%-*s → %s", sourceColumnWidth, p.source, p.value)
 }
 
 // writeHistoryEntryLine prints one indented historyEntryLine.
@@ -339,15 +387,8 @@ func writeHistoryEntryLine(buf *strings.Builder, e history.Entry) {
 // label it "Final"; the debugger's tree --history labels it with the
 // step the replay stopped at ("As of step N").
 func writeHistoryFinalLine(buf *strings.Builder, ph history.PathHistory, label string, unchanged bool) {
-	if !ph.FinalOK {
-		fmt.Fprintf(buf, "  %-*s → <pruned>\n", sourceColumnWidth, label)
-		return
-	}
-	suffix := ""
-	if unchanged {
-		suffix = "  (unchanged)"
-	}
-	fmt.Fprintf(buf, "  %-*s → %s%s\n", sourceColumnWidth, label, inlineValue(ph.Final), suffix)
+	p := finalLineParts(ph, label, unchanged)
+	fmt.Fprintf(buf, "  %-*s → %s\n", sourceColumnWidth, p.source, p.value)
 }
 
 // The classifications changeKind can return.

@@ -501,3 +501,130 @@ func TestDebugColorOnErrors(t *testing.T) {
 		}
 	})
 }
+
+// paddedSourceColumn pads s to sourceColumnWidth the same way
+// historyEntryLine/writeHistoryFinalLine (merge_history.go) and
+// cmdHistory's own pad-then-style formatting do, so these tests build
+// their expectations from the one shared width constant rather than a
+// hardcoded column count.
+func paddedSourceColumn(s string) string {
+	return fmt.Sprintf("%-*s", sourceColumnWidth, s)
+}
+
+// TestDebugColorOnHistory locks Category H (the History Display section
+// of the plan of record): the source column (both a "[N] file" entry
+// and the trailing "Final" row) styles roleFile *after* padding to
+// sourceColumnWidth, so escape bytes never count toward the column's
+// alignment; the arrow between source and value is always roleMuted; an
+// ordinary entry's value stays unstyled ("values default"); and the
+// trailing Final row's real value styles roleValueNew.
+func TestDebugColorOnHistory(t *testing.T) {
+	files := []string{"../../assets/history/base.yml", "../../assets/history/env.yml"}
+	out, rc := runDebugSessionWithUI(files, &mergeOpts{}, colorOnUI, "load\nhistory database.pool_size\nquit\n")
+	if rc != 0 {
+		t.Fatalf("rc = %d, want 0", rc)
+	}
+
+	if !strings.Contains(out, styled(rolePath, "database.pool_size")+":\n") {
+		t.Errorf("history path header not styled rolePath:\n%s", out)
+	}
+
+	wantEntrySource := styled(roleFile, paddedSourceColumn("[0] ../../assets/history/base.yml"))
+	if !strings.Contains(out, wantEntrySource) {
+		t.Errorf("entry source column not styled roleFile with pad-then-style alignment:\n%s", out)
+	}
+
+	if !strings.Contains(out, styled(roleMuted, "→")) {
+		t.Errorf("history arrow not styled roleMuted:\n%s", out)
+	}
+
+	// The unchanged entry value ("10") must never carry roleValueNew - only
+	// the trailing Final row's value does.
+	if strings.Contains(out, styled(roleValueNew, "10")) {
+		t.Errorf("ordinary entry value must stay unstyled (values default):\n%s", out)
+	}
+
+	wantFinalSource := styled(roleFile, paddedSourceColumn("Final"))
+	if !strings.Contains(out, wantFinalSource) {
+		t.Errorf("Final row's source column not styled roleFile with pad-then-style alignment:\n%s", out)
+	}
+	if !strings.Contains(out, styled(roleValueNew, "50")) {
+		t.Errorf("Final row's current value not styled roleValueNew:\n%s", out)
+	}
+}
+
+// TestDebugColorOnHistoryPruned locks the "<pruned>" half of Category
+// H: a genuinely Removed entry (history.Entry.Removed, set by an
+// operator (( prune )) marker here, independent of any CLI flag) and an
+// unavailable Final both style their "<pruned>" value roleMuted, and
+// their source column still styles roleFile like any other row.
+func TestDebugColorOnHistoryPruned(t *testing.T) {
+	// No 'continue': cmdHistory always recomputes the full sequence
+	// (buildMergeHistorySteps with limit -1) regardless of the session's
+	// own step position, and running 'continue' first would print
+	// Category E change lines that share roleValueNew/roleMuted with
+	// this test's own history assertions, which would let a false
+	// positive slip through if cmdHistory itself styled nothing yet.
+	pruneFiles := []string{"../../assets/history/prune-marker.yml", "../../assets/history/prune-override.yml"}
+	out, rc := runDebugSessionWithUI(pruneFiles, &mergeOpts{}, colorOnUI, "load\nhistory secret\nquit\n")
+	if rc != 0 {
+		t.Fatalf("rc = %d, want 0", rc)
+	}
+
+	// The removed entry's index is 2: [0] is the base file, [1] is the
+	// override file (neither changes "secret" itself), and the operator
+	// (( prune )) removal shows up as the synthetic "<evaluated>" step,
+	// index 2 (see internal/history.Track).
+	if !strings.Contains(out, styled(roleFile, paddedSourceColumn("[2] <pruned>"))) {
+		t.Errorf("removed entry's source column not styled roleFile:\n%s", out)
+	}
+	if !strings.Contains(out, styled(roleMuted, "<pruned>")) {
+		t.Errorf("removed entry's value not styled roleMuted:\n%s", out)
+	}
+	if !strings.Contains(out, styled(roleFile, paddedSourceColumn("Final"))+" "+styled(roleMuted, "→")+" "+styled(roleMuted, "<pruned>")) {
+		t.Errorf("Final row for an unavailable path not styled roleFile source + roleMuted arrow + roleMuted value:\n%s", out)
+	}
+}
+
+// TestDebugColorOnHistoryNoReparsing proves decision 9's "no
+// rendered-line re-parsing" guarantee: cmdHistory decides styling from
+// history.Entry/PathHistory's own fields (Removed, FinalOK), never by
+// inspecting the formatted text, so a value that is itself the literal
+// string "<pruned>" or contains a literal "→" is never mistaken for the
+// real separator or a real removal.
+func TestDebugColorOnHistoryNoReparsing(t *testing.T) {
+	// No 'continue': see the comment in TestDebugColorOnHistoryPruned.
+	// Here it matters even more, since 'continue' would print Category
+	// E change lines for these same two paths, and those change lines
+	// legitimately use roleValueNew for "a → b"/"<pruned>" as the *new*
+	// side of a change - exactly the false positive this test exists to
+	// rule out for cmdHistory's own, independently-decided styling.
+	files := []string{
+		"../../assets/debug/history-color-tricky-base.yml",
+		"../../assets/debug/history-color-tricky-override.yml",
+	}
+	out, rc := runDebugSessionWithUI(files, &mergeOpts{}, colorOnUI, "load\nhistory note\nhistory label\nquit\n")
+	if rc != 0 {
+		t.Fatalf("rc = %d, want 0", rc)
+	}
+
+	// "note" goes plain -> "a → b": the literal arrow inside the value
+	// must never be styled roleMuted (only the real column separator is).
+	if strings.Contains(out, styled(roleMuted, "a → b")) {
+		t.Errorf("a value containing a literal arrow must not be styled as the separator:\n%s", out)
+	}
+	if !strings.Contains(out, styled(roleValueNew, "a → b")) {
+		t.Errorf("Final row's real value (which happens to contain an arrow) not styled roleValueNew:\n%s", out)
+	}
+
+	// "label" goes initial -> "<pruned>" (a real, non-removed value equal
+	// to the sentinel text): the entry must stay unstyled, and Final must
+	// style it roleValueNew, never roleMuted - roleMuted is reserved for a
+	// genuine Removed/FinalOK-false row, not this row's text content.
+	if strings.Contains(out, styled(roleMuted, "<pruned>")) {
+		t.Errorf("a value that is merely the text <pruned> must not style roleMuted:\n%s", out)
+	}
+	if !strings.Contains(out, styled(roleValueNew, "<pruned>")) {
+		t.Errorf("Final row's real value (the literal text <pruned>) not styled roleValueNew:\n%s", out)
+	}
+}
