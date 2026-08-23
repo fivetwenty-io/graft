@@ -299,12 +299,12 @@ func (s *debugSession) cmdTree(args []string) {
 		return
 	}
 	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
+		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
 	value, ok := lookupDottedPath(s.tree, opts.path)
 	if !ok {
-		s.printf("Path not found: %s\n", opts.path)
+		s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Path not found: %s", opts.path)))
 		return
 	}
 

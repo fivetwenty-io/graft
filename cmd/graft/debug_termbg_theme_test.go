@@ -171,10 +171,12 @@ func TestDebugConfigThemeAutoReusesCachedDetection(t *testing.T) {
 	}
 
 	// The switch to "auto" must resolve against the cached Light
-	// detection (from construction), not fall back to dark.
-	wantConfirmation := styledLight(roleSuccess, "Theme set to light (auto)")
+	// detection (from construction), not fall back to dark. Only the
+	// literal label styles roleSuccess (decision 12: the resolved theme
+	// value, "light (auto)", is never styled, in any theme).
+	wantConfirmation := styledLight(roleSuccess, "Theme set to") + " light (auto)\n"
 	if !strings.Contains(out, wantConfirmation) {
-		t.Errorf("missing 'Theme set to light (auto)' confirmation styled in light:\n%s", out)
+		t.Errorf("missing 'Theme set to light (auto)' confirmation with a light-styled label and a plain value:\n%s", out)
 	}
 }
 

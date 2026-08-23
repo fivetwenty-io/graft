@@ -474,7 +474,7 @@ func (s *debugSession) cmdInspect(path string) {
 // remove.
 func (s *debugSession) cmdHistory(path string) {
 	if path == "" {
-		s.printf("Usage: history <path>\n")
+		s.printf("%s\n", s.style(roleWarn, "Usage: history <path>"))
 		return
 	}
 
@@ -518,7 +518,7 @@ func (s *debugSession) cmdHistory(path string) {
 	}
 	ph, found := findPathHistory(all, path)
 	if !found {
-		s.printf("No history recorded for path: %s\n", path)
+		s.printf("%s %s\n", s.style(roleWarn, "No history recorded for path:"), s.style(rolePath, path))
 		return
 	}
 	s.printf("%s:\n", s.style(rolePath, ph.Path))
@@ -717,6 +717,23 @@ func (s *debugSession) cmdEval(path string) {
 // section).
 const debugConfigKeyTheme = "theme"
 
+// debugConfigKnownKeysDisplay renders every recognized `config` key for
+// the "Unknown config key" message: debugConfigKeyOrder's own entries
+// (the Vault keys, in their display order) plus debugConfigKeyTheme.
+// debugConfigKeyOrder itself must stay theme-free - it drives the bare
+// `config` listing loop (cmdConfig's zero-argument arm), which already
+// prints the theme row on its own line ahead of that loop, so appending
+// theme to debugConfigKeyOrder would print it there twice. append onto a
+// freshly allocated slice, never onto debugConfigKeyOrder's own backing
+// array, so this can never mutate the package-level order slice even if
+// its capacity ever exceeds its length.
+func debugConfigKnownKeysDisplay() string {
+	known := make([]string, 0, len(debugConfigKeyOrder)+1)
+	known = append(known, debugConfigKeyOrder...)
+	known = append(known, debugConfigKeyTheme)
+	return strings.Join(known, ", ")
+}
+
 // cmdConfig implements `config`/`config <key>`/`config <key> <value>`; see
 // debugConfigKeys' doc comment for the Vault-key scope and
 // debugConfigKeyTheme's doc comment for the theme special case.
@@ -739,7 +756,7 @@ func (s *debugSession) cmdConfig(args []string) {
 		}
 		envVar, known := debugConfigKeys[args[0]]
 		if !known {
-			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Unknown config key: %s. Known keys: %s", args[0], strings.Join(debugConfigKeyOrder, ", "))))
+			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Unknown config key: %s. Known keys: %s", args[0], debugConfigKnownKeysDisplay())))
 			return
 		}
 		s.printf("Current: %s\n", envOrNotSet(envVar))
@@ -750,7 +767,7 @@ func (s *debugSession) cmdConfig(args []string) {
 		}
 		envVar, known := debugConfigKeys[args[0]]
 		if !known {
-			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Unknown config key: %s. Known keys: %s", args[0], strings.Join(debugConfigKeyOrder, ", "))))
+			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Unknown config key: %s. Known keys: %s", args[0], debugConfigKnownKeysDisplay())))
 			return
 		}
 		_ = os.Setenv(envVar, strings.Join(args[1:], " "))
@@ -771,7 +788,7 @@ func (s *debugSession) cmdConfig(args []string) {
 // note against vault.* keys, which do set one).
 func (s *debugSession) cmdConfigTheme(name string) {
 	if !isValidThemeName(name) {
-		s.printf("%s\n", s.style(roleError, fmt.Sprintf("Unknown theme: %s. Known themes: %s.", name, knownThemeNamesJoined())))
+		s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Unknown theme: %s. Known themes: %s.", name, knownThemeNamesJoined())))
 		return
 	}
 
@@ -783,7 +800,11 @@ func (s *debugSession) cmdConfigTheme(name string) {
 		}
 	}
 
-	s.printf("%s\n", s.style(roleSuccess, fmt.Sprintf("Theme set to %s", s.currentThemeDisplay())))
+	// The resolved theme name is a config value (decision 12: no config
+	// output styles a value, in any arm), so only the literal label is
+	// styled here - never fmt.Sprintf'd together with the value inside
+	// one styled span, the way vault.token's value must never be either.
+	s.printf("%s %s\n", s.style(roleSuccess, "Theme set to"), s.currentThemeDisplay())
 	if !s.styler.enabled {
 		s.printf("%s\n", debugColorDisabledNotice)
 	}

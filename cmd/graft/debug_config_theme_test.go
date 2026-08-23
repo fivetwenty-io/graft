@@ -153,7 +153,11 @@ func TestDebugConfigThemeSetArmRestylesPrompt(t *testing.T) {
 // TestDebugConfigThemeInvalidNameLeavesThemeUnchanged locks the "no
 // state change" half of an unknown `config theme <name>`: the error
 // text matches the plan's wording exactly, and later output still
-// carries the theme active before the failed attempt.
+// carries the theme active before the failed attempt. It styles
+// roleWarn, the same role `config <bogus-key>` uses for the same class
+// of mistake (an unrecognized name for a value the user typed), not
+// roleError - the two adjacent typo guards must not disagree on role
+// for equivalent mistakes.
 func TestDebugConfigThemeInvalidNameLeavesThemeUnchanged(t *testing.T) {
 	out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, strings.Join([]string{
 		"config theme bogus",
@@ -164,9 +168,9 @@ func TestDebugConfigThemeInvalidNameLeavesThemeUnchanged(t *testing.T) {
 		t.Fatalf("rc = %d, want 0:\n%s", rc, out)
 	}
 
-	wantErr := styled(roleError, "Unknown theme: bogus. Known themes: auto, dark, light, mono.")
+	wantErr := styled(roleWarn, "Unknown theme: bogus. Known themes: auto, dark, light, mono.")
 	if !strings.Contains(out, wantErr) {
-		t.Errorf("missing roleError unknown-theme message:\n%s", out)
+		t.Errorf("missing roleWarn unknown-theme message:\n%s", out)
 	}
 
 	// Theme is unchanged (still dark, from colorOnUI): the guard message
@@ -201,6 +205,27 @@ func TestDebugConfigThemeWithColorDisabled(t *testing.T) {
 	}
 	if strings.ContainsRune(out, '\x1b') {
 		t.Errorf("color-off session carries an escape byte:\n%q", out)
+	}
+}
+
+// TestDebugConfigThemeSetArmConfirmationValueStaysPlain locks decision
+// 12 against `config theme <name>`'s own confirmation line: only the
+// literal label "Theme set to" may carry roleSuccess styling; the
+// resolved theme name itself is a config value (the same rule every
+// other config arm follows, and the reason vault.token's value is never
+// styled), so it must render plain even with color on and a theme (here,
+// dark) whose roleSuccess is not empty.
+func TestDebugConfigThemeSetArmConfirmationValueStaysPlain(t *testing.T) {
+	out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "config theme dark\nquit\n")
+	if rc != 0 {
+		t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+	}
+	want := styled(roleSuccess, "Theme set to") + " dark\n"
+	if !strings.Contains(out, want) {
+		t.Errorf("confirmation not rendered as a styled label plus a plain value:\n%s", out)
+	}
+	if strings.Contains(out, styled(roleSuccess, "Theme set to dark")) {
+		t.Errorf("confirmation must not style the resolved theme name inside the label's escape span:\n%s", out)
 	}
 }
 

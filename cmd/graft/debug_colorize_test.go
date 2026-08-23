@@ -342,7 +342,7 @@ func TestDebugColorOnConfigStaysPlain(t *testing.T) {
 	if !strings.Contains(out, styled(roleSuccess, "Updated vault.addr")) {
 		t.Errorf("Updated confirmation not styled roleSuccess:\n%s", out)
 	}
-	if !strings.Contains(out, styled(roleWarn, "Unknown config key: bogus.key. Known keys: vault.addr, vault.token, vault.namespace")) {
+	if !strings.Contains(out, styled(roleWarn, "Unknown config key: bogus.key. Known keys: vault.addr, vault.token, vault.namespace, theme")) {
 		t.Errorf("unknown config key message not styled roleWarn:\n%s", out)
 	}
 }
@@ -449,6 +449,64 @@ func TestDebugColorOnGuardMessages(t *testing.T) {
 	if !strings.Contains(out, styled(roleWarn, "Path not found: no.such.path")) {
 		t.Errorf("path-not-found guard not styled roleWarn:\n%s", out)
 	}
+}
+
+// TestDebugColorOnHistoryGuards locks cmdHistory's two guard messages
+// onto the styler: "Usage: history <path>" was, until this fix, the
+// only unstyled usage guard in the REPL (every sibling command's usage
+// guard already styles roleWarn); "No history recorded for path: %s"
+// composes a roleWarn label with the interpolated path in rolePath, the
+// same label-plus-interpolated-role shape every other two-part guard or
+// error message in the REPL uses (Category F/P).
+func TestDebugColorOnHistoryGuards(t *testing.T) {
+	t.Run("usage", func(t *testing.T) {
+		out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "history\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, styled(roleWarn, "Usage: history <path>")) {
+			t.Errorf("history usage not styled roleWarn:\n%s", out)
+		}
+	})
+
+	t.Run("no history recorded for path", func(t *testing.T) {
+		out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "load\nhistory no.such.path\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		want := styled(roleWarn, "No history recorded for path:") + " " + styled(rolePath, "no.such.path")
+		if !strings.Contains(out, want) {
+			t.Errorf("history not-recorded guard not styled as roleWarn label + rolePath path:\n%s", out)
+		}
+	})
+}
+
+// TestDebugColorOnTreeGuards extends the guard-message styling parity
+// fix to cmdTree's two guards, which previously rendered plain while
+// cmdInspect's identical messages were already styled: "No documents
+// loaded. Run 'load' first." and "Path not found: %s" now style
+// roleWarn exactly the same way cmdInspect does (a single styled span
+// over the whole message, not split by role).
+func TestDebugColorOnTreeGuards(t *testing.T) {
+	t.Run("not loaded", func(t *testing.T) {
+		out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "tree\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, styled(roleWarn, "No documents loaded. Run 'load' first.")) {
+			t.Errorf("tree's not-loaded guard not styled roleWarn:\n%s", out)
+		}
+	})
+
+	t.Run("path not found", func(t *testing.T) {
+		out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "load\ntree no.such.path\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, styled(roleWarn, "Path not found: no.such.path")) {
+			t.Errorf("tree's path-not-found guard not styled roleWarn:\n%s", out)
+		}
+	})
 }
 
 // TestDebugColorOnErrors locks Category P's role migration (Error-Site
