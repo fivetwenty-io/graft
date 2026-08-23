@@ -17,7 +17,7 @@ import (
 // each path in the final document was derived. opts.validateHistoryFlags
 // must already have been checked by the caller (handleMerge).
 func handleMergeHistory(opts *mergeOpts) int {
-	steps, docCount, err := buildMergeHistorySteps(opts, nil)
+	steps, docCount, err := buildMergeHistorySteps(opts, nil, -1)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
@@ -89,7 +89,17 @@ type historyDocRewriter func(data []byte) []byte
 // deferral survive: every step below re-merges the files from scratch, so
 // a change applied anywhere else would be discarded. `merge --history`
 // passes nil and is unaffected.
-func buildMergeHistorySteps(opts *mergeOpts, rewrite historyDocRewriter) ([]history.StepState, int, error) {
+//
+// limit, when >= 0, truncates the sequence to a debug session's step
+// point: file-prefix steps 0..min(limit, file count-1) only, the
+// "<evaluated>" step only when limit >= the file count, and never the
+// post-processing step. Files past the truncation point are not merged
+// or evaluated, so unreached steps cost nothing; the returned document
+// count is then the truncated count. limit counts single-document file
+// steps (graft debug, the only limiting caller, never enables
+// multi-document mode). limit < 0 means no truncation (the full sequence,
+// as before).
+func buildMergeHistorySteps(opts *mergeOpts, rewrite historyDocRewriter, limit int) ([]history.StepState, int, error) {
 	files, err := resolveMergeInputFiles(opts)
 	if err != nil {
 		return nil, 0, err
@@ -97,6 +107,9 @@ func buildMergeHistorySteps(opts *mergeOpts, rewrite historyDocRewriter) ([]hist
 	if len(files) == 0 {
 		return nil, 0, ansi.Errorf("@R{Missing Input}: no files to track history for")
 	}
+
+	fileSteps, includeEval, includePost := historyStepPlan(limit, len(files), opts)
+	files = files[:fileSteps]
 
 	cached := make([]cachedMergeFile, len(files))
 	for i := range files {
@@ -143,35 +156,37 @@ func buildMergeHistorySteps(opts *mergeOpts, rewrite historyDocRewriter) ([]hist
 	// Full evaluation of all files together, still without prune/cherry-pick,
 	// isolating "what did evaluation change" from "what did post-processing
 	// remove".
-	evalOpts := *opts
-	evalOpts.Prune = nil
-	evalOpts.CherryPick = nil
-	evaluatedData, evalEngine, evalErr := mergeAllDocs(freshFiles(len(cached)), &evalOpts)
-	if evalErr != nil {
-		return nil, 0, evalErr
+	if includeEval {
+		evalOpts := *opts
+		evalOpts.Prune = nil
+		evalOpts.CherryPick = nil
+		evaluatedData, evalEngine, evalErr := mergeAllDocs(freshFiles(len(cached)), &evalOpts)
+		if evalErr != nil {
+			return nil, 0, evalErr
+		}
+
+		// Surface the paths an operator (( prune )) marker actually removed
+		// during this evaluation: evaluate() applies them to the tree
+		// unconditionally (independent of --prune/--cherry-pick), so
+		// evaluatedData already reflects the removal, but GetKeysToPrune's own
+		// state is reset before mergeAllDocs returns - GetLastEvaluatedPrunedPaths
+		// is what survives (pkg/graft/engine.go). Attaching them to this step
+		// lets Track mark the corresponding Entry Removed (and print "<pruned>")
+		// instead of leaving it indistinguishable from a path that merely
+		// evaluated to an explicit YAML null.
+		var evalPrunedPaths []string
+		if evalEngine != nil {
+			evalPrunedPaths = evalEngine.GetOperatorState().GetLastEvaluatedPrunedPaths()
+		}
+		steps = append(steps, history.StepState{
+			Label:       "<evaluated>",
+			Phase:       history.PhaseEval,
+			Data:        evaluatedData,
+			PrunedPaths: evalPrunedPaths,
+		})
 	}
 
-	// Surface the paths an operator (( prune )) marker actually removed
-	// during this evaluation: evaluate() applies them to the tree
-	// unconditionally (independent of --prune/--cherry-pick), so
-	// evaluatedData already reflects the removal, but GetKeysToPrune's own
-	// state is reset before mergeAllDocs returns - GetLastEvaluatedPrunedPaths
-	// is what survives (pkg/graft/engine.go). Attaching them to this step
-	// lets Track mark the corresponding Entry Removed (and print "<pruned>")
-	// instead of leaving it indistinguishable from a path that merely
-	// evaluated to an explicit YAML null.
-	var evalPrunedPaths []string
-	if evalEngine != nil {
-		evalPrunedPaths = evalEngine.GetOperatorState().GetLastEvaluatedPrunedPaths()
-	}
-	steps = append(steps, history.StepState{
-		Label:       "<evaluated>",
-		Phase:       history.PhaseEval,
-		Data:        evaluatedData,
-		PrunedPaths: evalPrunedPaths,
-	})
-
-	if len(opts.Prune) > 0 || len(opts.CherryPick) > 0 {
+	if includePost {
 		postData, _, postErr := mergeAllDocs(freshFiles(len(cached)), opts)
 		if postErr != nil {
 			return nil, 0, postErr
@@ -180,6 +195,23 @@ func buildMergeHistorySteps(opts *mergeOpts, rewrite historyDocRewriter) ([]hist
 	}
 
 	return steps, len(cached), nil
+}
+
+// historyStepPlan decides how much of the replay buildMergeHistorySteps
+// builds for a given limit: how many file-prefix steps, whether the
+// "<evaluated>" step runs, and whether the post-processing step runs.
+// limit < 0 means the full sequence.
+func historyStepPlan(limit, fileCount int, opts *mergeOpts) (fileSteps int, includeEval, includePost bool) {
+	fileSteps = fileCount
+	includeEval = true
+	includePost = len(opts.Prune) > 0 || len(opts.CherryPick) > 0
+	if limit < 0 {
+		return fileSteps, includeEval, includePost
+	}
+	if limit+1 < fileCount {
+		fileSteps = limit + 1
+	}
+	return fileSteps, limit >= fileCount, false
 }
 
 // findPathHistory returns the PathHistory for path, if any.

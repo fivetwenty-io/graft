@@ -428,7 +428,7 @@ func (s *debugSession) cmdHistory(path string) {
 	// resolve - an unreachable Vault path, an unfilled (( param )) - aborts
 	// the recompute and makes `history` report that operator's error for
 	// every path asked about, including unrelated ones.
-	steps, _, err := buildMergeHistorySteps(&fileOpts, s.deferredDocRewriter())
+	steps, _, err := buildMergeHistorySteps(&fileOpts, s.deferredDocRewriter(), -1)
 	if err != nil {
 		s.printf("%s\n", ansi.Sprintf("@R{Error computing history}: %s", err.Error()))
 		return
