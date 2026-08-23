@@ -283,10 +283,8 @@ func joinHistKey(prefix, key string) string {
 // history truncated to the session's current step - unlike `history`,
 // which always reports the full run.
 func (s *debugSession) cmdTree(args []string) {
-	if !s.loaded {
-		s.printf("No documents loaded. Run 'load' first.\n")
-		return
-	}
+	// Flag feedback needs no documents, so -h and parse errors work
+	// before load; only rendering requires a loaded session.
 	opts, err := parseTreeArgs(args)
 	if err != nil {
 		s.printf("%s\nUsage: %s\n", err.Error(), treeUsage)
@@ -294,6 +292,10 @@ func (s *debugSession) cmdTree(args []string) {
 	}
 	if opts.help {
 		s.printf("Usage: %s\nSee 'help tree' for details.\n", treeUsage)
+		return
+	}
+	if !s.loaded {
+		s.printf("No documents loaded. Run 'load' first.\n")
 		return
 	}
 	value, ok := lookupDottedPath(s.tree, opts.path)

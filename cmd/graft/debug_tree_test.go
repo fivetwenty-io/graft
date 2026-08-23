@@ -444,6 +444,13 @@ func TestDebugTreeCommand(t *testing.T) {
 			So(out, ShouldContainSubstring, "Usage: "+treeUsage)
 		})
 
+		Convey("-h works before load", func() {
+			out, rc := runDebugSession(files, "tree -h\nquit\n")
+			So(rc, ShouldEqual, 0)
+			So(out, ShouldContainSubstring, "Usage: "+treeUsage)
+			So(out, ShouldNotContainSubstring, "No documents loaded")
+		})
+
 		Convey("help lists the tree command", func() {
 			out, rc := runDebugSession(files, "help\nhelp tree\nquit\n")
 			So(rc, ShouldEqual, 0)
