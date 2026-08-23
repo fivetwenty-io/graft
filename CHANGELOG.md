@@ -25,6 +25,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   style. `config theme <name>` restyles the in-progress line along with
   the prompt, so both switch palettes together.
 
+### Fixed
+
+- `ansi.StripEscapes` (used to sanitize error text such as `(( param ))`
+  messages before it reaches the debugger's terminal output) now
+  removes every ANSI/ECMA-48 escape byte, including ones that do not
+  begin a recognized, properly terminated CSI/OSC/DCS/SOS/PM/APC
+  sequence. Previously an unrecognized escape byte was left in place,
+  which a crafted document value could exploit two ways: a doubled
+  `ESC ESC \` let the second `ESC \` be consumed as an ordinary two-byte
+  escape, leaving the first, unrecognized `ESC` to land directly against
+  trailing OSC- or CSI-shaped text and form a live, terminal-honored
+  escape sequence that was never a complete sequence in the source
+  document; and a bare, unterminated introducer such as `ESC ]` reached
+  the terminal unchanged, where it would swallow output up to the next
+  BEL or string terminator as a title string. The escape byte is now
+  always dropped; any text that followed it is kept as plain text, which
+  has no terminal meaning without a genuine escape byte in front of it.
+
 ## [1.37.0] - 2026-08-23
 
 A theming release. The debugger REPL gained themeable colorized

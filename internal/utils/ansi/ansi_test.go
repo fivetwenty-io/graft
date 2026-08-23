@@ -1,8 +1,11 @@
 package ansi
 
 import (
+	"math/rand"
 	"os"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -536,12 +539,25 @@ func TestStripEscapes(t *testing.T) {
 			So(StripEscapes("plain text, no escapes here"), ShouldEqual, "plain text, no escapes here")
 		})
 
-		Convey("leaves an unterminated CSI sequence untouched", func() {
-			So(StripEscapes("broken\033[1;35"), ShouldEqual, "broken\033[1;35")
+		// An ESC that fails to start a recognized, terminated sequence is
+		// DROPPED, not passed through: the earlier contract ("leave it in
+		// place") let a later, unrelated ESC pair with the surviving byte
+		// and its own trailing text to manufacture a brand-new, complete
+		// escape sequence that was never present as such in the input
+		// (see TestManufacturedEscape below). Dropping the lone ESC and
+		// keeping every byte after it as plain text closes that hole: the
+		// leftover text (e.g. "[1;35" or "]0;pwned") has no terminal
+		// meaning without a genuine ESC byte in front of it, and
+		// concatenating two independently stripped fragments can never
+		// synthesize a new ESC byte from bytes that were not already ESC.
+		Convey("drops an unterminated CSI sequence's ESC, keeping the rest as text", func() {
+			So(StripEscapes("broken\033[1;35"), ShouldEqual, "broken[1;35")
 		})
 
-		Convey("leaves a bare ESC byte with no following bracket untouched", func() {
-			So(StripEscapes("a\033b"), ShouldEqual, "a\033b")
+		// This is the specific case the contract change above rewrote:
+		// under the old contract this asserted "a\033b" unchanged.
+		Convey("drops a bare ESC byte with no recognized sequence following it", func() {
+			So(StripEscapes("a\033b"), ShouldEqual, "ab")
 		})
 
 		Convey("handles the empty string", func() {
@@ -562,24 +578,24 @@ func TestStripEscapes(t *testing.T) {
 			So(StripEscapes("a\033]8;;http://example.com\033\\link\033]8;;\033\\b"), ShouldEqual, "alinkb")
 		})
 
-		Convey("leaves an unterminated OSC sequence untouched", func() {
-			So(StripEscapes("a\033]0;broken title"), ShouldEqual, "a\033]0;broken title")
+		Convey("drops an unterminated OSC sequence's ESC, keeping the rest as text", func() {
+			So(StripEscapes("a\033]0;broken title"), ShouldEqual, "a]0;broken title")
 		})
 
 		Convey("removes a DCS sequence terminated with ST", func() {
 			So(StripEscapes("a\033Psome dcs payload\033\\b"), ShouldEqual, "ab")
 		})
 
-		Convey("leaves an unterminated DCS sequence untouched", func() {
-			So(StripEscapes("a\033Punterminated"), ShouldEqual, "a\033Punterminated")
+		Convey("drops an unterminated DCS sequence's ESC, keeping the rest as text", func() {
+			So(StripEscapes("a\033Punterminated"), ShouldEqual, "aPunterminated")
 		})
 
 		Convey("removes an SOS/PM/APC sequence terminated with ST", func() {
 			So(StripEscapes("a\033_app data\033\\b"), ShouldEqual, "ab")
 		})
 
-		Convey("leaves an unterminated SOS/PM/APC sequence untouched", func() {
-			So(StripEscapes("a\033^unterminated"), ShouldEqual, "a\033^unterminated")
+		Convey("drops an unterminated SOS/PM/APC sequence's ESC, keeping the rest as text", func() {
+			So(StripEscapes("a\033^unterminated"), ShouldEqual, "a^unterminated")
 		})
 
 		Convey("removes a two-byte Fe escape, such as Reverse Index", func() {
@@ -590,8 +606,8 @@ func TestStripEscapes(t *testing.T) {
 			So(StripEscapes("a\033(Bb"), ShouldEqual, "ab")
 		})
 
-		Convey("leaves a charset-select sequence missing its final byte untouched", func() {
-			So(StripEscapes("a\033("), ShouldEqual, "a\033(")
+		Convey("drops a charset-select sequence missing its final byte, keeping the rest as text", func() {
+			So(StripEscapes("a\033("), ShouldEqual, "a(")
 		})
 
 		Convey("removes an OSC sequence and a CSI sequence in the same string", func() {
@@ -605,7 +621,155 @@ func TestStripEscapes(t *testing.T) {
 		Convey("does not damage a multi-byte rune adjacent to a stripped CSI sequence", func() {
 			So(StripEscapes("\033[31mé\033[0m"), ShouldEqual, "é")
 		})
+
+		// A doubled ESC ("ESC ESC \") is not a recognized sequence on its
+		// own: the second "ESC \" reads as a two-byte Fe escape (0x5C
+		// falls in isFeByte's 0x40-0x5F range) and would previously be
+		// consumed and deleted, leaving the first, unrecognized ESC to
+		// survive and land directly against whatever OSC/CSI-shaped text
+		// followed - manufacturing a live, terminal-honored escape
+		// sequence that was never present as a complete sequence in the
+		// input. Dropping every unrecognized ESC, including the first one
+		// here, closes this: both ESC bytes are gone and the trailing
+		// text is inert plain text.
+		Convey("a doubled ESC does not manufacture a live OSC set-title sequence", func() {
+			// Both ESC bytes are gone; the trailing BEL (0x07) is not
+			// itself an escape byte, so it survives as plain text -
+			// harmless without a real ESC byte in front of it to make it
+			// part of a sequence.
+			So(StripEscapes("\033\033\\]0;PWNED\007 rest"), ShouldEqual, "]0;PWNED\007 rest")
+		})
+
+		Convey("a doubled ESC does not manufacture a live CSI erase-display sequence", func() {
+			So(StripEscapes("\033\033\\[2J rest"), ShouldEqual, "[2J rest")
+		})
+
+		Convey("a doubled ESC does not manufacture a live OSC-8 hyperlink pair", func() {
+			// Fixpoint iteration of the old scanner reaches a stable
+			// fixpoint on this input with the second pair's OSC-8
+			// introducer still intact ("\033]8;;\033\\" survives
+			// unchanged); dropping unrecognized ESC bytes up front does
+			// not have a fixpoint to get stuck at, since every ESC that
+			// cannot complete a sequence in one pass is simply gone.
+			in := "\033\033\\]8;;http://evil\033\\click\033\033\\]8;;\033\\"
+			So(strings.ContainsRune(StripEscapes(in), '\033'), ShouldBeFalse)
+		})
+
+		// An introducer with no terminator anywhere in the string (a
+		// truncated OSC, DCS, or iTerm2 inline-image OSC, or a bare ESC as
+		// the final byte) must still leave zero ESC bytes in the output:
+		// StripEscapes's job is to guarantee the debugger's output cannot
+		// drive the user's terminal, and a surviving bare ESC - with or
+		// without a recognizable introducer after it - is exactly the
+		// vector R1 and R3 exploited. The bytes after a dropped ESC are
+		// kept as plain text (see "drops an unterminated OSC sequence's
+		// ESC" above): that text has no terminal meaning without a real
+		// ESC byte in front of it.
+		Convey("an unterminated OSC introducer leaves zero escape bytes", func() {
+			out := StripEscapes("\033]0;pwned")
+			So(strings.ContainsRune(out, '\033'), ShouldBeFalse)
+			So(out, ShouldEqual, "]0;pwned")
+		})
+
+		Convey("an unterminated DCS introducer leaves zero escape bytes", func() {
+			out := StripEscapes("\033Pattacker")
+			So(strings.ContainsRune(out, '\033'), ShouldBeFalse)
+			So(out, ShouldEqual, "Pattacker")
+		})
+
+		Convey("an unterminated iTerm2 inline-image OSC leaves zero escape bytes", func() {
+			out := StripEscapes("\033]1337;File=inline=1")
+			So(strings.ContainsRune(out, '\033'), ShouldBeFalse)
+			So(out, ShouldEqual, "]1337;File=inline=1")
+		})
+
+		Convey("a bare ESC as the last byte of the string leaves zero escape bytes", func() {
+			out := StripEscapes("a\033")
+			So(strings.ContainsRune(out, '\033'), ShouldBeFalse)
+			So(out, ShouldEqual, "a")
+		})
 	})
+}
+
+// TestStripEscapesIdempotent locks strip(strip(x)) == strip(x) for a table
+// of hand-picked cases plus a seeded (deterministic) fuzz loop over a rune
+// pool mixing ESC bytes, every sequence introducer and terminator this
+// package recognizes, and multi-byte UTF-8 runes. A scanner that leaves
+// unrecognized ESC bytes in place is not idempotent in general (a second
+// pass can find a new complete sequence formed by an ESC that survived the
+// first pass sitting next to text that was not touched); dropping every
+// unrecognized ESC removes that possibility, since a second pass over
+// output already containing zero ESC bytes has nothing left to change.
+func TestStripEscapesIdempotent(t *testing.T) {
+	table := []string{
+		RedFg + "error" + ResetCode,
+		"a\033b",
+		"broken\033[1;35",
+		"a\033]0;broken title",
+		"\033\033\\]0;PWNED\007 rest",
+		"\033\033\\[2J rest",
+		"\033\033\\]8;;http://evil\033\\click\033\033\\]8;;\033\\",
+		"\033]0;pwned",
+		"\033Pattacker",
+	}
+	for _, in := range table {
+		once := StripEscapes(in)
+		twice := StripEscapes(once)
+		if once != twice {
+			t.Errorf("not idempotent: in=%q once=%q twice=%q", in, once, twice)
+		}
+	}
+
+	rng := rand.New(rand.NewSource(20260823)) //nolint:gosec // G404: weak random is acceptable for a deterministic fuzz seed
+	pool := []rune("\033[]PX^_(Bm0;\a\\aMé☃")
+	var fails int
+	for n := 0; n < 300000; n++ {
+		l := 1 + rng.Intn(12)
+		var b strings.Builder
+		for i := 0; i < l; i++ {
+			b.WriteRune(pool[rng.Intn(len(pool))])
+		}
+		in := b.String()
+		once := StripEscapes(in)
+		twice := StripEscapes(once)
+		if once != twice {
+			if fails < 8 {
+				t.Errorf("not idempotent: in=%q once=%q twice=%q", in, once, twice)
+			}
+			fails++
+		}
+	}
+	if fails > 0 {
+		t.Errorf("total non-idempotent fuzz samples: %d", fails)
+	}
+}
+
+// TestStripEscapesNeverLeavesEscapeByte locks the core guarantee this fix
+// adds: StripEscapes's output never contains an ESC byte (0x1b), for any
+// input, including unterminated introducers that have no natural end - the
+// exact shape both R1 (manufactured live sequences) and R3 (a raw
+// unterminated OSC reaching the terminal) exploited. It also asserts the
+// output is always valid UTF-8, matching this package's pre-existing
+// multi-byte-rune-safety guarantee.
+func TestStripEscapesNeverLeavesEscapeByte(t *testing.T) {
+	rng := rand.New(rand.NewSource(7)) //nolint:gosec // G404: weak random is acceptable for a deterministic fuzz seed
+	wide := []rune{0x00e9, 0x2603, 0x1F600, 0x00fc, 0x03a9, 0x009b, 0x009d, 0x00c3}
+	pool := append([]rune("\033[]PX^_(Bm0;\a\\aM"), wide...)
+	for n := 0; n < 300000; n++ {
+		l := 1 + rng.Intn(10)
+		var b strings.Builder
+		for i := 0; i < l; i++ {
+			b.WriteRune(pool[rng.Intn(len(pool))])
+		}
+		in := b.String()
+		out := StripEscapes(in)
+		if strings.ContainsRune(out, '\033') {
+			t.Fatalf("ESC byte survived: in=%q (% x) -> out=%q (% x)", in, in, out, out)
+		}
+		if !utf8.ValidString(out) {
+			t.Fatalf("UTF-8 CORRUPTION: in=%q (% x) -> out=%q (% x)", in, in, out, out)
+		}
+	}
 }
 
 func TestEdgeCases(t *testing.T) {

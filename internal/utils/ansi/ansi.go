@@ -123,18 +123,49 @@ const stTerminator = '\\'
 // SOS/PM/APC (the same string-terminated shape as OSC but ST-only, no
 // BEL), the remaining two-byte Fe escapes not already claimed by one of
 // those introducers, and 3-byte charset-select sequences (ESC,
-// intermediate 0x20-0x2F, final 0x30-0x7E). A sequence missing its
-// terminator, such as truncated or malformed input, is left in place
-// rather than guessed at or eaten to end-of-string: an unterminated OSC/
-// DCS/SOS/PM/APC has no natural end short of a real terminator, and
-// stripping to end-of-string would risk deleting legitimate trailing
-// content that merely follows a stray ESC byte. C1 single-byte forms
-// (e.g. 0x9B for CSI) are not recognized: over valid UTF-8 those byte
-// values only occur as continuation bytes, never as a stand-alone escape
-// introducer. It has no dependency on colorEnabled: call it whenever the
-// origin of s is unknown, such as an error message that may carry raw
-// bytes from a user-supplied document value (an operator argument, for
-// example) alongside any color codes already baked in.
+// intermediate 0x20-0x2F, final 0x30-0x7E).
+//
+// Every ESC byte (0x1b) that does not begin one of those recognized,
+// properly terminated sequences is DELETED rather than left in place:
+// the bytes that follow it (a failed introducer's own bytes, an
+// unterminated sequence's payload, or just plain text) are kept as-is
+// and rescanned as ordinary text, so only the ESC itself disappears.
+// This is a deliberate contract change from an earlier version that left
+// an unrecognized ESC untouched. That earlier behavior could be made to
+// manufacture a live, terminal-honored escape sequence that was never
+// present as a complete sequence in the input: "ESC ESC \" has its
+// second "ESC \" recognized and deleted as a two-byte Fe escape, letting
+// the first, unrecognized ESC survive and land directly against
+// whatever OSC- or CSI-shaped text happened to follow it in the source
+// document, forming a brand-new sequence in the output. It also let a
+// bare, unterminated introducer such as "ESC ]" reach the terminal
+// unchanged, where it would swallow every byte up to the next BEL or ST
+// as a title string. Deleting every unrecognized ESC unconditionally
+// closes both holes: StripEscapes now guarantees zero ESC bytes in its
+// output for any input, and the guarantee is idempotent (stripping
+// already-stripped output is a no-op) since a second pass over text
+// containing no ESC bytes has nothing left to remove.
+//
+// Deleting only the ESC byte, and never the text after it, is what
+// keeps the result safe to hand to a terminal even when several
+// independently stripped fragments are later concatenated: text such as
+// "]0;pwned" or "Pattacker" has no terminal meaning without a genuine
+// ESC byte immediately before it, and concatenation cannot manufacture
+// that missing ESC byte out of surrounding bytes that were never 0x1b to
+// begin with - a single byte value cannot be synthesized by joining two
+// byte sequences that do not already contain it. Dropping the leftover
+// payload as well (rather than keeping it as inert text) was considered
+// and rejected: it would not close any additional hole, since the
+// payload alone is already inert, and it would delete legitimate
+// document content that merely happens to follow a stray ESC byte.
+//
+// C1 single-byte forms (e.g. 0x9B for CSI) are not recognized: over
+// valid UTF-8 those byte values only occur as continuation bytes, never
+// as a stand-alone escape introducer. It has no dependency on
+// colorEnabled: call it whenever the origin of s is unknown, such as an
+// error message that may carry raw bytes from a user-supplied document
+// value (an operator argument, for example) alongside any color codes
+// already baked in.
 func StripEscapes(s string) string {
 	if strings.IndexByte(s, '\033') == -1 {
 		return s
@@ -149,9 +180,14 @@ func StripEscapes(s string) string {
 			i = end
 			continue
 		}
-		// Not a recognized, terminated escape: leave the byte in place
-		// and keep scanning from the next one, matching the
-		// truncated-CSI precedent this behavior already had.
+		if s[i] == '\033' {
+			// Not a recognized, terminated escape: drop the ESC byte
+			// itself so no live escape byte reaches the terminal, and
+			// resume scanning at the next byte (see the doc comment
+			// above for why the surviving text is safe to keep).
+			i++
+			continue
+		}
 		out.WriteByte(s[i])
 		i++
 	}
@@ -167,7 +203,8 @@ func StripEscapes(s string) string {
 // two-byte escape. It returns the index past the sequence and true on
 // success. It returns i and false when s[i] is not ESC, ESC is the last
 // byte of s, or the sequence it introduces is never terminated - the
-// caller then treats s[i] as an ordinary byte.
+// caller then drops s[i] when it is ESC (StripEscapes never lets an
+// unrecognized ESC byte survive), or keeps it unchanged otherwise.
 func consumeEscape(s string, i int) (int, bool) {
 	if s[i] != '\033' || i+1 >= len(s) {
 		return i, false

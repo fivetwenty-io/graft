@@ -941,4 +941,31 @@ func TestDebugNoEscapeFullOutput(t *testing.T) {
 		}
 		assertNoEscapes(t, "param operator OSC bytes", out)
 	})
+
+	// A param message of the form "ESC ESC \ ]0;PWNED BEL ... ESC ESC \
+	// [2J ...": the leading ESC is not a recognized, terminated escape on
+	// its own (there is no scanner branch for ESC ESC), so a scanner that
+	// leaves unrecognized ESC bytes in place - decision 3's original
+	// contract - deletes only the second ESC (it reads as "ESC \", a
+	// two-byte Fe escape per isFeByte) and lets the first ESC survive
+	// into the output immediately followed by the OSC/CSI text that used
+	// to trail the deleted one. That manufactures a live, terminal-honored
+	// OSC 0 (set window title) and CSI 2J (erase display) in output that
+	// never contained a complete escape sequence in the input. This test
+	// must fail before the fix (StripEscapes must drop every unrecognized
+	// ESC byte, not just recognized sequences) and pass after it.
+	t.Run("a param message shaped to manufacture a live escape carries no escapes", func(t *testing.T) {
+		manufactureFiles := []string{"../../assets/debug/manufacture-escape.yml"}
+		out, rc := runDebugSession(manufactureFiles, "load\ncontinue\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, "Evaluation failed") {
+			t.Fatalf("test setup: expected an evaluation failure in the output:\n%s", out)
+		}
+		assertNoEscapes(t, "manufactured escape", out)
+		if strings.Contains(out, "\x1b]") || strings.Contains(out, "\x1b[") {
+			t.Fatalf("output contains a live OSC or CSI introducer:\n%q", out)
+		}
+	})
 }
