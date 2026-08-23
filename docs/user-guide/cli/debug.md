@@ -81,7 +81,7 @@ The debug REPL provides interactive control over the merge process:
 | `defer <path>` | Leave the operator at path unevaluated on the next `step`/`continue` |
 | `autodefer` | Defer every failing operator and retry, to a fixed point — the same loop as `merge --defer-on-error` |
 | `eval <path>` | Immediately evaluate the operator at path, regardless of `defer` |
-| `config [key] [value]` | View or set `vault.addr`/`vault.token`/`vault.namespace` for this session |
+| `config [key] [value]` | View or set `vault.addr`/`vault.token`/`vault.namespace` for this session, or switch the debugger's own color theme with `config theme [name]` |
 | `output` | Show the current document state as YAML |
 | `prune-report` | Once the session is fully evaluated, show what the session's `--prune`/`--cherry-pick` flags would remove, without applying them |
 | `diff` | Show changes from the first loaded file to the current state |
@@ -143,6 +143,79 @@ lives on the arrow keys and Ctrl+R.
 None of this applies when the debugger's input is a pipe or a file, as in
 `graft debug base.yml < script.txt`. There is no terminal to edit on, so
 graft reads the script a line at a time and records nothing for recall.
+
+## Colors and Themes
+
+When the debugger's stdout is a terminal (or color is forced with
+`--color`), session output is colorized: paths, file names, successes,
+warnings, errors, and YAML dumps each carry their own color, and the
+`graft>` prompt gets a style reserved for it alone, so no output line can
+be mistaken for the command line. Color enablement follows the same rule
+as the rest of graft (`NO_COLOR`, `TERM=dumb`, and `--color`/`--no-color`
+all apply), except that `debug` resolves it against its own stdout writer
+instead of stderr, since that is where the debugger's output actually
+goes. Piped or redirected sessions get plain text with zero escape bytes,
+including in error messages: an engine error's own coloring is stripped
+at the debugger boundary before it reaches the session writer, so a
+`graft debug ... > out.txt` capture never leaks stray escape codes even
+when the terminal running it has color on.
+
+Four built-in themes choose the palette: `auto` (the default), `dark`,
+`light`, and `mono`. `mono` uses weight, underline, and reverse video only,
+with no color codes at all, for monochrome terminals and colorblind
+users. `auto` detects the terminal's background and picks `dark` or
+`light` to match, falling back to `dark` when detection cannot tell.
+
+Set the theme with the `--theme` flag or the `GRAFT_THEME` environment
+variable, in that order of precedence, with `auto` as the default when
+neither is given:
+
+```sh
+graft debug --theme light base.yml overlay.yml
+GRAFT_THEME=mono graft debug base.yml overlay.yml
+```
+
+`--theme` is a root flag, so it works the same way on both
+`graft debug` and `graft merge --interactive`. An unrecognized `--theme`
+value is a startup error, exit `1`, listing the four known names.
+An unrecognized `GRAFT_THEME` value only warns once on stderr and falls
+through to the default, so a typo in an environment variable can never
+abort the session. Setting `GRAFT_UI_THEME` instead of `GRAFT_THEME` also
+warns once on stderr, naming the variable graft actually reads.
+
+Switch the theme mid-session with `config theme [name]`:
+
+```
+graft> config theme light
+Theme set to light
+
+graft> config theme bogus
+Unknown theme: bogus. Known themes: auto, dark, light, mono.
+
+graft> config
+theme: light
+vault.addr: (not set)
+vault.token: (not set)
+vault.namespace: (not set)
+```
+
+`config theme` with no name prints the current selection; `config theme
+auto` reuses the background already detected at startup, `dark (auto)` if
+detection never ran or found a dark background. This choice is
+session-only, unlike the `vault.*` keys `config` also manages: it writes
+no config file and sets no environment variable, so it applies for the
+rest of this session and nothing beyond it.
+
+Background auto-detection runs once at startup, before the first prompt,
+only when color is on and the theme is `auto`. It never runs under tmux
+or screen, since neither reliably forwards the query graft sends the
+terminal, and the fallback there is always `dark`. Outside a multiplexer,
+graft first checks the `COLORFGBG` environment variable (no terminal I/O
+at all), and only queries the terminal directly when that is unset or
+unparseable, with a 150ms timeout before giving up and falling back to
+`dark`. `COLORFGBG` can go stale if you switch your terminal's theme
+mid-session; `config theme auto` (or naming a theme outright) is the way
+to make the debugger notice.
 
 ## Session Example
 

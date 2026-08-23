@@ -17,6 +17,7 @@ subcommand.
 | `--version` | `-v` | Print `<program> - Version <version>` to stdout and exit `0`. Only takes effect when no subcommand is given. |
 | `--color` | | Force colorized output on: bare `--color`. Default is `auto` (color only when `NO_COLOR` is unset, `TERM` isn't `dumb`, and stderr is a terminal); see [Color flags](#color-flags) below. |
 | `--no-color` | | Force colorized output off, overriding `--color`. Wins if both are given. |
+| `--theme <name>` | | Color theme for colorized output: `auto` (default), `dark`, `light`, or `mono`. Currently applies to the debugger REPL only (`graft debug`, `graft merge --interactive`); every other command ignores it. Also settable with `GRAFT_THEME`; see [Color flags](#color-flags) below. |
 | `--config <path>` | | Path to a YAML configuration file. See [Config flag](#--config-flag) below. |
 | `--max-loop-iterations <n>` | | Iteration cap for `(( while ))` loops, default `1000`. Also settable with `GRAFT_MAX_LOOP_ITERATIONS`; the flag wins when both are given. Exceeding the cap is a hard error (exit `2`), not a truncation. |
 
@@ -42,6 +43,37 @@ Precedence, highest first:
 
 An unrecognized `--color` value (anything other than the forms above)
 prints an error and exits `1` before any subcommand runs.
+
+`graft debug` and `graft merge --interactive` resolve color against
+their own stdout writer rather than stderr, since debugger output goes
+to stdout; a piped or redirected debug session gets plain output with no
+`--color`-related special casing needed on the caller's part.
+
+#### Theme flag
+
+`--theme <name>` picks which palette color applies to once color itself
+is on; it never turns color on or off by itself. Precedence is `--theme`,
+then `GRAFT_THEME`, then the default `auto`. An unrecognized `--theme`
+value prints an error listing the four known names and exits `1`,
+mirroring an invalid `--color` value; an unrecognized `GRAFT_THEME`
+prints one warning to stderr and falls through to `auto` instead of
+aborting. See [Environment variables reference](environment-variables.md)
+for `GRAFT_THEME` and [`graft debug`'s Colors and Themes
+section](../user-guide/cli/debug.md#colors-and-themes) for the full
+behavior, including theme switching with `config theme` and background
+auto-detection.
+
+| Color resolved | Theme resolved | Debugger output |
+|---|---|---|
+| off (any reason) | any | Plain text, zero escape bytes, no background-detection I/O performed at all. |
+| on | `dark` / `light` | Full palette for that background. |
+| on | `mono` | Weight, underline, and reverse-video attributes only, no color codes anywhere, including in error text. |
+| on | `auto` | Background detection once at startup, before the first prompt; resolves `dark` or `light`, falling back to `dark`. |
+
+Color-off always wins over any theme, including an explicit
+`--theme dark`: a theme never forces color on. When color is off,
+background detection never runs at all, so a piped session can never
+emit a detection query or wait out its timeout.
 
 ### --config flag
 

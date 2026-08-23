@@ -13,20 +13,24 @@ or planned variables are listed.
 | `TRACE` | `false` | Enable trace (verbose) logging. Same truthiness rule as `DEBUG`. |
 | `NO_COLOR` | - | Disable colorized output. Any non-empty value disables color. |
 | `TERM` | - | `TERM=dumb` also disables colorized output. |
+| `GRAFT_THEME` | `auto` | Color theme for the debugger REPL (`graft debug`, `graft merge --interactive`): `auto`, `dark`, `light`, or `mono`. Read once at startup in `PersistentPreRunE` (`cmd/graft/main.go`); the `--theme` flag overrides it when both are set. An unrecognized value warns once on stderr and falls through to `auto` rather than aborting the run. Setting `GRAFT_UI_THEME` instead is a common typo (it follows the `GRAFT_<SECTION>_<FIELD>` convention other `GRAFT_*` variables use) and also warns once on stderr, naming the variable graft actually reads, but only when `GRAFT_THEME` itself is unset. |
 | `REDACT` | - | Any non-empty value makes `vault`, `awsparam`/`awssecret`, and `nats` operators return the literal string `"REDACTED"` instead of making a backend call. Always wins over `merge --skip-vault`/`--skip-aws`/`--skip-nats` when both are set — those flags alone defer the expression instead of redacting it; see [CLI Reference: graft merge](cli.md#graft-merge). |
 | `DEFAULT_ARRAY_MERGE_KEY` | `name` | The identifier key used to match array-of-maps entries across documents during a merge. |
 | `GRAFT_FILE_BASE_PATH` | - | Base path prepended to relative paths passed to `(( file ))` and `(( load ))`. Checked before `SPRUCE_FILE_BASE_PATH`. |
 | `SPRUCE_FILE_BASE_PATH` | - | Fallback for `GRAFT_FILE_BASE_PATH`, used when it is unset, so spruce-configured environments keep working unchanged. |
 | `GRAFT_MAX_LOOP_ITERATIONS` | `1000` | Iteration cap for `(( while ))` loops. The `--max-loop-iterations` CLI flag overrides this variable when both are set. |
 
-There is no `GRAFT_COLOR`, `GRAFT_DEBUG`, or `GRAFT_TRACE` variable. Color
-is controlled by the `--color`/`--no-color` CLI flags together with
-`NO_COLOR`/`TERM` above: an explicit `--color`/`--no-color` wins over
-both variables, but with neither flag given, `NO_COLOR`/`TERM=dumb`
-disable color even on a terminal (see
-[docs/reference/cli.md](cli.md#color-flags) for the full precedence
-order). Debug and trace logging are controlled by the `-D`/`--debug` and
-`-T`/`--trace` flags or by `DEBUG`/`TRACE`.
+There is no `GRAFT_COLOR` or `GRAFT_TRACE` variable. Color is controlled
+by the `--color`/`--no-color` CLI flags together with `NO_COLOR`/`TERM`
+above: an explicit `--color`/`--no-color` wins over both variables, but
+with neither flag given, `NO_COLOR`/`TERM=dumb` disable color even on a
+terminal (see [docs/reference/cli.md](cli.md#color-flags) for the full
+precedence order). Debug and trace logging are controlled by the
+`-D`/`--debug` and `-T`/`--trace` flags or by `DEBUG`/`TRACE`. `GRAFT_DEBUG`
+does exist, but it is not a general logging switch: `pkg/graft/parser.go`
+reads it to print operator-expression parser errors to stderr, in
+addition to the normal error report. Leave it unset for machine-readable
+stderr.
 
 ### Loop Iteration Cap
 

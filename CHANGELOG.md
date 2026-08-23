@@ -13,7 +13,10 @@ A debugger release. The new `tree` command draws the document, or any
 subtree of it, as a colorized box-drawing tree at the session's current
 step, so structure is readable without paging through YAML. Annotation
 flags fold provenance into the same view: which file set a value, and
-what it looked like at each earlier step.
+what it looked like at each earlier step. The whole REPL gained
+themeable colorized output on top of that: every category of session
+output now carries its own color, with `dark`, `light`, `mono`, and an
+`auto`-detecting default to choose from.
 
 ### Added
 
@@ -22,6 +25,30 @@ what it looked like at each earlier step.
   per-path provenance up to the session's current step. Depth is capped
   with `--depth`, keys alone are listed with `--keys`, and `--no-color`
   drops the ANSI styling.
+
+- `graft debug` and `graft merge --interactive` colorize every category
+  of session output (paths, values, successes, warnings, errors, YAML
+  dumps, and more), with the `graft>` prompt in a style reserved for it
+  alone so no output line can be mistaken for the command line. A new
+  root `--theme` flag (also settable with `GRAFT_THEME`) picks `dark`,
+  `light`, `mono`, or the default `auto`, which detects the terminal's
+  background and falls back to `dark`; `config theme [name]` switches
+  the palette mid-session. `config` output never colors a value, so a
+  live `vault.token` is never the only unstyled text on its line. See
+  [`graft debug`'s Colors and Themes
+  section](docs/user-guide/cli/debug.md#colors-and-themes) for the full
+  behavior.
+
+### Fixed
+
+- `graft debug ... > out.txt`, run from a terminal, no longer leaks
+  ANSI escape codes from engine-rendered error messages into the
+  redirected file. Those errors carried their own coloring baked in
+  before this release; the debugger now strips it at the boundary
+  before writing to its own output, so a color-off session (piped,
+  redirected, or explicitly `--no-color`) always emits zero escape
+  bytes. Layout, wording, and ordering of color-off output are
+  otherwise unchanged.
 
 ## [1.35.0] - 2026-08-21
 
