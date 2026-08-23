@@ -95,6 +95,24 @@ type debugSession struct {
 	// calls styler.apply for real output yet - later work threads it
 	// through the print sites listed in the category-to-role map.
 	styler debugStyler
+
+	// themeName is the session's current theme selection ("auto",
+	// "dark", "light", or "mono"), distinct from styler.theme (the
+	// palette that selection *resolved* to - see resolveDebugTheme):
+	// "auto" always displays the palette it resolved to, e.g. "dark
+	// (auto)" (see currentThemeDisplay), and `config theme auto`
+	// re-runs that resolution rather than pinning whatever it last
+	// picked. Set once at construction (see newDebugSession) and
+	// updated only by cmdConfigTheme.
+	themeName string
+
+	// reader is the session's own input source, set by handleDebug once
+	// it constructs one, so cmdConfigTheme can restyle the live prompt
+	// (SetPrompt) after a `config theme <name>` switch without
+	// threading the reader through every call site. Nil for a
+	// debugSession built directly (as several tests do), in which case
+	// a theme switch simply has no prompt to restyle.
+	reader debugLineReader
 }
 
 // newDebugSession loads and caches every input file's raw bytes (without
@@ -137,6 +155,7 @@ func newDebugSession(files []string, opts *mergeOpts, out io.Writer, ui debugUIO
 		deferred:    map[string]string{},
 		out:         out,
 		styler:      resolveDebugStyler(ui, out),
+		themeName:   normalizeThemeName(ui.Theme),
 	}, nil
 }
 
@@ -676,20 +695,37 @@ func (s *debugSession) cmdEval(path string) {
 	setDottedPath(s.tree, path, resolved)
 }
 
+// debugConfigKeyTheme is `config`'s one non-Vault key: the debugger's
+// own color theme (see cmdConfigTheme). It is special-cased ahead of
+// the env-backed debugConfigKeys map in every arm below - the bare
+// listing loop reads debugConfigKeys[key] (an env var name "theme"
+// does not have), and both the get and set arms reject any key absent
+// from that map - because, unlike vault.*, it names no environment
+// variable and never persists past the session: no config file, no env
+// var, session-only (see plans/debugger-colorizing.md's "config theme"
+// section).
+const debugConfigKeyTheme = "theme"
+
 // cmdConfig implements `config`/`config <key>`/`config <key> <value>`; see
-// debugConfigKeys' doc comment for scope.
-// cmdConfig's three arms never style a value line: the bare listing,
-// the single-key "Current:" line, and any future arm all print plain
-// text unconditionally, because vault.token's value is a live
-// credential (decision 12, plans/debugger-colorizing.md). Only the
-// key-name-only confirmation/warning lines below get a role.
+// debugConfigKeys' doc comment for the Vault-key scope and
+// debugConfigKeyTheme's doc comment for the theme special case.
+// cmdConfig's arms never style a value line: the bare listing, the
+// single-key "Current:" line, and the theme row all print plain text
+// unconditionally, because vault.token's value is a live credential
+// (decision 12, plans/debugger-colorizing.md). Only the key-name-only
+// confirmation/warning lines below get a role.
 func (s *debugSession) cmdConfig(args []string) {
 	switch len(args) {
 	case 0:
+		s.printf("%s: %s\n", debugConfigKeyTheme, s.currentThemeDisplay())
 		for _, key := range debugConfigKeyOrder {
 			s.printf("%s: %s\n", key, envOrNotSet(debugConfigKeys[key]))
 		}
 	case 1:
+		if args[0] == debugConfigKeyTheme {
+			s.printf("Current: %s\n", s.currentThemeDisplay())
+			return
+		}
 		envVar, known := debugConfigKeys[args[0]]
 		if !known {
 			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Unknown config key: %s. Known keys: %s", args[0], strings.Join(debugConfigKeyOrder, ", "))))
@@ -697,6 +733,10 @@ func (s *debugSession) cmdConfig(args []string) {
 		}
 		s.printf("Current: %s\n", envOrNotSet(envVar))
 	default:
+		if args[0] == debugConfigKeyTheme {
+			s.cmdConfigTheme(strings.Join(args[1:], " "))
+			return
+		}
 		envVar, known := debugConfigKeys[args[0]]
 		if !known {
 			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Unknown config key: %s. Known keys: %s", args[0], strings.Join(debugConfigKeyOrder, ", "))))
@@ -705,6 +745,55 @@ func (s *debugSession) cmdConfig(args []string) {
 		_ = os.Setenv(envVar, strings.Join(args[1:], " "))
 		s.printf("%s\n", s.style(roleSuccess, fmt.Sprintf("Updated %s", args[0])))
 	}
+}
+
+// cmdConfigTheme implements the set arm of `config theme <name>`: name
+// is validated against knownThemeNames (isValidThemeName, debug_theme.go
+// - the same table --theme/GRAFT_THEME validate against, so the three
+// tiers can never disagree on what a valid name is). An unknown name
+// changes nothing and reports the mismatch; a known name updates the
+// session's recorded selection and, when color is enabled, re-resolves
+// the styler's theme and restyles the live prompt through the session's
+// reader (see debugSession.reader/SetPrompt) so later output and the
+// prompt agree immediately. Session-only throughout: no config file, no
+// environment variable (see docs/user-guide/cli/debug.md's asymmetry
+// note against vault.* keys, which do set one).
+func (s *debugSession) cmdConfigTheme(name string) {
+	if !isValidThemeName(name) {
+		s.printf("%s\n", s.style(roleError, fmt.Sprintf("Unknown theme: %s. Known themes: %s.", name, knownThemeNamesJoined())))
+		return
+	}
+
+	s.themeName = name
+	if s.styler.enabled {
+		s.styler.theme = resolveDebugTheme(name)
+		if s.reader != nil {
+			s.reader.SetPrompt(debugPromptString(s))
+		}
+	}
+
+	s.printf("%s\n", s.style(roleSuccess, fmt.Sprintf("Theme set to %s", s.currentThemeDisplay())))
+	if !s.styler.enabled {
+		s.printf("%s\n", debugColorDisabledNotice)
+	}
+}
+
+// currentThemeDisplay renders the session's current theme selection for
+// `config`/`config theme`: the resolved palette's own name, with an
+// " (auto)" suffix when the selection itself is "auto" (today always
+// resolving to dark - background auto-detection is a later phase; see
+// resolveDebugTheme), matching the plan's "dark (auto)"/"light" display.
+// It never touches the styler: displaying the preference costs nothing
+// even when color is disabled and no theme is resolved at all.
+func (s *debugSession) currentThemeDisplay() string {
+	resolved := s.styler.theme
+	if resolved == nil {
+		resolved = resolveDebugTheme(s.themeName)
+	}
+	if s.themeName == themeNameAuto {
+		return resolved.name + " (auto)"
+	}
+	return resolved.name
 }
 
 func envOrNotSet(envVar string) string {
@@ -935,7 +1024,7 @@ var debugCommandHelp = []debugHelpEntry{
 	{"defer", "Mark path for deferred evaluation", "defer <path>", "Marks path so its operator is left unevaluated (via the real (( defer ... )) operator) when 'step'/'continue' evaluates.", debugArgPath},
 	{debugCmdAutodefer, "Defer every failing operator and retry", debugCmdAutodefer, "Runs the same defer-on-error retry loop 'graft merge --defer-on-error'/'--adaptive' uses against the session's current tree: wraps each failing operator in (( defer ... )) and retries to a fixed point, hard-failing on a true cycle with the original error. Composes with paths already deferred via 'defer' - they are protected, not re-attempted - and every path this discovers is added to the session's deferred set too, so 'output'/'export'/'history'/'inspect' all agree afterward. Prints a summary: how many keys were deferred, each with its root-cause reason.", debugArgNone},
 	{"eval", "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress.", debugArgPath},
-	{"config", "View/set configuration", "config [key] [value]", "Views or sets a small set of Vault connection settings (vault.addr, vault.token, vault.namespace) for the rest of the session.", debugArgConfigKey},
+	{"config", "View/set configuration", "config [key] [value]", "Views or sets a small set of Vault connection settings (vault.addr, vault.token, vault.namespace) for the rest of the session, or the debugger's own color theme (auto, dark, light, mono) via 'config theme [name]'. Vault keys also set the matching environment variable; the theme choice is session-only and touches no environment variable or config file.", debugArgConfigKey},
 	{"output", "Show current document state", "output", "Prints the current document state as YAML. Always shows the pre-(--prune/--cherry-pick)-flag tree, even once fully evaluated; see 'prune-report'.", debugArgNone},
 	{debugCmdPruneReport, "Show what --prune/--cherry-pick would remove", debugCmdPruneReport, "Once the session is fully evaluated, reports the paths this session's --prune/--cherry-pick flags would remove. Does not change 'output'/'export'/'history', which always show the pre-flag tree.", debugArgNone},
 	{"diff", "Show changes from original", "diff", "Shows the changes between the first loaded file and the current state.", debugArgNone},
@@ -1171,6 +1260,7 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, u
 		sess.style(roleMuted, "Type 'help' for available commands."))
 
 	reader := newDebugLineReader(in, out, debugPromptString(sess), &debugCompleter{sess: sess})
+	sess.reader = reader
 	defer func() { _ = reader.Close() }()
 
 	for {

@@ -59,6 +59,29 @@ func knownThemeNamesJoined() string {
 	return strings.Join(knownThemeNames, ", ")
 }
 
+// normalizeThemeName returns name unchanged, except for the empty
+// string, which becomes themeNameAuto: a zero-value debugUIOptions
+// (every existing test's default before this phase) carries Theme ==
+// "", and an unset --theme/GRAFT_THEME resolves to "auto" too (see
+// resolveThemeTier, main.go), so a session built either way reports the
+// same starting theme from `config`/`config theme` (debugSession.themeName).
+func normalizeThemeName(name string) string {
+	if name == "" {
+		return themeNameAuto
+	}
+	return name
+}
+
+// debugColorDisabledNotice is the one-line explanation `config theme
+// <name>` prints when the session's color is resolved off: the choice
+// is still recorded (a later `config theme` read reflects it, and it
+// takes effect immediately if color were ever turned on mid-session,
+// which nothing in this release does), but nothing about visible output
+// changes, since enablement itself is a startup-only decision (see
+// resolveDebugStyler). Without this, switching themes with color off
+// looks like a silent no-op.
+const debugColorDisabledNotice = "Color is disabled for this session; the theme choice is recorded but has no visible effect."
+
 // debugRole names what a piece of `graft debug` REPL output is - a
 // path, a success message, a YAML key - never what color it gets. A
 // debugTheme is the only thing that maps a role to a rendering; the

@@ -32,8 +32,19 @@ type debugLineReader interface {
 	// SaveHistory records line for later recall, if this reader keeps
 	// history and the line is worth keeping.
 	SaveHistory(line string)
+	// SetPrompt replaces the prompt printed before the next ReadLine
+	// call (the line already in flight, if any, keeps whatever prompt
+	// was already shown for it). This is how a live `config theme
+	// <name>` (debug_repl.go's cmdConfigTheme) restyles the prompt
+	// without tearing the reader down and losing history/state.
+	SetPrompt(prompt string)
 	Close() error
 }
+
+var (
+	_ debugLineReader = (*scannerLineReader)(nil)
+	_ debugLineReader = (*readlineLineReader)(nil)
+)
 
 // newDebugLineReader returns the line editor when in and out are both a
 // terminal, and the plain scanner otherwise. Both ends have to be a
@@ -99,6 +110,14 @@ func (r *scannerLineReader) ReadLine() (string, error) {
 
 func (r *scannerLineReader) SaveHistory(string) {}
 
+// SetPrompt replaces the string ReadLine prints on its next call. There
+// is no live redraw to worry about here (unlike readlineLineReader): the
+// scanner never repaints a prompt already on screen, it only ever
+// prints one before the read that follows.
+func (r *scannerLineReader) SetPrompt(prompt string) {
+	r.prompt = prompt
+}
+
 func (r *scannerLineReader) Close() error { return nil }
 
 // readlineLineReader is the interactive path: arrow keys walk the history,
@@ -127,6 +146,14 @@ func (r *readlineLineReader) SaveHistory(line string) {
 	if debugHistoryWorthSaving(line) {
 		_ = r.rl.SaveToHistory(line)
 	}
+}
+
+// SetPrompt delegates to readline.Instance.SetPrompt, which redraws the
+// line in progress with the new prompt (ANSI included - readline routes
+// prompt-width math through runes.ColorFilter, per the plan's Prompt and
+// Input Contrast section).
+func (r *readlineLineReader) SetPrompt(prompt string) {
+	r.rl.SetPrompt(prompt)
 }
 
 func (r *readlineLineReader) Close() error {
