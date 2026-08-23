@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/history"
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
 
 // treeUsage is the one-line usage string cmdTree prints after a flag
@@ -348,7 +349,7 @@ func (s *debugSession) treeHistoryData(opts treeOptions) (phs []history.PathHist
 	var histErr error
 	phs, histErr = s.subtreeHistories(opts.path)
 	if histErr != nil {
-		return nil, nil, histErr.Error()
+		return nil, nil, ansi.StripEscapes(histErr.Error())
 	}
 	if opts.annotate {
 		ann = make(map[string][]history.Entry, len(phs))
