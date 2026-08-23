@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/history"
-	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
 
 // treeUsage is the one-line usage string cmdTree prints after a flag
@@ -121,10 +120,12 @@ func normalizeTreePath(path string) string {
 }
 
 // renderDebugTree renders value (the subtree opts.path resolves to) as a
-// box-drawing tree. ann, when non-nil, maps internal/history flattened
-// paths (historyKeyForPath's spelling) to that path's entries; each node
-// whose path has entries gets them printed dim and indented beneath it.
-func renderDebugTree(value interface{}, opts treeOptions, ann map[string][]history.Entry) string {
+// box-drawing tree, through st (the session's styler, or an identity
+// override for --no-color - see cmdTree). ann, when non-nil, maps
+// internal/history flattened paths (historyKeyForPath's spelling) to
+// that path's entries; each node whose path has entries gets them
+// printed roleMuted and indented beneath it.
+func renderDebugTree(value interface{}, opts treeOptions, ann map[string][]history.Entry, st debugStyler) string {
 	var buf strings.Builder
 	label := opts.path
 	if label == "" {
@@ -136,24 +137,24 @@ func renderDebugTree(value interface{}, opts treeOptions, ann map[string][]histo
 	rootOK := !insideList
 
 	if isTreeContainer(value) {
-		buf.WriteString(ansi.Cyan(label) + "\n")
-		writeTreeAnnotations(&buf, "", ann, rootKey, rootOK)
-		writeTreeChildren(&buf, "", value, 1, opts, ann, rootKey, rootOK)
+		buf.WriteString(st.apply(rolePath, label) + "\n")
+		writeTreeAnnotations(&buf, "", ann, rootKey, rootOK, st)
+		writeTreeChildren(&buf, "", value, 1, opts, ann, rootKey, rootOK, st)
 		return buf.String()
 	}
 
 	if opts.keysOnly {
-		buf.WriteString(ansi.Cyan(label) + "\n")
+		buf.WriteString(st.apply(rolePath, label) + "\n")
 	} else {
-		buf.WriteString(ansi.Cyan(label) + ": " + treeValueDisplay(value) + "\n")
+		buf.WriteString(st.apply(rolePath, label) + ": " + treeValueDisplay(value, st) + "\n")
 	}
-	writeTreeAnnotations(&buf, "", ann, rootKey, rootOK)
+	writeTreeAnnotations(&buf, "", ann, rootKey, rootOK, st)
 	return buf.String()
 }
 
 // writeTreeChildren writes one container's children (sorted keys for a
 // map, index order for a list), recursing through writeTreeEntry.
-func writeTreeChildren(buf *strings.Builder, prefix string, value interface{}, depth int, opts treeOptions, ann map[string][]history.Entry, histKey string, histOK bool) {
+func writeTreeChildren(buf *strings.Builder, prefix string, value interface{}, depth int, opts treeOptions, ann map[string][]history.Entry, histKey string, histOK bool, st debugStyler) {
 	switch v := value.(type) {
 	case map[string]interface{}:
 		keys := make([]string, 0, len(v))
@@ -162,7 +163,7 @@ func writeTreeChildren(buf *strings.Builder, prefix string, value interface{}, d
 		}
 		sort.Strings(keys)
 		for i, k := range keys {
-			writeTreeEntry(buf, prefix, ansi.Cyan(k), v[k], i == len(keys)-1, depth, opts, ann, joinHistKey(histKey, k), histOK)
+			writeTreeEntry(buf, prefix, st.apply(rolePath, k), v[k], i == len(keys)-1, depth, opts, ann, joinHistKey(histKey, k), histOK, st)
 		}
 	case []interface{}:
 		for i, item := range v {
@@ -170,14 +171,14 @@ func writeTreeChildren(buf *strings.Builder, prefix string, value interface{}, d
 			// point has entries; histOK false suppresses every lookup
 			// beneath (a lookup here could otherwise collide with an
 			// unrelated top-level path's key).
-			writeTreeEntry(buf, prefix, ansi.Dim(fmt.Sprintf("[%d]", i)), item, i == len(v)-1, depth, opts, ann, "", false)
+			writeTreeEntry(buf, prefix, st.apply(roleCounter, fmt.Sprintf("[%d]", i)), item, i == len(v)-1, depth, opts, ann, "", false, st)
 		}
 	}
 }
 
 // writeTreeEntry writes one node line (with its annotation lines when
 // the node's path has entries), recursing into containers.
-func writeTreeEntry(buf *strings.Builder, prefix, label string, value interface{}, last bool, depth int, opts treeOptions, ann map[string][]history.Entry, histKey string, histOK bool) {
+func writeTreeEntry(buf *strings.Builder, prefix, label string, value interface{}, last bool, depth int, opts treeOptions, ann map[string][]history.Entry, histKey string, histOK bool, st debugStyler) {
 	connector, childPrefix := "├─ ", prefix+"│  "
 	if last {
 		connector, childPrefix = "└─ ", prefix+"   "
@@ -187,34 +188,35 @@ func writeTreeEntry(buf *strings.Builder, prefix, label string, value interface{
 		if opts.depth > 0 && depth >= opts.depth {
 			// A collapsed container hides everything beneath it,
 			// annotations included (documented in the user guide).
-			fmt.Fprintf(buf, "%s%s%s %s\n", prefix, connector, label, ansi.Dim(collapsedSummary(value)))
+			fmt.Fprintf(buf, "%s%s%s %s\n", prefix, connector, label, st.apply(roleMuted, collapsedSummary(value)))
 			return
 		}
 		fmt.Fprintf(buf, "%s%s%s\n", prefix, connector, label)
 		// A non-empty list is tracked at its own path (history never
 		// descends into it), so a container can carry entries of its own.
-		writeTreeAnnotations(buf, childPrefix, ann, histKey, histOK)
-		writeTreeChildren(buf, childPrefix, value, depth+1, opts, ann, histKey, histOK)
+		writeTreeAnnotations(buf, childPrefix, ann, histKey, histOK, st)
+		writeTreeChildren(buf, childPrefix, value, depth+1, opts, ann, histKey, histOK, st)
 		return
 	}
 
 	if opts.keysOnly {
 		fmt.Fprintf(buf, "%s%s%s\n", prefix, connector, label)
 	} else {
-		fmt.Fprintf(buf, "%s%s%s: %s\n", prefix, connector, label, treeValueDisplay(value))
+		fmt.Fprintf(buf, "%s%s%s: %s\n", prefix, connector, label, treeValueDisplay(value, st))
 	}
-	writeTreeAnnotations(buf, childPrefix, ann, histKey, histOK)
+	writeTreeAnnotations(buf, childPrefix, ann, histKey, histOK, st)
 }
 
-// writeTreeAnnotations prints one node's history entries (dim, indented
-// two spaces past the node's children) when the node has a valid history
-// path. histOK is false for everything at or below a list element.
-func writeTreeAnnotations(buf *strings.Builder, childPrefix string, ann map[string][]history.Entry, histKey string, histOK bool) {
+// writeTreeAnnotations prints one node's history entries (roleMuted,
+// indented two spaces past the node's children) when the node has a
+// valid history path. histOK is false for everything at or below a list
+// element.
+func writeTreeAnnotations(buf *strings.Builder, childPrefix string, ann map[string][]history.Entry, histKey string, histOK bool, st debugStyler) {
 	if !histOK {
 		return
 	}
 	for _, e := range ann[histKey] {
-		fmt.Fprintf(buf, "%s  %s\n", childPrefix, ansi.Dim(historyEntryLine(e)))
+		fmt.Fprintf(buf, "%s  %s\n", childPrefix, st.apply(roleMuted, historyEntryLine(e)))
 	}
 }
 
@@ -242,11 +244,13 @@ func collapsedSummary(v interface{}) string {
 }
 
 // treeValueDisplay renders a leaf value inline, highlighting a
-// still-unevaluated "(( ... ))" operator expression in yellow.
-func treeValueDisplay(v interface{}) string {
+// still-unevaluated "(( ... ))" operator expression roleWarn (the role
+// that already flags text needing the reader's attention, same as the
+// usage and guard messages every other REPL command uses it for).
+func treeValueDisplay(v interface{}, st debugStyler) string {
 	s := inlineValue(v)
 	if looksLikeOperator(v) {
-		return ansi.Yellow(s)
+		return st.apply(roleWarn, s)
 	}
 	return s
 }
@@ -304,16 +308,23 @@ func (s *debugSession) cmdTree(args []string) {
 		return
 	}
 
-	if opts.noColor && ansi.IsColorEnabled() {
-		ansi.Color(false)
-		defer ansi.Color(true)
+	// --no-color overrides only this render, independent of the
+	// session's own color/theme resolution: an identity styler when the
+	// flag is set (matching the session's own color-off identity
+	// behavior, but scoped to this one command), or the session's
+	// styler unchanged otherwise. This replaces the previous save/flip/
+	// restore of the package-global ansi flag, which this command was
+	// the last site in the debugger to still touch.
+	st := s.styler
+	if opts.noColor {
+		st = debugStyler{}
 	}
 
 	// Compute history first (annotations render inline), but never let a
 	// history failure suppress the tree itself: render, then explain.
 	phs, ann, histNote := s.treeHistoryData(opts)
 
-	s.printf("%s", renderDebugTree(value, opts, ann))
+	s.printf("%s", renderDebugTree(value, opts, ann, st))
 
 	if histNote != "" {
 		s.printf("\nNote: %s\n", histNote)

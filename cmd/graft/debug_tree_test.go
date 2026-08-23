@@ -117,12 +117,15 @@ func TestRenderDebugTree(t *testing.T) {
 	}
 
 	Convey("renderDebugTree with color off", t, func() {
-		prevColor := ansi.IsColorEnabled()
-		ansi.Color(false)
-		Reset(func() { ansi.Color(prevColor) })
+		// The zero-value debugStyler is identity output - the same
+		// guarantee every other REPL command's bytes.Buffer test gets
+		// from a zero-value debugUIOptions (see resolveDebugStyler), now
+		// proven at renderDebugTree's own call boundary instead of
+		// through the package-global ansi flag.
+		off := debugStyler{}
 
 		Convey("renders sorted keys with inline leaf values", func() {
-			out := renderDebugTree(tree["database"], treeOptions{path: "database"}, nil)
+			out := renderDebugTree(tree["database"], treeOptions{path: "database"}, nil, off)
 			So(out, ShouldEqual, "database\n"+
 				"├─ host: localhost\n"+
 				"├─ pool_size: 10\n"+
@@ -130,7 +133,7 @@ func TestRenderDebugTree(t *testing.T) {
 		})
 
 		Convey("renders list elements as dim [N] indices", func() {
-			out := renderDebugTree(tree["jobs"], treeOptions{path: "jobs"}, nil)
+			out := renderDebugTree(tree["jobs"], treeOptions{path: "jobs"}, nil, off)
 			So(out, ShouldEqual, "jobs\n"+
 				"├─ [0]\n"+
 				"│  ├─ instances: 2\n"+
@@ -141,27 +144,27 @@ func TestRenderDebugTree(t *testing.T) {
 		})
 
 		Convey("an empty path labels the root as $", func() {
-			out := renderDebugTree(tree, treeOptions{}, nil)
+			out := renderDebugTree(tree, treeOptions{}, nil, off)
 			So(out, ShouldStartWith, "$\n")
 			So(out, ShouldContainSubstring, "├─ database\n")
 			So(out, ShouldContainSubstring, "└─ jobs\n")
 		})
 
 		Convey("--keys drops leaf values", func() {
-			out := renderDebugTree(tree["database"], treeOptions{path: "database", keysOnly: true}, nil)
+			out := renderDebugTree(tree["database"], treeOptions{path: "database", keysOnly: true}, nil, off)
 			So(out, ShouldContainSubstring, "├─ host\n")
 			So(out, ShouldNotContainSubstring, "localhost")
 		})
 
 		Convey("--depth collapses containers past the cutoff", func() {
-			out := renderDebugTree(tree, treeOptions{depth: 1}, nil)
+			out := renderDebugTree(tree, treeOptions{depth: 1}, nil, off)
 			So(out, ShouldEqual, "$\n"+
 				"├─ database {3 keys}\n"+
 				"└─ jobs [2 items]\n")
 		})
 
 		Convey("a scalar at the path renders as a single root line", func() {
-			out := renderDebugTree("localhost", treeOptions{path: "database.host"}, nil)
+			out := renderDebugTree("localhost", treeOptions{path: "database.host"}, nil, off)
 			So(out, ShouldEqual, "database.host: localhost\n")
 		})
 
@@ -172,7 +175,7 @@ func TestRenderDebugTree(t *testing.T) {
 					{Index: 1, Source: "env.yml", Phase: history.PhaseMerge, Value: "db.prod.example.com"},
 				},
 			}
-			out := renderDebugTree(tree["database"], treeOptions{path: "database"}, ann)
+			out := renderDebugTree(tree["database"], treeOptions{path: "database"}, ann, off)
 			So(out, ShouldContainSubstring, "├─ host: localhost\n"+
 				fmt.Sprintf("│    %-*s → %s\n", sourceColumnWidth, "[0] base.yml", "localhost")+
 				fmt.Sprintf("│    %-*s → %s\n", sourceColumnWidth, "[1] env.yml", "db.prod.example.com"))
@@ -189,7 +192,7 @@ func TestRenderDebugTree(t *testing.T) {
 				"name": {{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: "top"}},
 				"jobs": {{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: []interface{}{"x"}}},
 			}
-			out := renderDebugTree(collide, treeOptions{}, ann)
+			out := renderDebugTree(collide, treeOptions{}, ann, off)
 			// The list's own entry prints under the jobs label...
 			So(out, ShouldContainSubstring, "├─ jobs\n│    [0] base.yml")
 			// ...and the name leaf inside the list carries nothing: the
@@ -203,7 +206,7 @@ func TestRenderDebugTree(t *testing.T) {
 				"jobs": {{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: []interface{}{"x"}}},
 				"name": {{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: "top"}},
 			}
-			out := renderDebugTree(map[string]interface{}{"name": "web"}, treeOptions{path: "jobs.[0]"}, ann)
+			out := renderDebugTree(map[string]interface{}{"name": "web"}, treeOptions{path: "jobs.[0]"}, ann, off)
 			So(out, ShouldNotContainSubstring, "[0] base.yml")
 		})
 
@@ -211,23 +214,26 @@ func TestRenderDebugTree(t *testing.T) {
 			ann := map[string][]history.Entry{
 				"database.host": {{Index: 0, Source: "base.yml", Phase: history.PhaseLoad, Value: "localhost"}},
 			}
-			out := renderDebugTree(tree, treeOptions{depth: 1}, ann)
+			out := renderDebugTree(tree, treeOptions{depth: 1}, ann, off)
 			So(out, ShouldContainSubstring, "├─ database {3 keys}\n")
 			So(out, ShouldNotContainSubstring, "[0] base.yml")
 		})
 	})
 
 	Convey("renderDebugTree with color on", t, func() {
-		prevColor := ansi.IsColorEnabled()
-		ansi.Color(true)
-		Reset(func() { ansi.Color(prevColor) })
+		// An explicit enabled styler over debugThemeDark, the same way
+		// every migrated call site's rendering test proves its color-on
+		// output (debug_colorize_test.go's styled helper) - no longer
+		// through the package-global ansi flag, which renderDebugTree no
+		// longer reads.
+		on := debugStyler{theme: debugThemeDark, enabled: true}
 
 		Convey("keys are cyan, operators are yellow, indices are dim", func() {
 			withOp := map[string]interface{}{
 				"password": "(( grab meta.version ))",
 				"list":     []interface{}{"x"},
 			}
-			out := renderDebugTree(withOp, treeOptions{path: "database"}, nil)
+			out := renderDebugTree(withOp, treeOptions{path: "database"}, nil, on)
 			So(out, ShouldContainSubstring, "\033[36mpassword\033[0m")
 			So(out, ShouldContainSubstring, "\033[33m(( grab meta.version ))\033[0m")
 			So(out, ShouldContainSubstring, "\033[2m[0]\033[0m")
@@ -460,19 +466,21 @@ func TestDebugTreeCommand(t *testing.T) {
 	})
 
 	Convey("graft debug tree with color enabled", t, func() {
-		prevColor := ansi.IsColorEnabled()
-		ansi.Color(true)
-		Reset(func() { ansi.Color(prevColor) })
+		// colorOnUI (debug_colorize_test.go) forces the session styler on
+		// via an explicit ColorOverride, the mechanism every other
+		// migrated REPL command's color-on test uses - a bytes.Buffer is
+		// never a terminal, so the package-global ansi flag plays no part
+		// in cmdTree's output anymore (see cmdTree's styler override).
 
 		Convey("keys are cyan and unevaluated operators yellow", func() {
-			out, rc := runDebugSession(files, "load\nstep\nstep\ntree database\nquit\n")
+			out, rc := runDebugSessionWithUI(files, &mergeOpts{}, colorOnUI, "load\nstep\nstep\ntree database\nquit\n")
 			So(rc, ShouldEqual, 0)
 			So(out, ShouldContainSubstring, "\033[36mpassword\033[0m")
 			So(out, ShouldContainSubstring, "\033[33m(( grab meta.version ))\033[0m")
 		})
 
 		Convey("--no-color strips color for that command only", func() {
-			out, rc := runDebugSession(files, "load\ntree database --no-color\nquit\n")
+			out, rc := runDebugSessionWithUI(files, &mergeOpts{}, colorOnUI, "load\ntree database --no-color\nquit\n")
 			So(rc, ShouldEqual, 0)
 			So(out, ShouldContainSubstring, "├─ host: localhost\n")
 			So(out, ShouldNotContainSubstring, "\033[36m")

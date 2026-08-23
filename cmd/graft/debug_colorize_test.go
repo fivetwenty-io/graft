@@ -628,3 +628,95 @@ func TestDebugColorOnHistoryNoReparsing(t *testing.T) {
 		t.Errorf("Final row's real value (the literal text <pruned>) not styled roleValueNew:\n%s", out)
 	}
 }
+
+// TestDebugColorOnTree locks cmdTree's migration onto the session
+// styler (it used to render through the package-global ansi flag
+// instead, the redirect-leak regression this test guards against): node
+// labels and map keys style rolePath, list indices style roleCounter, a
+// collapsed container's summary and an --annotate history line both
+// style roleMuted, and a still-unevaluated "(( ... ))" operator styles
+// roleWarn - the role every other REPL command already uses to flag
+// text needing the reader's attention.
+func TestDebugColorOnTree(t *testing.T) {
+	t.Run("root label and map keys are rolePath, unevaluated operators are roleWarn", func(t *testing.T) {
+		out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "load\nstep\nstep\ntree database\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, styled(rolePath, "database")) {
+			t.Errorf("tree root label not styled rolePath:\n%s", out)
+		}
+		if !strings.Contains(out, styled(rolePath, "host")) {
+			t.Errorf("tree map key not styled rolePath:\n%s", out)
+		}
+		if !strings.Contains(out, styled(roleWarn, "(( grab meta.version ))")) {
+			t.Errorf("unevaluated operator not styled roleWarn:\n%s", out)
+		}
+	})
+
+	t.Run("list indices are roleCounter", func(t *testing.T) {
+		listFiles := []string{"../../assets/debug/tree-list.yml"}
+		out, rc := runDebugSessionWithUI(listFiles, &mergeOpts{}, colorOnUI, "load\ntree jobs\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, styled(roleCounter, "[0]")) {
+			t.Errorf("list index not styled roleCounter:\n%s", out)
+		}
+	})
+
+	t.Run("a collapsed container's summary and an inline history line are roleMuted", func(t *testing.T) {
+		out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "load\ntree --depth 1\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, styled(roleMuted, "{3 keys}")) {
+			t.Errorf("collapsed container summary not styled roleMuted:\n%s", out)
+		}
+
+		out, rc = runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "load\ntree database --annotate\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		wantAnnotation := fmt.Sprintf("%-*s → %s", sourceColumnWidth, "[0] ../../assets/history/base.yml", "localhost")
+		if !strings.Contains(out, styled(roleMuted, wantAnnotation)) {
+			t.Errorf("--annotate history line not styled roleMuted:\n%s", out)
+		}
+	})
+
+	t.Run("--no-color overrides the session's color for that command only", func(t *testing.T) {
+		// The session stays color-on throughout (the banner and prompt
+		// above keep their escapes); --no-color scopes plainness to this
+		// one tree render only.
+		out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, colorOnUI, "load\ntree database --no-color\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, "├─ host: localhost\n") {
+			t.Errorf("tree --no-color output not plain:\n%s", out)
+		}
+		if strings.Contains(out, styled(rolePath, "host")) {
+			t.Errorf("tree --no-color output still carries rolePath's escape code:\n%s", out)
+		}
+	})
+
+	t.Run("mono underlines paths and bolds the operator, never dark's color codes", func(t *testing.T) {
+		monoUI := debugUIOptions{ColorOverride: ptrBool(true), Theme: themeNameMono}
+		out, rc := runDebugSessionWithUI(debugColorizeTestFiles, &mergeOpts{}, monoUI, "load\nstep\nstep\ntree database\nquit\n")
+		if rc != 0 {
+			t.Fatalf("rc = %d, want 0:\n%s", rc, out)
+		}
+		if !strings.Contains(out, styledMono(rolePath, "host")) {
+			t.Errorf("mono tree key not styled with mono's rolePath (underline):\n%s", out)
+		}
+		if !strings.Contains(out, styledMono(roleWarn, "(( grab meta.version ))")) {
+			t.Errorf("mono unevaluated operator not styled with mono's roleWarn (bold):\n%s", out)
+		}
+		if strings.Contains(out, styled(rolePath, "host")) {
+			t.Errorf("mono output must never carry dark's rolePath (cyan) code:\n%s", out)
+		}
+		if strings.Contains(out, styled(roleWarn, "(( grab meta.version ))")) {
+			t.Errorf("mono output must never carry dark's roleWarn (yellow) code:\n%s", out)
+		}
+	})
+}

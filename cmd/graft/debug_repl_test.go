@@ -851,11 +851,12 @@ func TestDebugNoEscapeFullOutput(t *testing.T) {
 		}
 	}
 
-	t.Run("a full command tour across every category carries no escapes", func(t *testing.T) {
+	t.Run("a full command tour across every REPL command carries no escapes", func(t *testing.T) {
 		dir := t.TempDir()
 		target := dir + "/tour-export.yml"
 		script := strings.Join([]string{
 			"load",
+			"tree database",
 			"break database.pool_size",
 			"continue", // hits the breakpoint mid-merge
 			"breaks",
@@ -871,6 +872,9 @@ func TestDebugNoEscapeFullOutput(t *testing.T) {
 			"config vault.token",
 			"config bogus.key",
 			"prune-report",
+			"history database.pool_size",
+			"output",
+			"tree database --annotate",
 			"export " + target,
 			"help",
 			"help bogus",
