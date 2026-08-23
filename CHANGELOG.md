@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The debugger's `--theme`/`GRAFT_THEME` resolution gained a config-file
+  tier: a `ui.theme` key in the first of `./graft.yaml`,
+  `$HOME/.graft/config.yaml`, or `/etc/graft/config.yaml` sets the
+  `graft debug`/`graft merge --interactive` theme when neither `--theme`
+  nor `GRAFT_THEME` is set. Precedence is now flag, then env, then
+  config file, then the `auto` default. This is a standalone,
+  theme-only reader; it does not go through `--config` or activate any
+  other configuration field. See [`graft debug`'s Colors and Themes
+  section](docs/user-guide/cli/debug.md#colors-and-themes) for the full
+  behavior.
+
 ## [1.37.0] - 2026-08-23
 
 A theming release. The debugger REPL gained themeable colorized

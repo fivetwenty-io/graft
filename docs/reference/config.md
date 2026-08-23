@@ -72,6 +72,27 @@ logging:
   format: text
 ```
 
+A sixth, `ui`, section exists alongside these five, but it is read by a
+separate, narrower mechanism, not by `internal/config`:
+
+```yaml
+ui:
+  theme: dark
+```
+
+`ui.theme` sets the `graft debug`/`graft merge --interactive` color theme
+(`auto`, `dark`, `light`, or `mono`). It follows the same three search
+paths as `--config`'s discovery order above, but a standalone reader
+decodes only this one key; it never loads, validates, or activates any
+of the five sections above, and does not go through `--config` at all
+(naming a file with `--config` does not change where `ui.theme` is
+read from). Precedence for the theme specifically is `--theme` flag,
+then `GRAFT_THEME`, then `ui.theme`, then `auto` — one tier richer than
+the five sections above, since theme has a flag tier the others don't.
+See [`graft debug`'s Colors and Themes
+section](../user-guide/cli/debug.md#colors-and-themes) for the full
+behavior, including how an invalid `ui.theme` value is handled.
+
 A partial file is valid. Any field not present in the file keeps its built-in default (or its environment-variable override, applied after the file loads; see [Precedence Order](#precedence-order)). Fields set to invalid values (an unrecognized `metrics.format`, a negative `cache.max_size`, and so on) cause graft to reject the file with a validation error rather than silently ignoring the bad value.
 
 ## Configuration Fields and Defaults

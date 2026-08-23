@@ -166,22 +166,37 @@ with no color codes at all, for monochrome terminals and colorblind
 users. `auto` detects the terminal's background and picks `dark` or
 `light` to match, falling back to `dark` when detection cannot tell.
 
-Set the theme with the `--theme` flag or the `GRAFT_THEME` environment
-variable, in that order of precedence, with `auto` as the default when
-neither is given:
+Set the theme with the `--theme` flag, the `GRAFT_THEME` environment
+variable, or a `ui.theme` key in a config file, in that order of
+precedence, with `auto` as the default when none of the three is given:
 
 ```sh
 graft debug --theme light base.yml overlay.yml
 GRAFT_THEME=mono graft debug base.yml overlay.yml
 ```
 
+```yaml
+# ./graft.yaml, $HOME/.graft/config.yaml, or /etc/graft/config.yaml
+ui:
+  theme: mono
+```
+
 `--theme` is a root flag, so it works the same way on both
 `graft debug` and `graft merge --interactive`. An unrecognized `--theme`
 value is a startup error, exit `1`, listing the four known names.
-An unrecognized `GRAFT_THEME` value only warns once on stderr and falls
-through to the default, so a typo in an environment variable can never
-abort the session. Setting `GRAFT_UI_THEME` instead of `GRAFT_THEME` also
-warns once on stderr, naming the variable graft actually reads.
+An unrecognized `GRAFT_THEME` or `ui.theme` value only warns once on
+stderr and falls through to the next tier, so a typo in an environment
+variable or a config file can never abort the session. Setting
+`GRAFT_UI_THEME` instead of `GRAFT_THEME` also warns once on stderr,
+naming the variable graft actually reads.
+
+The config-file tier searches `./graft.yaml`, then
+`$HOME/.graft/config.yaml`, then `/etc/graft/config.yaml`, using the
+first file found; only its `ui.theme` key is read, and this file tier
+never activates `--config`'s own configuration system (see
+[Configuration Reference](../../reference/config.md)) — it is a
+narrow, theme-only reader, checked whether or not `--config` names a
+file at all.
 
 Switch the theme mid-session with `config theme [name]`:
 
