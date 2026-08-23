@@ -137,10 +137,11 @@ var oscDrainStep = 20 * time.Millisecond
 // warns "SetDeadline methods will stop working" for any caller of it, a
 // footgun that would silently turn every deadline in this file into a
 // real, unbounded blocking read the moment queryOSC11 asked for in's fd
-// to hand to term.MakeRaw. SyscallConn's Control callback hands out the
-// fd for the one raw ioctl call raw mode needs without that side
-// effect, which is the whole reason queryOSC11 goes through this
-// instead of calling in.Fd() directly.
+// to hand to term.MakeRaw (or pollableDup asked for it to duplicate).
+// SyscallConn's Control callback hands out the fd without that side
+// effect, which is the whole reason this package never calls
+// (*os.File).Fd() on any stream it might still need to read a bounded
+// reply from.
 func rawFd(f *os.File) (int, error) {
 	rc, err := f.SyscallConn()
 	if err != nil {
@@ -168,15 +169,36 @@ var makeRawSeam = func(fd int) (restore func(), err error) {
 	return func() { _ = term.Restore(fd, prev) }, nil
 }
 
+// clearReadDeadline releases f's read deadline once queryOSC11 is done
+// needing one, so a caller that later reads the same handle can never
+// inherit an already-expired deadline armed for this query alone (see
+// R5 in plans/debugger-colorizing.md). Its error is deliberately
+// ignored: by the point this runs, f already answered a real
+// SetReadDeadline call successfully once (see queryOSC11's probe), so
+// this call clearing it back to the zero value is not expected to fail
+// on any stream this package still holds open; even if the handle went
+// bad between then and now, there is nothing left to leak a deadline
+// onto.
+func clearReadDeadline(f *os.File) {
+	_ = f.SetReadDeadline(time.Time{})
+}
+
 // queryOSC11 is Detect's last resort, past every guard and an unset or
-// unparseable COLORFGBG: it asks the terminal directly. Terminal state
-// is restored on every return path (the deferred restore, set up
-// immediately once raw mode is confirmed entered, before any output is
-// written or any byte is read). Any failure along the way - raw mode
-// unavailable, the write itself failing, a response that never parses -
-// reports Unknown rather than propagating an error: this is a best-
-// effort probe with a documented fallback, never something a caller
-// must handle.
+// unparseable COLORFGBG: it asks the terminal directly. Raw mode is
+// entered on in's own descriptor and restored on every return path
+// (the deferred restore, set up immediately once confirmed entered,
+// before any output is written or any byte is read). The read itself
+// goes through a pollable duplicate of in (see pollableDup), released
+// - deadline cleared, flags restored, duplicate closed - on every
+// return path as well. Critically, that duplicate's read deadline is
+// probed before a single byte is written: a stream that cannot honor a
+// deadline at all gets no query, because there would be nowhere safe
+// for its reply to land (see R1 in plans/debugger-colorizing.md). Any
+// failure along the way - raw mode unavailable, no pollable duplicate,
+// the deadline unsupported, the write itself failing, a response that
+// never parses - reports Unknown rather than propagating an error:
+// this is a best-effort probe with a documented fallback, never
+// something a caller must handle.
 func queryOSC11(in, out *os.File, timeout time.Duration) Background {
 	fd, err := rawFd(in)
 	if err != nil {
@@ -188,16 +210,31 @@ func queryOSC11(in, out *os.File, timeout time.Duration) Background {
 	}
 	defer restore()
 
+	queryIn, release, err := pollableDup(in)
+	if err != nil {
+		return Unknown
+	}
+	defer release()
+
+	deadline := time.Now().Add(timeout)
+	if err := queryIn.SetReadDeadline(deadline); err != nil {
+		// Cannot honor a deadline on this handle at all: report Unknown
+		// without writing the query, rather than send it and have no
+		// bounded way to read - or drain - whatever reply comes back.
+		return Unknown
+	}
+	defer clearReadDeadline(queryIn)
+
 	if _, err := out.Write(oscQueryBytes); err != nil {
 		return Unknown
 	}
 
-	resp, timedOut := readOSC11Response(in, time.Now().Add(timeout))
+	resp, timedOut := readOSC11Response(queryIn, deadline)
 	if timedOut {
 		// A response that arrives after this point must never reach
 		// whatever reads in next (readline, or a scripted command): stay
 		// in raw mode and drain it here instead.
-		drainPending(in, oscDrainBudget)
+		drainPending(queryIn, oscDrainBudget)
 		return Unknown
 	}
 

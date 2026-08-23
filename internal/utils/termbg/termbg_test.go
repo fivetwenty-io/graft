@@ -2,6 +2,7 @@ package termbg
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"testing"
@@ -162,20 +163,35 @@ func TestDetectGuards(t *testing.T) {
 	})
 }
 
-// withMakeRaw swaps makeRawSeam for the duration of the test, restoring
-// it afterward. success controls whether the fake raw-mode entry
-// reports success (letting queryOSC11 proceed to read/write against a
-// scripted os.Pipe() pair below) or the given error (proving queryOSC11
-// reports Unknown, and touches neither in nor out, when raw mode is not
-// available at all - the real makeRawSeam's own outcome against a pipe,
-// which every other test here relies on rather than overriding).
-func withMakeRaw(t *testing.T, success bool) {
+// withMakeRaw swaps makeRawSeam for the duration of the test with a
+// fake that always reports success, restoring it afterward: this lets
+// queryOSC11 proceed past raw-mode entry to read/write against a
+// scripted stream below, rather than testing whichever way the real
+// golang.org/x/term.MakeRaw happens to treat that stream. Tests that
+// want the raw-mode-unavailable path instead rely on the real
+// makeRawSeam's own outcome against a non-tty stream (an os.Pipe()
+// pair), so they never call this helper at all.
+func withMakeRaw(t *testing.T) {
 	t.Helper()
 	prev := makeRawSeam
-	if success {
-		makeRawSeam = func(int) (func(), error) { return func() {}, nil }
-	}
+	makeRawSeam = func(int) (func(), error) { return func() {}, nil }
 	t.Cleanup(func() { makeRawSeam = prev })
+}
+
+// withPollableDup swaps the pollableDup seam for the duration of the
+// test, restoring it afterward, so queryOSC11's own tests can force
+// the "no pollable duplicate available" path deterministically -
+// something otherwise hard to reach on demand, since the real
+// defaultPollableDup succeeds for nearly any valid descriptor. Passing
+// a nil err restores the real, platform-specific defaultPollableDup
+// instead of faking anything, so tests that want the real duplicate-
+// and-reflag logic exercised (against an os.Pipe() pair, which is
+// always poll-registrable) never have to call this at all.
+func withPollableDup(t *testing.T, err error) {
+	t.Helper()
+	prev := pollableDup
+	pollableDup = func(*os.File) (*os.File, func(), error) { return nil, nil, err }
+	t.Cleanup(func() { pollableDup = prev })
 }
 
 // withShortOSCTimings shrinks the query timeout, drain budget, and
@@ -288,8 +304,28 @@ func TestQueryOSC11(t *testing.T) {
 		}
 	})
 
+	t.Run("no pollable duplicate available reports Unknown and writes nothing", func(t *testing.T) {
+		withMakeRaw(t)
+		withPollableDup(t, errors.New("no pollable duplicate"))
+		inR, _ := newTestPipe(t)
+		outR, outW := newTestPipe(t)
+
+		if got := queryOSC11(inR, outW, 50*time.Millisecond); got != Unknown {
+			t.Errorf("queryOSC11() = %v, want Unknown", got)
+		}
+
+		if err := outW.Close(); err != nil {
+			t.Fatalf("outW.Close(): %v", err)
+		}
+		buf := make([]byte, 1)
+		n, _ := outR.Read(buf)
+		if n != 0 {
+			t.Errorf("out carries %d unexpected byte(s), want 0", n)
+		}
+	})
+
 	t.Run("a response before the deadline is read and classified", func(t *testing.T) {
-		withMakeRaw(t, true)
+		withMakeRaw(t)
 		inR, inW := newTestPipe(t)
 		outR, outW := newTestPipe(t)
 
@@ -314,7 +350,7 @@ func TestQueryOSC11(t *testing.T) {
 	})
 
 	t.Run("no response resolves Unknown after the deadline", func(t *testing.T) {
-		withMakeRaw(t, true)
+		withMakeRaw(t)
 		inR, _ := newTestPipe(t)
 		_, outW := newTestPipe(t)
 
@@ -324,7 +360,7 @@ func TestQueryOSC11(t *testing.T) {
 	})
 
 	t.Run("a late response is drained, never left for the next reader", func(t *testing.T) {
-		withMakeRaw(t, true)
+		withMakeRaw(t)
 		withShortOSCTimings(t)
 		inR, inW := newTestPipe(t)
 		_, outW := newTestPipe(t)
@@ -343,7 +379,10 @@ func TestQueryOSC11(t *testing.T) {
 
 		// By the time queryOSC11 returns, the drain has already run out
 		// its full budget (past the 30ms write), so nothing should be
-		// left on inR for a subsequent reader to pick up.
+		// left on inR for a subsequent reader to pick up. queryOSC11
+		// only ever closes the pollable duplicate it made of inR, never
+		// inR itself, so this read against inR directly is exactly what
+		// readline (or a scripted command) would see next.
 		if err := inR.SetReadDeadline(time.Now().Add(20 * time.Millisecond)); err != nil {
 			t.Fatalf("SetReadDeadline: %v", err)
 		}
@@ -353,6 +392,76 @@ func TestQueryOSC11(t *testing.T) {
 			t.Errorf("bytes left after drain: n=%d err=%v, want 0 bytes and a timeout (nothing pending)", n, err)
 		}
 	})
+}
+
+// TestQueryOSC11DeadlineUnsupportedNeverWritesTheQuery pins R1: when no
+// pollable duplicate of in can be made at all - the production
+// scenario being os.Stdin, which Go never registers with its runtime
+// poller (see pollableDup's doc comment) - queryOSC11 must never write
+// the query to out. The buggy code wrote the query first and only
+// discovered the deadline problem afterward, in readOSC11Response,
+// leaving the reply (were one to arrive) stranded in the terminal's
+// input buffer with nothing to drain it (see R1 in
+// plans/debugger-colorizing.md).
+func TestQueryOSC11DeadlineUnsupportedNeverWritesTheQuery(t *testing.T) {
+	withMakeRaw(t)
+	withPollableDup(t, errors.New("simulated: no pollable duplicate, matching os.Stdin"))
+
+	inR, _ := newTestPipe(t)
+	outR, outW := newTestPipe(t)
+
+	if got := queryOSC11(inR, outW, 50*time.Millisecond); got != Unknown {
+		t.Errorf("queryOSC11() = %v, want Unknown", got)
+	}
+
+	if err := outW.Close(); err != nil {
+		t.Fatalf("outW.Close(): %v", err)
+	}
+	buf := make([]byte, 1)
+	n, _ := outR.Read(buf)
+	if n != 0 {
+		t.Errorf("out carries %d unexpected byte(s), want 0: the query must never be written when no pollable duplicate of in is available (R1)", n)
+	}
+}
+
+// TestQueryOSC11ClearsDeadlineAfterASuccessfulQuery pins R5: once
+// queryOSC11 has classified a reply, the read deadline and non-
+// blocking flag it armed on its pollable duplicate of in - which
+// share in's own underlying open file description (see pollableDup's
+// doc comment) - must be released, so whatever reads in next
+// (readline, or a scripted command) does not inherit an already-
+// expired deadline or a stray O_NONBLOCK and fail with a spurious
+// error (see R5 in plans/debugger-colorizing.md). It uses the real
+// defaultPollableDup (no seam override): inR is a plain os.Pipe() end,
+// which is always poll-registrable, so this exercises the exact
+// duplicate-and-reflag logic queryOSC11 uses in production.
+func TestQueryOSC11ClearsDeadlineAfterASuccessfulQuery(t *testing.T) {
+	withMakeRaw(t)
+	inR, inW := newTestPipe(t)
+	_, outW := newTestPipe(t)
+
+	go func() {
+		_, _ = inW.WriteString("\x1b]11;rgb:0000/0000/0000\a")
+	}()
+
+	if got := queryOSC11(inR, outW, 50*time.Millisecond); got != Dark {
+		t.Fatalf("queryOSC11() = %v, want Dark", got)
+	}
+
+	// The 50ms deadline queryOSC11 armed on its duplicate of inR has
+	// now elapsed; if it (or the duplicate's O_NONBLOCK flag, shared
+	// with inR itself) was never released, this read - which sets no
+	// deadline of its own - would inherit it and fail instead of
+	// waiting for the byte inW is about to send.
+	time.Sleep(60 * time.Millisecond)
+	go func() {
+		_, _ = inW.WriteString("x")
+	}()
+	buf := make([]byte, 1)
+	n, err := inR.Read(buf)
+	if err != nil {
+		t.Errorf("Read after successful query = (n=%d, err=%v), want the byte with no error: the deadline and non-blocking flag queryOSC11 armed must be released once the query succeeds (R5)", n, err)
+	}
 }
 
 func TestReadOSC11Response(t *testing.T) {
