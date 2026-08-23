@@ -77,6 +77,7 @@ The debug REPL provides interactive control over the merge process:
 | `breaks` | List all breakpoints |
 | `inspect [path]` | Show the current value at path (the whole document if omitted) |
 | `history <path>` | Show the same per-file history `merge --history` would for path |
+| `tree [path] [flags]` | Show a colorized tree of the document (or subtree at path) as of the current step |
 | `defer <path>` | Leave the operator at path unevaluated on the next `step`/`continue` |
 | `autodefer` | Defer every failing operator and retry, to a fixed point — the same loop as `merge --defer-on-error` |
 | `eval <path>` | Immediately evaluate the operator at path, regardless of `defer` |
@@ -373,6 +374,88 @@ secret:
   [2] <pruned>       → <pruned>
   Final              → <pruned>
 ```
+
+### tree
+
+    tree [path] [--depth|-d N] [--keys|-k] [--annotate|-a] [--history|-H] [--no-color]
+
+Prints a box-drawing tree of the document (or the subtree at `path`) as
+it stands at the session's current step: the same tree `inspect` reads,
+so what you see always reflects how far you have stepped. Map keys render
+in cyan, list indices dim, and still-unevaluated `(( ... ))` operator
+expressions in yellow, so unresolved operators stand out at a glance.
+Map keys are sorted; list elements keep their order. A leading `$` or
+`$.` on the path is accepted, so paths copied from other debugger output
+(such as `autodefer`'s `$.database.password`) paste directly.
+
+    graft> tree database
+    database
+    ├─ host: db.prod.example.com
+    ├─ pool_size: 50
+    └─ port: 5432
+
+Flags:
+
+- `--depth N` / `-d N` limits how many levels expand (N must be at least
+  1); containers at the cutoff collapse to a `{N keys}` / `[N items]`
+  summary, hiding everything beneath them, annotations included.
+
+- `--keys` / `-k` shows structure only, without leaf values.
+
+- `--annotate` / `-a` prints each node's history entries dim and
+  indented beneath it, in the same `[N] source → value` format the
+  `history` command uses. Annotation is about values, so it overrides
+  `--keys`.
+
+- `--history` / `-H` appends one history block per tracked path at or
+  under `path`, below the tree. A path is required: on a large document
+  the bare form would print a block for every path in it.
+
+- `--no-color` disables color for this command's output only.
+
+Unlike `history`, which always reports the full merge-and-evaluate run,
+`--annotate` and `--history` stop at the session's current step point:
+files you have not stepped through yet are not merged, and
+evaluation does not run until you reach it. Each `--history` block
+therefore ends with an `As of step N` line naming the step the replay
+stopped at, rather than `history`'s `Final` line. (The label names the
+step because a targeted `eval <path>` changes the live tree without
+advancing the step; the tree then shows the evaluated value while the
+history still ends at the operator.)
+
+    graft> load
+    graft> step
+    graft> tree database --history
+    database
+    ├─ host: db.prod.example.com
+    ├─ pool_size: 50
+    └─ port: 5432
+
+    database.host:
+      [0] base.yml       → localhost
+      [1] env.yml        → db.prod.example.com
+      As of step 1       → db.prod.example.com
+
+    database.pool_size:
+      [0] base.yml       → 10
+      [1] env.yml        → 50
+      As of step 1       → 50
+
+    database.port:
+      [0] base.yml       → 5432
+      As of step 1       → 5432  (unchanged)
+
+A path removed by a `(( prune ))` marker still gets a block (ending in
+`→ <pruned>`) even though it no longer appears in the tree above.
+
+History never descends into lists: a list is tracked as one value at
+the list's own path. `tree jobs --annotate` therefore annotates the
+`jobs` node itself, list elements carry no entries of their own, and a
+path inside a list (`tree jobs.[0] --history`) renders the tree with a
+note in place of history.
+
+Tab completion completes the path when it is the first word after
+`tree`, so give the path before any flags.
 
 ### defer
 
