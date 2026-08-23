@@ -118,6 +118,8 @@ func (s Style) Apply(text string) string {
 // final byte (0x40-0x7E). This covers SGR color/style codes (final byte
 // "m") as well as other CSI sequences such as cursor movement, which can
 // end up embedded in error text alongside color codes.
+//
+//nolint:gocritic // [@-~] is the CSI final-byte range 0x40-0x7E, not a typo
 var csiPattern = regexp.MustCompile("\033\\[[0-9:;<=>?]*[ !\"#$%&'()*+,\\-./]*[@-~]")
 
 // StripEscapes removes ANSI CSI escape sequences (including SGR color

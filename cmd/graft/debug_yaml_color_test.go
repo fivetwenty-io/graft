@@ -26,6 +26,8 @@ var enabledDarkStyler = debugStyler{enabled: true, theme: debugThemeDark}
 // helper alone cannot prove an escape sequence landed on a rune
 // boundary, only that stripping it back out reproduces raw's bytes (see
 // assertEscapesOnRuneBoundaries).
+//
+//nolint:gocritic // [@-~] is the CSI final-byte range 0x40-0x7E, not a typo
 var yamlEscapeSequencePattern = regexp.MustCompile("\033\\[[0-9:;<=>?]*[ !\"#$%&'()*+,\\-./]*[@-~]")
 
 // isUTF8ContinuationByte reports whether b is a UTF-8 continuation byte
