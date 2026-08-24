@@ -415,3 +415,23 @@ func TestCycleErrorShortensLongFilenamesFromTheLeft(t *testing.T) {
 		t.Errorf("the detail line does not keep the path's tail:\n%s", out)
 	}
 }
+
+func TestSanitizeFilenameCutsBetweenWholeReplacements(t *testing.T) {
+	// The budget boundary falls in the MIDDLE of a run of six-rune
+	// U+2028 replacements, which is where a scan that stops as soon as
+	// the budget is spent is most likely to differ from one that expands
+	// the whole input first. The budget is 117 runes once the leading
+	// marker is paid for, so 19 whole replacements fit (114 runes) and a
+	// 20th does not.
+	in := strings.Repeat("a", 100) + strings.Repeat("\u2028", 20)
+
+	got := sanitizeFilename(in)
+
+	want := "..." + strings.Repeat(`\u2028`, 19)
+	if got != want {
+		t.Errorf("sanitizeFilename() = %q, want %q", got, want)
+	}
+	if n := utf8.RuneCountInString(got); n != cycleExprMaxRunes-3 {
+		t.Errorf("sanitizeFilename() is %d runes, want %d", n, cycleExprMaxRunes-3)
+	}
+}

@@ -79,37 +79,51 @@ func sanitizeDisplay(s string) string {
 // list. The rune cap the spec sanctions is for expressions; applying it
 // to a 209-character absolute path is what produced that.
 //
-// The tail is assembled one whole replacement at a time, so the cut can
+// The tail is measured one whole replacement at a time, so the cut can
 // never land inside a multi-character escape such as a literal
 // LINE SEPARATOR rendered as \u2028.
+//
+// The input is scanned backwards and the scan stops as soon as the
+// budget is spent, so a caller that hands a library a megabyte-long
+// filename pays for the ~120 runes that get rendered rather than for the
+// whole string. Only the surviving tail is ever expanded.
 func sanitizeFilename(s string) string {
 	s = ansi.StripEscapes(s)
 
-	reps := make([]string, 0, len(s))
-	total := 0
-	for _, r := range s {
-		rep := displayReplacement(r)
-		reps = append(reps, rep)
-		total += utf8.RuneCountInString(rep)
-	}
-
-	if total <= cycleExprMaxRunes {
-		return strings.Join(reps, "")
-	}
-
 	const marker = "..."
-	budget := cycleExprMaxRunes - len(marker)
-	kept := 0
-	first := len(reps)
-	for first > 0 {
-		n := utf8.RuneCountInString(reps[first-1])
-		if kept+n > budget {
-			break
+	budget := cycleExprMaxRunes - utf8.RuneCountInString(marker)
+
+	// cut is the start of the longest suffix whose replacements fit in
+	// budget; it is fixed the moment one more replacement would overrun,
+	// and the scan then runs on only far enough to learn whether the
+	// whole string fits under the untruncated cap.
+	cut := 0
+	cutFound := false
+	total := 0
+	for i := len(s); i > 0; {
+		r, size := utf8.DecodeLastRuneInString(s[:i])
+		n := utf8.RuneCountInString(displayReplacement(r))
+		if !cutFound && total+n > budget {
+			cut, cutFound = i, true
 		}
-		kept += n
-		first--
+		total += n
+		if total > cycleExprMaxRunes {
+			return marker + expandReplacements(s[cut:])
+		}
+		i -= size
 	}
-	return marker + strings.Join(reps[first:], "")
+	return expandReplacements(s)
+}
+
+// expandReplacements renders every rune of s through displayReplacement.
+// Both callers bound s to roughly cycleExprMaxRunes runes first.
+func expandReplacements(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		b.WriteString(displayReplacement(r))
+	}
+	return b.String()
 }
 
 // displayReplacement returns how one rune renders inside sanitizeDisplay's
