@@ -15,10 +15,13 @@ For each path in the final document, graft can show:
 - Whether operator evaluation changed it
 - Its final value
 
-Graft has no per-value line-number tracking (the position information that
-does exist is scoped to a single `(( ... ))` expression's own tokens, not
-to merged document values), so history entries identify their source by
-**file, not file:line**.
+Graft does not record a source file and line for merged *values*: history
+entries identify their source by **file, not file:line**.
+
+Operator positions are tracked separately, and only on one path: when a
+merge fails with an operator data-flow cycle, the error names the file
+and line of every operator on the cycle. See the [cycle-detection
+section](../reference/errors.md#cycle-detection) of the error reference.
 
 ## Enabling History
 

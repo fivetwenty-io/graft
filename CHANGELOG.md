@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Cycle errors now print the merge inputs and every operator on the
+  cycle with its file and line. The last two lines of the block name the
+  two files and lines whose edge closes the loop. See [the cycle
+  detection reference](docs/reference/errors.md#cycle-detection) for the
+  full shape.
+
+- `errors.Is(err, graft.ErrDependencyCycle)` now answers true for a
+  cycle surfaced by the merge path, which it did not before; it already
+  answered true for one surfaced by `DependencyGraph.TopologicalSort`.
+  `errors.As(err, &ce)`, with `var ce *graft.CycleError`, gives access to
+  `Inputs` and `Nodes`.
+
+### Fixed
+
+- Aggregated error bodies are no longer color-processed a second time. An
+  error message quoting document content that contains an `@X{...}`
+  sequence is now printed verbatim instead of being stripped when color
+  is off or turned into live ANSI when it is on.
+
 ## [1.38.0] - 2026-08-23
 
 A follow-on to the theming release. The debugger REPL now colorizes the

@@ -100,9 +100,14 @@ Everything else is a documented gap, not an oversight:
   evaluation but record nothing.
 - **`HistoryEntry.Source` and `.Line` are always zero-valued.** Nothing in
   the merge or evaluation path threads an input file identity down to
-  `DocumentMemory.RecordChange`, and graft's only line/column tracking
-  (`pkg/graft/interfaces/position.go`) is scoped to tokens inside a single
-  `(( ... ))` expression, never to merged values. `HistoryEntry.Operator`
+  `DocumentMemory.RecordChange`. Graft does track operator positions
+  (`pkg/graft/interfaces/position.go`), scoped to tokens inside a single
+  `(( ... ))` expression, but that index has exactly one consumer: when a
+  merge fails with an operator data-flow cycle, the error resolves and
+  reports the file and line of every operator on the cycle (see the
+  [cycle-detection section](../../reference/errors.md#cycle-detection) of
+  the error reference). That position never reaches `DocumentMemory` or a
+  `HistoryEntry`, whether the merge succeeds or fails. `HistoryEntry.Operator`
   carries the string `DocumentMemory` actually records at the recording
   site instead - the literal merge verb (`"merge"`, `"add"`, `"delete"`)
   for a merge-phase entry, or the operator name (e.g. `"grab"`, `"vault"`)
