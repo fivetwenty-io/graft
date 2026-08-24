@@ -106,6 +106,30 @@ Places where graft intentionally behaves differently from spruce. These
 are not open gaps: the divergence is the desired behavior, and closing
 it to match spruce would reintroduce the problem it fixes.
 
+### merge-stdout-leads-with-document-start-marker
+
+**Graft behavior:** `graft merge` writes a `---\n` document-start line
+before the merged document (`renderMergedTreeWithReport`,
+cmd/graft/deferred_report.go), so the result pipes straight into another
+YAML document and `--report-deferred`'s comment block has a header to
+sit under. `graft fan` already prepended `---\n` per document, matching
+spruce, so this aligns the two subcommands with each other.
+
+**Spruce behavior:** spruce's `merge` case writes bare
+`fmt.Fprintf(os.Stdout, "%s\n", string(merged))` with no leading marker;
+only its `fan` case prepends one. A byte comparison of `merge` stdout
+therefore differs from graft's by exactly this one line, in graft
+1.35.0 and later.
+
+**Impact:** none for any consumer that re-parses the output, Genesis
+included: `---` is YAML's document-start marker, not content, so the
+parsed document is the same either way. Byte-level consumers comparing
+`graft merge` stdout against `spruce merge` stdout see one extra line
+and can drop it with `tail -n +2`. Introduced in 1.35.0; see
+[CLI surface](cli-surface.md) and
+[Genesis compatibility contract](genesis-compat-contract.md#output-byte-stability-across-versions)
+for the full contract.
+
 ### named-insert-works-on-scalar-lists
 
 **Graft behavior:** `(( insert after "<value>" ))` and

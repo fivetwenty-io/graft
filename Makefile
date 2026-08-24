@@ -195,9 +195,11 @@ test-short: ## Run tests in short mode
 	@go test -short ./...
 	@printf "$(GREEN)✓ Short tests complete$(RESET)\n"
 
-test-spruce-compat: ## Run the full spruce/graft parity suite: golden-output harness, operator matrix, vaultinfo pipefail (golden/operator suites skip gracefully if spruce is unavailable; vaultinfo pipefail always runs, needs only graft)
+test-spruce-compat: ## Run the full spruce/graft parity suite: golden-output harness, byte-exact key order, operator matrix, vaultinfo pipefail (golden/operator suites skip gracefully if spruce is unavailable; key order and vaultinfo pipefail always run, needing only graft)
 	@printf "$(GREEN)Running spruce/graft golden-output parity harness...$(RESET)\n"
 	@bash tests/spruce-compat/run.sh
+	@printf "$(GREEN)Running byte-exact key-order parity runner...$(RESET)\n"
+	@bash tests/spruce-compat/run-key-order.sh
 	@printf "$(GREEN)Running spruce/graft operator parity suite...$(RESET)\n"
 	@bash tests/spruce-compat/operators/run-operators.sh
 	@printf "$(GREEN)Running vaultinfo pipefail pipeline test...$(RESET)\n"
