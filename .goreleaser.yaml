@@ -214,9 +214,12 @@ release:
     ### Using graft as spruce under Genesis (optional)
 
     graft inspects how it was invoked (`argv[0]`), so a spruce-named symlink
-    reports itself as `spruce` and passes Genesis's version gate:
+    leads its version output with the exact line spruce prints and passes
+    Genesis's version gate:
 
     ```bash
     ln -s "$(command -v graft)" /usr/local/bin/spruce
-    spruce -v   # spruce - Version {{ .Version }}
+    spruce -v
+    # spruce - Version {{ .Version }}
+    # graft version {{ .Version }} (commit: {{ .ShortCommit }}, built: ..., go: ..., os/arch: ...)
     ```

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `graft -v`/`--version` now prints the commit, build timestamp, Go
+  toolchain, and platform alongside the release:
+
+  ```
+  graft version 1.39.0 (commit: e6a24bc, built: 2026-08-24T22:05:31Z, go: go1.27.0, os/arch: darwin/arm64)
+  ```
+
+  Invoked through a `spruce`-named symlink or copy, the byte-for-byte
+  spruce line (`spruce - Version 1.39.0`) comes first and graft's own
+  line follows it, so Genesis's version probe still reads a compatible
+  line. Any other invocation name now prints graft's line alone,
+  where it used to echo that name in spruce's format. See [Version
+  output](docs/reference/cli.md#version-output).
+
 ## [1.39.0] - 2026-08-24
 
 Cycle errors now say where the cycle is: the block lists the merge

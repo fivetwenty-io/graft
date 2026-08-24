@@ -16,12 +16,33 @@ then a non-whitespace token." That token is checked against a minimum
 version of `1.28.0`; failing the check stops Genesis from running at
 all.
 
-Graft's `-v`/`--version` output follows the same
-`"<program> - Version <version>"` shape spruce uses, echoing the name
-the binary was invoked as (`os.Args[0]`, exactly like spruce), so a
-graft binary reached through a `spruce` symlink or copy reports itself
-as `spruce`. Like spruce, graft honors a version flag placed before
-the verb ahead of dispatch: `spruce -v merge ...` prints the version
+Graft's `-v`/`--version` prints one line of its own when invoked under
+its own name:
+
+```
+graft version 1.39.0 (commit: e6a24bc, built: 2026-08-24T22:05:31Z, go: go1.27.0, os/arch: darwin/arm64)
+```
+
+Reached through a `spruce` symlink or copy (`argv[0]`'s base name is
+`spruce`, case-insensitively, with an optional `.exe`), graft prepends
+the line spruce itself prints, byte for byte: the same
+`"<program> - Version <version>"` shape, echoing `os.Args[0]` verbatim
+so a full path stays a full path. Graft's own line follows it:
+
+```
+spruce - Version 1.39.0
+graft version 1.39.0 (commit: e6a24bc, built: 2026-08-24T22:05:31Z, go: go1.27.0, os/arch: darwin/arm64)
+```
+
+Ordering is the contract here: genesis applies its regex to the whole
+captured stdout, so the spruce-compatible line has to come first for
+the probe to land on it. Under any other name (a renamed build
+artifact, say) only graft's own line is printed, which satisfies the
+same probe on its own since it too contains the word "version"
+followed by the semver.
+
+Like spruce, graft honors a version flag placed before the verb ahead
+of dispatch: `spruce -v merge ...` prints the version
 and exits 0 without reading input. Placed after the verb the two
 diverge deliberately: spruce treats the token as a filename and exits
 2 (`Error reading file -v`), while graft ignores the flag and runs the
@@ -32,8 +53,13 @@ manifest with exit 0 (see the "When '-v' follows a subcommand" pin in
 
 The version string is populated at build time via a linker flag
 (`-ldflags "-X main.Version=$(VERSION)"` in the Makefile, taken from
-the exact git tag when one matches); a binary built without that flag
-falls back to a hardcoded copy of the current release version
+the exact git tag when one matches); the commit and build date beside
+it come from `-X main.Commit` and `-X main.BuildDate`, falling back to
+the revision and timestamp the Go toolchain embeds
+(`debug.ReadBuildInfo`, marked `-dirty` when the tree was modified) and
+then to `unknown`. Only the version token is part of the genesis
+contract; the rest of the line is informational. A binary built without
+the version flag falls back to a hardcoded copy of the release version
 (`var Version`, `cmd/graft/main.go`), which is a real semver above the
 `1.28.0` minimum, so even an ad-hoc `go build` passes the gate. That
 baseline is the only copy of the number: the Makefile reads the line out

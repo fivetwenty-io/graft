@@ -14,7 +14,7 @@ subcommand.
 |---|---|---|
 | `--debug` | `-D` | Enable debug logging. Equivalent to setting the `DEBUG` environment variable to a non-empty, non-`false`/`0` value. |
 | `--trace` | `-T` | Enable trace logging (implies `--debug`). Equivalent to setting the `TRACE` environment variable. |
-| `--version` | `-v` | Print `<program> - Version <version>` to stdout and exit `0`. Only takes effect when no subcommand is given. |
+| `--version` | `-v` | Print the version to stdout and exit `0`. Only takes effect when no subcommand is given. See [Version output](#version-output) below. |
 | `--color` | | Force colorized output on: bare `--color`. Default is `auto` (color only when `NO_COLOR` is unset, `TERM` isn't `dumb`, and stderr is a terminal); see [Color flags](#color-flags) below. |
 | `--no-color` | | Force colorized output off, overriding `--color`. Wins if both are given. |
 | `--theme <name>` | | Color theme for colorized output: `auto` (default), `dark`, `light`, or `mono`. Currently applies to the debugger REPL only (`graft debug`, `graft merge --interactive`); every other command ignores it. Also settable with `GRAFT_THEME`; see [Color flags](#color-flags) below. |
@@ -24,6 +24,33 @@ subcommand.
 graft reads `DEBUG`/`TRACE` directly from the process environment
 (`os.Getenv`); a value counts as "set" unless it is empty, `"false"`
 (case-insensitive), or `"0"`.
+
+### Version output
+
+`graft -v` (or `--version`) prints one line: the release, the commit and
+timestamp it was built from, and the toolchain and platform it targets:
+
+```
+graft version 1.39.0 (commit: e6a24bc, built: 2026-08-24T22:05:31Z, go: go1.27.0, os/arch: darwin/arm64)
+```
+
+The commit and build date come from linker flags set by the release build
+(`-X main.Commit`, `-X main.BuildDate`). A binary built without them falls
+back to the revision and timestamp the Go toolchain embeds, suffixing the
+commit with `-dirty` when the working tree was modified, and reports
+`unknown` when even that is unavailable.
+
+Invoked through a `spruce`-named symlink or copy, graft leads with the line
+spruce itself prints, byte for byte, and follows it with its own:
+
+```
+spruce - Version 1.39.0
+graft version 1.39.0 (commit: e6a24bc, built: 2026-08-24T22:05:31Z, go: go1.27.0, os/arch: darwin/arm64)
+```
+
+That ordering matters to Genesis, which scans the whole output for the
+first `version <token>` it can find; see the
+[Genesis compatibility contract](../spruce/genesis-compat-contract.md).
 
 ### Color flags
 
