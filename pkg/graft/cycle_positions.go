@@ -51,9 +51,10 @@ func buildSourceIndexes(refs []SourceRef) *sourceIndexes {
 
 // resolve locates one operator call in the merge's inputs.
 //
-// Stage one walks the inputs in reverse merge order, first verified hit
-// wins, trying both of the operator's paths against each input. A hit
-// counts only when the indexed expression is the operator's own text:
+// Stage one tries the operator's name-keyed path against every input in
+// reverse merge order, then its numeric path the same way; first
+// verified hit wins. A hit counts only when the indexed expression is
+// the operator's own text:
 // the same path can name a different operator in a different input - a
 // numeric list slot in particular, since registerOpcall (evaluator.go)
 // sets canonical to the literal numeric path and where to the
@@ -93,39 +94,55 @@ func (si *sourceIndexes) resolve(op *Opcall) interfaces.Position {
 	return interfaces.Position{}
 }
 
-// candidatePaths returns the paths worth trying for op. registerOpcall
-// (evaluator.go) sets canonical to the literal numeric path and where to
-// the name-resolved one; both are tried against every input, and
-// resolveByPath verifies each hit's expression, so the order between
-// them decides nothing on its own.
+// candidatePaths returns the paths worth trying for op, best first.
+// registerOpcall (evaluator.go) sets canonical to the literal numeric
+// path and where to the name-resolved one.
+//
+// The name-keyed path comes first, and the order matters. where is the
+// node's path in the MERGED tree, so its value is by construction
+// whatever the last input to write that path wrote, and resolveByPath
+// walks the inputs in reverse merge order, reaching that input first.
+// The numeric path carries no such guarantee: list indices drift across
+// merges, so a numeric path can name one operator in the merged tree
+// and a different one in the file that supplied it.
 func candidatePaths(op *Opcall) []string {
 	candidates := make([]string, 0, 2)
-	if op.canonical != nil {
-		candidates = append(candidates, op.canonical.String())
-	}
 	if op.where != nil {
-		if w := op.where.String(); len(candidates) == 0 || w != candidates[0] {
-			candidates = append(candidates, w)
+		candidates = append(candidates, op.where.String())
+	}
+	if op.canonical != nil {
+		if c := op.canonical.String(); len(candidates) == 0 || c != candidates[0] {
+			candidates = append(candidates, c)
 		}
 	}
 	return candidates
 }
 
-// resolveByPath is stage one: walk the inputs in reverse merge order,
-// trying each candidate path against each input and accepting the first
-// hit whose indexed expression is expr.
+// resolveByPath is stage one: try each candidate path, in order, against
+// every input in reverse merge order, and accept the first hit whose
+// indexed expression is expr.
+//
+// The candidate is the OUTER loop, so the better path is exhausted
+// across all inputs before the weaker one is tried against any. Were the
+// input the outer loop, the last input to be walked first would get to
+// answer on its numeric path before any earlier input was consulted on
+// the name-keyed one, and a list whose indices drifted would be
+// attributed to whichever file happens to hold that index now.
 //
 // A path hit carrying different text is not the operator being resolved,
-// so the search continues through the remaining candidates and the
-// remaining inputs rather than stopping. Only when no combination
+// so the search continues through the remaining inputs and the remaining
+// candidates rather than stopping. The cross-check and the loop order do
+// different jobs and both are needed: the cross-check alone cannot
+// discriminate when two inputs carry byte-identical text, and the loop
+// order alone would accept an unverified hit. Only when no combination
 // verifies does stage one give up.
 func (si *sourceIndexes) resolveByPath(candidates []string, expr string) (interfaces.Position, bool) {
-	for i := len(si.indexes) - 1; i >= 0; i-- {
-		idx := si.indexes[i]
-		if idx == nil {
-			continue
-		}
-		for _, p := range candidates {
+	for _, p := range candidates {
+		for i := len(si.indexes) - 1; i >= 0; i-- {
+			idx := si.indexes[i]
+			if idx == nil {
+				continue
+			}
 			e, ok := idx.Lookup(p)
 			if !ok || e.Expr != expr {
 				continue
