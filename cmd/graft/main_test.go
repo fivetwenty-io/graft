@@ -370,7 +370,8 @@ func TestMain(t *testing.T) {
 				stdout = ""
 				stderr = ""
 				main()
-				So(stdout, ShouldStartWith, fmt.Sprintf("graft - Version %s", Version))
+				So(stdout, ShouldEqual, versionOutput("graft"))
+				So(stdout, ShouldStartWith, fmt.Sprintf("graft version %s (", Version))
 				So(stderr, ShouldEqual, "")
 				So(rc, ShouldEqual, 0)
 
@@ -383,7 +384,8 @@ func TestMain(t *testing.T) {
 				stdout = ""
 				stderr = ""
 				main()
-				So(stdout, ShouldStartWith, fmt.Sprintf("graft - Version %s", Version))
+				So(stdout, ShouldEqual, versionOutput("graft"))
+				So(stdout, ShouldStartWith, fmt.Sprintf("graft version %s (", Version))
 				So(stderr, ShouldEqual, "")
 				So(rc, ShouldEqual, 0)
 
@@ -400,7 +402,8 @@ func TestMain(t *testing.T) {
 				stdout = ""
 				stderr = ""
 				main()
-				So(stdout, ShouldStartWith, fmt.Sprintf("graft - Version %s", Version))
+				So(stdout, ShouldEqual, versionOutput("graft"))
+				So(stdout, ShouldStartWith, fmt.Sprintf("graft version %s (", Version))
 				So(stderr, ShouldEqual, "")
 				So(rc, ShouldEqual, 0)
 			})
@@ -419,15 +422,36 @@ func TestMain(t *testing.T) {
 				So(stderr, ShouldEqual, "")
 				So(rc, ShouldEqual, 0)
 			})
-			Convey("When invoked under a different argv[0] name", func() {
-				// The version line echoes the name the binary was invoked
-				// as (os.Args[0], same as spruce), so a spruce-named
-				// symlink or copy reports itself as spruce to genesis.
+			Convey("When invoked under a spruce argv[0] name", func() {
+				// A spruce-named symlink or copy leads with the
+				// byte-for-byte spruce line (argv[0] echoed verbatim,
+				// same as spruce itself), so genesis's probe reads it
+				// first; graft's own line follows it.
 				os.Args = []string{"spruce", "-v"}
 				stdout = ""
 				stderr = ""
 				main()
-				So(stdout, ShouldStartWith, fmt.Sprintf("spruce - Version %s", Version))
+				So(stdout, ShouldEqual, versionOutput("spruce"))
+				So(stdout, ShouldStartWith, fmt.Sprintf("spruce - Version %s\n", Version))
+				So(stdout, ShouldContainSubstring, fmt.Sprintf("\ngraft version %s (", Version))
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 0)
+
+				matches := genesisVersionRegex.FindStringSubmatch(stdout)
+				So(matches, ShouldNotBeNil)
+				So(matches[1], ShouldEqual, Version)
+				So(semverAtLeast(matches[1], minGenesisVersion), ShouldBeTrue)
+			})
+			Convey("When invoked under some other argv[0] name", func() {
+				// Only a spruce name gets the compatibility line; any
+				// other name (a renamed build artifact, say) reports
+				// graft's own version line alone.
+				os.Args = []string{"./graft-head", "-v"}
+				stdout = ""
+				stderr = ""
+				main()
+				So(stdout, ShouldEqual, versionOutput("./graft-head"))
+				So(stdout, ShouldNotContainSubstring, " - Version ")
 				So(stderr, ShouldEqual, "")
 				So(rc, ShouldEqual, 0)
 			})

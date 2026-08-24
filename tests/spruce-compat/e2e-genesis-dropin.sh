@@ -106,14 +106,19 @@ fi
 # qr(.*version\s+(\S+).*)i, minimum 1.28.0 via semver()/new_enough().
 # ---------------------------------------------------------------------
 
-VERSION_LINE="$(spruce -v 2>/dev/null)"
-if [ -z "$VERSION_LINE" ]; then
+VERSION_OUTPUT="$(spruce -v 2>/dev/null)"
+# genesis regexes the whole captured output, so the spruce-compatible
+# line has to be the first one graft prints; graft's own
+# `graft version ...` line follows it.
+VERSION_LINE="$(printf '%s\n' "$VERSION_OUTPUT" | head -1)"
+GRAFT_LINE="$(printf '%s\n' "$VERSION_OUTPUT" | sed -n '2p')"
+if [ -z "$VERSION_OUTPUT" ]; then
   fail "stepA0: 'spruce -v 2>/dev/null' produced no output"
 else
   pass "stepA0: 'spruce -v 2>/dev/null' produced output: $VERSION_LINE"
 fi
 
-# Step A0b: the version line must echo the name the binary was invoked
+# Step A0b: the first line must echo the name the binary was invoked
 # as (spruce prints os.Args[0] verbatim; graft does the same), so a
 # PATH-resolved `spruce` reports itself as spruce, not graft.
 case "$VERSION_LINE" in
@@ -121,6 +126,15 @@ case "$VERSION_LINE" in
     pass "stepA0b: version line echoes the invoked name: $VERSION_LINE" ;;
   *)
     fail "stepA0b: version line does not start with 'spruce - Version ': $VERSION_LINE" ;;
+esac
+
+# Step A0b2: graft's own version line follows the compatible one, and
+# carries the build stamps (commit, build date, toolchain, os/arch).
+case "$GRAFT_LINE" in
+  "graft version "*"(commit: "*", built: "*", go: "*", os/arch: "*")")
+    pass "stepA0b2: graft's own version line follows it: $GRAFT_LINE" ;;
+  *)
+    fail "stepA0b2: second line is not graft's version line: $GRAFT_LINE" ;;
 esac
 
 # Step A0c: the same holds when the spruce name is a symlink to the
@@ -134,7 +148,7 @@ else
   SYMLINK_DIR="$TMP/symlink-bin"
   mkdir -p "$SYMLINK_DIR"
   ln -sf "$ALIAS_DIR/graft" "$SYMLINK_DIR/spruce"
-  SYMLINK_LINE="$(env PATH="$SYMLINK_DIR" spruce -v 2>/dev/null)"
+  SYMLINK_LINE="$(env PATH="$SYMLINK_DIR" spruce -v 2>/dev/null | head -1)"
   case "$SYMLINK_LINE" in
     "spruce - Version "*)
       pass "stepA0c: graft symlinked as spruce reports itself as spruce: $SYMLINK_LINE" ;;
@@ -189,7 +203,7 @@ if perl -e '
     print STDERR "captured version \"$v\" < minimum \"$min\"\n";
     exit 1;
   }
-' "$VERSION_LINE" >"$TMP/stepA1.out" 2>"$TMP/stepA1.err"; then
+' "$VERSION_OUTPUT" >"$TMP/stepA1.out" 2>"$TMP/stepA1.err"; then
   pass "stepA1: genesis's regex+semver logic (mirrored) accepts the alias binary's version output: $(cat "$TMP/stepA1.out")"
 else
   fail "stepA1: genesis's regex+semver logic (mirrored) rejected the alias binary's version output: $(cat "$TMP/stepA1.err")"

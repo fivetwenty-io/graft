@@ -1143,8 +1143,12 @@ func newRootCmd() (*cobra.Command, *bool) {
 			// version string into the captured manifest with exit 0.
 			// The divergence is documented in
 			// docs/spruce/genesis-compat-contract.md.
+			//
+			// Under a spruce-named symlink versionOutput prepends the
+			// byte-for-byte spruce line ahead of graft's own, so the
+			// genesis probe still matches first (see version.go).
 			if version && versionFlagPrecedesVerb(cmd, os.Args[1:]) {
-				printStdOutf("%s - Version %s\n", os.Args[0], Version)
+				printStdOutf("%s", versionOutput(os.Args[0]))
 				aborted = true
 				exit(0)
 				return fmt.Errorf("version requested")
