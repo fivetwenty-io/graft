@@ -4162,6 +4162,129 @@ func TestThemeFlagAppliesToDebugSession(t *testing.T) {
 	})
 }
 
+// runGraftCapturingStderr runs main() with os.Args set to args, capturing
+// everything written through log.PrintStdErrf, and returns it once main()
+// returns. It restores log.PrintStdErrf, exit, os.Args, os.Stdin, and
+// os.Stdout to their prior values before returning, so one subtest's
+// plumbing overrides never leak into the next.
+func runGraftCapturingStderr(t *testing.T, args []string) string {
+	t.Helper()
+
+	origPrintStdErrf := log.PrintStdErrf
+	origExit := exit
+	origArgs := os.Args
+	origStdin := os.Stdin
+	origStdout := os.Stdout
+	defer func() {
+		log.PrintStdErrf = origPrintStdErrf
+		exit = origExit
+		os.Args = origArgs
+		os.Stdin = origStdin
+		os.Stdout = origStdout
+	}()
+
+	var stderr string
+	log.PrintStdErrf = func(format string, fmtArgs ...interface{}) {
+		stderr += fmt.Sprintf(format, fmtArgs...)
+	}
+	exit = func(int) {}
+
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatalf("opening %s: %v", os.DevNull, err)
+	}
+	defer func() { _ = devNull.Close() }()
+	os.Stdout = devNull
+
+	os.Args = args
+	main()
+	return stderr
+}
+
+// TestThemeFileNotConsultedForNonDebugCommands proves the ui.theme
+// config-file tier (resolveThemeFileValue) is skipped entirely for every
+// command that never builds a debugStyler: a ./graft.yaml with an invalid
+// ui.theme value in the current directory must produce no warning on
+// `graft merge`, `graft fan`, `graft json`, or `graft vaultinfo`. Before
+// this fix, PersistentPreRunE called resolveThemeFileValue unconditionally
+// for every command, so each of these non-debug commands stat'd, read, and
+// YAML-parsed the file - both R5's stray "Invalid ui.theme" warning on a
+// command with nothing to do with the debugger, and (for a large file) the
+// R2 performance regression this gating exists to close. See
+// TestThemeFileConsultedForDebugSessions for the sibling proof that the
+// exact same file still warns for the commands that do need it.
+func TestThemeFileNotConsultedForNonDebugCommands(t *testing.T) {
+	restore := chdir(t, t.TempDir())
+	defer restore()
+	if err := os.WriteFile("graft.yaml", []byte("ui:\n  theme: bogus\n"), 0o600); err != nil {
+		t.Fatalf("writing graft.yaml: %v", err)
+	}
+	if err := os.WriteFile("in.yml", []byte("foo: bar\n"), 0o600); err != nil {
+		t.Fatalf("writing in.yml: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"merge", []string{"graft", "merge", "in.yml"}},
+		{"fan", []string{"graft", "fan", "in.yml"}},
+		{"json", []string{"graft", "json", "in.yml"}},
+		{"vaultinfo", []string{"graft", "vaultinfo", "in.yml"}},
+	}
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			stderr := runGraftCapturingStderr(t, c.args)
+			if strings.Contains(stderr, "Invalid ui.theme") {
+				t.Errorf("%s: stderr = %q, want no ui.theme warning (the file tier must not be consulted for this command)", c.name, stderr)
+			}
+		})
+	}
+}
+
+// TestThemeFileConsultedForDebugSessions proves the same invalid
+// ./graft.yaml TestThemeFileNotConsultedForNonDebugCommands writes still
+// produces the "Invalid ui.theme" warning for the two commands that
+// actually build a debugStyler: `graft debug` and `graft merge
+// --interactive`. Without this, the gating fix above could be verified as
+// "warning suppressed everywhere" instead of "warning suppressed only
+// where the theme is never used" - a much weaker, and wrong, guarantee.
+func TestThemeFileConsultedForDebugSessions(t *testing.T) {
+	restore := chdir(t, t.TempDir())
+	defer restore()
+	if err := os.WriteFile("graft.yaml", []byte("ui:\n  theme: bogus\n"), 0o600); err != nil {
+		t.Fatalf("writing graft.yaml: %v", err)
+	}
+	if err := os.WriteFile("in.yml", []byte("foo: bar\n"), 0o600); err != nil {
+		t.Fatalf("writing in.yml: %v", err)
+	}
+	script := "quit\n"
+	if err := os.WriteFile("script.txt", []byte(script), 0o600); err != nil {
+		t.Fatalf("writing script.txt: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"debug", []string{"graft", "debug", "in.yml"}},
+		{"merge --interactive", []string{"graft", "merge", "--interactive", "in.yml"}},
+	}
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			restoreStdin := setStdinFromFile(t, "script.txt")
+			defer restoreStdin()
+
+			stderr := runGraftCapturingStderr(t, c.args)
+			if !strings.Contains(stderr, "Invalid ui.theme") {
+				t.Errorf("%s: stderr = %q, want the ui.theme warning (this command does build a debugStyler)", c.name, stderr)
+			}
+		})
+	}
+}
+
 // TestDiffFiles locks diffFiles()'s exit-code-relevant return values
 // (hasDifferences, err) independent of the CLI plumbing in handleDiff, and
 // confirms its report body carries no ANSI escapes when stdout is not a

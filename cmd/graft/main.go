@@ -297,6 +297,60 @@ func applyNoColorOverride(colorOverride *bool, noColor bool) *bool {
 // and is suppressed only when GRAFT_THEME itself is set (decision 8,
 // plans/colorizing-backlog-closeout.md): a file value and the
 // misspelling warning can both be present in the same call's result.
+// commandNeedsThemeFile reports whether the invocation about to run
+// through cmd can ever construct a debugStyler from the resolved theme:
+// today that is exactly `graft debug` and `graft merge --interactive`
+// (the only two handleDebug call sites, both passing resolvedTheme - see
+// their RunE closures below). Every other command - merge without
+// --interactive, fan, json, diff, vaultinfo, cache - never reads
+// resolvedTheme at all, so consulting the ui.theme config-file tier for
+// them is pure waste: at best a no-op, at worst (a large or merely
+// present ./graft.yaml, which doubles as a very plausible name for a
+// user's actual YAML data file) a multi-second stat+read+parse and a
+// stray "Invalid ui.theme" warning on a command that was never going to
+// look at a theme.
+//
+// cmd is the leaf command cobra actually dispatched (PersistentPreRunE's
+// own cmd parameter, not rootCmd - see cobra's Command.execute: flags for
+// cmd are parsed before any PersistentPreRunE runs), so cmd.Name() and
+// its already-parsed --interactive flag are read here, not captured from
+// an enclosing closure variable whose declaration would otherwise have
+// to precede this code in newRootCmd's source order.
+func commandNeedsThemeFile(cmd *cobra.Command) bool {
+	if cmd.Name() == "debug" {
+		return true
+	}
+	if cmd.Name() != "merge" {
+		return false
+	}
+	interactive, err := cmd.Flags().GetBool("interactive")
+	return err == nil && interactive
+}
+
+// resolveTheme resolves cmd's effective theme end to end: it gates the
+// config-file tier through commandNeedsThemeFile (only debug/merge
+// --interactive pay for resolveThemeFileValue's stat+read+parse; every
+// other command gets fileValue/fileWarn's zero values, which
+// resolveThemeTier treats identically to "no file present"), then runs
+// the full flag > env > file > default precedence through
+// resolveThemeTier exactly as before. Kept as its own function, called
+// from PersistentPreRunE, rather than inlined there: resolveThemeFileValue
+// is a standalone reader, independent of resolveStartupConfig (it never
+// touches internal/config - see its doc comment), and resolveThemeTier is
+// a pure function so the precedence and warning logic unit-tests without
+// cobra, process-wide env mutation, or a real config file; folding the
+// gate into PersistentPreRunE's own closure would only add to that
+// closure's already-high branching (gocyclo) for no benefit.
+func resolveTheme(cmd *cobra.Command, flagChanged bool, flagValue string) (theme string, flagValid bool, warnings []string) {
+	var fileThemeValue, fileThemeWarn string
+	if commandNeedsThemeFile(cmd) {
+		fileThemeValue, _, fileThemeWarn = resolveThemeFileValue(themeConfigSearchPaths())
+	}
+	return resolveThemeTier(flagChanged, flagValue,
+		os.Getenv(themeEnvVar), fileThemeValue, fileThemeWarn,
+		os.Getenv(themeEnvVarMisspelling) != "")
+}
+
 func resolveThemeTier(flagChanged bool, flagValue, envValue, fileValue, fileWarn string, envMisspellingSet bool) (theme string, flagValid bool, warnings []string) {
 	if flagChanged {
 		if !isValidThemeName(flagValue) {
@@ -1093,19 +1147,11 @@ func newRootCmd() (*cobra.Command, *bool) {
 			// An invalid --theme value is a hard error, exit 1,
 			// mirroring --color's invalid-value path immediately above
 			// (decision 14). Validation never touches config.Validate,
-			// so it can never abort an unrelated graft command.
-			// resolveThemeFileValue is a standalone reader, independent
-			// of resolveStartupConfig below (it never touches
-			// internal/config - see its doc comment), so it is read
-			// here unconditionally rather than sourced from
-			// loadedConfig; resolveThemeTier is a pure function so the
-			// precedence and warning logic unit-tests without cobra,
-			// process-wide env mutation, or a real config file.
-			fileThemeValue, _, fileThemeWarn := resolveThemeFileValue(themeConfigSearchPaths())
-			theme, themeFlagValid, themeWarnings := resolveThemeTier(
-				cmd.Flags().Changed("theme"), themeVal,
-				os.Getenv(themeEnvVar), fileThemeValue, fileThemeWarn,
-				os.Getenv(themeEnvVarMisspelling) != "")
+			// so it can never abort an unrelated graft command. The file
+			// tier's own gating (commandNeedsThemeFile) lives in
+			// resolveTheme, not inlined here, so it does not add to this
+			// closure's own branching.
+			theme, themeFlagValid, themeWarnings := resolveTheme(cmd, cmd.Flags().Changed("theme"), themeVal)
 			if !themeFlagValid {
 				aborted = true
 				log.PrintStdErrf("Invalid --theme value: %q. Must be one of: %s.\n", themeVal, knownThemeNamesJoined())
