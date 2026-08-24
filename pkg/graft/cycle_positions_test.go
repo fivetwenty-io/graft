@@ -286,16 +286,22 @@ func TestMergeCycleThroughParallelEvaluation(t *testing.T) {
 }
 
 func TestMergeCycleAlongsideOtherErrors(t *testing.T) {
-	// Run appends phase errors and continues (evaluator.go), so a cycle
-	// can share a MultiError with unrelated failures. Every error gets
-	// exactly one " - " line; the cycle's detail block contributes none.
+	// A cycle can share a MultiError with an unrelated failure, and every
+	// error gets exactly one " - " line while the cycle's detail block
+	// contributes none. That is what Genesis's stderr parser counts on.
+	//
+	// The unrelated failure must be in a DIFFERENT phase. kahnSort returns
+	// on its first stall, so DataFlow never surfaces a second error of its
+	// own; the phase loop in evaluate() is what accumulates across phases.
+	// inject is MergePhase and the grab cycle is EvalPhase, so the two
+	// combine into a genuine two-element MultiError.
 	engine, err := NewEngine()
 	if err != nil {
 		t.Fatalf("NewEngine() error = %v", err)
 	}
 
 	src := []byte("meta:\n  foo: (( grab meta.bar ))\n  bar: (( grab meta.foo ))\n" +
-		"other: (( grab does.not.exist ))\n")
+		"other: (( inject does.not.exist ))\n")
 	doc, err := engine.ParseYAML(src)
 	if err != nil {
 		t.Fatalf("ParseYAML() error = %v", err)
@@ -311,7 +317,17 @@ func TestMergeCycleAlongsideOtherErrors(t *testing.T) {
 	out := err.Error()
 	var me MultiError
 	if !errors.As(err, &me) {
-		t.Skipf("evaluation returned %T rather than a MultiError; nothing to assert", err)
+		t.Fatalf("errors.As(MultiError) = false; got %T: %v", err, err)
+	}
+	if len(me.Errors) != 2 {
+		t.Fatalf("len(me.Errors) = %d, want 2 (the failed inject and the cycle); "+
+			"a one-element MultiError makes the per-error line count vacuous:\n%s",
+			len(me.Errors), out)
+	}
+
+	var ce *CycleError
+	if !errors.As(err, &ce) {
+		t.Errorf("errors.As(*CycleError) = false; the cycle should survive alongside the other error")
 	}
 
 	var prefixed int
