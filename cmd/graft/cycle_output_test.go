@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -295,4 +296,64 @@ func TestCycleOutputMultiDocumentInput(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCycleOutputIdenticalWithTheL2CacheEnabled(t *testing.T) {
+	// The persistent parse cache carries a document's tree across runs.
+	// A cache hit must not change one byte of the cycle block, including
+	// the file and line each node is attributed to, so a cached run is
+	// compared against a disabled run and against its own cold run.
+	a := writeTempYAML(t, "a.yml", "meta:\n  foo: (( grab meta.bar ))\n")
+	b := writeTempYAML(t, "b.yml", "meta:\n  bar: (( grab meta.foo ))\n")
+	args := []string{"merge", a, b}
+
+	t.Setenv("GRAFT_CACHE_L2_ENABLED", "false")
+	disabled, rc := runGraftCapturingOutput(t, args)
+	if rc == 0 {
+		t.Fatalf("exit code = 0 with the cache disabled; want a failure")
+	}
+	if !strings.Contains(disabled, "cycle detected in operator data-flow graph") {
+		t.Fatalf("the cache-disabled run did not report a cycle:\n%s", disabled)
+	}
+
+	cacheDir := t.TempDir()
+	t.Setenv("GRAFT_CACHE_L2_ENABLED", "true")
+	t.Setenv("GRAFT_CACHE_L2_PATH", cacheDir)
+
+	cold, rcCold := runGraftCapturingOutput(t, args)
+	// Without this the comparison below would be vacuous: an unengaged
+	// cache trivially produces identical output.
+	if n := countFilesUnder(t, cacheDir); n == 0 {
+		t.Fatalf("the cache directory %s is empty after the cold run; the L2 cache was never engaged", cacheDir)
+	}
+	warm, rcWarm := runGraftCapturingOutput(t, args)
+
+	if rcCold != rc || rcWarm != rc {
+		t.Errorf("exit codes = %d (cold) and %d (warm), want %d", rcCold, rcWarm, rc)
+	}
+	if cold != disabled {
+		t.Errorf("the cold cached run differs from the cache-disabled run:\ncold:\n%s\ndisabled:\n%s", cold, disabled)
+	}
+	if warm != disabled {
+		t.Errorf("the warm cached run differs from the cache-disabled run:\nwarm:\n%s\ndisabled:\n%s", warm, disabled)
+	}
+}
+
+// countFilesUnder returns how many regular files exist beneath dir.
+func countFilesUnder(t *testing.T, dir string) int {
+	t.Helper()
+	n := 0
+	err := filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			n++
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("WalkDir(%s) error = %v", dir, err)
+	}
+	return n
 }

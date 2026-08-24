@@ -688,3 +688,45 @@ func TestMultiErrorKeepsSpruceByteFormat(t *testing.T) {
 		}
 	})
 }
+
+func TestGoPatchParseLiteralIsUnaffectedByMultiError(t *testing.T) {
+	// gopatch_parse.go pins a literal "@R{Unable to parse go-patch
+	// definitions: ..." whose brace is deliberately unbalanced, so ansi's
+	// markup parser can never resolve it and it renders verbatim in every
+	// color mode. The MultiError change stopped color-processing bodies;
+	// this confirms the pinned literal is unaffected rather than assuming
+	// it, in both directions of the color setting.
+	_, err := graft.ParseGoPatch([]byte("- type: bogus\n  path: /a\n"))
+	if err == nil {
+		t.Fatalf("ParseGoPatch() succeeded; want a parse failure")
+	}
+
+	const literal = "@R{Unable to parse go-patch definitions: "
+	if !strings.HasPrefix(err.Error(), literal) {
+		t.Fatalf("ParseGoPatch() error = %q, want the pinned literal prefix %q", err.Error(), literal)
+	}
+	want := " - " + err.Error() + "\n"
+
+	for _, colorOff := range []bool{true, false} {
+		run := func() {
+			got := graft.MultiError{Errors: []error{err}}.Error()
+			if !strings.Contains(got, want) {
+				t.Errorf("color disabled = %v: MultiError.Error() = %q, want it to carry %q byte for byte",
+					colorOff, got, want)
+			}
+			at := strings.Index(got, "error(s) detected")
+			if at < 0 {
+				t.Fatalf("color disabled = %v: MultiError.Error() = %q; missing the count header", colorOff, got)
+			}
+			body := got[at:]
+			if strings.Contains(body, "\033") {
+				t.Errorf("color disabled = %v: the body gained an escape byte: %q", colorOff, body)
+			}
+		}
+		if colorOff {
+			withColorDisabled(t, run)
+		} else {
+			run()
+		}
+	}
+}
