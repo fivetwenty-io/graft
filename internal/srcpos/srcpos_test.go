@@ -238,4 +238,43 @@ func TestBuildAliasCollisionPicksDocumentOrderFirst(t *testing.T) {
 			t.Fatalf("build %d: alias path = %q, want %q", i, e.Path, "jobs.0.cmd")
 		}
 	}
+
+	// A two-element list leaves document order and lexicographic path
+	// order in agreement, so it cannot tell the comparator's field (line,
+	// then column, then path) apart from a plain string sort of the
+	// paths. A 14-element list with the contested name at indices 2 and
+	// 10 separates them: "jobs.10.cmd" sorts before "jobs.2.cmd", but
+	// index 2 is still written first in the document.
+	wideDoc := "jobs:\n" +
+		"  - x: 0\n" +
+		"  - x: 1\n" +
+		"  - name: alpha\n" +
+		"    cmd: (( grab meta.x ))\n" +
+		"  - x: 3\n" +
+		"  - x: 4\n" +
+		"  - x: 5\n" +
+		"  - x: 6\n" +
+		"  - x: 7\n" +
+		"  - x: 8\n" +
+		"  - x: 9\n" +
+		"  - name: alpha\n" +
+		"    cmd: (( grab meta.y ))\n" +
+		"  - x: 11\n" +
+		"  - x: 12\n" +
+		"  - x: 13\n"
+
+	for i := 0; i < 200; i++ {
+		idx := Build("a.yml", []byte(wideDoc))
+
+		e, ok := idx.Lookup("jobs.alpha.cmd")
+		if !ok {
+			t.Fatalf("build %d: Lookup(jobs.alpha.cmd) = _, false; want an entry", i)
+		}
+		if e.Pos.Line != 5 {
+			t.Fatalf("build %d: alias line = %d, want 5 (index 2, the first element in document order)", i, e.Pos.Line)
+		}
+		if e.Path != "jobs.2.cmd" {
+			t.Fatalf("build %d: alias path = %q, want %q", i, e.Path, "jobs.2.cmd")
+		}
+	}
 }
