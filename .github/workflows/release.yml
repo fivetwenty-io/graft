@@ -105,7 +105,12 @@ jobs:
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
-          version: '~> v2'
+          # Exact, not '~> v2': a floating minor is a moving dependency on a
+          # tag push, where there is no chance to catch a regression first.
+          # v2.18.0 added a config validation that failed the v1.39.0 release
+          # outright, with nothing in this repo having changed. Bump this pin
+          # deliberately, with a release to verify it against.
+          version: 'v2.18.0'
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
