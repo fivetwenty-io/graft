@@ -526,7 +526,7 @@ func (ev *Evaluator) kahnSort(g [][]*Opcall, all map[string]*Opcall, sortedKeys 
 		wave++
 		free := ev.findFreeNodes(g, all, sortedKeys)
 		if len(free) == 0 {
-			return nil, ansi.Errorf("@*{cycle detected in operator data-flow graph}")
+			return nil, ev.newCycleError(g, all)
 		}
 
 		for _, node := range free {
@@ -536,6 +536,27 @@ func (ev *Evaluator) kahnSort(g [][]*Opcall, all map[string]*Opcall, sortedKeys 
 		}
 	}
 	return ops, nil
+}
+
+// newCycleError builds the error reported when kahnSort stalls.
+//
+// At the stall, findFreeNodes has already deleted every scheduled node
+// from all, and removeNodeFromGraph has dropped their edges from g, so
+// both hold exactly the blocked remainder. That remainder is not the
+// cycle: any node whose dependency chain leads into a cycle stays
+// blocked forever without being on it. extractCycle reports only the
+// gray-stack slice, so those bystanders are never named.
+//
+// Everything here runs on the error path only. If extraction somehow
+// finds nothing, we fall back to the original one-line message rather
+// than report an empty block.
+func (ev *Evaluator) newCycleError(g [][]*Opcall, all map[string]*Opcall) error {
+	dependents, order := dependentsFromEdges(g)
+	paths := extractCycle(dependents, order)
+	if len(paths) == 0 {
+		return ansi.Errorf("@*{cycle detected in operator data-flow graph}")
+	}
+	return buildCycleError(ev.Sources, paths, all)
 }
 
 // findFreeNodes finds all nodes with no incoming dependencies.

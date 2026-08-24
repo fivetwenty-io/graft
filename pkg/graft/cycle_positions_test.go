@@ -1,6 +1,9 @@
 package graft
 
 import (
+	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -197,5 +200,128 @@ func TestBuildCycleErrorWithNoSources(t *testing.T) {
 	}
 	if ce.Nodes[0].Pos.File != "" {
 		t.Errorf("Nodes[0].Pos.File = %q, want empty", ce.Nodes[0].Pos.File)
+	}
+}
+
+func TestMergeCycleReportsFilesAndLines(t *testing.T) {
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine() error = %v", err)
+	}
+
+	aBytes := []byte("meta:\n  foo: (( grab meta.bar ))\n")
+	bBytes := []byte("meta:\n  bar: (( grab meta.foo ))\n")
+
+	aDoc, err := engine.ParseYAML(aBytes)
+	if err != nil {
+		t.Fatalf("ParseYAML(a) error = %v", err)
+	}
+	bDoc, err := engine.ParseYAML(bBytes)
+	if err != nil {
+		t.Fatalf("ParseYAML(b) error = %v", err)
+	}
+
+	ctx := WithSourceRefs(context.Background(), []SourceRef{
+		{Name: "a.yml", Bytes: aBytes},
+		{Name: "b.yml", Bytes: bBytes},
+	})
+
+	_, err = engine.Merge(ctx, aDoc, bDoc).Execute()
+	if err == nil {
+		t.Fatalf("Execute() succeeded; want a cycle error")
+	}
+
+	var ce *CycleError
+	if !errors.As(err, &ce) {
+		t.Fatalf("errors.As(*CycleError) = false; got %T: %v", err, err)
+	}
+	if !errors.Is(err, ErrDependencyCycle) {
+		t.Errorf("errors.Is(err, ErrDependencyCycle) = false, want true")
+	}
+
+	out := err.Error()
+	for _, want := range []string{
+		"cycle detected in operator data-flow graph",
+		"[1] a.yml",
+		"[2] b.yml",
+		"cycle (2 nodes): meta.bar -> meta.foo -> meta.bar",
+		"b.yml:2  meta.bar: (( grab meta.foo ))",
+		"a.yml:2  meta.foo: (( grab meta.bar ))",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestMergeCycleThroughParallelEvaluation(t *testing.T) {
+	// RunPhaseParallel reaches DataFlow before it reaches the worker
+	// pool (evaluator_parallel.go), so a cycle surfaces identically on
+	// the parallel path. Nothing pinned this before.
+	engine, err := NewEngine(WithParallel(true))
+	if err != nil {
+		t.Fatalf("NewEngine() error = %v", err)
+	}
+
+	src := []byte("meta:\n  foo: (( grab meta.bar ))\n  bar: (( grab meta.foo ))\n")
+	doc, err := engine.ParseYAML(src)
+	if err != nil {
+		t.Fatalf("ParseYAML() error = %v", err)
+	}
+
+	ctx := WithSourceRefs(context.Background(), []SourceRef{{Name: "only.yml", Bytes: src}})
+
+	_, err = engine.Merge(ctx, doc).Execute()
+	if err == nil {
+		t.Fatalf("Execute() succeeded; want a cycle error")
+	}
+
+	var ce *CycleError
+	if !errors.As(err, &ce) {
+		t.Fatalf("errors.As(*CycleError) = false; got %T: %v", err, err)
+	}
+	if !strings.Contains(err.Error(), "only.yml:") {
+		t.Errorf("output does not attribute a line in only.yml:\n%s", err.Error())
+	}
+}
+
+func TestMergeCycleAlongsideOtherErrors(t *testing.T) {
+	// Run appends phase errors and continues (evaluator.go), so a cycle
+	// can share a MultiError with unrelated failures. Every error gets
+	// exactly one " - " line; the cycle's detail block contributes none.
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine() error = %v", err)
+	}
+
+	src := []byte("meta:\n  foo: (( grab meta.bar ))\n  bar: (( grab meta.foo ))\n" +
+		"other: (( grab does.not.exist ))\n")
+	doc, err := engine.ParseYAML(src)
+	if err != nil {
+		t.Fatalf("ParseYAML() error = %v", err)
+	}
+
+	ctx := WithSourceRefs(context.Background(), []SourceRef{{Name: "only.yml", Bytes: src}})
+
+	_, err = engine.Merge(ctx, doc).Execute()
+	if err == nil {
+		t.Fatalf("Execute() succeeded; want errors")
+	}
+
+	out := err.Error()
+	var me MultiError
+	if !errors.As(err, &me) {
+		t.Skipf("evaluation returned %T rather than a MultiError; nothing to assert", err)
+	}
+
+	var prefixed int
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, " - ") {
+			prefixed++
+		}
+	}
+	if prefixed != len(me.Errors) {
+		t.Errorf("got %d lines starting with %q for %d errors; want one per error:\n%s",
+			prefixed, " - ", len(me.Errors), out)
 	}
 }
