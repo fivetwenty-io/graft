@@ -192,61 +192,18 @@ func (g *DependencyGraph) Dependents(path string) []string {
 }
 
 // DetectCycles returns every elementary cycle in the graph, each as an
-// ordered slice of canonical paths (path[i] depends on path[i+1] running
-// first... and the last element depends on path[0], closing the cycle;
-// the closing edge is not repeated in the slice). Returns nil if the graph
-// is acyclic. The same cycle may be reported more than once if more than
-// one node on it is also reachable from outside the cycle - callers that
-// need a deduplicated set can dedupe by the sorted set of paths each
+// ordered slice of canonical paths (path[i+1] depends on path[i] running
+// first... and path[0] depends on the last element, closing the cycle;
+// the closing edge is not repeated in the slice). Returns nil if the
+// graph is acyclic. The same cycle may be reported more than once if more
+// than one node on it is also reachable from outside the cycle - callers
+// that need a deduplicated set can dedupe by the sorted set of paths each
 // cycle slice contains.
 func (g *DependencyGraph) DetectCycles() [][]string {
 	if g == nil {
 		return nil
 	}
-
-	const (
-		white = 0
-		gray  = 1
-		black = 2
-	)
-	color := make(map[string]int, len(g.order))
-	var cycles [][]string
-	var stack []string
-
-	var visit func(path string)
-	visit = func(path string) {
-		color[path] = gray
-		stack = append(stack, path)
-
-		for _, next := range g.dependents[path] {
-			switch color[next] {
-			case white:
-				visit(next)
-			case gray:
-				// next is still on the current DFS stack: the slice from
-				// next's position to the top is one elementary cycle, in
-				// dependency-then-dependent order.
-				if start := indexOfString(stack, next); start >= 0 {
-					cycle := append([]string(nil), stack[start:]...)
-					cycles = append(cycles, cycle)
-				}
-			case black:
-				// next was already fully explored via a different path;
-				// no new cycle through here.
-			}
-		}
-
-		stack = stack[:len(stack)-1]
-		color[path] = black
-	}
-
-	for _, path := range g.order {
-		if color[path] == white {
-			visit(path)
-		}
-	}
-
-	return cycles
+	return findCycles(g.dependents, g.order)
 }
 
 func indexOfString(s []string, v string) int {
