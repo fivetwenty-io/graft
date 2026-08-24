@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
@@ -644,4 +645,46 @@ func TestMarshalYAMLWithCommentsUnresolvablePathIsSkippedNotFatal(t *testing.T) 
 
 func bytesContainsString(b []byte, s string) bool {
 	return regexp.MustCompile(regexp.QuoteMeta(s)).Match(b)
+}
+
+func TestMultiErrorDoesNotReprocessBodyDirectives(t *testing.T) {
+	// An error message carrying a literal @r{...} - as an operator
+	// expression quoted from a user's document can - must survive
+	// verbatim. Before this fix it was deleted with color off and turned
+	// into live ANSI with color on.
+	me := graft.MultiError{Errors: []error{
+		errors.New(`cycle at (( grab @r{secret} ))`),
+	}}
+
+	got := me.Error()
+
+	if !strings.Contains(got, `(( grab @r{secret} ))`) {
+		t.Errorf("Error() = %q; the body's @r{...} was reprocessed instead of preserved", got)
+	}
+	idx := strings.Index(got, "error(s) detected")
+	if idx == -1 {
+		t.Fatalf("Error() = %q; missing %q", got, "error(s) detected")
+	}
+	if strings.Contains(got[idx:], "\033[") {
+		t.Errorf("Error() = %q; the body must contain no escape bytes", got)
+	}
+}
+
+func TestMultiErrorKeepsSpruceByteFormat(t *testing.T) {
+	// Color defaults to on in this test binary (no tty auto-detection
+	// applies), so this comparison against plain bytes needs color
+	// disabled explicitly, matching the sibling tests above in this file.
+	withColorDisabled(t, func() {
+		me := graft.MultiError{Errors: []error{
+			errors.New("$.meta.a: bad"),
+			errors.New("$.meta.b: worse"),
+		}}
+
+		got := me.Error()
+
+		want := "2 error(s) detected:\n - $.meta.a: bad\n - $.meta.b: worse\n\n"
+		if got != want {
+			t.Errorf("Error() = %q, want %q", got, want)
+		}
+	})
 }

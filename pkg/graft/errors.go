@@ -28,6 +28,11 @@ type MultiError struct {
 // *PathError with a known ErrorCode gain a "[Ecode] " prefix on the message
 // segment, after the "$.path: " prefix that regex depends on, so opted-in
 // output still matches it. See docs/reference/error-codes.md.
+//
+// The aggregated messages themselves are emitted verbatim: only the
+// leading count is color-processed, so a message quoting document
+// content cannot have an "@X{...}" sequence in it silently stripped or
+// turned into live ANSI.
 func (e MultiError) Error() string {
 	codesEnabled := errorCodesEnabled()
 	s := []string{}
@@ -45,7 +50,15 @@ func (e MultiError) Error() string {
 	}
 
 	sort.Strings(s)
-	return ansi.Sprintf("@r{%d} error(s) detected:\n%s\n", len(e.Errors), strings.Join(s, ""))
+	// Colorize only the count. ansi.Sprintf formats first and then
+	// processes @X{...} directives over the whole result, so wrapping the
+	// joined body would reinterpret every byte of every aggregated
+	// message: an "@r{...}" sequence quoted from a user's document is
+	// deleted when color is off and injected as live ANSI when it is on.
+	// Each error already resolved its own directives when it was built
+	// with ansi.Errorf, so the outer pass was double-processing.
+	return ansi.Sprintf("@r{%d}", len(e.Errors)) +
+		fmt.Sprintf(" error(s) detected:\n%s\n", strings.Join(s, ""))
 }
 
 // Count returns the number of errors in this MultiError.
