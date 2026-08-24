@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `graft merge --no-doc-start` suppresses the leading `---\n`
+  document-start line, restoring spruce's exact `merge` output shape
+  for consumers that concatenate merge output after bytes of their own
+  (Genesis's `.genesis/config`, where the marker opened a second YAML
+  document Genesis could no longer read back). Also settable as
+  `GRAFT_NO_DOC_START=1` for callers that invoke graft with a fixed
+  flag set; an explicitly given flag wins over the environment in both
+  directions. Default output is byte-identical to before. See
+  [graft merge](docs/reference/cli.md#graft-merge).
+
 ## [1.40.0] - 2026-08-24
 
 `graft --version` now names the build it came from, not just the release

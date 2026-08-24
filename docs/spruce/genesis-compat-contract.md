@@ -266,11 +266,18 @@ two output-bytes changes across graft versions are worth pinning here:
   spruce parity: `spruce merge` does not emit a leading `---`
   (`cmd/spruce/main.go`'s `merge` case writes bare `"%s\n"`; only
   `spruce fan` prepends `"---\n"` per document, which graft's own `fan`
-  already matched). It is harmless to Genesis either way - `---` is
+  already matched). Every *parsing* consumer is unaffected - `---` is
   YAML's document-start marker, not content, so every re-parse pattern
   above (4, 5, 6, and the `--multi-doc`/`--go-patch`/`--skip-eval`
   combinations) sees the same document whether or not the marker is
-  present.
+  present. But a consumer that *concatenates* merge output after bytes
+  of its own is not: Genesis writing `.genesis/config` prepends its own
+  content, so the marker line opens a second YAML document mid-file and
+  Genesis can no longer read the result back. `merge --no-doc-start`
+  (or `GRAFT_NO_DOC_START=1` in the environment, for Genesis's fixed
+  spruce-shaped invocations - see
+  [CLI reference](../reference/cli.md#graft-merge)) suppresses the
+  marker and restores spruce's exact `merge` output shape.
 
 ## Related documents
 
