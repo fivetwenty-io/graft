@@ -26,10 +26,12 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 INSTALL_PATH ?= /usr/local/bin
 # CI's Lint job pins both of these (.github/workflows/ci.yml); keep them in
 # sync so a local `make golangci` reproduces CI byte-for-byte. The
-# GOTOOLCHAIN pin also matters locally on its own: golangci-lint is built
-# with go1.27 and panics type-checking against a newer local toolchain's
-# standard library.
-GOLANGCI_LINT_VERSION := v2.12.2
+# GOTOOLCHAIN pin also matters locally on its own: golangci-lint parses the
+# standard library with its own go/types, so a binary built against an older
+# toolchain than the one it analyzes panics with "file requires newer Go
+# version". v2.13.1 is built with go1.27.0; bump it whenever the toolchain
+# moves.
+GOLANGCI_LINT_VERSION := v2.13.1
 LINT_GOTOOLCHAIN := go1.27.0
 
 # Platform detection

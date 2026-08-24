@@ -76,17 +76,19 @@ jobs:
           # cache would restore a second copy over it and fail on tar.
           cache: false
 
-      # Pinned to a v2 release built with a Go toolchain at least as new
-      # as go.mod's language version -- "latest" under the v6 action
-      # resolved a v1.x linter built with go1.24, which refuses to load
-      # against a go 1.26 target.
+      # The pinned release must be built with a Go toolchain at least as
+      # new as the container's: golangci-lint parses the standard library
+      # with its own go/types, and one built against an older toolchain
+      # panics on "file requires newer Go version". v2.12.2 (built with
+      # go1.26.2) died that way once the containers moved to 1.27; v2.13.1
+      # is built with go1.27.0. Bump this in lockstep with the image.
       #
       # The tree is clean under this config, so the whole config is
       # enforced -- there is no baseline left to grandfather in.
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.12.2
+          version: v2.13.1
 
   test:
     name: Test
