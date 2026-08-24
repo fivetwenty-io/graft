@@ -66,6 +66,52 @@ func sanitizeDisplay(s string) string {
 	return out
 }
 
+// sanitizeFilename makes one input filename safe to print. It carries
+// sanitizeDisplay's guarantees unchanged - escape sequences stripped,
+// control and line-breaking runes escaped, output bounded - and differs
+// in one respect: it truncates from the LEFT, marking the result with a
+// leading "...".
+//
+// The direction is what makes the result useful. A filename's
+// distinguishing part is its tail, so cutting the tail off leaves a path
+// nobody can open, and several inputs under one deep workspace root
+// collapse to the same visible text, which defeats the numbered inputs
+// list. The rune cap the spec sanctions is for expressions; applying it
+// to a 209-character absolute path is what produced that.
+//
+// The tail is assembled one whole replacement at a time, so the cut can
+// never land inside a multi-character escape such as a literal
+// LINE SEPARATOR rendered as \u2028.
+func sanitizeFilename(s string) string {
+	s = ansi.StripEscapes(s)
+
+	reps := make([]string, 0, len(s))
+	total := 0
+	for _, r := range s {
+		rep := displayReplacement(r)
+		reps = append(reps, rep)
+		total += utf8.RuneCountInString(rep)
+	}
+
+	if total <= cycleExprMaxRunes {
+		return strings.Join(reps, "")
+	}
+
+	const marker = "..."
+	budget := cycleExprMaxRunes - len(marker)
+	kept := 0
+	first := len(reps)
+	for first > 0 {
+		n := utf8.RuneCountInString(reps[first-1])
+		if kept+n > budget {
+			break
+		}
+		kept += n
+		first--
+	}
+	return marker + strings.Join(reps[first:], "")
+}
+
 // displayReplacement returns how one rune renders inside sanitizeDisplay's
 // output: itself, unchanged, for ordinary printable text, or an escaped
 // form for anything that could break the single-line-output guarantee.
@@ -138,7 +184,7 @@ func (e *CycleError) Error() string {
 		if i == 0 {
 			b.WriteString("\n   inputs:")
 		}
-		fmt.Fprintf(&b, "\n     [%d] %s", i+1, sanitizeDisplay(name))
+		fmt.Fprintf(&b, "\n     [%d] %s", i+1, sanitizeFilename(name))
 	}
 
 	if len(e.Nodes) == 0 {
@@ -186,9 +232,9 @@ func pluralNodes(n int) string {
 func cycleLocation(p interfaces.Position) string {
 	switch {
 	case p.File != "" && p.Line > 0:
-		return fmt.Sprintf("%s:%d", sanitizeDisplay(p.File), p.Line)
+		return fmt.Sprintf("%s:%d", sanitizeFilename(p.File), p.Line)
 	case p.File != "":
-		return sanitizeDisplay(p.File)
+		return sanitizeFilename(p.File)
 	default:
 		return "<unknown>"
 	}

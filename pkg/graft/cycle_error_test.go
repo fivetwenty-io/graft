@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
@@ -317,5 +318,100 @@ func TestCycleErrorDetailLinesNeverStartWithGenesisPrefix(t *testing.T) {
 	}
 	if strings.Contains(out, "\033") {
 		t.Errorf("output contains an escape byte:\n%q", out)
+	}
+}
+
+func TestSanitizeFilenameKeepsShortPathsUnchanged(t *testing.T) {
+	const in = "/tmp/deploy/manifest.yml"
+
+	if got := sanitizeFilename(in); got != in {
+		t.Errorf("sanitizeFilename(%q) = %q, want it unchanged", in, got)
+	}
+}
+
+func TestSanitizeFilenameTruncatesFromTheLeft(t *testing.T) {
+	const tail = "/59c9d5dd/scratchpad/self.yml"
+	in := "/private/tmp/" + strings.Repeat("deep-workspace-root/", 12) + tail[1:]
+
+	got := sanitizeFilename(in)
+
+	if !strings.HasPrefix(got, "...") {
+		t.Errorf("sanitizeFilename() = %q; a shortened path must be marked with a leading ...", got)
+	}
+	if !strings.HasSuffix(got, "self.yml") {
+		t.Errorf("sanitizeFilename() = %q; the distinguishing tail must survive", got)
+	}
+	if n := utf8.RuneCountInString(got); n > cycleExprMaxRunes {
+		t.Errorf("sanitizeFilename() is %d runes, want at most %d", n, cycleExprMaxRunes)
+	}
+}
+
+func TestSanitizeFilenameDistinguishesSiblingsUnderALongRoot(t *testing.T) {
+	root := "/private/tmp/" + strings.Repeat("deep-workspace-root/", 12)
+
+	a := sanitizeFilename(root + "alpha.yml")
+	b := sanitizeFilename(root + "beta.yml")
+
+	if a == b {
+		t.Errorf("two inputs under a long root both render as %q; the numbered inputs list must distinguish them", a)
+	}
+}
+
+func TestSanitizeFilenameKeepsTheEscapeGuarantees(t *testing.T) {
+	// Same contract as sanitizeDisplay: no escape byte reaches stderr and
+	// the result occupies exactly one line, whether or not it is shortened.
+	hostile := "/tmp/\033[31m" + strings.Repeat("padding-segment/", 12) + "a\nb\r\tc.yml"
+
+	got := sanitizeFilename(hostile)
+
+	if strings.Contains(got, "\033") {
+		t.Errorf("sanitizeFilename() = %q; no escape byte may survive", got)
+	}
+	for _, br := range []string{"\n", "\r", "\t"} {
+		if strings.Contains(got, br) {
+			t.Errorf("sanitizeFilename() = %q; a raw %q must not survive", got, br)
+		}
+	}
+	if n := utf8.RuneCountInString(got); n > cycleExprMaxRunes {
+		t.Errorf("sanitizeFilename() is %d runes, want at most %d", n, cycleExprMaxRunes)
+	}
+}
+
+func TestSanitizeFilenameTruncationNeverSplitsReplacement(t *testing.T) {
+	// U+2028 renders as the six characters \u2028. The tail is kept one
+	// whole replacement at a time, so the cut can never land inside one.
+	in := strings.Repeat("x", 200) + strings.Repeat("\u2028", 4) + "end.yml"
+
+	got := sanitizeFilename(in)
+
+	if strings.Contains(got, "\u2028") {
+		t.Errorf("sanitizeFilename() = %q; a raw line separator must not survive", got)
+	}
+	rest := strings.TrimPrefix(got, "...")
+	for _, frag := range []string{`u2028`, `2028`, `028`, `28`, `8`} {
+		if strings.HasPrefix(rest, frag) {
+			t.Errorf("sanitizeFilename() = %q; the cut landed inside a \\u2028 replacement", got)
+		}
+	}
+}
+
+func TestCycleErrorShortensLongFilenamesFromTheLeft(t *testing.T) {
+	long := "/private/tmp/" + strings.Repeat("deep-workspace-root/", 12) + "self.yml"
+	e := &CycleError{
+		Inputs: []string{long},
+		Nodes: []CycleNode{{
+			Path: "meta.self",
+			Expr: "(( grab meta.self ))",
+			Pos:  interfaces.Position{File: long, Line: 2},
+		}},
+	}
+
+	out := e.Error()
+
+	if !strings.Contains(out, "[1] ...") || !strings.Contains(out, "root/self.yml\n") {
+		t.Errorf("the inputs list does not keep the path's tail:\n%s", out)
+	}
+	if !strings.Contains(out, "self.yml:2  meta.self:") {
+		t.Errorf("the detail line does not keep the path's tail:\n%s", out)
 	}
 }
