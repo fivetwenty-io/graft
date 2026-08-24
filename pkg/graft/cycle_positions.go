@@ -155,7 +155,7 @@ func (si *sourceIndexes) resolveByExpr(expr string) (interfaces.Position, bool) 
 		if idx == nil {
 			continue
 		}
-		total += idx.Exprs()[expr]
+		total += idx.CountExpr(expr)
 		if e, ok := idx.ByExpr(expr); ok {
 			hit = e
 		}

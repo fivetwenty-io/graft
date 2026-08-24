@@ -143,7 +143,7 @@ func TestBuildIndexesOnlyTheFirstDocument(t *testing.T) {
 	if e.Pos.Line != 1 {
 		t.Errorf("Pos.Line = %d, want 1", e.Pos.Line)
 	}
-	if n := idx.Exprs()["(( grab two ))"]; n != 0 {
+	if n := idx.CountExpr("(( grab two ))"); n != 0 {
 		t.Errorf("CountExpr(grab two) = %d, want 0: an inert document must not inflate the counts", n)
 	}
 }
@@ -188,8 +188,8 @@ func TestByExprRequiresUniqueness(t *testing.T) {
 	if _, ok := idx.ByExpr("(( grab z ))"); ok {
 		t.Errorf("ByExpr returned a hit for a duplicated expression")
 	}
-	if counts := idx.Exprs()["(( grab z ))"]; counts != 2 {
-		t.Errorf("Exprs()[grab z] = %d, want 2", counts)
+	if counts := idx.CountExpr("(( grab z ))"); counts != 2 {
+		t.Errorf("CountExpr(grab z) = %d, want 2", counts)
 	}
 	if e, ok := idx.ByExpr("(( grab y ))"); !ok || e.Path != "c" {
 		t.Errorf("ByExpr(grab y) = %+v, %v; want the entry at path c", e, ok)
@@ -206,5 +206,8 @@ func TestNilIndexMethodsAreSafe(t *testing.T) {
 	}
 	if _, ok := idx.ByExpr("x"); ok {
 		t.Errorf("nil ByExpr returned true")
+	}
+	if idx.CountExpr("x") != 0 {
+		t.Errorf("nil CountExpr returned a non-zero count")
 	}
 }

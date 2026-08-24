@@ -102,9 +102,19 @@ func (i *Index) Lookup(path string) (Entry, bool) {
 	return Entry{}, false
 }
 
-// Exprs returns a count of entries per normalized expression, so a
-// caller can decide whether an expression is unique across ALL sources
-// before relying on it.
+// CountExpr returns how many entries in this index carry expr. Summing
+// it across every source is how a caller decides whether an expression
+// is unique across the union before relying on it.
+func (i *Index) CountExpr(expr string) int {
+	if i == nil {
+		return 0
+	}
+	return len(i.byExpr[expr])
+}
+
+// Exprs returns a count of entries per normalized expression. It builds
+// a fresh map over the whole index, so ask CountExpr instead when only
+// one expression's count is wanted.
 func (i *Index) Exprs() map[string]int {
 	out := make(map[string]int)
 	if i == nil {
