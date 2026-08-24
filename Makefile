@@ -27,10 +27,10 @@ INSTALL_PATH ?= /usr/local/bin
 # CI's Lint job pins both of these (.github/workflows/ci.yml); keep them in
 # sync so a local `make golangci` reproduces CI byte-for-byte. The
 # GOTOOLCHAIN pin also matters locally on its own: golangci-lint is built
-# with go1.26 and panics type-checking against a newer local toolchain's
+# with go1.27 and panics type-checking against a newer local toolchain's
 # standard library.
 GOLANGCI_LINT_VERSION := v2.12.2
-LINT_GOTOOLCHAIN := go1.26.6
+LINT_GOTOOLCHAIN := go1.27.0
 
 # Platform detection
 GOOS := $(shell go env GOOS)
