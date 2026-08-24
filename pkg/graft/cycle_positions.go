@@ -51,11 +51,15 @@ func buildSourceIndexes(refs []SourceRef) *sourceIndexes {
 
 // resolve locates one operator call in the merge's inputs.
 //
-// Stage one walks the inputs in reverse merge order, first hit wins,
-// trying the canonical path before the literal one. registerOpcall
-// (evaluator.go) sets where to the literal numeric path and canonical to
-// the name-resolved one, and list indices drift across merges while name
-// keys do not.
+// Stage one walks the inputs in reverse merge order, first verified hit
+// wins, trying both of the operator's paths against each input. A hit
+// counts only when the indexed expression is the operator's own text:
+// the same path can name a different operator in a different input - a
+// numeric list slot in particular, since registerOpcall (evaluator.go)
+// sets canonical to the literal numeric path and where to the
+// name-resolved one, and list indices drift across merges while name
+// keys do not. Verifying the expression is what keeps the printed line
+// and the printed expression describing the same piece of source.
 //
 // Stage two runs only when stage one found nothing. It never invents a
 // position, and never names a file unless that file is the only
@@ -65,11 +69,13 @@ func (si *sourceIndexes) resolve(op *Opcall) interfaces.Position {
 		return interfaces.Position{}
 	}
 
-	if pos, ok := si.resolveByPath(candidatePaths(op)); ok {
+	expr := strings.TrimSpace(op.src)
+
+	if pos, ok := si.resolveByPath(candidatePaths(op), expr); ok {
 		return pos
 	}
 
-	if pos, ok := si.resolveByExpr(strings.TrimSpace(op.src)); ok {
+	if pos, ok := si.resolveByExpr(expr); ok {
 		return pos
 	}
 
@@ -87,10 +93,11 @@ func (si *sourceIndexes) resolve(op *Opcall) interfaces.Position {
 	return interfaces.Position{}
 }
 
-// candidatePaths returns the paths worth trying for op, canonical
-// first: registerOpcall (evaluator.go) sets where to the literal
-// numeric path and canonical to the name-resolved one, and list indices
-// drift across merges while name keys do not.
+// candidatePaths returns the paths worth trying for op. registerOpcall
+// (evaluator.go) sets canonical to the literal numeric path and where to
+// the name-resolved one; both are tried against every input, and
+// resolveByPath verifies each hit's expression, so the order between
+// them decides nothing on its own.
 func candidatePaths(op *Opcall) []string {
 	candidates := make([]string, 0, 2)
 	if op.canonical != nil {
@@ -105,17 +112,25 @@ func candidatePaths(op *Opcall) []string {
 }
 
 // resolveByPath is stage one: walk the inputs in reverse merge order,
-// first hit wins, trying each candidate path in order.
-func (si *sourceIndexes) resolveByPath(candidates []string) (interfaces.Position, bool) {
+// trying each candidate path against each input and accepting the first
+// hit whose indexed expression is expr.
+//
+// A path hit carrying different text is not the operator being resolved,
+// so the search continues through the remaining candidates and the
+// remaining inputs rather than stopping. Only when no combination
+// verifies does stage one give up.
+func (si *sourceIndexes) resolveByPath(candidates []string, expr string) (interfaces.Position, bool) {
 	for i := len(si.indexes) - 1; i >= 0; i-- {
 		idx := si.indexes[i]
 		if idx == nil {
 			continue
 		}
 		for _, p := range candidates {
-			if e, ok := idx.Lookup(p); ok {
-				return e.Pos, true
+			e, ok := idx.Lookup(p)
+			if !ok || e.Expr != expr {
+				continue
 			}
+			return e.Pos, true
 		}
 	}
 	return interfaces.Position{}, false

@@ -341,3 +341,70 @@ func TestMergeCycleAlongsideOtherErrors(t *testing.T) {
 			prefixed, " - ", len(me.Errors), out)
 	}
 }
+
+func TestResolveRejectsAPathHitCarryingAnotherExpression(t *testing.T) {
+	// Both inputs carry an operator at the numeric path jobs.0.cmd, but
+	// only d0.yml's is the one on the cycle. Reverse merge order reaches
+	// d1.yml first, so without verifying the expression the later file's
+	// unrelated operator claims the node and the block prints a line
+	// whose text contradicts the expression beside it.
+	d0 := []byte("jobs:\n  - name: alpha\n    cmd: (( grab meta.x ))\nmeta:\n  x: (( grab jobs.alpha.cmd ))\n")
+	d1 := []byte("jobs:\n  - name: web\n    cmd: (( grab meta.y ))\nmeta:\n  y: hello\n")
+	refs := []SourceRef{
+		{Name: "d0.yml", Bytes: d0},
+		{Name: "d1.yml", Bytes: d1},
+	}
+
+	where, err := tree.ParseCursor("jobs.alpha.cmd")
+	if err != nil {
+		t.Fatalf("ParseCursor error = %v", err)
+	}
+	canonical, err := tree.ParseCursor("jobs.0.cmd")
+	if err != nil {
+		t.Fatalf("ParseCursor error = %v", err)
+	}
+	op := &Opcall{where: where, canonical: canonical, src: "(( grab meta.x ))"}
+
+	pos := buildSourceIndexes(refs).resolve(op)
+
+	if pos.File != "d0.yml" || pos.Line != 3 {
+		t.Errorf("Pos = %+v, want d0.yml:3: the cited line must contain the cited expression", pos)
+	}
+}
+
+func TestMergeCycleThroughANameKeyedListCitesTheRightFile(t *testing.T) {
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine() error = %v", err)
+	}
+
+	d0Bytes := []byte("jobs:\n  - name: alpha\n    cmd: (( grab meta.x ))\nmeta:\n  x: (( grab jobs.alpha.cmd ))\n")
+	d1Bytes := []byte("jobs:\n  - name: web\n    cmd: (( grab meta.y ))\nmeta:\n  y: hello\n")
+
+	d0, err := engine.ParseYAML(d0Bytes)
+	if err != nil {
+		t.Fatalf("ParseYAML(d0) error = %v", err)
+	}
+	d1, err := engine.ParseYAML(d1Bytes)
+	if err != nil {
+		t.Fatalf("ParseYAML(d1) error = %v", err)
+	}
+
+	ctx := WithSourceRefs(context.Background(), []SourceRef{
+		{Name: "d0.yml", Bytes: d0Bytes},
+		{Name: "d1.yml", Bytes: d1Bytes},
+	})
+
+	_, err = engine.Merge(ctx, d0, d1).Execute()
+	if err == nil {
+		t.Fatalf("Execute() succeeded; want a cycle error")
+	}
+
+	out := err.Error()
+	if !strings.Contains(out, "d0.yml:3  jobs.0.cmd: (( grab meta.x ))") {
+		t.Errorf("output does not cite d0.yml:3 for jobs.0.cmd:\n%s", out)
+	}
+	if strings.Contains(out, "d1.yml:3") {
+		t.Errorf("output cites d1.yml:3, which reads (( grab meta.y )):\n%s", out)
+	}
+}
