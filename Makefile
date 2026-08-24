@@ -23,7 +23,13 @@ BUILD_DIR := build
 VERSION_BASELINE := $(shell sed -n 's/^var Version = "\([^"]*\)".*/\1/p' $(SOURCE_DIR)/main.go)
 VERSION_TAG := $(shell git describe --tags --exact-match 2>/dev/null | sed 's/^v//')
 VERSION := $(if $(VERSION_TAG),$(VERSION_TAG),$(VERSION_BASELINE))
-LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
+# Commit and build date fill in the rest of the `graft --version` line
+# (cmd/graft/version.go). Both fall back to the toolchain-embedded build
+# info when unset, so a bare `go build` still reports a real revision.
+# SOURCE_DATE_EPOCH is honored so a reproducible build stays reproducible.
+COMMIT := $(shell git rev-parse --short=7 HEAD 2>/dev/null)
+BUILD_DATE := $(shell if [ -n "$$SOURCE_DATE_EPOCH" ]; then date -u -d "@$$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ; else date -u +%Y-%m-%dT%H:%M:%SZ; fi)
+LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildDate=$(BUILD_DATE)"
 GO_FILES := $(shell find . -name '*.go' -not -path "./vendor/*")
 COVERAGE_DIR := coverage
 COVERAGE_FILE := $(COVERAGE_DIR)/coverage.out

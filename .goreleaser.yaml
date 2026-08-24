@@ -45,6 +45,11 @@ builds:
       # genesis's check_prereqs() requires the `-v`/`--version` output to
       # contain a semver token >= 1.28.0; the tag provides it.
       - -X main.Version={{ .Version }}
+      # The rest of the `graft --version` line (cmd/graft/version.go).
+      # The commit date, not the wall clock, keeps release binaries
+      # byte-identical across rebuilds (same reason as mod_timestamp).
+      - -X main.Commit={{ .ShortCommit }}
+      - -X main.BuildDate={{ .CommitDate }}
     goos:
       - linux
       - darwin
