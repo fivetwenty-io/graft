@@ -36,10 +36,28 @@ jobs:
   #
   # timeout-minutes on every job: a hung job would otherwise hold the
   # single runner for GitHub's 6-hour default.
+  #
+  # The Go module and build caches are host directories bind-mounted into
+  # each container rather than the Actions cache service. The container
+  # filesystem is fresh every job, but this runner is persistent: fetching
+  # and unpacking a multi-GB cache.tzst costs more than the build it saves,
+  # and it untars over Go's read-only module cache, flooding the log with
+  # tar "Cannot open: File exists". setup-go's own cache stays off for the
+  # same reason. The mounts live outside _work, so the runner's workspace
+  # reclaim hook leaves them alone and root ownership there is harmless.
+  # GOCACHE is set explicitly because the runner overrides HOME to
+  # /github/home inside the container -- inside _work/_temp, wiped between
+  # jobs and outside the mount.
   lint:
     name: Lint
     runs-on: self-hosted
-    container: golang:1.26
+    container:
+      image: golang:1.26
+      volumes:
+        - /home/runner/gha-container-cache/go:/go
+        - /home/runner/gha-container-cache/go-build:/root/.cache/go-build
+    env:
+      GOCACHE: /root/.cache/go-build
     timeout-minutes: 30
     steps:
       - name: Checkout code
@@ -54,7 +72,9 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
-          cache: true
+          # The mounted /go volume is the module cache; the action's own
+          # cache would restore a second copy over it and fail on tar.
+          cache: false
 
       # Pinned to a v2 release built with a Go toolchain at least as new
       # as go.mod's language version -- "latest" under the v6 action
@@ -71,7 +91,13 @@ jobs:
   test:
     name: Test
     runs-on: self-hosted
-    container: golang:1.26
+    container:
+      image: golang:1.26
+      volumes:
+        - /home/runner/gha-container-cache/go:/go
+        - /home/runner/gha-container-cache/go-build:/root/.cache/go-build
+    env:
+      GOCACHE: /root/.cache/go-build
     timeout-minutes: 30
     steps:
       - name: Checkout code
@@ -86,7 +112,9 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
-          cache: true
+          # The mounted /go volume is the module cache; the action's own
+          # cache would restore a second copy over it and fail on tar.
+          cache: false
 
       - name: Run unit tests
         run: make test-unit
@@ -97,7 +125,13 @@ jobs:
   build:
     name: Build
     runs-on: self-hosted
-    container: golang:1.26
+    container:
+      image: golang:1.26
+      volumes:
+        - /home/runner/gha-container-cache/go:/go
+        - /home/runner/gha-container-cache/go-build:/root/.cache/go-build
+    env:
+      GOCACHE: /root/.cache/go-build
     timeout-minutes: 30
     needs: [lint, test]
     steps:
@@ -113,7 +147,9 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
-          cache: true
+          # The mounted /go volume is the module cache; the action's own
+          # cache would restore a second copy over it and fail on tar.
+          cache: false
 
       - name: Verify dependencies
         run: make deps
@@ -124,7 +160,13 @@ jobs:
   import-validation:
     name: Validate External Imports
     runs-on: self-hosted
-    container: golang:1.26
+    container:
+      image: golang:1.26
+      volumes:
+        - /home/runner/gha-container-cache/go:/go
+        - /home/runner/gha-container-cache/go-build:/root/.cache/go-build
+    env:
+      GOCACHE: /root/.cache/go-build
     timeout-minutes: 30
     needs: [lint, test]
     steps:
@@ -140,7 +182,9 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
-          cache: true
+          # The mounted /go volume is the module cache; the action's own
+          # cache would restore a second copy over it and fail on tar.
+          cache: false
 
       - name: Run import validation tests
         run: make validate-imports
@@ -151,7 +195,13 @@ jobs:
   byte-identity:
     name: Byte Identity
     runs-on: self-hosted
-    container: golang:1.26
+    container:
+      image: golang:1.26
+      volumes:
+        - /home/runner/gha-container-cache/go:/go
+        - /home/runner/gha-container-cache/go-build:/root/.cache/go-build
+    env:
+      GOCACHE: /root/.cache/go-build
     timeout-minutes: 30
     needs: [lint, test]
     if: github.event_name == 'pull_request'
@@ -169,7 +219,9 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
-          cache: true
+          # The mounted /go volume is the module cache; the action's own
+          # cache would restore a second copy over it and fail on tar.
+          cache: false
 
       - name: Build head binary
         run: go build -o "$RUNNER_TEMP/graft-head" ./cmd/graft
@@ -194,7 +246,13 @@ jobs:
   cache-identity:
     name: Cache Identity
     runs-on: self-hosted
-    container: golang:1.26
+    container:
+      image: golang:1.26
+      volumes:
+        - /home/runner/gha-container-cache/go:/go
+        - /home/runner/gha-container-cache/go-build:/root/.cache/go-build
+    env:
+      GOCACHE: /root/.cache/go-build
     timeout-minutes: 30
     needs: [lint, test]
     steps:
@@ -210,7 +268,9 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
-          cache: true
+          # The mounted /go volume is the module cache; the action's own
+          # cache would restore a second copy over it and fail on tar.
+          cache: false
 
       - name: Build binary
         run: go build -o "$RUNNER_TEMP/graft-head" ./cmd/graft
@@ -225,7 +285,13 @@ jobs:
   spruce-compat:
     name: Spruce Compat
     runs-on: self-hosted
-    container: golang:1.26
+    container:
+      image: golang:1.26
+      volumes:
+        - /home/runner/gha-container-cache/go:/go
+        - /home/runner/gha-container-cache/go-build:/root/.cache/go-build
+    env:
+      GOCACHE: /root/.cache/go-build
     timeout-minutes: 30
     needs: [lint, test]
     steps:
@@ -241,7 +307,9 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.6'
-          cache: true
+          # The mounted /go volume is the module cache; the action's own
+          # cache would restore a second copy over it and fail on tar.
+          cache: false
 
       - name: Add GOPATH/bin to PATH
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
