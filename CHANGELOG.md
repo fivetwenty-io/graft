@@ -21,6 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `errors.As(err, &ce)`, with `var ce *graft.CycleError`, gives access to
   `Inputs` and `Nodes`.
 
+### Changed
+
+- A merge now fails when two entries of one list share a `name`, `key`,
+  or `id` value and an operator appears beneath either of them. Such an
+  operator has no address that distinguishes the entries, so it used to
+  collide onto the first entry's slot: one operator's value was written
+  into a different entry, the rest kept their raw operator text, and the
+  merge exited 0. Lists that repeat a name without an operator beneath
+  the repeats are unaffected and merge as before. This is a deliberate
+  divergence from spruce, which still produces the corrupt output
+  silently. See [the errors
+  reference](docs/reference/errors.md#ambiguous-entry-names).
+
 ### Fixed
 
 - Aggregated error bodies are no longer color-processed a second time. An

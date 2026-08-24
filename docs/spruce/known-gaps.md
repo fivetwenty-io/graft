@@ -172,6 +172,42 @@ duplicate entry is silently inserted.
 same identifier under spruce now fails loudly. This is an off-by-one
 fix, not a semantic redesign; only index-0 collisions change behavior.
 
+### operator-under-duplicate-list-name-is-an-error
+
+**Graft behavior:** when two entries of the same list carry the same
+`name`, `key`, or `id` value, and an operator appears anywhere beneath
+any of them, the merge fails with one error per affected operator:
+
+```
+ - $.jobs: duplicate name "alpha" at jobs.0, jobs.1 makes the operator
+   at $.jobs.0.cmd unaddressable; give each entry a unique name
+```
+
+Entries sharing a name with no operator beneath them are untouched, so
+a list that merely repeats a name merges exactly as it always has. Only
+the ambiguous-operator combination is rejected.
+
+**Spruce behavior:** spruce (verified against a build of
+geofffranks/spruce at `d1b00ad`) accepts the document and exits 0 with
+silently corrupt output. A name-keyed cursor resolves through
+`listFind`, which returns the first entry carrying that name, so every
+operator under every entry sharing that name canonicalizes to the same
+path and they overwrite one another in the dataflow map. The surviving
+operator writes its value into the **first** entry's slot, and the
+other entries keep their raw operator text. For three entries named
+`alpha` whose `cmd` values are `(( grab meta.first ))`,
+`(( grab meta.second ))`, and `(( grab meta.third ))`, spruce emits
+`THIRD` as `jobs.0.cmd` and leaves `jobs.1.cmd` and `jobs.2.cmd`
+unevaluated. graft produced byte-identical output before this change.
+
+**Impact:** documents that hit this were already getting a value
+computed from one entry's expression written into a different entry,
+with no diagnostic. They now fail loudly and name the entries to
+rename. Every other document is unaffected: a differential sweep of
+both binaries over the repository's 95-document YAML corpus found no
+behavioral change outside the `shuffle` operator, whose output is
+random by design and differs run to run on either binary.
+
 ## Resolved
 
 Items that were tracked as open gaps and have since been closed. Kept
