@@ -142,6 +142,46 @@ type dataFlowContext struct {
 	locs           []*tree.Cursor
 	errors         MultiError
 	visited        map[uintptr]bool
+	// ambiguous is non-nil while scanning beneath a list entry whose
+	// name is shared with another entry in the same list. Any operator
+	// found down there is unaddressable, so registerOpcall reports it
+	// instead of registering it. See ambiguousEntry.
+	ambiguous *ambiguousEntry
+}
+
+// ambiguousEntry describes a list entry whose name/key/id value is
+// shared with at least one sibling.
+//
+// A name-keyed cursor resolves through listFind (tree/resolver.go),
+// which returns the FIRST entry carrying that name. Every operator
+// under every entry sharing the name therefore canonicalizes to the
+// same path, they overwrite each other in dataFlowContext.all, and one
+// survivor writes its value into the first entry's slot while the rest
+// keep their raw operator text. Refusing the merge is a deliberate
+// divergence from spruce, which produces that corrupt output silently;
+// see docs/spruce/known-gaps.md.
+type ambiguousEntry struct {
+	// name is the shared name/key/id value.
+	name string
+	// list is the dotted path of the list holding the entries.
+	list string
+	// paths are the dotted paths of every entry sharing name, in list
+	// order.
+	paths []string
+}
+
+// errorAt reports the operator at opPath as unaddressable, naming the
+// shared name and every entry carrying it so the author can see which
+// entries to rename. The error is a *PathError against the list, so it
+// renders as one " - $.<list>: ..." line like every other per-path
+// merge error.
+func (a *ambiguousEntry) errorAt(opPath string) error {
+	return &PathError{
+		Path: a.list,
+		Cause: fmt.Errorf(
+			"duplicate name %q at %s makes the operator at $.%s unaddressable; give each entry a unique name",
+			a.name, strings.Join(a.paths, ", "), opPath),
+	}
 }
 
 // newDataFlowContext creates a new dataflow context.
@@ -198,6 +238,11 @@ func (ctx *dataFlowContext) logDebugIfNeeded(s string) {
 
 // registerOpcall registers an operator call in the context.
 func (ctx *dataFlowContext) registerOpcall(op *Opcall) {
+	if ctx.ambiguous != nil {
+		ctx.errors.Append(ctx.ambiguous.errorAt(ctx.ev.Here.String()))
+		return
+	}
+
 	op.where = ctx.ev.Here.Copy()
 	if canon, err := op.where.Canonical(ctx.ev.Tree); err == nil {
 		op.canonical = canon
@@ -256,17 +301,76 @@ func (ctx *dataFlowContext) scanSlice(v []interface{}) {
 	ctx.visited[ptr] = true
 	defer delete(ctx.visited, ptr)
 
+	listPath := ctx.ev.Here.String()
+	shared := sharedNames(v, listPath)
+
 	for i, val := range v {
-		name := nameOfObj(val, fmt.Sprintf("%d", i))
+		idx := fmt.Sprintf("%d", i)
+		name := nameOfObj(val, idx)
 		op, _ := ParseOpcallForEngine(ctx.ev.engine, ctx.phase, name)
-		if op == nil {
+
+		// A name shared with a sibling cannot address this entry, so
+		// push the index and remember why: the index keeps the scan's
+		// own paths unique, and registerOpcall reports any operator
+		// found beneath rather than letting it collide.
+		entry := shared[name]
+		if op == nil && entry == nil {
 			ctx.ev.Here.Push(name)
 		} else {
-			ctx.ev.Here.Push(fmt.Sprintf("%d", i))
+			ctx.ev.Here.Push(idx)
+		}
+
+		outer := ctx.ambiguous
+		if entry != nil {
+			ctx.ambiguous = entry
 		}
 		ctx.checkValue(val)
+		ctx.ambiguous = outer
+
 		ctx.ev.Here.Pop()
 	}
+}
+
+// sharedNames maps each name that more than one entry of v carries to
+// the ambiguousEntry describing that collision. Names belonging to a
+// single entry are absent, so the common case allocates one empty map
+// and nothing else.
+//
+// Entries are keyed on the name nameOfObj yields, which is what would
+// become the path segment. That deliberately catches a collision
+// between different source fields (one entry's "name" against another's
+// "key"), and between an explicit name and the positional default it
+// shadows, because either one produces the same ambiguous cursor.
+func sharedNames(v []interface{}, listPath string) map[string]*ambiguousEntry {
+	order := make([]string, 0, len(v))
+	byName := make(map[string][]string, len(v))
+	for i, val := range v {
+		idx := fmt.Sprintf("%d", i)
+		name := nameOfObj(val, idx)
+		if _, seen := byName[name]; !seen {
+			order = append(order, name)
+		}
+		byName[name] = append(byName[name], joinPath(listPath, idx))
+	}
+
+	shared := map[string]*ambiguousEntry{}
+	for _, name := range order {
+		paths := byName[name]
+		if len(paths) < 2 {
+			continue
+		}
+		shared[name] = &ambiguousEntry{name: name, list: listPath, paths: paths}
+	}
+	return shared
+}
+
+// joinPath appends one segment to a dotted path, tolerating the empty
+// path a root-level list scans under.
+func joinPath(base, segment string) string {
+	if base == "" {
+		return segment
+	}
+	return base + "." + segment
 }
 
 // buildDependencyGraph builds the dependency graph from all operators.
