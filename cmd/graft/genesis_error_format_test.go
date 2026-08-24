@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -115,6 +116,28 @@ func TestGenesisAdaptiveMergeErrorFormat(t *testing.T) {
 			So(messages, ShouldResemble, []string{"first", "second", "third"})
 
 			So(stderr, ShouldNotContainSubstring, "\033[")
+		})
+
+		Convey("a cycle error is one regex-matching line with no escapes", func() {
+			dir := t.TempDir()
+			a := filepath.Join(dir, "a.yml")
+			b := filepath.Join(dir, "b.yml")
+			So(os.WriteFile(a, []byte("meta:\n  foo: (( grab meta.bar ))\n"), 0o600), ShouldBeNil)
+			So(os.WriteFile(b, []byte("meta:\n  bar: (( grab meta.foo ))\n"), 0o600), ShouldBeNil)
+
+			stderr, rc := runGraftCapturingOutput(t, []string{"merge", a, b})
+
+			So(rc, ShouldNotEqual, 0)
+			So(stderr, ShouldNotContainSubstring, "\033[")
+
+			// The provenance block adds many lines, and none of them may
+			// look like an error line to genesis's scraper.
+			lines := adaptiveMergeErrorLines(stderr)
+			So(len(lines), ShouldEqual, 1)
+			So(lines[0], ShouldContainSubstring, "cycle detected")
+
+			// The block itself must still be present.
+			So(stderr, ShouldContainSubstring, "cycle (2 nodes):")
 		})
 	})
 }
