@@ -460,10 +460,12 @@ jobs:
 // the useful detail spruce reports.
 func TestArrayMergeMarkerErrorsPreserveDetail(t *testing.T) {
 	Convey("Legacy-merger array errors are never flattened to a generic wrapper", t, func() {
-		// MultiError.Error() renders through ansi.Sprintf, which embeds
-		// color escape codes around each highlighted segment (path, key
-		// names, etc.). Disable color so substring assertions below match
-		// the same plain text spruce prints when NOTTY / --color=false.
+		// Each aggregated error resolves its own @X{...} directives when
+		// it is built with ansi.Errorf, and these errors are built inside
+		// this test body, so color escapes reach the assembled message
+		// that way (MultiError.Error() itself colorizes only the count).
+		// Disable color so the substring assertions below match the same
+		// plain text spruce prints when NOTTY / --color=false.
 		ansi.Color(false)
 		defer ansi.Color(true)
 
