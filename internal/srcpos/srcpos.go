@@ -12,6 +12,7 @@
 package srcpos
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -310,12 +311,7 @@ func splitLast(path string) (base, last string, ok bool) {
 }
 
 func isNameField(field string) bool {
-	for _, f := range nameFields {
-		if f == field {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(nameFields, field)
 }
 
 func isIndexSegment(path string) bool {
