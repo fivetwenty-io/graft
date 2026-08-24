@@ -481,13 +481,13 @@ func handleAdaptiveMerge(opts *mergeOpts, placement reportPlacement) int {
 		return 2
 	}
 
-	engine, docs, err := buildEngineAndDocs(files, opts)
+	engine, docs, refs, err := buildEngineAndDocs(files, opts)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
 	}
 
-	result, err := runAdaptiveMerge(context.TODO(), engine, docs, adaptiveMergeOptions{
+	result, err := runAdaptiveMerge(graft.WithSourceRefs(context.TODO(), refs), engine, docs, adaptiveMergeOptions{
 		FallbackAppend: opts.FallbackAppend,
 		CherryPick:     opts.CherryPick,
 		Prune:          opts.Prune,
@@ -1874,7 +1874,7 @@ func readFile(file *YamlFile) ([]byte, error) {
 // blank/null-document-as-empty-map handling - and only differ in how the
 // resulting documents are merged (incrementally, to capture per-file raw
 // snapshots, rather than in one Execute() call).
-func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []graft.Document, error) {
+func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []graft.Document, []graft.SourceRef, error) {
 	// Create engine with the cache default applied first, then
 	// caller-provided options (options.EngineOpts) layered on top, so a
 	// cache-related entry in options.EngineOpts overrides this default
@@ -1900,7 +1900,7 @@ func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []g
 
 	engine, err := graft.NewEngine(engineOpts...)
 	if err != nil {
-		return nil, nil, ansi.Errorf("@R{Failed to create graft engine}: %s", err.Error())
+		return nil, nil, nil, ansi.Errorf("@R{Failed to create graft engine}: %s", err.Error())
 	}
 
 	// Read and parse every file concurrently: reading bytes off disk (or
@@ -1954,15 +1954,17 @@ func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []g
 	// file's (now also attempted, since reads ran concurrently) error is
 	// discarded in favor of the earliest-indexed one.
 	docs := make([]graft.Document, 0, len(files))
+	refs := make([]graft.SourceRef, 0, len(files))
 	for i, r := range results {
 		if r.err != nil {
-			return nil, nil, r.err
+			return nil, nil, nil, r.err
 		}
 		log.DEBUG("Processed file '%s'", files[i].Path)
 		docs = append(docs, r.doc)
+		refs = append(refs, r.src)
 	}
 
-	return engine, docs, nil
+	return engine, docs, refs, nil
 }
 
 // fileParseResult holds the outcome of parsing one input file into a
@@ -1970,6 +1972,26 @@ func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []g
 type fileParseResult struct {
 	doc graft.Document
 	err error
+	// src describes this input for provenance reporting. Name is the
+	// resolved display path (readFile rewrites "-" to STDIN), and Bytes
+	// is retained only for an operator-bearing YAML input.
+	src graft.SourceRef
+}
+
+// sourceRefFor builds the provenance record for one merge input. Bytes
+// are retained only when the file can actually contribute an operator to
+// a cycle, so most inputs retain nothing. A control-flow document is
+// marked opaque instead: the expander rewrites it wholesale before the
+// merge parses it, so no mapping back to these lines exists.
+func sourceRefFor(name string, data []byte) graft.SourceRef {
+	src := graft.SourceRef{Name: name}
+	switch {
+	case controlflow.HasMarkers(data):
+		src.Opaque = true
+	case bytes.Contains(data, []byte("((")):
+		src.Bytes = data
+	}
+	return src
 }
 
 // parseOneYamlFile reads and parses a single input file (or STDIN),
@@ -1987,6 +2009,9 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, pa
 		return fileParseResult{err: readErr}
 	}
 
+	// Record this input for cycle provenance.
+	src := sourceRefFor(file.Path, data)
+
 	// Check if it's a go-patch document. DetectArrayRoot's byte probe
 	// answers "not an array" for the common map-rooted file without a
 	// throwaway classification parse; syntax errors surface from the
@@ -1998,7 +2023,11 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, pa
 			if patchErr != nil {
 				return fileParseResult{err: ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, patchErr.Error())}
 			}
-			return fileParseResult{doc: graft.NewGoPatchDocument(ops)}
+			// A go-patch input contributes no YAML positions and cannot
+			// be ruled out as a node's origin.
+			src.Bytes = nil
+			src.Opaque = true
+			return fileParseResult{doc: graft.NewGoPatchDocument(ops), src: src}
 		}
 	}
 
@@ -2014,7 +2043,7 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, pa
 			if tree, valid := decodeCachedTree(raw); valid {
 				// Each hit decodes a fresh tree, so the merge is free to
 				// mutate it in place without touching the stored entry.
-				return fileParseResult{doc: graft.NewDocument(tree)}
+				return fileParseResult{doc: graft.NewDocument(tree), src: src}
 			}
 			// Corrupt entry: fall through to a real parse, which will
 			// overwrite it with a good one.
@@ -2042,17 +2071,18 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, pa
 			}
 		}
 	}
-	return fileParseResult{doc: doc}
+	return fileParseResult{doc: doc, src: src}
 }
 
 func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
-	engine, docs, err := buildEngineAndDocs(files, options)
+	engine, docs, refs, err := buildEngineAndDocs(files, options)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Merge all documents
-	mergeBuilder := engine.Merge(context.TODO(), docs...)
+	// Merge all documents. The source refs ride the context so a cycle
+	// error can name the file and line of every operator on the cycle.
+	mergeBuilder := engine.Merge(graft.WithSourceRefs(context.TODO(), refs), docs...)
 
 	// Apply merge options
 	if options.FallbackAppend {

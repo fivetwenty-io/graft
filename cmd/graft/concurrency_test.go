@@ -32,7 +32,7 @@ func TestBuildEngineAndDocsPreservesFileOrderUnderConcurrentParsing(t *testing.T
 		newInMemoryYamlFile("third.yml", "value: third\nonly_in_third: 3\n"),
 	}
 
-	engine, docs, err := buildEngineAndDocs(files, &mergeOpts{})
+	engine, docs, _, err := buildEngineAndDocs(files, &mergeOpts{})
 	if err != nil {
 		t.Fatalf("buildEngineAndDocs() error = %v", err)
 	}
@@ -72,7 +72,7 @@ func TestBuildEngineAndDocsReportsEarliestFileErrorUnderConcurrentParsing(t *tes
 		newInMemoryYamlFile("bad-second.yml", "- another\n- array\n"),
 	}
 
-	_, _, err := buildEngineAndDocs(files, &mergeOpts{})
+	_, _, _, err := buildEngineAndDocs(files, &mergeOpts{}) //nolint:dogsled // only err matters here; engine/docs/refs are unused
 	if err == nil {
 		t.Fatal("expected an error from the two array-root files, got nil")
 	}

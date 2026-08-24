@@ -633,7 +633,7 @@ func (s *debugSession) cmdAutodefer() {
 	autodeferOpts.Prune = nil
 	autodeferOpts.CherryPick = nil
 
-	engine, docs, err := buildEngineAndDocs(
+	engine, docs, refs, err := buildEngineAndDocs(
 		[]YamlFile{{Path: mergedDocPath, Reader: io.NopCloser(strings.NewReader(mustYAML(deferredTree)))}},
 		&autodeferOpts,
 	)
@@ -644,7 +644,7 @@ func (s *debugSession) cmdAutodefer() {
 		return
 	}
 
-	result, err := runAdaptiveMerge(context.Background(), engine, docs, adaptiveMergeOptions{
+	result, err := runAdaptiveMerge(graft.WithSourceRefs(context.Background(), refs), engine, docs, adaptiveMergeOptions{
 		FallbackAppend: s.opts.FallbackAppend,
 	})
 	if err != nil {
