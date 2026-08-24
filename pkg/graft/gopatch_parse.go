@@ -191,6 +191,7 @@ func ParseGoPatch(data []byte) (patch.Ops, error) {
 		// it byte-identical, including the trailing "\n" the old format
 		// string carried.
 		//nolint:staticcheck,revive // capitalized "@R{Unable" is the pinned literal HEAD text, brace bug included
+		//lint:ignore ST1005 same, for the standalone staticcheck run
 		return nil, fmt.Errorf("@R{Unable to parse go-patch definitions: %w\n", err)
 	}
 	return ops, nil

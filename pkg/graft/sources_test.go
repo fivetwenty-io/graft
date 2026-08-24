@@ -1,3 +1,8 @@
+//lint:file-ignore SA1012 Every nil context below is deliberate: this file
+// pins the package's nil-context contract, so passing nil IS the case
+// under test. golangci-lint reads the per-site //nolint:staticcheck
+// comments; the standalone staticcheck run needs its own directive.
+
 package graft
 
 import (

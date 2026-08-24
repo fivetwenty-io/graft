@@ -330,6 +330,7 @@ func TestMergeFiles_NilContext(t *testing.T) {
 
 	engine := NewDefaultEngine()
 	//nolint:staticcheck // intentionally exercising the documented nil-context fallback
+	//lint:ignore SA1012 same, for the standalone staticcheck run
 	result, err := engine.MergeFiles(nil, base).Execute()
 	if err != nil {
 		t.Fatalf("MergeFiles(nil, ...).Execute() error = %v", err)
