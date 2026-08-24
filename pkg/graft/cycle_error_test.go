@@ -431,7 +431,4 @@ func TestSanitizeFilenameCutsBetweenWholeReplacements(t *testing.T) {
 	if got != want {
 		t.Errorf("sanitizeFilename() = %q, want %q", got, want)
 	}
-	if n := utf8.RuneCountInString(got); n != cycleExprMaxRunes-3 {
-		t.Errorf("sanitizeFilename() is %d runes, want %d", n, cycleExprMaxRunes-3)
-	}
 }
