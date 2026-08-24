@@ -69,18 +69,19 @@ func Build(name string, data []byte) *Index {
 		return idx
 	}
 
-	// Later documents overwrite earlier ones on a path collision,
-	// matching how graft merges a multi-document file. Line numbers
-	// already run continuously across "---", so only the path namespace
-	// collides.
-	names := make(map[string]string)
-	for _, doc := range file.Docs {
-		if doc == nil || doc.Body == nil {
-			continue
-		}
-		c := &collector{idx: idx, name: name, names: names, keys: make(map[ast.Node]bool)}
-		ast.Walk(c, doc.Body)
+	// Only the first document is indexed. ParseYAML11CompatAware
+	// converts file.Docs[0].Body and nothing else
+	// (pkg/graft/yaml_compat.go), so documents 2..N contribute no node to
+	// the merged tree. Indexing them would let an expression the merge
+	// never evaluated claim a cycle node's path, and would inflate the
+	// per-expression counts the expression fallback relies on.
+	if len(file.Docs) == 0 || file.Docs[0] == nil || file.Docs[0].Body == nil {
+		return idx
 	}
+
+	names := make(map[string]string)
+	c := &collector{idx: idx, name: name, names: names, keys: make(map[ast.Node]bool)}
+	ast.Walk(c, file.Docs[0].Body)
 
 	idx.buildAliases(names)
 	return idx

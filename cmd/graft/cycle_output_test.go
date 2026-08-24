@@ -260,3 +260,39 @@ func TestCycleOutputFromStdin(t *testing.T) {
 		t.Errorf("stderr does not name STDIN as the input:\n%s", stderr)
 	}
 }
+
+func TestCycleOutputMultiDocumentInput(t *testing.T) {
+	// graft parses only the first document of a multi-document input
+	// (pkg/graft/yaml_compat.go), so the cycle always lives above the
+	// first "---" and no line below it may ever be cited.
+	//
+	// The assertions match on ":line  path: expr" rather than on the
+	// full input path, because t.TempDir() under a long TMPDIR produces
+	// a path that the display sanitizer shortens.
+	for name, second := range map[string]string{
+		"different expressions": "---\nmeta:\n  a: (( grab meta.zzz ))\n  b: (( grab meta.yyy ))\n",
+		"repeated expressions":  "---\nmeta:\n  a: (( grab meta.b ))\n  b: (( grab meta.a ))\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			a := writeTempYAML(t, "md.yml",
+				"meta:\n  a: (( grab meta.b ))\n  b: (( grab meta.a ))\n"+second)
+
+			stderr, rc := runGraftCapturingOutput(t, []string{"merge", a})
+
+			if rc == 0 {
+				t.Fatalf("exit code = 0; want a failure")
+			}
+			if !strings.Contains(stderr, ":2  meta.a: (( grab meta.b ))") {
+				t.Errorf("stderr missing meta.a at line 2:\n%s", stderr)
+			}
+			if !strings.Contains(stderr, ":3  meta.b: (( grab meta.a ))") {
+				t.Errorf("stderr missing meta.b at line 3:\n%s", stderr)
+			}
+			for _, unwanted := range []string{":6  meta.a", ":7  meta.b"} {
+				if strings.Contains(stderr, unwanted) {
+					t.Errorf("stderr cites %q, a line the merge never parsed:\n%s", unwanted, stderr)
+				}
+			}
+		})
+	}
+}

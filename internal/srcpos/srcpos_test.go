@@ -125,7 +125,10 @@ func TestBuildQuotedScalarHasQuotesStripped(t *testing.T) {
 	}
 }
 
-func TestBuildMultiDocumentLaterWins(t *testing.T) {
+func TestBuildIndexesOnlyTheFirstDocument(t *testing.T) {
+	// The merge converts file.Docs[0] and nothing else
+	// (pkg/graft/yaml_compat.go), so documents 2..N contribute no node
+	// to the merged tree and must contribute no entry to the index.
 	doc := "a: (( grab one ))\n---\na: (( grab two ))\n"
 
 	idx := Build("a.yml", []byte(doc))
@@ -134,11 +137,14 @@ func TestBuildMultiDocumentLaterWins(t *testing.T) {
 	if !ok {
 		t.Fatalf("Lookup(a) = _, false; want an entry")
 	}
-	if e.Expr != "(( grab two ))" {
-		t.Errorf("Expr = %q, want the later document to win", e.Expr)
+	if e.Expr != "(( grab one ))" {
+		t.Errorf("Expr = %q, want the first document's expression", e.Expr)
 	}
-	if e.Pos.Line != 3 {
-		t.Errorf("Pos.Line = %d, want 3: lines run continuously across ---", e.Pos.Line)
+	if e.Pos.Line != 1 {
+		t.Errorf("Pos.Line = %d, want 1", e.Pos.Line)
+	}
+	if n := idx.Exprs()["(( grab two ))"]; n != 0 {
+		t.Errorf("CountExpr(grab two) = %d, want 0: an inert document must not inflate the counts", n)
 	}
 }
 
