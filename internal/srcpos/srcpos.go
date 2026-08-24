@@ -12,6 +12,7 @@
 package srcpos
 
 import (
+	"cmp"
 	"slices"
 	"strconv"
 	"strings"
@@ -210,11 +211,39 @@ func (c *collector) visitString(sn *ast.StringNode) {
 // buildAliases records the name-keyed form of every indexed path, so
 // attribution survives list index drift when a later file appends,
 // inserts, or merges on name.
+//
+// One name may be carried by several list elements, in which case their
+// operators all want the same alias and the first to claim it wins.
+// Ranging over byPath would hand that decision to Go's randomized map
+// iteration order, so the paths are walked in document order instead -
+// by line, then column, then path - and the entry written earliest in
+// the file owns the alias on every build.
+//
+// Document order is what the tie must break on. Sorting the paths
+// lexicographically would also be deterministic, but "jobs.10" sorts
+// before "jobs.2", so it would pick an arbitrary element of any list of
+// ten or more.
 func (i *Index) buildAliases(names map[string]string) {
 	if len(names) == 0 {
 		return
 	}
-	for path, e := range i.byPath {
+	paths := make([]string, 0, len(i.byPath))
+	for path := range i.byPath {
+		paths = append(paths, path)
+	}
+	slices.SortFunc(paths, func(a, b string) int {
+		ea, eb := i.byPath[a], i.byPath[b]
+		if c := cmp.Compare(ea.Pos.Line, eb.Pos.Line); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(ea.Pos.Column, eb.Pos.Column); c != 0 {
+			return c
+		}
+		return strings.Compare(a, b)
+	})
+
+	for _, path := range paths {
+		e := i.byPath[path]
 		alias, ok := aliasFor(path, names)
 		if !ok {
 			continue

@@ -211,3 +211,31 @@ func TestNilIndexMethodsAreSafe(t *testing.T) {
 		t.Errorf("nil CountExpr returned a non-zero count")
 	}
 }
+
+func TestBuildAliasCollisionPicksDocumentOrderFirst(t *testing.T) {
+	// Two list elements share the name "alpha", so both operators want
+	// the alias "jobs.alpha.cmd". The entry written earlier in the
+	// document owns it, and does so on every build: byPath is a Go map,
+	// whose iteration order is randomized, so a single agreeing run
+	// proves nothing.
+	doc := "jobs:\n" +
+		"  - name: alpha\n" +
+		"    cmd: (( grab meta.x ))\n" +
+		"  - name: alpha\n" +
+		"    cmd: (( grab meta.y ))\n"
+
+	for i := 0; i < 200; i++ {
+		idx := Build("a.yml", []byte(doc))
+
+		e, ok := idx.Lookup("jobs.alpha.cmd")
+		if !ok {
+			t.Fatalf("build %d: Lookup(jobs.alpha.cmd) = _, false; want an entry", i)
+		}
+		if e.Pos.Line != 3 {
+			t.Fatalf("build %d: alias line = %d, want 3 (the first element in document order)", i, e.Pos.Line)
+		}
+		if e.Path != "jobs.0.cmd" {
+			t.Fatalf("build %d: alias path = %q, want %q", i, e.Path, "jobs.0.cmd")
+		}
+	}
+}
