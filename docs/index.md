@@ -183,6 +183,10 @@ Quick lookups and detailed specifications.
 
   Error codes and troubleshooting
 
+- [Errors](reference/errors.md)
+
+  Rendered shape of specific errors
+
 - [Glossary](reference/glossary.md)
 
   Terms and definitions

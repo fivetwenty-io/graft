@@ -87,6 +87,9 @@ invent a position:
 | Quoted path segment, for example `$.'a.b'.c` | Unresolved |
 | JSON or go-patch input | Unresolved |
 | No sources on the context | Block printed without the `inputs:` section |
+| Multi-document input, no `-m` | Only the first document is parsed, so only its lines are ever cited |
+| Sub-document under `-m` | `file.yml[N]:2  path: expr`, where the line is relative to sub-document `N`, not to the whole file |
+| Input path over 120 characters | Shortened from the left, keeping the tail: `.../env/manifest.yml:3  path: expr` |
 
 ### Go API
 

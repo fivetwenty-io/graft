@@ -11,6 +11,7 @@ This section provides quick reference guides and comprehensive listings for Graf
 | [CLI Quick Reference](cli-quick-reference.md) | All commands and flags |
 | [Environment Variables](environment-variables.md) | Configuration environment variables |
 | [Error Codes](error-codes.md) | Error types and troubleshooting |
+| [Errors](errors.md) | Rendered shape of specific errors |
 | [Glossary](glossary.md) | Terms and definitions |
 
 ## Operators by Category
