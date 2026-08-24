@@ -416,6 +416,27 @@ func TestMergeCycleThroughANameKeyedListCitesTheRightFile(t *testing.T) {
 	}
 }
 
+func TestMergeCycleWithNoNameFieldsCitesTheRightFile(t *testing.T) {
+	// Neither input carries a name, key, or id field anywhere, so
+	// buildAliases has nothing to work with and where == canonical: the
+	// numeric path is the only route to a hit. The prepend moves base.yml's
+	// element from index 0 to index 1, and over.yml's own file, read on its
+	// own, happens to carry a jobs.1.cmd of its own too - with different
+	// text. Only the expression cross-check tells the two apart; nothing
+	// here disambiguates them by name.
+	out := mergeCycleErrorOutput(t, []SourceRef{
+		{Name: "base.yml", Bytes: []byte("jobs:\n  - cmd: (( grab meta.x ))\nmeta:\n  x: (( grab jobs.1.cmd ))\n")},
+		{Name: "over.yml", Bytes: []byte("jobs:\n  - (( prepend ))\n  - cmd: (( grab meta.q ))\nmeta:\n  q: hello\n")},
+	})
+
+	if !strings.Contains(out, "base.yml:2  jobs.1.cmd: (( grab meta.x ))") {
+		t.Errorf("output does not cite base.yml:2 for jobs.1.cmd:\n%s", out)
+	}
+	if strings.Contains(out, "over.yml:3") {
+		t.Errorf("output cites over.yml:3, whose text is (( grab meta.q )), not (( grab meta.x )):\n%s", out)
+	}
+}
+
 func TestMergeCycleThroughAPrependCitesTheRightFile(t *testing.T) {
 	// The prepend moves alpha from index 0 to index 1, so the cycle
 	// node's canonical path is jobs.1.cmd - and over.yml has a
