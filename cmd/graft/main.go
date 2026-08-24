@@ -1985,10 +1985,17 @@ type fileParseResult struct {
 // merge parses it, so no mapping back to these lines exists.
 func sourceRefFor(name string, data []byte) graft.SourceRef {
 	src := graft.SourceRef{Name: name}
-	switch {
-	case controlflow.HasMarkers(data):
+	// The cheap byte probe gates the expensive scan, matching
+	// outputCacheable (merge_cache.go). HasMarkers copies the whole file
+	// and classifies every line, and it answers false whenever "((" is
+	// absent, so the probe changes nothing but keeps that work off the
+	// success path.
+	if !bytes.Contains(data, []byte("((")) {
+		return src
+	}
+	if controlflow.HasMarkers(data) {
 		src.Opaque = true
-	case bytes.Contains(data, []byte("((")):
+	} else {
 		src.Bytes = data
 	}
 	return src
