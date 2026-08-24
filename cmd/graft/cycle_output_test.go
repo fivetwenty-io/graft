@@ -199,6 +199,42 @@ func TestCycleOutputSurvivesHostilePayloads(t *testing.T) {
 	}
 }
 
+func TestCycleOutputEscapesARealNewlineFromTheCLI(t *testing.T) {
+	// The sibling hostile-payload test cannot reach this branch. A cycle
+	// short-circuits before concat ever evaluates its arguments, and
+	// CycleNode.Expr is the operator's raw source text, so a DSL-level
+	// \n escape is never processed no matter how the fixture is written.
+	// A YAML literal block scalar is what puts a real 0x0A inside the
+	// operator source, which is the only way sanitizeDisplay's newline
+	// branch runs on the CLI path.
+	src := "meta:\n" +
+		"  a: (( grab meta.b ))\n" +
+		"  b: |-\n" +
+		"    (( concat \"y\n" +
+		"     - $.evil: boom\" meta.a ))\n"
+	if !strings.Contains(src, "\n     - $.evil: boom") {
+		t.Fatalf("fixture does not carry a real newline before the forged line")
+	}
+	a := writeTempYAML(t, "a.yml", src)
+
+	stderr, rc := runGraftCapturingOutput(t, []string{"merge", a})
+
+	if rc == 0 {
+		t.Fatalf("exit code = 0; want a failure")
+	}
+	// The real newline must render as the two characters backslash-n, so
+	// the forged error line never becomes a line of its own.
+	if !strings.Contains(stderr, `\n - $.evil: boom`) {
+		t.Errorf("the real newline was not escaped to a literal \\n:\n%q", stderr)
+	}
+	if got := len(adaptiveMergeErrorLines(stderr)); got != 1 {
+		t.Errorf("got %d lines starting with %q, want exactly 1:\n%s", got, " - ", stderr)
+	}
+	if strings.Contains(stderr, "\033") {
+		t.Errorf("stderr contains an escape byte:\n%q", stderr)
+	}
+}
+
 func TestCycleOutputFromStdin(t *testing.T) {
 	// A cycle read from STDIN has exactly one input, so the file can be
 	// named. Its lines resolve normally because the bytes are retained.
