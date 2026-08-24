@@ -327,11 +327,29 @@ func commandNeedsThemeFile(cmd *cobra.Command) bool {
 	return err == nil && interactive
 }
 
+// themeFileTierNeeded reports whether resolveTheme has to read the
+// ui.theme config file at all. Two conditions have to hold. The command
+// must be one that can build a debugStyler (commandNeedsThemeFile), and
+// no higher-precedence tier may have already settled the answer:
+// resolveThemeTier returns on the flag tier when flagChanged is set, and
+// on the env tier for any non-empty GRAFT_THEME - valid or not - and
+// neither of those early returns reads fileValue or fileWarn. Reading
+// the file in those cases parses a possibly multi-megabyte ./graft.yaml
+// to compute a value that is then discarded, which is a several-second
+// startup delay with nothing on screen to explain it.
+func themeFileTierNeeded(cmd *cobra.Command, flagChanged bool, envValue string) bool {
+	if flagChanged || envValue != "" {
+		return false
+	}
+	return commandNeedsThemeFile(cmd)
+}
+
 // resolveTheme resolves cmd's effective theme end to end: it gates the
-// config-file tier through commandNeedsThemeFile (only debug/merge
-// --interactive pay for resolveThemeFileValue's stat+read+parse; every
-// other command gets fileValue/fileWarn's zero values, which
-// resolveThemeTier treats identically to "no file present"), then runs
+// config-file tier through themeFileTierNeeded (only a debug/merge
+// --interactive run whose theme no higher tier has already settled pays
+// for resolveThemeFileValue's stat+read+parse; every other invocation
+// gets fileValue/fileWarn's zero values, which resolveThemeTier treats
+// identically to "no file present"), then runs
 // the full flag > env > file > default precedence through
 // resolveThemeTier exactly as before. Kept as its own function, called
 // from PersistentPreRunE, rather than inlined there: resolveThemeFileValue
@@ -343,7 +361,7 @@ func commandNeedsThemeFile(cmd *cobra.Command) bool {
 // closure's already-high branching (gocyclo) for no benefit.
 func resolveTheme(cmd *cobra.Command, flagChanged bool, flagValue string) (theme string, flagValid bool, warnings []string) {
 	var fileThemeValue, fileThemeWarn string
-	if commandNeedsThemeFile(cmd) {
+	if themeFileTierNeeded(cmd, flagChanged, os.Getenv(themeEnvVar)) {
 		fileThemeValue, _, fileThemeWarn = resolveThemeFileValue(themeConfigSearchPaths())
 	}
 	return resolveThemeTier(flagChanged, flagValue,
@@ -1148,7 +1166,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 			// mirroring --color's invalid-value path immediately above
 			// (decision 14). Validation never touches config.Validate,
 			// so it can never abort an unrelated graft command. The file
-			// tier's own gating (commandNeedsThemeFile) lives in
+			// tier's own gating (themeFileTierNeeded) lives in
 			// resolveTheme, not inlined here, so it does not add to this
 			// closure's own branching.
 			theme, themeFlagValid, themeWarnings := resolveTheme(cmd, cmd.Flags().Changed("theme"), themeVal)

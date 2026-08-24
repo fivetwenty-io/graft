@@ -18,6 +18,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/spf13/cobra"
 
 	"github.com/fivetwenty-io/graft/internal/config"
 	"github.com/fivetwenty-io/graft/internal/features"
@@ -4280,6 +4281,48 @@ func TestThemeFileConsultedForDebugSessions(t *testing.T) {
 			stderr := runGraftCapturingStderr(t, c.args)
 			if !strings.Contains(stderr, "Invalid ui.theme") {
 				t.Errorf("%s: stderr = %q, want the ui.theme warning (this command does build a debugStyler)", c.name, stderr)
+			}
+		})
+	}
+}
+
+// TestThemeFileTierNeeded locks both halves of the file-tier gate: the
+// command has to be one that can build a debugStyler, AND no
+// higher-precedence tier may have already decided the theme. The second
+// half is invisible to the warning-based sibling tests above, because
+// resolveThemeTier's flag and env early returns discard fileWarn anyway -
+// the only observable difference is whether a multi-megabyte
+// ./graft.yaml gets stat'd, read, and parsed for a value nobody reads.
+func TestThemeFileTierNeeded(t *testing.T) {
+	debugCmd := func() *cobra.Command { return &cobra.Command{Use: "debug"} }
+	mergeCmd := func(interactive bool) *cobra.Command {
+		cmd := &cobra.Command{Use: "merge"}
+		var val bool
+		cmd.Flags().BoolVar(&val, "interactive", interactive, "")
+		return cmd
+	}
+
+	cases := []struct {
+		name        string
+		cmd         *cobra.Command
+		flagChanged bool
+		envValue    string
+		want        bool
+	}{
+		{"debug, nothing set", debugCmd(), false, "", true},
+		{"merge --interactive, nothing set", mergeCmd(true), false, "", true},
+		{"merge without --interactive", mergeCmd(false), false, "", false},
+		{"vaultinfo", &cobra.Command{Use: "vaultinfo"}, false, "", false},
+		{"debug with --theme", debugCmd(), true, "", false},
+		{"debug with GRAFT_THEME", debugCmd(), false, "dark", false},
+		{"debug with invalid GRAFT_THEME", debugCmd(), false, "bogus", false},
+		{"merge --interactive with --theme", mergeCmd(true), true, "", false},
+	}
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			if got := themeFileTierNeeded(c.cmd, c.flagChanged, c.envValue); got != c.want {
+				t.Errorf("themeFileTierNeeded() = %v, want %v", got, c.want)
 			}
 		})
 	}
