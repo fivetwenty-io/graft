@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.40.0] - 2026-08-24
+
+`graft --version` now names the build it came from, not just the release
+number: the commit, build timestamp, Go toolchain, and platform follow
+the version on the same line. Under a `spruce` name the byte-for-byte
+spruce line still comes first, so Genesis's version probe reads what it
+always did.
+
 ### Changed
 
 - `graft -v`/`--version` now prints the commit, build timestamp, Go
@@ -826,6 +834,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.40.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.40.0
 [1.39.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.39.0
 [1.38.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.38.0
 [1.37.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.37.0
