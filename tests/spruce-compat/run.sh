@@ -37,6 +37,8 @@ FIX="$SCRIPT_DIR/fixtures"
 
 # shellcheck source=lib/harness.sh
 source "$SCRIPT_DIR/lib/harness.sh"
+# shellcheck source=lib/spruce-bin.sh
+source "$SCRIPT_DIR/lib/spruce-bin.sh"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/spruce-compat.XXXXXX")"
 cleanup() { rm -rf "$TMP"; }
@@ -58,25 +60,14 @@ resolve_graft() {
 }
 
 resolve_spruce() {
-  if [ -n "${SPRUCE_BIN:-}" ] && [ -x "${SPRUCE_BIN:-}" ]; then
-    return 0
-  fi
-  if command -v spruce >/dev/null 2>&1; then
-    SPRUCE_BIN="$(command -v spruce)"
-    return 0
-  fi
-  local repo="${SPRUCE_REPO:-$REPO_ROOT/../spruce}"
-  if [ -d "$repo/cmd/spruce" ]; then
-    local out="$TMP/spruce"
-    # NOTE: build ./cmd/spruce specifically, not the module root — `go
-    # build .` at spruce's repo root produces an archive package, not a
-    # binary.
-    if (cd "$repo" && go build -o "$out" ./cmd/spruce) >"$TMP/spruce-build.log" 2>&1; then
-      SPRUCE_BIN="$out"
-      return 0
-    fi
-  fi
-  return 1
+  # Shared with the other runners (lib/spruce-bin.sh): $SPRUCE_BIN, then
+  # a `spruce` on PATH, then a build from $SPRUCE_REPO. A graft installed
+  # under a spruce name is rejected at every step, since comparing graft
+  # with itself is not the parity signal this harness reports.
+  local found
+  found="$(spruce_bin_resolve "$TMP" "$REPO_ROOT")" || return 1
+  SPRUCE_BIN="$found"
+  return 0
 }
 
 resolve_graft

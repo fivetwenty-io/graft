@@ -25,27 +25,35 @@
 #
 # Env overrides:
 #   GRAFT_BIN   - path to a prebuilt graft binary (default: build fresh)
-#   SPRUCE_BIN  - path to a spruce binary (default: `spruce` on PATH;
-#                 spruce comparisons are skipped if none is found)
+#   SPRUCE_BIN  - path to a spruce binary (default: `spruce` on PATH,
+#                 then a build from SPRUCE_REPO; spruce comparisons are
+#                 skipped if none is found, and a graft installed under
+#                 a spruce name does not count as one)
+#   SPRUCE_REPO - path to a spruce source checkout to build from
+#                 (default: a `spruce` checkout beside this repo)
 
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DIR="$ROOT/tests/spruce-compat/key-order"
 
+# shellcheck source=lib/spruce-bin.sh
+source "$ROOT/tests/spruce-compat/lib/spruce-bin.sh"
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
 GRAFT_BIN="${GRAFT_BIN:-}"
 if [[ -z "$GRAFT_BIN" ]]; then
-  builddir="$(mktemp -d)"
-  trap 'rm -rf "$builddir"' EXIT
   echo "building graft..."
-  if ! (cd "$ROOT" && go build -o "$builddir/graft" ./cmd/graft); then
+  if ! (cd "$ROOT" && go build -o "$WORK/graft" ./cmd/graft); then
     echo "FATAL: go build failed" >&2
     exit 1
   fi
-  GRAFT_BIN="$builddir/graft"
+  GRAFT_BIN="$WORK/graft"
 fi
 
-SPRUCE_BIN="${SPRUCE_BIN:-$(command -v spruce || true)}"
+SPRUCE_BIN="$(spruce_bin_resolve "$WORK" "$ROOT" || true)"
 if [[ -z "$SPRUCE_BIN" ]]; then
   echo "note: no spruce binary found; spruce-drift comparisons skipped"
 fi

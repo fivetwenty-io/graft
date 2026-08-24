@@ -8,31 +8,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES_DIR="$SCRIPT_DIR/fixtures"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-SPRUCE_BIN="${SPRUCE_BIN:-$(command -v spruce || true)}"
+# shellcheck source=../lib/spruce-bin.sh
+source "$SCRIPT_DIR/../lib/spruce-bin.sh"
 
-if [ -z "$SPRUCE_BIN" ] || [ ! -x "$SPRUCE_BIN" ]; then
-  echo "SKIP: spruce binary not found on PATH (set SPRUCE_BIN to override)."
+WORK="$(mktemp -d)"
+cleanup() {
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
+
+SPRUCE_BIN="$(spruce_bin_resolve "$WORK" "$REPO_ROOT" || true)"
+if [ -z "$SPRUCE_BIN" ]; then
+  echo "SKIP: no spruce binary on PATH and none buildable from SPRUCE_REPO (set SPRUCE_BIN or SPRUCE_REPO to override)."
   echo "SKIP: operator parity suite requires a spruce binary to compare against; skipping cleanly."
   exit 0
 fi
 
 GRAFT_BIN="${GRAFT_BIN:-}"
-CLEANUP_GRAFT_BIN=""
 if [ -z "$GRAFT_BIN" ]; then
-  BUILD_DIR="$(mktemp -d)"
-  GRAFT_BIN="$BUILD_DIR/graft"
-  CLEANUP_GRAFT_BIN="$BUILD_DIR"
-  if ! (cd "$REPO_ROOT" && go build -o "$GRAFT_BIN" ./cmd/graft) >"$BUILD_DIR/build.log" 2>&1; then
+  GRAFT_BIN="$WORK/graft"
+  if ! (cd "$REPO_ROOT" && go build -o "$GRAFT_BIN" ./cmd/graft) >"$WORK/graft-build.log" 2>&1; then
     echo "FAIL: could not build graft binary from $REPO_ROOT/cmd/graft"
-    cat "$BUILD_DIR/build.log"
+    cat "$WORK/graft-build.log"
     exit 1
   fi
 fi
-
-cleanup() {
-  [ -n "$CLEANUP_GRAFT_BIN" ] && rm -rf "$CLEANUP_GRAFT_BIN"
-}
-trap cleanup EXIT
 
 PASS=0
 FAIL=0
