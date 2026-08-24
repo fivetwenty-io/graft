@@ -69,7 +69,14 @@ func parseReportPlacement(s string) (reportPlacement, error) {
 // matches). See docs/spruce/cli-surface.md's "stdin, stdout, and file
 // arguments" section and docs/spruce/genesis-compat-contract.md's
 // "Output byte stability across versions" for the full writeup.
-func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.DeferredPath, placement reportPlacement) ([]byte, int) {
+//
+// noDocStart (merge --no-doc-start / GRAFT_NO_DOC_START, see
+// resolveNoDocStart in main.go) suppresses that marker for consumers
+// that concatenate merge output into a stream where a "---" line would
+// open an unwanted second document (Genesis's .genesis/config being
+// the motivating case); false renders exactly the bytes this function
+// always produced.
+func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.DeferredPath, placement reportPlacement, noDocStart bool) ([]byte, int) {
 	log.TRACE("Converting the following data back to YML:")
 	log.TRACE("%#v", tree)
 
@@ -79,7 +86,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 	}
 
 	if len(deferred) == 0 || placement == reportPlacementNone {
-		return marshalMergedDocument(tree, "")
+		return marshalMergedDocument(tree, "", noDocStart)
 	}
 
 	switch placement {
@@ -96,7 +103,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
 			return nil, 2
 		}
-		return finishMergedDocument(merged, ""), 0
+		return finishMergedDocument(merged, "", noDocStart), 0
 
 	case reportPlacementEnd:
 		merged, err := graft.MarshalYAML(tree)
@@ -104,34 +111,45 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
 			return nil, 2
 		}
-		return finishMergedDocument(merged, deferredReportBlock(deferred)), 0
+		return finishMergedDocument(merged, deferredReportBlock(deferred), noDocStart), 0
 
 	default: // reportPlacementBeginning
-		return marshalMergedDocument(tree, deferredReportBlock(deferred))
+		return marshalMergedDocument(tree, deferredReportBlock(deferred), noDocStart)
 	}
 }
 
+// docStartMarker returns the leading document-start bytes: "---\n"
+// normally, nothing when suppressed (merge --no-doc-start /
+// GRAFT_NO_DOC_START).
+func docStartMarker(noDocStart bool) []byte {
+	if noDocStart {
+		return nil
+	}
+	return []byte("---\n")
+}
+
 // marshalMergedDocument is renderMergedTreeWithReport's own document assembly
-// ("---\n" + optional leading block + marshaled document + trailing
-// newline), factored out so both the plain path and the "beginning"
+// (document-start marker + optional leading block + marshaled document +
+// trailing newline), factored out so both the plain path and the "beginning"
 // --report-deferred placement share it.
-func marshalMergedDocument(tree map[string]interface{}, leadingBlock string) ([]byte, int) {
+func marshalMergedDocument(tree map[string]interface{}, leadingBlock string, noDocStart bool) ([]byte, int) {
 	merged, err := graft.MarshalYAML(tree)
 	if err != nil {
 		log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
 		return nil, 2
 	}
-	out := append([]byte("---\n"), []byte(leadingBlock)...)
+	out := append(docStartMarker(noDocStart), []byte(leadingBlock)...)
 	out = append(out, merged...)
 	return append(out, '\n'), 0
 }
 
-// finishMergedDocument assembles "---\n" + merged + optional trailing
-// block + trailing newline - the "end"/"inline" --report-deferred
-// placements' own document assembly (leadingBlock is always empty for
-// those two; only "beginning" needs one, via marshalMergedDocument).
-func finishMergedDocument(merged []byte, trailingBlock string) []byte {
-	out := append([]byte("---\n"), merged...)
+// finishMergedDocument assembles document-start marker + merged +
+// optional trailing block + trailing newline - the "end"/"inline"
+// --report-deferred placements' own document assembly (leadingBlock is
+// always empty for those two; only "beginning" needs one, via
+// marshalMergedDocument).
+func finishMergedDocument(merged []byte, trailingBlock string, noDocStart bool) []byte {
+	out := append(docStartMarker(noDocStart), merged...)
 	out = append(out, []byte(trailingBlock)...)
 	return append(out, '\n')
 }

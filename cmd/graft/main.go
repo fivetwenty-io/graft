@@ -182,6 +182,32 @@ type mergeOpts struct {
 	// deferred, from either DeferOnError's own loop or a --skip-vault/
 	// --skip-aws/--skip-nats flag (EngineOpts above).
 	ReportDeferred string
+
+	// NoDocStart suppresses merge's leading "---\n" document-start
+	// marker (`--no-doc-start`, or GRAFT_NO_DOC_START when the flag is
+	// not given - see resolveNoDocStart). Merge-only: fan's per-document
+	// "---" matches spruce and stays. false (the default) keeps merge
+	// output byte-identical to before this option existed.
+	NoDocStart bool
+}
+
+// resolveNoDocStart resolves the --no-doc-start flag against the
+// GRAFT_NO_DOC_START environment variable: an explicitly given flag
+// wins either way (so `--no-doc-start=false` keeps the marker even
+// with the env var set), otherwise a recognized boolean env value
+// (true/1/yes/on, false/0/no/off - internal/config's getBoolEnv forms)
+// decides, and anything else falls through to the default (marker on).
+// Pure so the precedence table unit-tests without cobra or env
+// mutation, mirroring resolveThemeTier.
+func resolveNoDocStart(flagChanged, flagValue bool, envValue string) bool {
+	if flagChanged {
+		return flagValue
+	}
+	switch strings.ToLower(strings.TrimSpace(envValue)) {
+	case "true", "1", "yes", "on":
+		return true
+	}
+	return false
 }
 
 // hasHistoryFlag reports whether any of the merge --history/--trace-path/
@@ -457,7 +483,7 @@ func handleMerge(opts *mergeOpts) int {
 		deferred = engine.GetOperatorState().GetDeferredPaths()
 	}
 
-	out, rc := renderMergedTreeWithReport(tree, deferred, placement)
+	out, rc := renderMergedTreeWithReport(tree, deferred, placement, opts.NoDocStart)
 	if rc != 0 {
 		return rc
 	}
@@ -503,7 +529,7 @@ func handleAdaptiveMerge(opts *mergeOpts, placement reportPlacement) int {
 		return 2
 	}
 
-	out, rc := renderMergedTreeWithReport(result.Tree, result.Deferred, placement)
+	out, rc := renderMergedTreeWithReport(result.Tree, result.Deferred, placement, opts.NoDocStart)
 	if rc != 0 {
 		return rc
 	}
@@ -1247,11 +1273,12 @@ func newRootCmd() (*cobra.Command, *bool) {
 	var mergeSkipVault, mergeSkipAws, mergeSkipNats bool
 	var mergeDeferOnError, mergeAdaptive bool
 	var mergeReportDeferred string
+	var mergeNoDocStart bool
 
 	mergeCmd := &cobra.Command{
 		Use:   "merge [files...]",
 		Short: "Merge multiple YAML/JSON files",
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			engineOpts := mergeEngineOpts(loadedConfig, loadedFeatureFlags, mergeSkipVault, mergeSkipAws, mergeSkipNats)
 			opts := &mergeOpts{
 				SkipEval:       mergeSkipEval,
@@ -1273,6 +1300,8 @@ func newRootCmd() (*cobra.Command, *bool) {
 				// given selects the adaptive-merge retry loop.
 				DeferOnError:   mergeDeferOnError || mergeAdaptive,
 				ReportDeferred: mergeReportDeferred,
+				NoDocStart: resolveNoDocStart(cmd.Flags().Changed("no-doc-start"),
+					mergeNoDocStart, os.Getenv("GRAFT_NO_DOC_START")),
 			}
 			if mergeInteractive {
 				// Matches diffCmd's RunE below: colorVal has already been
@@ -1306,6 +1335,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	mergeCmd.Flags().BoolVar(&mergeShowChanges, "show-changes", false, "Print a merge/evaluation change summary instead of the merged document")
 	mergeCmd.Flags().BoolVar(&mergeChangesOnly, "changes-only", false, "Print only the paths that changed during merge/evaluation instead of the merged document")
 	mergeCmd.Flags().BoolVar(&mergeInteractive, "interactive", false, "Launch the interactive debug REPL instead of merging directly (equivalent to 'graft debug')")
+	mergeCmd.Flags().BoolVar(&mergeNoDocStart, "no-doc-start", false, "Do not prepend the leading \"---\" document-start marker to merge output (also via GRAFT_NO_DOC_START=1; an explicit flag wins over the environment)")
 
 	// fan command
 	var fanSkipEval, fanFallbackAppend, fanGoPatch, fanMultiDoc bool
