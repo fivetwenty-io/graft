@@ -32,6 +32,7 @@ graft merge a.yml b.yml
 ```
 
 **Output:**
+
 ```
 1 error(s) detected:
  - cycle detected in operator data-flow graph
@@ -46,13 +47,12 @@ graft merge a.yml b.yml
 ### Reading the block
 
 The `inputs:` list names every merge input, in merge order, numbered from
-`[1]`. It is omitted entirely, along with its heading, when the error has no
-input names to report; nothing prints an empty `inputs:` section.
+`[1]`. When the error has no input names to report, the list and its heading
+are both omitted rather than printed empty.
 
 The `cycle (N nodes): ...` line names every operator on the cycle, in
 reference order (each node's expression references the next), then repeats
-the first node at the end. That repeat is why the chain visually closes on
-itself.
+the first node at the end. That repeat is why the chain closes on itself.
 
 Below the chain, one detail line per node gives its file, line, path, and
 expression: `file:line  path: expr`. The last two detail lines always name
@@ -62,8 +62,8 @@ the two ends of the edge that closes the loop:
   node's line at the end, mirroring the chain line above them, so the final
   two lines are the last node and the repeated first node.
 
-- For a two-node cycle, no repeat is needed: the two detail lines already
-  are both ends of the (only) edge that closes the loop.
+- For a two-node cycle, no repeat is needed: the two detail lines are already
+  both ends of the only edge that closes the loop.
 
 - For a one-node self-cycle, a single detail line prints, with no wrap
   duplicate, because that one line already names both ends of its own
@@ -102,7 +102,9 @@ interfaces.Position}`.
 
 ## See Also
 
-- [Error Codes](error-codes.md) - Classification and troubleshooting
+- [Error Codes](error-codes.md)
+  Classification and troubleshooting
 
-- [History Tracking](../user-guide/history-tracking.md) - Why merged values
-  carry no file or line, and how this page's positions differ
+- [History Tracking](../user-guide/history-tracking.md)
+  Why merged values carry no file or line, and how this page's positions
+  differ
