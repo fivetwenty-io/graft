@@ -105,11 +105,11 @@ interfaces.Position}`.
 
 ## Ambiguous Entry Names
 
-A list entry is addressed by its `name`, `key`, or `id` value, and that
-address resolves to the first entry carrying it. When two entries of one
-list share a value and an operator appears anywhere beneath either of
-them, no address distinguishes them, so graft refuses the merge rather
-than guess:
+graft addresses a list entry by its `name`, `key`, or `id` value, and
+that address resolves to the first entry carrying it. When two entries
+of the same list share that value and an operator appears anywhere
+beneath either of them, no address distinguishes the two, so graft
+refuses the merge rather than guess:
 
 ```
 $ graft merge jobs.yml
@@ -118,13 +118,12 @@ $ graft merge jobs.yml
  - $.jobs: duplicate name "alpha" at jobs.0, jobs.1 makes the operator at $.jobs.1.cmd unaddressable; give each entry a unique name
 ```
 
-One line is reported per affected operator, so every site needing
-attention is named. The path before the colon is the list; the path
-inside the message is the operator's own position.
+Each affected operator gets its own line. The path before the colon is
+the list; the path inside the message is the operator's own position.
 
-Only the combination is an error. A list that repeats a name and holds
-no operators beneath the repeats merges normally, as do operators
-elsewhere in the same document:
+Only the combination is an error. A list that repeats a name merges
+normally when no operator sits beneath the duplicates, as do operators
+elsewhere in the document:
 
 ```yaml
 jobs:            # merges fine: duplicate names, no operator beneath them
@@ -135,10 +134,9 @@ jobs:            # merges fine: duplicate names, no operator beneath them
 top: (( grab meta.v ))   # unaffected, evaluates normally
 ```
 
-To resolve the error, give each entry a distinct name. If the entries
-are genuinely meant to be identical, move the operator out to a shared
-location and reference it, or address the entries by index from a
-parent that does not repeat.
+To fix it, give each entry a distinct name. If the entries must be
+identical, move the operator out to a shared location and reference it,
+or address the entries by index from a parent that does not repeat.
 
 This is a deliberate divergence from spruce, which accepts such a
 document and silently writes one entry's computed value into a

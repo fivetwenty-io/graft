@@ -29,10 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   collide onto the first entry's slot: one operator's value was written
   into a different entry, the rest kept their raw operator text, and the
   merge exited 0. Lists that repeat a name without an operator beneath
-  the repeats are unaffected and merge as before. This is a deliberate
-  divergence from spruce, which still produces the corrupt output
-  silently. See [the errors
-  reference](docs/reference/errors.md#ambiguous-entry-names).
+  the duplicates merge as before. This is a deliberate divergence from
+  spruce, which still produces the corrupt output silently. See
+  [the errors reference](docs/reference/errors.md#ambiguous-entry-names).
 
 ### Fixed
 
