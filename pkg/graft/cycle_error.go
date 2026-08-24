@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 )
 
 // cycleExprMaxRunes bounds how much of one file-derived string reaches
@@ -85,5 +86,110 @@ func displayReplacement(r rune) string {
 		return fmt.Sprintf(`\x%02x`, r)
 	default:
 		return string(r)
+	}
+}
+
+// CycleNode is one operator on a detected data-flow cycle.
+type CycleNode struct {
+	// Path is the operator call's canonical dotted path.
+	Path string
+	// Expr is the operator source as written.
+	Expr string
+	// Pos is where Expr was written. File may be set with Line == 0 when
+	// only the file could be established, and both may be empty when the
+	// node could not be attributed at all. A position is never invented.
+	Pos interfaces.Position
+}
+
+// CycleError reports an operator data-flow cycle with enough provenance
+// to fix it: the merge's inputs in order, and every operator on the
+// cycle attributed to a file and line.
+//
+// Error() renders "cycle detected in operator data-flow graph" as its
+// first line, then an indented block. The chain repeats its first node
+// at the end, so the last two lines always name the two operators whose
+// edge closes the loop.
+type CycleError struct {
+	// Inputs are the merge input names in merge order. May be empty, in
+	// which case the "inputs:" block is omitted rather than printed
+	// empty.
+	Inputs []string
+	// Nodes are the cycle's operators in reference order - each node's
+	// expression references the next - rotated to start at the
+	// lexicographically smallest path.
+	Nodes []CycleNode
+}
+
+// Unwrap reports this as a dependency cycle, so
+// errors.Is(err, ErrDependencyCycle) answers true for a cycle surfaced
+// by the merge path as well as one surfaced by
+// DependencyGraph.TopologicalSort.
+func (e *CycleError) Unwrap() error { return ErrDependencyCycle }
+
+// Error renders the cycle block. Every file-derived string passes
+// through sanitizeDisplay, and the whole block is built with plain fmt:
+// no part of it is color-processed, so document content cannot inject
+// escapes or forge a line beginning " - $.".
+func (e *CycleError) Error() string {
+	var b strings.Builder
+	b.WriteString("cycle detected in operator data-flow graph")
+
+	for i, name := range e.Inputs {
+		if i == 0 {
+			b.WriteString("\n   inputs:")
+		}
+		fmt.Fprintf(&b, "\n     [%d] %s", i+1, sanitizeDisplay(name))
+	}
+
+	if len(e.Nodes) == 0 {
+		return b.String()
+	}
+
+	chain := make([]string, 0, len(e.Nodes)+1)
+	for _, n := range e.Nodes {
+		chain = append(chain, sanitizeDisplay(n.Path))
+	}
+	chain = append(chain, sanitizeDisplay(e.Nodes[0].Path))
+	fmt.Fprintf(&b, "\n   cycle (%d %s): %s",
+		len(e.Nodes), pluralNodes(len(e.Nodes)), strings.Join(chain, " -> "))
+
+	// A cycle of three or more nodes repeats its first node, so the
+	// closing edge is always the final two lines. A one- or two-node
+	// cycle needs no duplicate: with at most two detail lines, the first
+	// and last line already are the two ends of the (only) edge, so
+	// appending a third line would repeat information rather than add
+	// it - a self-cycle's single line already names both ends, and a
+	// two-node cycle's two lines already do too (line 1 is where the
+	// closing edge lands, line 2 is where it originates).
+	lines := e.Nodes
+	if len(e.Nodes) > 2 {
+		lines = append(append([]CycleNode(nil), e.Nodes...), e.Nodes[0])
+	}
+	for _, n := range lines {
+		fmt.Fprintf(&b, "\n     %s  %s: %s",
+			cycleLocation(n.Pos), sanitizeDisplay(n.Path), sanitizeDisplay(n.Expr))
+	}
+
+	return b.String()
+}
+
+func pluralNodes(n int) string {
+	if n == 1 {
+		return "node"
+	}
+	return "nodes"
+}
+
+// cycleLocation renders one node's position, degrading rather than
+// inventing: "file:line" when both are known, "file" when only the file
+// could be established, and "<unknown>" when neither could.
+func cycleLocation(p interfaces.Position) string {
+	switch {
+	case p.File != "" && p.Line > 0:
+		return fmt.Sprintf("%s:%d", sanitizeDisplay(p.File), p.Line)
+	case p.File != "":
+		return sanitizeDisplay(p.File)
+	default:
+		return "<unknown>"
 	}
 }

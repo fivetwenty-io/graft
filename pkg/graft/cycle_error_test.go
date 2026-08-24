@@ -1,8 +1,12 @@
 package graft
 
 import (
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 )
 
 func TestSanitizeDisplayEscapesNewlines(t *testing.T) {
@@ -163,5 +167,155 @@ func TestSanitizeDisplayEscSequenceAdjacentToAtSign(t *testing.T) {
 	want := "@r{whoami}"
 	if got != want {
 		t.Errorf("sanitizeDisplay() = %q, want %q", got, want)
+	}
+}
+
+func TestCycleErrorRendersTwoNodeBlock(t *testing.T) {
+	err := &CycleError{
+		Inputs: []string{"base.yml", "a.yml", "b.yml"},
+		Nodes: []CycleNode{
+			{Path: "meta.bar", Expr: "(( grab meta.foo ))", Pos: interfaces.Position{File: "b.yml", Line: 2}},
+			{Path: "meta.foo", Expr: "(( grab meta.bar ))", Pos: interfaces.Position{File: "a.yml", Line: 3}},
+		},
+	}
+
+	want := strings.Join([]string{
+		"cycle detected in operator data-flow graph",
+		"   inputs:",
+		"     [1] base.yml",
+		"     [2] a.yml",
+		"     [3] b.yml",
+		"   cycle (2 nodes): meta.bar -> meta.foo -> meta.bar",
+		"     b.yml:2  meta.bar: (( grab meta.foo ))",
+		"     a.yml:3  meta.foo: (( grab meta.bar ))",
+	}, "\n")
+
+	if got := err.Error(); got != want {
+		t.Errorf("Error() =\n%s\n\nwant\n%s", got, want)
+	}
+}
+
+func TestCycleErrorThreeNodeWrapsToClosingEdge(t *testing.T) {
+	err := &CycleError{
+		Nodes: []CycleNode{
+			{Path: "meta.a", Expr: "(( grab meta.b ))", Pos: interfaces.Position{File: "a.yml", Line: 3}},
+			{Path: "meta.b", Expr: "(( grab meta.c ))", Pos: interfaces.Position{File: "b.yml", Line: 2}},
+			{Path: "meta.c", Expr: "(( grab meta.a ))", Pos: interfaces.Position{File: "c.yml", Line: 5}},
+		},
+	}
+
+	lines := strings.Split(err.Error(), "\n")
+
+	if lines[1] != "   cycle (3 nodes): meta.a -> meta.b -> meta.c -> meta.a" {
+		t.Errorf("chain line = %q", lines[1])
+	}
+	// The last two lines name the closing edge: meta.c references
+	// meta.a, and meta.a is repeated so both ends are visible.
+	last := lines[len(lines)-2:]
+	if last[0] != "     c.yml:5  meta.c: (( grab meta.a ))" {
+		t.Errorf("second-to-last line = %q", last[0])
+	}
+	if last[1] != "     a.yml:3  meta.a: (( grab meta.b ))" {
+		t.Errorf("last line = %q", last[1])
+	}
+}
+
+func TestCycleErrorSelfCycleHasNoWrapDuplicate(t *testing.T) {
+	err := &CycleError{
+		Nodes: []CycleNode{
+			{Path: "meta.a", Expr: "(( grab meta.a ))", Pos: interfaces.Position{File: "a.yml", Line: 1}},
+		},
+	}
+
+	lines := strings.Split(err.Error(), "\n")
+
+	if len(lines) != 3 {
+		t.Fatalf("got %d lines, want 3 (header, chain, one detail):\n%s", len(lines), err.Error())
+	}
+	if lines[1] != "   cycle (1 node): meta.a -> meta.a" {
+		t.Errorf("chain line = %q", lines[1])
+	}
+}
+
+func TestCycleErrorOmitsEmptyInputsBlock(t *testing.T) {
+	err := &CycleError{
+		Nodes: []CycleNode{
+			{Path: "meta.a", Expr: "(( grab meta.a ))"},
+		},
+	}
+
+	if strings.Contains(err.Error(), "inputs:") {
+		t.Errorf("Error() = %q; an empty Inputs must omit the block entirely", err.Error())
+	}
+}
+
+func TestCycleErrorDegradesWithoutInventingALine(t *testing.T) {
+	err := &CycleError{
+		Nodes: []CycleNode{
+			{Path: "meta.a", Expr: "(( grab meta.b ))", Pos: interfaces.Position{File: "only.yml"}},
+			{Path: "meta.b", Expr: "(( grab meta.a ))"},
+		},
+	}
+
+	got := err.Error()
+
+	if !strings.Contains(got, "     only.yml  meta.a: (( grab meta.b ))") {
+		t.Errorf("Error() = %q; a file without a line must render as the bare filename", got)
+	}
+	if !strings.Contains(got, "     <unknown>  meta.b: (( grab meta.a ))") {
+		t.Errorf("Error() = %q; an unattributed node must render as <unknown>", got)
+	}
+	if strings.Contains(got, ":0") {
+		t.Errorf("Error() = %q; a zero line number must never be printed", got)
+	}
+}
+
+func TestCycleErrorClassifiesAsCircularReference(t *testing.T) {
+	err := &CycleError{Nodes: []CycleNode{{Path: "meta.a", Expr: "(( grab meta.a ))"}}}
+
+	if !strings.HasPrefix(err.Error(), "cycle detected") {
+		t.Fatalf("Error() must start with %q for error-code classification; got %q",
+			"cycle detected", err.Error())
+	}
+	if !errors.Is(err, ErrDependencyCycle) {
+		t.Errorf("errors.Is(err, ErrDependencyCycle) = false, want true")
+	}
+}
+
+func TestCycleErrorDetailLinesNeverStartWithGenesisPrefix(t *testing.T) {
+	// The hostile shapes proved in the spec, in a path and in an
+	// expression at once.
+	err := &CycleError{
+		Inputs: []string{"a\n - $.evil: boom.yml"},
+		Nodes: []CycleNode{
+			{Path: "meta.e\n - $.evil: boom", Expr: "(( concat \"x\n - $.evil: boom\" meta.b ))"},
+			{Path: "meta.b", Expr: "(( grab meta.e ))"},
+		},
+	}
+
+	// Render the way the CLI does: inside a MultiError, with color
+	// disabled the way main.go resolves it whenever stderr isn't a tty -
+	// the state genesis always observes, since it captures graft's
+	// stderr to a file. MultiError.Error() colorizes only its leading
+	// count (see errors.go), so this is the only way to observe the
+	// no-escape-bytes contract this test checks without also asserting
+	// on ansi's own color-toggle behavior.
+	previousColor := ansi.IsColorEnabled()
+	ansi.Color(false)
+	defer ansi.Color(previousColor)
+
+	out := MultiError{Errors: []error{err}}.Error()
+
+	var prefixed int
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, " - ") {
+			prefixed++
+		}
+	}
+	if prefixed != 1 {
+		t.Errorf("got %d lines starting with %q, want exactly 1:\n%s", prefixed, " - ", out)
+	}
+	if strings.Contains(out, "\033") {
+		t.Errorf("output contains an escape byte:\n%q", out)
 	}
 }
