@@ -97,11 +97,17 @@ type noCacheCtxKey struct{}
 // "(( op:nocache ... ))" expression modifier. Retry and audit wrapping
 // are unaffected.
 func WithNoCacheContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return context.WithValue(ctx, noCacheCtxKey{}, true)
 }
 
 // noCacheFromContext reports whether ctx was marked by WithNoCacheContext.
 func noCacheFromContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
 	v, _ := ctx.Value(noCacheCtxKey{}).(bool)
 	return v
 }

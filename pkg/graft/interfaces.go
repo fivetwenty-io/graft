@@ -598,12 +598,18 @@ type cherryPickPathsKey struct{}
 // This is used by MergeBuilder to pass cherry-pick paths to the evaluator
 // enabling selective evaluation of operators.
 func WithCherryPickPaths(ctx context.Context, paths []string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return context.WithValue(ctx, cherryPickPathsKey{}, paths)
 }
 
 // GetCherryPickPaths extracts cherry-pick paths from the context.
 // Used by the engine to retrieve cherry-pick paths and set them on the evaluator.
 func GetCherryPickPaths(ctx context.Context) []string {
+	if ctx == nil {
+		return nil
+	}
 	if paths, ok := ctx.Value(cherryPickPathsKey{}).([]string); ok {
 		return paths
 	}
@@ -622,12 +628,18 @@ type priorCalcValuesKey struct{}
 // op_calc.go's leading-operator branch can look up the value a "(( calc
 // <leading-op> ... ))" expression overwrote during merge.
 func WithPriorCalcValues(ctx context.Context, values map[string]interface{}) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return context.WithValue(ctx, priorCalcValuesKey{}, values)
 }
 
 // GetPriorCalcValues extracts the prior-values map from the context. Used by
 // the engine to retrieve it and set it on the evaluator.
 func GetPriorCalcValues(ctx context.Context) map[string]interface{} {
+	if ctx == nil {
+		return nil
+	}
 	if values, ok := ctx.Value(priorCalcValuesKey{}).(map[string]interface{}); ok {
 		return values
 	}
