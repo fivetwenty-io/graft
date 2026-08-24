@@ -5,7 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.38.0] - 2026-08-23
+
+A follow-on to the theming release. The debugger REPL now colorizes the
+line as it is typed, themes can be set from a config file as well as
+from `--theme` and `GRAFT_THEME`, and the escape stripper that sanitizes
+error text before it reaches the terminal now removes every escape byte
+rather than only well-formed sequences.
 
 ### Added
 
@@ -761,6 +767,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.38.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.38.0
 [1.37.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.37.0
 [1.36.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.36.0
 [1.35.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.35.0
