@@ -134,7 +134,11 @@ notarize:
         key_id: '{{ envOrDefault "MACOS_NOTARY_KEY_ID" "" }}'
         key: '{{ envOrDefault "MACOS_NOTARY_KEY" "" }}'
         wait: true
-        timeout: 30m
+        # 20m is Apple's ceiling, not a preference: goreleaser mints an App
+        # Store Connect token whose lifetime is this timeout, and Apple
+        # rejects tokens that live longer. Anything above it fails the
+        # release at config-validation time, before a single binary builds.
+        timeout: 20m
 
 homebrew_casks:
   - name: graft
