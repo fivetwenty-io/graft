@@ -416,6 +416,49 @@ func TestCycleErrorShortensLongFilenamesFromTheLeft(t *testing.T) {
 	}
 }
 
+func TestSanitizeFilenameBudgetBoundaries(t *testing.T) {
+	// The budget is 117 runes: cycleExprMaxRunes (120) minus the 3-rune
+	// "..." marker. These two cases pin its edges exactly, in runes that
+	// each render as themselves, so the boundary math is not obscured by
+	// a multi-rune replacement.
+	cases := []struct {
+		name      string
+		in        string
+		want      string
+		wantRunes int
+	}{
+		{
+			// The kept suffix fills the budget exactly: 117 rendered
+			// runes survive the cut, plus the 3-rune marker.
+			name:      "kept suffix fills the budget exactly",
+			in:        strings.Repeat("a", 200),
+			want:      "..." + strings.Repeat("a", 117),
+			wantRunes: 120,
+		},
+		{
+			// The whole input renders to exactly cycleExprMaxRunes. That
+			// is still within the untruncated cap, so it must come back
+			// unmarked and unshortened.
+			name:      "whole input renders to exactly the cap",
+			in:        strings.Repeat("a", 120),
+			want:      strings.Repeat("a", 120),
+			wantRunes: 120,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := sanitizeFilename(c.in)
+			if got != c.want {
+				t.Errorf("sanitizeFilename() = %q, want %q", got, c.want)
+			}
+			if n := utf8.RuneCountInString(got); n != c.wantRunes {
+				t.Errorf("sanitizeFilename() is %d runes, want %d", n, c.wantRunes)
+			}
+		})
+	}
+}
+
 func TestSanitizeFilenameCutsBetweenWholeReplacements(t *testing.T) {
 	// The budget boundary falls in the MIDDLE of a run of six-rune
 	// U+2028 replacements, which is where a scan that stops as soon as
