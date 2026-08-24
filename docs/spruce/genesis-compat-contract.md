@@ -35,11 +35,17 @@ The version string is populated at build time via a linker flag
 the exact git tag when one matches); a binary built without that flag
 falls back to a hardcoded copy of the current release version
 (`var Version`, `cmd/graft/main.go`), which is a real semver above the
-`1.28.0` minimum, so even an ad-hoc `go build` passes the gate. The
-fallback must be bumped alongside each release so untagged builds do
-not misreport an older version. A pre-verb `-v` is also handled before
-`--color` and `--config` validation, so the version probe succeeds
-even with a broken config file or `GRAFT_*` environment.
+`1.28.0` minimum, so even an ad-hoc `go build` passes the gate. That
+baseline is the only copy of the number: the Makefile reads the line out
+of the Go source rather than repeating it, `TestVersionMatchesChangelog`
+fails when it falls behind the newest `CHANGELOG.md` section, and the
+release workflow refuses a tag that disagrees with either. All three
+exist because v1.39.0 shipped with the baseline still naming 1.38.0, so
+an ad-hoc build of that release reported the previous version.
+
+A pre-verb `-v` is also handled before `--color` and `--config`
+validation, so the version probe succeeds even with a broken config file
+or `GRAFT_*` environment.
 
 ## The 16 invocation patterns
 

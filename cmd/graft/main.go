@@ -43,7 +43,13 @@ const stdinPath = "STDIN"
 // real semver so that even an ad-hoc `go build`/`go run` without ldflags
 // still satisfies genesis's check_prereqs() minimum-version gate (spruce
 // compat requires >= 1.28.0, probed via `graft -v`/`--version`).
-var Version = "1.38.0"
+//
+// It names the most recent release, and is the single source of that
+// baseline: the Makefile reads this line rather than repeating the
+// number, TestVersionMatchesChangelog fails when it falls behind the
+// newest CHANGELOG section, and the release workflow refuses a tag that
+// disagrees with either.
+var Version = "1.39.0"
 
 var printStdOutf = func(format string, args ...interface{}) {
 	_, _ = fmt.Fprintf(os.Stdout, format, args...)

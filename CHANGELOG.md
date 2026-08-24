@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.0] - 2026-08-24
+
+Cycle errors now say where the cycle is: the block lists the merge
+inputs and every operator on the loop with its file and line, ending
+with the edge that closes it. A merge also fails now when two entries of
+one list share a name and an operator sits beneath either of them,
+rather than silently writing one operator's value into the wrong entry.
+
 ### Added
 
 - Cycle errors now print the merge inputs and every operator on the
@@ -802,6 +810,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.39.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.39.0
 [1.38.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.38.0
 [1.37.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.37.0
 [1.36.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.36.0

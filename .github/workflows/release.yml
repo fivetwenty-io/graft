@@ -50,6 +50,29 @@ jobs:
       - name: Trust the checkout despite mixed file owners
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
+      # The tag supplies the version goreleaser stamps into the release
+      # binaries, but a build without that stamp (`go install`, `go build`)
+      # falls back to `var Version` in cmd/graft/main.go, and the CHANGELOG
+      # is what users read. v1.39.0 shipped with both still naming 1.38.0;
+      # this refuses the tag instead. `make test-short` also pins the
+      # baseline against the CHANGELOG (TestVersionMatchesChangelog); only
+      # the tag comparison needs the workflow.
+      - name: Verify the tag matches the version baseline and changelog
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          baseline="$(sed -n 's/^var Version = "\([^"]*\)".*/\1/p' cmd/graft/main.go)"
+          changelog="$(sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' CHANGELOG.md | head -1)"
+          echo "tag=$tag baseline=$baseline changelog=$changelog"
+          if [ "$tag" != "$baseline" ]; then
+            echo "::error::cmd/graft/main.go's Version is $baseline, but the tag is $tag" >&2
+            exit 1
+          fi
+          if [ "$tag" != "$changelog" ]; then
+            echo "::error::the newest CHANGELOG.md section is $changelog, but the tag is $tag" >&2
+            exit 1
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
