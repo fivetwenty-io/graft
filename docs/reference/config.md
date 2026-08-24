@@ -10,7 +10,7 @@ Graft resolves each setting independently, in this order, from highest to lowest
 
 1. Environment variable (`GRAFT_*`)
 
-2. Configuration file (loaded via `--config` or discovered by search)
+2. Configuration file (loaded only when `--config <path>` is given; see [The `--config` Flag](#the---config-flag) below for the one exception, `ui.theme`)
 
 3. Built-in default
 
@@ -30,15 +30,9 @@ graft --config /etc/graft/config.yaml merge base.yml overlay.yml
 
 `--config <path>` points graft at a YAML configuration file. The path accepts `~` for the user's home directory and expands environment variables (for example, `$HOME/graft.yaml`).
 
-If `--config` is omitted, graft searches these locations in order and loads the first file found:
+If `--config` is omitted, graft uses its built-in defaults directly. It does **not** search `./graft.yaml`, `$HOME/.graft/config.yaml`, or `/etc/graft/config.yaml` for a config file: `internal/config` has a `LoadWithSearch` function implementing exactly that three-location search, but the `graft` CLI never calls it, so a config file sitting in any of those locations is silently ignored unless named explicitly with `--config`. (The `ui.theme` setting below is the one exception — it always checks those same three locations, whether or not `--config` is given.)
 
-1. `./graft.yaml` (current directory)
-
-2. `$HOME/.graft/config.yaml` (user config directory)
-
-3. `/etc/graft/config.yaml` (system config, Unix-like systems only)
-
-If no file is found at `--config` or in the search path, graft proceeds with built-in defaults; a missing config file is not an error. If `--config` names a file that does exist but can't be read or fails to parse as YAML, graft exits with an error rather than silently falling back to defaults.
+If `--config` names a path, that file must exist, be readable, and parse as valid YAML: a missing, unreadable, or malformed file is a startup error, not a fallback to defaults.
 
 ## Configuration File Format
 
@@ -81,15 +75,22 @@ ui:
 ```
 
 `ui.theme` sets the `graft debug`/`graft merge --interactive` color theme
-(`auto`, `dark`, `light`, or `mono`). It follows the same three search
-paths as `--config`'s discovery order above, but a standalone reader
-decodes only this one key; it never loads, validates, or activates any
-of the five sections above, and does not go through `--config` at all
-(naming a file with `--config` does not change where `ui.theme` is
-read from). Precedence for the theme specifically is `--theme` flag,
-then `GRAFT_THEME`, then `ui.theme`, then `auto` — one tier richer than
-the five sections above, since theme has a flag tier the others don't.
-See [`graft debug`'s Colors and Themes
+(`auto`, `dark`, `light`, or `mono`). It searches the same three
+locations `--config`'s discovery would use if the CLI ever ran it —
+`./graft.yaml`, then `$HOME/.graft/config.yaml`, then
+`/etc/graft/config.yaml`, first file found wins — but through a
+standalone reader that decodes only this one key; it never loads,
+validates, or activates any of the five sections above, and does not go
+through `--config` at all (naming a file with `--config` does not change
+where `ui.theme` is read from). Unlike the five sections above, this
+search runs whether or not `--config` is given. Precedence for the theme
+specifically is `--theme` flag, then `GRAFT_THEME`, then `ui.theme`, then
+`auto` — one tier richer than the five sections above, since theme has a
+flag tier the others don't. It is also only ever consulted for `graft
+debug` and `graft merge --interactive`: every other command skips this
+file entirely, so a large or invalid `./graft.yaml` never slows down or
+warns during a `graft merge`, `fan`, `json`, or `vaultinfo` run. See
+[`graft debug`'s Colors and Themes
 section](../user-guide/cli/debug.md#colors-and-themes) for the full
 behavior, including how an invalid `ui.theme` value is handled.
 

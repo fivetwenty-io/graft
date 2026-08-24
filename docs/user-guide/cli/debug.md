@@ -184,11 +184,14 @@ ui:
 `--theme` is a root flag, so it works the same way on both
 `graft debug` and `graft merge --interactive`. An unrecognized `--theme`
 value is a startup error, exit `1`, listing the four known names.
-An unrecognized `GRAFT_THEME` or `ui.theme` value only warns once on
-stderr and falls through to the next tier, so a typo in an environment
-variable or a config file can never abort the session. Setting
-`GRAFT_UI_THEME` instead of `GRAFT_THEME` also warns once on stderr,
-naming the variable graft actually reads.
+An unrecognized `GRAFT_THEME` value warns once on stderr and falls
+through straight to the `auto` default — it skips the config-file tier
+entirely, even when the file sets a valid `ui.theme`. An unrecognized
+`ui.theme` value warns the same way and falls through to the `auto`
+default too (there is no tier below it). Either way, a typo in the
+environment variable or the config file can never abort the session.
+Setting `GRAFT_UI_THEME` instead of `GRAFT_THEME` also warns once on
+stderr, naming the variable graft actually reads.
 
 The config-file tier searches `./graft.yaml`, then
 `$HOME/.graft/config.yaml`, then `/etc/graft/config.yaml`, using the

@@ -540,6 +540,33 @@ func TestThemeInvalidFileValueWarnsAndFallsThrough(t *testing.T) {
 	}
 }
 
+// TestThemeInvalidEnvSkipsFileTierEntirely proves the one behaviorally
+// surprising combination in the four-tier precedence chain: an invalid
+// GRAFT_THEME value does not fall through to a valid ui.theme file value
+// (the next tier down in the general flag > env > file > default
+// ordering) - it falls all the way through to the "auto" default,
+// skipping the file tier's value entirely, because resolveThemeTier
+// returns as soon as envValue is non-empty, valid or not. Verified against
+// the running binary (see docs/user-guide/cli/debug.md and
+// docs/reference/environment-variables.md, both corrected to state this):
+// GRAFT_THEME=bogus with a discovered ui.theme: light resolves to "auto",
+// not "light".
+func TestThemeInvalidEnvSkipsFileTierEntirely(t *testing.T) {
+	theme, valid, warnings := resolveThemeTier(false, "auto", "bogus", "light", "", false)
+	if !valid {
+		t.Fatalf("resolveThemeTier() flagValid = false, want true (an invalid env value must never abort)")
+	}
+	if theme != "auto" {
+		t.Errorf("resolveThemeTier() theme = %q, want %q (the file value must be skipped, not used as a fallback)", theme, "auto")
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("resolveThemeTier() warnings = %v, want exactly one (the invalid-env warning only; the file tier is never consulted)", warnings)
+	}
+	if !strings.Contains(warnings[0], "bogus") || !strings.Contains(warnings[0], themeEnvVar) {
+		t.Errorf("resolveThemeTier() warning = %q, want it to name %q and the bad value", warnings[0], themeEnvVar)
+	}
+}
+
 // TestThemeMisspellingWarningFiresWithFileValue locks decision 8
 // (colorizing-backlog-closeout.md): the GRAFT_UI_THEME misspelling
 // warning is orthogonal to the file tier's outcome. It must still fire

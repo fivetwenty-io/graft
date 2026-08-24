@@ -100,6 +100,32 @@ func TestDebugInputPainterEmptyLineIsIdentity(t *testing.T) {
 	}
 }
 
+// TestDebugInputPainterTerminatingNewlineIsIdentity proves the painter
+// leaves a lone terminating newline unstyled. readline calls the painter
+// with ['\n'] on Enter (operation.go's refresh path -> runebuf.go's
+// print, per the readline library's own line-accept handling), so
+// without this guard the painted stream would end
+// "...<SGR>T<reset><SGR>\n<reset>" - the reset landing after the line
+// break, wrapping a rune with no visible effect (a bare newline renders
+// no glyph for an SGR code to color) but incorrect all the same: the
+// escape bytes are still there, and the reset that should immediately
+// follow the last visible character now trails an extra rune later.
+func TestDebugInputPainterTerminatingNewlineIsIdentity(t *testing.T) {
+	for _, theme := range allDebugThemes() {
+		theme := theme
+		t.Run(theme.name, func(t *testing.T) {
+			st := debugStyler{enabled: true, theme: theme}
+			painter := debugInputPainter(st)
+
+			line := []rune("\n")
+			got := painter(line, 1)
+			if !reflect.DeepEqual(got, line) {
+				t.Errorf("painter([]rune(%q), 1) = %v, want unchanged %v (a lone terminating newline must never be painted)", "\n", got, line)
+			}
+		})
+	}
+}
+
 // TestDebugInputPainterStatelessAcrossCalls proves the closure carries
 // no state between invocations: calling it with the append-suffix shape
 // and then the whole-buffer shape (or any other order/mix) never lets

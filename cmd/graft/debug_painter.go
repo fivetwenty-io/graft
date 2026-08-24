@@ -23,14 +23,22 @@ import "github.com/ergochat/readline"
 // The returned closure is a strict identity when st is disabled or has
 // no theme resolved (decision 10: color off means zero escape bytes,
 // the same guarantee every other styled call site in the debugger
-// already gives), and identity on an empty line (an empty buffer wrapped
-// in an SGR-and-reset pair would emit two escape sequences bracketing no
-// visible text at all, which is pure noise, not styling). Both identity
-// paths return the input slice itself, not a re-built copy, so a caller
-// holding a reference to what it passed in sees the same slice back.
+// already gives), on an empty line (an empty buffer wrapped in an
+// SGR-and-reset pair would emit two escape sequences bracketing no
+// visible text at all, which is pure noise, not styling), and on a lone
+// terminating newline (readline calls the painter with ['\n'] on Enter -
+// see operation.go's refresh path into runebuf.go's print - and a bare
+// newline renders no glyph for an SGR code to color; painting it would
+// only move the reset past the line break instead of leaving it right
+// after the last visible rune). All three identity paths return the
+// input slice itself, not a re-built copy, so a caller holding a
+// reference to what it passed in sees the same slice back.
 func debugInputPainter(st debugStyler) readline.Painter {
 	return func(line []rune, _ int) []rune {
 		if !st.enabled || st.theme == nil || len(line) == 0 {
+			return line
+		}
+		if len(line) == 1 && line[0] == '\n' {
 			return line
 		}
 		return []rune(st.apply(roleInput, string(line)))
