@@ -899,6 +899,12 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 		ev.Only = cherryPickPaths // Also set the original field for backward compatibility
 	}
 
+	// Extract merge input references from context if present. Used only
+	// to attribute an operator data-flow cycle to files and lines.
+	if refs := GetSourceRefs(ctx); len(refs) > 0 {
+		ev.Sources = refs
+	}
+
 	// Extract calc-modification prior values recorded during merge, if any.
 	if priorValues := GetPriorCalcValues(ctx); len(priorValues) > 0 {
 		ev.PriorValues = priorValues

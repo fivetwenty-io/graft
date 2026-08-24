@@ -1596,6 +1596,7 @@ func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 	evaluator := &Evaluator{
 		Tree:        data,
 		PriorValues: m.priorCalcValues,
+		Sources:     GetSourceRefs(m.ctx),
 	}
 
 	// Run evaluation - pass cherry-pick keys as the "picks" parameter

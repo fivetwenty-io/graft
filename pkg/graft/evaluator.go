@@ -85,6 +85,13 @@ type Evaluator struct {
 	//   - services.api.port: (( grab defaults.api_port )) // Not under cherry-pick path
 	CherryPickPaths []string
 
+	// Sources are the merge inputs this evaluation was built from, in
+	// merge order. They are read only on the cycle-error path, to
+	// attribute each operator on the cycle to a file and line. Empty is
+	// valid: the cycle error then omits its "inputs:" block and every
+	// node renders as unresolved.
+	Sources []SourceRef
+
 	// Memory tracker for recording evaluation changes
 	memory interfaces.MemoryTracker
 }
