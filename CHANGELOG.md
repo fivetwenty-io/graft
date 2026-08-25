@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.40.1] - 2026-08-24
+
+`graft merge` can now be told to leave off its leading `---` line, for
+consumers that append the merged document to bytes of their own and
+would otherwise get a second YAML document mid-file.
+
 ### Added
 
 - `graft merge --no-doc-start` suppresses the leading `---\n`
@@ -846,6 +852,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.40.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.40.1
 [1.40.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.40.0
 [1.39.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.39.0
 [1.38.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.38.0
