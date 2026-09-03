@@ -68,6 +68,165 @@ func TestCalcLiteralOnlyUnaffected(t *testing.T) {
 	})
 }
 
+// TestCalcExpressionSemantics is a characterization test pinning the
+// observable behavior of the (( calc )) expression grammar: division,
+// modulo, exponent operators, the ternary safe-division idiom documented in
+// arithmetic.md, and the undefined-function error. These rows pass under
+// the Knetic/govaluate dependency in place when this test was written, and
+// must keep passing unchanged after any future swap of the underlying
+// expression library, since nothing here depends on library-specific error
+// wording.
+func TestCalcExpressionSemantics(t *testing.T) {
+	Convey("10 / 3 stays a float, not truncated", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "10 / 3" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, 3.3333333333333335)
+	})
+
+	Convey("100 / 4 coerces to an int when evenly divisible", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "100 / 4" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, int64(25))
+	})
+
+	Convey("10 % 3 is an int modulo", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "10 % 3" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, int64(1))
+	})
+
+	Convey("10.5 % 3 is a float modulo (math.Mod)", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "10.5 % 3" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, 1.5)
+	})
+
+	Convey("2 ** 3 is exponentiation", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "2 ** 3" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, int64(8))
+	})
+
+	Convey("2 ^ 3 is bitwise xor, not exponentiation", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "2 ^ 3" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, int64(1))
+	})
+
+	Convey("2 ** 0.5 is a fractional exponent", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "2 ** 0.5" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, 1.4142135623730951)
+	})
+
+	Convey("the ternary safe-division idiom returns 0 when the divisor is 0", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		yaml := "dividend: 100\ndivisor: 0\nx: '(( calc \"divisor != 0 ? dividend / divisor : 0\" ))'\n"
+		doc, err := engine.ParseYAML([]byte(yaml))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, int64(0))
+	})
+
+	Convey("the ternary safe-division idiom divides when the divisor is nonzero", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		yaml := "dividend: 100\ndivisor: 5\nx: '(( calc \"divisor != 0 ? dividend / divisor : 0\" ))'\n"
+		doc, err := engine.ParseYAML([]byte(yaml))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, int64(20))
+	})
+
+	Convey("calling an undefined function reports its name", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "abs(1)" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		_, err = engine.Evaluate(context.Background(), doc)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, "Undefined function abs")
+	})
+}
+
 // TestCalcNamedVariables pins the rule that bare named variables
 // resolve relative to the calc call's own parent first (siblings), then
 // absolutely from the document root.
