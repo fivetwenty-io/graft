@@ -200,17 +200,30 @@ func resolveTargetMFAEnv(targetName, envPrefix string) (serial, token string) {
 	return serial, token
 }
 
-// endpointFor returns the endpoint to configure on aws.Config for t. A
-// DisableSSL target rewrites an explicit "https://" Endpoint's scheme to
-// "http://" (the narrowed v2 meaning of the v1 DisableSSL flag - v2 has no
-// direct equivalent, and AWS proper does not serve plaintext, so
+// endpointFor returns the endpoint to configure on aws.Config for t. An
+// empty Endpoint returns "", telling BuildConfig not to call
+// config.WithBaseEndpoint at all. A scheme-less Endpoint (no "://") gets
+// "http://" or "https://" prepended depending on DisableSSL - v1 ran every
+// custom endpoint through endpoints.AddScheme before use, so a bare
+// "host:port" (the common AWS_{TARGET}_ENDPOINT spelling for a local
+// stand-in like LocalStack) worked; v2's config.WithBaseEndpoint takes the
+// string verbatim, and a scheme-less value fails with "unsupported
+// protocol scheme", so this restores v1's behavior ahead of that call. A
+// DisableSSL target additionally rewrites an explicit "https://" Endpoint's
+// scheme to "http://" (the narrowed v2 meaning of the v1 DisableSSL flag -
+// v2 has no direct equivalent, and AWS proper does not serve plaintext, so
 // DisableSSL alone with no Endpoint set is a documented no-op). Any other
-// Endpoint (including one already using "http://", or one using "https://"
-// with DisableSSL unset) is returned verbatim. An empty Endpoint returns
-// "", telling BuildConfig not to call config.WithBaseEndpoint at all.
+// Endpoint (one already using "http://", or one using "https://" with
+// DisableSSL unset) is returned verbatim.
 func endpointFor(t *Target) string {
 	if t.Endpoint == "" {
 		return ""
+	}
+	if !strings.Contains(t.Endpoint, "://") {
+		if t.DisableSSL {
+			return "http://" + t.Endpoint
+		}
+		return "https://" + t.Endpoint
 	}
 	if t.DisableSSL && strings.HasPrefix(t.Endpoint, "https://") {
 		return "http://" + strings.TrimPrefix(t.Endpoint, "https://")
