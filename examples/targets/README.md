@@ -219,9 +219,6 @@ critical_config: ((
 
 Cache configuration appropriately:
 ```bash
-# Long-lived infrastructure config
-export AWS_PRODUCTION_CACHE_TTL="30m"
-
 # Frequently changing feature flags
 export NATS_CONFIG_CACHE_TTL="1m"
 

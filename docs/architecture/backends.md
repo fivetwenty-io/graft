@@ -343,9 +343,7 @@ type Target struct {
     Endpoint           string
     MaxRetries         int
     HTTPTimeout        time.Duration
-    CacheTTL           time.Duration
     AssumeRoleDuration time.Duration
-    AuditLogging       bool
     // ...
 }
 ```

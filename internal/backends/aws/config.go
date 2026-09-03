@@ -20,12 +20,10 @@ type Target struct {
 	DisableSSL         bool          `yaml:"disable_ssl"`
 	MaxRetries         int           `yaml:"max_retries"`
 	HTTPTimeout        time.Duration `yaml:"http_timeout"`
-	CacheTTL           time.Duration `yaml:"cache_ttl"`
 	AssumeRoleDuration time.Duration `yaml:"assume_role_duration"`
 	ExternalID         string        `yaml:"external_id"`
 	SessionName        string        `yaml:"session_name"`
 	MfaSerial          string        `yaml:"mfa_serial"`
-	AuditLogging       bool          `yaml:"audit_logging"`
 
 	// MfaToken is a one-shot MFA code for MfaSerial, read once from
 	// AWS_{TARGET}_MFA_TOKEN (or, for the "default" target only, also

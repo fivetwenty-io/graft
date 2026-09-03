@@ -35,8 +35,6 @@ export AWS_PRODUCTION_ACCESS_KEY_ID="AKIAPRODUCTION123"
 export AWS_PRODUCTION_SECRET_ACCESS_KEY="production-secret-key"
 export AWS_PRODUCTION_MAX_RETRIES="5"
 export AWS_PRODUCTION_HTTP_TIMEOUT="60s"
-export AWS_PRODUCTION_CACHE_TTL="15m"
-export AWS_PRODUCTION_AUDIT_LOGGING="true"
 export AWS_PRODUCTION_ASSUME_ROLE_DURATION="2h"
 export AWS_PRODUCTION_EXTERNAL_ID="external-id-prod"
 export AWS_PRODUCTION_SESSION_NAME="graft-production"
@@ -48,7 +46,6 @@ export AWS_STAGING_ACCESS_KEY_ID="AKIASTAGING456"
 export AWS_STAGING_SECRET_ACCESS_KEY="staging-secret-key"
 export AWS_STAGING_MAX_RETRIES="3"
 export AWS_STAGING_HTTP_TIMEOUT="30s"
-export AWS_STAGING_CACHE_TTL="5m"
 
 # Development AWS (using custom endpoint for LocalStack)
 export AWS_DEV_REGION="us-east-1"
@@ -314,7 +311,6 @@ aws: Cache hit for awsparam:/app/database/password (target: production)
 
 ### Performance Tuning
 
-- **Cache TTL**: Adjust `AWS_{TARGET}_CACHE_TTL` based on parameter change frequency
 - **Session Reuse**: Sessions are automatically cached and reused
 - **Retry Settings**: Configure retries and timeouts for unreliable networks
 - **Regional Optimization**: Use regions closest to your infrastructure

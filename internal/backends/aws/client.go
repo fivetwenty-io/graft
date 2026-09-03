@@ -158,13 +158,11 @@ func (acp *ClientPool) GetTargetConfig(targetName string) (*Target, error) {
 		DisableSSL:         ParseBoolOrDefault(GetEnvOrDefault(envPrefix+"DISABLE_SSL", "false")),
 		MaxRetries:         ParseIntOrDefault(GetEnvOrDefault(envPrefix+"MAX_RETRIES", "3"), 3),
 		HTTPTimeout:        ParseDurationOrDefault(GetEnvOrDefault(envPrefix+"HTTP_TIMEOUT", "30s"), 30*time.Second),
-		CacheTTL:           ParseDurationOrDefault(GetEnvOrDefault(envPrefix+"CACHE_TTL", "5m"), 5*time.Minute),
 		AssumeRoleDuration: ParseDurationOrDefault(GetEnvOrDefault(envPrefix+"ASSUME_ROLE_DURATION", "1h"), 1*time.Hour),
 		ExternalID:         GetEnvOrDefault(envPrefix+"EXTERNAL_ID", ""),
 		SessionName:        GetEnvOrDefault(envPrefix+"SESSION_NAME", "graft-"+targetName),
 		MfaSerial:          mfaSerial,
 		MfaToken:           mfaToken,
-		AuditLogging:       ParseBoolOrDefault(GetEnvOrDefault(envPrefix+"AUDIT_LOGGING", "false")),
 		EnvPrefix:          envPrefix,
 	}
 

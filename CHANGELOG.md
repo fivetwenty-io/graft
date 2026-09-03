@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `AWS_{TARGET}_S3_FORCE_PATH_STYLE`. graft has no S3 client, so this
   variable never had an effect under v1 either.
+- `AWS_{TARGET}_CACHE_TTL` and `AWS_{TARGET}_AUDIT_LOGGING`. Both were
+  parsed onto the target and consumed by nothing; the AWS result cache
+  has no TTL, and audit logging is the engine-level `WithAuditLogger`.
 
 ## [1.40.2] - 2026-09-03
 

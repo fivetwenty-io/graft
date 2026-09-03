@@ -223,13 +223,11 @@ per-target-only equivalent is `AWS_{TARGET}_HTTP_TIMEOUT` below.
 | `AWS_{TARGET}_DISABLE_SSL` | Rewrite an `https://` `AWS_{TARGET}_ENDPOINT` to `http://` (`true`/`false`); no effect when no endpoint is set |
 | `AWS_{TARGET}_MAX_RETRIES` | Maximum retry attempts, on top of the first try (default `3`) |
 | `AWS_{TARGET}_HTTP_TIMEOUT` | HTTP request timeout (default `30s`) |
-| `AWS_{TARGET}_CACHE_TTL` | Target cache time-to-live (default `5m`) |
 | `AWS_{TARGET}_ASSUME_ROLE_DURATION` | Assumed-role session duration (default `1h`) |
 | `AWS_{TARGET}_EXTERNAL_ID` | External ID for role assumption |
 | `AWS_{TARGET}_SESSION_NAME` | Role session name (default `graft-{target}`) |
 | `AWS_{TARGET}_MFA_SERIAL` | MFA device serial number, required to complete role assumption when set |
 | `AWS_{TARGET}_MFA_TOKEN` | One-shot MFA code for `AWS_{TARGET}_MFA_SERIAL`; graft prompts on stderr instead when this is unset and stdin is a terminal |
-| `AWS_{TARGET}_AUDIT_LOGGING` | Enable audit logging for the target (`true`/`false`) |
 
 The "default" target is a special case: alongside its own
 `AWS_DEFAULT_MFA_SERIAL`/`AWS_DEFAULT_MFA_TOKEN`, it also accepts the

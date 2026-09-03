@@ -153,7 +153,7 @@ func (s *awsConfigStore) configFor(ctx context.Context, target string) (aws.Conf
 // awsOptionBackend's doc comment for why this is a from-scratch builder,
 // not an import of that package): MaxRetries, HTTPTimeout,
 // AssumeRoleDuration/ExternalID/SessionName (role-assumption tuning
-// beyond MFA), CacheTTL, AuditLogging. Role assumption itself IS carried
+// beyond MFA). Role assumption itself IS carried
 // over (a bare sts:AssumeRole, optionally MFA-protected via
 // cfg.MFASerial/cfg.MFATokenProvider) since it is a real, commonly-needed
 // capability; the rest are cut because they would be silent no-ops on
