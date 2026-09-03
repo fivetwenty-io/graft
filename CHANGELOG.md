@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.40.2] - 2026-09-03
+
+A dependency housekeeping release. `(( calc ))` moves off the archived
+`Knetic/govaluate` onto its maintained `casbin/govaluate` fork with the
+grammar and results unchanged, and `graft diff` stops over-reporting
+changes on large YAML documents that repeat a common line.
+
 ### Changed
 
 - `(( calc ))` expressions now run on the maintained `casbin/govaluate`

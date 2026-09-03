@@ -49,7 +49,7 @@ const stdinPath = "STDIN"
 // number, TestVersionMatchesChangelog fails when it falls behind the
 // newest CHANGELOG section, and the release workflow refuses a tag that
 // disagrees with either.
-var Version = "1.40.1"
+var Version = "1.40.2"
 
 var printStdOutf = func(format string, args ...interface{}) {
 	_, _ = fmt.Fprintf(os.Stdout, format, args...)
