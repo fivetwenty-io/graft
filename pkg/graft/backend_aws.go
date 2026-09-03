@@ -138,14 +138,14 @@ func (s *awsConfigStore) configFor(ctx context.Context, target string) (aws.Conf
 //
 // Not carried over from internal/backends/aws.Target (see
 // awsOptionBackend's doc comment for why this is a from-scratch builder,
-// not an import of that package): S3ForcePathStyle, MaxRetries,
-// HTTPTimeout, AssumeRoleDuration/ExternalID/SessionName/MfaSerial (MFA'd
-// role assumption), CacheTTL, AuditLogging. Role assumption itself IS
-// carried over (a bare sts:AssumeRole, no MFA/session-name/external-ID
-// options) since it is one call and a real, commonly-needed capability;
-// the rest are cut because they would be silent no-ops on AWSConfig's
-// current field set without adding fields the plan never asked for -
-// flagged in the WithAWS doc comment rather than added speculatively.
+// not an import of that package): MaxRetries, HTTPTimeout,
+// AssumeRoleDuration/ExternalID/SessionName/MfaSerial (MFA'd role
+// assumption), CacheTTL, AuditLogging. Role assumption itself IS carried
+// over (a bare sts:AssumeRole, no MFA/session-name/external-ID options)
+// since it is one call and a real, commonly-needed capability; the rest
+// are cut because they would be silent no-ops on AWSConfig's current
+// field set without adding fields the plan never asked for - flagged in
+// the WithAWS doc comment rather than added speculatively.
 //
 // Endpoint reaches config.WithBaseEndpoint verbatim: unlike
 // internal/backends/aws.BuildConfig, there is no DisableSSL field on

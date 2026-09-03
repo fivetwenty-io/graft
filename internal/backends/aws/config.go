@@ -17,7 +17,6 @@ type Target struct {
 	SecretAccessKey    string        `yaml:"secret_access_key"`
 	SessionToken       string        `yaml:"session_token"`
 	Endpoint           string        `yaml:"endpoint"`
-	S3ForcePathStyle   bool          `yaml:"s3_force_path_style"`
 	DisableSSL         bool          `yaml:"disable_ssl"`
 	MaxRetries         int           `yaml:"max_retries"`
 	HTTPTimeout        time.Duration `yaml:"http_timeout"`

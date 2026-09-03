@@ -152,7 +152,6 @@ func (acp *ClientPool) GetTargetConfig(targetName string) (*Target, error) {
 		SecretAccessKey:    GetEnvOrDefault(envPrefix+"SECRET_ACCESS_KEY", ""),
 		SessionToken:       GetEnvOrDefault(envPrefix+"SESSION_TOKEN", ""),
 		Endpoint:           GetEnvOrDefault(envPrefix+"ENDPOINT", ""),
-		S3ForcePathStyle:   ParseBoolOrDefault(GetEnvOrDefault(envPrefix+"S3_FORCE_PATH_STYLE", "false")),
 		DisableSSL:         ParseBoolOrDefault(GetEnvOrDefault(envPrefix+"DISABLE_SSL", "false")),
 		MaxRetries:         ParseIntOrDefault(GetEnvOrDefault(envPrefix+"MAX_RETRIES", "3"), 3),
 		HTTPTimeout:        ParseDurationOrDefault(GetEnvOrDefault(envPrefix+"HTTP_TIMEOUT", "30s"), 30*time.Second),
