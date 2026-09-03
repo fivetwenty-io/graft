@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `(( calc ))` expressions now run on the maintained `casbin/govaluate`
+  fork instead of `Knetic/govaluate`, which was archived March 2025.
+  Grammar and results are unchanged: the same operators, precedence,
+  and built-in functions (`min`, `max`, `mod`, `pow`, `sqrt`, `floor`,
+  `ceil`) behave the same, and `Undefined function <name>` still names
+  the missing call. Four malformed-expression messages are now
+  lowercase instead of capitalized: `unbalanced parenthesis`,
+  `unexpected end of expression`, `unclosed string literal`, and
+  `unclosed parameter bracket`. Hexadecimal literals such as `0x10`
+  now parse, where they previously raised a token-transition error.
+
 ## [1.40.1] - 2026-08-24
 
 `graft merge` can now be told to leave off its leading `---` line, for
