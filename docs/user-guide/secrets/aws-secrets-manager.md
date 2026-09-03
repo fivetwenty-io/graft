@@ -204,25 +204,19 @@ previous_password: (( awssecret "db-creds?stage=AWSPREVIOUS&key=password" ))
 
 ### Role Assumption and MFA
 
-Set `AWS_{TARGET}_ROLE` (or, for the default target, `AWS_ROLE`) to have
-graft call `sts:AssumeRole` before reading secrets for that target:
+Set `AWS_{TARGET}_ROLE` (or, for the default target, `AWS_ROLE`) to have graft call `sts:AssumeRole` before reading secrets for that target:
 
 ```bash
 export AWS_PROD_ROLE="arn:aws:iam::123456789012:role/SecretsReader"
 ```
 
-When the role itself requires MFA, also set `AWS_{TARGET}_MFA_SERIAL`
-(or `AWS_MFA_SERIAL` for the default target):
+When the role itself requires MFA, also set `AWS_{TARGET}_MFA_SERIAL` (or `AWS_MFA_SERIAL` for the default target):
 
 ```bash
 export AWS_PROD_MFA_SERIAL="arn:aws:iam::123456789012:mfa/alice"
 ```
 
-graft resolves the current MFA code in this order: `AWS_{TARGET}_MFA_TOKEN`
-(or `AWS_MFA_TOKEN`) if set, an interactive prompt on stderr if stdin is a
-terminal, or a clear error naming the variable to set. Set the token
-variable non-interactively — CI, scripts, and anything piping a document
-into `graft merge` — since none of those have a terminal to prompt on:
+graft resolves the current MFA code in this order: `AWS_{TARGET}_MFA_TOKEN` (or `AWS_MFA_TOKEN`) if set, an interactive prompt on stderr if stdin is a terminal, or a clear error naming the variable to set. Set the token variable non-interactively — CI, scripts, and anything piping a document into `graft merge` — since none of those have a terminal to prompt on:
 
 ```bash
 export AWS_PROD_MFA_TOKEN="123456"
