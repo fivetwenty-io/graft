@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `unclosed parameter bracket`. Hexadecimal literals such as `0x10`
   now parse, where they previously raised a token-transition error.
 
+### Fixed
+
+- `graft diff --unified` and `graft diff --side-by-side` no longer
+  over-report changes on documents of 200 or more lines that repeat a
+  common line often, such as a BOSH manifest's `enabled: true` entries.
+  The underlying `go-difflib` matcher's autojunk heuristic refused to
+  anchor a match on any line occurring more than 1% of the time above
+  that size, so a handful of real edits could render as most of the
+  document being replaced. Autojunk is now disabled at both call sites.
+
 ## [1.40.1] - 2026-08-24
 
 `graft merge` can now be told to leave off its leading `---` line, for
