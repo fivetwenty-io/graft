@@ -204,13 +204,13 @@ previous_password: (( awssecret "db-creds?stage=AWSPREVIOUS&key=password" ))
 
 ### Role Assumption and MFA
 
-Set `AWS_{TARGET}_ROLE` (or, for the default target, `AWS_ROLE`) to have graft call `sts:AssumeRole` before reading secrets for that target:
+Set `AWS_{TARGET}_ROLE` (for the default target, `AWS_DEFAULT_ROLE`) to have graft call `sts:AssumeRole` before reading secrets for that target. The plain `AWS_ROLE` spelling is read only when none of `AWS_DEFAULT_REGION`, `AWS_DEFAULT_PROFILE`, `AWS_DEFAULT_ROLE`, or `AWS_DEFAULT_ACCESS_KEY_ID` is set; once any of them is, the default target is configured from the `AWS_DEFAULT_*` family alone and `AWS_ROLE` is ignored:
 
 ```bash
 export AWS_PROD_ROLE="arn:aws:iam::123456789012:role/SecretsReader"
 ```
 
-When the role itself requires MFA, also set `AWS_{TARGET}_MFA_SERIAL` (or `AWS_MFA_SERIAL` for the default target):
+When the role itself requires MFA, also set `AWS_{TARGET}_MFA_SERIAL` (for the default target, either `AWS_DEFAULT_MFA_SERIAL` or the plain `AWS_MFA_SERIAL`):
 
 ```bash
 export AWS_PROD_MFA_SERIAL="arn:aws:iam::123456789012:mfa/alice"
@@ -221,6 +221,8 @@ graft resolves the current MFA code in this order: `AWS_{TARGET}_MFA_TOKEN` (or 
 ```bash
 export AWS_PROD_MFA_TOKEN="123456"
 ```
+
+A token from the environment is used exactly once, since a one-time code cannot be replayed. If a profile's own `mfa_serial` in `~/.aws/config` and the target's `AWS_{TARGET}_ROLE` both need a code in the same run, the second `AssumeRole` has no token left; run graft interactively so it can prompt for each.
 
 ## IAM Permissions
 
