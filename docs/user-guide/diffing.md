@@ -145,9 +145,10 @@ meta:                             │   timeout: 60
 ```
 
 Rows are aligned by a line-level diff of each file's full YAML text (via
-[`pmezard/go-difflib`](https://github.com/pmezard/go-difflib)'s Myers-diff
-implementation), so an insertion/deletion shifts the alignment rather than
-comparing files line-by-line positionally. `-y` is the short form.
+[`pmezard/go-difflib`](https://github.com/pmezard/go-difflib)'s
+longest-matching-block (Ratcliff/Obershelp) implementation), so an
+insertion/deletion shifts the alignment rather than comparing files
+line-by-line positionally. `-y` is the short form.
 
 Control the total width (both columns plus the separator) with `--width`:
 

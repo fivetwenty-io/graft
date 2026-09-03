@@ -213,8 +213,8 @@ func yamlBlockLines(v interface{}) ([]string, error) {
 
 // writeUnifiedHunkLines writes fromLines/toLines as unified-diff hunks
 // (grouped opcodes with contextLines of surrounding context), using
-// difflib's Myers-diff-derived opcodes directly rather than difflib's own
-// WriteUnifiedDiff so the numeric "@@ -l,c +l,c @@" range header can be
+// difflib's longest-matching-block opcodes directly rather than difflib's
+// own WriteUnifiedDiff so the numeric "@@ -l,c +l,c @@" range header can be
 // omitted in favor of renderUnifiedDiff's per-key "@@ <key> @@" header.
 func writeUnifiedHunkLines(buf *strings.Builder, fromLines, toLines []string, contextLines int) {
 	// autojunk off: difflib's default autojunk heuristic refuses to anchor
@@ -252,10 +252,10 @@ func writeUnifiedHunkLines(buf *strings.Builder, fromLines, toLines []string, co
 }
 
 // renderSideBySide renders a two-column side-by-side view of fromDoc's and
-// toDoc's full YAML text, aligned by difflib's line-level Myers diff
-// (matching docs/user-guide/cli/diff.md's example). width is the total
-// output width (both columns plus the " │ " separator); columns are
-// truncated to fit and padded to stay aligned.
+// toDoc's full YAML text, aligned by difflib's line-level
+// longest-matching-block diff (matching docs/user-guide/cli/diff.md's
+// example). width is the total output width (both columns plus the " │ "
+// separator); columns are truncated to fit and padded to stay aligned.
 func renderSideBySide(fromLabel string, fromDoc interface{}, toLabel string, toDoc interface{}, width int) (string, error) {
 	if width <= 0 {
 		width = defaultSideBySideWidth
