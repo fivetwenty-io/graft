@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -407,6 +408,126 @@ func TestBuildConfig_RoleAssumptionSendsOptionsAndCaches(t *testing.T) {
 	}
 }
 
+// TestBuildConfig_MfaSerialSendsSerialAndTokenCode proves an explicit
+// target.MfaSerial reaches STS's AssumeRole call as SerialNumber, and the
+// MfaToken one-shot code as TokenCode.
+func TestBuildConfig_MfaSerialSendsSerialAndTokenCode(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	ctx := context.Background()
+	srv, _, forms := awsAssumeRoleServer(t)
+
+	cfg, err := awsbackend.DefaultPool.BuildConfig(ctx, &awsbackend.Target{
+		Region: "us-east-1", Endpoint: srv.URL,
+		AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secret",
+		Role:      "arn:aws:iam::123456789012:role/test-role",
+		MfaSerial: "arn:aws:iam::123456789012:mfa/user",
+		MfaToken:  "445566",
+	})
+	if err != nil {
+		t.Fatalf("BuildConfig failed: %v", err)
+	}
+	if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
+		t.Fatalf("Credentials.Retrieve failed: %v", err)
+	}
+
+	form := (*forms)[0]
+	if got := form.Get("SerialNumber"); got != "arn:aws:iam::123456789012:mfa/user" {
+		t.Errorf("SerialNumber = %q, want the configured MFA serial", got)
+	}
+	if got := form.Get("TokenCode"); got != "445566" {
+		t.Errorf("TokenCode = %q, want %q", got, "445566")
+	}
+}
+
+// TestBuildConfig_MfaSerialNoTokenNoTTYErrors proves that with an
+// MfaSerial set, no MfaToken, and no interactive terminal (the default
+// test environment), Credentials.Retrieve fails with an error naming an
+// MFA_TOKEN environment variable, rather than hanging or silently
+// succeeding without MFA.
+func TestBuildConfig_MfaSerialNoTokenNoTTYErrors(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	ctx := context.Background()
+	srv, _, _ := awsAssumeRoleServer(t)
+
+	cfg, err := awsbackend.DefaultPool.BuildConfig(ctx, &awsbackend.Target{
+		Region: "us-east-1", Endpoint: srv.URL,
+		AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secret",
+		Role:      "arn:aws:iam::123456789012:role/test-role",
+		MfaSerial: "arn:aws:iam::123456789012:mfa/user",
+	})
+	if err != nil {
+		t.Fatalf("BuildConfig failed: %v", err)
+	}
+	_, err = cfg.Credentials.Retrieve(ctx)
+	if err == nil {
+		t.Fatal("expected Credentials.Retrieve to fail with no MFA token available, got nil error")
+	}
+	if !strings.Contains(err.Error(), "MFA_TOKEN") {
+		t.Errorf("error %q does not name an MFA_TOKEN environment variable", err.Error())
+	}
+}
+
+// awsSharedConfigFiles writes a minimal shared credentials and config
+// file pair to a fresh temp directory and points AWS_SHARED_CREDENTIALS_
+// FILE/AWS_CONFIG_FILE at them, so TestBuildConfig_ProfileMfaSerialUsesProvider
+// can prove a profile-driven "mfa_serial" (not set via Target.MfaSerial at
+// all) gets the same MFA token provider treatment. Pointing at explicit
+// files via these env vars (rather than writing to $HOME/.aws and relying
+// on the SDK's default file resolution) is required for a hermetic test:
+// config.DefaultSharedConfigFiles is a package-level var the SDK
+// evaluates once at process init from the real $HOME, so a later
+// t.Setenv("HOME", ...) - as hermeticizeAWSEnv does - has no effect on it.
+func awsSharedConfigFiles(t *testing.T, stsEndpoint string) {
+	t.Helper()
+	dir := t.TempDir()
+
+	credentials := "[source]\naws_access_key_id = AKIAEXAMPLE\naws_secret_access_key = secret\n"
+	credPath := dir + "/credentials"
+	if err := os.WriteFile(credPath, []byte(credentials), 0o600); err != nil {
+		t.Fatalf("writing credentials file: %v", err)
+	}
+
+	cfg := "[profile mfa-role]\nrole_arn = arn:aws:iam::123456789012:role/test-role\nsource_profile = source\nmfa_serial = arn:aws:iam::123456789012:mfa/user\n"
+	cfgPath := dir + "/config"
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
+		t.Fatalf("writing config file: %v", err)
+	}
+
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", credPath)
+	t.Setenv("AWS_CONFIG_FILE", cfgPath)
+	t.Setenv("AWS_ENDPOINT_URL_STS", stsEndpoint)
+}
+
+// TestBuildConfig_ProfileMfaSerialUsesProvider proves a profile's own
+// "mfa_serial" (resolved by the shared-config loader, never named on
+// Target at all) is picked up through config.WithAssumeRoleCredentialOptions
+// and sent to STS, exactly like an explicit Target.MfaSerial is.
+func TestBuildConfig_ProfileMfaSerialUsesProvider(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	ctx := context.Background()
+	srv, _, forms := awsAssumeRoleServer(t)
+	awsSharedConfigFiles(t, srv.URL)
+	t.Setenv("AWS_MFA_TOKEN", "778899")
+
+	cfg, err := awsbackend.DefaultPool.BuildConfig(ctx, &awsbackend.Target{
+		Region: "us-east-1", Profile: "mfa-role",
+	})
+	if err != nil {
+		t.Fatalf("BuildConfig failed: %v", err)
+	}
+	if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
+		t.Fatalf("Credentials.Retrieve failed: %v", err)
+	}
+
+	form := (*forms)[0]
+	if got := form.Get("SerialNumber"); got != "arn:aws:iam::123456789012:mfa/user" {
+		t.Errorf("SerialNumber = %q, want the profile's configured MFA serial", got)
+	}
+	if got := form.Get("TokenCode"); got != "778899" {
+		t.Errorf("TokenCode = %q, want %q", got, "778899")
+	}
+}
+
 func TestGetConfig_CachesPerTarget(t *testing.T) {
 	hermeticizeAWSEnv(t)
 	ctx := context.Background()
@@ -471,7 +592,7 @@ func TestInitializeConfig_PlainRegionAndProfile(t *testing.T) {
 	hermeticizeAWSEnv(t)
 	ctx := context.Background()
 
-	cfg, err := awsbackend.InitializeConfig(ctx, "", "us-east-1", "")
+	cfg, err := awsbackend.InitializeConfig(ctx, "", "us-east-1", "", "")
 	if err != nil {
 		t.Fatalf("InitializeConfig failed: %v", err)
 	}
@@ -488,11 +609,41 @@ func TestInitializeConfig_RoleWrapsProviderInCache(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret")
 	t.Setenv("AWS_ENDPOINT_URL_STS", srv.URL)
 
-	cfg, err := awsbackend.InitializeConfig(ctx, "", "us-east-1", "arn:aws:iam::123456789012:role/test-role")
+	cfg, err := awsbackend.InitializeConfig(ctx, "", "us-east-1", "arn:aws:iam::123456789012:role/test-role", "")
 	if err != nil {
 		t.Fatalf("InitializeConfig failed: %v", err)
 	}
 	if _, ok := cfg.Credentials.(*aws.CredentialsCache); !ok {
 		t.Fatalf("expected role assumption to wrap the provider in *aws.CredentialsCache, got %T", cfg.Credentials)
+	}
+}
+
+// TestInitializeConfig_MfaSerialSendsSerialAndTokenCode proves the
+// un-namespaced path (D1) sends SerialNumber/TokenCode to STS exactly
+// like BuildConfig's target-prefixed path does, sourcing the code from
+// AWS_MFA_TOKEN.
+func TestInitializeConfig_MfaSerialSendsSerialAndTokenCode(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	ctx := context.Background()
+	srv, _, forms := awsAssumeRoleServer(t)
+	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret")
+	t.Setenv("AWS_ENDPOINT_URL_STS", srv.URL)
+	t.Setenv("AWS_MFA_TOKEN", "999000")
+
+	cfg, err := awsbackend.InitializeConfig(ctx, "", "us-east-1", "arn:aws:iam::123456789012:role/test-role", "arn:aws:iam::123456789012:mfa/user")
+	if err != nil {
+		t.Fatalf("InitializeConfig failed: %v", err)
+	}
+	if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
+		t.Fatalf("Credentials.Retrieve failed: %v", err)
+	}
+
+	form := (*forms)[0]
+	if got := form.Get("SerialNumber"); got != "arn:aws:iam::123456789012:mfa/user" {
+		t.Errorf("SerialNumber = %q, want the configured MFA serial", got)
+	}
+	if got := form.Get("TokenCode"); got != "999000" {
+		t.Errorf("TokenCode = %q, want %q", got, "999000")
 	}
 }

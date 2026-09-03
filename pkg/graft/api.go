@@ -847,6 +847,23 @@ type AWSConfig struct {
 	// http.Transport zero-value default (2 idle connections per host) in
 	// effect. Only consumed by WithAWS/WithAWSTarget.
 	PoolSize int
+
+	// MFASerial is the ARN or serial number of an MFA device protecting
+	// the assumed Role above. Ignored when Role is "". Only consumed by
+	// WithAWS/WithAWSTarget.
+	MFASerial string
+
+	// MFATokenProvider supplies the current MFA code for MFASerial on
+	// every STS AssumeRole call: it must return a fresh code each time it
+	// is invoked (aws.NewCredentialsCache wraps the resulting credentials
+	// provider, so this is called only when the cache needs to refresh,
+	// not on every SSM/Secrets Manager request). If nil while MFASerial is
+	// set, buildAWSConfig falls back to a one-shot code read from the
+	// AWS_MFA_TOKEN environment variable, or - when stdin is a terminal -
+	// an interactive prompt on stderr; with neither available, credential
+	// resolution fails with a clear error naming AWS_MFA_TOKEN. Ignored
+	// when MFASerial is "".
+	MFATokenProvider func() (string, error)
 }
 
 // NewEngine creates a new engine instance with the given options, applied

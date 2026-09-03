@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -17,7 +18,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+
+	"github.com/fivetwenty-io/graft/internal/utils/mfa"
 )
+
+// mfaPromptIO is the interactive-prompt IO buildAWSConfig's MFA fallback
+// uses when AWSConfig.MFATokenProvider is nil, package-level and
+// swappable in tests (restore via t.Cleanup, since it is shared,
+// unsynchronized package state) for a fake reader/writer/isTTY so MFA
+// tests never touch a real terminal. Production code leaves it at
+// mfa.DefaultPromptIO(): stdin for input, stderr for the prompt (stdout
+// carries a QuickMerge/engine caller's own output and must never receive
+// a prompt), golang.org/x/term for the TTY check.
+var mfaPromptIO = mfa.DefaultPromptIO()
 
 // AWSConfig.AccessKeyID/SecretAccessKey/SessionToken/PoolSize are added
 // here (rather than in the AWSConfig struct's own doc comment above, in
@@ -139,13 +152,14 @@ func (s *awsConfigStore) configFor(ctx context.Context, target string) (aws.Conf
 // Not carried over from internal/backends/aws.Target (see
 // awsOptionBackend's doc comment for why this is a from-scratch builder,
 // not an import of that package): MaxRetries, HTTPTimeout,
-// AssumeRoleDuration/ExternalID/SessionName/MfaSerial (MFA'd role
-// assumption), CacheTTL, AuditLogging. Role assumption itself IS carried
-// over (a bare sts:AssumeRole, no MFA/session-name/external-ID options)
-// since it is one call and a real, commonly-needed capability; the rest
-// are cut because they would be silent no-ops on AWSConfig's current
-// field set without adding fields the plan never asked for - flagged in
-// the WithAWS doc comment rather than added speculatively.
+// AssumeRoleDuration/ExternalID/SessionName (role-assumption tuning
+// beyond MFA), CacheTTL, AuditLogging. Role assumption itself IS carried
+// over (a bare sts:AssumeRole, optionally MFA-protected via
+// cfg.MFASerial/cfg.MFATokenProvider) since it is a real, commonly-needed
+// capability; the rest are cut because they would be silent no-ops on
+// AWSConfig's current field set without adding fields the plan never
+// asked for - flagged in the WithAWS doc comment rather than added
+// speculatively.
 //
 // Endpoint reaches config.WithBaseEndpoint verbatim: unlike
 // internal/backends/aws.BuildConfig, there is no DisableSSL field on
@@ -181,6 +195,27 @@ func buildAWSConfig(ctx context.Context, cfg AWSConfig) (aws.Config, error) {
 		))
 	}
 
+	// Build the MFA token provider once (if MFASerial is set) so it is
+	// used consistently wherever MFA-protected role assumption happens.
+	// cfg.MFATokenProvider is used verbatim when supplied; otherwise this
+	// falls back to the same env-token/interactive-prompt/clear-error
+	// resolution internal/backends/aws.BuildConfig's environment-driven
+	// path uses (via the shared internal/utils/mfa package), reading the
+	// one-shot code from AWS_MFA_TOKEN since AWSConfig, unlike
+	// internal/backends/aws.Target, has no per-target env-var namespace
+	// to read a prefixed spelling from.
+	var mfaProvider func() (string, error)
+	if cfg.MFASerial != "" {
+		mfaProvider = cfg.MFATokenProvider
+		if mfaProvider == nil {
+			mfaProvider = mfa.TokenProvider(cfg.MFASerial, os.Getenv("AWS_MFA_TOKEN"), "AWS_MFA_TOKEN", mfaPromptIO)
+		}
+		opts = append(opts, config.WithAssumeRoleCredentialOptions(func(o *stscreds.AssumeRoleOptions) {
+			o.SerialNumber = aws.String(cfg.MFASerial)
+			o.TokenProvider = mfaProvider
+		}))
+	}
+
 	awsCfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return aws.Config{}, fmt.Errorf("aws: failed to load config: %w", err)
@@ -188,7 +223,12 @@ func buildAWSConfig(ctx context.Context, cfg AWSConfig) (aws.Config, error) {
 
 	if cfg.Role != "" {
 		stsClient := sts.NewFromConfig(awsCfg)
-		provider := stscreds.NewAssumeRoleProvider(stsClient, cfg.Role)
+		provider := stscreds.NewAssumeRoleProvider(stsClient, cfg.Role, func(o *stscreds.AssumeRoleOptions) {
+			if cfg.MFASerial != "" {
+				o.SerialNumber = aws.String(cfg.MFASerial)
+				o.TokenProvider = mfaProvider
+			}
+		})
 		// REQUIRED: without this cache, every SSM/Secrets Manager call
 		// through awsCfg would re-run sts:AssumeRole.
 		awsCfg.Credentials = aws.NewCredentialsCache(provider)

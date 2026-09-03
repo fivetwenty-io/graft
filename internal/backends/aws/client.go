@@ -145,6 +145,8 @@ func (acp *ClientPool) GetTargetConfig(targetName string) (*Target, error) {
 			targetName, envPrefix, envPrefix, envPrefix, envPrefix)
 	}
 
+	mfaSerial, mfaToken := resolveTargetMFAEnv(targetName, envPrefix)
+
 	targetConfig := &Target{
 		Region:             GetEnvOrDefault(envPrefix+"REGION", ""),
 		Profile:            GetEnvOrDefault(envPrefix+"PROFILE", ""),
@@ -160,11 +162,42 @@ func (acp *ClientPool) GetTargetConfig(targetName string) (*Target, error) {
 		AssumeRoleDuration: ParseDurationOrDefault(GetEnvOrDefault(envPrefix+"ASSUME_ROLE_DURATION", "1h"), 1*time.Hour),
 		ExternalID:         GetEnvOrDefault(envPrefix+"EXTERNAL_ID", ""),
 		SessionName:        GetEnvOrDefault(envPrefix+"SESSION_NAME", "graft-"+targetName),
-		MfaSerial:          GetEnvOrDefault(envPrefix+"MFA_SERIAL", ""),
+		MfaSerial:          mfaSerial,
+		MfaToken:           mfaToken,
 		AuditLogging:       ParseBoolOrDefault(GetEnvOrDefault(envPrefix+"AUDIT_LOGGING", "false")),
+		EnvPrefix:          envPrefix,
 	}
 
 	return targetConfig, nil
+}
+
+// resolveTargetMFAEnv resolves a target's MFA serial and one-shot MFA
+// token from the environment. Both support the target-prefixed spelling
+// (envPrefix+"MFA_SERIAL"/"MFA_TOKEN"), which always wins when set. The
+// "default" target (case-insensitive) additionally falls back to the
+// plain "AWS_MFA_SERIAL"/"AWS_MFA_TOKEN" spelling when the prefixed one
+// is unset (D1): op_aws.go resolves an empty "@target" through
+// GetTargetConfig("default") before falling back to InitializeConfig's
+// own un-namespaced AWS_PROFILE/AWS_REGION/AWS_ROLE path, so a user who
+// already set the plain MFA variables (matching that fallback path's own
+// naming) gets the same MFA support without also having to set the
+// AWS_DEFAULT_ prefixed spelling. Every other target name only ever
+// reads its own prefixed spelling, never the plain one - a target named
+// e.g. "prod" must not pick up a plain AWS_MFA_SERIAL some other part of
+// the environment set for an unrelated purpose.
+func resolveTargetMFAEnv(targetName, envPrefix string) (serial, token string) {
+	serial = os.Getenv(envPrefix + "MFA_SERIAL")
+	token = os.Getenv(envPrefix + "MFA_TOKEN")
+	if !strings.EqualFold(targetName, "default") {
+		return serial, token
+	}
+	if serial == "" {
+		serial = os.Getenv("AWS_MFA_SERIAL")
+	}
+	if token == "" {
+		token = os.Getenv("AWS_MFA_TOKEN")
+	}
+	return serial, token
 }
 
 // endpointFor returns the endpoint to configure on aws.Config for t. A
@@ -185,11 +218,80 @@ func endpointFor(t *Target) string {
 	return t.Endpoint
 }
 
+// mfaTokenEnvVarName returns the environment variable name BuildConfig's
+// MFA error messages should name for target, using target.EnvPrefix (set
+// by GetTargetConfig) when available. The "default" target additionally
+// accepts the plain "AWS_MFA_TOKEN" spelling (see GetTargetConfig's D1
+// comment), so its message names both. A Target built directly rather
+// than through GetTargetConfig (as most BuildConfig-level tests do) has
+// an empty EnvPrefix, and falls back to the generic "AWS_MFA_TOKEN" name.
+func mfaTokenEnvVarName(target *Target) string {
+	if target.EnvPrefix == "" {
+		return "AWS_MFA_TOKEN"
+	}
+	name := target.EnvPrefix + "MFA_TOKEN"
+	if strings.EqualFold(target.EnvPrefix, "AWS_DEFAULT_") {
+		return name + " (or AWS_MFA_TOKEN)"
+	}
+	return name
+}
+
+// assumeRoleCredentialOptions returns the callback passed to
+// config.WithAssumeRoleCredentialOptions. It is always registered
+// (regardless of whether target.MfaSerial is set) because a profile-
+// driven "mfa_serial" is resolved by the shared-config loader itself, not
+// by target: the callback only learns of it via o.SerialNumber, already
+// populated by the loader by the time the callback runs, so that case's
+// provider cannot be built up front the way mfaProvider (target.MfaSerial's
+// provider, or nil) is.
+func assumeRoleCredentialOptions(target *Target, mfaProvider func() (string, error)) func(*stscreds.AssumeRoleOptions) {
+	return func(o *stscreds.AssumeRoleOptions) {
+		switch {
+		case target.MfaSerial != "":
+			o.SerialNumber = aws.String(target.MfaSerial)
+			o.TokenProvider = mfaProvider
+		case o.SerialNumber != nil && *o.SerialNumber != "":
+			// A profile's "mfa_serial" with no target.MfaSerial override:
+			// there is no target-prefixed MFA_TOKEN env var to read here
+			// (this Target carries no serial to derive one from), only
+			// the un-namespaced AWS_MFA_TOKEN.
+			o.TokenProvider = mfaTokenProvider(*o.SerialNumber, os.Getenv("AWS_MFA_TOKEN"), "AWS_MFA_TOKEN")
+		}
+	}
+}
+
+// roleAssumeOptions returns the callback passed to
+// stscreds.NewAssumeRoleProvider for target's explicit Role assumption:
+// AssumeRoleDuration/ExternalID/SessionName when set, plus target.MfaSerial's
+// SerialNumber/mfaProvider when target.MfaSerial is set.
+func roleAssumeOptions(target *Target, mfaProvider func() (string, error)) func(*stscreds.AssumeRoleOptions) {
+	return func(o *stscreds.AssumeRoleOptions) {
+		if target.AssumeRoleDuration > 0 {
+			o.Duration = target.AssumeRoleDuration
+		}
+		if target.ExternalID != "" {
+			o.ExternalID = aws.String(target.ExternalID)
+		}
+		if target.SessionName != "" {
+			o.RoleSessionName = target.SessionName
+		}
+		if target.MfaSerial != "" {
+			o.SerialNumber = aws.String(target.MfaSerial)
+			o.TokenProvider = mfaProvider
+		}
+	}
+}
+
 // BuildConfig builds an aws.Config from target configuration, composing
 // config.LoadDefaultConfig with the target's region, profile, endpoint,
 // retry, and credential settings, and wrapping the result in a role
 // assumption provider (backed by aws.NewCredentialsCache, so repeated
-// calls do not each re-run sts:AssumeRole) when target.Role is set.
+// calls do not each re-run sts:AssumeRole) when target.Role is set. When
+// target.MfaSerial is also set, both that explicit role-assumption
+// provider and config.WithAssumeRoleCredentialOptions (which supplies the
+// same TokenProvider to any AssumeRole the shared-config loader itself
+// performs for a profile-driven "mfa_serial", independent of target.Role)
+// are given an MFA token provider built by mfaTokenProvider.
 func (acp *ClientPool) BuildConfig(ctx context.Context, target *Target) (aws.Config, error) {
 	var opts []func(*config.LoadOptions) error
 
@@ -231,6 +333,22 @@ func (acp *ClientPool) BuildConfig(ctx context.Context, target *Target) (aws.Con
 		))
 	}
 
+	// Build the MFA token provider once (if MfaSerial is set) so both the
+	// shared-config loader's own AssumeRole handling (a profile-driven
+	// "mfa_serial") and the explicit target.Role branch below use the
+	// identical provider - and therefore the identical one-shot env
+	// token, if any - rather than each independently trying to consume it.
+	//
+	// WithAssumeRoleCredentialOptions is registered unconditionally
+	// (not just when target.MfaSerial != "") because a profile-driven
+	// "mfa_serial" is resolved by the shared-config loader itself, not by
+	// this Target - see assumeRoleCredentialOptions's doc comment.
+	var mfaProvider func() (string, error)
+	if target.MfaSerial != "" {
+		mfaProvider = mfaTokenProvider(target.MfaSerial, target.MfaToken, mfaTokenEnvVarName(target))
+	}
+	opts = append(opts, config.WithAssumeRoleCredentialOptions(assumeRoleCredentialOptions(target, mfaProvider)))
+
 	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return aws.Config{}, err
@@ -239,25 +357,7 @@ func (acp *ClientPool) BuildConfig(ctx context.Context, target *Target) (aws.Con
 	// Configure role assumption if provided
 	if target.Role != "" {
 		stsClient := sts.NewFromConfig(cfg) // inherits BaseEndpoint, matching v1's global Endpoint reaching STS
-		provider := stscreds.NewAssumeRoleProvider(stsClient, target.Role, func(o *stscreds.AssumeRoleOptions) {
-			if target.AssumeRoleDuration > 0 {
-				o.Duration = target.AssumeRoleDuration
-			}
-			if target.ExternalID != "" {
-				o.ExternalID = aws.String(target.ExternalID)
-			}
-			if target.SessionName != "" {
-				o.RoleSessionName = target.SessionName
-			}
-			if target.MfaSerial != "" {
-				o.SerialNumber = aws.String(target.MfaSerial)
-				// Note: MFA token input is not yet wired here - a serial
-				// set with no TokenProvider makes credential retrieval
-				// fail with a clear error from stscreds, matching v1's
-				// own gap (see CreateSessionFromConfig's identical
-				// comment in the pre-port history of this file).
-			}
-		})
+		provider := stscreds.NewAssumeRoleProvider(stsClient, target.Role, roleAssumeOptions(target, mfaProvider))
 		// REQUIRED: without this cache, every SSM/Secrets Manager call
 		// through cfg would re-run sts:AssumeRole.
 		cfg.Credentials = aws.NewCredentialsCache(provider)
@@ -271,8 +371,13 @@ func (acp *ClientPool) BuildConfig(ctx context.Context, target *Target) (aws.Con
 // optional STS AssumeRole, matching the plain-environment ("AWS_PROFILE"/
 // "AWS_REGION"/"AWS_ROLE", not the "AWS_<TARGET>_*" family) resolution
 // path op_aws.go falls back to when no pooled "default" target config is
-// available.
-func InitializeConfig(ctx context.Context, profile string, region string, role string) (aws.Config, error) {
+// available. mfaSerial, when non-empty, protects that AssumeRole (and any
+// profile-driven "mfa_serial" the shared-config loader resolves on its
+// own) with an MFA token read once from AWS_MFA_TOKEN, or - failing that
+// - an interactive stderr prompt when stdin is a terminal, or a clear
+// error naming AWS_MFA_TOKEN; this is the un-namespaced counterpart to
+// BuildConfig's target-prefixed MFA support (D1).
+func InitializeConfig(ctx context.Context, profile string, region string, role string, mfaSerial string) (aws.Config, error) {
 	var opts []func(*config.LoadOptions) error
 
 	if region != "" {
@@ -283,6 +388,15 @@ func InitializeConfig(ctx context.Context, profile string, region string, role s
 		opts = append(opts, config.WithSharedConfigProfile(profile))
 	}
 
+	var mfaProvider func() (string, error)
+	if mfaSerial != "" {
+		mfaProvider = mfaTokenProvider(mfaSerial, os.Getenv("AWS_MFA_TOKEN"), "AWS_MFA_TOKEN")
+		opts = append(opts, config.WithAssumeRoleCredentialOptions(func(o *stscreds.AssumeRoleOptions) {
+			o.SerialNumber = aws.String(mfaSerial)
+			o.TokenProvider = mfaProvider
+		}))
+	}
+
 	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return aws.Config{}, err
@@ -290,7 +404,12 @@ func InitializeConfig(ctx context.Context, profile string, region string, role s
 
 	if role != "" {
 		stsClient := sts.NewFromConfig(cfg)
-		provider := stscreds.NewAssumeRoleProvider(stsClient, role)
+		provider := stscreds.NewAssumeRoleProvider(stsClient, role, func(o *stscreds.AssumeRoleOptions) {
+			if mfaSerial != "" {
+				o.SerialNumber = aws.String(mfaSerial)
+				o.TokenProvider = mfaProvider
+			}
+		})
 		cfg.Credentials = aws.NewCredentialsCache(provider)
 	}
 

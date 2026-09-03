@@ -3,8 +3,10 @@ package graft
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -129,6 +131,147 @@ func TestBuildAWSConfig_RoleWrapsProviderInCache(t *testing.T) {
 	}
 	if _, ok := cfg.Credentials.(*aws.CredentialsCache); !ok {
 		t.Fatalf("expected role assumption to wrap the provider in *aws.CredentialsCache, got %T", cfg.Credentials)
+	}
+}
+
+// hermeticizeAWSEnv neutralizes every AWS credential/config source
+// config.LoadDefaultConfig consults, and disables EC2 IMDS probing, so a
+// test that actually calls cfg.Credentials.Retrieve is deterministic and
+// fast regardless of the machine or user account it runs under - mirrors
+// internal/backends/aws/client_test.go's identically-named helper.
+func hermeticizeAWSEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_REGION", "")
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	t.Setenv("AWS_SESSION_TOKEN", "")
+	t.Setenv("AWS_MFA_TOKEN", "")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	t.Setenv("HOME", t.TempDir())
+}
+
+// awsAssumeRoleServer returns an httptest server standing in for STS,
+// recording every request's parsed form body and replying with a fixed,
+// far-future-expiring AssumeRoleResponse so a *aws.CredentialsCache never
+// needs to refresh mid-test - mirrors internal/backends/aws/client_test.go's
+// identically-named helper.
+func awsAssumeRoleServer(t *testing.T) (*httptest.Server, *[]url.Values) {
+	t.Helper()
+	var forms []url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		form, _ := url.ParseQuery(string(body))
+		forms = append(forms, form)
+
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleResult>
+    <Credentials>
+      <AccessKeyId>AKIAASSUMEDROLE</AccessKeyId>
+      <SecretAccessKey>assumed-secret</SecretAccessKey>
+      <SessionToken>assumed-token</SessionToken>
+      <Expiration>2099-01-01T00:00:00Z</Expiration>
+    </Credentials>
+    <AssumedRoleUser>
+      <AssumedRoleId>AROAEXAMPLE:test-session</AssumedRoleId>
+      <Arn>arn:aws:sts::123456789012:assumed-role/test-role/test-session</Arn>
+    </AssumedRoleUser>
+  </AssumeRoleResult>
+  <ResponseMetadata>
+    <RequestId>test-request-id</RequestId>
+  </ResponseMetadata>
+</AssumeRoleResponse>`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &forms
+}
+
+// TestBuildAWSConfig_MFASerialWithProviderSendsSerialAndTokenCode proves
+// MFASerial and a non-nil MFATokenProvider reach STS's AssumeRole call as
+// SerialNumber/TokenCode.
+func TestBuildAWSConfig_MFASerialWithProviderSendsSerialAndTokenCode(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	srv, forms := awsAssumeRoleServer(t)
+
+	cfg, err := buildAWSConfig(context.Background(), AWSConfig{
+		Region: "us-east-1", Endpoint: srv.URL,
+		AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secret",
+		Role:      "arn:aws:iam::123456789012:role/test-role",
+		MFASerial: "arn:aws:iam::123456789012:mfa/user",
+		MFATokenProvider: func() (string, error) {
+			return "112233", nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildAWSConfig failed: %v", err)
+	}
+	if _, err := cfg.Credentials.Retrieve(context.Background()); err != nil {
+		t.Fatalf("Credentials.Retrieve failed: %v", err)
+	}
+
+	form := (*forms)[0]
+	if got := form.Get("SerialNumber"); got != "arn:aws:iam::123456789012:mfa/user" {
+		t.Errorf("SerialNumber = %q, want the configured MFA serial", got)
+	}
+	if got := form.Get("TokenCode"); got != "112233" {
+		t.Errorf("TokenCode = %q, want %q", got, "112233")
+	}
+}
+
+// TestBuildAWSConfig_MFASerialNilProviderUsesEnvToken proves that with a
+// nil MFATokenProvider, buildAWSConfig falls back to reading a one-shot
+// code from AWS_MFA_TOKEN.
+func TestBuildAWSConfig_MFASerialNilProviderUsesEnvToken(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	srv, forms := awsAssumeRoleServer(t)
+	t.Setenv("AWS_MFA_TOKEN", "998877")
+
+	cfg, err := buildAWSConfig(context.Background(), AWSConfig{
+		Region: "us-east-1", Endpoint: srv.URL,
+		AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secret",
+		Role:      "arn:aws:iam::123456789012:role/test-role",
+		MFASerial: "arn:aws:iam::123456789012:mfa/user",
+	})
+	if err != nil {
+		t.Fatalf("buildAWSConfig failed: %v", err)
+	}
+	if _, err := cfg.Credentials.Retrieve(context.Background()); err != nil {
+		t.Fatalf("Credentials.Retrieve failed: %v", err)
+	}
+
+	form := (*forms)[0]
+	if got := form.Get("TokenCode"); got != "998877" {
+		t.Errorf("TokenCode = %q, want %q (the AWS_MFA_TOKEN fallback)", got, "998877")
+	}
+}
+
+// TestBuildAWSConfig_MFASerialNilProviderNoEnvNoTTYErrors proves that
+// with a nil MFATokenProvider, no AWS_MFA_TOKEN, and no interactive
+// terminal (the default test environment), Credentials.Retrieve fails
+// with a clear error naming AWS_MFA_TOKEN, instead of hanging or silently
+// succeeding without MFA.
+func TestBuildAWSConfig_MFASerialNilProviderNoEnvNoTTYErrors(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	srv, _ := awsAssumeRoleServer(t)
+
+	cfg, err := buildAWSConfig(context.Background(), AWSConfig{
+		Region: "us-east-1", Endpoint: srv.URL,
+		AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secret",
+		Role:      "arn:aws:iam::123456789012:role/test-role",
+		MFASerial: "arn:aws:iam::123456789012:mfa/user",
+	})
+	if err != nil {
+		t.Fatalf("buildAWSConfig failed: %v", err)
+	}
+	_, err = cfg.Credentials.Retrieve(context.Background())
+	if err == nil {
+		t.Fatal("expected Credentials.Retrieve to fail with no MFA token available, got nil error")
+	}
+	if !strings.Contains(err.Error(), "AWS_MFA_TOKEN") {
+		t.Errorf("error %q does not name AWS_MFA_TOKEN", err.Error())
 	}
 }
 

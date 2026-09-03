@@ -241,7 +241,7 @@ func (o AwsOperator) resolveConfig(ctx context.Context, target string) (aws.Conf
 	cfg, cfgErr := awsbackend.DefaultPool.GetConfig(ctx, "default")
 	if cfgErr != nil {
 		// Fall back to initializing from environment
-		cfg, cfgErr = awsbackend.InitializeConfig(ctx, os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))
+		cfg, cfgErr = awsbackend.InitializeConfig(ctx, os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"), os.Getenv("AWS_MFA_SERIAL"))
 		if cfgErr != nil {
 			return aws.Config{}, "", fmt.Errorf("error during AWS config initialization: %w", cfgErr)
 		}
