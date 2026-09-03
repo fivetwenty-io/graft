@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
@@ -213,6 +214,14 @@ func (acp *ClientPool) BuildConfig(ctx context.Context, target *Target) (aws.Con
 	// default (3 attempts) in effect, matching v1's own "if > 0" guard.
 	if target.MaxRetries > 0 {
 		opts = append(opts, config.WithRetryMaxAttempts(target.MaxRetries+1))
+	}
+
+	// Configure the HTTP client's request timeout. A non-positive value
+	// (Target's zero value, or an explicit 0/negative override) leaves
+	// cfg.HTTPClient unset, so the SDK's own default HTTP client - which
+	// has no client-side deadline of its own - stays in effect.
+	if target.HTTPTimeout > 0 {
+		opts = append(opts, config.WithHTTPClient(awshttp.NewBuildableClient().WithTimeout(target.HTTPTimeout)))
 	}
 
 	// Configure credentials if provided

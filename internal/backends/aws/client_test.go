@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 
 	awsbackend "github.com/fivetwenty-io/graft/internal/backends/aws"
 )
@@ -146,6 +148,91 @@ func TestBuildConfig_NonPositiveMaxRetriesLeavesSDKDefault(t *testing.T) {
 	}
 	if cfg.RetryMaxAttempts != 0 {
 		t.Errorf("RetryMaxAttempts = %d, want 0 (unset, SDK default takes over)", cfg.RetryMaxAttempts)
+	}
+}
+
+// TestBuildConfig_HTTPTimeoutSetsClientTimeout proves a positive
+// HTTPTimeout reaches the resulting config's HTTPClient as an
+// *awshttp.BuildableClient whose configured timeout matches - the fast,
+// deterministic half of proving HTTPTimeout is honored (see
+// TestBuildConfig_HTTPTimeoutReachesClient below for the functional half:
+// a slow server actually timing out).
+func TestBuildConfig_HTTPTimeoutSetsClientTimeout(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	ctx := context.Background()
+
+	cfg, err := awsbackend.DefaultPool.BuildConfig(ctx, &awsbackend.Target{
+		Region:      "us-east-1",
+		HTTPTimeout: 50 * time.Millisecond,
+		AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secret",
+	})
+	if err != nil {
+		t.Fatalf("BuildConfig failed: %v", err)
+	}
+	bc, ok := cfg.HTTPClient.(*awshttp.BuildableClient)
+	if !ok {
+		t.Fatalf("expected an *awshttp.BuildableClient, got %T", cfg.HTTPClient)
+	}
+	if got := bc.GetTimeout(); got != 50*time.Millisecond {
+		t.Errorf("BuildableClient timeout = %v, want 50ms", got)
+	}
+}
+
+// TestBuildConfig_ZeroHTTPTimeoutLeavesClientUnset proves a non-positive
+// HTTPTimeout (Target's zero value) leaves cfg.HTTPClient unset, so the
+// SDK's own default HTTP client - which has no client-side deadline -
+// remains in effect, matching the documented "only apply when
+// HTTPTimeout > 0" behavior.
+func TestBuildConfig_ZeroHTTPTimeoutLeavesClientUnset(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	ctx := context.Background()
+
+	cfg, err := awsbackend.DefaultPool.BuildConfig(ctx, &awsbackend.Target{
+		Region:      "us-east-1",
+		HTTPTimeout: 0,
+		AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secret",
+	})
+	if err != nil {
+		t.Fatalf("BuildConfig failed: %v", err)
+	}
+	if cfg.HTTPClient != nil {
+		t.Errorf("expected HTTPClient to stay unset for HTTPTimeout=0, got %T", cfg.HTTPClient)
+	}
+}
+
+// TestBuildConfig_HTTPTimeoutReachesClient is the functional proof that
+// HTTPTimeout is not just recorded on the config but actually enforced:
+// a GetParameter call against a server that sleeps well past the
+// configured timeout must fail. MaxRetries is pinned to 1 (two total
+// attempts) so a timing-flaky retry storm cannot turn this into a slow
+// test.
+func TestBuildConfig_HTTPTimeoutReachesClient(t *testing.T) {
+	hermeticizeAWSEnv(t)
+	ctx := context.Background()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(500 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/x-amz-json-1.1")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"Parameter":{"Value":"too-late"}}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg, err := awsbackend.DefaultPool.BuildConfig(ctx, &awsbackend.Target{
+		Region:      "us-east-1",
+		Endpoint:    srv.URL,
+		HTTPTimeout: 50 * time.Millisecond,
+		MaxRetries:  1,
+		AccessKeyID: "AKIAEXAMPLE", SecretAccessKey: "secret",
+	})
+	if err != nil {
+		t.Fatalf("BuildConfig failed: %v", err)
+	}
+
+	client := awsbackend.NewSSMClient(cfg)
+	_, err = client.GetParameter(ctx, &ssm.GetParameterInput{Name: aws.String("/x")})
+	if err == nil {
+		t.Fatal("expected GetParameter to fail once HTTPTimeout elapses, got nil error")
 	}
 }
 
