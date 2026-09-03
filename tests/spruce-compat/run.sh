@@ -77,6 +77,15 @@ if ! resolve_spruce; then
   exit 0
 fi
 
+# Every yaml-mode comparison canonicalizes both sides through lib/canon.py,
+# which needs PyYAML. Refuse up front with one clear message instead of a
+# traceback per pattern; this is a hard requirement, not a skip, so a
+# missing install cannot pass as parity.
+if ! python3 -c 'import yaml' >/dev/null 2>&1; then
+  echo "ERROR: python3 cannot import yaml; the parity harness's canonicalizer (lib/canon.py) needs PyYAML. Install python3-yaml (apt) or run 'pip install pyyaml'." >&2
+  exit 1
+fi
+
 echo "graft:  $GRAFT_BIN ($("$GRAFT_BIN" -v 2>&1))"
 echo "spruce: $SPRUCE_BIN ($("$SPRUCE_BIN" -v 2>&1))"
 echo

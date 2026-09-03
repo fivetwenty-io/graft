@@ -24,6 +24,13 @@ func TestSpruceCompatParity(t *testing.T) {
 	if _, err := exec.LookPath("bash"); err != nil {
 		t.Skip("bash not found on PATH; the parity harness requires bash (genesis's own shell), not sh")
 	}
+	// run.sh refuses to run without PyYAML (its canonicalizer needs it).
+	// Under the generic `go test ./...` that is an environment gap, not a
+	// parity failure, so skip here the same way a missing spruce binary
+	// skips; the dedicated parity CI job installs PyYAML and would fail.
+	if err := exec.CommandContext(t.Context(), "python3", "-c", "import yaml").Run(); err != nil {
+		t.Skip("python3 cannot import yaml; the parity harness needs PyYAML, skipping here (see run.sh)")
+	}
 
 	cmd := exec.CommandContext(t.Context(), "bash", "run.sh")
 	var out bytes.Buffer
