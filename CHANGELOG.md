@@ -919,6 +919,8 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.41.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.41.0
+[1.40.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.40.2
 [1.40.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.40.1
 [1.40.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.40.0
 [1.39.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.39.0
