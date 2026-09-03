@@ -47,6 +47,12 @@ func hermeticizeAWSEnv(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 	t.Setenv("AWS_SESSION_TOKEN", "")
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	t.Setenv("AWS_ENDPOINT_URL", "")
+	t.Setenv("AWS_ENDPOINT_URL_SSM", "")
+	t.Setenv("AWS_ENDPOINT_URL_SECRETS_MANAGER", "")
+	t.Setenv("AWS_ENDPOINT_URL_STS", "")
+	t.Setenv("AWS_MAX_ATTEMPTS", "")
+	t.Setenv("AWS_RETRY_MODE", "")
 	t.Setenv("HOME", t.TempDir())
 }
 
