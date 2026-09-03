@@ -33,7 +33,42 @@ func hermeticizeAWSEnv(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 	t.Setenv("AWS_SESSION_TOKEN", "")
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	t.Setenv("AWS_ENDPOINT_URL", "")
+	t.Setenv("AWS_ENDPOINT_URL_SSM", "")
+	t.Setenv("AWS_ENDPOINT_URL_SECRETS_MANAGER", "")
+	t.Setenv("AWS_ENDPOINT_URL_STS", "")
+	t.Setenv("AWS_MAX_ATTEMPTS", "")
+	t.Setenv("AWS_RETRY_MODE", "")
 	t.Setenv("HOME", t.TempDir())
+}
+
+// TestHermeticizeAWSEnv_ClearsSDKEndpointAndRetryEnv proves
+// hermeticizeAWSEnv clears every environment variable
+// aws-sdk-go-v2/config.LoadDefaultConfig itself honors beyond the plain
+// credential/region set: AWS_ENDPOINT_URL and its per-service overrides,
+// plus AWS_MAX_ATTEMPTS/AWS_RETRY_MODE. Without this, a developer running
+// the suite with any of these exported in their own shell would exercise
+// a different code path than CI (which starts with a clean environment).
+func TestHermeticizeAWSEnv_ClearsSDKEndpointAndRetryEnv(t *testing.T) {
+	vars := []string{
+		"AWS_ENDPOINT_URL",
+		"AWS_ENDPOINT_URL_SSM",
+		"AWS_ENDPOINT_URL_SECRETS_MANAGER",
+		"AWS_ENDPOINT_URL_STS",
+		"AWS_MAX_ATTEMPTS",
+		"AWS_RETRY_MODE",
+	}
+	for _, v := range vars {
+		t.Setenv(v, "leaked-from-developer-shell")
+	}
+
+	hermeticizeAWSEnv(t)
+
+	for _, v := range vars {
+		if got := os.Getenv(v); got != "" {
+			t.Errorf("%s = %q, want empty after hermeticizeAWSEnv", v, got)
+		}
+	}
 }
 
 // targetCounter hands out unique-ish target names so tests sharing the
