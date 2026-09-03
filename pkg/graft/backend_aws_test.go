@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -18,6 +19,7 @@ import (
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 
 	"github.com/fivetwenty-io/graft/internal/backends/aws/awsfakes"
+	"github.com/fivetwenty-io/graft/internal/utils/mfa"
 )
 
 // TestBuildAWSConfig_RegionProfileEndpoint proves buildAWSConfig threads
@@ -189,11 +191,31 @@ func awsAssumeRoleServer(t *testing.T) (*httptest.Server, *[]url.Values) {
 	return srv, &forms
 }
 
+// swapMFAPromptIO replaces the package-level mfaPromptIO for the
+// duration of a test, restoring the original via t.Cleanup - mirrors
+// internal/backends/aws/mfa_test.go's identically-named helper.
+// mfaPromptIO is shared, unsynchronized package state: every test that
+// swaps it must run alone with respect to any other test touching it
+// (none of the tests in this file run in parallel), and every test whose
+// buildAWSConfig call can reach the MFA fallback (MFASerial set, nil
+// MFATokenProvider) MUST call this - otherwise buildAWSConfig's fallback
+// falls through to the real mfa.DefaultPromptIO(), which checks whether
+// the operator's actual stdin is a terminal and, if so, blocks reading
+// a real MFA code from it instead of the fake reader/writer this helper
+// installs.
+func swapMFAPromptIO(t *testing.T, pio mfa.PromptIO) {
+	t.Helper()
+	original := mfaPromptIO
+	mfaPromptIO = pio
+	t.Cleanup(func() { mfaPromptIO = original })
+}
+
 // TestBuildAWSConfig_MFASerialWithProviderSendsSerialAndTokenCode proves
 // MFASerial and a non-nil MFATokenProvider reach STS's AssumeRole call as
 // SerialNumber/TokenCode.
 func TestBuildAWSConfig_MFASerialWithProviderSendsSerialAndTokenCode(t *testing.T) {
 	hermeticizeAWSEnv(t)
+	swapMFAPromptIO(t, mfa.PromptIO{In: &bytes.Buffer{}, Out: &bytes.Buffer{}, IsTTY: func() bool { return false }})
 	srv, forms := awsAssumeRoleServer(t)
 
 	cfg, err := buildAWSConfig(context.Background(), AWSConfig{
@@ -226,6 +248,7 @@ func TestBuildAWSConfig_MFASerialWithProviderSendsSerialAndTokenCode(t *testing.
 // code from AWS_MFA_TOKEN.
 func TestBuildAWSConfig_MFASerialNilProviderUsesEnvToken(t *testing.T) {
 	hermeticizeAWSEnv(t)
+	swapMFAPromptIO(t, mfa.PromptIO{In: &bytes.Buffer{}, Out: &bytes.Buffer{}, IsTTY: func() bool { return false }})
 	srv, forms := awsAssumeRoleServer(t)
 	t.Setenv("AWS_MFA_TOKEN", "998877")
 
@@ -255,6 +278,7 @@ func TestBuildAWSConfig_MFASerialNilProviderUsesEnvToken(t *testing.T) {
 // succeeding without MFA.
 func TestBuildAWSConfig_MFASerialNilProviderNoEnvNoTTYErrors(t *testing.T) {
 	hermeticizeAWSEnv(t)
+	swapMFAPromptIO(t, mfa.PromptIO{In: &bytes.Buffer{}, Out: &bytes.Buffer{}, IsTTY: func() bool { return false }})
 	srv, _ := awsAssumeRoleServer(t)
 
 	cfg, err := buildAWSConfig(context.Background(), AWSConfig{
