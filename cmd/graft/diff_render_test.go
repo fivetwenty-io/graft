@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -256,6 +257,113 @@ func TestPadTruncPadsAndTruncates(t *testing.T) {
 	}
 	if got := padTrunc("abcdefgh", 5); got != "abcde" {
 		t.Errorf("padTrunc long string = %q, want %q", got, "abcde")
+	}
+}
+
+// buildJobsSequence returns a 60-element sequence-rooted document (a YAML
+// list at the top level, not a map), matching the shape of a BOSH-style
+// jobs manifest: each block has a "name" that's the same on both from/to
+// sides, an "enabled: true" line repeated identically across all 60
+// blocks (the popular/common line difflib's autojunk heuristic refuses to
+// anchor on above 200 lines), and "version"/"instances" values unique per
+// block and per side (suffix), so a correct diff can't shrink the true
+// edit count by matching a value from a different block.
+func buildJobsSequence(suffix string) []interface{} {
+	blocks := make([]interface{}, 0, 60)
+	for i := 0; i < 60; i++ {
+		blocks = append(blocks, map[string]interface{}{
+			"name":      fmt.Sprintf("job%d", i),
+			"enabled":   true,
+			"version":   fmt.Sprintf("ver-%d-%s", i, suffix),
+			"instances": fmt.Sprintf("inst-%d-%s", i, suffix),
+		})
+	}
+	return blocks
+}
+
+// countUnifiedChangeLines counts the removed ("-") and added ("+") lines in
+// a renderUnifiedDiff/writeUnifiedHunkLines-style unified diff body,
+// skipping the "--- "/"+++ " file header lines (which also start with "-"
+// and "+" respectively) and "@@ ... @@" hunk headers.
+func countUnifiedChangeLines(out string) (removed, added int) {
+	for _, line := range strings.Split(out, "\n") {
+		switch {
+		case strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "+++ "), strings.HasPrefix(line, "@@"):
+			continue
+		case strings.HasPrefix(line, "-"):
+			removed++
+		case strings.HasPrefix(line, "+"):
+			added++
+		}
+	}
+	return removed, added
+}
+
+// countSideBySideDifferingRows counts renderSideBySide data rows (skipping
+// the header and "┼" separator rows) whose left and right columns hold
+// different text once padding is trimmed. A correctly aligned diff shows a
+// differing row only where the source document actually changed; an
+// over-reporting diff (autojunk refusing to anchor on a popular line)
+// widens the mismatched region well past the true edit count.
+func countSideBySideDifferingRows(out string) int {
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	differing := 0
+	for i, line := range lines {
+		if i < 2 { // header row, then the "┼" separator row
+			continue
+		}
+		parts := strings.SplitN(line, " │ ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		left := strings.TrimSpace(parts[0])
+		right := strings.TrimSpace(parts[1])
+		if left != right {
+			differing++
+		}
+	}
+	return differing
+}
+
+// TestRenderUnifiedDiffLargeDocDoesNotOverReport locks the fix for
+// difflib's autojunk heuristic over-reporting changes on documents of 200
+// or more lines that repeat a common line often (real YAML manifests do
+// this constantly, e.g. "enabled: true"). Autojunk refuses to anchor a
+// match on any line occurring more than 1% of the time, which on this
+// 240-line sequence (60 four-line blocks, "enabled: true" repeated in
+// every block) makes the matcher report the whole document as changed
+// instead of just the 2 lines per block ("version", "instances") that
+// actually differ.
+func TestRenderUnifiedDiffLargeDocDoesNotOverReport(t *testing.T) {
+	ansi.Color(false)
+	from := buildJobsSequence("a")
+	to := buildJobsSequence("b")
+
+	out, err := renderUnifiedDiff("from.yml", from, "to.yml", to, 300)
+	if err != nil {
+		t.Fatalf("renderUnifiedDiff error: %v", err)
+	}
+	if !strings.Contains(out, "@@ (root) @@") {
+		t.Fatalf("expected a whole-document hunk header for a sequence root, got:\n%s", out)
+	}
+
+	removed, added := countUnifiedChangeLines(out)
+	const wantChanged = 120 // 60 blocks * 2 changed fields (version, instances)
+	if removed != wantChanged || added != wantChanged {
+		t.Fatalf("renderUnifiedDiff over-reported changes: got %d removed / %d added, want %d/%d\n%s",
+			removed, added, wantChanged, wantChanged, out)
+	}
+
+	// Cheap side-by-side regression check: the same matcher powers
+	// renderSideBySide's row alignment, so an over-reporting matcher would
+	// also misalign well past the true 120 changed lines.
+	sideOut, err := renderSideBySide("from.yml", from, "to.yml", to, 120)
+	if err != nil {
+		t.Fatalf("renderSideBySide error: %v", err)
+	}
+	const maxDiffering = 150 // true edit count (120) plus slack for row grouping, well under a full over-report (~240)
+	if got := countSideBySideDifferingRows(sideOut); got > maxDiffering {
+		t.Fatalf("renderSideBySide over-reported changes: %d differing rows, want <= %d\n%s", got, maxDiffering, sideOut)
 	}
 }
 

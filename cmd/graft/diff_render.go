@@ -217,7 +217,13 @@ func yamlBlockLines(v interface{}) ([]string, error) {
 // WriteUnifiedDiff so the numeric "@@ -l,c +l,c @@" range header can be
 // omitted in favor of renderUnifiedDiff's per-key "@@ <key> @@" header.
 func writeUnifiedHunkLines(buf *strings.Builder, fromLines, toLines []string, contextLines int) {
-	matcher := difflib.NewMatcher(fromLines, toLines)
+	// autojunk off: difflib's default autojunk heuristic refuses to anchor
+	// a match on any line occurring more than 1% of the time once a
+	// sequence reaches 200 lines. YAML repeats lines (e.g. "enabled:
+	// true") far more often than the prose difflib was designed for, so
+	// on documents of that size autojunk drops those lines as anchors and
+	// reports large swaths of unrelated, unchanged content as replaced.
+	matcher := difflib.NewMatcherWithJunk(fromLines, toLines, false, nil)
 	for _, group := range matcher.GetGroupedOpCodes(contextLines) {
 		for _, op := range group {
 			switch op.Tag {
@@ -284,7 +290,9 @@ func renderSideBySide(fromLabel string, fromDoc interface{}, toLabel string, toD
 	buf.WriteString(strings.Repeat("─", colWidth+1))
 	buf.WriteString("\n")
 
-	matcher := difflib.NewMatcher(fromLines, toLines)
+	// autojunk off: see writeUnifiedHunkLines' comment for why the
+	// heuristic misfires on YAML above 200 lines.
+	matcher := difflib.NewMatcherWithJunk(fromLines, toLines, false, nil)
 	for _, op := range matcher.GetOpCodes() {
 		switch op.Tag {
 		case 'e':
