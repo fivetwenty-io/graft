@@ -592,6 +592,28 @@ func TestGetAwsParam_UsesInjectedClient(t *testing.T) {
 	}
 }
 
+// TestGetAwsParam_NilParameterReturnsError proves getAwsParam does not
+// panic when the SSM client returns a GetParameterOutput whose Parameter
+// field is nil - awsfakes.FakeSSMClient's zero-valued GetParameterFn
+// returns exactly such an output, and a non-AWS endpoint replying with a
+// bare "{}" body does the same in production. Before the fix,
+// aws.ToString(output.Parameter.Value) dereferenced the nil *Parameter
+// and panicked instead of returning an error.
+func TestGetAwsParam_NilParameterReturnsError(t *testing.T) {
+	original := awsbackend.NewSSMClient
+	fake := &awsfakes.FakeSSMClient{}
+	awsbackend.NewSSMClient = func(aws.Config) awsbackend.SSMClient { return fake }
+	t.Cleanup(func() { awsbackend.NewSSMClient = original })
+
+	op := AwsOperator{variant: "awsparam"}
+	target := fmt.Sprintf("aws-nil-parameter-target-%d", timeSeed())
+
+	_, err := op.getAwsParam(context.Background(), aws.Config{Region: "us-east-1"}, target, "/x", true)
+	if err == nil {
+		t.Fatal("expected an error for a nil Parameter, got nil")
+	}
+}
+
 // TestGetAwsSecret_PassesStageAndVersion proves getAwsSecret builds its
 // Secrets Manager client through awsbackend.NewSecretsManagerClient and
 // that the "?stage=..." query qualifier reaches the client as

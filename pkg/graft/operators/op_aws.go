@@ -355,6 +355,9 @@ func (o AwsOperator) getAwsParam(ctx context.Context, cfg aws.Config, cacheTarge
 		if err != nil {
 			return "", err
 		}
+		if output.Parameter == nil || output.Parameter.Value == nil {
+			return "", fmt.Errorf("parameter %s has no value", param)
+		}
 
 		return aws.ToString(output.Parameter.Value), nil
 	}
