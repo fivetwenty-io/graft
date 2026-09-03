@@ -4,6 +4,10 @@ go 1.26.6
 
 require (
 	github.com/aws/aws-sdk-go v1.55.8
+	github.com/aws/aws-sdk-go-v2 v1.45.1
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.47.0
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.76.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.48.0
 	github.com/casbin/govaluate v1.10.0
 	github.com/cppforlife/go-patch v0.2.0
 	github.com/dlclark/regexp2 v1.12.0
@@ -26,6 +30,12 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.1 // indirect
+	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/gonvenience/bunt v1.4.3 // indirect
