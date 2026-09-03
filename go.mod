@@ -3,8 +3,8 @@ module github.com/fivetwenty-io/graft
 go 1.26.6
 
 require (
-	github.com/Knetic/govaluate v3.0.0+incompatible
 	github.com/aws/aws-sdk-go v1.55.8
+	github.com/casbin/govaluate v1.10.0
 	github.com/cppforlife/go-patch v0.2.0
 	github.com/dlclark/regexp2 v1.12.0
 	github.com/ergochat/readline v0.1.3

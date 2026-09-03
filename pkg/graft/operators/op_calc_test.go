@@ -227,6 +227,76 @@ func TestCalcExpressionSemantics(t *testing.T) {
 	})
 }
 
+// TestCalcParseErrorsUseForkWording pins the parse-error wording and hex
+// literal support of the casbin/govaluate fork (github.com/casbin/govaluate
+// v1.10.0). The upstream Knetic/govaluate library capitalizes these
+// messages and rejects hex literals; the fork lowercases the messages and
+// accepts hex. Both libraries share the same grammar otherwise.
+func TestCalcParseErrorsUseForkWording(t *testing.T) {
+	Convey("an unbalanced parenthesis reports the fork's lowercase wording", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "(1 +" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		_, err = engine.Evaluate(context.Background(), doc)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, "unbalanced parenthesis")
+	})
+
+	Convey("an unexpected end of expression reports the fork's lowercase wording", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "1 +" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		_, err = engine.Evaluate(context.Background(), doc)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, "unexpected end of expression")
+	})
+
+	Convey("an unclosed string literal reports the fork's lowercase wording", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "\"a" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		_, err = engine.Evaluate(context.Background(), doc)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, "unclosed string literal")
+	})
+
+	Convey("an unclosed parameter bracket reports the fork's lowercase wording", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "1 + [foo" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		_, err = engine.Evaluate(context.Background(), doc)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, "unclosed parameter bracket")
+	})
+
+	Convey("hex literals parse under the fork", t, func() {
+		engine, err := graft.NewEngine()
+		So(err, ShouldBeNil)
+
+		doc, err := engine.ParseYAML([]byte(`x: (( calc "0x10 + 1" ))` + "\n"))
+		So(err, ShouldBeNil)
+
+		result, err := engine.Evaluate(context.Background(), doc)
+		So(err, ShouldBeNil)
+
+		val, getErr := result.Get("x")
+		So(getErr, ShouldBeNil)
+		So(val, ShouldEqual, int64(17))
+	})
+}
+
 // TestCalcNamedVariables pins the rule that bare named variables
 // resolve relative to the calc call's own parent first (siblings), then
 // absolutely from the document root.
