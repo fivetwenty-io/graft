@@ -350,11 +350,12 @@ func getAWSOptionParam(ctx context.Context, cfg aws.Config, name string) (string
 
 // getAWSOptionSecret fetches a Secrets Manager value. A binary secret
 // (SecretBinary, no SecretString) is returned as its raw bytes converted
-// to a string, matching how a caller reading a binary secret through the
-// built-in awssecret path would receive it (getAwsSecret in op_aws.go
-// applies the same SecretString-else-SecretBinary precedence). See
-// getAWSOptionParam's doc comment for why the *smtypes.
-// ResourceNotFoundException mapping below is load-bearing.
+// to a string. This differs from the built-in awssecret path: getAwsSecret
+// in op_aws.go returns only aws.ToString(output.SecretString), with no
+// SecretBinary fallback, so a binary-only secret comes back as an empty
+// string there, matching spruce's own behavior. See getAWSOptionParam's
+// doc comment for why the *smtypes.ResourceNotFoundException mapping
+// below is load-bearing.
 func getAWSOptionSecret(ctx context.Context, cfg aws.Config, id string) (string, error) {
 	out, err := newAWSSecretsClient(cfg).GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId: aws.String(id),
