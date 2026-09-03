@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.41.0] - 2026-09-03
+
+The AWS operators and `WithAWS`/`WithAWSTarget` backends move from the
+archived `aws-sdk-go` v1 to `aws-sdk-go-v2`. Environment variables,
+credential resolution, and operator behavior stay the same.
+MFA-protected role assumption is now complete, and the long-ignored
+HTTP timeout is finally honored.
+
 ### Added
 
 - MFA-protected AWS role assumption. Set `AWS_{TARGET}_MFA_SERIAL` (or,
