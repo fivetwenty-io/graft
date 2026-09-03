@@ -325,8 +325,17 @@ func (acp *ClientPool) BuildConfig(ctx context.Context, target *Target) (aws.Con
 
 	// Configure retries: MaxRetries preserves its documented "number of
 	// retries" meaning by mapping to RetryMaxAttempts = MaxRetries+1 (v2's
-	// "total attempts" semantics). A non-positive value leaves the SDK
-	// default (3 attempts) in effect, matching v1's own "if > 0" guard.
+	// "total attempts" semantics). The "if > 0" guard below matches v1's
+	// own guard, but the fallback default it leaves in effect does not: a
+	// non-positive MaxRetries here leaves v2's own default of 3 total
+	// attempts in effect, one fewer than v1's fall-through default of 3
+	// retries (4 attempts). In practice GetTargetConfig's
+	// AWS_{TARGET}_MAX_RETRIES parsing defaults an unset env var to the
+	// string "3" rather than leaving MaxRetries at its zero value, so
+	// that path still reaches RetryMaxAttempts(4), matching v1 - this
+	// non-positive branch is only reached by a Target built directly with
+	// MaxRetries left unset (e.g. most BuildConfig-level tests), or with
+	// MaxRetries explicitly set to 0 or a negative value.
 	if target.MaxRetries > 0 {
 		opts = append(opts, config.WithRetryMaxAttempts(target.MaxRetries+1))
 	}
