@@ -56,7 +56,6 @@ export AWS_DEV_ACCESS_KEY_ID="AKIADEV789"
 export AWS_DEV_SECRET_ACCESS_KEY="dev-secret-key"
 export AWS_DEV_ENDPOINT="http://localhost:4566"
 export AWS_DEV_DISABLE_SSL="true"
-export AWS_DEV_S3_FORCE_PATH_STYLE="true"
 
 # Default AWS (existing behavior)
 export AWS_REGION="us-east-1"
@@ -82,6 +81,7 @@ targets:
       assume_role_duration: "2h"
       external_id: "${AWS_PROD_EXTERNAL_ID}"
       session_name: "graft-production"
+      mfa_serial: "${AWS_PROD_MFA_SERIAL}"
     staging:
       region: "us-west-2"
       profile: "staging"
@@ -94,7 +94,6 @@ targets:
       region: "us-east-1"
       endpoint: "http://localhost:4566"
       disable_ssl: true
-      s3_force_path_style: true
       access_key_id: "test"
       secret_access_key: "test"
 ```
@@ -330,7 +329,6 @@ export AWS_DEV_ENDPOINT="http://localhost:4566"
 export AWS_DEV_ACCESS_KEY_ID="test"
 export AWS_DEV_SECRET_ACCESS_KEY="test"
 export AWS_DEV_DISABLE_SSL="true"
-export AWS_DEV_S3_FORCE_PATH_STYLE="true"
 ```
 
 ## Implementation Notes

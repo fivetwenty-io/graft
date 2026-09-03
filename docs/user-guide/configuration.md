@@ -57,6 +57,8 @@ export VAULT_STAGING_TOKEN="s.staging-token"
 | `AWS_REGION` | AWS region | - |
 | `AWS_PROFILE` | Credentials profile | - |
 | `AWS_ROLE` | Role ARN to assume | - |
+| `AWS_MFA_SERIAL` | MFA device serial number, required to complete `AWS_ROLE`'s role assumption when set | - |
+| `AWS_MFA_TOKEN` | One-shot MFA code for `AWS_MFA_SERIAL`; graft prompts on stderr instead when unset and stdin is a terminal | - |
 | `AWS_ACCESS_KEY_ID` | Access key ID | - |
 | `AWS_SECRET_ACCESS_KEY` | Secret access key | - |
 | `AWS_SESSION_TOKEN` | Session token (STS) | - |
@@ -66,8 +68,9 @@ export VAULT_STAGING_TOKEN="s.staging-token"
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`,
 `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_ROLE_ARN`, and `AWS_CA_BUNDLE` are read
 by the AWS SDK's default credential chain, not by graft's own code; graft
-itself reads only `AWS_REGION`, `AWS_PROFILE`, and `AWS_ROLE` directly.
-There is no `AWS_ENDPOINT_URL`; the real, per-target-only equivalent is
+itself reads only `AWS_REGION`, `AWS_PROFILE`, `AWS_ROLE`,
+`AWS_MFA_SERIAL`, and `AWS_MFA_TOKEN` directly. There is no
+`AWS_ENDPOINT_URL`; the real, per-target-only equivalent is
 `AWS_{TARGET}_ENDPOINT` below.
 
 **Per-target AWS:**

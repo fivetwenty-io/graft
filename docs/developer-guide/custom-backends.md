@@ -182,7 +182,7 @@ of this page does) is one way to fill those names. `graft.WithVault`/
 (`docs/developer-guide/library-api/options.md#backend-configuration-options`)
 are a ready-made alternative: they register real Vault/AWS-backed
 implementations built directly on `github.com/hashicorp/vault/api` and
-`github.com/aws/aws-sdk-go` from a config struct, so most callers who just
+`github.com/aws/aws-sdk-go-v2` from a config struct, so most callers who just
 want per-engine Vault/AWS configuration - as opposed to routing to an
 entirely different secret store - never need to implement `Backend`
 themselves for those three names. There is no `WithNATS` equivalent yet; a

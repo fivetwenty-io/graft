@@ -35,7 +35,6 @@ export AWS_DEV_ACCESS_KEY_ID="test"
 export AWS_DEV_SECRET_ACCESS_KEY="test"
 export AWS_DEV_ENDPOINT="http://localhost:4566"
 export AWS_DEV_DISABLE_SSL="true"
-export AWS_DEV_S3_FORCE_PATH_STYLE="true"
 export AWS_DEV_CACHE_TTL="1m"
 
 # Partner AWS account (cross-account access)

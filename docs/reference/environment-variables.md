@@ -186,6 +186,8 @@ bao_secret: (( vault@bao "secret/db:password" ))
 | `AWS_REGION` | | AWS region | graft |
 | `AWS_PROFILE` | | AWS credentials profile | graft |
 | `AWS_ROLE` | | Role ARN to assume via STS `AssumeRole` | graft |
+| `AWS_MFA_SERIAL` | | MFA device serial number, required to complete `AWS_ROLE`'s role assumption when set | graft |
+| `AWS_MFA_TOKEN` | | One-shot MFA code for `AWS_MFA_SERIAL`; graft prompts on stderr instead when this is unset and stdin is a terminal | graft |
 | `AWS_ACCESS_KEY_ID` | | Static access key | AWS SDK default credential chain |
 | `AWS_SECRET_ACCESS_KEY` | | Static secret key | AWS SDK default credential chain |
 | `AWS_SESSION_TOKEN` | | Session token (temporary credentials) | AWS SDK default credential chain |
@@ -193,15 +195,16 @@ bao_secret: (( vault@bao "secret/db:password" ))
 | `AWS_ROLE_ARN` | | Role ARN for the SDK's web-identity (OIDC/IRSA) provider — distinct from graft's own `AWS_ROLE` above | AWS SDK default credential chain |
 | `AWS_CA_BUNDLE` | | Path to a custom CA bundle | AWS SDK default credential chain |
 
-The "Read by" column matters: `AWS_REGION`, `AWS_PROFILE`, and `AWS_ROLE`
-are read directly by graft's own code
-(`pkg/graft/operators/op_aws.go`). The rest are read by the
-`aws-sdk-go` session's default credential chain, which graft enables via
-`session.SharedConfigState: session.SharedConfigEnable` but never reads
-itself — they work because the SDK honors them, not because graft has
-explicit support for each one. There is no `AWS_ENDPOINT_URL` or
-`AWS_TIMEOUT`; the real, per-target-only equivalents are
-`AWS_{TARGET}_ENDPOINT` and `AWS_{TARGET}_HTTP_TIMEOUT` below.
+The "Read by" column matters: `AWS_REGION`, `AWS_PROFILE`, `AWS_ROLE`,
+`AWS_MFA_SERIAL`, and `AWS_MFA_TOKEN` are read directly by graft's own
+code (`pkg/graft/operators/op_aws.go`). The rest are read by
+`aws-sdk-go-v2`'s default configuration loader, which reads the shared
+config (`~/.aws/config`) unconditionally — unlike the v1 SDK, there is no
+`session.SharedConfigState` opt-in to enable. graft never reads these
+itself; they work because the SDK honors them. There is no
+`AWS_ENDPOINT_URL` or `AWS_TIMEOUT`; the real, per-target-only
+equivalents are `AWS_{TARGET}_ENDPOINT` and `AWS_{TARGET}_HTTP_TIMEOUT`
+below.
 
 ### Named Targets
 
@@ -214,16 +217,23 @@ explicit support for each one. There is no `AWS_ENDPOINT_URL` or
 | `AWS_{TARGET}_SECRET_ACCESS_KEY` | Target-specific secret key |
 | `AWS_{TARGET}_SESSION_TOKEN` | Target-specific session token |
 | `AWS_{TARGET}_ENDPOINT` | Target-specific custom endpoint (for testing or non-AWS-compatible stores) |
-| `AWS_{TARGET}_S3_FORCE_PATH_STYLE` | Force S3 path-style addressing (`true`/`false`) |
-| `AWS_{TARGET}_DISABLE_SSL` | Disable SSL for the target (`true`/`false`) |
-| `AWS_{TARGET}_MAX_RETRIES` | Maximum SDK retry attempts (default `3`) |
+| `AWS_{TARGET}_DISABLE_SSL` | Rewrite an `https://` `AWS_{TARGET}_ENDPOINT` to `http://` (`true`/`false`); no effect when no endpoint is set |
+| `AWS_{TARGET}_MAX_RETRIES` | Maximum retry attempts, on top of the first try (default `3`) |
 | `AWS_{TARGET}_HTTP_TIMEOUT` | HTTP request timeout (default `30s`) |
 | `AWS_{TARGET}_CACHE_TTL` | Target cache time-to-live (default `5m`) |
 | `AWS_{TARGET}_ASSUME_ROLE_DURATION` | Assumed-role session duration (default `1h`) |
 | `AWS_{TARGET}_EXTERNAL_ID` | External ID for role assumption |
 | `AWS_{TARGET}_SESSION_NAME` | Role session name (default `graft-{target}`) |
-| `AWS_{TARGET}_MFA_SERIAL` | MFA device serial number |
+| `AWS_{TARGET}_MFA_SERIAL` | MFA device serial number, required to complete role assumption when set |
+| `AWS_{TARGET}_MFA_TOKEN` | One-shot MFA code for `AWS_{TARGET}_MFA_SERIAL`; graft prompts on stderr instead when this is unset and stdin is a terminal |
 | `AWS_{TARGET}_AUDIT_LOGGING` | Enable audit logging for the target (`true`/`false`) |
+
+The "default" target is a special case: alongside its own
+`AWS_DEFAULT_MFA_SERIAL`/`AWS_DEFAULT_MFA_TOKEN`, it also accepts the
+plain `AWS_MFA_SERIAL`/`AWS_MFA_TOKEN` spelling from the table above,
+so MFA support is symmetric whether the default target's configuration
+comes from `AWS_DEFAULT_*` or from the plain, un-namespaced variables.
+The `AWS_DEFAULT_`-prefixed spelling wins when both are set.
 
 Unlike the default configuration, every one of these target-prefixed
 variables is read directly by graft (`internal/backends/aws/client.go`),

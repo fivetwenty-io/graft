@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- MFA-protected AWS role assumption. Set `AWS_{TARGET}_MFA_SERIAL` (or,
+  for the un-namespaced default target, `AWS_MFA_SERIAL`) to require an
+  MFA code for `sts:AssumeRole`. The code itself comes from
+  `AWS_{TARGET}_MFA_TOKEN`/`AWS_MFA_TOKEN` when set, or graft prompts for
+  it on stderr when stdin is a terminal, or fails with an error naming
+  the variable to set. A profile's own `mfa_serial` in `~/.aws/config`
+  now works too, whether or not a target also sets its own MFA serial.
+- `pkg/graft.AWSConfig` gains `MFASerial` and `MFATokenProvider` fields
+  so library callers using `WithAWS`/`WithAWSTarget` can supply MFA
+  credentials programmatically, with the same env-token/prompt/error
+  fallback when `MFATokenProvider` is left `nil`.
+
+### Changed
+
+- AWS operators and `WithAWS`/`WithAWSTarget` now run on
+  `aws-sdk-go-v2` instead of the archived `aws-sdk-go` v1. Credential
+  resolution, environment variables, and operator behavior are
+  unchanged, with three exceptions called out below.
+- `AWS_{TARGET}_HTTP_TIMEOUT` is now honored (default `30s`); it was
+  previously parsed but never applied, so a request that used to hang
+  indefinitely against an unreachable endpoint now fails after the
+  configured timeout.
+- `AWS_{TARGET}_MAX_RETRIES` keeps its documented "number of retries"
+  meaning: a value of `n` now maps to the SDK's `RetryMaxAttempts` of
+  `n + 1` (v2 counts total attempts, not retries), so the effective
+  retry count is unchanged from v1.
+- `AWS_{TARGET}_DISABLE_SSL` now only rewrites an `https://`
+  `AWS_{TARGET}_ENDPOINT` to `http://`; it has no effect when no
+  endpoint is set, since AWS itself does not serve plaintext.
+
+### Removed
+
+- `AWS_{TARGET}_S3_FORCE_PATH_STYLE`. graft has no S3 client, so this
+  variable never had an effect under v1 either.
+
 ## [1.40.2] - 2026-09-03
 
 A dependency housekeeping release. `(( calc ))` moves off the archived
