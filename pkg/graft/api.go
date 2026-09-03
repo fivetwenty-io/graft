@@ -534,7 +534,7 @@ func WithVaultClient(client VaultClient) EngineOption {
 // read by engine construction or by any AWS operator. Use
 // WithAWS(AWSConfig{...}) instead: despite the identical struct type
 // (AWSConfig is shared between both options), WithAWS actually threads its
-// argument into a real AWS session (github.com/aws/aws-sdk-go underneath)
+// argument into a real AWS config (github.com/aws/aws-sdk-go-v2 underneath)
 // registered as the "awsparam"/"awssecret" backends, consulted when
 // WithBackendRegistry(true) is set.
 func WithAWSConfig(cfg *AWSConfig) EngineOption {
