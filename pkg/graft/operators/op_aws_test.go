@@ -3,6 +3,7 @@ package operators
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/url"
 	"sync"
 	"sync/atomic"
@@ -11,31 +12,43 @@ import (
 
 	. "github.com/smartystreets/goconvey/convey"
 
-	awsSDK "github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 
 	awsbackend "github.com/fivetwenty-io/graft/internal/backends/aws"
+	"github.com/fivetwenty-io/graft/internal/backends/aws/awsfakes"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// fakeAwsSession builds a session with non-functional static credentials
-// and no retries, for tests that must prove a cache hit short-circuits
-// getAwsSecret before it ever reaches the network: if getAwsSecret misses
-// the cache and falls through to secretsmanager.New(session).GetSecretValue,
-// this session errors out quickly (bad credentials / no route) rather than
-// silently succeeding against a real account.
-func fakeAwsSession(t *testing.T) *session.Session {
+// fakeAwsConfig builds an aws.Config with non-functional static
+// credentials, a single retry attempt, and BaseEndpoint pointing at a
+// reserved-then-closed local port, for tests that must prove a cache hit
+// short-circuits getAwsSecret/getAwsParam before either ever reaches the
+// network: if the cache is missed and the fetch falls through to a real
+// GetSecretValue/GetParameter call, connecting to a closed local port
+// fails immediately with "connection refused" rather than hanging or
+// (worse) silently reaching a real AWS endpoint.
+func fakeAwsConfig(t *testing.T) aws.Config {
 	t.Helper()
-	sess, err := session.NewSession(&awsSDK.Config{
-		Region:      awsSDK.String("us-east-1"),
-		Credentials: credentials.NewStaticCredentials("AKIAFAKEFAKEFAKEFAKE", "fake-secret-key-not-real", ""),
-		MaxRetries:  awsSDK.Int(0),
-	})
+	var lc net.ListenConfig
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("fakeAwsSession: unexpected error building session: %v", err)
+		t.Fatalf("fakeAwsConfig: unexpected error reserving a port: %v", err)
 	}
-	return sess
+	addr := l.Addr().String()
+	if err := l.Close(); err != nil {
+		t.Fatalf("fakeAwsConfig: unexpected error closing the reserved port: %v", err)
+	}
+
+	return aws.Config{
+		Region:           "us-east-1",
+		Credentials:      credentials.NewStaticCredentialsProvider("AKIAFAKEFAKEFAKEFAKE", "fake-secret-key-not-real", ""),
+		BaseEndpoint:     aws.String("http://" + addr),
+		RetryMaxAttempts: 1,
+	}
 }
 
 func TestParseAwsOpKey(t *testing.T) {
@@ -182,20 +195,20 @@ func TestBuildAwsSecretInput(t *testing.T) {
 	Convey("buildAwsSecretInput", t, func() {
 		Convey("no qualifiers sets neither VersionId nor VersionStage", func() {
 			input := buildAwsSecretInput("db", url.Values{})
-			So(awsSDK.StringValue(input.SecretId), ShouldEqual, "db")
+			So(aws.ToString(input.SecretId), ShouldEqual, "db")
 			So(input.VersionId, ShouldBeNil)
 			So(input.VersionStage, ShouldBeNil)
 		})
 
 		Convey("version param sets VersionId", func() {
 			input := buildAwsSecretInput("db", url.Values{"version": []string{"v1"}})
-			So(awsSDK.StringValue(input.VersionId), ShouldEqual, "v1")
+			So(aws.ToString(input.VersionId), ShouldEqual, "v1")
 			So(input.VersionStage, ShouldBeNil)
 		})
 
 		Convey("stage param sets VersionStage", func() {
 			input := buildAwsSecretInput("db", url.Values{"stage": []string{"AWSCURRENT"}})
-			So(awsSDK.StringValue(input.VersionStage), ShouldEqual, "AWSCURRENT")
+			So(aws.ToString(input.VersionStage), ShouldEqual, "AWSCURRENT")
 			So(input.VersionId, ShouldBeNil)
 		})
 
@@ -204,7 +217,7 @@ func TestBuildAwsSecretInput(t *testing.T) {
 				"stage":   []string{"AWSCURRENT"},
 				"version": []string{"v1"},
 			})
-			So(awsSDK.StringValue(input.VersionStage), ShouldEqual, "AWSCURRENT")
+			So(aws.ToString(input.VersionStage), ShouldEqual, "AWSCURRENT")
 			So(input.VersionId, ShouldBeNil)
 		})
 	})
@@ -333,13 +346,13 @@ func TestAwsSecretCacheKey_PreventsVersionCollisionInPool(t *testing.T) {
 // getAwsSecret should compute is hit before getAwsSecret's fetch closure
 // ever runs, so no live AWS call happens: if getAwsSecret instead used the
 // bare secret string (the pre-fix bug), it would miss this pre-seeded entry
-// and fall through to a real secretsmanager call against fakeAwsSession,
+// and fall through to a real secretsmanager call against fakeAwsConfig,
 // which fails fast rather than returning the expected value - that failure
 // is what makes this test catch the regression.
 func TestGetAwsSecret_UsesQualifiedCacheKey(t *testing.T) {
 	Convey("AwsOperator.getAwsSecret", t, func() {
 		op := AwsOperator{variant: "awssecret"}
-		sess := fakeAwsSession(t)
+		cfg := fakeAwsConfig(t)
 		target := fmt.Sprintf("aws-cache-bugfix-wiring-target-%d", timeSeed())
 
 		Convey("a cache hit on the qualified key returns the cached value without reaching the network", func() {
@@ -352,7 +365,7 @@ func TestGetAwsSecret_UsesQualifiedCacheKey(t *testing.T) {
 			})
 			So(err, ShouldBeNil)
 
-			value, err := op.getAwsSecret(sess, target, base, params, false)
+			value, err := op.getAwsSecret(context.Background(), cfg, target, base, params, false)
 			So(err, ShouldBeNil)
 			So(value, ShouldEqual, "preseeded-v42")
 		})
@@ -373,11 +386,11 @@ func TestGetAwsSecret_UsesQualifiedCacheKey(t *testing.T) {
 			})
 			So(err, ShouldBeNil)
 
-			v1, err := op.getAwsSecret(sess, target, base, p1, false)
+			v1, err := op.getAwsSecret(context.Background(), cfg, target, base, p1, false)
 			So(err, ShouldBeNil)
 			So(v1, ShouldEqual, "preseeded-v1")
 
-			v2, err := op.getAwsSecret(sess, target, base, p2, false)
+			v2, err := op.getAwsSecret(context.Background(), cfg, target, base, p2, false)
 			So(err, ShouldBeNil)
 			So(v2, ShouldEqual, "preseeded-v2")
 		})
@@ -537,4 +550,135 @@ func TestAwsClientPoolThreadSafety(t *testing.T) {
 			So(paramVal, ShouldEqual, "test-param-value")
 		})
 	})
+}
+
+// TestGetAwsParam_UsesInjectedClient proves getAwsParam builds its SSM
+// client through awsbackend.NewSSMClient (not a hardcoded ssm.NewFromConfig
+// call), so tests can swap that factory var for a fake, and that the
+// WithDecryption/Name fields getAwsParam sends reach the client verbatim.
+// skipCache=true (":nocache") is used throughout so the assertion below
+// ("exactly one call") cannot be satisfied by a cache hit instead of a
+// real fetch.
+func TestGetAwsParam_UsesInjectedClient(t *testing.T) {
+	original := awsbackend.NewSSMClient
+	fake := &awsfakes.FakeSSMClient{
+		GetParameterFn: func(_ context.Context, params *ssm.GetParameterInput, _ ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
+			return &ssm.GetParameterOutput{Parameter: &ssmtypes.Parameter{Value: aws.String("injected-value")}}, nil
+		},
+	}
+	awsbackend.NewSSMClient = func(aws.Config) awsbackend.SSMClient { return fake }
+	t.Cleanup(func() { awsbackend.NewSSMClient = original })
+
+	op := AwsOperator{variant: "awsparam"}
+	target := fmt.Sprintf("aws-injected-client-param-target-%d", timeSeed())
+
+	value, err := op.getAwsParam(context.Background(), aws.Config{Region: "us-east-1"}, target, "/x", true)
+	if err != nil {
+		t.Fatalf("getAwsParam returned an unexpected error: %v", err)
+	}
+	if value != "injected-value" {
+		t.Fatalf("value = %q, want %q", value, "injected-value")
+	}
+
+	calls := fake.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("expected exactly one GetParameter call, got %d", len(calls))
+	}
+	if got := aws.ToString(calls[0].Name); got != "/x" {
+		t.Fatalf("Name = %q, want %q", got, "/x")
+	}
+	if !aws.ToBool(calls[0].WithDecryption) {
+		t.Fatal("expected WithDecryption to be true, matching internal/backends/aws's own default")
+	}
+}
+
+// TestGetAwsSecret_PassesStageAndVersion proves getAwsSecret builds its
+// Secrets Manager client through awsbackend.NewSecretsManagerClient and
+// that the "?stage=..." query qualifier reaches the client as
+// VersionStage (with VersionId left nil), matching
+// buildAwsSecretInput's stage-wins precedence. skipCache=true
+// (":nocache") keeps this a genuine call-level assertion, not a cache
+// hit.
+func TestGetAwsSecret_PassesStageAndVersion(t *testing.T) {
+	original := awsbackend.NewSecretsManagerClient
+	fake := &awsfakes.FakeSecretsManagerClient{
+		GetSecretValueFn: func(_ context.Context, params *secretsmanager.GetSecretValueInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+			return &secretsmanager.GetSecretValueOutput{SecretString: aws.String("injected-secret")}, nil
+		},
+	}
+	awsbackend.NewSecretsManagerClient = func(aws.Config) awsbackend.SecretsManagerClient { return fake }
+	t.Cleanup(func() { awsbackend.NewSecretsManagerClient = original })
+
+	op := AwsOperator{variant: "awssecret"}
+	target := fmt.Sprintf("aws-injected-client-secret-target-%d", timeSeed())
+
+	_, params, err := parseAwsOpKey("db?stage=AWSCURRENT")
+	if err != nil {
+		t.Fatalf("parseAwsOpKey failed: %v", err)
+	}
+
+	value, err := op.getAwsSecret(context.Background(), aws.Config{Region: "us-east-1"}, target, "db", params, true)
+	if err != nil {
+		t.Fatalf("getAwsSecret returned an unexpected error: %v", err)
+	}
+	if value != "injected-secret" {
+		t.Fatalf("value = %q, want %q", value, "injected-secret")
+	}
+
+	calls := fake.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("expected exactly one GetSecretValue call, got %d", len(calls))
+	}
+	if got := aws.ToString(calls[0].SecretId); got != "db" {
+		t.Fatalf("SecretId = %q, want %q", got, "db")
+	}
+	if got := aws.ToString(calls[0].VersionStage); got != "AWSCURRENT" {
+		t.Fatalf("VersionStage = %q, want %q", got, "AWSCURRENT")
+	}
+	if calls[0].VersionId != nil {
+		t.Fatalf("expected VersionId to be nil when stage is set, got %q", aws.ToString(calls[0].VersionId))
+	}
+}
+
+// TestGetAwsSecret_NocacheBypassesPool proves skipCache=true (the
+// ":nocache" modifier) never consults DefaultPool's cache: a cache entry
+// is pre-seeded with a stale value under the exact identity getAwsSecret
+// would compute, then getAwsSecret is called with skipCache=true and a
+// fake returning a different value. If getAwsSecret consulted the cache
+// despite skipCache, it would return the stale pre-seeded value instead
+// of the fake's fresh one.
+func TestGetAwsSecret_NocacheBypassesPool(t *testing.T) {
+	original := awsbackend.NewSecretsManagerClient
+	fake := &awsfakes.FakeSecretsManagerClient{
+		GetSecretValueFn: func(context.Context, *secretsmanager.GetSecretValueInput, ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+			return &secretsmanager.GetSecretValueOutput{SecretString: aws.String("fresh-value")}, nil
+		},
+	}
+	awsbackend.NewSecretsManagerClient = func(aws.Config) awsbackend.SecretsManagerClient { return fake }
+	t.Cleanup(func() { awsbackend.NewSecretsManagerClient = original })
+
+	op := AwsOperator{variant: "awssecret"}
+	target := fmt.Sprintf("aws-nocache-target-%d", timeSeed())
+	base := fmt.Sprintf("aws-nocache/%d/db", timeSeed())
+	_, params, err := parseAwsOpKey(base)
+	if err != nil {
+		t.Fatalf("parseAwsOpKey failed: %v", err)
+	}
+
+	if _, err := awsbackend.DefaultPool.GetOrFetchSecret(target, awsSecretCacheKey(base, params), func() (string, error) {
+		return "stale-cached-value", nil
+	}); err != nil {
+		t.Fatalf("pre-seeding the cache failed: %v", err)
+	}
+
+	value, err := op.getAwsSecret(context.Background(), aws.Config{Region: "us-east-1"}, target, base, params, true)
+	if err != nil {
+		t.Fatalf("getAwsSecret returned an unexpected error: %v", err)
+	}
+	if value != "fresh-value" {
+		t.Fatalf("value = %q, want the fake's fresh value %q (cache was consulted despite skipCache)", value, "fresh-value")
+	}
+	if fake.CallCount() != 1 {
+		t.Fatalf("expected exactly one GetSecretValue call, got %d", fake.CallCount())
+	}
 }

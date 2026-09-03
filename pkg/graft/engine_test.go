@@ -1076,7 +1076,7 @@ func TestEngineExternalClientAccess(t *testing.T) {
 
 		Convey("Vault and AWS clients are accessed through backend packages", func() {
 			// Vault client: vault.GlobalKV / vault.DefaultPool.GetClient()
-			// AWS session: awsbackend.DefaultPool.GetSession()
+			// AWS config: awsbackend.DefaultPool.GetConfig()
 			// These are no longer on OperatorState. Verify skip flags are still accessible.
 			So(engine.IsVaultSkipped(), ShouldBeFalse)
 			So(engine.IsAWSSkipped(), ShouldBeFalse)

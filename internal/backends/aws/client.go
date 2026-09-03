@@ -1,28 +1,26 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
-	"github.com/aws/aws-sdk-go/service/ssm"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
-// ClientPool manages AWS sessions and clients for different targets.
+// ClientPool manages AWS configs and clients for different targets.
 type ClientPool struct {
 	mu                    sync.RWMutex
-	sessions              map[string]*session.Session
-	secretsManagerClients map[string]secretsmanageriface.SecretsManagerAPI
-	parameterStoreClients map[string]ssmiface.SSMAPI
+	awsConfigs            map[string]aws.Config
+	secretsManagerClients map[string]SecretsManagerClient
+	parameterStoreClients map[string]SSMClient
 	configs               map[string]*Target
 	secretsCache          map[string]map[string]string // target -> secret -> value
 	paramsCache           map[string]map[string]string // target -> param -> value
@@ -30,46 +28,47 @@ type ClientPool struct {
 
 // DefaultPool is the global client pool for target-aware AWS connections.
 var DefaultPool = &ClientPool{
-	sessions:              make(map[string]*session.Session),
-	secretsManagerClients: make(map[string]secretsmanageriface.SecretsManagerAPI),
-	parameterStoreClients: make(map[string]ssmiface.SSMAPI),
+	awsConfigs:            make(map[string]aws.Config),
+	secretsManagerClients: make(map[string]SecretsManagerClient),
+	parameterStoreClients: make(map[string]SSMClient),
 	configs:               make(map[string]*Target),
 	secretsCache:          make(map[string]map[string]string),
 	paramsCache:           make(map[string]map[string]string),
 }
 
-// GetSession returns an AWS session for the specified target.
-func (acp *ClientPool) GetSession(targetName string) (*session.Session, error) {
+// GetConfig returns an aws.Config for the specified target, building and
+// caching it on first use via BuildConfig.
+func (acp *ClientPool) GetConfig(ctx context.Context, targetName string) (aws.Config, error) {
 	acp.mu.RLock()
-	if sess, exists := acp.sessions[targetName]; exists {
+	if cfg, exists := acp.awsConfigs[targetName]; exists {
 		acp.mu.RUnlock()
-		return sess, nil
+		return cfg, nil
 	}
 	acp.mu.RUnlock()
 
 	// Get target configuration
-	config, err := acp.GetTargetConfig(targetName)
+	targetConfig, err := acp.GetTargetConfig(targetName)
 	if err != nil {
-		return nil, fmt.Errorf("AWS target '%s' not found: %w", targetName, err)
+		return aws.Config{}, fmt.Errorf("AWS target '%s' not found: %w", targetName, err)
 	}
 
-	// Create AWS session from target config
-	sess, err := acp.CreateSessionFromConfig(config)
+	// Build an aws.Config from target config
+	cfg, err := acp.BuildConfig(ctx, targetConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create AWS session for target '%s': %w", targetName, err)
+		return aws.Config{}, fmt.Errorf("failed to build AWS config for target '%s': %w", targetName, err)
 	}
 
-	// Store session for reuse
+	// Store config for reuse
 	acp.mu.Lock()
-	acp.sessions[targetName] = sess
-	acp.configs[targetName] = config
+	acp.awsConfigs[targetName] = cfg
+	acp.configs[targetName] = targetConfig
 	acp.mu.Unlock()
 
-	return sess, nil
+	return cfg, nil
 }
 
 // GetSecretsManagerClient returns a Secrets Manager client for the specified target.
-func (acp *ClientPool) GetSecretsManagerClient(targetName string) (secretsmanageriface.SecretsManagerAPI, error) {
+func (acp *ClientPool) GetSecretsManagerClient(ctx context.Context, targetName string) (SecretsManagerClient, error) {
 	acp.mu.RLock()
 	if client, exists := acp.secretsManagerClients[targetName]; exists {
 		acp.mu.RUnlock()
@@ -77,14 +76,14 @@ func (acp *ClientPool) GetSecretsManagerClient(targetName string) (secretsmanage
 	}
 	acp.mu.RUnlock()
 
-	// Get session for this target
-	sess, err := acp.GetSession(targetName)
+	// Get config for this target
+	cfg, err := acp.GetConfig(ctx, targetName)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create Secrets Manager client
-	client := secretsmanager.New(sess)
+	client := NewSecretsManagerClient(cfg)
 
 	// Store client for reuse
 	acp.mu.Lock()
@@ -95,7 +94,7 @@ func (acp *ClientPool) GetSecretsManagerClient(targetName string) (secretsmanage
 }
 
 // GetParameterStoreClient returns a Parameter Store client for the specified target.
-func (acp *ClientPool) GetParameterStoreClient(targetName string) (ssmiface.SSMAPI, error) {
+func (acp *ClientPool) GetParameterStoreClient(ctx context.Context, targetName string) (SSMClient, error) {
 	acp.mu.RLock()
 	if client, exists := acp.parameterStoreClients[targetName]; exists {
 		acp.mu.RUnlock()
@@ -103,14 +102,14 @@ func (acp *ClientPool) GetParameterStoreClient(targetName string) (ssmiface.SSMA
 	}
 	acp.mu.RUnlock()
 
-	// Get session for this target
-	sess, err := acp.GetSession(targetName)
+	// Get config for this target
+	cfg, err := acp.GetConfig(ctx, targetName)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create Parameter Store client
-	client := ssm.New(sess)
+	client := NewSSMClient(cfg)
 
 	// Store client for reuse
 	acp.mu.Lock()
@@ -124,9 +123,9 @@ func (acp *ClientPool) GetParameterStoreClient(targetName string) (ssmiface.SSMA
 func (acp *ClientPool) GetTargetConfig(targetName string) (*Target, error) {
 	// Check if we have cached config
 	acp.mu.RLock()
-	if config, exists := acp.configs[targetName]; exists {
+	if targetConfig, exists := acp.configs[targetName]; exists {
 		acp.mu.RUnlock()
-		return config, nil
+		return targetConfig, nil
 	}
 	acp.mu.RUnlock()
 
@@ -145,7 +144,7 @@ func (acp *ClientPool) GetTargetConfig(targetName string) (*Target, error) {
 			targetName, envPrefix, envPrefix, envPrefix, envPrefix)
 	}
 
-	config := &Target{
+	targetConfig := &Target{
 		Region:             GetEnvOrDefault(envPrefix+"REGION", ""),
 		Profile:            GetEnvOrDefault(envPrefix+"PROFILE", ""),
 		Role:               GetEnvOrDefault(envPrefix+"ROLE", ""),
@@ -165,123 +164,127 @@ func (acp *ClientPool) GetTargetConfig(targetName string) (*Target, error) {
 		AuditLogging:       ParseBoolOrDefault(GetEnvOrDefault(envPrefix+"AUDIT_LOGGING", "false")),
 	}
 
-	return config, nil
+	return targetConfig, nil
 }
 
-// CreateSessionFromConfig creates an AWS session from target configuration.
-//
-//nolint:gocyclo // AWS session configuration requires handling many options
-func (acp *ClientPool) CreateSessionFromConfig(config *Target) (*session.Session, error) {
-	options := session.Options{
-		Config:            aws.Config{},
-		SharedConfigState: session.SharedConfigEnable,
+// endpointFor returns the endpoint to configure on aws.Config for t. A
+// DisableSSL target rewrites an explicit "https://" Endpoint's scheme to
+// "http://" (the narrowed v2 meaning of the v1 DisableSSL flag - v2 has no
+// direct equivalent, and AWS proper does not serve plaintext, so
+// DisableSSL alone with no Endpoint set is a documented no-op). Any other
+// Endpoint (including one already using "http://", or one using "https://"
+// with DisableSSL unset) is returned verbatim. An empty Endpoint returns
+// "", telling BuildConfig not to call config.WithBaseEndpoint at all.
+func endpointFor(t *Target) string {
+	if t.Endpoint == "" {
+		return ""
 	}
+	if t.DisableSSL && strings.HasPrefix(t.Endpoint, "https://") {
+		return "http://" + strings.TrimPrefix(t.Endpoint, "https://")
+	}
+	return t.Endpoint
+}
+
+// BuildConfig builds an aws.Config from target configuration, composing
+// config.LoadDefaultConfig with the target's region, profile, endpoint,
+// retry, and credential settings, and wrapping the result in a role
+// assumption provider (backed by aws.NewCredentialsCache, so repeated
+// calls do not each re-run sts:AssumeRole) when target.Role is set.
+func (acp *ClientPool) BuildConfig(ctx context.Context, target *Target) (aws.Config, error) {
+	var opts []func(*config.LoadOptions) error
 
 	// Configure region
-	if config.Region != "" {
-		options.Config.Region = aws.String(config.Region)
+	if target.Region != "" {
+		opts = append(opts, config.WithRegion(target.Region))
 	}
 
 	// Configure profile
-	if config.Profile != "" {
-		options.Profile = config.Profile
+	if target.Profile != "" {
+		opts = append(opts, config.WithSharedConfigProfile(target.Profile))
 	}
 
 	// Configure endpoint (for testing or custom endpoints)
-	if config.Endpoint != "" {
-		options.Config.Endpoint = aws.String(config.Endpoint)
+	if ep := endpointFor(target); ep != "" {
+		opts = append(opts, config.WithBaseEndpoint(ep))
 	}
 
-	// Configure S3 path style
-	if config.S3ForcePathStyle {
-		options.Config.S3ForcePathStyle = aws.Bool(true)
+	// Configure retries: MaxRetries preserves its documented "number of
+	// retries" meaning by mapping to RetryMaxAttempts = MaxRetries+1 (v2's
+	// "total attempts" semantics). A non-positive value leaves the SDK
+	// default (3 attempts) in effect, matching v1's own "if > 0" guard.
+	if target.MaxRetries > 0 {
+		opts = append(opts, config.WithRetryMaxAttempts(target.MaxRetries+1))
 	}
-
-	// Configure SSL
-	if config.DisableSSL {
-		options.Config.DisableSSL = aws.Bool(true)
-	}
-
-	// Configure retries
-	if config.MaxRetries > 0 {
-		options.Config.MaxRetries = aws.Int(config.MaxRetries)
-	}
-
-	// Configure HTTP timeout (this would require additional configuration in practice)
-	// HTTPTimeout is not directly available in aws.Config but would be handled by custom transport
 
 	// Configure credentials if provided
-	if config.AccessKeyID != "" && config.SecretAccessKey != "" {
-		options.Config.Credentials = credentials.NewStaticCredentials(
-			config.AccessKeyID,
-			config.SecretAccessKey,
-			config.SessionToken,
-		)
+	if target.AccessKeyID != "" && target.SecretAccessKey != "" {
+		opts = append(opts, config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(target.AccessKeyID, target.SecretAccessKey, target.SessionToken),
+		))
 	}
 
-	// Create base session
-	sess, err := session.NewSessionWithOptions(options)
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
-		return nil, err
+		return aws.Config{}, err
 	}
 
 	// Configure role assumption if provided
-	if config.Role != "" {
-		assumeRoleFunc := func(p *stscreds.AssumeRoleProvider) {
-			if config.AssumeRoleDuration > 0 {
-				p.Duration = config.AssumeRoleDuration
+	if target.Role != "" {
+		stsClient := sts.NewFromConfig(cfg) // inherits BaseEndpoint, matching v1's global Endpoint reaching STS
+		provider := stscreds.NewAssumeRoleProvider(stsClient, target.Role, func(o *stscreds.AssumeRoleOptions) {
+			if target.AssumeRoleDuration > 0 {
+				o.Duration = target.AssumeRoleDuration
 			}
-			if config.ExternalID != "" {
-				p.ExternalID = aws.String(config.ExternalID)
+			if target.ExternalID != "" {
+				o.ExternalID = aws.String(target.ExternalID)
 			}
-			if config.SessionName != "" {
-				p.RoleSessionName = config.SessionName
+			if target.SessionName != "" {
+				o.RoleSessionName = target.SessionName
 			}
-			if config.MfaSerial != "" {
-				p.SerialNumber = aws.String(config.MfaSerial)
-				// Note: MFA token input would need to be handled separately
+			if target.MfaSerial != "" {
+				o.SerialNumber = aws.String(target.MfaSerial)
+				// Note: MFA token input is not yet wired here - a serial
+				// set with no TokenProvider makes credential retrieval
+				// fail with a clear error from stscreds, matching v1's
+				// own gap (see CreateSessionFromConfig's identical
+				// comment in the pre-port history of this file).
 			}
-		}
-
-		creds := stscreds.NewCredentials(sess, config.Role, assumeRoleFunc)
-		roleConfig := aws.Config{Credentials: creds}
-		if config.Region != "" {
-			roleConfig.Region = aws.String(config.Region)
-		}
-		sess, err = session.NewSession(&roleConfig)
-		if err != nil {
-			return nil, err
-		}
+		})
+		// REQUIRED: without this cache, every SSM/Secrets Manager call
+		// through cfg would re-run sts:AssumeRole.
+		cfg.Credentials = aws.NewCredentialsCache(provider)
 	}
 
-	return sess, nil
+	return cfg, nil
 }
 
-// InitializeSession configures an AWS session with profile, region, and role
-// assume including loading shared config (e.g. ~/.aws/credentials).
-func InitializeSession(profile string, region string, role string) (s *session.Session, err error) {
-	options := session.Options{
-		Config:            aws.Config{},
-		SharedConfigState: session.SharedConfigEnable,
-	}
+// InitializeConfig builds an aws.Config honoring shared config (e.g.
+// ~/.aws/credentials), an optional profile, an optional region, and an
+// optional STS AssumeRole, matching the plain-environment ("AWS_PROFILE"/
+// "AWS_REGION"/"AWS_ROLE", not the "AWS_<TARGET>_*" family) resolution
+// path op_aws.go falls back to when no pooled "default" target config is
+// available.
+func InitializeConfig(ctx context.Context, profile string, region string, role string) (aws.Config, error) {
+	var opts []func(*config.LoadOptions) error
 
 	if region != "" {
-		options.Config.Region = aws.String(region)
+		opts = append(opts, config.WithRegion(region))
 	}
 
 	if profile != "" {
-		options.Profile = profile
+		opts = append(opts, config.WithSharedConfigProfile(profile))
 	}
 
-	s, err = session.NewSessionWithOptions(options)
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
-		return nil, err
+		return aws.Config{}, err
 	}
 
 	if role != "" {
-		options.Config.Credentials = stscreds.NewCredentials(s, role, func(p *stscreds.AssumeRoleProvider) {})
-		s, err = session.NewSession(&options.Config)
+		stsClient := sts.NewFromConfig(cfg)
+		provider := stscreds.NewAssumeRoleProvider(stsClient, role)
+		cfg.Credentials = aws.NewCredentialsCache(provider)
 	}
 
-	return s, err
+	return cfg, nil
 }

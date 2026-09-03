@@ -1,16 +1,16 @@
 package operators
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	awsSDK "github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/goccy/go-yaml"
 
 	awsbackend "github.com/fivetwenty-io/graft/internal/backends/aws"
@@ -41,9 +41,9 @@ func parseBoolOrDefault(value string) bool {
 // AwsOperator supports the `@target` operator-call syntax (e.g.
 // `(( awsparam@myaccount "path" ))`): Opcall.Run sets Evaluator.Target from
 // the parsed Expr's target before calling Run, and Run selects a
-// target-specific session from internal/backends/aws.ClientPool
+// target-specific aws.Config from internal/backends/aws.ClientPool
 // (AWS_<TARGET>_REGION, etc.) when it is non-empty, falling back to the
-// existing plain-environment session otherwise.
+// existing plain-environment config otherwise.
 type AwsOperator struct {
 	variant string
 }
@@ -155,16 +155,17 @@ func (o AwsOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			}
 			value = stringifyBackendValue(val)
 		} else {
-			awsSess, cacheTarget, sessErr := o.resolveSession(ev.Target)
-			if sessErr != nil {
-				return nil, sessErr
+			ctx := context.Background()
+			cfg, cacheTarget, cfgErr := o.resolveConfig(ctx, ev.Target)
+			if cfgErr != nil {
+				return nil, cfgErr
 			}
 
 			switch o.variant {
 			case "awsparam":
-				value, err = o.getAwsParam(awsSess, cacheTarget, key, ShouldSkipCache(ev))
+				value, err = o.getAwsParam(ctx, cfg, cacheTarget, key, ShouldSkipCache(ev))
 			case "awssecret":
-				value, err = o.getAwsSecret(awsSess, cacheTarget, key, params, ShouldSkipCache(ev))
+				value, err = o.getAwsSecret(ctx, cfg, cacheTarget, key, params, ShouldSkipCache(ev))
 			}
 
 			if err != nil {
@@ -219,33 +220,33 @@ func parseAwsOpKey(key string) (string, url.Values, error) {
 	return split[0], values, nil
 }
 
-// resolveSession returns the AWS session to use and the pool cache
-// namespace it was resolved under. A non-empty target selects a pooled,
-// target-specific session and namespaces the cache under the target name,
+// resolveConfig returns the aws.Config to use and the pool cache namespace
+// it was resolved under. A non-empty target selects a pooled,
+// target-specific config and namespaces the cache under the target name,
 // erroring if that target has no configuration: unlike
 // the no-target path, there is no fallback, since silently falling back to
-// the default session is exactly the wrong-account-read risk this wiring
+// the default config is exactly the wrong-account-read risk this wiring
 // closes. An empty target keeps the existing behavior verbatim: try the
-// "default" pooled session, then fall back to plain AWS_* environment
+// "default" pooled config, then fall back to plain AWS_* environment
 // variables.
-func (o AwsOperator) resolveSession(target string) (*session.Session, string, error) {
+func (o AwsOperator) resolveConfig(ctx context.Context, target string) (aws.Config, string, error) {
 	if target != "" {
-		awsSess, err := awsbackend.DefaultPool.GetSession(target)
+		cfg, err := awsbackend.DefaultPool.GetConfig(ctx, target)
 		if err != nil {
-			return nil, "", fmt.Errorf("error selecting AWS target %q: %w", target, err)
+			return aws.Config{}, "", fmt.Errorf("error selecting AWS target %q: %w", target, err)
 		}
-		return awsSess, target, nil
+		return cfg, target, nil
 	}
 
-	awsSess, sessErr := awsbackend.DefaultPool.GetSession("default")
-	if sessErr != nil {
+	cfg, cfgErr := awsbackend.DefaultPool.GetConfig(ctx, "default")
+	if cfgErr != nil {
 		// Fall back to initializing from environment
-		awsSess, sessErr = awsbackend.InitializeSession(os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))
-		if sessErr != nil {
-			return nil, "", fmt.Errorf("error during AWS session initialization: %w", sessErr)
+		cfg, cfgErr = awsbackend.InitializeConfig(ctx, os.Getenv("AWS_PROFILE"), os.Getenv("AWS_REGION"), os.Getenv("AWS_ROLE"))
+		if cfgErr != nil {
+			return aws.Config{}, "", fmt.Errorf("error during AWS config initialization: %w", cfgErr)
 		}
 	}
-	return awsSess, "default", nil
+	return cfg, "default", nil
 }
 
 // awsSecretCacheKey builds the cache/dedup identity for a Secrets Manager
@@ -287,42 +288,47 @@ func awsSecretCacheKey(secret string, params url.Values) string {
 // covers.
 func buildAwsSecretInput(secret string, params url.Values) *secretsmanager.GetSecretValueInput {
 	input := &secretsmanager.GetSecretValueInput{
-		SecretId: awsSDK.String(secret),
+		SecretId: aws.String(secret),
 	}
 
 	if stage := params.Get("stage"); stage != "" {
-		input.VersionStage = awsSDK.String(stage)
+		input.VersionStage = aws.String(stage)
 	} else if version := params.Get("version"); version != "" {
-		input.VersionId = awsSDK.String(version)
+		input.VersionId = aws.String(version)
 	}
 
 	return input
 }
 
-// getAwsSecret fetches a secret using the AWS backend cache and session.
-// cacheTarget namespaces the secret cache (see resolveSession).
-// GetOrFetchSecret both serves cached values without a network call and
-// coalesces concurrent requests for the same (target, cache identity) into
-// one backend request, rather than exposing the raw cache map for an
-// unsynchronized read as the previous implementation did. The cache
-// identity passed to GetOrFetchSecret is computed by awsSecretCacheKey, not
-// the bare secret string, so two specs for the same secret ID that request
-// different stage/version qualifiers (e.g. "db?version=1" vs
-// "db?version=2") get independent cache entries and independent fetches
-// instead of colliding on one.
+// getAwsSecret fetches a secret using the AWS backend cache and the given
+// aws.Config. cacheTarget namespaces the secret cache (see
+// resolveConfig). GetOrFetchSecret both serves cached values without a
+// network call and coalesces concurrent requests for the same (target,
+// cache identity) into one backend request, rather than exposing the raw
+// cache map for an unsynchronized read as the previous implementation did.
+// The cache identity passed to GetOrFetchSecret is computed by
+// awsSecretCacheKey, not the bare secret string, so two specs for the same
+// secret ID that request different stage/version qualifiers (e.g.
+// "db?version=1" vs "db?version=2") get independent cache entries and
+// independent fetches instead of colliding on one.
 // skipCache (the ":nocache" modifier) bypasses GetOrFetchSecret entirely -
 // no cache read, no cache write, no request coalescing - so the lookup
 // neither serves from nor refreshes the shared entry.
-func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secret string, params url.Values, skipCache bool) (string, error) {
+//
+// The Secrets Manager client is built fresh from cfg on every fetch
+// (rather than cached alongside cfg itself), through
+// awsbackend.NewSecretsManagerClient so tests can swap that factory var
+// for a fake.
+func (o AwsOperator) getAwsSecret(ctx context.Context, cfg aws.Config, cacheTarget, secret string, params url.Values, skipCache bool) (string, error) {
 	fetch := func() (string, error) {
-		client := secretsmanager.New(awsSession)
+		client := awsbackend.NewSecretsManagerClient(cfg)
 
-		output, err := client.GetSecretValue(buildAwsSecretInput(secret, params))
+		output, err := client.GetSecretValue(ctx, buildAwsSecretInput(secret, params))
 		if err != nil {
 			return "", err
 		}
 
-		return awsSDK.StringValue(output.SecretString), nil
+		return aws.ToString(output.SecretString), nil
 	}
 	if skipCache {
 		return fetch()
@@ -330,25 +336,27 @@ func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secr
 	return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, awsSecretCacheKey(secret, params), fetch)
 }
 
-// getAwsParam fetches a parameter using the AWS backend cache and session.
-// cacheTarget namespaces the parameter cache (see resolveSession); see
-// getAwsSecret for the GetOrFetchParam cache+dedup behavior and the
-// skipCache (":nocache") bypass semantics.
-func (o AwsOperator) getAwsParam(awsSession *session.Session, cacheTarget, param string, skipCache bool) (string, error) {
+// getAwsParam fetches a parameter using the AWS backend cache and the
+// given aws.Config. cacheTarget namespaces the parameter cache (see
+// resolveConfig); see getAwsSecret for the GetOrFetchParam cache+dedup
+// behavior, the skipCache (":nocache") bypass semantics, and why the SSM
+// client is built fresh from cfg on every fetch through
+// awsbackend.NewSSMClient rather than cached.
+func (o AwsOperator) getAwsParam(ctx context.Context, cfg aws.Config, cacheTarget, param string, skipCache bool) (string, error) {
 	fetch := func() (string, error) {
-		client := ssm.New(awsSession)
+		client := awsbackend.NewSSMClient(cfg)
 
 		input := &ssm.GetParameterInput{
-			Name:           awsSDK.String(param),
-			WithDecryption: awsSDK.Bool(true),
+			Name:           aws.String(param),
+			WithDecryption: aws.Bool(true),
 		}
 
-		output, err := client.GetParameter(input)
+		output, err := client.GetParameter(ctx, input)
 		if err != nil {
 			return "", err
 		}
 
-		return awsSDK.StringValue(output.Parameter.Value), nil
+		return aws.ToString(output.Parameter.Value), nil
 	}
 	if skipCache {
 		return fetch()
