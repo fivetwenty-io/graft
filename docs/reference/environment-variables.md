@@ -201,10 +201,13 @@ code (`pkg/graft/operators/op_aws.go`). The rest are read by
 `aws-sdk-go-v2`'s default configuration loader, which reads the shared
 config (`~/.aws/config`) unconditionally — unlike the v1 SDK, there is no
 `session.SharedConfigState` opt-in to enable. graft never reads these
-itself; they work because the SDK honors them. There is no
-`AWS_ENDPOINT_URL` or `AWS_TIMEOUT`; the real, per-target-only
-equivalents are `AWS_{TARGET}_ENDPOINT` and `AWS_{TARGET}_HTTP_TIMEOUT`
-below.
+itself; they work because the SDK honors them. That loader also honors
+the SDK's own `AWS_ENDPOINT_URL` (and per-service
+`AWS_ENDPOINT_URL_SSM`/`AWS_ENDPOINT_URL_SECRETS_MANAGER`),
+`AWS_MAX_ATTEMPTS`, and `AWS_RETRY_MODE`, which the v1 SDK ignored. A
+named target's `AWS_{TARGET}_ENDPOINT` and `AWS_{TARGET}_MAX_RETRIES`
+take precedence over those when set. There is no `AWS_TIMEOUT`; the
+per-target-only equivalent is `AWS_{TARGET}_HTTP_TIMEOUT` below.
 
 ### Named Targets
 
@@ -377,9 +380,9 @@ export VAULT_TOKEN=root
 export AWS_REGION=us-east-1
 export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
-# AWS_ENDPOINT_URL is not read by graft or the SDK's default chain; use a
-# named target's AWS_{TARGET}_ENDPOINT instead if you need a custom
-# endpoint for LocalStack.
+# The SDK's own AWS_ENDPOINT_URL is honored on this un-prefixed path; a
+# named target's AWS_{TARGET}_ENDPOINT takes precedence for that target.
+export AWS_ENDPOINT_URL=http://localhost:4566
 
 # Local NATS
 export NATS_URL=nats://localhost:4222

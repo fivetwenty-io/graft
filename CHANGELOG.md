@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AWS operators and `WithAWS`/`WithAWSTarget` now run on
   `aws-sdk-go-v2` instead of the archived `aws-sdk-go` v1. Credential
   resolution, environment variables, and operator behavior are
-  unchanged, with three exceptions called out below.
+  unchanged, with the exceptions called out below.
 - `AWS_{TARGET}_HTTP_TIMEOUT` is now honored (default `30s`); it was
   previously parsed but never applied, so a request that used to hang
   indefinitely against an unreachable endpoint now fails after the
@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AWS_{TARGET}_DISABLE_SSL` now only rewrites an `https://`
   `AWS_{TARGET}_ENDPOINT` to `http://`; it has no effect when no
   endpoint is set, since AWS itself does not serve plaintext.
+- The un-prefixed AWS path now honors the SDK's own `AWS_ENDPOINT_URL`
+  (and per-service `AWS_ENDPOINT_URL_SSM`/
+  `AWS_ENDPOINT_URL_SECRETS_MANAGER`), `AWS_MAX_ATTEMPTS`, and
+  `AWS_RETRY_MODE`, which v1 ignored. A named target's
+  `AWS_{TARGET}_ENDPOINT` and `AWS_{TARGET}_MAX_RETRIES` still take
+  precedence for that target.
 
 ### Removed
 

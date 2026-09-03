@@ -69,9 +69,10 @@ export VAULT_STAGING_TOKEN="s.staging-token"
 `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_ROLE_ARN`, and `AWS_CA_BUNDLE` are read
 by the AWS SDK's default credential chain, not by graft's own code; graft
 itself reads only `AWS_REGION`, `AWS_PROFILE`, `AWS_ROLE`,
-`AWS_MFA_SERIAL`, and `AWS_MFA_TOKEN` directly. There is no
-`AWS_ENDPOINT_URL`; the real, per-target-only equivalent is
-`AWS_{TARGET}_ENDPOINT` below.
+`AWS_MFA_SERIAL`, and `AWS_MFA_TOKEN` directly. The SDK also honors its
+own `AWS_ENDPOINT_URL`, `AWS_MAX_ATTEMPTS`, and `AWS_RETRY_MODE` on this
+un-prefixed path; a named target's `AWS_{TARGET}_ENDPOINT` and
+`AWS_{TARGET}_MAX_RETRIES` below take precedence for that target.
 
 **Per-target AWS:**
 
