@@ -368,63 +368,72 @@ Per-target environment variables:
 
 ### Client Pool
 
-The real type is `aws.ClientPool` (`internal/backends/aws/client.go`), a `sync.RWMutex`-guarded map of per-target sessions - not a type named `AWSSessionPool`:
+The real type is `aws.ClientPool` (`internal/backends/aws/client.go`), a `sync.RWMutex`-guarded map of per-target `aws.Config` values (aws-sdk-go-v2) - not a type named `AWSSessionPool`:
 
 ```go
 // internal/backends/aws/client.go (abridged)
 type ClientPool struct {
-    mu       sync.RWMutex
-    sessions map[string]*session.Session
-    configs  map[string]*Target
-    // secretsManagerClients, parameterStoreClients, secretsCache, paramsCache omitted
+    mu         sync.RWMutex
+    awsConfigs map[string]aws.Config
+    configs    map[string]*Target
+    // secretsCache, paramsCache omitted
 }
 
-func (acp *ClientPool) GetSession(targetName string) (*session.Session, error) {
+func (acp *ClientPool) GetConfig(ctx context.Context, targetName string) (aws.Config, error) {
     acp.mu.RLock()
-    if sess, exists := acp.sessions[targetName]; exists {
+    if cfg, exists := acp.awsConfigs[targetName]; exists {
         acp.mu.RUnlock()
-        return sess, nil
+        return cfg, nil
     }
     acp.mu.RUnlock()
 
-    config, err := acp.GetTargetConfig(targetName)
+    targetConfig, err := acp.GetTargetConfig(targetName)
     if err != nil {
-        return nil, fmt.Errorf("AWS target '%s' not found: %w", targetName, err)
+        return aws.Config{}, fmt.Errorf("AWS target '%s' not found: %w", targetName, err)
     }
 
-    sess, err := acp.CreateSessionFromConfig(config)
+    cfg, err := acp.BuildConfig(ctx, targetConfig)
     if err != nil {
-        return nil, fmt.Errorf("failed to create AWS session for target '%s': %w", targetName, err)
+        return aws.Config{}, fmt.Errorf("failed to build AWS config for target '%s': %w", targetName, err)
     }
 
     acp.mu.Lock()
-    acp.sessions[targetName] = sess
-    acp.configs[targetName] = config
+    acp.awsConfigs[targetName] = cfg
+    acp.configs[targetName] = targetConfig
     acp.mu.Unlock()
 
-    return sess, nil
+    return cfg, nil
 }
 ```
 
+Service clients are not pooled: each fetch builds one from the cached `aws.Config` through the `NewSSMClient`/`NewSecretsManagerClient` factory variables in `internal/backends/aws/clients.go`, which tests swap for fakes.
+
 ### Parameter Store
 
-There is no `SSMClient` type. `awsparam` resolution lives in `pkg/graft/operators/op_aws.go`'s `AwsOperator.getAwsParam`, which fetches through `ClientPool.GetOrFetchParam` - the cache-check-then-dedup-then-fetch-then-cache sequence described in [Request Deduplication](#request-deduplication) above:
+`SSMClient` (`internal/backends/aws/clients.go`) is the one-method interface the operator calls. `awsparam` resolution lives in `pkg/graft/operators/op_aws.go`'s `AwsOperator.getAwsParam`, which fetches through `ClientPool.GetOrFetchParam` - the cache-check-then-dedup-then-fetch-then-cache sequence described in [Request Deduplication](#request-deduplication) above - unless the `:nocache` suffix set `skipCache`:
 
 ```go
 // pkg/graft/operators/op_aws.go (abridged)
-func (o AwsOperator) getAwsParam(awsSession *session.Session, cacheTarget, param string) (string, error) {
-    return awsbackend.DefaultPool.GetOrFetchParam(cacheTarget, param, func() (string, error) {
-        client := ssm.New(awsSession)
+func (o AwsOperator) getAwsParam(ctx context.Context, cfg aws.Config, cacheTarget, param string, skipCache bool) (string, error) {
+    fetch := func() (string, error) {
+        client := awsbackend.NewSSMClient(cfg)
         input := &ssm.GetParameterInput{
-            Name:           awsSDK.String(param),
-            WithDecryption: awsSDK.Bool(true),
+            Name:           aws.String(param),
+            WithDecryption: aws.Bool(true),
         }
-        output, err := client.GetParameter(input)
+        output, err := client.GetParameter(ctx, input)
         if err != nil {
             return "", err
         }
-        return awsSDK.StringValue(output.Parameter.Value), nil
-    })
+        if output.Parameter == nil || output.Parameter.Value == nil {
+            return "", fmt.Errorf("parameter %s has no value", param)
+        }
+        return aws.ToString(output.Parameter.Value), nil
+    }
+    if skipCache {
+        return fetch()
+    }
+    return awsbackend.DefaultPool.GetOrFetchParam(cacheTarget, param, fetch)
 }
 ```
 
@@ -448,27 +457,25 @@ api_key: (( awssecret@prod "api-credentials" ))
 
 ### Secrets Manager
 
-There is no `SecretsManagerClient` type. `awssecret` resolution is `AwsOperator.getAwsSecret` (`pkg/graft/operators/op_aws.go`), fetching through `ClientPool.GetOrFetchSecret` - the same cache-dedup-fetch-cache pattern as `awsparam`, keyed by `stage`/`version` query parameters when given:
+`SecretsManagerClient` (`internal/backends/aws/clients.go`) is the matching one-method interface. `awssecret` resolution is `AwsOperator.getAwsSecret` (`pkg/graft/operators/op_aws.go`), fetching through `ClientPool.GetOrFetchSecret` - the same cache-dedup-fetch-cache pattern as `awsparam`, keyed by `stage`/`version` query parameters when given:
 
 ```go
 // pkg/graft/operators/op_aws.go (abridged)
-func (o AwsOperator) getAwsSecret(awsSession *session.Session, cacheTarget, secret string, params url.Values) (string, error) {
-    return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, secret, func() (string, error) {
-        client := secretsmanager.New(awsSession)
-        input := &secretsmanager.GetSecretValueInput{
-            SecretId: awsSDK.String(secret),
-        }
-        if params.Get("stage") != "" {
-            input.VersionStage = awsSDK.String(params.Get("stage"))
-        } else if params.Get("version") != "" {
-            input.VersionId = awsSDK.String(params.Get("version"))
-        }
-        output, err := client.GetSecretValue(input)
+func (o AwsOperator) getAwsSecret(ctx context.Context, cfg aws.Config, cacheTarget, secret string, params url.Values, skipCache bool) (string, error) {
+    fetch := func() (string, error) {
+        client := awsbackend.NewSecretsManagerClient(cfg)
+        // buildAwsSecretInput sets VersionStage from ?stage=, else
+        // VersionId from ?version=, on the GetSecretValueInput.
+        output, err := client.GetSecretValue(ctx, buildAwsSecretInput(secret, params))
         if err != nil {
             return "", err
         }
-        return awsSDK.StringValue(output.SecretString), nil
-    })
+        return aws.ToString(output.SecretString), nil
+    }
+    if skipCache {
+        return fetch()
+    }
+    return awsbackend.DefaultPool.GetOrFetchSecret(cacheTarget, awsSecretCacheKey(secret, params), fetch)
 }
 ```
 
