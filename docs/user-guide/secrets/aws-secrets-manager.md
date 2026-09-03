@@ -216,7 +216,7 @@ When the role itself requires MFA, also set `AWS_{TARGET}_MFA_SERIAL` (for the d
 export AWS_PROD_MFA_SERIAL="arn:aws:iam::123456789012:mfa/alice"
 ```
 
-graft resolves the current MFA code in this order: `AWS_{TARGET}_MFA_TOKEN` (or `AWS_MFA_TOKEN`) if set, an interactive prompt on stderr if stdin is a terminal, or a clear error naming the variable to set. Set the token variable non-interactively — CI, scripts, and anything piping a document into `graft merge` — since none of those have a terminal to prompt on:
+graft resolves the current MFA code in this order: `AWS_{TARGET}_MFA_TOKEN` (or `AWS_MFA_TOKEN`) if set, an interactive prompt on stderr if stdin is a terminal, or a clear error naming the variable to set. Set the token variable for non-interactive runs (CI, scripts, and anything piping a document into `graft merge`), since none of those have a terminal to prompt on:
 
 ```bash
 export AWS_PROD_MFA_TOKEN="123456"
