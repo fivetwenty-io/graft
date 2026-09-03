@@ -18,23 +18,19 @@ import (
 
 // ClientPool manages AWS configs and clients for different targets.
 type ClientPool struct {
-	mu                    sync.RWMutex
-	awsConfigs            map[string]aws.Config
-	secretsManagerClients map[string]SecretsManagerClient
-	parameterStoreClients map[string]SSMClient
-	configs               map[string]*Target
-	secretsCache          map[string]map[string]string // target -> secret -> value
-	paramsCache           map[string]map[string]string // target -> param -> value
+	mu           sync.RWMutex
+	awsConfigs   map[string]aws.Config
+	configs      map[string]*Target
+	secretsCache map[string]map[string]string // target -> secret -> value
+	paramsCache  map[string]map[string]string // target -> param -> value
 }
 
 // DefaultPool is the global client pool for target-aware AWS connections.
 var DefaultPool = &ClientPool{
-	awsConfigs:            make(map[string]aws.Config),
-	secretsManagerClients: make(map[string]SecretsManagerClient),
-	parameterStoreClients: make(map[string]SSMClient),
-	configs:               make(map[string]*Target),
-	secretsCache:          make(map[string]map[string]string),
-	paramsCache:           make(map[string]map[string]string),
+	awsConfigs:   make(map[string]aws.Config),
+	configs:      make(map[string]*Target),
+	secretsCache: make(map[string]map[string]string),
+	paramsCache:  make(map[string]map[string]string),
 }
 
 // GetConfig returns an aws.Config for the specified target, building and
@@ -66,58 +62,6 @@ func (acp *ClientPool) GetConfig(ctx context.Context, targetName string) (aws.Co
 	acp.mu.Unlock()
 
 	return cfg, nil
-}
-
-// GetSecretsManagerClient returns a Secrets Manager client for the specified target.
-func (acp *ClientPool) GetSecretsManagerClient(ctx context.Context, targetName string) (SecretsManagerClient, error) {
-	acp.mu.RLock()
-	if client, exists := acp.secretsManagerClients[targetName]; exists {
-		acp.mu.RUnlock()
-		return client, nil
-	}
-	acp.mu.RUnlock()
-
-	// Get config for this target
-	cfg, err := acp.GetConfig(ctx, targetName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create Secrets Manager client
-	client := NewSecretsManagerClient(cfg)
-
-	// Store client for reuse
-	acp.mu.Lock()
-	acp.secretsManagerClients[targetName] = client
-	acp.mu.Unlock()
-
-	return client, nil
-}
-
-// GetParameterStoreClient returns a Parameter Store client for the specified target.
-func (acp *ClientPool) GetParameterStoreClient(ctx context.Context, targetName string) (SSMClient, error) {
-	acp.mu.RLock()
-	if client, exists := acp.parameterStoreClients[targetName]; exists {
-		acp.mu.RUnlock()
-		return client, nil
-	}
-	acp.mu.RUnlock()
-
-	// Get config for this target
-	cfg, err := acp.GetConfig(ctx, targetName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create Parameter Store client
-	client := NewSSMClient(cfg)
-
-	// Store client for reuse
-	acp.mu.Lock()
-	acp.parameterStoreClients[targetName] = client
-	acp.mu.Unlock()
-
-	return client, nil
 }
 
 // GetTargetConfig retrieves target configuration from environment variables.

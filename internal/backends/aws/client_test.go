@@ -583,46 +583,6 @@ func TestGetConfig_CachesPerTarget(t *testing.T) {
 	}
 }
 
-func TestGetSecretsManagerClient_UsesFactory(t *testing.T) {
-	hermeticizeAWSEnv(t)
-	ctx := context.Background()
-	target := uniqueTarget("get-secretsmanager-client-factory")
-	envPrefix := "AWS_" + strings.ToUpper(target) + "_"
-	t.Setenv(envPrefix+"REGION", "us-east-1")
-
-	client1, err := awsbackend.DefaultPool.GetSecretsManagerClient(ctx, target)
-	if err != nil {
-		t.Fatalf("first GetSecretsManagerClient failed: %v", err)
-	}
-	client2, err := awsbackend.DefaultPool.GetSecretsManagerClient(ctx, target)
-	if err != nil {
-		t.Fatalf("second GetSecretsManagerClient failed: %v", err)
-	}
-	if client1 != client2 {
-		t.Fatal("expected GetSecretsManagerClient to cache and return the same client for the same target")
-	}
-}
-
-func TestGetParameterStoreClient_UsesFactory(t *testing.T) {
-	hermeticizeAWSEnv(t)
-	ctx := context.Background()
-	target := uniqueTarget("get-parameterstore-client-factory")
-	envPrefix := "AWS_" + strings.ToUpper(target) + "_"
-	t.Setenv(envPrefix+"REGION", "us-east-1")
-
-	client1, err := awsbackend.DefaultPool.GetParameterStoreClient(ctx, target)
-	if err != nil {
-		t.Fatalf("first GetParameterStoreClient failed: %v", err)
-	}
-	client2, err := awsbackend.DefaultPool.GetParameterStoreClient(ctx, target)
-	if err != nil {
-		t.Fatalf("second GetParameterStoreClient failed: %v", err)
-	}
-	if client1 != client2 {
-		t.Fatal("expected GetParameterStoreClient to cache and return the same client for the same target")
-	}
-}
-
 func TestInitializeConfig_PlainRegionAndProfile(t *testing.T) {
 	hermeticizeAWSEnv(t)
 	ctx := context.Background()
