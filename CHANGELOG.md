@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.42.0] - 2026-09-09
+
+A graft installed under the spruce name now writes `merge` output that
+matches spruce's byte for byte, which repairs Genesis's `.genesis/config`
+round trip. Under the graft name nothing changes.
+
 ### Fixed
 
 - `graft merge` invoked under the spruce name (a `spruce` symlink, copy,
@@ -954,6 +960,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.42.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.0
 [1.41.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.41.0
 [1.40.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.40.2
 [1.40.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.40.1
