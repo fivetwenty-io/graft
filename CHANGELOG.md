@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `graft merge` invoked under the spruce name (a `spruce` symlink, copy,
+  or hardlink on `PATH`, the Genesis drop-in deployment) now omits the
+  leading `---\n` document-start line by default, so its output matches
+  `spruce merge` byte for byte. Genesis prepends its own `---` header to
+  the output of `spruce merge --skip-eval -` when it writes
+  `.genesis/config`, and graft's marker turned that file into two YAML
+  documents that `spruce json` refused to load. Genesis cannot pass
+  `--no-doc-start` because real spruce would reject the flag, so the
+  binary name carries the default instead. Under the graft name the
+  marker stays, as before. `GRAFT_NO_DOC_START` now also honors
+  `false`/`0`/`no`/`off`, so an operator can force the marker back on
+  under the spruce name; an explicitly given `--no-doc-start` flag still
+  wins over both the environment and the name. See
+  [graft merge](docs/reference/cli.md#graft-merge).
+
 ## [1.41.0] - 2026-09-03
 
 The AWS operators and `WithAWS`/`WithAWSTarget` backends move from the

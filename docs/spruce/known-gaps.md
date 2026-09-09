@@ -108,25 +108,40 @@ it to match spruce would reintroduce the problem it fixes.
 
 ### merge-stdout-leads-with-document-start-marker
 
-**Graft behavior:** `graft merge` writes a `---\n` document-start line
-before the merged document (`renderMergedTreeWithReport`,
-cmd/graft/deferred_report.go), so the result pipes straight into another
-YAML document and `--report-deferred`'s comment block has a header to
-sit under. `graft fan` already prepended `---\n` per document, matching
-spruce, so this aligns the two subcommands with each other.
+**Graft behavior:** invoked under its own name, `graft merge` writes a
+`---\n` document-start line before the merged document
+(`renderMergedTreeWithReport`, cmd/graft/deferred_report.go), so the
+result pipes straight into another YAML document and
+`--report-deferred`'s comment block has a header to sit under. `graft
+fan` already prepended `---\n` per document, matching spruce, so this
+aligns the two subcommands with each other. Invoked under the spruce
+name (a `spruce` symlink, copy, or hardlink on `PATH`, which is the
+Genesis drop-in deployment), `merge` leaves the marker off by default,
+so its stdout matches spruce's byte for byte. `merge --no-doc-start` or
+`GRAFT_NO_DOC_START=1` drops the marker under either name, and
+`GRAFT_NO_DOC_START=0` or `--no-doc-start=false` brings it back under
+the spruce name; see the [CLI reference](../reference/cli.md#graft-merge)
+for the full precedence.
 
 **Spruce behavior:** spruce's `merge` case writes bare
 `fmt.Fprintf(os.Stdout, "%s\n", string(merged))` with no leading marker;
 only its `fan` case prepends one. A byte comparison of `merge` stdout
-therefore differs from graft's by exactly this one line, in graft
-1.35.0 and later.
+therefore differs from graft's by exactly this one line when graft runs
+under its own name, in graft 1.35.0 and later.
 
-**Impact:** none for any consumer that re-parses the output, Genesis
-included: `---` is YAML's document-start marker, not content, so the
-parsed document is the same either way. Byte-level consumers comparing
-`graft merge` stdout against `spruce merge` stdout see one extra line
-and can drop it with `tail -n +2`. Introduced in 1.35.0; see
-[CLI surface](cli-surface.md) and
+**Impact:** resolved under the spruce name as of 1.42.0, which is where
+it mattered. From 1.35.0 through 1.41.0, Genesis prepended its own `---`
+header to the output of `spruce merge --skip-eval -` when it wrote
+`.genesis/config`, so graft's marker opened a second YAML document in
+that file and `spruce json` refused to load it back. A spruce-named
+graft now produces the same bytes real spruce would, and that file is
+one document again. Under the graft name the extra line remains, and it
+is harmless to any consumer that re-parses the output, because `---` is
+YAML's document-start marker, not content, so the parsed document is
+the same either way. Byte-level consumers comparing `graft merge`
+stdout against `spruce merge` stdout can drop the line with
+`tail -n +2` or pass `--no-doc-start`. See [CLI surface](cli-surface.md)
+and the
 [Genesis compatibility contract](genesis-compat-contract.md#output-byte-stability-across-versions)
 for the full contract.
 

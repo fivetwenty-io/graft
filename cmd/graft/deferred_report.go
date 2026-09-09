@@ -70,12 +70,12 @@ func parseReportPlacement(s string) (reportPlacement, error) {
 // arguments" section and docs/spruce/genesis-compat-contract.md's
 // "Output byte stability across versions" for the full writeup.
 //
-// noDocStart (merge --no-doc-start / GRAFT_NO_DOC_START, see
-// resolveNoDocStart in main.go) suppresses that marker for consumers
-// that concatenate merge output into a stream where a "---" line would
-// open an unwanted second document (Genesis's .genesis/config being
-// the motivating case); false renders exactly the bytes this function
-// always produced.
+// noDocStart (merge --no-doc-start / GRAFT_NO_DOC_START, or the default
+// under a spruce-named argv[0]; see resolveNoDocStart in main.go)
+// suppresses that marker for consumers that concatenate merge output
+// into a stream where a "---" line would open an unwanted second
+// document (Genesis's .genesis/config being the motivating case); false
+// renders exactly the bytes this function always produced.
 func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.DeferredPath, placement reportPlacement, noDocStart bool) ([]byte, int) {
 	log.TRACE("Converting the following data back to YML:")
 	log.TRACE("%#v", tree)

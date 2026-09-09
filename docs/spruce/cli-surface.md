@@ -76,15 +76,23 @@ YAML marshaler produces. Errors go to stderr in both, formatted with the same
 `@R{...}`/`@c{...}`/`@m{...}` ANSI color-tag convention (color enabled only
 on a real TTY, or forced by graft's `--color`).
 
-One deliberate `merge` divergence: graft's `merge` output leads with a
-`---\n` document-start marker (`renderMergedTree`, cmd/graft/main.go), so
-it can be piped straight into another YAML document. spruce's own `merge`
-does not do this (`cmd/spruce/main.go`'s `merge` case writes bare
-`"%s\n"`; only spruce's `fan` prepends `"---\n"` per document, output
-graft's own `fan` already matched). This is a graft-only addition, not a
-spruce-parity fix, and is harmless to Genesis: `---` is YAML's
-document-start marker, not content, so anything re-parsing graft's
-`merge` stdout as YAML sees the same single document either way.
+One deliberate `merge` divergence, under graft's own name only: graft's
+`merge` output leads with a `---\n` document-start marker
+(`renderMergedTreeWithReport`, cmd/graft/deferred_report.go), so it can
+be piped straight into another YAML document. spruce's own `merge` does
+not do this (`cmd/spruce/main.go`'s `merge` case writes bare `"%s\n"`;
+only spruce's `fan` prepends `"---\n"` per document, output graft's own
+`fan` already matched). This is a graft-only addition, not a
+spruce-parity fix, and it is harmless to anything that re-parses the
+output as YAML, because `---` is YAML's document-start marker, not
+content. When graft is invoked under the spruce name (a `spruce`
+symlink, copy, or hardlink on `PATH`), `merge` omits the marker by
+default and its stdout matches spruce's byte for byte, which is what
+Genesis needs when it prepends its own header to that output before
+writing `.genesis/config`. Under either name, `--no-doc-start` or
+`GRAFT_NO_DOC_START=1` drops the marker, and `--no-doc-start=false` or
+`GRAFT_NO_DOC_START=0` keeps it. An explicit flag beats the environment,
+and the environment beats the name-based default.
 
 ## Related pages
 

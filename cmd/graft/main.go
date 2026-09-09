@@ -184,30 +184,39 @@ type mergeOpts struct {
 	ReportDeferred string
 
 	// NoDocStart suppresses merge's leading "---\n" document-start
-	// marker (`--no-doc-start`, or GRAFT_NO_DOC_START when the flag is
-	// not given - see resolveNoDocStart). Merge-only: fan's per-document
-	// "---" matches spruce and stays. false (the default) keeps merge
-	// output byte-identical to before this option existed.
+	// marker (`--no-doc-start`, GRAFT_NO_DOC_START when the flag is not
+	// given, or the spruce name in argv[0] when neither is - see
+	// resolveNoDocStart). Merge-only: fan's per-document "---" matches
+	// spruce and stays. false, the default under the graft name, keeps
+	// merge output byte-identical to before this option existed.
 	NoDocStart bool
 }
 
-// resolveNoDocStart resolves the --no-doc-start flag against the
-// GRAFT_NO_DOC_START environment variable: an explicitly given flag
-// wins either way (so `--no-doc-start=false` keeps the marker even
-// with the env var set), otherwise a recognized boolean env value
-// (true/1/yes/on, false/0/no/off - internal/config's getBoolEnv forms)
-// decides, and anything else falls through to the default (marker on).
-// Pure so the precedence table unit-tests without cobra or env
-// mutation, mirroring resolveThemeTier.
-func resolveNoDocStart(flagChanged, flagValue bool, envValue string) bool {
+// resolveNoDocStart decides whether merge omits its leading "---\n"
+// document-start marker. Precedence, highest first: an explicitly given
+// --no-doc-start flag wins either way (so `--no-doc-start=false` keeps
+// the marker even with the env var set); otherwise a recognized boolean
+// GRAFT_NO_DOC_START value (true/1/yes/on, false/0/no/off -
+// internal/config's getBoolEnv forms) decides, in both directions;
+// otherwise the binary name decides: under a spruce name
+// (invokedAsSpruce, version.go) the marker is omitted, because byte
+// parity with real spruce's `merge` is the whole point of that
+// deployment (Genesis prepends its own header to `spruce merge` output
+// when writing .genesis/config, and a marker there opens a second YAML
+// document it cannot read back), and under any other name the marker
+// stays. Pure so the precedence table unit-tests without cobra, env, or
+// os.Args mutation, mirroring resolveThemeTier.
+func resolveNoDocStart(flagChanged, flagValue bool, envValue, argv0 string) bool {
 	if flagChanged {
 		return flagValue
 	}
 	switch strings.ToLower(strings.TrimSpace(envValue)) {
 	case "true", "1", "yes", "on":
 		return true
+	case "false", "0", "no", "off":
+		return false
 	}
-	return false
+	return invokedAsSpruce(argv0)
 }
 
 // hasHistoryFlag reports whether any of the merge --history/--trace-path/
@@ -1301,7 +1310,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 				DeferOnError:   mergeDeferOnError || mergeAdaptive,
 				ReportDeferred: mergeReportDeferred,
 				NoDocStart: resolveNoDocStart(cmd.Flags().Changed("no-doc-start"),
-					mergeNoDocStart, os.Getenv("GRAFT_NO_DOC_START")),
+					mergeNoDocStart, os.Getenv("GRAFT_NO_DOC_START"), os.Args[0]),
 			}
 			if mergeInteractive {
 				// Matches diffCmd's RunE below: colorVal has already been
@@ -1335,7 +1344,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	mergeCmd.Flags().BoolVar(&mergeShowChanges, "show-changes", false, "Print a merge/evaluation change summary instead of the merged document")
 	mergeCmd.Flags().BoolVar(&mergeChangesOnly, "changes-only", false, "Print only the paths that changed during merge/evaluation instead of the merged document")
 	mergeCmd.Flags().BoolVar(&mergeInteractive, "interactive", false, "Launch the interactive debug REPL instead of merging directly (equivalent to 'graft debug')")
-	mergeCmd.Flags().BoolVar(&mergeNoDocStart, "no-doc-start", false, "Do not prepend the leading \"---\" document-start marker to merge output (also via GRAFT_NO_DOC_START=1; an explicit flag wins over the environment)")
+	mergeCmd.Flags().BoolVar(&mergeNoDocStart, "no-doc-start", false, "Do not prepend the leading \"---\" document-start marker to merge output (also via GRAFT_NO_DOC_START=1; an explicit flag wins over the environment). Already the default when the binary is invoked under the spruce name, to match spruce's merge output byte for byte; GRAFT_NO_DOC_START=0 or --no-doc-start=false brings the marker back there")
 
 	// fan command
 	var fanSkipEval, fanFallbackAppend, fanGoPatch, fanMultiDoc bool

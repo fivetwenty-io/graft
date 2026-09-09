@@ -147,8 +147,9 @@ graft merge [flags] [files...]
 Merges one or more YAML/JSON files (or go-patch documents) and evaluates
 graft operators against the result, writing the merged YAML document to
 stdout: a leading `---\n` document-start line (so the output can be piped
-straight into another YAML document; suppressible with `--no-doc-start`
-or `GRAFT_NO_DOC_START=1`), the merged document, then a
+straight into another YAML document; omitted by default when graft is
+invoked under the spruce name, and suppressible under any name with
+`--no-doc-start` or `GRAFT_NO_DOC_START=1`), the merged document, then a
 trailing newline (`renderMergedTree`, cmd/graft/main.go). If anything was
 deferred (`--defer-on-error`/`--adaptive`, or a `--skip-vault`/
 `--skip-aws`/`--skip-nats` flag), a `--report-deferred` comment block is
@@ -178,7 +179,7 @@ reads stdin for that position.
 | `--defer-on-error` | Adaptive merge: on an operator failure, defer that expression (and any dependent path a later retry round reveals) and re-merge, instead of failing the whole merge. See [Adaptive merge](#adaptive-merge---defer-on-error) below. |
 | `--adaptive` | Alias for `--defer-on-error`. |
 | `--report-deferred <placement>` | Where to report deferred keys (from `--defer-on-error`/`--adaptive` or `--skip-vault`/`--skip-aws`/`--skip-nats`) as YAML comments in the output: `beginning` (default), `inline`, `end`, or `none`. See [Adaptive merge](#adaptive-merge---defer-on-error). |
-| `--no-doc-start` | Do not prepend the leading `---\n` document-start line to the merged output, for consumers that concatenate merge output into a stream where a `---` line would open an unwanted second document. Also settable as `GRAFT_NO_DOC_START` (`true`/`1`/`yes`/`on` suppress the marker; `false`/`0`/`no`/`off` or anything unrecognized keep it) for callers that invoke graft with a fixed flag set; an explicitly given flag wins over the environment in both directions, so `--no-doc-start=false` keeps the marker even with the variable set. Merge-only: `fan`'s per-document `---` matches spruce and is unaffected. |
+| `--no-doc-start` | Do not prepend the leading `---\n` document-start line to the merged output, for consumers that concatenate merge output into a stream where a `---` line would open an unwanted second document. This is already the default when the binary is invoked under the spruce name (a `spruce` symlink, copy, or hardlink on `PATH`), because there the point is to match spruce's `merge` output byte for byte; under the graft name the marker stays unless asked otherwise. Also settable as `GRAFT_NO_DOC_START` (`true`/`1`/`yes`/`on` suppress the marker, `false`/`0`/`no`/`off` keep it under either name, and anything unrecognized falls through to the name-based default) for callers that invoke graft with a fixed flag set. An explicitly given flag wins over the environment in both directions, so `--no-doc-start=false` keeps the marker even with the variable set or under the spruce name. Merge-only: `fan`'s per-document `---` matches spruce and is unaffected. |
 
 A value composed from a deferred call - a `(( grab ))` of a field that
 itself deferred, or a vault path segment built from another deferred
@@ -299,8 +300,8 @@ ever fails, it is byte-identical to a plain merge, including exit code
 `--defer-on-error`/`--adaptive`, or from a `--skip-vault`/`--skip-aws`/
 `--skip-nats` flag - are reported, in-band as YAML comments so the
 report travels with the document and the output stays valid, re-mergeable
-YAML. Comments are placed after the leading `---` document-start line;
-the parser ignores them entirely on a later merge.
+YAML. Comments are placed after the leading `---` document-start line
+when there is one; the parser ignores them entirely on a later merge.
 
 - `beginning` (default): a summary block at the top, one line per
   deferred key with its original error (or, for a `--skip-<backend>`

@@ -197,7 +197,11 @@ Genesis has no override variable for the binary name or location; it
 relies entirely on `PATH` lookup of the literal name `spruce`. A
 drop-in deployment needs a `spruce`-named binary, alias, or symlink on
 `PATH` rather than any configuration pointing at `graft` by a different
-name.
+name. That name is also the switch for one output default: under it,
+`merge` omits graft's leading `---\n` document-start line so its stdout
+matches spruce's byte for byte (see
+[Output byte stability across versions](#output-byte-stability-across-versions)
+below).
 
 ## stdin handling
 
@@ -258,7 +262,8 @@ two output-bytes changes across graft versions are worth pinning here:
   [known-gaps entry](known-gaps.md#sort-post-processing-silently-skips-two-error-cases)),
   also aligning with spruce.
 
-- **`merge` gains a leading `---\n`.** `graft merge`'s stdout now leads
+- **1.35.0 leading `---\n` on `merge`, and its 1.42.0 fix under the
+  spruce name.** Under graft's own name, `graft merge`'s stdout leads
   with a `---\n` document-start line before the merged document (see
   [CLI surface: stdin, stdout, and file arguments](cli-surface.md) for
   the exact contract), so the output can be piped straight into another
@@ -272,12 +277,19 @@ two output-bytes changes across graft versions are worth pinning here:
   combinations) sees the same document whether or not the marker is
   present. But a consumer that *concatenates* merge output after bytes
   of its own is not: Genesis writing `.genesis/config` prepends its own
-  content, so the marker line opens a second YAML document mid-file and
-  Genesis can no longer read the result back. `merge --no-doc-start`
-  (or `GRAFT_NO_DOC_START=1` in the environment, for Genesis's fixed
-  spruce-shaped invocations - see
-  [CLI reference](../reference/cli.md#graft-merge)) suppresses the
-  marker and restores spruce's exact `merge` output shape.
+  `---` header, so from 1.35.0 through 1.41.0 the marker line opened a
+  second YAML document mid-file and Genesis could no longer read the
+  result back. Since 1.42.0, a graft invoked under the spruce name (the
+  deployment this whole document describes) omits the marker by
+  default, so its `merge` stdout is byte-identical to spruce's and
+  `.genesis/config` is one document again, with no change on the
+  Genesis side. Genesis cannot pass `--no-doc-start` itself, because
+  real spruce would reject the flag, and that is why the binary name
+  carries the default. Under the graft name, `merge --no-doc-start` or
+  `GRAFT_NO_DOC_START=1` still suppresses the marker, and under the
+  spruce name `GRAFT_NO_DOC_START=0` or `--no-doc-start=false` restores
+  it; see the [CLI reference](../reference/cli.md#graft-merge) for the
+  precedence.
 
 ## Related documents
 

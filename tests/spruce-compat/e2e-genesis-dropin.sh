@@ -288,6 +288,34 @@ else
   fail "stepB3: spruce merge --skip-eval file | spruce json exited non-zero (rc=$rc_b3): $(cat "$TMP/b3.err")"
 fi
 
+# Step B3b: under the spruce name, `merge` output must match spruce's
+# byte for byte, so it must NOT lead with graft's `---` document-start
+# marker. Genesis prepends its own header to this exact output when it
+# writes .genesis/config; a marker there opens a second YAML document
+# that `spruce json` then refuses to load.
+b3b_first="$(spruce merge --skip-eval "$FIX/base.yml" 2>/dev/null | head -1)"
+case "$b3b_first" in
+  "---"*)
+    fail "stepB3b: spruce-named merge output leads with a '---' marker (first line: $b3b_first)" ;;
+  "")
+    fail "stepB3b: spruce-named merge output is empty" ;;
+  *)
+    pass "stepB3b: spruce-named merge output has no leading '---' marker (first line: $b3b_first)" ;;
+esac
+
+# Step B3c: the full .genesis/config write pattern. Genesis emits its
+# own `---` header line, then appends `spruce merge --skip-eval -` output,
+# then reads the file back through `spruce json`.
+{
+  printf -- '---\n# genesis config\n'
+  printf 'genesis:\n  version: 3.0.0\n' | spruce merge --skip-eval - 2>"$TMP/b3c.mid.err"
+} >"$TMP/b3c.config"
+if spruce json <"$TMP/b3c.config" >"$TMP/b3c.out" 2>"$TMP/b3c.err"; then
+  pass "stepB3c: header + spruce merge --skip-eval - concatenation reads back through spruce json"
+else
+  fail "stepB3c: header + spruce merge --skip-eval - concatenation does not read back through spruce json: $(cat "$TMP/b3c.err")"
+fi
+
 # --- Pattern 8: set -o pipefail; spruce vaultinfo file | spruce json ---
 # Success sub-case.
 (
