@@ -43,7 +43,7 @@ INSTALL_PATH ?= /usr/local/bin
 # version". v2.13.1 is built with go1.27.0; bump it whenever the toolchain
 # moves.
 GOLANGCI_LINT_VERSION := v2.13.1
-LINT_GOTOOLCHAIN := go1.27.0
+LINT_GOTOOLCHAIN := go1.27.1
 
 # Platform detection
 GOOS := $(shell go env GOOS)

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Release binaries and the container image are now built with Go
+  1.27.1, the current patch release, instead of 1.27.0. The module's
+  `go 1.26.6` directive is unchanged, so the minimum Go version for
+  `go install` and library consumers stays the same.
+
 ## [1.42.0] - 2026-09-09
 
 A graft installed under the spruce name now writes `merge` output that
