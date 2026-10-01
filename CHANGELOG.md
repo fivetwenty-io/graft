@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   1.27.1, the current patch release, instead of 1.27.0. The module's
   `go 1.26.6` directive is unchanged, so the minimum Go version for
   `go install` and library consumers stays the same.
+- `(( split "/<pattern>" ... ))` regex splits now run on
+  `dlclark/regexp2` v2 instead of v1. Split results and the
+  invalid-pattern error messages are unchanged across the bundled
+  `examples/split` documents and a set of lookaround, backreference,
+  atomic-group, zero-width, and multibyte cases.
 
 ## [1.42.0] - 2026-09-09
 

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -135,8 +135,9 @@ func (SplitOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			return nil, ansi.Errorf("invalid PCRE regex pattern @c{%s}: %s", pattern, err)
 		}
 
-		// Split using regex
-		// Note: regexp2 doesn't have a built-in Split method, so we need to implement it
+		// Split using regex. regexp2 v2 has its own Regexp.Split, but
+		// pcreSplit stays so the empty-piece and zero-width handling that
+		// graft has always produced cannot drift with the library's.
 		parts = pcreSplit(re, strVal)
 		DEBUG("  PCRE regex split into %d parts", len(parts))
 		if len(parts) == 1 && parts[0] == strVal {
@@ -184,12 +185,12 @@ func pcreSplit(re *regexp2.Regexp, text string) []string {
 		DEBUG("    pcreSplit: no matches found, returning whole string")
 		return []string{text}
 	}
-	DEBUG("    pcreSplit: found first match at rune index %d", match.Index)
+	DEBUG("    pcreSplit: found first match at rune index %d", match.RuneIndex)
 
 	// Process all matches
 	for match != nil {
 		// Convert rune indices to byte indices
-		matchStartRune := match.Index
+		matchStartRune := match.RuneIndex
 		matchString := match.String()
 		matchLengthRunes := len([]rune(matchString))
 		matchEndRune := matchStartRune + matchLengthRunes

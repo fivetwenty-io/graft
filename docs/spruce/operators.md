@@ -46,7 +46,7 @@ graft ships operator categories with no spruce equivalent:
 |---|---|---|
 | `vault-try` | `op_vault.go` | Tries a sequence of vault paths and returns the first successful lookup; spruce has no fallback-chain vault operator. |
 | `nats` | `op_nats.go` | Reads from a NATS key-value backend; spruce has no NATS integration of any kind. |
-| `split` | `op_split.go` | Splits a string on a literal separator or a PCRE-style regular expression (via the `regexp2` library), producing a list. |
+| `split` | `op_split.go` | Splits a string on a literal separator or a PCRE-style regular expression (via the `regexp2` v2 library), producing a list. |
 | `?:` (ternary) | `op_ternary.go` | Three-argument conditional: `(( condition ? true_value : false_value ))`. Requires exactly three arguments. |
 | `+`, `-`, `*`, `/`, `%` | `op_add.go`, `op_subtract.go`, `op_multiply.go`, `op_divide.go`, `op_modulo.go` | Type-aware arithmetic operators usable directly in expressions (`(( a + b ))`), not only inside a `calc` string. |
 | `&&`, `\|\|`, `!` | `op_boolean.go` | Type-aware boolean AND, OR-else, and NOT operators. spruce supports `\|\|` only as parse-time expression sugar for a literal fallback value (e.g., `(( grab a.b \|\| "default" ))`) and has no registered boolean operator at all — spruce's `&&`, `!`, and general boolean logic do not exist as operators. graft's `\|\|` is a full registered operator (`OrElseOperator`) rather than parser-level sugar, but the `(( a \|\| b ))` fallback syntax still works the same way a spruce user would expect. |
