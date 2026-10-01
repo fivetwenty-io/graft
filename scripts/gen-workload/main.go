@@ -72,7 +72,7 @@ func props(b *strings.Builder, indent, depth, maxDepth, seed, width int) {
 	}
 }
 
-func genBig(path string) error {
+func genBig(root *os.Root, name string) error {
 	var b strings.Builder
 	b.WriteString("name: byte-identity-workload\n\nmeta:\n")
 	b.WriteString("  environment: ci\n  network: default\n")
@@ -93,10 +93,10 @@ func genBig(path string) error {
 		props(&p, 2, 0, 4, g*131, 7)
 		b.WriteString(p.String())
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o600)
+	return root.WriteFile(name, []byte(b.String()), 0o600)
 }
 
-func genOverlay(path string, n int) error {
+func genOverlay(root *os.Root, name string, n int) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "meta:\n  overlay_%d: applied\n  %s: patched-%d\n", n, word(n), n)
 	b.WriteString("\ninstance_groups:\n")
@@ -109,16 +109,16 @@ func genOverlay(path string, n int) error {
 		b.WriteString("\nreleases:\n- (( append ))\n")
 		fmt.Fprintf(&b, "- name: extra-%d\n  version: 0.%d.0\n", n, n)
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o600)
+	return root.WriteFile(name, []byte(b.String()), 0o600)
 }
 
-func genGoPatch(path string, n int) error {
+func genGoPatch(root *os.Root, name string, n int) error {
 	var b strings.Builder
 	for k := 0; k < 4; k++ {
 		fmt.Fprintf(&b, "- type: replace\n  path: /meta/patched_%d_%d?\n  value: gp-%d-%d\n", n, k, n, k)
 	}
 	fmt.Fprintf(&b, "- type: replace\n  path: /meta/%s\n  value: go-patched-%d\n", word(n), n)
-	return os.WriteFile(path, []byte(b.String()), 0o600)
+	return root.WriteFile(name, []byte(b.String()), 0o600)
 }
 
 // genDense writes an operator-dense single document: ~1100 operator
@@ -128,7 +128,7 @@ func genGoPatch(path string, n int) error {
 // this file is the workload for measuring parallel-evaluation changes
 // (worker pool sizing, scheduler behavior) where big.yml measures
 // parse/merge.
-func genDense(path string) error {
+func genDense(root *os.Root, name string) error {
 	var b strings.Builder
 	b.WriteString("name: dense-eval-workload\n\nmeta:\n")
 	for i := 0; i < 200; i++ {
@@ -166,7 +166,7 @@ func genDense(path string) error {
 	for i := 0; i < 100; i++ {
 		fmt.Fprintf(&b, "  k%03d: (( calc \"meta.n%02d * 2 + %d\" ))\n", i, i%50, i)
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o600)
+	return root.WriteFile(name, []byte(b.String()), 0o600)
 }
 
 func main() {
@@ -175,7 +175,9 @@ func main() {
 		os.Exit(1)
 	}
 	dir := filepath.Clean(os.Args[1])
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	// The operator names the output directory, and creating it is this
+	// tool's job; the files inside it go through an os.Root below.
+	if err := os.MkdirAll(dir, 0o750); err != nil { //nolint:gosec // G703: operator-chosen output dir
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -185,12 +187,17 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	fail(genBig(filepath.Join(dir, "big.yml")))
+	// Every file is written through an os.Root on the output directory,
+	// so no generated name can resolve outside it.
+	root, err := os.OpenRoot(dir)
+	fail(err)
+	fail(genBig(root, "big.yml"))
 	for n := 1; n <= 40; n++ {
-		fail(genOverlay(filepath.Join(dir, fmt.Sprintf("o%02d.yml", n)), n))
+		fail(genOverlay(root, fmt.Sprintf("o%02d.yml", n), n))
 	}
 	for n := 41; n <= 42; n++ {
-		fail(genGoPatch(filepath.Join(dir, fmt.Sprintf("o%02d.yml", n)), n))
+		fail(genGoPatch(root, fmt.Sprintf("o%02d.yml", n), n))
 	}
-	fail(genDense(filepath.Join(dir, "dense.yml")))
+	fail(genDense(root, "dense.yml"))
+	fail(root.Close())
 }

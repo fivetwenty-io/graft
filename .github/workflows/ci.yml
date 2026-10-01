@@ -88,7 +88,7 @@ jobs:
       # new as the container's: golangci-lint parses the standard library
       # with its own go/types, and one built against an older toolchain
       # panics on "file requires newer Go version". v2.12.2 (built with
-      # go1.26.2) died that way once the containers moved to 1.27; v2.13.1
+      # go1.26.2) died that way once the containers moved to 1.27; v2.14.0
       # is built with go1.27.0. Bump this in lockstep with the image.
       #
       # The tree is clean under this config, so the whole config is
@@ -96,7 +96,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.13.1
+          version: v2.14.0
 
   test:
     name: Test

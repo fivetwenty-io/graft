@@ -40,9 +40,9 @@ INSTALL_PATH ?= /usr/local/bin
 # GOTOOLCHAIN pin also matters locally on its own: golangci-lint parses the
 # standard library with its own go/types, so a binary built against an older
 # toolchain than the one it analyzes panics with "file requires newer Go
-# version". v2.13.1 is built with go1.27.0; bump it whenever the toolchain
+# version". v2.14.0 is built with go1.27.0; bump it whenever the toolchain
 # moves.
-GOLANGCI_LINT_VERSION := v2.13.1
+GOLANGCI_LINT_VERSION := v2.14.0
 LINT_GOTOOLCHAIN := go1.27.1
 
 # Platform detection
