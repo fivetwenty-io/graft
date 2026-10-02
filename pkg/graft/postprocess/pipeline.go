@@ -526,7 +526,8 @@ func (p *KeySorter) Process(ctx context.Context, doc interface{}, meta *Metadata
 	if !p.Enabled {
 		return doc, nil
 	}
-	// Note: Go maps don't maintain order, but yaml.v3 can output sorted keys
+	// Note: Go maps don't maintain order, but goccy's encoder writes map
+	// keys in sorted order.
 	// We return a SortedMap wrapper that can be detected during serialization
 	return p.sortKeys(doc), nil
 }

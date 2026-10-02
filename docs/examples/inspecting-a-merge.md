@@ -395,7 +395,7 @@ The staging URL is cut off at the pane boundary, a reminder that the
 default total width is 80 columns. Pass `--width 140` when your values
 run longer.
 
-Passing no flag at all gives you dyff's own report, the most detailed of
+Passing no flag at all gives you the default report, the most detailed of
 the four. Reach for it when whole subtrees appear or disappear, which is
 the case it describes better than the others.
 

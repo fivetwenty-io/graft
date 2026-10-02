@@ -222,16 +222,17 @@ coloring, so that Genesis's pty wrapper produces the colorized output it
 expects.
 
 Graft's `diff` command does this, with neither `--color` nor
-`--no-color` given (auto mode, the default): its default report (no
-`--changes`/`--unified`/`--side-by-side` flag) is colored by
-[dyff](https://github.com/homeport/dyff)/bunt's own `isatty` check on
-stdout, independent of graft's `--color` flag entirely; the
-`--changes`/`--unified`/`--side-by-side` renderers are colored by
-graft's own `--color` auto-detection, which also keys off `isatty` on
-stdout (not stderr - see [Color flags](../reference/cli.md#color-flags)
-for the full precedence, including how an explicit `--color`/
-`--no-color` overrides this). Either way, confirmed by reading the
-source: graft's diff coloring, in the mode Genesis relies on, checks
+`--no-color` given (auto mode, the default). Its default report (no
+`--changes`/`--unified`/`--side-by-side` flag) follows graft's color
+flags. When no flag is given, it detects the terminal the way spruce's
+bunt library does, by checking `isatty` on stdout. That check counts
+Cygwin terminals, never colors a plain Windows console, and honors
+`TERM=dumb`. The `--changes`/`--unified`/`--side-by-side` renderers are
+colored by graft's own `--color` auto-detection, which also keys off
+`isatty` on stdout (not stderr - see
+[Color flags](../reference/cli.md#color-flags) for the full precedence,
+including how an explicit `--color`/`--no-color` overrides this). Either
+way, graft's diff coloring, in the mode Genesis relies on, checks
 `isatty` on stdout, matching spruce.
 
 This distinction (stdout vs. graft's stderr-based auto-detection for
@@ -240,9 +241,57 @@ wrapper: `fake_tty`/`script` attaches both stdout and stderr to a pty,
 so both file descriptors report as terminals to graft regardless of
 which one a given code path checks.
 
+The spruce-compat harness proves this byte for byte against real spruce
+v1.35.17. Pattern 1b runs the `fake_tty` case with the terminal width at
+0, and pattern 1c runs ptys at 80, 120, 133, and 200 columns. Each runs
+with and without `COLORTERM=truecolor`, which makes 86 runs for pattern
+1b and 344 for pattern 1c. All of them match, apart from a parse error's
+text after `yaml: line N: `, which the harness cuts off before it
+compares (see [Parse errors](#parse-errors) below).
+
 ## Template placeholders
 
 graft reads an unquoted `{{...}}` placeholder in a value position as a plain string in `graft merge`, `graft diff`, `graft json`, and files pulled in by `(( load ))`. spruce parses the same text as an empty nested map, so it reports no difference between `a: {{x}}` and `a: {{y}}`, and it panics when such a placeholder sits in a simple list. graft reports a value change instead and never panics. A placeholder used as a mapping key, and an unbalanced run of braces, stay parse errors in both tools.
+
+## Parse errors
+
+Genesis reads only the exit code of `spruce diff` and passes the message through, so a difference in the message text does not change what Genesis does. graft keeps spruce's `unable to parse data from <file>: yaml: ` prefix and its exit code of `2`. It then prints goccy's message, and the line number after the prefix can differ from the one spruce prints. The harness compares a parse error's stderr only through `yaml: `, and it compares the line number only where the two tools agree.
+
+`TestParseErrorLineDivergences` in `internal/yamlnode` pins the six inputs below, where libyaml and goccy report different lines or where spruce reports no line at all.
+
+| Input | spruce's message | graft's line |
+|-------|------------------|--------------|
+| `a: [1, 2` then `b: 3` | `yaml: line 1: did not find expected ',' or ']'` | `yaml: line 2: ` |
+| `a:` then `  b: 1` then ` c: 2` | `yaml: line 2: did not find expected key` | `yaml: line 3: ` |
+| `a: 'x` then `b: 1` | `yaml: line 3: found unexpected end of stream` | `yaml: line 1: ` |
+| `- a` then `b: 1` | `yaml: line 1: did not find expected '-' indicator` | `yaml: line 2: ` |
+| `a: b: c` | `yaml: mapping values are not allowed in this context` | `yaml: line 1: ` |
+| `a: @x` | `yaml: found character that cannot start any token` | `yaml: line 1: ` |
+
+`TestParseAcceptanceDivergences` pins four inputs where the two tools disagree about whether the input is YAML at all.
+
+| Input | spruce | graft |
+|-------|--------|-------|
+| `%YAML 1.2` directive | Rejects it with `yaml: found incompatible YAML document` | Accepts it |
+| `a: !!str` followed by `b: 1` | Accepts it, reading `a` as the empty string `!!str ""` | Rejects it with a parse error on line 2 |
+| `a: !!merge <<` | Accepts it, reading `a` as the string `<<` with the `!!merge` tag | Rejects it with a parse error on line 1 |
+| `%TAG !! tag:example.com,2000:` directive, then `a: !!foo 1` | Accepts it, reading the tag as `tag:example.com,2000:foo` | Rejects it with a parse error on line 3 |
+
+Accepted divergences, beyond the tables above:
+
+- graft accepts the `\/` escape, raw control characters, a stream that holds only `...`, and content after `...` without a new `---`. spruce rejects all four.
+
+- graft rejects complex mapping keys, which spruce accepts.
+
+- graft keeps a comment block between a key and its block collection in a different place when a later line of the block starts left of the key. `TestCommentsDedentedBlockDivergence` pins that placement.
+
+- graft reads a CRLF file exactly as it reads the same file with LF line endings, so the extra blank line spruce prints above a commented key in a CRLF file does not appear.
+
+- graft exits `2` with an error message where spruce panics.
+
+- TOML local dates and times print in the machine's local zone, as they do in spruce. The oracle that produces the parity goldens runs in `TZ=Etc/GMT+4`.
+
+The [diffing guide](../user-guide/diffing.md#accepted-differences-from-spruce) describes each of these in detail.
 
 ## Output byte stability across versions
 

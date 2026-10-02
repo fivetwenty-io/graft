@@ -4,7 +4,7 @@
 // "where did this value come from, and how did it change" by diffing a
 // sequence of whole-document snapshots (one per merge step, plus synthetic
 // evaluation/post-processing steps) with internal/histdiff.Compare - the
-// same dyff-backed semantic diff `graft diff` uses - rather than
+// same semantic diff engine `graft diff` uses - rather than
 // implementing a second comparison algorithm.
 //
 // This package holds only the pure step-diffing logic (Track/ChangedPaths).

@@ -992,7 +992,9 @@ func (m *mergeBuilderImpl) valueHasArrayOperators(value interface{}) bool {
 			return true
 		}
 	case map[interface{}]interface{}:
-		// yaml.v3 produces this for maps with non-string keys
+		// goccy decodes every mapping to map[string]interface{}, but values
+		// from other decoders (yaml.v2 via go-patch, for one) can carry
+		// non-string keys in this type, so the walk handles it too.
 		for _, val := range v {
 			if m.valueHasArrayOperators(val) {
 				return true

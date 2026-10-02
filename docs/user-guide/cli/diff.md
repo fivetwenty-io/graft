@@ -25,10 +25,10 @@ the same way here as with every other command.
 
 ## Output Formats
 
-### Default (dyff Report)
+### Default Report
 
-With no format flag, `diff` prints [dyff](https://github.com/homeport/dyff)'s
-own human-readable report:
+With no format flag, `diff` prints graft's spruce-compatible
+human-readable report, the same report `spruce diff` prints:
 
 ```sh
 graft diff base.yml modified.yml
@@ -60,13 +60,13 @@ database.timeout
 
 ```
 
-dyff orders its own report by path depth (root-level entries first, then
-each nested path), and brackets it with a leading and a trailing blank
-line.
+The report lists a container's own additions and removals first,
+followed by its children in the from-document's key order, depth first.
+It brackets the whole report with a leading and a trailing blank line.
 
 `--side-by-side`, `--unified`, and `--changes` (below) render the same
-underlying comparison differently; they don't add information dyff's own
-report is missing.
+underlying comparison differently; they don't add information the
+default report is missing.
 
 ### Side-by-Side
 
@@ -187,7 +187,13 @@ With neither flag given (the default, "auto"), graft colors `diff`'s
 output only when `NO_COLOR` is unset, `TERM` isn't `dumb`, and standard
 output is a terminal, so a diff piped into a file or another program
 comes out as plain text without your asking for it. This applies both to
-the default dyff report and to `--changes`/`--unified`/`--side-by-side`.
+the default report and to `--changes`/`--unified`/`--side-by-side`.
+
+When the default report is colored, it uses 24-bit color if `COLORTERM`
+is `truecolor` or `24bit`, and the 16-color palette otherwise. It never
+colors a plain Windows console, and `TERM=dumb` turns color off. These
+checks match what spruce does, so a colored `graft diff` and a colored
+`spruce diff` print the same bytes on the same terminal.
 
 A bare `--color` forces color on even when the destination is not a
 terminal. Use it when piping into a pager that understands escape
@@ -261,8 +267,9 @@ database:
 graft diff file1.yml file2.yml
 ```
 
-Identical (semantically) files produce no output and exit `0` — dyff has
-nothing to report, so there is no diff-specific "identical" message.
+Identical (semantically) files exit `0` and print two blank lines, the
+empty report's leading and trailing blank lines, as `spruce diff` does.
+There is no diff-specific "identical" message.
 
 ## Use Cases
 

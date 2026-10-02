@@ -57,13 +57,13 @@ type Change struct {
 }
 
 // Compare returns the semantic changes between from and to (each normally a
-// map[string]interface{} document tree, though any value dyff/ytbx can
+// map[string]interface{} document tree, though any value yamldiff can
 // represent as a YAML document root works), sorted by Path. fromLabel and
-// toLabel are used only as the dyff report's document locations (visible in
+// toLabel are used only as yamldiff's document locations (visible in
 // error messages), not in the returned Change values.
 //
-// Compare builds from and to into the YAML node trees go.yaml.in/yaml/v3
-// would produce by marshaling them and parsing the text back (see
+// Compare builds from and to into the YAML node trees yaml.v3 would
+// produce by marshaling them and parsing the text back (see
 // yamlnode.FromValue), the representation the comparison engine works
 // in. A value containing a Go type YAML cannot represent is returned as
 // an error rather than silently dropped.
@@ -104,9 +104,9 @@ func Compare(fromLabel string, from interface{}, toLabel string, to interface{})
 	return changes, nil
 }
 
-// detailToChanges converts one dyff.Detail into zero or more Changes.
+// detailToChanges converts one yamldiff.Detail into zero or more Changes.
 //
-// dyff reports an ADDITION/REMOVAL detail at the *parent* container's path,
+// yamldiff reports an ADDITION/REMOVAL detail at the *parent* container's path,
 // with detail.To/detail.From holding a YAML fragment of the added/removed
 // entries themselves (a MappingNode with the child key(s) still attached, a
 // SequenceNode with the child element(s), or - for multi-document input,
@@ -149,7 +149,7 @@ func detailToChanges(path string, detail yamldiff.Detail) ([]Change, error) {
 		}
 		return []Change{{Path: path, Kind: Modified, Old: oldVal, New: newVal}}, nil
 	default:
-		// A detail.Kind dyff doesn't currently emit; nothing to report
+		// A detail.Kind yamldiff doesn't currently emit; nothing to report
 		// rather than erroring the whole comparison over it.
 		return nil, nil
 	}
@@ -210,7 +210,7 @@ func fragmentToChanges(parentPath string, kind Kind, fragment *yamlnode.Node) ([
 	default:
 		// DocumentNode (multi-document input, never produced by this
 		// package's single-document Compare) or a scalar fragment
-		// (shouldn't occur for ADDITION/REMOVAL, which dyff only emits for
+		// (shouldn't occur for ADDITION/REMOVAL, which yamldiff only emits for
 		// container-level changes): report the whole fragment as one
 		// change at the parent path rather than dropping it silently.
 		val, err := decodeNode(fragment)
@@ -242,11 +242,13 @@ func decodeNode(node *yamlnode.Node) (interface{}, error) {
 // marshaling it and parsing the text back, the shape yamldiff.InputFile
 // documents take. yaml.v3 panics on chan, func, and complex values, and
 // the dyff-backed version recovered that panic as "marshaling value to
-// YAML: …", so an unsupported type keeps that prefix, while any other
-// error (such as a failing MarshalText) passes through unwrapped as it
-// always did. Compare's callers build values in code, for example in
-// internal/history, so a panic inside the encoder is still recovered and
-// returned as an error with the same prefix instead of crashing the CLI.
+// YAML: …", so an unsupported type keeps that prefix. Any other error
+// passes through unwrapped as it always did, which covers a failing
+// MarshalText and the errors for struct-tag problems such as a duplicate
+// yaml key, a bad flag, or a bad inline. Compare's callers build values
+// in code, for example in internal/history, so a panic inside the encoder
+// is still recovered and returned as an error with the same prefix
+// instead of crashing the CLI.
 func toYAMLNode(v interface{}) (doc *yamlnode.Node, err error) {
 	defer func() {
 		if r := recover(); r != nil {

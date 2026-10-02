@@ -1,7 +1,7 @@
 # Diff & Comparison
 
 Graft provides semantic comparison of YAML/JSON documents, in several
-output formats, built on [dyff](https://github.com/homeport/dyff).
+output formats, using a report that matches `spruce diff`.
 
 ## Overview
 
@@ -35,7 +35,7 @@ database:
 
 ## Diff Formats
 
-### Default (dyff Human Report)
+### Default (Human Report)
 
 ```sh
 graft diff base.yml modified.yml
@@ -66,9 +66,11 @@ database.timeout
 
 ```
 
-This is dyff's own human-readable report, unchanged — `graft diff` with no
-flags delegates entirely to dyff's `HumanReport` renderer. Exit code `1`
-(differences found).
+This is graft's own spruce-compatible human-readable report. `graft diff`
+with no flags prints the same bytes `spruce diff` prints, apart from the
+differences listed under [Accepted differences from
+spruce](#accepted-differences-from-spruce). Exit code `1` (differences
+found).
 
 ### Change List
 
@@ -164,9 +166,10 @@ graft diff --side-by-side --width=160 base.yml modified.yml
 | Removed | `-` | Key exists only in the first file |
 | Modified | `±` (default) / `MODIFIED` (`--changes`) | Value changed |
 
-Type changes (e.g. `8080` → `"8080"`) show up as a MODIFIED/value change
-with both the old and new value visible — there is no separate symbol for
-"type changed" specifically; dyff reports it as a value modification.
+Type changes (e.g. `8080` → `"8080"`) show up in the default report as
+`± type change from int to string`, with both the old and new value
+visible. `--changes` reports them as MODIFIED, since it has no separate
+symbol for a type change.
 
 ## Color Coding
 
@@ -236,7 +239,7 @@ port: "8080"      # string
 
 ```
 port
-± value change
+± type change from int to string
 - 8080
 + "8080"
 ```
@@ -305,6 +308,104 @@ echo
 graft diff --changes old-config.yml new-config.yml
 ```
 
+## Input Parsing
+
+`graft diff` reads its two inputs with graft's own YAML reader, which is
+built on goccy/go-yaml and made to behave like the yaml.v3 reader spruce
+uses. The two readers agree on almost every input. The subsections below
+cover the places where they don't, so a diff that surprises you can be
+traced to its cause.
+
+### Template placeholders
+
+An unquoted `{{...}}` placeholder in a value position reads as a plain
+string. That matters for files such as Concourse pipeline templates, where
+`a: {{x}}` against `a: {{y}}` reports a value change:
+
+```
+a
+± value change
+- {{x}}
++ {{y}}
+```
+
+spruce parses `{{x}}` as an empty nested map, so it reports no difference
+between those two files, and it panics when the placeholders sit in a
+simple list. `graft merge` reads the same placeholder as a string and
+writes it back quoted, so `a: {{x}}` merges to `a: '{{x}}'`. `graft json`
+and files pulled in with `(( load ))` read placeholders the same way, so a
+Concourse file behaves the same wherever graft reads YAML.
+
+The rewrite applies only in value positions. A placeholder used as a
+mapping key, and a run of unbalanced braces such as `{{{{`, stay parse
+errors.
+
+### Parse errors
+
+When an input does not parse, `graft diff` prints `unable to parse data
+from <file>: yaml: ` and exits `2`, as spruce does, and then prints
+goccy's message. The line number matches spruce's where libyaml and goccy
+agree. For some errors it differs, namely unterminated quotes, unclosed
+flow collections, bad indentation, and errors where spruce prints no line
+at all. `TestParseErrorLineDivergences` in `internal/yamlnode` records
+those cases, and the [Genesis compatibility
+contract](../spruce/genesis-compat-contract.md#parse-errors) lists them
+in a table.
+
+### Accepted differences from spruce
+
+These are the deliberate differences between `graft diff` and `spruce
+diff`. Each one is pinned by a test, so a change to any of them is
+caught.
+
+graft accepts these inputs, and spruce rejects them:
+
+- The `\/` escape in a double-quoted string.
+- Raw control characters.
+- A stream that holds only `...`.
+- Content after `...` without a new `---`.
+- A `%YAML 1.2` directive.
+
+graft rejects these inputs, and spruce accepts them:
+
+- Complex mapping keys.
+- An empty tagged value followed by another key, such as `a: !!str` and
+  then `b: 1`.
+- `!!merge <<` used as a value.
+- A `%TAG !!` directive.
+
+`TestParseAcceptanceDivergences` pins the `%YAML`, empty tagged value,
+`!!merge`, and `%TAG !!` cases.
+
+One comment layout lands in a different place. When a comment block sits
+between a key and its block collection, and a later line of the block
+starts left of the key, graft keeps the earlier line as the key's foot
+comment, where yaml.v3 gives it to the first item. In this document, graft
+attaches `# c22` to `y0`, and yaml.v3 attaches it to the first item:
+
+```yaml
+a:
+  y0:
+  # c22
+# c1
+  - 1
+```
+
+Both tools give `# c1` to the first item.
+`TestCommentsDedentedBlockDivergence` pins graft's placement.
+
+Where spruce panics, graft exits `2` with an error message instead of a
+stack trace. That covers an SGR `38` sequence without valid arguments
+inside a value, a tag of exactly `!`, and a modification with a nil node.
+
+TOML local dates and times print in the machine's local zone, as they do
+in spruce. graft uses the offset of the process's local zone, read when
+the file loads, as spruce does at startup.
+
+graft reads a CRLF file exactly as it reads the same file with LF line
+endings. spruce prints an extra blank line above a commented key in a CRLF
+file, and graft does not.
+
 ## Exit Codes
 
 | Code | Description |
@@ -331,13 +432,14 @@ specific paths) are not implemented. Combine `graft diff --changes` with
 
 ## Library API
 
-There is no public `graft.Diff`/`DiffResult`/`Change` library API. The
-`pkg/graft` package does export a lower-level `Diff(a, b interface{})
-(Diffable, error)` helper (spruce-inherited), but it has no non-test
-callers anywhere in graft and is not part of the `diff` command's own code
-path — `graft diff` builds directly on the `dyff`/`ytbx` packages, not on
-`pkg/graft`'s `Diff`. Treat it as an implementation detail, not a
-supported API.
+`pkg/graft` exports `DiffDocuments(a, b Document, opts *DiffOptions)
+(DiffResult, error)` for comparing two documents from Go code. It also
+exports a lower-level `Diff(a, b interface{}) (Diffable, error)` helper
+(spruce-inherited), which has no non-test callers anywhere in graft.
+
+Neither one is part of the `diff` command's own code path. `graft diff`
+builds on graft's internal comparison and report packages, so treat
+`Diff` as an implementation detail, not a supported API.
 
 ## See Also
 

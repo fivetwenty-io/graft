@@ -1082,9 +1082,10 @@ func loadDiffDocuments(paths []string) (fromLabel string, fromDoc interface{}, t
 }
 
 // decodeInputFileDocument decodes the first document of a loaded input
-// into a plain Go value, the way yaml.v3's Node.Decode does. An input with
-// no documents (an empty file) decodes to an empty map, matching graft
-// merge and json's own empty-document handling.
+// into a plain Go value. yamlnode.Decode returns what yaml.v3's
+// Node.Decode would produce. An input with no documents (an empty file)
+// decodes to an empty map, matching graft merge and json's own
+// empty-document handling.
 func decodeInputFileDocument(f yamldiff.InputFile) (interface{}, error) {
 	if len(f.Documents) == 0 {
 		return map[string]interface{}{}, nil
@@ -1423,8 +1424,9 @@ func newRootCmd() (*cobra.Command, *bool) {
 			// flag registration. colorVal has already been validated by
 			// PersistentPreRunE by the time RunE runs, so its resolve()
 			// error return is intentionally ignored here; the resulting
-			// override is passed through to handleDiff for its
-			// stdout-directed colored renderers (see handleDiffRender).
+			// override is passed through to handleDiff, which hands it
+			// to the default report and to the stdout-directed colored
+			// renderers (see handleDiffRender).
 			colorOverride, _ := colorVal.resolve()
 			colorOverride = applyNoColorOverride(colorOverride, noColor)
 			exit(handleDiff(args, colorOverride, diffOpts{

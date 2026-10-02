@@ -71,6 +71,10 @@ Precedence, highest first:
 An unrecognized `--color` value (anything other than the forms above)
 prints an error and exits `1` before any subcommand runs.
 
+`graft diff` resolves auto mode against stdout instead of stderr, for
+every report format. Its default report uses 24-bit color when
+`COLORTERM` is `truecolor` or `24bit` and the 16-color palette otherwise.
+
 `graft debug` and `graft merge --interactive` resolve color against
 their own stdout writer rather than stderr, since debugger output goes
 to stdout; a piped or redirected debug session gets plain output with no
@@ -234,7 +238,7 @@ with a report of how the final document's values were derived, built by
 re-running the merge one file at a time (raw, then fully evaluated, then
 post-processed if `--prune`/`--cherry-pick` were also given) and diffing
 each step against the last (`internal/history`, itself built on
-`internal/histdiff` — the same dyff-backed comparison `graft diff` uses).
+`internal/histdiff` — built on the same comparison engine `graft diff` uses).
 Every entry is attributed to a *file*, not a file:line — graft does not
 carry source line numbers through its merge pipeline.
 
@@ -451,14 +455,19 @@ graft json config.yml | graft json --reverse   # round-trip
 graft diff [flags] [file1] [file2]
 ```
 
-Shows the semantic difference between exactly two YAML files, built on
-[dyff](https://github.com/homeport/dyff). With no format flag, this is
-dyff's own human-readable report; `--changes`, `--unified`, and
-`--side-by-side` select an alternate rendering of the same underlying
-comparison instead (`internal/histdiff.Compare`, also what `merge
+Shows the semantic difference between exactly two YAML files. With no
+format flag, this is graft's spruce-compatible human-readable report,
+which matches `spruce diff` byte for byte apart from the differences in
+[Accepted differences from
+spruce](../user-guide/diffing.md#accepted-differences-from-spruce);
+`--changes`, `--unified`, and `--side-by-side` select an alternate
+rendering of the same underlying comparison instead
+(`internal/histdiff.Compare`, also what `merge
 --history`/`--show-changes`/`--changes-only` are built on). `diff` honors
-the root `--color`/`--no-color` flags (`auto` by default, colored only
-when stderr is a terminal; see [Color flags](#color-flags) above). Calling
+the root `--color`/`--no-color` flags (`auto` by default). Unlike the
+other commands, `diff` decides auto mode from stdout's terminal state, not
+stderr's, because the report goes to stdout; see
+[Color flags](#color-flags) above. Calling
 `diff` with a number of positional arguments other than two prints usage
 and exits `1`, independent of the exit-code rules below.
 

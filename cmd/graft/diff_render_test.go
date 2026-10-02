@@ -126,8 +126,8 @@ func TestRenderUnifiedDiffMissingKeyOnOneSide(t *testing.T) {
 }
 
 // TestRenderUnifiedDiffSequenceRoot locks F7's fix: a sequence-root document
-// (ytbx/dyff's TopLevelPaths would yield a bracket index like "[0]", never a
-// real map key) must still produce a real diff, not a header with an empty
+// (whose top-level path would be a bracket index like "[0]", never a real
+// map key) must still produce a real diff, not a header with an empty
 // body.
 func TestRenderUnifiedDiffSequenceRoot(t *testing.T) {
 	ansi.Color(false)

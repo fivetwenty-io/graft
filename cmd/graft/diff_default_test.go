@@ -113,7 +113,7 @@ func TestDiffLoadErrorStylesLocation(t *testing.T) {
 	}
 	_, stderr, _ = runMainCaptured(t, "diff", "/nonexistent/graft/nosuch.yml", "../../assets/merge/first.yml")
 	if !strings.HasPrefix(stderr, "unable to load data from /nonexistent/graft/nosuch.yml: Get \"/nonexistent/graft/nosuch.yml\"") {
-		t.Fatalf("stderr=%q, want ytbx's plain message", stderr)
+		t.Fatalf("stderr=%q, want the plain message", stderr)
 	}
 }
 

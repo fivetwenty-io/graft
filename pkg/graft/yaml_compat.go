@@ -22,8 +22,10 @@ func QuoteInjectKeys(data []byte) []byte {
 
 // NormalizeMap deep-converts any map[interface{}]interface{} values
 // to map[string]interface{} throughout the tree. This is needed because
-// yaml.v3 produces map[interface{}]interface{} when maps contain
-// non-string keys (e.g., integer keys like 1:, 2:).
+// values that other decoders produce, such as yaml.v2 through go-patch,
+// use map[interface{}]interface{} when maps contain non-string keys
+// (e.g., integer keys like 1:, 2:). goccy decodes those same maps into
+// map[string]interface{} with stringified keys.
 func NormalizeMap(data map[string]interface{}) map[string]interface{} {
 	if data == nil {
 		return nil
@@ -116,7 +118,8 @@ func (c *YAMLCompat) convertAny(v interface{}) interface{} {
 	case map[string]interface{}:
 		return c.ConvertMapValues(val)
 	case map[interface{}]interface{}:
-		// yaml.v3 produces this for maps with non-string keys (e.g., integer keys)
+		// Other decoders produce this for maps with non-string keys (e.g.,
+		// integer keys); goccy itself stringifies them.
 		for k, v := range val {
 			val[k] = c.convertAny(v)
 		}

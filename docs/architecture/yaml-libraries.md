@@ -10,9 +10,12 @@ parsing and marshalling. Output marshalling uses a 2-space indent encoder
 |---------|-------------|------|
 | `github.com/goccy/go-yaml` | `github.com/goccy/go-yaml` | All YAML parsing and marshalling |
 
-`gopkg.in/yaml.v3` and `gopkg.in/yaml.v2` appear in go.mod as indirect
-dependencies (via `gonvenience/ytbx`, `homeport/dyff`, etc.) but are not
-imported by any Graft source file.
+Every YAML parse and encode in Graft's own code goes through
+goccy/go-yaml. `gopkg.in/yaml.v2` stays in the build graph because
+`github.com/cppforlife/go-patch` imports it, but no Graft source file
+imports it. Graft no longer depends on any external diff or report
+library. The parts of those libraries that `graft diff` used now live in
+internal packages built on goccy/go-yaml, listed below.
 
 ---
 
@@ -40,6 +43,22 @@ actively maintained.
 - `internal/backends/vault/client.go` — Vault token file parsing
 - `internal/backends/nats/client.go` — NATS KV/object-store value parsing
 - `pkg/graft/operators/op_aws.go` — AWS secret value parsing
+
+### Internal packages built on goccy/go-yaml
+
+- `internal/yamlprep` — Holds the input rewrites that work around goccy
+  limits and run before every parse. They cover the bare `-` terminator,
+  `<<<:` inject keys, and `{{...}}` placeholders, which read as strings.
+- `internal/yamlnode` — A yaml.v3-compatible node model. It parses
+  documents with goccy, resolves tags, places comments, encodes Go values,
+  and decodes nodes back into Go values.
+- `internal/yamldiff` — Graft's own comparison engine and input loader,
+  ported from the libraries that `graft diff` used before. It loads files,
+  URLs, and stdin, and it produces the list of differences between two
+  documents.
+- `internal/humanreport` — Renders those differences as the report that
+  `graft diff` prints by default, matching `spruce diff`. It relies on
+  `internal/termstyle` for colors and terminal detection.
 
 ### Marshalling (output path)
 

@@ -141,7 +141,7 @@ func TestCompareDetectsSimpleListAddition(t *testing.T) {
 
 func TestCompareScalarRootTypeChange(t *testing.T) {
 	// A root-level type change (map -> scalar) should not error even though
-	// it's an unusual document shape; dyff represents it as a modification
+	// it's an unusual document shape; yamldiff represents it as a modification
 	// at the root.
 	from := map[string]interface{}{"a": 1}
 	to := map[string]interface{}{"a": "one"}

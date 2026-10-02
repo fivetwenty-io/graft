@@ -715,14 +715,16 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		return nil, nil
 	}
 
-	// Check that root is a map/hash — yaml.v3 returns map[string]interface{}
+	// Check that root is a map/hash. goccy decodes a mapping into
+	// map[string]interface{}, even when its keys are not strings.
 	switch result := genericResult.(type) {
 	case map[string]interface{}:
 		// Apply YAML 1.1 boolean compatibility conversions (yes/no/on/off → bool)
 		// and strip quoted-bool protection markers in one walk.
 		return NewDocument(e.yamlCompat().ConvertAndUnprotect(result)), nil
 	case map[interface{}]interface{}:
-		// yaml.v3 produces this when all root keys are non-strings
+		// goccy does not produce this itself, but a value that came from
+		// another decoder can carry it, so its keys are stringified here.
 		converted := make(map[string]interface{}, len(result))
 		for k, v := range result {
 			converted[fmt.Sprintf("%v", k)] = v
