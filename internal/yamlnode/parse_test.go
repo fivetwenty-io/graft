@@ -3,6 +3,7 @@ package yamlnode_test
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -244,6 +245,35 @@ func TestParseUnknownAliasError(t *testing.T) {
 	_, err := yamlnode.Parse([]byte("a: *x\n"))
 	if err == nil || err.Error() != "yaml: unknown anchor 'x' referenced" {
 		t.Fatalf("err = %v, want yaml.v3's unknown anchor text", err)
+	}
+}
+
+// TestParseRejectsSelfReferencingAnchor checks that an alias inside the
+// node its anchor names is a parse error with the text yaml.v3's decoder
+// gives, because a tree that contains itself sends every walk over it
+// into an endless loop. An alias to a finished node is still fine, even
+// when the anchor name is reused inside the collection it first named.
+func TestParseRejectsSelfReferencingAnchor(t *testing.T) {
+	for _, in := range []string{
+		"a: &x [*x]\n",
+		"a: &x {b: *x}\n",
+		"a: &x\n  b:\n    - *x\n",
+		"&x [[1, *x]]\n",
+	} {
+		_, err := yamlnode.Parse([]byte(in))
+		var pe *yamlnode.ParseError
+		if !errors.As(err, &pe) || err.Error() != "yaml: anchor 'x' value contains itself" {
+			t.Errorf("Parse(%q) = %v, want the ParseError yaml: anchor 'x' value contains itself", in, err)
+		}
+	}
+	for _, in := range []string{
+		"a: &x [1]\nb: [*x]\n",
+		"a: &x [&x 1, *x]\n",
+		"a: &x [1]\n---\nb: [*x]\n",
+	} {
+		if _, err := yamlnode.Parse([]byte(in)); err != nil {
+			t.Errorf("Parse(%q) = %v, want no error", in, err)
+		}
 	}
 }
 

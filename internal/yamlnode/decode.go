@@ -237,9 +237,16 @@ func (d *decoder) document(n *Node, out *slot) bool {
 	return false
 }
 
+// containsItself is yaml.v3's message for an alias that sits inside the
+// node its anchor names. The decoder raises it when a decode reaches such
+// an alias, and Parse raises it when the alias is built.
+func containsItself(anchor string) string {
+	return "anchor '" + anchor + "' value contains itself"
+}
+
 func (d *decoder) alias(n *Node, out *slot) bool {
 	if d.aliases[n] {
-		failf("anchor '%s' value contains itself", n.Value)
+		failf("%s", containsItself(n.Value))
 	}
 	d.aliases[n] = true
 	d.aliasDepth++

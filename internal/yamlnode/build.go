@@ -12,6 +12,7 @@ import (
 // for the document that declares them, as in libyaml.
 type builder struct {
 	anchors     map[string]*Node
+	open        map[*Node]bool // anchored collections still being built
 	tagHandles  map[string]string
 	nulledLines map[int]bool
 
@@ -25,6 +26,7 @@ type builder struct {
 func newBuilder(nulledLines []int) *builder {
 	b := &builder{
 		anchors:     map[string]*Node{},
+		open:        map[*Node]bool{},
 		tagHandles:  map[string]string{},
 		nulledLines: map[int]bool{},
 	}
@@ -98,6 +100,13 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 		if target == nil {
 			return nil, &ParseError{Message: "unknown anchor '" + name + "' referenced"}
 		}
+		if b.open[target] {
+			// The alias sits inside the collection it names, so the tree
+			// would contain itself. yaml.v3 builds that tree and fails
+			// only when it decodes it, but nothing in graft may walk a
+			// cycle, so the load fails here with the decoder's message.
+			return nil, &ParseError{Message: containsItself(name)}
+		}
 		out := &Node{Kind: AliasNode, Value: name, Alias: target}
 		b.at(out, alias)
 		return out, nil
@@ -107,6 +116,7 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
+	delete(b.open, out)
 	if explicitTag != "" {
 		out.Tag = explicitTag
 	}
@@ -179,11 +189,14 @@ func (b *builder) buildScalar(n ast.ScalarNode) *Node {
 }
 
 // collection starts a mapping or sequence and registers its anchor before
-// its children are built, as yaml.v3's parser does.
+// its children are built, as yaml.v3's parser does. An anchored
+// collection stays open until build finishes it, so an alias to it from
+// inside can be caught.
 func (b *builder) collection(kind Kind, tag, anchor string, n ast.Node) *Node {
 	out := &Node{Kind: kind, Tag: tag, Anchor: anchor}
 	if anchor != "" {
 		b.anchors[anchor] = out
+		b.open[out] = true
 	}
 	b.at(out, n)
 	return out
