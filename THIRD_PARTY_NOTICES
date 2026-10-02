@@ -7,7 +7,7 @@ each project's notice and license follow.
 ================================================================
 go.yaml.in/yaml/v3 v3.0.4
 https://github.com/yaml/go-yaml
-Files: internal/yamlnode/resolve.go, internal/yamlnode/keysort.go, internal/yamlnode/encode.go, internal/yamlnode/decode.go
+Files: internal/yamlnode/resolve.go, internal/yamlnode/keysort.go, internal/yamlnode/encode.go, internal/yamlnode/decode.go, internal/yamlnode/comments.go
 License: Apache-2.0 (with MIT for code ported from libyaml)
 Copyright 2011-2016 Canonical Ltd.
 Changes: ported to graft's yamlnode model; see each file's header.
@@ -95,7 +95,7 @@ Copyright (c) 2019 The Homeport Team
 ----------------------------------------------------------------
 github.com/gonvenience/ytbx v1.5.0
 https://github.com/gonvenience/ytbx
-Files: internal/yamldiff/path.go, internal/yamldiff/grab.go, internal/yamldiff/input.go, internal/yamldiff/convert.go, internal/humanreport/restructure.go
+Files: internal/yamldiff/path.go, internal/yamldiff/grab.go, internal/yamldiff/input.go, internal/yamldiff/convert.go, internal/humanreport/restructure.go, internal/humanreport/report.go
 License: MIT
 Copyright (c) 2018 The Homeport Team
 ----------------------------------------------------------------
