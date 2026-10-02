@@ -373,8 +373,8 @@ exits `2`, so graft's message is clearer and the exit code is the same.
 Two accepted differences come with the depth limit. When a file has both
 a syntax error and nesting deeper than 10,000 levels, graft reports the
 depth error even if the syntax error comes first, because it checks depth
-before it parses. spruce reports the error it reaches first. The line
-number in a depth error follows libyaml's rules by emulation, so it can
+before it parses. spruce reports the error it reaches first. graft
+emulates libyaml's rules for the line number in a depth error, so it can
 differ from the line spruce prints. Both tools still exit `2` in both
 cases. `TestParseDepthLimit` and `TestParseDepthErrorBeatsSyntaxError`
 in `internal/yamlnode` pin them, and `TestDiffRejectsSelfReferencingAnchor`
