@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fivetwenty-io/graft/internal/yamlgolden"
 )
@@ -116,5 +117,18 @@ func TestStripSGRAndPlainLen(t *testing.T) {
 	}
 	if got := PlainLen("a\x1b[\x1b[0m1mb"); got != 2 {
 		t.Errorf("PlainLen must strip until no escape remains, as bunt does, got %d, want 2", got)
+	}
+}
+
+func TestStyleLongColorSequenceIsLinear(t *testing.T) {
+	text := "\x1b[" + strings.Repeat("38;2;1;2;3;", 19999) + "38;2;1;2;3mtext"
+	start := time.Now()
+	got, err := Mode{Color: true, TrueColor: true}.Style(text)
+	elapsed := time.Since(start)
+	if err != nil || !strings.HasSuffix(got, "text\x1b[0m") {
+		t.Fatalf("Style = %.40q, %v", got, err)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("Style took %v on one long escape sequence, want under 2s", elapsed)
 	}
 }

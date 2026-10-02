@@ -222,12 +222,10 @@ func basicColorMask(code uint8) uint64 {
 // rejects and for the reads that make bunt panic with an index error. skip
 // is the number of parameters the color selection consumed after the code.
 func parseExtendedColor(values []uint8, i int, foreground bool) (mask uint64, skip int, err error) {
-	kind := "background"
-	if foreground {
-		kind = "foreground"
-	}
-
-	fail := &SGRError{msg: fmt.Sprintf("unsupported %s color selection '%v'", kind, values)}
+	// The error is built only where it is returned, because formatting the
+	// whole parameter list for every valid selection would make a long
+	// sequence quadratic.
+	fail := func() *SGRError { return extendedColorError(values, foreground) }
 	maskFor := bgRGBMask
 	if foreground {
 		maskFor = fgRGBMask
@@ -235,12 +233,12 @@ func parseExtendedColor(values []uint8, i int, foreground bool) (mask uint64, sk
 
 	if len(values) > 4 {
 		if i+1 >= len(values) {
-			return 0, 0, fail
+			return 0, 0, fail()
 		}
 
 		if values[i+1] == 2 {
 			if i+4 >= len(values) {
-				return 0, 0, fail
+				return 0, 0, fail()
 			}
 
 			return maskFor(uint64(values[i+2]), uint64(values[i+3]), uint64(values[i+4])), 4, nil
@@ -249,12 +247,12 @@ func parseExtendedColor(values []uint8, i int, foreground bool) (mask uint64, sk
 
 	if len(values) > 2 {
 		if i+1 >= len(values) {
-			return 0, 0, fail
+			return 0, 0, fail()
 		}
 
 		if values[i+1] == 5 {
 			if i+2 >= len(values) {
-				return 0, 0, fail
+				return 0, 0, fail()
 			}
 
 			c := colorPalette8bit[values[i+2]]
@@ -263,7 +261,18 @@ func parseExtendedColor(values []uint8, i int, foreground bool) (mask uint64, sk
 		}
 	}
 
-	return 0, 0, fail
+	return 0, 0, fail()
+}
+
+// extendedColorError returns the error bunt panics with for a malformed
+// color selection over the parsed values.
+func extendedColorError(values []uint8, foreground bool) *SGRError {
+	kind := "background"
+	if foreground {
+		kind = "foreground"
+	}
+
+	return &SGRError{msg: fmt.Sprintf("unsupported %s color selection '%v'", kind, values)}
 }
 
 func fgRGBMask(r, g, b uint64) uint64 {
