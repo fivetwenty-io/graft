@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -193,4 +194,16 @@ func LineErrorPrefix(msg string) (string, bool) {
 		return "", false
 	}
 	return msg[:i+len(marker)+j+2], true
+}
+
+// OnlyMatch returns the path of the one file in dir whose name is prefix
+// followed by a dot and an extension, such as from.yml or to.json, and
+// fails the test unless exactly one file matches.
+func OnlyMatch(t testing.TB, dir, prefix string) string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(dir, prefix+".*"))
+	if err != nil || len(matches) != 1 {
+		t.Fatalf("%s: want one %s.* file, found %v", dir, prefix, matches)
+	}
+	return matches[0]
 }

@@ -1,6 +1,9 @@
 package yamlgolden
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -57,6 +60,42 @@ func TestLineErrorPrefix(t *testing.T) {
 		got, ok := LineErrorPrefix(tc.msg)
 		if got != tc.want || ok != tc.ok {
 			t.Errorf("LineErrorPrefix(%q) = %q, %v; want %q, %v", tc.msg, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+// fatalRecorder notes a call to Fatalf and then stops the goroutine, as
+// testing.T does.
+type fatalRecorder struct {
+	testing.TB
+	failed bool
+}
+
+func (r *fatalRecorder) Fatalf(string, ...interface{}) {
+	r.failed = true
+	runtime.Goexit()
+}
+
+func TestOnlyMatch(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"from.yml", "to.json", "to.toml"} {
+		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, want := OnlyMatch(t, dir, "from"), filepath.Join(dir, "from.yml"); got != want {
+		t.Errorf("OnlyMatch(from) = %q, want %q", got, want)
+	}
+	for _, prefix := range []string{"to", "missing"} {
+		rec := &fatalRecorder{TB: t}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			OnlyMatch(rec, dir, prefix)
+		}()
+		<-done
+		if !rec.failed {
+			t.Errorf("OnlyMatch(%s) did not fail the test", prefix)
 		}
 	}
 }

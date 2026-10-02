@@ -89,7 +89,7 @@ Copyright (c) 2011-2019 Canonical Ltd
 ================================================================
 github.com/homeport/dyff v1.12.0
 https://github.com/homeport/dyff
-Files: internal/yamldiff/identifier.go, internal/yamldiff/grab.go, internal/yamldiff/hash.go
+Files: internal/yamldiff/identifier.go, internal/yamldiff/grab.go, internal/yamldiff/hash.go, internal/yamldiff/compare.go, internal/yamldiff/models.go
 License: MIT
 Copyright (c) 2019 The Homeport Team
 ----------------------------------------------------------------

@@ -1,0 +1,845 @@
+// Copyright © 2019 The Homeport Team
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+//
+// Ported from github.com/homeport/dyff v1.12.0 (core.go) and modified for
+// graft: the engine compares yamlnode trees, the compare options are gone
+// in favor of graft's fixed settings (a guess threshold of 3, Kubernetes
+// detection on, order changes reported, and rename detection and string
+// formatting off), list hashing goes through nodeHash and returns an
+// error where dyff panics, and the larger functions are split into
+// helpers that keep every decision in dyff's order.
+
+package yamldiff
+
+import (
+	"fmt"
+	"sort"
+
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
+)
+
+// The short tags the engine looks at.
+const (
+	tagStr  = "!!str"
+	tagNull = "!!null"
+	tagBool = "!!bool"
+	tagSeq  = "!!seq"
+)
+
+// nonStandardIdentifierGuessCountThreshold is how many distinct values a
+// guessed identifier field must exceed before it names list entries.
+const nonStandardIdentifierGuessCountThreshold = 3
+
+// listItemIdentifierCandidates are the fields that name list entries,
+// checked in this order. "manager" is dyff's Kubernetes extra candidate.
+var listItemIdentifierCandidates = []string{"name", "key", "id", "manager"}
+
+// CompareInputFiles compares two inputs and reports their differences in
+// dyff's order. When every non-empty document on both sides is a
+// Kubernetes resource, documents are matched by resource name, and the
+// report's inputs keep only those documents and carry their names.
+// Otherwise documents are compared by position, and both inputs must hold
+// the same number of documents.
+func CompareInputFiles(from, to InputFile) (Report, error) {
+	fromDocs, fromNames, fromNamed := kubernetesDocuments(from)
+	toDocs, toNames, toNamed := kubernetesDocuments(to)
+	if fromNamed && toNamed {
+		from.Documents, from.Names = fromDocs, fromNames
+		to.Documents, to.Names = toDocs, toNames
+
+		result, err := documentNodes(from, to)
+		if err != nil {
+			return Report{}, fmt.Errorf("comparing Kubernetes resources: %w", err)
+		}
+		return Report{From: from, To: to, Diffs: result}, nil
+	}
+
+	if len(from.Documents) != len(to.Documents) {
+		return Report{}, fmt.Errorf("comparing YAMLs with a different number of documents is currently not supported")
+	}
+
+	var result []Diff
+	for idx := range from.Documents {
+		diffs, err := objects(Path{Root: &from, DocumentIdx: idx}, from.Documents[idx], to.Documents[idx])
+		if err != nil {
+			return Report{}, err
+		}
+		result = append(result, diffs...)
+	}
+
+	return Report{From: from, To: to, Diffs: result}, nil
+}
+
+// kubernetesDocuments returns the non-empty documents of input, the
+// Kubernetes resource names it could find for them, and whether every one
+// of those documents has a name.
+func kubernetesDocuments(input InputFile) (docs []*yamlnode.Node, names []string, allNamed bool) {
+	for _, entry := range input.Documents {
+		if isEmptyDocument(entry) {
+			continue
+		}
+		docs = append(docs, entry)
+		if len(entry.Content) == 0 {
+			continue
+		}
+		if name, err := k8sItem.Name(entry.Content[0]); err == nil {
+			names = append(names, name)
+		}
+	}
+
+	return docs, names, len(names) == len(docs)
+}
+
+// modification returns one MODIFICATION diff at path.
+func modification(path Path, from, to *yamlnode.Node) []Diff {
+	return []Diff{{
+		Path:    &path,
+		Details: []Detail{{Kind: MODIFICATION, From: from, To: to}},
+	}}
+}
+
+func objects(path Path, from, to *yamlnode.Node) ([]Diff, error) {
+	switch {
+	case from == nil && to == nil:
+		return []Diff{}, nil
+
+	case from == nil || to == nil:
+		return modification(path, from, to), nil
+
+	case from.Kind != to.Kind || from.Tag != to.Tag:
+		return modification(path, from, to), nil
+	}
+
+	return nonNilSameKindNodes(path, from, to)
+}
+
+func nonNilSameKindNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
+	switch from.Kind {
+	case yamlnode.DocumentNode:
+		return objects(path, documentRoot(from), documentRoot(to))
+
+	case yamlnode.MappingNode:
+		return mappingNodes(path, from, to)
+
+	case yamlnode.SequenceNode:
+		return sequenceNodes(path, from, to)
+
+	case yamlnode.ScalarNode:
+		return scalarNodes(path, from, to)
+
+	case yamlnode.AliasNode:
+		return objects(path, from.Alias, to.Alias)
+
+	default:
+		return nil, fmt.Errorf("failed to compare objects due to unsupported kind %v", from.Kind)
+	}
+}
+
+// documentRoot returns the one child of a document node, or nil when the
+// document has none.
+func documentRoot(document *yamlnode.Node) *yamlnode.Node {
+	if len(document.Content) == 0 {
+		return nil
+	}
+
+	return document.Content[0]
+}
+
+func scalarNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
+	switch from.Tag {
+	case tagStr:
+		return nodeValues(path, from, to), nil
+
+	case tagNull:
+		// Every way of writing a null value is the same null.
+		return nil, nil
+
+	case tagBool:
+		return boolValues(path, from, to)
+
+	default:
+		if from.Value != to.Value {
+			return modification(path, from, to), nil
+		}
+		return nil, nil
+	}
+}
+
+// indexedDocument is a document's root node and its position in its
+// input.
+type indexedDocument struct {
+	node *yamlnode.Node
+	idx  int
+}
+
+// documentLookup maps each document's Kubernetes resource name to its
+// root and position, the last document winning a repeated name, and
+// returns the names in document order.
+func documentLookup(input InputFile) (map[string]indexedDocument, []string, error) {
+	lookup := make(map[string]indexedDocument)
+	var names []string
+
+	for i, document := range input.Documents {
+		node := documentRoot(document)
+		if node == nil {
+			return nil, nil, fmt.Errorf("document #%d has no content", i+1)
+		}
+
+		name, err := k8sItem.Name(node)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		names = append(names, name)
+		lookup[name] = indexedDocument{idx: i, node: node}
+	}
+
+	return lookup, names, nil
+}
+
+// documentNodes compares Kubernetes resources by name. Matching documents
+// are compared first, then each document only from has becomes a removal,
+// each document only to has becomes an addition, and a change in the
+// order of the names becomes one order change without a path.
+func documentNodes(from, to InputFile) ([]Diff, error) {
+	fromLookup, fromNames, err := documentLookup(from)
+	if err != nil {
+		return nil, err
+	}
+
+	toLookup, toNames, err := documentLookup(to)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []Diff
+	var removals, additions []indexedDocument
+
+	for _, name := range fromNames {
+		fromItem := fromLookup[name]
+		toItem, ok := toLookup[name]
+		if !ok {
+			removals = append(removals, fromItem)
+			continue
+		}
+
+		diffs, err := objects(
+			Path{Root: &from, DocumentIdx: fromItem.idx},
+			yamlnode.FollowAlias(fromItem.node),
+			yamlnode.FollowAlias(toItem.node),
+		)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, diffs...)
+	}
+
+	for _, name := range toNames {
+		if _, ok := fromLookup[name]; !ok {
+			additions = append(additions, toLookup[name])
+		}
+	}
+
+	result = append(result, documentChanges(&from, REMOVAL, removals)...)
+	result = append(result, documentChanges(&to, ADDITION, additions)...)
+
+	return append(result, documentOrderChange(fromNames, toNames)...), nil
+}
+
+// documentChanges returns one diff per whole document added to or
+// removed from root, each holding a fresh document node that wraps the
+// document's root.
+func documentChanges(root *InputFile, kind DetailKind, docs []indexedDocument) []Diff {
+	result := make([]Diff, 0, len(docs))
+	for _, d := range docs {
+		document := &yamlnode.Node{Kind: yamlnode.DocumentNode, Content: []*yamlnode.Node{d.node}}
+		detail := Detail{Kind: kind}
+		if kind == ADDITION {
+			detail.To = document
+		} else {
+			detail.From = document
+		}
+
+		result = append(result, Diff{
+			Path:    &Path{Root: root, DocumentIdx: d.idx},
+			Details: []Detail{detail},
+		})
+	}
+
+	return result
+}
+
+// documentOrderChange returns one order change without a path when both
+// name lists have the same length and differ at some position.
+func documentOrderChange(fromNames, toNames []string) []Diff {
+	if len(fromNames) != len(toNames) {
+		return nil
+	}
+
+	for i := range fromNames {
+		if fromNames[i] != toNames[i] {
+			return []Diff{{
+				Details: []Detail{{
+					Kind: ORDERCHANGE,
+					From: AsSequenceNode(fromNames...),
+					To:   AsSequenceNode(toNames...),
+				}},
+			}}
+		}
+	}
+
+	return nil
+}
+
+// mappingNodes compares two mappings key by key. Keys only from has are
+// gathered into one removal fragment and keys only to has into one
+// addition fragment, which take the parent's kind and tag and reuse the
+// original key and value nodes. That diff comes before the diffs of the
+// shared keys.
+func mappingNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
+	result := make([]Diff, 0)
+	removals := []*yamlnode.Node{}
+	additions := []*yamlnode.Node{}
+
+	for i := 0; i+1 < len(from.Content); i += 2 {
+		key, fromItem := from.Content[i], from.Content[i+1]
+		toItem, ok := findValueByKey(to, key.Value)
+		if !ok {
+			removals = append(removals, key, fromItem)
+			continue
+		}
+
+		diffs, err := objects(
+			NewPathWithNamedElement(path, key.Value),
+			yamlnode.FollowAlias(fromItem),
+			yamlnode.FollowAlias(toItem),
+		)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, diffs...)
+	}
+
+	for i := 0; i+1 < len(to.Content); i += 2 {
+		key, toItem := to.Content[i], to.Content[i+1]
+		if _, ok := findValueByKey(from, key.Value); !ok {
+			additions = append(additions, key, toItem)
+		}
+	}
+
+	diff := Diff{Path: &path, Details: []Detail{}}
+
+	if len(removals) > 0 {
+		diff.Details = append(diff.Details, Detail{
+			Kind: REMOVAL,
+			From: &yamlnode.Node{Kind: from.Kind, Tag: from.Tag, Content: removals},
+		})
+	}
+
+	if len(additions) > 0 {
+		diff.Details = append(diff.Details, Detail{
+			Kind: ADDITION,
+			To:   &yamlnode.Node{Kind: to.Kind, Tag: to.Tag, Content: additions},
+		})
+	}
+
+	if len(diff.Details) > 0 {
+		result = append([]Diff{diff}, result...)
+	}
+
+	return result, nil
+}
+
+// sequenceNodes compares two lists, naming their entries by a known
+// identifier field, then by a guessed one, then by Kubernetes resource
+// name, and comparing them as simple lists when none of those applies.
+func sequenceNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
+	if len(from.Content) == 0 && len(to.Content) == 0 {
+		return []Diff{}, nil
+	}
+
+	if identifier, ok := getIdentifierFromNamedLists(from, to); ok {
+		return namedEntryLists(path, identifier, from, to)
+	}
+
+	if identifier := getNonStandardIdentifierFromNamedLists(from, to); identifier != nil {
+		return namedEntryLists(path, identifier, from, to)
+	}
+
+	if getIdentifierFromKubernetesEntityList(from, to) {
+		return namedEntryLists(path, k8sItem, from, to)
+	}
+
+	return simpleLists(path, from, to)
+}
+
+// hashedNodes is a list of nodes and their nodeHash values.
+type hashedNodes struct {
+	nodes  []*yamlnode.Node
+	hashes []uint64
+}
+
+func (h *hashedNodes) add(node *yamlnode.Node, hash uint64) {
+	h.nodes = append(h.nodes, node)
+	h.hashes = append(h.hashes, hash)
+}
+
+// contains reports whether a node with the given hash is in the list,
+// which is dyff's hasEntry.
+func (h *hashedNodes) contains(hash uint64) bool {
+	for _, entry := range h.hashes {
+		if entry == hash {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hashList returns the nodeHash of every entry in the sequence and maps
+// each hash to the positions of the entries that have it.
+func hashList(sequence *yamlnode.Node) ([]uint64, map[uint64][]int, error) {
+	hashes := make([]uint64, len(sequence.Content))
+	lookup := make(map[uint64][]int, len(sequence.Content))
+	for idx, entry := range sequence.Content {
+		hash, err := nodeHash(entry)
+		if err != nil {
+			return nil, nil, err
+		}
+		hashes[idx] = hash
+		lookup[hash] = append(lookup[hash], idx)
+	}
+
+	return hashes, lookup, nil
+}
+
+// simpleLists compares two lists entry by entry through their hashes.
+// Two one-entry lists compare their entries directly. Otherwise an entry
+// missing on the other side is a removal or an addition, an entry that
+// appears more often on one side adds the surplus copies once, and the
+// entries both sides share are checked for an order change.
+func simpleLists(path Path, from, to *yamlnode.Node) ([]Diff, error) {
+	if len(from.Content) == 1 && len(to.Content) == 1 {
+		return objects(
+			NewPathWithIndexedListElement(path, 0),
+			yamlnode.FollowAlias(from.Content[0]),
+			yamlnode.FollowAlias(to.Content[0]),
+		)
+	}
+
+	fromHashes, fromLookup, err := hashList(from)
+	if err != nil {
+		return nil, err
+	}
+
+	toHashes, toLookup, err := hashList(to)
+	if err != nil {
+		return nil, err
+	}
+
+	removals, fromCommon := listSurplus(from.Content, fromHashes, fromLookup, toLookup)
+	additions, toCommon := listSurplus(to.Content, toHashes, toLookup, fromLookup)
+
+	orderChanges := findOrderChangesInSimpleList(fromCommon, toCommon)
+
+	return packChangesAndAddToResult([]Diff{}, path, orderChanges, additions.nodes, removals.nodes), nil
+}
+
+// listSurplus walks the entries of one list. An entry whose hash the other
+// list lacks is surplus, and an entry that appears more often in this
+// list than in the other adds the difference in copies, once per distinct
+// entry. It also returns the entries both lists share, in order.
+func listSurplus(entries []*yamlnode.Node, hashes []uint64, own, other map[uint64][]int) (surplus, common hashedNodes) {
+	for idx, entry := range entries {
+		hash := hashes[idx]
+		_, ok := other[hash]
+		if ok {
+			common.add(entry, hash)
+		}
+
+		switch {
+		case !ok:
+			surplus.add(entry, hash)
+
+		case len(own[hash]) > len(other[hash]):
+			if !surplus.contains(hash) {
+				for i := 0; i < len(own[hash])-len(other[hash]); i++ {
+					surplus.add(entry, hash)
+				}
+			}
+		}
+	}
+
+	return surplus, common
+}
+
+// namedEntryLists compares two lists whose entries the identifier names.
+// Entries with the same name are compared, an entry only one side has is
+// a removal or an addition, and the shared names are checked for an
+// order change.
+func namedEntryLists(path Path, identifier listItemIdentifier, from, to *yamlnode.Node) ([]Diff, error) {
+	var removals, additions []*yamlnode.Node
+	var result []Diff
+
+	fromNames := make([]string, 0, len(from.Content))
+	toNames := make([]string, 0, len(from.Content))
+
+	for _, fromEntry := range from.Content {
+		name, err := identifier.Name(fromEntry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to identify name: %w", err)
+		}
+
+		toEntry, err := identifier.FindNodeByName(to, name)
+		if err != nil {
+			removals = append(removals, fromEntry)
+			continue
+		}
+
+		diffs, err := objects(
+			NewPathWithNamedListElement(path, identifier, name),
+			yamlnode.FollowAlias(fromEntry),
+			yamlnode.FollowAlias(toEntry),
+		)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, diffs...)
+		fromNames = append(fromNames, name)
+	}
+
+	for _, toEntry := range to.Content {
+		name, err := identifier.Name(toEntry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to identify name: %w", err)
+		}
+
+		if _, err := identifier.FindNodeByName(from, name); err != nil {
+			additions = append(additions, toEntry)
+			continue
+		}
+		toNames = append(toNames, name)
+	}
+
+	orderChanges := findOrderChangesInNamedEntryLists(fromNames, toNames)
+
+	return packChangesAndAddToResult(result, path, orderChanges, additions, removals), nil
+}
+
+// nodeValues reports a string change.
+func nodeValues(path Path, from, to *yamlnode.Node) []Diff {
+	if from.Value != to.Value {
+		return modification(path, from, to)
+	}
+
+	return nil
+}
+
+// boolValues reports a change between two booleans, comparing what they
+// mean rather than how they are written.
+func boolValues(path Path, from, to *yamlnode.Node) ([]Diff, error) {
+	boolFrom, err := toBool(from.Value)
+	if err != nil {
+		return nil, err
+	}
+
+	boolTo, err := toBool(to.Value)
+	if err != nil {
+		return nil, err
+	}
+
+	if boolFrom != boolTo {
+		return modification(path, from, to), nil
+	}
+
+	return []Diff{}, nil
+}
+
+// trueValues and falseValues are the YAML 1.1 boolean literals listed at
+// https://yaml.org/type/bool.html.
+var (
+	trueValues  = [...]string{"y", "Y", "yes", "Yes", "YES", "true", "True", "TRUE", "on", "On", "ON"}
+	falseValues = [...]string{"n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF"}
+)
+
+func toBool(input string) (bool, error) {
+	for _, t := range trueValues {
+		if input == t {
+			return true, nil
+		}
+	}
+
+	for _, f := range falseValues {
+		if input == f {
+			return false, nil
+		}
+	}
+
+	return false, fmt.Errorf("not a valid boolean value: '%s'", input)
+}
+
+// findOrderChangesInSimpleList reports an order change when both lists of
+// shared entries have the same length and differ at some position.
+func findOrderChangesInSimpleList(fromCommon, toCommon hashedNodes) []Detail {
+	if len(fromCommon.hashes) == len(toCommon.hashes) {
+		for idx := range fromCommon.hashes {
+			if fromCommon.hashes[idx] != toCommon.hashes[idx] {
+				return []Detail{{
+					Kind: ORDERCHANGE,
+					From: &yamlnode.Node{Kind: yamlnode.SequenceNode, Content: fromCommon.nodes},
+					To:   &yamlnode.Node{Kind: yamlnode.SequenceNode, Content: toCommon.nodes},
+				}}
+			}
+		}
+	}
+
+	return []Detail{}
+}
+
+// AsSequenceNode returns a sequence node that holds each string as a
+// "!!str" scalar. The sequence itself has no tag.
+func AsSequenceNode(list ...string) *yamlnode.Node {
+	result := make([]*yamlnode.Node, len(list))
+	for i, entry := range list {
+		result[i] = &yamlnode.Node{
+			Kind:  yamlnode.ScalarNode,
+			Tag:   tagStr,
+			Value: entry,
+		}
+	}
+
+	return &yamlnode.Node{
+		Kind:    yamlnode.SequenceNode,
+		Content: result,
+	}
+}
+
+// findOrderChangesInNamedEntryLists reports an order change when some
+// shared name sits at a different position in to than in from.
+func findOrderChangesInNamedEntryLists(fromNames, toNames []string) []Detail {
+	orderchanges := make([]Detail, 0)
+
+	idxLookupMap := make(map[string]int, len(toNames))
+	for idx, name := range toNames {
+		idxLookupMap[name] = idx
+	}
+
+	for idx, name := range fromNames {
+		if idxLookupMap[name] != idx {
+			orderchanges = append(orderchanges, Detail{
+				Kind: ORDERCHANGE,
+				From: AsSequenceNode(fromNames...),
+				To:   AsSequenceNode(toNames...),
+			})
+			break
+		}
+	}
+
+	return orderchanges
+}
+
+// packChangesAndAddToResult puts one diff at path in front of list. It
+// holds the order changes, then one removal fragment, then one addition
+// fragment, and it is left out when there is none of them.
+func packChangesAndAddToResult(list []Diff, path Path, orderchanges []Detail, additions, removals []*yamlnode.Node) []Diff {
+	diff := Diff{Path: &path, Details: []Detail{}}
+
+	if len(orderchanges) > 0 {
+		diff.Details = append(diff.Details, orderchanges...)
+	}
+
+	if len(removals) > 0 {
+		diff.Details = append(diff.Details, Detail{
+			Kind: REMOVAL,
+			From: &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: tagSeq, Content: removals},
+		})
+	}
+
+	if len(additions) > 0 {
+		diff.Details = append(diff.Details, Detail{
+			Kind: ADDITION,
+			To:   &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: tagSeq, Content: additions},
+		})
+	}
+
+	if len(diff.Details) > 0 {
+		list = append([]Diff{diff}, list...)
+	}
+
+	return list
+}
+
+// findValueByKey returns the value of the first entry of a mapping whose
+// key, with aliases followed on both key and value, is key.
+func findValueByKey(mapping *yamlnode.Node, key string) (*yamlnode.Node, bool) {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		k, v := yamlnode.FollowAlias(mapping.Content[i]), yamlnode.FollowAlias(mapping.Content[i+1])
+		if k.Value == key {
+			return v, true
+		}
+	}
+
+	return nil, false
+}
+
+// isCandidate reports whether node is a scalar that names one of the
+// identifier candidates.
+func isCandidate(node *yamlnode.Node) bool {
+	if node.Kind != yamlnode.ScalarNode {
+		return false
+	}
+
+	for _, entry := range listItemIdentifierCandidates {
+		if node.Value == entry {
+			return true
+		}
+	}
+
+	return false
+}
+
+// candidateValues maps each candidate field found in the mapping entries
+// of the sequence to the set of distinct values it has.
+func candidateValues(sequence *yamlnode.Node) map[string]map[string]struct{} {
+	result := map[string]map[string]struct{}{}
+	for _, entry := range sequence.Content {
+		if entry.Kind != yamlnode.MappingNode {
+			continue
+		}
+
+		for i := 0; i+1 < len(entry.Content); i += 2 {
+			k, v := yamlnode.FollowAlias(entry.Content[i]), yamlnode.FollowAlias(entry.Content[i+1])
+			if !isCandidate(k) {
+				continue
+			}
+
+			if _, found := result[k.Value]; !found {
+				result[k.Value] = map[string]struct{}{}
+			}
+			result[k.Value][v.Value] = struct{}{}
+		}
+	}
+
+	return result
+}
+
+// getIdentifierFromNamedLists returns the first candidate field that has
+// a distinct value in every entry of both lists.
+func getIdentifierFromNamedLists(listA, listB *yamlnode.Node) (listItemIdentifier, bool) {
+	counterA := candidateValues(listA)
+	counterB := candidateValues(listB)
+
+	for _, identifier := range listItemIdentifierCandidates {
+		if countA, okA := counterA[identifier]; okA && len(countA) == len(listA.Content) {
+			if countB, okB := counterB[identifier]; okB && len(countB) == len(listB.Content) {
+				return &singleField{identifier}, true
+			}
+		}
+	}
+
+	return nil, false
+}
+
+// stringFieldCounts maps each "!!str" key whose value is a "!!str" scalar
+// to the number of distinct values it has across the entries of the
+// list. A list with an entry that is not a mapping has no such keys.
+func stringFieldCounts(list *yamlnode.Node) map[string]int {
+	tmp := map[string]map[string]struct{}{}
+	for _, entry := range list.Content {
+		if entry.Kind != yamlnode.MappingNode {
+			return map[string]int{}
+		}
+
+		for i := 0; i+1 < len(entry.Content); i += 2 {
+			k, v := yamlnode.FollowAlias(entry.Content[i]), yamlnode.FollowAlias(entry.Content[i+1])
+			if k.Kind == yamlnode.ScalarNode && k.Tag == tagStr &&
+				v.Kind == yamlnode.ScalarNode && v.Tag == tagStr {
+				if _, ok := tmp[k.Value]; !ok {
+					tmp[k.Value] = map[string]struct{}{}
+				}
+				tmp[k.Value][v.Value] = struct{}{}
+			}
+		}
+	}
+
+	result := map[string]int{}
+	for key, value := range tmp {
+		result[key] = len(value)
+	}
+
+	return result
+}
+
+// getNonStandardIdentifierFromNamedLists guesses an identifier field: the
+// first key, in sorted order, that has a distinct string value in every
+// entry of both lists and more distinct values than the guess threshold.
+func getNonStandardIdentifierFromNamedLists(listA, listB *yamlnode.Node) listItemIdentifier {
+	listALength := len(listA.Content)
+	listBLength := len(listB.Content)
+	counterA := stringFieldCounts(listA)
+	counterB := stringFieldCounts(listB)
+
+	keysA := make([]string, 0, len(counterA))
+	for keyA := range counterA {
+		keysA = append(keysA, keyA)
+	}
+	sort.Strings(keysA)
+
+	for _, keyA := range keysA {
+		countA := counterA[keyA]
+		if countB, ok := counterB[keyA]; ok {
+			if countA == listALength && countB == listBLength && countA > nonStandardIdentifierGuessCountThreshold {
+				return &singleField{keyA}
+			}
+		}
+	}
+
+	return nil
+}
+
+// getIdentifierFromKubernetesEntityList reports whether every entry of
+// both lists is a mapping with a Kubernetes resource name.
+func getIdentifierFromKubernetesEntityList(listA, listB *yamlnode.Node) bool {
+	return allHaveKubernetesName(listA) && allHaveKubernetesName(listB)
+}
+
+func allHaveKubernetesName(sequence *yamlnode.Node) bool {
+	var numWithMetadata int
+	for _, entry := range sequence.Content {
+		if entry.Kind != yamlnode.MappingNode {
+			continue
+		}
+		if _, err := k8sItem.Name(entry); err == nil {
+			numWithMetadata++
+		}
+	}
+
+	return numWithMetadata == len(sequence.Content)
+}
+
+// isEmptyDocument reports whether node is a document that holds only a
+// null scalar.
+func isEmptyDocument(node *yamlnode.Node) bool {
+	if node.Kind != yamlnode.DocumentNode || len(node.Content) != 1 {
+		return false
+	}
+
+	return node.Content[0].Kind == yamlnode.ScalarNode && node.Content[0].Tag == tagNull
+}
