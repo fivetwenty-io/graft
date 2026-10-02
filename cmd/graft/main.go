@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -16,7 +15,6 @@ import (
 	"sync"
 
 	"github.com/gonvenience/ytbx"
-	"github.com/homeport/dyff/pkg/dyff"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
@@ -24,6 +22,8 @@ import (
 	"github.com/fivetwenty-io/graft/internal/config"
 	"github.com/fivetwenty-io/graft/internal/features"
 	"github.com/fivetwenty-io/graft/internal/histdiff"
+	"github.com/fivetwenty-io/graft/internal/humanreport"
+	"github.com/fivetwenty-io/graft/internal/termstyle"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 
 	"github.com/fivetwenty-io/graft/log"
@@ -74,6 +74,16 @@ var usage = func() {
 // the other not) without a real pty.
 var isStderrTTY = func() bool { return isatty.IsTerminal(os.Stderr.Fd()) }
 var isStdoutTTY = func() bool { return isatty.IsTerminal(os.Stdout.Fd()) }
+
+// isStdoutColorCapable reports whether the default diff report may color
+// stdout in auto mode. It mirrors bunt's check rather than isStdoutTTY, so
+// a Cygwin terminal counts and a plain Windows console never colors,
+// exactly as spruce decides. Tests replace it.
+var isStdoutColorCapable = func() bool { return termstyle.StdoutColorCapable(os.Stdout) }
+
+// stdoutWidth returns the terminal width the default diff report lays its
+// blocks out for. Tests replace it.
+var stdoutWidth = func() int { return termstyle.TerminalWidth(os.Stdout) }
 
 // colorValueAuto is --color's TTY-detection mode: the flag's default, its
 // String() presentation, and one of resolve's recognized values.
@@ -923,10 +933,10 @@ func handleJSON(opts jsonOpts) int {
 }
 
 // diffOpts holds `graft diff`'s subcommand-specific flags (see
-// docs/user-guide/cli/diff.md): at most one of SideBySide/Unified/Changes
-// selects an alternate rendering of the same underlying semantic diff;
-// leaving all three false keeps the pre-existing dyff HumanReport default,
-// byte-for-byte.
+// docs/user-guide/cli/diff.md). At most one of SideBySide, Unified, and
+// Changes selects an alternate rendering of the same underlying semantic
+// diff. Leaving all three false selects graft's default report, which
+// matches `spruce diff` byte for byte.
 type diffOpts struct {
 	SideBySide bool
 	Unified    bool
@@ -940,12 +950,13 @@ type diffOpts struct {
 // resolved: the root command's PersistentPreRunE applies --color/
 // --no-color (and NO_COLOR/TERM/TTY fallback) via ansi.Color before any
 // subcommand's RunE runs, including `diff`'s own --no-color (a global
-// persistent flag - see newRootCmd), so the usage/mutually-exclusive/
-// load-error diagnostics below (all on stderr) need no further color
-// handling here. colorOverride is threaded through to handleDiffRender
-// only because its --changes/--unified/--side-by-side renderers write
-// colorized output to stdout, not stderr, and so need their own
-// auto-mode resolution against stdout's TTY state - see there.
+// persistent flag - see newRootCmd), so the usage and mutually-exclusive
+// diagnostics below (both on stderr) need no further color handling
+// here. colorOverride still matters to every report, because each one
+// writes colorized output to stdout and so resolves auto mode against
+// stdout rather than stderr. The default report checks stdout's color
+// capability the way spruce does, and the --changes, --unified, and
+// --side-by-side renderers check stdout's TTY state in handleDiffRender.
 func handleDiff(files []string, colorOverride *bool, opts diffOpts) int {
 	if len(files) != 2 {
 		usage()
@@ -964,22 +975,21 @@ func handleDiff(files []string, colorOverride *bool, opts diffOpts) int {
 	}
 
 	if selected == 0 {
-		// The default dyff HumanReport path does its own stdout TTY
-		// detection internally (dyff/bunt), independent of graft's
-		// --color flag; left alone here, matching TestDiffFiles's
-		// documented contract.
-		output, differences, err := diffFiles(files)
-		if err != nil {
-			log.PrintStdErrf("%s\n", err)
-			return 2
+		// The default report matches spruce diff byte for byte, and it
+		// honors --color, --no-color, and NO_COLOR against stdout's own
+		// color capability, with bunt's auto-detection when none is set.
+		stdout, stderr, code := renderDefaultDiff(files, humanreport.Options{
+			Color:     ansi.ResolveColor(colorOverride, isStdoutColorCapable()),
+			TrueColor: termstyle.TrueColorFromEnv(os.Getenv),
+			Width:     stdoutWidth(),
+		})
+		if stderr != "" {
+			log.PrintStdErrf("%s", stderr)
 		}
-		if !opts.Quiet {
-			printStdOutf("%s\n", output)
+		if !opts.Quiet && stdout != "" {
+			printStdOutf("%s", stdout)
 		}
-		if differences {
-			return 1
-		}
-		return 0
+		return code
 	}
 
 	return handleDiffRender(files, colorOverride, opts)
@@ -987,8 +997,8 @@ func handleDiff(files []string, colorOverride *bool, opts diffOpts) int {
 
 // handleDiffRender implements the `--side-by-side`/`--unified`/`--changes`
 // alternate diff renderings, all built from the same
-// internal/histdiff.Compare semantic diff (itself built on dyff, matching
-// the default diffFiles path) rather than a second diff algorithm.
+// internal/histdiff.Compare semantic diff rather than a second diff
+// algorithm.
 func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
 	fromLabel, fromDoc, toLabel, toDoc, err := loadDiffDocuments(files)
 	if err != nil {
@@ -1043,10 +1053,9 @@ func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
 	return 0
 }
 
-// loadDiffDocuments loads exactly two YAML/JSON files via ytbx (the same
-// loader diffFiles uses for the default dyff report) and decodes each to a
-// plain Go value, for renderers that need the actual document content
-// (--unified, --side-by-side) rather than just a change list.
+// loadDiffDocuments loads exactly two YAML/JSON files via ytbx and decodes
+// each to a plain Go value, for renderers that need the actual document
+// content (--unified, --side-by-side) rather than just a change list.
 func loadDiffDocuments(paths []string) (fromLabel string, fromDoc interface{}, toLabel string, toDoc interface{}, err error) {
 	if len(paths) != 2 {
 		return "", nil, "", nil, ansi.Errorf("incorrect number of files given to loadDiffDocuments(); please file a bug report")
@@ -2176,38 +2185,4 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{},
 		return nil, nil, ansi.Errorf("@R{Merge result is not a map}")
 	}
 	return data, engine, nil
-}
-
-func diffFiles(paths []string) (output string, hasDifferences bool, err error) {
-	if len(paths) != 2 {
-		return "", false, ansi.Errorf("incorrect number of files given to diffFiles(); please file a bug report")
-	}
-
-	from, to, err := ytbx.LoadFiles(paths[0], paths[1])
-	if err != nil {
-		return "", false, err
-	}
-
-	report, err := dyff.CompareInputFiles(from, to)
-	if err != nil {
-		return "", false, err
-	}
-
-	reportWriter := &dyff.HumanReport{
-		Report:            report,
-		DoNotInspectCerts: false,
-		NoTableStyle:      false,
-		OmitHeader:        true,
-	}
-
-	var buf bytes.Buffer
-	out := bufio.NewWriter(&buf)
-	if err := reportWriter.WriteReport(out); err != nil {
-		return "", false, fmt.Errorf("failed to write report: %w", err)
-	}
-	if err := out.Flush(); err != nil {
-		return "", false, fmt.Errorf("failed to flush report: %w", err)
-	}
-
-	return buf.String(), len(report.Diffs) > 0, nil
 }

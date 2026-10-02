@@ -22,6 +22,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/config"
 	"github.com/fivetwenty-io/graft/internal/features"
+	"github.com/fivetwenty-io/graft/internal/humanreport"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -3763,7 +3764,7 @@ array:
 				So(rc, ShouldEqual, 1)
 			})
 
-			Convey("--color=off and --color=on are both honored without error and stay uncolored off a real tty", func() {
+			Convey("--color=off stays plain and --color=on colors the report even off a tty", func() {
 				os.Args = []string{"graft", "diff", "--color=off", "../../assets/merge/first.yml", "../../assets/merge/second.yml"}
 				stdout = ""
 				stderr = ""
@@ -3778,6 +3779,7 @@ array:
 				rc = 256
 				main()
 				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldContainSubstring, "\x1b[")
 			})
 
 			Convey("--color=bogus is rejected as a usage error", func() {
@@ -4352,38 +4354,23 @@ func TestThemeFileTierNeeded(t *testing.T) {
 	}
 }
 
-// TestDiffFiles locks diffFiles()'s exit-code-relevant return values
-// (hasDifferences, err) independent of the CLI plumbing in handleDiff, and
-// confirms its report body carries no ANSI escapes when stdout is not a
-// tty (spruce parity: dyff/bunt's own isatty(stdout) auto-detection gates
-// diff coloring, not graft's --color flag).
-func TestDiffFiles(t *testing.T) {
-	Convey("diffFiles()", t, func() {
-		Convey("identical files report no differences", func() {
-			output, hasDifferences, err := diffFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/first.yml"})
-			So(err, ShouldBeNil)
-			So(hasDifferences, ShouldBeFalse)
-			So(output, ShouldEqual, "\n")
-		})
-		Convey("differing files report differences with no ANSI escapes off a tty", func() {
-			output, hasDifferences, err := diffFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/second.yml"})
-			So(err, ShouldBeNil)
-			So(hasDifferences, ShouldBeTrue)
-			So(output, ShouldNotBeEmpty)
-			So(output, ShouldNotContainSubstring, "\x1b[")
-		})
-		Convey("a missing file is a load error", func() {
-			_, _, err := diffFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/does-not-exist.yml"})
-			So(err, ShouldNotBeNil)
-		})
-		Convey("any count other than two files is a usage error", func() {
-			_, _, err := diffFiles([]string{"../../assets/merge/first.yml"})
-			So(err, ShouldNotBeNil)
-
-			_, _, err = diffFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/second.yml", "../../assets/merge/first.yml"})
-			So(err, ShouldNotBeNil)
-		})
-	})
+// TestRenderDefaultDiff pins renderDefaultDiff's contract with spruce:
+// identical files print two newlines and exit 0, differing files exit 1,
+// and a missing file is a load error with exit 2.
+func TestRenderDefaultDiff(t *testing.T) {
+	plain := humanreport.Options{Width: 80}
+	stdout, stderr, code := renderDefaultDiff([]string{"../../assets/merge/first.yml", "../../assets/merge/first.yml"}, plain)
+	if code != 0 || stderr != "" || stdout != "\n\n" {
+		t.Fatalf("identical files: %q %q %d", stdout, stderr, code)
+	}
+	stdout, _, code = renderDefaultDiff([]string{"../../assets/merge/first.yml", "../../assets/merge/second.yml"}, plain)
+	if code != 1 || stdout == "" || strings.Contains(stdout, "\x1b[") {
+		t.Fatalf("differing files: %q %d", stdout, code)
+	}
+	_, stderr, code = renderDefaultDiff([]string{"../../assets/merge/first.yml", "../../assets/merge/does-not-exist.yml"}, plain)
+	if code != 2 || !strings.HasPrefix(stderr, "unable to load data from ../../assets/merge/does-not-exist.yml: ") {
+		t.Fatalf("missing file: %q %d", stderr, code)
+	}
 }
 
 func TestResolveStartupConfigEnvOverridesFile(t *testing.T) {

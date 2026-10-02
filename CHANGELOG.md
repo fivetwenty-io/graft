@@ -18,11 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   invalid-pattern error messages are unchanged across the bundled
   `examples/split` documents and a set of lookaround, backreference,
   atomic-group, zero-width, and multibyte cases.
-- `graft merge`, `graft json`, and files pulled in by `(( load ))` now read an unquoted `{{...}}` template placeholder in a value position, such as `curlies: {{my-variable_123}}` in a Concourse pipeline, as the plain string `{{my-variable_123}}`, and `graft merge` writes it back single-quoted. goccy rejected these files outright, and spruce reads them as empty nested maps, so this is a deliberate divergence from spruce. A placeholder used as a mapping key and an unbalanced run such as `{{{{` are still parse errors.
+- The default `graft diff` report now honors `--color`, `--no-color`, and `NO_COLOR`. With none of them set, it colors in exactly the cases spruce does: when stdout is a terminal and `TERM` isn't `dumb`, never on a plain Windows console, and with 24-bit color only when `COLORTERM` is `truecolor` or `24bit` (the 16-color palette otherwise).
+- `graft merge`, `graft diff`, `graft json`, and files pulled in by `(( load ))` now read an unquoted `{{...}}` template placeholder in a value position, such as `curlies: {{my-variable_123}}` in a Concourse pipeline, as the plain string `{{my-variable_123}}`. `graft merge` writes it back single-quoted, and `graft diff` reports a change from `{{x}}` to `{{y}}` as a value change. This is a deliberate divergence from spruce, which reads such a placeholder as an empty nested map, reports no difference between `a: {{x}}` and `a: {{y}}`, and panics when a placeholder sits in a simple list. A placeholder used as a mapping key and an unbalanced run such as `{{{{` are still parse errors.
+- `graft diff` now parses its inputs with goccy/go-yaml, as `graft merge` already does. A parse error keeps spruce's `unable to parse data from <file>: yaml: ` prefix and exit code 2, but the message after it is goccy's, and the line number can differ from spruce's for unterminated quotes, unclosed flow collections, bad indentation, and errors where spruce prints no line. A few inputs spruce rejects now diff cleanly, such as the `\/` escape, raw control characters, and `%YAML 1.2`, while complex mapping keys and empty tagged nodes such as `a: !!str` are now parse errors. A file with CRLF line endings now diffs exactly as its LF copy does, without the extra blank line spruce prints above a commented key. `docs/user-guide/diffing.md` lists every known difference.
 
 ### Fixed
 
 - `graft json` now applies the same input rewrites as `graft merge`, so a bare `-` list terminator reads as a null entry instead of swallowing the key that follows it, and a `<<<:` inject key reads as the key `<<<` instead of failing to parse. Both now match `spruce json`.
+- When `graft diff` can't render one difference, such as a `!!binary` value that isn't valid base64, it now prints the report up to that point and exits 1 with nothing on stderr, as spruce does, instead of exiting 2 with an error.
 
 ## [1.42.0] - 2026-09-09
 
