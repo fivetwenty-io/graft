@@ -47,7 +47,7 @@ graft diff base.yml modified.yml
 (root level)
 - one map entry removed:
 meta:
-  version: 1.0
+  version: "1.0"
 
 database
 + one map entry added:
@@ -338,19 +338,47 @@ Concourse file behaves the same wherever graft reads YAML.
 
 The rewrite applies only in value positions. A placeholder used as a
 mapping key, and a run of unbalanced braces such as `{{{{`, stay parse
-errors.
+errors. The rewrite also doesn't reach a placeholder that follows an
+anchor or a tag, so `a: &n {{x}}` and `a: !!str {{x}}` stay parse errors
+too. A triple-brace value such as `{{{x}}}` is rewritten, and it becomes
+the string `{{{x}}}`.
 
 ### Parse errors
 
 When an input does not parse, `graft diff` prints `unable to parse data
 from <file>: yaml: ` and exits `2`, as spruce does, and then prints
-goccy's message. The line number matches spruce's where libyaml and goccy
-agree. For some errors it differs, namely unterminated quotes, unclosed
-flow collections, bad indentation, and errors where spruce prints no line
-at all. `TestParseErrorLineDivergences` in `internal/yamlnode` records
-those cases, and the [Genesis compatibility
+goccy's message. A malformed file inside a directory input prints
+`failed to read <path>: yaml: ` instead, as spruce does. The line number
+matches spruce's where libyaml and goccy agree. For some errors it
+differs, namely unterminated quotes, unclosed flow collections, bad
+indentation, a document that opens as plain text over several lines
+before a `key: value` line, and errors where spruce prints no line at
+all. In the plain-text case spruce reports the line of the colon and
+graft reports line 1, which you see when you diff an HTML page or a
+directory listing fetched from a URL. `TestParseErrorLineDivergences` in
+`internal/yamlnode` records those cases, and the [Genesis compatibility
 contract](../spruce/genesis-compat-contract.md#parse-errors) lists them
 in a table.
+
+### Nesting depth and self-referencing anchors
+
+Like spruce, `graft diff` stops at 10,000 levels of nesting. It counts
+open flow collections and open block collections separately, and an
+input one level past either limit fails with `yaml: exceeded max depth of
+10000` and exit `2`. An anchor whose value contains an alias to itself,
+such as `a: &x [*x]`, fails with `yaml: anchor 'x' value contains
+itself` and exit `2`. spruce overflows its stack on that input and then
+exits `2`, so graft's message is clearer and the exit code is the same.
+
+Two accepted differences come with the depth limit. When a file has both
+a syntax error and nesting deeper than 10,000 levels, graft reports the
+depth error even if the syntax error comes first, because it checks depth
+before it parses. spruce reports the error it reaches first. The line
+number in a depth error follows libyaml's rules by emulation, so it can
+differ from the line spruce prints. Both tools still exit `2` in both
+cases. `TestParseDepthLimit` and `TestParseDepthErrorBeatsSyntaxError`
+in `internal/yamlnode` pin them, and `TestDiffRejectsSelfReferencingAnchor`
+in `cmd/graft` pins the anchor error.
 
 ### Accepted differences from spruce
 
@@ -365,6 +393,12 @@ graft accepts these inputs, and spruce rejects them:
 - A stream that holds only `...`.
 - Content after `...` without a new `---`.
 - A `%YAML 1.2` directive.
+- A tab after a block dash, such as `-` then a tab and `b`.
+- An empty tag handle followed by a value, such as `a: !! 1`.
+- A `...` line before the first content.
+- A mapping key longer than 1,024 characters.
+- A next-line (U+0085) or line-separator (U+2028) character inside a
+  plain scalar.
 
 graft rejects these inputs, and spruce accepts them:
 
@@ -374,13 +408,30 @@ graft rejects these inputs, and spruce accepts them:
 - `!!merge <<` used as a value.
 - A `%TAG !!` directive that redefines the secondary handle, when a tag
   then uses `!!`, such as `a: !!foo 1`.
+- Empty tagged sequence items, such as `- !!str` then `- !!int`, which
+  is the same difference as `a: !!str` before another key.
+- An anchor with no value on the last line of a file, such as `b: &x` as
+  the last entry of a mapping or `- &x` as the last item of a list.
+  graft fails with `yaml: line N: undefined anchor value`.
 
 `TestParseAcceptanceDivergences` pins the `%YAML`, empty tagged value,
 `!!merge`, and `%TAG !!` cases. `TestParseAcceptsInputsYamlV3Rejects` and
 `TestParseAcceptsContentAfterDocumentEnd` pin the `\/` escape, raw control
-characters, and content after `...`. The `...`-only stream and complex
-mapping key cases are pinned in `internal/yamlnode`'s split and decode
-tests.
+characters, and content after `...`. `TestParseAcceptsInputsSpruceRejects`
+pins the tab, empty tag handle, leading `...`, long key, and U+0085 and
+U+2028 cases. `TestParseEmptyTaggedSequenceItemsFail` and
+`TestParseRejectsAnchorWithoutValue` pin the tagged sequence items and
+the anchor with no value. The `...`-only stream and complex mapping key
+cases are pinned in `internal/yamlnode`'s split and decode tests.
+
+One block scalar reads differently. When a document is a block scalar
+that starts on its `---` line and has an explicit indentation indicator,
+as in `--- |1-` followed by two spaces and `x`, graft keeps one more
+space of indentation than spruce does. spruce reads `" x"` for that
+input, and graft reads `"  x"`. The `|1`, `>1-`, and `|2` forms behave
+the same way, while an indicator on a mapping value, such as `a: |1-`,
+matches spruce. `TestParseIndentIndicatorOnDocumentScalar` pins graft's
+value.
 
 One comment layout lands in a different place. When a comment block sits
 between a key and its block collection, and a later line of the block

@@ -242,22 +242,22 @@ so both file descriptors report as terminals to graft regardless of
 which one a given code path checks.
 
 The spruce-compat harness checks graft's colored report against real
-spruce v1.35.17 byte for byte. Pattern 1b runs the `fake_tty` case with the terminal width at
-0, and pattern 1c runs ptys at 80, 120, 133, and 200 columns. Each runs
-with and without `COLORTERM=truecolor`, which makes 86 runs for pattern
-1b and 344 for pattern 1c. All of them match, apart from a parse error's
-text after `yaml: line N: `, which the harness cuts off before it
-compares (see [Parse errors](#parse-errors) below).
+spruce v1.35.17 byte for byte. Pattern 1b runs the `fake_tty` case with
+the terminal width at 0, and pattern 1c runs ptys at 80, 120, 133, and
+200 columns. Each runs with and without `COLORTERM=truecolor`, which
+makes 86 runs for pattern 1b and 344 for pattern 1c. All of them match,
+apart from a parse error's text after `yaml: line N: `, which the harness
+cuts off before it compares (see [Parse errors](#parse-errors) below).
 
 ## Template placeholders
 
-graft reads an unquoted `{{...}}` placeholder in a value position as a plain string in `graft merge`, `graft diff`, `graft json`, and files pulled in by `(( load ))`. spruce parses the same text as an empty nested map, so it reports no difference between `a: {{x}}` and `a: {{y}}`, and it panics when such a placeholder sits in a simple list. graft reports a value change instead and never panics. A placeholder used as a mapping key, and an unbalanced run of braces, stay parse errors in both tools.
+graft reads an unquoted `{{...}}` placeholder in a value position as a plain string in `graft merge`, `graft diff`, `graft json`, and files pulled in by `(( load ))`. spruce parses the same text as an empty nested map, so it reports no difference between `a: {{x}}` and `a: {{y}}`, and it panics when such a placeholder sits in a simple list. graft reports a value change instead and never panics. A placeholder used as a mapping key, and an unbalanced run of braces, stay parse errors in both tools. graft doesn't rewrite a placeholder that follows an anchor or a tag, so `a: &n {{x}}` and `a: !!str {{x}}` stay parse errors too, and `{{{x}}}` becomes the string `{{{x}}}`.
 
 ## Parse errors
 
 Genesis reads only the exit code of `spruce diff` and passes the message through, so a difference in the message text does not change what Genesis does. graft keeps spruce's `unable to parse data from <file>: yaml: ` prefix and its exit code of `2`. It then prints goccy's message, and the line number after the prefix can differ from the one spruce prints. The harness cuts a parse error's stderr after `yaml: line N: ` (or after `yaml: ` when no line is printed) before it compares, and its parse-error cases are ones where both tools print the same line.
 
-`TestParseErrorLineDivergences` in `internal/yamlnode` pins the six inputs below, where libyaml and goccy report different lines or where spruce reports no line at all.
+`TestParseErrorLineDivergences` in `internal/yamlnode` pins the seven inputs below, where libyaml and goccy report different lines or where spruce reports no line at all.
 
 | Input | spruce's message | graft's line |
 |-------|------------------|--------------|
@@ -267,6 +267,11 @@ Genesis reads only the exit code of `spruce diff` and passes the message through
 | `- a` then `b: 1` | `yaml: line 1: did not find expected '-' indicator` | `yaml: line 2: ` |
 | `a: b: c` | `yaml: mapping values are not allowed in this context` | `yaml: line 1: ` |
 | `a: @x` | `yaml: found character that cannot start any token` | `yaml: line 1: ` |
+| `a` then `b` then `c: d` | `yaml: line 3: mapping values are not allowed in this context` | `yaml: line 1: ` |
+
+The last row is a document that opens as plain text over several lines before a `key: value` line, such as an HTML page or a directory listing fetched from a URL. spruce reports the line of the colon, and graft reports line 1.
+
+A malformed file inside a directory input fails with `failed to read <path>: yaml: line N: ` in both tools, without the `unable to parse data from` prefix. `TestDiffDirectoryMemberParseError` in `cmd/graft` pins graft's prefix.
 
 `TestParseAcceptanceDivergences` pins four inputs where the two tools disagree about whether the input is YAML at all.
 
@@ -282,6 +287,14 @@ Accepted divergences, beyond the tables above:
 - graft accepts the `\/` escape, raw control characters, a stream that holds only `...`, and content after `...` without a new `---`. spruce rejects all four.
 
 - graft rejects complex mapping keys, which spruce accepts.
+
+- graft accepts these inputs, and spruce rejects them with exit `2`. They are a tab after a block dash, an empty tag handle as in `a: !! 1`, a `...` line before the first content, a mapping key longer than 1,024 characters, and a next-line (U+0085) or line-separator (U+2028) character inside a plain scalar. `TestParseAcceptsInputsSpruceRejects` pins them.
+
+- graft rejects these inputs, and spruce accepts them. They are empty tagged sequence items such as `- !!str` then `- !!int`, which is the same difference as `a: !!str` before another key, and an anchor with no value on the last line of a file, such as `b: &x` or `- &x`, where graft fails with `yaml: line N: undefined anchor value`. `TestParseEmptyTaggedSequenceItemsFail` and `TestParseRejectsAnchorWithoutValue` pin them.
+
+- graft keeps one more space of indentation than spruce when a document is a block scalar that starts on its `---` line and has an explicit indentation indicator. For `--- |1-` followed by two spaces and `x`, spruce reads `" x"` and graft reads `"  x"`. An indicator on a mapping value matches spruce. `TestParseIndentIndicatorOnDocumentScalar` pins graft's value.
+
+- Both tools stop at 10,000 levels of nesting with `yaml: exceeded max depth of 10000` and exit `2`, and both exit `2` on an anchor whose value contains an alias to itself, such as `a: &x [*x]`. graft prints `yaml: anchor 'x' value contains itself`, where spruce overflows its stack. When a file has both a syntax error and nesting deeper than 10,000 levels, graft reports the depth error even if the syntax error comes first, and spruce reports the error it reaches first. The line number in a depth error follows libyaml's rules by emulation, so it can differ from spruce's. All of these exit `2` in both tools. `TestParseDepthLimit`, `TestParseDepthErrorBeatsSyntaxError`, and `TestDiffRejectsSelfReferencingAnchor` pin them.
 
 - graft keeps a comment block between a key and its block collection in a different place when a later line of the block starts left of the key. `TestCommentsDedentedBlockDivergence` pins that placement.
 
