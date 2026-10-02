@@ -39,8 +39,8 @@ var parityModes = []struct {
 
 func TestDefaultDiffMatchesSpruceGoldens(t *testing.T) {
 	cases, err := filepath.Glob("../../tests/diff-parity/cases/*")
-	if err != nil || len(cases) != 46 {
-		t.Fatalf("found %d corpus cases (%v), want 46", len(cases), err)
+	if err != nil || len(cases) != 47 {
+		t.Fatalf("found %d corpus cases (%v), want 47", len(cases), err)
 	}
 	for _, rel := range cases {
 		dir, err := filepath.Abs(rel)

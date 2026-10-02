@@ -759,6 +759,9 @@ type gapScanner struct {
 // before the chunk. After a "...", it starts on the "..." line's foot
 // line instead, and a foot comment there belongs to the document the
 // "..." ends, as does one right after a "---" that ends a document.
+// When that foot line is the chunk's own "---" line, marker starts the
+// scan afresh there, so only comments above the "---" can be such a
+// foot.
 func newGapScanner(g gap, own map[int]cmt, inline map[int]bool, lines []string, out map[string]string, c chunk) *gapScanner {
 	s := &gapScanner{g: g, own: own, lines: lines, out: out, footLine: -1, firstEmpty: true, streamStart: c.lineOffset() == 0}
 	if g.prev == nil && c.index > 0 {
@@ -789,6 +792,9 @@ func (s *gapScanner) scan() {
 		}
 		c, isCmt := s.own[l]
 		switch {
+		case isCmt && s.isHeader(l):
+			s.marker(l)
+			s.comment(l, c)
 		case isCmt:
 			s.comment(l, c)
 		case strings.TrimSpace(s.lines[l-1]) == "":
@@ -797,6 +803,13 @@ func (s *gapScanner) scan() {
 			s.marker(l) // a "---", a "...", or a directive
 		}
 	}
+}
+
+// isHeader reports whether line l of the document's first gap is its
+// "---" line. A comment on that line follows the "---" token, so the
+// scan passes the header before it reads the comment.
+func (s *gapScanner) isHeader(l int) bool {
+	return s.g.prev == nil && strings.HasPrefix(s.lines[l-1], "---")
 }
 
 // end handles the line after the gap: the next item, the end of the
