@@ -389,6 +389,9 @@ func TestParseErrorLineDivergences(t *testing.T) {
 		{"- a\nb: 1\n", "yaml: line 1: did not find expected '-' indicator", "yaml: line 2: "},
 		{"a: b: c\n", "yaml: mapping values are not allowed in this context", "yaml: line 1: "},
 		{"a: @x\n", "yaml: found character that cannot start any token", "yaml: line 1: "},
+		// A document that opens as a multi-line plain scalar. libyaml
+		// reports the line of the colon, goccy the line the scalar starts on.
+		{"a\nb\nc: d\n", "yaml: line 3: mapping values are not allowed in this context", "yaml: line 1: "},
 	} {
 		_, err := yamlnode.Parse([]byte(c.in))
 		if err == nil || !strings.HasPrefix(err.Error(), c.goccyLine) {
@@ -527,6 +530,85 @@ func TestParseAcceptsContentAfterDocumentEnd(t *testing.T) {
 	}
 	if got, want := outline(docs[1]), `{!!str "b"@3: !!int "2"}`; got != want {
 		t.Errorf("second document = %s, want %s", got, want)
+	}
+}
+
+// TestParseIndentIndicatorOnDocumentScalar pins an accepted divergence
+// from spruce. A block scalar that starts the document on its "---" line
+// and carries an explicit indentation indicator keeps one more space of
+// indentation in graft than in spruce. spruce reads --- |1- and then two
+// spaces and x as " x", where graft reads "  x". The same indicator on a
+// mapping value matches spruce, so only the document-level form is pinned.
+func TestParseIndentIndicatorOnDocumentScalar(t *testing.T) {
+	for _, c := range []struct{ in, want, spruce string }{
+		{"--- |1-\n  x\n", `!!str "  x"`, `" x"`},
+		{"--- |1\n  x\n", `!!str "  x\n"`, `" x\n"`},
+		{"--- >1-\n  x\n", `!!str "  x"`, `" x"`},
+		{"--- |2\n   x\n", `!!str "  x\n"`, `" x\n"`},
+	} {
+		docs, err := yamlnode.Parse([]byte(c.in))
+		if err != nil || len(docs) != 1 {
+			t.Errorf("Parse(%q) = %d documents, %v, want one document", c.in, len(docs), err)
+			continue
+		}
+		if got := outline(docs[0]); got != c.want {
+			t.Errorf("Parse(%q) = %s, want %s (spruce reads %s)", c.in, got, c.want, c.spruce)
+		}
+	}
+	if got := outline(mustParse(t, "a: |1-\n  x\n")[0]); got != `{!!str "a"@1: !!str " x"}` {
+		t.Errorf("a mapping value with an indentation indicator = %s, want it to match spruce", got)
+	}
+}
+
+// TestParseEmptyTaggedSequenceItemsFail pins an accepted divergence from
+// spruce. An empty value carrying a tag, as in "- !!str" then "- !!int",
+// is a parse error in graft, the same divergence as "a: !!str" before
+// another key. spruce accepts it, reading empty items of those types.
+func TestParseEmptyTaggedSequenceItemsFail(t *testing.T) {
+	_, err := yamlnode.Parse([]byte("- !!str\n- !!int\n"))
+	if err == nil || !strings.HasPrefix(err.Error(), "yaml: line 2: ") {
+		t.Fatalf("Parse = %v, want a parse error on line 2 (spruce accepts the input)", err)
+	}
+}
+
+// TestParseAcceptsInputsSpruceRejects pins inputs where spruce exits 2
+// with a parse error and graft accepts the input. Each name gives the
+// message spruce prints.
+func TestParseAcceptsInputsSpruceRejects(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		in   string
+		want string // the outline Parse gives
+	}{
+		{"tab after a dash (found character that cannot start any token)", "-\tb\n", `[!!str "b"]`},
+		{"empty tag handle (did not find expected tag URI)", "a: !! 1\n", `{!!str "a"@1: !! "1"}`},
+		{"leading document end (did not find expected node content)", "...\na: 1\n", `{!!str "a"@2: !!int "1"}`},
+		{"a 1,100-character key (mapping values are not allowed in this context)", strings.Repeat("k", 1100) + ": 1\n",
+			fmt.Sprintf(`{!!str %q@1: !!int "1"}`, strings.Repeat("k", 1100))},
+		{"U+0085 in a plain scalar (could not find expected ':')", "a: x\u0085y\n", `{!!str "a"@1: !!str "x\u0085y"}`},
+		{"U+2028 in a plain scalar (could not find expected ':')", "a: x\u2028y\n", `{!!str "a"@1: !!str "x\u2028y"}`},
+	} {
+		docs, err := yamlnode.Parse([]byte(c.in))
+		if err != nil || len(docs) != 1 {
+			t.Errorf("%s: Parse = %d documents, %v, want it accepted", c.name, len(docs), err)
+			continue
+		}
+		if got := outline(docs[0]); got != c.want {
+			t.Errorf("%s: Parse = %s, want %s", c.name, got, c.want)
+		}
+	}
+}
+
+// TestParseRejectsAnchorWithoutValue pins two inputs where graft exits 2
+// and spruce reports a difference. An anchor with nothing after it, in
+// "b: &x" or "- &x" as the last entry, is an undefined anchor value in
+// graft. spruce reads the anchored empty node as null.
+func TestParseRejectsAnchorWithoutValue(t *testing.T) {
+	for _, in := range []string{"a: 1\nb: &x\n", "- a\n- &x\n"} {
+		_, err := yamlnode.Parse([]byte(in))
+		if err == nil || err.Error() != "yaml: line 2: undefined anchor value" {
+			t.Errorf("Parse(%q) = %v, want yaml: line 2: undefined anchor value (spruce accepts it)", in, err)
+		}
 	}
 }
 
