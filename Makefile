@@ -469,14 +469,16 @@ hooks-check: ## Check current git hooks configuration
 
 ORACLE_DIR := tests/diff-parity/oracle
 
+# The oracle runs in Etc/GMT+4, a fixed UTC-4 zone (POSIX inverts the sign) with no daylight saving time, so TOML dates read the same on every machine in every season. BurntSushi/toml captures the zone when its package initializes, so it has to come from the process environment.
+
 oracle-vectors: ## Regenerate the yaml.v3, dyff, and bunt vectors graft's unit tests read
 	@printf "$(GREEN)Regenerating oracle vectors...$(RESET)\n"
-	@cd $(ORACLE_DIR) && go run ./cmd/vectors -root ../../..
+	@cd $(ORACLE_DIR) && TZ=Etc/GMT+4 go run ./cmd/vectors -root ../../..
 
 diff-goldens: ## Regenerate the spruce diff parity goldens under tests/diff-parity/cases
 	@printf "$(GREEN)Regenerating diff parity goldens...$(RESET)\n"
-	@cd $(ORACLE_DIR) && go run ./cmd/gen ../cases
+	@cd $(ORACLE_DIR) && TZ=Etc/GMT+4 go run ./cmd/gen ../cases
 
 diff-oracle-check: ## Fail when any oracle vector or diff parity golden is stale
 	@printf "$(GREEN)Checking oracle vectors and diff parity goldens...$(RESET)\n"
-	@cd $(ORACLE_DIR) && go run ./cmd/vectors -root ../../.. -check && go run ./cmd/gen -check ../cases
+	@cd $(ORACLE_DIR) && TZ=Etc/GMT+4 go run ./cmd/vectors -root ../../.. -check && TZ=Etc/GMT+4 go run ./cmd/gen -check ../cases

@@ -219,7 +219,7 @@ func spruceEnv(m mode) []string {
 	if m.color {
 		term = "xterm-256color"
 	}
-	env = append(env, "TZ=America/New_York", "TERM="+term)
+	env = append(env, "TZ=Etc/GMT+4", "TERM="+term)
 	if m.truecolor {
 		env = append(env, "COLORTERM=truecolor")
 	}

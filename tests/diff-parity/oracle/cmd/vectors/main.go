@@ -37,6 +37,8 @@ func main() {
 	only := flag.String("only", "", "engine or render; empty means both")
 	flag.Parse()
 
+	// The Makefile's TZ=Etc/GMT+4 is what reaches BurntSushi/toml, which
+	// captures its zone before main runs; this line covers the rest.
 	time.Local = time.FixedZone("UTC-4", -4*60*60)
 	abs, err := filepath.Abs(*root)
 	if err != nil {
