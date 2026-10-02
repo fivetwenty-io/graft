@@ -188,22 +188,26 @@ func (w *walker) scalarItem(n ast.Node, slot string, ancs []anc) item {
 // scalar.
 const rootScalarLine = "d0#VL"
 
-// root walks a document's root node. A scalar root is an item of its
-// own, at libyaml's indentation of -1 outside every block collection, and
-// yaml.v3 keeps its head, line, and foot comments on the scalar. An empty root
-// holds no comments.
+// root walks a document's root node. A scalar or flow collection at the
+// root is an item of its own, at libyaml's indentation of -1 outside
+// every block collection, and yaml.v3 keeps a scalar's head, line, and
+// foot comments on the scalar. An empty root holds no comments.
 func (w *walker) root(n ast.Node) {
 	u := unwrap(n)
-	if isCollection(u) {
+	switch {
+	case isFlow(u):
+		w.items = append(w.items, w.scalarItem(u, "", []anc{{col: 0}}))
+		w.flow(u, "d0")
+	case isCollection(u):
 		w.node(n, "d0", nil)
-		return
+	default:
+		if tk := u.GetToken(); tk == nil || tk.Type == token.ImplicitNullType {
+			return
+		}
+		it := w.scalarItem(u, rootScalarLine, []anc{{col: 0, foot: "d0#VF"}})
+		it.head = "d0#VH"
+		w.items = append(w.items, it)
 	}
-	if tk := u.GetToken(); tk == nil || tk.Type == token.ImplicitNullType {
-		return
-	}
-	it := w.scalarItem(u, rootScalarLine, []anc{{col: 0, foot: "d0#VF"}})
-	it.head = "d0#VH"
-	w.items = append(w.items, it)
 }
 
 func (w *walker) node(n ast.Node, p string, ancs []anc) {
@@ -339,26 +343,59 @@ func (w *walker) flow(n ast.Node, p string) {
 	}
 }
 
-// commentSlots computes the printed comment slots of the one document a
-// chunk holds. Everything here works in the chunk's own lines, which
-// start at 1. nulled holds the stream lines whose bare "-" became "- ~".
-func commentSlots(file *ast.File, c chunk, nulled map[int]bool) map[string]string {
+// commentSlots computes the comment slots of the one document a chunk
+// holds, and the comments of the document itself. Everything here works
+// in the chunk's own lines, which start at 1. nulled holds the stream
+// lines whose bare "-" became "- ~". A nil file stands for a chunk that
+// holds no document, whose comments can only reach the one before it.
+func commentSlots(file *ast.File, c chunk, nulled map[int]bool) (map[string]string, docSlots) {
 	out := map[string]string{}
-	for _, doc := range file.Docs {
-		if doc.Body == nil {
-			continue
+	w := &walker{nulled: nulled, offset: c.lineOffset()}
+	explicit := false
+	if file != nil {
+		for _, doc := range file.Docs {
+			if doc.Body == nil {
+				continue
+			}
+			if _, ok := doc.Body.(*ast.DirectiveNode); ok {
+				continue
+			}
+			w.root(doc.Body)
+			explicit = doc.Start != nil
+			break
 		}
-		if _, ok := doc.Body.(*ast.DirectiveNode); ok {
-			continue
-		}
-		w := &walker{nulled: nulled, offset: c.lineOffset()}
-		w.root(doc.Body)
-		if len(w.items) > 0 {
-			placeComments(w, c, doc.Start != nil, out)
-		}
-		break
 	}
-	return out
+	return out, placeComments(w, c, explicit, out)
+}
+
+// docSlots holds a document's own comments. head is its head comment.
+// feet and heads are the foot and head comments still waiting for a
+// token when the document ends, and carry holds the foot comments right
+// after the token that ended the document before it, which that
+// document's end takes.
+type docSlots struct {
+	head        string
+	feet, heads []string
+	carry       []string
+}
+
+// setDocumentComments fills each document's head and foot comments. As
+// in yaml.v3, a document's end takes the foot comments waiting for it and
+// those its successor carries back, or failing those, the head comments.
+// ends has one entry per document, and one more when comments follow the
+// last document's "...".
+func setDocumentComments(docs []*Node, ends []docSlots) {
+	for i, d := range docs {
+		d.HeadComment = ends[i].head
+		feet := ends[i].feet
+		if i+1 < len(ends) {
+			feet = append(append([]string{}, feet...), ends[i+1].carry...)
+		}
+		if len(feet) == 0 {
+			feet = ends[i].heads
+		}
+		d.FootComment = strings.Join(feet, "\n")
+	}
 }
 
 // lexed is what commentSlots needs from the lexer: the comments, the
@@ -402,20 +439,20 @@ func lex(text string) lexed {
 	return l
 }
 
-func placeComments(w *walker, c chunk, explicit bool, out map[string]string) {
+func placeComments(w *walker, c chunk, explicit bool, out map[string]string) docSlots {
 	lines := strings.Split(strings.TrimSuffix(c.text, "\n"), "\n")
 	l := lex(c.text)
 	own, dashLines, inline := lineComments(w, l, out)
-	headFoot, ownFeet := "", map[string]bool{}
-	if c.index == 0 {
+	headFoot, ownFeet, d := "", map[string]bool{}, &docSlots{}
+	if (c.index == 0 || c.afterEnd) && len(w.items) > 0 {
 		headFoot = w.items[0].ancs[len(w.items[0].ancs)-1].foot
 	}
 	for _, g := range buildGaps(w.items, len(lines), dashLines, c.marker) {
 		if !gapHasComment(g, own) {
 			continue
 		}
-		s := newGapScanner(g, own, inline, lines, out, c.lineOffset())
-		s.headFoot, s.ownFeet = headFoot, ownFeet
+		s := newGapScanner(g, own, inline, lines, out, c)
+		s.headFoot, s.ownFeet, s.doc = headFoot, ownFeet, d
 		if c.unterminated && g.next == nil {
 			s.eofCol = utf8.RuneCountInString(lines[len(lines)-1])
 		}
@@ -423,8 +460,9 @@ func placeComments(w *walker, c chunk, explicit bool, out map[string]string) {
 		if g.prev != nil {
 			s.resolve()
 		}
-		s.finishHead(explicit)
+		s.finish(explicit)
 	}
+	return *d
 }
 
 func appendSlot(out map[string]string, slot, text string) {
@@ -579,6 +617,9 @@ type gap struct {
 }
 
 func buildGaps(items []item, lastLine int, dashLines map[int]bool, marker bool) []gap {
+	if len(items) == 0 {
+		return []gap{{from: 1, to: lastLine, marker: marker}}
+	}
 	gaps := []gap{{prev: nil, next: &items[0], from: 1, to: items[0].line - 1}}
 	for i := 0; i+1 < len(items); i++ {
 		if items[i+1].line > items[i].end {
@@ -678,6 +719,19 @@ type gapScanner struct {
 	// streamStart records that the chunk's first line is the stream's
 	// first line, where libyaml has no foot line.
 	streamStart bool
+
+	// doc collects the document's own comments. carryBefore and
+	// carryAfter say whether a foot comment in the first gap, before or
+	// after the document's "---", belongs to the document before it.
+	doc         *docSlots
+	carryBefore bool
+	carryAfter  bool
+
+	// endAt is the line of the token that ends the document, once the
+	// scan reaches it, and lastFoot is the line where the last foot
+	// comment ended.
+	endAt    int
+	lastFoot int
 }
 
 // newGapScanner prepares the scan of one gap. inline holds the lines that
@@ -686,12 +740,20 @@ type gapScanner struct {
 // the gap is a plain or block scalar with no line comment, whose scanner
 // reads on past the line break.
 //
-// lineOffset is the chunk's line offset. When the chunk does not start
-// the stream, the scan of its first gap starts as it would after the
-// blank lines that stand in for the lines before the chunk.
-func newGapScanner(g gap, own map[int]cmt, inline map[int]bool, lines []string, out map[string]string, lineOffset int) *gapScanner {
-	s := &gapScanner{g: g, own: own, lines: lines, out: out, footLine: -1, firstEmpty: true, streamStart: lineOffset == 0}
-	if g.prev == nil && !s.streamStart {
+// When the chunk does not start the stream, the scan of its first gap
+// starts as it would after the blank lines that stand in for the lines
+// before the chunk. After a "...", it starts on the "..." line's foot
+// line instead, and a foot comment there belongs to the document the
+// "..." ends, as does one right after a "---" that ends a document.
+func newGapScanner(g gap, own map[int]cmt, inline map[int]bool, lines []string, out map[string]string, c chunk) *gapScanner {
+	s := &gapScanner{g: g, own: own, lines: lines, out: out, footLine: -1, firstEmpty: true, streamStart: c.lineOffset() == 0}
+	if g.prev == nil && c.index > 0 {
+		s.carryBefore, s.carryAfter = c.afterEnd, !c.afterEnd
+	}
+	switch {
+	case g.prev == nil && s.carryBefore:
+		s.footLine = 1
+	case g.prev == nil && !s.streamStart:
 		s.firstEmpty, s.recentEmpty = false, true
 	}
 	if g.prev != nil {
@@ -732,10 +794,13 @@ func (s *gapScanner) end(l int) {
 		if len(s.text) > 0 && s.g.next.col-1 < s.nextIndent && s.g.next.col != s.startCol {
 			s.emitFoot(s.tokenMark(), pos{l, s.g.next.col})
 		}
+	case s.endAt > 0:
+		// A "..." inside the gap has ended the document already.
 	case s.g.marker:
 		s.marker(l)
 	default:
 		s.blankLine(l)
+		s.endAt = l
 	}
 }
 
@@ -755,14 +820,14 @@ func (s *gapScanner) comment(l int, c cmt) {
 // the document's first gap, the comments so far become head comments of
 // the first node, and a "---" starts a fresh scan whose foot line is the
 // line below it, except on the first line of the stream, where libyaml
-// has no foot line. At the end of a document, comments that are not a
-// foot by then become the document's foot, which neat never prints.
+// has no foot line. At the end of a document, the comments that are not
+// a foot by then stay pending for the document's own end.
 func (s *gapScanner) marker(l int) {
 	if len(s.text) > 0 && 0 < s.nextIndent && s.startCol != 1 {
 		s.emitFoot(s.tokenMark(), pos{l, 1})
 	}
-	if s.g.prev != nil {
-		s.text = nil
+	if s.g.prev != nil || l > len(s.lines) || strings.HasPrefix(s.lines[l-1], "...") {
+		s.endAt = l
 		return
 	}
 	if len(s.text) > 0 {
@@ -808,14 +873,29 @@ func (s *gapScanner) emitFoot(f foot, at pos) {
 	}
 	f.text = strings.Join(s.text, "\n")
 	s.text = nil
-	s.mark, s.marked = at, true
+	s.mark, s.marked, s.lastFoot = at, true, at.line
 	if s.g.prev == nil {
-		if s.afterHeader {
-			s.ownFoot(s.headFoot, f.text)
-		}
+		s.startFoot(f.text)
 		return
 	}
 	s.feet = append(s.feet, f)
+}
+
+// startFoot places a foot comment from a document's first gap. Before
+// the document's "---" it can only follow a "...", and after it, it
+// lands on the first node that takes comments, or on the document's own
+// end when there is no node. Either way it belongs to the document
+// before when its end has not taken its comments yet.
+func (s *gapScanner) startFoot(text string) {
+	switch {
+	case s.afterHeader && s.carryAfter, !s.afterHeader && s.carryBefore:
+		s.doc.carry = append(s.doc.carry, text)
+	case !s.afterHeader:
+	case s.g.next == nil:
+		s.doc.feet = append(s.doc.feet, text)
+	default:
+		s.ownFoot(s.headFoot, text)
+	}
 }
 
 // blockEnd is a BLOCK-END token. It records where libyaml put the token
@@ -831,13 +911,17 @@ type blockEnd struct {
 
 // blockEnds returns the BLOCK-END tokens between the gap's two items,
 // innermost first. yaml_parser_unroll_indent moves each one back to the
-// earliest comment in the gap that starts at its level's column. At the
+// earliest comment in the gap that starts at its level's column, and a
+// level with no such comment ends where the level inside it did. At the
 // end of the stream or before "---" or "...", libyaml first closes the
-// levels indented past the column it stands at, and closes the rest
-// there, after every comment.
+// levels indented past the column it stands at, and then closes the rest
+// in a second pass that starts after every comment. That pass moves back
+// to the comments only when the last of them reaches the end, which a
+// foot comment followed by more than one blank line does not.
 func (s *gapScanner) blockEnds() []blockEnd {
 	a := s.g.prev.ancs
 	var out []blockEnd
+	at, search, final := pos{s.g.from, 0}, true, false
 	for i := len(a) - 1; i >= 0; i-- {
 		if !a[i].block {
 			continue
@@ -845,20 +929,33 @@ func (s *gapScanner) blockEnds() []blockEnd {
 		if s.g.next != nil && a[i].col <= s.g.next.col {
 			break
 		}
-		at := pos{s.g.from, 0}
-		if s.g.next == nil && a[i].col-1 <= s.eofCol {
-			at = pos{eol, eol}
-		} else {
-			for _, st := range s.starts {
-				if st.col == a[i].col {
-					at = st
-					break
-				}
-			}
+		if s.g.next == nil && a[i].col-1 <= s.eofCol && !final {
+			at, search, final = pos{eol, eol}, s.reachesEnd(), true
+		}
+		if st, ok := s.firstStart(a[i].col); ok && search {
+			at = st
 		}
 		out = append(out, blockEnd{at, a[i].foot, a[i].key})
 	}
 	return out
+}
+
+// firstStart returns the start of the earliest comment block in the gap
+// that starts at col.
+func (s *gapScanner) firstStart(col int) (pos, bool) {
+	for _, st := range s.starts {
+		if st.col == col {
+			return st, true
+		}
+	}
+	return pos{}, false
+}
+
+// reachesEnd reports whether the gap's last comment ends right before the
+// token that ends the document. A head comment always does, and a foot
+// comment does when it ends at most one line before that token.
+func (s *gapScanner) reachesEnd() bool {
+	return len(s.text) > 0 || s.lastFoot >= s.endAt-1
 }
 
 // resolve places the gap's foot comments. A foot marked with the token
@@ -893,9 +990,12 @@ func (s *gapScanner) resolve() {
 			replace[ends[k].foot] = append(replace[ends[k].foot], f.text)
 			continue
 		}
-		if slot, handed := s.nextFoot(); handed {
+		switch slot, handed := s.nextFoot(); {
+		case handed:
 			replace[slot] = append(replace[slot], f.text)
-		} else {
+		case s.g.next == nil:
+			s.doc.feet = append(s.doc.feet, f.text)
+		default:
 			s.ownFoot(slot, f.text)
 		}
 	}
@@ -950,13 +1050,20 @@ func (s *gapScanner) nextFoot() (string, bool) {
 	return next.ancs[len(next.ancs)-1].foot, false
 }
 
-func (s *gapScanner) finishHead(explicit bool) {
+// finish hands the comment block the scan ended on to the next item as
+// its head comment. After the last item, or in a document with none, the
+// comments still pending stay with the document's end.
+func (s *gapScanner) finish(explicit bool) {
+	t := strings.Join(s.text, "\n")
 	if s.g.next == nil {
+		if t != "" {
+			s.preHead = append(s.preHead, t)
+		}
+		s.doc.heads = append(s.doc.heads, s.preHead...)
 		return
 	}
-	t := strings.Join(s.text, "\n")
 	if s.g.prev == nil && !explicit {
-		t = documentHeadRemainder(t)
+		s.doc.head, t = splitDocumentHead(t)
 	}
 	if t != "" {
 		s.preHead = append(s.preHead, t)
@@ -964,20 +1071,21 @@ func (s *gapScanner) finishHead(explicit bool) {
 	appendSlot(s.out, s.g.next.head, strings.Join(s.preHead, "\n"))
 }
 
-// documentHeadRemainder splits the comments before an implicit document's
-// first key at the last blank line. yaml.v3 gives the part above to the
-// document, which neat never prints, and the rest to the first key.
-func documentHeadRemainder(t string) string {
-	if i := strings.LastIndex(t, "\n\n"); i >= 0 {
-		if i+2 >= len(t) {
-			return ""
+// splitDocumentHead splits the comments before an implicit document's
+// first node at the last blank line, as yaml_parser_parse_document_start
+// does. The part above goes to the document and the rest to the node.
+// A blank line right before the node gives every comment to the document.
+func splitDocumentHead(t string) (head, rest string) {
+	for i := len(t) - 1; i > 0; i-- {
+		switch {
+		case t[i] != '\n':
+		case i == len(t)-1:
+			return t[:i], t[i+1:]
+		case t[i-1] == '\n':
+			return t[:i-1], t[i+1:]
 		}
-		t = t[i+2:]
 	}
-	if strings.HasSuffix(t, "\n") {
-		return ""
-	}
-	return t
+	return "", t
 }
 
 // applySlots writes the computed slots onto a built document, walking it

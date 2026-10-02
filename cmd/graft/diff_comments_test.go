@@ -35,3 +35,24 @@ func TestDiffPrintsRootScalarComments(t *testing.T) {
 		}
 	}
 }
+
+// TestDiffLeavesTrailingCommentsWithTheDocument checks that a comment the
+// stream ends on, which yaml.v3 leaves as the document's foot comment,
+// stays out of the report instead of landing on the outermost key. The
+// expected output is what spruce v1.35.17 prints.
+func TestDiffLeavesTrailingCommentsWithTheDocument(t *testing.T) {
+	withStdoutTerminal(t, false, 80)
+	dir := t.TempDir()
+	base, to := filepath.Join(dir, "base.yml"), filepath.Join(dir, "to.yml")
+	if err := os.WriteFile(base, []byte("x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(to, []byte("a:\n  b:\n    c: 1\n# x1\n  # z1\n# x2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	want := "\n(root level)\n± type change from string to map\n- x\n+ a:\n    b:\n      c: 1\n  # x1\n  # z1\n\n\n"
+	stdout, stderr, rc := runMainCaptured(t, "diff", "--no-color", base, to)
+	if rc != 1 || stderr != "" || stdout != want {
+		t.Errorf("rc=%d stderr=%q\nstdout=%q\nwant  %q", rc, stderr, stdout, want)
+	}
+}

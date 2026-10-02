@@ -66,21 +66,20 @@ func Parse(data []byte) (docs []*Node, err error) {
 	}
 	chunks := splitTokens(text, toks)
 	docs = make([]*Node, 0, len(chunks))
+	ends := make([]docSlots, 0, len(chunks))
 	endsInBlock := false
 	for i, c := range chunks {
 		c.unterminated = i == len(chunks)-1 && addedNewline
-		c.text, endsInBlock = normalizeChunkEnd(c.text, c.unterminated)
-		file, err := parser.ParseBytes([]byte(c.text), 0, parser.AllowDuplicateMapKey())
-		if err != nil {
-			return nil, toParseError(err, c.lineOffset())
-		}
-		doc, err := b.document(file, c)
+		doc, d, inBlock, err := b.parseChunk(c)
 		if err != nil {
 			return nil, err
 		}
-		applySlots(doc, "d0", commentSlots(file, c, b.nulledLines))
-		docs = append(docs, doc)
+		ends = append(ends, d)
+		if doc != nil {
+			docs, endsInBlock = append(docs, doc), inBlock
+		}
 	}
+	setDocumentComments(docs, ends)
 
 	// A clip or keep scalar that ran to the end of a stream with no final
 	// line break gained one above, so take it back.
@@ -88,6 +87,29 @@ func Parse(data []byte) (docs []*Node, err error) {
 		b.lastBlock.Value = strings.TrimSuffix(b.lastBlock.Value, "\n")
 	}
 	return docs, nil
+}
+
+// parseChunk parses one chunk into its document and the document's own
+// comments, and reports whether the chunk ends inside a block scalar. A
+// tail chunk holds no document, only comments for the one before it.
+func (b *builder) parseChunk(c chunk) (*Node, docSlots, bool, error) {
+	if c.tail {
+		_, d := commentSlots(nil, c, b.nulledLines)
+		return nil, d, false, nil
+	}
+	text, endsInBlock := normalizeChunkEnd(c.text, c.unterminated)
+	c.text = text
+	file, err := parser.ParseBytes([]byte(c.text), 0, parser.AllowDuplicateMapKey())
+	if err != nil {
+		return nil, docSlots{}, false, toParseError(err, c.lineOffset())
+	}
+	doc, err := b.document(file, c)
+	if err != nil {
+		return nil, docSlots{}, false, err
+	}
+	slots, d := commentSlots(file, c, b.nulledLines)
+	applySlots(doc, "d0", slots)
+	return doc, d, endsInBlock, nil
 }
 
 // normalizeChunkEnd works around goccy's handling of a block scalar that

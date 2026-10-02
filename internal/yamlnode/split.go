@@ -16,6 +16,11 @@ type chunk struct {
 	textLine  int  // 1-based line where text starts, before startLine when comments carry over
 	index     int  // the document's position in the stream
 	marker    bool // a "---" follows the chunk, or it ends with "..."
+	afterEnd  bool // a "..." ended the document before this one
+
+	// tail marks the comments after the last document's "...", which are
+	// no document but can still be that document's foot comment.
+	tail bool
 
 	// unterminated marks the stream's last chunk when Parse added the
 	// stream's final line break.
@@ -33,7 +38,8 @@ type chunk struct {
 // than a comment or a directive. Directive lines (%YAML, %TAG) travel with
 // the "---" section that follows them, and so do the comments of a
 // section that is not a document, because yaml.v3 gives them to the next
-// document's first node.
+// document's first node. Comments after the last document's "..." come
+// back as a tail chunk.
 func splitDocuments(src string) []chunk {
 	return splitTokens(src, lexer.Tokenize(src))
 }
@@ -54,7 +60,13 @@ func splitTokens(src string, toks token.Tokens) []chunk {
 	for _, t := range toks {
 		s.token(t)
 	}
-	s.emit(len(s.lines), false)
+	if !s.emit(len(s.lines), false) && s.afterEnd && s.textStart <= len(s.lines) {
+		s.chunks = append(s.chunks, chunk{
+			text:     strings.Join(s.lines[s.textStart-1:], ""),
+			textLine: s.textStart, startLine: s.textStart,
+			index: len(s.chunks), afterEnd: true, tail: true,
+		})
+	}
 	return s.chunks
 }
 
@@ -67,6 +79,11 @@ type splitter struct {
 	explicit         bool
 	hasContent       bool
 	pendingDirective int // first directive line waiting for its "---"
+
+	// endedByDots records that a "..." ended the last document, and
+	// afterEnd that the section being read follows that "...".
+	endedByDots bool
+	afterEnd    bool
 }
 
 func (s *splitter) token(t *token.Token) {
@@ -74,16 +91,22 @@ func (s *splitter) token(t *token.Token) {
 	switch {
 	case t.Type == token.DocumentHeaderType:
 		textStart := line
-		if !s.emit(line-1, true) && !s.explicit {
+		if s.emit(line-1, true) {
+			s.endedByDots = false
+		} else if !s.explicit {
 			textStart = s.textStart // carry the section's comments over
 		}
+		s.afterEnd = s.endedByDots
 		s.textStart, s.segStart, s.explicit, s.hasContent = textStart, line, true, false
 		if s.pendingDirective > 0 {
 			s.segStart, s.pendingDirective = s.pendingDirective, 0
 			s.textStart = min(s.textStart, s.segStart)
 		}
 	case t.Type == token.DocumentEndType:
-		s.emit(line, true)
+		if s.emit(line, true) {
+			s.endedByDots = true
+		}
+		s.afterEnd = s.endedByDots
 		s.textStart, s.segStart, s.explicit, s.hasContent = line+1, line+1, false, false
 	case t.Type == token.DirectiveType:
 		if s.pendingDirective == 0 {
@@ -110,6 +133,7 @@ func (s *splitter) emit(endLine int, marker bool) bool {
 		textLine:  s.textStart,
 		index:     len(s.chunks),
 		marker:    marker,
+		afterEnd:  s.afterEnd,
 	})
 	return true
 }

@@ -3,6 +3,7 @@ package yamlnode_test
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/yamlgolden"
@@ -10,8 +11,9 @@ import (
 )
 
 // printedSlots lists the four comment slots neat prints, plus a scalar
-// sequence item's head comment and a root scalar's slots, keyed by
-// mapping pair and sequence indexes so duplicate keys stay distinct.
+// sequence item's head comment, a root scalar's slots, and a document's
+// head (#DH) and foot (#DF), keyed by mapping pair and sequence indexes
+// so duplicate keys stay distinct.
 func printedSlots(n *yamlgolden.Node, path string, out map[string]string) {
 	put := func(k, v string) {
 		if v != "" {
@@ -20,6 +22,8 @@ func printedSlots(n *yamlgolden.Node, path string, out map[string]string) {
 	}
 	switch n.Kind {
 	case "document":
+		put(path+"#DH", n.HeadComment)
+		put(path+"#DF", n.FootComment)
 		for _, c := range n.Content {
 			if c.Kind == "scalar" {
 				put(path+"#VH", c.HeadComment)
@@ -131,6 +135,50 @@ func TestCommentsOnRootScalar(t *testing.T) {
 			if got := (slots{r.HeadComment, r.LineComment, r.FootComment}); got != c.want[i] {
 				t.Errorf("Parse(%q) document %d root: %+v, want %+v", c.in, i, got, c.want[i])
 			}
+		}
+	}
+}
+
+// TestCommentsOnDocument checks a document's head and foot comments, and
+// the comments around them, against the slots yaml.v3 gives. Comments
+// still pending when a document ends become its foot, and a foot right
+// after the next document's "---" goes to the document before it.
+func TestCommentsOnDocument(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want map[string]string
+	}{
+		{"a: 1\n\n# trailing\n", map[string]string{"d0#DF": "# trailing"}},
+		{"x\n\n# f\n\n# g\n", map[string]string{"d0#DF": "# f\n\n# g"}},
+		{"x\n\n# f\n\n# g\n\n", map[string]string{"d0#DF": "# f\n\n# g\n"}},
+		{"- a: 1\n# f\n", map[string]string{"d0#DF": "# f"}},
+		{"a: 1\n# f\n", map[string]string{"d0{0}#KF": "# f"}},
+		{"# c\n\na: 1\n", map[string]string{"d0#DH": "# c"}},
+		{"# a\n\n# b\nx: 1\n", map[string]string{"d0#DH": "# a", "d0{0}#KH": "# b"}},
+		{"# h\n\n# h2\n\na: 1\n", map[string]string{"d0#DH": "# h\n\n# h2"}},
+		{"--- # c\n# d\n\n# e\n", map[string]string{"d0#DF": "# c\n# d\n\n# e"}},
+		{"a: 1\n# f\n---\nb: 2\n", map[string]string{"d0#DF": "# f"}},
+		{"a: 1\n# h\n---\n# c\n\nb: 1\n", map[string]string{"d0#DF": "# c"}},
+		{"a: 1 # l\n# f\n---\n# c\n\n# d\nb: 1\n", map[string]string{"d0#DF": "# c", "d0{0}#VL": "# l", "d1{0}#KH": "# d"}},
+		{"- a\n---\n# c\n\n# d\n\n---\n", map[string]string{"d0#DF": "# c", "d1#DF": "# d\n"}},
+		{"a: 1\n---\n# c\n---\nb: 1\n", map[string]string{"d1#DF": "# c"}},
+		{"a: 1\n\n# f\n...\n", map[string]string{"d0#DF": "# f"}},
+		{"a: 1\n...\n# f\n# g\n\n# h\n", map[string]string{"d0#DF": "# f\n# g"}},
+		{"a: 1\n...\n\n# f\n", map[string]string{}},
+		{"a: 1\n...\n---\n# c\n\nb: 1\n", map[string]string{"d1{0}#KF": "# c"}},
+		{"[1, 2]\n# f\n", map[string]string{"d0#DF": "# f"}},
+		{"# h\n\n[1, 2]\n\n# f\n", map[string]string{"d0#DH": "# h", "d0#DF": "# f"}},
+		{"a:\n  b:\n    c: 1\n# x1\n  # z1\n# x2\n", map[string]string{"d0#DF": "# x2", "d0{0}{0}#KF": "# z1", "d0{0}{0}{0}#KF": "# x1"}},
+		{"a:\n  b:\n    c: 1\n# x1\n  # z1\n# x2\n---\nd: 1\n", map[string]string{"d0#DF": "# x2", "d0{0}{0}#KF": "# z1", "d0{0}{0}{0}#KF": "# x1"}},
+		{"a:\n  b: 1\n  # z1\n# x2\n", map[string]string{"d0{0}#KF": "# x2", "d0{0}{0}#KF": "# z1"}},
+		{"a:\n  b:\n    c: 1\n  # z1\n# x2\n", map[string]string{"d0{0}#KF": "# x2", "d0{0}{0}{0}#KF": "# z1"}},
+	} {
+		got := map[string]string{}
+		for i, d := range mustParse(t, c.in) {
+			printedSlots(yamlgolden.FromNode(d), fmt.Sprintf("d%d", i), got)
+		}
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Parse(%q) slots:\n got %q\nwant %q", c.in, got, c.want)
 		}
 	}
 }
