@@ -1,7 +1,7 @@
 // Command vectors writes the golden vector files that graft's unit tests
-// read. It runs the real yaml.v3, dyff, ytbx, and hashstructure code at
-// spruce v1.35.16's pins, so graft's ports are checked against the code
-// they replace.
+// read. It runs the real yaml.v3, dyff, ytbx, bunt, neat, text,
+// hashstructure, levenshtein, and ciede2000 code at spruce v1.35.16's
+// pins, so graft's ports are checked against the code they replace.
 //
 // Usage, from tests/diff-parity/oracle:
 //
@@ -34,7 +34,7 @@ func (o outputs) json(path string, v interface{}) {
 func main() {
 	root := flag.String("root", "../../..", "graft repository root")
 	check := flag.Bool("check", false, "compare instead of writing")
-	only := flag.String("only", "", "engine, or empty for every vector set")
+	only := flag.String("only", "", "engine or render; empty means both")
 	flag.Parse()
 
 	time.Local = time.FixedZone("UTC-4", -4*60*60)
@@ -46,6 +46,11 @@ func main() {
 	out := outputs{}
 	if *only == "" || *only == "engine" {
 		if err := engineVectors(abs, out); err != nil {
+			fail(err)
+		}
+	}
+	if *only == "" || *only == "render" {
+		if err := renderVectors(abs, out); err != nil {
 			fail(err)
 		}
 	}
@@ -90,7 +95,9 @@ func main() {
 // decides whether the file on disk still matches. -check uses it, and a
 // write leaves such a file alone when it already matches, so
 // regenerating on another architecture never churns it.
-var approxEqual = map[string]func(have, want []byte) bool{}
+var approxEqual = map[string]func(have, want []byte) bool{
+	ciedePath: sameCiede,
+}
 
 func same(path string, have, want []byte) bool {
 	if bytes.Equal(have, want) {

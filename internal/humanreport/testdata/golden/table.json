@@ -1,0 +1,56 @@
+[
+  {
+    "separator": "   ",
+    "indent": 0,
+    "columns": [
+      "a\nbb\nccc",
+      "x\ny"
+    ],
+    "out": "a     x\nbb    y\nccc"
+  },
+  {
+    "separator": "   ",
+    "indent": 0,
+    "columns": [
+      "empty: \n",
+      "k: v\n"
+    ],
+    "out": "empty:    k: v\n"
+  },
+  {
+    "separator": " ",
+    "indent": 2,
+    "columns": [
+      "- a, b",
+      "+ b, a"
+    ],
+    "out": "  - a, b   + b, a"
+  },
+  {
+    "separator": "   ",
+    "indent": 0,
+    "columns": [
+      "\u001b[31m- one\u001b[0m\n\u001b[31m  two\u001b[0m",
+      "\u001b[32m+ 日本\u001b[0m"
+    ],
+    "out": "\u001b[31m- one\u001b[0m   \u001b[32m+ 日本\u001b[0m\n\u001b[31m  two\u001b[0m"
+  },
+  {
+    "separator": "   ",
+    "indent": 0,
+    "columns": [
+      "only one column\n\n"
+    ],
+    "out": "only one column\n\n"
+  },
+  {
+    "separator": " ",
+    "indent": 2,
+    "columns": [
+      "a\nb\nc",
+      "1",
+      "x\ny"
+    ],
+    "out": "  a   1   x\n  b       y\n  c"
+  }
+]

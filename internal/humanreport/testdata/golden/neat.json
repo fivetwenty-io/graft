@@ -1,0 +1,218 @@
+[
+  {
+    "in": "removed_block:\n  # comment on key\n  inner: \u0026anc\n    deep: value   # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \"\"\n  dash: -x\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n",
+    "palette": "greenish",
+    "mode": "off",
+    "out": "removed_block:\n  # comment on key\ninner: \u0026anc\n    deep: value # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \n  dash: \"-x\"\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n"
+  },
+  {
+    "in": "removed_block:\n  # comment on key\n  inner: \u0026anc\n    deep: value   # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \"\"\n  dash: -x\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n",
+    "palette": "reddish",
+    "mode": "off",
+    "out": "removed_block:\n  # comment on key\ninner: \u0026anc\n    deep: value # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \n  dash: \"-x\"\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n"
+  },
+  {
+    "in": "removed_block:\n  # comment on key\n  inner: \u0026anc\n    deep: value   # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \"\"\n  dash: -x\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n",
+    "palette": "plain",
+    "mode": "off",
+    "out": "removed_block:\n  # comment on key\ninner: \u0026anc\n    deep: value # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \n  dash: \"-x\"\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n"
+  },
+  {
+    "in": "removed_block:\n  # comment on key\n  inner: \u0026anc\n    deep: value   # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \"\"\n  dash: -x\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n",
+    "palette": "greenish",
+    "mode": "truecolor",
+    "out": "\u001b[1;38;2;0;128;0mremoved_block:\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m# comment on key\n\u001b[1;38;2;0;128;0minner:\u001b[0m \u0026anc\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mdeep:\u001b[0m \u001b[38;2;50;205;50mvalue\u001b[0m # line comment\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mother:\u001b[0m \u001b[38;2;128;128;0m~\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0malias_ref:\u001b[0m *anc\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mempty:\u001b[0m \n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mdash:\u001b[0m \u001b[38;2;50;205;50m\"-x\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mnum_like:\u001b[0m \u001b[38;2;50;205;50m\"1.2.3\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mspecial:\u001b[0m \u001b[38;2;50;205;50m\"a:b\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mt:\u001b[0m \u001b[38;2;50;205;50m\"true\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0memptymap:\u001b[0m \u001b[38;2;85;107;47m{}\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0memptylist:\u001b[0m \u001b[38;2;85;107;47m[]\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mseq_of_maps:\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;0;128;0m-\u001b[0m \u001b[1;38;2;0;128;0mname:\u001b[0m \u001b[38;2;50;205;50ms1\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mv:\u001b[0m \u001b[38;2;50;205;50m1\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;0;128;0m-\u001b[0m \u001b[1;38;2;0;128;0mid:\u001b[0m \u001b[38;2;50;205;50m2\u001b[0m\n"
+  },
+  {
+    "in": "removed_block:\n  # comment on key\n  inner: \u0026anc\n    deep: value   # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \"\"\n  dash: -x\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n",
+    "palette": "reddish",
+    "mode": "truecolor",
+    "out": "\u001b[1;38;2;178;34;34mremoved_block:\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m# comment on key\n\u001b[1;38;2;178;34;34minner:\u001b[0m \u0026anc\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mdeep:\u001b[0m \u001b[38;2;240;128;128mvalue\u001b[0m # line comment\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mother:\u001b[0m \u001b[38;2;250;128;114m~\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34malias_ref:\u001b[0m *anc\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mempty:\u001b[0m \n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mdash:\u001b[0m \u001b[38;2;240;128;128m\"-x\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mnum_like:\u001b[0m \u001b[38;2;240;128;128m\"1.2.3\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mspecial:\u001b[0m \u001b[38;2;240;128;128m\"a:b\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mt:\u001b[0m \u001b[38;2;240;128;128m\"true\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34memptymap:\u001b[0m \u001b[38;2;255;160;122m{}\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34memptylist:\u001b[0m \u001b[38;2;255;160;122m[]\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mseq_of_maps:\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;178;34;34m-\u001b[0m \u001b[1;38;2;178;34;34mname:\u001b[0m \u001b[38;2;240;128;128ms1\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mv:\u001b[0m \u001b[38;2;240;128;128m1\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;178;34;34m-\u001b[0m \u001b[1;38;2;178;34;34mid:\u001b[0m \u001b[38;2;240;128;128m2\u001b[0m\n"
+  },
+  {
+    "in": "removed_block:\n  # comment on key\n  inner: \u0026anc\n    deep: value   # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \"\"\n  dash: -x\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n",
+    "palette": "plain",
+    "mode": "truecolor",
+    "out": "\u001b[1mremoved_block:\u001b[0m\n  # comment on key\n\u001b[1minner:\u001b[0m \u0026anc\n    \u001b[1mdeep:\u001b[0m value # line comment\n    \u001b[1mother:\u001b[0m ~\n  \u001b[1malias_ref:\u001b[0m *anc\n  \u001b[1mempty:\u001b[0m \n  \u001b[1mdash:\u001b[0m \"-x\"\n  \u001b[1mnum_like:\u001b[0m \"1.2.3\"\n  \u001b[1mspecial:\u001b[0m \"a:b\"\n  \u001b[1mt:\u001b[0m \"true\"\n  \u001b[1memptymap:\u001b[0m {}\n  \u001b[1memptylist:\u001b[0m []\n  \u001b[1mseq_of_maps:\u001b[0m\n  - \u001b[1mname:\u001b[0m s1\n    \u001b[1mv:\u001b[0m 1\n  - \u001b[1mid:\u001b[0m 2\n"
+  },
+  {
+    "in": "removed_block:\n  # comment on key\n  inner: \u0026anc\n    deep: value   # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \"\"\n  dash: -x\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n",
+    "palette": "greenish",
+    "mode": "ansi16",
+    "out": "\u001b[1;32mremoved_block:\u001b[0m\n\u001b[30m  \u001b[0m# comment on key\n\u001b[1;32minner:\u001b[0m \u0026anc\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[1;32mdeep:\u001b[0m \u001b[32mvalue\u001b[0m # line comment\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[1;32mother:\u001b[0m \u001b[32m~\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32malias_ref:\u001b[0m *anc\n\u001b[30m  \u001b[0m\u001b[1;32mempty:\u001b[0m \n\u001b[30m  \u001b[0m\u001b[1;32mdash:\u001b[0m \u001b[32m\"-x\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mnum_like:\u001b[0m \u001b[32m\"1.2.3\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mspecial:\u001b[0m \u001b[32m\"a:b\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mt:\u001b[0m \u001b[32m\"true\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32memptymap:\u001b[0m \u001b[90m{}\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32memptylist:\u001b[0m \u001b[90m[]\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mseq_of_maps:\u001b[0m\n\u001b[30m  \u001b[0m\u001b[32m-\u001b[0m \u001b[1;32mname:\u001b[0m \u001b[32ms1\u001b[0m\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[1;32mv:\u001b[0m \u001b[32m1\u001b[0m\n\u001b[30m  \u001b[0m\u001b[32m-\u001b[0m \u001b[1;32mid:\u001b[0m \u001b[32m2\u001b[0m\n"
+  },
+  {
+    "in": "removed_block:\n  # comment on key\n  inner: \u0026anc\n    deep: value   # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \"\"\n  dash: -x\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n",
+    "palette": "reddish",
+    "mode": "ansi16",
+    "out": "\u001b[1;91mremoved_block:\u001b[0m\n\u001b[30m  \u001b[0m# comment on key\n\u001b[1;91minner:\u001b[0m \u0026anc\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[1;91mdeep:\u001b[0m \u001b[91mvalue\u001b[0m # line comment\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[1;91mother:\u001b[0m \u001b[91m~\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91malias_ref:\u001b[0m *anc\n\u001b[30m  \u001b[0m\u001b[1;91mempty:\u001b[0m \n\u001b[30m  \u001b[0m\u001b[1;91mdash:\u001b[0m \u001b[91m\"-x\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mnum_like:\u001b[0m \u001b[91m\"1.2.3\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mspecial:\u001b[0m \u001b[91m\"a:b\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mt:\u001b[0m \u001b[91m\"true\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91memptymap:\u001b[0m \u001b[91m{}\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91memptylist:\u001b[0m \u001b[91m[]\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mseq_of_maps:\u001b[0m\n\u001b[30m  \u001b[0m\u001b[31m-\u001b[0m \u001b[1;91mname:\u001b[0m \u001b[91ms1\u001b[0m\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[1;91mv:\u001b[0m \u001b[91m1\u001b[0m\n\u001b[30m  \u001b[0m\u001b[31m-\u001b[0m \u001b[1;91mid:\u001b[0m \u001b[91m2\u001b[0m\n"
+  },
+  {
+    "in": "removed_block:\n  # comment on key\n  inner: \u0026anc\n    deep: value   # line comment\n    other: ~\n  alias_ref: *anc\n  empty: \"\"\n  dash: -x\n  num_like: \"1.2.3\"\n  special: \"a:b\"\n  t: \"true\"\n  emptymap: {}\n  emptylist: []\n  seq_of_maps:\n  - name: s1\n    v: 1\n  - id: 2\n",
+    "palette": "plain",
+    "mode": "ansi16",
+    "out": "\u001b[1mremoved_block:\u001b[0m\n  # comment on key\n\u001b[1minner:\u001b[0m \u0026anc\n    \u001b[1mdeep:\u001b[0m value # line comment\n    \u001b[1mother:\u001b[0m ~\n  \u001b[1malias_ref:\u001b[0m *anc\n  \u001b[1mempty:\u001b[0m \n  \u001b[1mdash:\u001b[0m \"-x\"\n  \u001b[1mnum_like:\u001b[0m \"1.2.3\"\n  \u001b[1mspecial:\u001b[0m \"a:b\"\n  \u001b[1mt:\u001b[0m \"true\"\n  \u001b[1memptymap:\u001b[0m {}\n  \u001b[1memptylist:\u001b[0m []\n  \u001b[1mseq_of_maps:\u001b[0m\n  - \u001b[1mname:\u001b[0m s1\n    \u001b[1mv:\u001b[0m 1\n  - \u001b[1mid:\u001b[0m 2\n"
+  },
+  {
+    "in": "q:\n  uni: \"café ☃\"\n  tab: \"a\\tb\"\n  ctl: \"x\\u0001y\"\n  e: e\n  dot: \".\"\n  plus: \"+1\"\n  hash: \"a#b\"\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: !custom foo\n  multiq: \"a\\nb\\n\"\n",
+    "palette": "greenish",
+    "mode": "off",
+    "out": "q:\n  uni: \"café ☃\"\n  tab: a\tb\n  ctl: x\u0001y\n  e: \"e\"\n  dot: \".\"\n  plus: \"+1\"\n  hash: a#b\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: foo\n  multiq: |\n    a\n    b\n    \n"
+  },
+  {
+    "in": "q:\n  uni: \"café ☃\"\n  tab: \"a\\tb\"\n  ctl: \"x\\u0001y\"\n  e: e\n  dot: \".\"\n  plus: \"+1\"\n  hash: \"a#b\"\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: !custom foo\n  multiq: \"a\\nb\\n\"\n",
+    "palette": "reddish",
+    "mode": "off",
+    "out": "q:\n  uni: \"café ☃\"\n  tab: a\tb\n  ctl: x\u0001y\n  e: \"e\"\n  dot: \".\"\n  plus: \"+1\"\n  hash: a#b\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: foo\n  multiq: |\n    a\n    b\n    \n"
+  },
+  {
+    "in": "q:\n  uni: \"café ☃\"\n  tab: \"a\\tb\"\n  ctl: \"x\\u0001y\"\n  e: e\n  dot: \".\"\n  plus: \"+1\"\n  hash: \"a#b\"\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: !custom foo\n  multiq: \"a\\nb\\n\"\n",
+    "palette": "plain",
+    "mode": "off",
+    "out": "q:\n  uni: \"café ☃\"\n  tab: a\tb\n  ctl: x\u0001y\n  e: \"e\"\n  dot: \".\"\n  plus: \"+1\"\n  hash: a#b\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: foo\n  multiq: |\n    a\n    b\n    \n"
+  },
+  {
+    "in": "q:\n  uni: \"café ☃\"\n  tab: \"a\\tb\"\n  ctl: \"x\\u0001y\"\n  e: e\n  dot: \".\"\n  plus: \"+1\"\n  hash: \"a#b\"\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: !custom foo\n  multiq: \"a\\nb\\n\"\n",
+    "palette": "greenish",
+    "mode": "truecolor",
+    "out": "\u001b[1;38;2;0;128;0mq:\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0muni:\u001b[0m \u001b[38;2;50;205;50m\"café ☃\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mtab:\u001b[0m \u001b[38;2;50;205;50ma\tb\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mctl:\u001b[0m \u001b[38;2;50;205;50mx\u0001y\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0me:\u001b[0m \u001b[38;2;50;205;50m\"e\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mdot:\u001b[0m \u001b[38;2;50;205;50m\".\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mplus:\u001b[0m \u001b[38;2;50;205;50m\"+1\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mhash:\u001b[0m \u001b[38;2;50;205;50ma#b\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mstar:\u001b[0m \u001b[38;2;50;205;50m\"*x\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mamp:\u001b[0m \u001b[38;2;50;205;50m\"\u0026x\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0minf:\u001b[0m \u001b[38;2;50;205;50m\".inf\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mnul:\u001b[0m \u001b[38;2;50;205;50m\"null\"\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0myes:\u001b[0m \u001b[38;2;50;205;50myes\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mdate:\u001b[0m \u001b[38;2;50;205;50m2001-12-14\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mhexv:\u001b[0m \u001b[38;2;50;205;50m0x10\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mbig:\u001b[0m \u001b[38;2;50;205;50m12345678901234567890\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mtagged:\u001b[0m \u001b[38;2;50;205;50mfoo\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mmultiq:\u001b[0m \u001b[38;2;107;142;35m|\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;107;142;35ma\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;107;142;35mb\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;0;51;0m  \u001b[0m\n"
+  },
+  {
+    "in": "q:\n  uni: \"café ☃\"\n  tab: \"a\\tb\"\n  ctl: \"x\\u0001y\"\n  e: e\n  dot: \".\"\n  plus: \"+1\"\n  hash: \"a#b\"\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: !custom foo\n  multiq: \"a\\nb\\n\"\n",
+    "palette": "reddish",
+    "mode": "truecolor",
+    "out": "\u001b[1;38;2;178;34;34mq:\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34muni:\u001b[0m \u001b[38;2;240;128;128m\"café ☃\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mtab:\u001b[0m \u001b[38;2;240;128;128ma\tb\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mctl:\u001b[0m \u001b[38;2;240;128;128mx\u0001y\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34me:\u001b[0m \u001b[38;2;240;128;128m\"e\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mdot:\u001b[0m \u001b[38;2;240;128;128m\".\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mplus:\u001b[0m \u001b[38;2;240;128;128m\"+1\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mhash:\u001b[0m \u001b[38;2;240;128;128ma#b\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mstar:\u001b[0m \u001b[38;2;240;128;128m\"*x\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mamp:\u001b[0m \u001b[38;2;240;128;128m\"\u0026x\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34minf:\u001b[0m \u001b[38;2;240;128;128m\".inf\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mnul:\u001b[0m \u001b[38;2;240;128;128m\"null\"\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34myes:\u001b[0m \u001b[38;2;240;128;128myes\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mdate:\u001b[0m \u001b[38;2;240;128;128m2001-12-14\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mhexv:\u001b[0m \u001b[38;2;240;128;128m0x10\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mbig:\u001b[0m \u001b[38;2;240;128;128m12345678901234567890\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mtagged:\u001b[0m \u001b[38;2;240;128;128mfoo\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mmultiq:\u001b[0m \u001b[38;2;233;150;122m|\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;233;150;122ma\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;233;150;122mb\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;51;0;0m  \u001b[0m\n"
+  },
+  {
+    "in": "q:\n  uni: \"café ☃\"\n  tab: \"a\\tb\"\n  ctl: \"x\\u0001y\"\n  e: e\n  dot: \".\"\n  plus: \"+1\"\n  hash: \"a#b\"\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: !custom foo\n  multiq: \"a\\nb\\n\"\n",
+    "palette": "plain",
+    "mode": "truecolor",
+    "out": "\u001b[1mq:\u001b[0m\n  \u001b[1muni:\u001b[0m \"café ☃\"\n  \u001b[1mtab:\u001b[0m a\tb\n  \u001b[1mctl:\u001b[0m x\u0001y\n  \u001b[1me:\u001b[0m \"e\"\n  \u001b[1mdot:\u001b[0m \".\"\n  \u001b[1mplus:\u001b[0m \"+1\"\n  \u001b[1mhash:\u001b[0m a#b\n  \u001b[1mstar:\u001b[0m \"*x\"\n  \u001b[1mamp:\u001b[0m \"\u0026x\"\n  \u001b[1minf:\u001b[0m \".inf\"\n  \u001b[1mnul:\u001b[0m \"null\"\n  \u001b[1myes:\u001b[0m yes\n  \u001b[1mdate:\u001b[0m 2001-12-14\n  \u001b[1mhexv:\u001b[0m 0x10\n  \u001b[1mbig:\u001b[0m 12345678901234567890\n  \u001b[1mtagged:\u001b[0m foo\n  \u001b[1mmultiq:\u001b[0m |\n    a\n    b\n    \n"
+  },
+  {
+    "in": "q:\n  uni: \"café ☃\"\n  tab: \"a\\tb\"\n  ctl: \"x\\u0001y\"\n  e: e\n  dot: \".\"\n  plus: \"+1\"\n  hash: \"a#b\"\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: !custom foo\n  multiq: \"a\\nb\\n\"\n",
+    "palette": "greenish",
+    "mode": "ansi16",
+    "out": "\u001b[1;32mq:\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32muni:\u001b[0m \u001b[32m\"café ☃\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mtab:\u001b[0m \u001b[32ma\tb\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mctl:\u001b[0m \u001b[32mx\u0001y\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32me:\u001b[0m \u001b[32m\"e\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mdot:\u001b[0m \u001b[32m\".\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mplus:\u001b[0m \u001b[32m\"+1\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mhash:\u001b[0m \u001b[32ma#b\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mstar:\u001b[0m \u001b[32m\"*x\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mamp:\u001b[0m \u001b[32m\"\u0026x\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32minf:\u001b[0m \u001b[32m\".inf\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mnul:\u001b[0m \u001b[32m\"null\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32myes:\u001b[0m \u001b[32myes\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mdate:\u001b[0m \u001b[32m2001-12-14\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mhexv:\u001b[0m \u001b[32m0x10\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mbig:\u001b[0m \u001b[32m12345678901234567890\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mtagged:\u001b[0m \u001b[32mfoo\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;32mmultiq:\u001b[0m \u001b[32m|\u001b[0m\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[32ma\u001b[0m\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[32mb\u001b[0m\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\n"
+  },
+  {
+    "in": "q:\n  uni: \"café ☃\"\n  tab: \"a\\tb\"\n  ctl: \"x\\u0001y\"\n  e: e\n  dot: \".\"\n  plus: \"+1\"\n  hash: \"a#b\"\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: !custom foo\n  multiq: \"a\\nb\\n\"\n",
+    "palette": "reddish",
+    "mode": "ansi16",
+    "out": "\u001b[1;91mq:\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91muni:\u001b[0m \u001b[91m\"café ☃\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mtab:\u001b[0m \u001b[91ma\tb\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mctl:\u001b[0m \u001b[91mx\u0001y\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91me:\u001b[0m \u001b[91m\"e\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mdot:\u001b[0m \u001b[91m\".\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mplus:\u001b[0m \u001b[91m\"+1\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mhash:\u001b[0m \u001b[91ma#b\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mstar:\u001b[0m \u001b[91m\"*x\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mamp:\u001b[0m \u001b[91m\"\u0026x\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91minf:\u001b[0m \u001b[91m\".inf\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mnul:\u001b[0m \u001b[91m\"null\"\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91myes:\u001b[0m \u001b[91myes\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mdate:\u001b[0m \u001b[91m2001-12-14\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mhexv:\u001b[0m \u001b[91m0x10\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mbig:\u001b[0m \u001b[91m12345678901234567890\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mtagged:\u001b[0m \u001b[91mfoo\u001b[0m\n\u001b[30m  \u001b[0m\u001b[1;91mmultiq:\u001b[0m \u001b[91m|\u001b[0m\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[91ma\u001b[0m\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\u001b[91mb\u001b[0m\n\u001b[30m  \u001b[0m\u001b[30m  \u001b[0m\n"
+  },
+  {
+    "in": "q:\n  uni: \"café ☃\"\n  tab: \"a\\tb\"\n  ctl: \"x\\u0001y\"\n  e: e\n  dot: \".\"\n  plus: \"+1\"\n  hash: \"a#b\"\n  star: \"*x\"\n  amp: \"\u0026x\"\n  inf: \".inf\"\n  nul: \"null\"\n  yes: yes\n  date: 2001-12-14\n  hexv: 0x10\n  big: 12345678901234567890\n  tagged: !custom foo\n  multiq: \"a\\nb\\n\"\n",
+    "palette": "plain",
+    "mode": "ansi16",
+    "out": "\u001b[1mq:\u001b[0m\n  \u001b[1muni:\u001b[0m \"café ☃\"\n  \u001b[1mtab:\u001b[0m a\tb\n  \u001b[1mctl:\u001b[0m x\u0001y\n  \u001b[1me:\u001b[0m \"e\"\n  \u001b[1mdot:\u001b[0m \".\"\n  \u001b[1mplus:\u001b[0m \"+1\"\n  \u001b[1mhash:\u001b[0m a#b\n  \u001b[1mstar:\u001b[0m \"*x\"\n  \u001b[1mamp:\u001b[0m \"\u0026x\"\n  \u001b[1minf:\u001b[0m \".inf\"\n  \u001b[1mnul:\u001b[0m \"null\"\n  \u001b[1myes:\u001b[0m yes\n  \u001b[1mdate:\u001b[0m 2001-12-14\n  \u001b[1mhexv:\u001b[0m 0x10\n  \u001b[1mbig:\u001b[0m 12345678901234567890\n  \u001b[1mtagged:\u001b[0m foo\n  \u001b[1mmultiq:\u001b[0m |\n    a\n    b\n    \n"
+  },
+  {
+    "in": "# doc head\n\n# head of a\na: 1 # line of a\n# foot of a\n\nb:\n  # head of b.x\n  x: 2 # line x\n  y: 3\n  # foot of b.y (indented)\n# head of c\nc:\n  - one # line one\n  # head of two\n  - two\n  - k: v # line kv\n    j: w\n# trailing foot\n",
+    "palette": "greenish",
+    "mode": "off",
+    "out": "# head of a\na: 1 # line of a\n# foot of a\nb:\n  # head of b.x\nx: 2 # line x\n  y: 3\n# foot of b.y (indented)\n# head of c\nc:\n- one # line one\n- two\n- k: v # line kv\n  j: w\n# trailing foot\n"
+  },
+  {
+    "in": "# doc head\n\n# head of a\na: 1 # line of a\n# foot of a\n\nb:\n  # head of b.x\n  x: 2 # line x\n  y: 3\n  # foot of b.y (indented)\n# head of c\nc:\n  - one # line one\n  # head of two\n  - two\n  - k: v # line kv\n    j: w\n# trailing foot\n",
+    "palette": "reddish",
+    "mode": "off",
+    "out": "# head of a\na: 1 # line of a\n# foot of a\nb:\n  # head of b.x\nx: 2 # line x\n  y: 3\n# foot of b.y (indented)\n# head of c\nc:\n- one # line one\n- two\n- k: v # line kv\n  j: w\n# trailing foot\n"
+  },
+  {
+    "in": "# doc head\n\n# head of a\na: 1 # line of a\n# foot of a\n\nb:\n  # head of b.x\n  x: 2 # line x\n  y: 3\n  # foot of b.y (indented)\n# head of c\nc:\n  - one # line one\n  # head of two\n  - two\n  - k: v # line kv\n    j: w\n# trailing foot\n",
+    "palette": "plain",
+    "mode": "off",
+    "out": "# head of a\na: 1 # line of a\n# foot of a\nb:\n  # head of b.x\nx: 2 # line x\n  y: 3\n# foot of b.y (indented)\n# head of c\nc:\n- one # line one\n- two\n- k: v # line kv\n  j: w\n# trailing foot\n"
+  },
+  {
+    "in": "# doc head\n\n# head of a\na: 1 # line of a\n# foot of a\n\nb:\n  # head of b.x\n  x: 2 # line x\n  y: 3\n  # foot of b.y (indented)\n# head of c\nc:\n  - one # line one\n  # head of two\n  - two\n  - k: v # line kv\n    j: w\n# trailing foot\n",
+    "palette": "greenish",
+    "mode": "truecolor",
+    "out": "# head of a\n\u001b[1;38;2;0;128;0ma:\u001b[0m \u001b[38;2;50;205;50m1\u001b[0m # line of a\n# foot of a\n\u001b[1;38;2;0;128;0mb:\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m# head of b.x\n\u001b[1;38;2;0;128;0mx:\u001b[0m \u001b[38;2;50;205;50m2\u001b[0m # line x\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0my:\u001b[0m \u001b[38;2;50;205;50m3\u001b[0m\n# foot of b.y (indented)\n# head of c\n\u001b[1;38;2;0;128;0mc:\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;50;205;50mone\u001b[0m # line one\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;50;205;50mtwo\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[1;38;2;0;128;0mk:\u001b[0m \u001b[38;2;50;205;50mv\u001b[0m # line kv\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[1;38;2;0;128;0mj:\u001b[0m \u001b[38;2;50;205;50mw\u001b[0m\n# trailing foot\n"
+  },
+  {
+    "in": "# doc head\n\n# head of a\na: 1 # line of a\n# foot of a\n\nb:\n  # head of b.x\n  x: 2 # line x\n  y: 3\n  # foot of b.y (indented)\n# head of c\nc:\n  - one # line one\n  # head of two\n  - two\n  - k: v # line kv\n    j: w\n# trailing foot\n",
+    "palette": "reddish",
+    "mode": "truecolor",
+    "out": "# head of a\n\u001b[1;38;2;178;34;34ma:\u001b[0m \u001b[38;2;240;128;128m1\u001b[0m # line of a\n# foot of a\n\u001b[1;38;2;178;34;34mb:\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m# head of b.x\n\u001b[1;38;2;178;34;34mx:\u001b[0m \u001b[38;2;240;128;128m2\u001b[0m # line x\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34my:\u001b[0m \u001b[38;2;240;128;128m3\u001b[0m\n# foot of b.y (indented)\n# head of c\n\u001b[1;38;2;178;34;34mc:\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;240;128;128mone\u001b[0m # line one\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;240;128;128mtwo\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[1;38;2;178;34;34mk:\u001b[0m \u001b[38;2;240;128;128mv\u001b[0m # line kv\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[1;38;2;178;34;34mj:\u001b[0m \u001b[38;2;240;128;128mw\u001b[0m\n# trailing foot\n"
+  },
+  {
+    "in": "# doc head\n\n# head of a\na: 1 # line of a\n# foot of a\n\nb:\n  # head of b.x\n  x: 2 # line x\n  y: 3\n  # foot of b.y (indented)\n# head of c\nc:\n  - one # line one\n  # head of two\n  - two\n  - k: v # line kv\n    j: w\n# trailing foot\n",
+    "palette": "plain",
+    "mode": "truecolor",
+    "out": "# head of a\n\u001b[1ma:\u001b[0m 1 # line of a\n# foot of a\n\u001b[1mb:\u001b[0m\n  # head of b.x\n\u001b[1mx:\u001b[0m 2 # line x\n  \u001b[1my:\u001b[0m 3\n# foot of b.y (indented)\n# head of c\n\u001b[1mc:\u001b[0m\n- one # line one\n- two\n- \u001b[1mk:\u001b[0m v # line kv\n  \u001b[1mj:\u001b[0m w\n# trailing foot\n"
+  },
+  {
+    "in": "# doc head\n\n# head of a\na: 1 # line of a\n# foot of a\n\nb:\n  # head of b.x\n  x: 2 # line x\n  y: 3\n  # foot of b.y (indented)\n# head of c\nc:\n  - one # line one\n  # head of two\n  - two\n  - k: v # line kv\n    j: w\n# trailing foot\n",
+    "palette": "greenish",
+    "mode": "ansi16",
+    "out": "# head of a\n\u001b[1;32ma:\u001b[0m \u001b[32m1\u001b[0m # line of a\n# foot of a\n\u001b[1;32mb:\u001b[0m\n\u001b[30m  \u001b[0m# head of b.x\n\u001b[1;32mx:\u001b[0m \u001b[32m2\u001b[0m # line x\n\u001b[30m  \u001b[0m\u001b[1;32my:\u001b[0m \u001b[32m3\u001b[0m\n# foot of b.y (indented)\n# head of c\n\u001b[1;32mc:\u001b[0m\n\u001b[32m-\u001b[0m \u001b[32mone\u001b[0m # line one\n\u001b[32m-\u001b[0m \u001b[32mtwo\u001b[0m\n\u001b[32m-\u001b[0m \u001b[1;32mk:\u001b[0m \u001b[32mv\u001b[0m # line kv\n\u001b[30m  \u001b[0m\u001b[1;32mj:\u001b[0m \u001b[32mw\u001b[0m\n# trailing foot\n"
+  },
+  {
+    "in": "# doc head\n\n# head of a\na: 1 # line of a\n# foot of a\n\nb:\n  # head of b.x\n  x: 2 # line x\n  y: 3\n  # foot of b.y (indented)\n# head of c\nc:\n  - one # line one\n  # head of two\n  - two\n  - k: v # line kv\n    j: w\n# trailing foot\n",
+    "palette": "reddish",
+    "mode": "ansi16",
+    "out": "# head of a\n\u001b[1;91ma:\u001b[0m \u001b[91m1\u001b[0m # line of a\n# foot of a\n\u001b[1;91mb:\u001b[0m\n\u001b[30m  \u001b[0m# head of b.x\n\u001b[1;91mx:\u001b[0m \u001b[91m2\u001b[0m # line x\n\u001b[30m  \u001b[0m\u001b[1;91my:\u001b[0m \u001b[91m3\u001b[0m\n# foot of b.y (indented)\n# head of c\n\u001b[1;91mc:\u001b[0m\n\u001b[31m-\u001b[0m \u001b[91mone\u001b[0m # line one\n\u001b[31m-\u001b[0m \u001b[91mtwo\u001b[0m\n\u001b[31m-\u001b[0m \u001b[1;91mk:\u001b[0m \u001b[91mv\u001b[0m # line kv\n\u001b[30m  \u001b[0m\u001b[1;91mj:\u001b[0m \u001b[91mw\u001b[0m\n# trailing foot\n"
+  },
+  {
+    "in": "# doc head\n\n# head of a\na: 1 # line of a\n# foot of a\n\nb:\n  # head of b.x\n  x: 2 # line x\n  y: 3\n  # foot of b.y (indented)\n# head of c\nc:\n  - one # line one\n  # head of two\n  - two\n  - k: v # line kv\n    j: w\n# trailing foot\n",
+    "palette": "plain",
+    "mode": "ansi16",
+    "out": "# head of a\n\u001b[1ma:\u001b[0m 1 # line of a\n# foot of a\n\u001b[1mb:\u001b[0m\n  # head of b.x\n\u001b[1mx:\u001b[0m 2 # line x\n  \u001b[1my:\u001b[0m 3\n# foot of b.y (indented)\n# head of c\n\u001b[1mc:\u001b[0m\n- one # line one\n- two\n- \u001b[1mk:\u001b[0m v # line kv\n  \u001b[1mj:\u001b[0m w\n# trailing foot\n"
+  },
+  {
+    "in": "l:\n- a\n- - x\n  - y\n- {k: v}\n- \u0026s scalar\n- *s\nm: |\n  line one\n  line two\nn: \u003e-\n  folded\nbin: !!binary aGVsbG8=\nnull_forms: [~, null, Null]\nflt: 1.5\nflag: true\n",
+    "palette": "greenish",
+    "mode": "off",
+    "out": "l:\n- a\n- - x\n  - y\n- k: v\n- scalar\n- scalar\nm: |\n  line one\n  line two\n  \nn: folded\nbin: aGVsbG8=\nnull_forms:\n- ~\n- null\n- Null\nflt: 1.5\nflag: true\n"
+  },
+  {
+    "in": "l:\n- a\n- - x\n  - y\n- {k: v}\n- \u0026s scalar\n- *s\nm: |\n  line one\n  line two\nn: \u003e-\n  folded\nbin: !!binary aGVsbG8=\nnull_forms: [~, null, Null]\nflt: 1.5\nflag: true\n",
+    "palette": "reddish",
+    "mode": "off",
+    "out": "l:\n- a\n- - x\n  - y\n- k: v\n- scalar\n- scalar\nm: |\n  line one\n  line two\n  \nn: folded\nbin: aGVsbG8=\nnull_forms:\n- ~\n- null\n- Null\nflt: 1.5\nflag: true\n"
+  },
+  {
+    "in": "l:\n- a\n- - x\n  - y\n- {k: v}\n- \u0026s scalar\n- *s\nm: |\n  line one\n  line two\nn: \u003e-\n  folded\nbin: !!binary aGVsbG8=\nnull_forms: [~, null, Null]\nflt: 1.5\nflag: true\n",
+    "palette": "plain",
+    "mode": "off",
+    "out": "l:\n- a\n- - x\n  - y\n- k: v\n- scalar\n- scalar\nm: |\n  line one\n  line two\n  \nn: folded\nbin: aGVsbG8=\nnull_forms:\n- ~\n- null\n- Null\nflt: 1.5\nflag: true\n"
+  },
+  {
+    "in": "l:\n- a\n- - x\n  - y\n- {k: v}\n- \u0026s scalar\n- *s\nm: |\n  line one\n  line two\nn: \u003e-\n  folded\nbin: !!binary aGVsbG8=\nnull_forms: [~, null, Null]\nflt: 1.5\nflag: true\n",
+    "palette": "greenish",
+    "mode": "truecolor",
+    "out": "\u001b[1;38;2;0;128;0ml:\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;50;205;50ma\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;50;205;50mx\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;50;205;50my\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[1;38;2;0;128;0mk:\u001b[0m \u001b[38;2;50;205;50mv\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;50;205;50mscalar\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;50;205;50mscalar\u001b[0m\n\u001b[1;38;2;0;128;0mm:\u001b[0m \u001b[38;2;107;142;35m|\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;107;142;35mline one\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\u001b[38;2;107;142;35mline two\u001b[0m\n\u001b[38;2;0;51;0m  \u001b[0m\n\u001b[1;38;2;0;128;0mn:\u001b[0m \u001b[38;2;50;205;50mfolded\u001b[0m\n\u001b[1;38;2;0;128;0mbin:\u001b[0m aGVsbG8=\n\u001b[1;38;2;0;128;0mnull_forms:\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;128;128;0m~\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;128;128;0mnull\u001b[0m\n\u001b[38;2;0;128;0m-\u001b[0m \u001b[38;2;128;128;0mNull\u001b[0m\n\u001b[1;38;2;0;128;0mflt:\u001b[0m \u001b[38;2;50;205;50m1.5\u001b[0m\n\u001b[1;38;2;0;128;0mflag:\u001b[0m \u001b[38;2;50;205;50mtrue\u001b[0m\n"
+  },
+  {
+    "in": "l:\n- a\n- - x\n  - y\n- {k: v}\n- \u0026s scalar\n- *s\nm: |\n  line one\n  line two\nn: \u003e-\n  folded\nbin: !!binary aGVsbG8=\nnull_forms: [~, null, Null]\nflt: 1.5\nflag: true\n",
+    "palette": "reddish",
+    "mode": "truecolor",
+    "out": "\u001b[1;38;2;178;34;34ml:\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;240;128;128ma\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;240;128;128mx\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;240;128;128my\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[1;38;2;178;34;34mk:\u001b[0m \u001b[38;2;240;128;128mv\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;240;128;128mscalar\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;240;128;128mscalar\u001b[0m\n\u001b[1;38;2;178;34;34mm:\u001b[0m \u001b[38;2;233;150;122m|\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;233;150;122mline one\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\u001b[38;2;233;150;122mline two\u001b[0m\n\u001b[38;2;51;0;0m  \u001b[0m\n\u001b[1;38;2;178;34;34mn:\u001b[0m \u001b[38;2;240;128;128mfolded\u001b[0m\n\u001b[1;38;2;178;34;34mbin:\u001b[0m aGVsbG8=\n\u001b[1;38;2;178;34;34mnull_forms:\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;250;128;114m~\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;250;128;114mnull\u001b[0m\n\u001b[38;2;178;34;34m-\u001b[0m \u001b[38;2;250;128;114mNull\u001b[0m\n\u001b[1;38;2;178;34;34mflt:\u001b[0m \u001b[38;2;240;128;128m1.5\u001b[0m\n\u001b[1;38;2;178;34;34mflag:\u001b[0m \u001b[38;2;240;128;128mtrue\u001b[0m\n"
+  },
+  {
+    "in": "l:\n- a\n- - x\n  - y\n- {k: v}\n- \u0026s scalar\n- *s\nm: |\n  line one\n  line two\nn: \u003e-\n  folded\nbin: !!binary aGVsbG8=\nnull_forms: [~, null, Null]\nflt: 1.5\nflag: true\n",
+    "palette": "plain",
+    "mode": "truecolor",
+    "out": "\u001b[1ml:\u001b[0m\n- a\n- - x\n  - y\n- \u001b[1mk:\u001b[0m v\n- scalar\n- scalar\n\u001b[1mm:\u001b[0m |\n  line one\n  line two\n  \n\u001b[1mn:\u001b[0m folded\n\u001b[1mbin:\u001b[0m aGVsbG8=\n\u001b[1mnull_forms:\u001b[0m\n- ~\n- null\n- Null\n\u001b[1mflt:\u001b[0m 1.5\n\u001b[1mflag:\u001b[0m true\n"
+  },
+  {
+    "in": "l:\n- a\n- - x\n  - y\n- {k: v}\n- \u0026s scalar\n- *s\nm: |\n  line one\n  line two\nn: \u003e-\n  folded\nbin: !!binary aGVsbG8=\nnull_forms: [~, null, Null]\nflt: 1.5\nflag: true\n",
+    "palette": "greenish",
+    "mode": "ansi16",
+    "out": "\u001b[1;32ml:\u001b[0m\n\u001b[32m-\u001b[0m \u001b[32ma\u001b[0m\n\u001b[32m-\u001b[0m \u001b[32m-\u001b[0m \u001b[32mx\u001b[0m\n\u001b[30m  \u001b[0m\u001b[32m-\u001b[0m \u001b[32my\u001b[0m\n\u001b[32m-\u001b[0m \u001b[1;32mk:\u001b[0m \u001b[32mv\u001b[0m\n\u001b[32m-\u001b[0m \u001b[32mscalar\u001b[0m\n\u001b[32m-\u001b[0m \u001b[32mscalar\u001b[0m\n\u001b[1;32mm:\u001b[0m \u001b[32m|\u001b[0m\n\u001b[30m  \u001b[0m\u001b[32mline one\u001b[0m\n\u001b[30m  \u001b[0m\u001b[32mline two\u001b[0m\n\u001b[30m  \u001b[0m\n\u001b[1;32mn:\u001b[0m \u001b[32mfolded\u001b[0m\n\u001b[1;32mbin:\u001b[0m aGVsbG8=\n\u001b[1;32mnull_forms:\u001b[0m\n\u001b[32m-\u001b[0m \u001b[32m~\u001b[0m\n\u001b[32m-\u001b[0m \u001b[32mnull\u001b[0m\n\u001b[32m-\u001b[0m \u001b[32mNull\u001b[0m\n\u001b[1;32mflt:\u001b[0m \u001b[32m1.5\u001b[0m\n\u001b[1;32mflag:\u001b[0m \u001b[32mtrue\u001b[0m\n"
+  },
+  {
+    "in": "l:\n- a\n- - x\n  - y\n- {k: v}\n- \u0026s scalar\n- *s\nm: |\n  line one\n  line two\nn: \u003e-\n  folded\nbin: !!binary aGVsbG8=\nnull_forms: [~, null, Null]\nflt: 1.5\nflag: true\n",
+    "palette": "reddish",
+    "mode": "ansi16",
+    "out": "\u001b[1;91ml:\u001b[0m\n\u001b[31m-\u001b[0m \u001b[91ma\u001b[0m\n\u001b[31m-\u001b[0m \u001b[31m-\u001b[0m \u001b[91mx\u001b[0m\n\u001b[30m  \u001b[0m\u001b[31m-\u001b[0m \u001b[91my\u001b[0m\n\u001b[31m-\u001b[0m \u001b[1;91mk:\u001b[0m \u001b[91mv\u001b[0m\n\u001b[31m-\u001b[0m \u001b[91mscalar\u001b[0m\n\u001b[31m-\u001b[0m \u001b[91mscalar\u001b[0m\n\u001b[1;91mm:\u001b[0m \u001b[91m|\u001b[0m\n\u001b[30m  \u001b[0m\u001b[91mline one\u001b[0m\n\u001b[30m  \u001b[0m\u001b[91mline two\u001b[0m\n\u001b[30m  \u001b[0m\n\u001b[1;91mn:\u001b[0m \u001b[91mfolded\u001b[0m\n\u001b[1;91mbin:\u001b[0m aGVsbG8=\n\u001b[1;91mnull_forms:\u001b[0m\n\u001b[31m-\u001b[0m \u001b[91m~\u001b[0m\n\u001b[31m-\u001b[0m \u001b[91mnull\u001b[0m\n\u001b[31m-\u001b[0m \u001b[91mNull\u001b[0m\n\u001b[1;91mflt:\u001b[0m \u001b[91m1.5\u001b[0m\n\u001b[1;91mflag:\u001b[0m \u001b[91mtrue\u001b[0m\n"
+  },
+  {
+    "in": "l:\n- a\n- - x\n  - y\n- {k: v}\n- \u0026s scalar\n- *s\nm: |\n  line one\n  line two\nn: \u003e-\n  folded\nbin: !!binary aGVsbG8=\nnull_forms: [~, null, Null]\nflt: 1.5\nflag: true\n",
+    "palette": "plain",
+    "mode": "ansi16",
+    "out": "\u001b[1ml:\u001b[0m\n- a\n- - x\n  - y\n- \u001b[1mk:\u001b[0m v\n- scalar\n- scalar\n\u001b[1mm:\u001b[0m |\n  line one\n  line two\n  \n\u001b[1mn:\u001b[0m folded\n\u001b[1mbin:\u001b[0m aGVsbG8=\n\u001b[1mnull_forms:\u001b[0m\n- ~\n- null\n- Null\n\u001b[1mflt:\u001b[0m 1.5\n\u001b[1mflag:\u001b[0m true\n"
+  }
+]

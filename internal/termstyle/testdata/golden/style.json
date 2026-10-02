@@ -1,0 +1,8993 @@
+[
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "bold"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "italic"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "k:",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "bold"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "italic"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "± value change",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "± value change"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "bold"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "italic"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "a\nb"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "bold"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "italic"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "a\nb\n",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "bold"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "italic"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "\n",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": []
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "bold"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "italic"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "bold",
+      "italic"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "fg:178,34,34"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ]
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "bold"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "italic"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "日本語",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "日本語"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "bold"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "italic"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "tab\tx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "redtext"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "bold"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "italic"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "x\u001b[1my",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "xy"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "bold"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "italic"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "z\nw"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "bold"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "italic"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "pq"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "bold"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "italic"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "m\nn"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "bold"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "italic"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[mb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "bold"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "italic"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "bold"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "italic"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "bold"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "italic"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "abc"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "bold red"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "bold"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "italic"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "italic plain"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "k:"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "bold"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "italic"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "bg"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "bold"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "italic"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "wrap"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "bold"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "italic"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[38m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "bold"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "italic"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "bold"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "italic"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "bold"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "italic"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "bold"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "italic"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "bold"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "italic"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "bold"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "italic"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "x"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "bold"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "italic"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "off",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "ab"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [],
+    "out": "k:"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "k:",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [],
+    "out": "± value change"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "± value change",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27m± value change\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [],
+    "out": "a\nb"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1ma\nb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3ma\nb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3ma\nb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237ma\nb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27ma\u001b[0m\n\u001b[38;2;185;49;27mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56ma\u001b[0m\n\u001b[38;2;88;191;56mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63ma\u001b[0m\n\u001b[38;2;199;196;63mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34ma\nb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34ma\nb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27ma\u001b[1m\n\u001b[1;38;2;185;49;27mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27ma\u001b[0m\n\u001b[38;2;185;49;27mb\u001b[0m\n"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56ma\u001b[0m\n\u001b[38;2;88;191;56mb\u001b[0m\n"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63ma\u001b[0m\n\u001b[38;2;199;196;63mb\u001b[0m\n"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\nb\n",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27ma\u001b[1m\n\u001b[1;38;2;185;49;27mb\u001b[1m\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [],
+    "out": "\n"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1m\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3m\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3m\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237m\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34m\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34m\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\n",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1m\n\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": []
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "bold"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "italic"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "bold",
+      "italic"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "fg:178,34,34"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ]
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [],
+    "out": "日本語"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "日本語",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27m日本語\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "tab\tx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [],
+    "out": "red\u001b[38;2;222;56;43mtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mred\u001b[1;38;2;222;56;43mtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mred\u001b[3;38;2;222;56;43mtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mred\u001b[1;3;38;2;222;56;43mtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mredtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mredtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mredtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mredtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mredtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mredtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mredtext\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [],
+    "out": "x\u001b[1my\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mxy\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mx\u001b[1;3my\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mxy\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mx\u001b[1;4;38;2;100;149;237my\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mx\u001b[1;38;2;185;49;27my\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mx\u001b[1;38;2;88;191;56my\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mx\u001b[1;38;2;199;196;63my\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mx\u001b[1;38;2;178;34;34my\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mxy\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "x\u001b[1my",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mxy\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [],
+    "out": "\u001b[38;2;255;0;255mz\nw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;255;0;255mz\nw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;38;2;255;0;255mz\nw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;255;0;255mz\nw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mz\nw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mz\u001b[38;2;255;0;255m\n\u001b[38;2;185;49;27mw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mz\u001b[38;2;255;0;255m\n\u001b[38;2;88;191;56mw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mz\u001b[38;2;255;0;255m\n\u001b[38;2;199;196;63mw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mz\nw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mz\nw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mz\u001b[1;38;2;255;0;255m\n\u001b[1;38;2;185;49;27mw\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [],
+    "out": "p\u001b[48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mp\u001b[1;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mp\u001b[3;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mp\u001b[1;3;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mp\u001b[4;38;2;100;149;237;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mp\u001b[38;2;185;49;27;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mp\u001b[38;2;88;191;56;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mp\u001b[38;2;199;196;63;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mp\u001b[38;2;178;34;34;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mp\u001b[1;38;2;178;34;34;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mp\u001b[1;38;2;185;49;27;48;2;222;56;43mq\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [],
+    "out": "\u001b[38;2;255;0;255mm\nn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;255;0;255mm\nn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;38;2;255;0;255mm\nn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;255;0;255mm\nn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mm\nn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mm\u001b[38;2;255;0;255m\n\u001b[38;2;185;49;27mn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mm\u001b[38;2;255;0;255m\n\u001b[38;2;88;191;56mn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mm\u001b[38;2;255;0;255m\n\u001b[38;2;199;196;63mn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mm\nn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mm\nn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mm\u001b[1;38;2;255;0;255m\n\u001b[1;38;2;185;49;27mn\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [],
+    "out": "ab"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[mb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [],
+    "out": "ab"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [],
+    "out": "x"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [],
+    "out": "abc"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mabc\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [],
+    "out": "\u001b[1;38;2;222;56;43mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;222;56;43mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;222;56;43mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;222;56;43mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[1;4;38;2;100;149;237mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[1;38;2;88;191;56mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[1;38;2;199;196;63mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mbold red\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [],
+    "out": "\u001b[3;38;2;255;255;0mitalic\u001b[0;38;2;255;255;0m plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;3;38;2;255;255;0mitalic\u001b[0;1;38;2;255;255;0m plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;38;2;255;255;0mitalic plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;255;255;0mitalic plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[3;4;38;2;100;149;237mitalic\u001b[0;4;38;2;100;149;237m plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[3;38;2;185;49;27mitalic\u001b[0;38;2;185;49;27m plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[3;38;2;88;191;56mitalic\u001b[0;38;2;88;191;56m plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[3;38;2;199;196;63mitalic\u001b[0;38;2;199;196;63m plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[3;38;2;178;34;34mitalic\u001b[0;38;2;178;34;34m plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;3;38;2;178;34;34mitalic\u001b[0;1;38;2;178;34;34m plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;3;38;2;185;49;27mitalic\u001b[0;1;38;2;185;49;27m plain\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [],
+    "out": "\u001b[38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [],
+    "out": "\u001b[38;2;222;56;43mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;222;56;43mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;38;2;222;56;43mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;222;56;43mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [],
+    "out": "\u001b[38;2;57;181;74mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;57;181;74mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;38;2;57;181;74mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;57;181;74mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mk:\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [],
+    "out": "\u001b[48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27;48;2;255;85;85mbg\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [],
+    "out": "\u001b[48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27;48;2;0;111;184mwrap\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "bold"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "italic"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[38m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "bold"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "italic"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "bold"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "italic"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [],
+    "out": "\u001b[38;2;255;189;107mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;255;189;107mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;38;2;255;189;107mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;255;189;107mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [],
+    "out": "\u001b[1;38;2;222;56;43mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;222;56;43mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;222;56;43mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;222;56;43mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[1;4;38;2;100;149;237mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[1;38;2;88;191;56mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[1;38;2;199;196;63mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [],
+    "out": "\u001b[38;2;222;56;43mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;222;56;43mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;38;2;222;56;43mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;222;56;43mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;38;2;100;149;237mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[38;2;185;49;27mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[38;2;88;191;56mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[38;2;199;196;63mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[38;2;178;34;34mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mx\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [],
+    "out": "\u001b[1;38;2;222;56;43ma\u001b[1mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;222;56;43ma\u001b[1mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;222;56;43ma\u001b[1;3mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;38;2;222;56;43ma\u001b[1;3mb\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[1;4;38;2;100;149;237mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[1;38;2;88;191;56mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[1;38;2;199;196;63mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;38;2;178;34;34mab\u001b[0m"
+  },
+  {
+    "mode": "truecolor",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;38;2;185;49;27mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [],
+    "out": "k:"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "k:",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [],
+    "out": "± value change"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "± value change",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31m± value change\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [],
+    "out": "a\nb"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1ma\nb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3ma\nb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3ma\nb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94ma\nb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31ma\u001b[0m\n\u001b[31mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32ma\u001b[0m\n\u001b[32mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93ma\u001b[0m\n\u001b[93mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31ma\nb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31ma\nb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31ma\u001b[1m\n\u001b[1;31mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [],
+    "out": "a\nb\n"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31ma\u001b[0m\n\u001b[31mb\u001b[0m\n"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32ma\u001b[0m\n\u001b[32mb\u001b[0m\n"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93ma\u001b[0m\n\u001b[93mb\u001b[0m\n"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31ma\nb\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\nb\n",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31ma\u001b[1m\n\u001b[1;31mb\u001b[1m\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [],
+    "out": "\n"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1m\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3m\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3m\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94m\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\n"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31m\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31m\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\n",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1m\n\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": []
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "bold"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "italic"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "bold",
+      "italic"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "fg:178,34,34"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ]
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [],
+    "out": "日本語"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "日本語",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31m日本語\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [],
+    "out": "tab\tx"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "tab\tx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mtab\tx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [],
+    "out": "red\u001b[91mtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mred\u001b[1;91mtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mred\u001b[3;91mtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mred\u001b[1;3;91mtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mredtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mredtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mredtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mredtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mredtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mredtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "red\u001b[31mtext\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mredtext\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [],
+    "out": "x\u001b[1my\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mxy\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mx\u001b[1;3my\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mxy\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mx\u001b[1;4;94my\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mx\u001b[1;31my\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mx\u001b[1;32my\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mx\u001b[1;93my\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mx\u001b[1;31my\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mxy\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "x\u001b[1my",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mxy\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [],
+    "out": "\u001b[95mz\nw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;95mz\nw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;95mz\nw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;95mz\nw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mz\nw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mz\u001b[95m\n\u001b[31mw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mz\u001b[95m\n\u001b[32mw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mz\u001b[95m\n\u001b[93mw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mz\nw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mz\nw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;5;201mz\nw",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mz\u001b[1;95m\n\u001b[1;31mw\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [],
+    "out": "p\u001b[101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mp\u001b[1;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mp\u001b[3;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mp\u001b[1;3;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mp\u001b[4;94;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mp\u001b[31;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mp\u001b[32;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mp\u001b[93;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mp\u001b[31;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mp\u001b[1;31;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "p\u001b[41mq",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mp\u001b[1;31;101mq\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [],
+    "out": "\u001b[95mm\nn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;95mm\nn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;95mm\nn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;95mm\nn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mm\nn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mm\u001b[95m\n\u001b[31mn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mm\u001b[95m\n\u001b[32mn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mm\u001b[95m\n\u001b[93mn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mm\nn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mm\nn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;255;0;255mm\nn",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mm\u001b[1;95m\n\u001b[1;31mn\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [],
+    "out": "ab"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[mb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [],
+    "out": "ab"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[Kb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [],
+    "out": "x"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[?1hx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [],
+    "out": "abc"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b=b\u001b\u003ec",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mabc\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [],
+    "out": "\u001b[1;91mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;91mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[1;3;91mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;91mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[1;4;94mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[1;32mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[1;93mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[1;31mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31mbold red\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mbold red\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [],
+    "out": "\u001b[3;33mitalic\u001b[0;33m plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;3;33mitalic\u001b[0;1;33m plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;33mitalic plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;33mitalic plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[3;4;94mitalic\u001b[0;4;94m plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[3;31mitalic\u001b[0;31m plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[3;32mitalic\u001b[0;32m plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[3;93mitalic\u001b[0;93m plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[3;31mitalic\u001b[0;31m plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;3;31mitalic\u001b[0;1;31m plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[3;93mitalic\u001b[0;93m plain",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;3;31mitalic\u001b[0;1;31m plain\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [],
+    "out": "\u001b[31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38;2;178;34;34mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [],
+    "out": "\u001b[91mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;91mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;91mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;91mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [],
+    "out": "\u001b[32mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;32mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;32mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;32mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[32mk:\u001b[0m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mk:\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [],
+    "out": "\u001b[101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;5;9mbg",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31;101mbg\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [],
+    "out": "\u001b[104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[300mwrap",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31;104mwrap\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "bold"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "italic"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[38m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported foreground color selection '[38]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "bold"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "italic"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[48;7m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "unsupported background color selection '[48 7]'"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "bold"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "italic"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[0;1;38;2;1m",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "panic": "runtime error: index out of range [5] with length 5"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [],
+    "out": "a\u001b[mb"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "a\u001b[\u001b[Kmb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31ma\u001b[mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [],
+    "out": "\u001b[93mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;93mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;93mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;93mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[31;32mx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [],
+    "out": "\u001b[1;91mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;91mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[1;3;91mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;91mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[1;4;94mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[1;32mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[1;93mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;0;31mx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [],
+    "out": "\u001b[91mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;91mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[3;91mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;91mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[4;94mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[32mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[93mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[99999999999999999999;31mx",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mx\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [],
+    "out": "\u001b[1;91ma\u001b[1mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "bold"
+    ],
+    "out": "\u001b[1;91ma\u001b[1mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "italic"
+    ],
+    "out": "\u001b[1;3;91ma\u001b[1;3mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "bold",
+      "italic"
+    ],
+    "out": "\u001b[1;3;91ma\u001b[1;3mb\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "underline",
+      "fg:100,149,237"
+    ],
+    "out": "\u001b[1;4;94mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "eachline",
+      "fg:88,191,56"
+    ],
+    "out": "\u001b[1;32mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "eachline",
+      "fg:199,196,63"
+    ],
+    "out": "\u001b[1;93mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "fg:178,34,34"
+    ],
+    "out": "\u001b[1;31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "fg:178,34,34",
+      "bold"
+    ],
+    "out": "\u001b[1;31mab\u001b[0m"
+  },
+  {
+    "mode": "ansi16",
+    "text": "\u001b[1;31ma\u001b[1mb",
+    "opts": [
+      "bold",
+      "eachline",
+      "fg:185,49,27"
+    ],
+    "out": "\u001b[1;31mab\u001b[0m"
+  }
+]

@@ -1,0 +1,10027 @@
+[
+  {
+    "a": "8080",
+    "b": "8081",
+    "distance": 2
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "abc",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "kitten",
+    "b": "sitting",
+    "distance": 5
+  },
+  {
+    "a": "hello world",
+    "b": "hello there world",
+    "distance": 6
+  },
+  {
+    "a": "b日a\n\na",
+    "b": "bba\n",
+    "distance": 4
+  },
+  {
+    "a": "日b日a\n",
+    "b": "日b  b\n\n a",
+    "distance": 8
+  },
+  {
+    "a": "\naa\n",
+    "b": "b\n\n",
+    "distance": 3
+  },
+  {
+    "a": "bb日",
+    "b": "a\n\n  bb日",
+    "distance": 5
+  },
+  {
+    "a": "日日\n日 bbaa",
+    "b": "\nba日日\n",
+    "distance": 9
+  },
+  {
+    "a": "\n \nb日日a",
+    "b": "\n",
+    "distance": 6
+  },
+  {
+    "a": "aabb",
+    "b": "a\n\n日 \n",
+    "distance": 8
+  },
+  {
+    "a": "\n\n\n\n",
+    "b": "日 日日ba日\n\n",
+    "distance": 9
+  },
+  {
+    "a": "b b日日",
+    "b": "日 日b",
+    "distance": 5
+  },
+  {
+    "a": "日b a 日日\n日",
+    "b": "日a",
+    "distance": 7
+  },
+  {
+    "a": "  \n\na",
+    "b": "ab 日日a日ba",
+    "distance": 10
+  },
+  {
+    "a": "a",
+    "b": "b",
+    "distance": 2
+  },
+  {
+    "a": "日\n日\n日\n\n \n",
+    "b": "bb a日a 日",
+    "distance": 13
+  },
+  {
+    "a": " ",
+    "b": "日\nb",
+    "distance": 4
+  },
+  {
+    "a": "a \na",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": " b日\n \n ",
+    "b": "\n \nb \n",
+    "distance": 5
+  },
+  {
+    "a": "a日日b日 日 ",
+    "b": "日\n日\nb",
+    "distance": 7
+  },
+  {
+    "a": "aa \nab a\n",
+    "b": " 日 \n",
+    "distance": 7
+  },
+  {
+    "a": "\n ba日",
+    "b": "日",
+    "distance": 4
+  },
+  {
+    "a": " bb\n\n",
+    "b": "a ",
+    "distance": 5
+  },
+  {
+    "a": "  日",
+    "b": "日日a日\na \n",
+    "distance": 9
+  },
+  {
+    "a": "\n日",
+    "b": "a  b日\n日\n日",
+    "distance": 7
+  },
+  {
+    "a": " 日b日",
+    "b": "b\n日\n",
+    "distance": 4
+  },
+  {
+    "a": " a\nab",
+    "b": " \nab日\n日\nb",
+    "distance": 6
+  },
+  {
+    "a": "日  日",
+    "b": "\n日a日aab",
+    "distance": 7
+  },
+  {
+    "a": "\nb  \n\n ",
+    "b": " b ",
+    "distance": 6
+  },
+  {
+    "a": "日\nb \n日",
+    "b": "a日\n\n",
+    "distance": 4
+  },
+  {
+    "a": " \n日",
+    "b": " a",
+    "distance": 3
+  },
+  {
+    "a": " 日 日 ",
+    "b": "a a",
+    "distance": 6
+  },
+  {
+    "a": " 日a\naa\n",
+    "b": "a日bbba日日\n",
+    "distance": 10
+  },
+  {
+    "a": " ab ",
+    "b": " a日日\nbb日b",
+    "distance": 7
+  },
+  {
+    "a": "  \nbb",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "a日日b\n",
+    "b": "日\n日a\n aab",
+    "distance": 8
+  },
+  {
+    "a": "\n ",
+    "b": "\n日 ",
+    "distance": 1
+  },
+  {
+    "a": " abaaa\na",
+    "b": "ab ",
+    "distance": 7
+  },
+  {
+    "a": "b日b\n",
+    "b": "日\n aa",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "ba日\nb日a a",
+    "distance": 9
+  },
+  {
+    "a": "ab \n   ",
+    "b": "a日",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "   b a a\n",
+    "distance": 9
+  },
+  {
+    "a": "aaa\n",
+    "b": " aa \nbaba",
+    "distance": 7
+  },
+  {
+    "a": "a日   日",
+    "b": "bb",
+    "distance": 8
+  },
+  {
+    "a": " \naa 日日",
+    "b": "日aa\n 日bba",
+    "distance": 8
+  },
+  {
+    "a": "ba日",
+    "b": "日\nb\n日",
+    "distance": 4
+  },
+  {
+    "a": "\n日日a日日 a",
+    "b": "日 a \n\n",
+    "distance": 8
+  },
+  {
+    "a": "a ",
+    "b": "aaa\nb",
+    "distance": 5
+  },
+  {
+    "a": "b",
+    "b": " b日日b\n 日",
+    "distance": 7
+  },
+  {
+    "a": "\n\n日日bb ",
+    "b": "\n",
+    "distance": 6
+  },
+  {
+    "a": "  a日b ",
+    "b": "\nab",
+    "distance": 5
+  },
+  {
+    "a": "b日\nb 日",
+    "b": "日\n ",
+    "distance": 3
+  },
+  {
+    "a": "\naaab",
+    "b": "日",
+    "distance": 6
+  },
+  {
+    "a": "\n日",
+    "b": "日ab日ba日",
+    "distance": 7
+  },
+  {
+    "a": "b日b \n\n日日\n",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "\nb",
+    "distance": 2
+  },
+  {
+    "a": " 日  日",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "a 日a\n日bb",
+    "b": " \n\n",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "b \n",
+    "distance": 3
+  },
+  {
+    "a": "bbba\n",
+    "b": "a\nb  \n\n",
+    "distance": 8
+  },
+  {
+    "a": "\n",
+    "b": "\nb ",
+    "distance": 2
+  },
+  {
+    "a": "b",
+    "b": " ba\nab",
+    "distance": 5
+  },
+  {
+    "a": "日ab",
+    "b": "\n ab日 \n\n",
+    "distance": 7
+  },
+  {
+    "a": "ba日\n日 ",
+    "b": " a \na",
+    "distance": 7
+  },
+  {
+    "a": "日a 日日aa",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "b aab日  ",
+    "b": "\n日bb",
+    "distance": 8
+  },
+  {
+    "a": "baa",
+    "b": "bb 日 ",
+    "distance": 6
+  },
+  {
+    "a": "\nbaa日 ",
+    "b": " 日日b日\n",
+    "distance": 8
+  },
+  {
+    "a": "日",
+    "b": "\nba",
+    "distance": 4
+  },
+  {
+    "a": " a\n日bb日",
+    "b": "baaa日日a",
+    "distance": 8
+  },
+  {
+    "a": "  aaba",
+    "b": "日\n 日日 日b",
+    "distance": 8
+  },
+  {
+    "a": "ba日日  \na\n",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "a日日a\n",
+    "distance": 5
+  },
+  {
+    "a": "a日a bba",
+    "b": " a日b",
+    "distance": 5
+  },
+  {
+    "a": "\n",
+    "b": "a日日  \n日日",
+    "distance": 7
+  },
+  {
+    "a": "a日 日\n",
+    "b": "a 日 bbb ",
+    "distance": 7
+  },
+  {
+    "a": "  bbaabb",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "\n",
+    "b": "\n\n",
+    "distance": 1
+  },
+  {
+    "a": " b\n",
+    "b": "ba日\n日 b",
+    "distance": 6
+  },
+  {
+    "a": "a\n\n日",
+    "b": "aba 日日 日",
+    "distance": 8
+  },
+  {
+    "a": " 日",
+    "b": " 日a日日a",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": " ",
+    "distance": 1
+  },
+  {
+    "a": "日",
+    "b": "\n\n",
+    "distance": 3
+  },
+  {
+    "a": "  a",
+    "b": "\n\nb日",
+    "distance": 7
+  },
+  {
+    "a": "\nab",
+    "b": "b\n\n 日a日",
+    "distance": 6
+  },
+  {
+    "a": "日b    a日",
+    "b": "日",
+    "distance": 7
+  },
+  {
+    "a": " 日ab b \n\n",
+    "b": " \n",
+    "distance": 7
+  },
+  {
+    "a": "b日",
+    "b": "日",
+    "distance": 1
+  },
+  {
+    "a": "日 aa\n\n ",
+    "b": "\n bb ",
+    "distance": 8
+  },
+  {
+    "a": "  ",
+    "b": "日\n日 日\na",
+    "distance": 7
+  },
+  {
+    "a": "\na日 ",
+    "b": "日 \n \nbb日b",
+    "distance": 9
+  },
+  {
+    "a": "ba\na日日日a ",
+    "b": "日\n",
+    "distance": 9
+  },
+  {
+    "a": "a\nba\n 日",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "日",
+    "distance": 1
+  },
+  {
+    "a": "日\n日\n\n  ",
+    "b": "\na",
+    "distance": 7
+  },
+  {
+    "a": "\n\n ",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "a",
+    "b": "\n 日日日 ",
+    "distance": 7
+  },
+  {
+    "a": "a",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": " a",
+    "b": "ab日a\n",
+    "distance": 5
+  },
+  {
+    "a": "日bb\n",
+    "b": "\n",
+    "distance": 3
+  },
+  {
+    "a": "\nb日\na 日a",
+    "b": "日a ",
+    "distance": 5
+  },
+  {
+    "a": "  ",
+    "b": " 日ab日 ",
+    "distance": 4
+  },
+  {
+    "a": "a\n日\na",
+    "b": "  日\nb",
+    "distance": 6
+  },
+  {
+    "a": "日日b日",
+    "b": "\nba b ",
+    "distance": 8
+  },
+  {
+    "a": " bb\na",
+    "b": "b",
+    "distance": 4
+  },
+  {
+    "a": "a \n ",
+    "b": "日a\nb",
+    "distance": 4
+  },
+  {
+    "a": "\n",
+    "b": "\nba\n",
+    "distance": 3
+  },
+  {
+    "a": "a\n",
+    "b": "日 bb",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": " ab",
+    "distance": 3
+  },
+  {
+    "a": "日日日 日 ",
+    "b": "\n日\n a",
+    "distance": 7
+  },
+  {
+    "a": "a日\nb日日日 ",
+    "b": "aa aa\n",
+    "distance": 10
+  },
+  {
+    "a": "a日 ",
+    "b": "日日 aaa",
+    "distance": 5
+  },
+  {
+    "a": "b日日\n",
+    "b": "日 a\nb日",
+    "distance": 6
+  },
+  {
+    "a": "aa",
+    "b": "日\n\na日a",
+    "distance": 4
+  },
+  {
+    "a": "b \n  b",
+    "b": "\nb",
+    "distance": 4
+  },
+  {
+    "a": "\nb ",
+    "b": "a\nb\na日",
+    "distance": 5
+  },
+  {
+    "a": "b\n ",
+    "b": "a日",
+    "distance": 5
+  },
+  {
+    "a": "日  a b ",
+    "b": " a",
+    "distance": 5
+  },
+  {
+    "a": "a\n",
+    "b": "\n",
+    "distance": 1
+  },
+  {
+    "a": "日日b\naa",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "b  日\na",
+    "b": "ba\n abba",
+    "distance": 8
+  },
+  {
+    "a": "a\naaaa",
+    "b": "b ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日日 b b",
+    "distance": 6
+  },
+  {
+    "a": " \n 日 ",
+    "b": "\na日bbba\n日",
+    "distance": 10
+  },
+  {
+    "a": "b\n\nb ba\n",
+    "b": "b 日",
+    "distance": 7
+  },
+  {
+    "a": " b a",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "a\naa\n 日\n ",
+    "b": "a\n日日b",
+    "distance": 8
+  },
+  {
+    "a": "日b",
+    "b": "ab\n a",
+    "distance": 5
+  },
+  {
+    "a": " a ",
+    "b": "\n\n abab 日",
+    "distance": 6
+  },
+  {
+    "a": "\n\na b\nb ",
+    "b": "\n bb\n日\n",
+    "distance": 7
+  },
+  {
+    "a": "b  bbab",
+    "b": "a ab",
+    "distance": 5
+  },
+  {
+    "a": "日b\n a",
+    "b": " b日bab  ",
+    "distance": 7
+  },
+  {
+    "a": "\n\n",
+    "b": "bbab日b ",
+    "distance": 9
+  },
+  {
+    "a": "ba\nba日",
+    "b": "\na日bab a",
+    "distance": 6
+  },
+  {
+    "a": "\n日\nb ",
+    "b": "abbab\na",
+    "distance": 10
+  },
+  {
+    "a": " ba",
+    "b": "日a a日\n日",
+    "distance": 6
+  },
+  {
+    "a": " a\na日 b  ",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "日 b\n日\nb ",
+    "b": "\nb日日\n",
+    "distance": 7
+  },
+  {
+    "a": "\nab ",
+    "b": "baaaba日b ",
+    "distance": 7
+  },
+  {
+    "a": "a日 ",
+    "b": "a",
+    "distance": 2
+  },
+  {
+    "a": "",
+    "b": "bb",
+    "distance": 2
+  },
+  {
+    "a": "a  a\n  日 ",
+    "b": "b  日b日ba",
+    "distance": 11
+  },
+  {
+    "a": "日",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "\n\n",
+    "b": "\na \n b",
+    "distance": 4
+  },
+  {
+    "a": "\n日\n\n日日a",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "日a b\nb",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "aa\n\n日\nb",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "b\n ",
+    "b": " ab",
+    "distance": 4
+  },
+  {
+    "a": "\na日\n\nb\na",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": " a日日a",
+    "b": "日日bbb",
+    "distance": 6
+  },
+  {
+    "a": "日b日",
+    "b": "a 日\n a",
+    "distance": 7
+  },
+  {
+    "a": "\naaa\n",
+    "b": "日\n日 a日\n日\n",
+    "distance": 8
+  },
+  {
+    "a": "\nbb",
+    "b": "  a\n 日a",
+    "distance": 8
+  },
+  {
+    "a": "ab",
+    "b": "a\n \n\n 日a",
+    "distance": 8
+  },
+  {
+    "a": "日b日",
+    "b": "日日a\n",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "日ab日a\n",
+    "distance": 6
+  },
+  {
+    "a": "日a aaa",
+    "b": "b b  日\n",
+    "distance": 11
+  },
+  {
+    "a": "日",
+    "b": " \n",
+    "distance": 3
+  },
+  {
+    "a": " 日 aa ",
+    "b": "日b",
+    "distance": 6
+  },
+  {
+    "a": "b a日b日 ",
+    "b": "\n a",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": " 日",
+    "b": "a 日",
+    "distance": 1
+  },
+  {
+    "a": "\n ",
+    "b": "b 日\n\n\n",
+    "distance": 6
+  },
+  {
+    "a": "ba日日日 b日 ",
+    "b": "  a\n   ",
+    "distance": 10
+  },
+  {
+    "a": " ab",
+    "b": "日",
+    "distance": 4
+  },
+  {
+    "a": "a日\n日 \n ",
+    "b": "ba 日日日\n日",
+    "distance": 7
+  },
+  {
+    "a": " ",
+    "b": " bb \n 日日\n",
+    "distance": 8
+  },
+  {
+    "a": "\n\n",
+    "b": "\n",
+    "distance": 1
+  },
+  {
+    "a": "\n日日",
+    "b": "日a b\n",
+    "distance": 6
+  },
+  {
+    "a": "b\na 日\n\n",
+    "b": "aaaa 日a ",
+    "distance": 9
+  },
+  {
+    "a": "\nbb  ",
+    "b": "日ba",
+    "distance": 6
+  },
+  {
+    "a": "日日a\n\na\n",
+    "b": "\nb日a日",
+    "distance": 8
+  },
+  {
+    "a": "\n",
+    "b": "a",
+    "distance": 2
+  },
+  {
+    "a": "日b  ba  ",
+    "b": "  ",
+    "distance": 6
+  },
+  {
+    "a": "a日日 baa",
+    "b": " b",
+    "distance": 5
+  },
+  {
+    "a": "b",
+    "b": " \na\n\n\n 日日",
+    "distance": 10
+  },
+  {
+    "a": "\na \n bba",
+    "b": "\n ",
+    "distance": 6
+  },
+  {
+    "a": "bb日a\na\n日a",
+    "b": "日aab",
+    "distance": 7
+  },
+  {
+    "a": "a",
+    "b": " a\n日\naabb",
+    "distance": 8
+  },
+  {
+    "a": "日日b\na日日  ",
+    "b": "\n日",
+    "distance": 7
+  },
+  {
+    "a": "日a日b ab b",
+    "b": "日",
+    "distance": 8
+  },
+  {
+    "a": "日ba \n日\n",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "\n ba\n",
+    "b": " 日",
+    "distance": 5
+  },
+  {
+    "a": "a a\n",
+    "b": "\na  a\n日日",
+    "distance": 4
+  },
+  {
+    "a": "\na\na",
+    "b": "b日bba ",
+    "distance": 8
+  },
+  {
+    "a": "日 日  ",
+    "b": "bb b",
+    "distance": 7
+  },
+  {
+    "a": "\n\n ",
+    "b": "\n\n\nabb\nb",
+    "distance": 7
+  },
+  {
+    "a": " \n\n a\n日b ",
+    "b": "aba日日日\n",
+    "distance": 12
+  },
+  {
+    "a": "  a ",
+    "b": "b\n日b\n",
+    "distance": 9
+  },
+  {
+    "a": " \n日 a b  ",
+    "b": " b日 a日\nb\n",
+    "distance": 8
+  },
+  {
+    "a": "a\n日日b",
+    "b": "  b日abb",
+    "distance": 8
+  },
+  {
+    "a": " \na \n日日",
+    "b": " 日日 ",
+    "distance": 5
+  },
+  {
+    "a": "日 b",
+    "b": "日",
+    "distance": 2
+  },
+  {
+    "a": "\na\n日",
+    "b": "a\na日日",
+    "distance": 3
+  },
+  {
+    "a": "日 ",
+    "b": "a\nba 日aa",
+    "distance": 8
+  },
+  {
+    "a": "a ",
+    "b": "  日",
+    "distance": 3
+  },
+  {
+    "a": "  ",
+    "b": "b日bb",
+    "distance": 6
+  },
+  {
+    "a": "a",
+    "b": "a日日a日 a  ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日aa日日",
+    "distance": 5
+  },
+  {
+    "a": "\naa\nb日",
+    "b": "b",
+    "distance": 5
+  },
+  {
+    "a": "日a\nb 日日",
+    "b": "a",
+    "distance": 6
+  },
+  {
+    "a": "bb\na日a",
+    "b": "bb日",
+    "distance": 3
+  },
+  {
+    "a": "日 a\n\n\na日 ",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": "\n \n",
+    "b": "日\n 日aa日日",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "a\na ",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "a日日 ba 日",
+    "b": "ab",
+    "distance": 6
+  },
+  {
+    "a": "baaaaaa",
+    "b": "a\na\n ",
+    "distance": 8
+  },
+  {
+    "a": "日ba \n日",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "日b",
+    "distance": 2
+  },
+  {
+    "a": "b日b \n",
+    "b": "日  a日bb日",
+    "distance": 9
+  },
+  {
+    "a": "  ",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "b日\n ab",
+    "b": "ba\n日bab日a",
+    "distance": 7
+  },
+  {
+    "a": "  b\n",
+    "b": " a日 \n",
+    "distance": 3
+  },
+  {
+    "a": " ",
+    "b": "\n日 b日日 b\n",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "ba \n",
+    "distance": 4
+  },
+  {
+    "a": "ab日",
+    "b": "日  \n\n日日",
+    "distance": 8
+  },
+  {
+    "a": "\n\n",
+    "b": "aa\n",
+    "distance": 3
+  },
+  {
+    "a": "bbaab  \nb",
+    "b": "b ",
+    "distance": 7
+  },
+  {
+    "a": " bbb日 a",
+    "b": " \n\nba \n\n",
+    "distance": 9
+  },
+  {
+    "a": "日日a aba",
+    "b": "\nabb日",
+    "distance": 8
+  },
+  {
+    "a": "日\n",
+    "b": " \n",
+    "distance": 2
+  },
+  {
+    "a": "\n ",
+    "b": "\nba  a\na",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "日",
+    "distance": 1
+  },
+  {
+    "a": "bb\n\na\n \na",
+    "b": "a abbab ",
+    "distance": 9
+  },
+  {
+    "a": "日aa",
+    "b": "  日\n",
+    "distance": 5
+  },
+  {
+    "a": " ",
+    "b": "  日\n\n日a\na",
+    "distance": 8
+  },
+  {
+    "a": "b日abb日\n\n",
+    "b": " ab   ",
+    "distance": 10
+  },
+  {
+    "a": "日a",
+    "b": "\n 日aa 日日",
+    "distance": 6
+  },
+  {
+    "a": " \nb",
+    "b": "a",
+    "distance": 4
+  },
+  {
+    "a": " b日日\n日b日",
+    "b": "a日b\n日b日",
+    "distance": 5
+  },
+  {
+    "a": "bb\n日b",
+    "b": "b 日a",
+    "distance": 5
+  },
+  {
+    "a": "b",
+    "b": "日日",
+    "distance": 3
+  },
+  {
+    "a": "a",
+    "b": "ba",
+    "distance": 1
+  },
+  {
+    "a": "bbab",
+    "b": " ",
+    "distance": 5
+  },
+  {
+    "a": "\n a",
+    "b": " b",
+    "distance": 3
+  },
+  {
+    "a": " b\nb\n日\naa",
+    "b": "a",
+    "distance": 8
+  },
+  {
+    "a": "\nb 日\nba",
+    "b": "\n日b\n\n日\n",
+    "distance": 6
+  },
+  {
+    "a": " 日",
+    "b": "\nb",
+    "distance": 4
+  },
+  {
+    "a": "bbbb",
+    "b": "\nabbab\n ",
+    "distance": 6
+  },
+  {
+    "a": "\n日\n",
+    "b": "日日 bb",
+    "distance": 6
+  },
+  {
+    "a": "b日ab日",
+    "b": "日\n日日abb",
+    "distance": 6
+  },
+  {
+    "a": "bbbb日",
+    "b": "b日b日日b日",
+    "distance": 4
+  },
+  {
+    "a": "bb\n 日日a日日",
+    "b": "b  ",
+    "distance": 8
+  },
+  {
+    "a": " 日\n",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "\n日日\n\nb a",
+    "distance": 8
+  },
+  {
+    "a": "b日",
+    "b": "\n\n\naaa",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "a日b\n 日a",
+    "distance": 7
+  },
+  {
+    "a": " 日\n",
+    "b": "\n",
+    "distance": 2
+  },
+  {
+    "a": "日\nb日 a a日",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "aa日  a",
+    "b": "\na",
+    "distance": 6
+  },
+  {
+    "a": " bb",
+    "b": " aa aa",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "\nabaab日",
+    "distance": 7
+  },
+  {
+    "a": "日日日b日日ba\n",
+    "b": "日 bb日a 日",
+    "distance": 9
+  },
+  {
+    "a": " 日",
+    "b": "\n",
+    "distance": 3
+  },
+  {
+    "a": "日\n日b日bb日",
+    "b": "a ",
+    "distance": 10
+  },
+  {
+    "a": "\n ",
+    "b": "\n日\n日",
+    "distance": 4
+  },
+  {
+    "a": "\n日b",
+    "b": "b日 \n日 ",
+    "distance": 5
+  },
+  {
+    "a": "日\na\n日\nbb日",
+    "b": "bb",
+    "distance": 7
+  },
+  {
+    "a": "\n\n  ",
+    "b": " \n\n",
+    "distance": 3
+  },
+  {
+    "a": "b  a日日a日",
+    "b": "a日abbaaaa",
+    "distance": 11
+  },
+  {
+    "a": "\n",
+    "b": "日 ",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "日b日b",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "aa    ab\n",
+    "distance": 9
+  },
+  {
+    "a": "\n b日日a",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "  ",
+    "b": " \n\n日 日a",
+    "distance": 5
+  },
+  {
+    "a": "\nb a ",
+    "b": "\nb a \nb ",
+    "distance": 3
+  },
+  {
+    "a": "\n日a\n 日b b",
+    "b": " b a",
+    "distance": 7
+  },
+  {
+    "a": "ba 日\naa",
+    "b": "\n\n \nb\n日日a",
+    "distance": 10
+  },
+  {
+    "a": "a bb",
+    "b": "ab\n\n  ba\n",
+    "distance": 7
+  },
+  {
+    "a": "日  \n",
+    "b": "a ",
+    "distance": 4
+  },
+  {
+    "a": "\n  日b\n\nab",
+    "b": "aa 日日日",
+    "distance": 11
+  },
+  {
+    "a": "a",
+    "b": "日b日aa",
+    "distance": 4
+  },
+  {
+    "a": "bab日 \nba",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": " a\n",
+    "b": "  \nab日 \na",
+    "distance": 6
+  },
+  {
+    "a": "日日ba",
+    "b": "日ba日",
+    "distance": 2
+  },
+  {
+    "a": "\n  \n",
+    "b": "ab日ba日\nb",
+    "distance": 10
+  },
+  {
+    "a": "\nbba",
+    "b": "a",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "baaa\na ",
+    "b": "a",
+    "distance": 6
+  },
+  {
+    "a": "日a\n b",
+    "b": "日a",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "\n  \n",
+    "distance": 4
+  },
+  {
+    "a": "日 a\n日\n",
+    "b": " a a日 a",
+    "distance": 7
+  },
+  {
+    "a": "\n\n日a\n",
+    "b": "ba日\n\n\nab ",
+    "distance": 8
+  },
+  {
+    "a": "日b\n日bab\n日",
+    "b": "\naba日  ",
+    "distance": 8
+  },
+  {
+    "a": " b日\nbab",
+    "b": " \n \n日 aa",
+    "distance": 9
+  },
+  {
+    "a": "  日a\n",
+    "b": "\n  \n",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "bb\n a a",
+    "distance": 7
+  },
+  {
+    "a": "日bba a日",
+    "b": "bb\nab \n 日",
+    "distance": 6
+  },
+  {
+    "a": "b",
+    "b": " a\n \n \n\n",
+    "distance": 9
+  },
+  {
+    "a": "日日ba日日日\n",
+    "b": "日aa日\n",
+    "distance": 5
+  },
+  {
+    "a": "b日",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "ba\n",
+    "b": "日    a",
+    "distance": 7
+  },
+  {
+    "a": "日b\n 日\n日b",
+    "b": "a日 a日\n日",
+    "distance": 5
+  },
+  {
+    "a": "b ",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "  \n日",
+    "b": "\nba日\n  ",
+    "distance": 7
+  },
+  {
+    "a": "  b\n \n",
+    "b": "日 a日\n",
+    "distance": 7
+  },
+  {
+    "a": "\nbba日",
+    "b": "\n ab日ab",
+    "distance": 6
+  },
+  {
+    "a": "a\n ",
+    "b": " b\n\na日\n",
+    "distance": 6
+  },
+  {
+    "a": "   日abb日b",
+    "b": "日  b日 \n \n",
+    "distance": 10
+  },
+  {
+    "a": "日日a a",
+    "b": "\n日日日 ",
+    "distance": 4
+  },
+  {
+    "a": "b\n",
+    "b": "\nbab 日\n\n",
+    "distance": 6
+  },
+  {
+    "a": "\n  a",
+    "b": " 日 ",
+    "distance": 3
+  },
+  {
+    "a": " aa  \n",
+    "b": "\n\na日aa\n",
+    "distance": 7
+  },
+  {
+    "a": "日 \n",
+    "b": "a日  ",
+    "distance": 3
+  },
+  {
+    "a": "\n",
+    "b": "\na\n日b日ba日",
+    "distance": 8
+  },
+  {
+    "a": "\na ba日 ",
+    "b": "b \nb日ab日",
+    "distance": 7
+  },
+  {
+    "a": "bbaba ",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": "b日",
+    "distance": 3
+  },
+  {
+    "a": "日b bb  \n",
+    "b": "日 aa日\na",
+    "distance": 9
+  },
+  {
+    "a": " \n日\n\n ",
+    "b": "a",
+    "distance": 7
+  },
+  {
+    "a": " a ",
+    "b": "\n日日日\n日\n",
+    "distance": 10
+  },
+  {
+    "a": " b\nba",
+    "b": "日 \nb \nb\n",
+    "distance": 5
+  },
+  {
+    "a": " \n日\n\n日b",
+    "b": " ba",
+    "distance": 6
+  },
+  {
+    "a": "日日日",
+    "b": "a",
+    "distance": 4
+  },
+  {
+    "a": "日\n日b b\n \n",
+    "b": "\nbb\n\n \n\n",
+    "distance": 5
+  },
+  {
+    "a": "a  b日",
+    "b": "\nbbb\nb日\n ",
+    "distance": 10
+  },
+  {
+    "a": "日日",
+    "b": "\naabb ",
+    "distance": 8
+  },
+  {
+    "a": "\n日a a日 ",
+    "b": "日\n日\nb日",
+    "distance": 7
+  },
+  {
+    "a": "\n  b",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "a\n\naa\na",
+    "b": "  aa",
+    "distance": 7
+  },
+  {
+    "a": " \n  日 ab",
+    "b": "日 b\n \na",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "a日a",
+    "distance": 3
+  },
+  {
+    "a": "\nba",
+    "b": "日bbb",
+    "distance": 5
+  },
+  {
+    "a": " 日",
+    "b": "\nb日a",
+    "distance": 4
+  },
+  {
+    "a": "日a\na ",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "a日a日bb\n",
+    "b": " b日日",
+    "distance": 7
+  },
+  {
+    "a": "a ",
+    "b": " 日b日\n",
+    "distance": 5
+  },
+  {
+    "a": "\n日  b ab ",
+    "b": "aa",
+    "distance": 9
+  },
+  {
+    "a": "baba ",
+    "b": "\n",
+    "distance": 6
+  },
+  {
+    "a": " 日a\n日",
+    "b": "日b日",
+    "distance": 4
+  },
+  {
+    "a": "\n 日日\n",
+    "b": "\n日abaab",
+    "distance": 8
+  },
+  {
+    "a": " ",
+    "b": "\na\n日b",
+    "distance": 6
+  },
+  {
+    "a": "a\nbb\nb",
+    "b": "a",
+    "distance": 5
+  },
+  {
+    "a": "\naa ",
+    "b": "\nb日",
+    "distance": 5
+  },
+  {
+    "a": " 日",
+    "b": "   ",
+    "distance": 3
+  },
+  {
+    "a": " b",
+    "b": " ",
+    "distance": 1
+  },
+  {
+    "a": "b\n \nb日日\n\n",
+    "b": "日\n日  ",
+    "distance": 10
+  },
+  {
+    "a": "b日",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "a ",
+    "b": "日 日a",
+    "distance": 4
+  },
+  {
+    "a": "日",
+    "b": "日b  ",
+    "distance": 3
+  },
+  {
+    "a": "b a日日 \n ",
+    "b": "aa",
+    "distance": 8
+  },
+  {
+    "a": "ba  日日日\na",
+    "b": "ba",
+    "distance": 7
+  },
+  {
+    "a": "\n\nbbaa日b\n",
+    "b": "\n 日日日日b",
+    "distance": 10
+  },
+  {
+    "a": "日baa\nbb ",
+    "b": "a\naa",
+    "distance": 8
+  },
+  {
+    "a": " a  ",
+    "b": "\n\nb\n日a a ",
+    "distance": 7
+  },
+  {
+    "a": "abb",
+    "b": "\na 日 \nb日",
+    "distance": 7
+  },
+  {
+    "a": "日",
+    "b": "日\n",
+    "distance": 1
+  },
+  {
+    "a": " \nb\naa",
+    "b": "b\nb\na",
+    "distance": 3
+  },
+  {
+    "a": "日 \n   ",
+    "b": "日b  aa",
+    "distance": 6
+  },
+  {
+    "a": "日日日ba\n日b",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "ba日日日b 日",
+    "b": "b   ba",
+    "distance": 10
+  },
+  {
+    "a": "bb\nb日 a日日",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "a a",
+    "b": "日 ",
+    "distance": 3
+  },
+  {
+    "a": "a 日日  ",
+    "b": "a\na日b \na",
+    "distance": 8
+  },
+  {
+    "a": " a日b日b\n\n\n",
+    "b": "  日 a\n 日",
+    "distance": 11
+  },
+  {
+    "a": "\na日",
+    "b": "\nbbb日 ",
+    "distance": 5
+  },
+  {
+    "a": "日\n aa\n",
+    "b": "日",
+    "distance": 5
+  },
+  {
+    "a": "\n日b",
+    "b": "bb\n日日a",
+    "distance": 5
+  },
+  {
+    "a": "baa aa ",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "日 b\n b\nb",
+    "b": "b日bba  \n",
+    "distance": 8
+  },
+  {
+    "a": "b  b ",
+    "b": "\n b日日\n",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "b\nba日\na 日",
+    "distance": 9
+  },
+  {
+    "a": " b",
+    "b": " ba ba",
+    "distance": 4
+  },
+  {
+    "a": "bb",
+    "b": "   \nb",
+    "distance": 5
+  },
+  {
+    "a": "aa bb日aa日",
+    "b": "\n日日b aa",
+    "distance": 10
+  },
+  {
+    "a": "b b  ",
+    "b": "\n",
+    "distance": 6
+  },
+  {
+    "a": " abb\nab",
+    "b": "a",
+    "distance": 6
+  },
+  {
+    "a": "\nb\n\na\n",
+    "b": "a a\n日日",
+    "distance": 8
+  },
+  {
+    "a": "日日\n日 \n",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "日",
+    "distance": 1
+  },
+  {
+    "a": "\nb \nb b",
+    "b": "a\nb\n\n   ",
+    "distance": 7
+  },
+  {
+    "a": "aba日",
+    "b": "日 b\n日  ",
+    "distance": 7
+  },
+  {
+    "a": "\n\nb\na\n ",
+    "b": "b\naaaa",
+    "distance": 7
+  },
+  {
+    "a": " baba baa",
+    "b": "b日aabb  ",
+    "distance": 9
+  },
+  {
+    "a": "ab",
+    "b": "\n日",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": " \na日 ",
+    "distance": 5
+  },
+  {
+    "a": " \n 日a",
+    "b": " \n",
+    "distance": 3
+  },
+  {
+    "a": "b ",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "\n日b\n日 日日日",
+    "b": "b ",
+    "distance": 7
+  },
+  {
+    "a": " 日",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "\nb bb ",
+    "b": " \n日日 ab ",
+    "distance": 6
+  },
+  {
+    "a": "日a  ",
+    "b": "a ",
+    "distance": 2
+  },
+  {
+    "a": "ba\n日\n",
+    "b": "日bb日",
+    "distance": 5
+  },
+  {
+    "a": " bba",
+    "b": "a",
+    "distance": 3
+  },
+  {
+    "a": "日日\n b\n",
+    "b": " 日a\n\n日bb",
+    "distance": 8
+  },
+  {
+    "a": "a\n\n日",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "b",
+    "b": "\na日b\n\n",
+    "distance": 5
+  },
+  {
+    "a": "ba日 日   ",
+    "b": "ba日b\n\n 日\n",
+    "distance": 7
+  },
+  {
+    "a": "b 日a aa",
+    "b": " 日日\n  日",
+    "distance": 8
+  },
+  {
+    "a": "b日 b\n\n ",
+    "b": "\n日ab\n \n\na",
+    "distance": 8
+  },
+  {
+    "a": "bb",
+    "b": " a日日ba b\n",
+    "distance": 7
+  },
+  {
+    "a": "\na",
+    "b": " 日\n",
+    "distance": 3
+  },
+  {
+    "a": "baa  a  ",
+    "b": "a 日\nbbb日",
+    "distance": 12
+  },
+  {
+    "a": "a b",
+    "b": "日  \n b日b",
+    "distance": 7
+  },
+  {
+    "a": "\n",
+    "b": " ab",
+    "distance": 4
+  },
+  {
+    "a": " 日日\n",
+    "b": "aaa日 aa b",
+    "distance": 11
+  },
+  {
+    "a": "a   日日",
+    "b": "b b aa\nb",
+    "distance": 10
+  },
+  {
+    "a": "b 日\nb  b日",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "\na日a\n\n\n",
+    "b": "\n ba ",
+    "distance": 8
+  },
+  {
+    "a": "\n日",
+    "b": "日\na日a",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "日  ",
+    "distance": 3
+  },
+  {
+    "a": "\na b日a日\n",
+    "b": "a  ",
+    "distance": 7
+  },
+  {
+    "a": " bbb",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "b日\n",
+    "b": "a",
+    "distance": 4
+  },
+  {
+    "a": "\n\n \n",
+    "b": "日\nb日a 日\nb",
+    "distance": 7
+  },
+  {
+    "a": "日 日aabb",
+    "b": "a 日aa日日 日",
+    "distance": 8
+  },
+  {
+    "a": "\n\n \n日\na",
+    "b": "bbaa日bb",
+    "distance": 12
+  },
+  {
+    "a": "日\na  日日b",
+    "b": "\na日a日baab",
+    "distance": 7
+  },
+  {
+    "a": "b\n 日",
+    "b": " \n\n",
+    "distance": 5
+  },
+  {
+    "a": "a\n  日",
+    "b": "aa \nb",
+    "distance": 6
+  },
+  {
+    "a": "\n\nb日ab\n",
+    "b": "日日 b日b日",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "a a日b",
+    "b": " b\na日",
+    "distance": 4
+  },
+  {
+    "a": "b日",
+    "b": "a aa",
+    "distance": 6
+  },
+  {
+    "a": "日b日",
+    "b": "日日日 ba",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": " 日aa",
+    "distance": 4
+  },
+  {
+    "a": "\nb\na b日a",
+    "b": "日 aba\n a",
+    "distance": 8
+  },
+  {
+    "a": " ",
+    "b": "ab \n bb",
+    "distance": 6
+  },
+  {
+    "a": "  \nb a",
+    "b": "aa ",
+    "distance": 7
+  },
+  {
+    "a": "bb\na日a日",
+    "b": "b",
+    "distance": 6
+  },
+  {
+    "a": "\n\nb",
+    "b": "日\n",
+    "distance": 3
+  },
+  {
+    "a": "b\nab",
+    "b": "abb a日b\n",
+    "distance": 6
+  },
+  {
+    "a": "a日日\n日",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": " b日\nb \n ",
+    "b": "日日日",
+    "distance": 9
+  },
+  {
+    "a": "\n",
+    "b": "aaa b日\n",
+    "distance": 6
+  },
+  {
+    "a": "a ",
+    "b": "a日",
+    "distance": 2
+  },
+  {
+    "a": "日 日b",
+    "b": "bb日bb",
+    "distance": 5
+  },
+  {
+    "a": "   ",
+    "b": "日\n\nba  a ",
+    "distance": 6
+  },
+  {
+    "a": "a日日ba\na b",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "bb\n",
+    "b": "\n 日",
+    "distance": 4
+  },
+  {
+    "a": " 日 日日a",
+    "b": "ab 日bb",
+    "distance": 8
+  },
+  {
+    "a": "\n 日\nb日 a",
+    "b": "bb",
+    "distance": 8
+  },
+  {
+    "a": "a日\naa    ",
+    "b": "日日 ba ",
+    "distance": 9
+  },
+  {
+    "a": "日",
+    "b": " \n",
+    "distance": 3
+  },
+  {
+    "a": "日\n\n日\na",
+    "b": "aa  bab日日",
+    "distance": 11
+  },
+  {
+    "a": "",
+    "b": " ",
+    "distance": 1
+  },
+  {
+    "a": "\n\n日b日 ",
+    "b": "日b\n",
+    "distance": 5
+  },
+  {
+    "a": " ",
+    "b": "日b\nbab",
+    "distance": 7
+  },
+  {
+    "a": "ba\n日 ",
+    "b": "\n\n",
+    "distance": 5
+  },
+  {
+    "a": "  \n ",
+    "b": " ",
+    "distance": 3
+  },
+  {
+    "a": "日\n日b \naa",
+    "b": " ",
+    "distance": 7
+  },
+  {
+    "a": "abbaa",
+    "b": "a  ab a",
+    "distance": 6
+  },
+  {
+    "a": "a \naba日 \n",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": " a  \n",
+    "distance": 5
+  },
+  {
+    "a": "日b\nb a日",
+    "b": "aa \n ab日",
+    "distance": 7
+  },
+  {
+    "a": " a\n b日b",
+    "b": "a\na ",
+    "distance": 5
+  },
+  {
+    "a": "\n日",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": " b \n",
+    "b": "bba日",
+    "distance": 6
+  },
+  {
+    "a": "日",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "b",
+    "b": "b",
+    "distance": 0
+  },
+  {
+    "a": "a  a日\naba",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": " bbab  ",
+    "b": "b ",
+    "distance": 5
+  },
+  {
+    "a": "\n",
+    "b": "日 ",
+    "distance": 3
+  },
+  {
+    "a": "日 ",
+    "b": "\n   日b\n \n",
+    "distance": 7
+  },
+  {
+    "a": " \n\n\n",
+    "b": "a日 日bb\n \n",
+    "distance": 7
+  },
+  {
+    "a": "\n \n",
+    "b": "日 \n b   a",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "\naa日",
+    "distance": 4
+  },
+  {
+    "a": "ba\nba",
+    "b": "\n\na日 b\na ",
+    "distance": 8
+  },
+  {
+    "a": "\n日\n",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": " \n \n",
+    "b": "日日  日  \nb",
+    "distance": 7
+  },
+  {
+    "a": "b\n",
+    "b": "日",
+    "distance": 3
+  },
+  {
+    "a": "日bb bab日",
+    "b": "\na\n日日 日b",
+    "distance": 10
+  },
+  {
+    "a": " a\n日\n ",
+    "b": " bbbab日a",
+    "distance": 8
+  },
+  {
+    "a": "a\n日ab\nab",
+    "b": "\n\nba",
+    "distance": 6
+  },
+  {
+    "a": "\n\n  ",
+    "b": "bb日日",
+    "distance": 8
+  },
+  {
+    "a": "b日 a",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "a日\n b",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "bb日\n",
+    "b": "aa日",
+    "distance": 5
+  },
+  {
+    "a": "a\n \n",
+    "b": "日\nb日 a ",
+    "distance": 7
+  },
+  {
+    "a": "b日b日 \n",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "b\n\n a日日 ",
+    "b": "ab日\nba",
+    "distance": 8
+  },
+  {
+    "a": "\n日",
+    "b": "日a ba日",
+    "distance": 6
+  },
+  {
+    "a": "b \n日 ab",
+    "b": "b日b日\nb日\n ",
+    "distance": 8
+  },
+  {
+    "a": "\n\n \n a\n",
+    "b": "\n",
+    "distance": 6
+  },
+  {
+    "a": "日日",
+    "b": "ab 日bab日a",
+    "distance": 7
+  },
+  {
+    "a": "\n日b aa日日",
+    "b": "\n日\na \n\n",
+    "distance": 9
+  },
+  {
+    "a": "ba日abb日a",
+    "b": "b ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "aa日b\n a ",
+    "distance": 8
+  },
+  {
+    "a": "bb\n\n\n",
+    "b": "  \n日 日 ",
+    "distance": 10
+  },
+  {
+    "a": "日aa ",
+    "b": "  a日日日日",
+    "distance": 9
+  },
+  {
+    "a": "a日b",
+    "b": "ab",
+    "distance": 1
+  },
+  {
+    "a": "",
+    "b": "a\nba ",
+    "distance": 5
+  },
+  {
+    "a": "  \n\nb\nbb",
+    "b": "日日 日bb",
+    "distance": 8
+  },
+  {
+    "a": "a\n日 \n\n\na",
+    "b": " b\nb\n\nbab",
+    "distance": 7
+  },
+  {
+    "a": "\n ",
+    "b": "\n\n\n",
+    "distance": 3
+  },
+  {
+    "a": "b日",
+    "b": "ba  \n",
+    "distance": 5
+  },
+  {
+    "a": "  a日日",
+    "b": " \n\nb日日",
+    "distance": 5
+  },
+  {
+    "a": "\nbb",
+    "b": "a   \n",
+    "distance": 6
+  },
+  {
+    "a": "\n",
+    "b": "\n日日\na日a",
+    "distance": 6
+  },
+  {
+    "a": "\nbb日ab\n  ",
+    "b": "ab日\n \n",
+    "distance": 7
+  },
+  {
+    "a": "b\n\n",
+    "b": "\n aa a日",
+    "distance": 8
+  },
+  {
+    "a": " ab日ab",
+    "b": "日\n日日\n",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": " b 日\n",
+    "b": " ",
+    "distance": 4
+  },
+  {
+    "a": "b日bb日ba日\n",
+    "b": "b\nbabb\n \n",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "a 日日",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "\n  日",
+    "distance": 4
+  },
+  {
+    "a": "b 日\na",
+    "b": " aa日a\n",
+    "distance": 5
+  },
+  {
+    "a": "b\n",
+    "b": "b日\na\na",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "b\n",
+    "b": "aaa日 a\n",
+    "distance": 7
+  },
+  {
+    "a": "a ",
+    "b": "b",
+    "distance": 3
+  },
+  {
+    "a": "baaa\na ",
+    "b": "\nab ",
+    "distance": 5
+  },
+  {
+    "a": "日",
+    "b": "日a日",
+    "distance": 2
+  },
+  {
+    "a": "ab日\n日bb",
+    "b": "b",
+    "distance": 6
+  },
+  {
+    "a": "\na日 b \na",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": " 日aba",
+    "b": "  ",
+    "distance": 5
+  },
+  {
+    "a": "aba  ",
+    "b": "b b日日日",
+    "distance": 7
+  },
+  {
+    "a": "a日  ba",
+    "b": "\na日日",
+    "distance": 6
+  },
+  {
+    "a": "日日",
+    "b": "  b\n日abb日",
+    "distance": 7
+  },
+  {
+    "a": "日a \n",
+    "b": "a",
+    "distance": 3
+  },
+  {
+    "a": " 日bb日a",
+    "b": "bb\na\n",
+    "distance": 5
+  },
+  {
+    "a": "b\n",
+    "b": "a",
+    "distance": 3
+  },
+  {
+    "a": "日\nb",
+    "b": " 日a日 ",
+    "distance": 6
+  },
+  {
+    "a": "aa",
+    "b": "日bba日",
+    "distance": 5
+  },
+  {
+    "a": "\n日baa日\n",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "\na日",
+    "b": " a",
+    "distance": 3
+  },
+  {
+    "a": "ba日",
+    "b": "aa\n\n",
+    "distance": 5
+  },
+  {
+    "a": "a\naa ",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "\n\n\n 日",
+    "distance": 5
+  },
+  {
+    "a": "a",
+    "b": "\n\n bb",
+    "distance": 6
+  },
+  {
+    "a": "a b\n",
+    "b": " a  a",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "ba\n\na a",
+    "distance": 7
+  },
+  {
+    "a": "b\n aba ab",
+    "b": " 日 \nbb日日 ",
+    "distance": 12
+  },
+  {
+    "a": " 日a\n日b",
+    "b": "  日a  日\nb",
+    "distance": 5
+  },
+  {
+    "a": "b\n日",
+    "b": "ba日   aa",
+    "distance": 7
+  },
+  {
+    "a": "a日",
+    "b": "日ba日",
+    "distance": 2
+  },
+  {
+    "a": "a\n\n\n\n日",
+    "b": " \n日",
+    "distance": 5
+  },
+  {
+    "a": " 日\n",
+    "b": "\n  日日 abb",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": " a",
+    "distance": 2
+  },
+  {
+    "a": "日日",
+    "b": "bb",
+    "distance": 4
+  },
+  {
+    "a": "bb",
+    "b": "日",
+    "distance": 3
+  },
+  {
+    "a": "\n aa日日 ab",
+    "b": " b日a",
+    "distance": 7
+  },
+  {
+    "a": "\n日b bb",
+    "b": "b ",
+    "distance": 4
+  },
+  {
+    "a": "日",
+    "b": "\nb   a日a",
+    "distance": 7
+  },
+  {
+    "a": "  abaaa\n ",
+    "b": "  aa 日b\n",
+    "distance": 7
+  },
+  {
+    "a": "日日 日日日日\n",
+    "b": "日b\nb\nb日",
+    "distance": 11
+  },
+  {
+    "a": " bb",
+    "b": "日a\nb\na\n",
+    "distance": 8
+  },
+  {
+    "a": " bbaba\n\n",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "b  a日\n \na",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "b日",
+    "b": "b  b 日\na日",
+    "distance": 7
+  },
+  {
+    "a": " ",
+    "b": " 日 aba\n",
+    "distance": 6
+  },
+  {
+    "a": " babab",
+    "b": "a",
+    "distance": 5
+  },
+  {
+    "a": "a",
+    "b": " ",
+    "distance": 2
+  },
+  {
+    "a": " ",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "日 a",
+    "b": " 日",
+    "distance": 3
+  },
+  {
+    "a": "b \n b b\n ",
+    "b": "aa",
+    "distance": 11
+  },
+  {
+    "a": "\n日a  ",
+    "b": "b \nba",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": " \n日日a",
+    "distance": 5
+  },
+  {
+    "a": "bb",
+    "b": "日  \nb\n  ",
+    "distance": 8
+  },
+  {
+    "a": " ",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "b日  a\n ",
+    "b": "\n",
+    "distance": 6
+  },
+  {
+    "a": "\nab \n日",
+    "b": "ba  bb日  ",
+    "distance": 9
+  },
+  {
+    "a": "\n日",
+    "b": "a\nb日\n",
+    "distance": 3
+  },
+  {
+    "a": "b a日日a",
+    "b": "b 日\n\n",
+    "distance": 5
+  },
+  {
+    "a": "aab\nba日b",
+    "b": "b日\n",
+    "distance": 7
+  },
+  {
+    "a": "baa日\nbaba",
+    "b": "日  b a日a",
+    "distance": 9
+  },
+  {
+    "a": "aa日ba\n\n a",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": "日日\n日 日",
+    "b": "aaa b",
+    "distance": 9
+  },
+  {
+    "a": "b日a日 \n日\n日",
+    "b": "ab\n",
+    "distance": 8
+  },
+  {
+    "a": "日 aabb\n\na",
+    "b": "a",
+    "distance": 8
+  },
+  {
+    "a": "b",
+    "b": "b\n",
+    "distance": 1
+  },
+  {
+    "a": "\n\nb aa",
+    "b": "\n\n ",
+    "distance": 3
+  },
+  {
+    "a": "日 \n a\n",
+    "b": "\n\n日日\na a ",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "a日b",
+    "distance": 3
+  },
+  {
+    "a": "\nbaba  a\n",
+    "b": "b日\n\nb日",
+    "distance": 11
+  },
+  {
+    "a": "日\n  日",
+    "b": " 日a\nba日",
+    "distance": 6
+  },
+  {
+    "a": "\na  ",
+    "b": "\nbb",
+    "distance": 5
+  },
+  {
+    "a": " b日",
+    "b": "a\na \na\na\n",
+    "distance": 10
+  },
+  {
+    "a": "",
+    "b": "\n 日日bb",
+    "distance": 6
+  },
+  {
+    "a": "\n\nbaba",
+    "b": "ab",
+    "distance": 4
+  },
+  {
+    "a": "ab日 \n\nb日",
+    "b": "  \n日b\n",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日日a日 a",
+    "distance": 6
+  },
+  {
+    "a": " ab日 a日",
+    "b": "\n a\nba",
+    "distance": 5
+  },
+  {
+    "a": "日\n",
+    "b": "a",
+    "distance": 3
+  },
+  {
+    "a": "\na\n a 日日",
+    "b": " a\n a\n日 ",
+    "distance": 6
+  },
+  {
+    "a": "aa日\n",
+    "b": "\n",
+    "distance": 3
+  },
+  {
+    "a": "b a日 b 日日",
+    "b": "\n  ba日\n\na",
+    "distance": 10
+  },
+  {
+    "a": "日",
+    "b": "日 b\n日b  日",
+    "distance": 8
+  },
+  {
+    "a": "b ",
+    "b": "\n\n a日日\na ",
+    "distance": 9
+  },
+  {
+    "a": "abbabaa 日",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "aa日b",
+    "distance": 4
+  },
+  {
+    "a": "b ",
+    "b": "b bba 日日",
+    "distance": 6
+  },
+  {
+    "a": "a\n日bb",
+    "b": "日 a a日 ",
+    "distance": 8
+  },
+  {
+    "a": "  日日",
+    "b": " 日\n",
+    "distance": 3
+  },
+  {
+    "a": "ba ",
+    "b": "b日aabbb日\n",
+    "distance": 8
+  },
+  {
+    "a": " ",
+    "b": "\n",
+    "distance": 2
+  },
+  {
+    "a": "",
+    "b": "\nbba a",
+    "distance": 6
+  },
+  {
+    "a": "b",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": " b\n日",
+    "b": "日日 ",
+    "distance": 5
+  },
+  {
+    "a": "a日a a日a日",
+    "b": "a\n 日 \n",
+    "distance": 8
+  },
+  {
+    "a": " 日abb",
+    "b": " 日 ba",
+    "distance": 4
+  },
+  {
+    "a": "b",
+    "b": "\n ab",
+    "distance": 3
+  },
+  {
+    "a": "\nbaa",
+    "b": "bb",
+    "distance": 4
+  },
+  {
+    "a": "\n",
+    "b": "baab日b\nb ",
+    "distance": 8
+  },
+  {
+    "a": " 日",
+    "b": "日 \na\n\n\na ",
+    "distance": 9
+  },
+  {
+    "a": "\n b",
+    "b": "日\n日bba",
+    "distance": 5
+  },
+  {
+    "a": "日日 ",
+    "b": "\n日b\n\n日",
+    "distance": 5
+  },
+  {
+    "a": "日\n",
+    "b": "\n",
+    "distance": 1
+  },
+  {
+    "a": "b",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "bb日bb\na\nb",
+    "b": " \n \nb",
+    "distance": 8
+  },
+  {
+    "a": "日a  日 \n日日",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "  日 日\n日 ",
+    "distance": 8
+  },
+  {
+    "a": "bba\n",
+    "b": "b日baa\n\n a",
+    "distance": 5
+  },
+  {
+    "a": "\n\naa\nab ",
+    "b": "a",
+    "distance": 7
+  },
+  {
+    "a": "ba日a",
+    "b": "a日bb日日",
+    "distance": 6
+  },
+  {
+    "a": " \na日\n\nba ",
+    "b": "\naaaaa日",
+    "distance": 10
+  },
+  {
+    "a": "\na \n",
+    "b": "日bb ",
+    "distance": 6
+  },
+  {
+    "a": "日b\n\nb",
+    "b": "日  a",
+    "distance": 7
+  },
+  {
+    "a": "日\n   b",
+    "b": "a日",
+    "distance": 6
+  },
+  {
+    "a": "\nbbb",
+    "b": "  abb ",
+    "distance": 6
+  },
+  {
+    "a": "\n日\n\n",
+    "b": "ba",
+    "distance": 6
+  },
+  {
+    "a": "b\n \n日\na\nb",
+    "b": "\n ",
+    "distance": 7
+  },
+  {
+    "a": "ab日\n日  日\n",
+    "b": "\na",
+    "distance": 9
+  },
+  {
+    "a": "日 ab \n\n日日",
+    "b": "bb\n",
+    "distance": 8
+  },
+  {
+    "a": "bb  \n",
+    "b": "bbab ",
+    "distance": 4
+  },
+  {
+    "a": "a日\nab",
+    "b": "日b",
+    "distance": 3
+  },
+  {
+    "a": "a\n",
+    "b": "b日日 ",
+    "distance": 6
+  },
+  {
+    "a": "a \nbab\n ",
+    "b": "abb \n\nb ",
+    "distance": 6
+  },
+  {
+    "a": "a\n",
+    "b": "ba\nb a",
+    "distance": 4
+  },
+  {
+    "a": "a\n aa日ab",
+    "b": "\nb\n\nabb ",
+    "distance": 10
+  },
+  {
+    "a": "\n \nb日",
+    "b": "日a\n",
+    "distance": 6
+  },
+  {
+    "a": "日\nb\n日a日",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": " a ",
+    "b": "日a\na日日",
+    "distance": 7
+  },
+  {
+    "a": "日",
+    "b": "b日b日b日abb",
+    "distance": 8
+  },
+  {
+    "a": " b \n aa\n\n",
+    "b": "日\na b a",
+    "distance": 8
+  },
+  {
+    "a": "b\n",
+    "b": "  a",
+    "distance": 5
+  },
+  {
+    "a": "a",
+    "b": "日 a日日\n",
+    "distance": 5
+  },
+  {
+    "a": "\n \nb  ",
+    "b": "\n  \n 日\n\na",
+    "distance": 7
+  },
+  {
+    "a": " aa日ba日 ",
+    "b": "abb日日 日ab",
+    "distance": 9
+  },
+  {
+    "a": "\n b日\n ",
+    "b": "日",
+    "distance": 5
+  },
+  {
+    "a": "b ",
+    "b": "a b日a",
+    "distance": 5
+  },
+  {
+    "a": "   日\n日日日a",
+    "b": "b\n",
+    "distance": 9
+  },
+  {
+    "a": " \n日 日b a ",
+    "b": "\nbb\n",
+    "distance": 9
+  },
+  {
+    "a": "b bab\n",
+    "b": "\nbb ",
+    "distance": 6
+  },
+  {
+    "a": "\n日b \n\n",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "b",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": " ",
+    "b": "日a\nabb日\n",
+    "distance": 9
+  },
+  {
+    "a": "a\nab日a\n",
+    "b": "b\nbba ",
+    "distance": 7
+  },
+  {
+    "a": "\n\n\n",
+    "b": " 日 bbb",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "b日",
+    "distance": 2
+  },
+  {
+    "a": "\n日日a\n",
+    "b": "日\n日",
+    "distance": 4
+  },
+  {
+    "a": "\nb \n日日\n",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "  \na\n ba ",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "a\nb日",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "  日 a日",
+    "b": "\n\nba ",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "bb\n \na日 ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": " \n  b\nb\n日",
+    "distance": 9
+  },
+  {
+    "a": "\nba\na日 ",
+    "b": " 日日a日ba",
+    "distance": 10
+  },
+  {
+    "a": "\nb ba",
+    "b": "ba",
+    "distance": 3
+  },
+  {
+    "a": "日 ",
+    "b": "日b日a日\n",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": "\n  b",
+    "distance": 3
+  },
+  {
+    "a": "\n日日\n a",
+    "b": "日\n",
+    "distance": 4
+  },
+  {
+    "a": " b",
+    "b": "ba 日b",
+    "distance": 3
+  },
+  {
+    "a": "日\nbaa  ",
+    "b": " bb\n \nb日b",
+    "distance": 12
+  },
+  {
+    "a": " b\n",
+    "b": "\n",
+    "distance": 2
+  },
+  {
+    "a": "日\n ab ",
+    "b": "b日\n bab",
+    "distance": 3
+  },
+  {
+    "a": "aa\n 日 b\n",
+    "b": "日b\n日 a\n\n",
+    "distance": 8
+  },
+  {
+    "a": " 日\n b \n ",
+    "b": "日日\n\nb \n  ",
+    "distance": 5
+  },
+  {
+    "a": "b日日ba",
+    "b": "baa",
+    "distance": 4
+  },
+  {
+    "a": "b日\n  b ",
+    "b": "  ",
+    "distance": 5
+  },
+  {
+    "a": "\n",
+    "b": "日a\n日\n \na",
+    "distance": 7
+  },
+  {
+    "a": "日a",
+    "b": "a  ",
+    "distance": 3
+  },
+  {
+    "a": "\n日 b aa",
+    "b": "aa",
+    "distance": 5
+  },
+  {
+    "a": "  日 a日日\n ",
+    "b": "aa\n\n日",
+    "distance": 10
+  },
+  {
+    "a": " \nb aa",
+    "b": "b 日a\n",
+    "distance": 5
+  },
+  {
+    "a": "aa \n \n  ",
+    "b": "日\n\nb",
+    "distance": 8
+  },
+  {
+    "a": "\n日 \n a",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "a\n\nb\nb\n  ",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "b\naa",
+    "b": "日日aba b日",
+    "distance": 8
+  },
+  {
+    "a": "\n",
+    "b": " a日 b b",
+    "distance": 8
+  },
+  {
+    "a": "日 a baaa",
+    "b": "日日日",
+    "distance": 9
+  },
+  {
+    "a": "\nb日 日aa",
+    "b": "ab\n日\n\n ab",
+    "distance": 8
+  },
+  {
+    "a": "\naaa",
+    "b": " \n\n日a\n ",
+    "distance": 7
+  },
+  {
+    "a": "\n 日\nb a",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "a日b日 \n",
+    "b": " bb\n   a",
+    "distance": 10
+  },
+  {
+    "a": "aa日日 日 a ",
+    "b": "日日日 ",
+    "distance": 5
+  },
+  {
+    "a": "a",
+    "b": " 日\n b",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": "\n \nb \n a ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日\na\n\n\nb",
+    "distance": 7
+  },
+  {
+    "a": "b ",
+    "b": "\nb 日",
+    "distance": 2
+  },
+  {
+    "a": "ba日b",
+    "b": "abb\n日aa日",
+    "distance": 6
+  },
+  {
+    "a": " 日 日\n a",
+    "b": " ",
+    "distance": 6
+  },
+  {
+    "a": " \n \n ",
+    "b": " a日bb",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "b  ",
+    "distance": 3
+  },
+  {
+    "a": "\nb ba",
+    "b": " 日 \nab",
+    "distance": 7
+  },
+  {
+    "a": "baaa  日 ",
+    "b": "\n\n ",
+    "distance": 9
+  },
+  {
+    "a": "baa",
+    "b": "\nb \n\n",
+    "distance": 6
+  },
+  {
+    "a": "日",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "日\nb  日日",
+    "b": " bb",
+    "distance": 8
+  },
+  {
+    "a": "  \na日\n",
+    "b": "b\n\n abaa",
+    "distance": 10
+  },
+  {
+    "a": "aaa b bb",
+    "b": " 日aa ",
+    "distance": 7
+  },
+  {
+    "a": "aa b\n",
+    "b": "a日",
+    "distance": 5
+  },
+  {
+    "a": "b日日 a\n\n",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "b日ba\n",
+    "b": "aab  ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": " \n",
+    "distance": 2
+  },
+  {
+    "a": " a日\n ",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "\na日b\n\nb",
+    "b": " 日日",
+    "distance": 8
+  },
+  {
+    "a": "bb",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "  aa\nb\n日日",
+    "b": "a",
+    "distance": 8
+  },
+  {
+    "a": "bbb",
+    "b": "日日",
+    "distance": 5
+  },
+  {
+    "a": "baaaa日ba",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "ab b日aa \n",
+    "b": "\n\nb b ",
+    "distance": 7
+  },
+  {
+    "a": "\na",
+    "b": "\n",
+    "distance": 1
+  },
+  {
+    "a": " a\na日",
+    "b": " 日 日 \na ",
+    "distance": 7
+  },
+  {
+    "a": "b日日",
+    "b": "\n日日日日",
+    "distance": 4
+  },
+  {
+    "a": "\nb a",
+    "b": "\n日日\na\na",
+    "distance": 7
+  },
+  {
+    "a": "\n\n\n日\na",
+    "b": "日aa",
+    "distance": 5
+  },
+  {
+    "a": "a\n   日",
+    "b": "日a日 \n日日 ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "a 日\nb \n",
+    "distance": 7
+  },
+  {
+    "a": " \nabb\nb",
+    "b": "日aabab日aa",
+    "distance": 10
+  },
+  {
+    "a": "b\na ba日",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "日\n\n日aa\n日b",
+    "b": "ba",
+    "distance": 9
+  },
+  {
+    "a": "aa 日  aa",
+    "b": "日a日 日",
+    "distance": 7
+  },
+  {
+    "a": "bb \n",
+    "b": "日",
+    "distance": 5
+  },
+  {
+    "a": "\n b日 日",
+    "b": "b\n bb日\n日a",
+    "distance": 5
+  },
+  {
+    "a": " \n \n a ",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "  ",
+    "b": "\naaa b日a",
+    "distance": 8
+  },
+  {
+    "a": "a\nb\n日\n日\n",
+    "b": "a",
+    "distance": 7
+  },
+  {
+    "a": "a日b ",
+    "b": "日 b\n日",
+    "distance": 5
+  },
+  {
+    "a": "日a \n ",
+    "b": "\n日",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "\n\n日日日 b",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "日ba日",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": " \n\nab a",
+    "distance": 7
+  },
+  {
+    "a": "a日 ba日bb",
+    "b": "\nb\n日",
+    "distance": 8
+  },
+  {
+    "a": "日 a\n",
+    "b": "b\na \nbaaa",
+    "distance": 9
+  },
+  {
+    "a": "日日",
+    "b": "\n日\n日\n a",
+    "distance": 5
+  },
+  {
+    "a": "\n  a",
+    "b": " \n日b\n日 日日",
+    "distance": 9
+  },
+  {
+    "a": "a日abb日日b",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "b日ba日a日日b",
+    "b": "日 日bb\n",
+    "distance": 9
+  },
+  {
+    "a": "\n ab",
+    "b": "bb\n",
+    "distance": 5
+  },
+  {
+    "a": "\na b\n\n日日 ",
+    "b": "\n \n\nb\na",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日\n日\n日日ab ",
+    "distance": 9
+  },
+  {
+    "a": "b",
+    "b": "ba",
+    "distance": 1
+  },
+  {
+    "a": " ba ",
+    "b": "   ",
+    "distance": 3
+  },
+  {
+    "a": "日日",
+    "b": "  a\n日 ",
+    "distance": 6
+  },
+  {
+    "a": "日a\nb\na日日日",
+    "b": "b ab",
+    "distance": 9
+  },
+  {
+    "a": "aa",
+    "b": "  日b\n日",
+    "distance": 8
+  },
+  {
+    "a": "ab baab日a",
+    "b": " bb bba",
+    "distance": 6
+  },
+  {
+    "a": "日\n\n\n日\nb",
+    "b": "日a ",
+    "distance": 8
+  },
+  {
+    "a": "aa\nab日日",
+    "b": " b 日ab \na",
+    "distance": 10
+  },
+  {
+    "a": "\n日 日 日 ",
+    "b": "ab\na",
+    "distance": 9
+  },
+  {
+    "a": "b\n  ",
+    "b": "日日a",
+    "distance": 7
+  },
+  {
+    "a": "aa日  a",
+    "b": "b\n",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "bbaab\n\n日",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "bbb  aa日 ",
+    "distance": 9
+  },
+  {
+    "a": "aa b日 b ",
+    "b": "  ba",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": "aa\n日 aba",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "日日b日 a",
+    "distance": 6
+  },
+  {
+    "a": " a日\nbab日",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "\n日日日bb",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "\n日\n\n\n",
+    "b": " \n日ab ",
+    "distance": 7
+  },
+  {
+    "a": "b 日bb a",
+    "b": "ba日aa\n日b\n",
+    "distance": 10
+  },
+  {
+    "a": "",
+    "b": "ab",
+    "distance": 2
+  },
+  {
+    "a": "a b",
+    "b": "a日b\n",
+    "distance": 3
+  },
+  {
+    "a": "\n日aa\n",
+    "b": "日bb日",
+    "distance": 7
+  },
+  {
+    "a": "\n日a日日日\nb日",
+    "b": "\n\n",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "日日a日\n",
+    "distance": 5
+  },
+  {
+    "a": "ba a\n",
+    "b": "aa\n\n日\n ",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "a\nb \n",
+    "b": "b",
+    "distance": 4
+  },
+  {
+    "a": "a baab日",
+    "b": " aba",
+    "distance": 5
+  },
+  {
+    "a": "b\nb",
+    "b": "b\nb日日",
+    "distance": 2
+  },
+  {
+    "a": "b\na日\nb",
+    "b": "\n\n日日\naa",
+    "distance": 7
+  },
+  {
+    "a": "\n",
+    "b": "\nb日aaaa",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "b日  b  ab",
+    "distance": 9
+  },
+  {
+    "a": "日  日",
+    "b": "日abaa日",
+    "distance": 6
+  },
+  {
+    "a": "  日日 ",
+    "b": "a日a ",
+    "distance": 5
+  },
+  {
+    "a": " aaa日\n 日 ",
+    "b": "\nb\naab ",
+    "distance": 10
+  },
+  {
+    "a": "日日\n日b日b ",
+    "b": "a aa ",
+    "distance": 11
+  },
+  {
+    "a": " b日日",
+    "b": "b",
+    "distance": 3
+  },
+  {
+    "a": "a日\n\n日\nb",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "aa\na\n",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "日\n a日\na a",
+    "distance": 9
+  },
+  {
+    "a": " 日baa\n",
+    "b": "日 \nba日日b",
+    "distance": 8
+  },
+  {
+    "a": " b日a\n\n\na",
+    "b": "\n\n日日a b",
+    "distance": 9
+  },
+  {
+    "a": "\nb\n日b 日 ",
+    "b": "日b",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "日 日日 日\n",
+    "distance": 7
+  },
+  {
+    "a": "日日 b\n\n  b",
+    "b": "日 日 b\na日",
+    "distance": 7
+  },
+  {
+    "a": "\n \n日ba日\n",
+    "b": "aba日a日b \n",
+    "distance": 9
+  },
+  {
+    "a": "b",
+    "b": "ab\n 日日 \n日",
+    "distance": 8
+  },
+  {
+    "a": "\nb\n日 日 ",
+    "b": "a日\n 日\nba日",
+    "distance": 10
+  },
+  {
+    "a": "aa ab\n日ba",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "\n 日日",
+    "b": "a\nb日a",
+    "distance": 5
+  },
+  {
+    "a": "日a日",
+    "b": "babb",
+    "distance": 5
+  },
+  {
+    "a": " b日a\n日",
+    "b": "b",
+    "distance": 5
+  },
+  {
+    "a": "\n b日b b\n",
+    "b": "\n\n",
+    "distance": 6
+  },
+  {
+    "a": "日 \n  ",
+    "b": "bba日\n  a\n",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "日\n日日 ",
+    "distance": 5
+  },
+  {
+    "a": "a",
+    "b": "日日\n",
+    "distance": 4
+  },
+  {
+    "a": "日",
+    "b": " b b 日日",
+    "distance": 6
+  },
+  {
+    "a": "aaaa",
+    "b": "bab\nb",
+    "distance": 7
+  },
+  {
+    "a": "bbb ab\n\n",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "\n ",
+    "b": " bb\nba ",
+    "distance": 5
+  },
+  {
+    "a": "aba\n日",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "日 b  日\n日a",
+    "b": "日 \n\n",
+    "distance": 7
+  },
+  {
+    "a": "ab \n",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": " ",
+    "b": " a b日",
+    "distance": 4
+  },
+  {
+    "a": " b日a日a",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "\nb\n日\n日abb",
+    "b": "日ab日\n b ",
+    "distance": 9
+  },
+  {
+    "a": "bbaa",
+    "b": "日日日\nab",
+    "distance": 8
+  },
+  {
+    "a": "a日b",
+    "b": "\nb\na\n",
+    "distance": 6
+  },
+  {
+    "a": " 日日日a\n",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "b日",
+    "b": "\nba \naab",
+    "distance": 8
+  },
+  {
+    "a": "a",
+    "b": "bb \nb \n",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日",
+    "distance": 1
+  },
+  {
+    "a": "bb日",
+    "b": "a\n  \n bbb",
+    "distance": 8
+  },
+  {
+    "a": "aabaaa\na",
+    "b": "a \nb\n",
+    "distance": 7
+  },
+  {
+    "a": "   日日",
+    "b": "\n日\n ",
+    "distance": 7
+  },
+  {
+    "a": "a b",
+    "b": "a",
+    "distance": 2
+  },
+  {
+    "a": "ab",
+    "b": "bb日",
+    "distance": 3
+  },
+  {
+    "a": "a日日",
+    "b": "日",
+    "distance": 2
+  },
+  {
+    "a": "\n",
+    "b": " \naa日a",
+    "distance": 5
+  },
+  {
+    "a": " \n\nb",
+    "b": "aba",
+    "distance": 5
+  },
+  {
+    "a": " b\n日b日  a",
+    "b": "b日b日a ",
+    "distance": 5
+  },
+  {
+    "a": "b  日ab",
+    "b": "ba日日\nb",
+    "distance": 6
+  },
+  {
+    "a": "b  日日 bbb",
+    "b": "日 \nab ",
+    "distance": 9
+  },
+  {
+    "a": "日\n日",
+    "b": "a日日a日 ",
+    "distance": 5
+  },
+  {
+    "a": "日b",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "a\n日日",
+    "b": "日",
+    "distance": 3
+  },
+  {
+    "a": "\n ",
+    "b": "ab  a ",
+    "distance": 6
+  },
+  {
+    "a": "a日\n ",
+    "b": "\nb",
+    "distance": 4
+  },
+  {
+    "a": "\n\n日 \n\naa",
+    "b": "日\nbb bb ",
+    "distance": 12
+  },
+  {
+    "a": "",
+    "b": "日",
+    "distance": 1
+  },
+  {
+    "a": " 日a\n \n",
+    "b": " bb 日",
+    "distance": 7
+  },
+  {
+    "a": "a\n日b",
+    "b": "\na日b",
+    "distance": 2
+  },
+  {
+    "a": "ba",
+    "b": "b\nba日a\n日\n",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "\n 日日aaa",
+    "distance": 7
+  },
+  {
+    "a": "a日",
+    "b": "b 日   \n",
+    "distance": 7
+  },
+  {
+    "a": "日ab日日",
+    "b": "b\nbb\n\n\n",
+    "distance": 10
+  },
+  {
+    "a": "  ",
+    "b": "\n\n\n\n",
+    "distance": 6
+  },
+  {
+    "a": "日    \n日\n ",
+    "b": "aa日",
+    "distance": 10
+  },
+  {
+    "a": " \n",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "bb",
+    "b": " ab日b b日b",
+    "distance": 7
+  },
+  {
+    "a": "a日a\n",
+    "b": "a日 ",
+    "distance": 3
+  },
+  {
+    "a": "  a日",
+    "b": "b ",
+    "distance": 4
+  },
+  {
+    "a": "\n\na a\na\n",
+    "b": "b日ab a",
+    "distance": 8
+  },
+  {
+    "a": "ab\n ",
+    "b": "a日a\n日日\n",
+    "distance": 7
+  },
+  {
+    "a": "日b\na日aba日",
+    "b": "a \n\n\n",
+    "distance": 12
+  },
+  {
+    "a": " aaa日\n日  ",
+    "b": "\n b 日 ",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": " \n ",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": " b\na\n日",
+    "distance": 6
+  },
+  {
+    "a": "\n",
+    "b": "b  bbb",
+    "distance": 7
+  },
+  {
+    "a": "\n a\n ",
+    "b": "\na\na\n b",
+    "distance": 4
+  },
+  {
+    "a": "aba\n 日",
+    "b": " ",
+    "distance": 5
+  },
+  {
+    "a": "b ",
+    "b": "\n\n \na日aa",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "bba",
+    "distance": 3
+  },
+  {
+    "a": "a b日 \n",
+    "b": "b \n\n",
+    "distance": 4
+  },
+  {
+    "a": "\n\n",
+    "b": " 日a日日 \nba",
+    "distance": 9
+  },
+  {
+    "a": "a日 日abb",
+    "b": "a  b ",
+    "distance": 6
+  },
+  {
+    "a": "ab日a",
+    "b": "b日ab\n b",
+    "distance": 5
+  },
+  {
+    "a": "日",
+    "b": " b日",
+    "distance": 2
+  },
+  {
+    "a": "日  ",
+    "b": "aa\naaba \n",
+    "distance": 10
+  },
+  {
+    "a": "a\n日\n\n 日",
+    "b": "ba日",
+    "distance": 6
+  },
+  {
+    "a": " \n",
+    "b": "b\na  \n ",
+    "distance": 5
+  },
+  {
+    "a": "aaa ",
+    "b": "bb  \n",
+    "distance": 7
+  },
+  {
+    "a": "日日a\n bab日",
+    "b": " b",
+    "distance": 7
+  },
+  {
+    "a": "\n\n",
+    "b": " a 日日\n ba",
+    "distance": 9
+  },
+  {
+    "a": "\n",
+    "b": "\n日abba",
+    "distance": 5
+  },
+  {
+    "a": "日",
+    "b": "aa\n\n  bbb",
+    "distance": 10
+  },
+  {
+    "a": "b日b",
+    "b": "日\naba 日 ",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "b日a b",
+    "distance": 5
+  },
+  {
+    "a": "b abaa",
+    "b": "日 bbb日\n",
+    "distance": 9
+  },
+  {
+    "a": " abbaa",
+    "b": "b日日 ab  ",
+    "distance": 8
+  },
+  {
+    "a": " 日ba   \n ",
+    "b": "日a\n\na",
+    "distance": 8
+  },
+  {
+    "a": "ba\n\n",
+    "b": "  日日日b",
+    "distance": 8
+  },
+  {
+    "a": "  \n日日",
+    "b": "日\n\na日\n",
+    "distance": 7
+  },
+  {
+    "a": " ",
+    "b": "a\nbaaa\n",
+    "distance": 8
+  },
+  {
+    "a": "a\na\n\na日",
+    "b": "\n  ab",
+    "distance": 8
+  },
+  {
+    "a": " \n日日 ",
+    "b": "ab",
+    "distance": 7
+  },
+  {
+    "a": "a日",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "日 aa",
+    "b": "aa日a日日a ",
+    "distance": 6
+  },
+  {
+    "a": "\n\n  b日 ",
+    "b": "\n",
+    "distance": 6
+  },
+  {
+    "a": "a bb日",
+    "b": "b \n ",
+    "distance": 7
+  },
+  {
+    "a": " 日aaa日\na ",
+    "b": "a a",
+    "distance": 8
+  },
+  {
+    "a": "bb ab日a",
+    "b": "a日a\n\n日a\n",
+    "distance": 9
+  },
+  {
+    "a": "日\n\n b\n日b ",
+    "b": "\n 日日b \nbb",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "\na\n日\n  ",
+    "distance": 7
+  },
+  {
+    "a": "  bbbb\n日\n",
+    "b": "\naa\n\n\nb ",
+    "distance": 13
+  },
+  {
+    "a": "\nb",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "日日\n a\n",
+    "b": "\n\n日 \n",
+    "distance": 5
+  },
+  {
+    "a": "日\n日\na日日日",
+    "b": "日\n\nb日  a",
+    "distance": 8
+  },
+  {
+    "a": " ",
+    "b": "bb日  baa日",
+    "distance": 8
+  },
+  {
+    "a": "\n b日\n日 日b",
+    "b": " 日日 ",
+    "distance": 5
+  },
+  {
+    "a": "日\n",
+    "b": " \n",
+    "distance": 2
+  },
+  {
+    "a": "abb   \n",
+    "b": "日b\nb日\n",
+    "distance": 7
+  },
+  {
+    "a": "日\na ",
+    "b": "b日aa",
+    "distance": 4
+  },
+  {
+    "a": "\n",
+    "b": "\nb a\n\n",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "日b\n",
+    "distance": 3
+  },
+  {
+    "a": " aa日b",
+    "b": " 日 ",
+    "distance": 4
+  },
+  {
+    "a": "\n\nbb\n",
+    "b": "日\nb日",
+    "distance": 5
+  },
+  {
+    "a": "bb",
+    "b": "\n日a",
+    "distance": 5
+  },
+  {
+    "a": "日",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "\n",
+    "b": "\n\n",
+    "distance": 1
+  },
+  {
+    "a": "aaa",
+    "b": " b日bb bbb",
+    "distance": 12
+  },
+  {
+    "a": "\n \n\nbb",
+    "b": "bbbb",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "ba \n 日\n",
+    "distance": 7
+  },
+  {
+    "a": "\nab日a\n  a",
+    "b": " bb 日",
+    "distance": 10
+  },
+  {
+    "a": "\n日b日\na日 ",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "a\nabb日",
+    "b": "a日 日",
+    "distance": 6
+  },
+  {
+    "a": " \nb",
+    "b": "日 b日 \n \n ",
+    "distance": 8
+  },
+  {
+    "a": "b日",
+    "b": "日",
+    "distance": 1
+  },
+  {
+    "a": "abb",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": " ",
+    "b": "日",
+    "distance": 2
+  },
+  {
+    "a": "\n 日b日bab",
+    "b": "\nbbaba",
+    "distance": 4
+  },
+  {
+    "a": "bb日  \n",
+    "b": "\nab ",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "ba日\n日日\nb日",
+    "distance": 9
+  },
+  {
+    "a": "aabaaa",
+    "b": "日b日a日a\n",
+    "distance": 7
+  },
+  {
+    "a": "aa",
+    "b": " b\n \nba ",
+    "distance": 8
+  },
+  {
+    "a": "ab aaa\na",
+    "b": "日日\na",
+    "distance": 8
+  },
+  {
+    "a": "\naa日a",
+    "b": "日b\n\n日",
+    "distance": 6
+  },
+  {
+    "a": " baa a",
+    "b": " a",
+    "distance": 4
+  },
+  {
+    "a": "a日\n\n\nab日",
+    "b": " b日b日a",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "a\n\n",
+    "distance": 3
+  },
+  {
+    "a": "日baa b",
+    "b": "b \n\nb",
+    "distance": 5
+  },
+  {
+    "a": "\n",
+    "b": "\nb\n\n",
+    "distance": 3
+  },
+  {
+    "a": "a日\n",
+    "b": "a  b\n  日",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "日 \n",
+    "distance": 3
+  },
+  {
+    "a": "b\n",
+    "b": "日ba日 ",
+    "distance": 5
+  },
+  {
+    "a": " \n \n a日a",
+    "b": " \n日b",
+    "distance": 6
+  },
+  {
+    "a": "aaa日\n日b日 ",
+    "b": "\n日bbb日\n日",
+    "distance": 9
+  },
+  {
+    "a": "a日b",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "a日日\nba日 日",
+    "b": " \n\nba",
+    "distance": 8
+  },
+  {
+    "a": "日 a日bb",
+    "b": "b日a \na\nb\n",
+    "distance": 7
+  },
+  {
+    "a": "aa日bb",
+    "b": "b",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "ab  日",
+    "distance": 5
+  },
+  {
+    "a": "  \n\na",
+    "b": "b\na\na ",
+    "distance": 5
+  },
+  {
+    "a": "\n日 b ",
+    "b": "日 ",
+    "distance": 3
+  },
+  {
+    "a": "日日a",
+    "b": "aa日a 日a",
+    "distance": 4
+  },
+  {
+    "a": "\nb\n日b日",
+    "b": " ba日bb",
+    "distance": 6
+  },
+  {
+    "a": "\nba\nb",
+    "b": " a\n b日",
+    "distance": 5
+  },
+  {
+    "a": "\n b b",
+    "b": "日",
+    "distance": 6
+  },
+  {
+    "a": "b日日",
+    "b": " 日 \n日a\nab",
+    "distance": 8
+  },
+  {
+    "a": "aba",
+    "b": " \na b",
+    "distance": 4
+  },
+  {
+    "a": "a\n b\na日 日",
+    "b": "aa",
+    "distance": 7
+  },
+  {
+    "a": "日日日a",
+    "b": "日日日b",
+    "distance": 2
+  },
+  {
+    "a": "日b日日\n日aa日",
+    "b": "日a",
+    "distance": 7
+  },
+  {
+    "a": "babaa日",
+    "b": " b日a ",
+    "distance": 7
+  },
+  {
+    "a": " 日b\n",
+    "b": "b\n",
+    "distance": 2
+  },
+  {
+    "a": "b日ab  \n",
+    "b": "aa a",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": " a日日",
+    "distance": 4
+  },
+  {
+    "a": " ",
+    "b": "b\n bbab",
+    "distance": 6
+  },
+  {
+    "a": "日bba",
+    "b": "b日\nb",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "\n日 b",
+    "distance": 4
+  },
+  {
+    "a": "b日b\n\n  b ",
+    "b": "bb",
+    "distance": 7
+  },
+  {
+    "a": "ab ",
+    "b": "\n",
+    "distance": 4
+  },
+  {
+    "a": "\n  日bb 日",
+    "b": "日 \n\n",
+    "distance": 8
+  },
+  {
+    "a": "ab\n\n\nb b日",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "日 ",
+    "b": "baaa",
+    "distance": 6
+  },
+  {
+    "a": "\naa日b",
+    "b": "日a\nb\n bba",
+    "distance": 10
+  },
+  {
+    "a": " a bb日b",
+    "b": " 日\n\na",
+    "distance": 8
+  },
+  {
+    "a": "b 日  日",
+    "b": "aaa a",
+    "distance": 9
+  },
+  {
+    "a": "   ",
+    "b": "a日a日",
+    "distance": 7
+  },
+  {
+    "a": "日",
+    "b": " aaa日\n日日\n",
+    "distance": 8
+  },
+  {
+    "a": "日",
+    "b": " b   ba\nb",
+    "distance": 10
+  },
+  {
+    "a": "\n\n\na日",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "bb\nba日\n",
+    "b": "\n b\n a",
+    "distance": 7
+  },
+  {
+    "a": "aba日日",
+    "b": "日 \na日",
+    "distance": 6
+  },
+  {
+    "a": "\n日bab日 \n",
+    "b": "bb日\n",
+    "distance": 4
+  },
+  {
+    "a": "\n  日",
+    "b": " \n\nb\n日\n 日",
+    "distance": 7
+  },
+  {
+    "a": "\n日日 b  ",
+    "b": "\naaab\n ",
+    "distance": 8
+  },
+  {
+    "a": "日ba日bb",
+    "b": "ab ",
+    "distance": 5
+  },
+  {
+    "a": "\nabb 日",
+    "b": "baab\nb\n ",
+    "distance": 6
+  },
+  {
+    "a": "a\nb",
+    "b": "a日 日a\nb ",
+    "distance": 5
+  },
+  {
+    "a": "日 \nb a\na\n",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "a\nbb日 a日日",
+    "distance": 9
+  },
+  {
+    "a": "日aa日 b日 ",
+    "b": "ab a b日\nb",
+    "distance": 7
+  },
+  {
+    "a": "\n日aab日日",
+    "b": "b日\n日\n  a",
+    "distance": 9
+  },
+  {
+    "a": "\nbaa ",
+    "b": "日\n\n \na 日",
+    "distance": 7
+  },
+  {
+    "a": " ",
+    "b": "aa a",
+    "distance": 3
+  },
+  {
+    "a": "日a a  \nb日",
+    "b": "a日",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "  ba",
+    "distance": 4
+  },
+  {
+    "a": "bb \n\n\n  \n",
+    "b": " a \na",
+    "distance": 8
+  },
+  {
+    "a": "日bab 日",
+    "b": "a",
+    "distance": 5
+  },
+  {
+    "a": "\n 日bb日 \n",
+    "b": " \n 日",
+    "distance": 6
+  },
+  {
+    "a": "a日日 \n",
+    "b": " 日aba\na日b",
+    "distance": 10
+  },
+  {
+    "a": "aabaa \n\n日",
+    "b": "日",
+    "distance": 8
+  },
+  {
+    "a": "ababb  \n",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "b日abb\n",
+    "b": "日\n bab",
+    "distance": 6
+  },
+  {
+    "a": "ba",
+    "b": "\nba\n\n\n\n \n",
+    "distance": 7
+  },
+  {
+    "a": "日aa ",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "\n",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "a\n日 baa",
+    "b": "b日b日a日a",
+    "distance": 6
+  },
+  {
+    "a": "\n\n日\n ba日",
+    "b": "日bba",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "日\n",
+    "distance": 2
+  },
+  {
+    "a": "\n日",
+    "b": "\n \nb",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "aaba\na",
+    "distance": 6
+  },
+  {
+    "a": "a \n b\n",
+    "b": "\nbb \na",
+    "distance": 6
+  },
+  {
+    "a": "b",
+    "b": "aa日\n \nba",
+    "distance": 7
+  },
+  {
+    "a": "\n\nab日\na\n",
+    "b": "  日",
+    "distance": 9
+  },
+  {
+    "a": " b日\n日\n",
+    "b": " a \n   日",
+    "distance": 8
+  },
+  {
+    "a": "\n日  b ba",
+    "b": "日b\na ",
+    "distance": 7
+  },
+  {
+    "a": "日b\n",
+    "b": " a 日aa日日a",
+    "distance": 10
+  },
+  {
+    "a": "a",
+    "b": "\n",
+    "distance": 2
+  },
+  {
+    "a": "日ab日 aa",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "b",
+    "b": "aa\na",
+    "distance": 5
+  },
+  {
+    "a": " aab\n\n \nb",
+    "b": "日aa日a ",
+    "distance": 9
+  },
+  {
+    "a": "a日\n\n",
+    "b": "日\n日a",
+    "distance": 4
+  },
+  {
+    "a": "\n日日",
+    "b": "日\nab",
+    "distance": 5
+  },
+  {
+    "a": "a日b a\na\n",
+    "b": " a",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": "日",
+    "distance": 2
+  },
+  {
+    "a": "\naabb",
+    "b": "\n  a",
+    "distance": 5
+  },
+  {
+    "a": "a日 b",
+    "b": "  日日",
+    "distance": 6
+  },
+  {
+    "a": "ab \n",
+    "b": "\n \n  b ",
+    "distance": 7
+  },
+  {
+    "a": "日a 日bb \nb",
+    "b": "日\n\n日 a\n",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "\n ",
+    "distance": 2
+  },
+  {
+    "a": "日babb a ",
+    "b": "\n日",
+    "distance": 8
+  },
+  {
+    "a": "b  \naaaa",
+    "b": "日  a 日ab",
+    "distance": 8
+  },
+  {
+    "a": "\n日日a\n 日a",
+    "b": " 日 ",
+    "distance": 7
+  },
+  {
+    "a": "\n\n\na\n日 a",
+    "b": "b \nbab",
+    "distance": 10
+  },
+  {
+    "a": "a  日a b",
+    "b": "b日a日a",
+    "distance": 6
+  },
+  {
+    "a": "\naa\na\n\n日a",
+    "b": "日a a日",
+    "distance": 8
+  },
+  {
+    "a": " 日\n ",
+    "b": "\n",
+    "distance": 3
+  },
+  {
+    "a": "\na \n",
+    "b": "ba\n ba日b日",
+    "distance": 9
+  },
+  {
+    "a": "b日",
+    "b": "\n\nb",
+    "distance": 3
+  },
+  {
+    "a": "abba ba b",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "b日 a",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "b日a",
+    "b": "日ba b\n\nb",
+    "distance": 7
+  },
+  {
+    "a": "b",
+    "b": "a\n日日\na",
+    "distance": 7
+  },
+  {
+    "a": "\n日b  bb ",
+    "b": "bbb\na",
+    "distance": 7
+  },
+  {
+    "a": " a\n",
+    "b": "\n \n  \na",
+    "distance": 6
+  },
+  {
+    "a": "\n\nb ",
+    "b": " 日 ",
+    "distance": 5
+  },
+  {
+    "a": "baa日 \na\n\n",
+    "b": "\n\n",
+    "distance": 7
+  },
+  {
+    "a": "ba",
+    "b": "a a \n",
+    "distance": 5
+  },
+  {
+    "a": "aa日a ba b",
+    "b": "日abba日\n\n\n",
+    "distance": 10
+  },
+  {
+    "a": " b\n日\nb\n 日",
+    "b": " 日a\naaa b",
+    "distance": 10
+  },
+  {
+    "a": "a b\n日a",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "日 \na日bab",
+    "b": "a\n\n ",
+    "distance": 10
+  },
+  {
+    "a": "a",
+    "b": "\n \na日\n",
+    "distance": 5
+  },
+  {
+    "a": "a \n   日b",
+    "b": "\nb\nb 日",
+    "distance": 8
+  },
+  {
+    "a": " a\nab b",
+    "b": " 日b\nb  日",
+    "distance": 7
+  },
+  {
+    "a": "a \n日",
+    "b": "\nb日a",
+    "distance": 4
+  },
+  {
+    "a": "a日\na\n",
+    "b": "\nb日 b\n日日",
+    "distance": 9
+  },
+  {
+    "a": "a\n\nba\n日ba",
+    "b": " \nb日",
+    "distance": 7
+  },
+  {
+    "a": "日\n日日\n",
+    "b": " 日aa 日",
+    "distance": 7
+  },
+  {
+    "a": "ba b日日aa",
+    "b": "a b日ba",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "日\nb日  b\n",
+    "distance": 8
+  },
+  {
+    "a": "\n\nbba ",
+    "b": " ",
+    "distance": 5
+  },
+  {
+    "a": " b  b日 日 ",
+    "b": " b\n\naaa",
+    "distance": 12
+  },
+  {
+    "a": "a\na日 日日",
+    "b": "日日日 a日 b日",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日日a日b ",
+    "distance": 6
+  },
+  {
+    "a": "bbb日b日\n\n",
+    "b": "\naa  b",
+    "distance": 12
+  },
+  {
+    "a": "",
+    "b": "bab ",
+    "distance": 4
+  },
+  {
+    "a": "bb日ba",
+    "b": "b 日a ",
+    "distance": 4
+  },
+  {
+    "a": "ab\nba ",
+    "b": "日日ab b日",
+    "distance": 7
+  },
+  {
+    "a": "日日 \n \n\n日a",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "日 baaa",
+    "b": "\n 日",
+    "distance": 7
+  },
+  {
+    "a": "日 b ",
+    "b": "b  ab\n",
+    "distance": 6
+  },
+  {
+    "a": " b日",
+    "b": "aa日 ",
+    "distance": 5
+  },
+  {
+    "a": "b日b ",
+    "b": "ab  ",
+    "distance": 4
+  },
+  {
+    "a": "b ",
+    "b": " a\naab a ",
+    "distance": 7
+  },
+  {
+    "a": "b日\n\n",
+    "b": " ",
+    "distance": 5
+  },
+  {
+    "a": "\nb a \n  b",
+    "b": "b日",
+    "distance": 9
+  },
+  {
+    "a": "ba日b",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "日日日bb\nb  ",
+    "b": " abb",
+    "distance": 9
+  },
+  {
+    "a": "aab\na\nb日",
+    "b": " \n日ba",
+    "distance": 9
+  },
+  {
+    "a": " a ",
+    "b": "日日",
+    "distance": 5
+  },
+  {
+    "a": "b ",
+    "b": "bb",
+    "distance": 2
+  },
+  {
+    "a": "b\n日日\n",
+    "b": "\n\na bbbb",
+    "distance": 9
+  },
+  {
+    "a": " bb",
+    "b": "日日日\na a\n\n",
+    "distance": 10
+  },
+  {
+    "a": "\n日a a日",
+    "b": " a\n日日\n",
+    "distance": 6
+  },
+  {
+    "a": "b",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "",
+    "b": "b \n ",
+    "distance": 4
+  },
+  {
+    "a": "b \n",
+    "b": " ",
+    "distance": 2
+  },
+  {
+    "a": "b日",
+    "b": "a日b\n\nb ",
+    "distance": 7
+  },
+  {
+    "a": " abbb\nb日",
+    "b": " \n\na",
+    "distance": 8
+  },
+  {
+    "a": "\n  b",
+    "b": "日 \n ",
+    "distance": 4
+  },
+  {
+    "a": " ab日",
+    "b": "bba\n",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "日a",
+    "distance": 2
+  },
+  {
+    "a": "\naa\n ",
+    "b": "日\n \n日日 ba",
+    "distance": 8
+  },
+  {
+    "a": "日\n日ab ",
+    "b": "abb",
+    "distance": 5
+  },
+  {
+    "a": "b日 \n a",
+    "b": " b日  ",
+    "distance": 3
+  },
+  {
+    "a": "\nb日日a ",
+    "b": " a\n ",
+    "distance": 6
+  },
+  {
+    "a": "日b a\n ",
+    "b": " a ",
+    "distance": 3
+  },
+  {
+    "a": "\nb\n日aa\n",
+    "b": "aba日",
+    "distance": 7
+  },
+  {
+    "a": "\n\n ",
+    "b": "日",
+    "distance": 4
+  },
+  {
+    "a": "b日\nb\nb\na ",
+    "b": "日",
+    "distance": 8
+  },
+  {
+    "a": "bb\n b \n\n日",
+    "b": "b日aa ab日",
+    "distance": 9
+  },
+  {
+    "a": "b日\n\n",
+    "b": "\n\n日 日 b",
+    "distance": 7
+  },
+  {
+    "a": "bb日\n",
+    "b": "\n日日a日b ",
+    "distance": 9
+  },
+  {
+    "a": "b日",
+    "b": "b   日b",
+    "distance": 4
+  },
+  {
+    "a": " ",
+    "b": "a\n\n b日a",
+    "distance": 6
+  },
+  {
+    "a": "bbab日\n",
+    "b": "   日日",
+    "distance": 9
+  },
+  {
+    "a": "\na\nb\n日",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": " \n a\n",
+    "b": "\nb\nab 日\n",
+    "distance": 7
+  },
+  {
+    "a": "\n\nb  b a\n",
+    "b": " b日a日",
+    "distance": 8
+  },
+  {
+    "a": "日bb\n \nab日",
+    "b": "a 日\n",
+    "distance": 9
+  },
+  {
+    "a": "日a  \n\n",
+    "b": "a日 ",
+    "distance": 5
+  },
+  {
+    "a": " \n\n",
+    "b": " 日",
+    "distance": 3
+  },
+  {
+    "a": " aab b日",
+    "b": " a\na日",
+    "distance": 4
+  },
+  {
+    "a": "日b",
+    "b": " \nbaab\n",
+    "distance": 7
+  },
+  {
+    "a": "\nbba",
+    "b": "b\n   \n",
+    "distance": 8
+  },
+  {
+    "a": "a  b",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "日\n",
+    "b": "b",
+    "distance": 3
+  },
+  {
+    "a": " ab    b",
+    "b": "  \n\nb\n",
+    "distance": 8
+  },
+  {
+    "a": " a日b",
+    "b": "日b b\n日",
+    "distance": 6
+  },
+  {
+    "a": "b日  ",
+    "b": "日 ",
+    "distance": 2
+  },
+  {
+    "a": "  aaab\n a",
+    "b": "ba\nbb日 ",
+    "distance": 10
+  },
+  {
+    "a": "日",
+    "b": "日a\n\nba日",
+    "distance": 6
+  },
+  {
+    "a": "日",
+    "b": "\nb\n日bb日",
+    "distance": 6
+  },
+  {
+    "a": "\naaa",
+    "b": "a ",
+    "distance": 4
+  },
+  {
+    "a": "aa日a",
+    "b": "a",
+    "distance": 3
+  },
+  {
+    "a": "a\n b日aa",
+    "b": "日b ",
+    "distance": 8
+  },
+  {
+    "a": "日 日\nba日",
+    "b": "aa",
+    "distance": 7
+  },
+  {
+    "a": "bb b\nab a",
+    "b": "a日\na\n",
+    "distance": 10
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "  ",
+    "b": "\nb\n\nbba ",
+    "distance": 8
+  },
+  {
+    "a": "日 日\n日",
+    "b": "ba",
+    "distance": 7
+  },
+  {
+    "a": " \n",
+    "b": "日  ",
+    "distance": 3
+  },
+  {
+    "a": " \na日aa",
+    "b": " a\n 日日",
+    "distance": 6
+  },
+  {
+    "a": "bb\n日\naa ",
+    "b": " ",
+    "distance": 7
+  },
+  {
+    "a": "日a日ab\n",
+    "b": "日",
+    "distance": 5
+  },
+  {
+    "a": "ab日 \n\na",
+    "b": "b 日日aa",
+    "distance": 7
+  },
+  {
+    "a": "日b日",
+    "b": "日",
+    "distance": 2
+  },
+  {
+    "a": "",
+    "b": "b  ",
+    "distance": 3
+  },
+  {
+    "a": "\n  b b aa",
+    "b": "\n  日",
+    "distance": 7
+  },
+  {
+    "a": "\naa日",
+    "b": "日 a日日a\n",
+    "distance": 7
+  },
+  {
+    "a": "\n\n日b a",
+    "b": "ba日\n\nb ",
+    "distance": 5
+  },
+  {
+    "a": " a日",
+    "b": "\n日b\n",
+    "distance": 5
+  },
+  {
+    "a": "\n",
+    "b": " a日bb  a",
+    "distance": 9
+  },
+  {
+    "a": "\n日\n",
+    "b": "\na a",
+    "distance": 5
+  },
+  {
+    "a": "日日\na\n a日a",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "\n日ba\n ba ",
+    "b": "\n b\n ",
+    "distance": 6
+  },
+  {
+    "a": "a bab",
+    "b": "日日a\n \n\n\n",
+    "distance": 9
+  },
+  {
+    "a": "aa a\nb",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "ab",
+    "b": "bb\na",
+    "distance": 4
+  },
+  {
+    "a": "日b日日b 日b ",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "b\na\n",
+    "distance": 4
+  },
+  {
+    "a": "a   ba日",
+    "b": " ",
+    "distance": 6
+  },
+  {
+    "a": "\nbb日bb日",
+    "b": "b\n 日\n\n ",
+    "distance": 10
+  },
+  {
+    "a": "a日ab\n b日b",
+    "b": "bb  日日",
+    "distance": 9
+  },
+  {
+    "a": "b a日a",
+    "b": "bb\n\n",
+    "distance": 7
+  },
+  {
+    "a": " \n\nb b 日日",
+    "b": " b b\n",
+    "distance": 6
+  },
+  {
+    "a": "日\n 日  ",
+    "b": "\n日\nb日",
+    "distance": 5
+  },
+  {
+    "a": "日日\nb日\n日\n ",
+    "b": "  \n",
+    "distance": 10
+  },
+  {
+    "a": "\nb日日\n ",
+    "b": "\n   \nb ",
+    "distance": 7
+  },
+  {
+    "a": "\na",
+    "b": "aa日",
+    "distance": 3
+  },
+  {
+    "a": "b日a \n\n",
+    "b": "\nbbb a",
+    "distance": 8
+  },
+  {
+    "a": "日b  a日ab日",
+    "b": "abbb日 日",
+    "distance": 10
+  },
+  {
+    "a": "b日日b",
+    "b": "a \n日日  b",
+    "distance": 6
+  },
+  {
+    "a": "  \n日日b 日\n",
+    "b": " ",
+    "distance": 8
+  },
+  {
+    "a": "日\n\n \na ",
+    "b": "日 a\n\nb",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": " abaa日",
+    "distance": 6
+  },
+  {
+    "a": "\n日\na\n",
+    "b": "日a b\n\n日",
+    "distance": 6
+  },
+  {
+    "a": "b 日a日",
+    "b": "日日a日日a a",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": " ababa 日",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日\n b \naa",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日ab \n日b",
+    "distance": 7
+  },
+  {
+    "a": "日 ",
+    "b": "a\n\nb  a \n",
+    "distance": 9
+  },
+  {
+    "a": "b",
+    "b": "aba\n ",
+    "distance": 4
+  },
+  {
+    "a": "ab\n ",
+    "b": " 日\nb  \n",
+    "distance": 7
+  },
+  {
+    "a": " baa a  日",
+    "b": " 日a日日b日",
+    "distance": 10
+  },
+  {
+    "a": "",
+    "b": "日日aa日a",
+    "distance": 6
+  },
+  {
+    "a": "日 日",
+    "b": "b 日日ba ",
+    "distance": 6
+  },
+  {
+    "a": " abb\n\n",
+    "b": "a",
+    "distance": 5
+  },
+  {
+    "a": " \n日\n日日",
+    "b": " bb\n\n\n日b",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": " b\nb日",
+    "b": "ba日日abb日a",
+    "distance": 8
+  },
+  {
+    "a": "a  b  ",
+    "b": "b\naba",
+    "distance": 7
+  },
+  {
+    "a": "日\n日日b日b 日",
+    "b": "b",
+    "distance": 8
+  },
+  {
+    "a": "b日ba日b日a",
+    "b": "日aaaa\n",
+    "distance": 8
+  },
+  {
+    "a": "b bb  ",
+    "b": "日\n",
+    "distance": 8
+  },
+  {
+    "a": "\na \na",
+    "b": "  bb aa",
+    "distance": 8
+  },
+  {
+    "a": "\na日 aba",
+    "b": "b\n",
+    "distance": 7
+  },
+  {
+    "a": "b \na日\n\na",
+    "b": "  aa\n",
+    "distance": 7
+  },
+  {
+    "a": "b\n\n b日bb",
+    "b": "b\n a",
+    "distance": 6
+  },
+  {
+    "a": "ba\n 日",
+    "b": "日\n日日",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "日 \n日a \nb",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "\n日 日",
+    "b": "\n日日a",
+    "distance": 2
+  },
+  {
+    "a": "日\n",
+    "b": "日\n ",
+    "distance": 1
+  },
+  {
+    "a": " bbb 日\n",
+    "b": "ab\n",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": "日 b",
+    "distance": 2
+  },
+  {
+    "a": "b",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "aaa",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "b",
+    "b": " 日bb",
+    "distance": 3
+  },
+  {
+    "a": "\n b日\n日\n ",
+    "b": "ba aa",
+    "distance": 9
+  },
+  {
+    "a": "b日",
+    "b": "\n日 ab日\n",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "日a a日\n b",
+    "distance": 8
+  },
+  {
+    "a": "\n",
+    "b": "b日",
+    "distance": 3
+  },
+  {
+    "a": "日a a",
+    "b": "\n",
+    "distance": 5
+  },
+  {
+    "a": "\n",
+    "b": "\n日",
+    "distance": 1
+  },
+  {
+    "a": "b日a\n日",
+    "b": " a\n日\n ",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "日日\n",
+    "distance": 3
+  },
+  {
+    "a": "bb\n",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "\na",
+    "b": "\n\nb\n\n\n",
+    "distance": 6
+  },
+  {
+    "a": "日b ",
+    "b": "aa\nbb",
+    "distance": 6
+  },
+  {
+    "a": "日日 aba",
+    "b": "\n日\n ",
+    "distance": 6
+  },
+  {
+    "a": "\na日\nbabaa",
+    "b": " abb日日  a",
+    "distance": 10
+  },
+  {
+    "a": "日",
+    "b": "\n\n b",
+    "distance": 5
+  },
+  {
+    "a": "a",
+    "b": " a",
+    "distance": 1
+  },
+  {
+    "a": "a bba日aa",
+    "b": "日abb",
+    "distance": 6
+  },
+  {
+    "a": "\n\n b\n日\n\n",
+    "b": "\na bab",
+    "distance": 8
+  },
+  {
+    "a": " 日a日\nb",
+    "b": "b \n bb bb",
+    "distance": 9
+  },
+  {
+    "a": "\n  \na",
+    "b": "  ",
+    "distance": 3
+  },
+  {
+    "a": "日 a日a a ",
+    "b": "日 a",
+    "distance": 5
+  },
+  {
+    "a": "a日b \n b",
+    "b": " 日ab\n\nb\n ",
+    "distance": 8
+  },
+  {
+    "a": "\n日 bab\nb",
+    "b": "  ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "b",
+    "distance": 1
+  },
+  {
+    "a": "b ab \n日\n",
+    "b": "  ",
+    "distance": 6
+  },
+  {
+    "a": "aba",
+    "b": "a",
+    "distance": 2
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "  bab",
+    "b": "a 日日",
+    "distance": 7
+  },
+  {
+    "a": "aa",
+    "b": "\n\n\n 日 a",
+    "distance": 7
+  },
+  {
+    "a": "bba   a",
+    "b": " a日b日 \n\n日",
+    "distance": 12
+  },
+  {
+    "a": "   日bb a\n",
+    "b": "bbba\n日",
+    "distance": 7
+  },
+  {
+    "a": "\n日",
+    "b": " 日 ",
+    "distance": 3
+  },
+  {
+    "a": "abb\nb",
+    "b": "  a\n日\n ba",
+    "distance": 8
+  },
+  {
+    "a": "bb\n\n \nb 日",
+    "b": " 日a\n 日b",
+    "distance": 8
+  },
+  {
+    "a": "\nb日 ",
+    "b": "b\n\n",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "日a",
+    "distance": 2
+  },
+  {
+    "a": "ba\n\n\nb日",
+    "b": " 日a\n日b日",
+    "distance": 6
+  },
+  {
+    "a": " aa 日 a\n",
+    "b": "\naa",
+    "distance": 7
+  },
+  {
+    "a": "ab日日bb",
+    "b": "\n  ab\n \n日",
+    "distance": 9
+  },
+  {
+    "a": "日 b",
+    "b": "ba a\nba",
+    "distance": 6
+  },
+  {
+    "a": "\n",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "",
+    "b": " b日 \n日  \n",
+    "distance": 9
+  },
+  {
+    "a": " ",
+    "b": "\n  bb ",
+    "distance": 5
+  },
+  {
+    "a": "aba",
+    "b": "bb",
+    "distance": 3
+  },
+  {
+    "a": "a\n日b日\na",
+    "b": " \nb",
+    "distance": 6
+  },
+  {
+    "a": " \na日日 b日\n",
+    "b": " \na\n ",
+    "distance": 6
+  },
+  {
+    "a": "b\n\nab",
+    "b": "a\naba",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "日日\n \na",
+    "distance": 6
+  },
+  {
+    "a": "日a日 b",
+    "b": "baa  日",
+    "distance": 7
+  },
+  {
+    "a": " abb日 日\na",
+    "b": " ",
+    "distance": 8
+  },
+  {
+    "a": " a日aaa",
+    "b": "abb日",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "b b\n日\n",
+    "b": "bbb \n",
+    "distance": 5
+  },
+  {
+    "a": "\n \n日 ",
+    "b": "日b日 ",
+    "distance": 5
+  },
+  {
+    "a": "a\na",
+    "b": "b\n日 日日a",
+    "distance": 6
+  },
+  {
+    "a": "a \n\na",
+    "b": "\n 日\n日\n日 ",
+    "distance": 7
+  },
+  {
+    "a": "\n  日 ",
+    "b": "b",
+    "distance": 6
+  },
+  {
+    "a": "a日a日",
+    "b": "a日a\n ",
+    "distance": 3
+  },
+  {
+    "a": "a\nb ba",
+    "b": "\nb bab",
+    "distance": 2
+  },
+  {
+    "a": "\n日",
+    "b": " ba\n\n",
+    "distance": 5
+  },
+  {
+    "a": "bb\na\n",
+    "b": "a 日a\n ",
+    "distance": 7
+  },
+  {
+    "a": "\n",
+    "b": "a",
+    "distance": 2
+  },
+  {
+    "a": "日日a \n\n",
+    "b": "aba日",
+    "distance": 8
+  },
+  {
+    "a": "\naa\n 日",
+    "b": "日\n",
+    "distance": 6
+  },
+  {
+    "a": "aaba bb",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "a\n aa b a",
+    "b": "b \n",
+    "distance": 8
+  },
+  {
+    "a": "\n日ba",
+    "b": "b",
+    "distance": 3
+  },
+  {
+    "a": "日",
+    "b": "\nb aa\n\n",
+    "distance": 8
+  },
+  {
+    "a": "\na",
+    "b": " 日  b",
+    "distance": 7
+  },
+  {
+    "a": "日日b日a 日 ",
+    "b": " 日日\nb日\n",
+    "distance": 7
+  },
+  {
+    "a": "日\n b\n a",
+    "b": "日b a\nb \n",
+    "distance": 7
+  },
+  {
+    "a": "日 b",
+    "b": "\n\n日\n \n\n ",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": " aa",
+    "distance": 3
+  },
+  {
+    "a": "a\n日a",
+    "b": " b",
+    "distance": 6
+  },
+  {
+    "a": "日 aa \n  ",
+    "b": "\n",
+    "distance": 7
+  },
+  {
+    "a": "\na 日",
+    "b": "\nb b",
+    "distance": 4
+  },
+  {
+    "a": "a \n  a\n日\n",
+    "b": "bba",
+    "distance": 10
+  },
+  {
+    "a": "日",
+    "b": "\n\n日b\na\n",
+    "distance": 6
+  },
+  {
+    "a": "b日\n",
+    "b": "b",
+    "distance": 2
+  },
+  {
+    "a": "b\na \n",
+    "b": "bba",
+    "distance": 4
+  },
+  {
+    "a": "a日日b \na ",
+    "b": "a",
+    "distance": 7
+  },
+  {
+    "a": "aba\n\n",
+    "b": "ab",
+    "distance": 3
+  },
+  {
+    "a": "\n日\n",
+    "b": "\na\na ba",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "\n\nba日日a\nb",
+    "distance": 9
+  },
+  {
+    "a": "日",
+    "b": "b b\n\na\n ",
+    "distance": 9
+  },
+  {
+    "a": " b\n a日",
+    "b": "  b\n\n\n",
+    "distance": 6
+  },
+  {
+    "a": "日日baa",
+    "b": "bb日\nb\n ",
+    "distance": 8
+  },
+  {
+    "a": "\n a日b",
+    "b": "b",
+    "distance": 4
+  },
+  {
+    "a": "b日日\n\n\n",
+    "b": "b\nb",
+    "distance": 5
+  },
+  {
+    "a": "b\n\n日",
+    "b": "abbb\n",
+    "distance": 5
+  },
+  {
+    "a": "日a日\n",
+    "b": "\n\n",
+    "distance": 4
+  },
+  {
+    "a": " ",
+    "b": " 日b\nb日\n\na",
+    "distance": 8
+  },
+  {
+    "a": "日\n日日 a ",
+    "b": "ab",
+    "distance": 7
+  },
+  {
+    "a": "日\n\n日 \n日",
+    "b": " aba  \na ",
+    "distance": 12
+  },
+  {
+    "a": "",
+    "b": "a\n日b  ",
+    "distance": 6
+  },
+  {
+    "a": " ba\nb",
+    "b": "\nba",
+    "distance": 4
+  },
+  {
+    "a": "b 日",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "bbaa b\nb",
+    "b": " ba\na\n",
+    "distance": 6
+  },
+  {
+    "a": "日日bab 日ba",
+    "b": "\n b\n日bb ",
+    "distance": 9
+  },
+  {
+    "a": "aa日\n  ",
+    "b": " b日a",
+    "distance": 8
+  },
+  {
+    "a": "aaa  ba",
+    "b": "\n日\nbb",
+    "distance": 10
+  },
+  {
+    "a": "aa",
+    "b": "\n日b",
+    "distance": 5
+  },
+  {
+    "a": "日 bab日\n日",
+    "b": "日  日abb日",
+    "distance": 6
+  },
+  {
+    "a": "a\n日baa\n  ",
+    "b": "aa  b",
+    "distance": 6
+  },
+  {
+    "a": "日bbbbabb\n",
+    "b": "日 a日\n ",
+    "distance": 9
+  },
+  {
+    "a": "b日 日bba\na",
+    "b": "a\nb \nb  \n",
+    "distance": 10
+  },
+  {
+    "a": "\nba\n",
+    "b": "b日a日\n日\nb",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "\nb 日日 aab",
+    "distance": 9
+  },
+  {
+    "a": "日bb",
+    "b": "b ba日",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "b\n日a\naa\n\n",
+    "b": " 日a\n \na\n",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "b日",
+    "distance": 2
+  },
+  {
+    "a": "a",
+    "b": "\n日\n\n",
+    "distance": 5
+  },
+  {
+    "a": "日ab日\n\nbb日",
+    "b": "ba\nb日b ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "\n a",
+    "distance": 3
+  },
+  {
+    "a": "日 \n\n日日",
+    "b": "a \n",
+    "distance": 5
+  },
+  {
+    "a": "\n日\n\n\n",
+    "b": "a b",
+    "distance": 8
+  },
+  {
+    "a": "\n日 a ",
+    "b": "\n\n日\n日 日",
+    "distance": 6
+  },
+  {
+    "a": "日   \n日日b日",
+    "b": "b",
+    "distance": 8
+  },
+  {
+    "a": "\n日\n日",
+    "b": "ab",
+    "distance": 6
+  },
+  {
+    "a": " a 日\n",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "日aa",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "a 日",
+    "b": "日\nb\n ",
+    "distance": 6
+  },
+  {
+    "a": "b\n\n\n\n  b",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "a",
+    "b": "\n日",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "b",
+    "distance": 1
+  },
+  {
+    "a": "\nbb日 bb ",
+    "b": "a日",
+    "distance": 8
+  },
+  {
+    "a": "b b",
+    "b": "a",
+    "distance": 4
+  },
+  {
+    "a": "  b",
+    "b": "b 日日aa\n",
+    "distance": 8
+  },
+  {
+    "a": "日",
+    "b": "\n  ",
+    "distance": 4
+  },
+  {
+    "a": "a日a",
+    "b": "a日b\n\nbb日a",
+    "distance": 6
+  },
+  {
+    "a": "b",
+    "b": "\n",
+    "distance": 2
+  },
+  {
+    "a": "日ab bba",
+    "b": "   \n",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "b\nb  baaa",
+    "distance": 9
+  },
+  {
+    "a": "\n\n日日",
+    "b": "\n  aaaaaa",
+    "distance": 11
+  },
+  {
+    "a": " a  日日a",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": "\nb\n日b",
+    "b": "a 日b",
+    "distance": 5
+  },
+  {
+    "a": "b\na日ba\n ",
+    "b": "a\nba 日a",
+    "distance": 7
+  },
+  {
+    "a": "b babbaa",
+    "b": " \nb\n bb",
+    "distance": 7
+  },
+  {
+    "a": "日日abb日a",
+    "b": "b ",
+    "distance": 7
+  },
+  {
+    "a": "b\n",
+    "b": " \n",
+    "distance": 2
+  },
+  {
+    "a": "a日bbb日  日",
+    "b": " 日日日b日ba",
+    "distance": 11
+  },
+  {
+    "a": " 日bb",
+    "b": "a日日",
+    "distance": 5
+  },
+  {
+    "a": "a\n 日 日a  ",
+    "b": "a",
+    "distance": 8
+  },
+  {
+    "a": "\n日  ",
+    "b": "a\n\na\na \na",
+    "distance": 9
+  },
+  {
+    "a": "a日 ",
+    "b": "a日\n 日日\n",
+    "distance": 4
+  },
+  {
+    "a": "\n日日\n",
+    "b": "a\nb\n日aa\na",
+    "distance": 7
+  },
+  {
+    "a": " ab\n\n日a日\n",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "a日b 日 a\n日",
+    "b": "日   b",
+    "distance": 8
+  },
+  {
+    "a": "b\n",
+    "b": "b\n\na\nba\n ",
+    "distance": 7
+  },
+  {
+    "a": "\n 日abb日日",
+    "b": "ab\n",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "",
+    "b": "\n  日",
+    "distance": 4
+  },
+  {
+    "a": "b日abaa",
+    "b": " a日b\na\n\n",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "\n\n日ab",
+    "distance": 5
+  },
+  {
+    "a": " 日  ",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": " ",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "aaa",
+    "b": "a \na b\nb",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "b日aaa a\n\n",
+    "b": "aa日\n\nb\n",
+    "distance": 8
+  },
+  {
+    "a": "日",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": " ab b b",
+    "b": " \na ",
+    "distance": 5
+  },
+  {
+    "a": "\na \nba日",
+    "b": "日\nab  ",
+    "distance": 7
+  },
+  {
+    "a": "a   \na",
+    "b": "\n",
+    "distance": 5
+  },
+  {
+    "a": "日a\n 日",
+    "b": "\n日\nb日 日",
+    "distance": 4
+  },
+  {
+    "a": "\n\n a日a",
+    "b": "bb a日bb\na",
+    "distance": 7
+  },
+  {
+    "a": "\nbb日aaa b",
+    "b": "b\n\nb  ",
+    "distance": 9
+  },
+  {
+    "a": " ",
+    "b": "babab日 ",
+    "distance": 6
+  },
+  {
+    "a": " aba日",
+    "b": "a\nab日aba\n",
+    "distance": 8
+  },
+  {
+    "a": " 日",
+    "b": "日日 日b日\n",
+    "distance": 5
+  },
+  {
+    "a": "aa ",
+    "b": "b\n日",
+    "distance": 6
+  },
+  {
+    "a": "  b 日",
+    "b": "\n",
+    "distance": 6
+  },
+  {
+    "a": "\n日\n \n\n\n",
+    "b": " b日日a aba",
+    "distance": 12
+  },
+  {
+    "a": "日b b\n \n\nb",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "\na日a ",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "  ",
+    "distance": 2
+  },
+  {
+    "a": "a 日a  \n日b",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "\n日a bb",
+    "b": "日 a日b",
+    "distance": 5
+  },
+  {
+    "a": "b 日",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": " \nb\n\n日日ab",
+    "distance": 9
+  },
+  {
+    "a": "aa  ba",
+    "b": "aabba \nb日",
+    "distance": 7
+  },
+  {
+    "a": "\nb  \n\n\n",
+    "b": " ",
+    "distance": 6
+  },
+  {
+    "a": "ba\n",
+    "b": "  ",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "baaaaba ",
+    "distance": 8
+  },
+  {
+    "a": "\nb a\n 日",
+    "b": " ",
+    "distance": 6
+  },
+  {
+    "a": "\n日日",
+    "b": "b",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "baa",
+    "distance": 3
+  },
+  {
+    "a": "日a",
+    "b": "\n  日日 ",
+    "distance": 6
+  },
+  {
+    "a": "aa",
+    "b": "b\n",
+    "distance": 4
+  },
+  {
+    "a": "日ab ",
+    "b": "b\nb",
+    "distance": 5
+  },
+  {
+    "a": "a\n a\na日b",
+    "b": "\n日\n\naaa日",
+    "distance": 8
+  },
+  {
+    "a": "日",
+    "b": "\nab日",
+    "distance": 3
+  },
+  {
+    "a": "b日a日b",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "日",
+    "b": "aaabbb ",
+    "distance": 8
+  },
+  {
+    "a": "  a",
+    "b": "  ",
+    "distance": 1
+  },
+  {
+    "a": " b",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": " aa",
+    "b": "a日日 ab  ",
+    "distance": 7
+  },
+  {
+    "a": "日 \n",
+    "b": "\n\n baab日\n",
+    "distance": 8
+  },
+  {
+    "a": " aabb",
+    "b": " b日 ",
+    "distance": 5
+  },
+  {
+    "a": "日",
+    "b": "日  a\nb",
+    "distance": 5
+  },
+  {
+    "a": "bbab\na",
+    "b": "\nbb 日 b",
+    "distance": 7
+  },
+  {
+    "a": "日\na日日",
+    "b": "日\nbb日\n ",
+    "distance": 6
+  },
+  {
+    "a": "\nb a\n",
+    "b": "\n ",
+    "distance": 3
+  },
+  {
+    "a": " a",
+    "b": "\na日a ",
+    "distance": 5
+  },
+  {
+    "a": "\nb  bab",
+    "b": "\n 日",
+    "distance": 6
+  },
+  {
+    "a": "a 日a\n\n",
+    "b": "ab",
+    "distance": 6
+  },
+  {
+    "a": "b\nab ",
+    "b": "\n日日\na日bb",
+    "distance": 7
+  },
+  {
+    "a": "ba",
+    "b": "日b\n  日",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "日日\n日",
+    "distance": 4
+  },
+  {
+    "a": " baa\naa日日",
+    "b": "  \na",
+    "distance": 7
+  },
+  {
+    "a": "日 日ba",
+    "b": "\n ",
+    "distance": 5
+  },
+  {
+    "a": " ",
+    "b": " 日\nab  \n",
+    "distance": 7
+  },
+  {
+    "a": "  ab日",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "\n b",
+    "b": "ba日日\n日\n",
+    "distance": 8
+  },
+  {
+    "a": "bb 日日 日",
+    "b": "日a",
+    "distance": 7
+  },
+  {
+    "a": "日日",
+    "b": "  \nbba  b",
+    "distance": 11
+  },
+  {
+    "a": " b a",
+    "b": "aaaa\n",
+    "distance": 7
+  },
+  {
+    "a": "\n",
+    "b": "b",
+    "distance": 2
+  },
+  {
+    "a": "日",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "b aa",
+    "b": "\nb",
+    "distance": 4
+  },
+  {
+    "a": "\n \n\n",
+    "b": "bb\nb \n",
+    "distance": 4
+  },
+  {
+    "a": "\nbb",
+    "b": "日bba",
+    "distance": 3
+  },
+  {
+    "a": "\na日a ",
+    "b": "b b日b日",
+    "distance": 9
+  },
+  {
+    "a": "日",
+    "b": "a",
+    "distance": 2
+  },
+  {
+    "a": "\n日 aa ",
+    "b": "\n\nb \n a ",
+    "distance": 6
+  },
+  {
+    "a": "   bbab",
+    "b": "bab",
+    "distance": 4
+  },
+  {
+    "a": "b\n日",
+    "b": "b日\na日日ba",
+    "distance": 5
+  },
+  {
+    "a": "b",
+    "b": "baaa日",
+    "distance": 4
+  },
+  {
+    "a": "a",
+    "b": " a\n",
+    "distance": 2
+  },
+  {
+    "a": "b日b\na",
+    "b": "\n",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "a  a a ",
+    "distance": 7
+  },
+  {
+    "a": "\n 日\n日\na",
+    "b": "a \nb b\n ",
+    "distance": 9
+  },
+  {
+    "a": "日",
+    "b": "aab\naa",
+    "distance": 7
+  },
+  {
+    "a": "bb日 日",
+    "b": "b \n ba\n日a",
+    "distance": 8
+  },
+  {
+    "a": "a\n日日ba aa",
+    "b": "   ba日aa",
+    "distance": 9
+  },
+  {
+    "a": " a",
+    "b": " \n",
+    "distance": 2
+  },
+  {
+    "a": "日日",
+    "b": " a日\nb日日",
+    "distance": 5
+  },
+  {
+    "a": "\naaa",
+    "b": " aa  a ",
+    "distance": 5
+  },
+  {
+    "a": "a\n\n日",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "日日",
+    "b": "b 日  a \n日",
+    "distance": 7
+  },
+  {
+    "a": " ab 日\n",
+    "b": "bb",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "b",
+    "distance": 1
+  },
+  {
+    "a": " \n日\nb",
+    "b": "aa日a",
+    "distance": 7
+  },
+  {
+    "a": "\n日b",
+    "b": "日 ba \nb",
+    "distance": 6
+  },
+  {
+    "a": "日日日日日b \n",
+    "b": "\nbaaa日 b",
+    "distance": 12
+  },
+  {
+    "a": "aaa",
+    "b": "b\n  \n\na\nb",
+    "distance": 10
+  },
+  {
+    "a": "baa",
+    "b": "aa",
+    "distance": 1
+  },
+  {
+    "a": "日",
+    "b": "\nb bb日",
+    "distance": 5
+  },
+  {
+    "a": "b b日\n日a\n",
+    "b": "a",
+    "distance": 7
+  },
+  {
+    "a": "a\naaba",
+    "b": "b\naba ",
+    "distance": 4
+  },
+  {
+    "a": "a日",
+    "b": "b\na \n日 \nb",
+    "distance": 7
+  },
+  {
+    "a": "aa  ",
+    "b": " ",
+    "distance": 3
+  },
+  {
+    "a": "\nab日\n \n",
+    "b": "b\n日 ",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "",
+    "b": "日",
+    "distance": 1
+  },
+  {
+    "a": "a\nb b ",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "\n\na 日aa日",
+    "b": "\n日",
+    "distance": 6
+  },
+  {
+    "a": "\nbabab ",
+    "b": "\n a\n  a\n ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "日\n日\nb",
+    "distance": 5
+  },
+  {
+    "a": "b日日\n\n\n",
+    "b": " a",
+    "distance": 8
+  },
+  {
+    "a": "a",
+    "b": " \nbaa日bb",
+    "distance": 7
+  },
+  {
+    "a": "日\na\na ",
+    "b": "日",
+    "distance": 5
+  },
+  {
+    "a": " 日 ",
+    "b": "日b日日日",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "b日日 b\n日",
+    "distance": 7
+  },
+  {
+    "a": "ba a",
+    "b": " ba b 日a日",
+    "distance": 5
+  },
+  {
+    "a": "\n 日\n\n日a",
+    "b": "\n b\n日日 b",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "b a\n\nbba",
+    "distance": 8
+  },
+  {
+    "a": "ba",
+    "b": " b日b\n",
+    "distance": 5
+  },
+  {
+    "a": "\n\n日",
+    "b": " b\nabb",
+    "distance": 7
+  },
+  {
+    "a": "ab ab\n",
+    "b": "日",
+    "distance": 7
+  },
+  {
+    "a": "\nb\n\nb\na日 ",
+    "b": "      a\n",
+    "distance": 15
+  },
+  {
+    "a": " ",
+    "b": "\na",
+    "distance": 3
+  },
+  {
+    "a": " \nb日  \na日",
+    "b": "日\n日\n",
+    "distance": 7
+  },
+  {
+    "a": "a\nb",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": " \n",
+    "b": "   日b 日日",
+    "distance": 8
+  },
+  {
+    "a": "a\n",
+    "b": " ",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "\n ",
+    "distance": 2
+  },
+  {
+    "a": "\n\n  ab日a",
+    "b": "日\n日日b a",
+    "distance": 9
+  },
+  {
+    "a": "b\n日a\nb\n 日",
+    "b": "日\n ba",
+    "distance": 8
+  },
+  {
+    "a": "ab日a\nb\n\n\n",
+    "b": "\n \na\n\nba\n",
+    "distance": 10
+  },
+  {
+    "a": "b",
+    "b": " b\n\n",
+    "distance": 3
+  },
+  {
+    "a": " b\n\na日 ",
+    "b": " ab",
+    "distance": 6
+  },
+  {
+    "a": "a日日\n日日日",
+    "b": "日b\n\n",
+    "distance": 7
+  },
+  {
+    "a": "ba",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "bb日\n日",
+    "b": "\naba",
+    "distance": 7
+  },
+  {
+    "a": "b日日b日bab",
+    "b": "\na",
+    "distance": 8
+  },
+  {
+    "a": "b日a\n 日",
+    "b": "\n\naa 日aa",
+    "distance": 8
+  },
+  {
+    "a": " \nbaa aa\n",
+    "b": "b",
+    "distance": 8
+  },
+  {
+    "a": "日日日a \n",
+    "b": "aa日a",
+    "distance": 6
+  },
+  {
+    "a": "b\n",
+    "b": "\n\nb\n\n  ",
+    "distance": 5
+  },
+  {
+    "a": "ab日bb日\n",
+    "b": "\n日a\n日日日日",
+    "distance": 9
+  },
+  {
+    "a": "\na a",
+    "b": "b ",
+    "distance": 4
+  },
+  {
+    "a": "日\nb日日\n",
+    "b": "ba日 b ab\n",
+    "distance": 9
+  },
+  {
+    "a": " 日a \n日a",
+    "b": "aaa日 aba",
+    "distance": 9
+  },
+  {
+    "a": "a\n\n\nbab",
+    "b": "\n日b\n日",
+    "distance": 8
+  },
+  {
+    "a": "日 bb",
+    "b": "日bb",
+    "distance": 1
+  },
+  {
+    "a": "b  a",
+    "b": "aa \na日 ",
+    "distance": 7
+  },
+  {
+    "a": "b  bab",
+    "b": " \na",
+    "distance": 5
+  },
+  {
+    "a": "aa\n日",
+    "b": "b \n日 b",
+    "distance": 6
+  },
+  {
+    "a": "a",
+    "b": "日 b日",
+    "distance": 5
+  },
+  {
+    "a": "a日",
+    "b": "\n \n a",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "\n \n\na\n日\n",
+    "distance": 8
+  },
+  {
+    "a": "日 日",
+    "b": "b日\naba日a",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "b 日b日日",
+    "distance": 6
+  },
+  {
+    "a": "a\nabaa",
+    "b": " bbba\n aa",
+    "distance": 7
+  },
+  {
+    "a": "  ",
+    "b": "日  \n  ",
+    "distance": 4
+  },
+  {
+    "a": "  日",
+    "b": "b日b\na a  ",
+    "distance": 8
+  },
+  {
+    "a": "b\nb日b\na日b",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "日",
+    "b": "日b",
+    "distance": 1
+  },
+  {
+    "a": "ba baa",
+    "b": "ab",
+    "distance": 4
+  },
+  {
+    "a": "\n\n\n",
+    "b": "b bb  a",
+    "distance": 10
+  },
+  {
+    "a": "\n\n",
+    "b": "a\n \n",
+    "distance": 2
+  },
+  {
+    "a": " ",
+    "b": "a b日\nba\n",
+    "distance": 7
+  },
+  {
+    "a": "b日b \n\n ",
+    "b": "b日日b  ab",
+    "distance": 5
+  },
+  {
+    "a": " \n\n",
+    "b": "abb日日ab日",
+    "distance": 11
+  },
+  {
+    "a": "abab",
+    "b": "\n aa\nb",
+    "distance": 4
+  },
+  {
+    "a": "a日 b",
+    "b": "a",
+    "distance": 3
+  },
+  {
+    "a": " \n日aa",
+    "b": "b日a日日日\n",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "ababa\n 日 ",
+    "distance": 9
+  },
+  {
+    "a": " a",
+    "b": "a日a \n日日a",
+    "distance": 6
+  },
+  {
+    "a": "日 b\nbaa",
+    "b": "aa",
+    "distance": 5
+  },
+  {
+    "a": " b",
+    "b": "a",
+    "distance": 3
+  },
+  {
+    "a": " \n日b日  ",
+    "b": "ab",
+    "distance": 7
+  },
+  {
+    "a": "aa",
+    "b": "\n\n日\nb",
+    "distance": 7
+  },
+  {
+    "a": "b日日\n日a",
+    "b": " \n日 日",
+    "distance": 7
+  },
+  {
+    "a": "a 日日\n ",
+    "b": "aba",
+    "distance": 7
+  },
+  {
+    "a": "日\n\nb ",
+    "b": "\n bb日\n",
+    "distance": 7
+  },
+  {
+    "a": "b 日a\nb",
+    "b": " \na",
+    "distance": 5
+  },
+  {
+    "a": "日 \n \n\nb",
+    "b": "日a  ",
+    "distance": 5
+  },
+  {
+    "a": "\n日\nb\na a ",
+    "b": "a",
+    "distance": 8
+  },
+  {
+    "a": "a\n",
+    "b": "日aaa",
+    "distance": 4
+  },
+  {
+    "a": "\n \na",
+    "b": "\n b日   b",
+    "distance": 8
+  },
+  {
+    "a": "a \n日a\n日 ",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "日",
+    "b": "\n   \naa\n ",
+    "distance": 10
+  },
+  {
+    "a": "日",
+    "b": "b",
+    "distance": 2
+  },
+  {
+    "a": "  a",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "ba\n日 a ",
+    "b": "aa日日\nba a",
+    "distance": 8
+  },
+  {
+    "a": "\n",
+    "b": "a \na日bab日",
+    "distance": 8
+  },
+  {
+    "a": "b \naa日日 日",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "a b ",
+    "b": "\n日日b\n 日 日",
+    "distance": 9
+  },
+  {
+    "a": "a\n",
+    "b": "日b",
+    "distance": 4
+  },
+  {
+    "a": "日\n\nb\n ",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "a日日a",
+    "b": "日 a日日日a",
+    "distance": 3
+  },
+  {
+    "a": "abaaa b\n日",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": "b\n\nbb 日\n ",
+    "b": "日\n 日日日b",
+    "distance": 10
+  },
+  {
+    "a": "日ab \n",
+    "b": "\n a \n  日",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "  ba\n\n日",
+    "distance": 7
+  },
+  {
+    "a": "a",
+    "b": "日 a\na日日b ",
+    "distance": 8
+  },
+  {
+    "a": "a\n日",
+    "b": "b日\n \n日",
+    "distance": 5
+  },
+  {
+    "a": "日b\n\nb\n日日",
+    "b": "日\n 日日b",
+    "distance": 6
+  },
+  {
+    "a": "aa日aaa\n",
+    "b": "日 bab日日\na",
+    "distance": 10
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "a \n",
+    "b": "日",
+    "distance": 4
+  },
+  {
+    "a": "\n 日 b日",
+    "b": "bb日日",
+    "distance": 6
+  },
+  {
+    "a": "a\nab\nba",
+    "b": "日a\na日 bba",
+    "distance": 4
+  },
+  {
+    "a": "  ",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": " a\n日  日b",
+    "b": "\na日b\n",
+    "distance": 7
+  },
+  {
+    "a": "b\naab",
+    "b": "\n \n",
+    "distance": 6
+  },
+  {
+    "a": "aa\n ",
+    "b": " 日 b",
+    "distance": 6
+  },
+  {
+    "a": "\n日 a日\n日 b",
+    "b": "日a日日a",
+    "distance": 6
+  },
+  {
+    "a": "ab a a\na ",
+    "b": "日\n ",
+    "distance": 8
+  },
+  {
+    "a": "\n日a日\nbb a",
+    "b": "日日 a ",
+    "distance": 6
+  },
+  {
+    "a": "\n 日日abb",
+    "b": " aa a 日a",
+    "distance": 9
+  },
+  {
+    "a": "a\n日\n\nbab ",
+    "b": "\nab\na日b",
+    "distance": 8
+  },
+  {
+    "a": "a",
+    "b": "\nb aa日",
+    "distance": 5
+  },
+  {
+    "a": "a\na日ba  ",
+    "b": "日ab ",
+    "distance": 6
+  },
+  {
+    "a": "\n b",
+    "b": "a\n\na\nbab ",
+    "distance": 8
+  },
+  {
+    "a": "\nba日日b",
+    "b": "ab\n \n ",
+    "distance": 8
+  },
+  {
+    "a": " a ",
+    "b": "日日  baa日日",
+    "distance": 8
+  },
+  {
+    "a": "\nb ",
+    "b": "b\naa日",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "\n\n ",
+    "distance": 3
+  },
+  {
+    "a": "b日日日abb",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": "日\n a a",
+    "b": " ba\naab",
+    "distance": 7
+  },
+  {
+    "a": " b\n\na日日",
+    "b": " \n\n日日日日",
+    "distance": 4
+  },
+  {
+    "a": " \n",
+    "b": " ",
+    "distance": 1
+  },
+  {
+    "a": "",
+    "b": "  ",
+    "distance": 2
+  },
+  {
+    "a": "\n\nb\n日b\na",
+    "b": "\n",
+    "distance": 7
+  },
+  {
+    "a": "日",
+    "b": "日",
+    "distance": 0
+  },
+  {
+    "a": "\n\n",
+    "b": "b日日a 日",
+    "distance": 8
+  },
+  {
+    "a": "\na日\n",
+    "b": " ",
+    "distance": 5
+  },
+  {
+    "a": "a",
+    "b": " 日ba日b ",
+    "distance": 6
+  },
+  {
+    "a": "日a",
+    "b": " b",
+    "distance": 4
+  },
+  {
+    "a": "a \na日",
+    "b": "aba\n日  ",
+    "distance": 6
+  },
+  {
+    "a": "\n",
+    "b": "日a日\na日日a ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "ba\n ba ",
+    "distance": 7
+  },
+  {
+    "a": " \n\n\n",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "日\naab",
+    "b": "a  日a\n ",
+    "distance": 8
+  },
+  {
+    "a": "aab日babb\n",
+    "b": " 日aa  ",
+    "distance": 11
+  },
+  {
+    "a": "b",
+    "b": "日 \n\n",
+    "distance": 5
+  },
+  {
+    "a": " 日\n日 a",
+    "b": "日b  ",
+    "distance": 6
+  },
+  {
+    "a": " b \n\nbb",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": " 日",
+    "b": "a\n\naa",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "aa日\n",
+    "distance": 4
+  },
+  {
+    "a": "\n\n\nb",
+    "b": "日 ",
+    "distance": 6
+  },
+  {
+    "a": "b aa",
+    "b": "b\n",
+    "distance": 4
+  },
+  {
+    "a": "\n \n",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "\n",
+    "b": "a日",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "b",
+    "distance": 1
+  },
+  {
+    "a": "\naa日  日a日",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": "a\n日",
+    "b": "a bb",
+    "distance": 5
+  },
+  {
+    "a": "a日ab  ",
+    "b": "a",
+    "distance": 5
+  },
+  {
+    "a": "\n日\n",
+    "b": "abb ba",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "\na a 日a",
+    "distance": 7
+  },
+  {
+    "a": "aa",
+    "b": "b日 日a日",
+    "distance": 6
+  },
+  {
+    "a": "日日  日b",
+    "b": "日ba\n ",
+    "distance": 7
+  },
+  {
+    "a": "日日a",
+    "b": "\n日a",
+    "distance": 2
+  },
+  {
+    "a": "a\n",
+    "b": "\nba",
+    "distance": 3
+  },
+  {
+    "a": "ab\n\na\n\n",
+    "b": "\n ab日\na",
+    "distance": 6
+  },
+  {
+    "a": " 日b日\nb日b ",
+    "b": "日日 ",
+    "distance": 6
+  },
+  {
+    "a": "b",
+    "b": " bbbb ",
+    "distance": 5
+  },
+  {
+    "a": "日a日",
+    "b": "\nb\n",
+    "distance": 6
+  },
+  {
+    "a": "日b\n日",
+    "b": "ba   \n 日b",
+    "distance": 7
+  },
+  {
+    "a": "ab\n",
+    "b": "b\n日日日",
+    "distance": 4
+  },
+  {
+    "a": "b日baba",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "a\nabaa\na\n",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": "日b日a",
+    "b": "a日 \na 日b日",
+    "distance": 7
+  },
+  {
+    "a": " ",
+    "b": "b日\nbaa",
+    "distance": 7
+  },
+  {
+    "a": " 日日日abb a",
+    "b": "日",
+    "distance": 8
+  },
+  {
+    "a": "\n日 bb\n日b",
+    "b": "日  a日",
+    "distance": 7
+  },
+  {
+    "a": "bb",
+    "b": "   日\n",
+    "distance": 7
+  },
+  {
+    "a": "日",
+    "b": "bb    日",
+    "distance": 6
+  },
+  {
+    "a": "\na bb\n\n",
+    "b": "a\nb日",
+    "distance": 7
+  },
+  {
+    "a": "a",
+    "b": "b日日\n",
+    "distance": 5
+  },
+  {
+    "a": " b \n日 a日b",
+    "b": "b",
+    "distance": 8
+  },
+  {
+    "a": "babaa",
+    "b": "bab日\nb  a",
+    "distance": 6
+  },
+  {
+    "a": "a bb日日a b",
+    "b": "ba日ba",
+    "distance": 8
+  },
+  {
+    "a": " ",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "aba日日 \nab",
+    "b": " \n日 \n日日b",
+    "distance": 9
+  },
+  {
+    "a": "\n",
+    "b": "a日\n\n \n\n  ",
+    "distance": 8
+  },
+  {
+    "a": " ",
+    "b": "b\na 日b",
+    "distance": 5
+  },
+  {
+    "a": "a a",
+    "b": "b",
+    "distance": 4
+  },
+  {
+    "a": " \nb日 ",
+    "b": "\n日",
+    "distance": 3
+  },
+  {
+    "a": "\nb日\nab日ba",
+    "b": "\na日 ba",
+    "distance": 5
+  },
+  {
+    "a": "b\n日a 日a ",
+    "b": " a  ",
+    "distance": 6
+  },
+  {
+    "a": "b ba ",
+    "b": "日a日 ",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "a\n\n",
+    "distance": 3
+  },
+  {
+    "a": " b a",
+    "b": "ba\na 日日",
+    "distance": 7
+  },
+  {
+    "a": "\na",
+    "b": "\n日",
+    "distance": 2
+  },
+  {
+    "a": "a\n  ",
+    "b": "\n日\n日日\n日a",
+    "distance": 10
+  },
+  {
+    "a": "ba\na\nba日",
+    "b": "b a b ",
+    "distance": 8
+  },
+  {
+    "a": "b日\n\n \na\n",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": " \n\n  \naa ",
+    "b": "a日bb b ",
+    "distance": 12
+  },
+  {
+    "a": "",
+    "b": "a日a日a日 ",
+    "distance": 7
+  },
+  {
+    "a": "a bbaa",
+    "b": "bb日b\n",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "bab b\n日b\n",
+    "distance": 9
+  },
+  {
+    "a": "\n日日",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "b日\n abb",
+    "b": " 日a日 ",
+    "distance": 8
+  },
+  {
+    "a": "aab日\n a\n",
+    "b": "a日日日",
+    "distance": 8
+  },
+  {
+    "a": "日\nab",
+    "b": "\na \nbab",
+    "distance": 5
+  },
+  {
+    "a": "b b日b日a",
+    "b": "\nb日 日aa日\n",
+    "distance": 8
+  },
+  {
+    "a": "b 日   \n",
+    "b": "b日 日\n 日b",
+    "distance": 7
+  },
+  {
+    "a": "日 b ",
+    "b": "b   ",
+    "distance": 4
+  },
+  {
+    "a": "b日b \n",
+    "b": "ba",
+    "distance": 5
+  },
+  {
+    "a": "日日a\n",
+    "b": "\n",
+    "distance": 3
+  },
+  {
+    "a": "  b b日",
+    "b": "\n",
+    "distance": 7
+  },
+  {
+    "a": "a日日",
+    "b": "a日 b a",
+    "distance": 5
+  },
+  {
+    "a": " \n 日",
+    "b": " ",
+    "distance": 3
+  },
+  {
+    "a": "\na 日",
+    "b": "日ba日b\na b",
+    "distance": 7
+  },
+  {
+    "a": "\n ",
+    "b": "\n日 日a日",
+    "distance": 4
+  },
+  {
+    "a": "b\n日b\nba日",
+    "b": "日日a",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "bb日日 ba日",
+    "distance": 8
+  },
+  {
+    "a": " b日 日",
+    "b": "bb",
+    "distance": 5
+  },
+  {
+    "a": "a日b",
+    "b": "b ba日aa日a",
+    "distance": 8
+  },
+  {
+    "a": "a",
+    "b": "日b日日aab \n",
+    "distance": 8
+  },
+  {
+    "a": " b\n",
+    "b": "日",
+    "distance": 4
+  },
+  {
+    "a": "ba b  ",
+    "b": " ",
+    "distance": 5
+  },
+  {
+    "a": "\n bb",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "ba\n",
+    "b": " 日",
+    "distance": 5
+  },
+  {
+    "a": "日a\n  ",
+    "b": "  日bb aa\n",
+    "distance": 8
+  },
+  {
+    "a": "a\n a\nab",
+    "b": "a 日\n日 \na ",
+    "distance": 6
+  },
+  {
+    "a": "\na ",
+    "b": "a\n\nbb a ",
+    "distance": 5
+  },
+  {
+    "a": "\n",
+    "b": "b日aa日\n",
+    "distance": 5
+  },
+  {
+    "a": "日 bb日a日日",
+    "b": " aa 日",
+    "distance": 7
+  },
+  {
+    "a": "日",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "\na a日a",
+    "b": "日\na \nb b\n",
+    "distance": 9
+  },
+  {
+    "a": "日日bab\n日b ",
+    "b": "baa日",
+    "distance": 7
+  },
+  {
+    "a": "baa   \nb",
+    "b": "\nb\n",
+    "distance": 7
+  },
+  {
+    "a": "\n日a b\n日日",
+    "b": "  日日日b日",
+    "distance": 9
+  },
+  {
+    "a": "日bb",
+    "b": "a\nb",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": " \naa  ab ",
+    "distance": 9
+  },
+  {
+    "a": "\n bb",
+    "b": " a",
+    "distance": 4
+  },
+  {
+    "a": " \nb\n",
+    "b": "\nb日 b",
+    "distance": 5
+  },
+  {
+    "a": " 日ba\nbb",
+    "b": "b\n日  ",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": " ba \n\nb",
+    "distance": 7
+  },
+  {
+    "a": "b ",
+    "b": "b 日a",
+    "distance": 2
+  },
+  {
+    "a": "日日日\nba",
+    "b": " ",
+    "distance": 7
+  },
+  {
+    "a": "bb日abb\n日",
+    "b": "bb",
+    "distance": 6
+  },
+  {
+    "a": "ab",
+    "b": "a\nb",
+    "distance": 1
+  },
+  {
+    "a": " 日\n\naaaa",
+    "b": "aba \nab\n",
+    "distance": 10
+  },
+  {
+    "a": " a\n",
+    "b": " a\n \n",
+    "distance": 2
+  },
+  {
+    "a": "",
+    "b": "  ",
+    "distance": 2
+  },
+  {
+    "a": " \n日 ",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "日\na\n \na\n",
+    "b": "a日a",
+    "distance": 7
+  },
+  {
+    "a": "\n日 ",
+    "b": "\nb b",
+    "distance": 3
+  },
+  {
+    "a": "日 \n",
+    "b": " b \na日abb",
+    "distance": 8
+  },
+  {
+    "a": "abaa\nab",
+    "b": "\n 日 ",
+    "distance": 9
+  },
+  {
+    "a": "b日a\nb",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "\n ba",
+    "b": " 日日日 \nab",
+    "distance": 8
+  },
+  {
+    "a": "b  \n\n日",
+    "b": "\n",
+    "distance": 5
+  },
+  {
+    "a": "a \n日a\nb",
+    "b": "日日",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "  a日b日\n\n ",
+    "distance": 9
+  },
+  {
+    "a": "\n",
+    "b": "\n",
+    "distance": 0
+  },
+  {
+    "a": " 日a日a",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "日ba\n\n",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "bbbbb",
+    "distance": 5
+  },
+  {
+    "a": "b\n\n",
+    "b": "  baa ",
+    "distance": 7
+  },
+  {
+    "a": "\nb b日日",
+    "b": "bbaa ",
+    "distance": 7
+  },
+  {
+    "a": " bb\n b\n日\n",
+    "b": "ab日日",
+    "distance": 9
+  },
+  {
+    "a": "\n日a\n 日 ",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "a  bab日\n\n",
+    "b": "a\n日aa",
+    "distance": 10
+  },
+  {
+    "a": "",
+    "b": "日",
+    "distance": 1
+  },
+  {
+    "a": "日",
+    "b": " b日bb",
+    "distance": 4
+  },
+  {
+    "a": "   abba日a",
+    "b": "b",
+    "distance": 8
+  },
+  {
+    "a": "\n日日b 日\nab",
+    "b": "a\n日b日日 b",
+    "distance": 7
+  },
+  {
+    "a": "b\n日aa  ab",
+    "b": "\n日 aabb ",
+    "distance": 7
+  },
+  {
+    "a": "b \nba日bb日",
+    "b": "\n 日ab",
+    "distance": 8
+  },
+  {
+    "a": "a日 \naab",
+    "b": "a日a",
+    "distance": 4
+  },
+  {
+    "a": "日日",
+    "b": "bbb日b日",
+    "distance": 4
+  },
+  {
+    "a": "\n\n\na",
+    "b": "abba\n日",
+    "distance": 8
+  },
+  {
+    "a": "日\n日\n b日a",
+    "b": " 日a 日日\nb",
+    "distance": 8
+  },
+  {
+    "a": "b日a",
+    "b": " baab\nb ",
+    "distance": 7
+  },
+  {
+    "a": " 日a\n\n",
+    "b": "日 \naaa b日",
+    "distance": 10
+  },
+  {
+    "a": " \n\n",
+    "b": "  日日\na ",
+    "distance": 6
+  },
+  {
+    "a": "\n日日",
+    "b": "a日b ",
+    "distance": 5
+  },
+  {
+    "a": "a bb日日a\n日",
+    "b": "a 日b",
+    "distance": 7
+  },
+  {
+    "a": "日 \nb日 b",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "b\n\na",
+    "b": "日b日",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "\n\nbb",
+    "distance": 4
+  },
+  {
+    "a": "a b日 ",
+    "b": "\n",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "ab日a日a",
+    "distance": 6
+  },
+  {
+    "a": " ab",
+    "b": "\n \na \na",
+    "distance": 6
+  },
+  {
+    "a": "日b",
+    "b": " \na日",
+    "distance": 4
+  },
+  {
+    "a": "\na\naab\n日",
+    "b": "\n  \n日 a",
+    "distance": 9
+  },
+  {
+    "a": " ",
+    "b": "\na\n\n日日日日",
+    "distance": 9
+  },
+  {
+    "a": " ",
+    "b": "b\n ",
+    "distance": 2
+  },
+  {
+    "a": "日日日a日",
+    "b": "\n  日a日\nb",
+    "distance": 7
+  },
+  {
+    "a": "b bba",
+    "b": "日\na\n日\na",
+    "distance": 10
+  },
+  {
+    "a": " \na\nb日\na",
+    "b": "a 日b\n",
+    "distance": 7
+  },
+  {
+    "a": "\n",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "b bb",
+    "b": " 日",
+    "distance": 4
+  },
+  {
+    "a": "b",
+    "b": "日bab日日a 日",
+    "distance": 8
+  },
+  {
+    "a": "日b\naa \nb日",
+    "b": " bba\n \n日",
+    "distance": 7
+  },
+  {
+    "a": "日ba日日",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "bb\n a  \n",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "b  b\nba",
+    "b": "\n \n \n\n日ba",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "baa \n",
+    "distance": 5
+  },
+  {
+    "a": "日  日   a",
+    "b": " aabb\n 日 ",
+    "distance": 9
+  },
+  {
+    "a": "\n \n \nb",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "\n\n ",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "bb\n aa \n",
+    "b": "\nb",
+    "distance": 8
+  },
+  {
+    "a": " bb  \n",
+    "b": "b",
+    "distance": 5
+  },
+  {
+    "a": " a aab",
+    "b": "日",
+    "distance": 7
+  },
+  {
+    "a": " \nb\n\n日aa日",
+    "b": "日bbab ",
+    "distance": 11
+  },
+  {
+    "a": "b\n \n\nb",
+    "b": "\n\nba\n a",
+    "distance": 7
+  },
+  {
+    "a": " \n\n\n日\n b\n",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "bb\n",
+    "b": "日 \n b \nb",
+    "distance": 7
+  },
+  {
+    "a": "ab日b b 日\n",
+    "b": " aa",
+    "distance": 10
+  },
+  {
+    "a": "日 日",
+    "b": "aa日日bb",
+    "distance": 5
+  },
+  {
+    "a": "\nb",
+    "b": "日日a\n\nb\na ",
+    "distance": 7
+  },
+  {
+    "a": " b  ",
+    "b": "a\nbbb",
+    "distance": 7
+  },
+  {
+    "a": " 日\n",
+    "b": "b日\n 日\n\nb\n",
+    "distance": 6
+  },
+  {
+    "a": "ab\nb \nba日",
+    "b": "\n",
+    "distance": 8
+  },
+  {
+    "a": "b日\n日日 ",
+    "b": "日",
+    "distance": 5
+  },
+  {
+    "a": "\nbab a\n",
+    "b": "\nb",
+    "distance": 5
+  },
+  {
+    "a": " \na\n\n ",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "a b日日\n",
+    "b": "a",
+    "distance": 5
+  },
+  {
+    "a": "a\n ",
+    "b": "日b日日\n",
+    "distance": 6
+  },
+  {
+    "a": "b日 日a",
+    "b": " b ",
+    "distance": 4
+  },
+  {
+    "a": "b",
+    "b": "日bbbb",
+    "distance": 4
+  },
+  {
+    "a": " ",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "\n a baa a",
+    "b": "a\n日日b",
+    "distance": 10
+  },
+  {
+    "a": "a\nb日\n",
+    "b": "a\naa\nab",
+    "distance": 6
+  },
+  {
+    "a": " b  ",
+    "b": "ba",
+    "distance": 4
+  },
+  {
+    "a": "日",
+    "b": "abba ",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "\n 日",
+    "distance": 3
+  },
+  {
+    "a": "日aa ",
+    "b": "\nba\n\n日\nba",
+    "distance": 9
+  },
+  {
+    "a": "\n\na a\n ",
+    "b": " b\naaaa a",
+    "distance": 8
+  },
+  {
+    "a": " a",
+    "b": "日",
+    "distance": 3
+  },
+  {
+    "a": " \n \n\n 日",
+    "b": " a \n\n",
+    "distance": 4
+  },
+  {
+    "a": " \n日",
+    "b": "日日 bb日a日日",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "bb日\naa  b",
+    "distance": 9
+  },
+  {
+    "a": "\n日b b",
+    "b": "b",
+    "distance": 4
+  },
+  {
+    "a": "b 日a\n",
+    "b": "a日aa b\n",
+    "distance": 6
+  },
+  {
+    "a": "ab",
+    "b": "日b日\n日",
+    "distance": 5
+  },
+  {
+    "a": "bb ",
+    "b": " 日 a日a\n ",
+    "distance": 9
+  },
+  {
+    "a": "a  日",
+    "b": "b",
+    "distance": 5
+  },
+  {
+    "a": "\n\n\n\n ba",
+    "b": "a\nba\n",
+    "distance": 6
+  },
+  {
+    "a": "\nb日\n",
+    "b": "a\n\n\n",
+    "distance": 4
+  },
+  {
+    "a": "b ba\n日 日",
+    "b": "\nb \n ",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "",
+    "distance": 0
+  },
+  {
+    "a": "日",
+    "b": "a\nb",
+    "distance": 4
+  },
+  {
+    "a": "日a\n",
+    "b": "b\n",
+    "distance": 3
+  },
+  {
+    "a": "b\n a\n",
+    "b": "日a日b",
+    "distance": 7
+  },
+  {
+    "a": "日 bb日  \nb",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": " \n\n日",
+    "b": "\nb日 a",
+    "distance": 5
+  },
+  {
+    "a": "  b\n\n\n\n\n",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "\n \n",
+    "b": "日\n",
+    "distance": 3
+  },
+  {
+    "a": "日日\n ",
+    "b": "\nb日bb\nbb",
+    "distance": 8
+  },
+  {
+    "a": "日",
+    "b": "\n",
+    "distance": 2
+  },
+  {
+    "a": "\n\n",
+    "b": " 日a\nb\n",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "baab",
+    "distance": 4
+  },
+  {
+    "a": " ",
+    "b": "\n\nb \naba",
+    "distance": 7
+  },
+  {
+    "a": "  ",
+    "b": "日b日 a日bb\n",
+    "distance": 9
+  },
+  {
+    "a": "a a  a日",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "a日日b  b",
+    "b": "aa日a日",
+    "distance": 6
+  },
+  {
+    "a": "日",
+    "b": "日\nbb",
+    "distance": 3
+  },
+  {
+    "a": "日日日",
+    "b": "ba \n 日 日b",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": " bbbab",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": "a  ",
+    "distance": 3
+  },
+  {
+    "a": "a日a",
+    "b": " \n",
+    "distance": 5
+  },
+  {
+    "a": " \n",
+    "b": " ",
+    "distance": 1
+  },
+  {
+    "a": "\nbb\na \n",
+    "b": "日 日日",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": " b\nb 日日 ",
+    "distance": 8
+  },
+  {
+    "a": "bab\n日 \n ",
+    "b": "日 a日日",
+    "distance": 9
+  },
+  {
+    "a": " 日日\n日 日 ",
+    "b": " a日\naa日",
+    "distance": 7
+  },
+  {
+    "a": "bb 日ba",
+    "b": "ba日\nb日a",
+    "distance": 5
+  },
+  {
+    "a": "b",
+    "b": "b\n\n\n日",
+    "distance": 4
+  },
+  {
+    "a": "\n",
+    "b": "b\nab ",
+    "distance": 4
+  },
+  {
+    "a": "",
+    "b": "日a日bab",
+    "distance": 6
+  },
+  {
+    "a": "日a\n",
+    "b": " bb日b\na",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": " 日 bb日\n日a",
+    "distance": 9
+  },
+  {
+    "a": "b\n",
+    "b": "b \na\naa\n",
+    "distance": 6
+  },
+  {
+    "a": "日 日 \n\n",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "\n  baa",
+    "b": "\n\n ba\na日",
+    "distance": 4
+  },
+  {
+    "a": "ba\nbb",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "abaa\na日\n",
+    "b": "日日\nb a",
+    "distance": 10
+  },
+  {
+    "a": " ",
+    "b": "a a\n b日\n ",
+    "distance": 8
+  },
+  {
+    "a": "a bab a",
+    "b": "ba\na\n日",
+    "distance": 7
+  },
+  {
+    "a": "日\n b  \n",
+    "b": "  日 b",
+    "distance": 6
+  },
+  {
+    "a": "aabb  b日 ",
+    "b": "日日 \n \n\n",
+    "distance": 12
+  },
+  {
+    "a": "日",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "日\na\n aaaa",
+    "b": "a\n\nbb",
+    "distance": 10
+  },
+  {
+    "a": "日 aaa",
+    "b": "日b\n",
+    "distance": 6
+  },
+  {
+    "a": "日b a日",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": " \n",
+    "b": "  日ab日日a\n",
+    "distance": 7
+  },
+  {
+    "a": "b",
+    "b": "\n \n\n日bb\n",
+    "distance": 7
+  },
+  {
+    "a": "b\n\n日日 a\n ",
+    "b": "b日",
+    "distance": 7
+  },
+  {
+    "a": "abb b日b",
+    "b": "a",
+    "distance": 6
+  },
+  {
+    "a": " \n",
+    "b": "a日 b\n",
+    "distance": 3
+  },
+  {
+    "a": " 日\nb     ",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "b",
+    "b": "\nbb日",
+    "distance": 3
+  },
+  {
+    "a": "a aba\n",
+    "b": " 日 \n ",
+    "distance": 7
+  },
+  {
+    "a": "b\nb日 ",
+    "b": " \n a日\n",
+    "distance": 7
+  },
+  {
+    "a": "\na",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "aa\n\na日",
+    "b": "a日日\n  ",
+    "distance": 8
+  },
+  {
+    "a": "日a",
+    "b": "日日日aa ",
+    "distance": 4
+  },
+  {
+    "a": "  a  b日a ",
+    "b": " a \nab b",
+    "distance": 7
+  },
+  {
+    "a": " \n日\n日日日a\n",
+    "b": "  a日b日",
+    "distance": 9
+  },
+  {
+    "a": "\n 日 a\n",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "",
+    "b": " b  日",
+    "distance": 5
+  },
+  {
+    "a": "ab 日 日\nb ",
+    "b": "bbb\nb",
+    "distance": 8
+  },
+  {
+    "a": "\n日日日",
+    "b": "b\nb \na a ",
+    "distance": 11
+  },
+  {
+    "a": "  b\n  ",
+    "b": "日a\n a ",
+    "distance": 6
+  },
+  {
+    "a": "\n 日\n日",
+    "b": "b",
+    "distance": 6
+  },
+  {
+    "a": "a   b",
+    "b": "b",
+    "distance": 4
+  },
+  {
+    "a": "日b日a\n日",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "\n日日日",
+    "b": "a日a\na日",
+    "distance": 6
+  },
+  {
+    "a": "\n\n\n\n",
+    "b": "日bb  b",
+    "distance": 10
+  },
+  {
+    "a": "日bb ",
+    "b": "日a日",
+    "distance": 5
+  },
+  {
+    "a": "a ",
+    "b": "bb\n",
+    "distance": 5
+  },
+  {
+    "a": "b",
+    "b": " \n\n ",
+    "distance": 5
+  },
+  {
+    "a": "a \n\n 日  ",
+    "b": "a b日bab\n",
+    "distance": 10
+  },
+  {
+    "a": "\n\na日日",
+    "b": "bb \nba日",
+    "distance": 6
+  },
+  {
+    "a": "日 \n日日 ",
+    "b": "\n 日日\n ",
+    "distance": 4
+  },
+  {
+    "a": "\naaa \na\n",
+    "b": "\n",
+    "distance": 7
+  },
+  {
+    "a": "\n",
+    "b": "bbba\n b a",
+    "distance": 8
+  },
+  {
+    "a": "\na\n\n日b日",
+    "b": "日aba aaa",
+    "distance": 11
+  },
+  {
+    "a": " bbbb\n\n 日",
+    "b": "a ba\n日\nb",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "aa日\n\na日",
+    "distance": 7
+  },
+  {
+    "a": "  \naaba",
+    "b": "\n\na日a\n日\n日",
+    "distance": 10
+  },
+  {
+    "a": "b 日日b\n\nb",
+    "b": "",
+    "distance": 8
+  },
+  {
+    "a": "\nb ab",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "  b",
+    "b": " a",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "日  日日b\n",
+    "distance": 7
+  },
+  {
+    "a": "日a",
+    "b": "  日\n日日b日",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "a日日a日 \na",
+    "distance": 8
+  },
+  {
+    "a": "a\nbaa日b",
+    "b": "\nb日a",
+    "distance": 5
+  },
+  {
+    "a": " b",
+    "b": "\n b日\n ",
+    "distance": 4
+  },
+  {
+    "a": " 日",
+    "b": "日日b\na日 b",
+    "distance": 8
+  },
+  {
+    "a": " ",
+    "b": " bbaa a",
+    "distance": 6
+  },
+  {
+    "a": "日",
+    "b": "日日",
+    "distance": 1
+  },
+  {
+    "a": "",
+    "b": "\na\n",
+    "distance": 3
+  },
+  {
+    "a": " ",
+    "b": "\n日日b",
+    "distance": 5
+  },
+  {
+    "a": "\n ",
+    "b": "abbb",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": " 日",
+    "distance": 1
+  },
+  {
+    "a": "\nb b",
+    "b": "\n \n日  日",
+    "distance": 7
+  },
+  {
+    "a": "abb\n",
+    "b": "日",
+    "distance": 5
+  },
+  {
+    "a": "a",
+    "b": " 日\nb\n\nb",
+    "distance": 8
+  },
+  {
+    "a": "b\n\n日b\n日\n",
+    "b": " 日日",
+    "distance": 7
+  },
+  {
+    "a": "bb 日",
+    "b": "\n\n日\n\n",
+    "distance": 7
+  },
+  {
+    "a": " bba日",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "\n日 \na\n  ",
+    "b": "aaa\naa a",
+    "distance": 10
+  },
+  {
+    "a": "ab日日 ba",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": " b\nb",
+    "b": "日b",
+    "distance": 4
+  },
+  {
+    "a": "\n\nb",
+    "b": "\na",
+    "distance": 3
+  },
+  {
+    "a": "日\nbb   ",
+    "b": "\n 日日 b\nb\n",
+    "distance": 10
+  },
+  {
+    "a": " \n\n",
+    "b": "baabb\nb\n ",
+    "distance": 8
+  },
+  {
+    "a": "b\n\n  日 日b",
+    "b": " a b\nbb",
+    "distance": 10
+  },
+  {
+    "a": "a日\n日 ",
+    "b": " b\na日\n ",
+    "distance": 4
+  },
+  {
+    "a": "\na ba",
+    "b": "b\n\n \n",
+    "distance": 6
+  },
+  {
+    "a": "bb日 ",
+    "b": "日日a   ",
+    "distance": 6
+  },
+  {
+    "a": "日a",
+    "b": "  b 日",
+    "distance": 5
+  },
+  {
+    "a": "日",
+    "b": "\n日日\n ",
+    "distance": 4
+  },
+  {
+    "a": "b日\nb \n",
+    "b": "  日ba\n",
+    "distance": 6
+  },
+  {
+    "a": " ",
+    "b": "  日日ba\n\n",
+    "distance": 7
+  },
+  {
+    "a": "",
+    "b": "a a\n",
+    "distance": 4
+  },
+  {
+    "a": "\nb\n",
+    "b": " ",
+    "distance": 4
+  },
+  {
+    "a": "b\n abba ",
+    "b": "b",
+    "distance": 7
+  },
+  {
+    "a": "b",
+    "b": "\n \n\na",
+    "distance": 6
+  },
+  {
+    "a": "b日\nba\n",
+    "b": "\n\nabb b",
+    "distance": 9
+  },
+  {
+    "a": "a",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": "",
+    "b": "\n日\n\na",
+    "distance": 5
+  },
+  {
+    "a": " \n",
+    "b": "\na\na\n\n日日",
+    "distance": 8
+  },
+  {
+    "a": "aa",
+    "b": "b",
+    "distance": 3
+  },
+  {
+    "a": " bb\na",
+    "b": "  ab",
+    "distance": 5
+  },
+  {
+    "a": "日ba a \n",
+    "b": "",
+    "distance": 7
+  },
+  {
+    "a": "\n日",
+    "b": "a aaba\n ",
+    "distance": 8
+  },
+  {
+    "a": "日b日a日b",
+    "b": " \n日",
+    "distance": 7
+  },
+  {
+    "a": "b b ",
+    "b": "日aa 日日b",
+    "distance": 7
+  },
+  {
+    "a": "  b bbb日",
+    "b": "a\naba",
+    "distance": 11
+  },
+  {
+    "a": " 日 abb  b",
+    "b": "\n日\naa日\n",
+    "distance": 12
+  },
+  {
+    "a": "日ab b日aa ",
+    "b": "bbba\nb日a\n",
+    "distance": 10
+  },
+  {
+    "a": "aa\nabba",
+    "b": "b日日bab",
+    "distance": 7
+  },
+  {
+    "a": "aba 日日b",
+    "b": "日",
+    "distance": 6
+  },
+  {
+    "a": "ab\n\nbba\n",
+    "b": "\n a a日",
+    "distance": 10
+  },
+  {
+    "a": " abab \n  ",
+    "b": "\n 日\n日\nb\n",
+    "distance": 11
+  },
+  {
+    "a": "日 aa",
+    "b": "",
+    "distance": 4
+  },
+  {
+    "a": "日\nb bbaa日",
+    "b": " aabb\nb",
+    "distance": 10
+  },
+  {
+    "a": " aa日日a日b",
+    "b": "日    \naa",
+    "distance": 10
+  },
+  {
+    "a": "bbb日",
+    "b": "\n\n日",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": " ab",
+    "distance": 3
+  },
+  {
+    "a": "",
+    "b": "a\n  bb \na",
+    "distance": 9
+  },
+  {
+    "a": "日\n日\nb\n日",
+    "b": " ab",
+    "distance": 8
+  },
+  {
+    "a": "\n",
+    "b": "ba\n 日日",
+    "distance": 5
+  },
+  {
+    "a": "  a 日",
+    "b": "   aa b日",
+    "distance": 3
+  },
+  {
+    "a": "\n  日日日\n\na",
+    "b": " ",
+    "distance": 8
+  },
+  {
+    "a": "ab日a",
+    "b": "日a",
+    "distance": 2
+  },
+  {
+    "a": "b ",
+    "b": "b   ",
+    "distance": 2
+  },
+  {
+    "a": " \n日 ",
+    "b": "\nab\n日\n\n",
+    "distance": 7
+  },
+  {
+    "a": " 日b \n   ",
+    "b": "ab \nb日a",
+    "distance": 9
+  },
+  {
+    "a": "\n\n ba日",
+    "b": "日b\n\na\n\n",
+    "distance": 7
+  },
+  {
+    "a": " b\n 日\n ",
+    "b": "日\n日日b",
+    "distance": 8
+  },
+  {
+    "a": "日b日b a 日",
+    "b": "\nb",
+    "distance": 8
+  },
+  {
+    "a": "a日\nabab日",
+    "b": "a 日\n \n日 ",
+    "distance": 8
+  },
+  {
+    "a": "a\n \n\n\n\na\n",
+    "b": "bbbab",
+    "distance": 12
+  },
+  {
+    "a": " 日\nb",
+    "b": "\n日b",
+    "distance": 3
+  },
+  {
+    "a": "\na\n",
+    "b": "\n\n\n日  日",
+    "distance": 6
+  },
+  {
+    "a": "\n\n\nb\n日\nb",
+    "b": "ba \n",
+    "distance": 8
+  },
+  {
+    "a": "a\n日b a ",
+    "b": "babb",
+    "distance": 7
+  },
+  {
+    "a": "\nb\n \n a ",
+    "b": "日aa 日bba",
+    "distance": 12
+  },
+  {
+    "a": "\n b",
+    "b": "\n日日\n 日",
+    "distance": 5
+  },
+  {
+    "a": "a",
+    "b": "\n\na",
+    "distance": 2
+  },
+  {
+    "a": "b  aa",
+    "b": " \n\n 日日日aa",
+    "distance": 6
+  },
+  {
+    "a": "\n",
+    "b": " \n\n \n b",
+    "distance": 6
+  },
+  {
+    "a": "ba日日  b",
+    "b": "日ba日 日bb\n",
+    "distance": 6
+  },
+  {
+    "a": "日 \n",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": " ",
+    "b": " abab",
+    "distance": 4
+  },
+  {
+    "a": " \na ",
+    "b": "  \n",
+    "distance": 3
+  },
+  {
+    "a": "\n\nb日b",
+    "b": "b日bb\na日 ",
+    "distance": 7
+  },
+  {
+    "a": "\n日",
+    "b": " a",
+    "distance": 4
+  },
+  {
+    "a": " b日 日 日 a",
+    "b": "aa 日日日\n\n",
+    "distance": 9
+  },
+  {
+    "a": "a\nb",
+    "b": "a\na",
+    "distance": 2
+  },
+  {
+    "a": "",
+    "b": "bb",
+    "distance": 2
+  },
+  {
+    "a": " \na\n ",
+    "b": "\n",
+    "distance": 4
+  },
+  {
+    "a": "\n日日\n",
+    "b": "a日\n",
+    "distance": 3
+  },
+  {
+    "a": "日  bba日日",
+    "b": "日b\n日",
+    "distance": 6
+  },
+  {
+    "a": "abb 日  \n ",
+    "b": "b a",
+    "distance": 8
+  },
+  {
+    "a": " bbabaaa",
+    "b": "b ba\n \n",
+    "distance": 9
+  },
+  {
+    "a": "ab日b\na",
+    "b": " bb\n\n日 bb",
+    "distance": 9
+  },
+  {
+    "a": "",
+    "b": "日日",
+    "distance": 2
+  },
+  {
+    "a": "日ba日 b",
+    "b": " \na a 日",
+    "distance": 9
+  },
+  {
+    "a": "日\n",
+    "b": "b b a\na",
+    "distance": 7
+  },
+  {
+    "a": "b",
+    "b": "b",
+    "distance": 0
+  },
+  {
+    "a": "b 日a a日日日",
+    "b": "\n\n 日bb日\n日",
+    "distance": 10
+  },
+  {
+    "a": "bb",
+    "b": " ",
+    "distance": 3
+  },
+  {
+    "a": " b 日ab a",
+    "b": "ab日日 b",
+    "distance": 8
+  },
+  {
+    "a": "bab ab\n\n",
+    "b": "日 b日b",
+    "distance": 9
+  },
+  {
+    "a": "日a aa",
+    "b": "a \naaa日b\n",
+    "distance": 6
+  },
+  {
+    "a": "a",
+    "b": "\n\nb",
+    "distance": 4
+  },
+  {
+    "a": "ab日",
+    "b": "b \nb\n",
+    "distance": 6
+  },
+  {
+    "a": "bbb  b",
+    "b": "b",
+    "distance": 5
+  },
+  {
+    "a": " \nb  ",
+    "b": "   \n ",
+    "distance": 4
+  },
+  {
+    "a": "  b\n\n  \n",
+    "b": "日日 日 日",
+    "distance": 10
+  },
+  {
+    "a": "日aa日",
+    "b": "  b a",
+    "distance": 7
+  },
+  {
+    "a": "aba \n日bb",
+    "b": "a a\n\n日b ",
+    "distance": 6
+  },
+  {
+    "a": "aa",
+    "b": "",
+    "distance": 2
+  },
+  {
+    "a": "bb 日b b",
+    "b": "\nb日aba\n日b",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": "bb",
+    "distance": 2
+  },
+  {
+    "a": "a",
+    "b": "b\n日日 a",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "b\na日\naab",
+    "distance": 8
+  },
+  {
+    "a": "日 a",
+    "b": "\n \n日\n\n\n ",
+    "distance": 7
+  },
+  {
+    "a": " ",
+    "b": "日bbb  ",
+    "distance": 5
+  },
+  {
+    "a": "\nba",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "a",
+    "b": "b\n 日b",
+    "distance": 6
+  },
+  {
+    "a": "\n 日b\na日b ",
+    "b": "b ab日a日",
+    "distance": 8
+  },
+  {
+    "a": "",
+    "b": " \n",
+    "distance": 2
+  },
+  {
+    "a": "\nbb日b",
+    "b": "a",
+    "distance": 6
+  },
+  {
+    "a": "\nb bb",
+    "b": "ab\na ",
+    "distance": 6
+  },
+  {
+    "a": "日",
+    "b": "",
+    "distance": 1
+  },
+  {
+    "a": " b \n",
+    "b": "\n a",
+    "distance": 5
+  },
+  {
+    "a": "",
+    "b": "\n\n b日 b\n ",
+    "distance": 9
+  },
+  {
+    "a": " b ab 日日",
+    "b": " a",
+    "distance": 6
+  },
+  {
+    "a": "\nab",
+    "b": "",
+    "distance": 3
+  },
+  {
+    "a": "日日aa\nb\nab",
+    "b": "  bb ",
+    "distance": 10
+  },
+  {
+    "a": "\naab\n\n\n\na",
+    "b": "\n ",
+    "distance": 9
+  },
+  {
+    "a": "日日aa\n ab ",
+    "b": "",
+    "distance": 9
+  },
+  {
+    "a": "日\nb ",
+    "b": " 日",
+    "distance": 4
+  },
+  {
+    "a": "b  ",
+    "b": "   \na\n",
+    "distance": 5
+  },
+  {
+    "a": "aa 日b\n\nba",
+    "b": " \n ba日\n",
+    "distance": 8
+  },
+  {
+    "a": "  \n a日\n ",
+    "b": "bb日a a日",
+    "distance": 9
+  },
+  {
+    "a": "b日 日 a bb",
+    "b": "\n",
+    "distance": 10
+  },
+  {
+    "a": " \na\n",
+    "b": "\n 日a日b \nb",
+    "distance": 7
+  },
+  {
+    "a": "b\n",
+    "b": "日a日bb\nba",
+    "distance": 6
+  },
+  {
+    "a": "\na日",
+    "b": " b",
+    "distance": 5
+  },
+  {
+    "a": "日\n\n b",
+    "b": "",
+    "distance": 5
+  },
+  {
+    "a": "日日aa \n\nb",
+    "b": "b\n \n  \n  ",
+    "distance": 11
+  },
+  {
+    "a": "日\na ",
+    "b": "日  \n\n\na",
+    "distance": 5
+  },
+  {
+    "a": "日bba日b b",
+    "b": "a  日ab日\n",
+    "distance": 10
+  },
+  {
+    "a": "b",
+    "b": "\n \n日\nab日",
+    "distance": 7
+  },
+  {
+    "a": "\n \n bb",
+    "b": "",
+    "distance": 6
+  },
+  {
+    "a": "bb日日b\n日",
+    "b": " 日 日\n\n日日",
+    "distance": 7
+  }
+]
