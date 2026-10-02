@@ -95,7 +95,7 @@ Copyright (c) 2019 The Homeport Team
 ----------------------------------------------------------------
 github.com/gonvenience/ytbx v1.5.0
 https://github.com/gonvenience/ytbx
-Files: internal/yamldiff/path.go, internal/yamldiff/grab.go, internal/yamldiff/input.go, internal/yamldiff/convert.go
+Files: internal/yamldiff/path.go, internal/yamldiff/grab.go, internal/yamldiff/input.go, internal/yamldiff/convert.go, internal/humanreport/restructure.go
 License: MIT
 Copyright (c) 2018 The Homeport Team
 ----------------------------------------------------------------
