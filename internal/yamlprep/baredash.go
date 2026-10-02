@@ -22,9 +22,10 @@ var blockScalarHeaderRe = regexp.MustCompile(`(?:^|:|-)[ \t]*[|>][+-]?\d*[ \t]*(
 
 // BareDashRewrites rewrites each bare "-" sequence item that goccy/go-yaml
 // v1.19.2 would misparse into "- ~", and it reports the 1-based line
-// numbers it rewrote, in ascending order. The yamlnode builder uses those
-// lines to give the rewritten nulls yaml.v3's empty value back. Input that
-// needs no rewrite comes back as the original slice with nil lines.
+// numbers it rewrote, in ascending order. A comment after the dash stays
+// on the line, as "- ~ # note". The yamlnode builder uses those lines to
+// give the rewritten nulls yaml.v3's empty value back. Input that needs no
+// rewrite comes back as the original slice with nil lines.
 //
 // goccy misparses a block-sequence item that is a bare "-" with no value
 // token when a sibling mapping key follows it at the same or a shallower
@@ -73,8 +74,11 @@ func BareDashRewrites(data []byte) ([]byte, []int) {
 			continue
 		}
 
-		if bareDashLineRe.MatchString(content) && bareDashEndsSequence(lines, i+1, indent) {
+		if m := bareDashLineRe.FindStringSubmatch(content); m != nil && bareDashEndsSequence(lines, i+1, indent) {
 			lines[i] = strings.Repeat(" ", indent) + "- ~"
+			if m[1] != "" {
+				lines[i] += " " + m[1]
+			}
 			rewritten = append(rewritten, i+1)
 		}
 	}

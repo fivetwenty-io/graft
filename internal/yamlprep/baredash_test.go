@@ -50,3 +50,12 @@ func TestBareDashRewritesUnchangedReportsNoLines(t *testing.T) {
 		t.Fatalf("BareDashRewrites(%q) = (%q, %v), want the original slice and nil lines", in, out, lines)
 	}
 }
+
+func TestBareDashRewritesKeepsComment(t *testing.T) {
+	in := []byte("l:\n- a\n- # note\nnext: 1\n  - x\n  -\t# tabbed\n  key: v\n")
+	out, lines := BareDashRewrites(in)
+	want := "l:\n- a\n- ~ # note\nnext: 1\n  - x\n  - ~ # tabbed\n  key: v\n"
+	if string(out) != want || !reflect.DeepEqual(lines, []int{3, 6}) {
+		t.Fatalf("BareDashRewrites(%q) = (%q, %v), want (%q, [3 6])", in, out, lines, want)
+	}
+}

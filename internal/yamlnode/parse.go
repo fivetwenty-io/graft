@@ -74,6 +74,7 @@ func Parse(data []byte) (docs []*Node, err error) {
 		if err != nil {
 			return nil, err
 		}
+		applySlots(doc, "d0", commentSlots(file, c, b.nulledLines))
 		docs = append(docs, doc)
 	}
 
