@@ -60,7 +60,11 @@ func Parse(data []byte) (docs []*Node, err error) {
 	}
 	b := newBuilder(nulled)
 
-	chunks := splitDocuments(text)
+	toks := lexer.Tokenize(text)
+	if err := checkDepth(toks); err != nil {
+		return nil, err
+	}
+	chunks := splitTokens(text, toks)
 	docs = make([]*Node, 0, len(chunks))
 	endsInBlock := false
 	for i, c := range chunks {

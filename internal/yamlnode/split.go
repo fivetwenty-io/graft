@@ -35,12 +35,17 @@ type chunk struct {
 // section that is not a document, because yaml.v3 gives them to the next
 // document's first node.
 func splitDocuments(src string) []chunk {
+	return splitTokens(src, lexer.Tokenize(src))
+}
+
+// splitTokens is splitDocuments for a stream the caller has already
+// tokenized.
+func splitTokens(src string, toks token.Tokens) []chunk {
 	s := &splitter{segStart: 1, textStart: 1, directiveLines: map[int]bool{}}
 	s.lines = strings.SplitAfter(src, "\n")
 	if n := len(s.lines); n > 0 && s.lines[n-1] == "" {
 		s.lines = s.lines[:n-1]
 	}
-	toks := lexer.Tokenize(src)
 	for _, t := range toks {
 		if t.Type == token.DirectiveType {
 			s.directiveLines[t.Position.Line] = true

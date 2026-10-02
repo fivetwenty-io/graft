@@ -303,6 +303,58 @@ func TestParseLinesInLaterDocuments(t *testing.T) {
 	}
 }
 
+// TestParseDepthLimit checks yaml.v3's nesting limit. libyaml allows
+// 10,000 open flow collections and 10,000 open block collections and
+// fails one past either with "exceeded max depth of 10000". The line is
+// the one yaml.v3 reports: none on the first line, the opening bracket's
+// line for flow nesting, and for block nesting the line of the last token
+// that could have started a key, or failing that the line being read.
+func TestParseDepthLimit(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		in   func(n int) string
+		line int
+	}{
+		{"flow sequences", func(n int) string { return strings.Repeat("[", n) + strings.Repeat("]", n) + "\n" }, 0},
+		{"flow mappings", func(n int) string { return "x: " + strings.Repeat("{a: ", n) + "1" + strings.Repeat("}", n) + "\n" }, 0},
+		{"flow on line 3", func(n int) string { return "a: 1\nb: 2\nc: " + strings.Repeat("[", n) + strings.Repeat("]", n) + "\n" }, 3},
+		{"block dashes", func(n int) string { return strings.Repeat("- ", n) + "x\n" }, 0},
+		{"block dashes on line 2", func(n int) string { return "a:\n" + strings.Repeat("- ", n) + "x\n" }, 2},
+		{"block mapping on line 2", func(n int) string {
+			return strings.Repeat("- ", n-2) + "k:\n" + strings.Repeat(" ", 2*n-3) + "k: v\n"
+		}, 2},
+		{"block dash on line 2", func(n int) string {
+			return strings.Repeat("- ", n-1) + "\n" + strings.Repeat(" ", 2*n-2) + "- x\n"
+		}, 2},
+		// The dash that goes too deep is on line 3, but libyaml reports
+		// the line of the key before it.
+		{"block dash after a key", func(n int) string {
+			return "a:\n " + strings.Repeat("- ", n-3) + "k:\n" + strings.Repeat(" ", 2*n-4) + "- [1]\n"
+		}, 2},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := yamlnode.Parse([]byte(c.in(10000))); err != nil {
+				t.Errorf("10,000 levels: %v, want no error", err)
+			}
+			want := "yaml: exceeded max depth of 10000"
+			if c.line > 0 {
+				want = fmt.Sprintf("yaml: line %d: exceeded max depth of 10000", c.line)
+			}
+			_, err := yamlnode.Parse([]byte(c.in(10001)))
+			var pe *yamlnode.ParseError
+			if !errors.As(err, &pe) || err.Error() != want {
+				t.Errorf("10,001 levels: %v, want the ParseError %q", err, want)
+			}
+		})
+	}
+	for _, n := range []int{20000, 1000 * 1024} {
+		_, err := yamlnode.Parse([]byte(strings.Repeat("[", n)))
+		if err == nil || err.Error() != "yaml: exceeded max depth of 10000" {
+			t.Errorf("%d open brackets: %v, want yaml: exceeded max depth of 10000", n, err)
+		}
+	}
+}
+
 func TestParseBracePlaceholdersAreStrings(t *testing.T) {
 	m := mustParse(t, "a: {{x}}\nb: {{x}}-v1\n")[0].Content[0]
 	for i, want := range []string{"{{x}}", "{{x}}-v1"} {
