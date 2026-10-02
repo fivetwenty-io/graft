@@ -5,8 +5,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf16"
@@ -775,16 +777,21 @@ func FuzzParse(f *testing.F) {
 	})
 }
 
+// manyDocuments returns a stream of n small documents.
+func manyDocuments(n int) []byte {
+	var sb strings.Builder
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&sb, "---\n# document %d\nkind: ConfigMap\nmetadata:\n  name: cm-%d # name\ndata:\n  key: |\n    value\n", i, i)
+	}
+	return []byte(sb.String())
+}
+
 // BenchmarkParseManyDocuments parses a stream of 5,000 small documents.
 // Parse time must grow linearly with the number of documents. It grew
 // with the square of it while each document was parsed behind padding
 // for every line before it.
 func BenchmarkParseManyDocuments(b *testing.B) {
-	var sb strings.Builder
-	for i := 0; i < 5000; i++ {
-		fmt.Fprintf(&sb, "---\n# document %d\nkind: ConfigMap\nmetadata:\n  name: cm-%d # name\ndata:\n  key: |\n    value\n", i, i)
-	}
-	src := []byte(sb.String())
+	src := manyDocuments(5000)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -793,4 +800,36 @@ func BenchmarkParseManyDocuments(b *testing.B) {
 			b.Fatalf("Parse = %d documents, %v; want 5000", len(docs), err)
 		}
 	}
+}
+
+// parseAllocatedBytes returns the fewest bytes that parsing a stream of
+// n documents allocated over three runs.
+func parseAllocatedBytes(t *testing.T, n int) uint64 {
+	t.Helper()
+	src := manyDocuments(n)
+	least := uint64(math.MaxUint64)
+	for range 3 {
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		docs, err := yamlnode.Parse(src)
+		runtime.ReadMemStats(&after)
+		if err != nil || len(docs) != n {
+			t.Fatalf("Parse = %d documents, %v; want %d", len(docs), err, n)
+		}
+		least = min(least, after.TotalAlloc-before.TotalAlloc)
+	}
+	return least
+}
+
+// TestParseManyDocumentsScalesLinearly guards against a multi-document
+// stream turning quadratic again, without depending on the clock. Four
+// times the documents must allocate about four times the bytes. Padding
+// each document with a line for every line before it made that about
+// sixteen times.
+func TestParseManyDocumentsScalesLinearly(t *testing.T) {
+	small, large := parseAllocatedBytes(t, 1000), parseAllocatedBytes(t, 4000)
+	if ratio := float64(large) / float64(small); ratio >= 6 {
+		t.Fatalf("parsing 4,000 documents allocated %d bytes, %.1f times the %d for 1,000; want under 6 times", large, ratio, small)
+	}
+	t.Logf("4,000 documents allocated %.2f times the bytes of 1,000", float64(large)/float64(small))
 }
