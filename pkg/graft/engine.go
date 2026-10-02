@@ -17,6 +17,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/features"
 	"github.com/fivetwenty-io/graft/internal/metrics"
 	"github.com/fivetwenty-io/graft/internal/parallel"
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 
@@ -692,8 +693,8 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 
 	// Work around a goccy/go-yaml v1.19.2 parser bug where a bare "-"
 	// sequence terminator followed by a sibling map key gets misparsed
-	// into the sequence (see sanitizeBareSequenceTerminators).
-	data = sanitizeBareSequenceTerminators(data)
+	// into the sequence (see yamlprep.SanitizeBareSequenceTerminators).
+	data = yamlprep.SanitizeBareSequenceTerminators(data)
 
 	// Quote graft's <<<: inject keys for goccy/go-yaml compatibility
 	data = QuoteInjectKeys(data)

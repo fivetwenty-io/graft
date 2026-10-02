@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/srcpos"
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 )
 
@@ -43,7 +44,7 @@ func buildSourceIndexes(refs []SourceRef) *sourceIndexes {
 			si.indexes = append(si.indexes, srcpos.Build(r.Name, nil))
 			continue
 		}
-		data := QuoteInjectKeys(sanitizeBareSequenceTerminators(r.Bytes))
+		data := QuoteInjectKeys(yamlprep.SanitizeBareSequenceTerminators(r.Bytes))
 		si.indexes = append(si.indexes, srcpos.Build(r.Name, data))
 	}
 	return si

@@ -128,7 +128,7 @@ func TestResolveNamesTheFileInASingleInputMerge(t *testing.T) {
 
 func TestResolveAppliesTheSameByteRewritesAsParseYAML(t *testing.T) {
 	// A bare "-" sequence terminator is misparsed by goccy v1.19.2 until
-	// sanitizeBareSequenceTerminators rewrites it. Indexing the raw
+	// yamlprep.SanitizeBareSequenceTerminators rewrites it. Indexing the raw
 	// bytes would produce paths for a document the merge never saw.
 	doc := "list:\n  - one\n  -\nmeta:\n  a: (( grab meta.b ))\n"
 	refs := []SourceRef{{Name: "a.yml", Bytes: []byte(doc)}}
