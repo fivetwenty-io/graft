@@ -355,6 +355,25 @@ func TestParseDepthLimit(t *testing.T) {
 	}
 }
 
+// TestParseDepthErrorBeatsSyntaxError pins an accepted divergence from
+// spruce. The depth check scans the whole stream before goccy parses it,
+// so a file with both a syntax error and nesting past 10,000 levels
+// reports the depth error even when the syntax error comes first. spruce
+// reports whichever error libyaml reaches first, which is the syntax
+// error here. Both tools exit 2.
+func TestParseDepthErrorBeatsSyntaxError(t *testing.T) {
+	deep := strings.Repeat("[", 10001) + "\n"
+	for _, c := range []struct{ in, want, spruce string }{
+		{"a: @x\nb: " + deep, "yaml: line 2: exceeded max depth of 10000", "yaml: found character that cannot start any token"},
+		{"a: 1\nb:\n" + deep, "yaml: line 3: exceeded max depth of 10000", "yaml: line 3: could not find expected ':'"},
+	} {
+		_, err := yamlnode.Parse([]byte(c.in))
+		if err == nil || err.Error() != c.want {
+			t.Errorf("Parse(%.20q...) = %v, want %q (spruce reports %q)", c.in, err, c.want, c.spruce)
+		}
+	}
+}
+
 func TestParseBracePlaceholdersAreStrings(t *testing.T) {
 	m := mustParse(t, "a: {{x}}\nb: {{x}}-v1\n")[0].Content[0]
 	for i, want := range []string{"{{x}}", "{{x}}-v1"} {
