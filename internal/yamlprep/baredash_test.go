@@ -6,28 +6,28 @@ import (
 	"testing"
 )
 
-func TestSanitizeBareSequenceTerminatorsZeroCopy(t *testing.T) {
+func TestBareDashRewritesZeroCopy(t *testing.T) {
 	unchanged := [][]byte{
 		[]byte("name: thing\nlist:\n- a\n- b\nmeta:\n  key: value\n"),
 		[]byte("jobs:\n- name: web\n  instances: 2\n"),
 		[]byte("list:\n- \n- a\n"),
 	}
 	for _, in := range unchanged {
-		out := SanitizeBareSequenceTerminators(in)
-		if !bytes.Equal(in, out) {
-			t.Fatalf("sanitize altered %q -> %q", in, out)
+		out, lines := BareDashRewrites(in)
+		if !bytes.Equal(in, out) || lines != nil {
+			t.Fatalf("BareDashRewrites altered %q -> %q (lines %v)", in, out, lines)
 		}
 		if len(out) > 0 && &out[0] != &in[0] {
-			t.Errorf("sanitize reallocated unchanged input %q; want the original slice back", in)
+			t.Errorf("BareDashRewrites reallocated unchanged input %q; want the original slice back", in)
 		}
 	}
 }
 
-func TestSanitizeBareSequenceTerminatorsStillRewrites(t *testing.T) {
+func TestBareDashRewritesStillRewrites(t *testing.T) {
 	in := []byte("list:\n- a\n-\nnext: value\n")
 	want := "list:\n- a\n- ~\nnext: value\n"
-	if got := string(SanitizeBareSequenceTerminators(in)); got != want {
-		t.Errorf("sanitize(%q) = %q, want %q", in, got, want)
+	if got, _ := BareDashRewrites(in); string(got) != want {
+		t.Errorf("BareDashRewrites(%q) = %q, want %q", in, got, want)
 	}
 }
 

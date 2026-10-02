@@ -128,7 +128,7 @@ func TestResolveNamesTheFileInASingleInputMerge(t *testing.T) {
 
 func TestResolveAppliesTheSameByteRewritesAsParseYAML(t *testing.T) {
 	// A bare "-" sequence terminator is misparsed by goccy v1.19.2 until
-	// yamlprep.SanitizeBareSequenceTerminators rewrites it. Indexing the raw
+	// yamlprep.Prepare rewrites it. Indexing the raw
 	// bytes would produce paths for a document the merge never saw.
 	doc := "list:\n  - one\n  -\nmeta:\n  a: (( grab meta.b ))\n"
 	refs := []SourceRef{{Name: "a.yml", Bytes: []byte(doc)}}
@@ -137,6 +137,19 @@ func TestResolveAppliesTheSameByteRewritesAsParseYAML(t *testing.T) {
 
 	if pos.File != "a.yml" || pos.Line != 5 {
 		t.Errorf("Pos = %+v, want a.yml:5", pos)
+	}
+}
+
+func TestResolveAppliesBraceQuotingLikeParseYAML(t *testing.T) {
+	// ParseYAML quotes {{...}} placeholders before goccy sees them, so
+	// the position index must too, or the file never indexes at all.
+	doc := "meta:\n  tpl: {{x}}\n  a: (( grab meta.b ))\n"
+	refs := []SourceRef{{Name: "a.yml", Bytes: []byte(doc)}}
+
+	pos := buildSourceIndexes(refs).resolve(opAt(t, "meta.a", "(( grab meta.b ))"))
+
+	if pos.File != "a.yml" || pos.Line != 3 {
+		t.Errorf("Pos = %+v, want a.yml:3", pos)
 	}
 }
 

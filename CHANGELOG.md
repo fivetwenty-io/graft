@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   invalid-pattern error messages are unchanged across the bundled
   `examples/split` documents and a set of lookaround, backreference,
   atomic-group, zero-width, and multibyte cases.
+- `graft merge`, `graft json`, and files pulled in by `(( load ))` now read an unquoted `{{...}}` template placeholder in a value position, such as `curlies: {{my-variable_123}}` in a Concourse pipeline, as the plain string `{{my-variable_123}}`, and `graft merge` writes it back single-quoted. goccy rejected these files outright, and spruce reads them as empty nested maps, so this is a deliberate divergence from spruce. A placeholder used as a mapping key and an unbalanced run such as `{{{{` are still parse errors.
+
+### Fixed
+
+- `graft json` now applies the same input rewrites as `graft merge`, so a bare `-` list terminator reads as a null entry instead of swallowing the key that follows it, and a `<<<:` inject key reads as the key `<<<` instead of failing to parse. Both now match `spruce json`.
 
 ## [1.42.0] - 2026-09-09
 

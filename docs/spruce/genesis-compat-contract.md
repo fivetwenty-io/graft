@@ -240,6 +240,10 @@ wrapper: `fake_tty`/`script` attaches both stdout and stderr to a pty,
 so both file descriptors report as terminals to graft regardless of
 which one a given code path checks.
 
+## Template placeholders
+
+graft reads an unquoted `{{...}}` placeholder in a value position as a plain string in `graft merge`, `graft diff`, `graft json`, and files pulled in by `(( load ))`. spruce parses the same text as an empty nested map, so it reports no difference between `a: {{x}}` and `a: {{y}}`, and it panics when such a placeholder sits in a simple list. graft reports a value change instead and never panics. A placeholder used as a mapping key, and an unbalanced run of braces, stay parse errors in both tools.
+
 ## Output byte stability across versions
 
 Genesis re-parses almost every stdout it captures (manifests, JSON,

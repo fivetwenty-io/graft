@@ -44,7 +44,7 @@ func buildSourceIndexes(refs []SourceRef) *sourceIndexes {
 			si.indexes = append(si.indexes, srcpos.Build(r.Name, nil))
 			continue
 		}
-		data := QuoteInjectKeys(yamlprep.SanitizeBareSequenceTerminators(r.Bytes))
+		data, _ := yamlprep.Prepare(r.Bytes)
 		si.indexes = append(si.indexes, srcpos.Build(r.Name, data))
 	}
 	return si

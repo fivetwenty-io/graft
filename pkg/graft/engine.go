@@ -691,13 +691,11 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		data = expanded
 	}
 
-	// Work around a goccy/go-yaml v1.19.2 parser bug where a bare "-"
-	// sequence terminator followed by a sibling map key gets misparsed
-	// into the sequence (see yamlprep.SanitizeBareSequenceTerminators).
-	data = yamlprep.SanitizeBareSequenceTerminators(data)
-
-	// Quote graft's <<<: inject keys for goccy/go-yaml compatibility
-	data = QuoteInjectKeys(data)
+	// Apply graft's goccy input workarounds in one place: the bare "-"
+	// terminator rewrite, <<<: inject-key quoting, and quoting of
+	// {{...}} template placeholders so they read as strings rather than
+	// as flow mappings used as keys (see internal/yamlprep).
+	data, _ = yamlprep.Prepare(data)
 
 	// First parse as generic interface to check document type. Quoted
 	// YAML 1.1 boolean-lookalike scalars ("yes", 'On', "OFF", ...) are

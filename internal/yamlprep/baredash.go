@@ -20,40 +20,31 @@ var mapKeyLineRe = regexp.MustCompile(`^(?:"[^"]*"|'[^']*'|[^-#\s][^:]*?):(\s|$)
 // trailing comment.
 var blockScalarHeaderRe = regexp.MustCompile(`(?:^|:|-)[ \t]*[|>][+-]?\d*[ \t]*(#.*)?$`)
 
-// SanitizeBareSequenceTerminators works around a goccy/go-yaml v1.19.2
-// parser bug (confirmed against a standalone goccy repro; v1.19.2 is the
-// latest available release, so no upstream version bump fixes it): a
-// block-sequence item consisting of a bare "-" with no value token,
-// immediately followed by a sibling mapping key at the same or a
-// shallower indent, gets misparsed -- the sibling key is silently
-// nested inside the empty sequence item instead of terminating the
-// sequence, corrupting the document structure.
+// BareDashRewrites rewrites each bare "-" sequence item that goccy/go-yaml
+// v1.19.2 would misparse into "- ~", and it reports the 1-based line
+// numbers it rewrote, in ascending order. The yamlnode builder uses those
+// lines to give the rewritten nulls yaml.v3's empty value back. Input that
+// needs no rewrite comes back as the original slice with nil lines.
+//
+// goccy misparses a block-sequence item that is a bare "-" with no value
+// token when a sibling mapping key follows it at the same or a shallower
+// indent. It silently nests the sibling key inside the empty item instead
+// of ending the sequence. v1.19.2 is the latest goccy release, so no
+// version bump fixes it.
 //
 // spruce (yaml.v2-family) parses the same bare "-" as an explicit null
-// list entry and keeps the following key as a sibling. This function
-// rewrites the bare "-" line to "- ~" (an explicit null) before the
-// data reaches goccy's parser, matching spruce's semantics and closing
-// off the misparse for the specific pattern that triggers it.
+// list entry and keeps the following key as a sibling, so rewriting the
+// line to "- ~" before goccy parses it matches spruce's semantics.
 //
-// It tracks literal/folded block scalars (| and >) by indentation and
+// It tracks literal and folded block scalars (| and >) by indentation and
 // skips lines inside them, so a "-" appearing as literal text inside a
 // multi-line string is never rewritten. A bare dash followed by another
-// sequence item (rather than a mapping key) is left untouched, since
-// that shape does not trigger the goccy bug.
+// sequence item rather than a mapping key is left untouched, since that
+// shape does not trigger the goccy bug.
 //
-// This is a text-level heuristic, not a full YAML parse: it does not
-// track flow-style collections or tag/anchor edge cases. Those shapes
-// do not exhibit the misparse being guarded against here.
-func SanitizeBareSequenceTerminators(data []byte) []byte {
-	out, _ := BareDashRewrites(data)
-	return out
-}
-
-// BareDashRewrites performs the SanitizeBareSequenceTerminators rewrite and
-// also reports the 1-based line numbers it rewrote, in ascending order. The
-// yamlnode builder uses those lines to give the rewritten nulls yaml.v3's
-// empty value back. Input that needs no rewrite comes back as the original
-// slice with nil lines.
+// This is a text-level heuristic, not a full YAML parse. It does not track
+// flow-style collections or tag and anchor edge cases, and those shapes do
+// not exhibit the misparse.
 func BareDashRewrites(data []byte) ([]byte, []int) {
 	if len(data) == 0 || !hasBareDashLine(data) {
 		return data, nil

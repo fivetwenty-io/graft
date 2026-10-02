@@ -9,13 +9,17 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 func jsonifyData(data []byte, strict bool) (string, error) {
 	// Parse through the same YAML-1.1-compat-aware path ParseYAML uses, so
 	// `graft json` and `graft merge` agree on unquoted yes/no/on/off ->
 	// bool coercion and on quoted lookalikes staying strings, matching
-	// spruce json on both counts.
+	// spruce json on both counts. The input goes through the same
+	// yamlprep rewrites ParseYAML applies, so an unquoted {{...}}
+	// placeholder reads as a string here as it does in merge and diff.
+	data, _ = yamlprep.Prepare(data)
 	root, err := ParseYAML11CompatAware(data)
 	if err != nil {
 		return "", ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())

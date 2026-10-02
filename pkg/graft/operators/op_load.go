@@ -11,6 +11,7 @@ import (
 	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -79,9 +80,13 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		return nil, err
 	}
 
+	// Loaded content goes through the same yamlprep rewrites ParseYAML
+	// applies, so an unquoted {{...}} placeholder reads as a string.
+	prepared, _ := yamlprep.Prepare(bytes)
+
 	// Try to unmarshal as a map first
 	var maproot map[string]interface{}
-	if err := yaml.Unmarshal(graft.QuoteInjectKeys(bytes), &maproot); err == nil && maproot != nil {
+	if err := yaml.Unmarshal(prepared, &maproot); err == nil && maproot != nil {
 		return &Response{
 			Type:  Replace,
 			Value: graft.NormalizeMap(maproot),
@@ -90,7 +95,7 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 	// Try to unmarshal as a list
 	var listroot []interface{}
-	if err := yaml.Unmarshal(graft.QuoteInjectKeys(bytes), &listroot); err == nil && listroot != nil {
+	if err := yaml.Unmarshal(prepared, &listroot); err == nil && listroot != nil {
 		return &Response{
 			Type:  Replace,
 			Value: listroot,
