@@ -68,7 +68,7 @@ func Parse(data []byte) (docs []*Node, err error) {
 		c.text, endsInBlock = normalizeChunkEnd(c.text, c.unterminated)
 		file, err := parser.ParseBytes([]byte(c.text), 0, parser.AllowDuplicateMapKey())
 		if err != nil {
-			return nil, toParseError(err)
+			return nil, toParseError(err, c.lineOffset())
 		}
 		doc, err := b.document(file, c)
 		if err != nil {
@@ -235,10 +235,16 @@ func invalidSequence(seq []byte) string {
 	return "invalid Unicode character"
 }
 
-func toParseError(err error) error {
+// toParseError converts a goccy error from a chunk whose lines start
+// lineOffset lines into the stream.
+func toParseError(err error, lineOffset int) error {
 	var se *yaml.SyntaxError
 	if errors.As(err, &se) && se.Token != nil {
-		return &ParseError{Line: se.Token.Position.Line, Message: se.Message}
+		line := se.Token.Position.Line
+		if line > 0 {
+			line += lineOffset
+		}
+		return &ParseError{Line: line, Message: se.Message}
 	}
 	return &ParseError{Message: err.Error()}
 }

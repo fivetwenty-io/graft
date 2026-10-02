@@ -7,11 +7,13 @@ import (
 	"github.com/goccy/go-yaml/token"
 )
 
-// chunk is one YAML document's slice of the source, padded with leading
-// newlines so goccy reports the original line numbers.
+// chunk is one YAML document's slice of the source. goccy numbers the
+// chunk's lines from 1, so the line of anything in it is textLine-1 more
+// than goccy says.
 type chunk struct {
 	text      string
 	startLine int  // 1-based line where the document starts
+	textLine  int  // 1-based line where text starts, before startLine when comments carry over
 	index     int  // the document's position in the stream
 	marker    bool // a "---" follows the chunk, or it ends with "..."
 
@@ -98,10 +100,17 @@ func (s *splitter) emit(endLine int, marker bool) bool {
 		return false
 	}
 	s.chunks = append(s.chunks, chunk{
-		text:      strings.Repeat("\n", s.textStart-1) + strings.Join(s.lines[s.textStart-1:endLine], ""),
+		text:      strings.Join(s.lines[s.textStart-1:endLine], ""),
 		startLine: s.segStart,
+		textLine:  s.textStart,
 		index:     len(s.chunks),
 		marker:    marker,
 	})
 	return true
+}
+
+// lineOffset is what to add to a line goccy reports in the chunk to get
+// its line in the stream.
+func (c chunk) lineOffset() int {
+	return c.textLine - 1
 }

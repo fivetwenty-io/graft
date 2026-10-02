@@ -151,16 +151,18 @@ func blockScalarEnd(x *ast.LiteralNode) int {
 }
 
 // walker collects the items and flow collections of one document.
+// nulled holds stream lines, and offset turns a chunk line into one.
 type walker struct {
 	items  []item
 	flows  []*flowColl
 	nulled map[int]bool
+	offset int
 }
 
 func (w *walker) scalarItem(n ast.Node, slot string, ancs []anc) item {
 	tk := n.GetToken()
 	it := item{kind: 'S', line: tk.Position.Line, col: tk.Position.Column, lineSlot: slot, ancs: ancs, end: endLine(tk)}
-	if tk.Type == token.ImplicitNullType || (tk.Type == token.NullType && tk.Value == "~" && w.nulled[tk.Position.Line]) {
+	if tk.Type == token.ImplicitNullType || (tk.Type == token.NullType && tk.Value == "~" && w.nulled[tk.Position.Line+w.offset]) {
 		it.null = true
 	}
 	if tk.Type == token.ImplicitNullType {
@@ -316,8 +318,8 @@ func (w *walker) flow(n ast.Node, p string) {
 }
 
 // commentSlots computes the printed comment slots of the one document a
-// chunk holds. The chunk's text is padded so its lines are true. nulled
-// holds the lines whose bare "-" became "- ~".
+// chunk holds. Everything here works in the chunk's own lines, which
+// start at 1. nulled holds the stream lines whose bare "-" became "- ~".
 func commentSlots(file *ast.File, c chunk, nulled map[int]bool) map[string]string {
 	out := map[string]string{}
 	for _, doc := range file.Docs {
@@ -327,7 +329,7 @@ func commentSlots(file *ast.File, c chunk, nulled map[int]bool) map[string]strin
 		if _, ok := doc.Body.(*ast.DirectiveNode); ok {
 			continue
 		}
-		w := &walker{nulled: nulled}
+		w := &walker{nulled: nulled, offset: c.lineOffset()}
 		w.node(doc.Body, "d0", nil)
 		if len(w.items) > 0 {
 			placeComments(w, c, doc.Start != nil, out)
@@ -390,7 +392,7 @@ func placeComments(w *walker, c chunk, explicit bool, out map[string]string) {
 		if !gapHasComment(g, own) {
 			continue
 		}
-		s := newGapScanner(g, own, inline, lines, out)
+		s := newGapScanner(g, own, inline, lines, out, c.lineOffset())
 		s.headFoot, s.ownFeet = headFoot, ownFeet
 		if c.unterminated && g.next == nil {
 			s.eofCol = utf8.RuneCountInString(lines[len(lines)-1])
@@ -636,6 +638,10 @@ type gapScanner struct {
 	// after the gap. It is 0 after a final line break, and the length of
 	// the last line when the stream has none.
 	eofCol int
+
+	// streamStart records that the chunk's first line is the stream's
+	// first line, where libyaml has no foot line.
+	streamStart bool
 }
 
 // newGapScanner prepares the scan of one gap. inline holds the lines that
@@ -643,12 +649,19 @@ type gapScanner struct {
 // the stream's first line, which happens there unless the token before
 // the gap is a plain or block scalar with no line comment, whose scanner
 // reads on past the line break.
-func newGapScanner(g gap, own map[int]cmt, inline map[int]bool, lines []string, out map[string]string) *gapScanner {
-	s := &gapScanner{g: g, own: own, lines: lines, out: out, footLine: -1, firstEmpty: true}
+//
+// lineOffset is the chunk's line offset. When the chunk does not start
+// the stream, the scan of its first gap starts as it would after the
+// blank lines that stand in for the lines before the chunk.
+func newGapScanner(g gap, own map[int]cmt, inline map[int]bool, lines []string, out map[string]string, lineOffset int) *gapScanner {
+	s := &gapScanner{g: g, own: own, lines: lines, out: out, footLine: -1, firstEmpty: true, streamStart: lineOffset == 0}
+	if g.prev == nil && !s.streamStart {
+		s.firstEmpty, s.recentEmpty = false, true
+	}
 	if g.prev != nil {
 		s.nextIndent = g.prev.ancs[len(g.prev.ancs)-1].col - 1
 		s.isValue = g.prev.kind == 'K' && g.prev.valueNext
-		firstLine := g.prev.end == 1 && (!g.prev.plain || inline[1])
+		firstLine := s.streamStart && g.prev.end == 1 && (!g.prev.plain || inline[1])
 		if !g.dash && !firstLine {
 			s.footLine = g.from
 		}
@@ -722,7 +735,7 @@ func (s *gapScanner) marker(l int) {
 	}
 	if strings.HasPrefix(s.lines[l-1], "---") {
 		s.afterHeader, s.firstEmpty, s.recentEmpty, s.footLine = true, true, false, -1
-		if l > 1 {
+		if l > 1 || !s.streamStart {
 			s.footLine = l + 1
 		}
 	}

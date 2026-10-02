@@ -55,10 +55,17 @@ func TestParseKeepsTrueLineNumbersAcrossDocuments(t *testing.T) {
 	}
 }
 
-func TestSplitDocumentsPadsChunks(t *testing.T) {
+// TestSplitDocumentsDoesNotPadChunks checks that a chunk holds only its
+// own lines and records the line its text starts on. Padding each chunk
+// with the lines before it made parsing a stream quadratic in its length.
+func TestSplitDocumentsDoesNotPadChunks(t *testing.T) {
 	chunks := splitDocuments("a: 1\n---\nb: 2\n")
-	if len(chunks) != 2 || chunks[1].startLine != 2 || chunks[1].text != "\n---\nb: 2\n" {
-		t.Fatalf("chunks = %+v, want a second chunk padded to start on line 2", chunks)
+	if len(chunks) != 2 || chunks[1].startLine != 2 || chunks[1].textLine != 2 || chunks[1].text != "---\nb: 2\n" {
+		t.Fatalf("chunks = %+v, want a second chunk holding only its own text, starting on line 2", chunks)
+	}
+	chunks = splitDocuments("a: 1\n...\n# c\n---\nb: 2\n")
+	if len(chunks) != 2 || chunks[1].startLine != 4 || chunks[1].textLine != 3 || chunks[1].text != "# c\n---\nb: 2\n" {
+		t.Fatalf("chunks = %+v, want a second chunk that carries the comment on line 3", chunks)
 	}
 }
 
@@ -97,10 +104,10 @@ func TestParseIndentIndicatorBeforeDocumentMarker(t *testing.T) {
 // document that follows, where yaml.v3 gives them to its first node.
 func TestSplitDocumentsCarriesLeadingComments(t *testing.T) {
 	for in, want := range map[string][]chunk{
-		"#!/usr/bin/env genesis\n---\nkit: a\n": {{text: "#!/usr/bin/env genesis\n---\nkit: a\n", startLine: 2}},
+		"#!/usr/bin/env genesis\n---\nkit: a\n": {{text: "#!/usr/bin/env genesis\n---\nkit: a\n", startLine: 2, textLine: 1}},
 		"x: 1\n...\n# c\n---\na: 1\n": {
-			{text: "x: 1\n...\n", startLine: 1, marker: true},
-			{text: "\n\n# c\n---\na: 1\n", startLine: 4, index: 1},
+			{text: "x: 1\n...\n", startLine: 1, textLine: 1, marker: true},
+			{text: "# c\n---\na: 1\n", startLine: 4, textLine: 3, index: 1},
 		},
 	} {
 		if got := splitDocuments(in); !reflect.DeepEqual(got, want) {

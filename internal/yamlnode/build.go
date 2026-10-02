@@ -16,6 +16,10 @@ type builder struct {
 	tagHandles  map[string]string
 	nulledLines map[int]bool
 
+	// lineOffset is the current chunk's chunk.lineOffset, which every
+	// recorded line adds to what goccy reports.
+	lineOffset int
+
 	// lastBlock is the most recent block scalar built, and lastBlockStrips
 	// records whether its header asked for strip chomping. Parse uses them
 	// when the stream ends inside that scalar.
@@ -42,6 +46,7 @@ func newBuilder(nulledLines []int) *builder {
 // over at every chunk.
 func (b *builder) document(file *ast.File, c chunk) (*Node, error) {
 	clear(b.tagHandles)
+	b.lineOffset = c.lineOffset()
 	var body ast.Node
 	found := false
 	for _, d := range file.Docs {
@@ -155,7 +160,7 @@ func (b *builder) buildValue(n ast.Node, anchor string) (*Node, error) {
 	case ast.ScalarNode:
 		return b.buildScalar(x), nil
 	default:
-		return nil, &ParseError{Line: n.GetToken().Position.Line, Message: "unsupported YAML node " + n.Type().String()}
+		return nil, &ParseError{Line: n.GetToken().Position.Line + b.lineOffset, Message: "unsupported YAML node " + n.Type().String()}
 	}
 }
 
@@ -178,7 +183,7 @@ func (b *builder) buildScalar(n ast.ScalarNode) *Node {
 	case *ast.NullNode:
 		tk := x.GetToken()
 		v := tk.Value
-		if tk.Type == token.ImplicitNullType || (v == "~" && b.nulledLines[tk.Position.Line]) {
+		if tk.Type == token.ImplicitNullType || (v == "~" && b.nulledLines[tk.Position.Line+b.lineOffset]) {
 			v = ""
 		}
 		return b.scalar(x, tagNull, v)
@@ -228,7 +233,7 @@ func (b *builder) scalar(n ast.Node, tag, value string) *Node {
 // at records the source position of n on out.
 func (b *builder) at(out *Node, n ast.Node) {
 	if tk := n.GetToken(); tk != nil {
-		out.Line, out.Column = tk.Position.Line, tk.Position.Column
+		out.Line, out.Column = tk.Position.Line+b.lineOffset, tk.Position.Column
 	}
 }
 
@@ -261,7 +266,7 @@ func (b *builder) expandTag(tk *token.Token) (string, error) {
 	handle := tag[:end+2]
 	prefix, ok := b.tagHandles[handle]
 	if !ok {
-		return "", &ParseError{Line: tk.Position.Line - 1, Message: "found undefined tag handle"}
+		return "", &ParseError{Line: tk.Position.Line + b.lineOffset - 1, Message: "found undefined tag handle"}
 	}
 	return ShortTag(prefix + tag[end+2:]), nil
 }

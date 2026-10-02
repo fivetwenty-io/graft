@@ -277,6 +277,32 @@ func TestParseRejectsSelfReferencingAnchor(t *testing.T) {
 	}
 }
 
+// TestParseLinesInLaterDocuments checks the line numbers Parse reports
+// for a document that does not start the stream: node lines, the bare
+// dash rewrite's lines, comment placement, and parse error lines.
+func TestParseLinesInLaterDocuments(t *testing.T) {
+	src := "a: 1\n---\nb: 2\n---\n# head of c\nc:\n  -\n  - y # line of y\nd: [1,\n  2]\n"
+	docs := mustParse(t, src)
+	if len(docs) != 3 {
+		t.Fatalf("Parse returned %d documents, want 3", len(docs))
+	}
+	m := docs[2].Content[0]
+	c, items, d := m.Content[0], m.Content[1].Content, m.Content[2]
+	if c.Line != 6 || c.HeadComment != "# head of c" {
+		t.Errorf("key c: line %d, head %q; want line 6 and %q", c.Line, c.HeadComment, "# head of c")
+	}
+	if items[0].Line != 7 || items[0].Value != "" || items[1].Line != 8 || items[1].LineComment != "# line of y" {
+		t.Errorf("items: %d %q, %d %q; want a bare dash on line 7 and y on line 8 with its line comment",
+			items[0].Line, items[0].Value, items[1].Line, items[1].LineComment)
+	}
+	if d.Line != 9 || m.Content[3].Content[1].Line != 10 {
+		t.Errorf("key d on line %d, its second item on line %d; want 9 and 10", d.Line, m.Content[3].Content[1].Line)
+	}
+	if _, err := yamlnode.Parse([]byte("a: 1\n---\nb: 2\n---\nc:\n\t- x\n")); err == nil || !strings.HasPrefix(err.Error(), "yaml: line 6: ") {
+		t.Errorf("err = %v, want the prefix yaml: line 6: ", err)
+	}
+}
+
 func TestParseBracePlaceholdersAreStrings(t *testing.T) {
 	m := mustParse(t, "a: {{x}}\nb: {{x}}-v1\n")[0].Content[0]
 	for i, want := range []string{"{{x}}", "{{x}}-v1"} {
@@ -594,4 +620,24 @@ func FuzzParse(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _ = yamlnode.Parse(data)
 	})
+}
+
+// BenchmarkParseManyDocuments parses a stream of 5,000 small documents.
+// Parse time must grow linearly with the number of documents. It grew
+// with the square of it while each document was parsed behind padding
+// for every line before it.
+func BenchmarkParseManyDocuments(b *testing.B) {
+	var sb strings.Builder
+	for i := 0; i < 5000; i++ {
+		fmt.Fprintf(&sb, "---\n# document %d\nkind: ConfigMap\nmetadata:\n  name: cm-%d # name\ndata:\n  key: |\n    value\n", i, i)
+	}
+	src := []byte(sb.String())
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		docs, err := yamlnode.Parse(src)
+		if err != nil || len(docs) != 5000 {
+			b.Fatalf("Parse = %d documents, %v; want 5000", len(docs), err)
+		}
+	}
 }
