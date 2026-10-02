@@ -17,7 +17,7 @@ imports it. The comparison engine and the report renderer behind
 `graft diff` are now Graft's own code, in the internal packages listed
 below, which are built on goccy/go-yaml. `github.com/sergi/go-diff` is
 still a direct dependency, and it provides the text diff inside multiline
-value changes.
+value changes and the character-level diff for small value changes.
 
 ---
 
