@@ -79,6 +79,7 @@ archives:
     files:
       - README.md
       - LICENSE
+      - THIRD_PARTY_NOTICES
       # NB: literal (non-glob) sources need the full destination *file*
       # path, not just the directory — goreleaser resolves a directory-only
       # dst relative to the src file itself for non-glob sources, dropping
@@ -117,6 +118,8 @@ nfpms:
         dst: /usr/share/fish/vendor_completions.d/graft.fish
       - src: LICENSE
         dst: /usr/share/doc/graft/LICENSE
+      - src: THIRD_PARTY_NOTICES
+        dst: /usr/share/doc/graft/THIRD_PARTY_NOTICES
 
 # Sign + notarize the darwin binaries so Gatekeeper accepts them on first
 # launch (Homebrew quarantines cask artifacts; an unsigned binary is killed
