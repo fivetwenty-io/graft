@@ -204,6 +204,23 @@ strip_script_wrapper() {
   ' "$2" <"$1"
 }
 
+# typescript_exit_code <out.rc> <direct_rc>
+# Prints the exit code of a command that ran under fake_tty_run. On Linux,
+# script(1) exits 0 whatever the command did, so the code comes only from
+# the trailer strip_script_wrapper recorded in <out.rc>, and a missing
+# trailer is an error, never exit 0. Darwin's script exits with the
+# command's code (-e), so <direct_rc> is that code.
+typescript_exit_code() {
+  if [ -s "$1" ]; then
+    cat "$1"
+    return 0
+  fi
+  case "$(uname -s)" in
+    Darwin) echo "$2" ;;
+    *)      return 1 ;;
+  esac
+}
+
 # cut_parse_error <file>
 # Cuts the file in place just after the first `yaml: line <N>: `, or just
 # after `yaml: ` when no line is printed. Under D6, graft matches spruce's

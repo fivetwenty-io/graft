@@ -150,9 +150,12 @@ pattern_01b_diff_fake_tty() {
       (cd "$dir" && unset NO_COLOR && TZ=America/New_York TERM=xterm-256color COLORTERM="$ct" fake_tty_run "$TMP/1b.g.ts" "$GRAFT_BIN" diff "$from" "$to"); g_rc=$?
       strip_script_wrapper "$TMP/1b.s.ts" "$TMP/1b.s.out"
       strip_script_wrapper "$TMP/1b.g.ts" "$TMP/1b.g.out"
-      [ -s "$TMP/1b.s.out.rc" ] && s_rc="$(cat "$TMP/1b.s.out.rc")"
-      [ -s "$TMP/1b.g.out.rc" ] && g_rc="$(cat "$TMP/1b.g.out.rc")"
       runs=$((runs + 1))
+      if ! s_rc="$(typescript_exit_code "$TMP/1b.s.out.rc" "$s_rc")" || ! g_rc="$(typescript_exit_code "$TMP/1b.g.out.rc" "$g_rc")"; then
+        bad=$((bad + 1))
+        echo "  1b mismatch: $(basename "$dir") COLORTERM=${ct:-unset} script(1) wrote no exit-code trailer, so the exit code of the run is unknown"
+        continue
+      fi
       [ "$rawesc" = 0 ] && has_color "$TMP/1b.s.out" && colored=$((colored + 1))
       if [ "$perr" = 1 ]; then
         cut_parse_error "$TMP/1b.s.out"; cut_parse_error "$TMP/1b.g.out"; cut=$((cut + 1))
