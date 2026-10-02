@@ -485,10 +485,10 @@ func TestParseAcceptanceDivergences(t *testing.T) {
 	}
 }
 
-// TestParseAcceptsInputsYamlV3Rejects pins two kinds of input that goccy accepts
+// TestParseAcceptsInputsYamlV3Rejects pins three inputs that goccy accepts
 // and yaml.v3 rejects, which are accepted divergences listed in
-// docs/user-guide/diffing.md. yaml.v3 rejects both, and Parse reads the
-// \/ escape as a slash and keeps the control character in the value.
+// docs/user-guide/diffing.md. yaml.v3 rejects all three, and Parse reads
+// the \/ escape as a slash and keeps the control character in the value.
 func TestParseAcceptsInputsYamlV3Rejects(t *testing.T) {
 	for _, c := range []struct {
 		name string

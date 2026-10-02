@@ -1082,10 +1082,10 @@ func loadDiffDocuments(paths []string) (fromLabel string, fromDoc interface{}, t
 }
 
 // decodeInputFileDocument decodes the first document of a loaded input
-// into a plain Go value. yamlnode.Decode returns what yaml.v3's
-// Node.Decode would produce. An input with no documents (an empty file)
-// decodes to an empty map, matching graft merge and json's own
-// empty-document handling.
+// into a plain Go value. yamlnode.Decode turns the document into the
+// maps, slices, and scalars the rest of graft works with. An input with
+// no documents (an empty file) decodes to an empty map, matching graft
+// merge and json's own empty-document handling.
 func decodeInputFileDocument(f yamldiff.InputFile) (interface{}, error) {
 	if len(f.Documents) == 0 {
 		return map[string]interface{}{}, nil
