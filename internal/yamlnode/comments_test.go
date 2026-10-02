@@ -10,8 +10,8 @@ import (
 )
 
 // printedSlots lists the four comment slots neat prints, plus a scalar
-// sequence item's head comment, keyed by mapping pair and sequence
-// indexes so duplicate keys stay distinct.
+// sequence item's head comment and a root scalar's slots, keyed by
+// mapping pair and sequence indexes so duplicate keys stay distinct.
 func printedSlots(n *yamlgolden.Node, path string, out map[string]string) {
 	put := func(k, v string) {
 		if v != "" {
@@ -21,6 +21,11 @@ func printedSlots(n *yamlgolden.Node, path string, out map[string]string) {
 	switch n.Kind {
 	case "document":
 		for _, c := range n.Content {
+			if c.Kind == "scalar" {
+				put(path+"#VH", c.HeadComment)
+				put(path+"#VL", c.LineComment)
+				put(path+"#VF", c.FootComment)
+			}
 			printedSlots(c, path, out)
 		}
 	case "mapping":
@@ -86,6 +91,47 @@ func TestCommentsInEveryPrintedSlot(t *testing.T) {
 	}
 	if one.LineComment != "# line one" || one.FootComment != "# foot of one" || two.HeadComment != "# head of two" {
 		t.Errorf("sequence scalar slots = %q / %q / %q", one.LineComment, one.FootComment, two.HeadComment)
+	}
+}
+
+// TestCommentsOnRootScalar checks the comments of a document whose root
+// is a scalar against the slots yaml.v3 gives. A foot after a line
+// comment on the stream's first line, or after a blank line, is the
+// document's foot instead, and a head before a blank line is the
+// document's head.
+func TestCommentsOnRootScalar(t *testing.T) {
+	type slots struct{ head, line, foot string }
+	for _, c := range []struct {
+		in   string
+		want []slots
+	}{
+		{"x # c\n", []slots{{"", "# c", ""}}},
+		{"x # c", []slots{{"", "# c", ""}}},
+		{"--- x # c\n", []slots{{"", "# c", ""}}},
+		{"--- !!str x # c\n", []slots{{"", "# c", ""}}},
+		{"\"x\" # c\n", []slots{{"", "# c", ""}}},
+		{"x\n# foot\n", []slots{{"", "", "# foot"}}},
+		{"|\n  x\n# foot\n", []slots{{"", "", "# foot"}}},
+		{"--- | # c\n  x\n", []slots{{"", "# c", ""}}},
+		{"x # c\n# foot\n", []slots{{"", "# c", ""}}},
+		{"x\n\n# trailing\n", []slots{{"", "", ""}}},
+		{"# h\nx\n", []slots{{"# h", "", ""}}},
+		{"# h\n\nx\n", []slots{{"", "", ""}}},
+		{"--- # h\nx\n", []slots{{"# h", "", ""}}},
+		{"# a\n---\n# b\nx\n", []slots{{"# a\n# b", "", ""}}},
+		{"x # c\n---\n# h\ny # d\n# f\n", []slots{{"", "# c", ""}, {"# h", "# d", "# f"}}},
+	} {
+		docs := mustParse(t, c.in)
+		if len(docs) != len(c.want) {
+			t.Errorf("Parse(%q) = %d documents, want %d", c.in, len(docs), len(c.want))
+			continue
+		}
+		for i, d := range docs {
+			r := d.Content[0]
+			if got := (slots{r.HeadComment, r.LineComment, r.FootComment}); got != c.want[i] {
+				t.Errorf("Parse(%q) document %d root: %+v, want %+v", c.in, i, got, c.want[i])
+			}
+		}
 	}
 }
 

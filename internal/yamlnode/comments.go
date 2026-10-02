@@ -184,6 +184,28 @@ func (w *walker) scalarItem(n ast.Node, slot string, ancs []anc) item {
 	return it
 }
 
+// rootScalarLine is the line comment slot of a document whose root is a
+// scalar.
+const rootScalarLine = "d0#VL"
+
+// root walks a document's root node. A scalar root is an item of its
+// own, at libyaml's indentation of -1 outside every block collection, and
+// yaml.v3 keeps its head, line, and foot comments on the scalar. An empty root
+// holds no comments.
+func (w *walker) root(n ast.Node) {
+	u := unwrap(n)
+	if isCollection(u) {
+		w.node(n, "d0", nil)
+		return
+	}
+	if tk := u.GetToken(); tk == nil || tk.Type == token.ImplicitNullType {
+		return
+	}
+	it := w.scalarItem(u, rootScalarLine, []anc{{col: 0, foot: "d0#VF"}})
+	it.head = "d0#VH"
+	w.items = append(w.items, it)
+}
+
 func (w *walker) node(n ast.Node, p string, ancs []anc) {
 	switch x := unwrap(n).(type) {
 	case *ast.MappingNode:
@@ -330,7 +352,7 @@ func commentSlots(file *ast.File, c chunk, nulled map[int]bool) map[string]strin
 			continue
 		}
 		w := &walker{nulled: nulled, offset: c.lineOffset()}
-		w.node(doc.Body, "d0", nil)
+		w.root(doc.Body)
 		if len(w.items) > 0 {
 			placeComments(w, c, doc.Start != nil, out)
 		}
@@ -425,8 +447,7 @@ func appendSlot(out map[string]string, slot, text string) {
 func lineComments(w *walker, l lexed, out map[string]string) (own map[int]cmt, dashLines, inline map[int]bool) {
 	own, dashLines, inline = map[int]cmt{}, map[int]bool{}, map[int]bool{}
 	for _, c := range l.cmts {
-		cc, hasContent := l.contentCol[c.line]
-		isInline := hasContent && cc < c.col && !l.headerLine[c.line]
+		isInline := l.inline(w.items, c)
 		if c.flow {
 			flowComment(w.flows, c, isInline, out)
 			continue
@@ -447,6 +468,21 @@ func lineComments(w *walker, l lexed, out map[string]string) (own map[int]cmt, d
 		}
 	}
 	return own, dashLines, inline
+}
+
+// inline reports whether c follows content on its line. On a "---"
+// line, a comment after a root scalar is its line comment, and a comment
+// after anything else is a head comment for what follows.
+func (l lexed) inline(items []item, c cmt) bool {
+	cc, hasContent := l.contentCol[c.line]
+	if !hasContent || cc >= c.col {
+		return false
+	}
+	if !l.headerLine[c.line] {
+		return true
+	}
+	i := lastItemOnLine(items, c.line)
+	return i >= 0 && items[i].lineSlot == rootScalarLine
 }
 
 // afterBareDash reports whether items[i], the last item on its line, is
@@ -950,6 +986,11 @@ func applySlots(n *Node, path string, slots map[string]string) {
 	switch n.Kind {
 	case DocumentNode:
 		for _, c := range n.Content {
+			if c.Kind == ScalarNode {
+				c.HeadComment = slots[path+"#VH"]
+				c.LineComment = slots[path+"#VL"]
+				c.FootComment = slots[path+"#VF"]
+			}
 			applySlots(c, path, slots)
 		}
 	case MappingNode:
