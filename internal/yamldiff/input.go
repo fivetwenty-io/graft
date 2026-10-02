@@ -227,6 +227,7 @@ func getBytesFromLocation(location string) ([]byte, error) {
 	}
 
 	if _, err := os.Stat(location); err == nil {
+		// #nosec G304 -- the path is a diff argument the user chose, which the CLI is meant to read
 		return os.ReadFile(location)
 	}
 

@@ -136,6 +136,7 @@ func FromValue(v interface{}) Typed {
 // the file is missing or malformed.
 func ReadJSON(t testing.TB, path string, v interface{}) {
 	t.Helper()
+	// #nosec G304 -- the path comes from the calling test's own testdata
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("reading %s: %v (regenerate it with make oracle-vectors)", path, err)
