@@ -2256,7 +2256,11 @@ params:
 			})
 
 			Convey("When the location is a remote location", func() {
-				srv := &http.Server{Addr: ":31337", ReadHeaderTimeout: 10 * time.Second}
+				mux := http.NewServeMux()
+				mux.Handle("/assets/",
+					http.StripPrefix("/assets/",
+						http.FileServer(http.Dir("../../assets/"))))
+				srv := &http.Server{Addr: ":31337", Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 				defer func() {
 					if srv != nil {
 						_ = srv.Shutdown(context.Background())
@@ -2264,10 +2268,6 @@ params:
 				}()
 
 				go func() {
-					http.Handle("/assets/",
-						http.StripPrefix("/assets/",
-							http.FileServer(http.Dir("../../assets/"))))
-
 					_ = srv.ListenAndServe()
 				}()
 				time.Sleep(1 * time.Second)
