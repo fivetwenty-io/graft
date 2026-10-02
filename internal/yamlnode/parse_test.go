@@ -374,6 +374,54 @@ func TestParseAcceptanceDivergences(t *testing.T) {
 	}
 }
 
+// TestParseAcceptsInputsYamlV3Rejects pins two kinds of input that goccy accepts
+// and yaml.v3 rejects, which are accepted divergences listed in
+// docs/user-guide/diffing.md. yaml.v3 rejects both, and Parse reads the
+// \/ escape as a slash and keeps the control character in the value.
+func TestParseAcceptsInputsYamlV3Rejects(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		in   string
+		want string // the value Parse reads for key a
+	}{
+		{"slash escape", "a: \"x\\/y\"\n", "x/y"},
+		{"control character in a quoted scalar", "a: \"x\x01y\"\n", "x\x01y"},
+		{"control character in a plain scalar", "a: x\x01y\n", "x\x01y"},
+	} {
+		docs, err := yamlnode.Parse([]byte(c.in))
+		if err != nil {
+			t.Errorf("%s: Parse(%q) = %v, want it accepted", c.name, c.in, err)
+			continue
+		}
+		if len(docs) != 1 || len(docs[0].Content) != 1 || len(docs[0].Content[0].Content) != 2 {
+			t.Errorf("%s: Parse(%q) did not give one document holding one mapping entry", c.name, c.in)
+			continue
+		}
+		if got := docs[0].Content[0].Content[1].Value; got != c.want {
+			t.Errorf("%s: Parse(%q) read a as %q, want %q", c.name, c.in, got, c.want)
+		}
+	}
+}
+
+// TestParseAcceptsContentAfterDocumentEnd pins another input yaml.v3
+// rejects. Content after a "..." line without a new "---" starts a second
+// document in goccy, and Parse keeps it.
+func TestParseAcceptsContentAfterDocumentEnd(t *testing.T) {
+	docs, err := yamlnode.Parse([]byte("a: 1\n...\nb: 2\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v, want it accepted", err)
+	}
+	if len(docs) != 2 {
+		t.Fatalf("Parse returned %d documents, want 2", len(docs))
+	}
+	if got, want := outline(docs[0]), `{!!str "a"@1: !!int "1"}`; got != want {
+		t.Errorf("first document = %s, want %s", got, want)
+	}
+	if got, want := outline(docs[1]), `{!!str "b"@3: !!int "2"}`; got != want {
+		t.Errorf("second document = %s, want %s", got, want)
+	}
+}
+
 // outline renders a parsed document compactly: each scalar as its tag and
 // quoted value, and each mapping key with its line, which is the line
 // yaml.v3 parity covers.
