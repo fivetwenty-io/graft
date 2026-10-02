@@ -42,3 +42,21 @@ func TestFromValueSortsMapEntriesAndKeepsTypes(t *testing.T) {
 		t.Fatal(d)
 	}
 }
+
+func TestLineErrorPrefix(t *testing.T) {
+	for _, tc := range []struct {
+		msg, want string
+		ok        bool
+	}{
+		{"yaml: line 2: did not find expected key", "yaml: line 2: ", true},
+		{"unable to parse data from a.yml: yaml: line 13: mapping values are not allowed in this context", "unable to parse data from a.yml: yaml: line 13: ", true},
+		{"yaml: mapping values are not allowed in this context", "", false},
+		{"yaml: line two: bad", "", false},
+		{"yaml: line 3", "", false},
+	} {
+		got, ok := LineErrorPrefix(tc.msg)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("LineErrorPrefix(%q) = %q, %v; want %q, %v", tc.msg, got, ok, tc.want, tc.ok)
+		}
+	}
+}

@@ -176,3 +176,21 @@ func PinLocal(t testing.TB) {
 	time.Local = time.FixedZone("UTC-4", -4*60*60)
 	t.Cleanup(func() { time.Local = prev })
 }
+
+// LineErrorPrefix cuts msg just after its first "yaml: line N: ", keeping
+// everything before that point. That is the part of a parse error graft
+// matches spruce on when libyaml and goccy agree on the line. It reports
+// false when msg holds no such prefix.
+func LineErrorPrefix(msg string) (string, bool) {
+	const marker = "yaml: line "
+	i := strings.Index(msg, marker)
+	if i < 0 {
+		return "", false
+	}
+	rest := msg[i+len(marker):]
+	j := strings.Index(rest, ": ")
+	if j <= 0 || strings.Trim(rest[:j], "0123456789") != "" {
+		return "", false
+	}
+	return msg[:i+len(marker)+j+2], true
+}

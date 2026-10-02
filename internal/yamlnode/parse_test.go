@@ -1,0 +1,374 @@
+package yamlnode_test
+
+import (
+	"bytes"
+	"encoding/binary"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"unicode/utf16"
+
+	"github.com/fivetwenty-io/graft/internal/yamlgolden"
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
+)
+
+type nodeGolden struct {
+	Documents []*yamlgolden.Node `json:"documents"`
+	Error     string             `json:"error"`
+}
+
+func compareNodeFixture(t *testing.T, name string, keepComments bool) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "nodes", name+".yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want nodeGolden
+	yamlgolden.ReadJSON(t, filepath.Join("testdata", "golden", "nodes", name+".json"), &want)
+
+	docs, err := yamlnode.Parse(data)
+	if want.Error != "" {
+		// Every erroring node fixture is one where libyaml and goccy agree
+		// on the line, which is where D6 asks graft to match it.
+		prefix, ok := yamlgolden.LineErrorPrefix(want.Error)
+		if !ok {
+			t.Fatalf("golden error %q has no line number", want.Error)
+		}
+		if err == nil || !strings.HasPrefix(err.Error(), prefix) {
+			t.Fatalf("Parse error = %v, want the prefix of %q", err, want.Error)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(docs) != len(want.Documents) {
+		t.Fatalf("Parse returned %d documents, want %d", len(docs), len(want.Documents))
+	}
+	for i := range docs {
+		w := yamlgolden.Strip(want.Documents[i], keepComments, !keepComments)
+		g := yamlgolden.Strip(yamlgolden.FromNode(docs[i]), keepComments, !keepComments)
+		if d := yamlgolden.Diff(w, g); d != "" {
+			t.Fatalf("document %d: %s", i, d)
+		}
+	}
+}
+
+func nodeFixtures(t *testing.T) []string {
+	t.Helper()
+	files, err := filepath.Glob("testdata/nodes/*.yml")
+	if err != nil || len(files) != 38 {
+		t.Fatalf("found %d node fixtures (%v), want 38", len(files), err)
+	}
+	names := make([]string, len(files))
+	for i, f := range files {
+		names[i] = strings.TrimSuffix(filepath.Base(f), ".yml")
+	}
+	return names
+}
+
+func TestParseMatchesYAMLv3Nodes(t *testing.T) {
+	for _, name := range nodeFixtures(t) {
+		t.Run(name, func(t *testing.T) { compareNodeFixture(t, name, false) })
+	}
+}
+
+// isCRLF reports whether a node fixture uses CRLF line breaks.
+func isCRLF(t *testing.T, name string) bool {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "nodes", name+".yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bytes.Contains(data, []byte("\r\n"))
+}
+
+// commentGolden returns the golden that holds yaml.v3's comments for a
+// node fixture. yaml.v3 mangles comment text on CRLF input, which graft
+// does not copy, so a CRLF fixture's comments come from the golden the
+// oracle writes for its LF form.
+func commentGolden(t *testing.T, name string) nodeGolden {
+	t.Helper()
+	file := name + ".json"
+	if isCRLF(t, name) {
+		file = name + ".lf.json"
+	}
+	var g nodeGolden
+	yamlgolden.ReadJSON(t, filepath.Join("testdata", "golden", "nodes", file), &g)
+	return g
+}
+
+// TestParseCRLFMatchesLF checks that every CRLF node fixture parses to
+// exactly the tree, comments, and lines of its LF form. With the LF form
+// matching yaml.v3 here and in TestCommentsMatchYAMLv3PrintedSlots, CRLF
+// input matches yaml.v3 everywhere except the comment text yaml.v3
+// mangles.
+func TestParseCRLFMatchesLF(t *testing.T) {
+	crlf := 0
+	for _, name := range nodeFixtures(t) {
+		if !isCRLF(t, name) {
+			continue
+		}
+		crlf++
+		data, err := os.ReadFile(filepath.Join("testdata", "nodes", name+".yml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := mustParse(t, string(data))
+		want := mustParse(t, strings.ReplaceAll(string(data), "\r\n", "\n"))
+		if len(got) != len(want) {
+			t.Fatalf("%s: %d documents, but its LF form has %d", name, len(got), len(want))
+		}
+		for i := range got {
+			if d := yamlgolden.Diff(yamlgolden.FromNode(want[i]), yamlgolden.FromNode(got[i])); d != "" {
+				t.Errorf("%s document %d differs from its LF form: %s", name, i, d)
+			}
+		}
+		golden := commentGolden(t, name)
+		if len(want) != len(golden.Documents) {
+			t.Fatalf("%s: the LF form has %d documents, yaml.v3 has %d", name, len(want), len(golden.Documents))
+		}
+		for i := range want {
+			w := yamlgolden.Strip(golden.Documents[i], false, true)
+			if d := yamlgolden.Diff(w, yamlgolden.Strip(yamlgolden.FromNode(want[i]), false, true)); d != "" {
+				t.Errorf("%s document %d: the LF form differs from yaml.v3: %s", name, i, d)
+			}
+		}
+	}
+	if crlf != 3 {
+		t.Fatalf("found %d CRLF node fixtures, want 3", crlf)
+	}
+}
+
+// TestParseScalarShapesMatchYAMLv3 runs 332 generated block, quoted, and
+// plain scalars through Parse. It is the differential check the engine
+// design asked for, and it caught goccy dropping trailing spaces and
+// skipping folding when a block scalar runs to the end of the stream, and
+// rejecting an indentation indicator followed by trailing blank lines.
+func TestParseScalarShapesMatchYAMLv3(t *testing.T) {
+	var vectors []struct {
+		Input     string             `json:"input"`
+		Documents []*yamlgolden.Node `json:"documents"`
+		Error     string             `json:"error"`
+	}
+	yamlgolden.ReadJSON(t, filepath.Join("testdata", "golden", "scalars.json"), &vectors)
+	if len(vectors) != 332 {
+		t.Fatalf("scalars.json holds %d vectors, want 332", len(vectors))
+	}
+	for _, v := range vectors {
+		docs, err := yamlnode.Parse([]byte(v.Input))
+		if v.Error != "" {
+			if err == nil {
+				t.Errorf("Parse(%q) succeeded; yaml.v3 rejects it with %q", v.Input, v.Error)
+			}
+			continue
+		}
+		if err != nil || len(docs) != len(v.Documents) {
+			t.Errorf("Parse(%q) = %d documents, %v; want %d", v.Input, len(docs), err, len(v.Documents))
+			continue
+		}
+		for i := range docs {
+			w := yamlgolden.Strip(v.Documents[i], false, true)
+			if d := yamlgolden.Diff(w, yamlgolden.Strip(yamlgolden.FromNode(docs[i]), false, true)); d != "" {
+				t.Errorf("Parse(%q) document %d: %s", v.Input, i, d)
+			}
+		}
+	}
+}
+
+func mustParse(t *testing.T, src string) []*yamlnode.Node {
+	t.Helper()
+	docs, err := yamlnode.Parse([]byte(src))
+	if err != nil {
+		t.Fatalf("Parse(%q): %v", src, err)
+	}
+	return docs
+}
+
+func TestParseStripChompKeepsTrailingSpace(t *testing.T) {
+	doc := mustParse(t, "a: |-\n  REPLACE-ME \n\nb: >-\n  folded \n")[0].Content[0]
+	if got := doc.Content[1].Value; got != "REPLACE-ME " {
+		t.Errorf("|- value = %q, want %q", got, "REPLACE-ME ")
+	}
+	if got := doc.Content[3].Value; got != "folded " {
+		t.Errorf(">- value = %q, want %q", got, "folded ")
+	}
+}
+
+func TestParseBOMAndUTF16(t *testing.T) {
+	encode := func(s string, bigEndian bool) []byte {
+		out := []byte{0xFF, 0xFE}
+		if bigEndian {
+			out = []byte{0xFE, 0xFF}
+		}
+		var unit [2]byte
+		for _, u := range utf16.Encode([]rune(s)) {
+			if bigEndian {
+				binary.BigEndian.PutUint16(unit[:], u)
+			} else {
+				binary.LittleEndian.PutUint16(unit[:], u)
+			}
+			out = append(out, unit[:]...)
+		}
+		return out
+	}
+	for name, in := range map[string][]byte{
+		"utf-8 bom":    append([]byte{0xEF, 0xBB, 0xBF}, "é: 1\n"...),
+		"utf-16le bom": encode("é: 1\n", false),
+		"utf-16be bom": encode("é: 1\n", true),
+	} {
+		docs, err := yamlnode.Parse(in)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if key := docs[0].Content[0].Content[0]; key.Value != "é" {
+			t.Errorf("%s: key = %q, want %q", name, key.Value, "é")
+		}
+	}
+}
+
+func TestParseBareDashNullValueEmpty(t *testing.T) {
+	list := mustParse(t, "list:\n- a\n-\nnext: value\n")[0].Content[0].Content[1]
+	if len(list.Content) != 2 || list.Content[1].Tag != "!!null" || list.Content[1].Value != "" {
+		t.Fatalf("bare dash item = %+v, want !!null with an empty value", list.Content[1])
+	}
+	explicit := mustParse(t, "list:\n- a\n- ~\nnext: value\n")[0].Content[0].Content[1]
+	if explicit.Content[1].Value != "~" {
+		t.Fatalf("an explicit ~ must keep its text, got %q", explicit.Content[1].Value)
+	}
+}
+
+func TestParseUnknownAliasError(t *testing.T) {
+	_, err := yamlnode.Parse([]byte("a: *x\n"))
+	if err == nil || err.Error() != "yaml: unknown anchor 'x' referenced" {
+		t.Fatalf("err = %v, want yaml.v3's unknown anchor text", err)
+	}
+}
+
+func TestParseBracePlaceholdersAreStrings(t *testing.T) {
+	m := mustParse(t, "a: {{x}}\nb: {{x}}-v1\n")[0].Content[0]
+	for i, want := range []string{"{{x}}", "{{x}}-v1"} {
+		if v := m.Content[2*i+1]; v.Tag != "!!str" || v.Value != want {
+			t.Errorf("value %d = %s %q, want !!str %q", i, v.Tag, v.Value, want)
+		}
+	}
+	if _, err := yamlnode.Parse([]byte("{{{{\n")); err == nil {
+		t.Fatal("unbalanced braces must stay a parse error")
+	}
+}
+
+func TestParseErrorKeepsTheLibyamlLine(t *testing.T) {
+	_, err := yamlnode.Parse([]byte("a:\n\t- x\n"))
+	if err == nil || !strings.HasPrefix(err.Error(), "yaml: line 2: ") {
+		t.Fatalf("err = %v, want the prefix yaml: line 2: ", err)
+	}
+}
+
+// TestParseErrorLineDivergences pins the lines goccy reports where libyaml
+// reports a different line or none. D6 accepts goccy's line on these
+// inputs, and docs/spruce/genesis-compat-contract.md lists them.
+func TestParseErrorLineDivergences(t *testing.T) {
+	for _, c := range []struct {
+		in        string
+		libyaml   string
+		goccyLine string
+	}{
+		{"a: [1, 2\nb: 3\n", "yaml: line 1: did not find expected ',' or ']'", "yaml: line 2: "},
+		{"a:\n  b: 1\n c: 2\n", "yaml: line 2: did not find expected key", "yaml: line 3: "},
+		{"a: 'x\nb: 1\n", "yaml: line 3: found unexpected end of stream", "yaml: line 1: "},
+		{"- a\nb: 1\n", "yaml: line 1: did not find expected '-' indicator", "yaml: line 2: "},
+		{"a: b: c\n", "yaml: mapping values are not allowed in this context", "yaml: line 1: "},
+		{"a: @x\n", "yaml: found character that cannot start any token", "yaml: line 1: "},
+	} {
+		_, err := yamlnode.Parse([]byte(c.in))
+		if err == nil || !strings.HasPrefix(err.Error(), c.goccyLine) {
+			t.Errorf("Parse(%q) = %v, want the prefix %q (libyaml says %q)", c.in, err, c.goccyLine, c.libyaml)
+		}
+	}
+}
+
+func TestParseKeepsDuplicateKeys(t *testing.T) {
+	m := mustParse(t, "a: 1\na: 2\n")[0].Content[0]
+	if len(m.Content) != 4 || !bytes.Equal([]byte(m.Content[2].Value), []byte("a")) {
+		t.Fatalf("duplicate keys were not both kept: %+v", m.Content)
+	}
+}
+
+// TestParseRejectsInvalidUTF8 checks that bytes that are not UTF-8 fail
+// with the message libyaml's reader gives, which has no line number.
+func TestParseRejectsInvalidUTF8(t *testing.T) {
+	for in, want := range map[string]string{
+		"a: \xff\n":             "yaml: invalid leading UTF-8 octet",
+		"# \xff\na: 1\n":        "yaml: invalid leading UTF-8 octet",
+		"a: |\n  \xff\n":        "yaml: invalid leading UTF-8 octet",
+		"a: [1, 2\n\xff":        "yaml: invalid leading UTF-8 octet",
+		"a: \xc3\n":             "yaml: invalid trailing UTF-8 octet",
+		"a: \xc3":               "yaml: incomplete UTF-8 octet sequence",
+		"a: \xc0\x80\n":         "yaml: invalid length of a UTF-8 sequence",
+		"a: \xed\xa0\x80\n":     "yaml: invalid Unicode character",
+		"a: \xf4\x90\x80\x80\n": "yaml: invalid Unicode character",
+	} {
+		_, err := yamlnode.Parse([]byte(in))
+		if err == nil || err.Error() != want {
+			t.Errorf("Parse(%q) = %v, want %q", in, err, want)
+		}
+	}
+	if docs := mustParse(t, "a: \xef\xbf\xbd\n"); docs[0].Content[0].Content[1].Value != "\ufffd" {
+		t.Error("an encoded U+FFFD is valid UTF-8 and must parse")
+	}
+}
+
+// TestParseTagHandlesLastOneDocument checks libyaml's %TAG scope. A
+// handle applies only to the document that declares it, a named handle
+// that nobody declared is an error reported one line above the node, and
+// "%TAG !" changes the primary handle.
+func TestParseTagHandlesLastOneDocument(t *testing.T) {
+	for in, want := range map[string]string{
+		"%TAG !e! tag:example.com,2000:\n---\na: !e!x 1\n---\nb: !e!y 2\n": "yaml: line 4: found undefined tag handle",
+		"a: !e!x 1\n":         "yaml: found undefined tag handle",
+		"b: 1\na: !e!x 1\n":   "yaml: line 1: found undefined tag handle",
+		"a:\n  - &k !e!x 1\n": "yaml: line 1: found undefined tag handle",
+	} {
+		_, err := yamlnode.Parse([]byte(in))
+		if err == nil || err.Error() != want {
+			t.Errorf("Parse(%q) = %v, want %q", in, err, want)
+		}
+	}
+	for in, want := range map[string][]string{
+		"%TAG !e! tag:a,2000:\n---\na: !e!x 1\n...\n%TAG !e! tag:b,2000:\n---\nb: !e!y 2\n": {"tag:a,2000:x", "tag:b,2000:y"},
+		"%TAG ! tag:example.com,2000:\n---\na: !foo 1\n":                                    {"tag:example.com,2000:foo"},
+		"a: !foo 1\n---\nb: !!str 2\n":                                                      {"!foo", "!!str"},
+	} {
+		docs := mustParse(t, in)
+		for i, tag := range want {
+			if got := docs[i].Content[0].Content[1].Tag; got != tag {
+				t.Errorf("Parse(%q) document %d tag = %q, want %q", in, i, got, tag)
+			}
+		}
+	}
+}
+
+// TestParseAcceptanceDivergences pins the inputs where goccy and yaml.v3
+// disagree about whether the input is YAML at all. They are accepted
+// divergences, listed in docs/spruce/genesis-compat-contract.md.
+func TestParseAcceptanceDivergences(t *testing.T) {
+	for _, c := range []struct {
+		in       string
+		yamlv3   string // yaml.v3's outcome, for the record
+		goccyErr string // the error Parse returns, or "" when it accepts the input
+	}{
+		{"%YAML 1.2\n---\na: 1\n", "yaml: found incompatible YAML document", ""},
+		{"a: !!str\nb: 1\n", `accepted: a is !!str "", b is !!int 1`, "yaml: line 2: "},
+		{"a: !!merge <<\n", `accepted: a is !!merge "<<"`, "yaml: line 1: "},
+		{"%TAG !! tag:example.com,2000:\n---\na: !!foo 1\n", "accepted: a is tag:example.com,2000:foo", "yaml: line 3: "},
+	} {
+		_, err := yamlnode.Parse([]byte(c.in))
+		switch {
+		case c.goccyErr == "" && err != nil:
+			t.Errorf("Parse(%q) = %v, want it accepted (yaml.v3: %s)", c.in, err, c.yamlv3)
+		case c.goccyErr != "" && (err == nil || !strings.HasPrefix(err.Error(), c.goccyErr)):
+			t.Errorf("Parse(%q) = %v, want the prefix %q (yaml.v3: %s)", c.in, err, c.goccyErr, c.yamlv3)
+		}
+	}
+}
