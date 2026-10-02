@@ -89,7 +89,7 @@ Copyright (c) 2011-2019 Canonical Ltd
 ================================================================
 github.com/homeport/dyff v1.12.0
 https://github.com/homeport/dyff
-Files: internal/yamldiff/identifier.go, internal/yamldiff/grab.go, internal/yamldiff/hash.go, internal/yamldiff/compare.go, internal/yamldiff/models.go
+Files: internal/yamldiff/identifier.go, internal/yamldiff/grab.go, internal/yamldiff/hash.go, internal/yamldiff/compare.go, internal/yamldiff/models.go, internal/humanreport/text.go, internal/humanreport/minor.go
 License: MIT
 Copyright (c) 2019 The Homeport Team
 ----------------------------------------------------------------
@@ -128,6 +128,12 @@ https://github.com/mitchellh/go-ps
 Files: internal/termstyle/detect.go, internal/termstyle/detect_linux.go
 License: MIT
 Copyright (c) 2014 Mitchell Hashimoto
+----------------------------------------------------------------
+github.com/gonvenience/text v1.0.10
+https://github.com/gonvenience/text
+Files: internal/humanreport/text.go
+License: MIT
+Copyright (c) 2019 The Homeport Team
 ----------------------------------------------------------------
 
 MIT License
