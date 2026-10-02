@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gonvenience/ytbx"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
@@ -25,6 +24,8 @@ import (
 	"github.com/fivetwenty-io/graft/internal/humanreport"
 	"github.com/fivetwenty-io/graft/internal/termstyle"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamldiff"
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -998,7 +999,8 @@ func handleDiff(files []string, colorOverride *bool, opts diffOpts) int {
 // handleDiffRender implements the `--side-by-side`/`--unified`/`--changes`
 // alternate diff renderings, all built from the same
 // internal/histdiff.Compare semantic diff rather than a second diff
-// algorithm.
+// algorithm. histdiff is built on the same yamldiff engine the default
+// report uses.
 func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
 	fromLabel, fromDoc, toLabel, toDoc, err := loadDiffDocuments(files)
 	if err != nil {
@@ -1053,15 +1055,16 @@ func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
 	return 0
 }
 
-// loadDiffDocuments loads exactly two YAML/JSON files via ytbx and decodes
-// each to a plain Go value, for renderers that need the actual document
-// content (--unified, --side-by-side) rather than just a change list.
+// loadDiffDocuments loads exactly two diff inputs with yamldiff (the same
+// loader the default report uses) and decodes the first document of each
+// to a plain Go value, for renderers that need the document content
+// (--unified, --side-by-side) rather than just a change list.
 func loadDiffDocuments(paths []string) (fromLabel string, fromDoc interface{}, toLabel string, toDoc interface{}, err error) {
 	if len(paths) != 2 {
 		return "", nil, "", nil, ansi.Errorf("incorrect number of files given to loadDiffDocuments(); please file a bug report")
 	}
 
-	from, to, err := ytbx.LoadFiles(paths[0], paths[1])
+	from, to, err := yamldiff.LoadFiles(paths[0], paths[1])
 	if err != nil {
 		return "", nil, "", nil, err
 	}
@@ -1078,19 +1081,15 @@ func loadDiffDocuments(paths []string) (fromLabel string, fromDoc interface{}, t
 	return paths[0], fromVal, paths[1], toVal, nil
 }
 
-// decodeInputFileDocument decodes the first document of a loaded
-// ytbx.InputFile into a plain Go value. An input file with no documents
-// (an empty file) decodes to an empty map, matching graft merge/json's own
-// empty-document handling.
-func decodeInputFileDocument(f ytbx.InputFile) (interface{}, error) {
+// decodeInputFileDocument decodes the first document of a loaded input
+// into a plain Go value, the way yaml.v3's Node.Decode does. An input with
+// no documents (an empty file) decodes to an empty map, matching graft
+// merge and json's own empty-document handling.
+func decodeInputFileDocument(f yamldiff.InputFile) (interface{}, error) {
 	if len(f.Documents) == 0 {
 		return map[string]interface{}{}, nil
 	}
-	var v interface{}
-	if err := f.Documents[0].Decode(&v); err != nil {
-		return nil, err
-	}
-	return v, nil
+	return yamlnode.Decode(f.Documents[0])
 }
 
 // versionFlagPrecedesVerb reports whether the -v/--version token the user

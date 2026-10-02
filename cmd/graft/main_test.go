@@ -3807,6 +3807,33 @@ array:
 				So(stdout, ShouldContainSubstring, "REMOVED   meta")
 			})
 
+			Convey("--changes reads unquoted {{...}} placeholders as strings", func() {
+				os.Args = []string{"graft", "diff", "--changes", "../../tests/diff-parity/cases/braces-values/from.yml", "../../tests/diff-parity/cases/braces-values/to.yml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldContainSubstring, "{{x}}")
+				So(stdout, ShouldContainSubstring, "{{y}}")
+				So(stdout, ShouldContainSubstring, "{{new}}")
+			})
+
+			Convey("--changes still reads TOML and stdin", func() {
+				restore := setStdinFromFile(t, "../../internal/yamldiff/testdata/compare/toml-dates/from.toml")
+				defer restore()
+				os.Args = []string{"graft", "diff", "--changes", "-", "../../internal/yamldiff/testdata/compare/toml-dates/to.toml"}
+				stdout = ""
+				stderr = ""
+				rc = 256
+				main()
+				So(stderr, ShouldEqual, "")
+				So(rc, ShouldEqual, 1)
+				So(stdout, ShouldContainSubstring, "table.d")
+				So(stdout, ShouldContainSubstring, "zeta")
+			})
+
 			Convey("--changes on identical files reports zero changes and exits 0", func() {
 				os.Args = []string{"graft", "diff", "--changes", "../../assets/diff/base.yml", "../../assets/diff/base.yml"}
 				stdout = ""
