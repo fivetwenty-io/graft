@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/yamlgolden"
@@ -207,5 +208,49 @@ func TestCommentsDedentedBlockDivergence(t *testing.T) {
 	if key.FootComment != "# c22" || item.HeadComment != "# c1" || item.FootComment != "" {
 		t.Fatalf("key foot %q, item head %q, item foot %q; want %q, %q, and %q (yaml.v3 moves %q to the item's foot)",
 			key.FootComment, item.HeadComment, item.FootComment, "# c22", "# c1", "", "# c22")
+	}
+}
+
+// flowSlots records the comments on every node inside a flow collection,
+// keyed by its path from the collection, so the same flow can be compared
+// wherever it sits.
+func flowSlots(n *yamlnode.Node, path string, out map[string]string) {
+	for i, c := range n.Content {
+		p := fmt.Sprintf("%s/%d", path, i)
+		for slot, v := range map[string]string{"H": c.HeadComment, "L": c.LineComment, "F": c.FootComment} {
+			if v != "" {
+				out[p+"#"+slot] = v
+			}
+		}
+		flowSlots(c, p, out)
+	}
+}
+
+// TestCommentsRootFlowMatchesNestedFlow keeps a root flow collection and
+// the same flow nested under a key on one comment model. Both differ from
+// yaml.v3 in the same places, so they have to move together when that
+// model changes.
+func TestCommentsRootFlowMatchesNestedFlow(t *testing.T) {
+	for _, flow := range []string{
+		"{\n# c2\n\nk0: 1\n}",
+		"[\n# c1\na, # c2\nb\n# c3\n]",
+		"{\nk0: 1, # c1\n# c2\nk1: [x, # c3\n  y],\nk2: {a: 1} # c4\n}",
+		"{\nk0: 1\n# c5\n}",
+		"[\n{a: 1, # c1\n  b: 2},\n# c2\n[x, y] # c3\n]",
+	} {
+		lines := strings.Split(flow, "\n")
+		for i := 1; i < len(lines); i++ {
+			lines[i] = "  " + lines[i]
+		}
+		root, nested := "---\n"+strings.Join(lines, "\n")+"\n", "r: "+strings.Join(lines, "\n")+"\n"
+		gotRoot, gotNested := map[string]string{}, map[string]string{}
+		flowSlots(mustParse(t, root)[0].Content[0], "", gotRoot)
+		flowSlots(mustParse(t, nested)[0].Content[0].Content[1], "", gotNested)
+		if len(gotRoot) == 0 {
+			t.Errorf("Parse(%q) placed no comments inside the flow", root)
+		}
+		if !reflect.DeepEqual(gotRoot, gotNested) {
+			t.Errorf("root flow and nested flow place comments differently:\n%q\n got %q\n%q\n got %q", root, gotRoot, nested, gotNested)
+		}
 	}
 }
