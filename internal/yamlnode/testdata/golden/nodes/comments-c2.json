@@ -1,0 +1,180 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "line": 1
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "x",
+                  "foot": "# foot x same indent, then blank",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "y",
+                  "line": 5
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "2",
+                  "line": 5
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "head": "# dedented comment after y, no blank",
+              "line": 7
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "3",
+              "line": 7
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "c",
+              "head": "# comment between, blanks both sides\n",
+              "line": 11
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "4",
+              "line": 11
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "d",
+              "line_comment": "# line on key d",
+              "line": 12
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 13,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "e",
+                  "line": 13
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "5",
+                  "line": 13
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "f",
+              "line": 14
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "anchor": "anc",
+              "line": 14,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "g",
+                  "line_comment": "# line after anchor",
+                  "line": 15
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "6",
+                  "line": 15
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "h",
+              "line": 16
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 17,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 17
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "i",
+              "head": "# after list at key indent",
+              "line": 19
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "literal\ntext\n",
+              "line": 19
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "j",
+              "head": "# after literal",
+              "line": 23
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "q",
+              "line_comment": "# line q",
+              "line": 23
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

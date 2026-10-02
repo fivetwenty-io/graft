@@ -1,0 +1,43 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "dot": "l.t2.v",
+      "gopatch": "/l/tag=t2/v",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "l"
+        },
+        {
+          "idx": -1,
+          "key": "tag",
+          "name": "t2"
+        },
+        {
+          "idx": -1,
+          "name": "v"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "2",
+            "line": 7
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "3",
+            "line": 7
+          }
+        }
+      ]
+    }
+  ]
+}

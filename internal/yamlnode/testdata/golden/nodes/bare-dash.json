@@ -1,0 +1,53 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "list",
+              "line": 1
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "a",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!null",
+                  "line": 3
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "next",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "value",
+              "line": 4
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

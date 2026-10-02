@@ -1,0 +1,10 @@
+x: 1
+---
+# a foot of the first document
+
+a: 1
+---
+# head of b
+b: 2
+---
+c: 3

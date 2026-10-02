@@ -1,0 +1,9 @@
+base: &base {k: v}
+again: &base {k: w}
+use: *base
+list:
+  - &item x
+  - *item
+m:
+  <<: *base
+  z: 1

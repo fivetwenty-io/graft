@@ -1,0 +1,486 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "foot": "# Required AWS IAM policies for S3 access:\n# {\n#   \"Version\": \"2012-10-17\",\n#   \"Statement\": [\n#     {\n#       \"Effect\": \"Allow\",\n#       \"Action\": [\n#         \"s3:GetObject\",\n#         \"s3:PutObject\", \n#         \"s3:DeleteObject\",\n#         \"s3:ListBucket\"\n#       ],\n#       \"Resource\": [\n#         \"arn:aws:s3:::company-aws-logsearch/*\",\n#         \"arn:aws:s3:::company-aws-logsearch\"\n#       ]\n#     }\n#   ]\n# }\n\n# Vault secrets for AWS:\n# safe set secret/logsearch/aws-prod/s3:access_key_id \"AKIA...\"\n# safe set secret/logsearch/aws-prod/s3:secret_access_key \"...\"\n\n# AWS-specific deployment commands:\n# aws configure  # Set up AWS CLI\n# genesis new aws-prod\n# genesis deploy aws-prod\n# genesis do aws-prod -- es-health",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 5,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "kit",
+              "head": "# Example: AWS-optimized Logsearch deployment\n# This example shows configuration optimized for Amazon Web Services\n",
+              "line": 5
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 6,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "name",
+                  "line": 6
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "logsearch",
+                  "line": 6
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "version",
+                  "line": 7
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "1.0.0",
+                  "line": 7
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "features",
+                  "line": 8
+                },
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "line": 9,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "s3-storage",
+                      "line": 9
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "monitoring",
+                      "line": 10
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "genesis",
+              "line": 12
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 13,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "env",
+                  "line": 13
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "aws-prod",
+                  "line": 13
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "iaas",
+                  "line": 14
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "aws",
+                  "line": 14
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "params",
+              "line": 16
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 18,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "base_domain",
+                  "head": "# AWS domain configuration",
+                  "line": 18
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "logs.aws.company.com",
+                  "line": 18
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "availability_zones",
+                  "head": "# AWS availability zones",
+                  "line": 21
+                },
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "line": 22,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "us-west-2a",
+                      "line": 22
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "us-west-2b",
+                      "line": 23
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "us-west-2c",
+                      "line": 24
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "elasticsearch_instances",
+                  "head": "# AWS-optimized scaling",
+                  "line": 27
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "3",
+                  "line": 27
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "logstash_instances",
+                  "line": 28
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "2",
+                  "line": 28
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "kibana_instances",
+                  "line": 29
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "2",
+                  "line": 29
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "elasticsearch_vm_type",
+                  "head": "# AWS instance sizing",
+                  "line": 32
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "m5.2xlarge",
+                  "line_comment": "# 8 vCPU, 32GB RAM",
+                  "line": 32
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "logstash_vm_type",
+                  "line": 33
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "m5.large",
+                  "line_comment": "# 2 vCPU, 8GB RAM",
+                  "line": 33
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "kibana_vm_type",
+                  "line": 34
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "m5.medium",
+                  "line_comment": "# 1 vCPU, 4GB RAM",
+                  "line": 34
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "elasticsearch_heap_size",
+                  "head": "# Memory allocation for AWS instance types",
+                  "line": 37
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "14g",
+                  "line_comment": "# Leave 18GB for OS and file cache",
+                  "line": 37
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "logstash_heap_size",
+                  "line": 38
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "4g",
+                  "line_comment": "# Leave 4GB for OS",
+                  "line": 38
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "kibana_memory_limit",
+                  "line": 39
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "2g",
+                  "line_comment": "# Leave 2GB for OS",
+                  "line": 39
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "s3_bucket",
+                  "head": "# AWS S3 configuration",
+                  "line": 42
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "company-aws-logsearch",
+                  "line": 42
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "s3_region",
+                  "line": 43
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "us-west-2",
+                  "line": 43
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "s3_storage_class",
+                  "line": 44
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "STANDARD_IA",
+                  "line_comment": "# Cheaper for infrequent access",
+                  "line": 44
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "elasticsearch_disk_type",
+                  "head": "# AWS-optimized disk configuration",
+                  "line": 47
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "gp3",
+                  "line_comment": "# General Purpose SSD v3",
+                  "line": 47
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "elasticsearch_disk_size",
+                  "line": 48
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "500_000",
+                  "line_comment": "# 500GB",
+                  "line": 48
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "elasticsearch_disk_iops",
+                  "line": 49
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "3000",
+                  "line_comment": "# Provisioned IOPS",
+                  "line": 49
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "elasticsearch_disk_throughput",
+                  "line": 50
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "125",
+                  "line_comment": "# MB/s",
+                  "line": 50
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "elasticsearch_thread_pool_size",
+                  "head": "# Performance tuning for AWS",
+                  "line": 53
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "16",
+                  "line_comment": "# Match vCPU count / 2",
+                  "line": 53
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "logstash_pipeline_workers",
+                  "line": 54
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "4",
+                  "line_comment": "# Match vCPU count",
+                  "line": 54
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "logstash_pipeline_batch_size",
+                  "line": 55
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "250",
+                  "line": 55
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "prometheus_elasticsearch_exporter_port",
+                  "head": "# AWS monitoring",
+                  "line": 58
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "9114",
+                  "line": 58
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "prometheus_logstash_exporter_port",
+                  "line": 59
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "9198",
+                  "line": 59
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "cloudwatch_logs_enabled",
+                  "head": "# AWS CloudWatch integration (optional)",
+                  "line": 62
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!bool",
+                  "value": "true",
+                  "line": 62
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "cloudwatch_log_groups",
+                  "line": 63
+                },
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "line": 64,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "/aws/lambda/log-processor",
+                      "line": 64
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "/aws/apigateway/access-logs",
+                      "line": 65
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

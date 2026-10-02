@@ -1,0 +1,128 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "dot": "l",
+      "gopatch": "/l",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "l"
+        }
+      ],
+      "details": [
+        {
+          "kind": "⇆",
+          "from": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-00",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-01",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-02",
+                "line": 4
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-03",
+                "line": 5
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-04",
+                "line": 6
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-05",
+                "line": 7
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-06",
+                "line": 8
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-07",
+                "line": 9
+              }
+            ]
+          },
+          "to": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-07",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-06",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-05",
+                "line": 4
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-04",
+                "line": 5
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-03",
+                "line": 6
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-02",
+                "line": 7
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-01",
+                "line": 8
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "item-number-00",
+                "line": 9
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

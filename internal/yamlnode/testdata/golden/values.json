@@ -1,0 +1,1028 @@
+[
+  {
+    "name": "array",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "sequence",
+          "tag": "!!seq",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "line": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "bool",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!bool",
+          "value": "true",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "bytes",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "sequence",
+          "tag": "!!seq",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "104",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "105",
+              "line": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "chan",
+    "panic": "cannot marshal type: chan int"
+  },
+  {
+    "name": "complex",
+    "panic": "cannot marshal type: complex128"
+  },
+  {
+    "name": "duration",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "1m30s",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "empty-map",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "empty-slice",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "sequence",
+          "tag": "!!seq",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "float-0.1",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!float",
+          "value": "0.1",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "float-1.0",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!int",
+          "value": "1",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "float-123456.0",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!int",
+          "value": "123456",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "float-1e8",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!float",
+          "value": "1e+08",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "float-inf",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!float",
+          "value": ".inf",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "float-nan",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!float",
+          "value": ".nan",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "float-neg-inf",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!float",
+          "value": "-.inf",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "float-neg-zero",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!int",
+          "value": "-0",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "float32-0.1",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!float",
+          "value": "0.1",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "func",
+    "panic": "cannot marshal type: func()"
+  },
+  {
+    "name": "int",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!int",
+          "value": "42",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "int8-negative",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!int",
+          "value": "-5",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "map-key-order",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "_u",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "1k",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "2",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "10k",
+              "line": 3
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "3",
+              "line": 3
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "B",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "4",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "line": 5
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "5",
+              "line": 5
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a1",
+              "line": 6
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "6",
+              "line": 6
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a01",
+              "line": 7
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "7",
+              "line": 7
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a001",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "8",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "x-1",
+              "line": 9
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "9",
+              "line": 9
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "x-2",
+              "line": 10
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "10",
+              "line": 10
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "x-10",
+              "line": 11
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "11",
+              "line": 11
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "z9",
+              "line": 12
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "12",
+              "line": 12
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "z09",
+              "line": 13
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "13",
+              "line": 13
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "é",
+              "line": 14
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "14",
+              "line": 14
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "map-merge-key",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "x",
+              "line": 1
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!merge",
+                  "value": "\u003c\u003c",
+                  "line": 2
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 3,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "a",
+                      "line": 3
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "1",
+                      "line": 3
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "b",
+                  "line": 4
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "2",
+                  "line": 4
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "map-mixed-keys",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!bool",
+              "value": "true",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "c",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!float",
+              "value": "2.5",
+              "line": 3
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "d",
+              "line": 3
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "2",
+              "line": 4
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "nil",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!null",
+          "value": "null",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "nil-pointer",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!null",
+          "value": "null",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "slice",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "sequence",
+          "tag": "!!seq",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "two",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!null",
+              "value": "null",
+              "line": 3
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 4,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "3",
+                  "line": 4
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-1",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "1",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-base60",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "1:20",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-dash",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "-x",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-date",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "2001-12-14",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-empty",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-invalid",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!binary",
+          "value": "//4=",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-merge",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!merge",
+          "value": "\u003c\u003c",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-multiline",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "a\nb\n",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-null",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "null",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-on",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "on",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-plain",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "hello",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-space",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": " x",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-yes",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "yes",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "struct",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "name",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "n",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "tags",
+              "line": 2
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 3,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "x",
+                  "line": 3
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "on",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!bool",
+              "value": "true",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "x",
+              "line": 5
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "7",
+              "line": 5
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "text",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "hello",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "text-error",
+    "error": "text marshaling failed"
+  },
+  {
+    "name": "text-merge",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!merge",
+          "value": "\u003c\u003c",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "time",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!timestamp",
+          "value": "2001-12-14T21:59:43.1Z",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "time-pointer",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!timestamp",
+          "value": "2001-12-14T21:59:43.1Z",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "uint64-max",
+    "node": {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!int",
+          "value": "18446744073709551615",
+          "line": 1
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,19 @@
+# doc head
+
+# head of a
+a: 1 # line of a
+# foot of a
+
+b:
+  # head of b.x
+  x: 2 # line x
+  y: 3
+  # foot of b.y (indented)
+# head of c
+c:
+  - one # line one
+  # head of two
+  - two
+  - k: v # line kv
+    j: w
+# trailing foot

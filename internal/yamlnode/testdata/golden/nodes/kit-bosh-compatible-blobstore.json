@@ -1,0 +1,847 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 23,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "meta",
+              "head": "# PVE external blobstore overlay (RustFS / any S3-compatible endpoint).\n#\n# Activates when the +pve-external-blobstore feature is set. Reads from the\n# env-scoped vault config base (meta.ocfp.vault.config = secret/config/\u003cbloc\u003e/\n# \u003cmgmt|ocf\u003e), matching the ocfp CLI's vault populate scheme. Both mgmt-BOSH\n# and env-BOSH must still resolve to the SAME bucket, because bosh's\n# compilation flow requires the deployment's agent blobstore to contain the\n# parent director's stored release blobs; the populate step writes the same\n# bucket name/endpoint to both the mgmt and ocf blobstore secrets.\n#\n#   \u003cmeta.ocfp.vault.config\u003e/bosh/blobstores/bosh\n#     :name        shared bucket name (e.g. \u003cbloc\u003e-bosh)\n#     :endpoint    https://host:port (RustFS endpoint)\n#     :region      S3 region label\n#     :host        host portion of endpoint (for director's blobstore.host)\n#     :ca_cert     PEM, optional (internal-ca/self-signed modes)\n#\n#   \u003cmeta.ocfp.vault.config\u003e/bosh/blobstores/bosh/creds\n#     :access_key\n#     :secret_key\n",
+              "line": 23
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 24,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "ocfp",
+                  "line": 24
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 25,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "bosh",
+                      "line": 25
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 26,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "vault",
+                          "line": 26
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 30,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "blobstore",
+                              "head": "# Env-scoped blobstore config path (CLI mgmt/ocf scheme). Both mgmt and\n# ocf must be populated with the same bucket to preserve the shared-\n# bucket compilation-inheritance contract.",
+                              "line": 30
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( concat meta.ocfp.vault.config \"/bosh/blobstores/bosh\" ))",
+                              "line": 30
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "s3",
+                          "line": 31
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 32,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bucket_name",
+                              "line": 32
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( vault meta.ocfp.bosh.vault.blobstore \":name\" ))",
+                              "line": 32
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "region",
+                              "line": 33
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( vault meta.ocfp.bosh.vault.blobstore \":region\" ))",
+                              "line": 33
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "endpoint",
+                              "line": 34
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( vault meta.ocfp.bosh.vault.blobstore \":endpoint\" ))",
+                              "line": 34
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "host",
+                              "head": "# Director job (`bosh` release) reads `host` (unprefixed) plus\n# `s3_port` and `s3_region` (s3_-prefixed) from properties.blobstore.",
+                              "line": 37
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( vault meta.ocfp.bosh.vault.blobstore \":host\" ))",
+                              "line": 37
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "ca_cert",
+                              "head": "# Port is fixed at the RustFS daemon default; the value in vault\n# (`:port`) is stored as a string by `safe`, but the director's\n# s3cli daemon unmarshals s3_port into a Go int. Use an int literal\n# in the ops block below.\n# CA cert for RustFS's TLS leaf cert. Written by ArtifactsWriter\n# for internal-ca/self-signed modes; absent in disabled mode.",
+                              "line": 44
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( vault meta.ocfp.bosh.vault.blobstore \":ca_cert\" ))",
+                              "line": 44
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "iam",
+                          "line": 45
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 46,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "s3",
+                              "line": 46
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 47,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "access_key",
+                                  "line": 47
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "(( vault meta.ocfp.bosh.vault.blobstore \"/creds:access_key\" ))",
+                                  "line": 47
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "secret_key",
+                                  "line": 48
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "(( vault meta.ocfp.bosh.vault.blobstore \"/creds:secret_key\" ))",
+                                  "line": 48
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "certs",
+                      "head": "# Append the RustFS leaf cert's signing CA (bloc internal-CA) to the\n# director's trusted_certs list. Without this every compilation VM's\n# s3cli fails the TLS handshake with `certificate signed by unknown\n# authority` because the bloc CA isn't in the system trust store.",
+                      "line": 53
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 54,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "trusted",
+                          "line": 54
+                        },
+                        {
+                          "kind": "sequence",
+                          "tag": "!!seq",
+                          "line": 55,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( append ))",
+                              "line": 55
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( grab meta.ocfp.bosh.s3.ca_cert ))",
+                              "line": 56
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "bosh-variables",
+              "line": 58
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 59,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "s3-bucket-name",
+                  "line": 59
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.bosh.s3.bucket_name ))",
+                  "line": 59
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "s3-region",
+                  "line": 60
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.bosh.s3.region ))",
+                  "line": 60
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "s3-endpoint",
+                  "line": 61
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.bosh.s3.endpoint ))",
+                  "line": 61
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "s3-host",
+                  "line": 62
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.bosh.s3.host ))",
+                  "line": 62
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "s3-access-key-id",
+                  "line": 63
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.bosh.iam.s3.access_key ))",
+                  "line": 63
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "s3-secret-access-key",
+                  "line": 64
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.bosh.iam.s3.secret_key ))",
+                  "line": 64
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "document",
+      "line": 66,
+      "content": [
+        {
+          "kind": "sequence",
+          "tag": "!!seq",
+          "line": 70,
+          "content": [
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# Remove the internal blobstore job (added by `+internal-blobstore` defaults).\n# `+pve-external-blobstore` is opt-in; the kit only includes this file when\n# the feature is set, so removing the job is safe and required.",
+              "line": 70,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 70
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "remove",
+                  "line": 70
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 71
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/jobs/name=blobstore",
+                  "line": 71
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# Replace the director-side blobstore properties with the S3 client config.\n# Director's `bosh` job (in bosh release) reads these from properties.blobstore\n# and writes director.yml. Its template expects `host` + `port` + `use_ssl`\n# (NOT `endpoint`) — same shape as the upstream minio overlay\n# (`overlay/addons/minio-blobstore.yml`).",
+              "line": 78,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 78
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 78
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 79
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/blobstore?",
+                  "line": 79
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 80
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 81,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "provider",
+                      "line": 81
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "s3",
+                      "line": 81
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "bucket_name",
+                      "line": 82
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "((s3-bucket-name))",
+                      "line": 82
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "access_key_id",
+                      "line": 83
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "((s3-access-key-id))",
+                      "line": 83
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "secret_access_key",
+                      "line": 84
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "((s3-secret-access-key))",
+                      "line": 84
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "host",
+                      "head": "# bosh director's `bosh` job template (director.yml.erb) reads from\n# these exact property names — `host` (unprefixed), `s3_port` and\n# `s3_region` (with `s3_` prefix). The non-prefixed `port` and `region`\n# are silently ignored by the template. See cloudfoundry/bosh jobs/\n# director/templates/director.yml.erb.",
+                      "line": 90
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "((s3-host))",
+                      "line": 90
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "s3_port",
+                      "head": "# RustFS daemon default; int literal (s3cli unmarshals to Go int).",
+                      "line": 92
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "9000",
+                      "line": 92
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "s3_region",
+                      "line": 93
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "((s3-region))",
+                      "line": 93
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "use_ssl",
+                      "line": 94
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!bool",
+                      "value": "true",
+                      "line": 94
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "ssl_verify_peer",
+                      "head": "# The RustFS leaf cert is signed by the bloc internal-CA. The director\n# has this CA in its trusted_certs but compilation VMs only get the\n# system trust store, which doesn't include the bloc CA. Disable peer\n# verification on the agent's s3cli rather than maintain a runtime\n# config to push the CA to every spawned VM.",
+                      "line": 100
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!bool",
+                      "value": "false",
+                      "line": 100
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "s3_host_style",
+                      "line": 101
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!bool",
+                      "value": "false",
+                      "line_comment": "# RustFS uses path-style addressing",
+                      "line": 101
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "s3_signature_version",
+                      "line": 102
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "4",
+                      "line": 102
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# Same S3 client config for the agent's blobstore (used by deployed VMs to\n# fetch packages/releases during compile/start).",
+              "line": 106,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 106
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "remove",
+                  "line": 106
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 107
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/agent/env/bosh/blobstores",
+                  "line": 107
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 109,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 109
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 109
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 110
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/agent/env/bosh/blobstores?/-",
+                  "line": 110
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 111
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 112,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "provider",
+                      "line": 112
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "s3",
+                      "line": 112
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "options",
+                      "line": 113
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 131,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "bucket_name",
+                          "head": "# Use spruce `grab` at manifest-rendering time (not bosh-variable\n# `((var))` placeholders) so the literal values land in director.yml\n# and the agent's blobstore-s3.json on every spawned VM. The previous\n# `((s3-*))` indirection caused compilation VMs to receive empty /\n# placeholder credentials and fail with InvalidAccessKeyId.\n#\n# Field names match the bosh-s3cli config struct exactly:\n#   github.com/cloudfoundry/bosh-s3cli config/config.go\n#     host, port, use_ssl, ssl_verify_peer, host_style, signature_version\n# NOT the director-template `s3_*`-prefixed names — those apply only\n# to properties.blobstore (above) which the director.yml.erb template\n# remaps; the agent writes options/* directly to\n# /var/vcap/bosh/etc/blobstore-s3.json on every compilation VM where\n# bosh-s3cli reads them. Unrecognized keys (e.g. `endpoint`,\n# `s3_signature_version`) are silently dropped, leaving the cli to\n# fall back to AWS defaults — host=\"\" routes to real AWS S3, which\n# returns \"InvalidAccessKeyId\" for any provided AK.",
+                          "line": 131
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab meta.ocfp.bosh.s3.bucket_name ))",
+                          "line": 131
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "access_key_id",
+                          "line": 132
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab meta.ocfp.bosh.iam.s3.access_key ))",
+                          "line": 132
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "secret_access_key",
+                          "line": 133
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab meta.ocfp.bosh.iam.s3.secret_key ))",
+                          "line": 133
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "region",
+                          "line": 134
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab meta.ocfp.bosh.s3.region ))",
+                          "line": 134
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "host",
+                          "line": 135
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab meta.ocfp.bosh.s3.host ))",
+                          "line": 135
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "port",
+                          "line": 136
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!int",
+                          "value": "9000",
+                          "line_comment": "# int literal — s3cli unmarshals to int",
+                          "line": 136
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "use_ssl",
+                          "line": 137
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!bool",
+                          "value": "true",
+                          "line": 137
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ssl_verify_peer",
+                          "line": 138
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!bool",
+                          "value": "false",
+                          "line_comment": "# see director-side ssl_verify_peer comment",
+                          "line": 138
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "host_style",
+                          "line": 139
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!bool",
+                          "value": "false",
+                          "line_comment": "# RustFS uses path-style addressing",
+                          "line": 139
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "signature_version",
+                          "line": 140
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "4",
+                          "line_comment": "# ,string tag — unmarshalled from string",
+                          "line": 140
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# Drop the internal-blobstore TLS variables (no certificate generation needed\n# when the director points at an external S3 endpoint).",
+              "line": 144,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 144
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "remove",
+                  "line": 144
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 145
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/variables/name=blobstore_ca?",
+                  "line": 145
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 147,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 147
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "remove",
+                  "line": 147
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 148
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/variables/name=blobstore_server_tls?",
+                  "line": 148
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

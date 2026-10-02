@@ -1,0 +1,19 @@
+# A certificate followed by a commented property, the shape BOSH manifests use.
+x:
+  cert: |
+    -----BEGIN CERTIFICATE-----
+    AAA
+    -----END CERTIFICATE-----
+
+  # the key
+  key: k
+  folded: >
+    one
+    two
+
+  # after the folded scalar
+  next: n
+  header: | # on the header line
+    body
+  # foot of header
+last: 1

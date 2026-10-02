@@ -1,0 +1,957 @@
+[
+  {
+    "location": "testdata/load/inputs/comment.yml",
+    "documents": [
+      {
+        "kind": "document",
+        "line": 1,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "location": "testdata/load/inputs/flow.yml",
+    "error": "unable to parse data from testdata/load/inputs/flow.yml: invalid character 'a' looking for beginning of object key string"
+  },
+  {
+    "location": "testdata/load/inputs/j1.json",
+    "documents": [
+      {
+        "kind": "document",
+        "line": 1,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a9b",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a10b",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "alpha",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "2",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "arr",
+                "line": 4
+              },
+              {
+                "kind": "sequence",
+                "tag": "!!seq",
+                "line": 5,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "3",
+                    "line": 5
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "1",
+                    "line": 6
+                  }
+                ]
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "big",
+                "line": 7
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!float",
+                "value": "1e+08",
+                "line": 7
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "e",
+                "line": 8
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!float",
+                "value": "1e+21",
+                "line": 8
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "f",
+                "line": 9
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!float",
+                "value": "1.5",
+                "line": 9
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "n9",
+                "line": 10
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "9",
+                "line": 10
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "n10",
+                "line": 11
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "10",
+                "line": 11
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "nul",
+                "line": 12
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!null",
+                "value": "null",
+                "line": 12
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "s",
+                "line": 13
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "123",
+                "line": 13
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "zeta",
+                "line": 14
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 14
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "location": "testdata/load/inputs/j2.json",
+    "documents": [
+      {
+        "kind": "document",
+        "line": 1,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a9b",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a10b",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "alpha",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "2",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "arr",
+                "line": 4
+              },
+              {
+                "kind": "sequence",
+                "tag": "!!seq",
+                "line": 5,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "3",
+                    "line": 5
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "1",
+                    "line": 6
+                  }
+                ]
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "big",
+                "line": 7
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!float",
+                "value": "1e+08",
+                "line": 7
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "e",
+                "line": 8
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!float",
+                "value": "1e+21",
+                "line": 8
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "f",
+                "line": 9
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!float",
+                "value": "1.5",
+                "line": 9
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "n9",
+                "line": 10
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "9",
+                "line": 10
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "n10",
+                "line": 11
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "10",
+                "line": 11
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "new",
+                "line": 12
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!bool",
+                "value": "true",
+                "line": 12
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "nul",
+                "line": 13
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!null",
+                "value": "null",
+                "line": 13
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "s",
+                "line": 14
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "123",
+                "line": 14
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "zeta",
+                "line": 15
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 15
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "document",
+        "line": 1,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "second",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "location": "testdata/load/inputs/j3.json",
+    "documents": [
+      {
+        "kind": "document",
+        "line": 1,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "_u",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "1k",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "10k",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "B",
+                "line": 4
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 4
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a9b",
+                "line": 5
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "2",
+                "line": 5
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a10b",
+                "line": 6
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "2",
+                "line": 6
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "alpha",
+                "line": 7
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "3",
+                "line": 7
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "arr",
+                "line": 8
+              },
+              {
+                "kind": "sequence",
+                "tag": "!!seq",
+                "line": 9,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "3",
+                    "line": 9
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "1",
+                    "line": 10
+                  }
+                ]
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "b",
+                "line": 11
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 11
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "big",
+                "line": 12
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!float",
+                "value": "1.00000001e+08",
+                "line": 12
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "e",
+                "line": 13
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!float",
+                "value": "2e+21",
+                "line": 13
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "f",
+                "line": 14
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!float",
+                "value": "2.5",
+                "line": 14
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "n9",
+                "line": 15
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "9",
+                "line": 15
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "n10",
+                "line": 16
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "11",
+                "line": 16
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "nul",
+                "line": 17
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!null",
+                "value": "null",
+                "line": 17
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "s",
+                "line": 18
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "124",
+                "line": 18
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "x-1",
+                "line": 19
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 19
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "x-2",
+                "line": 20
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 20
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "x-10",
+                "line": 21
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 21
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "zeta",
+                "line": 22
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "2",
+                "line": 22
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "location": "testdata/load/inputs/t.toml",
+    "documents": [
+      {
+        "kind": "document",
+        "line": 1,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "alpha",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "x",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "table",
+                "line": 2
+              },
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 3,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "a",
+                    "line": 3
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "1",
+                    "line": 3
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "b",
+                    "line": 4
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "2",
+                    "line": 4
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "d",
+                    "line": 5
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!timestamp",
+                    "value": "1979-05-27T00:00:00-04:00",
+                    "line": 5
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "dt",
+                    "line": 6
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!timestamp",
+                    "value": "1979-05-27T07:32:00Z",
+                    "line": 6
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "ldt",
+                    "line": 7
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!timestamp",
+                    "value": "1979-05-27T07:32:00-04:00",
+                    "line": 7
+                  }
+                ]
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "zeta",
+                "line": 8
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 8
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "location": "testdata/load/inputs/two.yml",
+    "documents": [
+      {
+        "kind": "document",
+        "line": 1,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "document",
+        "line": 2,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 3,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "b",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "2",
+                "line": 3
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "location": "testdata/load/inputs/empty.yml",
+    "documents": [
+      {
+        "kind": "document",
+        "content": [
+          {
+            "kind": "scalar",
+            "tag": "!!null"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "location": "testdata/load/inputs/dashes.yml",
+    "documents": [
+      {
+        "kind": "document",
+        "content": [
+          {
+            "kind": "scalar",
+            "tag": "!!null"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "location": "testdata/load/inputs/bad.json",
+    "error": "unable to parse data from testdata/load/inputs/bad.json: invalid character '}' looking for beginning of object key string"
+  },
+  {
+    "location": "testdata/load/inputs/bad.yml",
+    "error": "unable to parse data from testdata/load/inputs/bad.yml: yaml: line 2: found character that cannot start any token"
+  },
+  {
+    "location": "testdata/load/inputs/dirA",
+    "documents": [
+      {
+        "kind": "document",
+        "line": 1,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "b",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "document",
+        "line": 1,
+        "content": [
+          {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 1
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "names": [
+      "1.yml",
+      "2.yml"
+    ]
+  },
+  {
+    "location": "testdata/load/inputs/dirC",
+    "error": "read testdata/load/inputs/dirC/sub: is a directory"
+  },
+  {
+    "location": "testdata/load/inputs/nosuch.yml",
+    "error": "unable to load data from testdata/load/inputs/nosuch.yml: unable to get any content using location testdata/load/inputs/nosuch.yml: it is not a file or usable URI"
+  },
+  {
+    "location": "/nonexistent/graft-oracle/nosuch.yml",
+    "error": "unable to load data from /nonexistent/graft-oracle/nosuch.yml: Get \"/nonexistent/graft-oracle/nosuch.yml\": unsupported protocol scheme \"\""
+  }
+]

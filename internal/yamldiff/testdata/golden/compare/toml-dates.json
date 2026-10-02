@@ -1,0 +1,67 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "dot": "table.d",
+      "gopatch": "/table/d",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "table"
+        },
+        {
+          "idx": -1,
+          "name": "d"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!timestamp",
+            "value": "1979-05-27T00:00:00-04:00",
+            "line": 5
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!timestamp",
+            "value": "1979-05-28T00:00:00-04:00",
+            "line": 5
+          }
+        }
+      ]
+    },
+    {
+      "dot": "zeta",
+      "gopatch": "/zeta",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "zeta"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "1",
+            "line": 8
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "2",
+            "line": 8
+          }
+        }
+      ]
+    }
+  ]
+}

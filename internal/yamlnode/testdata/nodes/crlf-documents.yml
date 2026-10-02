@@ -1,0 +1,12 @@
+# before the marker
+---
+a: 1 # line of a
+# foot of a
+
+---
+# head of b
+b: |
+  text
+
+# head of c
+c: 2

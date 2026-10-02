@@ -1,0 +1,1148 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 2,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "meta",
+              "line": 2
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 3,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "default_persistent_disk_size_in_mb",
+                  "line": 3
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.persistent_disk_size_in_mb ))",
+                  "line": 3
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "ocfp",
+                  "line": 4
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 5,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "cpi_vault",
+                      "line": 5
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 6,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "host",
+                          "line": 6
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( vault meta.ocfp.vault.config \"/cpi/pve:host\" ))",
+                          "line": 6
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "user",
+                          "line": 7
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( vault meta.ocfp.vault.config \"/cpi/pve:user\" ))",
+                          "line": 7
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "api_token",
+                          "head": "# api_token and username/password are mutually exclusive PVE auth modes.\n# Only the ACTIVE mode's key is sourced from vault, so the inactive key is\n# never referenced and `ocfp vault populate` need not write an empty\n# placeholder (an empty vault value cannot be entombed into CredHub).\n# api_token is the OCFP PVE default and is wired here. User/password auth\n# is opt-in via the `pve-userpass-auth` feature (ocfp/pve/auth-userpass.yml),\n# which sources password from vault and clears api_token instead.",
+                          "line": 15
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( vault meta.ocfp.vault.config \"/cpi/pve:api_token\" ))",
+                          "line": 15
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "node",
+                          "line": 16
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( vault meta.ocfp.vault.config \"/cpi/pve:node\" ))",
+                          "line": 16
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "vm_storage",
+                          "line": 17
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( vault meta.ocfp.vault.config \"/cpi/pve:vm_storage\" ))",
+                          "line": 17
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "disk_storage",
+                          "line": 18
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( vault meta.ocfp.vault.config \"/cpi/pve:disk_storage\" ))",
+                          "line": 18
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "stemcell_storage",
+                          "line": 19
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( vault meta.ocfp.vault.config \"/cpi/pve:stemcell_storage\" ))",
+                          "line": 19
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "iso_storage",
+                          "line": 20
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( vault meta.ocfp.vault.config \"/cpi/pve:iso_storage\" ))",
+                          "line": 20
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "network_bridge",
+                          "line": 21
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( vault meta.ocfp.vault.config \"/cpi/pve:network_bridge\" ))",
+                          "line": 21
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "port",
+                          "head": "# port, verify_ssl, vmid_range_start are intentionally NOT sourced from vault.\n# safe stores all leaf values as strings; the bosh-proxmox-cpi Go config\n# decoder requires native int/bool for these fields and rejects\n# string-encoded values. Use literal defaults here, which can still be\n# overridden via the bosh-configs path (cpi.pve_port etc.) when needed.",
+                          "line": 27
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!int",
+                          "value": "8006",
+                          "line": 27
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "verify_ssl",
+                          "line": 28
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!bool",
+                          "value": "false",
+                          "line": 28
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "vmid_range_start",
+                          "line": 29
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!int",
+                          "value": "200",
+                          "line": 29
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "cpi",
+                      "line": 31
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 33,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "host",
+                          "head": "# Director-side host: used by the director CPI job (reachable from the VM bridge).",
+                          "line": 33
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_host              || meta.ocfp.cpi_vault.host ))",
+                          "line": 33
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "host_operator",
+                          "head": "# Operator-side host: used by bosh create-env (reachable from operator Mac via Tailscale).\n# Falls back to director-side host when pve_host_operator is not set.",
+                          "line": 36
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_host_operator     || meta.ocfp.cpi.host ))",
+                          "line": 36
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "port",
+                          "line": 37
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_port              || meta.ocfp.cpi_vault.port              || 8006 ))",
+                          "line": 37
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "user",
+                          "line": 38
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_user              || meta.ocfp.cpi_vault.user ))",
+                          "line": 38
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "head": "# password and api_token are mutually exclusive per CPI spec. Only the\n# active mode is sourced from vault (see meta.ocfp.cpi_vault above); the\n# inactive one defaults to \"\" so the CPI's Go config decoder simply\n# ignores it. The pve-userpass-auth feature swaps which one is vaulted.",
+                          "line": 43
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_password          || \"\"          ))",
+                          "line": 43
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "api_token",
+                          "line": 44
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_api_token         || meta.ocfp.cpi_vault.api_token         || \"\" ))",
+                          "line": 44
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "node",
+                          "line": 45
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_node              || meta.ocfp.cpi_vault.node ))",
+                          "line": 45
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "vm_storage",
+                          "line": 46
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_vm_storage        || meta.ocfp.cpi_vault.vm_storage        || \"local-lvm\" ))",
+                          "line": 46
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "disk_storage",
+                          "line": 47
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_disk_storage      || meta.ocfp.cpi_vault.disk_storage      || \"local-lvm\" ))",
+                          "line": 47
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "stemcell_storage",
+                          "line": 48
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_stemcell_storage  || meta.ocfp.cpi_vault.stemcell_storage  || \"local\" ))",
+                          "line": 48
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "iso_storage",
+                          "line": 49
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_iso_storage       || meta.ocfp.cpi_vault.iso_storage       || \"local\" ))",
+                          "line": 49
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "network_bridge",
+                          "line": 50
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_network_bridge    || meta.ocfp.cpi_vault.network_bridge    || \"vmbr0\" ))",
+                          "line": 50
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "verify_ssl",
+                          "line": 51
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_verify_ssl        || meta.ocfp.cpi_vault.verify_ssl        || true ))",
+                          "line": 51
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "vmid_range_start",
+                          "line": 52
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_vmid_range_start  || meta.ocfp.cpi_vault.vmid_range_start  || 200 ))",
+                          "line": 52
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "parker_prefix",
+                          "head": "# Parker VMs are named \u003cparker_prefix\u003e-parker-\u003cvmid\u003e and the CPI pools\n# them in a resource pool called \u003cparker_prefix\u003e-parker. Naming the\n# prefix after the bloc keeps every director in one bloc sharing its own\n# parkers, and keeps two blocs on the same PVE cluster from adopting\n# each other's. `ocfp vault populate` does not write this key, so it is\n# not sourced from vault; the bloc name comes from params.ocfp_bloc,\n# which the env file already sets for the shared blobstore path. The\n# literal \"bosh\" is the CPI's own fallback, so a bloc that names neither\n# keeps the parker names it had before CPI 0.6.0.",
+                          "line": 62
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_parker_prefix     || params.ocfp_bloc                       || \"bosh\" ))",
+                          "line": 62
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "persistent_disk_size_in_mb",
+                          "line": 63
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.persistent_disk_size_in_mb || 131072 ))",
+                          "line_comment": "# 128GiB",
+                          "line": 63
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "vm_disk_format",
+                          "head": "# raw is the historical default (block-backed storages like zfspool/\n# lvmthin require it); file-based storages (nfs/dir/cifs) may opt into\n# qcow2 via bosh-configs.cpi.pve_vm_disk_format/pve_disk_format.",
+                          "line": 67
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_vm_disk_format    || \"raw\" ))",
+                          "line": 67
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "disk_format",
+                          "line": 68
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( grab bosh-configs.cpi.pve_disk_format       || \"raw\" ))",
+                          "line": 68
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "bosh",
+                      "line": 70
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 71,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "az",
+                          "line": 71
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "(( concat genesis.env \"-z1\" ))",
+                          "line": 71
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "params",
+              "line": 73
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 74,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_host",
+                  "line": 74
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.host ))",
+                  "line": 74
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_port",
+                  "line": 75
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.port ))",
+                  "line": 75
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_user",
+                  "line": 76
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.user ))",
+                  "line": 76
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_password",
+                  "line": 77
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.password ))",
+                  "line": 77
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_api_token",
+                  "line": 78
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.api_token ))",
+                  "line": 78
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_node",
+                  "line": 79
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.node ))",
+                  "line": 79
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_vm_storage",
+                  "line": 80
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.vm_storage ))",
+                  "line": 80
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_disk_storage",
+                  "line": 81
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.disk_storage ))",
+                  "line": 81
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_stemcell_storage",
+                  "line": 82
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.stemcell_storage ))",
+                  "line": 82
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_iso_storage",
+                  "line": 83
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.iso_storage ))",
+                  "line": 83
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_network_bridge",
+                  "line": 84
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.network_bridge ))",
+                  "line": 84
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_verify_ssl",
+                  "line": 85
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.verify_ssl ))",
+                  "line": 85
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_vmid_range_start",
+                  "line": 86
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.vmid_range_start ))",
+                  "line": 86
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_vm_disk_format",
+                  "line": 87
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.vm_disk_format ))",
+                  "line": 87
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_disk_format",
+                  "line": 88
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.disk_format ))",
+                  "line": 88
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_parker_prefix",
+                  "line": 89
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.parker_prefix ))",
+                  "line": 89
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "static_ip",
+                  "line": 91
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.bosh.ip ))",
+                  "line": 91
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "default_gateway",
+                  "line": 92
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.bosh.gateway ))",
+                  "line": 92
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "subnet_addr",
+                  "line": 93
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.bosh.cidr ))",
+                  "line": 93
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "bosh_network",
+                  "line": 95
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( concat genesis.env \".bosh.net-bosh\" ))",
+                  "line": 95
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "bosh_vm_type",
+                  "line": 96
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( concat genesis.env \".bosh.vm-bosh\" ))",
+                  "line": 96
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "bosh_disk_type",
+                  "line": 97
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( concat genesis.env \".bosh.disk-bosh\" ))",
+                  "line": 97
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "availability_zones",
+                  "line": 99
+                },
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "line": 100,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "(( grab meta.ocfp.bosh.az ))",
+                      "line": 100
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "bosh-variables",
+              "head": "# All bosh variables should come from params if they are to be overridden by users.",
+              "line": 103
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 104,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "az",
+                  "line": 104
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.availability_zones[0] || meta.ocfp.bosh.az || \"z1\" ))",
+                  "line": 104
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "internal_cidr",
+                  "line": 106
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.subnet_addr     || meta.ocfp.bosh.cidr ))",
+                  "line": 106
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "internal_ip",
+                  "line": 107
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.static_ip       || meta.ocfp.bosh.ip ))",
+                  "line": 107
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "internal_gw",
+                  "line": 108
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.default_gateway || meta.ocfp.bosh.gateway ))",
+                  "line": 108
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "internal_dns",
+                  "line": 109
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.dns             || meta.ocfp.bosh.dns ))",
+                  "line": 109
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "director_cpu",
+                  "head": "# create-env (mgmt-BOSH) sizing + stemcell + CPI release path.  The\n# pve-base.yml ops file references these as ((var)) placeholders; pve-proto.yml\n# would normally define them, but its bosh-variables block is overridden by\n# this file's broader pve_* block — so they must be re-declared here.",
+                  "line": 115
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.pve_director_cpu    || 2 ))",
+                  "line": 115
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "director_memory",
+                  "line": 116
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.pve_director_memory || 16384 ))",
+                  "line": 116
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "director_disk",
+                  "line": 117
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.pve_director_disk   || 32768 ))",
+                  "line": 117
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "stemcell_url",
+                  "line": 118
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.stemcell_url ))",
+                  "line": 118
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "stemcell_sha1",
+                  "line": 119
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.stemcell_sha1 ))",
+                  "line": 119
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_cpi_release_version",
+                  "head": "# CPI release: defaults to the published bosh-proxmox-cpi GitHub release.\n# Override all three params together to pin another release, or point\n# pve_cpi_release_url at a file:// URL for a locally built dev tarball.\n# overlay/cpis/pve.yml carries the same defaults for the non-ocfp path --\n# change both together.",
+                  "line": 125
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.pve_cpi_release_version || \"0.8.0\" ))",
+                  "line": 125
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_cpi_release_sha1",
+                  "line": 126
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.pve_cpi_release_sha1    || \"32af652fcb8db9cc9b2cbcaab5fd028e56b9e49a\" ))",
+                  "line": 126
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_cpi_release_url",
+                  "line": 127
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.pve_cpi_release_url     || \"https://github.com/fivetwenty-io/bosh-proxmox-cpi-release/releases/download/v0.8.0/bosh-proxmox-cpi-0.8.0.tgz\" ))",
+                  "line": 127
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_host",
+                  "head": "# Director-side host (VM bridge IP): flows into the director CPI job via pve-base.yml.",
+                  "line": 130
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.host ))",
+                  "line": 130
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_host_operator",
+                  "head": "# Operator-side host (Tailscale FQDN): flows into cloud_provider in pve-base.yml for create-env.",
+                  "line": 132
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.host_operator ))",
+                  "line": 132
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_port",
+                  "line": 133
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.port ))",
+                  "line": 133
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_user",
+                  "line": 134
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.user ))",
+                  "line": 134
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_password",
+                  "line": 135
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.password ))",
+                  "line": 135
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_api_token",
+                  "line": 136
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.api_token ))",
+                  "line": 136
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_node",
+                  "line": 137
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.node ))",
+                  "line": 137
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_vm_storage",
+                  "line": 138
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.vm_storage ))",
+                  "line": 138
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_disk_storage",
+                  "line": 139
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.disk_storage ))",
+                  "line": 139
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_stemcell_storage",
+                  "line": 140
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.stemcell_storage ))",
+                  "line": 140
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_iso_storage",
+                  "line": 141
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.iso_storage ))",
+                  "line": 141
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_network_bridge",
+                  "line": 142
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.network_bridge ))",
+                  "line": 142
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_verify_ssl",
+                  "line": 143
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.verify_ssl ))",
+                  "line": 143
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_vmid_range_start",
+                  "line": 144
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.vmid_range_start ))",
+                  "line": 144
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_vm_disk_format",
+                  "line": 145
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.vm_disk_format ))",
+                  "line": 145
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_disk_format",
+                  "line": 146
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.disk_format ))",
+                  "line": 146
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve_parker_prefix",
+                  "line": 147
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab meta.ocfp.cpi.parker_prefix ))",
+                  "line": 147
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

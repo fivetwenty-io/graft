@@ -1,0 +1,101 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "jobs",
+              "line": 1
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 2,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 2
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "a",
+                      "line": 2
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "plan",
+                      "line": 3
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 3
+                    }
+                  ]
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "anchor": "b",
+                  "line": 6,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "head": "# head of the first key, past the anchor",
+                      "line": 7
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "b",
+                      "line": 7
+                    }
+                  ]
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 9,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "head": "# head of name",
+                      "line": 9
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "c",
+                      "line": 9
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

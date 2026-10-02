@@ -1,0 +1,144 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "base",
+              "line": 1
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "anchor": "base",
+              "line": 1,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "k",
+                  "line": 1
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "v",
+                  "line": 1
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "again",
+              "line": 2
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "anchor": "base",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "k",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "w",
+                  "line": 2
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "use",
+              "line": 3
+            },
+            {
+              "kind": "alias",
+              "value": "base",
+              "alias": "base",
+              "line": 3
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "list",
+              "line": 4
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 5,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "x",
+                  "anchor": "item",
+                  "line": 5
+                },
+                {
+                  "kind": "alias",
+                  "value": "item",
+                  "alias": "item",
+                  "line": 6
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "m",
+              "line": 7
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 8,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!merge",
+                  "value": "\u003c\u003c",
+                  "line": 8
+                },
+                {
+                  "kind": "alias",
+                  "value": "base",
+                  "alias": "base",
+                  "line": 8
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "z",
+                  "line": 9
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 9
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

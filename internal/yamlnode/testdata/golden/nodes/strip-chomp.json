@@ -1,0 +1,53 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "REPLACE-ME ",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "folded ",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "c",
+              "line": 7
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "at eof ",
+              "line": 7
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

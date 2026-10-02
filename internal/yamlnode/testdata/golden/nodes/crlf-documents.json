@@ -1,0 +1,71 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "foot": "# head of b",
+      "line": 2,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 3,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "head": "# before the marker\n",
+              "foot": "# foot of a",
+              "line": 3
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line_comment": "# line of a",
+              "line": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "document",
+      "line": 6,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 8,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "text\n",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "c",
+              "head": "# head of c\n",
+              "line": 12
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "2",
+              "line": 12
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

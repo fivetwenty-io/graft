@@ -1,0 +1,240 @@
+# Alerting Addon
+# Configures Elasticsearch alerting and monitoring rules
+
+instance_groups:
+- name: maintenance
+  jobs:
+  - name: elasticsearch_config
+    properties:
+      elasticsearch_config:
+        watches:
+        # Cluster health monitoring
+        - name: cluster_health_red
+          trigger:
+            schedule:
+              interval: "30s"
+          input:
+            http:
+              request:
+                scheme: https
+                host: (( grab instance_groups.elasticsearch-master.networks[0].static_ips[0] ))
+                port: 9200
+                path: "/_cluster/health"
+                auth:
+                  basic:
+                    username: elastic
+                    password: (( vault meta.vault "/elasticsearch:admin_password" ))
+          condition:
+            compare:
+              "ctx.payload.status":
+                eq: "red"
+          actions:
+            email_admin:
+              email:
+                to: (( grab params.alert_email || "admin@example.com" ))
+                subject: "Elasticsearch Cluster Health RED"
+                body: "Elasticsearch cluster health is RED. Immediate attention required."
+                
+        # Disk space monitoring
+        - name: disk_space_warning
+          trigger:
+            schedule:
+              interval: "5m"
+          input:
+            http:
+              request:
+                scheme: https
+                host: (( grab instance_groups.elasticsearch-master.networks[0].static_ips[0] ))
+                port: 9200
+                path: "/_nodes/stats/fs"
+                auth:
+                  basic:
+                    username: elastic
+                    password: (( vault meta.vault "/elasticsearch:admin_password" ))
+          condition:
+            script:
+              source: |
+                for (node in ctx.payload.nodes.values()) {
+                  for (fs in node.fs.data) {
+                    double available = fs.available_in_bytes;
+                    double total = fs.total_in_bytes;
+                    double used_percentage = ((total - available) / total) * 100;
+                    if (used_percentage > 85) {
+                      return true;
+                    }
+                  }
+                }
+                return false;
+          actions:
+            email_admin:
+              email:
+                to: (( grab params.alert_email || "admin@example.com" ))
+                subject: "Elasticsearch Disk Space Warning"
+                body: "One or more Elasticsearch nodes have low disk space (>85% used)."
+                
+        # Memory usage monitoring
+        - name: memory_usage_warning
+          trigger:
+            schedule:
+              interval: "2m"
+          input:
+            http:
+              request:
+                scheme: https
+                host: (( grab instance_groups.elasticsearch-master.networks[0].static_ips[0] ))
+                port: 9200
+                path: "/_nodes/stats/jvm"
+                auth:
+                  basic:
+                    username: elastic
+                    password: (( vault meta.vault "/elasticsearch:admin_password" ))
+          condition:
+            script:
+              source: |
+                for (node in ctx.payload.nodes.values()) {
+                  double heap_used = node.jvm.mem.heap_used_percent;
+                  if (heap_used > 90) {
+                    return true;
+                  }
+                }
+                return false;
+          actions:
+            email_admin:
+              email:
+                to: (( grab params.alert_email || "admin@example.com" ))
+                subject: "Elasticsearch Memory Usage Warning"
+                body: "One or more Elasticsearch nodes have high memory usage (>90% heap used)."
+                
+        # Index creation rate monitoring
+        - name: index_creation_rate
+          trigger:
+            schedule:
+              interval: "1h"
+          input:
+            http:
+              request:
+                scheme: https
+                host: (( grab instance_groups.elasticsearch-master.networks[0].static_ips[0] ))
+                port: 9200
+                path: "/_cat/indices?format=json&h=index,creation.date.string"
+                auth:
+                  basic:
+                    username: elastic
+                    password: (( vault meta.vault "/elasticsearch:admin_password" ))
+          condition:
+            script:
+              source: |
+                int recent_indices = 0;
+                long one_hour_ago = ctx.execution_time.millis - 3600000;
+                for (index in ctx.payload) {
+                  if (index.index.startsWith("logs-")) {
+                    try {
+                      long creation_time = Long.parseLong(index['creation.date.string']);
+                      if (creation_time > one_hour_ago) {
+                        recent_indices++;
+                      }
+                    } catch (Exception e) {
+                      // Skip if timestamp parsing fails
+                    }
+                  }
+                }
+                return recent_indices > 10; // Alert if more than 10 indices created in last hour
+          actions:
+            email_admin:
+              email:
+                to: (( grab params.alert_email || "admin@example.com" ))
+                subject: "High Index Creation Rate"
+                body: "More than 10 indices created in the last hour. Check for index explosion."
+                
+        # Failed ingestion monitoring  
+        - name: logstash_failures
+          trigger:
+            schedule:
+              interval: "5m"
+          input:
+            search:
+              request:
+                search_type: query_then_fetch
+                indices: [".logstash-*"]
+                rest_total_hits_as_int: true
+                body:
+                  size: 0
+                  query:
+                    bool:
+                      must:
+                      - range:
+                          "@timestamp":
+                            gte: "now-5m"
+                      - match:
+                          tags: "_grokparsefailure"
+          condition:
+            compare:
+              "ctx.payload.hits.total":
+                gt: (( grab params.parse_failure_threshold || 100 ))
+          actions:
+            email_admin:
+              email:
+                to: (( grab params.alert_email || "admin@example.com" ))
+                subject: "High Logstash Parse Failure Rate"
+                body: "High number of Logstash parse failures detected in the last 5 minutes."
+
+# Configure alerting infrastructure
+instance_groups:
+- name: elasticsearch-master
+  jobs:
+  - name: elasticsearch
+    properties:
+      elasticsearch:
+        config_options:
+          # Enable alerting features
+          xpack.watcher.enabled: true
+          xpack.notification.email.default_account: (( grab params.smtp_account || "default" ))
+          
+        # SMTP configuration for email alerts
+        notification:
+          email:
+            default_account: 
+              smtp:
+                host: (( grab params.smtp_host || "localhost" ))
+                port: (( grab params.smtp_port || 587 ))
+                starttls.enable: (( grab params.smtp_starttls || true ))
+                auth: (( grab params.smtp_auth || true ))
+                user: (( grab params.smtp_username || "alerts@example.com" ))
+                password: (( vault meta.vault "/smtp:password" ))
+
+# Add alertmanager integration for Prometheus-style alerts
+instance_groups:
+- name: maintenance
+  jobs:
+  - name: alertmanager_config
+    release: logsearch
+    properties:
+      alertmanager:
+        webhook_url: (( grab params.alertmanager_webhook || "" ))
+        rules:
+        - alert: ElasticsearchClusterRed
+          expr: 'elasticsearch_cluster_health_status{color="red"} == 1'
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Elasticsearch cluster status is red"
+            description: "Elasticsearch cluster health is red for more than 0 minutes"
+            
+        - alert: ElasticsearchHighMemoryUsage
+          expr: 'elasticsearch_jvm_memory_used_percent > 90'
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Elasticsearch node memory usage is high"
+            description: "Elasticsearch node memory usage is above 90% for more than 2 minutes"
+            
+        - alert: ElasticsearchDiskSpaceLow
+          expr: 'elasticsearch_filesystem_data_available_bytes / elasticsearch_filesystem_data_size_bytes < 0.15'
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Elasticsearch node disk space is low"
+            description: "Elasticsearch node has less than 15% disk space available"

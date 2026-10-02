@@ -1,0 +1,14 @@
+m:
+  - a: 1
+  - b: 2
+  # foot at the dash column
+n:
+  - name: x
+    val: 1
+
+  # head of the second item's mapping
+  - name: y
+l:
+- a: 1
+- b: 2
+# foot after a list of mappings

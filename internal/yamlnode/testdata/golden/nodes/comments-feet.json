@@ -1,0 +1,147 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "network",
+              "foot": "# a second block, which lands on network\n",
+              "line": 1
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "ip",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "10.0.1.10",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "octets",
+                  "foot": "# Expected: [\"10\", \"0\", \"1\", \"10\"]",
+                  "line": 3
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( split \".\" network.ip ))",
+                  "line": 3
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "complex",
+              "line": 8
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 9,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "steps",
+                  "line": 9
+                },
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "line": 10,
+                  "content": [
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 10,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "name",
+                          "line": 10
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "init",
+                          "line": 10
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "with",
+                          "line": 11
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 12,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "languages",
+                              "foot": "# foot of languages",
+                              "line": 12
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "go",
+                              "line": 12
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 17,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "name",
+                          "foot": "# handed to the next item's first key\n",
+                          "line": 17
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "analyze",
+                          "line": 17
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

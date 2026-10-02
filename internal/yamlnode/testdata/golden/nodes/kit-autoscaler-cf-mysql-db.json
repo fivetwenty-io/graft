@@ -1,0 +1,1609 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 2,
+      "content": [
+        {
+          "kind": "sequence",
+          "tag": "!!seq",
+          "line": 2,
+          "content": [
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "remove",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 3
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=postgres_autoscaler",
+                  "line": 3
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 5,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 5
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 5
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 6
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/addons/name=bosh-dns-aliases/jobs/name=bosh-dns-aliases/properties/aliases/-",
+                  "line": 6
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 7
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 8,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "domain",
+                      "line": 8
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "sql-db.service.cf.internal",
+                      "line": 8
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "targets",
+                      "line": 9
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 10,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 10,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "deployment",
+                              "line": 10
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "cf",
+                              "line": 10
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "domain",
+                              "line": 11
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bosh",
+                              "line": 11
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "instance_group",
+                              "line": 12
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "database",
+                              "line": 12
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "network",
+                              "line": 13
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "default",
+                              "line": 13
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "query",
+                              "line": 14
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "*",
+                              "line": 14
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# asactors/scalingengine",
+              "line": 17,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 17
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 17
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 18
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=scalingengine/properties/autoscaler/scalingengine_db",
+                  "line": 18
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 19
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "anchor": "external_database",
+                  "line": 19,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "sslmode",
+                      "line": 20
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "false",
+                      "anchor": "sslmode",
+                      "line": 20
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "tls",
+                      "line": 21
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "anchor": "database_tls",
+                      "line": 21,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ca",
+                          "line": 22
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "((mysql_server_certificate.ca))",
+                          "line": 22
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "databases",
+                      "line": 23
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 24,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 24,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 24
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "autoscaler",
+                              "line": 24
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "tag",
+                              "line": 25
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "default",
+                              "line": 25
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "address",
+                      "line": 26
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "sql-db.service.cf.internal",
+                      "line": 26
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "db_scheme",
+                      "line": 27
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "mysql",
+                      "line": 27
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "port",
+                      "line": 28
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "3306",
+                      "line": 28
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "roles",
+                      "line": 29
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 30,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 30,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 30
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "autoscaler",
+                              "line": 30
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 31
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "((autoscaler_database_password))",
+                              "line": 31
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "tag",
+                              "line": 32
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "default",
+                              "line": 32
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 34,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 34
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 34
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 35
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=scalingengine/properties/autoscaler/scalingengine_db_connection_config",
+                  "line": 35
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 36
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "anchor": "databaseConnectionConfig",
+                  "line": 36,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "max_open_connections",
+                      "line": 37
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "100",
+                      "line": 37
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "max_idle_connections",
+                      "line": 38
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "10",
+                      "line": 38
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "connection_max_lifetime",
+                      "line": 39
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "60s",
+                      "line": 39
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 41,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 41
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 41
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 42
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=scalingengine/properties/autoscaler/scheduler_db",
+                  "line": 42
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 43
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 43
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 44,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 44
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 44
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 45
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=scalingengine/properties/autoscaler/scheduler_db_connection_config",
+                  "line": 45
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 46
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 46
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 48,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 48
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 48
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 49
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=scalingengine/properties/autoscaler/policy_db",
+                  "line": 49
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 50
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 50
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 51,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 51
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 51
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 52
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=scalingengine/properties/autoscaler/policy_db_connection_config",
+                  "line": 52
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 53
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 53
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# asactors/scheduler",
+              "line": 56,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 56
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 56
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 57
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=scheduler/properties/autoscaler/policy_db",
+                  "line": 57
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 58
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 58
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 60,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 60
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 60
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 61
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=scheduler/properties/autoscaler/scheduler_db",
+                  "line": 61
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 62
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 62
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "#asactors/operator",
+              "line": 65,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 65
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 65
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 66
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=operator/properties/autoscaler/policy_db",
+                  "line": 66
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 67
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 67
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 68,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 68
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 68
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 69
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=operator/properties/autoscaler/policy_db_connection_config",
+                  "line": 69
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 70
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 70
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 72,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 72
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 72
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 73
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=operator/properties/autoscaler/appmetrics_db",
+                  "line": 73
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 74
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 74
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 75,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 75
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 75
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 76
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=operator/properties/autoscaler/appmetrics_db_connection_config",
+                  "line": 76
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 77
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 77
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 79,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 79
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 79
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 80
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=operator/properties/autoscaler/scalingengine_db",
+                  "line": 80
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 81
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 81
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 82,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 82
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 82
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 83
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=operator/properties/autoscaler/scalingengine_db_connection_config",
+                  "line": 83
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 84
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 84
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 86,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 86
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 86
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 87
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=operator/properties/autoscaler/lock_db",
+                  "line": 87
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 88
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 88
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 89,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 89
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 89
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 90
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asactors/jobs/name=operator/properties/autoscaler/lock_db_connection_config",
+                  "line": 90
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 91
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 91
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# asmetrics/eventgenerator",
+              "line": 94,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 94
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 94
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 95
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asmetrics/jobs/name=eventgenerator/properties/autoscaler/appmetrics_db",
+                  "line": 95
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 96
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 96
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 97,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 97
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 97
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 98
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asmetrics/jobs/name=eventgenerator/properties/autoscaler/appmetrics_db_connection_config",
+                  "line": 98
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 99
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 99
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 101,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 101
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 101
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 102
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asmetrics/jobs/name=eventgenerator/properties/autoscaler/policy_db",
+                  "line": 102
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 103
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 103
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 104,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 104
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 104
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 105
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asmetrics/jobs/name=eventgenerator/properties/autoscaler/policy_db_connection_config",
+                  "line": 105
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 106
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 106
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# asapi/golangapiserver",
+              "line": 109,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 109
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 109
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 110
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asapi/jobs/name=golangapiserver/properties/autoscaler/policy_db",
+                  "line": 110
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 111
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 111
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 112,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 112
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 112
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 113
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asapi/jobs/name=golangapiserver/properties/autoscaler/policy_db_connection_config",
+                  "line": 113
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 114
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 114
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 115,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 115
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 115
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 116
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asapi/jobs/name=golangapiserver/properties/autoscaler/binding_db",
+                  "line": 116
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 117
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 117
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 118,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 118
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 118
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 119
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asapi/jobs/name=golangapiserver/properties/autoscaler/binding_db_connection_config",
+                  "line": 119
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 120
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 120
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# asapi/metricsforwarder",
+              "line": 122,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 122
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 122
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 123
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asapi/jobs/name=metricsforwarder/properties/autoscaler/policy_db",
+                  "line": 123
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 124
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 124
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 125,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 125
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 125
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 126
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asapi/jobs/name=metricsforwarder/properties/autoscaler/policy_db_connection_config",
+                  "line": 126
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 127
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 127
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 128,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 128
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 128
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 129
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asapi/jobs/name=metricsforwarder/properties/autoscaler/binding_db",
+                  "line": 129
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 130
+                },
+                {
+                  "kind": "alias",
+                  "value": "external_database",
+                  "alias": "external_database",
+                  "line": 130
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 131,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 131
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 131
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 132
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=asapi/jobs/name=metricsforwarder/properties/autoscaler/binding_db_connection_config",
+                  "line": 132
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 133
+                },
+                {
+                  "kind": "alias",
+                  "value": "databaseConnectionConfig",
+                  "alias": "databaseConnectionConfig",
+                  "line": 133
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "c",
+              "line": 1
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "one",
+                  "line_comment": "# line one",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "two",
+                  "head": "# head of two",
+                  "line": 4
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "three",
+                  "head": "# head of three",
+                  "line": 6
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

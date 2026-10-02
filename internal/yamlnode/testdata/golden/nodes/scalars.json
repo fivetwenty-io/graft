@@ -1,0 +1,256 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "plain",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "hello",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "int",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "0x10",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "float",
+              "line": 3
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!float",
+              "value": "1e3",
+              "line": 3
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "bool",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!bool",
+              "value": "true",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "yes11",
+              "line": 5
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "yes",
+              "line": 5
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "null1",
+              "line": 6
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!null",
+              "value": "~",
+              "line": 6
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "null2",
+              "line": 7
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!null",
+              "line": 7
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "quoted",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "1",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "dq",
+              "line": 9
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a\tb",
+              "line": 9
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "lit",
+              "line": 10
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "line one\nline two\n",
+              "line": 10
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "lit_keep",
+              "line": 13
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "kept\n\n",
+              "line": 13
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "lit_strip",
+              "line": 16
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "stripped",
+              "line": 16
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "fold",
+              "line": 18
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "folded text\n",
+              "line": 18
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "fold_more",
+              "line": 21
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a\n\n  more indented\nb\n",
+              "line": 21
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "indent_ind",
+              "line": 26
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "  two extra\n",
+              "line": 26
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "multi_plain",
+              "line": 28
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "one two",
+              "line": 28
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "multi_q",
+              "line": 30
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "one two",
+              "line": 30
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "escapes",
+              "line": 32
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "Aé😀 \u2028\u2029",
+              "line": 32
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "date",
+              "line": 33
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!timestamp",
+              "value": "2001-12-14",
+              "line": 33
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "ts",
+              "line": 34
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!timestamp",
+              "value": "2001-12-14t21:59:43.10-05:00",
+              "line": 34
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

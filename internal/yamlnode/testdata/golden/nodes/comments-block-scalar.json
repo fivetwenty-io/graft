@@ -1,0 +1,107 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 2,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 2,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "x",
+              "head": "# A certificate followed by a commented property, the shape BOSH manifests use.",
+              "line": 2
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 3,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "cert",
+                  "line": 3
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "-----BEGIN CERTIFICATE-----\nAAA\n-----END CERTIFICATE-----\n",
+                  "line": 3
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "key",
+                  "head": "# the key",
+                  "line": 9
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "k",
+                  "line": 9
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "folded",
+                  "line": 10
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "one two\n",
+                  "line": 10
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "next",
+                  "head": "# after the folded scalar",
+                  "line": 15
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "n",
+                  "line": 15
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "header",
+                  "foot": "# foot of header",
+                  "line": 16
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "body\n",
+                  "line_comment": "# on the header line",
+                  "line": 16
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "last",
+              "line": 19
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 19
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

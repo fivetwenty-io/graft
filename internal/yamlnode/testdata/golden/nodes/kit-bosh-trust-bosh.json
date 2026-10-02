@@ -1,0 +1,82 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 2,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "meta",
+              "head": "# Trust BOSH CA (\"trust me\" 🤪)",
+              "line": 2
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 3,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "ocfp",
+                  "line": 3
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 4,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "certs",
+                      "line": 4
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 5,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "trusted",
+                          "line": 5
+                        },
+                        {
+                          "kind": "sequence",
+                          "tag": "!!seq",
+                          "line": 6,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( append ))",
+                              "line": 6
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( vault genesis.secrets_base \"ssl/ca:certificate\" ))",
+                              "line": 7
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

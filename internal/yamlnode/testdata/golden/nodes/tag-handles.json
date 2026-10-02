@@ -1,0 +1,29 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 3,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "x",
+              "line": 3
+            },
+            {
+              "kind": "scalar",
+              "tag": "tag:example.com,2000:foo",
+              "value": "bar",
+              "line": 3
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

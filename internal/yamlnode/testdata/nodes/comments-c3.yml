@@ -1,0 +1,23 @@
+a:
+  x: 1
+# dedent then blank
+
+b:
+  y:
+    z: 1
+  # dedent one level, then blank
+
+  w: 2
+c:
+  - one
+  # foot of one?
+
+  - two
+  # after two, blank, dedent next
+
+d: 5
+e:
+  - k: 1
+    # after k in seq map
+  - k: 2
+f: end

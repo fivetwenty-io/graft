@@ -1,0 +1,380 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "nil_elements": true,
+      "dot": "",
+      "gopatch": "/",
+      "root": "document #1",
+      "document_idx": 0,
+      "details": [
+        {
+          "kind": "+",
+          "to": {
+            "kind": "mapping",
+            "tag": "!!map",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "_u",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "1k",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 2
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "10k",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "B",
+                "line": 4
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 4
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "b",
+                "line": 11
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 11
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "x-1",
+                "line": 19
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 19
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "x-2",
+                "line": 20
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 20
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "x-10",
+                "line": 21
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 21
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "dot": "a9b",
+      "gopatch": "/a9b",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "a9b"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "1",
+            "line": 1
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "2",
+            "line": 5
+          }
+        }
+      ]
+    },
+    {
+      "dot": "a10b",
+      "gopatch": "/a10b",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "a10b"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "1",
+            "line": 2
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "2",
+            "line": 6
+          }
+        }
+      ]
+    },
+    {
+      "dot": "alpha",
+      "gopatch": "/alpha",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "alpha"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "2",
+            "line": 3
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "3",
+            "line": 7
+          }
+        }
+      ]
+    },
+    {
+      "dot": "big",
+      "gopatch": "/big",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "big"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!float",
+            "value": "1e+08",
+            "line": 7
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!float",
+            "value": "1.00000001e+08",
+            "line": 12
+          }
+        }
+      ]
+    },
+    {
+      "dot": "e",
+      "gopatch": "/e",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "e"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!float",
+            "value": "1e+21",
+            "line": 8
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!float",
+            "value": "2e+21",
+            "line": 13
+          }
+        }
+      ]
+    },
+    {
+      "dot": "f",
+      "gopatch": "/f",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "f"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!float",
+            "value": "1.5",
+            "line": 9
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!float",
+            "value": "2.5",
+            "line": 14
+          }
+        }
+      ]
+    },
+    {
+      "dot": "n10",
+      "gopatch": "/n10",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "n10"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "10",
+            "line": 11
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "11",
+            "line": 16
+          }
+        }
+      ]
+    },
+    {
+      "dot": "s",
+      "gopatch": "/s",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "s"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "123",
+            "line": 13
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "124",
+            "line": 18
+          }
+        }
+      ]
+    },
+    {
+      "dot": "zeta",
+      "gopatch": "/zeta",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "zeta"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "1",
+            "line": 14
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "2",
+            "line": 22
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,187 @@
+{
+  "from_documents": 1,
+  "from_names": [
+    "v1/X/foo/foo"
+  ],
+  "to_names": [
+    "v1/X/bar/bar"
+  ],
+  "diffs": [
+    {
+      "nil_elements": true,
+      "dot": "",
+      "gopatch": "/",
+      "root": "v1/X/foo/foo",
+      "document_idx": 0,
+      "details": [
+        {
+          "kind": "-",
+          "from": {
+            "kind": "document",
+            "content": [
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 1,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "apiVersion",
+                    "line": 1
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "v1",
+                    "line": 1
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "kind",
+                    "line": 2
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "X",
+                    "line": 2
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "metadata",
+                    "line": 3
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "foo",
+                    "line": 3
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "v",
+                    "line": 4
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "1",
+                    "line": 4
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "nil_elements": true,
+      "dot": "",
+      "gopatch": "/",
+      "root": "v1/X/bar/bar",
+      "document_idx": 0,
+      "details": [
+        {
+          "kind": "+",
+          "to": {
+            "kind": "document",
+            "content": [
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 1,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "apiVersion",
+                    "line": 1
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "v1",
+                    "line": 1
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "kind",
+                    "line": 2
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "X",
+                    "line": 2
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "metadata",
+                    "line": 3
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "bar",
+                    "line": 3
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "v",
+                    "line": 4
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "2",
+                    "line": 4
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "nil_path": true,
+      "dot": "",
+      "gopatch": "",
+      "root": "",
+      "document_idx": 0,
+      "details": [
+        {
+          "kind": "⇆",
+          "from": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "v1/X/foo/foo"
+              }
+            ]
+          },
+          "to": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "v1/X/bar/bar"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,733 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "nil_elements": true,
+      "dot": "",
+      "gopatch": "/",
+      "root": "document #1",
+      "document_idx": 0,
+      "details": [
+        {
+          "kind": "-",
+          "from": {
+            "kind": "mapping",
+            "tag": "!!map",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "removed_block",
+                "line": 24
+              },
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 26,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "inner",
+                    "head": "# comment on key",
+                    "line": 26
+                  },
+                  {
+                    "kind": "mapping",
+                    "tag": "!!map",
+                    "anchor": "anc",
+                    "line": 26,
+                    "content": [
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "deep",
+                        "line": 27
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "value",
+                        "line_comment": "# line comment",
+                        "line": 27
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "other",
+                        "line": 28
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!null",
+                        "value": "~",
+                        "line": 28
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "alias_ref",
+                    "line": 29
+                  },
+                  {
+                    "kind": "alias",
+                    "value": "anc",
+                    "alias": "anc",
+                    "line": 29
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "empty",
+                    "line": 30
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "line": 30
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "dash",
+                    "line": 31
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "-x",
+                    "line": 31
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "num_like",
+                    "line": 32
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "1.2.3",
+                    "line": 32
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "special",
+                    "line": 33
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "a:b",
+                    "line": 33
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "t",
+                    "line": 34
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "true",
+                    "line": 34
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "emptymap",
+                    "line": 35
+                  },
+                  {
+                    "kind": "mapping",
+                    "tag": "!!map",
+                    "line": 35
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "emptylist",
+                    "line": 36
+                  },
+                  {
+                    "kind": "sequence",
+                    "tag": "!!seq",
+                    "line": 36
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "seq_of_maps",
+                    "line": 37
+                  },
+                  {
+                    "kind": "sequence",
+                    "tag": "!!seq",
+                    "line": 38,
+                    "content": [
+                      {
+                        "kind": "mapping",
+                        "tag": "!!map",
+                        "line": 38,
+                        "content": [
+                          {
+                            "kind": "scalar",
+                            "tag": "!!str",
+                            "value": "name",
+                            "line": 38
+                          },
+                          {
+                            "kind": "scalar",
+                            "tag": "!!str",
+                            "value": "s1",
+                            "line": 38
+                          },
+                          {
+                            "kind": "scalar",
+                            "tag": "!!str",
+                            "value": "v",
+                            "line": 39
+                          },
+                          {
+                            "kind": "scalar",
+                            "tag": "!!int",
+                            "value": "1",
+                            "line": 39
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "mapping",
+                        "tag": "!!map",
+                        "line": 40,
+                        "content": [
+                          {
+                            "kind": "scalar",
+                            "tag": "!!str",
+                            "value": "id",
+                            "line": 40
+                          },
+                          {
+                            "kind": "scalar",
+                            "tag": "!!int",
+                            "value": "2",
+                            "line": 40
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "kind": "+",
+          "to": {
+            "kind": "mapping",
+            "tag": "!!map",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "added_block",
+                "line": 25
+              },
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 27,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "z_last",
+                    "head": "# comment on added key",
+                    "line": 27
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "1",
+                    "line": 27
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "name",
+                    "line": 28
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "first",
+                    "line": 28
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "nested",
+                    "line": 29
+                  },
+                  {
+                    "kind": "mapping",
+                    "tag": "!!map",
+                    "line": 30,
+                    "content": [
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "deeper",
+                        "line": 30
+                      },
+                      {
+                        "kind": "mapping",
+                        "tag": "!!map",
+                        "line": 31,
+                        "content": [
+                          {
+                            "kind": "scalar",
+                            "tag": "!!str",
+                            "value": "deepest",
+                            "line": 31
+                          },
+                          {
+                            "kind": "scalar",
+                            "tag": "!!int",
+                            "value": "1",
+                            "line": 31
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "b",
+                    "line": 32
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "multi\nline\n",
+                    "line": 32
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "anchored",
+                    "line": 35
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!int",
+                    "value": "5",
+                    "anchor": "x",
+                    "line": 35
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "ref",
+                    "line": 36
+                  },
+                  {
+                    "kind": "alias",
+                    "value": "x",
+                    "alias": "x",
+                    "line": 36
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "dot": "port",
+      "gopatch": "/port",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "port"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "8080",
+            "line": 3
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "8080",
+            "line": 3
+          }
+        }
+      ]
+    },
+    {
+      "dot": "flag",
+      "gopatch": "/flag",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "flag"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!bool",
+            "value": "true",
+            "line": 5
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!bool",
+            "value": "false",
+            "line": 5
+          }
+        }
+      ]
+    },
+    {
+      "dot": "text",
+      "gopatch": "/text",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "text"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "hello world",
+            "line": 6
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "hello there world, this is quite a different sentence",
+            "line": 6
+          }
+        }
+      ]
+    },
+    {
+      "dot": "quoted",
+      "gopatch": "/quoted",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "quoted"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "8080",
+            "line": 8
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "8081",
+            "line": 8
+          }
+        }
+      ]
+    },
+    {
+      "dot": "multi",
+      "gopatch": "/multi",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "multi"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "line one\nline two\nline three\n",
+            "line": 9
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "line one\nline 2\nline three\nline four\n",
+            "line": 9
+          }
+        }
+      ]
+    },
+    {
+      "dot": "ws",
+      "gopatch": "/ws",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "ws"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "a b",
+            "line": 13
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "a b ",
+            "line": 14
+          }
+        }
+      ]
+    },
+    {
+      "dot": "list",
+      "gopatch": "/list",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "list"
+        }
+      ],
+      "details": [
+        {
+          "kind": "⇆",
+          "from": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "alpha",
+                "line": 15
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "beta",
+                "line": 16
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "gamma",
+                "line": 17
+              }
+            ]
+          },
+          "to": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "gamma",
+                "line": 16
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "alpha",
+                "line": 17
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "beta",
+                "line": 18
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "dot": "jobs",
+      "gopatch": "/jobs",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "jobs"
+        }
+      ],
+      "details": [
+        {
+          "kind": "⇆",
+          "from": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "web"
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "worker"
+              }
+            ]
+          },
+          "to": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "worker"
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "web"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "dot": "jobs.web.instances",
+      "gopatch": "/jobs/name=web/instances",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "jobs"
+        },
+        {
+          "idx": -1,
+          "key": "name",
+          "name": "web"
+        },
+        {
+          "idx": -1,
+          "name": "instances"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "1",
+            "line": 20
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "3",
+            "line": 23
+          }
+        }
+      ]
+    },
+    {
+      "dot": "jobs.web.props",
+      "gopatch": "/jobs/name=web/props",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "jobs"
+        },
+        {
+          "idx": -1,
+          "key": "name",
+          "name": "web"
+        },
+        {
+          "idx": -1,
+          "name": "props"
+        }
+      ],
+      "details": [
+        {
+          "kind": "+",
+          "to": {
+            "kind": "mapping",
+            "tag": "!!map",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "b",
+                "line": 24
+              },
+              {
+                "kind": "sequence",
+                "tag": "!!seq",
+                "line": 24,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "x",
+                    "line": 24
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "y",
+                    "line": 24
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

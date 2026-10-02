@@ -1,0 +1,17 @@
+network:
+  ip: 10.0.1.10
+  octets: (( split "." network.ip ))
+  # Expected: ["10", "0", "1", "10"]
+
+  # a second block, which lands on network
+
+complex:
+  steps:
+    - name: init
+      with:
+        languages: go
+        # foot of languages
+
+        # handed to the next item's first key
+
+    - name: analyze

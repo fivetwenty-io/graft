@@ -73,6 +73,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 .PHONY: deps deps-update deps-tidy check-prereq ci install-tools
 .PHONY: hooks hooks-install hooks-uninstall hooks-check pre-commit pre-push
 .PHONY: validate-imports validate-imports-example
+.PHONY: oracle-vectors
 
 ##@ General
 
@@ -463,3 +464,11 @@ hooks-check: ## Check current git hooks configuration
 	else \
 		printf "No .githooks directory found\n"; \
 	fi
+
+##@ Diff Parity Oracle
+
+ORACLE_DIR := tests/diff-parity/oracle
+
+oracle-vectors: ## Regenerate the yaml.v3, dyff, and bunt vectors graft's unit tests read
+	@printf "$(GREEN)Regenerating oracle vectors...$(RESET)\n"
+	@cd $(ORACLE_DIR) && go run ./cmd/vectors -root ../../..

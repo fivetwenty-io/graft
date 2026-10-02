@@ -1,0 +1,15 @@
+g: [
+  'a', # line of a
+  'b', # line of b
+]
+h: {
+  a: 1, # line of h.a
+  b: 2 # line of h.b
+}
+i: [
+  # head of x
+  x,
+  y
+  # foot of y
+]
+j: [a, b] # on the sequence

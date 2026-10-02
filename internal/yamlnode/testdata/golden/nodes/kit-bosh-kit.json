@@ -1,0 +1,4192 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 2,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "name",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "bosh",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "authors",
+              "line": 3
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 4,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "James Hunt \u003cjhunt@starkandwayne.com\u003e",
+                  "line": 4
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "Troy Liebel \u003ctliebel@starkandwayne.com\u003e",
+                  "line": 5
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "Dennis Bell \u003cdennis@rubidiumstudios.com\u003e",
+                  "line": 6
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "Wayne E. Seguin \u003cwayneeseguin@fivetwenty.io\u003e",
+                  "line": 7
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "docs",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "https://github.com/genesis-community/bosh-genesis-kit",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "code",
+              "line": 9
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "https://github.com/genesis-community/bosh-genesis-kit",
+              "line": 9
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "version",
+              "line": 10
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "4.1.0",
+              "line": 10
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "genesis_version_min",
+              "line": 12
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "3.2.0-rc.16",
+              "line": 12
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "use_create_env",
+              "line": 13
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "allow",
+              "line": 13
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "services",
+              "line": 15
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 16,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "director",
+                  "line": 16
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "supports",
+              "line": 18
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 19,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "aws",
+                  "line": 19
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "azure",
+                  "line": 20
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "gcp",
+                  "line": 21
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "openstack",
+                  "line": 22
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "vsphere",
+                  "line": 23
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "stackit",
+                  "line": 24
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "pve",
+                  "line": 25
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "certificates",
+              "line": 27
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 28,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "base",
+                  "line": 28
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 29,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "ssl",
+                      "line": 29
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 30,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ca",
+                          "line": 30
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 31,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 31
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.ca_validity_period}",
+                              "line": 31
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "server",
+                          "line": 32
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 33,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 33
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 33
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 34
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 35,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 35
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "mbus",
+                          "line": 36
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 37,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 37
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 37
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 38
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 39,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 39
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "uaa",
+                          "line": 40
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 41,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 41
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 41
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 42
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 43,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 43
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "uaa-sp",
+                          "line": 44
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 45,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 45
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 45
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 46
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 47,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 47
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "credhub",
+                      "line": 49
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 50,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ca",
+                          "line": 50
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 51,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 51
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.ca_validity_period}",
+                              "line": 51
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "server",
+                          "line": 52
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 53,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 53
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 53
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 54
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 55,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 55
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "nats",
+                      "line": 57
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 58,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ca",
+                          "line": 58
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 59,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 59
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.ca_validity_period}",
+                              "line": 59
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "server",
+                          "line": 60
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 61,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 61
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 61
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 62
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 63,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "default.nats.bosh-internal",
+                                  "line": 63
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 64
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "10.254.50.4",
+                                  "line": 65
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "director",
+                          "line": 66
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 67,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 67
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 67
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 68
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 69,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "default.director.bosh-internal",
+                                  "line": 69
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 70
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "health/monitor",
+                          "line": 71
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 72,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 72
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 72
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 73
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 74,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "default.hm.bosh-internal",
+                                  "line": 74
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 75
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "dns_api_tls",
+                      "line": 77
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 78,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ca",
+                          "line": 78
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 79,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 79
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.ca_validity_period}",
+                              "line": 79
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 80
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 81,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "dns-api-tls-ca",
+                                  "line": 81
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "server",
+                          "line": 82
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 83,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 83
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 83
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 84
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 85,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "api.bosh-dns",
+                                  "line": 85
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "key_usage",
+                              "line": 86
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 87,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "server_auth",
+                                  "line": 87
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "client",
+                          "line": 88
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 89,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 89
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 89
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 90
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 91,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "api.bosh-dns",
+                                  "line": 91
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "key_usage",
+                              "line": 92
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 93,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "client_auth",
+                                  "line": 93
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "bosh-metrics",
+                  "line": 95
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 96,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "metrics_server",
+                      "line": 96
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 97,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ca",
+                          "line": 97
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 98,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 98
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.ca_validity_period}",
+                              "line": 98
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 99
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 100,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "bosh-metrics-server",
+                                  "line": 100
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "server",
+                          "line": 101
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 102,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 102
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 102
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 103
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 104,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "metrics_server_tls",
+                                  "line": 104
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 105
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "key_usage",
+                              "line": 106
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 107,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "server_auth",
+                                  "line": 107
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "client",
+                          "line": 108
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 109,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 109
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 109
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 110
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 111,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "metrics_server_client_tls",
+                                  "line": 111
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "key_usage",
+                              "line": 112
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 113,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "client_auth",
+                                  "line": 113
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "openbao",
+                  "line": 115
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 116,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "openbao",
+                      "line": 116
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 117,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ca",
+                          "line": 117
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 118,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 118
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.ca_validity_period}",
+                              "line": 118
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "server",
+                          "line": 119
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 120,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 120
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 120
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 121
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 122,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 122
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "vault-credhub-proxy",
+                  "line": 124
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 125,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "vault-proxy_tls",
+                      "line": 125
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 126,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "server",
+                          "line": 126
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 127,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 127
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 127
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "signed_by",
+                              "line": 128
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "credhub/ca",
+                              "line": 128
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 129
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 130,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 130
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "bosh-dns-healthcheck",
+                  "line": 132
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 133,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "dns_healthcheck_tls",
+                      "line": 133
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 134,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ca",
+                          "line": 134
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 135,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 135
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.ca_validity_period}",
+                              "line": 135
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 136
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 137,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "dns-healthcheck-tls-ca",
+                                  "line": 137
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "server",
+                          "line": 138
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 139,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 139
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 139
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 140
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 141,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "health.bosh-dns",
+                                  "line": 141
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "key_usage",
+                              "line": 142
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 143,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "server_auth",
+                                  "line": 143
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "client",
+                          "line": 144
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 145,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 145
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 145
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 146
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 147,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "health.bosh-dns",
+                                  "line": 147
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "key_usage",
+                              "line": 148
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 149,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "client_auth",
+                                  "line": 149
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+internal-blobstore",
+                  "line": 151
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 152,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "blobstore",
+                      "line": 152
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 153,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "ca",
+                          "line": 153
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 154,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 154
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.ca_validity_period}",
+                              "line": 154
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "server",
+                          "line": 155
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 156,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "valid_for",
+                              "line": 156
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "${params.cert_validity_period}",
+                              "line": 156
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "names",
+                              "line": 157
+                            },
+                            {
+                              "kind": "sequence",
+                              "tag": "!!seq",
+                              "line": 158,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "${params.static_ip}",
+                                  "line": 158
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "10.254.50.4",
+                                  "line": 159
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "credentials",
+              "line": 161
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 162,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "base",
+                  "line": 162
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 163,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "op/net",
+                      "line": 163
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "ssh 4096",
+                      "line": 163
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "op/sys",
+                      "line": 164
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 165,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 165
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 12 fmt crypt-sha512",
+                          "line": 165
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "db",
+                      "line": 167
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 168,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 168
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 64",
+                          "line": 168
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "nats",
+                      "line": 169
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 170,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 170
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 64 fixed",
+                          "line": 170
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "nats_sync_password",
+                      "line": 171
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 172,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 172
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 64 fixed",
+                          "line": 172
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "registry",
+                      "line": 173
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 174,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 174
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 64 fixed",
+                          "line": 174
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "users/admin",
+                      "line": 176
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 177,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 177
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 30",
+                          "line": 177
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "users/hm",
+                      "line": 178
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 179,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 179
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 30",
+                          "line": 179
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "users/concourse",
+                      "line": 180
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 181,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 181
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 30",
+                          "line": 181
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "vcap",
+                      "line": 182
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 183,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 183
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 64 fmt crypt-sha512",
+                          "line": 183
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "credhub/encryption",
+                      "line": 185
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 186,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "key",
+                          "line": 186
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 32 fixed",
+                          "line": 186
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/jwt",
+                      "line": 188
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "rsa 2048",
+                      "line": 188
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/encryption",
+                      "line": 189
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 190,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "key",
+                          "line": 190
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 64 fixed",
+                          "line": 190
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/client",
+                      "line": 192
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 193,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "secret",
+                          "line": 193
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 32",
+                          "line": 193
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/clients/credhub_admin",
+                      "line": 194
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 195,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "secret",
+                          "line": 195
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 32",
+                          "line": 195
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/clients/director_to_credhub",
+                      "line": 196
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 197,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "secret",
+                          "line": 197
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 32",
+                          "line": 197
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/clients/hm",
+                      "line": 198
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 199,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "secret",
+                          "line": 199
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 32",
+                          "line": 199
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/clients/uaa_admin",
+                      "line": 200
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 201,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "secret",
+                          "line": 201
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 32",
+                          "line": 201
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/users/credhub-cli",
+                      "line": 203
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 204,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "foot": "# while associated with prometheus, its still in the base feature",
+                          "line": 204
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 32",
+                          "line": 204
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/clients/prometheus",
+                      "line": 207
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 208,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "secret",
+                          "line": 208
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 32",
+                          "line": 208
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "vault-credhub-proxy",
+                  "line": 210
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 211,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "uaa/users/credhub-admin",
+                      "line": 211
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 212,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 212
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 32",
+                          "line": 212
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "bbr",
+                  "line": 214
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 215,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "bbr/ssh",
+                      "line": 215
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "ssh 4096",
+                      "line": 215
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+blacksmith-credentials",
+                  "line": 217
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 218,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "users/blacksmith",
+                      "line": 218
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 219,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 219
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 30",
+                          "line": 219
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+doomsday-credentials",
+                  "line": 221
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 222,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "users/doomsday",
+                      "line": 222
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 223,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 223
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 30",
+                          "line": 223
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+proto",
+                  "line": 225
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "anchor": "proto",
+                  "line": 225,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "mbus_bootstrap",
+                      "line": 226
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 227,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 227
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 64",
+                          "line": 227
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+azure",
+                  "line": 229
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 230,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "azure/ssh",
+                      "line": 230
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "ssh 2048",
+                      "line": 230
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+internal-blobstore",
+                  "line": 232
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 233,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "blobstore/agent",
+                      "line": 233
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 234,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 234
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 64 fixed",
+                          "line": 234
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "blobstore/director",
+                      "line": 235
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 236,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "password",
+                          "line": 236
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "random 64",
+                          "line": 236
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "provided",
+              "line": 238
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 239,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+external-db",
+                  "line": 239
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 240,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "external-db/bosh_user",
+                      "line": 240
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 241,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 241
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 242,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 242
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 243,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 243
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Password for BOSH's external director database user",
+                                  "line": 243
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "external-db/credhub_user",
+                      "line": 244
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 245,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 245
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 246,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 246
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 247,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 247
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Password for BOSH's external Credhub database user",
+                                  "line": 247
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "external-db/uaa_user",
+                      "line": 248
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 249,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 249
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 250,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 250
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 251,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 251
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Password for BOSH's external UAA database user",
+                                  "line": 251
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+ocfp-ext-db",
+                  "line_comment": "# vvv validate that they are there and prompt if deleted",
+                  "line": 253
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 254,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "db/bosh",
+                      "line": 254
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 255,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 255
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 256,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "scheme",
+                              "line": 256
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 257,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 257
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external director database scheme",
+                                  "line": 257
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "username",
+                              "line": 258
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 259,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 259
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external director database username",
+                                  "line": 259
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 260
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 261,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 261
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external director database password",
+                                  "line": 261
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "hostname",
+                              "line": 262
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 263,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 263
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external director database hostname",
+                                  "line": 263
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "port",
+                              "line": 264
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 265,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 265
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external director database port",
+                                  "line": 265
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "database",
+                              "line": 266
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 267,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 267
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external director database name",
+                                  "line": 267
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "ca",
+                              "line": 268
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 269,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 269
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external director database ca",
+                                  "line": 269
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "db/credhub",
+                      "line": 270
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 271,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 271
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 272,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "scheme",
+                              "line": 272
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 273,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 273
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external Credhub database scheme",
+                                  "line": 273
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "username",
+                              "line": 274
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 275,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 275
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external Credhub database username",
+                                  "line": 275
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 276
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 277,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 277
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external Credhub database password",
+                                  "line": 277
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "hostname",
+                              "line": 278
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 279,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 279
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external Credhub database hostname",
+                                  "line": 279
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "port",
+                              "line": 280
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 281,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 281
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external Credhub database port",
+                                  "line": 281
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "database",
+                              "line": 282
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 283,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 283
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external Credhub database name",
+                                  "line": 283
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "ca",
+                              "line": 284
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 285,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 285
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external Credhub database ca",
+                                  "line": 285
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "db/uaa",
+                      "line": 286
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 287,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 287
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 288,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "scheme",
+                              "line": 288
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 289,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 289
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external UAA database scheme",
+                                  "line": 289
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "username",
+                              "line": 290
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 291,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 291
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external UAA database username",
+                                  "line": 291
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 292
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 293,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 293
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external UAA database password",
+                                  "line": 293
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "hostname",
+                              "line": 294
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 295,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 295
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external UAA database hostname",
+                                  "line": 295
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "port",
+                              "line": 296
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 297,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 297
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external UAA database port",
+                                  "line": 297
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "database",
+                              "line": 298
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 299,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 299
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external UAA database name",
+                                  "line": 299
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "ca",
+                              "line": 300
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 301,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 301
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Value for BOSH's external UAA database ca",
+                                  "line": 301
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+aws-secret-access-keys",
+                  "line": 303
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 304,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "aws",
+                      "line": 304
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 305,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 305
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 306,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "secret_key",
+                              "line": 306
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 307,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 307
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "AWS Secret Key",
+                                  "line": 307
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "access_key",
+                              "line": 308
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 309,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 309
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 309
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 310
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "AWS Access Key",
+                                  "line": 310
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+s3-blobstore-secret-access-keys",
+                  "line": 312
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 313,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "blobstore/s3",
+                      "line": 313
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 314,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 314
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 315,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "access_key",
+                              "line": 315
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 316,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 316
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 316
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 317
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "AWS Blobstore Access Key",
+                                  "line": 317
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "secret_key",
+                              "line": 318
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 319,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 319
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "AWS Blobstore Secret Key",
+                                  "line": 319
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "minio-blobstore",
+                  "line": 321
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 322,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "blobstore/s3",
+                      "line": 322
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 323,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 323
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 324,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "access_key",
+                              "line": 324
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 325,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 325
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 325
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 326
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Minio Blobstore Access Key",
+                                  "line": 326
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "secret_key",
+                              "line": 327
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 328,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 328
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Minio Blobstore Secret Key",
+                                  "line": 328
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+vsphere",
+                  "line": 330
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 331,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "vsphere",
+                      "line": 331
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 332,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 332
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 333,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "user",
+                              "line": 333
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 334,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 334
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 334
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 335
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Username for BOSH to authenticate with vCenter",
+                                  "line": 335
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "address",
+                              "line": 336
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 337,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 337
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 337
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 338
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "IP address of VMWare vCenter Server Appliance",
+                                  "line": 338
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 339
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 340,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 340
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Password for vCenter user",
+                                  "line": 340
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+google",
+                  "line": 342
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 343,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "google",
+                      "line": 343
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 344,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 344
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 345,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "json_key",
+                              "line": 345
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 346,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 346
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 346
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "multiline",
+                                  "line": 347
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "true",
+                                  "line": 347
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 348
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "GCP credentials (generally supplied as a JSON block)",
+                                  "line": 348
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+azure",
+                  "line": 350
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 351,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "azure",
+                      "line": 351
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 352,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 352
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 353,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "client_id",
+                              "line": 353
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 354,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 354
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 354
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 355
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Azure Client ID",
+                                  "line": 355
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "client_secret",
+                              "line": 356
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 357,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 357
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Azure Client Secret",
+                                  "line": 357
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "tenant_id",
+                              "line": 358
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 359,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 359
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 359
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 360
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Azure Tenant ID",
+                                  "line": 360
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "subscription_id",
+                              "line": 361
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 362,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 362
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 362
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 363
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "Azure Resource Group to be used by BOSH to deploying VMs",
+                                  "line": 363
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+openstack",
+                  "line": 365
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 366,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "openstack/creds",
+                      "line": 366
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 367,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 367
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 368,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "username",
+                              "line": 368
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 369,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 369
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 369
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 370
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "OpenStack username",
+                                  "line": 370
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 371
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 372,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 372
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "OpenStack password",
+                                  "line": 372
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "domain",
+                              "line": 373
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 374,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 374
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 374
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 375
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "OpenStack domain",
+                                  "line": 375
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "project",
+                              "line": 376
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 377,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 377
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 377
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 378
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "OpenStack project",
+                                  "line": 378
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "+stackit",
+                  "line": 380
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 381,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "stackit/creds",
+                      "line": 381
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 382,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "keys",
+                          "line": 382
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 383,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "username",
+                              "line": 383
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 384,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 384
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 384
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 385
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "STACKIT username",
+                                  "line": 385
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 386
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 387,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 387
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "STACKIT password",
+                                  "line": 387
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "domain",
+                              "line": 388
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 389,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 389
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 389
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 390
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "STACKIT domain",
+                                  "line": 390
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "project",
+                              "line": 391
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 392,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "sensitive",
+                                  "line": 392
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "false",
+                                  "line": 392
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "prompt",
+                                  "line": 393
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "STACKIT project",
+                                  "line": 393
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

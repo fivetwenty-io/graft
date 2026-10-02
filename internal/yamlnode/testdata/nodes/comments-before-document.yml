@@ -1,0 +1,5 @@
+#!/usr/bin/env genesis
+# a second line before the marker
+---
+kit:
+  name: bosh

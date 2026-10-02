@@ -1,0 +1,42 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "meta",
+              "line": 1
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "\u003c\u003c\u003c",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( inject a ))",
+                  "line": 2
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

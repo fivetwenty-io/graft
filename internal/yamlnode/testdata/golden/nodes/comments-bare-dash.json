@@ -1,0 +1,79 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "l",
+              "line": 1
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "a",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!null",
+                  "line": 3
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "next",
+              "head": "# becomes the head of next",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "m",
+              "line": 5
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 6,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!null",
+                  "line": 6
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "b",
+                  "head": "# head of b",
+                  "line": 7
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

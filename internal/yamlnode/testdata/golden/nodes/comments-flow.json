@@ -1,0 +1,136 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "g",
+              "line": 1
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 1,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "a",
+                  "line_comment": "# line of a",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "b",
+                  "line_comment": "# line of b",
+                  "line": 3
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "h",
+              "line": 5
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 5,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "a",
+                  "line": 6
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line_comment": "# line of h.a",
+                  "line": 6
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "b",
+                  "line": 7
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "2",
+                  "line_comment": "# line of h.b",
+                  "line": 7
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "i",
+              "line": 9
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 9,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "x",
+                  "head": "# head of x",
+                  "line": 11
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "y",
+                  "foot": "# foot of y",
+                  "line": 12
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "j",
+              "line": 15
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line_comment": "# on the sequence",
+              "line": 15,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "a",
+                  "line": 15
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "b",
+                  "line": 15
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

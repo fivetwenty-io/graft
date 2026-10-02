@@ -1,0 +1,23 @@
+a:
+  x: 1
+  # foot x same indent, then blank
+
+  y: 2
+# dedented comment after y, no blank
+b: 3
+
+# comment between, blanks both sides
+
+c: 4
+d: # line on key d
+  e: 5
+f: &anc # line after anchor
+  g: 6
+h:
+- 1
+# after list at key indent
+i: |
+  literal
+  text
+# after literal
+j: 'q' # line q

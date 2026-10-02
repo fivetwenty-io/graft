@@ -1,0 +1,106 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "foot": "# a foot of the first document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "x",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "document",
+      "line": 2,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 5,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "line": 5
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "document",
+      "line": 6,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 8,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "head": "# head of b",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "2",
+              "line": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "document",
+      "line": 9,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 10,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "c",
+              "line": 10
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "3",
+              "line": 10
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

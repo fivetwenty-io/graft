@@ -1,0 +1,536 @@
+[
+  {
+    "in": "0x10",
+    "value": {
+      "t": "int",
+      "v": "16"
+    }
+  },
+  {
+    "in": "017",
+    "value": {
+      "t": "int",
+      "v": "15"
+    }
+  },
+  {
+    "in": "0o17",
+    "value": {
+      "t": "int",
+      "v": "15"
+    }
+  },
+  {
+    "in": "1_000",
+    "value": {
+      "t": "int",
+      "v": "1000"
+    }
+  },
+  {
+    "in": "1e3",
+    "value": {
+      "t": "float64",
+      "v": "1000"
+    }
+  },
+  {
+    "in": "08",
+    "value": {
+      "t": "float64",
+      "v": "8"
+    }
+  },
+  {
+    "in": "9223372036854775807",
+    "value": {
+      "t": "int",
+      "v": "9223372036854775807"
+    }
+  },
+  {
+    "in": "9223372036854775808",
+    "value": {
+      "t": "uint64",
+      "v": "9223372036854775808"
+    }
+  },
+  {
+    "in": "18446744073709551616",
+    "value": {
+      "t": "float64",
+      "v": "1.8446744073709552e+19"
+    }
+  },
+  {
+    "in": ".inf",
+    "value": {
+      "t": "float64",
+      "v": "+Inf"
+    }
+  },
+  {
+    "in": "-.inf",
+    "value": {
+      "t": "float64",
+      "v": "-Inf"
+    }
+  },
+  {
+    "in": "~",
+    "value": {
+      "t": "nil"
+    }
+  },
+  {
+    "in": "",
+    "value": {
+      "t": "nil"
+    }
+  },
+  {
+    "in": "true",
+    "value": {
+      "t": "bool",
+      "v": "true"
+    }
+  },
+  {
+    "in": "yes",
+    "value": {
+      "t": "string",
+      "v": "yes"
+    }
+  },
+  {
+    "in": "on",
+    "value": {
+      "t": "string",
+      "v": "on"
+    }
+  },
+  {
+    "in": "2001-12-14",
+    "value": {
+      "t": "time.Time",
+      "v": "2001-12-14T00:00:00Z|UTC"
+    }
+  },
+  {
+    "in": "2001-12-14t21:59:43.10-05:00",
+    "value": {
+      "t": "time.Time",
+      "v": "2001-12-14T21:59:43.1-05:00|"
+    }
+  },
+  {
+    "in": "2001-12-14T21:59:43Z",
+    "value": {
+      "t": "time.Time",
+      "v": "2001-12-14T21:59:43Z|UTC"
+    }
+  },
+  {
+    "in": "!!binary aGVsbG8=",
+    "value": {
+      "t": "string",
+      "v": "hello"
+    }
+  },
+  {
+    "in": "!!str 1",
+    "value": {
+      "t": "string",
+      "v": "1"
+    }
+  },
+  {
+    "in": "!!int x",
+    "error": "yaml: cannot decode !!str `x` as a !!int"
+  },
+  {
+    "in": "!!float 1",
+    "value": {
+      "t": "float64",
+      "v": "1"
+    }
+  },
+  {
+    "in": "!!bool yes",
+    "error": "yaml: cannot decode !!str `yes` as a !!bool"
+  },
+  {
+    "in": "!foo bar",
+    "value": {
+      "t": "string",
+      "v": "bar"
+    }
+  },
+  {
+    "in": "'1'",
+    "value": {
+      "t": "string",
+      "v": "1"
+    }
+  },
+  {
+    "in": "\"x\"",
+    "value": {
+      "t": "string",
+      "v": "x"
+    }
+  },
+  {
+    "in": "hello",
+    "value": {
+      "t": "string",
+      "v": "hello"
+    }
+  },
+  {
+    "in": "a: 1\nb: x\n",
+    "value": {
+      "t": "map[string]interface {}",
+      "m": [
+        [
+          {
+            "t": "string",
+            "v": "a"
+          },
+          {
+            "t": "int",
+            "v": "1"
+          }
+        ],
+        [
+          {
+            "t": "string",
+            "v": "b"
+          },
+          {
+            "t": "string",
+            "v": "x"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "in": "1: a\nb: 2\n",
+    "value": {
+      "t": "map[interface {}]interface {}",
+      "m": [
+        [
+          {
+            "t": "int",
+            "v": "1"
+          },
+          {
+            "t": "string",
+            "v": "a"
+          }
+        ],
+        [
+          {
+            "t": "string",
+            "v": "b"
+          },
+          {
+            "t": "int",
+            "v": "2"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "in": "a: 1\na: 2\n",
+    "error": "yaml: unmarshal errors:\n  line 2: mapping key \"a\" already defined at line 1"
+  },
+  {
+    "in": "base: \u0026b {x: 1, y: 2}\nm:\n  \u003c\u003c: *b\n  y: 3\n",
+    "value": {
+      "t": "map[string]interface {}",
+      "m": [
+        [
+          {
+            "t": "string",
+            "v": "base"
+          },
+          {
+            "t": "map[string]interface {}",
+            "m": [
+              [
+                {
+                  "t": "string",
+                  "v": "x"
+                },
+                {
+                  "t": "int",
+                  "v": "1"
+                }
+              ],
+              [
+                {
+                  "t": "string",
+                  "v": "y"
+                },
+                {
+                  "t": "int",
+                  "v": "2"
+                }
+              ]
+            ]
+          }
+        ],
+        [
+          {
+            "t": "string",
+            "v": "m"
+          },
+          {
+            "t": "map[string]interface {}",
+            "m": [
+              [
+                {
+                  "t": "string",
+                  "v": "x"
+                },
+                {
+                  "t": "int",
+                  "v": "1"
+                }
+              ],
+              [
+                {
+                  "t": "string",
+                  "v": "y"
+                },
+                {
+                  "t": "int",
+                  "v": "3"
+                }
+              ]
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "in": "a: \u0026a {x: 1}\nb: \u0026b {x: 2, y: 2}\nm:\n  \u003c\u003c: [*a, *b]\n  z: 3\n",
+    "value": {
+      "t": "map[string]interface {}",
+      "m": [
+        [
+          {
+            "t": "string",
+            "v": "a"
+          },
+          {
+            "t": "map[string]interface {}",
+            "m": [
+              [
+                {
+                  "t": "string",
+                  "v": "x"
+                },
+                {
+                  "t": "int",
+                  "v": "1"
+                }
+              ]
+            ]
+          }
+        ],
+        [
+          {
+            "t": "string",
+            "v": "b"
+          },
+          {
+            "t": "map[string]interface {}",
+            "m": [
+              [
+                {
+                  "t": "string",
+                  "v": "x"
+                },
+                {
+                  "t": "int",
+                  "v": "2"
+                }
+              ],
+              [
+                {
+                  "t": "string",
+                  "v": "y"
+                },
+                {
+                  "t": "int",
+                  "v": "2"
+                }
+              ]
+            ]
+          }
+        ],
+        [
+          {
+            "t": "string",
+            "v": "m"
+          },
+          {
+            "t": "map[string]interface {}",
+            "m": [
+              [
+                {
+                  "t": "string",
+                  "v": "x"
+                },
+                {
+                  "t": "int",
+                  "v": "1"
+                }
+              ],
+              [
+                {
+                  "t": "string",
+                  "v": "y"
+                },
+                {
+                  "t": "int",
+                  "v": "2"
+                }
+              ],
+              [
+                {
+                  "t": "string",
+                  "v": "z"
+                },
+                {
+                  "t": "int",
+                  "v": "3"
+                }
+              ]
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "in": "a: \u0026x [1, 2]\nb: *x\n",
+    "value": {
+      "t": "map[string]interface {}",
+      "m": [
+        [
+          {
+            "t": "string",
+            "v": "a"
+          },
+          {
+            "t": "[]interface {}",
+            "l": [
+              {
+                "t": "int",
+                "v": "1"
+              },
+              {
+                "t": "int",
+                "v": "2"
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "t": "string",
+            "v": "b"
+          },
+          {
+            "t": "[]interface {}",
+            "l": [
+              {
+                "t": "int",
+                "v": "1"
+              },
+              {
+                "t": "int",
+                "v": "2"
+              }
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "in": "- 1\n- [2, 3]\n- {k: v}\n- ~\n",
+    "value": {
+      "t": "[]interface {}",
+      "l": [
+        {
+          "t": "int",
+          "v": "1"
+        },
+        {
+          "t": "[]interface {}",
+          "l": [
+            {
+              "t": "int",
+              "v": "2"
+            },
+            {
+              "t": "int",
+              "v": "3"
+            }
+          ]
+        },
+        {
+          "t": "map[string]interface {}",
+          "m": [
+            [
+              {
+                "t": "string",
+                "v": "k"
+              },
+              {
+                "t": "string",
+                "v": "v"
+              }
+            ]
+          ]
+        },
+        {
+          "t": "nil"
+        }
+      ]
+    }
+  },
+  {
+    "in": "'\u003c\u003c': 1\n",
+    "value": {
+      "t": "map[string]interface {}",
+      "m": [
+        [
+          {
+            "t": "string",
+            "v": "\u003c\u003c"
+          },
+          {
+            "t": "int",
+            "v": "1"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "in": "? [a, b]\n: c\n",
+    "error": "yaml: invalid map key: []interface {}{\"a\", \"b\"}"
+  },
+  {
+    "in": "a: \u0026a [\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\",\"lol\"]\nb: \u0026b [*a,*a,*a,*a,*a,*a,*a,*a,*a]\nc: \u0026c [*b,*b,*b,*b,*b,*b,*b,*b,*b]\nd: \u0026d [*c,*c,*c,*c,*c,*c,*c,*c,*c]\ne: \u0026e [*d,*d,*d,*d,*d,*d,*d,*d,*d]\nf: \u0026f [*e,*e,*e,*e,*e,*e,*e,*e,*e]\ng: \u0026g [*f,*f,*f,*f,*f,*f,*f,*f,*f]\nh: \u0026h [*g,*g,*g,*g,*g,*g,*g,*g,*g]\ni: \u0026i [*h,*h,*h,*h,*h,*h,*h,*h,*h]\n",
+    "error": "yaml: document contains excessive aliasing"
+  }
+]

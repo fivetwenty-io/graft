@@ -1,0 +1,49 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "dot": "l",
+      "gopatch": "/l",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "l"
+        }
+      ],
+      "details": [
+        {
+          "kind": "-",
+          "from": {
+            "kind": "sequence",
+            "tag": "!!seq",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 2
+              }
+            ]
+          }
+        },
+        {
+          "kind": "+",
+          "to": {
+            "kind": "sequence",
+            "tag": "!!seq",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "1",
+                "line": 2
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

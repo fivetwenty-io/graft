@@ -1,0 +1,1368 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 2,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "instance_groups",
+              "line": 2
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 3,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 3,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 3
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "blacksmith",
+                      "line": 3
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "jobs",
+                      "line": 4
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 5,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 5,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "release",
+                              "line": 5
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bpm",
+                              "line": 5
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 5
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bpm",
+                              "line": 5
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 6,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "release",
+                              "line": 6
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bosh",
+                              "line": 6
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 6
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "nats",
+                              "line": 6
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 7,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "release",
+                              "line": 7
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bosh",
+                              "line": 7
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 7
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "postgres-9.4",
+                              "line": 7
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 8,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "release",
+                              "line": 8
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bosh",
+                              "line": 8
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 8
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "blobstore",
+                              "line": 8
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 9,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "release",
+                              "line": 9
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bosh",
+                              "line": 9
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 9
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "director",
+                              "line": 9
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 10,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "release",
+                              "line": 10
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bosh",
+                              "line": 10
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 10
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "health_monitor",
+                              "line": 10
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "properties",
+                      "line": 12
+                    },
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 14,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "env",
+                          "head": "## ENVIRONMENT",
+                          "line": 14
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 15,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "http_proxy",
+                              "line": 15
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( grab params.http_proxy  || \"\" ))",
+                              "line": 15
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "https_proxy",
+                              "line": 16
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( grab params.https_proxy || \"\" ))",
+                              "line": 16
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "no_proxy",
+                              "line": 17
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( grab params.no_proxy    || \"\" ))",
+                              "line": 17
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "nats",
+                          "head": "## NATS CONFIGURATION",
+                          "line": 20
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 21,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "address",
+                              "line": 21
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( grab params.ip ))",
+                              "line": 21
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "user",
+                              "line": 22
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "nats",
+                              "line": 22
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 23
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( vault meta.vault \"/nats:password\" ))",
+                              "line": 23
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "tls",
+                              "line": 24
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 25,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "ca",
+                                  "line": 25
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "(( vault meta.vault \"/tls/nats/ca:certificate\" ))",
+                                  "line": 25
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "client_ca",
+                                  "line": 26
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 27,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "certificate",
+                                      "line": 27
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/nats/ca:certificate\" ))",
+                                      "line": 27
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "private_key",
+                                      "line": 28
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/nats/ca:key\"         ))",
+                                      "line": 28
+                                    }
+                                  ]
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "server",
+                                  "line": 29
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 30,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "certificate",
+                                      "line": 30
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/nats/server:certificate\" ))",
+                                      "line": 30
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "private_key",
+                                      "line": 31
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/nats/server:key\"         ))",
+                                      "line": 31
+                                    }
+                                  ]
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "director",
+                                  "line": 32
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 33,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "certificate",
+                                      "line": 33
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/nats/director:certificate\" ))",
+                                      "line": 33
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "private_key",
+                                      "line": 34
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/nats/director:key\"         ))",
+                                      "line": 34
+                                    }
+                                  ]
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "health_monitor",
+                                  "line": 35
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 36,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "certificate",
+                                      "line": 36
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/nats/hm:certificate\" ))",
+                                      "line": 36
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "private_key",
+                                      "line": 37
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/nats/hm:key\"         ))",
+                                      "line": 37
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "agent",
+                          "line": 39
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 40,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "mbus",
+                              "line": 40
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( concat \"nats://\" instance_groups.blacksmith.properties.nats.user \":\" instance_groups.blacksmith.properties.nats.password \"@\" params.ip \":4222\" ))",
+                              "line": 40
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "env",
+                              "line": 41
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 42,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "bosh",
+                                  "line": 42
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 43,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "blobstores",
+                                      "line": 43
+                                    },
+                                    {
+                                      "kind": "sequence",
+                                      "tag": "!!seq",
+                                      "line": 44,
+                                      "content": [
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 44,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "provider",
+                                              "line": 44
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "dav",
+                                              "line": 44
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "options",
+                                              "line": 45
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 47,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "endpoint",
+                                                  "head": "# FIXME: one day we should set this to https://, for full TLS",
+                                                  "line": 47
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "(( concat \"http://\" params.ip \":25250\" ))",
+                                                  "line": 47
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "user",
+                                                  "line": 48
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "agent",
+                                                  "line": 48
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "password",
+                                                  "line": 49
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "(( vault meta.vault \"/blobstore/agent:password\" ))",
+                                                  "line": 49
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "blobstore",
+                          "head": "## BLOBSTORE CONFIGURATION",
+                          "line": 53
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 54,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "address",
+                              "line": 54
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( grab params.ip ))",
+                              "line": 54
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "port",
+                              "line": 55
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!int",
+                              "value": "25250",
+                              "line": 55
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "provider",
+                              "line": 56
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "dav",
+                              "line": 56
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "director",
+                              "line": 57
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 58,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "user",
+                                  "line": 58
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "director",
+                                  "line": 58
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "password",
+                                  "line": 59
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "(( vault meta.vault \"/blobstore/director:password\" ))",
+                                  "line": 59
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "agent",
+                              "line": 60
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 61,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "user",
+                                  "line": 61
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "agent",
+                                  "line": 61
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "password",
+                                  "line": 62
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "(( vault meta.vault \"/blobstore/agent:password\" ))",
+                                  "line": 62
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "tls",
+                              "line": 63
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 64,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "cert",
+                                  "line": 64
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 65,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "ca",
+                                      "line": 65
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/ca:certificate\" ))",
+                                      "line": 65
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "certificate",
+                                      "line": 66
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/blobstore:certificate\" ))",
+                                      "line": 66
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "private_key",
+                                      "line": 67
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( vault meta.vault \"/tls/blobstore:key\" ))",
+                                      "line": 67
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "postgres",
+                          "head": "## POSTGRES CONFIGURATION",
+                          "line": 70
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "anchor": "db",
+                          "line": 70,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "listen_address",
+                              "line": 71
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "127.0.0.1",
+                              "line": 71
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "host",
+                              "line": 72
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "127.0.0.1",
+                              "line": 72
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "user",
+                              "line": 73
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "postgres",
+                              "line": 73
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "password",
+                              "line": 74
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( vault meta.vault \"/db:password\" ))",
+                              "line": 74
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "database",
+                              "line": 75
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "bosh",
+                              "line": 75
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "adapter",
+                              "line": 76
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "postgres",
+                              "line": 76
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "director",
+                          "head": "## BOSH DIRECTOR CONFIGURATION",
+                          "line": 79
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 80,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 80
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( concat params.env \"-blacksmith\" ))",
+                              "line": 80
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "address",
+                              "line": 81
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "(( grab params.ip ))",
+                              "line": 81
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "db",
+                              "line": 82
+                            },
+                            {
+                              "kind": "alias",
+                              "value": "db",
+                              "alias": "db",
+                              "line": 82
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "flush_arp",
+                              "line": 83
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!bool",
+                              "value": "true",
+                              "line": 83
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "enable_post_deploy",
+                              "line": 84
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!bool",
+                              "value": "true",
+                              "line": 84
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "generate_vm_passwords",
+                              "line": 85
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!bool",
+                              "value": "true",
+                              "line": 85
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "enable_dedicated_status_worker",
+                              "line": 86
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!bool",
+                              "value": "true",
+                              "line": 86
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "enable_nats_delivered_templates",
+                              "line": 87
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!bool",
+                              "value": "true",
+                              "line": 87
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "workers",
+                              "line": 88
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!int",
+                              "value": "4",
+                              "line": 88
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "local_dns",
+                              "line": 89
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 90,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "enabled",
+                                  "line": 90
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "true",
+                                  "line": 90
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "events",
+                              "line": 91
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 92,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "record_events",
+                                  "line": 92
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!bool",
+                                  "value": "true",
+                                  "line": 92
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "ssl",
+                              "line": 93
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 94,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "cert",
+                                  "line": 94
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "(( vault meta.vault \"/tls/director:certificate\" ))",
+                                  "line": 94
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "key",
+                                  "line": 95
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "(( vault meta.vault \"/tls/director:key\" ))",
+                                  "line": 95
+                                }
+                              ]
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "user_management",
+                              "line": 96
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 97,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "provider",
+                                  "line": 97
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "local",
+                                  "line": 97
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "local",
+                                  "line": 98
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 99,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "users",
+                                      "line": 99
+                                    },
+                                    {
+                                      "kind": "sequence",
+                                      "tag": "!!seq",
+                                      "line": 100,
+                                      "content": [
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 100,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "name",
+                                              "line": 100
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "admin",
+                                              "line": 100
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "password",
+                                              "line": 101
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( vault meta.vault \"/users/admin:password\" ))",
+                                              "line": 101
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 103,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "name",
+                                              "line": 103
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "hm",
+                                              "line": 103
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "password",
+                                              "line": 104
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( vault meta.vault \"/users/hm:password\" ))",
+                                              "line": 104
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 106,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "name",
+                                              "line": 106
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "blacksmith",
+                                              "line": 106
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "password",
+                                              "line": 107
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( vault meta.vault \"/users/blacksmith:password\" ))",
+                                              "line": 107
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "hm",
+                          "head": "## HEALTH MONITOR CONFIGURATION",
+                          "line": 110
+                        },
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 111,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "resurrector_enabled",
+                              "line": 111
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!bool",
+                              "value": "true",
+                              "line": 111
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "director_account",
+                              "line": 112
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 113,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "user",
+                                  "line": 113
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "hm",
+                                  "line": 113
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "password",
+                                  "line": 114
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "(( vault meta.vault \"/users/hm:password\" ))",
+                                  "line": 114
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "ca_cert",
+                                  "line": 115
+                                },
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "(( vault meta.vault \"/tls/ca:certificate\" ))",
+                                  "line": 115
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

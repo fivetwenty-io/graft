@@ -1,0 +1,94 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "tasks",
+              "line": 1
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 2,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "family",
+                      "line": 2
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "web",
+                      "line": 2
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "placement",
+                      "line": 3
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 4,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 4,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "type",
+                              "line": 4
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "spread",
+                              "line": 4
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "field",
+                              "foot": "# foot of field, because the stream has no final line break",
+                              "line": 5
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "zone",
+                              "line": 5
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

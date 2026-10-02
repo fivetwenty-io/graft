@@ -1,0 +1,40 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "nil_elements": true,
+      "dot": "",
+      "gopatch": "/",
+      "root": "document #1",
+      "document_idx": 0,
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!null"
+          },
+          "to": {
+            "kind": "mapping",
+            "tag": "!!map",
+            "line": 1,
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!int",
+                "value": "1",
+                "line": 1
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

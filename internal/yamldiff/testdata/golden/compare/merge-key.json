@@ -1,0 +1,61 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "dot": "b",
+      "gopatch": "/b",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "b"
+        }
+      ],
+      "details": [
+        {
+          "kind": "-",
+          "from": {
+            "kind": "mapping",
+            "tag": "!!map",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!merge",
+                "value": "\u003c\u003c",
+                "line": 3
+              },
+              {
+                "kind": "alias",
+                "value": "x",
+                "alias": "x",
+                "line": 3
+              }
+            ]
+          }
+        },
+        {
+          "kind": "+",
+          "to": {
+            "kind": "mapping",
+            "tag": "!!map",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "k",
+                "line": 3
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "v",
+                "line": 3
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

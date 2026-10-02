@@ -1,0 +1,7 @@
+l:
+- a
+- # becomes the head of next
+next: 1
+m:
+  - # head of b
+  - b

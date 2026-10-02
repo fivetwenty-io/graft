@@ -1,0 +1,134 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "head": "# doc head",
+      "line": 4,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 4,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "head": "# head of a",
+              "foot": "# foot of a",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line_comment": "# line of a",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "line": 7
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 9,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "x",
+                  "head": "# head of b.x",
+                  "line": 9
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "2",
+                  "line_comment": "# line x",
+                  "line": 9
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "y",
+                  "foot": "# foot of b.y (indented)",
+                  "line": 10
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "3",
+                  "line": 10
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "c",
+              "head": "# head of c",
+              "foot": "# trailing foot",
+              "line": 13
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 14,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "one",
+                  "line_comment": "# line one",
+                  "line": 14
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "two",
+                  "head": "# head of two",
+                  "line": 16
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 17,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "k",
+                      "line": 17
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "v",
+                      "line_comment": "# line kv",
+                      "line": 17
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "j",
+                      "line": 18
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "w",
+                      "line": 18
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

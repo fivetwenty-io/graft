@@ -1,0 +1,118 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "dot": "l",
+      "gopatch": "/l",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "l"
+        }
+      ],
+      "details": [
+        {
+          "kind": "⇆",
+          "from": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a",
+                "line": 1
+              },
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 1,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "k",
+                    "line": 1
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "v",
+                    "line": 1
+                  }
+                ]
+              },
+              {
+                "kind": "sequence",
+                "tag": "!!seq",
+                "line": 1,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "x",
+                    "line": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "to": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "line": 1
+              },
+              {
+                "kind": "sequence",
+                "tag": "!!seq",
+                "line": 1,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "x",
+                    "line": 1
+                  }
+                ]
+              },
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 1,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "k",
+                    "line": 1
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "v",
+                    "line": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

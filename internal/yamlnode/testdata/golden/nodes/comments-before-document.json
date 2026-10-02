@@ -1,0 +1,43 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 3,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 4,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "kit",
+              "head": "#!/usr/bin/env genesis\n# a second line before the marker",
+              "line": 4
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 5,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "name",
+                  "line": 5
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "bosh",
+                  "line": 5
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

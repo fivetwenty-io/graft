@@ -1,0 +1,284 @@
+{
+  "from_documents": 2,
+  "from_names": [
+    "v1/ConfigMap/a",
+    "v1/ConfigMap/b"
+  ],
+  "to_names": [
+    "v1/ConfigMap/b",
+    "v1/ConfigMap/c"
+  ],
+  "diffs": [
+    {
+      "dot": "data.k",
+      "gopatch": "/data/k",
+      "root": "v1/ConfigMap/b",
+      "document_idx": 1,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "data"
+        },
+        {
+          "idx": -1,
+          "name": "k"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "v",
+            "line": 12
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!str",
+            "value": "v2",
+            "line": 6
+          }
+        }
+      ]
+    },
+    {
+      "nil_elements": true,
+      "dot": "",
+      "gopatch": "/",
+      "root": "v1/ConfigMap/a",
+      "document_idx": 0,
+      "details": [
+        {
+          "kind": "-",
+          "from": {
+            "kind": "document",
+            "content": [
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 2,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "apiVersion",
+                    "line": 2
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "v1",
+                    "line": 2
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "kind",
+                    "line": 3
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "ConfigMap",
+                    "line": 3
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "metadata",
+                    "line": 4
+                  },
+                  {
+                    "kind": "mapping",
+                    "tag": "!!map",
+                    "line": 5,
+                    "content": [
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "name",
+                        "line": 5
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "a",
+                        "line": 5
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "data",
+                    "line": 6
+                  },
+                  {
+                    "kind": "mapping",
+                    "tag": "!!map",
+                    "line": 6,
+                    "content": [
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "k",
+                        "line": 6
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "v",
+                        "line": 6
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "nil_elements": true,
+      "dot": "",
+      "gopatch": "/",
+      "root": "v1/ConfigMap/c",
+      "document_idx": 1,
+      "details": [
+        {
+          "kind": "+",
+          "to": {
+            "kind": "document",
+            "content": [
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 8,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "apiVersion",
+                    "line": 8
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "v1",
+                    "line": 8
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "kind",
+                    "line": 9
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "ConfigMap",
+                    "line": 9
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "metadata",
+                    "line": 10
+                  },
+                  {
+                    "kind": "mapping",
+                    "tag": "!!map",
+                    "line": 11,
+                    "content": [
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "name",
+                        "line": 11
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "c",
+                        "line": 11
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "data",
+                    "line": 12
+                  },
+                  {
+                    "kind": "mapping",
+                    "tag": "!!map",
+                    "line": 12,
+                    "content": [
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "k",
+                        "line": 12
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "v",
+                        "line": 12
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "nil_path": true,
+      "dot": "",
+      "gopatch": "",
+      "root": "",
+      "document_idx": 0,
+      "details": [
+        {
+          "kind": "⇆",
+          "from": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "v1/ConfigMap/a"
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "v1/ConfigMap/b"
+              }
+            ]
+          },
+          "to": {
+            "kind": "sequence",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "v1/ConfigMap/b"
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "v1/ConfigMap/c"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

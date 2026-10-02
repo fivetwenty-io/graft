@@ -1,0 +1,2470 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "head": "# Alerting Addon\n# Configures Elasticsearch alerting and monitoring rules",
+      "line": 4,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 4,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "instance_groups",
+              "line": 4
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 5,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 5,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 5
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "maintenance",
+                      "line": 5
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "jobs",
+                      "line": 6
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 7,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 7,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 7
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "elasticsearch_config",
+                              "line": 7
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "properties",
+                              "line": 8
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 9,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "elasticsearch_config",
+                                  "line": 9
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 10,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "watches",
+                                      "line": 10
+                                    },
+                                    {
+                                      "kind": "sequence",
+                                      "tag": "!!seq",
+                                      "line": 12,
+                                      "content": [
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "head": "# Cluster health monitoring",
+                                          "line": 12,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "name",
+                                              "line": 12
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "cluster_health_red",
+                                              "line": 12
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "trigger",
+                                              "line": 13
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 14,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "schedule",
+                                                  "line": 14
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 15,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "interval",
+                                                      "line": 15
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "30s",
+                                                      "line": 15
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "input",
+                                              "line": 16
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 17,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "http",
+                                                  "line": 17
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 18,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "request",
+                                                      "line": 18
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 19,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "scheme",
+                                                          "line": 19
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "https",
+                                                          "line": 19
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "host",
+                                                          "line": 20
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab instance_groups.elasticsearch-master.networks[0].static_ips[0] ))",
+                                                          "line": 20
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "port",
+                                                          "line": 21
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!int",
+                                                          "value": "9200",
+                                                          "line": 21
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "path",
+                                                          "line": 22
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "/_cluster/health",
+                                                          "line": 22
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "auth",
+                                                          "line": 23
+                                                        },
+                                                        {
+                                                          "kind": "mapping",
+                                                          "tag": "!!map",
+                                                          "line": 24,
+                                                          "content": [
+                                                            {
+                                                              "kind": "scalar",
+                                                              "tag": "!!str",
+                                                              "value": "basic",
+                                                              "line": 24
+                                                            },
+                                                            {
+                                                              "kind": "mapping",
+                                                              "tag": "!!map",
+                                                              "line": 25,
+                                                              "content": [
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "username",
+                                                                  "line": 25
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "elastic",
+                                                                  "line": 25
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "password",
+                                                                  "line": 26
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "(( vault meta.vault \"/elasticsearch:admin_password\" ))",
+                                                                  "line": 26
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "condition",
+                                              "line": 27
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 28,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "compare",
+                                                  "line": 28
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 29,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "ctx.payload.status",
+                                                      "line": 29
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 30,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "eq",
+                                                          "line": 30
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "red",
+                                                          "line": 30
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "actions",
+                                              "line": 31
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 32,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "email_admin",
+                                                  "line": 32
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 33,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "email",
+                                                      "line": 33
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 34,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "to",
+                                                          "line": 34
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab params.alert_email || \"admin@example.com\" ))",
+                                                          "line": 34
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "subject",
+                                                          "line": 35
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "Elasticsearch Cluster Health RED",
+                                                          "line": 35
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "body",
+                                                          "line": 36
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "Elasticsearch cluster health is RED. Immediate attention required.",
+                                                          "line": 36
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "head": "# Disk space monitoring",
+                                          "line": 39,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "name",
+                                              "line": 39
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "disk_space_warning",
+                                              "line": 39
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "trigger",
+                                              "line": 40
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 41,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "schedule",
+                                                  "line": 41
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 42,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "interval",
+                                                      "line": 42
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "5m",
+                                                      "line": 42
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "input",
+                                              "line": 43
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 44,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "http",
+                                                  "line": 44
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 45,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "request",
+                                                      "line": 45
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 46,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "scheme",
+                                                          "line": 46
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "https",
+                                                          "line": 46
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "host",
+                                                          "line": 47
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab instance_groups.elasticsearch-master.networks[0].static_ips[0] ))",
+                                                          "line": 47
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "port",
+                                                          "line": 48
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!int",
+                                                          "value": "9200",
+                                                          "line": 48
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "path",
+                                                          "line": 49
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "/_nodes/stats/fs",
+                                                          "line": 49
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "auth",
+                                                          "line": 50
+                                                        },
+                                                        {
+                                                          "kind": "mapping",
+                                                          "tag": "!!map",
+                                                          "line": 51,
+                                                          "content": [
+                                                            {
+                                                              "kind": "scalar",
+                                                              "tag": "!!str",
+                                                              "value": "basic",
+                                                              "line": 51
+                                                            },
+                                                            {
+                                                              "kind": "mapping",
+                                                              "tag": "!!map",
+                                                              "line": 52,
+                                                              "content": [
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "username",
+                                                                  "line": 52
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "elastic",
+                                                                  "line": 52
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "password",
+                                                                  "line": 53
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "(( vault meta.vault \"/elasticsearch:admin_password\" ))",
+                                                                  "line": 53
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "condition",
+                                              "line": 54
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 55,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "script",
+                                                  "line": 55
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 56,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "source",
+                                                      "line": 56
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "for (node in ctx.payload.nodes.values()) {\n  for (fs in node.fs.data) {\n    double available = fs.available_in_bytes;\n    double total = fs.total_in_bytes;\n    double used_percentage = ((total - available) / total) * 100;\n    if (used_percentage \u003e 85) {\n      return true;\n    }\n  }\n}\nreturn false;\n",
+                                                      "line": 56
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "actions",
+                                              "line": 68
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 69,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "email_admin",
+                                                  "line": 69
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 70,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "email",
+                                                      "line": 70
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 71,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "to",
+                                                          "line": 71
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab params.alert_email || \"admin@example.com\" ))",
+                                                          "line": 71
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "subject",
+                                                          "line": 72
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "Elasticsearch Disk Space Warning",
+                                                          "line": 72
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "body",
+                                                          "line": 73
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "One or more Elasticsearch nodes have low disk space (\u003e85% used).",
+                                                          "line": 73
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "head": "# Memory usage monitoring",
+                                          "line": 76,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "name",
+                                              "line": 76
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "memory_usage_warning",
+                                              "line": 76
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "trigger",
+                                              "line": 77
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 78,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "schedule",
+                                                  "line": 78
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 79,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "interval",
+                                                      "line": 79
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "2m",
+                                                      "line": 79
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "input",
+                                              "line": 80
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 81,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "http",
+                                                  "line": 81
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 82,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "request",
+                                                      "line": 82
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 83,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "scheme",
+                                                          "line": 83
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "https",
+                                                          "line": 83
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "host",
+                                                          "line": 84
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab instance_groups.elasticsearch-master.networks[0].static_ips[0] ))",
+                                                          "line": 84
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "port",
+                                                          "line": 85
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!int",
+                                                          "value": "9200",
+                                                          "line": 85
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "path",
+                                                          "line": 86
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "/_nodes/stats/jvm",
+                                                          "line": 86
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "auth",
+                                                          "line": 87
+                                                        },
+                                                        {
+                                                          "kind": "mapping",
+                                                          "tag": "!!map",
+                                                          "line": 88,
+                                                          "content": [
+                                                            {
+                                                              "kind": "scalar",
+                                                              "tag": "!!str",
+                                                              "value": "basic",
+                                                              "line": 88
+                                                            },
+                                                            {
+                                                              "kind": "mapping",
+                                                              "tag": "!!map",
+                                                              "line": 89,
+                                                              "content": [
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "username",
+                                                                  "line": 89
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "elastic",
+                                                                  "line": 89
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "password",
+                                                                  "line": 90
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "(( vault meta.vault \"/elasticsearch:admin_password\" ))",
+                                                                  "line": 90
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "condition",
+                                              "line": 91
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 92,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "script",
+                                                  "line": 92
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 93,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "source",
+                                                      "line": 93
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "for (node in ctx.payload.nodes.values()) {\n  double heap_used = node.jvm.mem.heap_used_percent;\n  if (heap_used \u003e 90) {\n    return true;\n  }\n}\nreturn false;\n",
+                                                      "line": 93
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "actions",
+                                              "line": 101
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 102,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "email_admin",
+                                                  "line": 102
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 103,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "email",
+                                                      "line": 103
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 104,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "to",
+                                                          "line": 104
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab params.alert_email || \"admin@example.com\" ))",
+                                                          "line": 104
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "subject",
+                                                          "line": 105
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "Elasticsearch Memory Usage Warning",
+                                                          "line": 105
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "body",
+                                                          "line": 106
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "One or more Elasticsearch nodes have high memory usage (\u003e90% heap used).",
+                                                          "line": 106
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "head": "# Index creation rate monitoring",
+                                          "line": 109,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "name",
+                                              "line": 109
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "index_creation_rate",
+                                              "line": 109
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "trigger",
+                                              "line": 110
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 111,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "schedule",
+                                                  "line": 111
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 112,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "interval",
+                                                      "line": 112
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "1h",
+                                                      "line": 112
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "input",
+                                              "line": 113
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 114,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "http",
+                                                  "line": 114
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 115,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "request",
+                                                      "line": 115
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 116,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "scheme",
+                                                          "line": 116
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "https",
+                                                          "line": 116
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "host",
+                                                          "line": 117
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab instance_groups.elasticsearch-master.networks[0].static_ips[0] ))",
+                                                          "line": 117
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "port",
+                                                          "line": 118
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!int",
+                                                          "value": "9200",
+                                                          "line": 118
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "path",
+                                                          "line": 119
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "/_cat/indices?format=json\u0026h=index,creation.date.string",
+                                                          "line": 119
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "auth",
+                                                          "line": 120
+                                                        },
+                                                        {
+                                                          "kind": "mapping",
+                                                          "tag": "!!map",
+                                                          "line": 121,
+                                                          "content": [
+                                                            {
+                                                              "kind": "scalar",
+                                                              "tag": "!!str",
+                                                              "value": "basic",
+                                                              "line": 121
+                                                            },
+                                                            {
+                                                              "kind": "mapping",
+                                                              "tag": "!!map",
+                                                              "line": 122,
+                                                              "content": [
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "username",
+                                                                  "line": 122
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "elastic",
+                                                                  "line": 122
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "password",
+                                                                  "line": 123
+                                                                },
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "(( vault meta.vault \"/elasticsearch:admin_password\" ))",
+                                                                  "line": 123
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "condition",
+                                              "line": 124
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 125,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "script",
+                                                  "line": 125
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 126,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "source",
+                                                      "line": 126
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "int recent_indices = 0;\nlong one_hour_ago = ctx.execution_time.millis - 3600000;\nfor (index in ctx.payload) {\n  if (index.index.startsWith(\"logs-\")) {\n    try {\n      long creation_time = Long.parseLong(index['creation.date.string']);\n      if (creation_time \u003e one_hour_ago) {\n        recent_indices++;\n      }\n    } catch (Exception e) {\n      // Skip if timestamp parsing fails\n    }\n  }\n}\nreturn recent_indices \u003e 10; // Alert if more than 10 indices created in last hour\n",
+                                                      "line": 126
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "actions",
+                                              "line": 142
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 143,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "email_admin",
+                                                  "line": 143
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 144,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "email",
+                                                      "line": 144
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 145,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "to",
+                                                          "line": 145
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab params.alert_email || \"admin@example.com\" ))",
+                                                          "line": 145
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "subject",
+                                                          "line": 146
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "High Index Creation Rate",
+                                                          "line": 146
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "body",
+                                                          "line": 147
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "More than 10 indices created in the last hour. Check for index explosion.",
+                                                          "line": 147
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "head": "# Failed ingestion monitoring  ",
+                                          "line": 150,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "name",
+                                              "line": 150
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "logstash_failures",
+                                              "line": 150
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "trigger",
+                                              "line": 151
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 152,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "schedule",
+                                                  "line": 152
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 153,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "interval",
+                                                      "line": 153
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "5m",
+                                                      "line": 153
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "input",
+                                              "line": 154
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 155,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "search",
+                                                  "line": 155
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 156,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "request",
+                                                      "line": 156
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 157,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "search_type",
+                                                          "line": 157
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "query_then_fetch",
+                                                          "line": 157
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "indices",
+                                                          "line": 158
+                                                        },
+                                                        {
+                                                          "kind": "sequence",
+                                                          "tag": "!!seq",
+                                                          "line": 158,
+                                                          "content": [
+                                                            {
+                                                              "kind": "scalar",
+                                                              "tag": "!!str",
+                                                              "value": ".logstash-*",
+                                                              "line": 158
+                                                            }
+                                                          ]
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "rest_total_hits_as_int",
+                                                          "line": 159
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!bool",
+                                                          "value": "true",
+                                                          "line": 159
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "body",
+                                                          "line": 160
+                                                        },
+                                                        {
+                                                          "kind": "mapping",
+                                                          "tag": "!!map",
+                                                          "line": 161,
+                                                          "content": [
+                                                            {
+                                                              "kind": "scalar",
+                                                              "tag": "!!str",
+                                                              "value": "size",
+                                                              "line": 161
+                                                            },
+                                                            {
+                                                              "kind": "scalar",
+                                                              "tag": "!!int",
+                                                              "value": "0",
+                                                              "line": 161
+                                                            },
+                                                            {
+                                                              "kind": "scalar",
+                                                              "tag": "!!str",
+                                                              "value": "query",
+                                                              "line": 162
+                                                            },
+                                                            {
+                                                              "kind": "mapping",
+                                                              "tag": "!!map",
+                                                              "line": 163,
+                                                              "content": [
+                                                                {
+                                                                  "kind": "scalar",
+                                                                  "tag": "!!str",
+                                                                  "value": "bool",
+                                                                  "line": 163
+                                                                },
+                                                                {
+                                                                  "kind": "mapping",
+                                                                  "tag": "!!map",
+                                                                  "line": 164,
+                                                                  "content": [
+                                                                    {
+                                                                      "kind": "scalar",
+                                                                      "tag": "!!str",
+                                                                      "value": "must",
+                                                                      "line": 164
+                                                                    },
+                                                                    {
+                                                                      "kind": "sequence",
+                                                                      "tag": "!!seq",
+                                                                      "line": 165,
+                                                                      "content": [
+                                                                        {
+                                                                          "kind": "mapping",
+                                                                          "tag": "!!map",
+                                                                          "line": 165,
+                                                                          "content": [
+                                                                            {
+                                                                              "kind": "scalar",
+                                                                              "tag": "!!str",
+                                                                              "value": "range",
+                                                                              "line": 165
+                                                                            },
+                                                                            {
+                                                                              "kind": "mapping",
+                                                                              "tag": "!!map",
+                                                                              "line": 166,
+                                                                              "content": [
+                                                                                {
+                                                                                  "kind": "scalar",
+                                                                                  "tag": "!!str",
+                                                                                  "value": "@timestamp",
+                                                                                  "line": 166
+                                                                                },
+                                                                                {
+                                                                                  "kind": "mapping",
+                                                                                  "tag": "!!map",
+                                                                                  "line": 167,
+                                                                                  "content": [
+                                                                                    {
+                                                                                      "kind": "scalar",
+                                                                                      "tag": "!!str",
+                                                                                      "value": "gte",
+                                                                                      "line": 167
+                                                                                    },
+                                                                                    {
+                                                                                      "kind": "scalar",
+                                                                                      "tag": "!!str",
+                                                                                      "value": "now-5m",
+                                                                                      "line": 167
+                                                                                    }
+                                                                                  ]
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        },
+                                                                        {
+                                                                          "kind": "mapping",
+                                                                          "tag": "!!map",
+                                                                          "line": 168,
+                                                                          "content": [
+                                                                            {
+                                                                              "kind": "scalar",
+                                                                              "tag": "!!str",
+                                                                              "value": "match",
+                                                                              "line": 168
+                                                                            },
+                                                                            {
+                                                                              "kind": "mapping",
+                                                                              "tag": "!!map",
+                                                                              "line": 169,
+                                                                              "content": [
+                                                                                {
+                                                                                  "kind": "scalar",
+                                                                                  "tag": "!!str",
+                                                                                  "value": "tags",
+                                                                                  "line": 169
+                                                                                },
+                                                                                {
+                                                                                  "kind": "scalar",
+                                                                                  "tag": "!!str",
+                                                                                  "value": "_grokparsefailure",
+                                                                                  "line": 169
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "condition",
+                                              "line": 170
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 171,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "compare",
+                                                  "line": 171
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 172,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "ctx.payload.hits.total",
+                                                      "line": 172
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 173,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "gt",
+                                                          "line": 173
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab params.parse_failure_threshold || 100 ))",
+                                                          "line": 173
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "actions",
+                                              "line": 174
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 175,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "email_admin",
+                                                  "line": 175
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 176,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "email",
+                                                      "line": 176
+                                                    },
+                                                    {
+                                                      "kind": "mapping",
+                                                      "tag": "!!map",
+                                                      "line": 177,
+                                                      "content": [
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "to",
+                                                          "line": 177
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "(( grab params.alert_email || \"admin@example.com\" ))",
+                                                          "line": 177
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "subject",
+                                                          "line": 178
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "High Logstash Parse Failure Rate",
+                                                          "line": 178
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "body",
+                                                          "line": 179
+                                                        },
+                                                        {
+                                                          "kind": "scalar",
+                                                          "tag": "!!str",
+                                                          "value": "High number of Logstash parse failures detected in the last 5 minutes.",
+                                                          "line": 179
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "instance_groups",
+              "head": "# Configure alerting infrastructure",
+              "line": 182
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 183,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 183,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 183
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "elasticsearch-master",
+                      "line": 183
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "jobs",
+                      "line": 184
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 185,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 185,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 185
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "elasticsearch",
+                              "line": 185
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "properties",
+                              "line": 186
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 187,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "elasticsearch",
+                                  "line": 187
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 188,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "config_options",
+                                      "line": 188
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 190,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "xpack.watcher.enabled",
+                                          "head": "# Enable alerting features",
+                                          "line": 190
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!bool",
+                                          "value": "true",
+                                          "line": 190
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "xpack.notification.email.default_account",
+                                          "line": 191
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "(( grab params.smtp_account || \"default\" ))",
+                                          "line": 191
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "notification",
+                                      "head": "# SMTP configuration for email alerts",
+                                      "line": 194
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 195,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "email",
+                                          "line": 195
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 196,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "default_account",
+                                              "line": 196
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 197,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "smtp",
+                                                  "line": 197
+                                                },
+                                                {
+                                                  "kind": "mapping",
+                                                  "tag": "!!map",
+                                                  "line": 198,
+                                                  "content": [
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "host",
+                                                      "line": 198
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "(( grab params.smtp_host || \"localhost\" ))",
+                                                      "line": 198
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "port",
+                                                      "line": 199
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "(( grab params.smtp_port || 587 ))",
+                                                      "line": 199
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "starttls.enable",
+                                                      "line": 200
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "(( grab params.smtp_starttls || true ))",
+                                                      "line": 200
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "auth",
+                                                      "line": 201
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "(( grab params.smtp_auth || true ))",
+                                                      "line": 201
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "user",
+                                                      "line": 202
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "(( grab params.smtp_username || \"alerts@example.com\" ))",
+                                                      "line": 202
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "password",
+                                                      "line": 203
+                                                    },
+                                                    {
+                                                      "kind": "scalar",
+                                                      "tag": "!!str",
+                                                      "value": "(( vault meta.vault \"/smtp:password\" ))",
+                                                      "line": 203
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "instance_groups",
+              "head": "# Add alertmanager integration for Prometheus-style alerts",
+              "line": 206
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 207,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 207,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 207
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "maintenance",
+                      "line": 207
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "jobs",
+                      "line": 208
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 209,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 209,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 209
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "alertmanager_config",
+                              "line": 209
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "release",
+                              "line": 210
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "logsearch",
+                              "line": 210
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "properties",
+                              "line": 211
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 212,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "alertmanager",
+                                  "line": 212
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 213,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "webhook_url",
+                                      "line": 213
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "(( grab params.alertmanager_webhook || \"\" ))",
+                                      "line": 213
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "rules",
+                                      "line": 214
+                                    },
+                                    {
+                                      "kind": "sequence",
+                                      "tag": "!!seq",
+                                      "line": 215,
+                                      "content": [
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 215,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "alert",
+                                              "line": 215
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ElasticsearchClusterRed",
+                                              "line": 215
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "expr",
+                                              "line": 216
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "elasticsearch_cluster_health_status{color=\"red\"} == 1",
+                                              "line": 216
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "for",
+                                              "line": 217
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "0m",
+                                              "line": 217
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "labels",
+                                              "line": 218
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 219,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "severity",
+                                                  "line": 219
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "critical",
+                                                  "line": 219
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "annotations",
+                                              "line": 220
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 221,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "summary",
+                                                  "line": 221
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "Elasticsearch cluster status is red",
+                                                  "line": 221
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "description",
+                                                  "line": 222
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "Elasticsearch cluster health is red for more than 0 minutes",
+                                                  "line": 222
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 224,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "alert",
+                                              "line": 224
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ElasticsearchHighMemoryUsage",
+                                              "line": 224
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "expr",
+                                              "line": 225
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "elasticsearch_jvm_memory_used_percent \u003e 90",
+                                              "line": 225
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "for",
+                                              "line": 226
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "2m",
+                                              "line": 226
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "labels",
+                                              "line": 227
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 228,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "severity",
+                                                  "line": 228
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "warning",
+                                                  "line": 228
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "annotations",
+                                              "line": 229
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 230,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "summary",
+                                                  "line": 230
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "Elasticsearch node memory usage is high",
+                                                  "line": 230
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "description",
+                                                  "line": 231
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "Elasticsearch node memory usage is above 90% for more than 2 minutes",
+                                                  "line": 231
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 233,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "alert",
+                                              "line": 233
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ElasticsearchDiskSpaceLow",
+                                              "line": 233
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "expr",
+                                              "line": 234
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "elasticsearch_filesystem_data_available_bytes / elasticsearch_filesystem_data_size_bytes \u003c 0.15",
+                                              "line": 234
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "for",
+                                              "line": 235
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "5m",
+                                              "line": 235
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "labels",
+                                              "line": 236
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 237,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "severity",
+                                                  "line": 237
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "critical",
+                                                  "line": 237
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "annotations",
+                                              "line": 238
+                                            },
+                                            {
+                                              "kind": "mapping",
+                                              "tag": "!!map",
+                                              "line": 239,
+                                              "content": [
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "summary",
+                                                  "line": 239
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "Elasticsearch node disk space is low",
+                                                  "line": 239
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "description",
+                                                  "line": 240
+                                                },
+                                                {
+                                                  "kind": "scalar",
+                                                  "tag": "!!str",
+                                                  "value": "Elasticsearch node has less than 15% disk space available",
+                                                  "line": 240
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+jobs:
+- name: a
+  plan: []
+
+# head of the first key, past the anchor
+- &b
+  name: b
+- # head of name
+  name: c

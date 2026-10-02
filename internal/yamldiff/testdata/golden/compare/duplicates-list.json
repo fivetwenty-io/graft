@@ -1,0 +1,67 @@
+{
+  "from_documents": 1,
+  "diffs": [
+    {
+      "dot": "l",
+      "gopatch": "/l",
+      "root": "document #1",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "l"
+        }
+      ],
+      "details": [
+        {
+          "kind": "-",
+          "from": {
+            "kind": "sequence",
+            "tag": "!!seq",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "a",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "b",
+                "line": 1
+              }
+            ]
+          }
+        },
+        {
+          "kind": "+",
+          "to": {
+            "kind": "sequence",
+            "tag": "!!seq",
+            "content": [
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "c",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "c",
+                "line": 1
+              },
+              {
+                "kind": "scalar",
+                "tag": "!!str",
+                "value": "d",
+                "line": 1
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

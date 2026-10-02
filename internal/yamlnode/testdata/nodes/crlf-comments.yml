@@ -1,0 +1,16 @@
+# head of a
+a: 1 # line of a
+# foot of a
+
+# one
+# two
+# three
+b:
+  - x # line of x
+  # foot of x
+  - y
+c: |
+  text
+
+# head of d
+d: 4

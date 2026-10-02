@@ -1,0 +1,34 @@
+{
+  "from_documents": 2,
+  "diffs": [
+    {
+      "dot": "x",
+      "gopatch": "/x",
+      "root": "document #2",
+      "document_idx": 1,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "x"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "2",
+            "line": 4
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "3",
+            "line": 4
+          }
+        }
+      ]
+    }
+  ]
+}

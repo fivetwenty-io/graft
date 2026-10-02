@@ -1,0 +1,85 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 2,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 2,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "head": "# head of a",
+              "foot": "# foot of a",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line_comment": "# line of a",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "head": "# one\n# two\n# three",
+              "line": 8
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 9,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "x",
+                  "line_comment": "# line of x",
+                  "line": 9
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "y",
+                  "head": "# foot of x",
+                  "line": 11
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "c",
+              "line": 12
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "text\n",
+              "line": 12
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "d",
+              "head": "# head of d",
+              "line": 16
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "4",
+              "line": 16
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

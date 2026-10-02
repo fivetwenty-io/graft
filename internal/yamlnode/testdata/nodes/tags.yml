@@ -1,0 +1,14 @@
+s: !!str 1
+i: !!int 0x10
+f: !!float 1
+b: !!bool yes
+n: !!null ''
+custom: !foo bar
+cmap: !custom {a: 1}
+cseq: !custom [1]
+bare: ! 1
+verbatim: !<tag:yaml.org,2002:str> 1
+bin: !!binary aGVsbG8=
+merge_plain:
+  <<: {a: 1}
+merge_quoted: '<<'

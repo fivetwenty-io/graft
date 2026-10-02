@@ -1,0 +1,15 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!null",
+          "line": 2
+        }
+      ]
+    }
+  ]
+}

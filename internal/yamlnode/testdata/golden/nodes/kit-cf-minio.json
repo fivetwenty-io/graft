@@ -1,0 +1,2271 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 39,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "params",
+              "head": "# MinIO, or any other S3-compatible endpoint reached by hostname.\n#\n# cf-deployment v59.0.0 moved cloud_controller off the fog gem onto\n# storage-cli and stripped the fog_connection wiring out of\n# operations/use-external-blobstore.yml, which now sets only the four directory\n# keys. The wiring below replaces that fog_connection block and has to be\n# declared on each of the three cloud_controller jobs.\n#\n# Property names come from capi's jobs/cloud_controller_ng/templates/\n# storage_cli_config_\u003cbucket\u003e.json.erb, not from storage-cli's own config\n# struct. For provider s3 the template reads bucket_name, aws_access_key_id,\n# and aws_secret_access_key, sets credentials_source itself, and passes host,\n# port, region, use_ssl, ssl_verify_peer, and host_style through when present.\n# Writing storage-cli's internal names, access_key_id and secret_access_key,\n# renders nothing and fails the deploy on a missing property.\n#\n# Two things an operator has to act on when upgrading.\n#\n# blobstore_minio_endpoint is gone. storage-cli takes a bare hostname and a\n# separate port, and it builds the endpoint itself from host, port, and\n# use_ssl, so there is nowhere to put a URL. Split the old value into\n# blobstore_minio_host, blobstore_minio_port, and blobstore_minio_use_ssl. An\n# environment that still carries only the old parameter fails to render, with\n# the message on blobstore_minio_host below.\n#\n# Signature version 2 is gone as well. The fog configuration pinned\n# aws_signature_version to 2, and storage-cli has no such setting. capi's\n# template forwards a signature_version key, but storage-cli's S3 config struct\n# has no field to receive it and drops it, signing every request with version\n# 4. MinIO has spoken version 4 for years, so this should be invisible, but an\n# endpoint that genuinely only accepts version 2 can no longer be reached.\n#\n# storage-cli has no ssl_ca_file knob, so a private CA has to reach the VM's\n# system trust store, which on a Genesis foundation means the os-conf ca_certs\n# runtime config. Where that is not in place, set blobstore_minio_ssl_verify_peer\n# to false rather than expecting a CA parameter.\n",
+              "line": 39
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 40,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "blobstore_minio_host",
+                  "line": 40
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( param \"Specify the hostname of the MinIO endpoint to use as your Cloud Controller blobstore. This replaces blobstore_minio_endpoint, because storage-cli takes a bare hostname rather than a URL. Give the host on its own here, and set blobstore_minio_port and blobstore_minio_use_ssl separately.\" ))",
+                  "line": 40
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "blobstore_minio_port",
+                  "line": 42
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "9000",
+                  "line": 42
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "blobstore_minio_use_ssl",
+                  "line": 43
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!bool",
+                  "value": "true",
+                  "line": 43
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "blobstore_minio_ssl_verify_peer",
+                  "line": 44
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!bool",
+                  "value": "true",
+                  "line": 44
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "blobstore_minio_host_style",
+                  "head": "# storage-cli names bucket addressing the opposite way round from fog.\n# host_style false is the path style the fog configuration asked for, and it\n# is what a MinIO deployment without wildcard DNS needs.",
+                  "line": 49
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!bool",
+                  "value": "false",
+                  "line": 49
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "blobstore_s3_region",
+                  "head": "# MinIO ignores the region but the AWS signing algorithm does not, and the\n# empty string the fog configuration used is not a valid one. us-east-1 is\n# what MinIO itself defaults to.",
+                  "line": 54
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "(( grab params.blobstore_minio_region || \"us-east-1\" ))",
+                  "line": 54
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "blobstore_s3_access_key",
+                  "head": "# Default to the credhub credentials this overlay has always documented. The\n# OCFP layer overrides both from the bloc's vault tree, and it merges later.",
+                  "line": 58
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "((blobstore_access_key_id))",
+                  "line": 58
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "blobstore_s3_secret_key",
+                  "line": 59
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "((blobstore_secret_access_key))",
+                  "line": 59
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "instance_groups",
+              "head": "# Credhub Secrets\n#   blobstore_access_key_id\n#   blobstore_secret_access_key\n",
+              "line": 65
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 66,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 66,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 66
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "api",
+                      "line": 66
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "jobs",
+                      "line": 67
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 68,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 68,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 68
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "cloud_controller_ng",
+                              "line": 68
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "properties",
+                              "line": 69
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 70,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "cc",
+                                  "line": 70
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 71,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "buildpacks",
+                                      "line": 71
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 72,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 72
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 72
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 73
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 73
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 74
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 75,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 75
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((buildpack_directory_key))",
+                                              "line": 75
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 76
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 76
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 77
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 77
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 78
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 78
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 79
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 79
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 80
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 80
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 81
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 81
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 82
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 82
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 83
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 83
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "droplets",
+                                      "line": 84
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 85,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 85
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 85
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 86
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 86
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 87
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 88,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 88
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((droplet_directory_key))",
+                                              "line": 88
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 89
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 89
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 90
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 90
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 91
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 91
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 92
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 92
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 93
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 93
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 94
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 94
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 95
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 95
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 96
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 96
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "packages",
+                                      "line": 97
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 98,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 98
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 98
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 99
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 99
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 100
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 101,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 101
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((app_package_directory_key))",
+                                              "line": 101
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 102
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 102
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 103
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 103
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 104
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 104
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 105
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 105
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 106
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 106
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 107
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 107
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 108
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 108
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 109
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 109
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "resource_pool",
+                                      "line": 110
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 111,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 111
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 111
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 112
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 112
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 113
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 114,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 114
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((resource_directory_key))",
+                                              "line": 114
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 115
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 115
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 116
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 116
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 117
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 117
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 118
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 118
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 119
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 119
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 120
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 120
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 121
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 121
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 122
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 122
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 123,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 123
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "cc-worker",
+                      "line": 123
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "jobs",
+                      "line": 124
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 125,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 125,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 125
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "cloud_controller_worker",
+                              "line": 125
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "properties",
+                              "line": 126
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 127,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "cc",
+                                  "line": 127
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 128,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "buildpacks",
+                                      "line": 128
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 129,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 129
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 129
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 130
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 130
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 131
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 132,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 132
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((buildpack_directory_key))",
+                                              "line": 132
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 133
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 133
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 134
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 134
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 135
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 135
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 136
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 136
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 137
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 137
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 138
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 138
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 139
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 139
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 140
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 140
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "droplets",
+                                      "line": 141
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 142,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 142
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 142
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 143
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 143
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 144
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 145,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 145
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((droplet_directory_key))",
+                                              "line": 145
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 146
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 146
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 147
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 147
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 148
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 148
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 149
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 149
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 150
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 150
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 151
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 151
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 152
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 152
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 153
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 153
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "packages",
+                                      "line": 154
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 155,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 155
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 155
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 156
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 156
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 157
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 158,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 158
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((app_package_directory_key))",
+                                              "line": 158
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 159
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 159
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 160
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 160
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 161
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 161
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 162
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 162
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 163
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 163
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 164
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 164
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 165
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 165
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 166
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 166
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "resource_pool",
+                                      "line": 167
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 168,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 168
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 168
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 169
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 169
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 170
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 171,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 171
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((resource_directory_key))",
+                                              "line": 171
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 172
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 172
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 173
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 173
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 174
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 174
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 175
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 175
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 176
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 176
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 177
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 177
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 178
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 178
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 179
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 179
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 180,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 180
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "scheduler",
+                      "line": 180
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "jobs",
+                      "line": 181
+                    },
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 182,
+                      "content": [
+                        {
+                          "kind": "mapping",
+                          "tag": "!!map",
+                          "line": 182,
+                          "content": [
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "name",
+                              "line": 182
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "cloud_controller_clock",
+                              "line": 182
+                            },
+                            {
+                              "kind": "scalar",
+                              "tag": "!!str",
+                              "value": "properties",
+                              "line": 183
+                            },
+                            {
+                              "kind": "mapping",
+                              "tag": "!!map",
+                              "line": 184,
+                              "content": [
+                                {
+                                  "kind": "scalar",
+                                  "tag": "!!str",
+                                  "value": "cc",
+                                  "line": 184
+                                },
+                                {
+                                  "kind": "mapping",
+                                  "tag": "!!map",
+                                  "line": 185,
+                                  "content": [
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "buildpacks",
+                                      "line": 185
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 186,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 186
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 186
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 187
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 187
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 188
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 189,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 189
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((buildpack_directory_key))",
+                                              "line": 189
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 190
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 190
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 191
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 191
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 192
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 192
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 193
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 193
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 194
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 194
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 195
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 195
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 196
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 196
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 197
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 197
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "droplets",
+                                      "line": 198
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 199,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 199
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 199
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 200
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 200
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 201
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 202,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 202
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((droplet_directory_key))",
+                                              "line": 202
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 203
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 203
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 204
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 204
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 205
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 205
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 206
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 206
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 207
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 207
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 208
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 208
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 209
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 209
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 210
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 210
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "packages",
+                                      "line": 211
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 212,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 212
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 212
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 213
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 213
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 214
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 215,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 215
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((app_package_directory_key))",
+                                              "line": 215
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 216
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 216
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 217
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 217
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 218
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 218
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 219
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 219
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 220
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 220
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 221
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 221
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 222
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 222
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 223
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 223
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "kind": "scalar",
+                                      "tag": "!!str",
+                                      "value": "resource_pool",
+                                      "line": 224
+                                    },
+                                    {
+                                      "kind": "mapping",
+                                      "tag": "!!map",
+                                      "line": 225,
+                                      "content": [
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_type",
+                                          "line": 225
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "storage-cli",
+                                          "line": 225
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "blobstore_provider",
+                                          "line": 226
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "s3",
+                                          "line": 226
+                                        },
+                                        {
+                                          "kind": "scalar",
+                                          "tag": "!!str",
+                                          "value": "connection_config",
+                                          "line": 227
+                                        },
+                                        {
+                                          "kind": "mapping",
+                                          "tag": "!!map",
+                                          "line": 228,
+                                          "content": [
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "bucket_name",
+                                              "line": 228
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "((resource_directory_key))",
+                                              "line": 228
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host",
+                                              "line": 229
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host ))",
+                                              "line": 229
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "port",
+                                              "line": 230
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_port ))",
+                                              "line": 230
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "region",
+                                              "line": 231
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_region ))",
+                                              "line": 231
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "use_ssl",
+                                              "line": 232
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_use_ssl ))",
+                                              "line": 232
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "ssl_verify_peer",
+                                              "line": 233
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_ssl_verify_peer ))",
+                                              "line": 233
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "host_style",
+                                              "line": 234
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_minio_host_style ))",
+                                              "line": 234
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_access_key_id",
+                                              "line": 235
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_access_key ))",
+                                              "line": 235
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "aws_secret_access_key",
+                                              "line": 236
+                                            },
+                                            {
+                                              "kind": "scalar",
+                                              "tag": "!!str",
+                                              "value": "(( grab params.blobstore_s3_secret_key ))",
+                                              "line": 236
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

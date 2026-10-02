@@ -1,0 +1,132 @@
+{
+  "from_documents": 2,
+  "from_names": [
+    "v1/ConfigMap/a",
+    "v1/ConfigMap/b"
+  ],
+  "to_names": [
+    "v1/ConfigMap/b",
+    "v1/ConfigMap/a",
+    "v1/Secret/ns/c"
+  ],
+  "diffs": [
+    {
+      "dot": "data.x",
+      "gopatch": "/data/x",
+      "root": "v1/ConfigMap/a",
+      "document_idx": 0,
+      "elements": [
+        {
+          "idx": -1,
+          "name": "data"
+        },
+        {
+          "idx": -1,
+          "name": "x"
+        }
+      ],
+      "details": [
+        {
+          "kind": "±",
+          "from": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "1",
+            "line": 4
+          },
+          "to": {
+            "kind": "scalar",
+            "tag": "!!int",
+            "value": "2",
+            "line": 8
+          }
+        }
+      ]
+    },
+    {
+      "nil_elements": true,
+      "dot": "",
+      "gopatch": "/",
+      "root": "v1/Secret/ns/c",
+      "document_idx": 2,
+      "details": [
+        {
+          "kind": "+",
+          "to": {
+            "kind": "document",
+            "content": [
+              {
+                "kind": "mapping",
+                "tag": "!!map",
+                "line": 10,
+                "content": [
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "apiVersion",
+                    "line": 10
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "v1",
+                    "line": 10
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "kind",
+                    "line": 11
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "Secret",
+                    "line": 11
+                  },
+                  {
+                    "kind": "scalar",
+                    "tag": "!!str",
+                    "value": "metadata",
+                    "line": 12
+                  },
+                  {
+                    "kind": "mapping",
+                    "tag": "!!map",
+                    "line": 12,
+                    "content": [
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "name",
+                        "line": 12
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "c",
+                        "line": 12
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "namespace",
+                        "line": 12
+                      },
+                      {
+                        "kind": "scalar",
+                        "tag": "!!str",
+                        "value": "ns",
+                        "line": 12
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

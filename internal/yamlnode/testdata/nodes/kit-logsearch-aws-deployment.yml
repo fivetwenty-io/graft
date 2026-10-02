@@ -1,0 +1,95 @@
+---
+# Example: AWS-optimized Logsearch deployment
+# This example shows configuration optimized for Amazon Web Services
+
+kit:
+  name: logsearch
+  version: 1.0.0
+  features:
+    - s3-storage
+    - monitoring
+
+genesis:
+  env: aws-prod
+  iaas: aws
+
+params:
+  # AWS domain configuration
+  base_domain: logs.aws.company.com
+  
+  # AWS availability zones
+  availability_zones:
+    - us-west-2a
+    - us-west-2b
+    - us-west-2c
+  
+  # AWS-optimized scaling
+  elasticsearch_instances: 3
+  logstash_instances: 2
+  kibana_instances: 2
+  
+  # AWS instance sizing
+  elasticsearch_vm_type: m5.2xlarge  # 8 vCPU, 32GB RAM
+  logstash_vm_type: m5.large         # 2 vCPU, 8GB RAM
+  kibana_vm_type: m5.medium          # 1 vCPU, 4GB RAM
+  
+  # Memory allocation for AWS instance types
+  elasticsearch_heap_size: 14g  # Leave 18GB for OS and file cache
+  logstash_heap_size: 4g        # Leave 4GB for OS
+  kibana_memory_limit: 2g       # Leave 2GB for OS
+  
+  # AWS S3 configuration
+  s3_bucket: company-aws-logsearch
+  s3_region: us-west-2
+  s3_storage_class: STANDARD_IA  # Cheaper for infrequent access
+  
+  # AWS-optimized disk configuration
+  elasticsearch_disk_type: gp3     # General Purpose SSD v3
+  elasticsearch_disk_size: 500_000 # 500GB
+  elasticsearch_disk_iops: 3000    # Provisioned IOPS
+  elasticsearch_disk_throughput: 125 # MB/s
+  
+  # Performance tuning for AWS
+  elasticsearch_thread_pool_size: 16  # Match vCPU count / 2
+  logstash_pipeline_workers: 4        # Match vCPU count
+  logstash_pipeline_batch_size: 250
+  
+  # AWS monitoring
+  prometheus_elasticsearch_exporter_port: 9114
+  prometheus_logstash_exporter_port: 9198
+  
+  # AWS CloudWatch integration (optional)
+  cloudwatch_logs_enabled: true
+  cloudwatch_log_groups:
+    - /aws/lambda/log-processor
+    - /aws/apigateway/access-logs
+
+# Required AWS IAM policies for S3 access:
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Action": [
+#         "s3:GetObject",
+#         "s3:PutObject", 
+#         "s3:DeleteObject",
+#         "s3:ListBucket"
+#       ],
+#       "Resource": [
+#         "arn:aws:s3:::company-aws-logsearch/*",
+#         "arn:aws:s3:::company-aws-logsearch"
+#       ]
+#     }
+#   ]
+# }
+
+# Vault secrets for AWS:
+# safe set secret/logsearch/aws-prod/s3:access_key_id "AKIA..."
+# safe set secret/logsearch/aws-prod/s3:secret_access_key "..."
+
+# AWS-specific deployment commands:
+# aws configure  # Set up AWS CLI
+# genesis new aws-prod
+# genesis deploy aws-prod
+# genesis do aws-prod -- es-health

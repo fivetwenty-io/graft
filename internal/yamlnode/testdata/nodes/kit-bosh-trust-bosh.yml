@@ -1,0 +1,7 @@
+--- # Trust BOSH CA ("trust me" 🤪)
+meta:
+  ocfp:
+    certs:
+      trusted:
+        - (( append ))
+        - (( vault genesis.secrets_base "ssl/ca:certificate" ))

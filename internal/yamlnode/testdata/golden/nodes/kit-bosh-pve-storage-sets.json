@@ -1,0 +1,367 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "sequence",
+          "tag": "!!seq",
+          "line": 34,
+          "content": [
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# Opt-in PVE multi-storage placement, selected via the `pve-storage-sets`\n# feature. Loaded AFTER overlay/cpis/pve-base.yml (blueprint.pm processes the\n# IaaS baseline files before the feature loop), so the director's own pve\n# property block already exists and these replace? paths land inside it.\n#\n# Every op targets /instance_groups/name=bosh/properties/pve only. There is\n# deliberately no cloud_provider counterpart, unlike pve-ha-proto.yml. The CPI\n# refuses a set-managed placement until it can lock\n# storage_allocation_journal_dir, and during `bosh create-env` the CPI runs on\n# the operator's workstation or the bastion, where /var/vcap/store does not\n# exist and nothing provisions it. The director VM keeps scalar placement for\n# its own root and persistent disks, and storage sets take over for every VM\n# the director goes on to create.\n#\n# The three optional CPI keys this feature does not model -- root_storage_set,\n# require_disjoint_storage_sets, and storage_status_max_age_seconds -- are set\n# through bosh-configs.director-cpi when an env ever needs them. See MANUAL.md.\n\n# The director runs its CPI calls inside BPM worker processes, and BPM gives\n# each job only its own store directory, so the journal directory is invisible\n# to the CPI until the director job mounts it. director.cpi_additional_volumes\n# is appended to every worker's unrestricted_volumes by the bosh release's\n# jobs/director/templates/bpm.yml, alongside the CPI job and log directories it\n# derives from director.cpi_job. writable: true because the CPI locks and\n# writes the journal, and mount_only: true because the pve_cpi job's own\n# pre-start already creates the directory as vcap with mode 0700 and BPM must\n# not create it first with different ownership.\n#\n# This is the only place the kit sets cpi_additional_volumes, so the list is\n# written whole rather than appended to. It reuses the same journal-dir\n# variable the properties below use, so the mount and the property cannot drift\n# apart.",
+              "line": 34,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 34
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 34
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 35
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/director/cpi_additional_volumes?",
+                  "line": 35
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 36
+                },
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "line": 37,
+                  "content": [
+                    {
+                      "kind": "mapping",
+                      "tag": "!!map",
+                      "line": 37,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "path",
+                          "line": 37
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "((pve_storage_allocation_journal_dir))",
+                          "line": 37
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "writable",
+                          "line": 38
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!bool",
+                          "value": "true",
+                          "line": 38
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "mount_only",
+                          "line": 39
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!bool",
+                          "value": "true",
+                          "line": 39
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# Named groups of shared NFS storages. A map, passed through whole.",
+              "line": 42,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 42
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 42
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 43
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/pve/storage_sets?",
+                  "line": 43
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 44
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "((pve_storage_sets))",
+                  "line": 44
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# Role bindings. An empty string leaves that role on its scalar pool\n# (pve.vm_storage for root and ephemeral, pve.disk_storage for persistent),\n# which is what every release before CPI 0.6.0 did.",
+              "line": 49,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 49
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 49
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 50
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/pve/ephemeral_storage_set?",
+                  "line": 50
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 51
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "((pve_ephemeral_storage_set))",
+                  "line": 51
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 53,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 53
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 53
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 54
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/pve/persistent_storage_set?",
+                  "line": 54
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 55
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "((pve_persistent_storage_set))",
+                  "line": 55
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# Shared capacity budgets, keyed by domain name. An empty map is valid and\n# means no storage shares a budget with any other.",
+              "line": 59,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 59
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 59
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 60
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/pve/storage_capacity_domains?",
+                  "line": 60
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 61
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "((pve_storage_capacity_domains))",
+                  "line": 61
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "head": "# The allocation authority and the journal it locks. Both are required before\n# the CPI will run a set-managed placement, and the job's pre-start provisions\n# the journal directory on the director's persistent disk.",
+              "line": 66,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 66
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 66
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 67
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/pve/storage_placement_namespace?",
+                  "line": 67
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 68
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "((pve_storage_placement_namespace))",
+                  "line": 68
+                }
+              ]
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 70,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "type",
+                  "line": 70
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "replace",
+                  "line": 70
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "path",
+                  "line": 71
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "/instance_groups/name=bosh/properties/pve/storage_allocation_journal_dir?",
+                  "line": 71
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "value",
+                  "line": 72
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "((pve_storage_allocation_journal_dir))",
+                  "line": 72
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

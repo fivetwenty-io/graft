@@ -1,0 +1,197 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "foot": "# dedent then blank",
+              "line": 1
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "x",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 2
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "line": 5
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 6,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "y",
+                  "foot": "# dedent one level, then blank",
+                  "line": 6
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 7,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "z",
+                      "line": 7
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "1",
+                      "line": 7
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "w",
+                  "line": 10
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "2",
+                  "line": 10
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "c",
+              "line": 11
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 12,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "one",
+                  "foot": "# foot of one?",
+                  "line": 12
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "two",
+                  "foot": "# after two, blank, dedent next",
+                  "line": 15
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "d",
+              "line": 18
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "5",
+              "line": 18
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "e",
+              "line": 19
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 20,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 20,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "k",
+                      "foot": "# after k in seq map",
+                      "line": 20
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "1",
+                      "line": 20
+                    }
+                  ]
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 22,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "k",
+                      "line": 22
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "2",
+                      "line": 22
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "f",
+              "line": 23
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "end",
+              "line": 23
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

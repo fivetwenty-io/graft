@@ -1,0 +1,6 @@
+tasks:
+  - family: web
+    placement:
+      - type: spread
+        field: zone
+    # foot of field, because the stream has no final line break

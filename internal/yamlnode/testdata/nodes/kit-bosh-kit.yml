@@ -1,0 +1,393 @@
+---
+name:    bosh
+authors:
+- "James Hunt <jhunt@starkandwayne.com>"
+- "Troy Liebel <tliebel@starkandwayne.com>"
+- "Dennis Bell <dennis@rubidiumstudios.com>"
+- "Wayne E. Seguin <wayneeseguin@fivetwenty.io>"
+docs:    https://github.com/genesis-community/bosh-genesis-kit
+code:    https://github.com/genesis-community/bosh-genesis-kit
+version: 4.1.0
+
+genesis_version_min: 3.2.0-rc.16
+use_create_env: allow
+
+services:
+- director
+
+supports:
+- aws
+- azure
+- gcp
+- openstack
+- vsphere
+- stackit
+- pve
+
+certificates:
+  base:
+    ssl:
+      ca:
+        valid_for: ${params.ca_validity_period}
+      server:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - ${params.static_ip}
+      mbus:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - ${params.static_ip}
+      uaa:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - ${params.static_ip}
+      uaa-sp:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - ${params.static_ip}
+
+    credhub:
+      ca:
+        valid_for: ${params.ca_validity_period}
+      server:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - ${params.static_ip}
+
+    nats:
+      ca:
+        valid_for: ${params.ca_validity_period}
+      server:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - default.nats.bosh-internal
+        - ${params.static_ip}
+        - 10.254.50.4
+      director:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - default.director.bosh-internal
+        - ${params.static_ip}
+      health/monitor:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - default.hm.bosh-internal
+        - ${params.static_ip}
+
+    dns_api_tls:
+      ca:
+        valid_for: ${params.ca_validity_period}
+        names:
+        - dns-api-tls-ca
+      server:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - api.bosh-dns
+        key_usage:
+        - server_auth
+      client:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - api.bosh-dns
+        key_usage:
+        - client_auth
+
+  bosh-metrics:
+    metrics_server:
+      ca:
+        valid_for: ${params.ca_validity_period}
+        names:
+        - bosh-metrics-server
+      server:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - metrics_server_tls
+        - ${params.static_ip}
+        key_usage:
+        - server_auth
+      client:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - metrics_server_client_tls
+        key_usage:
+        - client_auth
+
+  openbao:
+    openbao:
+      ca:
+        valid_for: ${params.ca_validity_period}
+      server:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - ${params.static_ip}
+
+  vault-credhub-proxy:
+    vault-proxy_tls:
+      server:
+        valid_for: ${params.cert_validity_period}
+        signed_by: credhub/ca
+        names:
+        - ${params.static_ip}
+
+  bosh-dns-healthcheck:
+    dns_healthcheck_tls:
+      ca:
+        valid_for: ${params.ca_validity_period}
+        names:
+        - dns-healthcheck-tls-ca
+      server:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - health.bosh-dns
+        key_usage:
+        - server_auth
+      client:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - health.bosh-dns
+        key_usage:
+        - client_auth
+
+  +internal-blobstore:
+    blobstore:
+      ca:
+        valid_for: ${params.ca_validity_period}
+      server:
+        valid_for: ${params.cert_validity_period}
+        names:
+        - ${params.static_ip}
+        - 10.254.50.4
+
+credentials:
+  base:
+    op/net: ssh 4096
+    op/sys:
+      password: random 12 fmt crypt-sha512
+
+    db:
+      password: random 64
+    nats:
+      password: random 64 fixed
+    nats_sync_password:
+      password: random 64 fixed
+    registry:
+      password: random 64 fixed
+
+    users/admin:
+      password: random 30
+    users/hm:
+      password: random 30
+    users/concourse:
+      password: random 30
+    vcap:
+      password: random 64 fmt crypt-sha512
+
+    credhub/encryption:
+      key: random 32 fixed
+
+    uaa/jwt: rsa 2048
+    uaa/encryption:
+      key: random 64 fixed
+
+    uaa/client:
+      secret: random 32
+    uaa/clients/credhub_admin:
+      secret: random 32
+    uaa/clients/director_to_credhub:
+      secret: random 32
+    uaa/clients/hm:
+      secret: random 32
+    uaa/clients/uaa_admin:
+      secret: random 32
+
+    uaa/users/credhub-cli:
+      password: random 32
+
+  # while associated with prometheus, its still in the base feature
+    uaa/clients/prometheus:
+      secret: random 32
+
+  vault-credhub-proxy:
+    uaa/users/credhub-admin:
+      password: random 32
+
+  bbr:
+    bbr/ssh: ssh 4096
+
+  +blacksmith-credentials:
+    users/blacksmith:
+      password: random 30
+
+  +doomsday-credentials:
+    users/doomsday:
+      password: random 30
+
+  +proto: &proto
+    mbus_bootstrap:
+      password: random 64
+
+  +azure:
+    azure/ssh: ssh 2048
+
+  +internal-blobstore:
+    blobstore/agent:
+      password: random 64 fixed
+    blobstore/director:
+      password: random 64
+
+provided:
+  +external-db:
+    external-db/bosh_user:
+      keys:
+        password:
+          prompt: "Password for BOSH's external director database user"
+    external-db/credhub_user:
+      keys:
+        password:
+          prompt: "Password for BOSH's external Credhub database user"
+    external-db/uaa_user:
+      keys:
+        password:
+          prompt: "Password for BOSH's external UAA database user"
+
+  +ocfp-ext-db: # vvv validate that they are there and prompt if deleted
+    db/bosh:
+      keys:
+        scheme:
+          prompt: "Value for BOSH's external director database scheme"
+        username:
+          prompt: "Value for BOSH's external director database username"
+        password:
+          prompt: "Value for BOSH's external director database password"
+        hostname:
+          prompt: "Value for BOSH's external director database hostname"
+        port:
+          prompt: "Value for BOSH's external director database port"
+        database:
+          prompt: "Value for BOSH's external director database name"
+        ca:
+          prompt: "Value for BOSH's external director database ca"
+    db/credhub:
+      keys:
+        scheme:
+          prompt: "Value for BOSH's external Credhub database scheme"
+        username:
+          prompt: "Value for BOSH's external Credhub database username"
+        password:
+          prompt: "Value for BOSH's external Credhub database password"
+        hostname:
+          prompt: "Value for BOSH's external Credhub database hostname"
+        port:
+          prompt: "Value for BOSH's external Credhub database port"
+        database:
+          prompt: "Value for BOSH's external Credhub database name"
+        ca:
+          prompt: "Value for BOSH's external Credhub database ca"
+    db/uaa:
+      keys:
+        scheme:
+          prompt: "Value for BOSH's external UAA database scheme"
+        username:
+          prompt: "Value for BOSH's external UAA database username"
+        password:
+          prompt: "Value for BOSH's external UAA database password"
+        hostname:
+          prompt: "Value for BOSH's external UAA database hostname"
+        port:
+          prompt: "Value for BOSH's external UAA database port"
+        database:
+          prompt: "Value for BOSH's external UAA database name"
+        ca:
+          prompt: "Value for BOSH's external UAA database ca"
+
+  +aws-secret-access-keys:
+    aws:
+      keys:
+        secret_key:
+          prompt:    AWS Secret Key
+        access_key:
+          sensitive: false
+          prompt:    AWS Access Key
+
+  +s3-blobstore-secret-access-keys:
+    blobstore/s3:
+      keys:
+        access_key:
+          sensitive: false
+          prompt:    AWS Blobstore Access Key
+        secret_key:
+          prompt:    AWS Blobstore Secret Key
+
+  minio-blobstore:
+    blobstore/s3:
+      keys:
+        access_key:
+          sensitive: false
+          prompt:    Minio Blobstore Access Key
+        secret_key:
+          prompt:    Minio Blobstore Secret Key
+
+  +vsphere:
+    vsphere:
+      keys:
+        user:
+          sensitive: false
+          prompt:    Username for BOSH to authenticate with vCenter
+        address:
+          sensitive: false
+          prompt:    IP address of VMWare vCenter Server Appliance
+        password:
+          prompt:    Password for vCenter user
+
+  +google:
+    google:
+      keys:
+        json_key:
+          sensitive: false
+          multiline: true
+          prompt:    GCP credentials (generally supplied as a JSON block)
+
+  +azure:
+    azure:
+      keys:
+        client_id:
+          sensitive: false
+          prompt:    Azure Client ID
+        client_secret:
+          prompt:    Azure Client Secret
+        tenant_id:
+          sensitive: false
+          prompt:    Azure Tenant ID
+        subscription_id:
+          sensitive: false
+          prompt:    Azure Resource Group to be used by BOSH to deploying VMs
+
+  +openstack:
+    openstack/creds:
+      keys:
+        username:
+          sensitive: false
+          prompt:    OpenStack username
+        password:
+          prompt:    OpenStack password
+        domain:
+          sensitive: false
+          prompt:    OpenStack domain
+        project:
+          sensitive: false
+          prompt:    OpenStack project
+
+  +stackit:
+    stackit/creds:
+      keys:
+        username:
+          sensitive: false
+          prompt:    STACKIT username
+        password:
+          prompt:    STACKIT password
+        domain:
+          sensitive: false
+          prompt:    STACKIT domain
+        project:
+          sensitive: false
+          prompt:    STACKIT project

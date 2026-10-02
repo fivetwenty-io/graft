@@ -1,0 +1,36 @@
+# head comment on doc
+name: demo
+port: "8080"
+ratio: 1.5
+flag: false
+text: hello there world, this is quite a different sentence
+keep: same
+quoted: "8081"
+multi: |
+  line one
+  line 2
+  line three
+  line four
+ws: "a b "
+list:
+- gamma
+- alpha
+- beta
+jobs:
+- name: worker
+  instances: 2
+- name: web
+  instances: 3
+  props: {a: 1, b: [x, y]}
+added_block:
+  # comment on added key
+  z_last: 1
+  name: first
+  nested:
+    deeper:
+      deepest: 1
+  b: |
+    multi
+    line
+  anchored: &x 5
+  ref: *x
