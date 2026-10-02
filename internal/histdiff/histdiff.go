@@ -4,21 +4,21 @@
 // --trace-path/--show-changes/--changes-only). It is deliberately internal:
 // it is presentation/tracking plumbing for the CLI, not public library API.
 //
-// Compare is built on top of github.com/homeport/dyff, the same engine
-// graft diff's default output uses, so both codepaths agree on what counts
-// as a semantic change (key order independence, type-aware comparison,
-// keyed-list identification, etc.) instead of maintaining a second diff
-// algorithm.
+// Compare is built on internal/yamldiff, graft's port of the dyff engine
+// behind graft diff's default report, so both code paths agree on what
+// counts as a semantic change (key order independence, type-aware
+// comparison, keyed-list identification, etc.) instead of maintaining a
+// second diff algorithm.
 package histdiff
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
-	"github.com/gonvenience/ytbx"
-	"github.com/homeport/dyff/pkg/dyff"
-	yamlv3 "go.yaml.in/yaml/v3"
+	"github.com/fivetwenty-io/graft/internal/yamldiff"
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
 // Kind classifies the nature of a single semantic change.
@@ -62,11 +62,11 @@ type Change struct {
 // toLabel are used only as the dyff report's document locations (visible in
 // error messages), not in the returned Change values.
 //
-// Compare marshals from/to to YAML text via graft.MarshalYAML-compatible
-// encoding and re-parses them as go.yaml.in/yaml/v3 nodes, the representation
-// dyff.CompareInputFiles requires; a marshal or parse failure (e.g. a value
-// containing a Go type YAML cannot represent, or a document root dyff
-// cannot walk) is returned as an error rather than silently dropped.
+// Compare builds from and to into the YAML node trees go.yaml.in/yaml/v3
+// would produce by marshaling them and parsing the text back (see
+// yamlnode.FromValue), the representation the comparison engine works
+// in. A value containing a Go type YAML cannot represent is returned as
+// an error rather than silently dropped.
 func Compare(fromLabel string, from interface{}, toLabel string, to interface{}) ([]Change, error) {
 	fromNode, err := toYAMLNode(from)
 	if err != nil {
@@ -77,9 +77,9 @@ func Compare(fromLabel string, from interface{}, toLabel string, to interface{})
 		return nil, fmt.Errorf("histdiff: encoding %s: %w", toLabel, err)
 	}
 
-	report, err := dyff.CompareInputFiles(
-		ytbx.InputFile{Location: fromLabel, Documents: []*yamlv3.Node{fromNode}},
-		ytbx.InputFile{Location: toLabel, Documents: []*yamlv3.Node{toNode}},
+	report, err := yamldiff.CompareInputFiles(
+		yamldiff.InputFile{Location: fromLabel, Documents: []*yamlnode.Node{fromNode}},
+		yamldiff.InputFile{Location: toLabel, Documents: []*yamlnode.Node{toNode}},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("histdiff: comparing %s to %s: %w", fromLabel, toLabel, err)
@@ -122,13 +122,13 @@ func Compare(fromLabel string, from interface{}, toLabel string, to interface{})
 // Modified so callers that only care about "did this path change" don't
 // need a separate case - Old/New both carry the reordered list, so no
 // information is lost.
-func detailToChanges(path string, detail dyff.Detail) ([]Change, error) {
+func detailToChanges(path string, detail yamldiff.Detail) ([]Change, error) {
 	switch detail.Kind {
-	case dyff.ADDITION:
+	case yamldiff.ADDITION:
 		return fragmentToChanges(path, Added, detail.To)
-	case dyff.REMOVAL:
+	case yamldiff.REMOVAL:
 		return fragmentToChanges(path, Removed, detail.From)
-	case dyff.MODIFICATION:
+	case yamldiff.MODIFICATION:
 		oldVal, err := decodeNodeIfSet(detail.From)
 		if err != nil {
 			return nil, err
@@ -138,7 +138,7 @@ func detailToChanges(path string, detail dyff.Detail) ([]Change, error) {
 			return nil, err
 		}
 		return []Change{{Path: path, Kind: Modified, Old: oldVal, New: newVal}}, nil
-	case dyff.ORDERCHANGE:
+	case yamldiff.ORDERCHANGE:
 		oldVal, err := decodeNodeIfSet(detail.From)
 		if err != nil {
 			return nil, err
@@ -159,7 +159,7 @@ func detailToChanges(path string, detail dyff.Detail) ([]Change, error) {
 // detailToChanges) into one Change per immediate child entry, joined onto
 // parentPath. A nil fragment (shouldn't happen for ADDITION/REMOVAL, which
 // always carry a non-nil To/From) yields no changes.
-func fragmentToChanges(parentPath string, kind Kind, fragment *yamlv3.Node) ([]Change, error) {
+func fragmentToChanges(parentPath string, kind Kind, fragment *yamlnode.Node) ([]Change, error) {
 	if fragment == nil {
 		return nil, nil
 	}
@@ -172,7 +172,7 @@ func fragmentToChanges(parentPath string, kind Kind, fragment *yamlv3.Node) ([]C
 	}
 
 	switch fragment.Kind {
-	case yamlv3.MappingNode:
+	case yamlnode.MappingNode:
 		changes := make([]Change, 0, len(fragment.Content)/2)
 		for i := 0; i+1 < len(fragment.Content); i += 2 {
 			keyNode, valueNode := fragment.Content[i], fragment.Content[i+1]
@@ -190,7 +190,7 @@ func fragmentToChanges(parentPath string, kind Kind, fragment *yamlv3.Node) ([]C
 		}
 		return changes, nil
 
-	case yamlv3.SequenceNode:
+	case yamlnode.SequenceNode:
 		changes := make([]Change, 0, len(fragment.Content))
 		for i, itemNode := range fragment.Content {
 			val, err := decodeNode(itemNode)
@@ -227,61 +227,38 @@ func fragmentToChanges(parentPath string, kind Kind, fragment *yamlv3.Node) ([]C
 	}
 }
 
-func decodeNodeIfSet(node *yamlv3.Node) (interface{}, error) {
+func decodeNodeIfSet(node *yamlnode.Node) (interface{}, error) {
 	if node == nil {
 		return nil, nil
 	}
 	return decodeNode(node)
 }
 
-func decodeNode(node *yamlv3.Node) (interface{}, error) {
-	var v interface{}
-	if err := node.Decode(&v); err != nil {
-		return nil, err
-	}
-	return v, nil
+func decodeNode(node *yamlnode.Node) (interface{}, error) {
+	return yamlnode.Decode(node)
 }
 
-// toYAMLNode marshals v to YAML text (via go.yaml.in/yaml/v3, matching the
-// representation ytbx/dyff already work in) and parses it back into a
-// document root node suitable for ytbx.InputFile.Documents.
-//
-// yamlv3.Marshal panics (rather than returning an error) for a small set of
-// genuinely unsupported Go types it has no YAML representation for at all
-// (e.g. chan, func: see encode.go's marshal default case, "cannot marshal
-// type: ..."); merge document trees are normally built from parsed
-// YAML/JSON and never contain such values, but Compare's callers construct
-// values programmatically (e.g. internal/history diffing intermediate
-// merge snapshots), so a defensive recover converts that panic into a
-// regular error instead of crashing the whole CLI.
-func toYAMLNode(v interface{}) (node *yamlv3.Node, err error) {
+// toYAMLNode returns the DocumentNode yaml.v3 would produce for v by
+// marshaling it and parsing the text back, the shape yamldiff.InputFile
+// documents take. yaml.v3 panics on chan, func, and complex values, and
+// the dyff-backed version recovered that panic as "marshaling value to
+// YAML: …", so an unsupported type keeps that prefix, while any other
+// error (such as a failing MarshalText) passes through unwrapped as it
+// always did. Compare's callers build values in code, for example in
+// internal/history, so a panic inside the encoder is still recovered and
+// returned as an error with the same prefix instead of crashing the CLI.
+func toYAMLNode(v interface{}) (doc *yamlnode.Node, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("marshaling value to YAML: %v", r)
+			doc, err = nil, fmt.Errorf("marshaling value to YAML: %v", r)
 		}
 	}()
-
-	raw, err := yamlv3.Marshal(v)
-	if err != nil {
-		return nil, err
+	doc, err = yamlnode.FromValue(v)
+	var unsupported *yamlnode.UnsupportedTypeError
+	if errors.As(err, &unsupported) {
+		return nil, fmt.Errorf("marshaling value to YAML: %w", err)
 	}
-
-	var doc yamlv3.Node
-	if err := yamlv3.Unmarshal(raw, &doc); err != nil {
-		return nil, err
-	}
-
-	// Keep the DocumentNode wrapper Unmarshal produces (do not unwrap to
-	// the inner mapping/sequence/scalar node): it matches what ytbx's own
-	// file loader puts in InputFile.Documents (ytbx.LoadYAMLDocuments
-	// decodes each document with yaml.Decoder.Decode(&node), which also
-	// yields a DocumentNode), and dyff.CompareInputFiles's
-	// isEmptyDocument/Kubernetes-entity-detection logic specifically
-	// switches on Kind == DocumentNode before indexing Content[0] -
-	// passing an unwrapped node (e.g. an empty map's bare MappingNode,
-	// Content length 0) skips that guard and panics inside dyff on
-	// Content[0].
-	return &doc, nil
+	return doc, err
 }
 
 // TopLevelPaths returns the sorted, de-duplicated set of top-level path
