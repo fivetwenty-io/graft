@@ -1,0 +1,11 @@
+
+t
+± value change in multiline text (two inserts, one deletion)
+- b
++ x
++ d
++ e
+
+
+
+

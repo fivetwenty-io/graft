@@ -1,0 +1,7 @@
+
+[1m(root level)[0m
+[93m± type change from [3;93mmap[0;93m to [3;93mstring[0m
+[31m- [1;31ma:[0;31m 1[0m
+[32m+ "just a scalar"[0m
+
+

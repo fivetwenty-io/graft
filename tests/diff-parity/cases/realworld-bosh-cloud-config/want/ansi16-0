@@ -1,0 +1,82 @@
+
+[1mvm_types[0m
+[93m- one list entry removed:[0m
+[31m-[0m [1;91mname:[0m [91mdefault[0m
+[30m  [0m[1;91mcloud_properties:[0m
+[30m  [0m[30m  [0m[1;91mcpu:[0m [91m2[0m
+[30m  [0m[30m  [0m[1;91mram:[0m [91m1024[0m
+[30m  [0m[30m  [0m[1;91mdisk:[0m [91m30_000[0m
+
+
+[93m+ one list entry added:[0m
+[32m-[0m [1;32mname:[0m [32mtest-vm-type[0m
+[30m  [0m[1;32mcloud_properties:[0m
+[30m  [0m[30m  [0m[1;32mcpu:[0m [32m2[0m
+[30m  [0m[30m  [0m[1;32mram:[0m [32m1024[0m
+[30m  [0m[30m  [0m[1;32mdisk:[0m [32m30_000[0m
+
+
+
+[1mdisk_types[0m
+[93m- two list entries removed:[0m
+[31m-[0m [1;91mname:[0m [91mdefault[0m
+[30m  [0m[1;91mdisk_size:[0m [91m3000[0m
+[31m-[0m [1;91mname:[0m [91mlarge[0m
+[30m  [0m[1;91mdisk_size:[0m [91m50_000[0m
+
+
+[93m+ two list entries added:[0m
+[32m-[0m [1;32mname:[0m [32mtest-disk-type[0m
+[30m  [0m[1;32mdisk_size:[0m [32m3000[0m
+[32m-[0m [1;32mname:[0m [32mbosh[0m
+[30m  [0m[1;32mdisk_size:[0m [32m50_000[0m
+
+
+
+[1mnetworks[0m
+[93m+ one list entry added:[0m
+[32m-[0m [1;32mname:[0m [32mbosh[0m
+[30m  [0m[1;32mtype:[0m [32mmanual[0m
+[30m  [0m[1;32msubnets:[0m
+[30m  [0m[32m-[0m [1;32mrange:[0m [32m10.99.0.0/16[0m
+[30m  [0m[30m  [0m[1;32mgateway:[0m [32m"10.99.0.1"[0m
+[30m  [0m[30m  [0m[1;32mazs:[0m
+[30m  [0m[30m  [0m[32m-[0m [32mz1[0m
+[30m  [0m[30m  [0m[32m-[0m [32mz2[0m
+[30m  [0m[30m  [0m[32m-[0m [32mz3[0m
+[30m  [0m[30m  [0m[1;32mdns:[0m
+[30m  [0m[30m  [0m[32m-[0m [32mtest-dns[0m
+[30m  [0m[30m  [0m[1;32mreserved:[0m
+[30m  [0m[30m  [0m[32m-[0m [32m"10.99.0.1 - 10.99.0.15"[0m
+[30m  [0m[30m  [0m[1;32mstatic:[0m
+[30m  [0m[30m  [0m[32m-[0m [32m"10.99.0.16 - 10.99.0.30"[0m
+[30m  [0m[30m  [0m[1;32mcloud_properties:[0m
+[30m  [0m[30m  [0m[30m  [0m[1;32mname:[0m [32mbosh[0m
+
+
+
+[1mnetworks[0m.[1;3mtest-network[0m.[1msubnets[0m.[1m0[0m.[1mrange[0m
+[93m± value change[0m
+[31m- [0m[91m10.9[0m[1;91m9[0m[91m.0.0/16[0m
+[32m+ [0m[92m10.9[0m[1;32m8[0m[92m.0.0/16[0m
+
+
+[1mnetworks[0m.[1;3mtest-network[0m.[1msubnets[0m.[1m0[0m.[1mgateway[0m
+[93m± value change[0m
+[31m- [0m[91m10.9[0m[1;91m9[0m[91m.0.1[0m
+[32m+ [0m[92m10.9[0m[1;32m8[0m[92m.0.1[0m
+
+
+[1mnetworks[0m.[1;3mtest-network[0m.[1msubnets[0m.[1m0[0m.[1mreserved[0m.[1m0[0m
+[93m± value change[0m
+[31m- [0m[91m10.9[0m[1;91m9[0m[91m.0.1 - 10.9[0m[1;91m9[0m[91m.0.15[0m
+[32m+ [0m[92m10.9[0m[1;32m8[0m[92m.0.1 - 10.9[0m[1;32m8[0m[92m.0.15[0m
+
+
+[1mnetworks[0m.[1;3mtest-network[0m.[1msubnets[0m.[1m0[0m.[1mstatic[0m.[1m0[0m
+[93m± value change[0m
+[31m- [0m[91m10.9[0m[1;91m9[0m[91m.0.16 - 10.9[0m[1;91m9[0m[91m.0.30[0m
+[32m+ [0m[92m10.9[0m[1;32m8[0m[92m.0.16 - 10.9[0m[1;32m8[0m[92m.0.30[0m
+
+
+

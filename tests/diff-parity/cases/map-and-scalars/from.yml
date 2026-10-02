@@ -1,0 +1,40 @@
+# head comment on doc
+name: demo
+port: 8080
+ratio: 1.5
+flag: true
+text: hello world
+keep: same
+quoted: "8080"
+multi: |
+  line one
+  line two
+  line three
+ws: "a b"
+list:
+- alpha
+- beta
+- gamma
+jobs:
+- name: web
+  instances: 1
+  props: {a: 1}
+- name: worker
+  instances: 2
+removed_block:
+  # comment on key
+  inner: &anc
+    deep: value   # line comment
+    other: ~
+  alias_ref: *anc
+  empty: ""
+  dash: -x
+  num_like: "1.2.3"
+  special: "a:b"
+  t: "true"
+  emptymap: {}
+  emptylist: []
+  seq_of_maps:
+  - name: s1
+    v: 1
+  - id: 2

@@ -1,0 +1,57 @@
+
+vm_types
+- one list entry removed:   + one list entry added:
+- name: default             - name: test-vm-type
+  cloud_properties:           cloud_properties:
+    cpu: 2                      cpu: 2
+    ram: 1024                   ram: 1024
+    disk: 30_000                disk: 30_000
+
+disk_types
+- two list entries removed:   + two list entries added:
+- name: default               - name: test-disk-type
+  disk_size: 3000               disk_size: 3000
+- name: large                 - name: bosh
+  disk_size: 50_000             disk_size: 50_000
+
+networks
++ one list entry added:
+- name: bosh
+  type: manual
+  subnets:
+  - range: 10.99.0.0/16
+    gateway: "10.99.0.1"
+    azs:
+    - z1
+    - z2
+    - z3
+    dns:
+    - test-dns
+    reserved:
+    - "10.99.0.1 - 10.99.0.15"
+    static:
+    - "10.99.0.16 - 10.99.0.30"
+    cloud_properties:
+      name: bosh
+
+networks.test-network.subnets.0.range
+± value change
+- 10.99.0.0/16
++ 10.98.0.0/16
+
+networks.test-network.subnets.0.gateway
+± value change
+- 10.99.0.1
++ 10.98.0.1
+
+networks.test-network.subnets.0.reserved.0
+± value change
+- 10.99.0.1 - 10.99.0.15
++ 10.98.0.1 - 10.98.0.15
+
+networks.test-network.subnets.0.static.0
+± value change
+- 10.99.0.16 - 10.99.0.30
++ 10.98.0.16 - 10.98.0.30
+
+

@@ -1,0 +1,12 @@
+
+b
+- one map entry removed:
+<<: *x
+
+
++ one map entry added:
+k: v
+
+
+
+

@@ -1,0 +1,27 @@
+
+q
++ 17 map entries added:
+uni: "café ☃"
+tab: a	b
+ctl: xy
+e: "e"
+dot: "."
+plus: "+1"
+hash: a#b
+star: "*x"
+amp: "&x"
+inf: ".inf"
+nul: "null"
+yes: yes
+date: 2001-12-14
+hexv: 0x10
+big: 12345678901234567890
+tagged: foo
+multiq: |
+  a
+  b
+  
+
+
+
+

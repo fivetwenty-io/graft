@@ -1,0 +1,11 @@
+
+[1ml[0m
+[93m- one list entry removed:[0m   [93m+ one list entry added:[0m
+[31m-[0m [91mb[0m                         [32m-[0m [32mc[0m
+
+[1ms[0m
+[93m± value change[0m
+[31m- [0m[91m{{x}}-v[0m[1;91m1[0m
+[32m+ [0m[92m{{x}}-v[0m[1;32m2[0m
+
+

@@ -1,0 +1,22 @@
+
+[1mtemplates[0m
+[38;2;199;196;63m+ one map entry added:[0m
+[1;38;2;0;128;0mbin/pre-start:[0m [38;2;50;205;50mbin/pre-start[0m
+
+[1mtemplates[0m.[1mconfig/vault.conf[0m
+[38;2;199;196;63m± value change[0m
+[38;2;185;49;27m- [0m[38;2;255;160;122mconfig/vault.conf[0m
+[38;2;88;191;56m+ [0m[38;2;144;238;144mconfig/vault.conf[0m[1;38;2;88;191;56mig[0m
+
+[1mtemplates[0m.[1mconfig/consul.conf[0m
+[38;2;199;196;63m± value change[0m
+[38;2;185;49;27m- [0m[38;2;255;160;122mconfig/consul.[0m[1;38;2;185;49;27mc[0m[38;2;255;160;122mon[0m[1;38;2;185;49;27mf[0m
+[38;2;88;191;56m+ [0m[38;2;144;238;144mconfig/consul.[0m[1;38;2;88;191;56mjs[0m[38;2;144;238;144mon[0m
+
+[1mproperties[0m
+[38;2;199;196;63m+ one map entry added:[0m
+[1;38;2;0;128;0msafe.peer.tls.use_self_signed_certs:[0m
+[38;2;0;51;0m  [0m[1;38;2;0;128;0mdescription:[0m [38;2;50;205;50m"Indicate whether we generate self-signed peer certificates"[0m
+[38;2;0;51;0m  [0m[1;38;2;0;128;0mdefault:[0m [38;2;50;205;50mfalse[0m
+
+

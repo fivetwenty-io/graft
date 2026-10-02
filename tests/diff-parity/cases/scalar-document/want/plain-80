@@ -1,0 +1,7 @@
+
+(root level)
+± type change from map to string
+- a: 1
++ "just a scalar"
+
+

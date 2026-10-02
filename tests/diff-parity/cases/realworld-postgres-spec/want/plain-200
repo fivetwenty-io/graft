@@ -1,0 +1,29 @@
+
+templates
++ one map entry added:
+bin/recover: bin/recover
+
+properties
++ one map entry added:
+postgres.replication.psql_error_count:
+  description: "How many failed attempts to check the other node's status before assuming failure."
+  default: 3
+
+properties.postgres.replication.connect_timeout.description
+± value change
+- How long (in seconds) to wait before timimg out a failover health check from one node to the other.
++ How long (in seconds) to wait before timing out a failover health check from one node to the other.
+
+properties.postgres.databases.example
+± whitespace only change
+- postgres:↵                                                                     + postgres:↵
+  ··databases:↵                                                                    ··databases:↵
+  ····-·name:·animals↵                                                             ····-·name:·animals↵
+  ······users:↵                                                                    ······users:↵
+  ········-·porcupine↵                                                             ········-·porcupine↵
+  ········-·hedgehog↵                                                              ········-·hedgehog↵
+  ······extensions:·#·optional·array·of·extensions·to·enable·on·this·database↵     ······extensions:·#·optional·array·of·extensions·to·enable·on·this·database↵
+  ········-·citext↵                                                                ········-·citext
+
+
+

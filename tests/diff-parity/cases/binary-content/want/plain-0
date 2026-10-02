@@ -1,0 +1,12 @@
+
+blob
+± content change
+- 00000000  68 65 6c 6c 6f 00 01 77  6f 72 6c 64              |hello..world|
+  
+
++ 00000000  68 65 6c 6c 6f 00 02 77  6f 72 6c 64 21           |hello..world!|
+  
+
+
+
+

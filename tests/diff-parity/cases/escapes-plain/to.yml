@@ -1,0 +1,2 @@
+v: "red\e[31mtext\e[0m"
+added: "x\e[1my"

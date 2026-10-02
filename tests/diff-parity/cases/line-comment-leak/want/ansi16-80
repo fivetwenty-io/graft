@@ -1,0 +1,17 @@
+
+[1ma[0m
+[93m± type change from [3;93mint[0;93m to [3;93mstring[0m
+[31m- 1 # trailing[0m
+[32m+ x[0m
+
+[1mb[0m
+[93m± type change from [3;93mstring[0;93m to [3;93mmap[0m
+[31m- plain[0m
+[32m+ [1;32mk:[0;32m v[0m
+
+[1mn[0m
+[93m± type change from [3;93m<nil>[0;93m to [3;93mstring[0m
+[31m- <nil>[0m
+[32m+ str[0m
+
+

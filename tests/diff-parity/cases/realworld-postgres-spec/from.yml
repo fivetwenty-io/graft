@@ -1,0 +1,123 @@
+---
+name: postgres
+packages:
+  - postgres
+templates:
+  bin/ctl: bin/ctl
+  bin/tune: bin/tune
+  bin/healthy: bin/healthy
+  bin/monitor: bin/monitor
+
+  bin/functions: bin/functions
+
+  data/properties.sh.erb: data/properties.sh
+  helpers/ctl_setup.sh: helpers/ctl_setup.sh
+  helpers/ctl_utils.sh: helpers/ctl_utils.sh
+  envrc: envrc
+
+  config/postgresql.conf: config/postgresql.conf
+  config/hba.conf:        config/hba.conf
+  config/ident.conf:      config/ident.conf
+
+  sql/setup-replication.sql: sql/setup-replication.sql
+
+provides:
+- name: db
+  type: postgresql
+  properties:
+  - postgres.config
+  - postgres.users
+  - postgres.databases
+
+consumes:
+- name: db
+  type: postgresql
+
+
+properties:
+  postgres.config:
+    description: A map of postgresql.conf configuration directives, keyed by name.
+    default:
+      port: 6432
+
+  postgres.hba:
+    description: A list of pg_hba.conf configuration acls.  See Section 19.1 of the PostgreSQL manual.
+    default: []
+
+  postgres.ident:
+    description: A list of pg_ident.conf configuration entries  See Section 19.2 of the PostgreSQL manual.
+    default: []
+
+  postgres.tuning.enable:
+    description: Enable experimental Kernel Tuning code, utilizing values from postgres.tuning.* properties hierarchy.  THIS IS EXPERIMENTAL.
+    default: false
+  postgres.tuning.force:
+    description: Whether or not to adhere strictly to specified and/or calculated tuning values.  If set to false (the default), tuning parameters are taken as guides, usually in the form of minimums.
+    default: false
+
+  # NOTE: Neither SHMMIN nor SHMSEG are modifiable on Linux (at least not without a
+  #       kernel reconfigure / recompile) so they are not represented here.
+  #
+  postgres.tuning.ipc.shmmax:
+    description: Maximum size of shared memory segment (bytes) - at least 1kB (more if running many copies of the server).
+    default: auto
+  postgres.tuning.ipc.shmall:
+    description: Total amount of shared memory available (bytes or pages) - this should normally be left at 'auto'.
+    default: auto
+  postgres.tuning.ipc.shmmni:
+    description: Maximum number of shared memory segments system-wide - like postgres.tuning.ipc.shmseg plus room for other applications.
+    default: auto
+
+  # NOTE: Neither SEMMAP nor SEMVMX are modifiable on Linux (at least not without a
+  #       kernel reconfigure / recompile) so they are not represented here.
+  #
+  #       HOWEVER, SEMOPM *is* configurable, so even though the PostgreSQL documentation
+  #       doesn't mention it explicitly in section 17.1, it's available for tuning.
+  #
+  postgres.tuning.ipc.semmni:
+    description: Maximum number of semaphore identifiers (i.e., sets) - at least ceil((max_connections + autovacuum_max_workers + 4) / 16).
+    default: auto
+  postgres.tuning.ipc.semmns:
+    description: Maximum number of semaphores system-wide - ceil((max_connections + autovacuum_max_workers + 4) / 16) * 17 plus room for other applications.
+    default: auto
+  postgres.tuning.ipc.semmsl:
+    description: Maximum number of semaphores per set - at least 17.
+    default: 17
+  postgres.tuning.ipc.semopm:
+    description: The maximum number of operations that may be specified in a semop(2) call.
+    default: auto
+
+  postgres.tuning.limits.fds:
+    description: The maximum number of open files (including sockets) that any given process can have.
+    default: auto
+
+  postgres.replication.enabled:
+    description: Whether or not to enable streaming PostgreSQL replication
+    default: false
+  postgres.replication.master:
+    description: IP address of the preferred master node (should be the 0th postgres node's IP)
+    default: ~
+
+  postgres.replication.grace:
+    description: Grace period (in seconds) to look for an existing PostgreSQL master node on boot.
+    default: 15
+  postgres.replication.connect_timeout:
+    description: How long (in seconds) to wait before timimg out a failover health check from one node to the other.
+    default: 5
+
+  postgres.users:
+    description: "A list of {username: ..., password: ...} objects for defining PostgreSQL users.  Setting the 'admin:' key on a user will make them a superuser."
+    default: []
+
+  postgres.databases:
+    description: A list of databases to create in Postgres.
+    default: []
+    example: |
+      postgres:
+        databases:
+          - name: animals
+            users:
+              - porcupine
+              - hedgehog
+            extensions: # optional array of extensions to enable on this database
+              - citext

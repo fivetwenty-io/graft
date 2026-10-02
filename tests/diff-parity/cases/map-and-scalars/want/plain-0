@@ -1,0 +1,105 @@
+
+(root level)
+- one map entry removed:
+removed_block:
+  # comment on key
+inner: &anc
+    deep: value # line comment
+    other: ~
+  alias_ref: *anc
+  empty: 
+  dash: "-x"
+  num_like: "1.2.3"
+  special: "a:b"
+  t: "true"
+  emptymap: {}
+  emptylist: []
+  seq_of_maps:
+  - name: s1
+    v: 1
+  - id: 2
+
+
++ one map entry added:
+added_block:
+  name: first
+  # comment on added key
+z_last: 1
+  b: |
+    multi
+    line
+    
+  anchored: &x 5
+  ref: *x
+  nested:
+    deeper:
+      deepest: 1
+
+
+
+port
+± type change from int to string
+- 8080
++ "8080"
+
+
+flag
+± value change
+- true
++ false
+
+
+text
+± value change
+- hello world
++ hello there world, this is quite a different sentence
+
+
+quoted
+± value change
+- 8080
++ 8081
+
+
+multi
+± value change in multiline text (two inserts, one deletion)
+- line two
++ line 2
++ line four
+
+
+
+ws
+± whitespace only change
+- a·b
+
++ a·b·
+
+
+
+list
+⇆ order changed
+  alpha   gamma
+  beta    alpha
+  gamma   beta
+
+jobs
+⇆ order changed
+  web      worker
+  worker   web
+
+jobs.web.instances
+± value change
+- 1
++ 3
+
+
+jobs.web.props
++ one map entry added:
+b:
+- x
+- y
+
+
+
+

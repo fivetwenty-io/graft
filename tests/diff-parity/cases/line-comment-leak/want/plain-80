@@ -1,0 +1,17 @@
+
+a
+± type change from int to string
+- 1 # trailing
++ x
+
+b
+± type change from string to map
+- plain
++ k: v
+
+n
+± type change from <nil> to string
+- <nil>
++ str
+
+

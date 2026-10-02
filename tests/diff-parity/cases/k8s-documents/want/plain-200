@@ -1,0 +1,30 @@
+
+data.k  (v1/ConfigMap/b)
+± value change
+- v
++ v2
+
+(root level)  (v1/ConfigMap/a)
+- one document removed:
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: a
+data:
+  k: v
+
+(root level)  (v1/ConfigMap/c)
++ one document added:
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: c
+data:
+  k: v
+
+(file level)
+⇆ order changed
+- v1/ConfigMap/a, v1/ConfigMap/b
++ v1/ConfigMap/b, v1/ConfigMap/c
+
+

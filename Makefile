@@ -73,7 +73,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 .PHONY: deps deps-update deps-tidy check-prereq ci install-tools
 .PHONY: hooks hooks-install hooks-uninstall hooks-check pre-commit pre-push
 .PHONY: validate-imports validate-imports-example
-.PHONY: oracle-vectors
+.PHONY: oracle-vectors diff-goldens diff-oracle-check
 
 ##@ General
 
@@ -472,3 +472,11 @@ ORACLE_DIR := tests/diff-parity/oracle
 oracle-vectors: ## Regenerate the yaml.v3, dyff, and bunt vectors graft's unit tests read
 	@printf "$(GREEN)Regenerating oracle vectors...$(RESET)\n"
 	@cd $(ORACLE_DIR) && go run ./cmd/vectors -root ../../..
+
+diff-goldens: ## Regenerate the spruce diff parity goldens under tests/diff-parity/cases
+	@printf "$(GREEN)Regenerating diff parity goldens...$(RESET)\n"
+	@cd $(ORACLE_DIR) && go run ./cmd/gen ../cases
+
+diff-oracle-check: ## Fail when any oracle vector or diff parity golden is stale
+	@printf "$(GREEN)Checking oracle vectors and diff parity goldens...$(RESET)\n"
+	@cd $(ORACLE_DIR) && go run ./cmd/vectors -root ../../.. -check && go run ./cmd/gen -check ../cases

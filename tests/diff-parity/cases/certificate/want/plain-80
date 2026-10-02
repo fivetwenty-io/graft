@@ -1,0 +1,18 @@
+
+cert
+± certificate change
+- Subject:                               + Subject:
+    Common Name: host1.example.com           Common Name: host2.example.com
+    Organization: Org1                       Organization: Org2
+    Organization Unit:                       Organization Unit:
+    Locality:                                Locality:
+    State:                                   State:
+    Country:                                 Country:
+  Validity Period:                         Validity Period:
+    NotBefore: Oct 1 09:29:45 2026 UTC       NotBefore: Oct 1 09:29:45 2026 UTC
+    NotAfter: Oct 31 09:29:45 2026 UTC       NotAfter: Oct 31 09:29:45 2026 UTC
+  Issuer: host1.example.com, Org1          Issuer: host2.example.com, Org2
+  Serial Number: 1 (0x1)                   Serial Number: 2 (0x2)
+
+
+

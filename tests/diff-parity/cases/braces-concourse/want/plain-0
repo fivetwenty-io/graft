@@ -1,0 +1,15 @@
+
+jobs
+- one list entry removed:
+- name: thing1
+  curlies: {{my-variable_123}}
+
+
++ two list entries added:
+- "(( append ))"
+- name: thing2
+  curlies: {{more}}
+
+
+
+

@@ -1,0 +1,35 @@
+
+[1mdata[0m.[1mk[0m  [37m(v1/ConfigMap/b)[0m
+[93m± value change[0m
+[31m- [0m[91mv[0m
+[32m+ [0m[92mv[0m[1;32m2[0m
+
+
+[1m(root level)[0m  [37m(v1/ConfigMap/a)[0m
+[93m- one document removed:[0m
+[1;91mapiVersion:[0m [91mv1[0m
+[1;91mkind:[0m [91mConfigMap[0m
+[1;91mmetadata:[0m
+[30m  [0m[1;91mname:[0m [91ma[0m
+[1;91mdata:[0m
+[30m  [0m[1;91mk:[0m [91mv[0m
+
+
+
+[1m(root level)[0m  [37m(v1/ConfigMap/c)[0m
+[93m+ one document added:[0m
+[1;32mapiVersion:[0m [32mv1[0m
+[1;32mkind:[0m [32mConfigMap[0m
+[1;32mmetadata:[0m
+[30m  [0m[1;32mname:[0m [32mc[0m
+[1;32mdata:[0m
+[30m  [0m[1;32mk:[0m [32mv[0m
+
+
+
+[1m(file level)[0m
+[93m⇆ order changed[0m
+  [31mv1/ConfigMap/a[0m   [32mv1/ConfigMap/b[0m
+  [31mv1/ConfigMap/b[0m   [32mv1/ConfigMap/c[0m
+
+

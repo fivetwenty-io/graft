@@ -1,0 +1,83 @@
+---
+name: vault
+packages:
+  - consul
+  - vault
+  - certifier
+  - strongbox
+
+templates:
+  bin/vault: bin/vault
+  bin/consul: bin/consul
+  bin/strongbox: bin/strongbox
+  bin/pre-start: bin/pre-start
+
+  config/vault.conf: config/vault.config
+  config/consul.conf: config/consul.json
+
+  tls/vault/cert.pem: tls/vault/cert.pem
+  tls/vault/key.pem: tls/vault/key.pem
+
+  tls/peer/ca.pem: tls/peer/ca.pem
+  tls/peer/cert.pem: tls/peer/cert.pem
+  tls/peer/key.pem: tls/peer/key.pem
+
+provides:
+  - name: vault
+    type: cluster
+consumes:
+  - name: vault
+    type: cluster
+
+properties:
+  safe.port:
+    description: TCP port to bind the Vault on.  Defaults to 443.
+    default: 443
+
+  safe.tls.certificate:
+    description: TLS certificate to use for securing communnication with clients.
+  safe.tls.key:
+    description: TLS private key to use for securing communication with clients.
+
+  #############################################################
+  ##
+  ## PEER configuration is for consul-to-consul communication
+  ##      on the clustered Vault backend.  Sensible defaults
+  ##      with suitable auto-generation.
+  ##
+  safe.peer.force_bind_default_ip:
+    description: |
+      Forces Consul agent to bind to the default ip address, necessary when using non
+      RFC1918 space in a private context.
+    default: false
+
+  safe.peer.port:
+    description: TCP port to use for peer-to-peer communication
+    default:     8100
+
+  safe.peer.tls.ca:
+    description: |
+      TLS CA certificate to use for verifying peer-to-peer communication.
+      If not provided, a self-signed certificate will be automatically generated and used.
+
+  safe.peer.tls.certificate:
+    description: |
+      TLS certificate to use for peer-to-peer communication.
+      If not provided, a self-signed certificate will be automatically generated and used.
+
+  safe.peer.tls.key:
+    description: |
+      TLS private key to use for peer-to-peer communication.
+      If not provided, a self-signed certificate will be automatically generated and used.
+
+  safe.peer.tls.verify:
+    description: Verify the TLS certificates presented by the Consul backend
+    default: true
+
+  safe.peer.tls.use_self_signed_certs:
+    description: Indicate whether we generate self-signed peer certificates
+    default: false
+
+  safe.ui:
+    description: If set to true, the Vault UI will be enabled.
+    default: false

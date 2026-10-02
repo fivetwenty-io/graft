@@ -1,0 +1,42 @@
+
+[1mtemplates[0m
+[93m+ one map entry added:[0m
+[1;32mbin/recover:[0m [32mbin/recover[0m
+
+[1mproperties[0m
+[93m+ one map entry added:[0m
+[1;32mpostgres.replication.psql_error_count:[0m
+[30m  [0m[1;32mdescription:[0m [32m"How many failed attempts to check the other node's status before assuming failure."[0m
+[30m  [0m[1;32mdefault:[0m [32m3[0m
+
+
+
+[1mproperties[0m.[1mpostgres.replication.connect_timeout[0m.[1mdescription[0m
+[93m± value change[0m
+[31m- [0m[91mHow long (in seconds) to wait before timi[0m[1;91mm[0m[91mg out a failover health check from one node to the other.[0m
+[32m+ [0m[92mHow long (in seconds) to wait before timi[0m[1;32mn[0m[92mg out a failover health check from one node to the other.[0m
+
+
+[1mproperties[0m.[1mpostgres.databases[0m.[1mexample[0m
+[93m± whitespace only change[0m
+[31m- postgres:[1;31m↵[0m
+[31m  [1;31m··[0;31mdatabases:[1;31m↵[0m
+[31m  [1;31m····[0;31m-[1;31m·[0;31mname:[1;31m·[0;31manimals[1;31m↵[0m
+[31m  [1;31m······[0;31musers:[1;31m↵[0m
+[31m  [1;31m········[0;31m-[1;31m·[0;31mporcupine[1;31m↵[0m
+[31m  [1;31m········[0;31m-[1;31m·[0;31mhedgehog[1;31m↵[0m
+[31m  [1;31m······[0;31mextensions:[1;31m·[0;31m#[1;31m·[0;31moptional[1;31m·[0;31marray[1;31m·[0;31mof[1;31m·[0;31mextensions[1;31m·[0;31mto[1;31m·[0;31menable[1;31m·[0;31mon[1;31m·[0;31mthis[1;31m·[0;31mdatabase[1;31m↵[0m
+[31m  [1;31m········[0;31m-[1;31m·[0;31mcitext[1;31m↵[0m
+[31m  [0m
+
+[32m+ postgres:[1;32m↵[0m
+[32m  [1;32m··[0;32mdatabases:[1;32m↵[0m
+[32m  [1;32m····[0;32m-[1;32m·[0;32mname:[1;32m·[0;32manimals[1;32m↵[0m
+[32m  [1;32m······[0;32musers:[1;32m↵[0m
+[32m  [1;32m········[0;32m-[1;32m·[0;32mporcupine[1;32m↵[0m
+[32m  [1;32m········[0;32m-[1;32m·[0;32mhedgehog[1;32m↵[0m
+[32m  [1;32m······[0;32mextensions:[1;32m·[0;32m#[1;32m·[0;32moptional[1;32m·[0;32marray[1;32m·[0;32mof[1;32m·[0;32mextensions[1;32m·[0;32mto[1;32m·[0;32menable[1;32m·[0;32mon[1;32m·[0;32mthis[1;32m·[0;32mdatabase[1;32m↵[0m
+[32m  [1;32m········[0;32m-[1;32m·[0;32mcitext[0m
+
+
+

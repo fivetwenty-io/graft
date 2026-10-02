@@ -1,0 +1,20 @@
+
+a
+± type change from int to string
+- 1
++ |
+  xy
+  z
+
+b
+± value change in multiline text (one insert, one deletion)
+- plain
++ pq
++ r
+
+
+c
++ one map entry added:
+new: 1
+
+

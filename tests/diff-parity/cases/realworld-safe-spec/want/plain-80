@@ -1,0 +1,22 @@
+
+templates
++ one map entry added:
+bin/pre-start: bin/pre-start
+
+templates.config/vault.conf
+± value change
+- config/vault.conf
++ config/vault.config
+
+templates.config/consul.conf
+± value change
+- config/consul.conf
++ config/consul.json
+
+properties
++ one map entry added:
+safe.peer.tls.use_self_signed_certs:
+  description: "Indicate whether we generate self-signed peer certificates"
+  default: false
+
+

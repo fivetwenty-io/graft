@@ -1,0 +1,18 @@
+
+data.x  (v1/ConfigMap/a)
+± value change
+- 1
++ 2
+
+
+(root level)  (v1/Secret/ns/c)
++ one document added:
+apiVersion: v1
+kind: Secret
+metadata:
+  name: c
+  namespace: ns
+
+
+
+

@@ -1,0 +1,15 @@
+
+[1mdata[0m.[1mx[0m  [37m(v1/ConfigMap/a)[0m
+[93m± value change[0m
+[31m- 1[0m
+[32m+ 2[0m
+
+[1m(root level)[0m  [37m(v1/Secret/ns/c)[0m
+[93m+ one document added:[0m
+[1;32mapiVersion:[0m [32mv1[0m
+[1;32mkind:[0m [32mSecret[0m
+[1;32mmetadata:[0m
+[30m  [0m[1;32mname:[0m [32mc[0m
+[30m  [0m[1;32mnamespace:[0m [32mns[0m
+
+

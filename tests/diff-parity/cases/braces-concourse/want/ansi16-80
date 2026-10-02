@@ -1,0 +1,8 @@
+
+[1mjobs[0m
+[93m- one list entry removed:[0m        [93m+ two list entries added:[0m
+[31m-[0m [1;91mname:[0m [91mthing1[0m                   [32m-[0m [32m"(( append ))"[0m
+[30m  [0m[1;91mcurlies:[0m [91m{{my-variable_123}}[0m   [32m-[0m [1;32mname:[0m [32mthing2[0m
+                                 [30m  [0m[1;32mcurlies:[0m [32m{{more}}[0m
+
+

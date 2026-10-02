@@ -1,0 +1,18 @@
+
+[1mcert[0m
+[38;2;199;196;63m± certificate change[0m
+[38;2;185;49;27m- [0m[38;2;255;160;122mSubject:[0m                               [38;2;88;191;56m+ [0m[38;2;144;238;144mSubject:[0m
+  [38;2;185;49;27m  Common Name: host1.example.com[0m         [38;2;88;191;56m  Common Name: host2.example.com[0m
+  [38;2;185;49;27m  Organization: Org1[0m                     [38;2;88;191;56m  Organization: Org2[0m
+  [38;2;255;160;122m  Organization Unit: [0m                    [38;2;144;238;144m  Organization Unit: [0m
+  [38;2;255;160;122m  Locality: [0m                             [38;2;144;238;144m  Locality: [0m
+  [38;2;255;160;122m  State: [0m                                [38;2;144;238;144m  State: [0m
+  [38;2;255;160;122m  Country: [0m                              [38;2;144;238;144m  Country: [0m
+  [38;2;255;160;122mValidity Period:[0m                         [38;2;144;238;144mValidity Period:[0m
+  [38;2;255;160;122m  NotBefore: Oct 1 09:29:45 2026 UTC[0m     [38;2;144;238;144m  NotBefore: Oct 1 09:29:45 2026 UTC[0m
+  [38;2;255;160;122m  NotAfter: Oct 31 09:29:45 2026 UTC[0m     [38;2;144;238;144m  NotAfter: Oct 31 09:29:45 2026 UTC[0m
+  [38;2;185;49;27mIssuer: host1.example.com, Org1[0m          [38;2;88;191;56mIssuer: host2.example.com, Org2[0m
+  [38;2;185;49;27mSerial Number: 1 (0x1)[0m                   [38;2;88;191;56mSerial Number: 2 (0x2)[0m
+
+
+

@@ -1,0 +1,20 @@
+
+[1ma[0m
+[93m± type change from [3;93mint[0;93m to [3;93mstring[0m
+[31m- 1[0m
+[32m+ |[0m
+[32m  xy[95m
+[32m  z[95m
+[0m
+[1mb[0m
+[93m± value change in multiline text (one insert, one deletion)[0m
+[31m- plain[0m
+[32m+ p[32;101mq[101m
+[32;101m+ r[101m
+[0m
+
+[1mc[0m
+[93m+ one map entry added:[0m
+[1;32mnew:[0m [32m1[0m
+
+

@@ -1,0 +1,74 @@
+
+[1m(root level)[0m
+[93m- one map entry removed:[0m         [93m+ one map entry added:[0m
+[1;91mremoved_block:[0m                   [1;32madded_block:[0m
+[30m  [0m# comment on key               [30m  [0m[1;32mname:[0m [32mfirst[0m
+[1;91minner:[0m &anc                      [30m  [0m# comment on added key
+[30m  [0m[30m  [0m[1;91mdeep:[0m [91mvalue[0m # line comment   [1;32mz_last:[0m [32m1[0m
+[30m  [0m[30m  [0m[1;91mother:[0m [91m~[0m                     [30m  [0m[1;32mb:[0m [32m|[0m
+[30m  [0m[1;91malias_ref:[0m *anc                [30m  [0m[30m  [0m[32mmulti[0m
+[30m  [0m[1;91mempty:[0m                         [30m  [0m[30m  [0m[32mline[0m
+[30m  [0m[1;91mdash:[0m [91m"-x"[0m                     [30m  [0m[30m  [0m
+[30m  [0m[1;91mnum_like:[0m [91m"1.2.3"[0m              [30m  [0m[1;32manchored:[0m &x [32m5[0m
+[30m  [0m[1;91mspecial:[0m [91m"a:b"[0m                 [30m  [0m[1;32mref:[0m *x
+[30m  [0m[1;91mt:[0m [91m"true"[0m                      [30m  [0m[1;32mnested:[0m
+[30m  [0m[1;91memptymap:[0m [91m{}[0m                   [30m  [0m[30m  [0m[1;32mdeeper:[0m
+[30m  [0m[1;91memptylist:[0m [91m[][0m                  [30m  [0m[30m  [0m[30m  [0m[1;32mdeepest:[0m [32m1[0m
+[30m  [0m[1;91mseq_of_maps:[0m
+[30m  [0m[31m-[0m [1;91mname:[0m [91ms1[0m
+[30m  [0m[30m  [0m[1;91mv:[0m [91m1[0m
+[30m  [0m[31m-[0m [1;91mid:[0m [91m2[0m
+
+[1mport[0m
+[93m± type change from [3;93mint[0;93m to [3;93mstring[0m
+[31m- 8080[0m
+[32m+ "8080"[0m
+
+[1mflag[0m
+[93m± value change[0m
+[31m- true[0m
+[32m+ false[0m
+
+[1mtext[0m
+[93m± value change[0m
+[31m- hello world[0m
+[32m+ hello there world, this is quite a different sentence[0m
+
+[1mquoted[0m
+[93m± value change[0m
+[31m- [0m[91m808[0m[1;91m0[0m
+[32m+ [0m[92m808[0m[1;32m1[0m
+
+[1mmulti[0m
+[93m± value change in multiline text (two inserts, one deletion)[0m
+[31m- line two[0m
+[32m+ line 2[0m
+[32m+ line four[0m
+
+
+[1mws[0m
+[93m± whitespace only change[0m
+[31m- a[1;31m·[0;31mb[0m   [32m+ a[1;32m·[0;32mb[1;32m·[0m
+
+[1mlist[0m
+[93m⇆ order changed[0m
+[31m- alpha, beta, gamma[0m
+[32m+ gamma, alpha, beta[0m
+
+[1mjobs[0m
+[93m⇆ order changed[0m
+[31m- web, worker[0m
+[32m+ worker, web[0m
+
+[1mjobs[0m.[1;3mweb[0m.[1minstances[0m
+[93m± value change[0m
+[31m- 1[0m
+[32m+ 3[0m
+
+[1mjobs[0m.[1;3mweb[0m.[1mprops[0m
+[93m+ one map entry added:[0m
+[1;32mb:[0m
+[32m-[0m [32mx[0m
+[32m-[0m [32my[0m
+
+

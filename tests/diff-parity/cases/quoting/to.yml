@@ -1,0 +1,18 @@
+q:
+  uni: "café ☃"
+  tab: "a\tb"
+  ctl: "x\u0001y"
+  e: e
+  dot: "."
+  plus: "+1"
+  hash: "a#b"
+  star: "*x"
+  amp: "&x"
+  inf: ".inf"
+  nul: "null"
+  yes: yes
+  date: 2001-12-14
+  hexv: 0x10
+  big: 12345678901234567890
+  tagged: !custom foo
+  multiq: "a\nb\n"

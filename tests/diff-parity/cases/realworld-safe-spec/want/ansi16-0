@@ -1,0 +1,28 @@
+
+[1mtemplates[0m
+[93m+ one map entry added:[0m
+[1;32mbin/pre-start:[0m [32mbin/pre-start[0m
+
+
+
+[1mtemplates[0m.[1mconfig/vault.conf[0m
+[93m± value change[0m
+[31m- [0m[91mconfig/vault.conf[0m
+[32m+ [0m[92mconfig/vault.conf[0m[1;32mig[0m
+
+
+[1mtemplates[0m.[1mconfig/consul.conf[0m
+[93m± value change[0m
+[31m- [0m[91mconfig/consul.[0m[1;91mc[0m[91mon[0m[1;91mf[0m
+[32m+ [0m[92mconfig/consul.[0m[1;32mjs[0m[92mon[0m
+
+
+[1mproperties[0m
+[93m+ one map entry added:[0m
+[1;32msafe.peer.tls.use_self_signed_certs:[0m
+[30m  [0m[1;32mdescription:[0m [32m"Indicate whether we generate self-signed peer certificates"[0m
+[30m  [0m[1;32mdefault:[0m [32mfalse[0m
+
+
+
+
