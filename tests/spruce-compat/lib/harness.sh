@@ -159,3 +159,78 @@ $lb"
 assert_exit_parity() {
   [ "$1" = "$2" ]
 }
+
+# report_skip_or_fail <name> [detail]
+# Reports a skip, or a failure when SPRUCE_COMPAT_STRICT=1. The CI job
+# sets it, so a missing tool there fails the job instead of letting it
+# pass with nothing compared.
+report_skip_or_fail() {
+  if [ "${SPRUCE_COMPAT_STRICT:-}" = 1 ]; then
+    report_fail "$@"
+  else
+    report_skip "$@"
+  fi
+}
+
+# fake_tty_run <typescript> <bin> [args...]
+# Runs a command the way Genesis's fake_tty does (lib/Genesis.pm,
+# sub fake_tty): `script -qeF` on macOS and `script -qf -c` on Linux.
+# Genesis leaves stdin alone, so an operator at a terminal hands script(1)
+# that terminal and the pty copies its size. The harness forces stdin from
+# /dev/null instead, to get the case Genesis hits when it runs without a
+# terminal, where the pty has no window size and the terminal width is 0.
+# Returns the command's exit code where script(1) reports it.
+fake_tty_run() {
+  local file="$1"; shift
+  case "$(uname -s)" in
+    Darwin) script -qeF "$file" "$@" </dev/null >/dev/null 2>&1 ;;
+    Linux)  script -qf "$file" -c "$(printf '%q ' "$@")" </dev/null >/dev/null 2>&1 ;;
+    *)      return 125 ;;
+  esac
+}
+
+# strip_script_wrapper <typescript> <out>
+# Removes the header and trailer script(1) writes on Linux with Genesis's
+# own expressions (lib/Genesis.pm:974-977), writes the rest to <out>, and
+# writes the exit code recorded in the trailer, if any, to <out>.rc.
+strip_script_wrapper() {
+  perl -0777 -e '
+    my $out = do { local $/; <STDIN> };
+    my $rc = "";
+    if ($out =~ s/\nScript done.*\[COMMAND_EXIT_CODE="(.*)"]$//m) { $rc = $1 }
+    $out =~ s/^Script [^\n]+\n//m;
+    open(my $fh, ">", $ARGV[0]) or die $!; print $fh $out; close $fh;
+    open(my $rf, ">", "$ARGV[0].rc") or die $!; print $rf $rc; close $rf;
+  ' "$2" <"$1"
+}
+
+# cut_parse_error <file>
+# Cuts the file in place just after the first `yaml: line <N>: `, or just
+# after `yaml: ` when no line is printed. Under D6, graft matches spruce's
+# `unable to parse data from <loc>: yaml: ` prefix, the line where libyaml
+# and goccy agree, and the exit code, but it prints goccy's wording after
+# them, so a parse error is compared only up to this point.
+cut_parse_error() {
+  perl -0777 -pi -e 's/\A(.*?yaml: (?:line \d+: )?).*\z/$1/s' "$1"
+}
+
+# has_color <file> — true when the file holds an ANSI escape sequence.
+has_color() {
+  LC_ALL=C grep -qF $'\033[' "$1"
+}
+
+# report_tty_pattern <name> <runs> <differing> <cut> <colored>
+# Reports a pty pattern's result. All runs matching is not enough. When
+# spruce printed no color in any run, for example because TERM=dumb leaked
+# through, the pattern never tested the colored output Genesis sees, so
+# it fails.
+report_tty_pattern() {
+  local name="$1" runs="$2" bad="$3" cut="$4" colored="$5"
+  if [ "$bad" -ne 0 ]; then
+    report_fail "$name" "$bad of $runs runs differ"
+  elif [ "$colored" -eq 0 ]; then
+    report_fail "$name" "all $runs runs match, but spruce printed no color in any of them, so color went untested"
+  else
+    report_pass "$name" "$runs runs match, $colored of them colored, and $cut parse-error runs compared through \`yaml: line N: \`"
+  fi
+}

@@ -23,11 +23,15 @@
 #   SPRUCE_REPO - path to a spruce source checkout used to build spruce
 #                 when it is not already on PATH or given via SPRUCE_BIN
 #                 (default: sibling `../spruce` of this repo)
+#   SPRUCE_COMPAT_STRICT - set to 1 to fail instead of skipping when
+#                 spruce, script(1), perl, or the oracle's ptyrun is
+#                 unavailable (CI sets it)
 #
 # Exit code: 0 if every non-skipped pattern passed (or the whole harness
-# skipped gracefully because spruce is unavailable); 1 if any pattern
-# failed. Must run under bash — genesis's own shell for spawning subprocess
-# invocations — not sh/dash.
+# skipped gracefully because spruce is unavailable and
+# SPRUCE_COMPAT_STRICT is not 1); 1 if any pattern failed. Must run under
+# bash — genesis's own shell for spawning subprocess invocations — not
+# sh/dash.
 
 set -uo pipefail
 
@@ -72,6 +76,10 @@ resolve_spruce() {
 
 resolve_graft
 if ! resolve_spruce; then
+  if [ "${SPRUCE_COMPAT_STRICT:-}" = 1 ]; then
+    echo "FAIL: spruce binary not found on PATH and not buildable from SPRUCE_REPO (${SPRUCE_REPO:-$REPO_ROOT/../spruce}), and SPRUCE_COMPAT_STRICT=1 forbids skipping." >&2
+    exit 1
+  fi
   echo "SKIP: spruce binary not found on PATH and not buildable from SPRUCE_REPO (${SPRUCE_REPO:-$REPO_ROOT/../spruce})."
   echo "SKIP: spruce/graft parity harness cannot run without a spruce binary to compare against. Set SPRUCE_BIN or SPRUCE_REPO to enable it."
   exit 0
@@ -92,12 +100,10 @@ echo
 
 # ========================================================================
 # Pattern 1 — `spruce diff <a> <b>`
-# Genesis wraps this in a pty (fake_tty) so spruce colorizes; this harness
+# Genesis wraps this in a pty (fake_tty) so spruce colorizes; this pattern
 # runs both tools in piped (non-tty) mode, which is the mode both tools
-# use when stdout is not a terminal. That is the portable, deterministic
-# case to assert here. The pty/ANSI-colorized case is NOT exercised by
-# this harness (would require a real pty allocation in CI) — noted as a
-# documented gap, not silently skipped.
+# use when stdout is not a terminal. Patterns 1b and 1c cover the pty and
+# its colored output.
 # ========================================================================
 pattern_01_diff() {
   local name="pattern 1: spruce diff <a> <b> (piped, no-ANSI)"
@@ -115,8 +121,88 @@ pattern_01_diff() {
   else
     report_fail "$name" "exit=$s_rc (matched); $DETAIL_OUT"
   fi
-  report_skip "pattern 1b: spruce diff under a pty (ANSI coloring)" \
-    "not exercised — requires a pty allocation (script(1)/openpty) not attempted by this harness; genesis's fake_tty wrapper is the real consumer of this mode"
+}
+
+# ========================================================================
+# Pattern 1b — `spruce diff` under Genesis's fake_tty
+# Every non-graft-only parity case runs under the exact script(1) command
+# line Genesis uses, with and without COLORTERM=truecolor. The pty has no
+# size, so both tools lay out at width 0 and color in auto mode. TERM is
+# set so that a runner exporting TERM=dumb cannot turn color off.
+# ========================================================================
+pattern_01b_diff_fake_tty() {
+  local name="pattern 1b: spruce diff under fake_tty (width 0, auto color)"
+  local cases="$REPO_ROOT/tests/diff-parity/cases" dir from to ct s_rc g_rc perr rawesc
+  local bad=0 runs=0 cut=0 colored=0
+  if ! command -v script >/dev/null 2>&1 || ! command -v perl >/dev/null 2>&1; then
+    report_skip_or_fail "$name" "script(1) or perl is not installed"
+    return
+  fi
+  for dir in "$cases"/*/; do
+    [ -e "$dir/GRAFT_ONLY" ] && continue
+    from="$(cd "$dir" && ls from.*)"; to="$(cd "$dir" && ls to.*)"
+    perr=0; grep -q 'yaml: ' "$dir/want/plain-80.stderr" 2>/dev/null && perr=1
+    # A case whose plain report already holds escapes from its own data
+    # proves nothing about color, so it never counts as a colored run.
+    rawesc=0; LC_ALL=C grep -qF $'\033[' "$dir/want/plain-80" && rawesc=1
+    for ct in "" truecolor; do
+      (cd "$dir" && unset NO_COLOR && TZ=America/New_York TERM=xterm-256color COLORTERM="$ct" fake_tty_run "$TMP/1b.s.ts" "$SPRUCE_BIN" diff "$from" "$to"); s_rc=$?
+      (cd "$dir" && unset NO_COLOR && TZ=America/New_York TERM=xterm-256color COLORTERM="$ct" fake_tty_run "$TMP/1b.g.ts" "$GRAFT_BIN" diff "$from" "$to"); g_rc=$?
+      strip_script_wrapper "$TMP/1b.s.ts" "$TMP/1b.s.out"
+      strip_script_wrapper "$TMP/1b.g.ts" "$TMP/1b.g.out"
+      [ -s "$TMP/1b.s.out.rc" ] && s_rc="$(cat "$TMP/1b.s.out.rc")"
+      [ -s "$TMP/1b.g.out.rc" ] && g_rc="$(cat "$TMP/1b.g.out.rc")"
+      runs=$((runs + 1))
+      [ "$rawesc" = 0 ] && has_color "$TMP/1b.s.out" && colored=$((colored + 1))
+      if [ "$perr" = 1 ]; then
+        cut_parse_error "$TMP/1b.s.out"; cut_parse_error "$TMP/1b.g.out"; cut=$((cut + 1))
+      fi
+      if [ "$s_rc" != "$g_rc" ] || ! cmp -s "$TMP/1b.s.out" "$TMP/1b.g.out"; then
+        bad=$((bad + 1))
+        echo "  1b mismatch: $(basename "$dir") COLORTERM=${ct:-unset} spruce=$s_rc graft=$g_rc"
+      fi
+    done
+  done
+  report_tty_pattern "$name" "$runs" "$bad" "$cut" "$colored"
+}
+
+# ========================================================================
+# Pattern 1c — `spruce diff` under a pty with a real window size
+# 80 is the common terminal, 120 is what gonvenience/term reports inside
+# a garden container (Concourse), 133 is an odd width, and 200 is wide.
+# ========================================================================
+pattern_01c_diff_sized_pty() {
+  local name="pattern 1c: spruce diff under a sized pty (80, 120, 133, and 200 columns)"
+  local cases="$REPO_ROOT/tests/diff-parity/cases" ptyrun="$TMP/ptyrun" dir from to ct cols s_rc g_rc perr rawesc
+  local bad=0 runs=0 cut=0 colored=0
+  if ! (cd "$REPO_ROOT/tests/diff-parity/oracle" && go build -o "$ptyrun" ./cmd/ptyrun) >"$TMP/ptyrun.log" 2>&1; then
+    report_skip_or_fail "$name" "could not build ptyrun: $(tail -1 "$TMP/ptyrun.log")"
+    return
+  fi
+  for dir in "$cases"/*/; do
+    [ -e "$dir/GRAFT_ONLY" ] && continue
+    from="$(cd "$dir" && ls from.*)"; to="$(cd "$dir" && ls to.*)"
+    perr=0; grep -q 'yaml: ' "$dir/want/plain-80.stderr" 2>/dev/null && perr=1
+    # A case whose plain report already holds escapes from its own data
+    # proves nothing about color, so it never counts as a colored run.
+    rawesc=0; LC_ALL=C grep -qF $'\033[' "$dir/want/plain-80" && rawesc=1
+    for cols in 80 120 133 200; do
+      for ct in "" truecolor; do
+        (cd "$dir" && unset NO_COLOR && TZ=America/New_York TERM=xterm-256color COLORTERM="$ct" "$ptyrun" -cols "$cols" -rows 25 -out "$TMP/1c.s.out" -- "$SPRUCE_BIN" diff "$from" "$to"); s_rc=$?
+        (cd "$dir" && unset NO_COLOR && TZ=America/New_York TERM=xterm-256color COLORTERM="$ct" "$ptyrun" -cols "$cols" -rows 25 -out "$TMP/1c.g.out" -- "$GRAFT_BIN" diff "$from" "$to"); g_rc=$?
+        runs=$((runs + 1))
+        [ "$rawesc" = 0 ] && has_color "$TMP/1c.s.out" && colored=$((colored + 1))
+        if [ "$perr" = 1 ]; then
+          cut_parse_error "$TMP/1c.s.out"; cut_parse_error "$TMP/1c.g.out"; cut=$((cut + 1))
+        fi
+        if [ "$s_rc" != "$g_rc" ] || ! cmp -s "$TMP/1c.s.out" "$TMP/1c.g.out"; then
+          bad=$((bad + 1))
+          echo "  1c mismatch: $(basename "$dir") cols=$cols COLORTERM=${ct:-unset} spruce=$s_rc graft=$g_rc"
+        fi
+      done
+    done
+  done
+  report_tty_pattern "$name" "$runs" "$bad" "$cut" "$colored"
 }
 
 # ========================================================================
@@ -629,6 +715,8 @@ report_secret_not_found_skip() {
 # --- run everything ------------------------------------------------------
 
 pattern_01_diff
+pattern_01b_diff_fake_tty
+pattern_01c_diff_sized_pty
 pattern_02_json_stdin_redirect
 pattern_03_skip_eval_json_input
 pattern_04_skip_eval_yaml_input
