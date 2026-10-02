@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
@@ -70,10 +71,58 @@ func loadTOMLDocuments(data []byte) ([]*yamlnode.Node, error) {
 		return nil, err
 	}
 
-	node, err := yamlnode.FromValue(value)
+	_, offset := time.Now().In(time.Local).Zone()
+
+	node, err := yamlnode.FromValue(rezoneLocalTimes(value, offset))
 	if err != nil {
 		return nil, err
 	}
 
 	return []*yamlnode.Node{node}, nil
+}
+
+// rezoneLocalTimes returns value with every TOML local date, local
+// datetime, and local time moved into the zone whose offset from UTC is
+// offset seconds, keeping the same wall-clock fields. BurntSushi/toml
+// builds those zones once, when its package initializes, so they follow
+// the process zone at startup rather than time.Local when the file is
+// read. Redoing the zone here makes a load follow time.Local, which only
+// tests ever reassign. Other times, including RFC 3339 values with their
+// own offsets, pass through unchanged.
+func rezoneLocalTimes(value interface{}, offset int) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		for key, item := range v {
+			v[key] = rezoneLocalTimes(item, offset)
+		}
+		return v
+	case []interface{}:
+		for i, item := range v {
+			v[i] = rezoneLocalTimes(item, offset)
+		}
+		return v
+	case []map[string]interface{}:
+		for _, item := range v {
+			rezoneLocalTimes(item, offset) // Rewrites the map in place.
+		}
+		return v
+	case time.Time:
+		return rezoneLocalTime(v, offset)
+	default:
+		return value
+	}
+}
+
+// rezoneLocalTime moves t into a zone with the same name and the given
+// offset when t is one of the TOML local zones, and returns t otherwise.
+func rezoneLocalTime(t time.Time, offset int) time.Time {
+	name := t.Location().String()
+	switch name {
+	case "datetime-local", "date-local", "time-local":
+		year, month, day := t.Date()
+		hour, minute, second := t.Clock()
+		return time.Date(year, month, day, hour, minute, second, t.Nanosecond(), time.FixedZone(name, offset))
+	default:
+		return t
+	}
 }
