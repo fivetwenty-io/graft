@@ -107,3 +107,63 @@ func TestCompareUnhashableKeyIsAnError(t *testing.T) {
 		t.Fatalf("err = %v, want *UnhashableKeyError", err)
 	}
 }
+
+// TestCompareNonStandardIdentifierThreshold pins dyff's guess threshold
+// from both sides. A guessed field names list entries only when it has
+// more than three distinct values, so three entries compare as a simple
+// list and four compare by name.
+func TestCompareNonStandardIdentifierThreshold(t *testing.T) {
+	const entries = "list:\n- job: a\n  count: 1\n- job: b\n  count: 1\n"
+	const fromC, toC = "- job: c\n  count: 1\n", "- job: c\n  count: 2\n"
+	const d = "- job: d\n  count: 1\n"
+
+	t.Run("three entries stay a simple list", func(t *testing.T) {
+		from := InputFile{Documents: mustParse(t, entries+fromC)}
+		to := InputFile{Documents: mustParse(t, entries+toC)}
+		report, err := CompareInputFiles(from, to)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(report.Diffs) != 1 {
+			t.Fatalf("got %d diffs, want 1", len(report.Diffs))
+		}
+		diff := report.Diffs[0]
+		if diff.Path.ToDotStyle() != "list" || diff.Path.ToGoPatchStyle() != "/list" {
+			t.Fatalf("path = %q (%q), want list (/list)", diff.Path.ToDotStyle(), diff.Path.ToGoPatchStyle())
+		}
+		if len(diff.Details) != 2 || diff.Details[0].Kind != REMOVAL || diff.Details[1].Kind != ADDITION {
+			t.Fatalf("details = %+v, want a removal then an addition", diff.Details)
+		}
+		for _, fragment := range []*yamlnode.Node{diff.Details[0].From, diff.Details[1].To} {
+			if fragment.Kind != yamlnode.SequenceNode || fragment.Tag != "!!seq" || len(fragment.Content) != 1 {
+				t.Fatalf("fragment = %+v, want a !!seq sequence of one entry", fragment)
+			}
+			if job, ok := ValueByKey(fragment.Content[0], "job"); !ok || job.Value != "c" {
+				t.Fatalf("fragment entry = %+v, want the entry whose job is c", fragment.Content[0])
+			}
+		}
+	})
+
+	t.Run("four entries become a named list", func(t *testing.T) {
+		from := InputFile{Documents: mustParse(t, entries+fromC+d)}
+		to := InputFile{Documents: mustParse(t, entries+toC+d)}
+		report, err := CompareInputFiles(from, to)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(report.Diffs) != 1 {
+			t.Fatalf("got %d diffs, want 1", len(report.Diffs))
+		}
+		diff := report.Diffs[0]
+		if diff.Path.ToDotStyle() != "list.c.count" || diff.Path.ToGoPatchStyle() != "/list/job=c/count" {
+			t.Fatalf("path = %q (%q), want list.c.count (/list/job=c/count)", diff.Path.ToDotStyle(), diff.Path.ToGoPatchStyle())
+		}
+		if len(diff.Details) != 1 {
+			t.Fatalf("details = %+v, want one modification", diff.Details)
+		}
+		det := diff.Details[0]
+		if det.Kind != MODIFICATION || det.From.Value != "1" || det.To.Value != "2" {
+			t.Fatalf("detail = %+v, want a modification from 1 to 2", det)
+		}
+	})
+}
