@@ -7,7 +7,7 @@ each project's notice and license follow.
 ================================================================
 go.yaml.in/yaml/v3 v3.0.4
 https://github.com/yaml/go-yaml
-Files: internal/yamlnode/resolve.go, internal/yamlnode/keysort.go, internal/yamlnode/encode.go
+Files: internal/yamlnode/resolve.go, internal/yamlnode/keysort.go, internal/yamlnode/encode.go, internal/yamlnode/decode.go
 License: Apache-2.0 (with MIT for code ported from libyaml)
 Copyright 2011-2016 Canonical Ltd.
 Changes: ported to graft's yamlnode model; see each file's header.
