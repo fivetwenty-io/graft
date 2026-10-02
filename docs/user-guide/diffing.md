@@ -410,9 +410,12 @@ graft rejects these inputs, and spruce accepts them:
   then uses `!!`, such as `a: !!foo 1`.
 - Empty tagged sequence items, such as `- !!str` then `- !!int`, which
   is the same difference as `a: !!str` before another key.
-- An anchor with no value on the last line of a file, such as `b: &x` as
-  the last entry of a mapping or `- &x` as the last item of a list.
-  graft fails with `yaml: line N: undefined anchor value`.
+- An anchor with no value as the last thing in a document that ends at
+  a `---` line or at the end of the file, such as `b: &x` as the last
+  entry of a mapping or `- &x` as the last item of a list. graft fails
+  with `yaml: line N: undefined anchor value`. Blank lines and comments
+  after the anchor don't change that, but a document that ends with
+  `...` parses.
 
 `TestParseAcceptanceDivergences` pins the `%YAML`, empty tagged value,
 `!!merge`, and `%TAG !!` cases. `TestParseAcceptsInputsYamlV3Rejects` and

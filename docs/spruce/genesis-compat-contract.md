@@ -251,7 +251,7 @@ cuts off before it compares (see [Parse errors](#parse-errors) below).
 
 ## Template placeholders
 
-graft reads an unquoted `{{...}}` placeholder in a value position as a plain string in `graft merge`, `graft diff`, `graft json`, and files pulled in by `(( load ))`. spruce parses the same text as an empty nested map, so it reports no difference between `a: {{x}}` and `a: {{y}}`, and it panics when such a placeholder sits in a simple list. graft reports a value change instead and never panics. A placeholder used as a mapping key, and an unbalanced run of braces, stay parse errors in both tools. graft doesn't rewrite a placeholder that follows an anchor or a tag, so `a: &n {{x}}` and `a: !!str {{x}}` stay parse errors too, and `{{{x}}}` becomes the string `{{{x}}}`.
+graft reads an unquoted `{{...}}` placeholder in a value position as a plain string in `graft merge`, `graft diff`, `graft json`, and files pulled in by `(( load ))`. spruce parses the same text as an empty nested map, so it reports no difference between `a: {{x}}` and `a: {{y}}`, and it panics when such a placeholder sits in a simple list. graft reports a value change instead and never panics. An unbalanced run of braces, such as `a: {{{{x}}`, stays a parse error in both tools. graft also rejects a placeholder used as a mapping key, as in `{{x}}: 1` after another key, and a placeholder that follows an anchor or a tag, as in `a: &n {{x}}` and `a: !!str {{x}}`, because it doesn't rewrite them. spruce accepts each of those three and reads the placeholder as an empty nested map. graft reads `{{{x}}}` as the string `{{{x}}}`.
 
 ## Parse errors
 
@@ -290,7 +290,7 @@ Accepted divergences, beyond the tables above:
 
 - graft accepts these inputs, and spruce rejects them with exit `2`. They are a tab after a block dash, an empty tag handle as in `a: !! 1`, a `...` line before the first content, a mapping key longer than 1,024 characters, and a next-line (U+0085) or line-separator (U+2028) character inside a plain scalar. `TestParseAcceptsInputsSpruceRejects` pins them.
 
-- graft rejects these inputs, and spruce accepts them. They are empty tagged sequence items such as `- !!str` then `- !!int`, which is the same difference as `a: !!str` before another key, and an anchor with no value on the last line of a file, such as `b: &x` or `- &x`, where graft fails with `yaml: line N: undefined anchor value`. `TestParseEmptyTaggedSequenceItemsFail` and `TestParseRejectsAnchorWithoutValue` pin them.
+- graft rejects these inputs, and spruce accepts them. They are empty tagged sequence items such as `- !!str` then `- !!int`, which is the same difference as `a: !!str` before another key, and an anchor with no value as the last thing in a document that ends at a `---` line or at the end of the file, such as `b: &x` or `- &x`, where graft fails with `yaml: line N: undefined anchor value`. `TestParseEmptyTaggedSequenceItemsFail` and `TestParseRejectsAnchorWithoutValue` pin them.
 
 - graft keeps one more space of indentation than spruce when a document is a block scalar that starts on its `---` line and has an explicit indentation indicator. For `--- |1-` followed by two spaces and `x`, spruce reads `" x"` and graft reads `"  x"`. An indicator on a mapping value matches spruce. `TestParseIndentIndicatorOnDocumentScalar` pins graft's value.
 

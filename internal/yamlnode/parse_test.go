@@ -620,12 +620,13 @@ func TestParseAcceptsInputsSpruceRejects(t *testing.T) {
 	}
 }
 
-// TestParseRejectsAnchorWithoutValue pins two inputs where graft exits 2
-// and spruce reports a difference. An anchor with nothing after it, in
-// "b: &x" or "- &x" as the last entry, is an undefined anchor value in
-// graft. spruce reads the anchored empty node as null.
+// TestParseRejectsAnchorWithoutValue pins inputs where graft exits 2 and
+// spruce reports a difference. An anchor with nothing after it, in
+// "b: &x" or "- &x" as the last entry of a document that ends at a "---"
+// line or at the end of the file, is an undefined anchor value in graft.
+// spruce reads the anchored empty node as null.
 func TestParseRejectsAnchorWithoutValue(t *testing.T) {
-	for _, in := range []string{"a: 1\nb: &x\n", "- a\n- &x\n"} {
+	for _, in := range []string{"a: 1\nb: &x\n", "- a\n- &x\n", "a: 1\nb: &x\n---\nc: 1\n"} {
 		_, err := yamlnode.Parse([]byte(in))
 		if err == nil || err.Error() != "yaml: line 2: undefined anchor value" {
 			t.Errorf("Parse(%q) = %v, want yaml: line 2: undefined anchor value (spruce accepts it)", in, err)
