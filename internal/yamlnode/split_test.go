@@ -108,3 +108,17 @@ func TestSplitDocumentsCarriesLeadingComments(t *testing.T) {
 		}
 	}
 }
+
+// TestSplitDocumentsSurvivesUncountedLineBreaks checks the splitter's
+// backstop. Parse turns every CR into LF first, but if goccy's lexer ever
+// counts a line break the splitter does not, a marker line can lie past
+// the last line, and the splitter must not slice past it.
+func TestSplitDocumentsSurvivesUncountedLineBreaks(t *testing.T) {
+	for _, in := range []string{"a: 1\r\r\r---\r\rb: 2\n", "0\r\r...\n", "a: 1\r---\rb: 2\r\n"} {
+		for _, c := range splitDocuments(in) {
+			if c.text == "" {
+				t.Errorf("splitDocuments(%q) produced an empty chunk", in)
+			}
+		}
+	}
+}

@@ -33,9 +33,17 @@ func (e *ParseError) Error() string {
 
 // Parse reads a YAML stream and returns one DocumentNode per document,
 // the way yaml.v3's Decoder does. An empty stream, or one holding only
-// comments, yields no documents. CRLF line breaks become LF before
-// anything lexes, because goccy counts a CRLF comment line as two lines.
-func Parse(data []byte) ([]*Node, error) {
+// comments, yields no documents. CRLF and lone CR line breaks become LF
+// before anything lexes. goccy counts a CRLF comment line as two lines,
+// and libyaml reads a lone CR as a line break, so the document splitter
+// has to count it the way goccy's lexer does. A panic inside goccy comes
+// back as a ParseError.
+func Parse(data []byte) (docs []*Node, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			docs, err = nil, &ParseError{Message: fmt.Sprintf("internal parser error: %v", r)}
+		}
+	}()
 	src, err := decodeEncoding(data)
 	if err != nil {
 		return nil, err
@@ -44,6 +52,7 @@ func Parse(data []byte) ([]*Node, error) {
 		return nil, err
 	}
 	src = bytes.ReplaceAll(src, []byte("\r\n"), []byte("\n"))
+	src = bytes.ReplaceAll(src, []byte("\r"), []byte("\n"))
 	prepared, nulled := yamlprep.Prepare(src)
 	text, addedNewline := string(prepared), false
 	if text != "" && !strings.HasSuffix(text, "\n") {
@@ -52,7 +61,7 @@ func Parse(data []byte) ([]*Node, error) {
 	b := newBuilder(nulled)
 
 	chunks := splitDocuments(text)
-	docs := make([]*Node, 0, len(chunks))
+	docs = make([]*Node, 0, len(chunks))
 	endsInBlock := false
 	for i, c := range chunks {
 		c.unterminated = i == len(chunks)-1 && addedNewline
@@ -79,50 +88,57 @@ func Parse(data []byte) ([]*Node, error) {
 // normalizeChunkEnd works around goccy's handling of a block scalar that
 // runs to the end of what it parses. Parse hands goccy one document at a
 // time, so every chunk ends a stream as far as goccy can tell. With an
-// indentation indicator, goccy rejects trailing blank lines, which carry
-// no content under clip or strip chomping, so we drop them. We leave the
+// indentation indicator, goccy rejects a trailing line shorter than the
+// content indentation. Such a line holds only a line break, which clip
+// and strip chomping discard, so we drop it. We leave the
 // final chunk alone when Parse added the stream's last line break,
 // because that chunk then ends on content. Without that line break, goccy
 // drops trailing spaces and stops folding, which is why Parse adds it.
 // normalizeChunkEnd reports whether the chunk ends inside a block scalar.
 func normalizeChunkEnd(text string, addedNewline bool) (string, bool) {
 	header, endsInBlock := finalBlockScalarHeader(text)
-	if endsInBlock && !addedNewline && strings.ContainsAny(header, "123456789") && !strings.Contains(header, "+") {
-		text = dropTrailingBlankLines(text)
+	if endsInBlock && !addedNewline && indentIndicator(header.Value) > 0 && !strings.Contains(header.Value, "+") {
+		text = dropTrailingBlankLines(text, blockIndent(header, nil))
 	}
 	return text, endsInBlock
 }
 
 // finalBlockScalarHeader reports whether the last token of src is the
 // body of a literal or folded block scalar, so the stream ends inside it,
-// and returns that scalar's header, such as "|2-". goccy's lexer marks
-// the body Invalid when it is about to reject it, so both types count.
-func finalBlockScalarHeader(src string) (string, bool) {
+// and returns that scalar's header token, such as "|2-". goccy's lexer
+// marks the body Invalid when it is about to reject it, so both types
+// count.
+func finalBlockScalarHeader(src string) (*token.Token, bool) {
 	toks := lexer.Tokenize(src)
 	n := len(toks)
 	if n < 2 || (toks[n-1].Type != token.StringType && toks[n-1].Type != token.InvalidType) {
-		return "", false
+		return nil, false
 	}
 	for k := n - 2; k >= 0; k-- {
 		switch toks[k].Type {
 		case token.CommentType:
 			continue
 		case token.LiteralType, token.FoldedType:
-			return toks[k].Value, true
+			return toks[k], true
 		default:
-			return "", false
+			return nil, false
 		}
 	}
-	return "", false
+	return nil, false
 }
 
-// dropTrailingBlankLines removes the empty and whitespace-only lines at the
-// end of src and leaves exactly one final line break.
-func dropTrailingBlankLines(src string) string {
+// dropTrailingBlankLines removes the lines at the end of src that hold
+// nothing but up to indent spaces, and leaves exactly one final line
+// break. A whitespace-only line longer than indent is content, so it
+// stays, and so does any line before it.
+func dropTrailingBlankLines(src string, indent int) string {
 	body := strings.TrimRight(src, "\n")
 	for {
 		i := strings.LastIndexByte(body, '\n')
-		if i < 0 || strings.TrimSpace(body[i+1:]) != "" {
+		if i < 0 {
+			break
+		}
+		if last := body[i+1:]; len(last) > indent || strings.Trim(last, " ") != "" {
 			break
 		}
 		body = body[:i]

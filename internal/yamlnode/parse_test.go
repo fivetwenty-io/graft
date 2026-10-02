@@ -3,6 +3,7 @@ package yamlnode_test
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -290,7 +291,7 @@ func TestParseErrorLineDivergences(t *testing.T) {
 
 func TestParseKeepsDuplicateKeys(t *testing.T) {
 	m := mustParse(t, "a: 1\na: 2\n")[0].Content[0]
-	if len(m.Content) != 4 || !bytes.Equal([]byte(m.Content[2].Value), []byte("a")) {
+	if len(m.Content) != 4 || m.Content[2].Value != "a" {
 		t.Fatalf("duplicate keys were not both kept: %+v", m.Content)
 	}
 }
@@ -371,4 +372,148 @@ func TestParseAcceptanceDivergences(t *testing.T) {
 			t.Errorf("Parse(%q) = %v, want the prefix %q (yaml.v3: %s)", c.in, err, c.goccyErr, c.yamlv3)
 		}
 	}
+}
+
+// outline renders a parsed document compactly: each scalar as its tag and
+// quoted value, and each mapping key with its line, which is the line
+// yaml.v3 parity covers.
+func outline(n *yamlnode.Node) string {
+	switch n.Kind {
+	case yamlnode.DocumentNode:
+		return outline(n.Content[0])
+	case yamlnode.MappingNode:
+		parts := make([]string, 0, len(n.Content)/2)
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			parts = append(parts, fmt.Sprintf("%s@%d: %s", outline(n.Content[i]), n.Content[i].Line, outline(n.Content[i+1])))
+		}
+		return "{" + strings.Join(parts, ", ") + "}"
+	case yamlnode.SequenceNode:
+		parts := make([]string, 0, len(n.Content))
+		for _, c := range n.Content {
+			parts = append(parts, outline(c))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	default:
+		return fmt.Sprintf("%s %q", n.Tag, n.Value)
+	}
+}
+
+// checkOutlines parses each input and compares every document's outline
+// with the one yaml.v3 v3.0.5 gives for the same input.
+func checkOutlines(t *testing.T, cases []struct {
+	in   string
+	want []string
+}) {
+	t.Helper()
+	for _, c := range cases {
+		docs, err := yamlnode.Parse([]byte(c.in))
+		if err != nil {
+			t.Errorf("Parse(%q): %v", c.in, err)
+			continue
+		}
+		got := make([]string, len(docs))
+		for i, d := range docs {
+			got[i] = outline(d)
+		}
+		if strings.Join(got, "\n") != strings.Join(c.want, "\n") {
+			t.Errorf("Parse(%q) =\n  %q\nwant (yaml.v3)\n  %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestParseLoneCRLineBreaks checks that a lone CR is a line break, as it is
+// in libyaml, so documents split and lines count the way yaml.v3 does.
+// The expected outlines come from yaml.v3 v3.0.5.
+func TestParseLoneCRLineBreaks(t *testing.T) {
+	checkOutlines(t, []struct {
+		in   string
+		want []string
+	}{
+		{"a: 1\r\r\r---\r\rb: 2\n", []string{`{!!str "a"@1: !!int "1"}`, `{!!str "b"@6: !!int "2"}`}},
+		{"a: 1\r---\rb: 2\r", []string{`{!!str "a"@1: !!int "1"}`, `{!!str "b"@3: !!int "2"}`}},
+		{"a: 1\r\r---\rb: 2\n", []string{`{!!str "a"@1: !!int "1"}`, `{!!str "b"@4: !!int "2"}`}},
+		{"a: |\r  x\r---\rb: 1\r", []string{`{!!str "a"@1: !!str "x\n"}`, `{!!str "b"@4: !!int "1"}`}},
+		{"# c\r# d\r---\ra: 1\n", []string{`{!!str "a"@4: !!int "1"}`}},
+		{"0\r\r...", []string{`!!int "0"`}},
+		{"a: |\r  x\r\r  y\r", []string{`{!!str "a"@1: !!str "x\n\ny\n"}`}},
+		{"a: \"x\r\r  y\"\rb: 2\r\n", []string{`{!!str "a"@1: !!str "x\ny", !!str "b"@4: !!int "2"}`}},
+	})
+}
+
+// TestParseBlockScalarTrailingWhitespaceLines checks block scalars that
+// end in whitespace-only lines. Whatever lies past the content
+// indentation is content, so strip chomping keeps it, while a line no
+// longer than the indentation is only a line break. The expected outlines
+// come from yaml.v3 v3.0.5.
+func TestParseBlockScalarTrailingWhitespaceLines(t *testing.T) {
+	checkOutlines(t, []struct {
+		in   string
+		want []string
+	}{
+		// Strip chomping, literal.
+		{"a: |-\n  x\n    \nb: 1", []string{`{!!str "a"@1: !!str "x\n  ", !!str "b"@4: !!int "1"}`}},
+		{"a: |-\n  x\n   \n", []string{`{!!str "a"@1: !!str "x\n "}`}},
+		{"a: |-\n  x  \n   \n", []string{`{!!str "a"@1: !!str "x  \n "}`}},
+		{"a: |-\n  x\t \n", []string{`{!!str "a"@1: !!str "x\t "}`}},
+		{"a: |-\n  x\n  \t \n", []string{`{!!str "a"@1: !!str "x\n\t "}`}},
+		{"a: |-\n  x\n   \n    \n", []string{`{!!str "a"@1: !!str "x\n \n  "}`}},
+		{"a: |-\n  x\n    \n  \n   \n", []string{`{!!str "a"@1: !!str "x\n  \n\n "}`}},
+		{"a: |-\n  x\n\n   \nb: 1\n", []string{`{!!str "a"@1: !!str "x\n\n ", !!str "b"@5: !!int "1"}`}},
+		{"a: |-\n  x\n   \n# c\nb: 1\n", []string{`{!!str "a"@1: !!str "x\n ", !!str "b"@5: !!int "1"}`}},
+		{"a: |-\n  x\n   ", []string{`{!!str "a"@1: !!str "x\n "}`}},
+		{"a: |2-\n  x\n   \n", []string{`{!!str "a"@1: !!str "x\n "}`}},
+		{"a: |2-\n  x\n   \n\n", []string{`{!!str "a"@1: !!str "x\n "}`}},
+		{"a: |2-\n  x\n   \n---\nb: 1\n", []string{`{!!str "a"@1: !!str "x\n "}`, `{!!str "b"@5: !!int "1"}`}},
+		{"a: |1-\n   x\n  \nb: 1\n", []string{`{!!str "a"@1: !!str "  x\n ", !!str "b"@4: !!int "1"}`}},
+		{"- |-\n  x\n   \n- y\n", []string{`[!!str "x\n ", !!str "y"]`}},
+		{"- |1-\n   x\n  \n- 1\n", []string{`[!!str "  x\n ", !!int "1"]`}},
+		{"a:\n  b: |-\n    x\n      \n  c: 1\n", []string{`{!!str "a"@1: {!!str "b"@2: !!str "x\n  ", !!str "c"@5: !!int "1"}}`}},
+		{"- a: |2-\n      x\n       \n  c: 1\n", []string{`[{!!str "a"@1: !!str "  x\n   ", !!str "c"@4: !!int "1"}]`}},
+		{"--- |-\n  x\n   \n", []string{`!!str "x\n "`}},
+		{"a: |2-\n\n   \n", []string{`{!!str "a"@1: !!str "\n "}`}},
+		{"a: |2-\n   \n   \n", []string{`{!!str "a"@1: !!str " \n "}`}},
+		// Strip chomping, folded.
+		{"a: >-\n  x\n    \nb: 1\n", []string{`{!!str "a"@1: !!str "x\n  ", !!str "b"@4: !!int "1"}`}},
+		{"a: >-\n  x\n   y\n   \nb: 1\n", []string{`{!!str "a"@1: !!str "x\n y\n ", !!str "b"@5: !!int "1"}`}},
+		{"a: >2-\n    x\n   y\n   \n", []string{`{!!str "a"@1: !!str "  x\n y\n "}`}},
+		// Clip chomping.
+		{"a: |\n  x\n    \nb: 1", []string{`{!!str "a"@1: !!str "x\n  \n", !!str "b"@4: !!int "1"}`}},
+		{"a: |\n  x\n   \n", []string{`{!!str "a"@1: !!str "x\n \n"}`}},
+		{"a: |\n  x\n   ", []string{`{!!str "a"@1: !!str "x\n "}`}},
+		{"a: |2\n  x\n   \n", []string{`{!!str "a"@1: !!str "x\n \n"}`}},
+		{"a: |2\n  x\n   \n \n", []string{`{!!str "a"@1: !!str "x\n \n"}`}},
+		{"a: |2\n    x\n   \nb: 1\n", []string{`{!!str "a"@1: !!str "  x\n \n", !!str "b"@4: !!int "1"}`}},
+		{"a: >\n  x\n    \nb: 1", []string{`{!!str "a"@1: !!str "x\n  \n", !!str "b"@4: !!int "1"}`}},
+		{"a: >2\n  x\n   \n", []string{`{!!str "a"@1: !!str "x\n \n"}`}},
+		// Keep chomping.
+		{"a: |+\n  x\n    \nb: 1", []string{`{!!str "a"@1: !!str "x\n  \n", !!str "b"@4: !!int "1"}`}},
+		{"a: |2+\n  x\n   \n", []string{`{!!str "a"@1: !!str "x\n \n"}`}},
+		{"a: >+\n  x\n   \n", []string{`{!!str "a"@1: !!str "x\n \n"}`}},
+	})
+}
+
+// TestParseRecoversParserPanic checks that a panic inside goccy becomes a
+// parse error. goccy v1.19.2 dereferences nil on this input.
+func TestParseRecoversParserPanic(t *testing.T) {
+	docs, err := yamlnode.Parse([]byte("%TAG !! 0\n--- !\n"))
+	if err == nil || !strings.HasPrefix(err.Error(), "yaml: ") || docs != nil {
+		t.Fatalf("Parse = %v, %v; want no documents and a yaml: error", docs, err)
+	}
+}
+
+// FuzzParse checks that no input makes Parse panic.
+func FuzzParse(f *testing.F) {
+	for _, seed := range []string{
+		"a: 1\r\r\r---\r\rb: 2\n",
+		"0\r\r...",
+		"%TAG !! 0\n--- !\n",
+		"a: |-\n  x\n    \nb: 1",
+		"a: |2-\n  x\n   \n---\nb: 1\n",
+		"- a: |2-\n      x\n       \n  c: 1\n",
+	} {
+		f.Add([]byte(seed))
+	}
+	f.Fuzz(func(t *testing.T, data []byte) {
+		_, _ = yamlnode.Parse(data)
+	})
 }

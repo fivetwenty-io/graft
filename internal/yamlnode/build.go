@@ -254,24 +254,95 @@ func (b *builder) expandTag(tk *token.Token) (string, error) {
 }
 
 // literalValue returns a block scalar's value and restores the trailing
-// spaces and tabs goccy drops from the last content line of a "-" (strip)
-// chomped scalar, keeping any line breaks that follow them.
+// spaces goccy drops from a "-" (strip) chomped scalar. goccy trims every
+// space from the end of the value, but libyaml keeps whatever lies past
+// the content indentation on the scalar's last content line, and a
+// whitespace-only line longer than the indentation is a content line.
 func literalValue(x *ast.LiteralNode) string {
 	value := x.Value.Value
 	if !strings.Contains(x.Start.Value, "-") {
 		return value
 	}
 	lines := strings.Split(x.Value.GetToken().Origin, "\n")
+	indent := blockIndent(x.Start, lines)
 	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimRight(lines[i], "\r")
-		if strings.TrimSpace(line) == "" {
+		if len(lines[i]) <= indent {
 			continue
 		}
-		trailing := line[len(strings.TrimRight(line, " \t")):]
-		if !strings.HasSuffix(value, trailing) {
-			value += trailing
+		content := lines[i][indent:]
+		if value == "" {
+			// goccy turns a value of one line break into "", so the line
+			// breaks before the only content line are gone as well.
+			return strings.Repeat("\n", i) + content
+		}
+		return value + content[len(strings.TrimRight(content, " ")):]
+	}
+	return value
+}
+
+// indentIndicator returns the indentation indicator of a block scalar
+// header such as "|2-", or 0 when the header has none.
+func indentIndicator(header string) int {
+	for _, c := range header {
+		if c >= '1' && c <= '9' {
+			return int(c - '0')
+		}
+	}
+	return 0
+}
+
+// blockIndent returns the content indentation libyaml gives the block
+// scalar whose header token is hdr and whose body lines are lines. An
+// indentation indicator counts from the enclosing block collection's
+// indentation. Without one, the indentation is that of the first
+// non-empty line, or of a longer whitespace-only line before it, and at
+// least one more than the enclosing collection's.
+func blockIndent(hdr *token.Token, lines []string) int {
+	parent := blockParentIndent(hdr)
+	if n := indentIndicator(hdr.Value); n > 0 {
+		return max(parent, 0) + n
+	}
+	indent := max(parent+1, 1)
+	for _, line := range lines {
+		text := strings.TrimLeft(line, " ")
+		indent = max(indent, len(line)-len(text))
+		if text != "" {
+			break
+		}
+	}
+	return indent
+}
+
+// blockParentIndent returns libyaml's indentation for the block
+// collection that holds the block scalar whose header token is hdr, as a
+// 0-based column. For a sequence item it is the column of the "-", for a
+// mapping value the column where the key's line starts after any "-"
+// entries, and at the top level of a document it is -1. Tags and anchors
+// between the "-" or ":" and the header are skipped.
+func blockParentIndent(hdr *token.Token) int {
+	t := hdr.Prev
+	for t != nil {
+		if t.Type == token.TagType || t.Type == token.AnchorType {
+			t = t.Prev
+			continue
+		}
+		if t.Type == token.StringType && t.Prev != nil && t.Prev.Type == token.AnchorType {
+			t = t.Prev.Prev // an anchor's name
+			continue
 		}
 		break
 	}
-	return value
+	switch {
+	case t == nil:
+		return -1
+	case t.Type == token.SequenceEntryType:
+		return t.Position.Column - 1
+	case t.Type == token.MappingValueType:
+		start := t
+		for p := t.Prev; p != nil && p.Position.Line == t.Position.Line && p.Type != token.SequenceEntryType; p = p.Prev {
+			start = p
+		}
+		return start.Position.Column - 1
+	}
+	return -1
 }

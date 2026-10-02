@@ -90,9 +90,11 @@ func (s *splitter) token(t *token.Token) {
 }
 
 // emit closes the section that ends at endLine and reports whether it
-// was a document.
+// was a document. It clamps endLine to the last line, so a marker line
+// the lexer counts past the end of the text can never slice beyond it.
 func (s *splitter) emit(endLine int, marker bool) bool {
-	if endLine < s.segStart || (!s.explicit && !s.hasContent) {
+	endLine = min(endLine, len(s.lines))
+	if endLine < s.segStart || s.textStart > endLine+1 || (!s.explicit && !s.hasContent) {
 		return false
 	}
 	s.chunks = append(s.chunks, chunk{
