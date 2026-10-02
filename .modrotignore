@@ -7,8 +7,9 @@
 # patch.Ops is part of graft's public API, so vendoring is deferred.
 github.com/cppforlife/go-patch
 
-# 2026-09-30 keep: newest commit (only v1.0.0 was ever tagged), dyff and
-# testify require it, and go-udiff's diff cap degrades large YAML diffs.
+# 2026-10-01 keep: newest commit (only v1.0.0 was ever tagged),
+# cmd/graft/diff_render.go imports it directly and testify requires it,
+# and go-udiff's diff cap degrades large YAML diffs.
 github.com/pmezard/go-difflib
 
 # 2026-09-30 keep: latest tag with no successor; it backs 63 test files,
