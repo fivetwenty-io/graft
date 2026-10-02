@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -101,6 +102,28 @@ func TestDiffReadsStdinAndDirectories(t *testing.T) {
 	stdout, _, rc = runMainCaptured(t, "diff", dir, dir)
 	if rc != 0 || stdout != "\n\n" {
 		t.Fatalf("a directory against itself: rc=%d stdout=%q", rc, stdout)
+	}
+}
+
+// TestDiffDirectoryMemberParseError checks the message for a malformed
+// file inside a directory input. A directory member fails with "failed to
+// read <path>: yaml: line N: " and no "unable to parse data from"
+// prefix. spruce prints the same prefix through the line number and
+// differs only in the text after it.
+func TestDiffDirectoryMemberParseError(t *testing.T) {
+	withStdoutTerminal(t, false, 80)
+	bad := t.TempDir()
+	member := filepath.Join(bad, "b.yml")
+	if err := os.WriteFile(member, []byte("b: [\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	good := "../../internal/yamldiff/testdata/load/inputs/dirA"
+	for _, args := range [][]string{{"diff", good, bad}, {"diff", bad, good}} {
+		stdout, stderr, rc := runMainCaptured(t, args...)
+		want := "failed to read " + member + ": yaml: line 1: "
+		if rc != 2 || stdout != "" || !strings.HasPrefix(stderr, want) {
+			t.Errorf("graft %v: rc=%d stdout=%q stderr=%q, want exit 2 and the prefix %q", args, rc, stdout, stderr, want)
+		}
 	}
 }
 
