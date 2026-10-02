@@ -224,12 +224,12 @@ expects.
 Graft's `diff` command does this, with neither `--color` nor
 `--no-color` given (auto mode, the default). Its default report (no
 `--changes`/`--unified`/`--side-by-side` flag) follows graft's color
-flags. When no flag is given, it detects the terminal the way spruce's
-bunt library does, by checking `isatty` on stdout. That check counts
+flags. In auto mode it detects the terminal the way spruce's bunt
+library does, by checking `isatty` on stdout. That check counts
 Cygwin terminals, never colors a plain Windows console, and honors
 `TERM=dumb`. The `--changes`/`--unified`/`--side-by-side` renderers are
 colored by graft's own `--color` auto-detection, which also keys off
-`isatty` on stdout (not stderr - see
+`isatty` on stdout (not stderr; see
 [Color flags](../reference/cli.md#color-flags) for the full precedence,
 including how an explicit `--color`/`--no-color` overrides this). Either
 way, graft's diff coloring, in the mode Genesis relies on, checks
@@ -241,8 +241,8 @@ wrapper: `fake_tty`/`script` attaches both stdout and stderr to a pty,
 so both file descriptors report as terminals to graft regardless of
 which one a given code path checks.
 
-The spruce-compat harness proves this byte for byte against real spruce
-v1.35.17. Pattern 1b runs the `fake_tty` case with the terminal width at
+The spruce-compat harness checks graft's colored report against real
+spruce v1.35.17 byte for byte. Pattern 1b runs the `fake_tty` case with the terminal width at
 0, and pattern 1c runs ptys at 80, 120, 133, and 200 columns. Each runs
 with and without `COLORTERM=truecolor`, which makes 86 runs for pattern
 1b and 344 for pattern 1c. All of them match, apart from a parse error's
@@ -255,7 +255,7 @@ graft reads an unquoted `{{...}}` placeholder in a value position as a plain str
 
 ## Parse errors
 
-Genesis reads only the exit code of `spruce diff` and passes the message through, so a difference in the message text does not change what Genesis does. graft keeps spruce's `unable to parse data from <file>: yaml: ` prefix and its exit code of `2`. It then prints goccy's message, and the line number after the prefix can differ from the one spruce prints. The harness compares a parse error's stderr only through `yaml: `, and it compares the line number only where the two tools agree.
+Genesis reads only the exit code of `spruce diff` and passes the message through, so a difference in the message text does not change what Genesis does. graft keeps spruce's `unable to parse data from <file>: yaml: ` prefix and its exit code of `2`. It then prints goccy's message, and the line number after the prefix can differ from the one spruce prints. The harness cuts a parse error's stderr after `yaml: line N: ` (or after `yaml: ` when no line is printed) before it compares, and its parse-error cases are ones where both tools print the same line.
 
 `TestParseErrorLineDivergences` in `internal/yamlnode` pins the six inputs below, where libyaml and goccy report different lines or where spruce reports no line at all.
 

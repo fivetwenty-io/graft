@@ -13,9 +13,11 @@ parsing and marshalling. Output marshalling uses a 2-space indent encoder
 Every YAML parse and encode in Graft's own code goes through
 goccy/go-yaml. `gopkg.in/yaml.v2` stays in the build graph because
 `github.com/cppforlife/go-patch` imports it, but no Graft source file
-imports it. Graft no longer depends on any external diff or report
-library. The parts of those libraries that `graft diff` used now live in
-internal packages built on goccy/go-yaml, listed below.
+imports it. The comparison engine and the report renderer behind
+`graft diff` are now Graft's own code, in the internal packages listed
+below, which are built on goccy/go-yaml. `github.com/sergi/go-diff` is
+still a direct dependency, and it provides the text diff inside multiline
+value changes.
 
 ---
 
@@ -48,7 +50,8 @@ actively maintained.
 
 - `internal/yamlprep` — Holds the input rewrites that work around goccy
   limits and run before every parse. They cover the bare `-` terminator,
-  `<<<:` inject keys, and `{{...}}` placeholders, which read as strings.
+  `<<<:` inject keys, and `{{...}}` placeholders, and the last of these
+  then reads as a string.
 - `internal/yamlnode` — A yaml.v3-compatible node model. It parses
   documents with goccy, resolves tags, places comments, encodes Go values,
   and decodes nodes back into Go values.

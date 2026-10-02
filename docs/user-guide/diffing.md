@@ -372,10 +372,15 @@ graft rejects these inputs, and spruce accepts them:
 - An empty tagged value followed by another key, such as `a: !!str` and
   then `b: 1`.
 - `!!merge <<` used as a value.
-- A `%TAG !!` directive.
+- A `%TAG !!` directive that redefines the secondary handle, when a tag
+  then uses `!!`, such as `a: !!foo 1`.
 
 `TestParseAcceptanceDivergences` pins the `%YAML`, empty tagged value,
-`!!merge`, and `%TAG !!` cases.
+`!!merge`, and `%TAG !!` cases. `TestParseAcceptsInputsYamlV3Rejects` and
+`TestParseAcceptsContentAfterDocumentEnd` pin the `\/` escape, raw control
+characters, and content after `...`. The `...`-only stream and complex
+mapping key cases are pinned in `internal/yamlnode`'s split and decode
+tests.
 
 One comment layout lands in a different place. When a comment block sits
 between a key and its block collection, and a later line of the block
@@ -396,11 +401,12 @@ Both tools give `# c1` to the first item.
 
 Where spruce panics, graft exits `2` with an error message instead of a
 stack trace. That covers an SGR `38` sequence without valid arguments
-inside a value, a tag of exactly `!`, and a modification with a nil node.
+inside a value and a tag of exactly `!`.
 
 TOML local dates and times print in the machine's local zone, as they do
-in spruce. graft uses the offset of the process's local zone, read when
-the file loads, as spruce does at startup.
+in spruce. spruce reads the machine's local zone when it starts, and graft
+reads it when it loads the file, so the two agree unless the zone changes
+in between.
 
 graft reads a CRLF file exactly as it reads the same file with LF line
 endings. spruce prints an extra blank line above a commented key in a CRLF

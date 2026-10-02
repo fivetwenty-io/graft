@@ -464,8 +464,8 @@ spruce](../user-guide/diffing.md#accepted-differences-from-spruce);
 rendering of the same underlying comparison instead
 (`internal/histdiff.Compare`, also what `merge
 --history`/`--show-changes`/`--changes-only` are built on). `diff` honors
-the root `--color`/`--no-color` flags (`auto` by default). Unlike the
-other commands, `diff` decides auto mode from stdout's terminal state, not
+the root `--color`/`--no-color` flags (`auto` by default). Unlike most
+commands, `diff` decides auto mode from stdout's terminal state, not
 stderr's, because the report goes to stdout; see
 [Color flags](#color-flags) above. Calling
 `diff` with a number of positional arguments other than two prints usage
