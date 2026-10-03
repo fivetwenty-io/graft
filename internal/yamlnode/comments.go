@@ -518,6 +518,13 @@ func lineComments(w *walker, l lexed, out map[string]string) (own map[int]cmt, d
 	own, dashLines, inline = map[int]cmt{}, map[int]bool{}, map[int]bool{}
 	runs := l.flowRuns(w.items, w.offset)
 	for i, c := range l.cmts {
+		if l.decorated(c) {
+			// A comment after a tag or an anchor is a line comment of
+			// the first scalar after it, as in yaml.v3.
+			appendSlot(out, afterDecoration(w.items, c.line), c.text)
+			inline[c.line] = inline[c.line] || !l.headerLine[c.line]
+			continue
+		}
 		isInline := l.inline(w.items, c)
 		if c.flow {
 			flowComment(w.flows, c, isInline, runs[i], out)
@@ -558,6 +565,39 @@ func (l lexed) inline(items []item, c cmt) bool {
 	}
 	i := lastItemOnLine(items, c.line)
 	return i >= 0 && items[i].lineSlot == rootScalarLine
+}
+
+// decorated reports whether c follows a tag or an anchor that ends its
+// line, outside a flow collection.
+func (l lexed) decorated(c cmt) bool {
+	if c.flow || c.prev == nil {
+		return false
+	}
+	// goccy lexes an anchor as an Anchor token for the "&" and a String
+	// token for its name.
+	if c.prev.Type != token.TagType && (c.prev.Prev == nil || c.prev.Prev.Type != token.AnchorType) {
+		return false
+	}
+	cc, ok := l.contentCol[c.line]
+	return ok && cc < c.col
+}
+
+// afterDecoration returns the line comment slot that yaml.v3 gives a
+// comment after a tag or an anchor on line. It is the slot of the first
+// scalar after the line, past any sequence dashes. A mapping key holds
+// the comment instead when one comes first, and neat never prints a
+// key's line comment, so no slot is returned.
+func afterDecoration(items []item, line int) string {
+	for _, it := range items {
+		if it.line <= line || it.kind == 'E' {
+			continue
+		}
+		if it.kind == 'S' {
+			return it.lineSlot
+		}
+		return ""
+	}
+	return ""
 }
 
 // afterBareDash reports whether items[i], the last item on its line, is

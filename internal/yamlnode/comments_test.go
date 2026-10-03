@@ -345,3 +345,31 @@ func TestCommentsFlowEntryFootAfterCollection(t *testing.T) {
 		}
 	}
 }
+
+// TestCommentsAfterTagOrAnchor checks the slots yaml.v3 gives a comment
+// that follows a tag or an anchor. It is the line comment of the first
+// scalar after it, ahead of that scalar's own line comment, wherever
+// the scalar sits. A tag or an anchor on a mapping gives the comment to
+// the key, whose line comment is not printed.
+func TestCommentsAfterTagOrAnchor(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want map[string]string
+	}{
+		{"--- &a # c1\nx # c2\n", map[string]string{"d0#VL": "# c1\n# c2"}},
+		{"--- &a !!seq # c1\n- x # c2\n", map[string]string{"d0[0]#VL": "# c1\n# c2"}},
+		{"!!str # c1\nx # c2\n", map[string]string{"d0#VL": "# c1\n# c2"}},
+		{"!!str # c1\nx\n", map[string]string{"d0#VL": "# c1"}},
+		{"k: !!str # c1\n  x # c2\n", map[string]string{"d0{0}#VL": "# c1\n# c2"}},
+		{"k: &a # c1\n  - x\n", map[string]string{"d0{0}[0]#VL": "# c1"}},
+		{"--- &a # c\n-\n  - x\n", map[string]string{"d0[0][0]#VL": "# c"}},
+		{"--- &a # c\n-\n  x\n", map[string]string{"d0[0]#VL": "# c"}},
+		{"--- !!map # c1\na: 1 # c2\n", map[string]string{"d0{0}#VL": "# c2"}},
+	} {
+		got := map[string]string{}
+		printedSlots(yamlgolden.FromNode(mustParse(t, c.in)[0]), "d0", got)
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Parse(%q) slots = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

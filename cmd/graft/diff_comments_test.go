@@ -90,3 +90,29 @@ func TestDiffPrintsFlowCommentAfterCollectionEntry(t *testing.T) {
 		{"r: 0\n", "r: [\n  k0: [],\n  # c1\n]\n", "\nr\n± type change from int to list\n- 0\n+ - k0: []\n  # c1\n\n\n"},
 	})
 }
+
+// TestDiffPrintsCommentAfterTagOrAnchor checks that a comment after a
+// tag or an anchor is the line comment of the first scalar after it,
+// ahead of that scalar's own comment, as spruce v1.35.17 prints it.
+func TestDiffPrintsCommentAfterTagOrAnchor(t *testing.T) {
+	runDiffCases(t, []diffCase{
+		{"0\n", "--- &a # c1\nx # c2\n", "\n(root level)\n± type change from int to string\n- 0\n+ x # c1\n  # c2\n\n\n"},
+		{"0\n", "--- &a !!seq # c1\n- x # c2\n", "\n(root level)\n± type change from int to list\n- 0\n+ - x # c1\n  # c2\n\n\n"},
+		{"0\n", "!!str # c1\nx # c2\n", "\n(root level)\n± type change from int to string\n- 0\n+ x # c1\n  # c2\n\n\n"},
+		{"0\n", "!!str # c1\nx\n", "\n(root level)\n± type change from int to string\n- 0\n+ x # c1\n\n\n"},
+		{"k: 0\n", "k: !!str # c1\n  x # c2\n", "\nk\n± type change from int to string\n- 0\n+ x # c1\n  # c2\n\n\n"},
+		{"k: 0\n", "k: &a # c1\n  - x\n", "\nk\n± type change from int to list\n- 0\n+ - x # c1\n\n\n"},
+	})
+}
+
+// TestDiffPrintsCommentAfterTaggedSequenceRoot checks that a comment
+// after an anchor on a "---" line reaches the first scalar of a
+// sequence whose first item is nested or on the next line, as spruce
+// v1.35.17 does.
+func TestDiffPrintsCommentAfterTaggedSequenceRoot(t *testing.T) {
+	runDiffCases(t, []diffCase{
+		{"zzz\n", "--- &a # c\n-\n  - x\n", "\n(root level)\n± type change from string to list\n- zzz\n+ - - x # c\n\n\n"},
+		{"zzz\n", "--- &a # c\n-\n  x\n", "\n(root level)\n± type change from string to list\n- zzz\n+ - x # c\n\n\n"},
+		{"x: 1\n", "--- !!map # c1\na: 1 # c2\n", "\n(root level)\n- one map entry removed:   + one map entry added:\nx: 1                       a: 1 # c2\n\n\n"},
+	})
+}
