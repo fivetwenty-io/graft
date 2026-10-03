@@ -26,3 +26,24 @@ func TestMergeAndJSONRejectSelfContainingAnchor(t *testing.T) {
 		})
 	}
 }
+
+// TestMergeOverDeepPrintsOneMessage merges files nested 4,096 and 10,001
+// levels deep. spruce prints the same bare recursion sentence for both
+// and exits 2. graft printed it bare at 4,096 levels but prefixed the
+// file name and "parse_error:" from 10,001 levels on, where the depth
+// guard rather than the cycle check rejects the input.
+func TestMergeOverDeepPrintsOneMessage(t *testing.T) {
+	const want = "Hit max recursion depth. You seem to have a self-referencing dataset\n"
+	dir := t.TempDir()
+	for _, n := range []int{4096, 10001} {
+		path := filepath.Join(dir, "deep.yml")
+		text := "a: " + strings.Repeat("[", n) + strings.Repeat("]", n) + "\n"
+		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		stderr, rc := runGraftCapturingOutput(t, []string{"merge", path})
+		if rc != 2 || stderr != want {
+			t.Errorf("graft merge of %d levels: rc=%d stderr=%q, want rc=2 and %q", n, rc, stderr, want)
+		}
+	}
+}
