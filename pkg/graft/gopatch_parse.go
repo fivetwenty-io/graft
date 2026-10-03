@@ -9,6 +9,7 @@ import (
 	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
 // RootIsArrayError indicates a YAML document's root value is an array
@@ -91,7 +92,7 @@ func DetectArrayRoot(data []byte) error {
 // would misroute an array-rooted document, so the whitelist is strict.
 func rootCannotBeArray(data []byte) bool {
 	// Strip a UTF-8 BOM if present.
-	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+	data = yamlnode.TrimBOM(data)
 
 	for len(data) > 0 {
 		line := data

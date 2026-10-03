@@ -214,12 +214,22 @@ func normalizeLineBreaks(src []byte) []byte {
 	return bytes.ReplaceAll(src, []byte("\r"), []byte("\n"))
 }
 
+// utf8BOM is the UTF-8 byte order mark.
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
+
+// TrimBOM strips one leading UTF-8 byte order mark from src, as libyaml
+// does, and returns src as it stands when it has none. The result shares
+// src's bytes.
+func TrimBOM(src []byte) []byte {
+	return bytes.TrimPrefix(src, utf8BOM)
+}
+
 // decodeEncoding strips a UTF-8 byte order mark and transcodes UTF-16
 // input that starts with a byte order mark, as libyaml does.
 func decodeEncoding(data []byte) ([]byte, error) {
 	switch {
-	case bytes.HasPrefix(data, []byte{0xEF, 0xBB, 0xBF}):
-		return data[3:], nil
+	case bytes.HasPrefix(data, utf8BOM):
+		return TrimBOM(data), nil
 	case bytes.HasPrefix(data, []byte{0xFF, 0xFE}):
 		return decodeUTF16(data[2:], false)
 	case bytes.HasPrefix(data, []byte{0xFE, 0xFF}):

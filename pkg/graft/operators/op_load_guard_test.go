@@ -93,3 +93,27 @@ func TestLoadKeepsDirectivesWithFirstDocument(t *testing.T) {
 		t.Errorf("load = %#v, want result.x: 1 alone", got)
 	}
 }
+
+// TestLoadStripsLeadingBOM loads a file that opens with a UTF-8 byte
+// order mark. spruce's load strips it, and graft kept it in the key.
+func TestLoadStripsLeadingBOM(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bom.yml")
+	if err := os.WriteFile(path, []byte("\xEF\xBB\xBFx: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	engine, err := graft.NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := engine.ParseYAML([]byte("result: (( load \"" + path + "\" ))\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := engine.Evaluate(context.TODO(), doc)
+	if err != nil {
+		t.Fatalf("load = %v, want success", err)
+	}
+	if got := out.RawData(); !reflect.DeepEqual(got, map[string]interface{}{"result": map[string]interface{}{"x": 1}}) {
+		t.Errorf("load = %#v, want result.x: 1 alone", got)
+	}
+}

@@ -334,9 +334,11 @@ func (e *maxRecursionError) Unwrap() error { return e.cause }
 // FirstMergeDocument returns the first document of data, raw YAML bytes
 // about to be merged, since the merge reads no other, as spruce's does.
 // goccy parses every document it is given, so a syntax error or deep
-// nesting in a later document would otherwise fail the merge. The result
-// is a prefix of data, and it is data itself when nothing ends the first
-// document. See yamlnode.FirstDocument.
+// nesting in a later document would otherwise fail the merge. It strips
+// a leading UTF-8 byte order mark first, as spruce does, since goccy
+// reads one as text. The result is a prefix of the rest of data, and it
+// is all of that rest when nothing ends the first document. See
+// yamlnode.FirstDocument.
 //
 // It fails a first document that nests deeper than 10,000 levels, and
 // it runs before anything else tokenizes data, because goccy's parser
@@ -345,7 +347,7 @@ func (e *maxRecursionError) Unwrap() error { return e.cause }
 // reads as the text a merge gives for a tree nested past 4,096 levels,
 // so every over-deep merge fails with one message whatever its depth.
 func FirstMergeDocument(data []byte) ([]byte, error) {
-	first, err := yamlnode.FirstDocument(data)
+	first, err := yamlnode.FirstDocument(yamlnode.TrimBOM(data))
 	if err != nil {
 		return nil, &maxRecursionError{cause: err}
 	}

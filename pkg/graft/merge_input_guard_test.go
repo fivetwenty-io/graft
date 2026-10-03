@@ -195,6 +195,30 @@ func TestMergeKeepsDirectivesWithFirstDocument(t *testing.T) {
 	}
 }
 
+// TestMergeStripsLeadingBOM merges streams that open with a UTF-8 byte
+// order mark. spruce strips it and merges x: 1. graft kept it, so it
+// became part of the first key, and before a "---" or a comment it
+// failed the parse.
+func TestMergeStripsLeadingBOM(t *testing.T) {
+	for _, c := range []struct{ name, in string }{
+		{"before a key", "\xEF\xBB\xBFx: 1\n"},
+		{"before a header", "\xEF\xBB\xBF---\nx: 1\n"},
+		{"before a comment", "\xEF\xBB\xBF# c\n---\nx: 1\n"},
+		{"before a directive", "\xEF\xBB\xBF%YAML 1.1\n---\nx: 1\n"},
+		{"before a header and a second document", "\xEF\xBB\xBF---\nx: 1\n---\ny: [\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out, err := guardedMerge(t, c.in)
+			if err != nil {
+				t.Fatalf("merge = %v, want success", err)
+			}
+			if got := out.RawData(); !reflect.DeepEqual(got, map[string]interface{}{"x": 1}) {
+				t.Errorf("merge = %#v, want x: 1 alone", got)
+			}
+		})
+	}
+}
+
 // TestMergeKeepsMarkersInsideScalars merges a first document holding a
 // "---" line inside a literal block scalar and inside a quoted
 // multi-line string. Neither line ends the document, so the keys after
@@ -240,6 +264,20 @@ func TestGoPatchParsersReadOnlyTheFirstDocument(t *testing.T) {
 // spruce's --go-patch applies the operation.
 func TestGoPatchParsersKeepDirectivesWithFirstDocument(t *testing.T) {
 	src := []byte("%YAML 1.1\n---\n- type: replace\n  path: /x\n  value: 2\n")
+	if err := DetectArrayRoot(src); !IsArrayError(err) {
+		t.Errorf("DetectArrayRoot = %v, want the array-root signal", err)
+	}
+	ops, err := ParseGoPatch(src)
+	if err != nil || len(ops) != 1 {
+		t.Errorf("ParseGoPatch = %d operations, %v; want 1 operation", len(ops), err)
+	}
+}
+
+// TestGoPatchParsersStripLeadingBOM feeds DetectArrayRoot and
+// ParseGoPatch an operation list after a UTF-8 byte order mark. spruce's
+// --go-patch applies the operation, and graft failed the parse.
+func TestGoPatchParsersStripLeadingBOM(t *testing.T) {
+	src := []byte("\xEF\xBB\xBF- type: replace\n  path: /x\n  value: 2\n")
 	if err := DetectArrayRoot(src); !IsArrayError(err) {
 		t.Errorf("DetectArrayRoot = %v, want the array-root signal", err)
 	}
