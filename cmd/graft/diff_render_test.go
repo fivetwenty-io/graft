@@ -55,6 +55,22 @@ func TestRenderChangeListEmptyChanges(t *testing.T) {
 	}
 }
 
+// TestRenderChangeListRootEntryHasNoTrailingSpace renders a change to
+// the whole document, which has no path. Its entry is the kind alone,
+// with no padding after it.
+func TestRenderChangeListRootEntryHasNoTrailingSpace(t *testing.T) {
+	ansi.Color(false)
+	out := renderChangeList([]histdiff.Change{{Kind: histdiff.Modified, Old: map[string]interface{}{"a": 1}, New: []interface{}{1}}})
+	if !strings.Contains(out, "\n  MODIFIED\n") {
+		t.Errorf("renderChangeList = %q, want the entry line \"  MODIFIED\"", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimRight(line, " ") != line {
+			t.Errorf("line %q ends in a space", line)
+		}
+	}
+}
+
 func TestYamlValueLinesNil(t *testing.T) {
 	lines := yamlValueLines(nil)
 	if len(lines) != 1 || lines[0] != "~" {

@@ -193,7 +193,7 @@ func (r *reporter) writeDiff(output io.StringWriter, diff yamldiff.Diff, showPat
 	// For the use case in which only a path-less diff is supposed to be
 	// printed, omit the indent, since there is only one element to show.
 	indent := r.indent
-	if diff.Path != nil && len(diff.Path.PathElements) == 0 {
+	if isRootPath(diff.Path) {
 		indent = 0
 	}
 
@@ -225,7 +225,7 @@ func plainPathLabel(path *yamldiff.Path, showPathRoot bool) string {
 	}
 
 	label := path.ToDotStyle()
-	if label == "" {
+	if isRootPath(path) {
 		label = "(root level)"
 	}
 
@@ -235,6 +235,12 @@ func plainPathLabel(path *yamldiff.Path, showPathRoot bool) string {
 	}
 
 	return label
+}
+
+// isRootPath reports whether path names the root of a document, which
+// the report labels "(root level)". A nil path is the file as a whole.
+func isRootPath(path *yamldiff.Path) bool {
+	return path != nil && len(path.PathElements) == 0
 }
 
 // quoteIfControl quotes text that holds a control byte and returns any
@@ -285,7 +291,7 @@ func (r *reporter) styledDotStylePath(path *yamldiff.Path) string {
 		return constantStyle(r.mode, "(file level)", termstyle.Bold())
 	}
 
-	if path.PathElements == nil {
+	if isRootPath(path) {
 		return constantStyle(r.mode, "(root level)", termstyle.Bold())
 	}
 

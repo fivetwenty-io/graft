@@ -40,7 +40,11 @@ func renderChangeList(changes []histdiff.Change) string {
 				continue
 			}
 			buf.WriteString("\n")
-			fmt.Fprintf(&buf, "  %-9s %s\n", kind.String(), changeLocation(c))
+			entry := kind.String()
+			if location := changeLocation(c); location != "" {
+				entry = fmt.Sprintf("%-9s %s", entry, location)
+			}
+			fmt.Fprintf(&buf, "  %s\n", entry)
 			switch kind {
 			case histdiff.Added:
 				writeValueLines(&buf, "+", ansi.Green, c.New)
@@ -59,7 +63,9 @@ func renderChangeList(changes []histdiff.Change) string {
 // changeLocation returns what follows the kind of a change-list entry:
 // the path, then the document label the default report puts after a path.
 // A change with no path shows only its label, and a change to the file as
-// a whole shows "(file level)", as the default report does.
+// a whole shows "(file level)", as the default report does. A change to
+// the root of the only document has no location, so its entry is the
+// kind alone.
 func changeLocation(c histdiff.Change) string {
 	switch {
 	case c.FileLevel:

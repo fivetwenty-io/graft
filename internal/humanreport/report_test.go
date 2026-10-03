@@ -232,3 +232,19 @@ func TestPlainPathLabelWithoutPath(t *testing.T) {
 		}
 	}
 }
+
+// TestRootPathLabelsAgree checks that the plain and the styled path name
+// the document root the same way, whether its element list is nil or
+// empty.
+func TestRootPathLabelsAgree(t *testing.T) {
+	r := &reporter{mode: Options{Width: 80}.mode()}
+	for _, elements := range [][]yamldiff.PathElement{nil, {}} {
+		path := &yamldiff.Path{PathElements: elements}
+		if got := plainPathLabel(path, false); got != "(root level)" {
+			t.Errorf("plainPathLabel(%#v) = %q, want (root level)", elements, got)
+		}
+		if got := r.styledDotStylePath(path); got != "(root level)" {
+			t.Errorf("styledDotStylePath(%#v) = %q, want (root level)", elements, got)
+		}
+	}
+}
