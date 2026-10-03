@@ -22,7 +22,9 @@ import (
 // starts. That marker is the token the depth probe confirms in two
 // prefixes, or in the whole input. When nothing ends the first
 // document, or when the cut cannot be proved, FirstDocument returns src
-// as it stands. See documentEnd for the proof.
+// as it stands. See documentEnd for the proof. goccy then parses every
+// document in src, so FirstDocument fails nesting past maxDepth in any
+// of them, not only in the first.
 //
 // It tokenizes the way probeDepth does. Input that cannot nest past
 // maxDepth is tokenized once, whole, and other input in prefixes that
@@ -31,10 +33,7 @@ import (
 // input, gets only the depth probe. See hasLaterMarker.
 func FirstDocument(src []byte) ([]byte, error) {
 	if !hasLaterMarker(src) {
-		if err := CheckFirstDocumentDepth(src); err != nil {
-			return nil, err
-		}
-		return src, nil
+		return wholeStream(src)
 	}
 	cut := probeCut(src)
 	if cut < 0 {
@@ -52,13 +51,29 @@ func FirstDocument(src []byte) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
-			return src[:documentEnd(src, toks, at)], nil
+			end := documentEnd(src, toks, at)
+			if end == len(src) {
+				return wholeStream(src)
+			}
+			return src[:end], nil
 		}
 		if whole {
+			// No token ended the first document, so the depth scan
+			// covered every token in src.
 			return src, nil
 		}
 		prev, cut = toks, min(2*cut, len(src))
 	}
+}
+
+// wholeStream returns src, the whole stream FirstDocument hands goccy,
+// after it fails nesting past maxDepth in any document of src. Input
+// that cannot nest that deep costs one pass over its bytes.
+func wholeStream(src []byte) ([]byte, error) {
+	if _, err := probeDepth(src, false); err != nil {
+		return nil, err
+	}
+	return src, nil
 }
 
 // documentEnd returns the offset in src where the first document ends,

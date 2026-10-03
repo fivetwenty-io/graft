@@ -132,6 +132,36 @@ func TestParseYAMLRejectsUnclosedBracketsCheaply(t *testing.T) {
 	}
 }
 
+// TestMergeRejectsDeepNestingInAStreamItCannotCut merges a first
+// document that goccy ends at "...#c", a line that is no marker line,
+// followed by 10,001 unclosed "[". The merge cannot cut the stream
+// there, so goccy parses every document, and the depth guard has to
+// cover them all. At 9027f95 the guard checked only the first document,
+// and goccy's parser took tens of gigabytes on 200,000 "[" before it
+// failed with a syntax error.
+func TestMergeRejectsDeepNestingInAStreamItCannotCut(t *testing.T) {
+	unclosed := strings.Repeat("[", 10001) + "\n"
+	for _, c := range []struct{ name, in string }{
+		{"no marker line", "a: 1\n...#c\n" + unclosed},
+		{"cut not proved", "a: 1\n...#c\n---\n" + unclosed},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var before, after runtime.MemStats
+			runtime.GC()
+			runtime.GC()
+			runtime.ReadMemStats(&before)
+			_, err := guardedMerge(t, c.in)
+			runtime.ReadMemStats(&after)
+			if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) {
+				t.Errorf("merge = %v, want the error %q", err, maxRecursionMessage)
+			}
+			if grew := after.TotalAlloc - before.TotalAlloc; grew >= 100<<20 {
+				t.Errorf("merge allocated %d MB, want under 100 MB", grew>>20)
+			}
+		})
+	}
+}
+
 // TestMergeIgnoresLaterDocuments merges streams whose second document
 // spruce never reads, so a cycle, nesting past 10,000 levels, or a syntax
 // error there leaves the merge to succeed with the first document alone.

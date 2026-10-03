@@ -354,3 +354,34 @@ func TestFirstDocumentDepth(t *testing.T) {
 		t.Errorf("FirstDocument allocated %d MB, want under 20 MB", grew>>20)
 	}
 }
+
+// TestFirstDocumentDepthOfAStreamItReturnsWhole feeds FirstDocument a
+// first document that goccy ends at "...#c", a line that is no marker
+// line, followed by 10,001 unclosed "[". FirstDocument cannot cut there,
+// so it returns the stream whole, once because no marker line follows
+// and once because a "---" follows that the cut cannot reach. goccy then
+// parses every document, so the depth check has to cover them all. At
+// 9027f95 it checked only the first document, and goccy's parser took
+// tens of gigabytes on 200,000 "[" before it failed.
+func TestFirstDocumentDepthOfAStreamItReturnsWhole(t *testing.T) {
+	unclosed := strings.Repeat("[", 10001) + "\n"
+	for _, c := range []struct{ name, in, want string }{
+		{"no marker line", "a: 1\n...#c\n" + unclosed, "yaml: line 3: exceeded max depth of 10000"},
+		{"cut not proved", "a: 1\n...#c\n---\n" + unclosed, "yaml: line 4: exceeded max depth of 10000"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var before, after runtime.MemStats
+			runtime.GC()
+			runtime.GC()
+			runtime.ReadMemStats(&before)
+			_, err := yamlnode.FirstDocument([]byte(c.in))
+			runtime.ReadMemStats(&after)
+			if err == nil || err.Error() != c.want {
+				t.Errorf("FirstDocument = %v, want %q", err, c.want)
+			}
+			if grew := after.TotalAlloc - before.TotalAlloc; grew >= 20<<20 {
+				t.Errorf("FirstDocument allocated %d MB, want under 20 MB", grew>>20)
+			}
+		})
+	}
+}
