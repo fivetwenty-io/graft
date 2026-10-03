@@ -24,3 +24,23 @@ func TestPrepareIsZeroCopyForPlainInput(t *testing.T) {
 		t.Fatal("plain input must come back as the original slice with nil lines")
 	}
 }
+
+// TestPrepareSharesInputWhenNothingIsRewritten feeds Prepare input that
+// reaches each rewrite's slow path without anything to rewrite: a bare
+// dash that a sibling item follows, a "<<<" that is no key, and a
+// "{{x}}" placeholder used as a key. Prepare must hand back the input
+// slice itself, so Parse makes no copy.
+func TestPrepareSharesInputWhenNothingIsRewritten(t *testing.T) {
+	for _, in := range []string{
+		"l:\n- a\n-\n- b\n",
+		"a: x<<<y\n",
+		"{{x}}: 1\n",
+		"l:\n- a\n-\n- b\na: x<<<y\n{{x}}: 1\n",
+	} {
+		data := []byte(in)
+		out, lines := Prepare(data)
+		if len(out) != len(data) || &out[0] != &data[0] || lines != nil {
+			t.Errorf("Prepare(%q) must come back as the original slice with nil lines", in)
+		}
+	}
+}

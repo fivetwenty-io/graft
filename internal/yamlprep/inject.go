@@ -21,15 +21,19 @@ var injectKeyDottedRe = regexp.MustCompile(`(?m)^(\s*(?:- )?)(\S+\.<<<):`)
 // standalone (<<<:) and dotted path (foo.<<<:) forms.
 func QuoteInjectKeys(data []byte) []byte {
 	// Both regexes require a literal "<<<"; almost no document contains
-	// one, so skip the two full-buffer regex passes when none is present
-	// and hand the caller back the original slice.
+	// one, so skip the regex passes when none is present.
 	if !bytes.Contains(data, []byte("<<<")) {
 		return data
 	}
 
-	// First quote dotted paths (must be first to avoid double-quoting)
-	data = injectKeyDottedRe.ReplaceAll(data, []byte(`${1}"${2}":`))
-	// Then quote standalone <<<:
-	data = injectKeyStandaloneRe.ReplaceAll(data, []byte(`${1}"<<<":`))
+	// ReplaceAll copies its input even when nothing matches, so each
+	// pass runs only on a match and a "<<<" in text keeps the original
+	// slice. Dotted paths go first, to avoid quoting them twice.
+	if injectKeyDottedRe.Match(data) {
+		data = injectKeyDottedRe.ReplaceAll(data, []byte(`${1}"${2}":`))
+	}
+	if injectKeyStandaloneRe.Match(data) {
+		data = injectKeyStandaloneRe.ReplaceAll(data, []byte(`${1}"<<<":`))
+	}
 	return data
 }

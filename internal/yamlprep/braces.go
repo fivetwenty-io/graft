@@ -41,20 +41,18 @@ func QuoteBracePlaceholders(data []byte) []byte {
 		return data
 	}
 
-	var b strings.Builder
-	b.Grow(len(src) + 4*len(spans))
+	out := make([]byte, 0, len(data)+4*len(spans))
 	prev := 0
 	for _, sp := range spans {
 		start := sp.start + sort.SearchInts(removed, sp.start)
 		end := sp.end + sort.SearchInts(removed, sp.end)
-		b.WriteString(src[prev:start])
-		b.WriteByte('\'')
-		b.WriteString(strings.ReplaceAll(src[start:end], "'", "''"))
-		b.WriteByte('\'')
+		out = append(out, data[prev:start]...)
+		out = append(out, '\'')
+		out = append(out, bytes.ReplaceAll(data[start:end], []byte("'"), []byte("''"))...)
+		out = append(out, '\'')
 		prev = end
 	}
-	b.WriteString(src[prev:])
-	return []byte(b.String())
+	return append(out, data[prev:]...)
 }
 
 type span struct{ start, end int }

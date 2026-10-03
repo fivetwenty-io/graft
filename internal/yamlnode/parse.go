@@ -50,10 +50,7 @@ func Parse(data []byte) (docs []*Node, err error) {
 		return nil, err
 	}
 	prepared, nulled := yamlprep.Prepare(normalizeLineBreaks(src))
-	text, addedNewline := string(prepared), false
-	if text != "" && !strings.HasSuffix(text, "\n") {
-		text, addedNewline = text+"\n", true
-	}
+	text, addedNewline := streamText(prepared)
 	b := newBuilder(nulled)
 
 	toks := lexer.Tokenize(text)
@@ -169,6 +166,21 @@ func dropTrailingBlankLines(src string, indent int) string {
 	return body + "\n"
 }
 
+// streamText returns the prepared stream as the text Parse tokenizes,
+// with a final line break added when a stream that is not empty lacks
+// one, and reports whether it added the line break. It copies the bytes
+// once.
+func streamText(prepared []byte) (string, bool) {
+	if len(prepared) == 0 || prepared[len(prepared)-1] == '\n' {
+		return string(prepared), false
+	}
+	var b strings.Builder
+	b.Grow(len(prepared) + 1)
+	b.Write(prepared)
+	b.WriteByte('\n')
+	return b.String(), true
+}
+
 // readStream decodes data and runs the checks that come before anything
 // tokenizes the whole stream: the encoding, UTF-8, and the depth probe.
 func readStream(data []byte) ([]byte, error) {
@@ -185,8 +197,12 @@ func readStream(data []byte) ([]byte, error) {
 	return src, nil
 }
 
-// normalizeLineBreaks turns CRLF and lone CR line breaks into LF.
+// normalizeLineBreaks turns CRLF and lone CR line breaks into LF. Input
+// with no CR comes back as the same slice, not a copy.
 func normalizeLineBreaks(src []byte) []byte {
+	if bytes.IndexByte(src, '\r') < 0 {
+		return src
+	}
 	src = bytes.ReplaceAll(src, []byte("\r\n"), []byte("\n"))
 	return bytes.ReplaceAll(src, []byte("\r"), []byte("\n"))
 }
