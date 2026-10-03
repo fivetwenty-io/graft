@@ -31,7 +31,8 @@ import (
 // break follows is a plain scalar to yaml.v3, and a document end to
 // goccy, which would drop what follows. FirstDocument fails it, with
 // yaml.v3's message and line where yaml.v3 fails it too. See
-// falseEndError.
+// falseEndError. A "..." marker before any content fails as spruce
+// fails it. See leadingEndError.
 // The marker is the token the depth probe confirms in two prefixes, or
 // in the whole input. When nothing ends the first
 // document, or when the cut cannot be proved, FirstDocument returns src
@@ -45,11 +46,37 @@ import (
 // with no marker line that could end the first document, which is most
 // input, gets only the depth probe. See hasLaterMarker.
 func FirstDocument(src []byte) ([]byte, error) {
+	if err := leadingEndError(src); err != nil {
+		return nil, err
+	}
 	first, err := cutFirstDocument(src)
 	if err != nil {
 		return nil, err
 	}
 	return normalizeLineBreaks(first), nil
+}
+
+// leadingEndError returns the error spruce gives a stream whose first
+// line that is not blank or a comment is a "..." marker. Its YAML
+// library starts the first document implicitly there, finds the marker
+// where a node has to start, and fails with "did not find expected node
+// content" on the marker's line, counted from 0. goccy reads an empty
+// first document before the marker instead, which the merge would read
+// as {} or swap for the document after it. Parse, which the diff reads
+// with, keeps goccy's reading, a difference the diff documents.
+func leadingEndError(src []byte) error {
+	for n := 0; len(src) > 0; n++ {
+		var line []byte
+		line, src, _ = cutLine(src)
+		switch body := bytes.TrimLeft(line, " \t"); {
+		case len(body) == 0 || body[0] == '#':
+			continue
+		case bytes.HasPrefix(line, []byte("...")) && isMarkerLine(line):
+			return &ParseError{Line: n, Message: "did not find expected node content"}
+		}
+		return nil
+	}
+	return nil
 }
 
 // cutFirstDocument cuts src as FirstDocument does and returns the cut with

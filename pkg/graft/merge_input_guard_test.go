@@ -544,25 +544,73 @@ func TestMergeKeepsDocumentEndMarkers(t *testing.T) {
 // a column-1 "..." that a character other than a blank or a line break
 // follows. goccy ends the document there, so the merge dropped what
 // came after it, or the whole scalar, and exited 0, where yaml.v3 reads
-// a plain scalar. Each one now fails as spruce fails it, with yaml.v3's
-// message and line, or, where yaml.v3 reads a key or a scalar document
-// that goccy would lose, with graft's own message on the "..." line.
+// a plain scalar. Each one now fails, with yaml.v3's message and line,
+// or, where yaml.v3 reads a key or a scalar document that goccy would
+// lose, with graft's own message on the "..." line. Every row but one
+// fails as spruce fails it. The row for "...x" and then "y" inside a
+// flow sequence pins a known divergence, because spruce joins the two
+// lines into "...x y" and exits 0, where graft exits 2.
 func TestMergeRejectsAScalarGoccyReadsAsADocumentEnd(t *testing.T) {
 	for in, want := range map[string]string{
-		"a: 1\n...#c\nq: 1\n":      "yaml: line 2: could not find expected ':'",
-		"a: 1\n...#c\n":            "yaml: line 2: could not find expected ':'",
-		"a: 1\n...x\n":             "yaml: line 2: could not find expected ':'",
-		"a:\n...x\n":               "yaml: line 2: could not find expected ':'",
-		"a:\n...x\n...\n":          "yaml: line 2: could not find expected ':'",
-		"a: 1\n...#c\n---\nq: 1\n": "yaml: line 2: could not find expected ':'",
-		"...#c\na: 1\n":            "yaml: line 1: mapping values are not allowed in this context",
-		"...#c\n# d\na: 1\n":       "yaml: line 2: did not find expected <document start>",
-		"a: 1\n...\n...#c\n":       "yaml: line 2: did not find expected <document start>",
-		"...#c\n---\na: 1\n":       `yaml: line 1: cannot read a plain scalar that starts a line with "..."; quote it`,
-		"a: 1\n...#c: 2\n":         `yaml: line 2: cannot read a plain scalar that starts a line with "..."; quote it`,
+		"a: 1\n...#c\nq: 1\n":         "yaml: line 2: could not find expected ':'",
+		"a: 1\n...#c\n":               "yaml: line 2: could not find expected ':'",
+		"a: 1\n...x\n":                "yaml: line 2: could not find expected ':'",
+		"a:\n...x\n":                  "yaml: line 2: could not find expected ':'",
+		"a:\n...x\n...\n":             "yaml: line 2: could not find expected ':'",
+		"a: 1\n...#c\n---\nq: 1\n":    "yaml: line 2: could not find expected ':'",
+		"...#c\na: 1\n":               "yaml: line 1: mapping values are not allowed in this context",
+		"...#c\n# d\na: 1\n":          "yaml: line 2: did not find expected <document start>",
+		"a: 1\n...\n...#c\n":          "yaml: line 2: did not find expected <document start>",
+		"...#c\n---\na: 1\n":          "root of YAML document is not a hash/map",
+		"...x\n  ---\n":               `yaml: line 1: cannot read a plain scalar that starts a line with "..."; quote it`,
+		"a: 1\n...#c: 2\n...\nq: 1\n": "yaml: line 3: did not find expected <document start>",
+		"a: 1\n....\n":                "[2:1]",
+		"a: [1,\n...x:y]\n":           "[2:4]",
+		// A known divergence, where spruce exits 0 with "...x y".
+		"a: [1,\n...x\ny]\n": "[2:4]",
+		// spruce fails any text but a ",", a "]", or a "}" after a
+		// comment that ends a flow entry.
+		"a: {b: 1,\n...x\n# c\n: 2}\n": "[1:9]",
+		"a: {b: 1,\n...x # c\n: 2}\n":  "[1:9]",
+		"a: [1,\n...x\n# c\n: 2]\n":    "[1:4]",
 	} {
 		if _, err := guardedMerge(t, in); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("merge of %q = %v, want the error %q", in, err, want)
+		}
+	}
+}
+
+// TestMergeRejectsALeadingDocumentEnd merges streams that open with a
+// "..." marker, after nothing but blank lines and comments. spruce fails
+// each with "did not find expected node content" on the marker's line,
+// counted from 0, and exits 2. graft read an empty first document there
+// and merged the content after it, or {}.
+func TestMergeRejectsALeadingDocumentEnd(t *testing.T) {
+	for in, want := range map[string]string{
+		"...\na: 1\n":                 "yaml: did not find expected node content",
+		"...\n":                       "yaml: did not find expected node content",
+		"...\n---\na: 1\n":            "yaml: did not find expected node content",
+		"...\n%YAML 1.1\n---\na: 1\n": "yaml: did not find expected node content",
+		"# c\n...\na: 1\n":            "yaml: line 1: did not find expected node content",
+		"\n\n...\na: 1\n":             "yaml: line 2: did not find expected node content",
+		"\xEF\xBB\xBF...\na: 1\n":     "yaml: did not find expected node content",
+	} {
+		if _, err := guardedMerge(t, in); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("merge of %q = %v, want the error %q", in, err, want)
+		}
+	}
+}
+
+// TestMergeRejectsAContinuedScalarBeforeAFalseEnd merges a document that
+// is a plain scalar over more than one line, with a "...x" line after
+// it. spruce reads the scalar as the root, fails it as no map, and exits
+// 2. goccy ends the document at the three dots, which once let graft
+// merge what it read before them. The message differs, and only the
+// failure is pinned.
+func TestMergeRejectsAContinuedScalarBeforeAFalseEnd(t *testing.T) {
+	for _, in := range []string{"foo\n  bar\n...x\n", "&a\n  foo\n...x\n", "foo\n...x\n"} {
+		if out, err := guardedMerge(t, in); err == nil {
+			t.Errorf("merge of %q = %#v, want an error", in, out.RawData())
 		}
 	}
 }
@@ -580,6 +628,16 @@ func TestMergeKeepsLinesThatStartWithThreeDots(t *testing.T) {
 		{"a: \"q\n...#c\"\n", map[string]interface{}{"a": "q ...#c"}},
 		{"a: 'q\n...#c'\n", map[string]interface{}{"a": "q ...#c"}},
 		{"a: 1\n... #c\n", map[string]interface{}{"a": 1}},
+		{"a: 1\n...#c: 2\n", map[string]interface{}{"a": 1, "...#c": 2}},
+		{"...#c: 2\nq: 1\n", map[string]interface{}{"...#c": 2, "q": 1}},
+		{"a: 1\n...#: 2\nq: 1\n", map[string]interface{}{"a": 1, "...#": 2, "q": 1}},
+		{"a: [1,\n...x]\n", map[string]interface{}{"a": []interface{}{1, "...x"}}},
+		{"a: [1,\n...x #c\n]\n", map[string]interface{}{"a": []interface{}{1, "...x"}}},
+		{"a: [1,\n...x'y, 2]\n", map[string]interface{}{"a": []interface{}{1, "...x'y", 2}}},
+		{"a: [1,\n...x: 2]\n", map[string]interface{}{"a": []interface{}{1, map[string]interface{}{"...x": 2}}}},
+		{"a: {b: 1,\n...x: 2}\n", map[string]interface{}{"a": map[string]interface{}{"b": 1, "...x": 2}}},
+		{"a: {b: 1,\n...x}\n", map[string]interface{}{"a": map[string]interface{}{"b": 1, "...x": nil}}},
+		{"a: [1,\n....x]\n", map[string]interface{}{"a": []interface{}{1, "....x"}}},
 	} {
 		out, err := guardedMerge(t, c.in)
 		if err != nil {

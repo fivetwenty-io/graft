@@ -10,21 +10,23 @@ import (
 )
 
 // QuoteEndMarkerScalars single-quotes each plain scalar at column 1 that
-// starts with "..." and a character other than a blank, a line break, a
-// ".", or a "#", so goccy reads it as the scalar it is.
+// starts with "..." and a character other than a blank, a line break, or
+// a ".", so goccy reads it as the scalar it is.
 //
 // YAML ends a document at a "..." only when a blank, a line break, or
 // the end of the input follows it, and spruce's yaml.v3 reads "...x: 2"
 // as the key "...x". goccy v1.19.2 ends the document at the three dots
 // whatever follows them, and then drops the key, renames it, or fails on
-// it. A "...#" stays as goccy reads it, which is the end of a document.
+// it. A "#" right after the dots starts no comment, since no blank comes
+// before it, so "...#c: 2" is the key "...#c" to spruce too.
 //
 // The rewrite is token-driven. It quotes a line only where goccy's lexer
-// puts a document end at column 1 outside every flow collection, so a
-// line inside a quoted string or a block scalar never changes. The
-// scalar runs to the ": " that makes it a key, and the rewrite quotes the
-// key alone. goccy rejects a tab between a quoted key and its ":", so
-// the blanks there become spaces. A scalar that is no key runs to a " #"
+// puts a document end at column 1, so a line inside a quoted string or a
+// block scalar never changes. Inside a flow collection, flowEndMarkerSpan
+// decides the span. Outside every flow collection, the scalar runs to
+// the ": " that makes it a key, and the rewrite quotes the key alone.
+// goccy rejects a tab between a quoted key and its ":", so the blanks
+// there become spaces. A scalar that is no key runs to a " #"
 // or the end of the line. The rewrite quotes it only when it is the
 // first content of its document and no later line before the next
 // marker line could continue it. Anywhere else it is part of a longer
@@ -85,18 +87,17 @@ func hasEndMarkerScalar(data []byte) bool {
 }
 
 // isEndMarkerScalar reports whether line starts with "..." and a fourth
-// byte that is not a blank, a line break, a ".", or a "#". goccy reads
-// those three dots as the end of a document, and YAML reads them as the
-// start of a plain scalar. Four dots are text to goccy too, and a "#"
-// right after the dots stays the end of a document.
+// byte that is not a blank, a line break, or a ".". goccy reads those
+// three dots as the end of a document, and YAML reads them as the start
+// of a plain scalar. Four dots are text to goccy too.
 func isEndMarkerScalar(line []byte) bool {
 	return len(line) > 3 && line[0] == '.' && line[1] == '.' && line[2] == '.' &&
-		bytes.IndexByte([]byte(" \t\r\n.#"), line[3]) < 0
+		bytes.IndexByte([]byte(" \t\r\n."), line[3]) < 0
 }
 
 // endMarkerSpans returns the byte spans of src to quote, in order. Each
 // one is the scalar at the start of a line where goccy's lexer puts a
-// document end at column 1 outside every flow collection.
+// document end at column 1, outside a flow collection or inside one.
 func endMarkerSpans(src string) []endSpan {
 	idx := newByteIndex(src)
 	var spans []endSpan
@@ -108,10 +109,14 @@ func endMarkerSpans(src string) []endSpan {
 		case token.SequenceEndType, token.MappingEndType:
 			flow = max(flow-1, 0)
 		case token.DocumentEndType:
-			if flow > 0 || tk.Position.Column != 1 {
+			if tk.Position.Column != 1 {
 				continue
 			}
-			if sp, ok := endMarkerSpan(src, idx, tk.Position.Line); ok {
+			span := endMarkerSpan
+			if flow > 0 {
+				span = flowEndMarkerSpan
+			}
+			if sp, ok := span(src, idx, tk.Position.Line); ok {
 				spans = append(spans, sp)
 			}
 		default:
@@ -143,6 +148,83 @@ func endMarkerSpan(src string, idx byteIndex, line int) (endSpan, bool) {
 		return endSpan{}, false
 	}
 	return endSpan{start, start + n, start + n}, true
+}
+
+// flowEndMarkerSpan returns the span to rewrite for the plain scalar
+// that starts line, numbered from 1, inside a flow collection, when the
+// line starts with one goccy misreads. spruce reads the scalar up to a
+// ",", a "]", a "}", a ":" that a blank or the end of the line follows,
+// or a comment. The rewrite quotes it when it stops at one of the first
+// four. When it stops at a comment or at the end of its line, the
+// rewrite quotes it only when the next line that is not blank or a
+// comment starts with a ",", a "]", or a "}", as with "...x" before a
+// "]" on its own line.
+//
+// It leaves the line as goccy reads it when the scalar holds a "?", a
+// "[", a "{", or a ":" that a blank does not follow. spruce fails each
+// of those, and the diff's yaml.v3 reads some of them as text, so no
+// quoting would serve both. It also leaves a scalar that a more
+// indented line or other text on a later line continues, as in
+// "...x\ny", which spruce reads as "...x y". goccy then fails the
+// stream, so no line of it is lost.
+func flowEndMarkerSpan(src string, idx byteIndex, line int) (endSpan, bool) {
+	if line < 1 || line > len(idx.lines) {
+		return endSpan{}, false
+	}
+	start := idx.lines[line-1]
+	text, next, _ := strings.Cut(src[start:], "\n")
+	if !isEndMarkerScalar([]byte(text)) {
+		return endSpan{}, false
+	}
+	end, colon, ok := flowScalarEnd(text)
+	if !ok || (end == len(text) || text[end] == '#') && !flowScalarEnds(next) {
+		return endSpan{}, false
+	}
+	n := len(strings.TrimRight(text[:end], " \t\r"))
+	if colon >= 0 {
+		return endSpan{start, start + n, start + colon}, true
+	}
+	return endSpan{start, start + n, start + n}, true
+}
+
+// flowScalarEnd returns where the flow scalar that starts text, a line
+// that starts with "...", stops on that line, which is len(text) when
+// nothing stops it, and the offset of the ":" that makes it a key, or
+// -1. It reports false when the scalar holds a character spruce and the
+// diff read differently.
+func flowScalarEnd(text string) (end, colon int, ok bool) {
+	for i := 3; i < len(text); i++ {
+		switch c := text[i]; {
+		case c == ':' && (i+1 == len(text) || isBlank(text[i+1])):
+			return i, i, true
+		case c == ',' || c == ']' || c == '}', c == '#' && isBlank(text[i-1]):
+			return i, -1, true
+		case c == ':' || c == '?' || c == '[' || c == '{':
+			return 0, -1, false
+		}
+	}
+	return len(text), -1, true
+}
+
+// flowScalarEnds reports whether rest, the text after a line whose flow
+// scalar runs to its end or to a comment, ends that scalar the way
+// spruce reads it. Blank lines and comment lines are skipped, and the
+// next line has to hold a ",", a "]", or a "}" after its indent. Other
+// text after the line break continues the scalar. After a comment,
+// spruce fails any other text, including the ":" of a key that goccy
+// would read, and a marker line or the end of the input fails the
+// stream either way.
+func flowScalarEnds(rest string) bool {
+	for rest != "" {
+		var text string
+		text, rest, _ = strings.Cut(rest, "\n")
+		content := strings.TrimLeft(text, " \t\r")
+		if content == "" || content[0] == '#' {
+			continue
+		}
+		return strings.IndexByte(",]}", content[0]) >= 0
+	}
+	return false
 }
 
 // PlainScalarEnd returns the length of the plain scalar that starts

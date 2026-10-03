@@ -37,6 +37,23 @@ func TestQuoteEndMarkerScalars(t *testing.T) {
 		{"scalar document after comments", "# c\n\n...x\n", "# c\n\n'...x'\n"},
 		{"scalar document in a second document", "a: 1\n---\n...x\n", "a: 1\n---\n'...x'\n"},
 		{"scalar document before an end marker", "...x\n---\n...\n", "'...x'\n---\n...\n"},
+		{"key that starts with a comment sign", "a: 1\n...#c: 2\n", "a: 1\n'...#c': 2\n"},
+		{"comment sign alone as the key", "a: 1\n...#: 2\n", "a: 1\n'...#': 2\n"},
+		{"scalar document that starts with a comment sign", "...#c\n", "'...#c'\n"},
+		{"flow sequence entry", "a: [1,\n...x]\n", "a: [1,\n'...x']\n"},
+		{"flow sequence entry before another", "a: [1,\n...x, 2]\n", "a: [1,\n'...x', 2]\n"},
+		{"flow sequence entry with a space", "a: [1,\n...x y]\n", "a: [1,\n'...x y']\n"},
+		{"flow sequence entry with a quote", "a: [1,\n...x'y]\n", "a: [1,\n'...x''y']\n"},
+		{"flow sequence entry with a comment sign", "a: [1,\n...#c]\n", "a: [1,\n'...#c']\n"},
+		{"flow sequence entry and a comment", "a: [1,\n...x #c\n]\n", "a: [1,\n'...x' #c\n]\n"},
+		{"flow sequence entry at the end of its line", "a: [1,\n...x\n]\n", "a: [1,\n'...x'\n]\n"},
+		{"flow sequence entry before a comment line", "a: [1,\n...x\n\n  # c\n]\n", "a: [1,\n'...x'\n\n  # c\n]\n"},
+		{"flow sequence entry with a trailing tab", "a: [1,\n...x\t]\n", "a: [1,\n'...x'\t]\n"},
+		{"flow mapping key", "a: {b: 1,\n...x: 2}\n", "a: {b: 1,\n'...x': 2}\n"},
+		{"flow mapping key with a tab before the colon", "a: {b: 1,\n...x\t: 2}\n", "a: {b: 1,\n'...x' : 2}\n"},
+		{"flow mapping key with no value", "a: {b: 1,\n...x}\n", "a: {b: 1,\n'...x'}\n"},
+		{"flow pair in a sequence", "a: [1,\n...x: 2]\n", "a: [1,\n'...x': 2]\n"},
+		{"flow entry with CRLF line breaks", "a: [1,\r\n...x]\r\n", "a: [1,\r\n'...x']\r\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if got := QuoteEndMarkerScalars([]byte(c.in)); string(got) != c.want {
@@ -49,8 +66,11 @@ func TestQuoteEndMarkerScalars(t *testing.T) {
 // TestQuoteEndMarkerScalarsLeavesOtherInput checks that every real end
 // of a document marker, and every "..." goccy does not misread, comes
 // back as the original slice. That covers a "..." followed by a blank,
-// a line break, a "#", or the end of the input, four dots, a "..." line
-// inside a quoted string, a block scalar, or a flow collection, a
+// a line break, or the end of the input, four dots, a "..." line
+// inside a quoted string or a block scalar, a flow entry that runs on
+// to a later line or holds a character spruce and the diff read
+// differently, a flow entry whose comment the next content line does
+// not follow with a ",", a "]", or a "}", a
 // scalar that is no key and continues an earlier line, and a scalar
 // that is no key and runs on to a later line. The last two stay as
 // goccy reads them, which fails some and silently drops text from
@@ -71,7 +91,18 @@ func TestQuoteEndMarkerScalarsLeavesOtherInput(t *testing.T) {
 		"a: \"foo\n...x bar\"\n",
 		"a: 'foo\n...x: bar'\n",
 		"--- |\n...x\n",
-		"[a,\n...x]\n",
+		"a: [1,\n...x\ny]\n",
+		"a: [1,\n...x\n  y]\n",
+		"a: [1,\n...x\n...\n]\n",
+		"a: [1,\n...x?y]\n",
+		"a: [1,\n...x:y]\n",
+		"a: [1,\n...[x]]\n",
+		"a: [1,\n...{x]]\n",
+		"a: [1,\n...x",
+		"a: {b: 1,\n...x\n# c\n: 2}\n",
+		"a: {b: 1,\n...x # c\n: 2}\n",
+		"a: [1,\n...x\n# c\n",
+		"a: [1,\n....x]\n",
 		"...x\ny\n",
 		"...x # c\nfoo\n",
 		"foo\n...x\n",

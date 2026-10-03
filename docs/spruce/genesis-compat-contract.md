@@ -288,7 +288,7 @@ Accepted divergences, beyond the tables above:
 
 - graft rejects complex mapping keys, which spruce accepts.
 
-- graft accepts these inputs, and spruce rejects them with exit `2`. They are a tab after a block dash, an empty tag handle as in `a: !! 1`, a `...` line before the first content, a mapping key longer than 1,024 characters, and a next-line (U+0085) or line-separator (U+2028) character inside a plain scalar. `TestParseAcceptsInputsSpruceRejects` pins them.
+- graft accepts these inputs, and spruce rejects them with exit `2`. They are a tab after a block dash, an empty tag handle as in `a: !! 1`, a `...` line before the first content, a mapping key longer than 1,024 characters, and a next-line (U+0085) or line-separator (U+2028) character inside a plain scalar. `TestParseAcceptsInputsSpruceRejects` pins them. graft merge and graft json reject a `...` line before the first content, as spruce does.
 
 - graft rejects these inputs, and spruce accepts them. They are empty tagged sequence items such as `- !!str` then `- !!int`, which is the same difference as `a: !!str` before another key, and an anchor with no value as the last thing in a document that ends at a `---` line or at the end of the file, such as `b: &x` or `- &x`, where graft fails with `yaml: line N: undefined anchor value`. `TestParseEmptyTaggedSequenceItemsFail` and `TestParseRejectsAnchorWithoutValue` pin them.
 

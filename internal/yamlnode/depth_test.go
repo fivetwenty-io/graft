@@ -489,6 +489,43 @@ func TestFirstDocumentRejectsContentAfterADocumentEnd(t *testing.T) {
 	}
 }
 
+// TestFirstDocumentRejectsALeadingDocumentEnd feeds FirstDocument
+// streams whose first line that is not blank or a comment is a "..."
+// marker. spruce's YAML library reads the start of the first document
+// as implicit there, finds the "..." where a node has to start, and
+// fails with "did not find expected node content" on the marker's line,
+// counted from 0 and left out when it is 0. goccy read an empty first
+// document, so the merge went on to the content after it or merged {}.
+// A "..." that is indented, or that a non-blank follows, is no marker.
+func TestFirstDocumentRejectsALeadingDocumentEnd(t *testing.T) {
+	const msg = "did not find expected node content"
+	for in, want := range map[string]string{
+		"...\na: 1\n":                 "yaml: " + msg,
+		"...\n":                       "yaml: " + msg,
+		"...":                         "yaml: " + msg,
+		"...\n---\na: 1\n":            "yaml: " + msg,
+		"...\n%YAML 1.1\n---\na: 1\n": "yaml: " + msg,
+		"... # c\na: 1\n":             "yaml: " + msg,
+		"...\t\na: 1\n":               "yaml: " + msg,
+		"...\n# c\n":                  "yaml: " + msg,
+		"...\n...x\n":                 "yaml: " + msg,
+		"# c\n...\na: 1\n":            "yaml: line 1: " + msg,
+		" # c\n...\n":                 "yaml: line 1: " + msg,
+		"\n\n...\na: 1\n":             "yaml: line 2: " + msg,
+		"...\r\na: 1\r\n":             "yaml: " + msg,
+		"# c\r\n\r\n...\r\na: 1\r\n":  "yaml: line 2: " + msg,
+	} {
+		if got, err := yamlnode.FirstDocument([]byte(in)); err == nil || err.Error() != want {
+			t.Errorf("FirstDocument(%q) = %q, %v; want the error %q", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"---\n...\n", "a: 1\n...\n", "....\n", "...x: 1\n", "# c\n---\na: 1\n"} {
+		if _, err := yamlnode.FirstDocument([]byte(in)); err != nil {
+			t.Errorf("FirstDocument(%q) = %v, want no error", in, err)
+		}
+	}
+}
+
 // TestParseRejectsContentAfterADocumentEnd checks that Parse, which the
 // diff reads with, fails the streams FirstDocument fails, with the same
 // error. Content on the "..." line is left out, because Parse reports
@@ -596,20 +633,10 @@ func TestFirstDocumentRejectsAScalarItReadsAsADocumentEnd(t *testing.T) {
 		{"...#c\n  # d\n  a: 1\n", 2, docStart},
 		{"a: 1\n...\n...#c", 2, docStart},
 		{"a: 1\n...\n...#c\nq: 1", 2, docStart},
-		{"...#c", 1, quoteIt},
-		{"--- !!map\n...#c", 2, quoteIt},
-		{"...#c # d\n\n---\na: 1\n", 1, quoteIt},
-		{"...#c\n#d\n---\n", 1, quoteIt},
 		{"...#c\n  b\n", 1, quoteIt},
 		{"...x\nfoo\n", 1, quoteIt},
-		{"...#c\n...\n", 1, quoteIt},
 		{"...#c\n  ---\n", 1, quoteIt},
-		{"...#c\n---\na: 1\n", 1, quoteIt},
-		{"a: 1\n...#c: 2", 2, quoteIt},
-		{"...#c: 2\nq: 1", 1, quoteIt},
-		{"a: 1\n...#c: 2\nq: 1", 2, quoteIt},
-		{"a: 1\n...#c: 2\n...\nq: 1", 2, quoteIt},
-		{"- a\n...#c: 2\n", 2, quoteIt},
+		{"a: 1\n...#c: 2\n...\nq: 1", 3, docStart},
 	} {
 		want := fmt.Sprintf("yaml: line %d: %s", c.line, c.msg)
 		got, err := yamlnode.FirstDocument([]byte(c.in))
@@ -644,6 +671,16 @@ func TestFirstDocumentKeepsLinesThatStartWithThreeDots(t *testing.T) {
 		{"a: 1\n....\n", "a: 1\n....\n"},
 		{"a: 1\n... #c\n", "a: 1\n... #c\n"},
 		{"a: 1\n...\t#c\n", "a: 1\n...\t#c\n"},
+		{"a: 1\n...#c: 2\n", "a: 1\n...#c: 2\n"},
+		{"...#c: 2\nq: 1", "...#c: 2\nq: 1"},
+		{"a: 1\n...#c: 2\nq: 1", "a: 1\n...#c: 2\nq: 1"},
+		{"- a\n...#c: 2\n", "- a\n...#c: 2\n"},
+		{"...#c", "...#c"},
+		{"--- !!map\n...#c", "--- !!map\n...#c"},
+		{"...#c\n...\n", "...#c\n...\n"},
+		{"...#c # d\n\n---\na: 1\n", "...#c # d\n\n"},
+		{"...#c\n#d\n---\n", "...#c\n#d\n"},
+		{"...#c\n---\na: 1\n", "...#c\n"},
 		{"a: 1\n...\n---\n...#c\n", "a: 1\n...\n"},
 		{"a: 1\n---\n...#c\n", "a: 1\n"},
 	} {

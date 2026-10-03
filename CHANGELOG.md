@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `graft merge` and `graft json` no longer misread a quoted scalar that breaks across lines in a file with CRLF line endings. `k: "q` followed by `  r s"` used to merge to `q\nr s`, where spruce and the same file with LF line endings give `q r s`, and a blank line inside the scalar gained two extra newlines. The same fix covers files pulled in by `(( load ))` and `--go-patch` files. A parse error in a CRLF file no longer shows `\r` in its snippet.
 - `graft merge` and `graft json` no longer turn an alias into null when its anchor was defined inside another anchored collection. `x: &o` holding `p: &p v` and `q: *p`, followed by `r: *o`, used to merge with `q: null` in both places, where spruce gives `q: v`. An alias to a name that is defined again inside its own first definition now reads the inner one, so `a: &x [&x 1, *x]` merges to `[1, 1]`, as it does in spruce. A document whose aliases expand to more than 400,000 nodes now fails with the recursion error instead of exhausting memory.
+- `graft merge`, `graft json`, and `graft diff` now read a key that starts with `...#`, such as `...#c: 2`, as the key `...#c`, the way spruce does. The merge used to fail on it, and the diff dropped it without a word.
+- A flow collection entry that starts a line with `...` and text, such as `...x` in `a: [1,` followed by `...x]`, now merges and diffs as the string `...x`, as it does in spruce. graft used to fail the file. An entry that runs on to the next line still fails, where spruce joins the two lines.
+- `graft merge` and `graft json` now fail with exit code 2 on a file whose first line that is not blank or a comment is a `...` line, as spruce does. They used to merge the content after it, or `{}`. `graft diff` still accepts such a file.
 
 ## [1.42.1] - 2026-10-03
 

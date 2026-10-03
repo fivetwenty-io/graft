@@ -59,12 +59,11 @@ func falseEndIndex(src []byte, toks token.Tokens) int {
 // so FirstDocument fails the line rather than hand goccy the stream.
 //
 // Where yaml.v3 cannot read the scalar as part of the document either,
-// the error is the one yaml.v3 gives, on its line. A key, such as
-// "...#c: 2", is one yaml.v3 reads, and so is a scalar that makes up the
-// whole document. Those fail with falseEndMessage on the "..." line,
-// since quoting the scalar is what lets goccy read it. Quoting a key
-// that starts with "...#" in the input to every parse would change what
-// the diff reads, so FirstDocument leaves that to the author.
+// the error is the one yaml.v3 gives, on its line. A key is one yaml.v3
+// reads, and so is a scalar that makes up the whole document. The
+// end-marker rewrite quotes each one it can prove, so a false end left
+// here is one it could not, and fails with falseEndMessage on the "..."
+// line, since quoting the scalar is what lets goccy read it.
 func falseEndError(src []byte, line int) error {
 	off := lineStart(src, line)
 	text, rest, broke := cutLine(src[off:])
