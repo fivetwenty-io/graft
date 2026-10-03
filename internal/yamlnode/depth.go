@@ -106,8 +106,9 @@ func (d *firstDocument) ends(t *token.Token) bool {
 // covers the input counts as it stands.
 //
 // Each prefix gets the rewrites that change what the depth scan sees,
-// which are LF line breaks and quoted "<<<" keys, so the probe fails
-// what checkDepth would fail, on the same line. It sees a "{{x}}"
+// which are LF line breaks, quoted "<<<" keys, and quoted column-1
+// scalars that start with "...", so the probe fails what checkDepth
+// would fail, on the same line, and finds the same first document. It sees a "{{x}}"
 // placeholder before the placeholder rewrite, so a placeholder counts as
 // the two flow levels yaml.v3 reads. The bare-dash rewrite only adds a
 // "~" after a "-" whose line a key follows, which never changes a trip.
@@ -200,12 +201,14 @@ func hasLineLongerThan(src []byte, n int) bool {
 }
 
 // probeText returns the text the probe tokenizes for a prefix of the
-// input. Its line breaks become LF and its "<<<" keys are quoted, and
+// input. Its line breaks become LF, its "<<<" keys are quoted, and so
+// are the column-1 scalars that start with "..." and a non-blank, and
 // when the prefix is the whole input, it ends in a line break, as the
 // text Parse tokenizes does. goccy places an unquoted "<<<" key right of
-// where it starts, which the depth scan would read as a level.
+// where it starts, which the depth scan would read as a level, and it
+// reads an unquoted "...x" as the end of the first document.
 func probeText(prefix []byte, whole bool) string {
-	text := yamlprep.QuoteInjectKeys(normalizeLineBreaks(prefix))
+	text := yamlprep.QuoteEndMarkerScalars(yamlprep.QuoteInjectKeys(normalizeLineBreaks(prefix)))
 	if whole && len(text) > 0 && text[len(text)-1] != '\n' {
 		return string(text) + "\n"
 	}

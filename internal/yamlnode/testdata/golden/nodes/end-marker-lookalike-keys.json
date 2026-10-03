@@ -1,0 +1,96 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "...x",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "0",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "t\n",
+              "line": 2
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "...x y",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "2",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "...",
+              "line": 5
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "3",
+              "line": 5
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "b",
+              "line": 6
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 7,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 7
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "...z'q",
+              "line": 8
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "4",
+              "line": 8
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

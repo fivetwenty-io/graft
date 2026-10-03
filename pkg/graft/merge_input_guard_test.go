@@ -277,6 +277,58 @@ func TestMergeKeepsMarkersInsideScalars(t *testing.T) {
 	}
 }
 
+// TestMergeKeepsKeysThatStartWithThreeDots merges documents with a key
+// at column 1 that starts with "..." and a character other than a blank.
+// spruce v1.35.17 keeps each key. goccy reads the "..." as the end of
+// the document, so graft dropped the key and exited 0, or renamed a key
+// on the first line, or failed "...: 2" with "found an invalid key".
+func TestMergeKeepsKeysThatStartWithThreeDots(t *testing.T) {
+	for _, c := range []struct {
+		name, in string
+		want     map[string]interface{}
+	}{
+		{"after a key", "a: 1\n...x: 2\n", map[string]interface{}{"a": 1, "...x": 2}},
+		{"after a literal block scalar", "a: |\n  t\n...x: 2\n", map[string]interface{}{"a": "t\n", "...x": 2}},
+		{"three dots as the key", "a:\n- 1\n...: 2\n", map[string]interface{}{"a": []interface{}{1}, "...": 2}},
+		{"on the first line", "...x: 2\na: 1\n", map[string]interface{}{"a": 1, "...x": 2}},
+		{"with a quote, a space, and a comment", "a: 1\n...x 'y: 2 # c\n", map[string]interface{}{"a": 1, "...x 'y": 2}},
+		{"with a nested value", "a: 1\n...x:\n  b: 2\n", map[string]interface{}{"a": 1, "...x": map[string]interface{}{"b": 2}}},
+		{"CRLF line breaks", "a: 1\r\n...x: 2\r\n", map[string]interface{}{"a": 1, "...x": 2}},
+		{"before a second document", "a: 1\n...x: 2\n---\nb: [\n", map[string]interface{}{"a": 1, "...x": 2}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out, err := guardedMerge(t, c.in)
+			if err != nil {
+				t.Fatalf("merge = %v, want success", err)
+			}
+			if got := out.RawData(); !reflect.DeepEqual(got, c.want) {
+				t.Errorf("merge = %#v, want %#v", got, c.want)
+			}
+		})
+	}
+}
+
+// TestMergeKeepsDocumentEndMarkers merges documents whose first document
+// ends at a "..." that a blank, a "#", or the end of the line follows.
+// The merge reads only that first document, as it did before keys that
+// start with "..." were kept, and a scalar "...x" after a key still
+// fails on line 2, as it does in spruce.
+func TestMergeKeepsDocumentEndMarkers(t *testing.T) {
+	for _, in := range []string{"a: 1\n...\nb: 2\n", "a: 1\n... # c\n", "a: 1\n...\t\nb: 2\n", "a: 1\n...#c\n", "a: 1\n..."} {
+		out, err := guardedMerge(t, in)
+		if err != nil {
+			t.Errorf("merge of %q = %v, want success", in, err)
+			continue
+		}
+		if got, want := out.RawData(), map[string]interface{}{"a": 1}; !reflect.DeepEqual(got, want) {
+			t.Errorf("merge of %q = %#v, want %#v", in, got, want)
+		}
+	}
+	if _, err := guardedMerge(t, "a: 1\n...x\n"); err == nil || !strings.Contains(err.Error(), "[2:") {
+		t.Errorf("merge of %q = %v, want an error on line 2", "a: 1\n...x\n", err)
+	}
+}
+
 // TestGoPatchParsersReadOnlyTheFirstDocument feeds DetectArrayRoot and
 // ParseGoPatch an operation list followed by a document with a syntax
 // error. spruce reads only the first document, and applies the

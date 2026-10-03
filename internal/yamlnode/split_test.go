@@ -2,6 +2,7 @@ package yamlnode
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -32,6 +33,55 @@ func TestParseRejectsDocumentAfterEndMarker(t *testing.T) {
 	for _, in := range []string{"a\n...\n", "a\n... # c\n", "a\n...\n# c\n", "a\n...\n---\nk: 1\n", "a\n...\n# c\n---\nk: 1\n", "a\n...\n...\n---\nk: 1\n"} {
 		if _, err := Parse([]byte(in)); err != nil {
 			t.Errorf("Parse(%q): %v", in, err)
+		}
+	}
+}
+
+// TestParseKeepsEndMarkerLookalikes checks column-1 plain scalars that
+// start with "..." and a character other than a blank. yaml.v3 reads
+// each as a scalar, and goccy reads its "..." as the end of a document,
+// which dropped a key such as "...x" without an error. A "..." that a
+// blank, a "#", or the end of the line follows still ends the document,
+// and content after it still needs a "---". A scalar that is no key
+// keeps the error line it had.
+func TestParseKeepsEndMarkerLookalikes(t *testing.T) {
+	for in, want := range map[string][]string{
+		"a: 1\n...x: 2\n":           {"a", "1", "...x", "2"},
+		"...x: 2\na: 1\n":           {"...x", "2", "a", "1"},
+		"a: |\n  t\n...x: 2\n":      {"a", "t\n", "...x", "2"},
+		"a:\n- 1\n...: 2\n":         {"a", "", "...", "2"},
+		"a: 1\r\n...x y: 2\r\n":     {"a", "1", "...x y", "2"},
+		"a: 1\n...x'y: 2 # c\n":     {"a", "1", "...x'y", "2"},
+		"a: \"b\n...x: c\"\nd: 1\n": {"a", "b ...x: c", "d", "1"},
+	} {
+		docs, err := Parse([]byte(in))
+		if err != nil || len(docs) != 1 {
+			t.Errorf("Parse(%q) = %d documents, %v; want one", in, len(docs), err)
+			continue
+		}
+		var got []string
+		for _, n := range docs[0].Content[0].Content {
+			got = append(got, n.Value)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("Parse(%q) keys and values = %q, want %q", in, got, want)
+		}
+	}
+	docs, err := Parse([]byte("...x\n"))
+	if err != nil || len(docs) != 1 || docs[0].Content[0].Value != "...x" || docs[0].Content[0].Tag != "!!str" {
+		t.Errorf("Parse(%q) = %d documents, %v; want the string \"...x\"", "...x\n", len(docs), err)
+	}
+	for in, want := range map[string]int{"a: 1\n...\t\n": 1, "a: 1\n...#c\n": 1, "a: 1\n... # c\n---\nb: 2\n": 2} {
+		if docs, err := Parse([]byte(in)); err != nil || len(docs) != want {
+			t.Errorf("Parse(%q) = %d documents, %v; want %d", in, len(docs), err, want)
+		}
+	}
+	for in, want := range map[string]string{
+		"a: 1\n...\t\nb: 2\n": "yaml: line 2: did not find expected <document start>",
+		"a: 1\n...x\n":        "yaml: line 2: ",
+	} {
+		if _, err := Parse([]byte(in)); err == nil || !strings.HasPrefix(err.Error(), want) {
+			t.Errorf("Parse(%q) = %v, want an error that starts %q", in, err, want)
 		}
 	}
 }

@@ -225,7 +225,9 @@ func TestParseDepthAtInjectKeys(t *testing.T) {
 // path runs on raw input. It fails nesting past 10,000 levels in the
 // first document with yaml.v3's message, passes nesting at the limit,
 // and ignores nesting in a later document, which neither spruce nor
-// graft's merge reads.
+// graft's merge reads. A key at column 1 that starts with "..." and a
+// non-blank character does not end the first document, so nesting in
+// its value counts.
 func TestCheckFirstDocumentDepth(t *testing.T) {
 	deep := func(n int) string { return "a: " + strings.Repeat("[", n) + strings.Repeat("]", n) + "\n" }
 	for _, c := range []struct {
@@ -237,6 +239,7 @@ func TestCheckFirstDocumentDepth(t *testing.T) {
 		{"past the limit", deep(10001), "yaml: exceeded max depth of 10000"},
 		{"unclosed brackets", "a: " + strings.Repeat("[", 20000) + "\n", "yaml: exceeded max depth of 10000"},
 		{"past the limit in the second document", "x: 1\n---\n" + deep(10001), ""},
+		{"past the limit in a key that starts with three dots", "a: 1\n..." + deep(10001)[1:], "yaml: line 2: exceeded max depth of 10000"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			got := ""
@@ -288,6 +291,7 @@ func TestFirstDocument(t *testing.T) {
 		{"marker at column 1 in a quoted string", "a: \"b\n---\nc\"\nd: 4\n", "a: \"b\n---\nc\"\nd: 4\n"},
 		{"marker inside a flow collection", "a: [1,\n---\n2]\n", "a: [1,\n---\n2]\n"},
 		{"dashes that are text", "a: 1\n---b\nc: 3\n", "a: 1\n---b\nc: 3\n"},
+		{"dots that start a key", "x: 1\n...x: 2\n---\ny: [\n", "x: 1\n...x: 2\n"},
 		{"inject key", "a:\n  <<<: (( grab b ))\n---\nc: [\n", "a:\n  <<<: (( grab b ))\n"},
 		{"multibyte text", "é: ü\r\n---\r\ny: 2\r\n", "é: ü\r\n"},
 		{"next line character", "x: a\u0085b\n---\ny: 2\n", "x: a\u0085b\n"},
