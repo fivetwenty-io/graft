@@ -286,7 +286,7 @@ graft merge and graft json check directives the way spruce does, so they reject 
 
 Accepted divergences, beyond the tables above:
 
-- graft accepts the `\/` escape, raw control characters, and a stream that holds only `...`, which spruce rejects. graft merge accepts content after `...` without a new `---`, while graft diff rejects it as spruce does.
+- graft accepts the `\/` escape, raw control characters, and a stream that holds only `...`, which spruce rejects. Content after `...` without a new `---` is not one of the differences, because `graft diff`, `graft merge`, and `graft json` all reject it with spruce's message, `did not find expected <document start>`.
 
 - graft rejects complex mapping keys, which spruce accepts.
 
@@ -300,7 +300,7 @@ Accepted divergences, beyond the tables above:
 
 - graft keeps a comment block between a key and its block collection in a different place when a later line of the block starts left of the key. `TestCommentsDedentedBlockDivergence` pins that placement.
 
-- graft reads a CRLF file exactly as it reads the same file with LF line endings, so the extra blank line spruce prints above a commented key in a CRLF file does not appear.
+- graft reads a CRLF file exactly as it reads the same file with LF line endings, so the extra blank line spruce prints above a commented key in a CRLF file does not appear. The same goes for the extra blank line spruce keeps after a head comment on a `---` line in a CRLF file.
 
 - graft exits `2` with an error message where spruce panics.
 

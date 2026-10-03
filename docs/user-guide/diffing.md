@@ -391,7 +391,6 @@ graft accepts these inputs, and spruce rejects them:
 - The `\/` escape in a double-quoted string.
 - Raw control characters.
 - A stream that holds only `...`.
-- Content after `...` without a new `---`.
 - A `%YAML 1.2` directive.
 - A tab after a block dash, such as `-` then a tab and `b`.
 - A `...` line before the first content.
@@ -416,7 +415,9 @@ graft rejects these inputs, and spruce accepts them:
   after the anchor don't change that, but a document that ends with
   `...` parses.
 
-`TestParseAcceptanceDivergences` pins the `%YAML`, empty tagged value, `!!merge`, and `%TAG !!` cases. `TestParseAcceptsInputsYamlV3Rejects` pins the `\/` escape and raw control characters. `TestParseAcceptsInputsSpruceRejects` pins the tab, leading `...`, long key, and U+2028 cases. `TestParseEmptyTaggedSequenceItemsFail` and `TestParseRejectsAnchorWithoutValue` pin the tagged sequence items and the anchor with no value. The `...`-only stream and complex mapping key cases are pinned in `internal/yamlnode`'s split and decode tests. graft diff rejects content that follows `...` without a new `---` line and matches spruce in doing so, but graft merge still accepts such content.
+`TestParseAcceptanceDivergences` pins the `%YAML`, empty tagged value, `!!merge`, and `%TAG !!` cases. `TestParseAcceptsInputsYamlV3Rejects` pins the `\/` escape and raw control characters. `TestParseAcceptsInputsSpruceRejects` pins the tab, leading `...`, long key, and U+2028 cases. `TestParseEmptyTaggedSequenceItemsFail` and `TestParseRejectsAnchorWithoutValue` pin the tagged sequence items and the anchor with no value. The `...`-only stream and complex mapping key cases are pinned in `internal/yamlnode`'s split and decode tests. Content that follows `...` without a new `---` line is no longer a difference. `graft diff`, `graft merge`, and `graft json` all fail it with exit code 2 and spruce's message, `yaml: line N: did not find expected <document start>`.
+
+`graft merge` and `graft json` also reject a `...` line before the first content and a `%YAML 1.2` directive, as spruce does, so those two differences apply to `graft diff` alone.
 
 One block scalar reads differently. When a document is a block scalar
 that starts on its `---` line and has an explicit indentation indicator,
@@ -444,6 +445,8 @@ a:
 Both tools give `# c1` to the first item.
 `TestCommentsDedentedBlockDivergence` pins graft's placement.
 
+This is the only comment-placement difference left in our test corpus, and we have chosen not to close it. Fixing it means reproducing libyaml's rules for every kind of dedent, which risks moving shapes that already match. It affects 7 of the 1,500 generated files we sampled. spruce accepted 834 of those files, and the 7 are among them. The generator writes dedented comments far more often than real files do, so we expect the rate in real files to be much lower.
+
 Where spruce panics, graft exits `2` with an error message instead of a
 stack trace. That covers an SGR `38` sequence without valid arguments
 inside a value and a tag of exactly `!`.
@@ -456,6 +459,10 @@ in between.
 graft reads a CRLF file exactly as it reads the same file with LF line
 endings. spruce prints an extra blank line above a commented key in a CRLF
 file, and graft does not.
+
+The same difference shows up in a header comment. In a CRLF file, spruce keeps an extra blank line after a head comment on the `---` line. For `--- # h` followed by `b: 2`, diffed against `a: 1`, spruce prints a blank line between `# h` and `b: 2`, and graft prints none. When a second comment line follows the header, spruce prints a blank line after each of the two comments, and graft prints neither. We have not closed this one. The number of extra blank lines depends on what follows each comment, so a rule that guesses it would move graft away from spruce on other shapes.
+
+The change list, the unified format, and the side-by-side format are graft's own, so spruce has no output for them to match. When the two files hold different numbers of documents, all of them exit `2` with `comparing YAMLs with a different number of documents is currently not supported`, as the default report does. The default report prints that text bare, as spruce does. The three graft-only formats put `Error comparing A and B:` in front of it, naming both files, and they do the same for any other error raised while they compare the documents. We keep the prefix on purpose, because it names the files and a script may already match on it. A parse error is not affected, and it prints the same `unable to parse data from <file>` line in every format.
 
 ## Exit Codes
 

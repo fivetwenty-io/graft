@@ -77,6 +77,51 @@ coerces in both. The same holds for a key. `graft json --strict` fails
 on a `yes`, `no`, `on`, or `off` key, as spruce does, but accepts a
 bare `y` or `n` key, which spruce refuses as a boolean.
 
+### line-and-paragraph-separators-outside-quotes-and-blocks
+
+**Current behavior.** graft reads a line separator (U+2028) or a paragraph separator (U+2029) as a line break inside a single-quoted scalar and inside a literal block scalar (`|`), which are the two places where spruce writes them. In every other place graft still reads the character as ordinary text, where libyaml reads a line break. A next-line character (U+0085) is already a line break everywhere, in both tools. We compared both binaries on each of the cases below, with U+2028 and with U+2029, and the two separators behaved the same way.
+
+- In a double-quoted scalar, `a: "x`, the separator, two spaces, and `y"` reads as `x`, the separator, and `y` in spruce, because libyaml drops the spaces as the indentation of a new line. graft keeps the two spaces. When the separator is followed directly by text, as in `"x`, the separator, and `y"`, the two tools agree.
+
+- In a folded block scalar (`>`), spruce drops the indentation after the separator and graft keeps it. For a line that holds `x`, the separator, two spaces, and `y`, spruce reads `x`, the separator, and `y`, and graft reads the same text with the two spaces kept. When the separator is followed directly by text at the start of the line, spruce fails with exit code 2 and `could not find expected ':'`, and graft accepts it.
+
+- In a plain scalar, such as `a: x`, the separator, and `y`, spruce fails with exit code 2 and `could not find expected ':'`. graft accepts the file and keeps the character as part of the text.
+
+- In an implicit key, such as `'a`, the separator, two spaces, and `b': 1`, spruce fails with exit code 2 and `mapping values are not allowed in this context`, because a line break cannot sit inside an implicit key. graft accepts the key and writes it back in the explicit `? key` form.
+
+**Expected behavior.** Each of these reads exactly as spruce reads it.
+
+**Impact.** A file has to hold a raw separator character in one of these positions to be affected, which is rare. The two double-quoted and folded cases are the ones to watch, because graft produces a different value without reporting anything. Writing the separator as the escape `\L` or `\P` in a double-quoted scalar reads the same way in both tools, and a single-quoted scalar or a literal block already agrees. `graft diff` shares the same reader, so it carries the same differences.
+
+### load-reads-files-through-its-own-path
+
+**Current behavior.** `(( load ))` reads the file it names with its own code path, which does not share every fix that `graft merge` and `graft json` got. Two differences remain.
+
+- A file whose last value is a block scalar with an indentation indicator, such as `|2-`, fails to load with `unsupported root type in loaded content, only map or list roots are supported`. graft merge writes such a block for a string that starts with a space or a line break, so `k: " a\nb"` merges to `k: |2-` followed by the lines `   a` and `  b`. `graft merge` reads that output back and so does spruce, but `(( load ))` of the same file fails in graft. The same block in the middle of a file, with another key after it, loads correctly.
+
+- An alias to an anchor that was defined inside another anchored collection still decodes as null. A loaded file with `x: &o` holding `p: &p v` and `q: *p`, followed by `r: *o`, gives `q: null` in graft where spruce gives `q: v`, and `a: &x [&x 1, *x]` loads as `[1, null]` where spruce gives `[1, 1]`. Merging the same files directly already gives spruce's values.
+
+**Expected behavior.** `(( load ))` reads a file exactly as `graft merge` reads it.
+
+**Impact.** Both cases are rare. The first one fails loudly, and the second one silently produces null. Until this is closed, we can pass the file to `graft merge` as another input instead of loading it, or we can put another key after the final block scalar and avoid aliases that point into an anchored collection.
+
+### memory-use-on-very-large-single-line-inputs
+
+**Current behavior.** graft needs a lot of memory for a file with a very long single line, because its YAML library builds a token list and a syntax tree at roughly 1 KB per token. We measured peak resident size with `/usr/bin/time -l` on three rejected inputs and on one valid input. The first line of `r2m3` and `r2m5` is `a: [[], [], ...` and runs to about 800,000 bytes, which is 400,000 tokens or more, followed by a `...#c` line in `r2m3` or a `...` line in `r2m5`, and then 500,000 lines of `# pad`. The third file, `r2m7`, is `a: 1` followed by a `...#c` line and the same kind of padding. The valid input is a single line of 800,000 `[]` tokens in a file of 3,200,004 bytes.
+
+| Input | Size | Result in both tools | graft peak | spruce peak |
+|-------|------|----------------------|------------|-------------|
+| r2m3 | 3,800,018 bytes | exit 2 | about 580 MB | 50 MB |
+| r2m5 | 3,800,016 bytes | exit 2 | about 400 MB | 48 MB |
+| r2m7 | about 3 MB | exit 2 | about 285 MB | 26 MB |
+| One line of 800,000 `[]` tokens | 3,200,004 bytes | exit 0 | 1.6 to 1.9 GB across runs | 1.37 GB |
+
+The rejected inputs fail with the right exit code and spruce's kind of error. The cost sits in the step that finds the end of the first document, which tokenizes a growing prefix of the file whenever a line could end that document. On the valid input graft finishes in under 2 seconds, and spruce takes about 20 seconds on the same machine.
+
+**Expected behavior.** On a rejected input we would like graft to stay close to spruce's peak, which is under 50 MB. On a valid input the peak is already the same order as spruce's, so there is nothing to match.
+
+**Impact.** Only files with a single line of hundreds of thousands of tokens are affected, and no real configuration looks like that. The valid-input peak is set by the YAML library, and neither tool can stay under a few hundred megabytes for such a file. A fix for the rejected case would need a streaming lexer, and goccy does not offer one, so we have chosen to record the cost and not to replace the lexer. Deeply nested input is no longer a concern, because the depth check stops it before anything is tokenized. The figures above came from a heavily loaded machine, so they move from run to run and from build to build.
+
 ## Deliberate divergences
 
 Places where graft intentionally behaves differently from spruce. These
@@ -199,6 +244,22 @@ both binaries over the repository's 95-document YAML corpus found no
 behavioral change outside the `shuffle` operator, whose output is
 random by design and differs run to run on either binary.
 
+### duplicate-mapping-keys-are-an-error
+
+**Graft behavior.** `graft merge` and `graft json` fail with exit code 2 on a mapping that defines the same key twice. The message names both places, as in `mapping key "a" already defined at [1:1]`. That holds for a block mapping, for a flow mapping such as `a: {b: 1, b: 2}`, and for a mapping inside a list. `graft diff` still reads such a file, and it prints the same report as `spruce diff`.
+
+**Spruce behavior.** spruce merges `a: 1` followed by `a: 2` to `a: 2`, and `spruce json` gives `{"a":2}`, so the last value wins and nothing is reported.
+
+**Impact.** We keep this on purpose, because failing loudly is better than silently choosing one of two values. A repeated key is almost always a copy and paste slip or a bad hand merge, and the value that wins in spruce is rarely the one the author meant. A file that relies on the last value winning needs the earlier definition removed before graft will read it.
+
+### json-and-merge-keep-y-and-n-keys
+
+**Graft behavior.** graft never changes the type of a mapping key. The YAML 1.1 compatibility layer only touches values, so a key spelled `y`, `n`, `yes`, `no`, `on`, or `off` stays the string it was written as, in any case. `graft json` prints `{"y":1}` for the file `y: 1`, and `graft merge` keeps the key and quotes it, as in `"y": 1`.
+
+**Spruce behavior.** spruce reads those keys as booleans and writes them back as `true` or `false`. Both `y` and `yes` give `true`, and both `n` and `no` give `false`, in any letter case, so `spruce json` prints `{"true":1}` for the file `y: 1`, and `spruce merge` prints `true: 1`. The words `t`, `f`, `T`, and `F` stay strings in both tools, and a key spelled `true` or `false` comes out the same in both. We compared both binaries on all 24 spellings.
+
+**Impact.** The value half of this is a separate open gap, described in [y-n-boolean-values-not-coerced](#y-n-boolean-values-not-coerced), where graft already agrees with spruce on `yes`, `no`, `on`, and `off`. For keys, spruce's rewrite loses data, since the file `y: 1` followed by `true: 2` merges to the single key `true: 2`, and a `grab y` of a key spelled `y` fails there with "could not be found". graft keeps both keys and resolves the path. Matching spruce would make graft turn a key such as GitHub Actions' `on:` into `true:`, so we keep keys untouched, and `graft json` agrees with `graft merge` on every key. This is also why the [mixed-key-type](#mixed-key-type-map-encoding-order) entry says typed keys can't be told apart from quoted ones. The exception is `graft json --strict`, which does look at key types. It refuses a `yes`, `no`, `on`, or `off` key, as spruce does, and it accepts a bare `y` or `n` key.
+
 ## Resolved
 
 Items that were tracked as open gaps and have since been closed. Kept
@@ -208,6 +269,8 @@ point at a specific gap keep resolving to the right place.
 ### stringify-block-scalar-style
 
 **Resolved.** graft now chooses every string's output style with a port of the scalar-style rules in spruce's YAML emitter, so `(( stringify ))` of a map or list comes out as a literal block exactly as spruce writes it. Earlier, goccy wrote such a string as a quoted flow scalar whenever its lines held `": "`, as every stringified map's lines do. Pinned by the tables in `pkg/graft/yaml_scalar_style_test.go`.
+
+One case is still different. `(( stringify ))` of a single scalar returns the raw string, where spruce marshals the value into a literal block with a trailing newline. For `s: hello` and `r: (( stringify s ))`, graft writes `r: hello`, and spruce writes `r: |` followed by the line `  hello`, so its value is `hello` with a newline at the end. A number behaves the same way, so `(( stringify num ))` of `num: 5` gives the quoted string `"5"` in graft and a literal block holding `5` and a newline in spruce. A map or a list matches in both tools.
 
 ### scalar-array-default-merge-replaces-instead-of-inlining
 
