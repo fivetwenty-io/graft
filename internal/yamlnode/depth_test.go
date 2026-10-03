@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goccy/go-yaml/parser"
+
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
@@ -244,5 +246,88 @@ func TestCheckFirstDocumentDepth(t *testing.T) {
 				t.Errorf("CheckFirstDocumentDepth = %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+// TestFirstDocument checks where FirstDocument cuts a stream. It cuts at
+// the start of the line holding the "---" that ends the first document,
+// or after the line holding the "..." that ends it, whatever line breaks
+// the input uses, and it leaves the input whole
+// when no marker ends the first document or the cut could not be proved.
+// Each cut must give goccy the same first document the whole input
+// gives it.
+func TestFirstDocument(t *testing.T) {
+	for _, c := range []struct {
+		name, in, want string
+	}{
+		{"one document", "x: 1\ny: 2\n", "x: 1\ny: 2\n"},
+		{"two documents", "x: 1\n---\ny: 2\n", "x: 1\n"},
+		{"CRLF line breaks", "x: 1\r\nz: 3\r\n---\r\ny: 2\r\n", "x: 1\r\nz: 3\r\n"},
+		{"CR line breaks", "x: 1\rz: 3\r---\ry: 2\r", "x: 1\rz: 3\r"},
+		{"ended by a document end marker", "x: 1\n... # end\r\ny: 2\n", "x: 1\n... # end\r\n"},
+		{"document end marker then a header", "x: 1\n...\n---\ny: 2\n", "x: 1\n...\n"},
+		{"document end marker at the end of the input", "x: 1\n...", "x: 1\n..."},
+		{"header with a comment", "x: 1\n--- # two\ny: 2\n", "x: 1\n"},
+		{"header at the end of the input", "x: 1\n---", "x: 1\n"},
+		{"leading header alone", "--- # one\nx: 1\n", "--- # one\nx: 1\n"},
+		{"leading header", "---\nx: 1\n---\ny: 2\n", "---\nx: 1\n"},
+		{"comment-only preamble", "# one\n\n# two\n---\nx: 1\n---\ny: 2\n", "# one\n\n# two\n---\nx: 1\n"},
+		{"directive", "%YAML 1.1\n---\nx: 1\n---\ny: 2\n", "%YAML 1.1\n---\nx: 1\n"},
+		{"empty first document", "---\n---\ny: 2\n", "---\n"},
+		{"marker in a literal block scalar", "a: |\n  ---\n  b\nc: 3\n---\nd: 4\n", "a: |\n  ---\n  b\nc: 3\n"},
+		{"marker in a quoted multi-line string", "a: \"b\n  ---\n  c\"\nd: 4\n---\ne: 5\n", "a: \"b\n  ---\n  c\"\nd: 4\n"},
+		{"marker in a single-quoted multi-line string", "a: 'b\n  ---\n  c'\nd: 4\n---\ne: 5\n", "a: 'b\n  ---\n  c'\nd: 4\n"},
+		{"marker that ends a literal block scalar", "a: |\n  b\n---\nc: 3\n", "a: |\n  b\n"},
+		{"marker at column 1 in a quoted string", "a: \"b\n---\nc\"\nd: 4\n", "a: \"b\n---\nc\"\nd: 4\n"},
+		{"marker inside a flow collection", "a: [1,\n---\n2]\n", "a: [1,\n---\n2]\n"},
+		{"dashes that are text", "a: 1\n---b\nc: 3\n", "a: 1\n---b\nc: 3\n"},
+		{"inject key", "a:\n  <<<: (( grab b ))\n---\nc: [\n", "a:\n  <<<: (( grab b ))\n"},
+		{"multibyte text", "é: ü\r\n---\r\ny: 2\r\n", "é: ü\r\n"},
+		{"next line character", "x: a\u0085b\n---\ny: 2\n", "x: a\u0085b\n"},
+		{"byte order mark", "\xEF\xBB\xBFx: 1\n---\ny: 2\n", "\xEF\xBB\xBFx: 1\n"},
+		{"syntax error in the second document", "x: 1\n---\ny: [\n", "x: 1\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := yamlnode.FirstDocument([]byte(c.in))
+			if err != nil || string(got) != c.want {
+				t.Fatalf("FirstDocument = %q, %v; want %q", got, err, c.want)
+			}
+			if c.want == c.in {
+				return
+			}
+			whole, wholeErr := parser.ParseBytes([]byte(c.in), 0)
+			cut, cutErr := parser.ParseBytes(got, 0)
+			if cutErr != nil {
+				t.Fatalf("goccy fails the first document: %v", cutErr)
+			}
+			if wholeErr == nil && whole.Docs[0].String() != cut.Docs[0].String() {
+				t.Errorf("goccy reads the first document as %q, want %q", cut.Docs[0].String(), whole.Docs[0].String())
+			}
+		})
+	}
+}
+
+// TestFirstDocumentDepth checks that FirstDocument fails a first
+// document nested past 10,000 levels, and that it cuts nesting that deep
+// from a later document without tokenizing all of it. At d86cd74, the
+// merge parsed every document, so the second document cost goccy's
+// parser hundreds of megabytes.
+func TestFirstDocumentDepth(t *testing.T) {
+	deep := func(n int) string { return "a: " + strings.Repeat("[", n) + strings.Repeat("]", n) + "\n" }
+	if _, err := yamlnode.FirstDocument([]byte(deep(10001))); err == nil || err.Error() != "yaml: exceeded max depth of 10000" {
+		t.Errorf("FirstDocument = %v, want the depth error", err)
+	}
+	src := []byte("x: 1\n---\n" + deep(10001))
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	got, err := yamlnode.FirstDocument(src)
+	runtime.ReadMemStats(&after)
+	if err != nil || string(got) != "x: 1\n" {
+		t.Errorf("FirstDocument = %.20q, %v; want \"x: 1\\n\"", got, err)
+	}
+	if grew := after.TotalAlloc - before.TotalAlloc; grew >= 20<<20 {
+		t.Errorf("FirstDocument allocated %d MB, want under 20 MB", grew>>20)
 	}
 }

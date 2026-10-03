@@ -2,6 +2,7 @@ package graft
 
 import (
 	"context"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -121,23 +122,80 @@ func TestParseYAMLRejectsUnclosedBracketsCheaply(t *testing.T) {
 	}
 }
 
-// TestMergeIgnoresLaterDocuments checks that both guards read only the
-// first document. spruce and graft's merge never read a later document,
-// so a cycle or deep nesting there still merges.
+// TestMergeIgnoresLaterDocuments merges streams whose second document
+// spruce never reads, so a cycle, nesting past 10,000 levels, or a syntax
+// error there leaves the merge to succeed with the first document alone.
+// At d86cd74, goccy parsed every document, so the syntax error failed
+// the merge and the deep document cost its parser hundreds of megabytes.
+// The first document ends at a "---" or a "..." whatever comes before
+// it and whatever line breaks the input uses.
 func TestMergeIgnoresLaterDocuments(t *testing.T) {
-	for _, c := range []struct{ name, second string }{
-		{"cycle", "a: &a\n  b: *a\n"},
-		{"10,001 levels", nested(10001)},
+	for _, c := range []struct{ name, in string }{
+		{"cycle", "x: 1\n---\na: &a\n  b: *a\n"},
+		{"10,001 levels", "x: 1\n---\n" + nested(10001)},
+		{"syntax error", "x: 1\n---\ny: [\n"},
+		{"CRLF line breaks", "x: 1\r\n---\r\ny: [\r\n"},
+		{"document end marker", "x: 1\n...\n---\ny: [\n"},
+		{"leading header", "---\nx: 1\n---\ny: [\n"},
+		{"comment-only preamble", "# one\n\n# two\n---\nx: 1\n---\ny: [\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			out, err := guardedMerge(t, "x: 1\n---\n"+c.second)
+			var before, after runtime.MemStats
+			runtime.GC()
+			runtime.GC()
+			runtime.ReadMemStats(&before)
+			out, err := guardedMerge(t, c.in)
+			runtime.ReadMemStats(&after)
 			if err != nil {
 				t.Fatalf("merge = %v, want success", err)
 			}
-			if got, _ := out.GetInt("x"); got != 1 {
-				t.Errorf("x = %v, want 1", got)
+			if got := out.RawData(); !reflect.DeepEqual(got, map[string]interface{}{"x": 1}) {
+				t.Errorf("merge = %#v, want x: 1 alone", got)
+			}
+			if grew := after.TotalAlloc - before.TotalAlloc; grew >= 100<<20 {
+				t.Errorf("merge allocated %d MB, want under 100 MB", grew>>20)
 			}
 		})
+	}
+}
+
+// TestMergeKeepsMarkersInsideScalars merges a first document holding a
+// "---" line inside a literal block scalar and inside a quoted
+// multi-line string. Neither line ends the document, so the keys after
+// it survive, and only the "---" at column 1 cuts the stream.
+func TestMergeKeepsMarkersInsideScalars(t *testing.T) {
+	for _, c := range []struct {
+		name, in string
+		want     interface{}
+	}{
+		{"literal block scalar", "a: |\n  ---\n  b\nx: 1\n---\ny: [\n", "---\nb\n"},
+		{"quoted multi-line string", "a: \"b\n  ---\n  c\"\nx: 1\n---\ny: [\n", "b --- c"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out, err := guardedMerge(t, c.in)
+			if err != nil {
+				t.Fatalf("merge = %v, want success", err)
+			}
+			want := map[string]interface{}{"a": c.want, "x": 1}
+			if got := out.RawData(); !reflect.DeepEqual(got, want) {
+				t.Errorf("merge = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
+// TestGoPatchParsersReadOnlyTheFirstDocument feeds DetectArrayRoot and
+// ParseGoPatch an operation list followed by a document with a syntax
+// error. spruce reads only the first document, and applies the
+// operation.
+func TestGoPatchParsersReadOnlyTheFirstDocument(t *testing.T) {
+	src := []byte("- type: replace\n  path: /x\n  value: 2\n---\n- [\n")
+	if err := DetectArrayRoot(src); !IsArrayError(err) {
+		t.Errorf("DetectArrayRoot = %v, want the array-root signal", err)
+	}
+	ops, err := ParseGoPatch(src)
+	if err != nil || len(ops) != 1 {
+		t.Errorf("ParseGoPatch = %d operations, %v; want 1 operation", len(ops), err)
 	}
 }
 

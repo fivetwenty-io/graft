@@ -81,10 +81,11 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	}
 
 	// Loaded content gets the merge's guards, since a manifest can name
-	// any file: nesting past 10,000 levels fails before anything
-	// tokenizes it, and an alias inside its own anchor's collection fails
-	// instead of decoding as null.
-	if err := graft.CheckMergeDepth(bytes); err != nil {
+	// any file. Only its first document is read, nesting past 10,000
+	// levels fails before anything tokenizes it, and an alias inside its
+	// own anchor's collection fails instead of decoding as null.
+	bytes, err = graft.FirstMergeDocument(bytes)
+	if err != nil {
 		return nil, err
 	}
 

@@ -313,19 +313,25 @@ func (e *maxRecursionError) Error() string { return maxRecursionMessage }
 
 func (e *maxRecursionError) Unwrap() error { return e.cause }
 
-// CheckMergeDepth fails data, raw YAML bytes about to be merged, when its
-// first document nests deeper than 10,000 levels. It runs before
-// anything tokenizes data, because goccy's parser slows down faster than
-// linearly with depth, and 20,000 unclosed brackets cost it hundreds of
-// megabytes before it fails. The error reads as the text a merge gives
-// for a tree nested past 4,096 levels, so every over-deep merge fails
-// with one message whatever its depth. Later documents are left alone,
-// because the merge never reads them.
-func CheckMergeDepth(data []byte) error {
-	if err := yamlnode.CheckFirstDocumentDepth(data); err != nil {
-		return &maxRecursionError{cause: err}
+// FirstMergeDocument returns the first document of data, raw YAML bytes
+// about to be merged, since the merge reads no other, as spruce's does.
+// goccy parses every document it is given, so a syntax error or deep
+// nesting in a later document would otherwise fail the merge. The result
+// is a prefix of data, and it is data itself when nothing ends the first
+// document. See yamlnode.FirstDocument.
+//
+// It fails a first document that nests deeper than 10,000 levels, and
+// it runs before anything else tokenizes data, because goccy's parser
+// slows down faster than linearly with depth, and 20,000 unclosed
+// brackets cost it hundreds of megabytes before it fails. The error
+// reads as the text a merge gives for a tree nested past 4,096 levels,
+// so every over-deep merge fails with one message whatever its depth.
+func FirstMergeDocument(data []byte) ([]byte, error) {
+	first, err := yamlnode.FirstDocument(data)
+	if err != nil {
+		return nil, &maxRecursionError{cause: err}
 	}
-	return nil
+	return first, nil
 }
 
 // CheckSelfContainingAnchors fails data, YAML bytes about to be decoded,

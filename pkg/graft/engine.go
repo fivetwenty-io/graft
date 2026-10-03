@@ -677,10 +677,12 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		return nil, nil
 	}
 
-	// Fail a first document nested past 10,000 levels before the
-	// control-flow expander or yamlprep's placeholder rewrite tokenizes
-	// it, and before goccy parses it. See CheckMergeDepth.
-	if err := CheckMergeDepth(data); err != nil {
+	// Keep only the first document, and fail one nested past 10,000
+	// levels, before the control-flow expander or yamlprep's placeholder
+	// rewrite tokenizes it, and before goccy parses it. See
+	// FirstMergeDocument.
+	data, err := FirstMergeDocument(data)
+	if err != nil {
 		return nil, NewParseError(err.Error(), err)
 	}
 

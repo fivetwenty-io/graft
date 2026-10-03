@@ -41,3 +41,28 @@ func TestLoadRejectsCyclicAndOverDeepFiles(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadReadsOnlyTheFirstDocument loads a file whose second document
+// has a syntax error. spruce's load reads only the first document, so
+// the load succeeds.
+func TestLoadReadsOnlyTheFirstDocument(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "two.yml")
+	if err := os.WriteFile(path, []byte("x: 1\n---\ny: [\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	engine, err := graft.NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := engine.ParseYAML([]byte("result: (( load \"" + path + "\" ))\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := engine.Evaluate(context.TODO(), doc)
+	if err != nil {
+		t.Fatalf("load = %v, want success", err)
+	}
+	if got, _ := out.GetInt("result.x"); got != 1 {
+		t.Errorf("result.x = %v, want 1", got)
+	}
+}

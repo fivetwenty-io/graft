@@ -69,13 +69,15 @@ func DetectArrayRoot(data []byte) error {
 	}
 
 	// The full classification parse is the first thing to tokenize data,
-	// so nesting past 10,000 levels fails here. A caller that falls
-	// through to ParseYAML gets the same error from it.
-	if err := CheckMergeDepth(data); err != nil {
+	// so it reads only the first document, and nesting past 10,000
+	// levels fails here. A caller that falls through to ParseYAML gets
+	// the same error from it.
+	first, err := FirstMergeDocument(data)
+	if err != nil {
 		return err
 	}
 
-	return detectArrayRootFull(data)
+	return detectArrayRootFull(first)
 }
 
 // rootCannotBeArray scans data's first content byte to prove, without
@@ -168,7 +170,8 @@ func detectArrayRootFull(data []byte) error {
 // worth attempting. The returned patch.Ops is normally wrapped with
 // NewGoPatchDocument before being merged.
 func ParseGoPatch(data []byte) (patch.Ops, error) {
-	if err := CheckMergeDepth(data); err != nil {
+	data, err := FirstMergeDocument(data)
+	if err != nil {
 		return nil, err
 	}
 

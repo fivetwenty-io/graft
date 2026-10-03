@@ -2112,12 +2112,14 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, pa
 		return fileParseResult{err: readErr}
 	}
 
-	// Input nested past 10,000 levels fails with the bare recursion
-	// sentence the merge prints from 4,096 levels, as spruce does at any
-	// depth, without the file name and parse-error prefix a parse
-	// failure gets below.
-	if err := graft.CheckMergeDepth(data); err != nil {
-		return fileParseResult{err: err}
+	// The merge reads only the first document, as spruce's does, so
+	// everything below sees only its bytes. Input nested past 10,000
+	// levels fails with the bare recursion sentence the merge prints
+	// from 4,096 levels, as spruce does at any depth, without the file
+	// name and parse-error prefix a parse failure gets below.
+	data, readErr = graft.FirstMergeDocument(data)
+	if readErr != nil {
+		return fileParseResult{err: readErr}
 	}
 
 	// Record this input for cycle provenance.

@@ -47,3 +47,17 @@ func TestMergeOverDeepPrintsOneMessage(t *testing.T) {
 		}
 	}
 }
+
+// TestMergeIgnoresSyntaxErrorInLaterDocument merges a file whose second
+// document has a syntax error. spruce reads only the first document and
+// exits 0. graft parsed every document and exited 2.
+func TestMergeIgnoresSyntaxErrorInLaterDocument(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "two.yml")
+	if err := os.WriteFile(path, []byte("x: 1\n---\ny: [\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stderr, rc := runGraftCapturingOutput(t, []string{"merge", path})
+	if rc != 0 || stderr != "" {
+		t.Errorf("graft merge: rc=%d stderr=%q, want rc=0 and no stderr", rc, stderr)
+	}
+}
