@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goccy/go-yaml"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -609,7 +608,7 @@ func FetchFromKV(js jetstream.JetStream, storePath string, config *Config) (inte
 			if looksLikeYAML {
 				// Try to parse as YAML
 				var parsed interface{}
-				err = yaml.Unmarshal(value, &parsed)
+				err = unmarshalGuarded(value, &parsed)
 				if err == nil && parsed != nil {
 					parsed = normalizeYAMLValue(parsed)
 					// Successfully parsed and got non-string result
@@ -721,7 +720,7 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 		case "text/yaml", "text/x-yaml", "application/x-yaml", "application/yaml":
 			// Parse as YAML
 			var yamlResult interface{}
-			err = yaml.Unmarshal(data, &yamlResult)
+			err = unmarshalGuarded(data, &yamlResult)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse YAML from object '%s': %w", objectName, err)
 			}
@@ -729,7 +728,7 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 			result = normalizeYAMLValue(yamlResult)
 		case "application/json", "text/json":
 			// Parse as JSON (YAML parser handles JSON too)
-			err = yaml.Unmarshal(data, &result)
+			err = unmarshalGuarded(data, &result)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse JSON from object '%s': %w", objectName, err)
 			}
@@ -739,7 +738,7 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 			if contentType == "" && (strings.HasSuffix(objectName, ".yaml") || strings.HasSuffix(objectName, ".yml")) {
 				// Parse as YAML for .yaml/.yml files
 				var yamlResult interface{}
-				err = yaml.Unmarshal(data, &yamlResult)
+				err = unmarshalGuarded(data, &yamlResult)
 				if err != nil {
 					// If parsing fails, return as string
 					result = string(data)
