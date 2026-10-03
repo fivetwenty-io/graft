@@ -2114,18 +2114,9 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, pa
 	}
 
 	// The merge reads only the first document, as spruce's does, so
-	// everything below sees only its bytes. Input nested past 10,000
-	// levels fails with the bare recursion sentence the merge prints
-	// from 4,096 levels, as spruce does at any depth, without the file
-	// name and parse-error prefix a parse failure gets below. Content
-	// after a "..." with no "---" before it is a parse failure, and it
-	// gets both.
-	data, readErr = graft.FirstMergeDocument(data)
+	// everything below sees only its bytes.
+	data, readErr = firstFileDocument(file.Path, data)
 	if readErr != nil {
-		var parseErr *graft.GraftError
-		if errors.As(readErr, &parseErr) {
-			return fileParseResult{err: ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, readErr.Error())}
-		}
 		return fileParseResult{err: readErr}
 	}
 
@@ -2192,6 +2183,21 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, pa
 		}
 	}
 	return fileParseResult{doc: doc, src: src}
+}
+
+// firstFileDocument returns the first document of data, the contents of
+// the file at path. Input nested past 10,000 levels fails with the bare
+// recursion sentence the merge prints from 4,096 levels, as spruce does
+// at any depth, without the file name and parse-error prefix a parse
+// failure gets. Content after a "..." with no "---" before it is a parse
+// failure, and it gets both.
+func firstFileDocument(path string, data []byte) ([]byte, error) {
+	first, err := graft.FirstMergeDocument(data)
+	var parseErr *graft.GraftError
+	if errors.As(err, &parseErr) {
+		return nil, ansi.Errorf("@m{%s}: @R{%s}\n", path, err.Error())
+	}
+	return first, err
 }
 
 func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{}, graft.Engine, error) {
