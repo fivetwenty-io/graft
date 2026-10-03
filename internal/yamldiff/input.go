@@ -202,7 +202,7 @@ func LoadDocuments(data []byte) ([]*yamlnode.Node, error) {
 		return []*yamlnode.Node{{
 			Kind: yamlnode.DocumentNode,
 			Content: []*yamlnode.Node{
-				{Kind: yamlnode.ScalarNode, Tag: tagNull},
+				{Kind: yamlnode.ScalarNode, Tag: yamlnode.TagNull},
 			},
 		}}, nil
 	}

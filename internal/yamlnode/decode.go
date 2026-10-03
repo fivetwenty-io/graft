@@ -151,7 +151,7 @@ func (d *decoder) terror(n *Node, tag string, outType string) {
 		tag = n.Tag
 	}
 	value := n.Value
-	if tag != tagSeq && tag != tagMap {
+	if tag != TagSeq && tag != TagMap {
 		if len(value) > 10 {
 			value = " `" + value[:7] + "...`"
 		} else {
@@ -292,10 +292,10 @@ func (d *decoder) scalar(n *Node, out *slot) bool {
 // !!binary value to its bytes as a string.
 func scalarValue(n *Node) (string, interface{}) {
 	if isIndicatedString(n) {
-		return tagStr, n.Value
+		return TagStr, n.Value
 	}
 	tag, resolved := resolve(n.Tag, n.Value)
-	if tag == tagBinary {
+	if tag == TagBinary {
 		text, _ := resolved.(string)
 		data, err := base64.StdEncoding.DecodeString(text)
 		if err != nil {
@@ -308,7 +308,7 @@ func scalarValue(n *Node) (string, interface{}) {
 
 func (d *decoder) sequence(n *Node, out *slot) bool {
 	if out.kind != slotInterface {
-		d.terror(n, tagSeq, out.typeName())
+		d.terror(n, TagSeq, out.typeName())
 		return false
 	}
 	l := len(n.Content)
@@ -342,7 +342,7 @@ func (d *decoder) mapping(n *Node, out *slot) bool {
 	case slotMap:
 		sink = out.sink
 	default:
-		d.terror(n, tagMap, out.typeName())
+		d.terror(n, TagMap, out.typeName())
 		return false
 	}
 
@@ -400,7 +400,7 @@ func (d *decoder) mapEntry(sink mapSink, mergedFields map[interface{}]bool, keyN
 	default:
 	}
 	e := &slot{kind: slotInterface}
-	if d.unmarshal(valueNode, e) || nodeShortTag(valueNode) == tagNull && !sink.has(k) {
+	if d.unmarshal(valueNode, e) || nodeShortTag(valueNode) == TagNull && !sink.has(k) {
 		sink.set(k, e.iface)
 	}
 }
@@ -411,7 +411,7 @@ func isStringMap(n *Node) bool {
 	}
 	for i := 0; i < len(n.Content); i += 2 {
 		shortTag := nodeShortTag(n.Content[i])
-		if shortTag != tagStr && shortTag != tagMerge {
+		if shortTag != TagStr && shortTag != TagMerge {
 			return false
 		}
 	}
@@ -484,29 +484,29 @@ func (d *decoder) mergeSequence(merge *Node, out *slot) {
 }
 
 func isMerge(n *Node) bool {
-	return n.Kind == ScalarNode && n.Value == "<<" && (n.Tag == "" || n.Tag == "!" || ShortTag(n.Tag) == tagMerge)
+	return n.Kind == ScalarNode && n.Value == "<<" && (n.Tag == "" || n.Tag == "!" || ShortTag(n.Tag) == TagMerge)
 }
 
 // isIndicatedString reports whether a scalar is a string by its tag.
 // The model has no style bits, so a quoted or block scalar already
 // carries !!str.
 func isIndicatedString(n *Node) bool {
-	return n.Kind == ScalarNode && ShortTag(n.Tag) == tagStr
+	return n.Kind == ScalarNode && ShortTag(n.Tag) == TagStr
 }
 
 // nodeShortTag is yaml.v3's Node.ShortTag.
 func nodeShortTag(n *Node) string {
 	if isIndicatedString(n) {
-		return tagStr
+		return TagStr
 	}
 	if n.Tag != "" && n.Tag != "!" {
 		return ShortTag(n.Tag)
 	}
 	switch n.Kind {
 	case MappingNode:
-		return tagMap
+		return TagMap
 	case SequenceNode:
-		return tagSeq
+		return TagSeq
 	case AliasNode:
 		if n.Alias != nil {
 			return nodeShortTag(n.Alias)
@@ -516,7 +516,7 @@ func nodeShortTag(n *Node) string {
 		return tag
 	default:
 		if isZeroNode(n) {
-			return tagNull
+			return TagNull
 		}
 	}
 	return ""
@@ -524,7 +524,7 @@ func nodeShortTag(n *Node) string {
 
 func resolvableTag(tag string) bool {
 	switch tag {
-	case "", tagStr, tagBool, tagInt, tagFloat, tagNull, tagTimestamp:
+	case "", TagStr, TagBool, TagInt, TagFloat, TagNull, TagTimestamp:
 		return true
 	default:
 		return false
@@ -540,15 +540,15 @@ func resolve(tag string, in string) (string, interface{}) {
 	}
 	rtag, out := resolveValue(tag, in)
 	switch tag {
-	case "", rtag, tagStr, tagBinary:
+	case "", rtag, TagStr, TagBinary:
 		return rtag, out
-	case tagFloat:
-		if rtag == tagInt {
+	case TagFloat:
+		if rtag == TagInt {
 			switch v := out.(type) {
 			case int64:
-				return tagFloat, float64(v)
+				return TagFloat, float64(v)
 			case int:
-				return tagFloat, float64(v)
+				return TagFloat, float64(v)
 			default:
 			}
 		}
@@ -578,15 +578,15 @@ func resolveHint(c byte) byte {
 func resolveValue(tag, in string) (string, interface{}) {
 	// Any data is accepted as a !!str or !!binary. Otherwise, the prefix
 	// is enough of a hint about what it might be.
-	if tag == tagStr || tag == tagBinary {
-		return tagStr, in
+	if tag == TagStr || tag == TagBinary {
+		return TagStr, in
 	}
 	hint := byte('N')
 	if in != "" {
 		hint = resolveHint(in[0])
 	}
 	if hint == 0 {
-		return tagStr, in
+		return TagStr, in
 	}
 	if rtag, v, ok := resolveSpecial(in); ok {
 		return rtag, v
@@ -594,7 +594,7 @@ func resolveValue(tag, in string) (string, interface{}) {
 	switch hint {
 	case '.':
 		if floatv, err := strconv.ParseFloat(in, 64); err == nil {
-			return tagFloat, floatv
+			return TagFloat, floatv
 		}
 	case 'D', 'S':
 		if rtag, v, ok := numericValue(tag, in); ok {
@@ -602,7 +602,7 @@ func resolveValue(tag, in string) (string, interface{}) {
 		}
 	default:
 	}
-	return tagStr, in
+	return TagStr, in
 }
 
 // The lower-case spellings of the float specials.
@@ -612,23 +612,27 @@ const (
 	litNegInf = "-.inf"
 )
 
-// resolveSpecial looks up the scalars yaml.v3 resolves from a table.
+// resolveSpecial looks up the scalars yaml.v3 resolves from a table. Its
+// boolean literals are only the YAML 1.2 core forms. That differs on
+// purpose from the YAML 1.1 set that toBool in internal/yamldiff accepts
+// for nodes already tagged !!bool, and from the yes, no, on, and off table
+// in pkg/graft that serves merge, so the three tables must not be merged.
 func resolveSpecial(in string) (string, interface{}, bool) {
 	switch in {
 	case "true", "True", "TRUE":
-		return tagBool, true, true
+		return TagBool, true, true
 	case "false", "False", "FALSE":
-		return tagBool, false, true
+		return TagBool, false, true
 	case "", "~", "null", "Null", "NULL":
-		return tagNull, nil, true
+		return TagNull, nil, true
 	case litNaN, ".NaN", ".NAN":
-		return tagFloat, math.NaN(), true
+		return TagFloat, math.NaN(), true
 	case litInf, ".Inf", ".INF", "+.inf", "+.Inf", "+.INF":
-		return tagFloat, math.Inf(+1), true
+		return TagFloat, math.Inf(+1), true
 	case litNegInf, "-.Inf", "-.INF":
-		return tagFloat, math.Inf(-1), true
+		return TagFloat, math.Inf(-1), true
 	case "<<":
-		return tagMerge, "<<", true
+		return TagMerge, "<<", true
 	default:
 		return "", nil, false
 	}
@@ -639,9 +643,9 @@ func resolveSpecial(in string) (string, interface{}, bool) {
 func numericValue(tag, in string) (string, interface{}, bool) {
 	// Only try values as a timestamp if the value is unquoted or there's
 	// an explicit !!timestamp tag.
-	if tag == "" || tag == tagTimestamp {
+	if tag == "" || tag == TagTimestamp {
 		if t, ok := parseTimestamp(in); ok {
-			return tagTimestamp, t, true
+			return TagTimestamp, t, true
 		}
 	}
 	plain := strings.ReplaceAll(in, "_", "")
@@ -651,24 +655,24 @@ func numericValue(tag, in string) (string, interface{}, bool) {
 	// Octals as introduced in version 1.2 of the spec. Octals from the
 	// 1.1 spec, spelled as 0777, are still decoded for compatibility.
 	if v, ok := prefixedIntValue(plain, "0b", 2); ok {
-		return tagInt, v, true
+		return TagInt, v, true
 	}
 	if v, ok := prefixedIntValue(plain, "0o", 8); ok {
-		return tagInt, v, true
+		return TagInt, v, true
 	}
 	return "", nil, false
 }
 
 func decimalValue(plain string) (string, interface{}, bool) {
 	if intv, err := strconv.ParseInt(plain, 0, 64); err == nil {
-		return tagInt, intOrInt64(intv), true
+		return TagInt, intOrInt64(intv), true
 	}
 	if uintv, err := strconv.ParseUint(plain, 0, 64); err == nil {
-		return tagInt, uintv, true
+		return TagInt, uintv, true
 	}
 	if yamlStyleFloat.MatchString(plain) {
 		if floatv, err := strconv.ParseFloat(plain, 64); err == nil {
-			return tagFloat, floatv, true
+			return TagFloat, floatv, true
 		}
 	}
 	return "", nil, false

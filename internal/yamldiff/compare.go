@@ -35,14 +35,6 @@ import (
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
-// The short tags the engine looks at.
-const (
-	tagStr  = "!!str"
-	tagNull = "!!null"
-	tagBool = "!!bool"
-	tagSeq  = "!!seq"
-)
-
 // nonStandardIdentifierGuessCountThreshold is how many distinct values a
 // guessed identifier field must exceed before it names list entries.
 const nonStandardIdentifierGuessCountThreshold = 3
@@ -164,14 +156,14 @@ func documentRoot(document *yamlnode.Node) *yamlnode.Node {
 
 func scalarNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
 	switch from.Tag {
-	case tagStr:
+	case yamlnode.TagStr:
 		return nodeValues(path, from, to), nil
 
-	case tagNull:
+	case yamlnode.TagNull:
 		// Every way of writing a null value is the same null.
 		return nil, nil
 
-	case tagBool:
+	case yamlnode.TagBool:
 		return boolValues(path, from, to)
 
 	default:
@@ -573,7 +565,11 @@ func boolValues(path Path, from, to *yamlnode.Node) ([]Diff, error) {
 }
 
 // trueValues and falseValues are the YAML 1.1 boolean literals listed at
-// https://yaml.org/type/bool.html.
+// https://yaml.org/type/bool.html. They are the set dyff accepted, and
+// toBool reaches them only for nodes tagged !!bool. That differs on purpose
+// from the YAML 1.2 core forms in internal/yamlnode, which decide what is
+// tagged !!bool in the first place, and from the yes, no, on, and off table
+// in pkg/graft that serves merge, so the three tables must not be merged.
 var (
 	trueValues  = [...]string{"y", "Y", "yes", "Yes", "YES", "true", "True", "TRUE", "on", "On", "ON"}
 	falseValues = [...]string{"n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF"}
@@ -614,13 +610,13 @@ func findOrderChangesInSimpleList(fromCommon, toCommon hashedNodes) []Detail {
 }
 
 // AsSequenceNode returns a sequence node that holds each string as a
-// "!!str" scalar. The sequence itself has no tag.
+// string scalar. The sequence itself has no tag.
 func AsSequenceNode(list ...string) *yamlnode.Node {
 	result := make([]*yamlnode.Node, len(list))
 	for i, entry := range list {
 		result[i] = &yamlnode.Node{
 			Kind:  yamlnode.ScalarNode,
-			Tag:   tagStr,
+			Tag:   yamlnode.TagStr,
 			Value: entry,
 		}
 	}
@@ -668,14 +664,14 @@ func packChangesAndAddToResult(list []Diff, path Path, orderchanges []Detail, ad
 	if len(removals) > 0 {
 		diff.Details = append(diff.Details, Detail{
 			Kind: REMOVAL,
-			From: &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: tagSeq, Content: removals},
+			From: &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: yamlnode.TagSeq, Content: removals},
 		})
 	}
 
 	if len(additions) > 0 {
 		diff.Details = append(diff.Details, Detail{
 			Kind: ADDITION,
-			To:   &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: tagSeq, Content: additions},
+			To:   &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: yamlnode.TagSeq, Content: additions},
 		})
 	}
 
@@ -757,7 +753,7 @@ func getIdentifierFromNamedLists(listA, listB *yamlnode.Node) (listItemIdentifie
 	return nil, false
 }
 
-// stringFieldCounts maps each "!!str" key whose value is a "!!str" scalar
+// stringFieldCounts maps each string key whose value is a string scalar
 // to the number of distinct values it has across the entries of the
 // list. A list with an entry that is not a mapping has no such keys.
 func stringFieldCounts(list *yamlnode.Node) map[string]int {
@@ -769,8 +765,8 @@ func stringFieldCounts(list *yamlnode.Node) map[string]int {
 
 		for i := 0; i+1 < len(entry.Content); i += 2 {
 			k, v := yamlnode.FollowAlias(entry.Content[i]), yamlnode.FollowAlias(entry.Content[i+1])
-			if k.Kind == yamlnode.ScalarNode && k.Tag == tagStr &&
-				v.Kind == yamlnode.ScalarNode && v.Tag == tagStr {
+			if k.Kind == yamlnode.ScalarNode && k.Tag == yamlnode.TagStr &&
+				v.Kind == yamlnode.ScalarNode && v.Tag == yamlnode.TagStr {
 				if _, ok := tmp[k.Value]; !ok {
 					tmp[k.Value] = map[string]struct{}{}
 				}
@@ -841,5 +837,5 @@ func isEmptyDocument(node *yamlnode.Node) bool {
 		return false
 	}
 
-	return node.Content[0].Kind == yamlnode.ScalarNode && node.Content[0].Tag == tagNull
+	return node.Content[0].Kind == yamlnode.ScalarNode && node.Content[0].Tag == yamlnode.TagNull
 }

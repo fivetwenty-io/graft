@@ -26,79 +26,95 @@ import (
 
 const longTagPrefix = "tag:yaml.org,2002:"
 
-// The short tags yaml.v3 assigns.
+// The short tags yaml.v3 assigns. Every package in the module that looks at
+// a node's tag uses these names rather than repeating the literals.
 const (
-	tagNull      = "!!null"
-	tagBool      = "!!bool"
-	tagInt       = "!!int"
-	tagFloat     = "!!float"
-	tagStr       = "!!str"
-	tagTimestamp = "!!timestamp"
-	tagMerge     = "!!merge"
-	tagBinary    = "!!binary"
-	tagMap       = "!!map"
-	tagSeq       = "!!seq"
+	// TagNull is the short tag of a null scalar.
+	TagNull = "!!null"
+	// TagBool is the short tag of a boolean scalar.
+	TagBool = "!!bool"
+	// TagInt is the short tag of an integer scalar.
+	TagInt = "!!int"
+	// TagFloat is the short tag of a floating point scalar.
+	TagFloat = "!!float"
+	// TagStr is the short tag of a string scalar.
+	TagStr = "!!str"
+	// TagTimestamp is the short tag of a timestamp scalar.
+	TagTimestamp = "!!timestamp"
+	// TagMerge is the short tag of the "<<" merge key.
+	TagMerge = "!!merge"
+	// TagBinary is the short tag of a base64 binary scalar.
+	TagBinary = "!!binary"
+	// TagMap is the short tag of a mapping.
+	TagMap = "!!map"
+	// TagSeq is the short tag of a sequence.
+	TagSeq = "!!seq"
 )
 
 // ResolvePlainTag returns the tag yaml.v3 gives an untagged plain scalar.
+// Its boolean literals are only the YAML 1.2 core forms (true, True, TRUE,
+// false, False, and FALSE). That differs on purpose from the YAML 1.1 set
+// that toBool in internal/yamldiff accepts for nodes already tagged !!bool,
+// and from the yes, no, on, and off table in pkg/graft that serves merge,
+// so the three tables must not be merged.
 func ResolvePlainTag(in string) string {
 	if in == "<<" {
-		return tagMerge
+		return TagMerge
 	}
 	switch in {
 	case "", "~", "null", "Null", "NULL":
-		return tagNull
+		return TagNull
 	case "true", "True", "TRUE", "false", "False", "FALSE":
-		return tagBool
+		return TagBool
 	case ".nan", ".NaN", ".NAN", ".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF", "-.inf", "-.Inf", "-.INF":
-		return tagFloat
+		return TagFloat
 	}
 	switch c := in[0]; {
 	case c == '.':
 		if _, err := strconv.ParseFloat(in, 64); err == nil {
-			return tagFloat
+			return TagFloat
 		}
 	case c == '+' || c == '-' || (c >= '0' && c <= '9'):
 		return resolveNumeric(in)
 	}
-	return tagStr
+	return TagStr
 }
 
 func resolveNumeric(in string) string {
 	if isTimestamp(in) {
-		return tagTimestamp
+		return TagTimestamp
 	}
 	plain := strings.ReplaceAll(in, "_", "")
 	if _, err := strconv.ParseInt(plain, 0, 64); err == nil {
-		return tagInt
+		return TagInt
 	}
 	if _, err := strconv.ParseUint(plain, 0, 64); err == nil {
-		return tagInt
+		return TagInt
 	}
 	if yamlStyleFloat.MatchString(plain) {
 		if _, err := strconv.ParseFloat(plain, 64); err == nil {
-			return tagFloat
+			return TagFloat
 		}
 	}
 	switch {
 	case strings.HasPrefix(plain, "0b"):
 		if fitsBase(plain[2:], 2) {
-			return tagInt
+			return TagInt
 		}
 	case strings.HasPrefix(plain, "-0b"):
 		if _, err := strconv.ParseInt("-"+plain[3:], 2, 64); err == nil {
-			return tagInt
+			return TagInt
 		}
 	case strings.HasPrefix(plain, "0o"):
 		if fitsBase(plain[2:], 8) {
-			return tagInt
+			return TagInt
 		}
 	case strings.HasPrefix(plain, "-0o"):
 		if _, err := strconv.ParseInt("-"+plain[3:], 8, 64); err == nil {
-			return tagInt
+			return TagInt
 		}
 	}
-	return tagStr
+	return TagStr
 }
 
 func fitsBase(s string, base int) bool {

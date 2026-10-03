@@ -280,10 +280,10 @@ func humanReadableType(node *yamlnode.Node) (string, error) {
 
 	case yamlnode.ScalarNode:
 		switch node.Tag {
-		case nodeTagString:
+		case yamlnode.TagStr:
 			return "string", nil
 
-		case nodeTagNull:
+		case yamlnode.TagNull:
 			return "<nil>", nil
 
 		default:

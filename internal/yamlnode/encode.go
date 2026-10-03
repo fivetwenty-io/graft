@@ -118,7 +118,7 @@ func encodeKind(in reflect.Value) (*Node, error) {
 }
 
 func nullNode() *Node {
-	return &Node{Kind: ScalarNode, Tag: tagNull, Value: "null"}
+	return &Node{Kind: ScalarNode, Tag: TagNull, Value: "null"}
 }
 
 // plainNode builds a scalar the emitter writes plain, so a reparse
@@ -150,18 +150,18 @@ func floatNode(in reflect.Value) *Node {
 // becomes base64 under !!binary.
 func stringNode(s string) *Node {
 	if !utf8.ValidString(s) {
-		return &Node{Kind: ScalarNode, Tag: tagBinary, Value: encodeBase64(s)}
+		return &Node{Kind: ScalarNode, Tag: TagBinary, Value: encodeBase64(s)}
 	}
 	if s == "<<" {
-		return &Node{Kind: ScalarNode, Tag: tagMerge, Value: s}
+		return &Node{Kind: ScalarNode, Tag: TagMerge, Value: s}
 	}
-	return &Node{Kind: ScalarNode, Tag: tagStr, Value: s}
+	return &Node{Kind: ScalarNode, Tag: TagStr, Value: s}
 }
 
 func encodeMap(in reflect.Value) (*Node, error) {
 	keys := in.MapKeys()
 	SortKeys(keys)
-	m := &Node{Kind: MappingNode, Tag: tagMap}
+	m := &Node{Kind: MappingNode, Tag: TagMap}
 	for _, k := range keys {
 		if err := appendPair(m, k, in.MapIndex(k)); err != nil {
 			return nil, err
@@ -171,7 +171,7 @@ func encodeMap(in reflect.Value) (*Node, error) {
 }
 
 func encodeSlice(in reflect.Value) (*Node, error) {
-	s := &Node{Kind: SequenceNode, Tag: tagSeq}
+	s := &Node{Kind: SequenceNode, Tag: TagSeq}
 	for i := 0; i < in.Len(); i++ {
 		item, err := encodeValue(in.Index(i))
 		if err != nil {
@@ -201,7 +201,7 @@ func encodeStruct(in reflect.Value) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := &Node{Kind: MappingNode, Tag: tagMap}
+	m := &Node{Kind: MappingNode, Tag: TagMap}
 	for _, info := range sinfo.fields {
 		value := in.Field(info.num)
 		if info.inline != nil {

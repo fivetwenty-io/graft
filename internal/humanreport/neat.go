@@ -63,16 +63,6 @@ const (
 	emptyObject = "{}"
 )
 
-// The short tags neat colors by.
-const (
-	nodeTagBinary = "!!binary"
-	nodeTagBool   = "!!bool"
-	nodeTagFloat  = "!!float"
-	nodeTagInt    = "!!int"
-	nodeTagNull   = "!!null"
-	nodeTagString = "!!str"
-)
-
 var numberRegEx = regexp.MustCompile(`^(-|\+)?[0-9.e+]+$`)
 
 // palette maps neat's color names to foreground colors. A nil palette means
@@ -130,7 +120,7 @@ func neatYAML(n *yamlnode.Node, p palette, m termstyle.Mode) (string, error) {
 // yamlString renders a changed value the way dyff's yamlString does, which
 // is neat without a palette. It returns "<nil>" for nil and !!null.
 func yamlString(n *yamlnode.Node, m termstyle.Mode) (string, error) {
-	if n == nil || n.Tag == nodeTagNull {
+	if n == nil || n.Tag == yamlnode.TagNull {
 		return "<nil>", nil
 	}
 
@@ -287,15 +277,15 @@ func (w *neatWriter) nestedValue(value *yamlnode.Node, empty, childPrefix string
 func (w *neatWriter) scalar(prefix string, n *yamlnode.Node) {
 	colorName := colorScalarDefault
 	switch n.Tag {
-	case nodeTagBinary:
+	case yamlnode.TagBinary:
 		colorName = colorBinary
-	case nodeTagFloat:
+	case yamlnode.TagFloat:
 		colorName = colorFloat
-	case nodeTagInt:
+	case yamlnode.TagInt:
 		colorName = colorInt
-	case nodeTagBool:
+	case yamlnode.TagBool:
 		colorName = colorBool
-	case nodeTagNull:
+	case yamlnode.TagNull:
 		colorName = colorNull
 	}
 
@@ -331,7 +321,7 @@ func (w *neatWriter) scalar(prefix string, n *yamlnode.Node) {
 
 // needsQuotes reports whether neat prints a string scalar in quotes.
 func needsQuotes(n *yamlnode.Node) bool {
-	if n.Tag != nodeTagString {
+	if n.Tag != yamlnode.TagStr {
 		return false
 	}
 

@@ -77,6 +77,10 @@ func DefaultYAMLCompat() *YAMLCompat {
 }
 
 // ConvertValue applies YAML 1.1 compatibility conversions to a string value.
+// Its yes, no, on, and off table serves merge. That differs on purpose from
+// the YAML 1.2 core forms in internal/yamlnode and from the YAML 1.1 set
+// that toBool in internal/yamldiff accepts for nodes tagged !!bool, so the
+// three tables must not be merged.
 func (c *YAMLCompat) ConvertValue(s string) interface{} {
 	if !c.ConvertYAML11Booleans {
 		return s

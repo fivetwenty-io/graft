@@ -135,9 +135,9 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 func (b *builder) buildValue(n ast.Node, anchor string) (*Node, error) {
 	switch x := n.(type) {
 	case nil:
-		return &Node{Kind: ScalarNode, Tag: tagNull}, nil
+		return &Node{Kind: ScalarNode, Tag: TagNull}, nil
 	case *ast.MappingNode:
-		out := b.collection(MappingNode, tagMap, anchor, x)
+		out := b.collection(MappingNode, TagMap, anchor, x)
 		for _, mv := range x.Values {
 			if err := b.pair(out, mv); err != nil {
 				return nil, err
@@ -145,10 +145,10 @@ func (b *builder) buildValue(n ast.Node, anchor string) (*Node, error) {
 		}
 		return out, nil
 	case *ast.MappingValueNode:
-		out := b.collection(MappingNode, tagMap, anchor, x)
+		out := b.collection(MappingNode, TagMap, anchor, x)
 		return out, b.pair(out, x)
 	case *ast.SequenceNode:
-		out := b.collection(SequenceNode, tagSeq, anchor, x)
+		out := b.collection(SequenceNode, TagSeq, anchor, x)
 		for _, v := range x.Values {
 			item, err := b.build(v)
 			if err != nil {
@@ -170,14 +170,14 @@ func (b *builder) buildValue(n ast.Node, anchor string) (*Node, error) {
 func (b *builder) buildScalar(n ast.ScalarNode) *Node {
 	switch x := n.(type) {
 	case *ast.LiteralNode:
-		out := b.scalar(x, tagStr, literalValue(x))
+		out := b.scalar(x, TagStr, literalValue(x))
 		b.lastBlock, b.lastBlockStrips = out, strings.Contains(x.Start.Value, "-")
 		return out
 	case *ast.MergeKeyNode:
-		return b.scalar(x, tagMerge, "<<")
+		return b.scalar(x, TagMerge, "<<")
 	case *ast.StringNode:
 		if tt := x.GetToken().Type; tt == token.SingleQuoteType || tt == token.DoubleQuoteType {
-			return b.scalar(x, tagStr, x.Value)
+			return b.scalar(x, TagStr, x.Value)
 		}
 		return b.scalar(x, ResolvePlainTag(x.Value), x.Value)
 	case *ast.NullNode:
@@ -186,7 +186,7 @@ func (b *builder) buildScalar(n ast.ScalarNode) *Node {
 		if tk.Type == token.ImplicitNullType || (v == "~" && b.nulledLines[tk.Position.Line+b.lineOffset]) {
 			v = ""
 		}
-		return b.scalar(x, tagNull, v)
+		return b.scalar(x, TagNull, v)
 	default:
 		v := n.GetToken().Value
 		return b.scalar(n, ResolvePlainTag(v), v)
