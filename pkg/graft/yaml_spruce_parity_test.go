@@ -242,7 +242,8 @@ func TestParseYAML_BareDashInBlockScalarUntouched(t *testing.T) {
 // string values matching goccy/go-yaml's reserved Inf/NaN float
 // keywords (".nan", ".inf", "-.inf", and case variants) stay quoted on
 // marshal, matching spruce, so re-parsing yields a string rather than a
-// float. See needsExplicitQuote in yaml.go for the goccy root cause.
+// float. goccy's parser reserves these keywords, but its encoder's
+// quoting check does not, so graft's marshal must quote them itself.
 func TestMarshalYAML_QuotesSpecialFloatLookalikeStrings(t *testing.T) {
 	values := []string{
 		".nan", ".NaN", ".NAN",
@@ -270,18 +271,18 @@ func TestMarshalYAML_QuotesSpecialFloatLookalikeStrings(t *testing.T) {
 	}
 }
 
-// TestMarshalYAML_PlusInfLookalikeUnaffected confirms "+.inf" is left
-// alone: goccy does not recognize a "+" sign on the Inf keyword, so it
-// already round-trips as a string without help, and forcing a quote
-// here would just be cosmetic noise.
-func TestMarshalYAML_PlusInfLookalikeUnaffected(t *testing.T) {
+// TestMarshalYAML_PlusInfLookalikeQuotedLikeSpruce confirms "+.inf" is
+// double-quoted. spruce's YAML library reads "+.inf" as a float, so
+// spruce quotes it, even though goccy would read the bare word back as
+// a string.
+func TestMarshalYAML_PlusInfLookalikeQuotedLikeSpruce(t *testing.T) {
 	data := map[string]interface{}{"v": "+.inf"}
 	out, err := MarshalYAML(data)
 	if err != nil {
 		t.Fatalf("MarshalYAML returned error: %v", err)
 	}
-	if strings.Contains(string(out), `"+.inf"`) {
-		t.Errorf("expected +.inf to stay unquoted (already round-trips as a string), got:\n%s", out)
+	if string(out) != "v: \"+.inf\"\n" {
+		t.Errorf("expected +.inf double-quoted as spruce writes it, got:\n%s", out)
 	}
 
 	var back map[string]interface{}

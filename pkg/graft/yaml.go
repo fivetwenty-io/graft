@@ -3,21 +3,22 @@ package graft
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
+	"github.com/goccy/go-yaml/token"
 )
 
 // MarshalYAML serializes a value to YAML with 2-space indentation,
 // matching the output format expected by BOSH and CF ecosystem tools.
 // Map keys are emitted in spruce's two-tier order (see spruceKeyLess).
-// String values that cannot be written as plain scalars for syntax
-// reasons are single-quoted like spruce's emitter (see
-// prefersSingleQuote); type-lookalike strings keep goccy's double
-// quotes, which is also what spruce emits for those.
+// Every string, key or value, is written in the style spruce's emitter
+// picks for it (plain, single-quoted, double-quoted, or a literal
+// block), folded at the same column, and keys spruce cannot write as
+// simple keys use the explicit "? key" form; see scalarEncoder.
 func MarshalYAML(v interface{}) ([]byte, error) {
 	return MarshalYAMLWithComments(v, nil)
 }
@@ -48,7 +49,7 @@ type YAMLHeadComment struct {
 // "graft merge --report-deferred=inline" is the only current caller,
 // attaching one comment per deferred key directly above that key.
 func MarshalYAMLWithComments(v interface{}, comments []YAMLHeadComment) ([]byte, error) {
-	v = prepareForEncode(v)
+	enc, prepared := newScalarEncoder(v, comments)
 
 	opts := []yaml.EncodeOption{yaml.Indent(2)}
 	if len(comments) > 0 {
@@ -57,7 +58,7 @@ func MarshalYAMLWithComments(v interface{}, comments []YAMLHeadComment) ([]byte,
 			if len(c.Lines) == 0 {
 				continue
 			}
-			yamlPath, ok := graftPathToYAMLPath(c.Path)
+			yamlPath, ok := graftPathToYAMLPath(enc.encodedPath(prepared, c.Path))
 			if !ok {
 				continue
 			}
@@ -69,14 +70,14 @@ func MarshalYAMLWithComments(v interface{}, comments []YAMLHeadComment) ([]byte,
 	}
 
 	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf, opts...)
-	if err := enc.Encode(v); err != nil {
+	ye := yaml.NewEncoder(&buf, opts...)
+	if err := ye.Encode(prepared); err != nil {
 		return nil, err
 	}
-	if err := enc.Close(); err != nil {
+	if err := ye.Close(); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	return enc.substitute(buf.Bytes()), nil
 }
 
 // graftPathToYAMLPath converts a graft/spruce dotted document path (no
@@ -133,141 +134,118 @@ func isAllDigitsSegment(seg string) bool {
 	return true
 }
 
-// specialFloatLookalikeRe narrows down candidate strings before paying
-// the cost of a real parse-verification check in needsExplicitQuote: an
-// optional sign followed by a case-insensitive "inf" or "nan" behind a
-// leading dot, e.g. ".nan", "-.Inf", ".INF".
-var specialFloatLookalikeRe = regexp.MustCompile(`(?i)^[-+]?\.(inf|nan)$`)
+// scalarPlaceholderPrefix starts the stand-in text scalarEncoder puts
+// in place of a string before goccy encodes the tree. It is a plain
+// scalar to goccy, so goccy writes it verbatim, and an "X" is appended
+// to it for as long as the document's own text contains it.
+const scalarPlaceholderPrefix = "graftscalar"
 
-// needsExplicitQuote reports whether s, written as a bare (unquoted)
-// YAML plain scalar, would be re-parsed back as something other than a
-// string. goccy/go-yaml v1.19.2 recognizes ".nan"/".inf"/"-.inf" (and
-// their case variants) as reserved float keywords when *parsing*
-// (token.reservedInfKeywords / reservedNanKeywords are registered into
-// its parse-time keyword table), but its encode-time quoting-need check
-// never learns about them -- that same init() only copies the null and
-// standard bool keyword tables into its encode-time lookup, not the
-// inf/nan ones. The result: goccy writes these strings back out
-// unquoted, and a re-parse silently turns the original string into a
-// float. spruce (yaml.v2-family) quotes them. This performs an actual
-// round-trip check through goccy's own parser rather than hardcoding
-// its keyword table, so the guard keeps working even if a future goccy
-// version changes that table -- it only pays the parse cost for strings
-// that already look like plausible candidates.
-func needsExplicitQuote(s string) bool {
-	if !specialFloatLookalikeRe.MatchString(s) {
-		return false
-	}
-	var reparsed interface{}
-	if err := yaml.Unmarshal([]byte(s), &reparsed); err != nil {
-		return false // not a parseable bare scalar; goccy handles quoting some other way
-	}
-	_, isString := reparsed.(string)
-	return !isString
+// scalarSlotKind says where a placeholder stands in the document.
+type scalarSlotKind uint8
+
+const (
+	// valueSlot is a mapping value, a sequence item, or the document
+	// root.
+	valueSlot scalarSlotKind = iota
+	// simpleKeySlot is a mapping key written as "key: value".
+	simpleKeySlot
+)
+
+// scalarSlot records one string that substitute writes in spruce's
+// style in place of its placeholder.
+type scalarSlot struct {
+	s    string
+	kind scalarSlotKind
+	// indent is the block indent of a value's continuation lines.
+	indent int
+	// indention is libyaml's flag for a value that only indentation and
+	// indicators precede on its line, as after "- ".
+	indention bool
 }
 
-// forcedQuoteString marshals as an explicitly double-quoted YAML plain
-// scalar via goccy's BytesMarshaler hook, bypassing goccy's own
-// (incomplete) quoting-need heuristic for values needsExplicitQuote has
-// verified would otherwise re-parse as a different type.
-type forcedQuoteString string
-
-// MarshalYAML implements github.com/goccy/go-yaml's BytesMarshaler.
-func (s forcedQuoteString) MarshalYAML() ([]byte, error) {
-	return []byte(strconv.Quote(string(s))), nil
+// nodePosition is where libyaml writes a node: the column a scalar
+// starts at and the indent its continuation lines use, and the columns
+// a block mapping's keys or a block sequence's dashes sit at.
+type nodePosition struct {
+	scalarColumn int
+	scalarIndent int
+	indention    bool
+	mapColumn    int
+	seqColumn    int
 }
 
-// prefersSingleQuote reports whether s is a string spruce's emitter
-// writes single-quoted: one that cannot be written as a plain scalar
-// for syntax reasons (a leading `*`, `&`, `%`, an opening bracket, and
-// so on — anything goccy's parser rejects outright as a bare scalar)
-// yet contains nothing that needs double-quote escapes. Type-lookalike
-// strings ("1.0", "yes", "null") parse fine as plain scalars — just to
-// a different type — and are excluded here: both spruce and goccy
-// double-quote those. The distinction matters beyond aesthetics:
-// genesis's Credhub entombment step regex-replaces `((...))` with `""`
-// inside the rendered manifest and re-parses it, which stays valid
-// YAML inside single quotes (`'*.uaa.""'`) but is malformed inside
-// double quotes (`"*.uaa."""`).
-func prefersSingleQuote(s string) bool {
-	if s == "" {
-		return false
+// rootPosition is the document root. A root scalar's continuation lines
+// sit at libyaml's best indent.
+var rootPosition = nodePosition{scalarIndent: scalarBestIndent, indention: true}
+
+// mapValuePosition is the value of a simple key of width keyWidth in a
+// mapping whose keys sit at column m. A sequence there is indentless.
+func mapValuePosition(m, keyWidth int) nodePosition {
+	return nodePosition{
+		scalarColumn: m + keyWidth + 2,
+		scalarIndent: m + scalarBestIndent,
+		mapColumn:    m + scalarBestIndent,
+		seqColumn:    m,
 	}
-	for _, r := range s {
-		if r < 0x20 || r == 0x7f {
-			return false // needs escapes; leave to goccy's double-quote style
+}
+
+// seqItemPosition is an item of a sequence whose dashes sit at column d.
+func seqItemPosition(d int) nodePosition {
+	return nodePosition{
+		scalarColumn: d + 2,
+		scalarIndent: d + scalarBestIndent,
+		indention:    true,
+		mapColumn:    d + scalarBestIndent,
+		seqColumn:    d + scalarBestIndent,
+	}
+}
+
+// scalarEncoder writes strings the way spruce does on top of goccy's
+// encoder. goccy lays out the mappings and sequences, which already
+// match spruce's layout, but picks scalar styles by its own rules and
+// cannot write an explicit "? key". So prepare swaps every string that
+// goccy would write differently from spruce for a numbered placeholder,
+// goccy encodes the tree, and substitute replaces each placeholder with
+// the text spruce's emitter writes at that column (see yaml_scalar.go).
+type scalarEncoder struct {
+	prefix string
+	slots  []scalarSlot
+}
+
+// newScalarEncoder prepares v for goccy and returns the encoder that
+// fills its placeholders back in.
+func newScalarEncoder(v interface{}, comments []YAMLHeadComment) (*scalarEncoder, interface{}) {
+	prefix := scalarPlaceholderPrefix
+	for {
+		e := &scalarEncoder{prefix: prefix}
+		prepared, ok := e.prepare(v, rootPosition)
+		if ok && !commentsContain(comments, prefix) {
+			return e, prepared
 		}
+		prefix += "X"
 	}
-	if plainScalarParseCannotFail(s) {
-		return false
-	}
-	var reparsed interface{}
-	return yaml.Unmarshal([]byte(s), &reparsed) != nil
 }
 
-// plainScalarParseCannotFail reports, from a byte scan, that parsing s
-// as a bare YAML scalar cannot possibly error - the classification the
-// yaml.Unmarshal fallback in prefersSingleQuote exists to make. It
-// whitelists the characters ordinary manifest strings are built from:
-// alphanumerics, `_ . / + = -` and single spaces, `@` beyond the first
-// byte (`@` is a reserved indicator only at the start), and `:` when not
-// followed by a space or end of string (a trailing or space-followed
-// colon turns the scalar into a mapping, which still parses - but maps,
-// like every successful parse, answer "no single quote" anyway; keeping
-// them out of the whitelist documents intent rather than correctness).
-// Anything else - flow indicators, anchors, tags, directives, quotes,
-// comments, commas, a leading dash - stays with the full parse. False
-// negatives only cost the parse; a false positive would change quoting,
-// so the whitelist is strict.
-func plainScalarParseCannotFail(s string) bool {
-	if s == "" {
-		return false
-	}
-	if s[0] == '-' || s[0] == '@' || s[0] == ' ' {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
-		case c == '_', c == '.', c == '/', c == '+', c == '=', c == ' ', c == '-', c == '@':
-		case c == ':':
-			if i+1 >= len(s) || s[i+1] == ' ' {
-				return false
+func commentsContain(comments []YAMLHeadComment, s string) bool {
+	for _, c := range comments {
+		for _, line := range c.Lines {
+			if strings.Contains(line, s) {
+				return true
 			}
-		default:
-			return false
 		}
 	}
-	return true
+	return false
 }
 
-// singleQuotedString marshals as an explicitly single-quoted YAML
-// scalar via goccy's BytesMarshaler hook, for values prefersSingleQuote
-// has classified as spruce's single-quote class.
-type singleQuotedString string
-
-// MarshalYAML implements github.com/goccy/go-yaml's BytesMarshaler.
-func (s singleQuotedString) MarshalYAML() ([]byte, error) {
-	return []byte("'" + strings.ReplaceAll(string(s), "'", "''") + "'"), nil
-}
-
-// prepareForEncode walks v, rebuilding the tree for the encoder: every
-// map becomes a yaml.MapSlice with its keys in spruceKeyLess order
-// (goccy's own encoder would sort them purely lexicographically), and
-// any string value that needsExplicitQuote flags becomes a
-// forcedQuoteString so it survives a marshal/re-parse round trip as a
-// string. It returns a new tree; the input is not mutated.
-func prepareForEncode(v interface{}) interface{} {
+// prepare rebuilds v for goccy: every map becomes a yaml.MapSlice with
+// its keys in spruceKeyLess order (goccy's own encoder would sort them
+// purely lexicographically), and strings become placeholders where
+// needed. It reports ok=false when a string contains e.prefix. The
+// input is not mutated.
+func (e *scalarEncoder) prepare(v interface{}, pos nodePosition) (interface{}, bool) {
 	switch val := v.(type) {
 	case string:
-		if needsExplicitQuote(val) {
-			return forcedQuoteString(val)
-		}
-		if prefersSingleQuote(val) {
-			return singleQuotedString(val)
-		}
-		return val
+		return e.prepareValue(val, pos)
 	case map[string]interface{}:
 		keys := make([]string, 0, len(val))
 		for k := range val {
@@ -278,9 +256,17 @@ func prepareForEncode(v interface{}) interface{} {
 		})
 		out := make(yaml.MapSlice, 0, len(keys))
 		for _, k := range keys {
-			out = append(out, yaml.MapItem{Key: k, Value: prepareForEncode(val[k])})
+			key, valuePos, ok := e.prepareKey(k, pos.mapColumn)
+			if !ok {
+				return nil, false
+			}
+			item, ok := e.prepare(val[k], valuePos)
+			if !ok {
+				return nil, false
+			}
+			out = append(out, yaml.MapItem{Key: key, Value: item})
 		}
-		return out
+		return out, true
 	case map[interface{}]interface{}:
 		// Stringify keys before building MapItems: goccy's MapSlice
 		// encoder type-asserts each key .(string) unchecked and would
@@ -289,14 +275,228 @@ func prepareForEncode(v interface{}) interface{} {
 		for k, item := range val {
 			converted[fmt.Sprintf("%v", k)] = item
 		}
-		return prepareForEncode(converted)
+		return e.prepare(converted, pos)
 	case []interface{}:
 		out := make([]interface{}, len(val))
+		itemPos := seqItemPosition(pos.seqColumn)
 		for i, item := range val {
-			out[i] = prepareForEncode(item)
+			prepared, ok := e.prepare(item, itemPos)
+			if !ok {
+				return nil, false
+			}
+			out[i] = prepared
 		}
-		return out
+		return out, true
 	default:
-		return v
+		return v, true
 	}
+}
+
+// prepareValue returns s, or a placeholder when goccy would write s
+// differently from spruce.
+func (e *scalarEncoder) prepareValue(s string, pos nodePosition) (interface{}, bool) {
+	if strings.Contains(s, e.prefix) {
+		return nil, false
+	}
+	if !utf8.ValidString(s) {
+		// goccy keeps these; spruce cannot read such a string anyway.
+		return s, true
+	}
+	if renderValueScalar(s, pos.scalarColumn, pos.scalarIndent, pos.indention) == s && goccyWritesVerbatim(s) {
+		return s, true
+	}
+	return e.placeholder(scalarSlot{s: s, kind: valueSlot, indent: pos.scalarIndent, indention: pos.indention}), true
+}
+
+// prepareKey returns key k, or a placeholder for it, and the position
+// of its value in a mapping whose keys sit at column m.
+func (e *scalarEncoder) prepareKey(k string, m int) (interface{}, nodePosition, bool) {
+	if strings.Contains(k, e.prefix) {
+		return nil, nodePosition{}, false
+	}
+	if !utf8.ValidString(k) {
+		return k, mapValuePosition(m, len(k)), true
+	}
+	text, simple := renderSimpleKey(k, m)
+	if !simple {
+		// spruce writes this key in the explicit "? key" form, which
+		// goccy cannot write; goccy's own rendering stands.
+		return k, mapValuePosition(m, utf8.RuneCountInString(k)), true
+	}
+	pos := mapValuePosition(m, utf8.RuneCountInString(text))
+	if text == k && goccyWritesVerbatim(k) {
+		return k, pos, true
+	}
+	return e.placeholder(scalarSlot{s: k, kind: simpleKeySlot}), pos, true
+}
+
+// goccyWritesVerbatim reports whether goccy writes s, a string spruce
+// writes as the plain scalar s, as that same text. goccy quotes what
+// token.IsNeedQuoted flags and writes a string with a line break as a
+// literal block.
+//
+// token.IsNeedQuoted tries five time layouts on every string, and each
+// failed time.Parse allocates an error, which on a large document costs
+// more than the rest of the encode. Only a string that starts with a
+// digit can match those layouts or read as one of goccy's numbers
+// (goccy strips a leading sign or dot first, and spruce already quotes
+// every such number), so a string that starts with anything else gets
+// the remaining checks inline. goccy's reserved words are all words
+// spruce's resolver reads as bools or nulls, so a string spruce writes
+// plain is never one of them.
+func goccyWritesVerbatim(s string) bool {
+	if s == "" || strings.ContainsAny(s, "\r\n") {
+		return false
+	}
+	switch c := s[0]; {
+	case c >= '0' && c <= '9', c == '+', c == '-', c == '.':
+		return !token.IsNeedQuoted(s)
+	case strings.IndexByte("*&[{}],!|>%'\"@ `", c) >= 0:
+		return false
+	}
+	if last := s[len(s)-1]; last == ':' || last == ' ' {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '#', '\\':
+			return false
+		case ':', '-':
+			if i+1 < len(s) && s[i+1] == ' ' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (e *scalarEncoder) placeholder(slot scalarSlot) string {
+	e.slots = append(e.slots, slot)
+	return e.prefix + strconv.Itoa(len(e.slots)-1) + "_"
+}
+
+// original returns the string a prepared key stands for.
+func (e *scalarEncoder) original(key string) string {
+	if idx, n := e.slotAt([]byte(key)); n == len(key) {
+		return e.slots[idx].s
+	}
+	return key
+}
+
+// slotAt parses a placeholder at the start of b, returning its slot
+// index and length, or a length of zero when b does not start with one.
+func (e *scalarEncoder) slotAt(b []byte) (int, int) {
+	if !bytes.HasPrefix(b, []byte(e.prefix)) {
+		return 0, 0
+	}
+	i := len(e.prefix)
+	start := i
+	for i < len(b) && b[i] >= '0' && b[i] <= '9' {
+		i++
+	}
+	if i == start || i >= len(b) || b[i] != '_' {
+		return 0, 0
+	}
+	idx, err := strconv.Atoi(string(b[start:i]))
+	if err != nil || idx >= len(e.slots) {
+		return 0, 0
+	}
+	return idx, i + 1
+}
+
+// encodedPath rewrites the keys of a dotted document path to the keys
+// they became in prepared, so a comment path still names its node once
+// that node's key is a placeholder.
+func (e *scalarEncoder) encodedPath(prepared interface{}, path string) string {
+	segs := strings.Split(path, ".")
+	node := prepared
+	for i, seg := range segs {
+		switch n := node.(type) {
+		case yaml.MapSlice:
+			node = nil
+			for _, item := range n {
+				key, _ := item.Key.(string)
+				if e.original(key) == seg {
+					segs[i] = key
+					node = item.Value
+					break
+				}
+			}
+		case []interface{}:
+			node = nil
+			if idx, err := strconv.Atoi(seg); err == nil && idx >= 0 && idx < len(n) {
+				node = n[idx]
+			}
+		default:
+			node = nil
+		}
+	}
+	return strings.Join(segs, ".")
+}
+
+// substitute copies goccy's output, writing spruce's text for each
+// placeholder at the column it lands on.
+func (e *scalarEncoder) substitute(in []byte) []byte {
+	if len(e.slots) == 0 {
+		return in
+	}
+	st := &substitution{in: in, out: make([]byte, 0, len(in)+len(in)/8)}
+	for i := 0; i < len(in); {
+		if in[i] == e.prefix[0] {
+			if idx, n := e.slotAt(in[i:]); n > 0 {
+				i = st.writeSlot(e.slots[idx], i+n)
+				continue
+			}
+		}
+		st.copyByte(in[i])
+		i++
+	}
+	return st.out
+}
+
+// substitution is substitute's state: goccy's output, the text written
+// so far, and the character column the next byte lands on.
+type substitution struct {
+	in     []byte
+	out    []byte
+	column int
+}
+
+// copyByte copies one byte of goccy's output.
+func (st *substitution) copyByte(c byte) {
+	st.out = append(st.out, c)
+	switch {
+	case c == '\n':
+		st.column = 0
+	case c&0xC0 != 0x80:
+		st.column++
+	}
+}
+
+// writeSlot writes spruce's text for slot, whose placeholder ended at
+// i, and returns where copying resumes.
+func (st *substitution) writeSlot(slot scalarSlot, i int) int {
+	var text string
+	switch slot.kind {
+	case valueSlot:
+		text = renderValueScalar(slot.s, st.column, slot.indent, slot.indention)
+	case simpleKeySlot:
+		text, _ = renderSimpleKey(slot.s, st.column)
+	}
+	st.out = append(st.out, text...)
+	st.column = advanceColumn(st.column, text)
+	if strings.HasSuffix(text, "\n") && i < len(st.in) && st.in[i] == '\n' {
+		// A literal block ends its own last line.
+		i++
+	}
+	return i
+}
+
+// advanceColumn returns the column after writing text from column,
+// counting characters as libyaml does.
+func advanceColumn(column int, text string) int {
+	if i := strings.LastIndexByte(text, '\n'); i >= 0 {
+		return utf8.RuneCountInString(text[i+1:])
+	}
+	return column + utf8.RuneCountInString(text)
 }

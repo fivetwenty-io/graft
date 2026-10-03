@@ -77,31 +77,6 @@ coerces in both. The same holds for a key. `graft json --strict` fails
 on a `yes`, `no`, `on`, or `off` key, as spruce does, but accepts a
 bare `y` or `n` key, which spruce refuses as a boolean.
 
-### stringify-block-scalar-style
-
-**Current behavior:** `(( stringify ))` of a map or list produces a
-multi-line string; when that string's own lines contain `": "` (as any
-stringified map's lines do), goccy refuses the literal block style and
-emits the value as a quoted flow scalar:
-`out: "host: web\nport: 80\n"`.
-
-**Expected behavior:** spruce emits the same string as a literal
-block:
-
-```yaml
-out: |
-  host: web
-  port: 80
-```
-
-**Impact:** the parsed value is identical in both tools (the inner
-key order also matches; stringify routes through the shared marshal
-since 1.32.0) — only the scalar's presentation style differs, so any
-consumer that re-parses the document sees no difference. Byte-level
-consumers of stringified output do. Independent of key ordering;
-would require a goccy encoder change or a custom block-scalar
-emitter to close.
-
 ## Deliberate divergences
 
 Places where graft intentionally behaves differently from spruce. These
@@ -229,6 +204,10 @@ random by design and differs run to run on either binary.
 Items that were tracked as open gaps and have since been closed. Kept
 here, under their original heading, so links from other pages that
 point at a specific gap keep resolving to the right place.
+
+### stringify-block-scalar-style
+
+**Resolved.** graft now chooses every string's output style with a port of the scalar-style rules in spruce's YAML emitter, so `(( stringify ))` of a map or list comes out as a literal block exactly as spruce writes it. Earlier, goccy wrote such a string as a quoted flow scalar whenever its lines held `": "`, as every stringified map's lines do. Pinned by the tables in `pkg/graft/yaml_scalar_style_test.go`.
 
 ### scalar-array-default-merge-replaces-instead-of-inlining
 
