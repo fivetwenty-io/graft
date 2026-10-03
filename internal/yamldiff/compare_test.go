@@ -218,3 +218,108 @@ func TestCompareListDetailsCarryEntryIndexes(t *testing.T) {
 		})
 	}
 }
+
+func inputFromText(t *testing.T, text string) InputFile {
+	t.Helper()
+	docs, err := yamlnode.Parse([]byte(text))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	return InputFile{Location: "input.yml", Documents: docs}
+}
+
+const (
+	pairingResourceA = "apiVersion: v1\nkind: A\nmetadata:\n  name: a\n"
+	pairingResourceB = "apiVersion: v1\nkind: B\nmetadata:\n  name: b\n"
+	pairingResourceC = "apiVersion: v1\nkind: C\nmetadata:\n  name: c\n"
+)
+
+func TestPairDocumentsPairsByPositionWithoutKubernetesNames(t *testing.T) {
+	from := inputFromText(t, "a: 1\n---\nb: 1\n")
+	to := inputFromText(t, "a: 1\n---\nb: 2\n")
+
+	pairing, err := PairDocuments(from, to)
+	if err != nil {
+		t.Fatalf("PairDocuments: %v", err)
+	}
+	groups, err := pairing.Compare()
+	if err != nil {
+		t.Fatalf("Compare: %v", err)
+	}
+	if pairing.Kubernetes || len(groups) != 2 {
+		t.Fatalf("Kubernetes = %v with %d groups, want positional pairs of 2 documents", pairing.Kubernetes, len(groups))
+	}
+	for i, group := range groups {
+		if group.Pair.FromPosition != i || group.Pair.ToPosition != i {
+			t.Errorf("group %d pairs from %d with to %d, want both %d", i, group.Pair.FromPosition, group.Pair.ToPosition, i)
+		}
+	}
+	if len(groups[0].Diffs) != 0 || len(groups[1].Diffs) != 1 {
+		t.Errorf("diff counts = %d and %d, want 0 and 1", len(groups[0].Diffs), len(groups[1].Diffs))
+	}
+
+	if _, err := PairDocuments(from, inputFromText(t, "a: 1\n")); err == nil ||
+		err.Error() != "comparing YAMLs with a different number of documents is currently not supported" {
+		t.Fatalf("PairDocuments with different counts: error = %v", err)
+	}
+}
+
+func TestPairDocumentsMatchesKubernetesDocumentsByName(t *testing.T) {
+	from := inputFromText(t, pairingResourceA+"---\n"+pairingResourceB)
+	to := inputFromText(t, pairingResourceC+"---\n"+pairingResourceA)
+
+	pairing, err := PairDocuments(from, to)
+	if err != nil {
+		t.Fatalf("PairDocuments: %v", err)
+	}
+	groups, err := pairing.Compare()
+	if err != nil {
+		t.Fatalf("Compare: %v", err)
+	}
+
+	var got []DocumentPair
+	for _, group := range groups {
+		got = append(got, group.Pair)
+		if len(group.Diffs) != 0 && group.Pair.FromPosition >= 0 && group.Pair.ToPosition >= 0 {
+			t.Errorf("pair %+v has %d diffs, want none for equal documents", group.Pair, len(group.Diffs))
+		}
+	}
+	want := []DocumentPair{
+		{FromPosition: 0, ToPosition: 1},
+		{FromPosition: 1, ToPosition: -1},
+		{FromPosition: -1, ToPosition: 0},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("pairs = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i].FromPosition != want[i].FromPosition || got[i].ToPosition != want[i].ToPosition {
+			t.Errorf("pair %d = %+v, want positions %d and %d", i, got[i], want[i].FromPosition, want[i].ToPosition)
+		}
+	}
+	if !pairing.Kubernetes || len(pairing.From.Names) != 2 {
+		t.Errorf("pairing = %+v, want Kubernetes matching with named inputs", pairing)
+	}
+}
+
+func TestPairDocumentsKeepsTheOrderChangeSeparate(t *testing.T) {
+	from := inputFromText(t, pairingResourceA+"---\n"+pairingResourceB)
+	to := inputFromText(t, pairingResourceB+"---\n"+pairingResourceA)
+
+	pairing, err := PairDocuments(from, to)
+	if err != nil {
+		t.Fatalf("PairDocuments: %v", err)
+	}
+	groups, err := pairing.Compare()
+	if err != nil {
+		t.Fatalf("Compare: %v", err)
+	}
+	for _, group := range groups {
+		if len(group.Diffs) != 0 {
+			t.Errorf("pair %+v has diffs %+v, want none", group.Pair, group.Diffs)
+		}
+	}
+	if order := pairing.OrderChange(); len(order) != 1 || order[0].Path != nil {
+		t.Errorf("OrderChange = %+v, want one change without a path", order)
+	}
+}

@@ -216,3 +216,110 @@ func TestComparePathOrderIsNumericWithinListIndexes(t *testing.T) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }
+
+func TestCompareDocumentsNumbersTheDocumentThatDiffers(t *testing.T) {
+	from := []interface{}{map[string]interface{}{"a": 1}, map[string]interface{}{"b": 1}}
+	to := []interface{}{map[string]interface{}{"a": 1}, map[string]interface{}{"b": 2}}
+
+	changes, err := CompareDocuments("from.yml", from, "to.yml", to)
+	if err != nil {
+		t.Fatalf("CompareDocuments returned error: %v", err)
+	}
+	want := []Change{{Path: "b", Kind: Modified, Old: 1, New: 2, Document: 2}}
+	if !reflect.DeepEqual(changes, want) {
+		t.Fatalf("changes = %+v, want %+v", changes, want)
+	}
+}
+
+func TestCompareDocumentsLeavesSingleDocumentsUnnumbered(t *testing.T) {
+	from := []interface{}{map[string]interface{}{"b": 1}}
+	to := []interface{}{map[string]interface{}{"b": 2}}
+
+	changes, err := CompareDocuments("from.yml", from, "to.yml", to)
+	if err != nil {
+		t.Fatalf("CompareDocuments returned error: %v", err)
+	}
+	if len(changes) != 1 || changes[0].Document != 0 {
+		t.Fatalf("changes = %+v, want one change with Document 0", changes)
+	}
+}
+
+func TestCompareDocumentsRejectsDifferentDocumentCounts(t *testing.T) {
+	from := []interface{}{map[string]interface{}{"a": 1}, map[string]interface{}{"b": 1}}
+	to := []interface{}{map[string]interface{}{"a": 1}}
+
+	_, err := CompareDocuments("from.yml", from, "to.yml", to)
+	if err == nil {
+		t.Fatal("CompareDocuments accepted inputs with different numbers of documents")
+	}
+	want := "comparing YAMLs with a different number of documents is currently not supported"
+	if err.Error() != want {
+		t.Fatalf("error = %q, want the default diff's %q", err.Error(), want)
+	}
+}
+
+func kubernetesResource(kind, name string, value int) map[string]interface{} {
+	return map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       kind,
+		"metadata":   map[string]interface{}{"name": name},
+		"value":      value,
+	}
+}
+
+func TestCompareDocumentsMatchesKubernetesDocumentsByName(t *testing.T) {
+	a, b := kubernetesResource("A", "a", 1), kubernetesResource("B", "b", 2)
+
+	changes, err := CompareDocuments("from.yml", []interface{}{a, b}, "to.yml", []interface{}{b, a})
+	if err != nil {
+		t.Fatalf("CompareDocuments returned error: %v", err)
+	}
+	if len(changes) != 0 {
+		t.Fatalf("documents in swapped order must match by name, got %+v", changes)
+	}
+
+	changedB := kubernetesResource("B", "b", 3)
+	changes, err = CompareDocuments("from.yml", []interface{}{a, b}, "to.yml", []interface{}{changedB, a})
+	if err != nil {
+		t.Fatalf("CompareDocuments returned error: %v", err)
+	}
+	want := []Change{{Path: "value", Kind: Modified, Old: 2, New: 3, Document: 2}}
+	if !reflect.DeepEqual(changes, want) {
+		t.Fatalf("changes = %+v, want %+v (numbered by the document's place in from)", changes, want)
+	}
+}
+
+func TestCompareDocumentsReportsKubernetesDocumentsOnlyOneSideHas(t *testing.T) {
+	a, b, c := kubernetesResource("A", "a", 1), kubernetesResource("B", "b", 2), kubernetesResource("C", "c", 3)
+
+	changes, err := CompareDocuments("from.yml", []interface{}{a, b}, "to.yml", []interface{}{a, c})
+	if err != nil {
+		t.Fatalf("CompareDocuments returned error: %v", err)
+	}
+	if len(changes) != 2 {
+		t.Fatalf("changes = %+v, want one removal and one addition", changes)
+	}
+	byKind := map[Kind]Change{changes[0].Kind: changes[0], changes[1].Kind: changes[1]}
+	if got := byKind[Added]; got.Document != 2 || !reflect.DeepEqual(got.New, c) {
+		t.Errorf("addition = %+v, want document 2 added with %v", got, c)
+	}
+	if got := byKind[Removed]; got.Document != 2 || !reflect.DeepEqual(got.Old, b) {
+		t.Errorf("removal = %+v, want document 2 removed with %v", got, b)
+	}
+}
+
+func TestCompareDocumentPairsHoldsTheDecodedDocuments(t *testing.T) {
+	from := []interface{}{map[string]interface{}{"a": 1}, map[string]interface{}{"b": 1}}
+	to := []interface{}{map[string]interface{}{"a": 1}, map[string]interface{}{"b": 2}}
+
+	documents, err := CompareDocumentPairs("from.yml", from, "to.yml", to)
+	if err != nil {
+		t.Fatalf("CompareDocumentPairs returned error: %v", err)
+	}
+	if len(documents) != 1 {
+		t.Fatalf("documents = %+v, want only the document that differs", documents)
+	}
+	if got := documents[0]; got.Document != 2 || !reflect.DeepEqual(got.From, from[1]) || !reflect.DeepEqual(got.To, to[1]) || len(got.Changes) != 1 {
+		t.Fatalf("document = %+v, want document 2 with its decoded values and one change", got)
+	}
+}

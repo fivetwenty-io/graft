@@ -54,6 +54,11 @@ type Change struct {
 	Kind Kind
 	Old  interface{}
 	New  interface{}
+
+	// Document is the one-based position of the document the change is
+	// in. It is set only when an input holds more than one document, and
+	// is zero otherwise, as it is for every change Compare returns.
+	Document int
 }
 
 // Compare returns the semantic changes between from and to (each normally a
@@ -85,22 +90,169 @@ func Compare(fromLabel string, from interface{}, toLabel string, to interface{})
 		return nil, fmt.Errorf("histdiff: comparing %s to %s: %w", fromLabel, toLabel, err)
 	}
 
-	changes := make([]Change, 0, len(report.Diffs))
-	for _, diff := range report.Diffs {
+	changes, err := diffsToChanges(report.Diffs, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	sortChanges(changes)
+	return changes, nil
+}
+
+// DocumentChanges holds the changes found in one document pair, with the
+// decoded documents they came from.
+type DocumentChanges struct {
+	// Document is the one-based position of the document in its input.
+	// A document that only the "to" input has is numbered by that input.
+	Document int
+	// From and To are the decoded documents, nil on a side that has no
+	// document.
+	From, To interface{}
+	Changes  []Change
+}
+
+// CompareDocumentPairs pairs the documents of from and to the way graft's
+// default diff does (yamldiff.PairDocuments), compares each pair, and
+// returns the pairs that differ. Each pair is compared on the node trees
+// yaml.v3 would produce by marshaling the decoded documents, as Compare
+// does, so a single-document comparison finds exactly the changes Compare
+// finds. A change in the order of Kubernetes documents is not a change
+// here. The error for inputs that cannot be paired is yamldiff's own,
+// with the text the default diff prints.
+//
+// A change is numbered with its document only when from or to holds more
+// than one document.
+func CompareDocumentPairs(fromLabel string, from []interface{}, toLabel string, to []interface{}) ([]DocumentChanges, error) {
+	fromFile, err := encodeInputFile(fromLabel, from)
+	if err != nil {
+		return nil, err
+	}
+	toFile, err := encodeInputFile(toLabel, to)
+	if err != nil {
+		return nil, err
+	}
+
+	pairing, err := yamldiff.PairDocuments(fromFile, toFile)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := pairing.Compare()
+	if err != nil {
+		return nil, err
+	}
+
+	numbered := len(from) > 1 || len(to) > 1
+	var result []DocumentChanges
+	for _, group := range groups {
+		document := documentChanges(group.Pair, from, to)
+		changeDocument := 0
+		if numbered {
+			changeDocument = document.Document
+		}
+		changes, err := diffsToChanges(group.Diffs, changeDocument)
+		if err != nil {
+			return nil, err
+		}
+		if len(changes) == 0 {
+			continue
+		}
+		sortChanges(changes)
+		document.Changes = changes
+		result = append(result, document)
+	}
+
+	return result, nil
+}
+
+// CompareDocuments returns the changes between the documents of from and
+// to, found as CompareDocumentPairs finds them, sorted by document and
+// then by path.
+func CompareDocuments(fromLabel string, from []interface{}, toLabel string, to []interface{}) ([]Change, error) {
+	documents, err := CompareDocumentPairs(fromLabel, from, toLabel, to)
+	if err != nil {
+		return nil, err
+	}
+
+	return AllChanges(documents), nil
+}
+
+// AllChanges returns the changes of every document, sorted by document
+// and then by path.
+func AllChanges(documents []DocumentChanges) []Change {
+	var changes []Change
+	for _, document := range documents {
+		changes = append(changes, document.Changes...)
+	}
+	sort.SliceStable(changes, func(i, j int) bool {
+		if changes[i].Document != changes[j].Document {
+			return changes[i].Document < changes[j].Document
+		}
+		return pathLess(changes[i].Path, changes[j].Path)
+	})
+
+	return changes
+}
+
+// encodeInputFile builds the yamldiff input for decoded documents.
+func encodeInputFile(label string, documents []interface{}) (yamldiff.InputFile, error) {
+	file := yamldiff.InputFile{Location: label}
+	for _, document := range documents {
+		node, err := toYAMLNode(document)
+		if err != nil {
+			return yamldiff.InputFile{}, fmt.Errorf("histdiff: encoding %s: %w", label, err)
+		}
+		file.Documents = append(file.Documents, node)
+	}
+
+	return file, nil
+}
+
+// documentChanges returns the decoded documents of pair, with the number
+// of its document.
+func documentChanges(pair yamldiff.DocumentPair, from, to []interface{}) DocumentChanges {
+	result := DocumentChanges{Document: documentNumber(pair)}
+	if pair.FromPosition >= 0 {
+		result.From = from[pair.FromPosition]
+	}
+	if pair.ToPosition >= 0 {
+		result.To = to[pair.ToPosition]
+	}
+
+	return result
+}
+
+// documentNumber returns the one-based position of a pair's document,
+// taken from the "from" input unless only the "to" input has the
+// document.
+func documentNumber(pair yamldiff.DocumentPair) int {
+	if pair.FromPosition >= 0 {
+		return pair.FromPosition + 1
+	}
+
+	return pair.ToPosition + 1
+}
+
+// diffsToChanges converts yamldiff diffs into changes, numbering each
+// with document.
+func diffsToChanges(diffs []yamldiff.Diff, document int) ([]Change, error) {
+	changes := make([]Change, 0, len(diffs))
+	for _, diff := range diffs {
 		path := ""
 		if diff.Path != nil {
 			path = diff.Path.ToDotStyle()
 		}
 		for _, detail := range diff.Details {
-			detailChanges, detailErr := detailToChanges(path, detail)
-			if detailErr != nil {
-				return nil, fmt.Errorf("histdiff: decoding change at %q: %w", path, detailErr)
+			detailChanges, err := detailToChanges(path, detail)
+			if err != nil {
+				return nil, fmt.Errorf("histdiff: decoding change at %q: %w", path, err)
+			}
+			for i := range detailChanges {
+				detailChanges[i].Document = document
 			}
 			changes = append(changes, detailChanges...)
 		}
 	}
 
-	sortChanges(changes)
 	return changes, nil
 }
 
@@ -154,8 +306,8 @@ func digitsEnd(s string, from int) int {
 // yamldiff reports an ADDITION/REMOVAL detail at the *parent* container's path,
 // with detail.To/detail.From holding a YAML fragment of the added/removed
 // entries themselves (a MappingNode with the child key(s) still attached, a
-// SequenceNode with the child element(s), or - for multi-document input,
-// which this package never produces - a DocumentNode). detailToChanges
+// SequenceNode with the child element(s), or - for a Kubernetes document
+// that only one input has - a DocumentNode). detailToChanges
 // expands that fragment into one Change per immediate child (path =
 // parent.child), each carrying the child's value as a whole (nested
 // grandchildren are not flattened further, matching the one-level
@@ -255,8 +407,7 @@ func fragmentToChanges(parentPath string, kind Kind, fragment *yamlnode.Node, in
 		return changes, nil
 
 	default:
-		// DocumentNode (multi-document input, never produced by this
-		// package's single-document Compare) or a scalar fragment
+		// DocumentNode (a Kubernetes document only one input has) or a scalar fragment
 		// (shouldn't occur for ADDITION/REMOVAL, which yamldiff only emits for
 		// container-level changes): report the whole fragment as one
 		// change at the parent path rather than dropping it silently.

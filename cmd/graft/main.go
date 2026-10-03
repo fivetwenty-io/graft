@@ -998,21 +998,23 @@ func handleDiff(files []string, colorOverride *bool, opts diffOpts) int {
 
 // handleDiffRender implements the `--side-by-side`/`--unified`/`--changes`
 // alternate diff renderings, all built from the same
-// internal/histdiff.Compare semantic diff rather than a second diff
-// algorithm. histdiff is built on the same yamldiff engine the default
-// report uses.
+// internal/histdiff semantic diff rather than a second diff algorithm.
+// histdiff is built on the same yamldiff engine the default report uses,
+// and pairs the documents of the two inputs the way the default report
+// does, so every document is compared and not just the first.
 func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
-	fromLabel, fromDoc, toLabel, toDoc, err := loadDiffDocuments(files)
+	fromLabel, fromDocs, toLabel, toDocs, err := loadDiffDocuments(files)
 	if err != nil {
 		log.PrintStdErrf("%s\n", err)
 		return 2
 	}
 
-	changes, err := histdiff.Compare(fromLabel, fromDoc, toLabel, toDoc)
+	documents, err := histdiff.CompareDocumentPairs(fromLabel, fromDocs, toLabel, toDocs)
 	if err != nil {
 		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error comparing} @m{%s} @R{and} @m{%s}: %s", fromLabel, toLabel, err.Error()))
 		return 2
 	}
+	changes := histdiff.AllChanges(documents)
 
 	// The renderers below write their colorized output straight to
 	// stdout via printStdOutf, so in auto mode (colorOverride == nil)
@@ -1032,9 +1034,9 @@ func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
 	case opts.Changes:
 		output = renderChangeList(changes)
 	case opts.Unified:
-		output, err = renderUnifiedDiff(fromLabel, fromDoc, toLabel, toDoc, opts.Context)
+		output, err = renderUnifiedInputs(fromLabel, fromDocs, toLabel, toDocs, documents, opts.Context)
 	case opts.SideBySide:
-		output, err = renderSideBySide(fromLabel, fromDoc, toLabel, toDoc, opts.Width)
+		output, err = renderSideBySideInputs(fromLabel, fromDocs, toLabel, toDocs, documents, opts.Width)
 	}
 	ansi.Color(stderrColor)
 	if err != nil {
@@ -1055,11 +1057,37 @@ func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
 	return 0
 }
 
+// holdsOneDocument reports whether neither input holds more than one
+// document, so that the whole input is one document pair and nothing
+// needs a document label.
+func holdsOneDocument(fromDocs, toDocs []interface{}) bool {
+	return len(fromDocs) <= 1 && len(toDocs) <= 1
+}
+
+// renderUnifiedInputs renders --unified for the two inputs. Inputs of
+// one document each render as a single diff of those documents, and
+// anything else renders the differing documents in turn.
+func renderUnifiedInputs(fromLabel string, fromDocs []interface{}, toLabel string, toDocs []interface{}, documents []histdiff.DocumentChanges, contextLines int) (string, error) {
+	if holdsOneDocument(fromDocs, toDocs) {
+		return renderUnifiedDiff(fromLabel, fromDocs[0], toLabel, toDocs[0], contextLines)
+	}
+	return renderUnifiedDocuments(fromLabel, toLabel, documents, contextLines)
+}
+
+// renderSideBySideInputs renders --side-by-side for the two inputs, in
+// the same two shapes renderUnifiedInputs uses.
+func renderSideBySideInputs(fromLabel string, fromDocs []interface{}, toLabel string, toDocs []interface{}, documents []histdiff.DocumentChanges, width int) (string, error) {
+	if holdsOneDocument(fromDocs, toDocs) {
+		return renderSideBySide(fromLabel, fromDocs[0], toLabel, toDocs[0], width)
+	}
+	return renderSideBySideDocuments(fromLabel, toLabel, documents, width)
+}
+
 // loadDiffDocuments loads exactly two diff inputs with yamldiff (the same
-// loader the default report uses) and decodes the first document of each
-// to a plain Go value, for renderers that need the document content
+// loader the default report uses) and decodes every document of each to
+// a plain Go value, for renderers that need the document content
 // (--unified, --side-by-side) rather than just a change list.
-func loadDiffDocuments(paths []string) (fromLabel string, fromDoc interface{}, toLabel string, toDoc interface{}, err error) {
+func loadDiffDocuments(paths []string) (fromLabel string, fromDocs []interface{}, toLabel string, toDocs []interface{}, err error) {
 	if len(paths) != 2 {
 		return "", nil, "", nil, ansi.Errorf("incorrect number of files given to loadDiffDocuments(); please file a bug report")
 	}
@@ -1069,28 +1097,37 @@ func loadDiffDocuments(paths []string) (fromLabel string, fromDoc interface{}, t
 		return "", nil, "", nil, err
 	}
 
-	fromVal, err := decodeInputFileDocument(from)
+	fromVals, err := decodeInputFileDocuments(from)
 	if err != nil {
 		return "", nil, "", nil, ansi.Errorf("@m{%s}: @R{%s}", paths[0], err.Error())
 	}
-	toVal, err := decodeInputFileDocument(to)
+	toVals, err := decodeInputFileDocuments(to)
 	if err != nil {
 		return "", nil, "", nil, ansi.Errorf("@m{%s}: @R{%s}", paths[1], err.Error())
 	}
 
-	return paths[0], fromVal, paths[1], toVal, nil
+	return paths[0], fromVals, paths[1], toVals, nil
 }
 
-// decodeInputFileDocument decodes the first document of a loaded input
-// into a plain Go value. yamlnode.Decode turns the document into the
-// maps, slices, and scalars the rest of graft works with. An input with
-// no documents (an empty file) decodes to an empty map, matching graft
+// decodeInputFileDocuments decodes every document of a loaded input into
+// a plain Go value. yamlnode.Decode turns a document into the maps,
+// slices, and scalars the rest of graft works with. An input with no
+// documents (an empty file) decodes to one empty map, matching graft
 // merge and json's own empty-document handling.
-func decodeInputFileDocument(f yamldiff.InputFile) (interface{}, error) {
+func decodeInputFileDocuments(f yamldiff.InputFile) ([]interface{}, error) {
 	if len(f.Documents) == 0 {
-		return map[string]interface{}{}, nil
+		return []interface{}{map[string]interface{}{}}, nil
 	}
-	return yamlnode.Decode(f.Documents[0])
+
+	values := make([]interface{}, 0, len(f.Documents))
+	for _, document := range f.Documents {
+		value, err := yamlnode.Decode(document)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	return values, nil
 }
 
 // versionFlagPrecedesVerb reports whether the -v/--version token the user

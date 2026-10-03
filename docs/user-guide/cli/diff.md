@@ -68,6 +68,8 @@ It brackets the whole report with a leading and a trailing blank line.
 underlying comparison differently; they don't add information the
 default report is missing.
 
+When a file holds more than one document, all three of these modes compare every document, and they pair the documents the same way the default report does. The files must hold the same number of documents, unless every document on both sides is a Kubernetes resource, in which case documents are matched by resource name. A count mismatch is an error and exits 2. `--changes` adds `(document #N)` after the path of each change, `--unified` prints a `(document #N)` line above the hunks of each document that differs, and `--side-by-side` prints one table per document that differs under the same line. A file with a single document prints none of these labels. Unlike the default report, these modes do not report Kubernetes resources that only changed order.
+
 ### Side-by-Side
 
 Compare both files' full content in two columns, aligned by a line-level

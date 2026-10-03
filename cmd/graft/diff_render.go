@@ -40,7 +40,7 @@ func renderChangeList(changes []histdiff.Change) string {
 				continue
 			}
 			buf.WriteString("\n")
-			fmt.Fprintf(&buf, "  %-9s %s\n", kind.String(), c.Path)
+			fmt.Fprintf(&buf, "  %-9s %s%s\n", kind.String(), c.Path, documentLabel(c.Document, "  "))
 			switch kind {
 			case histdiff.Added:
 				writeValueLines(&buf, "+", ansi.Green, c.New)
@@ -54,6 +54,16 @@ func renderChangeList(changes []histdiff.Change) string {
 	}
 
 	return buf.String()
+}
+
+// documentLabel returns prefix and "(document #N)" for a change in
+// document number document, the label the default report puts after a
+// path. It returns nothing for a change that is not numbered.
+func documentLabel(document int, prefix string) string {
+	if document <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s(document #%d)", prefix, document)
 }
 
 // writeValueLines writes value (marshaled to YAML) under a "+ "/"- "
@@ -104,12 +114,38 @@ func yamlValueLines(value interface{}) []string {
 // whole-document hunk under a "@@ (root) @@" header - since "top-level
 // key" has no meaning there.
 func renderUnifiedDiff(fromLabel string, fromDoc interface{}, toLabel string, toDoc interface{}, contextLines int) (string, error) {
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "--- %s\n+++ %s\n", fromLabel, toLabel)
+	if err := writeUnifiedDocument(&buf, fromLabel, fromDoc, toLabel, toDoc, contextLines); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
+// renderUnifiedDocuments renders a unified diff of an input that holds
+// more than one document. The "---" and "+++" lines come once, and each
+// document in documents follows under a "(document #N)" line. Documents
+// that do not differ are not in documents, so they print nothing.
+func renderUnifiedDocuments(fromLabel, toLabel string, documents []histdiff.DocumentChanges, contextLines int) (string, error) {
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "--- %s\n+++ %s\n", fromLabel, toLabel)
+	for _, document := range documents {
+		fmt.Fprintf(&buf, "%s\n", documentLabel(document.Document, ""))
+		if err := writeUnifiedDocument(&buf, fromLabel, document.From, toLabel, document.To, contextLines); err != nil {
+			return "", err
+		}
+	}
+
+	return buf.String(), nil
+}
+
+// writeUnifiedDocument writes the hunks that turn fromDoc into toDoc,
+// grouped as renderUnifiedDiff describes.
+func writeUnifiedDocument(buf *strings.Builder, fromLabel string, fromDoc interface{}, toLabel string, toDoc interface{}, contextLines int) error {
 	if contextLines < 0 {
 		contextLines = defaultUnifiedContext
 	}
-
-	var buf strings.Builder
-	fmt.Fprintf(&buf, "--- %s\n+++ %s\n", fromLabel, toLabel)
 
 	fromMap, fromIsMap := fromDoc.(map[string]interface{})
 	toMap, toIsMap := toDoc.(map[string]interface{})
@@ -117,37 +153,37 @@ func renderUnifiedDiff(fromLabel string, fromDoc interface{}, toLabel string, to
 	if !fromIsMap || !toIsMap {
 		fromLines, err := yamlBlockLines(fromDoc)
 		if err != nil {
-			return "", fmt.Errorf("rendering %s: %w", fromLabel, err)
+			return fmt.Errorf("rendering %s: %w", fromLabel, err)
 		}
 		toLines, err := yamlBlockLines(toDoc)
 		if err != nil {
-			return "", fmt.Errorf("rendering %s: %w", toLabel, err)
+			return fmt.Errorf("rendering %s: %w", toLabel, err)
 		}
 		if !equalLines(fromLines, toLines) {
 			buf.WriteString("@@ (root) @@\n")
-			writeUnifiedHunkLines(&buf, fromLines, toLines, contextLines)
+			writeUnifiedHunkLines(buf, fromLines, toLines, contextLines)
 		}
-		return buf.String(), nil
+		return nil
 	}
 
 	for _, key := range unionSortedKeys(fromMap, toMap) {
 		fromLines, err := yamlBlockLines(fromMap[key])
 		if err != nil {
-			return "", fmt.Errorf("rendering %q from %s: %w", key, fromLabel, err)
+			return fmt.Errorf("rendering %q from %s: %w", key, fromLabel, err)
 		}
 		toLines, err := yamlBlockLines(toMap[key])
 		if err != nil {
-			return "", fmt.Errorf("rendering %q from %s: %w", key, toLabel, err)
+			return fmt.Errorf("rendering %q from %s: %w", key, toLabel, err)
 		}
 		if equalLines(fromLines, toLines) {
 			continue
 		}
 
-		fmt.Fprintf(&buf, "@@ %s @@\n", key)
-		writeUnifiedHunkLines(&buf, fromLines, toLines, contextLines)
+		fmt.Fprintf(buf, "@@ %s @@\n", key)
+		writeUnifiedHunkLines(buf, fromLines, toLines, contextLines)
 	}
 
-	return buf.String(), nil
+	return nil
 }
 
 // equalLines reports whether a and b hold the same lines in the same
@@ -257,15 +293,6 @@ func writeUnifiedHunkLines(buf *strings.Builder, fromLines, toLines []string, co
 // example). width is the total output width (both columns plus the " │ "
 // separator); columns are truncated to fit and padded to stay aligned.
 func renderSideBySide(fromLabel string, fromDoc interface{}, toLabel string, toDoc interface{}, width int) (string, error) {
-	if width <= 0 {
-		width = defaultSideBySideWidth
-	}
-	const sepWidth = 3 // " │ "
-	colWidth := (width - sepWidth) / 2
-	if colWidth < 1 {
-		colWidth = 1
-	}
-
 	fromRaw, err := graft.MarshalYAML(fromDoc)
 	if err != nil {
 		return "", fmt.Errorf("rendering %s: %w", fromLabel, err)
@@ -274,8 +301,21 @@ func renderSideBySide(fromLabel string, fromDoc interface{}, toLabel string, toD
 	if err != nil {
 		return "", fmt.Errorf("rendering %s: %w", toLabel, err)
 	}
-	fromLines := splitTrimmedLines(string(fromRaw))
-	toLines := splitTrimmedLines(string(toRaw))
+
+	return renderSideBySideLines(fromLabel, splitTrimmedLines(string(fromRaw)), toLabel, splitTrimmedLines(string(toRaw)), width), nil
+}
+
+// renderSideBySideLines lays two documents' YAML lines out as
+// renderSideBySide describes.
+func renderSideBySideLines(fromLabel string, fromLines []string, toLabel string, toLines []string, width int) string {
+	if width <= 0 {
+		width = defaultSideBySideWidth
+	}
+	const sepWidth = 3 // " │ "
+	colWidth := (width - sepWidth) / 2
+	if colWidth < 1 {
+		colWidth = 1
+	}
 
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "%s │ %s\n", padTrunc(fromLabel, colWidth), truncate(toLabel, colWidth))
@@ -326,7 +366,47 @@ func renderSideBySide(fromLabel string, fromDoc interface{}, toLabel string, toD
 		}
 	}
 
+	return buf.String()
+}
+
+// renderSideBySideDocuments renders an input that holds more than one
+// document as one side-by-side view per document, each under a
+// "(document #N)" line and separated by a blank line. Documents that do
+// not differ are not in documents, so they print nothing. A document that
+// only one input has shows as empty on the other side.
+func renderSideBySideDocuments(fromLabel, toLabel string, documents []histdiff.DocumentChanges, width int) (string, error) {
+	var buf strings.Builder
+	for i, document := range documents {
+		fromLines, err := absentOrYAMLLines(fromLabel, document.From)
+		if err != nil {
+			return "", err
+		}
+		toLines, err := absentOrYAMLLines(toLabel, document.To)
+		if err != nil {
+			return "", err
+		}
+		view := renderSideBySideLines(fromLabel, fromLines, toLabel, toLines, width)
+		if i > 0 {
+			buf.WriteString("\n")
+		}
+		fmt.Fprintf(&buf, "%s\n%s", documentLabel(document.Document, ""), view)
+	}
+
 	return buf.String(), nil
+}
+
+// absentOrYAMLLines returns the YAML lines of doc, or no lines when doc
+// is nil.
+func absentOrYAMLLines(label string, doc interface{}) ([]string, error) {
+	if doc == nil {
+		return nil, nil
+	}
+	raw, err := graft.MarshalYAML(doc)
+	if err != nil {
+		return nil, fmt.Errorf("rendering %s: %w", label, err)
+	}
+
+	return splitTrimmedLines(string(raw)), nil
 }
 
 // writeSideBySideRow writes one row of a side-by-side view: left/right

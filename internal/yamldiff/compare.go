@@ -48,46 +48,41 @@ var listItemIdentifierCandidates = []string{"name", "key", "id", "manager"}
 // Kubernetes resource, documents are matched by resource name, and the
 // report's inputs keep only those documents and carry their names.
 // Otherwise documents are compared by position, and both inputs must hold
-// the same number of documents.
+// the same number of documents. PairDocuments decides which documents
+// meet, so every caller that compares documents pairs them this way.
 func CompareInputFiles(from, to InputFile) (Report, error) {
-	fromDocs, fromNames, fromNamed := kubernetesDocuments(from)
-	toDocs, toNames, toNamed := kubernetesDocuments(to)
-	if fromNamed && toNamed {
-		from.Documents, from.Names = fromDocs, fromNames
-		to.Documents, to.Names = toDocs, toNames
-
-		result, err := documentNodes(from, to)
-		if err != nil {
-			return Report{}, fmt.Errorf("comparing Kubernetes resources: %w", err)
-		}
-		return Report{From: from, To: to, Diffs: result}, nil
+	pairing, err := PairDocuments(from, to)
+	if err != nil {
+		return Report{}, err
 	}
 
-	if len(from.Documents) != len(to.Documents) {
-		return Report{}, fmt.Errorf("comparing YAMLs with a different number of documents is currently not supported")
+	groups, err := pairing.Compare()
+	if err != nil {
+		if pairing.Kubernetes {
+			err = fmt.Errorf("comparing Kubernetes resources: %w", err)
+		}
+		return Report{}, err
 	}
 
 	var result []Diff
-	for idx := range from.Documents {
-		diffs, err := objects(Path{Root: &from, DocumentIdx: idx}, from.Documents[idx], to.Documents[idx])
-		if err != nil {
-			return Report{}, err
-		}
-		result = append(result, diffs...)
+	for _, group := range groups {
+		result = append(result, group.Diffs...)
 	}
 
-	return Report{From: from, To: to, Diffs: result}, nil
+	return Report{From: pairing.From, To: pairing.To, Diffs: append(result, pairing.OrderChange()...)}, nil
 }
 
 // kubernetesDocuments returns the non-empty documents of input, the
-// Kubernetes resource names it could find for them, and whether every one
-// of those documents has a name.
-func kubernetesDocuments(input InputFile) (docs []*yamlnode.Node, names []string, allNamed bool) {
-	for _, entry := range input.Documents {
+// Kubernetes resource names it could find for them, each document's
+// position in input, and whether every one of those documents has a
+// name.
+func kubernetesDocuments(input InputFile) (docs []*yamlnode.Node, names []string, positions []int, allNamed bool) {
+	for position, entry := range input.Documents {
 		if isEmptyDocument(entry) {
 			continue
 		}
 		docs = append(docs, entry)
+		positions = append(positions, position)
 		if len(entry.Content) == 0 {
 			continue
 		}
@@ -96,7 +91,117 @@ func kubernetesDocuments(input InputFile) (docs []*yamlnode.Node, names []string
 		}
 	}
 
-	return docs, names, len(names) == len(docs)
+	return docs, names, positions, len(names) == len(docs)
+}
+
+// DocumentPair names two documents that are compared with each other, or
+// one document that has no partner. A position is the document's index
+// in the Documents of the input given to PairDocuments, and is -1 on the
+// side that has no document.
+type DocumentPair struct {
+	FromPosition int
+	ToPosition   int
+
+	from, to *yamlnode.Node
+}
+
+// DocumentDiffs holds the diffs found for one DocumentPair. A document
+// without a partner has a single diff that adds or removes the whole
+// document.
+type DocumentDiffs struct {
+	Pair  DocumentPair
+	Diffs []Diff
+}
+
+// DocumentPairing records which documents of two inputs meet. When every
+// non-empty document on both sides is a Kubernetes resource, documents
+// meet when they share a resource name, From and To keep only those
+// documents and carry their names, and Kubernetes is true. Otherwise
+// documents meet by position.
+type DocumentPairing struct {
+	From, To   InputFile
+	Kubernetes bool
+
+	pairs, removals, additions []indexedPair
+	fromNames, toNames         []string
+}
+
+// indexedPair is a matched document pair together with the position of
+// its from document in the (possibly filtered) from input.
+type indexedPair struct {
+	pair DocumentPair
+	idx  int
+}
+
+// PairDocuments decides which documents of from and to are compared with
+// each other. It fails when the inputs are compared by position and hold
+// different numbers of documents, or when a Kubernetes resource cannot be
+// named.
+func PairDocuments(from, to InputFile) (DocumentPairing, error) {
+	fromDocs, fromNames, fromPositions, fromNamed := kubernetesDocuments(from)
+	toDocs, toNames, toPositions, toNamed := kubernetesDocuments(to)
+	if fromNamed && toNamed {
+		from.Documents, from.Names = fromDocs, fromNames
+		to.Documents, to.Names = toDocs, toNames
+
+		pairing := DocumentPairing{From: from, To: to, Kubernetes: true}
+		if err := pairing.matchByName(fromPositions, toPositions); err != nil {
+			return DocumentPairing{}, fmt.Errorf("comparing Kubernetes resources: %w", err)
+		}
+		return pairing, nil
+	}
+
+	if len(from.Documents) != len(to.Documents) {
+		return DocumentPairing{}, fmt.Errorf("comparing YAMLs with a different number of documents is currently not supported")
+	}
+
+	pairing := DocumentPairing{From: from, To: to}
+	for idx := range from.Documents {
+		pairing.pairs = append(pairing.pairs, indexedPair{
+			pair: DocumentPair{FromPosition: idx, ToPosition: idx, from: from.Documents[idx], to: to.Documents[idx]},
+			idx:  idx,
+		})
+	}
+
+	return pairing, nil
+}
+
+// Compare compares every pair, in document order, and then reports each
+// document only From has as a removal and each document only To has as an
+// addition. A change in the order of Kubernetes resources is left to
+// OrderChange.
+func (p *DocumentPairing) Compare() ([]DocumentDiffs, error) {
+	result := make([]DocumentDiffs, 0, len(p.pairs)+len(p.removals)+len(p.additions))
+
+	for _, entry := range p.pairs {
+		diffs, err := objects(Path{Root: &p.From, DocumentIdx: entry.idx}, entry.pair.from, entry.pair.to)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, DocumentDiffs{Pair: entry.pair, Diffs: diffs})
+	}
+
+	for _, entry := range p.removals {
+		result = append(result, DocumentDiffs{
+			Pair:  entry.pair,
+			Diffs: documentChanges(&p.From, REMOVAL, []indexedDocument{{node: entry.pair.from, idx: entry.idx}}),
+		})
+	}
+
+	for _, entry := range p.additions {
+		result = append(result, DocumentDiffs{
+			Pair:  entry.pair,
+			Diffs: documentChanges(&p.To, ADDITION, []indexedDocument{{node: entry.pair.to, idx: entry.idx}}),
+		})
+	}
+
+	return result, nil
+}
+
+// OrderChange returns one order change without a path when the inputs are
+// Kubernetes resources and their names appear in a different order.
+func (p *DocumentPairing) OrderChange() []Diff {
+	return documentOrderChange(p.fromNames, p.toNames)
 }
 
 // modification returns one MODIFICATION diff at path.
@@ -206,53 +311,57 @@ func documentLookup(input InputFile) (map[string]indexedDocument, []string, erro
 	return lookup, names, nil
 }
 
-// documentNodes compares Kubernetes resources by name. Matching documents
-// are compared first, then each document only from has becomes a removal,
-// each document only to has becomes an addition, and a change in the
-// order of the names becomes one order change without a path.
-func documentNodes(from, to InputFile) ([]Diff, error) {
-	fromLookup, fromNames, err := documentLookup(from)
+// matchByName pairs Kubernetes resources by name. Matching documents come
+// in the order of From's names, then each document only From has becomes
+// a removal and each document only To has becomes an addition.
+// fromPositions and toPositions give each kept document's position in the
+// input it came from.
+func (p *DocumentPairing) matchByName(fromPositions, toPositions []int) error {
+	fromLookup, fromNames, err := documentLookup(p.From)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	toLookup, toNames, err := documentLookup(to)
+	toLookup, toNames, err := documentLookup(p.To)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var result []Diff
-	var removals, additions []indexedDocument
+	p.fromNames, p.toNames = fromNames, toNames
 
 	for _, name := range fromNames {
 		fromItem := fromLookup[name]
 		toItem, ok := toLookup[name]
 		if !ok {
-			removals = append(removals, fromItem)
+			p.removals = append(p.removals, indexedPair{
+				pair: DocumentPair{FromPosition: fromPositions[fromItem.idx], ToPosition: -1, from: fromItem.node},
+				idx:  fromItem.idx,
+			})
 			continue
 		}
 
-		diffs, err := objects(
-			Path{Root: &from, DocumentIdx: fromItem.idx},
-			yamlnode.FollowAlias(fromItem.node),
-			yamlnode.FollowAlias(toItem.node),
-		)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, diffs...)
+		p.pairs = append(p.pairs, indexedPair{
+			pair: DocumentPair{
+				FromPosition: fromPositions[fromItem.idx],
+				ToPosition:   toPositions[toItem.idx],
+				from:         yamlnode.FollowAlias(fromItem.node),
+				to:           yamlnode.FollowAlias(toItem.node),
+			},
+			idx: fromItem.idx,
+		})
 	}
 
 	for _, name := range toNames {
 		if _, ok := fromLookup[name]; !ok {
-			additions = append(additions, toLookup[name])
+			toItem := toLookup[name]
+			p.additions = append(p.additions, indexedPair{
+				pair: DocumentPair{FromPosition: -1, ToPosition: toPositions[toItem.idx], to: toItem.node},
+				idx:  toItem.idx,
+			})
 		}
 	}
 
-	result = append(result, documentChanges(&from, REMOVAL, removals)...)
-	result = append(result, documentChanges(&to, ADDITION, additions)...)
-
-	return append(result, documentOrderChange(fromNames, toNames)...), nil
+	return nil
 }
 
 // documentChanges returns one diff per whole document added to or
