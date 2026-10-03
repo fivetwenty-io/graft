@@ -419,6 +419,7 @@ type lexed struct {
 	cmts       []cmt
 	contentCol map[int]int
 	headerLine map[int]bool
+	lines      []string
 }
 
 func lex(text string) lexed {
@@ -457,6 +458,7 @@ func lex(text string) lexed {
 func placeComments(w *walker, c chunk, explicit bool, out map[string]string) docSlots {
 	lines := strings.Split(strings.TrimSuffix(c.text, "\n"), "\n")
 	l := lex(c.text)
+	l.lines = lines
 	own, dashLines, inline := lineComments(w, l, out)
 	headFoot, ownFeet, d := "", map[string]bool{}, &docSlots{}
 	if (c.index == 0 || c.afterEnd) && len(w.items) > 0 {
@@ -524,14 +526,18 @@ func lineComments(w *walker, l lexed, out map[string]string) (own map[int]cmt, d
 }
 
 // inline reports whether c follows content on its line. On a "---"
-// line, a comment after a root scalar is its line comment, and a comment
-// after anything else is a head comment for what follows.
+// line, a comment inside a flow collection that starts there and a
+// comment after a root scalar are line comments, and a comment after
+// anything else is a head comment for what follows.
 func (l lexed) inline(items []item, c cmt) bool {
 	cc, hasContent := l.contentCol[c.line]
 	if !hasContent || cc >= c.col {
 		return false
 	}
 	if !l.headerLine[c.line] {
+		return true
+	}
+	if c.flow && docStartHasContent(l.lines[c.line-1]) {
 		return true
 	}
 	i := lastItemOnLine(items, c.line)
@@ -837,8 +843,8 @@ func (s *gapScanner) isHeader(l int) bool {
 // "--- &a # c". yaml.v3 gives a comment after such a token to the node
 // as a line comment, instead of making it a head comment of the
 // document's first node. The gap scan uses this predicate today, and
-// the handling of a comment after a root flow collection on a "---"
-// line will reuse it.
+// lexed.inline uses it too, to tell a comment inside a flow collection
+// that starts on the "---" line from a head comment.
 func docStartHasContent(line string) bool {
 	rest := strings.Trim(strings.TrimPrefix(line, "---"), " \t\r")
 	return rest != "" && rest[0] != '#'

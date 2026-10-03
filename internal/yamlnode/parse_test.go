@@ -62,8 +62,8 @@ func compareNodeFixture(t *testing.T, name string, keepComments bool) {
 func nodeFixtures(t *testing.T) []string {
 	t.Helper()
 	files, err := filepath.Glob("testdata/nodes/*.yml")
-	if err != nil || len(files) != 50 {
-		t.Fatalf("found %d node fixtures (%v), want 50", len(files), err)
+	if err != nil || len(files) != 56 {
+		t.Fatalf("found %d node fixtures (%v), want 56", len(files), err)
 	}
 	names := make([]string, len(files))
 	for i, f := range files {
@@ -778,8 +778,8 @@ func BenchmarkParseManyDocuments(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		docs, err := yamlnode.Parse(src)
-		if err != nil || len(docs) != 5000 {
-			b.Fatalf("Parse = %d documents, %v; want 5000", len(docs), err)
+		if err != nil || len(docs) != 5600 {
+			b.Fatalf("Parse = %d documents, %v; want 5600", len(docs), err)
 		}
 	}
 }

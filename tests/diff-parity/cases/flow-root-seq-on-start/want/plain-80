@@ -1,0 +1,8 @@
+
+(root level)
+± type change from map to list
+- x: 1
++ - 1 # c
+  - 2
+
+

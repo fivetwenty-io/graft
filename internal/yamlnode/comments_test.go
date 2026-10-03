@@ -1,12 +1,16 @@
 package yamlnode_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/fivetwenty-io/graft/internal/humanreport"
+	"github.com/fivetwenty-io/graft/internal/yamldiff"
 	"github.com/fivetwenty-io/graft/internal/yamlgolden"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
@@ -243,10 +247,42 @@ func flowSlots(n *yamlnode.Node, path string, out map[string]string) {
 	}
 }
 
+// renderFlowDiff renders what graft diff prints for a change from
+// fromText to toText, so a root flow and a nested one can be compared by
+// what they add.
+func renderFlowDiff(t *testing.T, fromText, toText string) string {
+	t.Helper()
+	dir := t.TempDir()
+	from, to := filepath.Join(dir, "from.yml"), filepath.Join(dir, "to.yml")
+	for path, text := range map[string]string{from: fromText, to: toText} {
+		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f, g, err := yamldiff.LoadFiles(from, to)
+	if err != nil {
+		t.Fatalf("LoadFiles: %v", err)
+	}
+	report, err := yamldiff.CompareInputFiles(f, g)
+	if err != nil {
+		t.Fatalf("CompareInputFiles: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := humanreport.Write(&buf, report, humanreport.Options{Width: 80}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	// The first line names the location, which differs between a root and
+	// a nested flow. Everything after it has to agree.
+	_, body, _ := strings.Cut(strings.TrimLeft(buf.String(), "\n"), "\n")
+	return body
+}
+
 // TestCommentsRootFlowMatchesNestedFlow keeps a root flow collection and
-// the same flow nested under a key on one comment model. Both differ from
-// yaml.v3 in the same places, so they have to move together when that
-// model changes.
+// the same flow nested under a key on one comment model, in the slots and
+// in the report graft diff prints. Both differ from yaml.v3 in the same
+// places, so they have to move together when that model changes. The
+// root flow starts either on its own line after "---" or on the "---"
+// line itself.
 func TestCommentsRootFlowMatchesNestedFlow(t *testing.T) {
 	for _, flow := range []string{
 		"{\n# c2\n\nk0: 1\n}",
@@ -254,20 +290,32 @@ func TestCommentsRootFlowMatchesNestedFlow(t *testing.T) {
 		"{\nk0: 1, # c1\n# c2\nk1: [x, # c3\n  y],\nk2: {a: 1} # c4\n}",
 		"{\nk0: 1\n# c5\n}",
 		"[\n{a: 1, # c1\n  b: 2},\n# c2\n[x, y] # c3\n]",
+		"[1, # c1\n 2]",
+		"{a: 1 # c1\n }",
+		"!!seq [1, # c1\n 2]",
+		"&a {a: 1 # c1\n }",
 	} {
 		lines := strings.Split(flow, "\n")
 		for i := 1; i < len(lines); i++ {
 			lines[i] = "  " + lines[i]
 		}
-		root, nested := "---\n"+strings.Join(lines, "\n")+"\n", "r: "+strings.Join(lines, "\n")+"\n"
-		gotRoot, gotNested := map[string]string{}, map[string]string{}
-		flowSlots(mustParse(t, root)[0].Content[0], "", gotRoot)
+		body := strings.Join(lines, "\n")
+		nested := "r: " + body + "\n"
+		gotNested := map[string]string{}
 		flowSlots(mustParse(t, nested)[0].Content[0].Content[1], "", gotNested)
-		if len(gotRoot) == 0 {
-			t.Errorf("Parse(%q) placed no comments inside the flow", root)
-		}
-		if !reflect.DeepEqual(gotRoot, gotNested) {
-			t.Errorf("root flow and nested flow place comments differently:\n%q\n got %q\n%q\n got %q", root, gotRoot, nested, gotNested)
+		wantReport := renderFlowDiff(t, "r: x\n", nested)
+		for _, root := range []string{"---\n" + body + "\n", "--- " + body + "\n"} {
+			gotRoot := map[string]string{}
+			flowSlots(mustParse(t, root)[0].Content[0], "", gotRoot)
+			if len(gotRoot) == 0 {
+				t.Errorf("Parse(%q) placed no comments inside the flow", root)
+			}
+			if !reflect.DeepEqual(gotRoot, gotNested) {
+				t.Errorf("root flow and nested flow place comments differently:\n%q\n got %q\n%q\n got %q", root, gotRoot, nested, gotNested)
+			}
+			if got := renderFlowDiff(t, "x\n", root); got != wantReport {
+				t.Errorf("root flow and nested flow render differently:\n%q\n got %q\n%q\n got %q", root, got, nested, wantReport)
+			}
 		}
 	}
 }

@@ -1,0 +1,31 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 2,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "head": "# top",
+          "line": 2,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "head": "# h",
+              "line": 4
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 4
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
