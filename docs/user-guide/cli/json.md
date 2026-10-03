@@ -122,6 +122,12 @@ graft json --strict config.yml
 123: value  # Non-string key
 ```
 
+A key counts as a non-string when YAML reads it as an integer, a float, a
+boolean, or null, so `1`, `1.5`, `true`, `yes`, and `~` all fail. A quoted
+key such as `"1"` is a string and passes. The error names the file and the
+document, as in `config.yml[0]: non-string keys found during strict JSON
+conversion`, and the command exits 2 without printing any JSON.
+
 ### Multi-Document
 
 A multi-document YAML file is always split into one JSON document per YAML

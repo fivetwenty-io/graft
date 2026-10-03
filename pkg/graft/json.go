@@ -9,6 +9,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/goccy/go-yaml/ast"
+	"github.com/goccy/go-yaml/parser"
+
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
@@ -56,6 +59,18 @@ func jsonifyData(data []byte, strict bool) (string, error) {
 
 	doc = DefaultYAMLCompat().ConvertAndUnprotect(doc)
 
+	if strict {
+		// Every key is a string by now, so --strict reads the keys off
+		// the parsed document instead.
+		nonString, err := hasNonStringKey(data)
+		if err != nil {
+			return "", err
+		}
+		if nonString {
+			return "", errors.New(strictKeyMessage)
+		}
+	}
+
 	doc_, err := deinterface(doc, strict)
 	if err != nil {
 		return "", err
@@ -67,6 +82,85 @@ func jsonifyData(data []byte, strict bool) (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// strictKeyMessage is what `json --strict` fails with, word for word what
+// spruce prints, when a mapping has a key that is not a string.
+const strictKeyMessage = "non-string keys found during strict JSON conversion"
+
+// hasNonStringKey reports whether any mapping in the first document of
+// data has a key that spruce reads as something other than a string,
+// which is the test behind `json --strict`. The aliases are expanded
+// first, so a key given by an alias and a key merged in with "<<" are
+// read as spruce reads them.
+func hasNonStringKey(data []byte) (bool, error) {
+	file, err := parser.ParseBytes(data, 0)
+	if err != nil {
+		return false, err
+	}
+	body := yamlnode.FirstBody(file)
+	if body == nil {
+		return false, nil
+	}
+	if body, err = expandAliases(body); err != nil {
+		return false, err
+	}
+	finder := &nonStringKeyFinder{}
+	ast.Walk(finder, body)
+	return finder.found, nil
+}
+
+// nonStringKeyFinder is an ast.Visitor that records whether any mapping
+// entry it visits has a key that is not a string.
+type nonStringKeyFinder struct{ found bool }
+
+func (f *nonStringKeyFinder) Visit(n ast.Node) ast.Visitor {
+	if f.found || n == nil {
+		return nil
+	}
+	if entry, ok := n.(*ast.MappingValueNode); ok && isNonStringKey(entry.Key) {
+		f.found = true
+		return nil
+	}
+	return f
+}
+
+// isNonStringKey reports whether key reads as an integer, a float, a
+// boolean, or null. A plain yes, no, on, or off counts as a boolean, as
+// the value conversion treats it. A quoted scalar, a key tagged !!str,
+// and the "<<" merge key do not count.
+func isNonStringKey(key ast.Node) bool {
+	switch k := key.(type) {
+	case *ast.MappingKeyNode:
+		return isNonStringKey(k.Value)
+	case *ast.AnchorNode:
+		return isNonStringKey(k.Value)
+	case *ast.TagNode:
+		if k.Start == nil {
+			return false
+		}
+		switch k.Start.Value {
+		case "!!int", "!!float", "!!bool", "!!null":
+			return true
+		}
+		return false
+	case *ast.IntegerNode, *ast.FloatNode, *ast.BoolNode, *ast.NullNode, *ast.InfinityNode, *ast.NanNode:
+		return true
+	case *ast.StringNode:
+		if k.Token == nil || isQuotedScalarToken(k.Token.Type) {
+			return false
+		}
+		if yaml11BoolLookalikeWords[k.Value] {
+			return true
+		}
+		switch yamlnode.ResolvePlainTag(k.Value) {
+		case yamlnode.TagInt, yamlnode.TagFloat, yamlnode.TagBool, yamlnode.TagNull:
+			return true
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 // splitYAMLDocs splits raw multi-document YAML on the "\n---\n" document

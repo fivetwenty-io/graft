@@ -73,7 +73,9 @@ a string where spruce produces a boolean, which can change comparison
 and ternary results as well as output bytes. Rare in practice —
 Genesis kits spell booleans `true`/`false` or `yes`/`no`. Quoting the
 value (`"y"`) keeps it a string in both tools; spelling it `yes`
-coerces in both.
+coerces in both. The same holds for a key. `graft json --strict` fails
+on a `yes`, `no`, `on`, or `off` key, as spruce does, but accepts a
+bare `y` or `n` key, which spruce refuses as a boolean.
 
 ### stringify-block-scalar-style
 
