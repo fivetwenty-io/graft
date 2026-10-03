@@ -325,3 +325,23 @@ func TestCommentsRootFlowMatchesNestedFlow(t *testing.T) {
 		}
 	}
 }
+
+// TestCommentsFlowEntryFootAfterCollection checks the slots yaml.v3
+// gives a comment that follows a flow-map entry whose value is a flow
+// collection. The comment is the foot of the entry's key.
+func TestCommentsFlowEntryFootAfterCollection(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want map[string]string
+	}{
+		{"r: {\n  k0: [],\n  # c1\n}\n", map[string]string{"d0{0}{0}#KF": "# c1"}},
+		{"r: {\n  k0: {a: 1},\n  # c1\n\n}\n", map[string]string{"d0{0}{0}#KF": "# c1"}},
+		{"r: [\n  k0: [],\n  # c1\n]\n", map[string]string{"d0{0}[0]{0}#KF": "# c1"}},
+	} {
+		got := map[string]string{}
+		printedSlots(yamlgolden.FromNode(mustParse(t, c.in)[0]), "d0", got)
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Parse(%q) slots = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

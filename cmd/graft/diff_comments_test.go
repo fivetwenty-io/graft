@@ -56,3 +56,37 @@ func TestDiffLeavesTrailingCommentsWithTheDocument(t *testing.T) {
 		t.Errorf("rc=%d stderr=%q\nstdout=%q\nwant  %q", rc, stderr, stdout, want)
 	}
 }
+
+// diffCase is one pair of files and the report spruce v1.35.17 prints
+// for it, which exits 1.
+type diffCase struct{ from, to, want string }
+
+func runDiffCases(t *testing.T, cases []diffCase) {
+	t.Helper()
+	withStdoutTerminal(t, false, 80)
+	dir := t.TempDir()
+	base, to := filepath.Join(dir, "base.yml"), filepath.Join(dir, "to.yml")
+	for _, c := range cases {
+		if err := os.WriteFile(base, []byte(c.from), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(to, []byte(c.to), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		stdout, stderr, rc := runMainCaptured(t, "diff", "--no-color", base, to)
+		if rc != 1 || stderr != "" || stdout != c.want {
+			t.Errorf("%q to %q: rc=%d stderr=%q\nstdout=%q\nwant  %q", c.from, c.to, rc, stderr, stdout, c.want)
+		}
+	}
+}
+
+// TestDiffPrintsFlowCommentAfterCollectionEntry checks that a comment
+// after a flow entry whose value is a collection is printed under the
+// entry, as spruce v1.35.17 does.
+func TestDiffPrintsFlowCommentAfterCollectionEntry(t *testing.T) {
+	runDiffCases(t, []diffCase{
+		{"r: 0\n", "r: {\n  k0: [],\n  # c1\n}\n", "\nr\n± type change from int to map\n- 0\n+ k0: []\n  # c1\n\n\n"},
+		{"r: 0\n", "r: {\n  k0: {a: 1},\n  # c1\n\n}\n", "\nr\n± type change from int to map\n- 0\n+ k0:\n    a: 1\n  # c1\n\n\n"},
+		{"r: 0\n", "r: [\n  k0: [],\n  # c1\n]\n", "\nr\n± type change from int to list\n- 0\n+ - k0: []\n  # c1\n\n\n"},
+	})
+}

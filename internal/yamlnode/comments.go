@@ -359,12 +359,14 @@ func (w *walker) flow(n ast.Node, p string) {
 }
 
 // flowPair records a key and its value as entries of the flow collection
-// f. A value that is a flow collection is recorded on its own.
+// f. A value that is a flow collection is recorded on its own, and the
+// key keeps the foot comment that follows the value.
 func (w *walker) flowPair(f *flowColl, mv *ast.MappingValueNode, kp string) {
 	kt, uv := mv.Key.GetToken(), unwrap(mv.Value)
 	f.entries = append(f.entries, flowEntry{line: kt.Position.Line, col: kt.Position.Column, head: kp + "#KH"})
 	vt := uv.GetToken()
 	if isFlow(uv) {
+		f.entries = append(f.entries, flowEntry{line: vt.Position.Line, col: vt.Position.Column, foot: kp + "#KF"})
 		w.flow(uv, kp)
 		return
 	}
