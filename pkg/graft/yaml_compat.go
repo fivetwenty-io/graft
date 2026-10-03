@@ -7,7 +7,6 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
-	"github.com/goccy/go-yaml/parser"
 	"github.com/goccy/go-yaml/token"
 
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
@@ -287,7 +286,7 @@ func isQuotedScalarToken(t token.Type) bool {
 // Library callers pass raw input through FirstMergeDocument first, since
 // goccy's parser stalls on nesting that function fails cheaply.
 func ParseYAML11CompatAware(data []byte) (interface{}, error) {
-	file, err := parser.ParseBytes(data, 0)
+	file, err := yamlnode.ParseBytes(data, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -505,7 +504,7 @@ func FirstMergeDocument(data []byte) ([]byte, error) {
 // Library callers pass raw input through FirstMergeDocument first, since
 // goccy's parser stalls on nesting that function fails cheaply.
 func CheckSelfContainingAnchors(data []byte) error {
-	if file, err := parser.ParseBytes(data, 0); err == nil {
+	if file, err := yamlnode.ParseBytes(data, 0); err == nil {
 		if body := yamlnode.FirstBody(file); body != nil {
 			return checkAnchors(body)
 		}

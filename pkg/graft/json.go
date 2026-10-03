@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml/ast"
-	"github.com/goccy/go-yaml/parser"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
@@ -94,7 +93,7 @@ const strictKeyMessage = "non-string keys found during strict JSON conversion"
 // first, so a key given by an alias and a key merged in with "<<" are
 // read as spruce reads them.
 func hasNonStringKey(data []byte) (bool, error) {
-	file, err := parser.ParseBytes(data, 0)
+	file, err := yamlnode.ParseBytes(data, 0)
 	if err != nil {
 		return false, err
 	}

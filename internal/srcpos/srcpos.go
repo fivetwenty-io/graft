@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml/ast"
-	"github.com/goccy/go-yaml/parser"
 
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
@@ -67,7 +66,7 @@ func Build(name string, data []byte) *Index {
 		return idx
 	}
 
-	file, err := parser.ParseBytes(data, 0)
+	file, err := yamlnode.ParseBytes(data, 0)
 	if err != nil || file == nil {
 		return idx
 	}

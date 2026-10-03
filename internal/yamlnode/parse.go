@@ -100,7 +100,7 @@ func (b *builder) parseChunk(c chunk) (*Node, docSlots, bool, error) {
 	}
 	text, endsInBlock := normalizeChunkEnd(c.text, c.unterminated)
 	c.text = text
-	file, err := parser.ParseBytes([]byte(c.text), 0, parser.AllowDuplicateMapKey())
+	file, err := ParseBytes([]byte(c.text), 0, parser.AllowDuplicateMapKey())
 	if err != nil {
 		// goccy refuses a core tag over a node of another kind, which
 		// yaml.v3 reads. Only that refusal earns a second parse with
@@ -110,7 +110,7 @@ func (b *builder) parseChunk(c chunk) (*Node, docSlots, bool, error) {
 		if !ok {
 			return nil, docSlots{}, false, toParseError(err, c.lineOffset())
 		}
-		retried, retryErr := parser.ParseBytes([]byte(text), 0, parser.AllowDuplicateMapKey())
+		retried, retryErr := ParseBytes([]byte(text), 0, parser.AllowDuplicateMapKey())
 		if retryErr != nil {
 			return nil, docSlots{}, false, toParseError(err, c.lineOffset())
 		}
