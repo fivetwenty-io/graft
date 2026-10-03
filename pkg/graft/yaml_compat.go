@@ -241,11 +241,16 @@ var yaml11BoolLookalikeWords = map[string]bool{
 // yaml11QuotedBoolMarker. Plain (unquoted) scalars, and quoted scalars
 // embedded inside literal/folded block content (which the parser
 // represents as a different node shape, never a quoted StringNode), are
-// left untouched.
+// left untouched. So are mapping keys, which the compat pass never
+// coerces, so a marker on a key would never come off.
 type quotedBoolTagger struct{}
 
 func (quotedBoolTagger) Visit(n ast.Node) ast.Visitor {
 	if n == nil {
+		return nil
+	}
+	if mv, ok := n.(*ast.MappingValueNode); ok {
+		ast.Walk(quotedBoolTagger{}, mv.Value)
 		return nil
 	}
 	if sn, ok := n.(*ast.StringNode); ok {
