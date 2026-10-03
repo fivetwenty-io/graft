@@ -535,25 +535,6 @@ func TestParseAcceptsInputsYamlV3Rejects(t *testing.T) {
 	}
 }
 
-// TestParseAcceptsContentAfterDocumentEnd pins another input yaml.v3
-// rejects. Content after a "..." line without a new "---" starts a second
-// document in goccy, and Parse keeps it.
-func TestParseAcceptsContentAfterDocumentEnd(t *testing.T) {
-	docs, err := yamlnode.Parse([]byte("a: 1\n...\nb: 2\n"))
-	if err != nil {
-		t.Fatalf("Parse: %v, want it accepted", err)
-	}
-	if len(docs) != 2 {
-		t.Fatalf("Parse returned %d documents, want 2", len(docs))
-	}
-	if got, want := outline(docs[0]), `{!!str "a"@1: !!int "1"}`; got != want {
-		t.Errorf("first document = %s, want %s", got, want)
-	}
-	if got, want := outline(docs[1]), `{!!str "b"@3: !!int "2"}`; got != want {
-		t.Errorf("second document = %s, want %s", got, want)
-	}
-}
-
 // TestParseIndentIndicatorOnDocumentScalar pins an accepted divergence
 // from spruce. A block scalar that starts the document on its "---" line
 // and carries an explicit indentation indicator keeps one more space of

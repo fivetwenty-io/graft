@@ -127,6 +127,30 @@ func TestDiffDirectoryMemberParseError(t *testing.T) {
 	}
 }
 
+// TestDiffRejectsDocumentAfterEndMarker checks that graft diff fails a
+// file whose content follows a "..." with no "---" in between, as spruce
+// v1.35.17 does, and that it fails on either side.
+func TestDiffRejectsDocumentAfterEndMarker(t *testing.T) {
+	withStdoutTerminal(t, false, 80)
+	dir := t.TempDir()
+	good, bad := filepath.Join(dir, "good.yml"), filepath.Join(dir, "bad.yml")
+	if err := os.WriteFile(good, []byte("a\n---\nz\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, content := range []string{"a\n... # c0\nk: 1\n", "a\n...\nk: 1\n"} {
+		if err := os.WriteFile(bad, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		for _, args := range [][]string{{"diff", good, bad}, {"diff", bad, good}} {
+			stdout, stderr, rc := runMainCaptured(t, args...)
+			want := "unable to parse data from " + bad + ": yaml: line 2: did not find expected <document start>\n"
+			if rc != 2 || stdout != "" || stderr != want {
+				t.Errorf("graft %v with %q: rc=%d stdout=%q stderr=%q, want exit 2 and %q", args, content, rc, stdout, stderr, want)
+			}
+		}
+	}
+}
+
 func TestDiffLoadErrorStylesLocation(t *testing.T) {
 	t.Setenv("COLORTERM", "truecolor")
 	withStdoutTerminal(t, false, 80)

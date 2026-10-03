@@ -23,6 +23,11 @@ type chunk struct {
 	// document as head comments, ahead of any comment above its "---".
 	endComments []string
 
+	// bareLine is the line of the first token of a document that follows
+	// a "..." with no "---" before it, which yaml.v3 rejects, and 0 for
+	// every other chunk.
+	bareLine int
+
 	// tail marks the comments after the last document's "...", which are
 	// no document but can still be that document's foot comment.
 	tail bool
@@ -95,31 +100,19 @@ type splitter struct {
 	// the next chunk takes as comment lines of its own.
 	endLine     int
 	endComments []string
+
+	// bareLine is the line of the first token of the section being read
+	// when that section follows a "..." and has no "---".
+	bareLine int
 }
 
 func (s *splitter) token(t *token.Token) {
 	line := t.Position.Line
 	switch {
 	case t.Type == token.DocumentHeaderType:
-		textStart := line
-		if s.emit(line-1, true) {
-			s.endedByDots = false
-		} else if !s.explicit {
-			textStart = s.textStart // carry the section's comments over
-		}
-		s.afterEnd = s.endedByDots
-		s.textStart, s.segStart, s.explicit, s.hasContent = textStart, line, true, false
-		if s.pendingDirective > 0 {
-			s.segStart, s.pendingDirective = s.pendingDirective, 0
-			s.textStart = min(s.textStart, s.segStart)
-		}
+		s.header(line)
 	case t.Type == token.DocumentEndType:
-		if s.emit(line, true) {
-			s.endedByDots = true
-		}
-		s.afterEnd = s.endedByDots
-		s.endLine = line
-		s.textStart, s.segStart, s.explicit, s.hasContent = line+1, line+1, false, false
+		s.documentEnd(line)
 	case t.Type == token.DirectiveType:
 		if s.pendingDirective == 0 {
 			s.pendingDirective = line
@@ -129,8 +122,39 @@ func (s *splitter) token(t *token.Token) {
 	case t.Type == token.CommentType || s.directiveLines[line]:
 		// Comments and directive arguments never make a document.
 	default:
+		if s.afterEnd && !s.explicit && !s.hasContent {
+			s.bareLine = line
+		}
 		s.hasContent = true
 	}
+}
+
+// header starts the section of a "---" on line, after closing the one
+// before it.
+func (s *splitter) header(line int) {
+	textStart := line
+	if s.emit(line-1, true) {
+		s.endedByDots = false
+	} else if !s.explicit {
+		textStart = s.textStart // carry the section's comments over
+	}
+	s.afterEnd = s.endedByDots
+	s.textStart, s.segStart, s.explicit, s.hasContent, s.bareLine = textStart, line, true, false, 0
+	if s.pendingDirective > 0 {
+		s.segStart, s.pendingDirective = s.pendingDirective, 0
+		s.textStart = min(s.textStart, s.segStart)
+	}
+}
+
+// documentEnd closes the section that a "..." on line ends and starts
+// the one after it.
+func (s *splitter) documentEnd(line int) {
+	if s.emit(line, true) {
+		s.endedByDots = true
+	}
+	s.afterEnd = s.endedByDots
+	s.endLine = line
+	s.textStart, s.segStart, s.explicit, s.hasContent, s.bareLine = line+1, line+1, false, false, 0
 }
 
 // emit closes the section that ends at endLine and reports whether it
@@ -149,6 +173,7 @@ func (s *splitter) emit(endLine int, marker bool) bool {
 	s.chunks = append(s.chunks, chunk{
 		text:        strings.Join(s.lines[s.textStart-1:endLine], ""),
 		endComments: endComments,
+		bareLine:    s.bareLine,
 		startLine:   s.segStart,
 		textLine:    s.textStart,
 		index:       len(s.chunks),

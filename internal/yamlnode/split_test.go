@@ -5,6 +5,37 @@ import (
 	"testing"
 )
 
+// TestParseRejectsDocumentAfterEndMarker checks that content after a "..."
+// needs a "---" first, as yaml.v3 requires. Its error carries the line
+// before the first token, which is how libyaml marks it, so a token on
+// line 3 fails on line 2.
+func TestParseRejectsDocumentAfterEndMarker(t *testing.T) {
+	for in, want := range map[string]string{
+		"a\n... # c0\nk: 1\n":      "yaml: line 2: did not find expected <document start>",
+		"a\n...\nk: 1\n":           "yaml: line 2: did not find expected <document start>",
+		"a\n...\nb\n":              "yaml: line 2: did not find expected <document start>",
+		"a\n...\n- x\n":            "yaml: line 2: did not find expected <document start>",
+		"a\n...\n[1]\n":            "yaml: line 2: did not find expected <document start>",
+		"a\n...\n\n\nk: 1\n":       "yaml: line 4: did not find expected <document start>",
+		"a\n...\n# c\nk: 1\n":      "yaml: line 3: did not find expected <document start>",
+		"a\n... # c\n\nk: 1\n":     "yaml: line 3: did not find expected <document start>",
+		"a\n...\n...\nk: 1\n":      "yaml: line 3: did not find expected <document start>",
+		"x\n---\nb\n...\n- y\n":    "yaml: line 4: did not find expected <document start>",
+		"a\n---\n...\nq\n":         "yaml: line 3: did not find expected <document start>",
+		"a\n...\n---\nb\n...\nq\n": "yaml: line 5: did not find expected <document start>",
+	} {
+		docs, err := Parse([]byte(in))
+		if err == nil || err.Error() != want {
+			t.Errorf("Parse(%q) = %d documents, %v; want the error %q", in, len(docs), err, want)
+		}
+	}
+	for _, in := range []string{"a\n...\n", "a\n... # c\n", "a\n...\n# c\n", "a\n...\n---\nk: 1\n", "a\n...\n# c\n---\nk: 1\n", "a\n...\n...\n---\nk: 1\n"} {
+		if _, err := Parse([]byte(in)); err != nil {
+			t.Errorf("Parse(%q): %v", in, err)
+		}
+	}
+}
+
 func TestParseSplitsDocumentsLikeYAMLv3(t *testing.T) {
 	for _, c := range []struct {
 		in   string
