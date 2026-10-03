@@ -300,7 +300,7 @@ func TestFirstDocument(t *testing.T) {
 		{"dots that start a key", "x: 1\n...x: 2\n---\ny: [\n", "x: 1\n...x: 2\n"},
 		{"inject key", "a:\n  <<<: (( grab b ))\n---\nc: [\n", "a:\n  <<<: (( grab b ))\n"},
 		{"multibyte text", "é: ü\r\n---\r\ny: 2\r\n", "é: ü\n"},
-		{"next line character", "x: a\u0085b\n---\ny: 2\n", "x: a\u0085b\n"},
+		{"next line character between entries", "x: 1\u0085z: 2\n---\ny: [\n", "x: 1\nz: 2\n"},
 		{"byte order mark", "\xEF\xBB\xBFx: 1\n---\ny: 2\n", "\xEF\xBB\xBFx: 1\n"},
 		{"syntax error in the second document", "x: 1\n---\ny: [\n", "x: 1\n"},
 	} {

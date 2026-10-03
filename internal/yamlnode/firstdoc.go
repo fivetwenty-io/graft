@@ -27,8 +27,8 @@ import (
 // They then become blank lines in the result, since goccy accepts no
 // more than one directive before a "---" and refuses some versions
 // spruce accepts, and the merge reads no tag a %TAG directive declares.
-// So the result is a copy when src holds such a directive or a CR, and
-// otherwise it is src itself or a prefix of it.
+// So the result is a copy when src holds such a directive, a CR, or a
+// U+0085, and otherwise it is src itself or a prefix of it.
 //
 // The result ends where the line holding the "---" that ends the first
 // document starts, where the line after a "..." that ends it starts, or
@@ -56,6 +56,7 @@ import (
 // with no line that could end the first document, which is most input,
 // gets only the depth probe. See hasLaterMarker.
 func FirstDocument(src []byte) ([]byte, error) {
+	src = normalizeLineBreaks(src)
 	run, err := startRun(src, 0, true)
 	if err != nil {
 		return nil, err
@@ -67,7 +68,7 @@ func FirstDocument(src []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return normalizeLineBreaks(first), nil
+	return first, nil
 }
 
 // startRun reads src, the lines of a stream from line n, counted from 0,

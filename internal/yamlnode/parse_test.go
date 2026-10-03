@@ -586,7 +586,6 @@ func TestParseAcceptsInputsSpruceRejects(t *testing.T) {
 		{"leading document end (did not find expected node content)", "...\na: 1\n", `{!!str "a"@2: !!int "1"}`},
 		{"a 1,100-character key (mapping values are not allowed in this context)", strings.Repeat("k", 1100) + ": 1\n",
 			fmt.Sprintf(`{!!str %q@1: !!int "1"}`, strings.Repeat("k", 1100))},
-		{"U+0085 in a plain scalar (could not find expected ':')", "a: x\u0085y\n", `{!!str "a"@1: !!str "x\u0085y"}`},
 		{"U+2028 in a plain scalar (could not find expected ':')", "a: x\u2028y\n", `{!!str "a"@1: !!str "x\u2028y"}`},
 	} {
 		docs, err := yamlnode.Parse([]byte(c.in))
@@ -597,6 +596,24 @@ func TestParseAcceptsInputsSpruceRejects(t *testing.T) {
 		if got := outline(docs[0]); got != c.want {
 			t.Errorf("%s: Parse = %s, want %s", c.name, got, c.want)
 		}
+	}
+}
+
+// TestParseReadsNELAsALineBreak pins that Parse reads U+0085 as a line
+// break, as libyaml does. Inside a plain scalar it ends the line, so the
+// text after it has no colon and spruce exits 2. Parse fails on line 2,
+// with the wording it gives the same input with an LF there.
+func TestParseReadsNELAsALineBreak(t *testing.T) {
+	_, err := yamlnode.Parse([]byte("a: x\u0085y\n"))
+	if err == nil || !strings.HasPrefix(err.Error(), "yaml: line 2: ") {
+		t.Errorf("Parse = %v, want an error on line 2", err)
+	}
+	docs, err := yamlnode.Parse([]byte("a: 1\u0085b: 2\n"))
+	if err != nil || len(docs) != 1 {
+		t.Fatalf("Parse = %d documents, %v, want one document", len(docs), err)
+	}
+	if got, want := outline(docs[0]), `{!!str "a"@1: !!int "1", !!str "b"@2: !!int "2"}`; got != want {
+		t.Errorf("Parse = %s, want %s", got, want)
 	}
 }
 

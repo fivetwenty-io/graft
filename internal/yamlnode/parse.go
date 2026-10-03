@@ -207,14 +207,29 @@ func readStream(data []byte) ([]byte, probeResult, error) {
 	return src, probed, nil
 }
 
-// normalizeLineBreaks turns CRLF and lone CR line breaks into LF. Input
-// with no CR comes back as the same slice, not a copy.
+// nextLine is U+0085 (NEL) in UTF-8. libyaml reads it as a line break and
+// turns it into LF wherever it stands, even inside a scalar, but goccy
+// takes it for an ordinary character.
+var nextLine = []byte{0xC2, 0x85}
+
+// normalizeLineBreaks turns CRLF, a lone CR, and U+0085 line breaks into
+// LF. U+2028 and U+2029 are line breaks to libyaml too, but it keeps them
+// as they are inside a scalar, so they stay. Input with no CR and no
+// U+0085 comes back as the same slice, not a copy.
 func normalizeLineBreaks(src []byte) []byte {
-	if bytes.IndexByte(src, '\r') < 0 {
+	hasCR := bytes.IndexByte(src, '\r') >= 0
+	hasNEL := bytes.Contains(src, nextLine)
+	if !hasCR && !hasNEL {
 		return src
 	}
-	src = bytes.ReplaceAll(src, []byte("\r\n"), []byte("\n"))
-	return bytes.ReplaceAll(src, []byte("\r"), []byte("\n"))
+	if hasCR {
+		src = bytes.ReplaceAll(src, []byte("\r\n"), []byte("\n"))
+		src = bytes.ReplaceAll(src, []byte("\r"), []byte("\n"))
+	}
+	if hasNEL {
+		src = bytes.ReplaceAll(src, nextLine, []byte("\n"))
+	}
+	return src
 }
 
 // utf8BOM is the UTF-8 byte order mark.
