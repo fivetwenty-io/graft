@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -295,11 +296,154 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 
 	ast.Walk(quotedBoolTagger{}, body)
 
+	// The tagger runs first, since expansion shares one subtree among
+	// every alias to it, and the tagger must mark each scalar only once.
+	body, err = expandAliases(body)
+	if err != nil {
+		return nil, err
+	}
+
 	var result interface{}
 	if err := yaml.NodeToValue(body, &result); err != nil {
+		if errors.Is(err, yaml.ErrExceededMaxDepth) {
+			// Expansion can nest an aliased value deeper than the
+			// document's own text, past what FirstMergeDocument checks.
+			return nil, &maxRecursionError{cause: err}
+		}
 		return nil, err
 	}
 	return result, nil
+}
+
+// maxExpandedNodes caps the nodes a document holds once every alias in
+// it is expanded. A billion-laughs document of ten lines expands to ten
+// billion nodes, so without a cap expansion would exhaust memory. The
+// cap keeps the worst document it accepts inside the merge's memory
+// budget of about 300 MB. Of the documents we measured just under it, a
+// 200 KB file of aliases peaked highest, at 269 MB RSS when merged, and
+// a 5 KB one peaked at 244 MB. The cf-deployment manifest, among the
+// largest real merge inputs, holds under 10,000 nodes, so the cap leaves
+// a margin of forty times. spruce's yaml.v2 has no rule that rejects
+// such a document, and it decodes one of five million nodes.
+const maxExpandedNodes = 400_000
+
+// expandAliases returns body with every alias replaced by the node its
+// anchor names and every anchor replaced by the node it wraps, so
+// yaml.NodeToValue never resolves an alias itself. goccy registers
+// anchor names in a map that every nested value shares, and it decodes
+// an alias to a name registered inside an enclosing anchored value as
+// null, where yaml.v3 and spruce read the value the name is bound to.
+//
+// A name binds to its latest definition in document order, as in
+// anchorWalk. Each alias takes the bound node itself rather than a deep
+// copy. That is safe because nothing changes the tree after expansion,
+// and goccy decodes a fresh value each time it meets a node. It fails a
+// document that expands past maxExpandedNodes with the recursion text.
+// checkAnchors must pass first, since an alias inside its own anchor's
+// value is left in place.
+func expandAliases(body ast.Node) (ast.Node, error) {
+	x := &aliasExpander{bound: make(map[string]*expandedAnchor)}
+	n, _, err := x.expand(body)
+	return n, err
+}
+
+// expandedAnchor is an anchor's value once its own aliases are expanded,
+// and the number of nodes in it. node stays nil while the walk is inside
+// the anchor's value.
+type expandedAnchor struct {
+	node ast.Node
+	size int
+}
+
+type aliasExpander struct {
+	bound map[string]*expandedAnchor // each name's latest definition
+}
+
+// expand rewrites n in place and returns the node to put in its slot,
+// with the number of nodes it holds once expanded.
+func (x *aliasExpander) expand(n ast.Node) (ast.Node, int, error) {
+	switch v := n.(type) {
+	case *ast.AnchorNode:
+		e := &expandedAnchor{}
+		x.bound[v.Name.GetToken().Value] = e
+		var err error
+		if e.node, e.size, err = x.expand(v.Value); err != nil {
+			return nil, 0, err
+		}
+		return e.node, e.size, nil
+	case *ast.AliasNode:
+		if e := x.bound[v.Value.GetToken().Value]; e != nil && e.node != nil {
+			return e.node, e.size, nil
+		}
+		return n, 1, nil
+	}
+	c := &expandCount{x: x, size: 1}
+	if err := c.children(n); err != nil {
+		return nil, 0, err
+	}
+	return n, c.size, nil
+}
+
+// expandCount expands one node's children and counts the node with
+// everything under it. Every size it adds is at most maxExpandedNodes,
+// so no sum can overflow.
+type expandCount struct {
+	x    *aliasExpander
+	size int
+}
+
+func (c *expandCount) add(child ast.Node) (ast.Node, error) {
+	n, size, err := c.x.expand(child)
+	if err != nil {
+		return nil, err
+	}
+	if c.size += size; c.size > maxExpandedNodes {
+		return nil, &maxRecursionError{cause: fmt.Errorf("aliases expand to more than %d nodes", maxExpandedNodes)}
+	}
+	return n, nil
+}
+
+// children puts the expansion of each of n's children in its slot.
+func (c *expandCount) children(n ast.Node) error {
+	var err error
+	switch v := n.(type) {
+	case *ast.TagNode:
+		v.Value, err = c.add(v.Value)
+	case *ast.MappingKeyNode:
+		v.Value, err = c.add(v.Value)
+	case *ast.MappingValueNode:
+		var key ast.Node
+		if key, err = c.add(v.Key); err == nil {
+			v.Key = asMapKey(key, v.Key)
+			v.Value, err = c.add(v.Value)
+		}
+	case *ast.MappingNode:
+		// Each item is a *ast.MappingValueNode, which expand rewrites in
+		// place and returns unchanged, so the slot needs no update.
+		for _, item := range v.Values {
+			if _, err = c.add(item); err != nil {
+				return err
+			}
+		}
+	case *ast.SequenceNode:
+		for i, item := range v.Values {
+			if v.Values[i], err = c.add(item); err != nil {
+				return err
+			}
+		}
+	}
+	return err
+}
+
+// asMapKey returns key, the expansion of was, as a mapping key. An
+// aliased or anchored collection is no MapKeyNode, so it goes inside an
+// explicit key node, which goccy decodes to the collection, as it
+// decoded the alias or anchor.
+func asMapKey(key ast.Node, was ast.MapKeyNode) ast.MapKeyNode {
+	if k, ok := key.(ast.MapKeyNode); ok {
+		return k
+	}
+	return &ast.MappingKeyNode{BaseNode: &ast.BaseNode{}, Start: was.GetToken(), Value: key}
 }
 
 // firstBody returns the root node of file's first document, or nil when

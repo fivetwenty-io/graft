@@ -3,6 +3,7 @@ package graft
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -34,6 +35,12 @@ func jsonifyData(data []byte, strict bool) (string, error) {
 	// placeholder reads as a string here as it does in merge and diff.
 	data, _ = yamlprep.Prepare(data)
 	root, err := ParseYAML11CompatAware(data)
+	var tooDeep *maxRecursionError
+	if errors.As(err, &tooDeep) {
+		// The document is a map whose aliases expand too far, so the
+		// root-type prefix would misdescribe it.
+		return "", err
+	}
 	if err != nil {
 		return "", ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
 	}

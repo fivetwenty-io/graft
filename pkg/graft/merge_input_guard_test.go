@@ -52,6 +52,7 @@ func TestMergeRejectsSelfContainingAnchor(t *testing.T) {
 		{"nested", "a: &a\n  b:\n    c: [1, {d: *a}]\n"},
 		{"merge key", "a: &a\n  <<: *a\n  b: 1\n"},
 		{"after a directive", "%YAML 1.1\n---\na: &a\n  b: *a\n"},
+		{"beside a nested anchor", "a: &a\n  p: &p v\n  q: *p\n  r: *a\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := guardedMerge(t, c.in)
@@ -66,8 +67,8 @@ func TestMergeRejectsSelfContainingAnchor(t *testing.T) {
 // ordinary aliases alone. An alias after its anchor's collection closes
 // is no cycle, and an anchor name binds to its latest definition, so an
 // alias to a redefined name inside the first definition is no cycle
-// either. goccy decodes that alias as null where spruce reads the inner
-// definition, a known divergence the redefined cases pin.
+// either. It reads the inner definition, as spruce does. goccy decoded
+// it as null, so graft printed a null in its place.
 func TestMergeAcceptsAliasesOutsideTheirAnchor(t *testing.T) {
 	type m = map[string]interface{}
 	for _, c := range []struct {
@@ -75,9 +76,13 @@ func TestMergeAcceptsAliasesOutsideTheirAnchor(t *testing.T) {
 		want     m
 	}{
 		{"sibling", "a: &a {x: 1}\nb: *a\n", m{"a": m{"x": 1}, "b": m{"x": 1}}},
-		{"redefined inside", "a: &x [&x 1, *x]\n", m{"a": []interface{}{1, nil}}},               // spruce gives [1, 1]
-		{"redefined inside a mapping", "a: &x {b: &x 1, c: *x}\n", m{"a": m{"b": 1, "c": nil}}}, // spruce gives c: 1
+		{"redefined inside", "a: &x [&x 1, *x]\n", m{"a": []interface{}{1, 1}}},
+		{"redefined inside a mapping", "a: &x {b: &x 1, c: *x}\n", m{"a": m{"b": 1, "c": 1}}},
 		{"anchored key", "a: {&k key: 1}\nb: *k\n", m{"a": m{"key": 1}, "b": "key"}},
+		// A known divergence: spruce fails a list used as a mapping key
+		// with "invalid map key". goccy reads it as the list's text, as
+		// graft did before aliases were expanded, and this pins that.
+		{"aliased list as a key", "a: &k [1]\n*k : 2\n", m{"a": []interface{}{1}, "[1]": 2}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			out, err := guardedMerge(t, c.in)
@@ -88,6 +93,125 @@ func TestMergeAcceptsAliasesOutsideTheirAnchor(t *testing.T) {
 				t.Errorf("merge of %q = %#v, want %#v", c.in, got, c.want)
 			}
 		})
+	}
+}
+
+// TestMergeExpandsAliasesInsideAnchoredValues merges aliases to anchors
+// defined inside an anchored collection. spruce reads each alias as the
+// value its anchor names. goccy decoded every alias to a name first
+// defined inside an enclosing anchored value as null, so graft printed
+// a null in its place and exited 0.
+func TestMergeExpandsAliasesInsideAnchoredValues(t *testing.T) {
+	type m = map[string]interface{}
+	type l = []interface{}
+	for _, c := range []struct {
+		name, in string
+		want     m
+	}{
+		{"nested anchor", "x: &o\n  p: &p v\n  q: *p\nr: *o\n",
+			m{"x": m{"p": "v", "q": "v"}, "r": m{"p": "v", "q": "v"}}},
+		{"aliased list", "a: &x [&y 1, *y]\nb: *x\n",
+			m{"a": l{1, 1}, "b": l{1, 1}}},
+		{"redefined, then aliased", "a: &x [&x 1, *x]\nb: *x\n",
+			m{"a": l{1, 1}, "b": 1}},
+		{"merge key", "a: &x {p: &p v, q: *p}\nb: {<<: *x, r: *p}\n",
+			m{"a": m{"p": "v", "q": "v"}, "b": m{"p": "v", "q": "v", "r": "v"}}},
+		{"grab inside an aliased map", "meta: {v: hello}\nbase: &b\n  g: (( grab meta.v ))\n  k: &k 1\n  j: *k\nuse: *b\n",
+			m{"meta": m{"v": "hello"}, "base": m{"g": "hello", "k": 1, "j": 1}, "use": m{"g": "hello", "k": 1, "j": 1}}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out, err := guardedMerge(t, c.in)
+			if err != nil {
+				t.Fatalf("merge of %q = %v, want success", c.in, err)
+			}
+			if got := out.RawData(); !reflect.DeepEqual(got, c.want) {
+				t.Errorf("merge of %q = %#v, want %#v", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+// aliasBomb returns a document of levels anchored lists. The first
+// holds ten scalars and each later one holds ten aliases to the one
+// before it, so the last expands to 10^(levels) scalars.
+func aliasBomb(levels int) string {
+	var b strings.Builder
+	b.WriteString("a0: &a0 [x, x, x, x, x, x, x, x, x, x]\n")
+	for i := 1; i < levels; i++ {
+		alias := fmt.Sprintf("*a%d", i-1)
+		fmt.Fprintf(&b, "a%d: &a%d [%s]\n", i, i, strings.TrimSuffix(strings.Repeat(alias+", ", 10), ", "))
+	}
+	return b.String()
+}
+
+// TestParseYAMLRejectsAliasBomb parses documents whose aliases expand to
+// ten million nodes and to 10^30, past what an int can count. Each alias
+// decodes as a copy of the value its anchor names, so ParseYAML has to
+// fail such a document with the recursion text, before it builds any
+// copy, instead of filling memory.
+func TestParseYAMLRejectsAliasBomb(t *testing.T) {
+	const limit = 100 << 20
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, levels := range []int{7, 30} {
+		src := []byte(aliasBomb(levels))
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+		_, err = engine.ParseYAML(src)
+		runtime.ReadMemStats(&after)
+		if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) {
+			t.Errorf("ParseYAML of a %d-level alias bomb = %v, want the error %q", levels, err, maxRecursionMessage)
+		}
+		if grew := after.TotalAlloc - before.TotalAlloc; grew >= limit {
+			t.Errorf("ParseYAML of a %d-level alias bomb allocated %d MB, want under %d MB", levels, grew>>20, limit>>20)
+		}
+	}
+}
+
+// TestParseYAMLAliasCapBoundary pins the cap on expanded nodes at
+// 400,000. The document's a0 and a1 hold 7 + 999 + 398 * 1,000 =
+// 399,006 nodes once a1's aliases are expanded, and b's list of n
+// scalars adds 3 + n more, so n = 991 reaches the cap exactly.
+func TestParseYAMLAliasCapBoundary(t *testing.T) {
+	doc := func(n int) []byte {
+		x := strings.TrimSuffix(strings.Repeat("x, ", 999), ", ")
+		a := strings.TrimSuffix(strings.Repeat("*a0, ", 398), ", ")
+		b := strings.TrimSuffix(strings.Repeat("x, ", n), ", ")
+		return []byte("a0: &a0 [" + x + "]\na1: [" + a + "]\nb: [" + b + "]\n")
+	}
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.ParseYAML(doc(991)); err != nil {
+		t.Errorf("ParseYAML of 400,000 expanded nodes = %v, want success", err)
+	}
+	if _, err := engine.ParseYAML(doc(992)); err == nil || !strings.Contains(err.Error(), maxRecursionMessage) {
+		t.Errorf("ParseYAML of 400,001 expanded nodes = %v, want the error %q", err, maxRecursionMessage)
+	}
+}
+
+// TestParseYAMLRejectsAliasesNestedTooDeep parses four lists nested
+// 3,000 levels deep, each holding an alias to the one before it, so the
+// last expands to 12,000 levels. ParseYAML fails it with the recursion
+// text, which every over-deep merge gives, and not with goccy's own.
+func TestParseYAMLRejectsAliasesNestedTooDeep(t *testing.T) {
+	const n = 3000
+	src := "a0: &a0 " + strings.Repeat("[", n) + strings.Repeat("]", n) + "\n"
+	for i := 1; i < 4; i++ {
+		src += fmt.Sprintf("a%d: &a%d %s*a%d%s\n", i, i, strings.Repeat("[", n), i-1, strings.Repeat("]", n))
+	}
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = engine.ParseYAML([]byte(src))
+	if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) || strings.Contains(err.Error(), "exceeded max depth") {
+		t.Errorf("ParseYAML = %v, want the error %q", err, maxRecursionMessage)
 	}
 }
 

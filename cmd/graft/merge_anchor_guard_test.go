@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -133,5 +134,58 @@ func TestMergeKeepsDirectivesWithFirstDocument(t *testing.T) {
 	stdout, stderr, rc := runGraftCommand(t, []string{"merge", path})
 	if rc != 0 || stdout != "---\nx: 1\n\n" || stderr != "" {
 		t.Errorf("graft merge: rc=%d stdout=%q stderr=%q, want rc=0 and stdout %q", rc, stdout, stderr, "---\nx: 1\n\n")
+	}
+}
+
+// TestMergeExpandsAliasesInsideAnchoredValues runs `graft merge` on
+// files with aliases to anchors defined inside an anchored collection.
+// Each expected output is spruce v1.35.17's, after the "---" graft
+// prints first. goccy decoded those aliases as null, so graft printed
+// null in their place and exited 0.
+func TestMergeExpandsAliasesInsideAnchoredValues(t *testing.T) {
+	dir := t.TempDir()
+	for _, c := range []struct{ name, in, want string }{
+		{"redefined in a list", "a: &x [&x 1, *x]\n", "---\na:\n- 1\n- 1\n\n"},
+		{"redefined in a mapping", "a: &x {b: &x 1, c: *x}\n", "---\na:\n  b: 1\n  c: 1\n\n"},
+		{"nested anchor", "x: &o\n  p: &p v\n  q: *p\nr: *o\n", "---\nr:\n  p: v\n  q: v\nx:\n  p: v\n  q: v\n\n"},
+		{"aliased list", "a: &x [&y 1, *y]\nb: *x\n", "---\na:\n- 1\n- 1\nb:\n- 1\n- 1\n\n"},
+		{"grab inside an aliased map", "meta: {v: hello}\nbase: &b\n  g: (( grab meta.v ))\n  k: &k 1\n  j: *k\nuse: *b\n",
+			"---\nbase:\n  g: hello\n  j: 1\n  k: 1\nmeta:\n  v: hello\nuse:\n  g: hello\n  j: 1\n  k: 1\n\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(dir, "aliases.yml")
+			if err := os.WriteFile(path, []byte(c.in), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			stdout, stderr, rc := runGraftCommand(t, []string{"merge", path})
+			if rc != 0 || stdout != c.want || stderr != "" {
+				t.Errorf("graft merge: rc=%d stdout=%q stderr=%q, want rc=0 and stdout %q", rc, stdout, stderr, c.want)
+			}
+		})
+	}
+}
+
+// TestMergeRejectsAliasBomb runs `graft merge` and `graft json` on a
+// file whose aliases expand to over ten million scalars. Both fail it
+// with the recursion text and exit 2, before they copy any aliased
+// value. json must not call the root anything but a map, since it is one.
+func TestMergeRejectsAliasBomb(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("a0: &a0 [x, x, x, x, x, x, x, x, x, x]\n")
+	for i := 1; i < 7; i++ {
+		alias := "*a" + strconv.Itoa(i-1)
+		b.WriteString("a" + strconv.Itoa(i) + ": &a" + strconv.Itoa(i) + " [" + strings.TrimSuffix(strings.Repeat(alias+", ", 10), ", ") + "]\n")
+	}
+	path := filepath.Join(t.TempDir(), "bomb.yml")
+	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, cmd := range []string{"merge", "json"} {
+		t.Run(cmd, func(t *testing.T) {
+			stderr, rc := runGraftCapturingOutput(t, []string{cmd, path})
+			if rc != 2 || !strings.Contains(stderr, "Hit max recursion depth. You seem to have a self-referencing dataset") || strings.Contains(stderr, "not a hash/map") {
+				t.Errorf("graft %s: rc=%d stderr=%q, want rc=2 and the max recursion error", cmd, rc, stderr)
+			}
+		})
 	}
 }
