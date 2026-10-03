@@ -286,7 +286,7 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	body := firstBody(file)
+	body := yamlnode.FirstBody(file)
 	if body == nil {
 		return nil, nil
 	}
@@ -446,22 +446,6 @@ func asMapKey(key ast.Node, was ast.MapKeyNode) ast.MapKeyNode {
 	return &ast.MappingKeyNode{BaseNode: &ast.BaseNode{}, Start: was.GetToken(), Value: key}
 }
 
-// firstBody returns the root node of file's first document, or nil when
-// it has none. goccy gives the directives before a "---" a document of
-// their own, whose body is the directive, so firstBody skips those and
-// returns the body of the document the directives belong to, as libyaml
-// reads it. It skips nothing else. yaml.Unmarshal also skips an empty or
-// null document, but the merge reads that document as {}, as spruce
-// does, and never the document after it.
-func firstBody(file *ast.File) ast.Node {
-	for _, doc := range file.Docs {
-		if _, ok := doc.Body.(*ast.DirectiveNode); !ok {
-			return doc.Body
-		}
-	}
-	return nil
-}
-
 // maxRecursionMessage is the text CheckForCycles gives for a merged tree
 // nested past its limit. spruce gives the same text for any merge input
 // nested past 4,096 levels.
@@ -517,7 +501,7 @@ func FirstMergeDocument(data []byte) ([]byte, error) {
 // goccy's parser stalls on nesting that function fails cheaply.
 func CheckSelfContainingAnchors(data []byte) error {
 	if file, err := parser.ParseBytes(data, 0); err == nil {
-		if body := firstBody(file); body != nil {
+		if body := yamlnode.FirstBody(file); body != nil {
 			return checkAnchors(body)
 		}
 	}

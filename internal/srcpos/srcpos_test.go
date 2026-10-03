@@ -278,3 +278,29 @@ func TestBuildAliasCollisionPicksDocumentOrderFirst(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildIndexesTheDocumentADirectiveOpens builds an index over files
+// that open with directives. goccy gives the directives before a "---"
+// a document of their own, whose body is the directive, so Build read
+// that body, found no expression, and the cycle error printed the file
+// name with no ":line" after it. The directives belong to the document
+// the "---" starts, which is the one the merge reads.
+func TestBuildIndexesTheDocumentADirectiveOpens(t *testing.T) {
+	for doc, line := range map[string]int{
+		"%YAML 1.1\n---\na: (( grab b ))\n---\na: (( grab c ))\n":   3,
+		"# c\n%TAG !e! tag:e.com,2000:\n--- # h\na: (( grab b ))\n": 4,
+	} {
+		idx := Build("a.yml", []byte(doc))
+		e, ok := idx.Lookup("a")
+		if !ok {
+			t.Errorf("%q: Lookup(a) = _, false; want an entry", doc)
+			continue
+		}
+		if e.Expr != "(( grab b ))" || e.Pos.Line != line {
+			t.Errorf("%q: entry = %q on line %d, want the first document's expression on its line", doc, e.Expr, e.Pos.Line)
+		}
+		if n := idx.CountExpr("(( grab c ))"); n != 0 {
+			t.Errorf("%q: CountExpr(grab c) = %d, want 0", doc, n)
+		}
+	}
+}

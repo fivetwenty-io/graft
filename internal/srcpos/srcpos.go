@@ -20,6 +20,7 @@ import (
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/parser"
 
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 )
 
@@ -72,18 +73,21 @@ func Build(name string, data []byte) *Index {
 	}
 
 	// Only the first document is indexed. ParseYAML11CompatAware
-	// converts file.Docs[0].Body and nothing else
-	// (pkg/graft/yaml_compat.go), so documents 2..N contribute no node to
-	// the merged tree. Indexing them would let an expression the merge
+	// converts the body yamlnode.FirstBody returns and nothing else
+	// (pkg/graft/yaml_compat.go), so later documents contribute no node
+	// to the merged tree. Indexing them would let an expression the merge
 	// never evaluated claim a cycle node's path, and would inflate the
-	// per-expression counts the expression fallback relies on.
-	if len(file.Docs) == 0 || file.Docs[0] == nil || file.Docs[0].Body == nil {
+	// per-expression counts the expression fallback relies on. The
+	// directives before a "---" are a document of their own to goccy,
+	// and FirstBody skips them, as the merge does.
+	body := yamlnode.FirstBody(file)
+	if body == nil {
 		return idx
 	}
 
 	names := make(map[string]string)
 	c := &collector{idx: idx, name: name, names: names, keys: make(map[ast.Node]bool)}
-	ast.Walk(c, file.Docs[0].Body)
+	ast.Walk(c, body)
 
 	idx.buildAliases(names)
 	return idx
