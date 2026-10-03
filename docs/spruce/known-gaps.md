@@ -79,7 +79,7 @@ The same holds for a key. `graft json --strict` fails on a `yes`, `no`, `on`, or
 
 ### line-and-paragraph-separators-outside-quotes-and-blocks
 
-**Current behavior.** graft reads a line separator (U+2028) or a paragraph separator (U+2029) as a line break inside a single-quoted scalar and inside a literal block scalar (`|`), which are the two places where spruce writes them. In every other place graft still reads the character as ordinary text, where libyaml reads a line break. A next-line character (U+0085) is already a line break everywhere, in both tools. We compared both binaries on each of the cases below, with U+2028 and with U+2029, and the two separators behaved the same way.
+**Current behavior.** graft reads a line separator (U+2028) or a paragraph separator (U+2029) as a line break inside a single-quoted scalar and inside a literal block scalar (`|`), which are the two places where spruce writes them. The one exception is a separator that starts a line of a literal block, which graft fails to read at all. In every other place graft still reads the character as ordinary text, where libyaml reads a line break. A next-line character (U+0085) is already a line break everywhere, in both tools. We compared both binaries on each of the cases below, with U+2028 and with U+2029, and the two separators behaved the same way.
 
 - Take a double-quoted scalar made of `a: "x`, the separator, two spaces, and `y"`. spruce reads it as `x`, the separator, and `y`, because libyaml drops the spaces as the indentation of a new line, and graft keeps the two spaces. When the separator is followed directly by text, as in `"x`, the separator, and `y"`, the two tools agree.
 
@@ -89,9 +89,11 @@ The same holds for a key. `graft json --strict` fails on a `yes`, `no`, `on`, or
 
 - In an implicit key, such as `'a`, the separator, two spaces, and `b': 1`, spruce fails with exit code 2 and `mapping values are not allowed in this context`, because a line break cannot sit inside an implicit key. graft accepts the key and writes it back in the explicit `? key` form.
 
+- In a literal block scalar, a line that starts with the separator, with no indentation before it, makes `graft merge`, `graft json`, and `graft diff` fail with exit code 2, where spruce reads the separator as a line break. For example, `k: |-`, then a line that holds only the separator, then `  x`, reads in spruce as the separator, a line feed, and `x`, while graft fails with `non-map value is specified`. spruce writes such a line itself whenever a line of a block value starts with a separator, as in a value made of the separator, a line feed, and `x`, and graft merge writes the same bytes. So graft can't read that output back, whether spruce or graft wrote it. A separator later in the line, after the block's indentation, reads as spruce reads it.
+
 **Expected behavior.** Each of these reads exactly as spruce reads it.
 
-**Impact.** A file has to hold a raw separator character in one of these positions to be affected, which is rare. The two double-quoted and folded cases are the ones to watch, because graft produces a different value without reporting anything. Writing the separator as the escape `\L` or `\P` in a double-quoted scalar reads the same way in both tools, and a single-quoted scalar or a literal block already agrees. `graft diff` shares the same reader, so it carries the same differences.
+**Impact.** A file has to hold a raw separator character in one of these positions to be affected, which is rare. The two double-quoted and folded cases are the ones to watch, because graft produces a different value without reporting anything. Writing the separator as the escape `\L` or `\P` in a double-quoted scalar reads the same way in both tools, A single-quoted scalar already agrees, and so does a literal block, unless one of its lines starts with the separator. `graft diff` shares the same reader, so it carries the same differences.
 
 ### load-reads-files-through-its-own-path
 
