@@ -135,22 +135,22 @@ func endMarkerSpan(src string, idx byteIndex, line int) (endSpan, bool) {
 	if !isEndMarkerScalar([]byte(text)) {
 		return endSpan{}, false
 	}
-	n, colon := plainScalarEnd(text)
+	n, colon := PlainScalarEnd(text)
 	if colon >= 0 {
 		return endSpan{start, start + n, start + colon}, true
 	}
-	if !startsDocument(src[:start]) || !endsScalar(next) {
+	if !StartsDocument(src[:start]) || !endsScalar(next) {
 		return endSpan{}, false
 	}
 	return endSpan{start, start + n, start + n}, true
 }
 
-// plainScalarEnd returns the length of the plain scalar that starts
-// text, a line in block context, with the blanks after it trimmed, and
-// the offset of the ":" that makes it a key, or -1 when it is no key. A
-// ":" ends the scalar when a blank or the end of the line follows it,
-// and a "#" ends it when a blank comes before it.
-func plainScalarEnd(text string) (int, int) {
+// PlainScalarEnd returns the length of the plain scalar that starts
+// text, a line in block context that starts with "...", with the blanks
+// after it trimmed, and the offset of the ":" that makes it a key, or -1
+// when it is no key. A ":" ends the scalar when a blank or the end of
+// the line follows it, and a "#" ends it when a blank comes before it.
+func PlainScalarEnd(text string) (int, int) {
 	end, colon := len(text), -1
 	for i := 3; i < len(text); i++ {
 		if text[i] == ':' && (i+1 == len(text) || isBlank(text[i+1])) {
@@ -165,13 +165,13 @@ func plainScalarEnd(text string) (int, int) {
 	return len(strings.TrimRight(text[:end], " \t\r")), colon
 }
 
-// startsDocument reports whether before, the text ahead of a line, puts
+// StartsDocument reports whether before, the text ahead of a line, puts
 // that line at the start of a document's content. Walking back to the
 // last marker line or the start of the input, every line has to be
 // blank, a comment, a directive, or node properties alone, and a "---"
 // may carry only node properties. Anything else holds content the line
 // would continue or join.
-func startsDocument(before string) bool {
+func StartsDocument(before string) bool {
 	for before != "" {
 		before = strings.TrimSuffix(before, "\n")
 		cut := strings.LastIndexByte(before, '\n')

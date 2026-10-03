@@ -356,18 +356,22 @@ func TestFirstDocumentDepth(t *testing.T) {
 }
 
 // TestFirstDocumentDepthOfAStreamItReturnsWhole feeds FirstDocument a
-// first document that goccy ends at "...#c", a line that is no marker
-// line, followed by 10,001 unclosed "[". FirstDocument cannot cut there,
-// so it returns the stream whole, once because no marker line follows
-// and once because a "---" follows that the cut cannot reach. goccy then
-// parses every document, so the depth check has to cover them all. At
-// 9027f95 it checked only the first document, and goccy's parser took
-// tens of gigabytes on 200,000 "[" before it failed.
+// first document followed by 10,001 unclosed "[". In the first two, a
+// "---" inside an open flow collection is no cut FirstDocument can
+// prove, so it returns the stream whole, and goccy then parses every
+// document, so the depth check has to cover them all. At 9027f95 it
+// checked only the first document, and goccy's parser took tens of
+// gigabytes on 200,000 "[" before it failed. In the last two, goccy ends
+// the first document at "...#c", a line yaml.v3 reads as a scalar that
+// cannot follow a mapping, and FirstDocument fails it before it reads
+// the brackets.
 func TestFirstDocumentDepthOfAStreamItReturnsWhole(t *testing.T) {
 	unclosed := strings.Repeat("[", 10001) + "\n"
 	for _, c := range []struct{ name, in, want string }{
-		{"no marker line", "a: 1\n...#c\n" + unclosed, "yaml: line 3: exceeded max depth of 10000"},
-		{"cut not proved", "a: 1\n...#c\n---\n" + unclosed, "yaml: line 4: exceeded max depth of 10000"},
+		{"open flow", "a: [1,\n---\n" + unclosed, "yaml: line 3: exceeded max depth of 10000"},
+		{"open flow before an end marker", "a: [1,\n...\n" + unclosed, "yaml: line 3: exceeded max depth of 10000"},
+		{"scalar read as an end marker", "a: 1\n...#c\n" + unclosed, "yaml: line 2: could not find expected ':'"},
+		{"scalar read as an end marker before a header", "a: 1\n...#c\n---\n" + unclosed, "yaml: line 2: could not find expected ':'"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			var before, after runtime.MemStats
@@ -443,6 +447,157 @@ func TestParseRejectsContentAfterADocumentEnd(t *testing.T) {
 		_, parseErr := yamlnode.Parse([]byte(in))
 		if cutErr == nil || parseErr == nil || cutErr.Error() != parseErr.Error() {
 			t.Errorf("%q: FirstDocument = %v, Parse = %v; want one error", in, cutErr, parseErr)
+		}
+	}
+}
+
+// TestFirstDocumentRejectsAScalarItReadsAsADocumentEnd feeds
+// FirstDocument a column-1 "..." that a character other than a blank or
+// a line break follows, such as "...#c" or "...x", where goccy ends the
+// document and yaml.v3 reads a plain scalar. goccy's merge would drop
+// what follows, so FirstDocument fails each line yaml.v3 cannot read as
+// part of the document, with yaml.v3's message and line, as spruce
+// reports them. A key, or a scalar that is the whole document, is one
+// yaml.v3 reads, and FirstDocument fails it with a message of its own on
+// the "..." line, since goccy's reading would lose it.
+func TestFirstDocumentRejectsAScalarItReadsAsADocumentEnd(t *testing.T) {
+	const notExpected = "could not find expected ':'"
+	const mapping = "mapping values are not allowed in this context"
+	const docStart = "did not find expected <document start>"
+	const tab = "found a tab character that violate indentation"
+	const quoteIt = `cannot read a plain scalar that starts a line with "..."; quote it`
+	wide := "a: [" + strings.Repeat("[], ", 12000) + "1]\n"
+	for _, c := range []struct {
+		in   string
+		line int
+		msg  string
+	}{
+		{"a: 1\n...#c\nq: 1", 2, notExpected},
+		{"a: 1\n...#c", 2, notExpected},
+		{"a: 1\n...#c\n", 2, notExpected},
+		{"a: 1\n...x\nq: 1", 2, notExpected},
+		{"a: 1\n...x", 2, notExpected},
+		{"a: |\n  x\n...#c", 3, notExpected},
+		{"a:\n  b: 1\n...#c\nq: 1", 3, notExpected},
+		{"a: b\n...#c", 2, notExpected},
+		{"- a\n...#c", 2, notExpected},
+		{"a: 1\n...x y\nq: 1", 2, notExpected},
+		{"a: 1\n...#c\n---\nq: 1", 2, notExpected},
+		{"a: 1\n...x\n---\nq: 1", 2, notExpected},
+		{"a: 1\n...#c\n...", 2, notExpected},
+		{"a: 1\n...#c\n# d", 2, notExpected},
+		{"a:\n...#c", 2, notExpected},
+		{"a:\n...x\n", 2, notExpected},
+		{"a:\n...x\n...\n", 2, notExpected},
+		{"a: 1\n...x\n...\nq: 1", 2, notExpected},
+		{"a: 1\n...#c\n\n\nq: 1", 4, notExpected},
+		{"a:\n  b:\n    c: 1\n...#c", 4, notExpected},
+		{"a: 1\n...x\n\n# c", 3, notExpected},
+		{"a: 1\r\n...#c\r\nq: 1\r", 2, notExpected},
+		{"a: 1\n...#c # d\nq: 1", 2, notExpected},
+		{"- a\n- b\n...#c", 3, notExpected},
+		{"a: 1\n...x y z", 2, notExpected},
+		{"---\na: 1\n...#c\nq: 1", 3, notExpected},
+		{"%YAML 1.1\n---\na: 1\n...#c", 4, notExpected},
+		{"a: >\n  x\n...#c", 3, notExpected},
+		{"a: \"x\"\n...#c", 2, notExpected},
+		{"a: 1\n...#c\n---\nb: [", 2, notExpected},
+		{"a: 1\n...#", 2, notExpected},
+		{"a: 1\n...x:y", 2, notExpected},
+		{"a: 1\n...#c\n  more\nq: 1", 3, notExpected},
+		{"a:\n  b: 1\n...#c\n  c: 2", 3, notExpected},
+		{"- a\n...#c\n- b", 2, notExpected},
+		{"a: 1\n...#c\n  # d\nq: 1", 2, notExpected},
+		{"a: 1\n...#c\n  more: 2", 2, notExpected},
+		{"a: 1\n...#c\n \t \nq: 1\n", 3, notExpected},
+		{"a:\n  - x\n...#c\nq: 1\n", 3, notExpected},
+		{"a: 1\n...#c\n  more\n  # x\nq: 1\n", 3, notExpected},
+		{"a: 1\n...#c\n  more: 2\nq: 1\n", 2, notExpected},
+		{"a: 1\n...#c\n  more # x\nq: 1\n", 2, notExpected},
+		{"a: 1\n...#c\n\n", 3, notExpected},
+		{"a: 1\n...#c\n  \n  ", 3, notExpected},
+		{"a: 1\n...#c\n  \n  \n", 4, notExpected},
+		{"a: 1\n...#c\n  more", 2, notExpected},
+		{"a: 1\n...#c\n  more\n", 3, notExpected},
+		{"a: 1\n...#c ", 2, notExpected},
+		{"a: 1\n...#c\n ", 2, notExpected},
+		{"a: 1\n...#c\n\n ", 3, notExpected},
+		{"a: 1\n...#c # d", 2, notExpected},
+		{"a: 1\n...#c\r\n  \r\n  ", 3, notExpected},
+		{"a: 1\n...x\n  y\n\n  ", 4, notExpected},
+		{"a: 1\r\n...#c\r\n\r\n", 3, notExpected},
+		{"a: 1\n...#c\n  x:y\nq: 1\n", 3, notExpected},
+		{"a: 1\n...#c\n  \"k\": 1\n", 2, notExpected},
+		{"a: 1\n...#c\n\t\nq: 1", 2, tab},
+		{"a: 1\n...#c\n\tq: 1\n", 2, tab},
+		{wide + "...#c\n" + strings.Repeat("\n", 20000) + "q: 1\n", 20002, notExpected},
+		{"...#c\na: 1", 1, mapping},
+		{"# c\n...#c\na: 1", 2, mapping},
+		{"...#c\n\na: 1", 2, mapping},
+		{"...#c\nfoo\na: 1", 2, mapping},
+		{"...#c\n  b: 1\n", 1, mapping},
+		{"...#c\n\t\na: 1\n", 2, mapping},
+		{"...#c\n# d\na: 1", 2, docStart},
+		{"...#c # d\na: 1", 1, docStart},
+		{"...x # c\na: 1\n", 1, docStart},
+		{"...#c\nfoo # x\na: 1\n", 2, docStart},
+		{"...#c\n  # d\n  a: 1\n", 2, docStart},
+		{"a: 1\n...\n...#c", 2, docStart},
+		{"a: 1\n...\n...#c\nq: 1", 2, docStart},
+		{"...#c", 1, quoteIt},
+		{"--- !!map\n...#c", 2, quoteIt},
+		{"...#c # d\n\n---\na: 1\n", 1, quoteIt},
+		{"...#c\n#d\n---\n", 1, quoteIt},
+		{"...#c\n  b\n", 1, quoteIt},
+		{"...x\nfoo\n", 1, quoteIt},
+		{"...#c\n...\n", 1, quoteIt},
+		{"...#c\n  ---\n", 1, quoteIt},
+		{"...#c\n---\na: 1\n", 1, quoteIt},
+		{"a: 1\n...#c: 2", 2, quoteIt},
+		{"...#c: 2\nq: 1", 1, quoteIt},
+		{"a: 1\n...#c: 2\nq: 1", 2, quoteIt},
+		{"a: 1\n...#c: 2\n...\nq: 1", 2, quoteIt},
+		{"- a\n...#c: 2\n", 2, quoteIt},
+	} {
+		want := fmt.Sprintf("yaml: line %d: %s", c.line, c.msg)
+		got, err := yamlnode.FirstDocument([]byte(c.in))
+		if err == nil || err.Error() != want {
+			t.Errorf("FirstDocument(%.40q) = %.20q, %v; want the error %q", c.in, got, err, want)
+		}
+	}
+}
+
+// TestFirstDocumentKeepsLinesThatStartWithThreeDots checks the lines
+// that start with "..." which FirstDocument leaves as they stand. goccy
+// reads a quoted key, an indented "...#c", and a "...#c" inside a quoted
+// scalar as yaml.v3 does. In a flow collection goccy fails the stream
+// itself, so FirstDocument has nothing to cut and returns it whole. A
+// "..." that ends the first document still cuts it, and a "...#c" in a
+// later document is past the cut.
+func TestFirstDocumentKeepsLinesThatStartWithThreeDots(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"a: 1\n...x: 2\n", "a: 1\n...x: 2\n"},
+		{"...x: 2\n", "...x: 2\n"},
+		{"---\n...x: 1\n", "---\n...x: 1\n"},
+		{"a: 1\n...x:\n", "a: 1\n...x:\n"},
+		{"...x\n", "...x\n"},
+		{"a: 1\n  ...#c\nq: 1\n", "a: 1\n  ...#c\nq: 1\n"},
+		{"a:\n  ...#c\nq: 1\n", "a:\n  ...#c\nq: 1\n"},
+		{"a: \"q\n...#c\"\n", "a: \"q\n...#c\"\n"},
+		{"a: 'q\n...#c'\n", "a: 'q\n...#c'\n"},
+		{"a: [1,\n...x]\n", "a: [1,\n...x]\n"},
+		{"a: [1,\n...#c]\n", "a: [1,\n...#c]\n"},
+		{"a: {b: 1,\n...#c: 2}\n", "a: {b: 1,\n...#c: 2}\n"},
+		{"a: [1,\n...#c\n]\n", "a: [1,\n...#c\n]\n"},
+		{"a: 1\n....\n", "a: 1\n....\n"},
+		{"a: 1\n... #c\n", "a: 1\n... #c\n"},
+		{"a: 1\n...\t#c\n", "a: 1\n...\t#c\n"},
+		{"a: 1\n...\n---\n...#c\n", "a: 1\n...\n"},
+		{"a: 1\n---\n...#c\n", "a: 1\n"},
+	} {
+		got, err := yamlnode.FirstDocument([]byte(c.in))
+		if err != nil || string(got) != c.want {
+			t.Errorf("FirstDocument(%q) = %q, %v; want %q", c.in, got, err, c.want)
 		}
 	}
 }

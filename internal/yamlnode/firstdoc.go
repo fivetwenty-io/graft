@@ -23,6 +23,11 @@ import (
 // reads the stream, so FirstDocument fails content that comes first with
 // yaml.v3's message and line, as Parse does, rather than drop it. It
 // also fails a directive after that "..." with no "---" to follow it.
+// A "..." at column 1 that a character other than a blank or a line
+// break follows is a plain scalar to yaml.v3, and a document end to
+// goccy, which would drop what follows. FirstDocument fails it, with
+// yaml.v3's message and line where yaml.v3 fails it too. See
+// falseEndError.
 // The marker is the token the depth probe confirms in two prefixes, or
 // in the whole input. When nothing ends the first
 // document, or when the cut cannot be proved, FirstDocument returns src
@@ -50,37 +55,53 @@ func FirstDocument(src []byte) ([]byte, error) {
 		}
 		whole := cut == len(src)
 		toks := lexer.Tokenize(probeText(src[:cut], whole))
-		at, err := scanDepth(toks, true)
-		if at >= 0 && (whole || sameToken(prev, toks, at)) {
-			if err != nil {
-				return nil, err
-			}
-			end := documentEnd(src, toks, at)
-			if end < 0 {
-				return wholeStream(src)
-			}
-			if toks[at].Type != token.DocumentEndType {
-				return src[:end], nil
-			}
-			if line, decided := bareAfterEnd(src, prev, toks, at, whole); decided {
-				if line > 0 {
-					return nil, documentStartError(line)
-				}
-				return src[:end], nil
-			}
-		} else if whole {
-			// No token ended the first document, so the depth scan
-			// covered every token in src.
-			return src, nil
+		if out, done, err := cutPrefix(src, prev, toks, whole); done {
+			return out, err
 		}
 		prev, cut = toks, min(2*cut, len(src))
 	}
 }
 
+// cutPrefix decides what FirstDocument returns from toks, the tokens of
+// a prefix of src, and prev, the tokens of the prefix before it. whole
+// reports whether the prefix is all of src. It reports false when the
+// tokens decide nothing, and FirstDocument has to tokenize a longer
+// prefix.
+func cutPrefix(src []byte, prev, toks token.Tokens, whole bool) ([]byte, bool, error) {
+	at, err := scanDepth(toks, true)
+	if i := falseEndIndex(src, toks[:scanned(at, err, len(toks))]); i >= 0 {
+		if whole || sameToken(prev, toks, i) {
+			return nil, true, falseEndError(src, toks[i].Position.Line)
+		}
+		return nil, false, nil
+	}
+	if at < 0 || !whole && !sameToken(prev, toks, at) {
+		// With no token that ended the first document in all of src,
+		// the depth scan covered every token in it.
+		return src, whole, nil
+	}
+	if err != nil {
+		return nil, true, err
+	}
+	end := documentEnd(src, toks, at)
+	if end < 0 {
+		out, err := wholeStream(src)
+		return out, true, err
+	}
+	if toks[at].Type != token.DocumentEndType {
+		return src[:end], true, nil
+	}
+	line, decided := bareAfterEnd(src, prev, toks, at, whole)
+	if line > 0 {
+		return nil, decided, documentStartError(line)
+	}
+	return src[:end], decided, nil
+}
+
 // bareAfterEnd looks past toks[at], the "..." that ends the first
 // document, for content that comes before any "---", which yaml.v3
-// rejects. See endWatch. A "..." or the end of the input after a
-// directive fails the same way. It returns the line yaml.v3 fails on,
+// rejects. See endWatch. A false end is content to yaml.v3, and a "..."
+// or the end of the input after a directive fails the same way. It returns the line yaml.v3 fails on,
 // or 0 when a "---" or the end of the input comes first, and reports
 // whether the tokens decide it. In a prefix, only a token that prev
 // holds at the same index decides it, as with the marker, and the end
@@ -89,7 +110,7 @@ func bareAfterEnd(src []byte, prev, toks token.Tokens, at int, whole bool) (int,
 	var w endWatch
 	w.reset(true)
 	for i := at + 1; i < len(toks); i++ {
-		if w.directive && toks[i].Type == token.DocumentEndType {
+		if isFalseEnd(src, toks[i]) || w.directive && toks[i].Type == token.DocumentEndType {
 			return toks[i].Position.Line, whole || sameToken(prev, toks, i)
 		}
 		w.token(toks[i])
@@ -111,6 +132,21 @@ func endOfInputLine(src []byte) int {
 		line++
 	}
 	return line
+}
+
+// scanned returns how many tokens the depth scan read, given what
+// scanDepth returned for n tokens. A trip leaves out the token that
+// tripped it, and the end of the first document keeps the token that
+// ends it.
+func scanned(at int, err error, n int) int {
+	switch {
+	case at < 0:
+		return n
+	case err != nil:
+		return at
+	default:
+		return at + 1
+	}
 }
 
 // wholeStream returns src, the whole stream FirstDocument hands goccy,
@@ -209,6 +245,8 @@ func lineStart(src []byte, line int) int {
 // that ends the first document needs content or a "---" before it, and
 // documentEnd needs its line to start with the marker, so without such
 // a line FirstDocument would return src whole and need not tokenize it.
+// A line that isFalseEndLine accepts makes the answer true wherever it
+// stands, so FirstDocument can fail it.
 // Lines of spaces and tabs, comment lines, and directive lines are not
 // content. Taking a line for content when goccy does not only makes the
 // answer true more often, which costs a tokenize and never a wrong cut.
@@ -221,6 +259,8 @@ func hasLaterMarker(src []byte) bool {
 		}
 		line := src[:end]
 		switch {
+		case isFalseEndLine(line):
+			return true
 		case isMarkerLine(line):
 			if started {
 				return true
@@ -233,6 +273,13 @@ func hasLaterMarker(src []byte) bool {
 		src = src[min(end+1, len(src)):]
 	}
 	return false
+}
+
+// isFalseEndLine reports whether line starts with a "..." that a
+// character other than a blank or a "." follows, which goccy can read as
+// a document end where yaml.v3 reads a plain scalar. See isFalseEnd.
+func isFalseEndLine(line []byte) bool {
+	return len(line) > 3 && bytes.HasPrefix(line, []byte("...")) && bytes.IndexByte([]byte(" \t."), line[3]) < 0
 }
 
 // isMarkerLine reports whether line starts with a "---" or a "..."

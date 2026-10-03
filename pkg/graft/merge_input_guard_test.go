@@ -134,17 +134,22 @@ func TestParseYAMLRejectsUnclosedBracketsCheaply(t *testing.T) {
 }
 
 // TestMergeRejectsDeepNestingInAStreamItCannotCut merges a first
-// document that goccy ends at "...#c", a line that is no marker line,
-// followed by 10,001 unclosed "[". The merge cannot cut the stream
-// there, so goccy parses every document, and the depth guard has to
-// cover them all. At 9027f95 the guard checked only the first document,
-// and goccy's parser took tens of gigabytes on 200,000 "[" before it
-// failed with a syntax error.
+// document followed by 10,001 unclosed "[". In the first two, a "---" or
+// a "..." inside an open flow collection is no cut the merge can prove,
+// so goccy parses every document, and the depth guard has to cover them
+// all. At 9027f95 the guard checked only the first document, and goccy's
+// parser took tens of gigabytes on 200,000 "[" before it failed with a
+// syntax error. In the last two, goccy ends the first document at
+// "...#c", which yaml.v3 reads as a scalar that cannot follow a mapping,
+// and the merge fails that line, as spruce does, before it reads the
+// brackets.
 func TestMergeRejectsDeepNestingInAStreamItCannotCut(t *testing.T) {
 	unclosed := strings.Repeat("[", 10001) + "\n"
-	for _, c := range []struct{ name, in string }{
-		{"no marker line", "a: 1\n...#c\n" + unclosed},
-		{"cut not proved", "a: 1\n...#c\n---\n" + unclosed},
+	for _, c := range []struct{ name, in, want string }{
+		{"open flow", "a: [1,\n---\n" + unclosed, maxRecursionMessage},
+		{"open flow before an end marker", "a: [1,\n...\n" + unclosed, maxRecursionMessage},
+		{"scalar read as an end marker", "a: 1\n...#c\n" + unclosed, "yaml: line 2: could not find expected ':'"},
+		{"scalar read as an end marker before a header", "a: 1\n...#c\n---\n" + unclosed, "yaml: line 2: could not find expected ':'"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			var before, after runtime.MemStats
@@ -153,8 +158,8 @@ func TestMergeRejectsDeepNestingInAStreamItCannotCut(t *testing.T) {
 			runtime.ReadMemStats(&before)
 			_, err := guardedMerge(t, c.in)
 			runtime.ReadMemStats(&after)
-			if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) {
-				t.Errorf("merge = %v, want the error %q", err, maxRecursionMessage)
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("merge = %v, want the error %q", err, c.want)
 			}
 			if grew := after.TotalAlloc - before.TotalAlloc; grew >= 100<<20 {
 				t.Errorf("merge allocated %d MB, want under 100 MB", grew>>20)
@@ -394,14 +399,12 @@ func TestMergeKeepsKeysThatStartWithThreeDots(t *testing.T) {
 }
 
 // TestMergeKeepsDocumentEndMarkers merges documents whose first document
-// ends at a "..." that a blank, a "#", or the end of the line follows.
-// The merge reads only that first document, as it did before keys that
-// start with "..." were kept. A scalar "...x" after a key, or as the
-// value of an empty key, still fails on line 2, as it does in spruce.
-// Content after the "..." needs a "---" first, which
+// ends at a "..." that a blank or the end of the line follows. The merge
+// reads only that first document, as it did before keys that start with
+// "..." were kept. Content after the "..." needs a "---" first, which
 // TestMergeRejectsContentAfterADocumentEnd covers.
 func TestMergeKeepsDocumentEndMarkers(t *testing.T) {
-	for _, in := range []string{"a: 1\n...\n---\nb: 2\n", "a: 1\n... # c\n", "a: 1\n...\t\n---\nb: 2\n", "a: 1\n...#c\n", "a: 1\n..."} {
+	for _, in := range []string{"a: 1\n...\n---\nb: 2\n", "a: 1\n... # c\n", "a: 1\n...\t\n---\nb: 2\n", "a: 1\n..."} {
 		out, err := guardedMerge(t, in)
 		if err != nil {
 			t.Errorf("merge of %q = %v, want success", in, err)
@@ -411,9 +414,56 @@ func TestMergeKeepsDocumentEndMarkers(t *testing.T) {
 			t.Errorf("merge of %q = %#v, want %#v", in, got, want)
 		}
 	}
-	for _, in := range []string{"a: 1\n...x\n", "a:\n...x\n", "a:\n...x\n...\n"} {
-		if _, err := guardedMerge(t, in); err == nil || !strings.Contains(err.Error(), "[2:4] unexpected end content") {
-			t.Errorf("merge of %q = %v, want goccy's error at [2:4]", in, err)
+}
+
+// TestMergeRejectsAScalarGoccyReadsAsADocumentEnd merges documents with
+// a column-1 "..." that a character other than a blank or a line break
+// follows. goccy ends the document there, so the merge dropped what
+// came after it, or the whole scalar, and exited 0, where yaml.v3 reads
+// a plain scalar. Each one now fails as spruce fails it, with yaml.v3's
+// message and line, or, where yaml.v3 reads a key or a scalar document
+// that goccy would lose, with graft's own message on the "..." line.
+func TestMergeRejectsAScalarGoccyReadsAsADocumentEnd(t *testing.T) {
+	for in, want := range map[string]string{
+		"a: 1\n...#c\nq: 1\n":      "yaml: line 2: could not find expected ':'",
+		"a: 1\n...#c\n":            "yaml: line 2: could not find expected ':'",
+		"a: 1\n...x\n":             "yaml: line 2: could not find expected ':'",
+		"a:\n...x\n":               "yaml: line 2: could not find expected ':'",
+		"a:\n...x\n...\n":          "yaml: line 2: could not find expected ':'",
+		"a: 1\n...#c\n---\nq: 1\n": "yaml: line 2: could not find expected ':'",
+		"...#c\na: 1\n":            "yaml: line 1: mapping values are not allowed in this context",
+		"...#c\n# d\na: 1\n":       "yaml: line 2: did not find expected <document start>",
+		"a: 1\n...\n...#c\n":       "yaml: line 2: did not find expected <document start>",
+		"...#c\n---\na: 1\n":       `yaml: line 1: cannot read a plain scalar that starts a line with "..."; quote it`,
+		"a: 1\n...#c: 2\n":         `yaml: line 2: cannot read a plain scalar that starts a line with "..."; quote it`,
+	} {
+		if _, err := guardedMerge(t, in); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("merge of %q = %v, want the error %q", in, err, want)
+		}
+	}
+}
+
+// TestMergeKeepsLinesThatStartWithThreeDots merges documents with lines
+// that start with "..." which goccy reads as yaml.v3 does, so the merge
+// keeps them, as spruce does.
+func TestMergeKeepsLinesThatStartWithThreeDots(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want map[string]interface{}
+	}{
+		{"a: 1\n  ...#c\nq: 1\n", map[string]interface{}{"a": "1 ...#c", "q": 1}},
+		{"a:\n  ...#c\nq: 1\n", map[string]interface{}{"a": "...#c", "q": 1}},
+		{"a: \"q\n...#c\"\n", map[string]interface{}{"a": "q ...#c"}},
+		{"a: 'q\n...#c'\n", map[string]interface{}{"a": "q ...#c"}},
+		{"a: 1\n... #c\n", map[string]interface{}{"a": 1}},
+	} {
+		out, err := guardedMerge(t, c.in)
+		if err != nil {
+			t.Errorf("merge of %q = %v, want success", c.in, err)
+			continue
+		}
+		if got := out.RawData(); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("merge of %q = %#v, want %#v", c.in, got, c.want)
 		}
 	}
 }

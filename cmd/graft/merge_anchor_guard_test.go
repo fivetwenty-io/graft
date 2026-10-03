@@ -101,6 +101,27 @@ func TestMergeAndJSONRejectContentAfterADocumentEnd(t *testing.T) {
 	}
 }
 
+// TestMergeAndJSONRejectAScalarGoccyReadsAsADocumentEnd runs `graft
+// merge` and `graft json` on a file whose "...#c" line yaml.v3 reads as
+// a plain scalar that cannot follow a mapping. spruce fails both with
+// "yaml: line 2: could not find expected ':'" and exits 2. goccy ended
+// the document at the three dots, so graft printed a: 1, dropped q, and
+// exited 0.
+func TestMergeAndJSONRejectAScalarGoccyReadsAsADocumentEnd(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "false-end.yml")
+	if err := os.WriteFile(path, []byte("a: 1\n...#c\nq: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, cmd := range []string{"merge", "json"} {
+		t.Run(cmd, func(t *testing.T) {
+			stderr, rc := runGraftCapturingOutput(t, []string{cmd, path})
+			if rc != 2 || !strings.Contains(stderr, "yaml: line 2: could not find expected ':'") {
+				t.Errorf("graft %s: rc=%d stderr=%q, want rc=2 and yaml: line 2: could not find expected ':'", cmd, rc, stderr)
+			}
+		})
+	}
+}
+
 // TestMergeKeepsDirectivesWithFirstDocument merges a file that opens
 // with a %YAML directive. spruce prints x: 1 and exits 0. graft gave the
 // directive a document of its own and printed {}.
