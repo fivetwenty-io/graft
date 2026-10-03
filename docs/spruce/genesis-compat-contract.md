@@ -284,7 +284,7 @@ A malformed file inside a directory input fails with `failed to read <path>: yam
 
 Accepted divergences, beyond the tables above:
 
-- graft accepts the `\/` escape, raw control characters, a stream that holds only `...`, and content after `...` without a new `---`. spruce rejects all four.
+- graft accepts the `\/` escape, raw control characters, and a stream that holds only `...`, which spruce rejects. graft merge accepts content after `...` without a new `---`, while graft diff rejects it as spruce does.
 
 - graft rejects complex mapping keys, which spruce accepts.
 
