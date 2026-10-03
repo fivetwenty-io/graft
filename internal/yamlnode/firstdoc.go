@@ -16,10 +16,14 @@ import (
 // document that nests deeper than yaml.v3 allows, with yaml.v3's message
 // and line.
 //
-// The result is a prefix of src, so each line and column in it is the
-// one src has. It ends where the line holding the "---" that ends the
-// first document starts, or where the line after a "..." that ends it
-// starts. Content after that "..." needs a "---" before it, as yaml.v3
+// The result has LF line breaks. goccy folds a quoted scalar correctly
+// only across LF breaks, so FirstDocument turns every CRLF and lone CR
+// into an LF, as Parse does. The result is a copy only when src holds a
+// CR, and otherwise it is src itself or a prefix of it. Each line and
+// column in it is still the one src has, because a CRLF, a lone CR, and
+// an LF are each one line break. It ends where the line holding the
+// "---" that ends the first document starts, or where the line after a
+// "..." that ends it starts. Content after that "..." needs a "---" before it, as yaml.v3
 // reads the stream, so FirstDocument fails content that comes first with
 // yaml.v3's message and line, as Parse does, rather than drop it. It
 // also fails a directive after that "..." with no "---" to follow it.
@@ -41,6 +45,16 @@ import (
 // with no marker line that could end the first document, which is most
 // input, gets only the depth probe. See hasLaterMarker.
 func FirstDocument(src []byte) ([]byte, error) {
+	first, err := cutFirstDocument(src)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeLineBreaks(first), nil
+}
+
+// cutFirstDocument cuts src as FirstDocument does and returns the cut with
+// the line breaks src has.
+func cutFirstDocument(src []byte) ([]byte, error) {
 	if !hasLaterMarker(src) {
 		return wholeStream(src)
 	}

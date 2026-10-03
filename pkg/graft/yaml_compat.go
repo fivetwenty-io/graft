@@ -338,9 +338,9 @@ func (e *maxRecursionError) Unwrap() error { return e.cause }
 // goccy parses every document it is given, so a syntax error or deep
 // nesting in a later document would otherwise fail the merge. It strips
 // a leading UTF-8 byte order mark first, as spruce does, since goccy
-// reads one as text. The result is a prefix of the rest of data, and it
-// is all of that rest when nothing ends the first document. See
-// yamlnode.FirstDocument.
+// reads one as text. The result is a prefix of the rest of data, with
+// every CRLF and lone CR turned into an LF, and it is all of that rest
+// when nothing ends the first document. See yamlnode.FirstDocument.
 //
 // It fails a first document that nests deeper than 10,000 levels, and
 // it runs before anything else tokenizes data, because goccy's parser

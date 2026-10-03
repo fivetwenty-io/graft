@@ -266,9 +266,9 @@ func TestFirstDocument(t *testing.T) {
 	}{
 		{"one document", "x: 1\ny: 2\n", "x: 1\ny: 2\n"},
 		{"two documents", "x: 1\n---\ny: 2\n", "x: 1\n"},
-		{"CRLF line breaks", "x: 1\r\nz: 3\r\n---\r\ny: 2\r\n", "x: 1\r\nz: 3\r\n"},
-		{"CR line breaks", "x: 1\rz: 3\r---\ry: 2\r", "x: 1\rz: 3\r"},
-		{"ended by a document end marker", "x: 1\n... # end\r\n---\r\ny: 2\n", "x: 1\n... # end\r\n"},
+		{"CRLF line breaks", "x: 1\r\nz: 3\r\n---\r\ny: 2\r\n", "x: 1\nz: 3\n"},
+		{"CR line breaks", "x: 1\rz: 3\r---\ry: 2\r", "x: 1\nz: 3\n"},
+		{"ended by a document end marker", "x: 1\n... # end\r\n---\r\ny: 2\n", "x: 1\n... # end\n"},
 		{"document end marker then a header", "x: 1\n...\n---\ny: 2\n", "x: 1\n...\n"},
 		{"document end marker at the end of the input", "x: 1\n...", "x: 1\n..."},
 		{"header with a comment", "x: 1\n--- # two\ny: 2\n", "x: 1\n"},
@@ -293,7 +293,7 @@ func TestFirstDocument(t *testing.T) {
 		{"dashes that are text", "a: 1\n---b\nc: 3\n", "a: 1\n---b\nc: 3\n"},
 		{"dots that start a key", "x: 1\n...x: 2\n---\ny: [\n", "x: 1\n...x: 2\n"},
 		{"inject key", "a:\n  <<<: (( grab b ))\n---\nc: [\n", "a:\n  <<<: (( grab b ))\n"},
-		{"multibyte text", "é: ü\r\n---\r\ny: 2\r\n", "é: ü\r\n"},
+		{"multibyte text", "é: ü\r\n---\r\ny: 2\r\n", "é: ü\n"},
 		{"next line character", "x: a\u0085b\n---\ny: 2\n", "x: a\u0085b\n"},
 		{"byte order mark", "\xEF\xBB\xBFx: 1\n---\ny: 2\n", "\xEF\xBB\xBFx: 1\n"},
 		{"syntax error in the second document", "x: 1\n---\ny: [\n", "x: 1\n"},
@@ -313,6 +313,58 @@ func TestFirstDocument(t *testing.T) {
 			}
 			if wholeErr == nil && contentDocument(whole) != contentDocument(cut) {
 				t.Errorf("goccy reads the first document as %q, want %q", contentDocument(cut), contentDocument(whole))
+			}
+		})
+	}
+}
+
+// TestFirstDocumentGivesLFLineBreaks checks that FirstDocument returns
+// its result with LF line breaks, on every path that returns one: a cut
+// at a marker, a stream with no marker, and a stream whose marker line
+// cannot be proved a cut. goccy folds a quoted scalar across LF breaks
+// only, so a CRLF or a lone CR that reached it split the scalar into the
+// wrong value.
+func TestFirstDocumentGivesLFLineBreaks(t *testing.T) {
+	for _, c := range []struct {
+		name, in, want string
+	}{
+		{"CRLF without a marker", "k: \"q\r\n  r s\"\r\n", "k: \"q\n  r s\"\n"},
+		{"lone CR without a marker", "a: 1\rb: 2\r", "a: 1\nb: 2\n"},
+		{"CRLF cut at a header", "x: 1\r\nz: 3\r\n---\r\ny: 2\r\n", "x: 1\nz: 3\n"},
+		{"lone CR cut at a header", "x: 1\rz: 3\r---\ry: 2\r", "x: 1\nz: 3\n"},
+		{"CRLF cut after a document end", "x: 1\r\n... # end\r\n---\r\ny: 2\r\n", "x: 1\n... # end\n"},
+		{"CRLF in a stream returned whole", "a: 1\r\n---b\r\nc: 3\r\n", "a: 1\n---b\nc: 3\n"},
+		{"CRLF in a quoted scalar before a header", "k: \"a\r\n\r\n  b\"\r\n---\r\nz: 1\r\n", "k: \"a\n\n  b\"\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := yamlnode.FirstDocument([]byte(c.in))
+			if err != nil || string(got) != c.want {
+				t.Fatalf("FirstDocument = %q, %v; want %q", got, err, c.want)
+			}
+		})
+	}
+}
+
+// TestFirstDocumentKeepsInputWithoutCR checks that input with no CR
+// comes back as the same slice, whole or cut, so ordinary input pays no
+// copy for the line break pass.
+func TestFirstDocumentKeepsInputWithoutCR(t *testing.T) {
+	for _, c := range []struct {
+		name, in string
+		wantLen  int
+	}{
+		{"no marker", "x: 1\ny: 2\n", 10},
+		{"cut at a header", "x: 1\n---\ny: 2\n", 5},
+		{"stream returned whole", "a: 1\n---b\nc: 3\n", 15},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			in := []byte(c.in)
+			got, err := yamlnode.FirstDocument(in)
+			if err != nil || len(got) != c.wantLen {
+				t.Fatalf("FirstDocument = %q, %v; want %d bytes", got, err, c.wantLen)
+			}
+			if &got[0] != &in[0] {
+				t.Errorf("FirstDocument copied input that holds no CR, want the same slice")
 			}
 		})
 	}

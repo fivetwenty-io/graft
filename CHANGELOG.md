@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `graft merge` and `graft json` no longer misread a quoted scalar that breaks across lines in a file with CRLF line endings. `k: "q` followed by `  r s"` used to merge to `q\nr s`, where spruce and the same file with LF line endings give `q r s`, and a blank line inside the scalar gained two extra newlines. The same fix covers files pulled in by `(( load ))` and `--go-patch` files. A parse error in a CRLF file no longer shows `\r` in its snippet.
+
 ## [1.42.1] - 2026-10-03
 
 `graft diff` now runs on graft's own goccy-based parser and renderer instead of homeport/dyff, and its output still matches `spruce diff` byte for byte. `graft merge` and `graft json` now read only the first document of each input, and they fail instead of silently dropping content they can't place.
