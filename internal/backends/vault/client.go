@@ -220,7 +220,7 @@ func InitializeClient() error {
 		if home, herr := os.UserHomeDir(); herr == nil {
 			// The Vault CLI's own token sink; reading the invoking user's
 			// home directory is the documented lookup, not tainted input.
-			b, err := os.ReadFile(filepath.Join(home, ".vault-token"))
+			b, err := os.ReadFile(filepath.Join(home, ".vault-token")) // #nosec G304 -- fixed path under the user's home directory
 			if err == nil {
 				token = strings.TrimSuffix(string(b), "\n")
 			}

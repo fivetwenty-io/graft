@@ -219,7 +219,7 @@ func debugHistoryFile() string {
 		return ""
 	}
 	path := filepath.Join(dir, "debug_history")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o600) // #nosec G304 -- fixed path under the user's home directory
 	if err != nil {
 		return ""
 	}

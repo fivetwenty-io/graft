@@ -314,7 +314,7 @@ gosec: ## Run gosec security scanner
 		printf "$(YELLOW)Installing gosec...$(RESET)\n"; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	}
-	@gosec -quiet -fmt text ./...
+	@gosec -quiet -fmt text -exclude-dir=.agents ./...
 	@printf "$(GREEN)✓ Gosec complete$(RESET)\n"
 
 vuln: ## Run govulncheck for Go vulnerability scanning
@@ -434,9 +434,9 @@ pre-commit: fmt vet build ## Run all pre-commit checks (fmt, vet, build)
 # Mirrors CI's push-gating jobs (Lint, Security Scan, Test): golangci at
 # the pinned version, trivy with the same scanners and severities, and the
 # full test suite. gosec and govulncheck stay in `security`/`check-all`
-# for on-demand runs -- CI does not gate on them, and standalone gosec
-# does not honor the //nolint annotations golangci-lint does, so gating
-# here would block pushes CI would accept.
+# for on-demand runs -- CI does not gate on them. A suppression is written
+# as `// #nosec <rule> -- <reason>`, which both standalone gosec and
+# golangci-lint honor; standalone gosec ignores //nolint:gosec.
 pre-push: lint golangci trivy test ## Run all pre-push checks (lint, golangci, trivy, test)
 	@printf "$(GREEN)✓ All pre-push checks passed!$(RESET)\n"
 

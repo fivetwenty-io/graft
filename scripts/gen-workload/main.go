@@ -177,7 +177,7 @@ func main() {
 	dir := filepath.Clean(os.Args[1])
 	// The operator names the output directory, and creating it is this
 	// tool's job; the files inside it go through an os.Root below.
-	if err := os.MkdirAll(dir, 0o750); err != nil { //nolint:gosec // G703: operator-chosen output dir
+	if err := os.MkdirAll(dir, 0o750); err != nil { // #nosec G703 -- the operator chooses the output directory
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
