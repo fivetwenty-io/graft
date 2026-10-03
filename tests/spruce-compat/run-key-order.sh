@@ -14,11 +14,10 @@
 #
 # The two expected files are byte-identical for string-only-key fixtures
 # apart from graft's leading "---" line. For fixtures with bare numeric
-# keys they differ only
-# in key labels (spruce keeps typed keys bare, graft's coerced keys stay
-# quoted strings) — key ORDER matches position-for-position, which is
-# the parity this runner pins. No fuzzy key extraction: full stdout
-# bytes only.
+# keys they differ only in key labels (spruce keeps typed keys bare,
+# graft's coerced keys stay quoted strings) — key ORDER matches
+# position-for-position, which is the parity this runner pins. No fuzzy
+# key extraction: full stdout bytes only.
 #
 # Usage:
 #   bash tests/spruce-compat/run-key-order.sh
