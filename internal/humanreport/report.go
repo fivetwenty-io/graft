@@ -184,7 +184,7 @@ func (r *reporter) writeDiff(output io.StringWriter, diff yamldiff.Diff, showPat
 	for i, detail := range diff.Details {
 		generatedOutput, err := r.detailOutput(detail)
 		if err != nil {
-			return withDiffPath(err, diff.Path)
+			return withDiffPath(err, diff.Path, showPathRoot)
 		}
 
 		blocks[i] = generatedOutput
@@ -202,35 +202,49 @@ func (r *reporter) writeDiff(output io.StringWriter, diff yamldiff.Diff, showPat
 }
 
 // withDiffPath names the diff path in a *FatalError that does not carry
-// one yet, and returns any other error as is.
-func withDiffPath(err error, path *yamldiff.Path) error {
+// one yet, and returns any other error as is. Like the report, it adds the
+// description of the document root when showPathRoot is set.
+func withDiffPath(err error, path *yamldiff.Path, showPathRoot bool) error {
 	var fatal *FatalError
 	if errors.As(err, &fatal) && fatal.Path == "" {
-		fatal.Path = plainPathLabel(path)
+		fatal.Path = plainPathLabel(path, showPathRoot)
 	}
 
 	return err
 }
 
-// plainPathLabel names a path in dot style without any styling, using
-// "(root level)" where the diff has no path elements. A path holding a
-// control byte, such as an escape from a key, is quoted so that the label
-// cannot reach a terminal as a sequence.
-func plainPathLabel(path *yamldiff.Path) string {
+// plainPathLabel names a path the way the report prints it, but without
+// styling. It uses "(file level)" for a nil path and "(root level)" where
+// the diff has no path elements, and with showPathRoot it appends the
+// document description in parentheses. Text holding a control byte, such
+// as an escape from a key or a file name, is quoted so that it cannot
+// reach a terminal as a sequence.
+func plainPathLabel(path *yamldiff.Path, showPathRoot bool) string {
 	if path == nil {
-		return "(root level)"
+		return "(file level)"
 	}
 
 	label := path.ToDotStyle()
 	if label == "" {
-		return "(root level)"
+		label = "(root level)"
 	}
 
-	if strings.ContainsFunc(label, unicode.IsControl) {
-		return strconv.Quote(label)
+	label = quoteIfControl(label)
+	if showPathRoot {
+		label += "  (" + quoteIfControl(path.RootDescription()) + ")"
 	}
 
 	return label
+}
+
+// quoteIfControl quotes text that holds a control byte and returns any
+// other text as is.
+func quoteIfControl(text string) string {
+	if strings.ContainsFunc(text, unicode.IsControl) {
+		return strconv.Quote(text)
+	}
+
+	return text
 }
 
 // detailOutput dispatches to the renderer for the kind of change.

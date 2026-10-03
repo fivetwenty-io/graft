@@ -215,3 +215,20 @@ func TestFatalErrorKeepsCause(t *testing.T) {
 		t.Errorf("err = %v, want the *termstyle.SGRError reachable through Unwrap", err)
 	}
 }
+
+func TestFatalErrorNamesDocumentInMultiDocumentInput(t *testing.T) {
+	from := "a: 1\n---\nb:\n  c: x\n"
+	to := "a: 1\n---\nb:\n  c: \"y\\e[38mz\"\n"
+	want := "b.c  (document #2): unsupported foreground color selection '[38]'"
+	if got := fatalMessage(t, from, to); got != want {
+		t.Errorf("message %q, want %q", got, want)
+	}
+}
+
+func TestPlainPathLabelWithoutPath(t *testing.T) {
+	for _, showPathRoot := range []bool{false, true} {
+		if got, want := plainPathLabel(nil, showPathRoot), "(file level)"; got != want {
+			t.Errorf("plainPathLabel(nil, %v) = %q, want %q", showPathRoot, got, want)
+		}
+	}
+}
