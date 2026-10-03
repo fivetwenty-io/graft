@@ -36,7 +36,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/fivetwenty-io/graft/internal/termstyle"
 	"github.com/fivetwenty-io/graft/internal/yamldiff"
@@ -71,10 +73,22 @@ type Options struct {
 // FatalError is a render failure that makes spruce panic: a malformed
 // escape sequence in styled text, a scalar tag too short to name a type,
 // or a detail that lacks a node it needs.
-type FatalError struct{ Err error }
+type FatalError struct {
+	// Path names the diff being rendered when the failure happened.
+	Path string
+	// Err is the underlying failure.
+	Err error
+}
 
-// Error returns the message of the underlying failure.
-func (e *FatalError) Error() string { return e.Err.Error() }
+// Error returns the message of the underlying failure, led by the diff path
+// when one is known.
+func (e *FatalError) Error() string {
+	if e.Path == "" {
+		return e.Err.Error()
+	}
+
+	return e.Path + ": " + e.Err.Error()
+}
 
 // Unwrap returns the underlying failure.
 func (e *FatalError) Unwrap() error { return e.Err }
@@ -170,7 +184,7 @@ func (r *reporter) writeDiff(output io.StringWriter, diff yamldiff.Diff, showPat
 	for i, detail := range diff.Details {
 		generatedOutput, err := r.detailOutput(detail)
 		if err != nil {
-			return err
+			return withDiffPath(err, diff.Path)
 		}
 
 		blocks[i] = generatedOutput
@@ -185,6 +199,38 @@ func (r *reporter) writeDiff(output io.StringWriter, diff yamldiff.Diff, showPat
 
 	writeTextBlocks(output, indent, r.width, blocks...)
 	return nil
+}
+
+// withDiffPath names the diff path in a *FatalError that does not carry
+// one yet, and returns any other error as is.
+func withDiffPath(err error, path *yamldiff.Path) error {
+	var fatal *FatalError
+	if errors.As(err, &fatal) && fatal.Path == "" {
+		fatal.Path = plainPathLabel(path)
+	}
+
+	return err
+}
+
+// plainPathLabel names a path in dot style without any styling, using
+// "(root level)" where the diff has no path elements. A path holding a
+// control byte, such as an escape from a key, is quoted so that the label
+// cannot reach a terminal as a sequence.
+func plainPathLabel(path *yamldiff.Path) string {
+	if path == nil {
+		return "(root level)"
+	}
+
+	label := path.ToDotStyle()
+	if label == "" {
+		return "(root level)"
+	}
+
+	if strings.ContainsFunc(label, unicode.IsControl) {
+		return strconv.Quote(label)
+	}
+
+	return label
 }
 
 // detailOutput dispatches to the renderer for the kind of change.

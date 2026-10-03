@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fivetwenty-io/graft/internal/termstyle"
 	"github.com/fivetwenty-io/graft/internal/yamldiff"
 	"github.com/fivetwenty-io/graft/internal/yamlgolden"
 )
@@ -164,5 +165,53 @@ func TestLocationStyler(t *testing.T) {
 		if got := c.style(c.kind, c.loc); got != c.want {
 			t.Errorf("style(%v, %q) = %q, want %q", c.kind, c.loc, got, c.want)
 		}
+	}
+}
+
+func fatalMessage(t *testing.T, from, to string) string {
+	t.Helper()
+	err := Write(&bytes.Buffer{}, reportFor(t, from, to), Options{Width: 80})
+	var fatal *FatalError
+	if !errors.As(err, &fatal) {
+		t.Fatalf("err = %v, want *FatalError", err)
+	}
+	if strings.ContainsRune(err.Error(), '\x1b') {
+		t.Errorf("message %q holds a raw escape byte", err.Error())
+	}
+	return err.Error()
+}
+
+func TestFatalErrorNamesDiffPath(t *testing.T) {
+	const cause = "unsupported foreground color selection '[38]'"
+	for _, c := range []struct {
+		name     string
+		from, to string
+		want     string
+	}{
+		{"nested key", "a:\n  b: x\n", "a:\n  b: \"y\\e[38mz\"\n", "a.b: " + cause},
+		{"list entry", "a:\n- name: web\n  v: x\n", "a:\n- name: web\n  v: \"y\\e[38mz\"\n", "a.web.v: " + cause},
+		{"root level", "x\n", "\"y\\e[38mz\"\n", "(root level): " + cause},
+		{"key with escape", "\"k\\e[1mx\": a\n", "\"k\\e[1mx\": \"y\\e[38mz\"\n", "\"k\\x1b[1mx\": " + cause},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := fatalMessage(t, c.from, c.to); got != c.want {
+				t.Errorf("message %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestFatalErrorKeepsCause(t *testing.T) {
+	err := Write(&bytes.Buffer{}, reportFor(t, "a: x\n", "a: \"y\\e[38mz\"\n"), Options{Width: 80})
+	var fatal *FatalError
+	if !errors.As(err, &fatal) {
+		t.Fatalf("err = %v, want *FatalError", err)
+	}
+	var sgr *termstyle.SGRError
+	if fatal.Path != "a" {
+		t.Errorf("Path = %q, want %q", fatal.Path, "a")
+	}
+	if !errors.As(err, &sgr) {
+		t.Errorf("err = %v, want the *termstyle.SGRError reachable through Unwrap", err)
 	}
 }
