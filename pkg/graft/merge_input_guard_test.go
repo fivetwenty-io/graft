@@ -8,11 +8,6 @@ import (
 	"testing"
 )
 
-// maxRecursionText is the text CheckForCycles reports for a merged tree
-// deeper than 4,096 levels, the same text spruce prints for any merge
-// deeper than that.
-const maxRecursionText = "Hit max recursion depth. You seem to have a self-referencing dataset"
-
 // nested returns a document whose key a holds n balanced flow lists.
 func nested(n int) string {
 	return "a: " + strings.Repeat("[", n) + strings.Repeat("]", n) + "\n"
@@ -65,16 +60,26 @@ func TestMergeRejectsSelfContainingAnchor(t *testing.T) {
 // ordinary aliases alone. An alias after its anchor's collection closes
 // is no cycle, and an anchor name binds to its latest definition, so an
 // alias to a redefined name inside the first definition is no cycle
-// either.
+// either. goccy decodes that alias as null where spruce reads the inner
+// definition, a known divergence the redefined cases pin.
 func TestMergeAcceptsAliasesOutsideTheirAnchor(t *testing.T) {
-	for _, c := range []struct{ name, in string }{
-		{"sibling", "a: &a {x: 1}\nb: *a\n"},
-		{"redefined inside", "a: &x [&x 1, *x]\n"},
-		{"anchored key", "a: {&k key: 1}\nb: *k\n"},
+	type m = map[string]interface{}
+	for _, c := range []struct {
+		name, in string
+		want     m
+	}{
+		{"sibling", "a: &a {x: 1}\nb: *a\n", m{"a": m{"x": 1}, "b": m{"x": 1}}},
+		{"redefined inside", "a: &x [&x 1, *x]\n", m{"a": []interface{}{1, nil}}},               // spruce gives [1, 1]
+		{"redefined inside a mapping", "a: &x {b: &x 1, c: *x}\n", m{"a": m{"b": 1, "c": nil}}}, // spruce gives c: 1
+		{"anchored key", "a: {&k key: 1}\nb: *k\n", m{"a": m{"key": 1}, "b": "key"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if _, err := guardedMerge(t, c.in); err != nil {
-				t.Errorf("merge of %q = %v, want success", c.in, err)
+			out, err := guardedMerge(t, c.in)
+			if err != nil {
+				t.Fatalf("merge of %q = %v, want success", c.in, err)
+			}
+			if got := out.RawData(); !reflect.DeepEqual(got, c.want) {
+				t.Errorf("merge of %q = %#v, want %#v", c.in, got, c.want)
 			}
 		})
 	}
@@ -91,8 +96,8 @@ func TestMergeDepthBoundaries(t *testing.T) {
 	}
 	for _, n := range []int{4096, 9997, 10001} {
 		_, err := guardedMerge(t, nested(n))
-		if err == nil || !strings.Contains(err.Error(), maxRecursionText) || strings.Contains(err.Error(), "exceeded max depth") {
-			t.Errorf("merge of %d levels = %v, want the error %q", n, err, maxRecursionText)
+		if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) || strings.Contains(err.Error(), "exceeded max depth") {
+			t.Errorf("merge of %d levels = %v, want the error %q", n, err, maxRecursionMessage)
 		}
 	}
 }
@@ -114,8 +119,8 @@ func TestParseYAMLRejectsUnclosedBracketsCheaply(t *testing.T) {
 	runtime.ReadMemStats(&before)
 	_, err = engine.ParseYAML(src)
 	runtime.ReadMemStats(&after)
-	if err == nil || !strings.Contains(err.Error(), maxRecursionText) {
-		t.Errorf("ParseYAML = %v, want the error %q", err, maxRecursionText)
+	if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) {
+		t.Errorf("ParseYAML = %v, want the error %q", err, maxRecursionMessage)
 	}
 	if grew := after.TotalAlloc - before.TotalAlloc; grew >= limit {
 		t.Errorf("ParseYAML allocated %d MB, want under %d MB", grew>>20, limit>>20)
@@ -214,8 +219,8 @@ func TestGoPatchParsersRejectDeepNesting(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			err := c.parse(src)
-			if err == nil || IsArrayError(err) || !strings.Contains(err.Error(), maxRecursionText) {
-				t.Errorf("%s = %v, want the error %q", c.name, err, maxRecursionText)
+			if err == nil || IsArrayError(err) || !strings.Contains(err.Error(), maxRecursionMessage) {
+				t.Errorf("%s = %v, want the error %q", c.name, err, maxRecursionMessage)
 			}
 		})
 	}

@@ -277,6 +277,9 @@ func isQuotedScalarToken(t token.Type) bool {
 // applying YAMLCompat, unconditionally, so a tagged value that YAMLCompat
 // left alone (e.g. compat disabled) still comes out as the original
 // word rather than the internal marker-prefixed string.
+//
+// Library callers pass raw input through FirstMergeDocument first, since
+// goccy's parser stalls on nesting that function fails cheaply.
 func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 	file, err := parser.ParseBytes(data, 0)
 	if err != nil {
@@ -339,6 +342,8 @@ func FirstMergeDocument(data []byte) ([]byte, error) {
 // anchor names, with the message spruce gives. goccy decodes such an
 // alias as null, so without the check the value would quietly vanish. A
 // syntax error passes the check, so the caller's own decode reports it.
+// Library callers pass raw input through FirstMergeDocument first, since
+// goccy's parser stalls on nesting that function fails cheaply.
 func CheckSelfContainingAnchors(data []byte) error {
 	file, err := parser.ParseBytes(data, 0)
 	if err == nil && len(file.Docs) > 0 && file.Docs[0].Body != nil {
