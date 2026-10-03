@@ -274,8 +274,14 @@ func TestCompareDocumentsMatchesKubernetesDocumentsByName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompareDocuments returned error: %v", err)
 	}
-	if len(changes) != 0 {
-		t.Fatalf("documents in swapped order must match by name, got %+v", changes)
+	want := []Change{{
+		Kind:      Modified,
+		Old:       []interface{}{"v1/A/a", "v1/B/b"},
+		New:       []interface{}{"v1/B/b", "v1/A/a"},
+		FileLevel: true,
+	}}
+	if !reflect.DeepEqual(changes, want) {
+		t.Fatalf("documents in swapped order must match by name and report only the order change, got %+v, want %+v", changes, want)
 	}
 
 	changedB := kubernetesResource("B", "b", 3)
@@ -283,7 +289,15 @@ func TestCompareDocumentsMatchesKubernetesDocumentsByName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompareDocuments returned error: %v", err)
 	}
-	want := []Change{{Path: "value", Kind: Modified, Old: 2, New: 3, Document: 2}}
+	want = []Change{
+		{Path: "value", Kind: Modified, Old: 2, New: 3, Document: 2},
+		{
+			Kind:      Modified,
+			Old:       []interface{}{"v1/A/a", "v1/B/b"},
+			New:       []interface{}{"v1/B/b", "v1/A/a"},
+			FileLevel: true,
+		},
+	}
 	if !reflect.DeepEqual(changes, want) {
 		t.Fatalf("changes = %+v, want %+v (numbered by the document's place in from)", changes, want)
 	}
@@ -296,8 +310,8 @@ func TestCompareDocumentsReportsKubernetesDocumentsOnlyOneSideHas(t *testing.T) 
 	if err != nil {
 		t.Fatalf("CompareDocuments returned error: %v", err)
 	}
-	if len(changes) != 2 {
-		t.Fatalf("changes = %+v, want one removal and one addition", changes)
+	if len(changes) != 3 || !changes[2].FileLevel {
+		t.Fatalf("changes = %+v, want one removal, one addition, and the file-level order change last", changes)
 	}
 	byKind := map[Kind]Change{changes[0].Kind: changes[0], changes[1].Kind: changes[1]}
 	if got := byKind[Added]; got.Document != 2 || !reflect.DeepEqual(got.New, c) {

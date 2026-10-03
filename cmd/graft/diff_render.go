@@ -40,7 +40,7 @@ func renderChangeList(changes []histdiff.Change) string {
 				continue
 			}
 			buf.WriteString("\n")
-			fmt.Fprintf(&buf, "  %-9s %s%s\n", kind.String(), c.Path, documentLabel(c.Document, "  "))
+			fmt.Fprintf(&buf, "  %-9s %s\n", kind.String(), changeLocation(c))
 			switch kind {
 			case histdiff.Added:
 				writeValueLines(&buf, "+", ansi.Green, c.New)
@@ -54,6 +54,30 @@ func renderChangeList(changes []histdiff.Change) string {
 	}
 
 	return buf.String()
+}
+
+// changeLocation returns what follows the kind of a change-list entry:
+// the path, then the document label the default report puts after a path.
+// A change with no path shows only its label, and a change to the file as
+// a whole shows "(file level)", as the default report does.
+func changeLocation(c histdiff.Change) string {
+	switch {
+	case c.FileLevel:
+		return "(file level)"
+	case c.Path == "":
+		return documentLabel(c.Document, "")
+	default:
+		return c.Path + documentLabel(c.Document, "  ")
+	}
+}
+
+// documentHeading returns the line that heads a document's part of a
+// --unified or --side-by-side view.
+func documentHeading(document histdiff.DocumentChanges) string {
+	if document.FileLevel {
+		return "(file level)"
+	}
+	return documentLabel(document.Document, "")
 }
 
 // documentLabel returns prefix and "(document #N)" for a change in
@@ -131,7 +155,7 @@ func renderUnifiedDocuments(fromLabel, toLabel string, documents []histdiff.Docu
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "--- %s\n+++ %s\n", fromLabel, toLabel)
 	for _, document := range documents {
-		fmt.Fprintf(&buf, "%s\n", documentLabel(document.Document, ""))
+		fmt.Fprintf(&buf, "%s\n", documentHeading(document))
 		if err := writeUnifiedDocument(&buf, fromLabel, document.From, toLabel, document.To, contextLines); err != nil {
 			return "", err
 		}
@@ -389,7 +413,7 @@ func renderSideBySideDocuments(fromLabel, toLabel string, documents []histdiff.D
 		if i > 0 {
 			buf.WriteString("\n")
 		}
-		fmt.Fprintf(&buf, "%s\n%s", documentLabel(document.Document, ""), view)
+		fmt.Fprintf(&buf, "%s\n%s", documentHeading(document), view)
 	}
 
 	return buf.String(), nil

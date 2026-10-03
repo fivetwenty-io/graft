@@ -2,17 +2,18 @@ package main
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// writeDiffInputs writes the two YAML texts to files in a temporary
-// directory and returns their paths.
+// writeDiffInputs writes the two YAML texts to from.yml and to.yml in a
+// temporary directory, makes that directory the working directory for the
+// test, and returns the two file names.
 func writeDiffInputs(t *testing.T, from, to string) (fromPath, toPath string) {
 	t.Helper()
 	dir := t.TempDir()
-	fromPath, toPath = filepath.Join(dir, "from.yml"), filepath.Join(dir, "to.yml")
+	t.Chdir(dir)
+	fromPath, toPath = "from.yml", "to.yml"
 	if err := os.WriteFile(fromPath, []byte(from), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -71,17 +72,26 @@ func TestDiffUnifiedComparesEveryDocument(t *testing.T) {
 	}
 }
 
+// sideBySide builds the output of --side-by-side --width 40 from rows of
+// left and right text. Each side is 18 columns wide.
+func sideBySide(rows ...[2]string) string {
+	var out strings.Builder
+	for _, row := range rows {
+		out.WriteString(row[0] + strings.Repeat(" ", 18-len([]rune(row[0]))) + " │ " + row[1] + "\n")
+	}
+	return out.String()
+}
+
+const sideBySideRule = "───────────────────┼───────────────────\n"
+
 func TestDiffSideBySideComparesEveryDocument(t *testing.T) {
 	from, to := writeDiffInputs(t, twoDocsFrom, twoDocsTo)
 	stdout, stderr, rc := runMainCaptured(t, "diff", "--side-by-side", "--width", "40", from, to)
-	if rc != 1 || stderr != "" {
-		t.Fatalf("rc=%d stderr=%q, want rc 1 and no stderr", rc, stderr)
-	}
-	if !strings.Contains(stdout, "(document #2)\n") || strings.Contains(stdout, "(document #1)") {
-		t.Fatalf("output must label only the changed document #2:\n%s", stdout)
-	}
-	if !strings.Contains(stdout, "b: 1") || !strings.Contains(stdout, "b: 2") {
-		t.Fatalf("output must show document #2's change:\n%s", stdout)
+	want := "(document #2)\n" +
+		sideBySide([2]string{"from.yml", "to.yml"}) + sideBySideRule +
+		sideBySide([2]string{"b: 1", "b: 2"})
+	if rc != 1 || stderr != "" || stdout != want {
+		t.Fatalf("rc=%d stderr=%q stdout=%q, want rc 1 and %q", rc, stderr, stdout, want)
 	}
 }
 
@@ -98,21 +108,117 @@ func TestDiffGraftOnlyModesReportDocumentCountMismatch(t *testing.T) {
 	}
 }
 
-func TestDiffGraftOnlyModesMatchKubernetesDocumentsByName(t *testing.T) {
-	const (
-		a = "apiVersion: v1\nkind: A\nmetadata:\n  name: a\nvalue: 1\n"
-		b = "apiVersion: v1\nkind: B\nmetadata:\n  name: b\nvalue: 2\n"
-	)
-	from, to := writeDiffInputs(t, a+"---\n"+b, b+"---\n"+a)
-	stdout, stderr, rc := runMainCaptured(t, "diff", "--changes", from, to)
-	if rc != 0 || stderr != "" || stdout != "Changes (0 modified, 0 added, 0 removed):\n" {
-		t.Fatalf("swapped resources: rc=%d stderr=%q stdout=%q, want no change", rc, stderr, stdout)
-	}
+const (
+	resourceA = "apiVersion: v1\nkind: A\nmetadata:\n  name: a\nvalue: 1\n"
+	resourceB = "apiVersion: v1\nkind: B\nmetadata:\n  name: b\nvalue: 2\n"
+	resourceC = "apiVersion: v1\nkind: C\nmetadata:\n  name: c\n"
+)
 
-	from, to = writeDiffInputs(t, a+"---\n"+b, strings.Replace(b, "value: 2", "value: 3", 1)+"---\n"+a)
-	stdout, stderr, rc = runMainCaptured(t, "diff", "--unified", from, to)
-	want := "--- " + from + "\n+++ " + to + "\n(document #2)\n@@ value @@\n-  2\n+  3\n"
+func TestDiffGraftOnlyModesMatchKubernetesDocumentsByName(t *testing.T) {
+	changedB := strings.Replace(resourceB, "value: 2", "value: 3", 1)
+	from, to := writeDiffInputs(t, resourceA+"---\n"+resourceB, changedB+"---\n"+resourceA)
+
+	stdout, stderr, rc := runMainCaptured(t, "diff", "--unified", from, to)
+	want := "--- from.yml\n+++ to.yml\n" +
+		"(document #2)\n@@ value @@\n-  2\n+  3\n" +
+		"(file level)\n@@ (root) @@\n+  - v1/B/b\n   - v1/A/a\n-  - v1/B/b\n"
 	if rc != 1 || stderr != "" || stdout != want {
 		t.Fatalf("changed resource: rc=%d stderr=%q stdout=%q, want rc 1 and %q", rc, stderr, stdout, want)
+	}
+}
+
+func TestDiffGraftOnlyModesReportDocumentOrderChange(t *testing.T) {
+	from, to := writeDiffInputs(t, resourceA+"---\n"+resourceB, resourceB+"---\n"+resourceA)
+
+	stdout, stderr, rc := runMainCaptured(t, "diff", "--changes", from, to)
+	want := "Changes (1 modified, 0 added, 0 removed):\n\n" +
+		"  MODIFIED  (file level)\n" +
+		"            - - v1/A/a\n" +
+		"            - - v1/B/b\n" +
+		"            + - v1/B/b\n" +
+		"            + - v1/A/a\n"
+	if rc != 1 || stderr != "" || stdout != want {
+		t.Fatalf("--changes: rc=%d stderr=%q stdout=%q, want rc 1 and %q", rc, stderr, stdout, want)
+	}
+
+	stdout, stderr, rc = runMainCaptured(t, "diff", "--unified", from, to)
+	want = "--- from.yml\n+++ to.yml\n(file level)\n@@ (root) @@\n+  - v1/B/b\n   - v1/A/a\n-  - v1/B/b\n"
+	if rc != 1 || stderr != "" || stdout != want {
+		t.Fatalf("--unified: rc=%d stderr=%q stdout=%q, want rc 1 and %q", rc, stderr, stdout, want)
+	}
+
+	stdout, stderr, rc = runMainCaptured(t, "diff", "--side-by-side", "--width", "40", from, to)
+	want = "(file level)\n" +
+		sideBySide([2]string{"from.yml", "to.yml"}) + sideBySideRule +
+		sideBySide([2]string{"", "- v1/B/b"}, [2]string{"- v1/A/a", "- v1/A/a"}, [2]string{"- v1/B/b", ""})
+	if rc != 1 || stderr != "" || stdout != want {
+		t.Fatalf("--side-by-side: rc=%d stderr=%q stdout=%q, want rc 1 and %q", rc, stderr, stdout, want)
+	}
+}
+
+func TestDiffGraftOnlyModesShowADocumentOnlyOneSideHas(t *testing.T) {
+	from, to := writeDiffInputs(t, resourceA+"---\n"+resourceB, resourceA+"---\n"+resourceC)
+
+	stdout, stderr, rc := runMainCaptured(t, "diff", "--changes", from, to)
+	want := "Changes (1 modified, 1 added, 1 removed):\n\n" +
+		"  MODIFIED  (file level)\n" +
+		"            - - v1/A/a\n" +
+		"            - - v1/B/b\n" +
+		"            + - v1/A/a\n" +
+		"            + - v1/C/c\n\n" +
+		"  ADDED     (document #2)\n" +
+		"            + apiVersion: v1\n" +
+		"            + kind: C\n" +
+		"            + metadata:\n" +
+		"            +   name: c\n\n" +
+		"  REMOVED   (document #2)\n" +
+		"            - apiVersion: v1\n" +
+		"            - kind: B\n" +
+		"            - metadata:\n" +
+		"            -   name: b\n" +
+		"            - value: 2\n"
+	if rc != 1 || stderr != "" || stdout != want {
+		t.Fatalf("--changes: rc=%d stderr=%q stdout=%q, want rc 1 and %q", rc, stderr, stdout, want)
+	}
+
+	stdout, stderr, rc = runMainCaptured(t, "diff", "--unified", from, to)
+	want = "--- from.yml\n+++ to.yml\n" +
+		"(document #2)\n@@ (root) @@\n" +
+		"-  apiVersion: v1\n-  kind: B\n-  metadata:\n-    name: b\n-  value: 2\n" +
+		"(document #2)\n@@ (root) @@\n" +
+		"+  apiVersion: v1\n+  kind: C\n+  metadata:\n+    name: c\n" +
+		"(file level)\n@@ (root) @@\n   - v1/A/a\n-  - v1/B/b\n+  - v1/C/c\n"
+	if rc != 1 || stderr != "" || stdout != want {
+		t.Fatalf("--unified: rc=%d stderr=%q stdout=%q, want rc 1 and %q", rc, stderr, stdout, want)
+	}
+
+	stdout, stderr, rc = runMainCaptured(t, "diff", "--side-by-side", "--width", "40", from, to)
+	header := sideBySide([2]string{"from.yml", "to.yml"}) + sideBySideRule
+	want = "(document #2)\n" + header +
+		sideBySide([2]string{"apiVersion: v1", ""}, [2]string{"kind: B", ""}, [2]string{"metadata:", ""}, [2]string{"  name: b", ""}, [2]string{"value: 2", ""}) +
+		"\n(document #2)\n" + header +
+		sideBySide([2]string{"", "apiVersion: v1"}, [2]string{"", "kind: C"}, [2]string{"", "metadata:"}, [2]string{"", "  name: c"}) +
+		"\n(file level)\n" + header +
+		sideBySide([2]string{"- v1/A/a", "- v1/A/a"}, [2]string{"- v1/B/b", "- v1/C/c"})
+	if rc != 1 || stderr != "" || stdout != want {
+		t.Fatalf("--side-by-side: rc=%d stderr=%q stdout=%q, want rc 1 and %q", rc, stderr, stdout, want)
+	}
+}
+
+func TestDiffChangesLabelsWholeDocumentsOfSingleDocumentInputs(t *testing.T) {
+	from, to := writeDiffInputs(t, "apiVersion: v1\nkind: A\nmetadata:\n  name: a\n", "apiVersion: v1\nkind: A\nmetadata:\n  name: b\n")
+	stdout, stderr, rc := runMainCaptured(t, "diff", "--changes", from, to)
+	if rc != 1 || stderr != "" {
+		t.Fatalf("rc=%d stderr=%q, want rc 1", rc, stderr)
+	}
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.HasSuffix(line, " ") {
+			t.Errorf("line %q has trailing spaces", line)
+		}
+	}
+	for _, entry := range []string{"  ADDED     (document #1)\n", "  REMOVED   (document #1)\n"} {
+		if !strings.Contains(stdout, entry) {
+			t.Errorf("output lacks %q:\n%s", entry, stdout)
+		}
 	}
 }

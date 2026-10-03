@@ -59,6 +59,11 @@ type Change struct {
 	// in. It is set only when an input holds more than one document, and
 	// is zero otherwise, as it is for every change Compare returns.
 	Document int
+
+	// FileLevel marks a change to the file as a whole, such as the
+	// Kubernetes documents appearing in a different order. Its Path is
+	// empty and it has no Document.
+	FileLevel bool
 }
 
 // Compare returns the semantic changes between from and to (each normally a
@@ -104,7 +109,12 @@ func Compare(fromLabel string, from interface{}, toLabel string, to interface{})
 type DocumentChanges struct {
 	// Document is the one-based position of the document in its input.
 	// A document that only the "to" input has is numbered by that input.
+	// It is zero for the file-level group.
 	Document int
+	// FileLevel marks the group that holds the change in the order of
+	// Kubernetes documents, with the old and new name lists as From and
+	// To.
+	FileLevel bool
 	// From and To are the decoded documents, nil on a side that has no
 	// document.
 	From, To interface{}
@@ -116,12 +126,12 @@ type DocumentChanges struct {
 // returns the pairs that differ. Each pair is compared on the node trees
 // yaml.v3 would produce by marshaling the decoded documents, as Compare
 // does, so a single-document comparison finds exactly the changes Compare
-// finds. A change in the order of Kubernetes documents is not a change
-// here. The error for inputs that cannot be paired is yamldiff's own,
-// with the text the default diff prints.
+// finds. A change in the order of Kubernetes documents comes last, as a
+// file-level group. The error for inputs that cannot be paired is
+// yamldiff's own, with the text the default diff prints.
 //
 // A change is numbered with its document only when from or to holds more
-// than one document.
+// than one document, or when the whole document is added or removed.
 func CompareDocumentPairs(fromLabel string, from []interface{}, toLabel string, to []interface{}) ([]DocumentChanges, error) {
 	fromFile, err := encodeInputFile(fromLabel, from)
 	if err != nil {
@@ -146,7 +156,7 @@ func CompareDocumentPairs(fromLabel string, from []interface{}, toLabel string, 
 	for _, group := range groups {
 		document := documentChanges(group.Pair, from, to)
 		changeDocument := 0
-		if numbered {
+		if numbered || group.Pair.FromPosition < 0 || group.Pair.ToPosition < 0 {
 			changeDocument = document.Document
 		}
 		changes, err := diffsToChanges(group.Diffs, changeDocument)
@@ -159,6 +169,20 @@ func CompareDocumentPairs(fromLabel string, from []interface{}, toLabel string, 
 		sortChanges(changes)
 		document.Changes = changes
 		result = append(result, document)
+	}
+
+	orderChanges, err := diffsToChanges(pairing.OrderChange(), 0)
+	if err != nil {
+		return nil, err
+	}
+	for i := range orderChanges {
+		orderChanges[i].FileLevel = true
+		result = append(result, DocumentChanges{
+			FileLevel: true,
+			From:      orderChanges[i].Old,
+			To:        orderChanges[i].New,
+			Changes:   []Change{orderChanges[i]},
+		})
 	}
 
 	return result, nil
@@ -177,10 +201,14 @@ func CompareDocuments(fromLabel string, from []interface{}, toLabel string, to [
 }
 
 // AllChanges returns the changes of every document, sorted by document
-// and then by path.
+// and then by path, followed by the file-level changes.
 func AllChanges(documents []DocumentChanges) []Change {
-	var changes []Change
+	var changes, fileLevel []Change
 	for _, document := range documents {
+		if document.FileLevel {
+			fileLevel = append(fileLevel, document.Changes...)
+			continue
+		}
 		changes = append(changes, document.Changes...)
 	}
 	sort.SliceStable(changes, func(i, j int) bool {
@@ -190,7 +218,7 @@ func AllChanges(documents []DocumentChanges) []Change {
 		return pathLess(changes[i].Path, changes[j].Path)
 	})
 
-	return changes
+	return append(changes, fileLevel...)
 }
 
 // encodeInputFile builds the yamldiff input for decoded documents.
