@@ -23,7 +23,22 @@ import (
 // and lets goccy read them, and parses again. It returns goccy's first
 // error when the padded text fails too. Padding never moves a line, so
 // positions in the result are those of data.
+//
+// When data holds a LINE SEPARATOR or PARAGRAPH SEPARATOR, ParseBytes
+// also gives the single-quoted and literal block scalars that hold one
+// the values libyaml reads for them, as fixLineSeparators describes.
 func ParseBytes(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
+	file, err := parseBlockPadded(data, mode, opts...)
+	if err == nil && file != nil && hasLineSeparator(data) {
+		fixLineSeparators(file)
+	}
+	return file, err
+}
+
+// parseBlockPadded parses data with goccy, padding block scalar lines
+// and parsing again when goccy fails with an error that
+// padBlockScalarLines works around.
+func parseBlockPadded(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
 	file, err := parser.ParseBytes(data, mode, opts...)
 	if err == nil || !isBlockIndentError(err) {
 		return file, err
