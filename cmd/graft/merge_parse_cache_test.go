@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -131,5 +134,21 @@ func TestParseCacheKeyStabilityAndSensitivity(t *testing.T) {
 	Version = origVersion + "-test"
 	if a == parseCacheKey([]byte("a: 1\n")) {
 		t.Fatal("graft version must salt the parse cache key")
+	}
+}
+
+// TestParseCacheKeyNamespace pins the schema tag that opens a parse-cache
+// key. A build that shares a version string with an older one could
+// replay a tree parsed before CRLF line breaks were normalized, so the
+// tag moves whenever parsing changes what a document decodes to.
+func TestParseCacheKeyNamespace(t *testing.T) {
+	data := []byte("k: \"q\r\n  r s\"\r\n")
+	h := sha256.New()
+	for _, b := range [][]byte{[]byte("graft-parse-tree-v2"), []byte(Version), data} {
+		h.Write([]byte(strconv.Itoa(len(b)) + ":"))
+		h.Write(b)
+	}
+	if got, want := parseCacheKey(data), hex.EncodeToString(h.Sum(nil)); got != want {
+		t.Errorf("parseCacheKey = %s, want the key under graft-parse-tree-v2, %s", got, want)
 	}
 }

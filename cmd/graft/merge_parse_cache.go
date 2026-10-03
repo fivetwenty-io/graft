@@ -70,7 +70,7 @@ func parseCacheKey(data []byte) string {
 		h.Write([]byte{':'})
 		h.Write(b)
 	}
-	field([]byte("graft-parse-tree-v1"))
+	field([]byte("graft-parse-tree-v2"))
 	field([]byte(Version))
 	field(data)
 	return hex.EncodeToString(h.Sum(nil))
