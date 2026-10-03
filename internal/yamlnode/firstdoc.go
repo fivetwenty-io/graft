@@ -14,7 +14,7 @@ import (
 // without the cut a syntax error or deep nesting in a later document
 // would fail a merge that never reads it. FirstDocument fails a first
 // document that nests deeper than yaml.v3 allows, with yaml.v3's message
-// and line, as CheckFirstDocumentDepth does.
+// and line.
 //
 // The result is a prefix of src, so each line and column in it is the
 // one src has. It ends where the line holding the "---" that ends the
@@ -117,7 +117,7 @@ func endOfInputLine(src []byte) int {
 // after it fails nesting past maxDepth in any document of src. Input
 // that cannot nest that deep costs one pass over its bytes.
 func wholeStream(src []byte) ([]byte, error) {
-	if _, err := probeDepth(src, false); err != nil {
+	if _, err := probeDepth(src); err != nil {
 		return nil, err
 	}
 	return src, nil

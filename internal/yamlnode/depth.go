@@ -85,7 +85,6 @@ func (d *firstDocument) ends(t *token.Token) bool {
 // checkDepth allows, while tokenizing as little of it as it can. goccy's
 // scanner tokenizes its whole input in one call, and a megabyte of "["
 // costs it about 300 MB, so the probe tokenizes prefixes of src instead.
-// With firstDocOnly, it looks only at the first document.
 //
 // Each level of nesting needs an opener of its own. A flow level needs a
 // "[" or a "{", and a block level needs a "-", a "?", or a ":". The open
@@ -115,10 +114,10 @@ func (d *firstDocument) ends(t *token.Token) bool {
 // adds a "~" after a "-" whose line a key follows, which never changes a
 // trip.
 //
-// When the probe tokenizes all of src without tripping, and firstDocOnly
-// is false, it returns the text it tokenized and the tokens, so Parse
-// can skip tokenizing the same text again.
-func probeDepth(src []byte, firstDocOnly bool) (probeResult, error) {
+// When the probe tokenizes all of src without tripping, it returns the
+// text it tokenized and the tokens, so Parse can skip tokenizing the same
+// text again.
+func probeDepth(src []byte) (probeResult, error) {
 	cut := probeCut(src)
 	if cut < 0 {
 		return probeResult{}, nil
@@ -131,30 +130,15 @@ func probeDepth(src []byte, firstDocOnly bool) (probeResult, error) {
 		whole := cut == len(src)
 		text := probeText(src[:cut], whole)
 		toks := lexer.Tokenize(text)
-		at, err := scanDepth(toks, firstDocOnly)
+		at, err := scanDepth(toks, false)
 		if at >= 0 && (whole || sameToken(prev, toks, at)) {
 			return probeResult{}, err
 		}
 		if whole {
-			if firstDocOnly {
-				return probeResult{}, nil
-			}
 			return probeResult{text: text, toks: toks}, nil
 		}
 		prev, cut = toks, min(2*cut, len(src))
 	}
-}
-
-// CheckFirstDocumentDepth fails src, raw YAML bytes, when its first
-// document nests deeper than yaml.v3 allows, with yaml.v3's message and
-// line. It reads nothing past the end of the first document, and it
-// tokenizes only as much of src as the depth probe needs, so a stream of
-// unclosed brackets fails without the cost of tokenizing all of it. It
-// exists for callers that parse with goccy directly and read only the
-// first document, as graft's merge does.
-func CheckFirstDocumentDepth(src []byte) error {
-	_, err := probeDepth(src, true)
-	return err
 }
 
 // probeResult holds the text probeDepth tokenized and its tokens, when

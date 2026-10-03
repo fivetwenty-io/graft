@@ -9,38 +9,6 @@ import (
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
-// TestProbeDepthFirstDocument checks that the probe, told to stop at the
-// first document boundary, still fails deep nesting in the first
-// document and ignores it in a later one.
-func TestProbeDepthFirstDocument(t *testing.T) {
-	deep := strings.Repeat("[", 10001) + "\n"
-	for _, c := range []struct {
-		name, in string
-		first    string // the error with firstDocOnly, "" for none
-		all      string // the error without it
-	}{
-		{"one document", deep, "yaml: exceeded max depth of 10000", "yaml: exceeded max depth of 10000"},
-		{"after a header", "---\n" + deep, "yaml: line 2: exceeded max depth of 10000", "yaml: line 2: exceeded max depth of 10000"},
-		{"after a directive", "%YAML 1.2\n---\n" + deep, "yaml: line 3: exceeded max depth of 10000", "yaml: line 3: exceeded max depth of 10000"},
-		{"after a comment", "# c\n" + deep, "yaml: line 2: exceeded max depth of 10000", "yaml: line 2: exceeded max depth of 10000"},
-		{"second document", "a: 1\n---\n" + deep, "", "yaml: line 3: exceeded max depth of 10000"},
-		{"after an end marker", "a: 1\n...\n" + deep, "", "yaml: line 3: exceeded max depth of 10000"},
-		{"third document", "---\n---\n" + deep, "", "yaml: line 3: exceeded max depth of 10000"},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			for _, k := range []struct {
-				firstDocOnly bool
-				want         string
-			}{{true, c.first}, {false, c.all}} {
-				_, err := probeDepth([]byte(c.in), k.firstDocOnly)
-				if got := errText(err); got != k.want {
-					t.Errorf("probeDepth(firstDocOnly=%v) = %q, want %q", k.firstDocOnly, got, k.want)
-				}
-			}
-		})
-	}
-}
-
 // TestProbeDepthMatchesCheckDepth checks that the probe fails exactly
 // the inputs that checkDepth fails after the rewrites Parse applies,
 // with the same message, on inputs whose nesting runs into text, keys,
@@ -71,7 +39,7 @@ func TestProbeDepthMatchesCheckDepth(t *testing.T) {
 	for _, in := range inputs {
 		prepared, _ := yamlprep.Prepare(normalizeLineBreaks([]byte(in)))
 		want := errText(checkDepth(lexer.Tokenize(string(prepared))))
-		_, err := probeDepth([]byte(in), false)
+		_, err := probeDepth([]byte(in))
 		if got := errText(err); got != want {
 			t.Errorf("probeDepth(%.30q...) = %q, checkDepth says %q", in, got, want)
 		}

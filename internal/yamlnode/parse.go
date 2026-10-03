@@ -200,7 +200,7 @@ func readStream(data []byte) ([]byte, probeResult, error) {
 	if err := checkUTF8(src); err != nil {
 		return nil, probeResult{}, err
 	}
-	probed, err := probeDepth(src, false)
+	probed, err := probeDepth(src)
 	if err != nil {
 		return nil, probeResult{}, err
 	}

@@ -221,14 +221,14 @@ func TestParseDepthAtInjectKeys(t *testing.T) {
 	}
 }
 
-// TestCheckFirstDocumentDepth checks the exported depth guard the merge
-// path runs on raw input. It fails nesting past 10,000 levels in the
-// first document with yaml.v3's message, passes nesting at the limit,
-// and ignores nesting in a later document, which neither spruce nor
-// graft's merge reads. A key at column 1 that starts with "..." and a
-// non-blank character does not end the first document, so nesting in
-// its value counts.
-func TestCheckFirstDocumentDepth(t *testing.T) {
+// TestFirstDocumentDepthLimit checks the depth guard FirstDocument runs
+// on raw input. It fails nesting past 10,000 levels in the first
+// document with yaml.v3's message, passes nesting at the limit, and
+// ignores nesting in a later document, which neither spruce nor graft's
+// merge reads. A key at column 1 that starts with "..." and a non-blank
+// character does not end the first document, so nesting in its value
+// counts.
+func TestFirstDocumentDepthLimit(t *testing.T) {
 	deep := func(n int) string { return "a: " + strings.Repeat("[", n) + strings.Repeat("]", n) + "\n" }
 	for _, c := range []struct {
 		name string
@@ -243,11 +243,11 @@ func TestCheckFirstDocumentDepth(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			got := ""
-			if err := yamlnode.CheckFirstDocumentDepth([]byte(c.in)); err != nil {
+			if _, err := yamlnode.FirstDocument([]byte(c.in)); err != nil {
 				got = err.Error()
 			}
 			if got != c.want {
-				t.Errorf("CheckFirstDocumentDepth = %q, want %q", got, c.want)
+				t.Errorf("FirstDocument = %q, want %q", got, c.want)
 			}
 		})
 	}
