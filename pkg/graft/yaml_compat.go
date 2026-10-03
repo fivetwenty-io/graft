@@ -306,7 +306,9 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 // it has none. goccy gives the directives before a "---" a document of
 // their own, whose body is the directive, so firstBody skips those and
 // returns the body of the document the directives belong to, as libyaml
-// and yaml.Unmarshal read it.
+// reads it. It skips nothing else. yaml.Unmarshal also skips an empty or
+// null document, but the merge reads that document as {}, as spruce
+// does, and never the document after it.
 func firstBody(file *ast.File) ast.Node {
 	for _, doc := range file.Docs {
 		if _, ok := doc.Body.(*ast.DirectiveNode); !ok {

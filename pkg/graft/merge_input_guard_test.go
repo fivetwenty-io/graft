@@ -195,6 +195,39 @@ func TestMergeKeepsDirectivesWithFirstDocument(t *testing.T) {
 	}
 }
 
+// TestMergeKeepsEmptyDocumentAfterDirective merges streams whose first
+// document, the one a directive opens, is empty or null. spruce merges
+// that document as {} and never reads the x: 1 after it, so the merge
+// must not skip the empty document the way yaml.Unmarshal does. The
+// merge cuts the stream after the first document, so each case also
+// hands ParseYAML11CompatAware the whole stream, which graft json does.
+// A "~" on the header line followed by a key is a syntax error, and
+// spruce fails it too.
+func TestMergeKeepsEmptyDocumentAfterDirective(t *testing.T) {
+	for _, c := range []struct{ name, in string }{
+		{"empty document", "%YAML 1.1\n---\n---\nx: 1\n"},
+		{"null document", "%YAML 1.1\n--- ~\n---\nx: 1\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got, err := ParseYAML11CompatAware([]byte(c.in)); got != nil || err != nil {
+				t.Errorf("ParseYAML11CompatAware = %#v, %v; want nil, nil", got, err)
+			}
+			out, err := guardedMerge(t, c.in)
+			if err != nil {
+				t.Fatalf("merge = %v, want success", err)
+			}
+			if got := out.RawData(); !reflect.DeepEqual(got, map[string]interface{}{}) {
+				t.Errorf("merge = %#v, want {}", got)
+			}
+		})
+	}
+	t.Run("null header with a key after it", func(t *testing.T) {
+		if _, err := guardedMerge(t, "%YAML 1.1\n--- ~\nx: 1\n"); err == nil {
+			t.Error("merge succeeded, want a syntax error")
+		}
+	})
+}
+
 // TestMergeStripsLeadingBOM merges streams that open with a UTF-8 byte
 // order mark. spruce strips it and merges x: 1. graft kept it, so it
 // became part of the first key, and before a "---" or a comment it
