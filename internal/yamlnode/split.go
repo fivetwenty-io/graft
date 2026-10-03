@@ -25,7 +25,7 @@ type chunk struct {
 
 	// bareLine is the line of the first token of a document that follows
 	// a "..." with no "---" before it, which yaml.v3 rejects, and 0 for
-	// every other chunk.
+	// every other chunk. See endWatch.
 	bareLine int
 
 	// tail marks the comments after the last document's "...", which are
@@ -101,13 +101,14 @@ type splitter struct {
 	endLine     int
 	endComments []string
 
-	// bareLine is the line of the first token of the section being read
-	// when that section follows a "..." and has no "---".
-	bareLine int
+	// watch finds the first token of the section being read when that
+	// section follows a "..." and has no "---".
+	watch endWatch
 }
 
 func (s *splitter) token(t *token.Token) {
 	line := t.Position.Line
+	s.watch.token(t)
 	switch {
 	case t.Type == token.DocumentHeaderType:
 		s.header(line)
@@ -122,9 +123,6 @@ func (s *splitter) token(t *token.Token) {
 	case t.Type == token.CommentType || s.directiveLines[line]:
 		// Comments and directive arguments never make a document.
 	default:
-		if s.afterEnd && !s.explicit && !s.hasContent {
-			s.bareLine = line
-		}
 		s.hasContent = true
 	}
 }
@@ -139,7 +137,8 @@ func (s *splitter) header(line int) {
 		textStart = s.textStart // carry the section's comments over
 	}
 	s.afterEnd = s.endedByDots
-	s.textStart, s.segStart, s.explicit, s.hasContent, s.bareLine = textStart, line, true, false, 0
+	s.textStart, s.segStart, s.explicit, s.hasContent = textStart, line, true, false
+	s.watch.reset(false)
 	if s.pendingDirective > 0 {
 		s.segStart, s.pendingDirective = s.pendingDirective, 0
 		s.textStart = min(s.textStart, s.segStart)
@@ -154,7 +153,8 @@ func (s *splitter) documentEnd(line int) {
 	}
 	s.afterEnd = s.endedByDots
 	s.endLine = line
-	s.textStart, s.segStart, s.explicit, s.hasContent, s.bareLine = line+1, line+1, false, false, 0
+	s.textStart, s.segStart, s.explicit, s.hasContent = line+1, line+1, false, false
+	s.watch.reset(s.afterEnd)
 }
 
 // emit closes the section that ends at endLine and reports whether it
@@ -173,7 +173,7 @@ func (s *splitter) emit(endLine int, marker bool) bool {
 	s.chunks = append(s.chunks, chunk{
 		text:        strings.Join(s.lines[s.textStart-1:endLine], ""),
 		endComments: endComments,
-		bareLine:    s.bareLine,
+		bareLine:    s.watch.line,
 		startLine:   s.segStart,
 		textLine:    s.textStart,
 		index:       len(s.chunks),
@@ -187,4 +187,52 @@ func (s *splitter) emit(endLine int, marker bool) bool {
 // its line in the stream.
 func (c chunk) lineOffset() int {
 	return c.textLine - 1
+}
+
+// endWatch finds the content yaml.v3 rejects after a "..." that ends a
+// document. The document after a "..." has to start with a "---", so
+// libyaml fails content that comes first with "did not find expected
+// <document start>". Comments, directives, and more "..." lines may come
+// between. Parse fails the chunk that holds such content, and
+// FirstDocument fails a stream whose first document it follows.
+//
+// Once a directive comes, only a "---" may end the run, so libyaml also
+// fails a "..." or the end of the input after it. The watch notes the
+// directive, and FirstDocument fails those as well.
+type endWatch struct {
+	armed     bool // a "..." ended a document, and no "---" or content has come since
+	line      int  // the line of the content that came first, or 0
+	dirLine   int  // the line of the last directive, whose arguments are not content
+	directive bool // a directive came while the watch was armed
+}
+
+// reset forgets any content the watch found, and arms it after a "..."
+// that ends a document.
+func (w *endWatch) reset(armed bool) {
+	w.armed, w.line, w.directive = armed, 0, false
+}
+
+// token reads the next token. A "---" disarms the watch, and so does
+// content, once the watch records its line.
+func (w *endWatch) token(t *token.Token) {
+	switch t.Type {
+	case token.DocumentHeaderType:
+		w.armed = false
+	case token.DirectiveType:
+		w.dirLine = t.Position.Line
+		w.directive = w.directive || w.armed
+	case token.CommentType, token.DocumentEndType:
+		// Neither starts a document.
+	default:
+		if w.armed && t.Position.Line != w.dirLine {
+			w.armed, w.line = false, t.Position.Line
+		}
+	}
+}
+
+// documentStartError is yaml.v3's error for content on line that follows
+// a "..." with no "---" before it. libyaml marks it on the line before
+// the content.
+func documentStartError(line int) error {
+	return &ParseError{Line: line - 1, Message: "did not find expected <document start>"}
 }

@@ -62,6 +62,30 @@ func TestMergeIgnoresSyntaxErrorInLaterDocument(t *testing.T) {
 	}
 }
 
+// TestMergeRejectsContentAfterADocumentEnd runs `graft merge` on a file
+// with content after a "..." and no "---" before it. spruce fails it
+// with "yaml: line 2: did not find expected <document start>" and exits
+// 2. graft printed x: 1, dropped q, and exited 0. A "---" after the
+// "..." starts a document the merge does not read.
+func TestMergeRejectsContentAfterADocumentEnd(t *testing.T) {
+	dir := t.TempDir()
+	bare := filepath.Join(dir, "bare.yml")
+	if err := os.WriteFile(bare, []byte("x: 1\n...\nq: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if stderr, rc := runGraftCapturingOutput(t, []string{"merge", bare}); rc != 2 || !strings.Contains(stderr, "yaml: line 2: did not find expected <document start>") {
+		t.Errorf("graft merge: rc=%d stderr=%q, want rc=2 and yaml: line 2: did not find expected <document start>", rc, stderr)
+	}
+	headed := filepath.Join(dir, "headed.yml")
+	if err := os.WriteFile(headed, []byte("x: 1\n...\n---\ny: 2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, rc := runGraftCommand(t, []string{"merge", headed})
+	if rc != 0 || stdout != "---\nx: 1\n\n" || stderr != "" {
+		t.Errorf("graft merge: rc=%d stdout=%q stderr=%q, want rc=0 and stdout %q", rc, stdout, stderr, "---\nx: 1\n\n")
+	}
+}
+
 // TestMergeKeepsDirectivesWithFirstDocument merges a file that opens
 // with a %YAML directive. spruce prints x: 1 and exits 0. graft gave the
 // directive a document of its own and printed {}.

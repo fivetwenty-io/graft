@@ -19,8 +19,12 @@ import (
 // The result is a prefix of src, so each line and column in it is the
 // one src has. It ends where the line holding the "---" that ends the
 // first document starts, or where the line after a "..." that ends it
-// starts. That marker is the token the depth probe confirms in two
-// prefixes, or in the whole input. When nothing ends the first
+// starts. Content after that "..." needs a "---" before it, as yaml.v3
+// reads the stream, so FirstDocument fails content that comes first with
+// yaml.v3's message and line, as Parse does, rather than drop it. It
+// also fails a directive after that "..." with no "---" to follow it.
+// The marker is the token the depth probe confirms in two prefixes, or
+// in the whole input. When nothing ends the first
 // document, or when the cut cannot be proved, FirstDocument returns src
 // as it stands. See documentEnd for the proof. goccy then parses every
 // document in src, so FirstDocument fails nesting past maxDepth in any
@@ -52,18 +56,61 @@ func FirstDocument(src []byte) ([]byte, error) {
 				return nil, err
 			}
 			end := documentEnd(src, toks, at)
-			if end == len(src) {
+			if end < 0 {
 				return wholeStream(src)
 			}
-			return src[:end], nil
-		}
-		if whole {
+			if toks[at].Type != token.DocumentEndType {
+				return src[:end], nil
+			}
+			if line, decided := bareAfterEnd(src, prev, toks, at, whole); decided {
+				if line > 0 {
+					return nil, documentStartError(line)
+				}
+				return src[:end], nil
+			}
+		} else if whole {
 			// No token ended the first document, so the depth scan
 			// covered every token in src.
 			return src, nil
 		}
 		prev, cut = toks, min(2*cut, len(src))
 	}
+}
+
+// bareAfterEnd looks past toks[at], the "..." that ends the first
+// document, for content that comes before any "---", which yaml.v3
+// rejects. See endWatch. A "..." or the end of the input after a
+// directive fails the same way. It returns the line yaml.v3 fails on,
+// or 0 when a "---" or the end of the input comes first, and reports
+// whether the tokens decide it. In a prefix, only a token that prev
+// holds at the same index decides it, as with the marker, and the end
+// of the prefix decides nothing.
+func bareAfterEnd(src []byte, prev, toks token.Tokens, at int, whole bool) (int, bool) {
+	var w endWatch
+	w.reset(true)
+	for i := at + 1; i < len(toks); i++ {
+		if w.directive && toks[i].Type == token.DocumentEndType {
+			return toks[i].Position.Line, whole || sameToken(prev, toks, i)
+		}
+		w.token(toks[i])
+		if !w.armed {
+			return w.line, whole || sameToken(prev, toks, i)
+		}
+	}
+	if whole && w.directive {
+		return endOfInputLine(src), true
+	}
+	return 0, whole
+}
+
+// endOfInputLine is the line libyaml gives the end of src. It counts a
+// last line with no line break as ended, as libyaml does.
+func endOfInputLine(src []byte) int {
+	line := bytes.Count(src, []byte("\n")) + 1
+	if len(src) > 0 && src[len(src)-1] != '\n' {
+		line++
+	}
+	return line
 }
 
 // wholeStream returns src, the whole stream FirstDocument hands goccy,
@@ -79,8 +126,8 @@ func wholeStream(src []byte) ([]byte, error) {
 // documentEnd returns the offset in src where the first document ends,
 // given toks[at], the marker that ends it. That is the start of the
 // marker's line for a "---", and the start of the next line for a
-// "...". It returns len(src) when it cannot prove the marker starts its
-// line.
+// "...", or len(src) when the "..." line is the last. It returns -1 when
+// it cannot prove the marker starts its line.
 //
 // The tokens come from text whose line breaks are all LF, and goccy
 // counts lines by LF alone, so the marker's line number counts the line
@@ -97,7 +144,7 @@ func wholeStream(src []byte) ([]byte, error) {
 func documentEnd(src []byte, toks token.Tokens, at int) int {
 	t := toks[at]
 	if t.Position.Column != 1 || !closedBefore(toks[:at]) {
-		return len(src)
+		return -1
 	}
 	marker := []byte("---")
 	if t.Type == token.DocumentEndType {
@@ -105,10 +152,10 @@ func documentEnd(src []byte, toks token.Tokens, at int) int {
 	}
 	off := lineStart(src, t.Position.Line)
 	if off < 0 || !bytes.HasPrefix(src[off:], marker) {
-		return len(src)
+		return -1
 	}
 	if rest := src[off+len(marker):]; len(rest) > 0 && bytes.IndexByte([]byte(" \t\r\n"), rest[0]) < 0 {
-		return len(src)
+		return -1
 	}
 	if t.Type == token.DocumentEndType {
 		// The "..." line belongs to the document it ends.

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -683,6 +684,10 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 	// FirstMergeDocument.
 	data, err := FirstMergeDocument(data)
 	if err != nil {
+		var parseErr *GraftError
+		if errors.As(err, &parseErr) {
+			return nil, err
+		}
 		return nil, NewParseError(err.Error(), err)
 	}
 

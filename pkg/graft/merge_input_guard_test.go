@@ -2,6 +2,7 @@ package graft
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
@@ -199,6 +200,59 @@ func TestMergeIgnoresLaterDocuments(t *testing.T) {
 	}
 }
 
+// TestMergeRejectsContentAfterADocumentEnd merges streams with content
+// after the "..." that ends the first document and no "---" before it.
+// yaml.v3 needs a "---" to start a document after a "...", so spruce
+// fails each one with "did not find expected <document start>" on the
+// line before that content, and exits 2. Comments, blank lines, more
+// "..." lines, and directives may come between. graft merged the first
+// document, dropped the content, and exited 0. The byte order mark case
+// failed before e8f2c1e, which stripped the mark. A "---" after the
+// "..." starts a document that the merge never reads.
+func TestMergeRejectsContentAfterADocumentEnd(t *testing.T) {
+	for _, c := range []struct {
+		name, in string
+		line     int
+	}{
+		{"key", "x: 1\n...\nq: 1\n", 2},
+		{"byte order mark and a key that starts with three dots", "\xEF\xBB\xBF---\nk: 2\n...x: 3\n...\nq: 1\n", 4},
+		{"comments on the markers", "# c\n--- # d\nx: 1\n... # e\nz: 3\n", 4},
+		{"second end marker", "x: 1\n...\n...\nq: 1\n", 3},
+		{"blank and comment lines", "x: 1\n...\n\n# c\n   \nq: 1\n", 5},
+		{"CRLF line breaks", "x: 1\r\n...\r\nq: 1\r\n", 2},
+		{"after a literal block scalar", "x: |\n  a\n...\nq: 1\n", 3},
+		{"directive", "x: 1\n...\n%TAG !e! tag:e.com,2000:\nq: 1\n", 3},
+		{"indented dashes", "x: 1\n...\n  ---\n", 2},
+		{"dashes that are text", "x: 1\n...\n---x\n", 2},
+		{"directive at the end of the input", "x: 1\n...\n%TAG !e! tag:e.com,2000:\n", 3},
+		{"directive before an end marker", "x: 1\n...\n%YAML 1.1\n...\n---\nq: 1\n", 3},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			want := fmt.Sprintf("yaml: line %d: did not find expected <document start>", c.line)
+			if _, err := guardedMerge(t, c.in); err == nil || !strings.Contains(err.Error(), want) {
+				t.Errorf("merge = %v, want an error naming %q", err, want)
+			}
+		})
+	}
+	for _, c := range []struct{ name, in string }{
+		{"header", "x: 1\n...\n---\ny: 2\n"},
+		{"comment, end marker, and a header with a trailing space", "x: 1\n... # e\n...\n--- \ny: 2\n"},
+		{"directive and a header", "x: 1\n...\n%TAG !e! tag:e.com,2000:\n---\nq: 1\n"},
+		{"comment", "x: 1\n...\n# c\n"},
+		{"second end marker", "x: 1\n...\n...\n"},
+	} {
+		t.Run("accepts "+c.name, func(t *testing.T) {
+			out, err := guardedMerge(t, c.in)
+			if err != nil {
+				t.Fatalf("merge = %v, want success", err)
+			}
+			if got := out.RawData(); !reflect.DeepEqual(got, map[string]interface{}{"x": 1}) {
+				t.Errorf("merge = %#v, want x: 1 alone", got)
+			}
+		})
+	}
+}
+
 // TestMergeKeepsDirectivesWithFirstDocument merges streams that open
 // with a directive. The directives before the first "---" belong to the
 // document it starts, so spruce merges that document's content. goccy
@@ -344,8 +398,10 @@ func TestMergeKeepsKeysThatStartWithThreeDots(t *testing.T) {
 // The merge reads only that first document, as it did before keys that
 // start with "..." were kept. A scalar "...x" after a key, or as the
 // value of an empty key, still fails on line 2, as it does in spruce.
+// Content after the "..." needs a "---" first, which
+// TestMergeRejectsContentAfterADocumentEnd covers.
 func TestMergeKeepsDocumentEndMarkers(t *testing.T) {
-	for _, in := range []string{"a: 1\n...\nb: 2\n", "a: 1\n... # c\n", "a: 1\n...\t\nb: 2\n", "a: 1\n...#c\n", "a: 1\n..."} {
+	for _, in := range []string{"a: 1\n...\n---\nb: 2\n", "a: 1\n... # c\n", "a: 1\n...\t\n---\nb: 2\n", "a: 1\n...#c\n", "a: 1\n..."} {
 		out, err := guardedMerge(t, in)
 		if err != nil {
 			t.Errorf("merge of %q = %v, want success", in, err)

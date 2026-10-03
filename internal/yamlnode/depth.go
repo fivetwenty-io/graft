@@ -2,6 +2,7 @@ package yamlnode
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"unicode/utf8"
 
@@ -332,11 +333,22 @@ func isBlockBody(t *token.Token) bool {
 	return t.Prev != nil && (t.Prev.Type == token.LiteralType || t.Prev.Type == token.FoldedType)
 }
 
+// depthMessage is yaml.v3's message for nesting past maxDepth.
+var depthMessage = fmt.Sprintf("exceeded max depth of %d", maxDepth)
+
 // depthError is yaml.v3's depth error. libyaml numbers lines from 0 and
 // gives a line only when it is not the first.
 func depthError(line int) error {
 	if line <= 1 {
 		line = 0
 	}
-	return &ParseError{Line: line, Message: fmt.Sprintf("exceeded max depth of %d", maxDepth)}
+	return &ParseError{Line: line, Message: depthMessage}
+}
+
+// IsDepthError reports whether err is the error for nesting deeper than
+// yaml.v3 allows, which FirstDocument and Parse give before anything
+// parses.
+func IsDepthError(err error) bool {
+	var pe *ParseError
+	return errors.As(err, &pe) && pe.Message == depthMessage
 }

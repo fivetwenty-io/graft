@@ -348,10 +348,18 @@ func (e *maxRecursionError) Unwrap() error { return e.cause }
 // brackets cost it hundreds of megabytes before it fails. The error
 // reads as the text a merge gives for a tree nested past 4,096 levels,
 // so every over-deep merge fails with one message whatever its depth.
+//
+// Content after the "..." that ends the first document needs a "---"
+// before it, and spruce fails a file without one. The merge must not
+// drop that content, so FirstMergeDocument fails it with a parse error
+// that carries yaml.v3's message and line.
 func FirstMergeDocument(data []byte) ([]byte, error) {
 	first, err := yamlnode.FirstDocument(yamlnode.TrimBOM(data))
-	if err != nil {
+	switch {
+	case yamlnode.IsDepthError(err):
 		return nil, &maxRecursionError{cause: err}
+	case err != nil:
+		return nil, NewParseError(err.Error(), err)
 	}
 	return first, nil
 }

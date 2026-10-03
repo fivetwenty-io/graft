@@ -69,8 +69,7 @@ func Parse(data []byte) (docs []*Node, err error) {
 	for i, c := range chunks {
 		c.unterminated = i == len(chunks)-1 && addedNewline
 		if c.bareLine > 0 {
-			// libyaml marks this error on the line before the token.
-			return nil, &ParseError{Line: c.bareLine - 1, Message: "did not find expected <document start>"}
+			return nil, documentStartError(c.bareLine)
 		}
 		doc, d, inBlock, err := b.parseChunk(c)
 		if err != nil {

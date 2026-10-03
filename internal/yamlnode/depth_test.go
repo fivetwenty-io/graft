@@ -268,7 +268,7 @@ func TestFirstDocument(t *testing.T) {
 		{"two documents", "x: 1\n---\ny: 2\n", "x: 1\n"},
 		{"CRLF line breaks", "x: 1\r\nz: 3\r\n---\r\ny: 2\r\n", "x: 1\r\nz: 3\r\n"},
 		{"CR line breaks", "x: 1\rz: 3\r---\ry: 2\r", "x: 1\rz: 3\r"},
-		{"ended by a document end marker", "x: 1\n... # end\r\ny: 2\n", "x: 1\n... # end\r\n"},
+		{"ended by a document end marker", "x: 1\n... # end\r\n---\r\ny: 2\n", "x: 1\n... # end\r\n"},
 		{"document end marker then a header", "x: 1\n...\n---\ny: 2\n", "x: 1\n...\n"},
 		{"document end marker at the end of the input", "x: 1\n...", "x: 1\n..."},
 		{"header with a comment", "x: 1\n--- # two\ny: 2\n", "x: 1\n"},
@@ -278,7 +278,7 @@ func TestFirstDocument(t *testing.T) {
 		{"comment-only preamble", "# one\n\n# two\n---\nx: 1\n---\ny: 2\n", "# one\n\n# two\n---\nx: 1\n"},
 		{"directive", "%YAML 1.1\n---\nx: 1\n---\ny: 2\n", "%YAML 1.1\n---\nx: 1\n"},
 		{"tag directive and a header with a comment", "%TAG !e! tag:e.com,2000:\n--- # h\nx: 1\n---\ny: 2\n", "%TAG !e! tag:e.com,2000:\n--- # h\nx: 1\n"},
-		{"directive after a comment", "# c\n%YAML 1.1\n---\nx: 1\n...\ny: 2\n", "# c\n%YAML 1.1\n---\nx: 1\n...\n"},
+		{"directive after a comment", "# c\n%YAML 1.1\n---\nx: 1\n...\n---\ny: 2\n", "# c\n%YAML 1.1\n---\nx: 1\n...\n"},
 		{"empty first document", "---\n---\ny: 2\n", "---\n"},
 		{"marker in a literal block scalar", "a: |\n  ---\n  b\nc: 3\n---\nd: 4\n", "a: |\n  ---\n  b\nc: 3\n"},
 		{"marker in a quoted multi-line string", "a: \"b\n  ---\n  c\"\nd: 4\n---\ne: 5\n", "a: \"b\n  ---\n  c\"\nd: 4\n"},
@@ -383,5 +383,66 @@ func TestFirstDocumentDepthOfAStreamItReturnsWhole(t *testing.T) {
 				t.Errorf("FirstDocument allocated %d MB, want under 20 MB", grew>>20)
 			}
 		})
+	}
+}
+
+// TestFirstDocumentRejectsContentAfterADocumentEnd feeds FirstDocument
+// streams whose first document a "..." ends, with content after it and
+// no "---" before that content. yaml.v3 fails each one with "did not
+// find expected <document start>" on the line before the content, as
+// Parse does, and FirstDocument has to fail it too, since the content
+// is no document the merge may drop. The wide cases hold more than
+// 10,000 brackets, so FirstDocument reads them in prefixes, and in the
+// padded ones the content lies past the prefix that ends the first
+// document. A "---" before the content, or nothing at all, is fine.
+func TestFirstDocumentRejectsContentAfterADocumentEnd(t *testing.T) {
+	wide := "a: [" + strings.Repeat("[], ", 12000) + "1]\n"
+	pad := strings.Repeat("# padding\n", 20000)
+	for _, c := range []struct {
+		name, in, want string
+	}{
+		{"key", "x: 1\n...\nq: 1\n", "yaml: line 2: did not find expected <document start>"},
+		{"content on the marker line", "x: 1\n... q\n", "yaml: line 1: did not find expected <document start>"},
+		{"directive", "x: 1\n...\n%YAML 1.1\nq: 1\n", "yaml: line 3: did not find expected <document start>"},
+		{"wide", wide + "...\nq: 1\n", "yaml: line 2: did not find expected <document start>"},
+		{"directive at the end of the input", "x: 1\n...\n%TAG !e! tag:e.com,2000:\n", "yaml: line 3: did not find expected <document start>"},
+		{"directive at the end of an unbroken last line", "x: 1\n...\n%TAG !e! tag:e.com,2000:", "yaml: line 3: did not find expected <document start>"},
+		{"directive and a comment at the end of the input", "x: 1\n...\n%TAG !e! tag:e.com,2000:\n# c\n\n", "yaml: line 5: did not find expected <document start>"},
+		{"directive before an end marker", "x: 1\n...\n%YAML 1.1\n...\n---\nq: 1\n", "yaml: line 3: did not find expected <document start>"},
+		{"wide and padded directive at the end", wide + "...\n%YAML 1.1\n" + pad, "yaml: line 20003: did not find expected <document start>"},
+		{"wide and padded", wide + "...\n" + pad + "q: 1\n", "yaml: line 20002: did not find expected <document start>"},
+		{"wide and padded with more after", wide + "...\n" + pad + "q: 1\n" + strings.Repeat(pad, 3), "yaml: line 20002: did not find expected <document start>"},
+		{"wide and padded before a header", wide + "...\n" + pad + "---\nq: 1\n", ""},
+		{"wide and padded before a header with more after", wide + "...\n" + pad + "---\nq: 1\n" + strings.Repeat(pad, 3), ""},
+		{"wide and padded to the end", wide + "...\n" + pad, ""},
+		{"header", "x: 1\n...\n---\nq: 1\n", ""},
+		{"end of the input", "x: 1\n...\n# c\n", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := yamlnode.FirstDocument([]byte(c.in))
+			if c.want != "" {
+				if err == nil || err.Error() != c.want {
+					t.Errorf("FirstDocument = %.40q, %v; want the error %q", got, err, c.want)
+				}
+				return
+			}
+			if err != nil || !strings.HasSuffix(string(got), "...\n") {
+				t.Errorf("FirstDocument = %.40q, %v; want the first document and its \"...\"", got, err)
+			}
+		})
+	}
+}
+
+// TestParseRejectsContentAfterADocumentEnd checks that Parse, which the
+// diff reads with, fails the streams FirstDocument fails, with the same
+// error. Content on the "..." line is left out, because Parse reports
+// goccy's error for the document that line ends first.
+func TestParseRejectsContentAfterADocumentEnd(t *testing.T) {
+	for _, in := range []string{"x: 1\n...\nq: 1\n", "x: 1\n...\n%YAML 1.1\nq: 1\n", "x: 1\n...\n...\n\n# c\nq: 1\n"} {
+		_, cutErr := yamlnode.FirstDocument([]byte(in))
+		_, parseErr := yamlnode.Parse([]byte(in))
+		if cutErr == nil || parseErr == nil || cutErr.Error() != parseErr.Error() {
+			t.Errorf("%q: FirstDocument = %v, Parse = %v; want one error", in, cutErr, parseErr)
+		}
 	}
 }
