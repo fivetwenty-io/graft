@@ -61,7 +61,7 @@ func TestDiffRejectsNELInAPlainScalar(t *testing.T) {
 // leaves it as text, so the file fails with exit 2. The docs list this
 // as a difference.
 func TestMergeStillRejectsLSBetweenEntries(t *testing.T) {
-	path := writeCRLFFile(t, "ls.yml", "a: 1 b: 2\n")
+	path := writeCRLFFile(t, "ls.yml", "a: 1\u2028b: 2\n")
 	stdout, stderr, rc := runGraftCommand(t, []string{"merge", path})
 	if rc != 2 || stdout != "" || !strings.Contains(stderr, "mapping value is not allowed in this context") {
 		t.Errorf("graft merge: rc=%d stdout=%q stderr=%q, want rc=2 and mapping value is not allowed", rc, stdout, stderr)
