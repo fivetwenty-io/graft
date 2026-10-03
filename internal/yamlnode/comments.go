@@ -794,7 +794,9 @@ func (s *gapScanner) scan() {
 		switch {
 		case isCmt && s.isHeader(l):
 			s.marker(l)
-			s.comment(l, c)
+			if !docStartHasContent(s.lines[l-1]) {
+				s.comment(l, c)
+			}
 		case isCmt:
 			s.comment(l, c)
 		case strings.TrimSpace(s.lines[l-1]) == "":
@@ -807,9 +809,22 @@ func (s *gapScanner) scan() {
 
 // isHeader reports whether line l of the document's first gap is its
 // "---" line. A comment on that line follows the "---" token, so the
-// scan passes the header before it reads the comment.
+// scan passes the header before it reads the comment. When a tag or an
+// anchor sits between the "---" and the comment, docStartHasContent
+// tells the scan that the comment belongs to the node instead.
 func (s *gapScanner) isHeader(l int) bool {
 	return s.g.prev == nil && strings.HasPrefix(s.lines[l-1], "---")
+}
+
+// docStartHasContent reports whether any token other than a comment
+// follows the "---" at the start of line, as in "--- !!map # c" or
+// "--- &a # c". yaml.v3 gives a comment after such a token to the node
+// as a line comment, which the report never prints, instead of making
+// it a head comment of the document's first node. The comment scans
+// that read a "---" line share this predicate.
+func docStartHasContent(line string) bool {
+	rest := strings.Trim(strings.TrimPrefix(line, "---"), " \t\r")
+	return rest != "" && rest[0] != '#'
 }
 
 // end handles the line after the gap: the next item, the end of the
