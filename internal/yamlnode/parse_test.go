@@ -702,6 +702,82 @@ func TestParseRejectsMalformedTags(t *testing.T) {
 	}
 }
 
+// TestParseReadsATagOverAnotherKind checks a core tag over a node of
+// another kind, such as !!map over a sequence. goccy refuses each one,
+// and yaml.v3 reads the kind from the node and keeps the tag, so Parse
+// does too. The node keeps its place, its comments, and its anchor.
+func TestParseReadsATagOverAnotherKind(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		path []int // the child indexes from the document's root to the tagged node
+		kind yamlnode.Kind
+		tag  string
+	}{
+		{"--- !!map # h\n- a\n", nil, yamlnode.SequenceNode, "!!map"},
+		{"--- !!seq\na: 1\n", nil, yamlnode.MappingNode, "!!seq"},
+		{"!!str\n- a\n", nil, yamlnode.SequenceNode, "!!str"},
+		{"k: !!map\n  - a\n", []int{1}, yamlnode.SequenceNode, "!!map"},
+		{"k: !!map\n  x\n", []int{1}, yamlnode.ScalarNode, "!!map"},
+		{"k: !!set [a]\n", []int{1}, yamlnode.SequenceNode, "!!set"},
+		{"k: !!omap {a: 1}\n", []int{1}, yamlnode.MappingNode, "!!omap"},
+		{"- !!int\n  - a\n", []int{0}, yamlnode.SequenceNode, "!!int"},
+		{"[!!str {a: 1}]\n", []int{0}, yamlnode.MappingNode, "!!str"},
+		{"? !!seq a\n: 1\n", []int{0}, yamlnode.ScalarNode, "!!seq"},
+		{"!!seq a: 1\n", []int{0}, yamlnode.ScalarNode, "!!seq"},
+		{"k: !!map\n- a\n", []int{1}, yamlnode.SequenceNode, "!!map"},
+		{"- k: !!map\n  - a\n", []int{0, 1}, yamlnode.SequenceNode, "!!map"},
+		{"!!map &a\n- x\n", nil, yamlnode.SequenceNode, "!!map"},
+		{"k: !!map # c\n  # d\n  - x\n", []int{1}, yamlnode.SequenceNode, "!!map"},
+		{"a: !!seq\n  b: 1\nc: !!map\n  - 2\n", []int{3}, yamlnode.SequenceNode, "!!map"},
+		{"%TAG !e! tag:e.com,2000:\n--- !!map\n- a\n", nil, yamlnode.SequenceNode, "!!map"},
+	} {
+		docs, err := yamlnode.Parse([]byte(c.in))
+		if err != nil || len(docs) != 1 {
+			t.Errorf("Parse(%q) = %d documents, %v; want one document", c.in, len(docs), err)
+			continue
+		}
+		n := docs[0].Content[0]
+		for _, i := range c.path {
+			n = n.Content[i]
+		}
+		if n.Kind != c.kind || n.Tag != c.tag {
+			t.Errorf("Parse(%q) gave the node kind %v and tag %q, want kind %v and tag %q", c.in, n.Kind, n.Tag, c.kind, c.tag)
+		}
+	}
+	docs := mustParse(t, "--- !!map # h\n- a\n")
+	if item := docs[0].Content[0].Content[0]; item.Value != "a" || item.Line != 2 || item.Column != 3 || item.LineComment != "# h" {
+		t.Errorf("the item = %q at %d:%d with the line comment %q, want \"a\" at 2:3 with \"# h\"", item.Value, item.Line, item.Column, item.LineComment)
+	}
+	docs = mustParse(t, "!!map &a\n- x\n")
+	if root := docs[0].Content[0]; root.Anchor != "a" {
+		t.Errorf("the root's anchor = %q, want \"a\"", root.Anchor)
+	}
+}
+
+// TestParseKeepsOtherErrorsNearTags checks that Parse fails, with the
+// error it always gave, on an input whose only fault is not a core tag
+// over another kind, and on one where such a tag sits beside a second
+// fault that still fails once the tag is read as yaml.v3 reads it. A
+// tag whose node is empty, because the next line starts a sibling, is
+// not over another kind either.
+func TestParseKeepsOtherErrorsNearTags(t *testing.T) {
+	for in, want := range map[string]string{
+		"a: b: c\n":                  "yaml: line 1: mapping value is not allowed in this context",
+		"k: !!str : v\n":             "yaml: line 1: mapping value is not allowed in this context",
+		"k: !!str\n  |\n    x\n":     "yaml: line 2: value is not allowed in this context",
+		"k: !!map\n  - a\nj: [\n":    "yaml: line 2: could not find map",
+		"k: !!str\n  !!map\n  - x\n": "yaml: line 3: could not find map",
+		"k: !!map\n  - a\nj: b: c\n": "yaml: line 2: could not find map",
+		"a: 1\n---\nk: !!map\n  ]\n": "yaml: line 4: could not find map",
+		"- !!map\n- a\n":             "yaml: line 2: could not find map",
+		"k: # c\n  !!str\nj: 1\n":    "yaml: line 3: unexpected scalar value",
+	} {
+		if _, err := yamlnode.Parse([]byte(in)); err == nil || err.Error() != want {
+			t.Errorf("Parse(%q) = %v, want %q", in, err, want)
+		}
+	}
+}
+
 // TestParseRejectsAnchorWithoutValue pins inputs where graft exits 2 and
 // spruce reports a difference. An anchor with nothing after it, in
 // "b: &x" or "- &x" as the last entry of a document that ends at a "---"

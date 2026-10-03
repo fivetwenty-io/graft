@@ -151,6 +151,30 @@ func TestDiffRejectsDocumentAfterEndMarker(t *testing.T) {
 	}
 }
 
+// TestDiffReadsATagOverAnotherKind checks that a core tag over a node of
+// another kind, such as !!map over a list, gives the report spruce
+// v1.35.17 prints, which names the kind the node has and, for a scalar,
+// the type its tag names. graft used to fail each file with exit code 2.
+func TestDiffReadsATagOverAnotherKind(t *testing.T) {
+	runDiffCases(t, []diffCase{
+		{"x: 1\n", "--- !!map # h\n- a\n", "\n(root level)\n± type change from map to list\n- x: 1\n+ - a # h\n\n\n"},
+		{"x: 1\n", "--- !!seq\na: 1\n", "\n(root level)\n± value change\n- x: 1\n+ a: 1\n\n\n"},
+		{"x: 1\n", "k: !!map\n  - a\n", "\n(root level)\n- one map entry removed:   + one map entry added:\nx: 1                       k:\n                           - a\n\n\n"},
+		{"x: 1\n", "!!str\n- a\n", "\n(root level)\n± type change from map to list\n- x: 1\n+ - a\n\n\n"},
+		{"k: y\n", "k: !!map\n  x\n", "\nk\n± type change from string to map\n- y\n+ x\n\n\n"},
+		{"k: 1\n", "k: !!str\n  - a\n", "\nk\n± type change from int to list\n- 1\n+ - a\n\n\n"},
+		{"x: 1\n", "!!map &a\n- x\n", "\n(root level)\n± type change from map to list\n- x: 1\n+ - x\n\n\n"},
+		{"- y\n", "- !!str\n  {a: 1}\n", "\n0\n± type change from string to map\n- y\n+ a: 1\n\n\n"},
+		{"k: [y]\n", "k: [!!str {a: 1}]\n", "\nk.0\n± type change from string to map\n- y\n+ a: 1\n\n\n"},
+		{"x: 1\n", "k: !!map\n- a\n", "\n(root level)\n- one map entry removed:   + one map entry added:\nx: 1                       k:\n                           - a\n\n\n"},
+		{"x: 1\n", "- k: !!map\n  - a\n", "\n(root level)\n± type change from map to list\n- x: 1\n+ - k:\n    - a\n\n\n"},
+		{"x: 1\n", "!!seq a: 1\n", "\n(root level)\n- one map entry removed:   + one map entry added:\nx: 1                       a: 1\n\n\n"},
+		{"x: 1\n", "? !!seq a\n: 1\n", "\n(root level)\n- one map entry removed:   + one map entry added:\nx: 1                       a: 1\n\n\n"},
+		{"k: 1\n", "k: !!map # c\n  # d\n  - x\n", "\nk\n± type change from int to list\n- 1\n+ - x # c\n\n\n"},
+		{"x: 1\n", "a: !!seq\n  b: 1\nc: !!map\n  - 2\n", "\n(root level)\n- one map entry removed:   + two map entries added:\nx: 1                       a:\n                             b: 1\n                           c:\n                           - 2\n\n\n"},
+	})
+}
+
 func TestDiffLoadErrorStylesLocation(t *testing.T) {
 	t.Setenv("COLORTERM", "truecolor")
 	withStdoutTerminal(t, false, 80)

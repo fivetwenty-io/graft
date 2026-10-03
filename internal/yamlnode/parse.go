@@ -102,7 +102,20 @@ func (b *builder) parseChunk(c chunk) (*Node, docSlots, bool, error) {
 	c.text = text
 	file, err := parser.ParseBytes([]byte(c.text), 0, parser.AllowDuplicateMapKey())
 	if err != nil {
-		return nil, docSlots{}, false, toParseError(err, c.lineOffset())
+		// goccy refuses a core tag over a node of another kind, which
+		// yaml.v3 reads. Only that refusal earns a second parse with
+		// those tags blanked, and if that parse fails too, the chunk
+		// fails with goccy's first error.
+		text, tags, ok := neutralizeKindTags(c.text, err)
+		if !ok {
+			return nil, docSlots{}, false, toParseError(err, c.lineOffset())
+		}
+		retried, retryErr := parser.ParseBytes([]byte(text), 0, parser.AllowDuplicateMapKey())
+		if retryErr != nil {
+			return nil, docSlots{}, false, toParseError(err, c.lineOffset())
+		}
+		file, c.text, b.retagged = retried, text, tags
+		defer func() { b.retagged = nil }()
 	}
 	doc, err := b.document(file, c)
 	if err != nil {

@@ -16,6 +16,10 @@ type builder struct {
 	tagHandles  map[string]string
 	nulledLines map[int]bool
 
+	// retagged holds the core tags Parse blanked in the current chunk so
+	// goccy would read it, keyed by each tag's line and column there.
+	retagged map[[2]int]string
+
 	// lineOffset is the current chunk's chunk.lineOffset, which every
 	// recorded line adds to what goccy reports.
 	lineOffset int
@@ -246,6 +250,12 @@ func (b *builder) at(out *Node, n ast.Node) {
 // tag checks the tag token tk the way yaml.v3 scans it, and then
 // expands it.
 func (b *builder) tag(tk *token.Token) (string, error) {
+	if len(b.retagged) > 0 && tk.Position != nil {
+		if original, ok := b.retagged[[2]int{tk.Position.Line, tk.Position.Column}]; ok {
+			tk = tk.Clone()
+			tk.Value, tk.Origin = original, strings.Replace(tk.Origin, tk.Value, original, 1)
+		}
+	}
 	if err := TagError(tk, b.scannerLine, DiffTags); err != nil {
 		return "", err
 	}
@@ -375,6 +385,14 @@ func blockParentIndent(hdr *token.Token) int {
 		}
 		break
 	}
+	return entryIndent(t)
+}
+
+// entryIndent returns libyaml's indentation, as a 0-based column, for the
+// block collection whose entry t opens: the column of a "-", or the
+// column where a ":" key's line starts after any "-" entries. Any other
+// token, or none, gives -1, the top level of a document.
+func entryIndent(t *token.Token) int {
 	switch {
 	case t == nil:
 		return -1

@@ -1,6 +1,11 @@
 package yamlnode
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	"github.com/goccy/go-yaml/parser"
+)
 
 // TestNormalizeLineBreaksSharesInputWithoutCR checks that Parse makes no
 // copy of a stream that has no CR or U+0085 to turn into LF, including
@@ -62,5 +67,38 @@ func TestStreamTextCopiesOnce(t *testing.T) {
 		if n := testing.AllocsPerRun(10, func() { streamTextSink, _ = streamText(in) }); n != 1 {
 			t.Errorf("streamText(%q) allocated %v times, want 1", c.in, n)
 		}
+	}
+}
+
+// TestKindTagRetryNeedsAKindMismatch checks that Parse retries a chunk
+// only when goccy refused it for a core tag over a node of another kind,
+// and that the retry blanks that tag and nothing else.
+func TestKindTagRetryNeedsAKindMismatch(t *testing.T) {
+	for _, in := range []string{
+		"a: b: c\n",
+		"k: !!str : v\n",
+		"k: !!str\n  |\n    x\n",
+		"k: !!str\n  !!map\n  - x\n",
+		"a: [\n",
+	} {
+		_, err := parser.ParseBytes([]byte(in), 0, parser.AllowDuplicateMapKey())
+		if err == nil {
+			t.Fatalf("goccy accepted %q", in)
+		}
+		if _, _, ok := neutralizeKindTags(in, err); ok {
+			t.Errorf("neutralizeKindTags(%q, %v) asked for a retry", in, err)
+		}
+	}
+	if _, _, ok := neutralizeKindTags("k: !!map\n  - a\n", errors.New("could not find map")); ok {
+		t.Error("an error that is not goccy's syntax error asked for a retry")
+	}
+	in := "a: !!str x\nk: !!map # c\n  - a\n"
+	_, err := parser.ParseBytes([]byte(in), 0, parser.AllowDuplicateMapKey())
+	text, tags, ok := neutralizeKindTags(in, err)
+	if want := "a: !!str x\nk: !xxxx # c\n  - a\n"; !ok || text != want {
+		t.Fatalf("neutralizeKindTags(%q) = %q, %v, want %q", in, text, ok, want)
+	}
+	if len(tags) != 1 || tags[[2]int{2, 4}] != "!!map" {
+		t.Errorf("the original tags = %v, want !!map at 2:4", tags)
 	}
 }
