@@ -1,0 +1,69 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "r",
+              "line": 1
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 1,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 1,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "a",
+                      "line": 1
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "1",
+                      "line_comment": "# c",
+                      "line": 1
+                    }
+                  ]
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 2,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "b",
+                      "line": 2
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "2",
+                      "line": 2
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

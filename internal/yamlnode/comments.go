@@ -334,6 +334,14 @@ func (w *walker) flow(n ast.Node, p string) {
 			ip := fmt.Sprintf("%s[%d]", p, i)
 			uv := unwrap(v)
 			tk := uv.GetToken()
+			if pair, ok := uv.(*ast.MappingNode); ok && !pair.IsFlowStyle {
+				// A "key: value" entry in a flow sequence is a mapping
+				// of its own, with a single pair.
+				for j, mv := range pair.Values {
+					w.flowPair(f, mv, fmt.Sprintf("%s{%d}", ip, j))
+				}
+				continue
+			}
 			if isFlow(uv) {
 				f.entries = append(f.entries, flowEntry{line: tk.Position.Line, col: tk.Position.Column})
 				w.flow(uv, ip)
@@ -345,17 +353,22 @@ func (w *walker) flow(n ast.Node, p string) {
 		f := &flowColl{x.Start.Position.Line, x.Start.Position.Column, x.End.Position.Line, x.End.Position.Column, nil}
 		w.flows = append(w.flows, f)
 		for i, mv := range x.Values {
-			kp := fmt.Sprintf("%s{%d}", p, i)
-			kt, uv := mv.Key.GetToken(), unwrap(mv.Value)
-			f.entries = append(f.entries, flowEntry{line: kt.Position.Line, col: kt.Position.Column, head: kp + "#KH"})
-			vt := uv.GetToken()
-			if isFlow(uv) {
-				w.flow(uv, kp)
-				continue
-			}
-			f.entries = append(f.entries, flowEntry{line: vt.Position.Line, col: vt.Position.Column, lineSlot: kp + "#VL", foot: kp + "#KF"})
+			w.flowPair(f, mv, fmt.Sprintf("%s{%d}", p, i))
 		}
 	}
+}
+
+// flowPair records a key and its value as entries of the flow collection
+// f. A value that is a flow collection is recorded on its own.
+func (w *walker) flowPair(f *flowColl, mv *ast.MappingValueNode, kp string) {
+	kt, uv := mv.Key.GetToken(), unwrap(mv.Value)
+	f.entries = append(f.entries, flowEntry{line: kt.Position.Line, col: kt.Position.Column, head: kp + "#KH"})
+	vt := uv.GetToken()
+	if isFlow(uv) {
+		w.flow(uv, kp)
+		return
+	}
+	f.entries = append(f.entries, flowEntry{line: vt.Position.Line, col: vt.Position.Column, lineSlot: kp + "#VL", foot: kp + "#KF"})
 }
 
 // commentSlots computes the comment slots of the one document a chunk
@@ -504,7 +517,7 @@ func lineComments(w *walker, l lexed, out map[string]string) (own map[int]cmt, d
 	for _, c := range l.cmts {
 		isInline := l.inline(w.items, c)
 		if c.flow {
-			flowComment(w.flows, c, isInline, out)
+			flowComment(w.flows, c, isInline, l.blankAfter(c.line), out)
 			continue
 		}
 		if !isInline {
@@ -567,31 +580,21 @@ func lastItemOnLine(items []item, line int) int {
 	return best
 }
 
+// blankAfter reports whether the line after line is blank.
+func (l lexed) blankAfter(line int) bool {
+	return line < len(l.lines) && strings.TrimSpace(l.lines[line]) == ""
+}
+
 // flowComment places a comment inside a flow collection. A comment after
 // an entry, or after the "," that follows it, is that entry's line
-// comment. A comment on a line of its own is the head comment of the
-// next entry, or the foot comment of the last one before the closing
-// bracket.
-func flowComment(flows []*flowColl, c cmt, inline bool, out map[string]string) {
+// comment, and so is a comment after the ":" that follows a key, which
+// belongs to the key's value. A comment on a line of its own is the head
+// comment of the next entry, or the foot comment of the last one before
+// the closing bracket. A head comment keeps the blank line that follows
+// it, as a trailing newline. blank says whether such a line follows c.
+func flowComment(flows []*flowColl, c cmt, inline, blank bool, out map[string]string) {
 	if inline {
-		prev := c.prev
-		if prev != nil && prev.Type == token.CollectEntryType {
-			prev = prev.Prev
-		}
-		for prev != nil && prev.Type == token.CommentType {
-			prev = prev.Prev
-		}
-		if prev == nil {
-			return
-		}
-		for _, f := range flows {
-			for _, e := range f.entries {
-				if e.line == prev.Position.Line && e.col == prev.Position.Column {
-					appendSlot(out, e.lineSlot, c.text)
-					return
-				}
-			}
-		}
+		flowLineComment(flows, c, out)
 		return
 	}
 	f := innermostFlow(flows, c)
@@ -601,10 +604,47 @@ func flowComment(flows []*flowColl, c cmt, inline bool, out map[string]string) {
 	for i, e := range f.entries {
 		if before(c.line, c.col, e.line, e.col) {
 			appendSlot(out, e.head, c.text)
+			if blank && e.head != "" {
+				out[e.head] += "\n"
+			}
 			return
 		}
 		if i == len(f.entries)-1 {
 			appendSlot(out, e.foot, c.text)
+		}
+	}
+}
+
+// flowLineComment places a comment that follows content on its line
+// inside a flow collection.
+func flowLineComment(flows []*flowColl, c cmt, out map[string]string) {
+	prev := c.prev
+	if prev != nil && prev.Type == token.CollectEntryType {
+		prev = prev.Prev
+	}
+	for prev != nil && prev.Type == token.CommentType {
+		prev = prev.Prev
+	}
+	if prev == nil {
+		return
+	}
+	afterKey := prev.Type == token.MappingValueType && prev.Prev != nil
+	if afterKey {
+		prev = prev.Prev
+	}
+	for _, f := range flows {
+		for i, e := range f.entries {
+			if e.line != prev.Position.Line || e.col != prev.Position.Column {
+				continue
+			}
+			if afterKey {
+				if i+1 < len(f.entries) {
+					appendSlot(out, f.entries[i+1].lineSlot, c.text)
+				}
+			} else {
+				appendSlot(out, e.lineSlot, c.text)
+			}
+			return
 		}
 	}
 }
