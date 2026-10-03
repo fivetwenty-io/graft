@@ -174,12 +174,16 @@ type walker struct {
 	offset int
 }
 
+// empty reports whether n is an empty value: an implicit null, or the
+// "~" that stands for a bare sequence dash.
+func (w *walker) empty(n ast.Node) bool {
+	tk := n.GetToken()
+	return tk != nil && (tk.Type == token.ImplicitNullType || (tk.Type == token.NullType && tk.Value == "~" && w.nulled[tk.Position.Line+w.offset]))
+}
+
 func (w *walker) scalarItem(n ast.Node, slot string, ancs []anc) item {
 	tk := n.GetToken()
-	it := item{kind: 'S', line: tk.Position.Line, col: tk.Position.Column, lineSlot: slot, ancs: ancs, end: endLine(tk)}
-	if tk.Type == token.ImplicitNullType || (tk.Type == token.NullType && tk.Value == "~" && w.nulled[tk.Position.Line+w.offset]) {
-		it.null = true
-	}
+	it := item{kind: 'S', line: tk.Position.Line, col: tk.Position.Column, lineSlot: slot, ancs: ancs, end: endLine(tk), null: w.empty(n)}
 	if tk.Type == token.ImplicitNullType {
 		it.lineSlot = ""
 	}
@@ -271,7 +275,9 @@ func (w *walker) mapping(values []*ast.MappingValueNode, p string, ancs []anc) {
 // whose item is a block collection lands on the sequence in yaml.v3, and
 // decode.go moves a sequence's foot to the key that holds it, so that
 // level's foot slot is the parent key's. A scalar or flow item keeps the
-// foot itself, and neat prints it only on a scalar.
+// foot itself, and neat prints it only on a scalar. A bare dash's empty
+// value is no event that takes comments, so its level has the parent
+// key's foot slot as well.
 func (w *walker) sequence(x *ast.SequenceNode, p string, ancs []anc) {
 	seqFoot, indentless := "", false
 	if n := len(ancs); n > 0 && ancs[n-1].key {
@@ -284,7 +290,7 @@ func (w *walker) sequence(x *ast.SequenceNode, p string, ancs []anc) {
 		uv := unwrap(v)
 		scalar := !isCollection(uv)
 		foot, head := seqFoot, ""
-		if scalar || isFlow(uv) {
+		if (scalar || isFlow(uv)) && !w.empty(uv) {
 			foot = ip + "#VF"
 		}
 		if scalar {
@@ -775,7 +781,8 @@ func innermostFlow(flows []*flowColl, c cmt) *flowColl {
 // that a "---" or "..." ends, rather than the end of the stream.
 type gap struct {
 	prev, next *item
-	after      *item // the item after next
+	after      *item  // the item after next
+	rest       []item // the items from next on
 	from, to   int
 	dash       bool
 	marker     bool
@@ -785,13 +792,13 @@ func buildGaps(items []item, lastLine int, dashLines map[int]bool, marker bool) 
 	if len(items) == 0 {
 		return []gap{{from: 1, to: lastLine, marker: marker}}
 	}
-	gaps := []gap{{prev: nil, next: &items[0], from: 1, to: items[0].line - 1}}
+	gaps := []gap{{prev: nil, next: &items[0], rest: items, from: 1, to: items[0].line - 1}}
 	if len(items) > 1 {
 		gaps[0].after = &items[1]
 	}
 	for i := 0; i+1 < len(items); i++ {
 		if items[i+1].line > items[i].end {
-			g := gap{prev: &items[i], next: &items[i+1], from: items[i].end + 1, to: items[i+1].line - 1}
+			g := gap{prev: &items[i], next: &items[i+1], rest: items[i+1:], from: items[i].end + 1, to: items[i+1].line - 1}
 			if i+2 < len(items) {
 				g.after = &items[i+2]
 			}
@@ -1202,7 +1209,7 @@ func (s *gapScanner) resolve() {
 	replace := map[string][]string{}
 	q := 0
 	for _, f := range s.feet {
-		if f.prior && !s.g.dash {
+		if s.heldByPrior(f) {
 			s.priorFoot(f.text)
 			continue
 		}
@@ -1233,6 +1240,14 @@ func (s *gapScanner) resolve() {
 	}
 }
 
+// heldByPrior reports whether f stays with the item before the gap. A
+// sequence dash holds no comments, so a foot moves on when the item
+// before the gap is a dash whose value starts on a later line, or when
+// the gap starts at a comment on a bare dash's own line.
+func (s *gapScanner) heldByPrior(f foot) bool {
+	return f.prior && !s.g.dash && s.g.prev.kind != 'E'
+}
+
 // priorFoot places a foot that belongs to the scalar before the gap. A
 // mapping value hands it to its key unless the key has a foot of its own.
 func (s *gapScanner) priorFoot(text string) {
@@ -1256,18 +1271,20 @@ func (s *gapScanner) ownFoot(slot, text string) {
 // and whether decode.go hands it on to an earlier key. A key hands it to
 // the key before it in the same mapping, as parser.mapping does, and keeps
 // it when it has no such key. A sequence dash passes it to the first node
-// of its item that takes comments: a scalar item, or the first key of a
-// mapping item.
+// after it that takes comments, past any nested dashes: a scalar item, or
+// the first key of a mapping item.
 func (s *gapScanner) nextFoot() (string, bool) {
 	next, a := s.g.next, s.g.prev.ancs
 	switch {
 	case next == nil:
 		return "", false
 	case next.kind == 'E':
-		if s.g.after == nil || s.g.after.line < next.line {
-			return "", false
+		for _, it := range s.g.rest {
+			if it.kind != 'E' {
+				return it.ancs[len(it.ancs)-1].foot, false
+			}
 		}
-		return s.g.after.ancs[len(s.g.after.ancs)-1].foot, false
+		return "", false
 	}
 	for i := len(a) - 1; i >= 0; i-- {
 		if a[i].key && a[i].col == next.col {

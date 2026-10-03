@@ -116,3 +116,16 @@ func TestDiffPrintsCommentAfterTaggedSequenceRoot(t *testing.T) {
 		{"x: 1\n", "--- !!map # c1\na: 1 # c2\n", "\n(root level)\n- one map entry removed:   + one map entry added:\nx: 1                       a: 1 # c2\n\n\n"},
 	})
 }
+
+// TestDiffPlacesCommentUnderBareDash checks a comment that follows a
+// sequence dash with no value. libyaml holds no comment on such a dash,
+// so the comment goes to the next node that takes one, or to the
+// document, as spruce v1.35.17 prints it.
+func TestDiffPlacesCommentUnderBareDash(t *testing.T) {
+	runDiffCases(t, []diffCase{
+		{"zzz\n", "-\n# c9\n", "\n(root level)\n± type change from string to list\n- zzz\n+ -\n\n\n"},
+		{"zzz\n", "-\n# c8\n\n-\n", "\n(root level)\n± type change from string to list\n- zzz\n+ -\n  -\n\n\n"},
+		{"m: 0\n", "m:\n  -\n    # c4\n\n    k0: 1\n", "\nm\n± type change from int to list\n- 0\n+ - k0: 1\n  # c4\n\n\n"},
+		{"zzz\n", "-\n  -\n      # c7\n\n    - null\n", "\n(root level)\n± type change from string to list\n- zzz\n+ - - - null\n  # c7\n\n\n"},
+	})
+}

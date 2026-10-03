@@ -373,3 +373,26 @@ func TestCommentsAfterTagOrAnchor(t *testing.T) {
 		}
 	}
 }
+
+// TestCommentsUnderBareDash checks the slots yaml.v3 gives a comment
+// that follows a sequence dash with no value. The dash's null holds no
+// foot comment, so the comment reaches the next node that takes one.
+// When no node after it takes the comment, yaml.v3 leaves it on the
+// document, which the report never prints, and graft drops it.
+func TestCommentsUnderBareDash(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want map[string]string
+	}{
+		{"-\n# c9\n", map[string]string{}},
+		{"-\n# c8\n\n-\n", map[string]string{}},
+		{"m:\n  -\n    # c4\n\n    k0: 1\n", map[string]string{"d0{0}[0]{0}#KF": "# c4"}},
+		{"-\n  -\n      # c7\n\n    - null\n", map[string]string{"d0[0][0][0]#VF": "# c7"}},
+	} {
+		got := map[string]string{}
+		printedSlots(yamlgolden.FromNode(mustParse(t, c.in)[0]), "d0", got)
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Parse(%q) slots = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
