@@ -583,7 +583,6 @@ func TestParseAcceptsInputsSpruceRejects(t *testing.T) {
 		want string // the outline Parse gives
 	}{
 		{"tab after a dash (found character that cannot start any token)", "-\tb\n", `[!!str "b"]`},
-		{"empty tag handle (did not find expected tag URI)", "a: !! 1\n", `{!!str "a"@1: !! "1"}`},
 		{"leading document end (did not find expected node content)", "...\na: 1\n", `{!!str "a"@2: !!int "1"}`},
 		{"a 1,100-character key (mapping values are not allowed in this context)", strings.Repeat("k", 1100) + ": 1\n",
 			fmt.Sprintf(`{!!str %q@1: !!int "1"}`, strings.Repeat("k", 1100))},
@@ -597,6 +596,91 @@ func TestParseAcceptsInputsSpruceRejects(t *testing.T) {
 		}
 		if got := outline(docs[0]); got != c.want {
 			t.Errorf("%s: Parse = %s, want %s", c.name, got, c.want)
+		}
+	}
+}
+
+// TestParseRejectsMalformedAnchorNames feeds Parse anchors and aliases
+// whose names libyaml rejects. A name is letters, digits, "_", and "-",
+// and something other than a blank, a line break, or a flow indicator
+// right after it fails the scan. goccy reads "a[1]" or "a!" as the name,
+// so the diff reported the anchored key as a change, where spruce fails
+// the file with yaml.v3's message and exits 2. yaml.v3 gives the line
+// from 1, and leaves it out on the first line.
+func TestParseRejectsMalformedAnchorNames(t *testing.T) {
+	const msg = "did not find expected alphabetic or numeric character"
+	for in, want := range map[string]string{
+		"&a[1]\n...x: 2\n":        "yaml: " + msg,
+		"a: 1\nb: &a[1] 2\n":      "yaml: line 2: " + msg,
+		"a: 1\nb: *a[1]\n":        "yaml: line 2: " + msg,
+		"a: &a! 1\n":              "yaml: " + msg,
+		"a: &a.b 1\n":             "yaml: " + msg,
+		"a: &a/b 1\n":             "yaml: " + msg,
+		"a: &\u00e9 1\n":          "yaml: " + msg,
+		"a: &a 1\nb: * a\n":       "yaml: line 2: " + msg,
+		"a:\n  - &a[1] 2\n":       "yaml: line 2: " + msg,
+		"a: 1\n---\nb: &a[1] 2\n": "yaml: line 3: " + msg,
+		"--- &a[1]\na: 1\n":       "yaml: " + msg,
+	} {
+		if _, err := yamlnode.Parse([]byte(in)); err == nil || err.Error() != want {
+			t.Errorf("Parse(%q) = %v, want %q", in, err, want)
+		}
+	}
+	for _, in := range []string{"a: &x-y_9 1\nb: *x-y_9\n", "a: {&x b: 1}\n", "a: [&x 1, *x]\n"} {
+		if _, err := yamlnode.Parse([]byte(in)); err != nil {
+			t.Errorf("Parse(%q) = %v, want success", in, err)
+		}
+	}
+}
+
+// TestParseRejectsMalformedTags feeds Parse tags that yaml.v3's scanner
+// rejects. A tag is "!<", a URI, and ">", or a handle and then URI
+// characters, and a blank or a line break has to follow it. A "%" in the
+// URI has to start the escapes of one UTF-8 sequence, and a verbatim tag
+// or a "!!" or "!a!" handle needs at least one URI character. goccy
+// reads every character up to a blank as the tag, so the diff reported
+// the tag as a type, where spruce fails the file and exits 2. yaml.v3
+// gives the line from 1, and leaves it out on the first line.
+func TestParseRejectsMalformedTags(t *testing.T) {
+	const (
+		blank   = "did not find expected whitespace or line break"
+		bracket = "did not find the expected '>'"
+		uri     = "did not find expected tag URI"
+	)
+	for in, want := range map[string]string{
+		"!a^b\n...x: 2\n":         "yaml: " + blank,
+		"!a\"b\n...x: 2\n":        "yaml: " + blank,
+		"!<x\n...x: 2\n":          "yaml: " + bracket,
+		"a: !a^b 1\n":             "yaml: " + blank,
+		"a: !<x 1\n":              "yaml: " + bracket,
+		"a: !<x^> 1\n":            "yaml: " + bracket,
+		"a: !<x>y 1\n":            "yaml: " + blank,
+		"a: !<> 1\n":              "yaml: " + uri,
+		"x: 1\na: !<> 1\n":        "yaml: line 2: " + uri,
+		"a: !! 1\n":               "yaml: " + uri,
+		"a: !a! 1\n":              "yaml: " + uri,
+		"a: !a!b^ 1\n":            "yaml: " + blank,
+		"a: !a%4 1\n":             "yaml: did not find URI escaped octet",
+		"a: !a%FF 1\n":            "yaml: found an incorrect leading UTF-8 octet",
+		"a: !a%C3%41 1\n":         "yaml: found an incorrect trailing UTF-8 octet",
+		"a: !a#b 1\n":             "yaml: " + blank,
+		"a: !\u00e9 1\n":          "yaml: " + blank,
+		"a: 1\nb: !c^ 2\n":        "yaml: line 2: " + blank,
+		"a:\n  b: !x^y 1\n":       "yaml: line 2: " + blank,
+		"a: 1\n---\nb: !a^b 2\n":  "yaml: line 3: " + blank,
+		"--- !a^b\na: 1\n":        "yaml: " + blank,
+		"? !a^b x\n: 1\n":         "yaml: " + blank,
+		"a: [!a^b 1]\n":           "yaml: " + blank,
+		"a: !a^b &x 1\n":          "yaml: " + blank,
+		"a: !a^b 1\nb: &a[1] 2\n": "yaml: " + blank,
+	} {
+		if _, err := yamlnode.Parse([]byte(in)); err == nil || err.Error() != want {
+			t.Errorf("Parse(%q) = %v, want %q", in, err, want)
+		}
+	}
+	for _, in := range []string{"a: ! 1\n", "a: !a,b 1\n", "a: !<x,y> 1\n", "a: !a%41 1\n", "a: !a'b 1\n", "a: !a] 1\n", "a: !<tag:x> 1\n"} {
+		if _, err := yamlnode.Parse([]byte(in)); err != nil {
+			t.Errorf("Parse(%q) = %v, want success", in, err)
 		}
 	}
 }

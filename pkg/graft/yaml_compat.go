@@ -550,6 +550,9 @@ func (w *anchorWalk) walk(n ast.Node) error {
 	case *ast.AliasNode:
 		return w.alias(x)
 	case *ast.TagNode:
+		if err := yamlnode.TagError(x.Start, libyamlLine, yamlnode.MergeTags); err != nil {
+			return err
+		}
 		return w.walk(x.Value)
 	case *ast.MappingKeyNode:
 		return w.walk(x.Value)
@@ -575,6 +578,9 @@ func (w *anchorWalk) walk(n ast.Node) error {
 }
 
 func (w *anchorWalk) anchor(a *ast.AnchorNode) error {
+	if err := yamlnode.PropertyNameError(a.Start, a.Name.GetToken(), libyamlLine); err != nil {
+		return err
+	}
 	w.bound[a.Name.GetToken().Value] = a
 	w.open[a] = true
 	err := w.walk(a.Value)
@@ -583,11 +589,20 @@ func (w *anchorWalk) anchor(a *ast.AnchorNode) error {
 }
 
 func (w *anchorWalk) alias(a *ast.AliasNode) error {
+	if err := yamlnode.PropertyNameError(a.Start, a.Value.GetToken(), libyamlLine); err != nil {
+		return err
+	}
 	name := a.Value.GetToken().Value
 	if w.open[w.bound[name]] {
 		return fmt.Errorf("anchor '%s' value contains itself", name)
 	}
 	return nil
+}
+
+// libyamlLine is the line spruce's YAML library reports for an error on
+// line, numbered from 1. It counts from 0, and a line of 0 is left out.
+func libyamlLine(line int) int {
+	return line - 1
 }
 
 // UnprotectYAML11QuotedBools reverses the tagging ParseYAML11CompatAware

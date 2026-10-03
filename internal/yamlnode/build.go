@@ -82,7 +82,7 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 	for {
 		switch x := n.(type) {
 		case *ast.TagNode:
-			t, err := b.expandTag(x.Start)
+			t, err := b.tag(x.Start)
 			if err != nil {
 				return nil, err
 			}
@@ -92,6 +92,9 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 			n = x.Value
 			continue
 		case *ast.AnchorNode:
+			if err := PropertyNameError(x.Start, x.Name.GetToken(), b.scannerLine); err != nil {
+				return nil, err
+			}
 			anchor = x.Name.GetToken().Value
 			n = x.Value
 			continue
@@ -100,6 +103,9 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 	}
 
 	if alias, ok := n.(*ast.AliasNode); ok {
+		if err := PropertyNameError(alias.Start, alias.Value.GetToken(), b.scannerLine); err != nil {
+			return nil, err
+		}
 		name := alias.Value.GetToken().Value
 		target := b.anchors[name]
 		if target == nil {
@@ -235,6 +241,25 @@ func (b *builder) at(out *Node, n ast.Node) {
 	if tk := n.GetToken(); tk != nil {
 		out.Line, out.Column = tk.Position.Line+b.lineOffset, tk.Position.Column
 	}
+}
+
+// tag checks the tag token tk the way yaml.v3 scans it, and then
+// expands it.
+func (b *builder) tag(tk *token.Token) (string, error) {
+	if err := TagError(tk, b.scannerLine, DiffTags); err != nil {
+		return "", err
+	}
+	return b.expandTag(tk)
+}
+
+// scannerLine is the line yaml.v3 reports for a scanner error on line
+// of the current chunk, numbered from 1. It counts the stream's lines
+// from 1 too, and leaves out the first line.
+func (b *builder) scannerLine(line int) int {
+	if line += b.lineOffset; line <= 1 {
+		return 0
+	}
+	return line
 }
 
 // expandTag applies yaml.v3's tag rules to an explicit tag: a bare "!" is

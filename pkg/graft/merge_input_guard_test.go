@@ -580,6 +580,106 @@ func TestMergeRejectsAScalarGoccyReadsAsADocumentEnd(t *testing.T) {
 	}
 }
 
+// TestMergeRejectsMalformedAnchorNames merges documents with anchors and
+// aliases whose names libyaml rejects. A name is letters, digits, "_",
+// and "-", and spruce fails any other character right after it with
+// libyaml's message, on the line counted from 0 and left out when it is
+// 0. goccy reads "a[1]" or "a!" as the name, so graft merged the file
+// and exited 0, and "&a[1]" on its own line even let a "...x: 2" key
+// stand in for the document. An anchor in a later document is one
+// spruce never reads.
+func TestMergeRejectsMalformedAnchorNames(t *testing.T) {
+	const msg = "did not find expected alphabetic or numeric character"
+	for in, want := range map[string]string{
+		"&a[1]\n...x: 2\n":   "yaml: " + msg,
+		"a: 1\nb: &a[1] 2\n": "yaml: line 1: " + msg,
+		"a: 1\nb: *a[1]\n":   "yaml: line 1: " + msg,
+		"a: &a! 1\n":         "yaml: " + msg,
+		"a: &a.b 1\n":        "yaml: " + msg,
+		"a: &a 1\nb: * a\n":  "yaml: line 1: " + msg,
+		"a:\n  - &a[1] 2\n":  "yaml: line 1: " + msg,
+		"--- &a[1]\na: 1\n":  "yaml: " + msg,
+	} {
+		if _, err := guardedMerge(t, in); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("merge of %q = %v, want the error %q", in, err, want)
+		}
+	}
+	for in, want := range map[string]map[string]interface{}{
+		"a: &x-y_9 1\nb: *x-y_9\n": {"a": 1, "b": 1},
+		"a: 1\n---\nb: &a[1] 2\n":  {"a": 1},
+		"a: {&x b: 1}\n":           {"a": map[string]interface{}{"b": 1}},
+	} {
+		out, err := guardedMerge(t, in)
+		if err != nil {
+			t.Errorf("merge of %q = %v, want success", in, err)
+			continue
+		}
+		if got := out.RawData(); !reflect.DeepEqual(got, want) {
+			t.Errorf("merge of %q = %#v, want %#v", in, got, want)
+		}
+	}
+}
+
+// TestMergeRejectsMalformedTags merges documents with tags that libyaml
+// rejects. A tag is "!<", a URI, and ">", or a handle and then URI
+// characters, and spruce fails it when anything but a blank or a line
+// break follows, on the line counted from 0 and left out when it is 0.
+// The yaml.v2 fork spruce reads with reports every bad "%" escape as a
+// missing escaped octet. goccy reads every character up to a blank as
+// the tag, so graft merged the file and exited 0, and "!a^b" on its own
+// line even let a "...x: 2" key stand in for the document. A tag in a
+// later document is one spruce never reads.
+func TestMergeRejectsMalformedTags(t *testing.T) {
+	const (
+		blank   = "did not find expected whitespace or line break"
+		bracket = "did not find the expected '>'"
+		octet   = "did not find URI escaped octet"
+	)
+	for in, want := range map[string]string{
+		"!a^b\n...x: 2\n":         "yaml: " + blank,
+		"!a\"b\n...x: 2\n":        "yaml: " + blank,
+		"!<x\n...x: 2\n":          "yaml: " + bracket,
+		"!a^b\n":                  "yaml: " + blank,
+		"a: !a^b 1\n":             "yaml: " + blank,
+		"a: !<x 1\n":              "yaml: " + bracket,
+		"a: !<x^> 1\n":            "yaml: " + bracket,
+		"a: !<x>y 1\n":            "yaml: " + blank,
+		"a: !a%4 1\n":             "yaml: " + octet,
+		"a: !a%FF 1\n":            "yaml: " + octet,
+		"a: !a%C3%41 1\n":         "yaml: " + octet,
+		"a: !a#b 1\n":             "yaml: " + blank,
+		"a: !a!b^ 1\n":            "yaml: " + blank,
+		"a: !\u00e9 1\n":          "yaml: " + blank,
+		"a: !a 1\nb: !c^ 2\n":     "yaml: line 1: " + blank,
+		"a:\n  b: !x^y 1\n":       "yaml: line 1: " + blank,
+		"--- !a^b\na: 1\n":        "yaml: " + blank,
+		"? !a^b x\n: 1\n":         "yaml: " + blank,
+		"a: [!a^b 1]\n":           "yaml: " + blank,
+		"- !<x\n- 1\n":            "yaml: " + bracket,
+		"a: !a^b 1\nb: &a[1] 2\n": "yaml: " + blank,
+	} {
+		if _, err := guardedMerge(t, in); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("merge of %q = %v, want the error %q", in, err, want)
+		}
+	}
+	for in, want := range map[string]map[string]interface{}{
+		"a: !! 1\n":              {"a": "1"},
+		"a: !a,b 1\n":            {"a": "1"},
+		"a: !a%41 1\n":           {"a": "1"},
+		"a: !<x,y> 1\n":          {"a": "1"},
+		"a: 1\n---\nb: !a^b 2\n": {"a": 1},
+	} {
+		out, err := guardedMerge(t, in)
+		if err != nil {
+			t.Errorf("merge of %q = %v, want success", in, err)
+			continue
+		}
+		if got := out.RawData(); !reflect.DeepEqual(got, want) {
+			t.Errorf("merge of %q = %#v, want %#v", in, got, want)
+		}
+	}
+}
+
 // TestMergeRejectsALeadingDocumentEnd merges streams that open with a
 // "..." marker, after nothing but blank lines and comments. spruce fails
 // each with "did not find expected node content" on the marker's line,

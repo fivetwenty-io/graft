@@ -394,7 +394,6 @@ graft accepts these inputs, and spruce rejects them:
 - Content after `...` without a new `---`.
 - A `%YAML 1.2` directive.
 - A tab after a block dash, such as `-` then a tab and `b`.
-- An empty tag handle followed by a value, such as `a: !! 1`.
 - A `...` line before the first content.
 - A mapping key longer than 1,024 characters.
 - A next-line (U+0085) or line-separator (U+2028) character inside a
@@ -417,7 +416,7 @@ graft rejects these inputs, and spruce accepts them:
   after the anchor don't change that, but a document that ends with
   `...` parses.
 
-`TestParseAcceptanceDivergences` pins the `%YAML`, empty tagged value, `!!merge`, and `%TAG !!` cases. `TestParseAcceptsInputsYamlV3Rejects` pins the `\/` escape and raw control characters. `TestParseAcceptsInputsSpruceRejects` pins the tab, empty tag handle, leading `...`, long key, and U+0085 and U+2028 cases. `TestParseEmptyTaggedSequenceItemsFail` and `TestParseRejectsAnchorWithoutValue` pin the tagged sequence items and the anchor with no value. The `...`-only stream and complex mapping key cases are pinned in `internal/yamlnode`'s split and decode tests. graft diff rejects content that follows `...` without a new `---` line and matches spruce in doing so, but graft merge still accepts such content.
+`TestParseAcceptanceDivergences` pins the `%YAML`, empty tagged value, `!!merge`, and `%TAG !!` cases. `TestParseAcceptsInputsYamlV3Rejects` pins the `\/` escape and raw control characters. `TestParseAcceptsInputsSpruceRejects` pins the tab, leading `...`, long key, and U+0085 and U+2028 cases. `TestParseEmptyTaggedSequenceItemsFail` and `TestParseRejectsAnchorWithoutValue` pin the tagged sequence items and the anchor with no value. The `...`-only stream and complex mapping key cases are pinned in `internal/yamlnode`'s split and decode tests. graft diff rejects content that follows `...` without a new `---` line and matches spruce in doing so, but graft merge still accepts such content.
 
 One block scalar reads differently. When a document is a block scalar
 that starts on its `---` line and has an explicit indentation indicator,
