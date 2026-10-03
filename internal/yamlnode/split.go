@@ -193,23 +193,18 @@ func (c chunk) lineOffset() int {
 // document. The document after a "..." has to start with a "---", so
 // libyaml fails content that comes first with "did not find expected
 // <document start>". Comments, directives, and more "..." lines may come
-// between. Parse fails the chunk that holds such content, and
-// FirstDocument fails a stream whose first document it follows.
-//
-// Once a directive comes, only a "---" may end the run, so libyaml also
-// fails a "..." or the end of the input after it. The watch notes the
-// directive, and FirstDocument fails those as well.
+// between. Parse fails the chunk that holds such content. FirstDocument
+// reads the lines after the first document itself. See startRun.
 type endWatch struct {
-	armed     bool // a "..." ended a document, and no "---" or content has come since
-	line      int  // the line of the content that came first, or 0
-	dirLine   int  // the line of the last directive, whose arguments are not content
-	directive bool // a directive came while the watch was armed
+	armed   bool // a "..." ended a document, and no "---" or content has come since
+	line    int  // the line of the content that came first, or 0
+	dirLine int  // the line of the last directive, whose arguments are not content
 }
 
 // reset forgets any content the watch found, and arms it after a "..."
 // that ends a document.
 func (w *endWatch) reset(armed bool) {
-	w.armed, w.line, w.directive = armed, 0, false
+	w.armed, w.line = armed, 0
 }
 
 // token reads the next token. A "---" disarms the watch, and so does
@@ -220,7 +215,6 @@ func (w *endWatch) token(t *token.Token) {
 		w.armed = false
 	case token.DirectiveType:
 		w.dirLine = t.Position.Line
-		w.directive = w.directive || w.armed
 	case token.CommentType, token.DocumentEndType:
 		// Neither starts a document.
 	default:

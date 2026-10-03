@@ -57,13 +57,16 @@ type firstDocument struct {
 }
 
 // ends reports whether t ends the first document. A "---" or any content
-// starts it, and once it has started, a "---" or a "..." ends it. A
-// directive's arguments are not content.
+// starts it, and once it has started, a "---", a "...", or a directive
+// at column 1 ends it. A directive's arguments are not content.
 func (d *firstDocument) ends(t *token.Token) bool {
 	switch t.Type {
 	case token.CommentType:
 		return false
 	case token.DirectiveType:
+		if d.started && t.Position.Column == 1 {
+			return true
+		}
 		d.dirLine = t.Position.Line
 		return false
 	case token.DocumentHeaderType:

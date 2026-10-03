@@ -395,6 +395,11 @@ func TestMergeKeepsDirectivesWithFirstDocument(t *testing.T) {
 		{"TAG directive for a named handle", "%TAG !e! tag:example.com,2000:\n---\nx: 1\n"},
 		{"content on the header line", "%YAML 1.1\n--- {x: 1}\n"},
 		{"second document", "%YAML 1.1\n---\nx: 1\n---\ny: 2\n"},
+		{"two directives", "%YAML 1.1\n%TAG !e! tag:e.com,2000:\n---\nx: 1\n"},
+		{"two TAG directives", "%TAG !e! tag:e.com,2000:\n%TAG !f! tag:f.com,2000:\n---\nx: 1\n"},
+		{"version with leading zeros", "%YAML 01.01\n---\nx: 1\n"},
+		{"comment sign right after the version", "%YAML 1.1#c\n---\nx: 1\n"},
+		{"TAG directive with an empty prefix", "%TAG !e! \n---\nx: 1\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			out, err := guardedMerge(t, c.in)
@@ -405,6 +410,50 @@ func TestMergeKeepsDirectivesWithFirstDocument(t *testing.T) {
 				t.Errorf("merge = %#v, want x: 1 alone", got)
 			}
 		})
+	}
+}
+
+// TestMergeValidatesDirectives merges streams whose directives spruce
+// fails, or that a directive after content ends. spruce's YAML library
+// accepts only %YAML 1.1, fails a handle declared twice in one run of
+// directives, and fails a run that no "---" follows, each on the line
+// it gives here. graft accepted any version, and goccy failed every
+// directive after content with "unexpected directive value", where
+// spruce ends the first document there and merges it.
+func TestMergeValidatesDirectives(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"%YAML 1.2\n---\nx: 1\n", "yaml: found incompatible YAML document"},
+		{"%YAML 1.1\n%YAML 1.1\n---\nx: 1\n", "yaml: line 1: found duplicate %YAML directive"},
+		{"%TAG !e! tag:e.com,2000:\n%TAG !e! tag:f.com,2000:\n---\nx: 1\n", "yaml: line 1: found duplicate %TAG directive"},
+		{"%YAML 1.1\nx: 1\n", "yaml: line 1: did not find expected <document start>"},
+		{"%FOO bar\n---\nx: 1\n", "yaml: found unknown directive name"},
+		{"x: 1\n%YAML 1.2\n---\nz: 2\n", "yaml: line 1: found incompatible YAML document"},
+		{"x: 1\n%YAML 1.1\nz: 2\n", "yaml: line 2: did not find expected <document start>"},
+		{"x: 1\n...\n%YAML 1.2\n---\nz: 2\n", "yaml: line 2: found incompatible YAML document"},
+	} {
+		if _, err := guardedMerge(t, c.in); err == nil || !strings.HasSuffix(err.Error(), c.want) {
+			t.Errorf("merge(%q) = %v, want an error ending %q", c.in, err, c.want)
+		}
+	}
+	for _, c := range []struct {
+		in   string
+		want map[string]interface{}
+	}{
+		{"x: 1\n%YAML 1.1\n---\nz: 2\n", map[string]interface{}{"x": 1}},
+		{"x: 1\n%YAML 1.1\n---\n...\n", map[string]interface{}{"x": 1}},
+		{"x: 1\n# c\n%YAML 1.1\n%TAG !e! x\n---\nz: [\n", map[string]interface{}{"x": 1}},
+		{"x: 1\r\n%YAML 1.1\r\n---\r\nz: 2\r\n", map[string]interface{}{"x": 1}},
+		{"x: |\n  a\n%YAML 1.1\n---\nz: 2\n", map[string]interface{}{"x": "a\n"}},
+		{"---\n%YAML 1.1\n---\nz: 2\n", map[string]interface{}{}},
+	} {
+		out, err := guardedMerge(t, c.in)
+		if err != nil {
+			t.Errorf("merge(%q) = %v, want success", c.in, err)
+			continue
+		}
+		if got := out.RawData(); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("merge(%q) = %#v, want %#v", c.in, got, c.want)
+		}
 	}
 }
 

@@ -18,36 +18,50 @@ import (
 //
 // The result has LF line breaks. goccy folds a quoted scalar correctly
 // only across LF breaks, so FirstDocument turns every CRLF and lone CR
-// into an LF, as Parse does. The result is a copy only when src holds a
-// CR, and otherwise it is src itself or a prefix of it. Each line and
-// column in it is still the one src has, because a CRLF, a lone CR, and
-// an LF are each one line break. It ends where the line holding the
-// "---" that ends the first document starts, or where the line after a
-// "..." that ends it starts. Content after that "..." needs a "---" before it, as yaml.v3
-// reads the stream, so FirstDocument fails content that comes first with
-// yaml.v3's message and line, as Parse does, rather than drop it. It
-// also fails a directive after that "..." with no "---" to follow it.
-// A "..." at column 1 that a character other than a blank or a line
-// break follows is a plain scalar to yaml.v3, and a document end to
-// goccy, which would drop what follows. FirstDocument fails it, with
-// yaml.v3's message and line where yaml.v3 fails it too. See
-// falseEndError. A "..." marker before any content fails as spruce
-// fails it. See leadingEndError.
+// into an LF, as Parse does. Each line and column in the result is
+// still the one src has, because a CRLF, a lone CR, and an LF are each
+// one line break.
+//
+// The directives before the first document are checked as spruce's
+// YAML library checks them, and fail as it fails them. See startRun.
+// They then become blank lines in the result, since goccy accepts no
+// more than one directive before a "---" and refuses some versions
+// spruce accepts, and the merge reads no tag a %TAG directive declares.
+// So the result is a copy when src holds such a directive or a CR, and
+// otherwise it is src itself or a prefix of it.
+//
+// The result ends where the line holding the "---" that ends the first
+// document starts, where the line after a "..." that ends it starts, or
+// where a directive line that ends it starts. spruce reads a directive
+// after content as the end of the document, and goccy refuses one. What
+// follows a "..." or a directive has to be directives and then a "---",
+// as spruce reads the stream, so FirstDocument fails anything else, and
+// any directive spruce fails there, rather than drop it. A "..." at
+// column 1 that a character other than a blank or a line break follows
+// is a plain scalar to yaml.v3, and a document end to goccy, which would
+// drop what follows. FirstDocument fails it, with yaml.v3's message and
+// line where yaml.v3 fails it too. See falseEndError. A "..." marker
+// before any content fails as spruce fails it.
+//
 // The marker is the token the depth probe confirms in two prefixes, or
-// in the whole input. When nothing ends the first
-// document, or when the cut cannot be proved, FirstDocument returns src
-// as it stands. See documentEnd for the proof. goccy then parses every
-// document in src, so FirstDocument fails nesting past maxDepth in any
-// of them, not only in the first.
+// in the whole input. When nothing ends the first document, or when the
+// cut cannot be proved, FirstDocument returns src as it stands. See
+// documentEnd for the proof. goccy then parses every document in src,
+// so FirstDocument fails nesting past maxDepth in any of them, not only
+// in the first.
 //
 // It tokenizes the way probeDepth does. Input that cannot nest past
 // maxDepth is tokenized once, whole, and other input in prefixes that
 // double until the first document ends or the depth scan trips. Input
-// with no marker line that could end the first document, which is most
-// input, gets only the depth probe. See hasLaterMarker.
+// with no line that could end the first document, which is most input,
+// gets only the depth probe. See hasLaterMarker.
 func FirstDocument(src []byte) ([]byte, error) {
-	if err := leadingEndError(src); err != nil {
+	run, err := startRun(src, 0, true)
+	if err != nil {
 		return nil, err
+	}
+	if len(run.lines) > 0 {
+		src = blankLines(src, run.lines)
 	}
 	first, err := cutFirstDocument(src)
 	if err != nil {
@@ -56,27 +70,76 @@ func FirstDocument(src []byte) ([]byte, error) {
 	return normalizeLineBreaks(first), nil
 }
 
-// leadingEndError returns the error spruce gives a stream whose first
-// line that is not blank or a comment is a "..." marker. Its YAML
-// library starts the first document implicitly there, finds the marker
-// where a node has to start, and fails with "did not find expected node
-// content" on the marker's line, counted from 0. goccy reads an empty
-// first document before the marker instead, which the merge would read
-// as {} or swap for the document after it. Parse, which the diff reads
-// with, keeps goccy's reading, a difference the diff documents.
-func leadingEndError(src []byte) error {
-	for n := 0; len(src) > 0; n++ {
+// startRun reads src, the lines of a stream from line n, counted from 0,
+// where a document has to start, and returns the directives it finds
+// there, or the error spruce's YAML library gives. first reports
+// whether that is the first document of the stream.
+//
+// Blank lines and comments are skipped, and each directive is checked.
+// See directiveRun. A "---" starts the document. After a directive,
+// anything else fails with "did not find expected <document start>", on
+// the line of what came instead, or past the last line at the end of
+// the input. A "..." before any directive fails the first document with
+// "did not find expected node content", on its line, since libyaml
+// reads the start of that document as implicit there and finds no node.
+// Other content starts the first document. A later document has to
+// start with a "---", so content fails it, and a "..." with nothing
+// but a comment after it is skipped.
+func startRun(src []byte, n int, first bool) (*directiveRun, error) {
+	run := &directiveRun{}
+	for ; len(src) > 0; n++ {
 		var line []byte
 		line, src, _ = cutLine(src)
-		switch body := bytes.TrimLeft(line, " \t"); {
-		case len(body) == 0 || body[0] == '#':
-			continue
-		case bytes.HasPrefix(line, []byte("...")) && isMarkerLine(line):
-			return &ParseError{Line: n, Message: "did not find expected node content"}
+		switch {
+		case isBlankOrComment(line):
+		case line[0] == '%':
+			if err := run.check(line, n); err != nil {
+				return nil, err
+			}
+		case isMarkerLine(line) && line[0] == '-':
+			return run, nil
+		case len(run.lines) > 0:
+			return nil, documentStartError(n + 1)
+		case isMarkerLine(line) && first:
+			return nil, &ParseError{Line: n, Message: "did not find expected node content"}
+		case isMarkerLine(line) && isBlankOrComment(line[3:]):
+		case first:
+			return run, nil
+		default:
+			return nil, documentStartError(n + 1)
 		}
-		return nil
 	}
-	return nil
+	if len(run.lines) > 0 {
+		// libyaml ends the last line at the end of the input, even when
+		// no line break ends it, so the end lies on the line after it.
+		return nil, documentStartError(n + 1)
+	}
+	return run, nil
+}
+
+// isBlankOrComment reports whether line holds nothing but blanks and a
+// comment.
+func isBlankOrComment(line []byte) bool {
+	rest := bytes.TrimLeft(line, " \t")
+	return len(rest) == 0 || rest[0] == '#'
+}
+
+// blankLines returns a copy of src with the text of each line that
+// lines holds, in order and counted from 0, taken out. The line breaks
+// stay, so every other line keeps its number.
+func blankLines(src []byte, lines []int) []byte {
+	out := make([]byte, 0, len(src))
+	for n := 0; len(src) > 0 && len(lines) > 0; n++ {
+		line, rest, _ := cutLine(src)
+		if n == lines[0] {
+			lines = lines[1:]
+		} else {
+			out = append(out, line...)
+		}
+		out = append(out, src[len(line):len(src)-len(rest)]...)
+		src = rest
+	}
+	return append(out, src...)
 }
 
 // cutFirstDocument cuts src as FirstDocument does and returns the cut with
@@ -129,50 +192,18 @@ func cutPrefix(src []byte, prev, toks token.Tokens, whole bool) ([]byte, bool, e
 		out, err := wholeStream(src)
 		return out, true, err
 	}
-	if toks[at].Type != token.DocumentEndType {
+	if toks[at].Type == token.DocumentHeaderType {
 		return src[:end], true, nil
 	}
-	line, decided := bareAfterEnd(src, prev, toks, at, whole)
-	if line > 0 {
-		return nil, decided, documentStartError(line)
+	// After a "..." or a directive that ends the first document, the
+	// next one has to start, and documentEnd proved the marker starts
+	// its line. That line is where the lines startRun reads begin, so
+	// the rest of the marker line counts too.
+	n := toks[at].Position.Line - 1
+	if _, err := startRun(src[lineStart(src, n+1):], n, false); err != nil {
+		return nil, true, err
 	}
-	return src[:end], decided, nil
-}
-
-// bareAfterEnd looks past toks[at], the "..." that ends the first
-// document, for content that comes before any "---", which yaml.v3
-// rejects. See endWatch. A false end is content to yaml.v3, and a "..."
-// or the end of the input after a directive fails the same way. It returns the line yaml.v3 fails on,
-// or 0 when a "---" or the end of the input comes first, and reports
-// whether the tokens decide it. In a prefix, only a token that prev
-// holds at the same index decides it, as with the marker, and the end
-// of the prefix decides nothing.
-func bareAfterEnd(src []byte, prev, toks token.Tokens, at int, whole bool) (int, bool) {
-	var w endWatch
-	w.reset(true)
-	for i := at + 1; i < len(toks); i++ {
-		if isFalseEnd(src, toks[i]) || w.directive && toks[i].Type == token.DocumentEndType {
-			return toks[i].Position.Line, whole || sameToken(prev, toks, i)
-		}
-		w.token(toks[i])
-		if !w.armed {
-			return w.line, whole || sameToken(prev, toks, i)
-		}
-	}
-	if whole && w.directive {
-		return endOfInputLine(src), true
-	}
-	return 0, whole
-}
-
-// endOfInputLine is the line libyaml gives the end of src. It counts a
-// last line with no line break as ended, as libyaml does.
-func endOfInputLine(src []byte) int {
-	line := bytes.Count(src, []byte("\n")) + 1
-	if len(src) > 0 && src[len(src)-1] != '\n' {
-		line++
-	}
-	return line
+	return src[:end], true, nil
 }
 
 // scanned returns how many tokens the depth scan read, given what
@@ -202,9 +233,9 @@ func wholeStream(src []byte) ([]byte, error) {
 
 // documentEnd returns the offset in src where the first document ends,
 // given toks[at], the marker that ends it. That is the start of the
-// marker's line for a "---", and the start of the next line for a
-// "...", or len(src) when the "..." line is the last. It returns -1 when
-// it cannot prove the marker starts its line.
+// marker's line for a "---" or a directive, and the start of the next
+// line for a "...", or len(src) when the "..." line is the last. It
+// returns -1 when it cannot prove the marker starts its line.
 //
 // The tokens come from text whose line breaks are all LF, and goccy
 // counts lines by LF alone, so the marker's line number counts the line
@@ -224,14 +255,20 @@ func documentEnd(src []byte, toks token.Tokens, at int) int {
 		return -1
 	}
 	marker := []byte("---")
-	if t.Type == token.DocumentEndType {
+	switch t.Type {
+	case token.DocumentEndType:
 		marker = []byte("...")
+	case token.DirectiveType:
+		marker = []byte("%")
+	default:
+		// A "---" ends the first document.
 	}
 	off := lineStart(src, t.Position.Line)
 	if off < 0 || !bytes.HasPrefix(src[off:], marker) {
 		return -1
 	}
-	if rest := src[off+len(marker):]; len(rest) > 0 && bytes.IndexByte([]byte(" \t\r\n"), rest[0]) < 0 {
+	rest := src[off+len(marker):]
+	if t.Type != token.DirectiveType && len(rest) > 0 && bytes.IndexByte([]byte(" \t\r\n"), rest[0]) < 0 {
 		return -1
 	}
 	if t.Type == token.DocumentEndType {
@@ -282,14 +319,14 @@ func lineStart(src []byte, line int) int {
 }
 
 // hasLaterMarker reports whether a line of src that comes after its
-// first content or marker line starts with a "---" or a "...". A token
-// that ends the first document needs content or a "---" before it, and
-// documentEnd needs its line to start with the marker, so without such
-// a line FirstDocument would return src whole and need not tokenize it.
-// A line that isFalseEndLine accepts makes the answer true wherever it
-// stands, so FirstDocument can fail it.
-// Lines of spaces and tabs, comment lines, and directive lines are not
-// content. Taking a line for content when goccy does not only makes the
+// first content or marker line starts with a "---", a "...", or the "%"
+// of a directive. A token that ends the first document needs content or
+// a "---" before it, and documentEnd needs its line to start with the
+// marker, so without such a line FirstDocument would return src whole
+// and need not tokenize it. A line that isFalseEndLine accepts makes the
+// answer true wherever it stands, so FirstDocument can fail it. Lines
+// of spaces and tabs, comment lines, and directive lines before the
+// first content are not content. Taking a line for content when goccy does not only makes the
 // answer true more often, which costs a tokenize and never a wrong cut.
 func hasLaterMarker(src []byte) bool {
 	started := false
@@ -307,6 +344,8 @@ func hasLaterMarker(src []byte) bool {
 				return true
 			}
 			started = true
+		case started && len(line) > 0 && line[0] == '%':
+			return true
 		case !started && isPreamble(line):
 		default:
 			started = true

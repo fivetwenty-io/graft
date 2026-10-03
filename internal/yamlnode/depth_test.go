@@ -276,9 +276,15 @@ func TestFirstDocument(t *testing.T) {
 		{"leading header alone", "--- # one\nx: 1\n", "--- # one\nx: 1\n"},
 		{"leading header", "---\nx: 1\n---\ny: 2\n", "---\nx: 1\n"},
 		{"comment-only preamble", "# one\n\n# two\n---\nx: 1\n---\ny: 2\n", "# one\n\n# two\n---\nx: 1\n"},
-		{"directive", "%YAML 1.1\n---\nx: 1\n---\ny: 2\n", "%YAML 1.1\n---\nx: 1\n"},
-		{"tag directive and a header with a comment", "%TAG !e! tag:e.com,2000:\n--- # h\nx: 1\n---\ny: 2\n", "%TAG !e! tag:e.com,2000:\n--- # h\nx: 1\n"},
-		{"directive after a comment", "# c\n%YAML 1.1\n---\nx: 1\n...\n---\ny: 2\n", "# c\n%YAML 1.1\n---\nx: 1\n...\n"},
+		{"directive", "%YAML 1.1\n---\nx: 1\n---\ny: 2\n", "\n---\nx: 1\n"},
+		{"tag directive and a header with a comment", "%TAG !e! tag:e.com,2000:\n--- # h\nx: 1\n---\ny: 2\n", "\n--- # h\nx: 1\n"},
+		{"directive after a comment", "# c\n%YAML 1.1\n---\nx: 1\n...\n---\ny: 2\n", "# c\n\n---\nx: 1\n...\n"},
+		{"two directives", "%YAML 1.1\r\n%TAG !e! tag:e.com,2000:\r\n---\r\nx: 1\r\n", "\n\n---\nx: 1\n"},
+		{"directive goccy refuses", "%YAML 01.01 # c\n---\nx: 1\n", "\n---\nx: 1\n"},
+		{"directive after content", "x: 1\n%YAML 1.1\n---\ny: 2\n", "x: 1\n"},
+		{"directives after a comment after content", "x: 1\n# c\n%YAML 1.1\n%TAG !e! x\n---\ny: [\n", "x: 1\n# c\n"},
+		{"directive after a header", "---\nx: 1\n%YAML 1.1\n---\ny: 2\n", "---\nx: 1\n"},
+		{"directive after a literal block scalar", "x: |\n  a\n%YAML 1.1\n---\ny: 2\n", "x: |\n  a\n"},
 		{"empty first document", "---\n---\ny: 2\n", "---\n"},
 		{"marker in a literal block scalar", "a: |\n  ---\n  b\nc: 3\n---\nd: 4\n", "a: |\n  ---\n  b\nc: 3\n"},
 		{"marker in a quoted multi-line string", "a: \"b\n  ---\n  c\"\nd: 4\n---\ne: 5\n", "a: \"b\n  ---\n  c\"\nd: 4\n"},
@@ -520,6 +526,136 @@ func TestFirstDocumentRejectsALeadingDocumentEnd(t *testing.T) {
 		}
 	}
 	for _, in := range []string{"---\n...\n", "a: 1\n...\n", "....\n", "...x: 1\n", "# c\n---\na: 1\n"} {
+		if _, err := yamlnode.FirstDocument([]byte(in)); err != nil {
+			t.Errorf("FirstDocument(%q) = %v, want no error", in, err)
+		}
+	}
+}
+
+// TestFirstDocumentValidatesDirectives feeds FirstDocument streams with
+// %YAML and %TAG directives, before the first document, after content
+// that a directive ends, and after a "...". spruce's YAML library scans
+// each directive line, fails a %YAML version other than 1.1 and a
+// handle declared twice in one run of directives, and needs a "---"
+// after the run. It fails on the directive's line, or for a missing
+// "---" on the line of what comes instead, counted from 0 and left out
+// when it is 0. Every error here is spruce v1.35.17's. The yaml.v2 fork
+// it reads with words every %TAG handle and prefix error as "did not
+// find URI escaped octet". goccy refused two directives, a directive
+// after content, and some version numbers spruce accepts, and accepted
+// any version and any malformed directive.
+func TestFirstDocumentValidatesDirectives(t *testing.T) {
+	const (
+		start   = "did not find expected <document start>"
+		octet   = "did not find URI escaped octet"
+		badEnd  = "did not find expected comment or line break"
+		uriEnd  = "did not find expected whitespace or line break"
+		unknown = "found unknown directive name"
+		version = "found incompatible YAML document"
+	)
+	for in, want := range map[string]string{
+		"%YAML 1.2\n---\na: 1\n":                                    version,
+		"%YAML 2.1\n---\na: 1\n":                                    version,
+		"%YAML 1.10\n---\na: 1\n":                                   version,
+		"\n\n%YAML 1.2\n---\na: 1\n":                                "line 2: " + version,
+		"%YAML 1.1\n%YAML 1.1\n---\na: 1\n":                         "line 1: found duplicate %YAML directive",
+		"%YAML 1.2\n%YAML 1.1\n---\na: 1\n":                         version,
+		"%YAML 1.1\n%YAML 1.2\n---\na: 1\n":                         "line 1: found duplicate %YAML directive",
+		"%TAG !e! tag:e.com,2000:\n%TAG !e! tag:f.com,2000:\n---\n": "line 1: found duplicate %TAG directive",
+		"%YAML 1.1\n%TAG !e! x\n%TAG !e! y\n---\na: 1\n":            "line 2: found duplicate %TAG directive",
+		"%TAG !! x\n%TAG !! y\n---\na: 1\n":                         "line 1: found duplicate %TAG directive",
+		"%YAML 1.1\na: 1\n":                                         "line 1: " + start,
+		"%YAML 1.1\n":                                               "line 1: " + start,
+		"%YAML 1.1":                                                 "line 1: " + start,
+		"%YAML 1.1\n...\n---\na: 1\n":                               "line 1: " + start,
+		"%YAML 1.1\n...x\n":                                         "line 1: " + start,
+		"%YAML 1.1\n---a\n":                                         "line 1: " + start,
+		"%YAML 1.1\n  ---\n":                                        "line 1: " + start,
+		"%YAMLX 1.1\n---\na: 1\n":                                   unknown,
+		"%FOO bar baz\n---\na: 1\n":                                 unknown,
+		"%YAML 1.1\n%FOO\n---\na: 1\n":                              "line 1: " + unknown,
+		"# c\n%FOO\n---\n":                                          "line 1: " + unknown,
+		"% YAML 1.1\n---\n":                                         "could not find expected directive name",
+		"%YAML\n---\n":                                              "did not find expected version number",
+		"%YAML 1\n---\n":                                            "did not find expected digit or '.' character",
+		"%YAML 1.\n---\n":                                           "did not find expected version number",
+		"%YAML 123.1\n---\n":                                        "found extremely long version number",
+		"%YAML 1.1x\n---\n":                                         badEnd,
+		"%YAML 1.1 x\n---\n":                                        badEnd,
+		"%TAG\n---\n":                                               octet,
+		"%TAG e! x\n---\n":                                          octet,
+		"%TAG !e x\n---\n":                                          octet,
+		"%TAG !e.! x\n---\n":                                        octet,
+		"%TAG !e!x y\n---\n":                                        "did not find expected whitespace",
+		"%TAG !e!\n---\n":                                           "did not find expected whitespace",
+		"%TAG !e! #c\n---\n":                                        uriEnd,
+		"%TAG !e! x^y\n---\n":                                       uriEnd,
+		"%TAG !e! x#y\n---\n":                                       uriEnd,
+		"%TAG !e! x{\n---\n":                                        uriEnd,
+		"%TAG !e! tag:\u00e9\n---\n":                                uriEnd,
+		"%TAG !e! x y\n---\n":                                       badEnd,
+		"%TAG !e! x%4\n---\n":                                       octet,
+		"%TAG !e! x%\n---\n":                                        octet,
+		"%TAG !e! x%G1\n---\n":                                      octet,
+		"%TAG !e! x%C3\n---\n":                                      octet,
+		"%TAG !e! x%80\n---\n":                                      octet,
+		"%TAG !e! x%F8\n---\n":                                      octet,
+		"%TAG !e! x%E2%82\n---\n":                                   octet,
+		"%TAG !e! x%E2%41%AC\n---\n":                                octet,
+		"x: 1\n%YAML 1.2\n---\nz: 2\n":                              "line 1: " + version,
+		"x: 1\n%TAG !e! x\n%YAML 1.2\n---\n":                        "line 2: " + version,
+		"x: 1\n%YAML 1.1\n%YAML 1.1\n---\nz: 2\n":                   "line 2: found duplicate %YAML directive",
+		"x: 1\n%FOO bar\n---\n":                                     "line 1: " + unknown,
+		"x: 1\n%YAML 1.1 x\nz: 2\n":                                 "line 1: " + badEnd,
+		"x: 1\n%YAML 1.1\nz: 2\n":                                   "line 2: " + start,
+		"x: 1\n%YAML 1.1\n...\n---\n":                               "line 2: " + start,
+		"x: 1\n%YAML 1.1\n":                                         "line 2: " + start,
+		"x: 1\n%YAML 1.1":                                           "line 2: " + start,
+		"x: 1\n%YAML 1.1\n# c\n\n":                                  "line 4: " + start,
+		"x: 1\n...\n%YAML 1.2\n---\nz: 2\n":                         "line 2: " + version,
+		"x: 1\n...\n...\n%YAML 1.1\n%YAML 1.1\n---\n":               "line 4: found duplicate %YAML directive",
+		"x: 1\n...\n%TAG !e! a\n%TAG !e! b\n---\n":                  "line 3: found duplicate %TAG directive",
+		"x: 1\n...\n%YAMLX\n---\n":                                  "line 2: " + unknown,
+		"x: 1\n...\n%YAML 1.1\nq\n%YAML 1.2\n":                      "line 3: " + start,
+		"x: 1\n...\nq: 1\n%YAML 1.2\n":                              "line 2: " + start,
+	} {
+		if got, err := yamlnode.FirstDocument([]byte(in)); err == nil || err.Error() != "yaml: "+want {
+			t.Errorf("FirstDocument(%q) = %q, %v; want the error %q", in, got, err, "yaml: "+want)
+		}
+	}
+	for _, in := range []string{
+		"%YAML 1.1\n---\na: 1\n",
+		"%YAML 01.01\n---\na: 1\n",
+		"%YAML 1.01\n---\na: 1\n",
+		"%YAML 1.1#c\n---\na: 1\n",
+		"%YAML 1.1 #c\n---\na: 1\n",
+		"%YAML 1.1 \n---\na: 1\n",
+		"%YAML\t1.1\n---\na: 1\n",
+		"%YAML 1.1\n%TAG !e! tag:e.com,2000:\n---\na: 1\n",
+		"%TAG !e! tag:e.com,2000:\n%YAML 1.1\n%TAG !f! x\n---\na: 1\n",
+		"# c\n\n%YAML 1.1\n# d\n%TAG !e! x\n---\na: 1\n",
+		"%YAML 1.1\n\t# c\n---\na: 1\n",
+		"%YAML 1.1\r\n%TAG !e! x\r\n---\r\na: 1\r\n",
+		"%YAML 1.1\r%TAG !e! x\r---\ra: 1\r",
+		"%TAG !e! \n---\na: 1\n",
+		"%TAG !e! x \n---\na: 1\n",
+		"%TAG !e!  x\n---\na: 1\n",
+		"%TAG\t!e!\tx\n---\na: 1\n",
+		"%TAG !e! !x\n---\na: 1\n",
+		"%TAG !e-_9! x\n---\na: 1\n",
+		"%TAG !! x\n---\na: 1\n",
+		"%TAG !e! x%41\n---\na: 1\n",
+		"%TAG !e! x%c3%a9\n---\na: 1\n",
+		"%TAG !e! x%E2%82%AC\n---\na: 1\n",
+		"%TAG !e! x%F0%9F%98%80\n---\na: 1\n",
+		"%TAG !e! ;/?:@&=+$,.!~*'()[]%41\n---\na: 1\n",
+		"x: 1\n%YAML 1.1\n---\nz: 2\n",
+		"x: 1\n%YAML 1.1\n---\n...\n",
+		"x: 1\n%YAML 01.01\n%TAG !e! x\n---\nz: [\n",
+		"x: 1\r\n%YAML 1.1\r\n---\r\nz: 2\r\n",
+		"x: 1\n...\n%YAML 1.1\n---\n%YAML 1.2\n---\n",
+		"x: 1\n...\n%YAML 1.1\n--- # c\nq: [\n",
+	} {
 		if _, err := yamlnode.FirstDocument([]byte(in)); err != nil {
 			t.Errorf("FirstDocument(%q) = %v, want no error", in, err)
 		}
