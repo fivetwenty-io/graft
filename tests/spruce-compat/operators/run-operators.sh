@@ -99,9 +99,9 @@ run_case() {
   g_out="$(mktemp)"; g_err="$(mktemp)"
   s_out="$(mktemp)"; s_err="$(mktemp)"
 
-  ( env "${envpairs[@]}" "$GRAFT_BIN" "$verb" "${flags[@]}" "${files[@]}" >"$g_out" 2>"$g_err" )
+  ( env "${envpairs[@]}" "$GRAFT_BIN" "$verb" "${flags[@]}" "${files[@]}" >"$g_out" 2>"$g_err" </dev/null )
   local g_exit=$?
-  ( env "${envpairs[@]}" "$SPRUCE_BIN" "$verb" "${flags[@]}" "${files[@]}" >"$s_out" 2>"$s_err" )
+  ( env "${envpairs[@]}" "$SPRUCE_BIN" "$verb" "${flags[@]}" "${files[@]}" >"$s_out" 2>"$s_err" </dev/null )
   local s_exit=$?
 
   strip_leading_marker "$g_out"
@@ -115,8 +115,8 @@ run_case() {
     # instead of byte-exact stdout. Each tool parses its own YAML output
     # via its own `json` verb to avoid cross-tool YAML-dialect noise.
     local g_json s_json g_sorted s_sorted
-    g_json="$("$GRAFT_BIN" json "$g_out" 2>/dev/null)"
-    s_json="$("$SPRUCE_BIN" json "$s_out" 2>/dev/null)"
+    g_json="$("$GRAFT_BIN" json "$g_out" 2>/dev/null </dev/null)"
+    s_json="$("$SPRUCE_BIN" json "$s_out" 2>/dev/null </dev/null)"
     g_sorted="$(printf '%s' "$g_json" | jq -cS '.result | sort' 2>/dev/null)"
     s_sorted="$(printf '%s' "$s_json" | jq -cS '.result | sort' 2>/dev/null)"
     if [ "$g_sorted" != "$s_sorted" ] || [ "$g_exit" != "$s_exit" ]; then
