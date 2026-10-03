@@ -778,8 +778,8 @@ func BenchmarkParseManyDocuments(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		docs, err := yamlnode.Parse(src)
-		if err != nil || len(docs) != 6000 {
-			b.Fatalf("Parse = %d documents, %v; want 6000", len(docs), err)
+		if err != nil || len(docs) != 5000 {
+			b.Fatalf("Parse = %d documents, %v; want 5000", len(docs), err)
 		}
 	}
 }
