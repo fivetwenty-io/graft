@@ -26,7 +26,10 @@ const defaultUnifiedContext = 3
 // removed):" format used by `graft diff --changes` (and reused by
 // `graft debug`'s `diff` REPL command). Entries are grouped by kind
 // (Modified, then Added, then Removed) and sorted by path within each
-// group, matching docs/user-guide/cli/diff.md's example ordering.
+// group, matching docs/user-guide/cli/diff.md's example ordering. A change
+// to the file as a whole comes last, after the Removed group, the way the
+// default report prints "(file level)" after the changes in each document.
+// The header still counts it as modified.
 func renderChangeList(changes []histdiff.Change) string {
 	counts := histdiff.CountChanges(changes)
 
@@ -34,26 +37,34 @@ func renderChangeList(changes []histdiff.Change) string {
 	fmt.Fprintf(&buf, "Changes (%d modified, %d added, %d removed):\n",
 		counts.Modified, counts.Added, counts.Removed)
 
+	writeChange := func(c histdiff.Change) {
+		buf.WriteString("\n")
+		entry := c.Kind.String()
+		if location := changeLocation(c); location != "" {
+			entry = fmt.Sprintf("%-9s %s", entry, location)
+		}
+		fmt.Fprintf(&buf, "  %s\n", entry)
+		switch c.Kind {
+		case histdiff.Added:
+			writeValueLines(&buf, "+", ansi.Green, c.New)
+		case histdiff.Removed:
+			writeValueLines(&buf, "-", ansi.Red, c.Old)
+		case histdiff.Modified:
+			writeValueLines(&buf, "-", ansi.Red, c.Old)
+			writeValueLines(&buf, "+", ansi.Green, c.New)
+		}
+	}
+
 	for _, kind := range []histdiff.Kind{histdiff.Modified, histdiff.Added, histdiff.Removed} {
 		for _, c := range changes {
-			if c.Kind != kind {
-				continue
+			if c.Kind == kind && !c.FileLevel {
+				writeChange(c)
 			}
-			buf.WriteString("\n")
-			entry := kind.String()
-			if location := changeLocation(c); location != "" {
-				entry = fmt.Sprintf("%-9s %s", entry, location)
-			}
-			fmt.Fprintf(&buf, "  %s\n", entry)
-			switch kind {
-			case histdiff.Added:
-				writeValueLines(&buf, "+", ansi.Green, c.New)
-			case histdiff.Removed:
-				writeValueLines(&buf, "-", ansi.Red, c.Old)
-			case histdiff.Modified:
-				writeValueLines(&buf, "-", ansi.Red, c.Old)
-				writeValueLines(&buf, "+", ansi.Green, c.New)
-			}
+		}
+	}
+	for _, c := range changes {
+		if c.FileLevel {
+			writeChange(c)
 		}
 	}
 

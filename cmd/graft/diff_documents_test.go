@@ -161,11 +161,6 @@ func TestDiffGraftOnlyModesShowADocumentOnlyOneSideHas(t *testing.T) {
 
 	stdout, stderr, rc := runMainCaptured(t, "diff", "--changes", from, to)
 	want := "Changes (1 modified, 1 added, 1 removed):\n\n" +
-		"  MODIFIED  (file level)\n" +
-		"            - - v1/A/a\n" +
-		"            - - v1/B/b\n" +
-		"            + - v1/A/a\n" +
-		"            + - v1/C/c\n\n" +
 		"  ADDED     (document #2)\n" +
 		"            + apiVersion: v1\n" +
 		"            + kind: C\n" +
@@ -176,7 +171,12 @@ func TestDiffGraftOnlyModesShowADocumentOnlyOneSideHas(t *testing.T) {
 		"            - kind: B\n" +
 		"            - metadata:\n" +
 		"            -   name: b\n" +
-		"            - value: 2\n"
+		"            - value: 2\n\n" +
+		"  MODIFIED  (file level)\n" +
+		"            - - v1/A/a\n" +
+		"            - - v1/B/b\n" +
+		"            + - v1/A/a\n" +
+		"            + - v1/C/c\n"
 	if rc != 1 || stderr != "" || stdout != want {
 		t.Fatalf("--changes: rc=%d stderr=%q stdout=%q, want rc 1 and %q", rc, stderr, stdout, want)
 	}
