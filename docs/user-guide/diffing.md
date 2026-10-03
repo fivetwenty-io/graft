@@ -395,8 +395,7 @@ graft accepts these inputs, and spruce rejects them:
 - A tab after a block dash, such as `-` then a tab and `b`.
 - A `...` line before the first content.
 - A mapping key longer than 1,024 characters.
-- A line-separator (U+2028) character inside a plain scalar. spruce reads
-  it as a line break, and graft keeps it as part of the text.
+- A line-separator (U+2028) character inside a plain scalar. spruce reads it as a line break, so it rejects an input such as `k: a<U+2028>b` with exit code 2, while graft keeps the character as part of the text.
 
 graft rejects these inputs, and spruce accepts them:
 

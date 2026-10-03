@@ -73,15 +73,15 @@ a string where spruce produces a boolean, which can change comparison
 and ternary results as well as output bytes. Rare in practice —
 Genesis kits spell booleans `true`/`false` or `yes`/`no`. Quoting the
 value (`"y"`) keeps it a string in both tools; spelling it `yes`
-coerces in both. The same holds for a key. `graft json --strict` fails
-on a `yes`, `no`, `on`, or `off` key, as spruce does, but accepts a
-bare `y` or `n` key, which spruce refuses as a boolean.
+coerces in both.
+
+The same holds for a key. `graft json --strict` fails on a `yes`, `no`, `on`, or `off` key, as spruce does, but it accepts a bare `y` or `n` key, which spruce refuses as a boolean.
 
 ### line-and-paragraph-separators-outside-quotes-and-blocks
 
 **Current behavior.** graft reads a line separator (U+2028) or a paragraph separator (U+2029) as a line break inside a single-quoted scalar and inside a literal block scalar (`|`), which are the two places where spruce writes them. In every other place graft still reads the character as ordinary text, where libyaml reads a line break. A next-line character (U+0085) is already a line break everywhere, in both tools. We compared both binaries on each of the cases below, with U+2028 and with U+2029, and the two separators behaved the same way.
 
-- In a double-quoted scalar, `a: "x`, the separator, two spaces, and `y"` reads as `x`, the separator, and `y` in spruce, because libyaml drops the spaces as the indentation of a new line. graft keeps the two spaces. When the separator is followed directly by text, as in `"x`, the separator, and `y"`, the two tools agree.
+- Take a double-quoted scalar made of `a: "x`, the separator, two spaces, and `y"`. spruce reads it as `x`, the separator, and `y`, because libyaml drops the spaces as the indentation of a new line, and graft keeps the two spaces. When the separator is followed directly by text, as in `"x`, the separator, and `y"`, the two tools agree.
 
 - In a folded block scalar (`>`), spruce drops the indentation after the separator and graft keeps it. For a line that holds `x`, the separator, two spaces, and `y`, spruce reads `x`, the separator, and `y`, and graft reads the same text with the two spaces kept. When the separator is followed directly by text at the start of the line, spruce fails with exit code 2 and `could not find expected ':'`, and graft accepts it.
 
@@ -118,7 +118,7 @@ bare `y` or `n` key, which spruce refuses as a boolean.
 
 The rejected inputs fail with the right exit code and spruce's kind of error. The cost sits in the step that finds the end of the first document, which tokenizes a growing prefix of the file whenever a line could end that document. On the valid input graft finishes in under 2 seconds, and spruce takes about 20 seconds on the same machine.
 
-**Expected behavior.** On a rejected input we would like graft to stay close to spruce's peak, which is under 50 MB. On a valid input the peak is already the same order as spruce's, so there is nothing to match.
+**Expected behavior.** On a rejected input we would like graft to stay close to spruce's peak, which is 50 MB or less. On a valid input the peak is already the same order as spruce's, so there is nothing to match.
 
 **Impact.** Only files with a single line of hundreds of thousands of tokens are affected, and no real configuration looks like that. The valid-input peak is set by the YAML library, and neither tool can stay under a few hundred megabytes for such a file. A fix for the rejected case would need a streaming lexer, and goccy does not offer one, so we have chosen to record the cost and not to replace the lexer. Deeply nested input is no longer a concern, because the depth check stops it before anything is tokenized. The figures above came from a heavily loaded machine, so they move from run to run and from build to build.
 
@@ -268,7 +268,7 @@ point at a specific gap keep resolving to the right place.
 
 ### stringify-block-scalar-style
 
-**Resolved.** graft now chooses every string's output style with a port of the scalar-style rules in spruce's YAML emitter, so `(( stringify ))` of a map or list comes out as a literal block exactly as spruce writes it. Earlier, goccy wrote such a string as a quoted flow scalar whenever its lines held `": "`, as every stringified map's lines do. Pinned by the tables in `pkg/graft/yaml_scalar_style_test.go`.
+**Resolved.** graft now chooses every string's output style with a port of the scalar-style rules in spruce's YAML emitter, so `(( stringify ))` of a map or list comes out as a literal block exactly as spruce writes it. Earlier, goccy wrote such a string as a quoted flow scalar whenever its lines held `": "`, as every stringified map's lines do. The tables in `pkg/graft/yaml_scalar_style_test.go` pin this.
 
 One case is still different. `(( stringify ))` of a single scalar returns the raw string, where spruce marshals the value into a literal block with a trailing newline. For `s: hello` and `r: (( stringify s ))`, graft writes `r: hello`, and spruce writes `r: |` followed by the line `  hello`, so its value is `hello` with a newline at the end. A number behaves the same way, so `(( stringify num ))` of `num: 5` gives the quoted string `"5"` in graft and a literal block holding `5` and a newline in spruce. A map or a list matches in both tools.
 
