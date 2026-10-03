@@ -610,7 +610,7 @@ func TestMergeRejectsAScalarGoccyReadsAsADocumentEnd(t *testing.T) {
 		"...#c\na: 1\n":               "yaml: line 1: mapping values are not allowed in this context",
 		"...#c\n# d\na: 1\n":          "yaml: line 2: did not find expected <document start>",
 		"a: 1\n...\n...#c\n":          "yaml: line 2: did not find expected <document start>",
-		"...#c\n---\na: 1\n":          "root of YAML document is not a hash/map",
+		"...#c\n---\na: 1\n":          "Root of YAML document is not a hash/map: type assertion to map[interface]interface{} failed",
 		"...x\n  ---\n":               `yaml: line 1: cannot read a plain scalar that starts a line with "..."; quote it`,
 		"a: 1\n...#c: 2\n...\nq: 1\n": "yaml: line 3: did not find expected <document start>",
 		"a: 1\n....\n":                "[2:1]",

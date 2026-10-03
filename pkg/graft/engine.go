@@ -745,8 +745,9 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		}
 		return NewDocument(e.yamlCompat().ConvertAndUnprotect(converted)), nil
 	default:
-		// Return plain error for compatibility with tests
-		return nil, fmt.Errorf("root of YAML document is not a hash/map")
+		// The wording is spruce's, which prints the failed type assertion
+		// from its own decoder for every root that is not a mapping.
+		return nil, fmt.Errorf("Root of YAML document is not a hash/map: type assertion to map[interface]interface{} failed") //nolint:staticcheck // ST1005: spruce's capitalised wording
 	}
 }
 

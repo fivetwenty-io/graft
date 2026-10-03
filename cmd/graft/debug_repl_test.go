@@ -781,9 +781,9 @@ func TestDebugREPL(t *testing.T) {
 			goPatchFiles := []string{"../../assets/history/base.yml", "../../assets/vaultinfo/go-patch.yml"}
 			out, rc := runDebugSession(goPatchFiles, "load\nstep\nquit\n")
 			So(rc, ShouldEqual, 0)
-			So(out, ShouldContainSubstring, "../../assets/vaultinfo/go-patch.yml: root of YAML document is not a hash/map")
+			So(out, ShouldContainSubstring, "../../assets/vaultinfo/go-patch.yml: Root of YAML document is not a hash/map: type assertion to map[interface]interface{} failed")
 			So(out, ShouldNotContainSubstring, "\x1b[35m../../assets/vaultinfo/go-patch.yml\x1b[0m")
-			So(out, ShouldNotContainSubstring, "\x1b[31mroot of YAML document is not a hash/map\x1b[0m")
+			So(out, ShouldNotContainSubstring, "\x1b[31mRoot of YAML document is not a hash/map: type assertion to map[interface]interface{} failed\x1b[0m")
 		})
 
 		Convey("an evaluation failure keeps its message but loses the error's own baked-in color", func() {

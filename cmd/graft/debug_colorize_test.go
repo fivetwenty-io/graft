@@ -527,7 +527,7 @@ func TestDebugColorOnErrors(t *testing.T) {
 		if !strings.Contains(out, styled(roleError, "Merge failed")+": ") {
 			t.Errorf("Merge failed label not styled roleError with an unstyled colon after it:\n%s", out)
 		}
-		if strings.Contains(out, styled(roleError, "root of YAML document is not a hash/map")) {
+		if strings.Contains(out, styled(roleError, "Root of YAML document is not a hash/map: type assertion to map[interface]interface{} failed")) {
 			t.Errorf("error-derived text must never carry roleError styling:\n%s", out)
 		}
 	})

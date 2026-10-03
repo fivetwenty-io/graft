@@ -203,7 +203,7 @@ func TestMergeAllDocs(t *testing.T) {
 			So(err, ShouldBeNil)
 			_, _, err = mergeAllDocs(files, &mergeOpts{})
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "../../assets/merge/bad.yml: root of YAML document is not a hash/map")
+			So(err.Error(), ShouldContainSubstring, "../../assets/merge/bad.yml: Root of YAML document is not a hash/map: type assertion to map[interface]interface{} failed")
 		})
 		Convey("Fails with mergeMap error", func() {
 			files, err := openFiles([]string{"../../assets/merge/first.yml", "../../assets/merge/error.yml"})
@@ -462,7 +462,7 @@ func TestMain(t *testing.T) {
 			stdout = ""
 			stderr = ""
 			main()
-			So(stderr, ShouldContainSubstring, "../../assets/merge/bad.yml: root of YAML document is not a hash/map")
+			So(stderr, ShouldContainSubstring, "../../assets/merge/bad.yml: Root of YAML document is not a hash/map: type assertion to map[interface]interface{} failed")
 			So(rc, ShouldEqual, 2)
 		})
 		/* Fixme - how to trigger this?

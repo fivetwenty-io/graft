@@ -223,8 +223,19 @@ list:
 			doc, err := engine.ParseYAML([]byte(yaml))
 
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "root of YAML document is not a hash/map")
+			So(err.Error(), ShouldContainSubstring, "Root of YAML document is not a hash/map: type assertion to map[interface]interface{} failed")
 			So(doc, ShouldBeNil)
+		})
+
+		Convey("ParseYAML words a non-map root the way spruce does", func() {
+			const want = "Root of YAML document is not a hash/map: type assertion to map[interface]interface{} failed"
+			for _, in := range []string{"foo\n", "...x\n", "&a\n...x\n", "- item1\n", "42\n"} {
+				doc, err := engine.ParseYAML([]byte(in))
+
+				So(doc, ShouldBeNil)
+				So(err, ShouldNotBeNil)
+				So(err.Error(), ShouldEqual, want)
+			}
 		})
 
 		Convey("ParseYAML should fail for invalid YAML", func() {
