@@ -80,9 +80,20 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		return nil, err
 	}
 
+	// Loaded content gets the merge's guards, since a manifest can name
+	// any file: nesting past 10,000 levels fails before anything
+	// tokenizes it, and an alias inside its own anchor's collection fails
+	// instead of decoding as null.
+	if err := graft.CheckMergeDepth(bytes); err != nil {
+		return nil, err
+	}
+
 	// Loaded content goes through the same yamlprep rewrites ParseYAML
 	// applies, so an unquoted {{...}} placeholder reads as a string.
 	prepared, _ := yamlprep.Prepare(bytes)
+	if err := graft.CheckSelfContainingAnchors(prepared); err != nil {
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	}
 
 	// Try to unmarshal as a map first
 	var maproot map[string]interface{}

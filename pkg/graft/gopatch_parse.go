@@ -68,6 +68,13 @@ func DetectArrayRoot(data []byte) error {
 		return nil
 	}
 
+	// The full classification parse is the first thing to tokenize data,
+	// so nesting past 10,000 levels fails here. A caller that falls
+	// through to ParseYAML gets the same error from it.
+	if err := CheckMergeDepth(data); err != nil {
+		return err
+	}
+
 	return detectArrayRootFull(data)
 }
 
@@ -161,6 +168,10 @@ func detectArrayRootFull(data []byte) error {
 // worth attempting. The returned patch.Ops is normally wrapped with
 // NewGoPatchDocument before being merged.
 func ParseGoPatch(data []byte) (patch.Ops, error) {
+	if err := CheckMergeDepth(data); err != nil {
+		return nil, err
+	}
+
 	opdefs := []patch.OpDefinition{}
 	if err := yaml.Unmarshal(data, &opdefs); err != nil {
 		// Wording, capitalization, and the trailing newline ("Root of YAML

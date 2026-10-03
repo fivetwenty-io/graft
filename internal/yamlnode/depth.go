@@ -142,6 +142,18 @@ func probeDepth(src []byte, firstDocOnly bool) (probeResult, error) {
 	}
 }
 
+// CheckFirstDocumentDepth fails src, raw YAML bytes, when its first
+// document nests deeper than yaml.v3 allows, with yaml.v3's message and
+// line. It reads nothing past the end of the first document, and it
+// tokenizes only as much of src as the depth probe needs, so a stream of
+// unclosed brackets fails without the cost of tokenizing all of it. It
+// exists for callers that parse with goccy directly and read only the
+// first document, as graft's merge does.
+func CheckFirstDocumentDepth(src []byte) error {
+	_, err := probeDepth(src, true)
+	return err
+}
+
 // probeResult holds the text probeDepth tokenized and its tokens, when
 // the probe covered the whole stream. Both are empty otherwise.
 type probeResult struct {

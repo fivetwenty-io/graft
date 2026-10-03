@@ -9,6 +9,7 @@ import (
 	"github.com/goccy/go-yaml/parser"
 	"github.com/goccy/go-yaml/token"
 
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
@@ -284,6 +285,9 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 	if len(file.Docs) == 0 || file.Docs[0].Body == nil {
 		return nil, nil
 	}
+	if err := checkAnchors(file.Docs[0].Body); err != nil {
+		return nil, err
+	}
 
 	ast.Walk(quotedBoolTagger{}, file.Docs[0].Body)
 
@@ -292,6 +296,115 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+// maxRecursionMessage is the text CheckForCycles gives for a merged tree
+// nested past its limit. spruce gives the same text for any merge input
+// nested past 4,096 levels.
+const maxRecursionMessage = "Hit max recursion depth. You seem to have a self-referencing dataset"
+
+// maxRecursionError reports merge input nested too deep to parse. It
+// reads as maxRecursionMessage and wraps the depth error underneath.
+type maxRecursionError struct {
+	cause error
+}
+
+func (e *maxRecursionError) Error() string { return maxRecursionMessage }
+
+func (e *maxRecursionError) Unwrap() error { return e.cause }
+
+// CheckMergeDepth fails data, raw YAML bytes about to be merged, when its
+// first document nests deeper than 10,000 levels. It runs before
+// anything tokenizes data, because goccy's parser slows down faster than
+// linearly with depth, and 20,000 unclosed brackets cost it hundreds of
+// megabytes before it fails. The error reads as the text a merge gives
+// for a tree nested past 4,096 levels, so every over-deep merge fails
+// with one message whatever its depth. Later documents are left alone,
+// because the merge never reads them.
+func CheckMergeDepth(data []byte) error {
+	if err := yamlnode.CheckFirstDocumentDepth(data); err != nil {
+		return &maxRecursionError{cause: err}
+	}
+	return nil
+}
+
+// CheckSelfContainingAnchors fails data, YAML bytes about to be decoded,
+// when an alias in its first document sits inside the collection its
+// anchor names, with the message spruce gives. goccy decodes such an
+// alias as null, so without the check the value would quietly vanish. A
+// syntax error passes the check, so the caller's own decode reports it.
+func CheckSelfContainingAnchors(data []byte) error {
+	file, err := parser.ParseBytes(data, 0)
+	if err == nil && len(file.Docs) > 0 && file.Docs[0].Body != nil {
+		return checkAnchors(file.Docs[0].Body)
+	}
+	return nil
+}
+
+// checkAnchors walks body, a document's root node, for an alias that
+// sits inside the collection its anchor names.
+func checkAnchors(body ast.Node) error {
+	w := &anchorWalk{
+		bound: make(map[string]*ast.AnchorNode),
+		open:  make(map[*ast.AnchorNode]bool),
+	}
+	return w.walk(body)
+}
+
+// anchorWalk tracks anchors the way yaml.v3 resolves aliases. A name
+// binds to its latest definition in document order, from the moment the
+// definition starts, so an alias inside its own anchor's collection
+// finds that collection still open on the walk's path.
+type anchorWalk struct {
+	bound map[string]*ast.AnchorNode // each name's latest definition
+	open  map[*ast.AnchorNode]bool   // the definitions the walk is inside
+}
+
+func (w *anchorWalk) walk(n ast.Node) error {
+	switch x := n.(type) {
+	case *ast.AnchorNode:
+		return w.anchor(x)
+	case *ast.AliasNode:
+		return w.alias(x)
+	case *ast.TagNode:
+		return w.walk(x.Value)
+	case *ast.MappingKeyNode:
+		return w.walk(x.Value)
+	case *ast.MappingValueNode:
+		if err := w.walk(x.Key); err != nil {
+			return err
+		}
+		return w.walk(x.Value)
+	case *ast.MappingNode:
+		for _, v := range x.Values {
+			if err := w.walk(v); err != nil {
+				return err
+			}
+		}
+	case *ast.SequenceNode:
+		for _, v := range x.Values {
+			if err := w.walk(v); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (w *anchorWalk) anchor(a *ast.AnchorNode) error {
+	w.bound[a.Name.GetToken().Value] = a
+	w.open[a] = true
+	err := w.walk(a.Value)
+	delete(w.open, a)
+	return err
+}
+
+func (w *anchorWalk) alias(a *ast.AliasNode) error {
+	name := a.Value.GetToken().Value
+	if w.open[w.bound[name]] {
+		return fmt.Errorf("anchor '%s' value contains itself", name)
+	}
+	return nil
 }
 
 // UnprotectYAML11QuotedBools reverses the tagging ParseYAML11CompatAware

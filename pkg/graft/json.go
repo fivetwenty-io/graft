@@ -9,10 +9,18 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 func jsonifyData(data []byte, strict bool) (string, error) {
+	// Nesting past 10,000 levels fails before anything tokenizes the
+	// input. spruce's json reports a depth error, not the recursion text
+	// its merge gives, so this keeps yaml.v3's depth error.
+	if err := yamlnode.CheckFirstDocumentDepth(data); err != nil {
+		return "", ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
+	}
+
 	// Parse through the same YAML-1.1-compat-aware path ParseYAML uses, so
 	// `graft json` and `graft merge` agree on unquoted yes/no/on/off ->
 	// bool coercion and on quoted lookalikes staying strings, matching
