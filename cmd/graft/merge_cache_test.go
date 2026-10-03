@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 )
 
@@ -211,8 +212,12 @@ func TestMergeOutputCacheKeyEnvAndVersion(t *testing.T) {
 	}
 
 	origVersion := Version
-	defer func() { Version = origVersion }()
+	defer func() {
+		Version = origVersion
+		buildFingerprintOnce = sync.Once{}
+	}()
 	Version = origVersion + "-test"
+	buildFingerprintOnce = sync.Once{}
 	t.Setenv("DEFAULT_ARRAY_MERGE_KEY", "")
 	bumped := mergeOutputCacheKey(opts, inputs, false)
 	if bumped == before {

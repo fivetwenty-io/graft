@@ -379,16 +379,15 @@ func mergeOutputCacheKey(opts *mergeOpts, inputs [][]byte, colorEnabled bool) st
 	}
 
 	// v2: renderMergedTreeWithReport now prepends "---\n" to merge output
-	// (see its doc comment). The key is already salted with the graft Version
-	// field below, but that only guards a *released* version bump; an
-	// unreleased/dev build (Version unchanged) must not be able to
-	// replay a v1 entry's pre-"---\n" bytes, so the schema string itself
-	// is bumped too.
+	// (see its doc comment). The key is already salted with the build
+	// fingerprint below, which separates dev builds that share a Version;
+	// the schema string itself is bumped too, so a v1 entry's
+	// pre-"---\n" bytes can never be replayed.
 	// v3: the NoDocStart field joined the key (its choice changes the
 	// stored stdout bytes), which reshapes every key's hash input; the
 	// schema string is bumped alongside so the boundary is explicit.
 	field("graft-merge-output-v3")
-	field(Version)
+	field(buildFingerprint())
 	field(strconv.FormatBool(opts.SkipEval))
 	field(strconv.FormatBool(opts.MultiDoc))
 	field(strconv.FormatBool(opts.EnableGoPatch))

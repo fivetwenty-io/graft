@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -130,8 +131,12 @@ func TestParseCacheKeyStabilityAndSensitivity(t *testing.T) {
 	}
 
 	origVersion := Version
-	defer func() { Version = origVersion }()
+	defer func() {
+		Version = origVersion
+		buildFingerprintOnce = sync.Once{}
+	}()
 	Version = origVersion + "-test"
+	buildFingerprintOnce = sync.Once{}
 	if a == parseCacheKey([]byte("a: 1\n")) {
 		t.Fatal("graft version must salt the parse cache key")
 	}
@@ -144,7 +149,7 @@ func TestParseCacheKeyStabilityAndSensitivity(t *testing.T) {
 func TestParseCacheKeyNamespace(t *testing.T) {
 	data := []byte("k: \"q\r\n  r s\"\r\n")
 	h := sha256.New()
-	for _, b := range [][]byte{[]byte("graft-parse-tree-v2"), []byte(Version), data} {
+	for _, b := range [][]byte{[]byte("graft-parse-tree-v2"), []byte(buildFingerprint()), data} {
 		h.Write([]byte(strconv.Itoa(len(b)) + ":"))
 		h.Write(b)
 	}

@@ -59,9 +59,10 @@ func openMergeParseCache(opts *mergeOpts) *cache.FileStore {
 }
 
 // parseCacheKey derives the cache key for one document's bytes. The
-// schema tag separates this namespace from the output cache; the graft
-// version salts it because parsing behavior (compat conversions, parser
-// workarounds) can change between releases.
+// schema tag separates this namespace from the output cache; the build
+// fingerprint salts it because parsing behavior (compat conversions,
+// parser workarounds) can change between releases and between dev builds
+// that share a version.
 func parseCacheKey(data []byte) string {
 	h := sha256.New()
 	field := func(b []byte) {
@@ -71,7 +72,7 @@ func parseCacheKey(data []byte) string {
 		h.Write(b)
 	}
 	field([]byte("graft-parse-tree-v2"))
-	field([]byte(Version))
+	field([]byte(buildFingerprint()))
 	field(data)
 	return hex.EncodeToString(h.Sum(nil))
 }
