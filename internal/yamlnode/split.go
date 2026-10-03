@@ -23,10 +23,12 @@ type chunk struct {
 	// document as head comments, ahead of any comment above its "---".
 	endComments []string
 
-	// bareLine is the line of the first token of a document that follows
-	// a "..." with no "---" before it, which yaml.v3 rejects, and 0 for
-	// every other chunk. See endWatch.
-	bareLine int
+	// startErr is the error yaml.v3 gives before the chunk's document
+	// starts, and nil for most chunks. Content that follows a "..." with
+	// no "---" before it fails, and so do the lines after a "..." when a
+	// directive among them meets another "..." or the end of the input.
+	// See endWatch and closeDirectives.
+	startErr error
 
 	// tail marks the comments after the last document's "...", which are
 	// no document but can still be that document's foot comment.
@@ -70,12 +72,21 @@ func splitTokens(src string, toks token.Tokens) []chunk {
 	for _, t := range toks {
 		s.token(t)
 	}
-	if !s.emit(len(s.lines), false) && s.afterEnd && s.textStart <= len(s.lines) {
+	s.closeDirectives(len(s.lines))
+	if s.emit(len(s.lines), false) {
+		return s.chunks
+	}
+	if s.afterEnd && s.textStart <= len(s.lines) {
 		s.chunks = append(s.chunks, chunk{
 			text:     strings.Join(s.lines[s.textStart-1:], ""),
 			textLine: s.textStart, startLine: s.textStart,
 			index: len(s.chunks), afterEnd: true, tail: true,
+			startErr: s.startErr,
 		})
+	} else if s.startErr != nil {
+		// Only the "..." lines that end the stream are left, and Parse
+		// has to fail on them.
+		s.chunks = append(s.chunks, chunk{index: len(s.chunks), afterEnd: true, tail: true, startErr: s.startErr})
 	}
 	return s.chunks
 }
@@ -104,6 +115,13 @@ type splitter struct {
 	// watch finds the first token of the section being read when that
 	// section follows a "..." and has no "---".
 	watch endWatch
+
+	// endDirective records that a directive came in the section being
+	// read, which follows a "..." and has no "---". startErr holds the
+	// error closeDirectives found for such a section, until the next
+	// chunk carries it.
+	endDirective bool
+	startErr     error
 }
 
 func (s *splitter) token(t *token.Token) {
@@ -117,6 +135,9 @@ func (s *splitter) token(t *token.Token) {
 	case t.Type == token.DirectiveType:
 		if s.pendingDirective == 0 {
 			s.pendingDirective = line
+		}
+		if s.afterEnd && !s.explicit {
+			s.endDirective = true
 		}
 	case t.Type == token.CommentType && line == s.endLine && s.endedByDots:
 		s.endComments = append(s.endComments, "#"+t.Value)
@@ -139,6 +160,7 @@ func (s *splitter) header(line int) {
 	s.afterEnd = s.endedByDots
 	s.textStart, s.segStart, s.explicit, s.hasContent = textStart, line, true, false
 	s.watch.reset(false)
+	s.endDirective = false
 	if s.pendingDirective > 0 {
 		s.segStart, s.pendingDirective = s.pendingDirective, 0
 		s.textStart = min(s.textStart, s.segStart)
@@ -148,6 +170,7 @@ func (s *splitter) header(line int) {
 // documentEnd closes the section that a "..." on line ends and starts
 // the one after it.
 func (s *splitter) documentEnd(line int) {
+	s.closeDirectives(line)
 	if s.emit(line, true) {
 		s.endedByDots = true
 	}
@@ -170,10 +193,15 @@ func (s *splitter) emit(endLine int, marker bool) bool {
 		endComments = s.endComments
 	}
 	s.endComments = nil
+	startErr := s.startErr
+	if startErr == nil && s.watch.line > 0 {
+		startErr = documentStartError(s.watch.line)
+	}
+	s.startErr = nil
 	s.chunks = append(s.chunks, chunk{
 		text:        strings.Join(s.lines[s.textStart-1:endLine], ""),
 		endComments: endComments,
-		bareLine:    s.watch.line,
+		startErr:    startErr,
 		startLine:   s.segStart,
 		textLine:    s.textStart,
 		index:       len(s.chunks),
@@ -181,6 +209,25 @@ func (s *splitter) emit(endLine int, marker bool) bool {
 		afterEnd:    s.afterEnd,
 	})
 	return true
+}
+
+// closeDirectives ends the section being read at line end, a "..." line
+// or the last line, when a directive came in it after a "...". libyaml
+// needs a "---" after a directive, so such a section always fails. It
+// reads the section's lines as FirstDocument reads the lines after its
+// first document, which gives the error spruce's YAML library gives,
+// whether for a directive or for what follows it. The error waits for
+// the next chunk, so that an error in an earlier document comes first.
+func (s *splitter) closeDirectives(end int) {
+	if !s.endDirective {
+		return
+	}
+	s.endDirective = false
+	end = min(end, len(s.lines))
+	from := min(s.endLine, end)
+	if _, err := startRun([]byte(strings.Join(s.lines[from:end], "")), from, false); err != nil && s.startErr == nil {
+		s.startErr = err
+	}
 }
 
 // lineOffset is what to add to a line goccy reports in the chunk to get

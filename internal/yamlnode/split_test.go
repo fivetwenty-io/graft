@@ -1,6 +1,7 @@
 package yamlnode
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -33,6 +34,44 @@ func TestParseRejectsDocumentAfterEndMarker(t *testing.T) {
 	for _, in := range []string{"a\n...\n", "a\n... # c\n", "a\n...\n# c\n", "a\n...\n---\nk: 1\n", "a\n...\n# c\n---\nk: 1\n", "a\n...\n...\n---\nk: 1\n"} {
 		if _, err := Parse([]byte(in)); err != nil {
 			t.Errorf("Parse(%q): %v", in, err)
+		}
+	}
+}
+
+// TestParseRejectsDirectiveAtStreamEnd checks a directive after a "..."
+// that no "---" follows before another "..." or the end of the input.
+// yaml.v3 fails it with "did not find expected <document start>" on the
+// line before the "...", or on the last line at the end of the input, as
+// FirstDocument does, unless it fails a directive first. An error in an
+// earlier document comes first, and a "---" after the directive makes
+// the stream valid.
+func TestParseRejectsDirectiveAtStreamEnd(t *testing.T) {
+	for in, want := range map[string]string{
+		"a: 2\n...\n%YAML 1.1\n":                       "yaml: line 3: did not find expected <document start>",
+		"a: 2\n...\n%TAG !e! tag:e.com,2000:\n":        "yaml: line 3: did not find expected <document start>",
+		"a: 2\n...\n%YAML 1.1":                         "yaml: line 3: did not find expected <document start>",
+		"a: 2\r\n...\r\n%YAML 1.1\r\n":                 "yaml: line 3: did not find expected <document start>",
+		"a: 2\n...\n%YAML 1.1\n# c\n\n":                "yaml: line 5: did not find expected <document start>",
+		"a: 2\n...\n%YAML 1.1\n...\n":                  "yaml: line 3: did not find expected <document start>",
+		"a: 2\n...\n%YAML 1.1 # c\n...\n":              "yaml: line 3: did not find expected <document start>",
+		"a: 2\n...\n%YAML 1.1\n...\n...\n":             "yaml: line 3: did not find expected <document start>",
+		"a: 2\n...\n%YAML 1.1\n...\n---\nb: 1\n":       "yaml: line 3: did not find expected <document start>",
+		"a: 2\n...\n%YAML 1.1\n...\nb: 1\n":            "yaml: line 3: did not find expected <document start>",
+		"--- \na: 2\n...\n%YAML 1.1\n":                 "yaml: line 4: did not find expected <document start>",
+		"a: 2\n...\n# x\n%YAML 1.1\n%TAG !e! e:\n#\n":  "yaml: line 6: did not find expected <document start>",
+		"a: 2\n...\n%YAML 1.1\n--- \n...\n%YAML 1.1\n": "yaml: line 6: did not find expected <document start>",
+		"a: 2\n...\n%YAML 1.2\n":                       "yaml: line 2: found incompatible YAML document",
+		"a: 2\n...\n%YAML 1.1\n%YAML 1.1\n...\n":       "yaml: line 3: found duplicate %YAML directive",
+		"a: [\n...\n%YAML 1.1\n":                       "yaml: line 1: sequence end token ']' not found",
+	} {
+		docs, err := Parse([]byte(in))
+		if err == nil || err.Error() != want {
+			t.Errorf("Parse(%q) = %d documents, %v; want the error %q", in, len(docs), err, want)
+		}
+	}
+	for in, want := range map[string]int{"a: 2\n...\n%YAML 1.1\n---\nb: 1\n": 2, "a: 2\n...\n%YAML 1.1\n# c\n---\n": 2} {
+		if docs, err := Parse([]byte(in)); err != nil || len(docs) != want {
+			t.Errorf("Parse(%q) = %d documents, %v; want %d", in, len(docs), err, want)
 		}
 	}
 }
@@ -216,7 +255,9 @@ func TestSplitDocumentsCarriesLeadingComments(t *testing.T) {
 			{text: "---\nz: 3\n", startLine: 5, textLine: 5, index: 2, afterEnd: true},
 		},
 	} {
-		if got := splitDocuments(in); !reflect.DeepEqual(got, want) {
+		// A chunk holds an error, which reflect.DeepEqual cannot compare
+		// soundly, so the chunks are compared in their printed form.
+		if got := splitDocuments(in); fmt.Sprintf("%+v", got) != fmt.Sprintf("%+v", want) {
 			t.Errorf("splitDocuments(%q) = %+v, want %+v", in, got, want)
 		}
 	}

@@ -68,8 +68,8 @@ func Parse(data []byte) (docs []*Node, err error) {
 	endsInBlock := false
 	for i, c := range chunks {
 		c.unterminated = i == len(chunks)-1 && addedNewline
-		if c.bareLine > 0 {
-			return nil, documentStartError(c.bareLine)
+		if c.startErr != nil {
+			return nil, c.startErr
 		}
 		doc, d, inBlock, err := b.parseChunk(c)
 		if err != nil {
