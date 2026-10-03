@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.42.2] - 2026-10-03
+
+`graft merge` now writes every string and key in the style spruce writes it, so its output matches `spruce merge` byte for byte across our differential tests. Merged files can therefore differ in their bytes from what 1.42.1 wrote, although the values they hold are the same apart from the fixes listed below. graft also reads CRLF files, next-line characters, aliases, end markers, directives, anchors, and tags the way spruce does, and `graft diff` places more comments where spruce places them.
+
 ### Fixed
 
 - `graft merge` and `graft json` no longer misread a quoted scalar that breaks across lines in a file with CRLF line endings. `k: "q` followed by `  r s"` used to merge to `q\nr s`, where spruce and the same file with LF line endings give `q r s`, and a blank line inside the scalar gained two extra newlines. The same fix covers files pulled in by `(( load ))` and `--go-patch` files. A parse error in a CRLF file no longer shows `\r` in its snippet.
@@ -1029,6 +1033,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.42.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.2
 [1.42.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.1
 [1.42.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.0
 [1.41.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.41.0
