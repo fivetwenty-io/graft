@@ -1,0 +1,12 @@
+
+(root level)  (document #2)
+± type change from map to string
+- k: 1
++ x # c
+
+(root level)  (document #3)
+± type change from map to list
+- k: 1
++ - a # c3
+
+

@@ -1,0 +1,18 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "x",
+          "anchor": "a",
+          "line_comment": "# c",
+          "line": 1
+        }
+      ]
+    }
+  ]
+}

@@ -30,8 +30,8 @@ var corpusModes = []struct {
 func TestWriteMatchesCorpusGoldens(t *testing.T) {
 	yamlgolden.PinLocal(t)
 	cases, err := filepath.Glob("../../tests/diff-parity/cases/*")
-	if err != nil || len(cases) != 48 {
-		t.Fatalf("found %d corpus cases (%v), want 48", len(cases), err)
+	if err != nil || len(cases) != 49 {
+		t.Fatalf("found %d corpus cases (%v), want 49", len(cases), err)
 	}
 	for _, rel := range cases {
 		dir, err := filepath.Abs(rel)

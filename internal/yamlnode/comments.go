@@ -635,6 +635,9 @@ func buildGaps(items []item, lastLine int, dashLines map[int]bool, marker bool) 
 		return []gap{{from: 1, to: lastLine, marker: marker}}
 	}
 	gaps := []gap{{prev: nil, next: &items[0], from: 1, to: items[0].line - 1}}
+	if len(items) > 1 {
+		gaps[0].after = &items[1]
+	}
 	for i := 0; i+1 < len(items); i++ {
 		if items[i+1].line > items[i].end {
 			g := gap{prev: &items[i], next: &items[i+1], from: items[i].end + 1, to: items[i+1].line - 1}
@@ -794,7 +797,9 @@ func (s *gapScanner) scan() {
 		switch {
 		case isCmt && s.isHeader(l):
 			s.marker(l)
-			if !docStartHasContent(s.lines[l-1]) {
+			if docStartHasContent(s.lines[l-1]) {
+				appendSlot(s.out, s.nodeLineSlot(), c.text)
+			} else {
 				s.comment(l, c)
 			}
 		case isCmt:
@@ -809,9 +814,9 @@ func (s *gapScanner) scan() {
 
 // isHeader reports whether line l of the document's first gap is its
 // "---" line. A comment on that line follows the "---" token, so the
-// scan passes the header before it reads the comment. When a tag or an
-// anchor sits between the "---" and the comment, docStartHasContent
-// tells the scan that the comment belongs to the node instead.
+// scan passes the header before it reads the comment. The scan then
+// asks docStartHasContent whether a tag or an anchor sits between the
+// "---" and the comment, because such a comment belongs to the node.
 func (s *gapScanner) isHeader(l int) bool {
 	return s.g.prev == nil && strings.HasPrefix(s.lines[l-1], "---")
 }
@@ -819,12 +824,31 @@ func (s *gapScanner) isHeader(l int) bool {
 // docStartHasContent reports whether any token other than a comment
 // follows the "---" at the start of line, as in "--- !!map # c" or
 // "--- &a # c". yaml.v3 gives a comment after such a token to the node
-// as a line comment, which the report never prints, instead of making
-// it a head comment of the document's first node. The comment scans
-// that read a "---" line share this predicate.
+// as a line comment, instead of making it a head comment of the
+// document's first node. The gap scan uses this predicate today, and
+// the handling of a comment after a root flow collection on a "---"
+// line will reuse it.
 func docStartHasContent(line string) bool {
 	rest := strings.Trim(strings.TrimPrefix(line, "---"), " \t\r")
 	return rest != "" && rest[0] != '#'
+}
+
+// nodeLineSlot returns the line comment slot that yaml.v3 uses for a
+// comment after a tag or an anchor on the "---" line. A scalar root, or
+// the scalar in the first dash of a sequence root, holds the comment as
+// its line comment. A mapping root gives it to the first key, whose line
+// comment the report never prints, so no slot is returned.
+func (s *gapScanner) nodeLineSlot() string {
+	next := s.g.next
+	switch {
+	case next == nil:
+		return ""
+	case next.kind == 'S':
+		return next.lineSlot
+	case next.kind == 'E' && s.g.after != nil && s.g.after.kind == 'S' && s.g.after.line == next.line:
+		return s.g.after.lineSlot
+	}
+	return ""
 }
 
 // end handles the line after the gap: the next item, the end of the

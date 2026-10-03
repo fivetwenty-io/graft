@@ -62,8 +62,8 @@ func compareNodeFixture(t *testing.T, name string, keepComments bool) {
 func nodeFixtures(t *testing.T) []string {
 	t.Helper()
 	files, err := filepath.Glob("testdata/nodes/*.yml")
-	if err != nil || len(files) != 42 {
-		t.Fatalf("found %d node fixtures (%v), want 42", len(files), err)
+	if err != nil || len(files) != 46 {
+		t.Fatalf("found %d node fixtures (%v), want 46", len(files), err)
 	}
 	names := make([]string, len(files))
 	for i, f := range files {

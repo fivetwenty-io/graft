@@ -1,0 +1,25 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "sequence",
+          "tag": "!!seq",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "head": "# c4",
+              "line_comment": "# c3",
+              "line": 4
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
