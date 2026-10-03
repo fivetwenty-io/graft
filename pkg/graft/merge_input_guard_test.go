@@ -493,3 +493,37 @@ func TestJSONRejectsDeepNesting(t *testing.T) {
 		t.Errorf("jsonifyData = %v, want yaml: exceeded max depth of 10000", err)
 	}
 }
+
+// TestJSONReadsOnlyTheFirstDocumentOfAPart feeds `graft json` parts
+// that hold a second document. JSONifyFiles splits a file only at a
+// "---" line with nothing else on it, so a header with a trailing space
+// or a comment, or one between CRLF line breaks, leaves the next
+// document in the same part. spruce's json reads only the first document
+// of a part and prints {"x":1}. At 9027f95, goccy parsed the whole part,
+// so a syntax error in the second document failed it, and nesting there
+// skipped the depth guard and cost goccy's parser tens of gigabytes on
+// 200,000 unclosed "[". spruce also strips a leading byte order mark.
+func TestJSONReadsOnlyTheFirstDocumentOfAPart(t *testing.T) {
+	for _, c := range []struct{ name, in string }{
+		{"syntax error after a header with a trailing space", "x: 1\n--- \n[[[\n"},
+		{"10,001 unclosed brackets after a header with a trailing space", "x: 1\n--- \n" + strings.Repeat("[", 10001) + "\n"},
+		{"syntax error after a header with a comment", "x: 1\n--- # c\n[[[\n"},
+		{"CRLF line breaks", "x: 1\r\n---\r\n[[[\r\n"},
+		{"byte order mark", "\xEF\xBB\xBFx: 1\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var before, after runtime.MemStats
+			runtime.GC()
+			runtime.GC()
+			runtime.ReadMemStats(&before)
+			got, err := jsonifyData([]byte(c.in), false)
+			runtime.ReadMemStats(&after)
+			if err != nil || got != `{"x":1}` {
+				t.Errorf("jsonifyData = %.80q, %.200v; want {\"x\":1}", got, err)
+			}
+			if grew := after.TotalAlloc - before.TotalAlloc; grew >= 100<<20 {
+				t.Errorf("jsonifyData allocated %d MB, want under 100 MB", grew>>20)
+			}
+		})
+	}
+}

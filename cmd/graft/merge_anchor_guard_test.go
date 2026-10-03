@@ -62,19 +62,34 @@ func TestMergeIgnoresSyntaxErrorInLaterDocument(t *testing.T) {
 	}
 }
 
-// TestMergeRejectsContentAfterADocumentEnd runs `graft merge` on a file
-// with content after a "..." and no "---" before it. spruce fails it
-// with "yaml: line 2: did not find expected <document start>" and exits
-// 2. graft printed x: 1, dropped q, and exited 0. A "---" after the
-// "..." starts a document the merge does not read.
-func TestMergeRejectsContentAfterADocumentEnd(t *testing.T) {
+// TestMergeAndJSONRejectContentAfterADocumentEnd runs `graft merge` and
+// `graft json` on a file with content after a "..." and no "---" before
+// it. spruce fails both with "yaml: line 2: did not find expected
+// <document start>" and exits 2. graft printed x: 1, dropped q, and
+// exited 0. A "---" after the "..." starts a document neither reads,
+// and a directive after the "..." needs one.
+func TestMergeAndJSONRejectContentAfterADocumentEnd(t *testing.T) {
 	dir := t.TempDir()
 	bare := filepath.Join(dir, "bare.yml")
 	if err := os.WriteFile(bare, []byte("x: 1\n...\nq: 1\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if stderr, rc := runGraftCapturingOutput(t, []string{"merge", bare}); rc != 2 || !strings.Contains(stderr, "yaml: line 2: did not find expected <document start>") {
-		t.Errorf("graft merge: rc=%d stderr=%q, want rc=2 and yaml: line 2: did not find expected <document start>", rc, stderr)
+	for _, cmd := range []string{"merge", "json"} {
+		t.Run(cmd, func(t *testing.T) {
+			stderr, rc := runGraftCapturingOutput(t, []string{cmd, bare})
+			if rc != 2 || !strings.Contains(stderr, "yaml: line 2: did not find expected <document start>") {
+				t.Errorf("graft %s: rc=%d stderr=%q, want rc=2 and yaml: line 2: did not find expected <document start>", cmd, rc, stderr)
+			}
+		})
+	}
+	// json reads each part between "\n---\n" lines on its own, so the
+	// directive here ends its first part, with no "---" after it.
+	directive := filepath.Join(dir, "directive.yml")
+	if err := os.WriteFile(directive, []byte("x: 1\n...\n%TAG !e! tag:e.com,2000:\n---\nq: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if stderr, rc := runGraftCapturingOutput(t, []string{"json", directive}); rc != 2 || !strings.Contains(stderr, "yaml: line 3: did not find expected <document start>") {
+		t.Errorf("graft json: rc=%d stderr=%q, want rc=2 and yaml: line 3: did not find expected <document start>", rc, stderr)
 	}
 	headed := filepath.Join(dir, "headed.yml")
 	if err := os.WriteFile(headed, []byte("x: 1\n...\n---\ny: 2\n"), 0o600); err != nil {

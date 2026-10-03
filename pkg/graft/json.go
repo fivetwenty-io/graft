@@ -14,10 +14,15 @@ import (
 )
 
 func jsonifyData(data []byte, strict bool) (string, error) {
-	// Nesting past 10,000 levels fails before anything tokenizes the
-	// input. spruce's json reports a depth error, not the recursion text
-	// its merge gives, so this keeps yaml.v3's depth error.
-	if err := yamlnode.CheckFirstDocumentDepth(data); err != nil {
+	// spruce's json reads only the first document of each part, and a
+	// part can hold more than one, since JSONifyFiles splits only at a
+	// bare "---" line. So the part is cut to its first document the way
+	// the merge cuts its input, before anything tokenizes the rest, and
+	// nesting past 10,000 levels fails first. spruce's json reports a
+	// depth error, not the recursion text its merge gives, so this keeps
+	// yaml.v3's depth error.
+	data, err := yamlnode.FirstDocument(yamlnode.TrimBOM(data))
+	if err != nil {
 		return "", ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
 	}
 
