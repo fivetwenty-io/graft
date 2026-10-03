@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.42.1] - 2026-10-03
+
+`graft diff` now runs on graft's own goccy-based parser and renderer instead of homeport/dyff, and its output still matches `spruce diff` byte for byte. `graft merge` and `graft json` now read only the first document of each input, and they fail instead of silently dropping content they can't place.
+
 ### Changed
 
 - Release binaries and the container image are now built with Go
@@ -997,6 +1001,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.42.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.1
 [1.42.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.0
 [1.41.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.41.0
 [1.40.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.40.2
