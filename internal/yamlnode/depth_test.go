@@ -46,30 +46,56 @@ func TestParseRejectsDeepNestingCheaply(t *testing.T) {
 	}
 }
 
-// TestParseReusesProbeTokens parses JSON-like input that holds more than
-// 10,000 "[" and "{", so the depth probe tokenizes all of it without
-// tripping. Parse must reuse the probe's tokens instead of tokenizing the
-// same text again. Tokenizing it again costs about 24 MB on this input,
-// which takes Parse from about 148 MB to about 169 MB, past the bound.
+// TestParseReusesProbeTokens parses two inputs that hold more than
+// 10,000 "[" and "{", so the depth probe tokenizes each of them whole
+// without tripping. They differ only in one list entry, written "- ~" in
+// one and as a bare "-" in the other. The bare-dash rewrite turns the
+// second into the first, so Parse tokenizes the same text for both, but
+// the probe never sees that rewrite. Parse can reuse the probe's tokens
+// for the first input and has to tokenize the second again, which cost
+// 15 to 24 MB more in our runs, with or without the race detector.
+// Without the reuse, the two came within 8 MB of each other.
+//
+// Comparing two parses in one process keeps the race detector's overhead
+// out of the result, where an absolute bound was flaky. The flow
+// sequence sits on one line because the bare-dash rewrite matches a
+// regexp against every line, and under the race detector the regexp's
+// pooled state is often dropped, so thousands of lines would make the
+// rewrite itself cost tens of megabytes.
 func TestParseReusesProbeTokens(t *testing.T) {
-	const limit = 159 << 20
+	const minGap = 10 << 20
 	var b strings.Builder
-	b.WriteString("{\"items\": [")
-	for i := range 6000 {
-		fmt.Fprintf(&b, "{\"name\": \"v%d\", \"list\": [\"a\", \"b\"]},\n", i)
+	b.WriteString("items: [")
+	for i := range 5000 {
+		fmt.Fprintf(&b, "{\"name\": \"v%d\", \"list\": [\"a\", \"b\"]}, ", i)
 	}
-	b.WriteString("{}]}\n")
-	src := []byte(b.String())
+	b.WriteString("{}]\nl:\n")
+	body := b.String()
+	reused := parseAlloc(t, body+"- ~\nk: v\n")
+	retokenized := parseAlloc(t, body+"-\nk: v\n")
+	if retokenized < reused+minGap {
+		t.Errorf("Parse allocated %d MB reusing the probe's tokens and %d MB without, want a gap of at least %d MB",
+			reused>>20, retokenized>>20, minGap>>20)
+	}
+}
+
+// parseAlloc parses in, which must hold one document, and returns the
+// bytes Parse allocated. Two collections first empty the sync.Pool
+// caches, so each parse starts from the same state and pays for its own
+// pooled objects.
+func parseAlloc(t *testing.T, in string) uint64 {
+	t.Helper()
+	src := []byte(in)
 	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.GC()
 	runtime.ReadMemStats(&before)
 	docs, err := yamlnode.Parse(src)
 	runtime.ReadMemStats(&after)
 	if err != nil || len(docs) != 1 {
 		t.Fatalf("Parse = %d documents, %v; want 1 document", len(docs), err)
 	}
-	if grew := after.TotalAlloc - before.TotalAlloc; grew >= limit {
-		t.Errorf("Parse allocated %d MB, want under %d MB", grew>>20, limit>>20)
-	}
+	return after.TotalAlloc - before.TotalAlloc
 }
 
 // TestParseIgnoresBracketsOutsideStructure puts more than 10,000
