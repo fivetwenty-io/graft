@@ -285,20 +285,35 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(file.Docs) == 0 || file.Docs[0].Body == nil {
+	body := firstBody(file)
+	if body == nil {
 		return nil, nil
 	}
-	if err := checkAnchors(file.Docs[0].Body); err != nil {
+	if err := checkAnchors(body); err != nil {
 		return nil, err
 	}
 
-	ast.Walk(quotedBoolTagger{}, file.Docs[0].Body)
+	ast.Walk(quotedBoolTagger{}, body)
 
 	var result interface{}
-	if err := yaml.NodeToValue(file.Docs[0].Body, &result); err != nil {
+	if err := yaml.NodeToValue(body, &result); err != nil {
 		return nil, err
 	}
 	return result, nil
+}
+
+// firstBody returns the root node of file's first document, or nil when
+// it has none. goccy gives the directives before a "---" a document of
+// their own, whose body is the directive, so firstBody skips those and
+// returns the body of the document the directives belong to, as libyaml
+// and yaml.Unmarshal read it.
+func firstBody(file *ast.File) ast.Node {
+	for _, doc := range file.Docs {
+		if _, ok := doc.Body.(*ast.DirectiveNode); !ok {
+			return doc.Body
+		}
+	}
+	return nil
 }
 
 // maxRecursionMessage is the text CheckForCycles gives for a merged tree
@@ -345,9 +360,10 @@ func FirstMergeDocument(data []byte) ([]byte, error) {
 // Library callers pass raw input through FirstMergeDocument first, since
 // goccy's parser stalls on nesting that function fails cheaply.
 func CheckSelfContainingAnchors(data []byte) error {
-	file, err := parser.ParseBytes(data, 0)
-	if err == nil && len(file.Docs) > 0 && file.Docs[0].Body != nil {
-		return checkAnchors(file.Docs[0].Body)
+	if file, err := parser.ParseBytes(data, 0); err == nil {
+		if body := firstBody(file); body != nil {
+			return checkAnchors(body)
+		}
 	}
 	return nil
 }

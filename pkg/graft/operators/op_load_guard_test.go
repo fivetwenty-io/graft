@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -19,6 +20,7 @@ func TestLoadRejectsCyclicAndOverDeepFiles(t *testing.T) {
 	dir := t.TempDir()
 	for _, c := range []struct{ name, content, want string }{
 		{"cyclic", "a: &a\n  b: *a\n", "anchor 'a' value contains itself"},
+		{"cyclic after a directive", "%YAML 1.1\n---\na: &a\n  b: *a\n", "anchor 'a' value contains itself"},
 		{"deep", "a: " + strings.Repeat("[", 10001) + strings.Repeat("]", 10001) + "\n", "Hit max recursion depth. You seem to have a self-referencing dataset"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -64,5 +66,30 @@ func TestLoadReadsOnlyTheFirstDocument(t *testing.T) {
 	}
 	if got, _ := out.GetInt("result.x"); got != 1 {
 		t.Errorf("result.x = %v, want 1", got)
+	}
+}
+
+// TestLoadKeepsDirectivesWithFirstDocument loads a file that opens with
+// a directive and holds a second document. The directive belongs to the
+// first document, so spruce's load gives that document's content.
+func TestLoadKeepsDirectivesWithFirstDocument(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "directive.yml")
+	if err := os.WriteFile(path, []byte("%YAML 1.1\n---\nx: 1\n---\ny: 2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	engine, err := graft.NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := engine.ParseYAML([]byte("result: (( load \"" + path + "\" ))\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := engine.Evaluate(context.TODO(), doc)
+	if err != nil {
+		t.Fatalf("load = %v, want success", err)
+	}
+	if got := out.RawData(); !reflect.DeepEqual(got, map[string]interface{}{"result": map[string]interface{}{"x": 1}}) {
+		t.Errorf("load = %#v, want result.x: 1 alone", got)
 	}
 }

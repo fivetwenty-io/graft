@@ -61,3 +61,17 @@ func TestMergeIgnoresSyntaxErrorInLaterDocument(t *testing.T) {
 		t.Errorf("graft merge: rc=%d stderr=%q, want rc=0 and no stderr", rc, stderr)
 	}
 }
+
+// TestMergeKeepsDirectivesWithFirstDocument merges a file that opens
+// with a %YAML directive. spruce prints x: 1 and exits 0. graft gave the
+// directive a document of its own and printed {}.
+func TestMergeKeepsDirectivesWithFirstDocument(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "directive.yml")
+	if err := os.WriteFile(path, []byte("%YAML 1.1\n---\nx: 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, rc := runGraftCommand(t, []string{"merge", path})
+	if rc != 0 || stdout != "---\nx: 1\n\n" || stderr != "" {
+		t.Errorf("graft merge: rc=%d stdout=%q stderr=%q, want rc=0 and stdout %q", rc, stdout, stderr, "---\nx: 1\n\n")
+	}
+}

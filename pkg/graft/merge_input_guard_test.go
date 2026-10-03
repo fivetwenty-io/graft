@@ -26,6 +26,10 @@ func guardedMerge(t *testing.T, src string) (Document, error) {
 	if err != nil {
 		return nil, err
 	}
+	if doc == nil {
+		// A blank or null document merges as {}, as the CLI merges it.
+		doc = NewDocument(map[string]interface{}{})
+	}
 	out, err := engine.Merge(context.Background(), doc).Execute()
 	if err != nil {
 		return nil, err
@@ -46,6 +50,7 @@ func TestMergeRejectsSelfContainingAnchor(t *testing.T) {
 		{"sequence", "a: &a [*a]\n"},
 		{"nested", "a: &a\n  b:\n    c: [1, {d: *a}]\n"},
 		{"merge key", "a: &a\n  <<: *a\n  b: 1\n"},
+		{"after a directive", "%YAML 1.1\n---\na: &a\n  b: *a\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, err := guardedMerge(t, c.in)
@@ -164,6 +169,32 @@ func TestMergeIgnoresLaterDocuments(t *testing.T) {
 	}
 }
 
+// TestMergeKeepsDirectivesWithFirstDocument merges streams that open
+// with a directive. The directives before the first "---" belong to the
+// document it starts, so spruce merges that document's content. goccy
+// gives the directives a document of their own, and graft merged that
+// empty document as {} and exited 0. spruce v1.35.17 panics on a %TAG
+// for the primary handle "!", so only the named handle is its output.
+func TestMergeKeepsDirectivesWithFirstDocument(t *testing.T) {
+	for _, c := range []struct{ name, in string }{
+		{"YAML directive", "%YAML 1.1\n---\nx: 1\n"},
+		{"TAG directive", "%TAG ! tag:example.com,2000:\n---\nx: 1\n"},
+		{"TAG directive for a named handle", "%TAG !e! tag:example.com,2000:\n---\nx: 1\n"},
+		{"content on the header line", "%YAML 1.1\n--- {x: 1}\n"},
+		{"second document", "%YAML 1.1\n---\nx: 1\n---\ny: 2\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			out, err := guardedMerge(t, c.in)
+			if err != nil {
+				t.Fatalf("merge = %v, want success", err)
+			}
+			if got := out.RawData(); !reflect.DeepEqual(got, map[string]interface{}{"x": 1}) {
+				t.Errorf("merge = %#v, want x: 1 alone", got)
+			}
+		})
+	}
+}
+
 // TestMergeKeepsMarkersInsideScalars merges a first document holding a
 // "---" line inside a literal block scalar and inside a quoted
 // multi-line string. Neither line ends the document, so the keys after
@@ -195,6 +226,20 @@ func TestMergeKeepsMarkersInsideScalars(t *testing.T) {
 // operation.
 func TestGoPatchParsersReadOnlyTheFirstDocument(t *testing.T) {
 	src := []byte("- type: replace\n  path: /x\n  value: 2\n---\n- [\n")
+	if err := DetectArrayRoot(src); !IsArrayError(err) {
+		t.Errorf("DetectArrayRoot = %v, want the array-root signal", err)
+	}
+	ops, err := ParseGoPatch(src)
+	if err != nil || len(ops) != 1 {
+		t.Errorf("ParseGoPatch = %d operations, %v; want 1 operation", len(ops), err)
+	}
+}
+
+// TestGoPatchParsersKeepDirectivesWithFirstDocument feeds DetectArrayRoot
+// and ParseGoPatch an operation list after a directive and a "---".
+// spruce's --go-patch applies the operation.
+func TestGoPatchParsersKeepDirectivesWithFirstDocument(t *testing.T) {
+	src := []byte("%YAML 1.1\n---\n- type: replace\n  path: /x\n  value: 2\n")
 	if err := DetectArrayRoot(src); !IsArrayError(err) {
 		t.Errorf("DetectArrayRoot = %v, want the array-root signal", err)
 	}

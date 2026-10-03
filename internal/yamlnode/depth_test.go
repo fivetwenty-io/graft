@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/parser"
 
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
@@ -273,6 +274,8 @@ func TestFirstDocument(t *testing.T) {
 		{"leading header", "---\nx: 1\n---\ny: 2\n", "---\nx: 1\n"},
 		{"comment-only preamble", "# one\n\n# two\n---\nx: 1\n---\ny: 2\n", "# one\n\n# two\n---\nx: 1\n"},
 		{"directive", "%YAML 1.1\n---\nx: 1\n---\ny: 2\n", "%YAML 1.1\n---\nx: 1\n"},
+		{"tag directive and a header with a comment", "%TAG !e! tag:e.com,2000:\n--- # h\nx: 1\n---\ny: 2\n", "%TAG !e! tag:e.com,2000:\n--- # h\nx: 1\n"},
+		{"directive after a comment", "# c\n%YAML 1.1\n---\nx: 1\n...\ny: 2\n", "# c\n%YAML 1.1\n---\nx: 1\n...\n"},
 		{"empty first document", "---\n---\ny: 2\n", "---\n"},
 		{"marker in a literal block scalar", "a: |\n  ---\n  b\nc: 3\n---\nd: 4\n", "a: |\n  ---\n  b\nc: 3\n"},
 		{"marker in a quoted multi-line string", "a: \"b\n  ---\n  c\"\nd: 4\n---\ne: 5\n", "a: \"b\n  ---\n  c\"\nd: 4\n"},
@@ -300,11 +303,23 @@ func TestFirstDocument(t *testing.T) {
 			if cutErr != nil {
 				t.Fatalf("goccy fails the first document: %v", cutErr)
 			}
-			if wholeErr == nil && whole.Docs[0].String() != cut.Docs[0].String() {
-				t.Errorf("goccy reads the first document as %q, want %q", cut.Docs[0].String(), whole.Docs[0].String())
+			if wholeErr == nil && contentDocument(whole) != contentDocument(cut) {
+				t.Errorf("goccy reads the first document as %q, want %q", contentDocument(cut), contentDocument(whole))
 			}
 		})
 	}
+}
+
+// contentDocument returns the text of file's first document that is not
+// a directive. goccy gives the directives before a "---" a document of
+// their own, so the document they belong to comes after it.
+func contentDocument(file *ast.File) string {
+	for _, doc := range file.Docs {
+		if _, ok := doc.Body.(*ast.DirectiveNode); !ok {
+			return doc.String()
+		}
+	}
+	return ""
 }
 
 // TestFirstDocumentDepth checks that FirstDocument fails a first
