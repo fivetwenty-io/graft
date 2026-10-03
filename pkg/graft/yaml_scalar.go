@@ -447,15 +447,15 @@ func (w *scalarWriter) writeIndent() {
 }
 
 // writeIndicator ports yaml_emitter_write_indicator. Its is_whitespace
-// and is_indention arguments are false for every indicator a scalar
-// writer emits, so both flags are always cleared.
-func (w *scalarWriter) writeIndicator(indicator string, needWhitespace bool) {
+// argument is false for every indicator a scalar writer emits, so the
+// flag is always cleared.
+func (w *scalarWriter) writeIndicator(indicator string, needWhitespace, isIndention bool) {
 	if needWhitespace && !w.whitespace {
 		w.put(' ')
 	}
 	w.writeAll(indicator)
 	w.whitespace = false
-	w.indention = false
+	w.indention = w.indention && isIndention
 }
 
 // writePlain ports yaml_emitter_write_plain_scalar.
@@ -496,7 +496,7 @@ func (w *scalarWriter) writePlain(value []byte, allowBreaks bool) {
 
 // writeSingleQuoted ports yaml_emitter_write_single_quoted_scalar.
 func (w *scalarWriter) writeSingleQuoted(value []byte, allowBreaks bool) {
-	w.writeIndicator("'", true)
+	w.writeIndicator("'", true, false)
 	spaces, breaks := false, false
 	for i := 0; i < len(value); {
 		switch {
@@ -527,7 +527,7 @@ func (w *scalarWriter) writeSingleQuoted(value []byte, allowBreaks bool) {
 			spaces, breaks = false, false
 		}
 	}
-	w.writeIndicator("'", false)
+	w.writeIndicator("'", false, false)
 	w.whitespace = false
 	w.indention = false
 }
@@ -540,7 +540,7 @@ func (w *scalarWriter) writeSingleQuoted(value []byte, allowBreaks bool) {
 //nolint:gocyclo // a line-for-line port; splitting it would hide the correspondence with libyaml
 func (w *scalarWriter) writeDoubleQuoted(value []byte, allowBreaks bool) {
 	spaces := false
-	w.writeIndicator(`"`, true)
+	w.writeIndicator(`"`, true, false)
 	bom := isBOM(value)
 	for i := 0; i < len(value); {
 		switch {
@@ -635,7 +635,7 @@ func (w *scalarWriter) writeDoubleQuoted(value []byte, allowBreaks bool) {
 			spaces = false
 		}
 	}
-	w.writeIndicator(`"`, false)
+	w.writeIndicator(`"`, false, false)
 	w.whitespace = false
 	w.indention = false
 }
@@ -645,7 +645,7 @@ func (w *scalarWriter) writeDoubleQuoted(value []byte, allowBreaks bool) {
 // chomping indicator.
 func (w *scalarWriter) writeBlockScalarHints(value []byte) {
 	if isSpace(value, 0) || isBreak(value, 0) {
-		w.writeIndicator(string(rune('0'+scalarBestIndent)), false)
+		w.writeIndicator(string(rune('0'+scalarBestIndent)), false, false)
 	}
 	chomp := ""
 	if len(value) == 0 {
@@ -671,13 +671,13 @@ func (w *scalarWriter) writeBlockScalarHints(value []byte) {
 		}
 	}
 	if chomp != "" {
-		w.writeIndicator(chomp, false)
+		w.writeIndicator(chomp, false, false)
 	}
 }
 
 // writeLiteral ports yaml_emitter_write_literal_scalar.
 func (w *scalarWriter) writeLiteral(value []byte) {
-	w.writeIndicator("|", true)
+	w.writeIndicator("|", true, false)
 	w.writeBlockScalarHints(value)
 	w.putBreak()
 	w.indention = true
@@ -743,4 +743,23 @@ func renderSimpleKey(s string, column int) (text string, ok bool) {
 	w := scalarWriter{column: column, indent: column + scalarBestIndent, whitespace: true, indention: true}
 	w.writeScalar(value, style, true)
 	return string(w.buf), true
+}
+
+// renderComplexKey returns spruce's text for string s written as an
+// explicit key in a block mapping whose keys sit at column keyColumn:
+// the "? " indicator, the key scalar, a line break where libyaml writes
+// one, and the ":" that introduces the value. The value follows the
+// colon, separated by a single space.
+func renderComplexKey(s string, keyColumn int) string {
+	value := []byte(s)
+	a := analyzeScalar(value)
+	style := selectScalarStyle(value, requestedScalarStyle(s), a, false)
+	w := scalarWriter{column: keyColumn, indent: keyColumn, whitespace: true, indention: true}
+	w.writeIndicator("?", true, true)
+	w.indent = keyColumn + scalarBestIndent
+	w.writeScalar(value, style, false)
+	w.indent = keyColumn
+	w.writeIndent()
+	w.writeIndicator(":", true, true)
+	return string(w.buf)
 }

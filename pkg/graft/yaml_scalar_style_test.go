@@ -161,6 +161,51 @@ func runMarshalCases(t *testing.T, cases []struct {
 	}
 }
 
+// TestMarshalYAML_ExplicitKeysMatchSpruce writes every string spruce
+// writes in the explicit "? key" form as a key and compares the output
+// with spruce's.
+func TestMarshalYAML_ExplicitKeysMatchSpruce(t *testing.T) {
+	for _, tc := range spruceScalarStyleCases {
+		if !strings.HasPrefix(tc.asKey, "? ") {
+			continue
+		}
+		got, err := MarshalYAML(map[string]interface{}{tc.in: 1})
+		if err != nil {
+			t.Fatalf("MarshalYAML(key %q): %v", tc.in, err)
+		}
+		if string(got) != tc.asKey {
+			t.Errorf("key %q:\n got %q\nwant %q", tc.in, got, tc.asKey)
+		}
+	}
+}
+
+// TestMarshalYAML_ExplicitKeysInNestedBlocksMatchSpruce covers explicit
+// keys whose column comes from the structure around them, and explicit
+// keys whose value is a nested mapping. Expected output was captured
+// from spruce v1.35.17.
+func TestMarshalYAML_ExplicitKeysInNestedBlocksMatchSpruce(t *testing.T) {
+	runMarshalCases(t, []struct {
+		name string
+		in   map[string]interface{}
+		want string
+	}{
+		{
+			name: "keys of mappings inside a sequence",
+			in: map[string]interface{}{"l": []interface{}{
+				map[string]interface{}{"a\nb": 1, "z": 2},
+				map[string]interface{}{"\t": 1},
+				map[string]interface{}{strings.Repeat("x", 130): 1},
+			}},
+			want: "l:\n- ? |-\n    a\n    b\n  : 1\n  z: 2\n- \"\\t\": 1\n- ? " + strings.Repeat("x", 130) + "\n  : 1\n",
+		},
+		{
+			name: "explicit key over a nested mapping",
+			in:   map[string]interface{}{"a\nb": map[string]interface{}{"c": 1, "d": 2}},
+			want: "? |-\n  a\n  b\n: c: 1\n  d: 2\n",
+		},
+	})
+}
+
 // TestMarshalYAML_TabStringsRoundTrip checks that strings holding a tab
 // survive a second merge: the merged output parses back to the same
 // strings and marshals to the same bytes. Before spruce's escape rules
@@ -247,5 +292,25 @@ func TestMarshalYAMLWithComments_FindsQuotedKeys(t *testing.T) {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
+	}
+}
+
+// TestMarshalYAMLWithComments_FindsExplicitKeys checks that a head
+// comment still lands above its node when a key on the path to it is
+// one graft writes in the explicit "? key" form.
+func TestMarshalYAMLWithComments_FindsExplicitKeys(t *testing.T) {
+	data := map[string]interface{}{
+		"m\nk":  map[string]interface{}{"c": 1},
+		"plain": 1,
+	}
+	out, err := MarshalYAMLWithComments(data, []YAMLHeadComment{
+		{Path: "m\nk.c", Lines: []string{" under a ? key"}},
+	})
+	if err != nil {
+		t.Fatalf("MarshalYAMLWithComments: %v", err)
+	}
+	want := "? |-\n  m\n  k\n:\n  # under a ? key\n  c: 1\n"
+	if !strings.Contains(string(out), want) {
+		t.Errorf("output lacks %q:\n%s", want, out)
 	}
 }

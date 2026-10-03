@@ -3,6 +3,7 @@ package graft
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,6 +150,10 @@ const (
 	valueSlot scalarSlotKind = iota
 	// simpleKeySlot is a mapping key written as "key: value".
 	simpleKeySlot
+	// complexKeySlot is a mapping key written in the explicit
+	// "? key" form, which spruce uses for a multi-line key and for one
+	// longer than 128 bytes.
+	complexKeySlot
 )
 
 // scalarSlot records one string that substitute writes in spruce's
@@ -156,11 +161,16 @@ const (
 type scalarSlot struct {
 	s    string
 	kind scalarSlotKind
-	// indent is the block indent of a value's continuation lines.
+	// indent is the block indent of a value's continuation lines, or
+	// the column of a complex key's mapping.
 	indent int
 	// indention is libyaml's flag for a value that only indentation and
 	// indicators precede on its line, as after "- ".
 	indention bool
+	// mapValue and seqValue mark a complex key whose value is a
+	// non-empty block mapping or sequence. libyaml starts that value on
+	// the ":" line, where goccy starts it on the next line.
+	mapValue, seqValue bool
 }
 
 // nodePosition is where libyaml writes a node: the column a scalar
@@ -186,6 +196,19 @@ func mapValuePosition(m, keyWidth int) nodePosition {
 		scalarIndent: m + scalarBestIndent,
 		mapColumn:    m + scalarBestIndent,
 		seqColumn:    m,
+	}
+}
+
+// complexValuePosition is the value of a "? key" in a mapping whose keys
+// sit at column m. It follows ": " and, unlike a simple key's value, a
+// sequence there is indented.
+func complexValuePosition(m int) nodePosition {
+	return nodePosition{
+		scalarColumn: m + 2,
+		scalarIndent: m + scalarBestIndent,
+		indention:    true,
+		mapColumn:    m + scalarBestIndent,
+		seqColumn:    m + scalarBestIndent,
 	}
 }
 
@@ -256,7 +279,7 @@ func (e *scalarEncoder) prepare(v interface{}, pos nodePosition) (interface{}, b
 		})
 		out := make(yaml.MapSlice, 0, len(keys))
 		for _, k := range keys {
-			key, valuePos, ok := e.prepareKey(k, pos.mapColumn)
+			key, valuePos, ok := e.prepareKey(k, pos.mapColumn, val[k])
 			if !ok {
 				return nil, false
 			}
@@ -310,7 +333,7 @@ func (e *scalarEncoder) prepareValue(s string, pos nodePosition) (interface{}, b
 
 // prepareKey returns key k, or a placeholder for it, and the position
 // of its value in a mapping whose keys sit at column m.
-func (e *scalarEncoder) prepareKey(k string, m int) (interface{}, nodePosition, bool) {
+func (e *scalarEncoder) prepareKey(k string, m int, value interface{}) (interface{}, nodePosition, bool) {
 	if strings.Contains(k, e.prefix) {
 		return nil, nodePosition{}, false
 	}
@@ -319,9 +342,9 @@ func (e *scalarEncoder) prepareKey(k string, m int) (interface{}, nodePosition, 
 	}
 	text, simple := renderSimpleKey(k, m)
 	if !simple {
-		// spruce writes this key in the explicit "? key" form, which
-		// goccy cannot write; goccy's own rendering stands.
-		return k, mapValuePosition(m, utf8.RuneCountInString(k)), true
+		slot := scalarSlot{s: k, kind: complexKeySlot, indent: m}
+		slot.mapValue, slot.seqValue = blockCollectionKind(value)
+		return e.placeholder(slot), complexValuePosition(m), true
 	}
 	pos := mapValuePosition(m, utf8.RuneCountInString(text))
 	if text == k && goccyWritesVerbatim(k) {
@@ -368,6 +391,24 @@ func goccyWritesVerbatim(s string) bool {
 		}
 	}
 	return true
+}
+
+// blockCollectionKind reports whether v encodes as a non-empty block
+// mapping or a non-empty block sequence.
+func blockCollectionKind(v interface{}) (isMap, isSeq bool) {
+	switch val := v.(type) {
+	case nil, []byte:
+		return false, false
+	case yaml.MapSlice:
+		return len(val) > 0, false
+	}
+	rv := reflect.ValueOf(v)
+	if k := rv.Kind(); k == reflect.Map {
+		return rv.Len() > 0, false
+	} else if k == reflect.Slice || k == reflect.Array {
+		return false, rv.Len() > 0
+	}
+	return false, false
 }
 
 func (e *scalarEncoder) placeholder(slot scalarSlot) string {
@@ -435,61 +476,143 @@ func (e *scalarEncoder) encodedPath(prepared interface{}, path string) string {
 }
 
 // substitute copies goccy's output, writing spruce's text for each
-// placeholder at the column it lands on.
+// placeholder at the column it lands on. After a "? key" whose value is
+// a block mapping or sequence it also moves that value up onto the ":"
+// line, as libyaml writes it, and indents the rest of such a sequence
+// by two more columns, since libyaml does not write it indentless.
 func (e *scalarEncoder) substitute(in []byte) []byte {
 	if len(e.slots) == 0 {
 		return in
 	}
 	st := &substitution{in: in, out: make([]byte, 0, len(in)+len(in)/8)}
+	lineStart := true
 	for i := 0; i < len(in); {
+		if lineStart {
+			st.startLine(i)
+		}
 		if in[i] == e.prefix[0] {
 			if idx, n := e.slotAt(in[i:]); n > 0 {
-				i = st.writeSlot(e.slots[idx], i+n)
+				i, lineStart = st.writeSlot(e.slots[idx], i+n)
 				continue
 			}
 		}
-		st.copyByte(in[i])
+		lineStart = st.copyByte(in[i])
 		i++
 	}
 	return st.out
 }
 
 // substitution is substitute's state: goccy's output, the text written
-// so far, and the character column the next byte lands on.
+// so far, the character column the next byte lands on, and, for each
+// sequence moved under a "? key", the goccy column of its dashes.
 type substitution struct {
 	in     []byte
 	out    []byte
 	column int
+	shifts []int
 }
 
-// copyByte copies one byte of goccy's output.
-func (st *substitution) copyByte(c byte) {
+// startLine indents a line of goccy's output that lies inside a
+// sequence moved under a "? key" by two columns per such sequence,
+// first dropping each sequence the line has left.
+func (st *substitution) startLine(i int) {
+	if len(st.shifts) == 0 || st.in[i] == '\n' {
+		return
+	}
+	n := countSpaces(st.in[i:])
+	rest := st.in[i+n:]
+	for len(st.shifts) > 0 {
+		t := st.shifts[len(st.shifts)-1]
+		if n > t || (n == t && isDashIndicator(rest)) {
+			break
+		}
+		st.shifts = st.shifts[:len(st.shifts)-1]
+	}
+	for j := 0; j < 2*len(st.shifts); j++ {
+		st.out = append(st.out, ' ')
+	}
+	st.column += 2 * len(st.shifts)
+}
+
+// copyByte copies one byte of goccy's output and reports whether it
+// ended a line.
+func (st *substitution) copyByte(c byte) bool {
 	st.out = append(st.out, c)
 	switch {
 	case c == '\n':
 		st.column = 0
+		return true
 	case c&0xC0 != 0x80:
 		st.column++
 	}
+	return false
 }
 
 // writeSlot writes spruce's text for slot, whose placeholder ended at
-// i, and returns where copying resumes.
-func (st *substitution) writeSlot(slot scalarSlot, i int) int {
+// i, and returns where copying resumes and whether a line starts there.
+func (st *substitution) writeSlot(slot scalarSlot, i int) (int, bool) {
 	var text string
 	switch slot.kind {
 	case valueSlot:
 		text = renderValueScalar(slot.s, st.column, slot.indent, slot.indention)
 	case simpleKeySlot:
 		text, _ = renderSimpleKey(slot.s, st.column)
+	case complexKeySlot:
+		if i < len(st.in) && st.in[i] == ':' {
+			i++
+		}
+		text = renderComplexKey(slot.s, slot.indent)
 	}
 	st.out = append(st.out, text...)
 	st.column = advanceColumn(st.column, text)
-	if strings.HasSuffix(text, "\n") && i < len(st.in) && st.in[i] == '\n' {
+	if strings.HasSuffix(text, "\n") {
 		// A literal block ends its own last line.
-		i++
+		if i < len(st.in) && st.in[i] == '\n' {
+			i++
+		}
+		return i, true
 	}
-	return i
+	if slot.kind == complexKeySlot && (slot.mapValue || slot.seqValue) {
+		i = st.joinComplexValue(i, slot)
+	}
+	return i, false
+}
+
+// joinComplexValue moves the block mapping or sequence goccy wrote on
+// the line after a "? key"'s ":" up onto that line, as libyaml writes
+// it, and returns where copying resumes. A head comment above the
+// value's first node leaves the value where goccy put it.
+func (st *substitution) joinComplexValue(i int, slot scalarSlot) int {
+	if i >= len(st.in) || st.in[i] != '\n' {
+		return i
+	}
+	n := countSpaces(st.in[i+1:])
+	rest := st.in[i+1+n:]
+	if slot.mapValue && (len(rest) == 0 || rest[0] == '#' || rest[0] == '\n') {
+		return i
+	}
+	if slot.seqValue && !isDashIndicator(rest) {
+		return i
+	}
+	st.out = append(st.out, ' ')
+	st.column++
+	if slot.seqValue {
+		st.shifts = append(st.shifts, n)
+	}
+	return i + 1 + n
+}
+
+func countSpaces(b []byte) int {
+	n := 0
+	for n < len(b) && b[n] == ' ' {
+		n++
+	}
+	return n
+}
+
+// isDashIndicator reports whether b starts with a block sequence's "-".
+func isDashIndicator(b []byte) bool {
+	return len(b) > 0 && b[0] == '-' && (len(b) == 1 || b[1] == ' ' || b[1] == '\n')
 }
 
 // advanceColumn returns the column after writing text from column,
