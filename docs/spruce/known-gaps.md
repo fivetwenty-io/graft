@@ -93,7 +93,7 @@ The same holds for a key. `graft json --strict` fails on a `yes`, `no`, `on`, or
 
 **Expected behavior.** Each of these reads exactly as spruce reads it.
 
-**Impact.** A file has to hold a raw separator character in one of these positions to be affected, which is rare. The two double-quoted and folded cases are the ones to watch, because graft produces a different value without reporting anything. Writing the separator as the escape `\L` or `\P` in a double-quoted scalar reads the same way in both tools, A single-quoted scalar already agrees, and so does a literal block, unless one of its lines starts with the separator. `graft diff` shares the same reader, so it carries the same differences.
+**Impact.** A file has to hold a raw separator character in one of these positions to be affected, which is rare. The two double-quoted and folded cases are the ones to watch, because graft produces a different value without reporting anything. Writing the separator as the escape `\L` or `\P` in a double-quoted scalar reads the same way in both tools. A single-quoted scalar already agrees, and so does a literal block, unless one of its lines starts with the separator. `graft diff` shares the same reader, so it carries the same differences.
 
 ### load-reads-files-through-its-own-path
 

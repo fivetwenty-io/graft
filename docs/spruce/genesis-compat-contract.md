@@ -282,7 +282,7 @@ A malformed file inside a directory input fails with `failed to read <path>: yam
 | `a: !!merge <<` | Accepts it, reading `a` as the string `<<` with the `!!merge` tag | Rejects it with a parse error on line 1 |
 | `%TAG !! tag:example.com,2000:` directive, then `a: !!foo 1` | Accepts it, reading the tag as `tag:example.com,2000:foo` | Rejects it with a parse error on line 3 |
 
-graft merge and graft json check directives the way spruce does, so they reject the `%YAML 1.2` directive with spruce's message. They also accept two directives before a `---`, and they end the first document at a directive that follows its content, as spruce does.
+graft merge and graft json check directives the way spruce does, so they reject the `%YAML 1.2` directive with spruce's message. graft merge also accepts two directives before a `---`, and it ends the first document at a directive that follows its content, as spruce does. graft json fails on both kinds of file with exit code 2, as spruce json does.
 
 Accepted divergences, beyond the tables above:
 
