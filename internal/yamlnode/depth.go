@@ -1,9 +1,14 @@
 package yamlnode
 
 import (
+	"bytes"
 	"fmt"
+	"unicode/utf8"
 
+	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // maxDepth is yaml.v3's nesting limit, libyaml's max_flow_level and
@@ -22,13 +27,172 @@ const maxDepth = 10000
 // indented past its column, and a "-", a "?", or a key's ":" opens a new
 // level when it stands right of the innermost one.
 func checkDepth(toks token.Tokens) error {
+	_, err := scanDepth(toks, false)
+	return err
+}
+
+// scanDepth runs the depth scan over toks. It returns the index of the
+// token that tripped it, with the depth error, or with firstDocOnly the
+// index of the token that ends the first document, with no error. It
+// returns -1 when the scan reaches the end of toks.
+func scanDepth(toks token.Tokens, firstDocOnly bool) (int, error) {
 	s := &depthScan{}
-	for _, t := range toks {
+	var doc firstDocument
+	for i, t := range toks {
+		if firstDocOnly && doc.ends(t) {
+			return i, nil
+		}
 		if err := s.token(t); err != nil {
-			return err
+			return i, err
 		}
 	}
-	return nil
+	return -1, nil
+}
+
+// firstDocument finds the token that ends a stream's first document.
+type firstDocument struct {
+	started bool // a "---" or content has started the document
+	dirLine int  // the line of the last directive
+}
+
+// ends reports whether t ends the first document. A "---" or any content
+// starts it, and once it has started, a "---" or a "..." ends it. A
+// directive's arguments are not content.
+func (d *firstDocument) ends(t *token.Token) bool {
+	switch t.Type {
+	case token.CommentType:
+		return false
+	case token.DirectiveType:
+		d.dirLine = t.Position.Line
+		return false
+	case token.DocumentHeaderType:
+		if d.started {
+			return true
+		}
+	case token.DocumentEndType:
+		return d.started
+	default:
+		if t.Position.Line == d.dirLine {
+			return false
+		}
+	}
+	d.started = true
+	return false
+}
+
+// probeDepth fails src, raw YAML bytes, when it nests deeper than
+// checkDepth allows, while tokenizing as little of it as it can. goccy's
+// scanner tokenizes its whole input in one call, and a megabyte of "["
+// costs it about 300 MB, so the probe tokenizes prefixes of src instead.
+// With firstDocOnly, it looks only at the first document.
+//
+// Each level of nesting needs an opener of its own. A flow level needs a
+// "[" or a "{", and a block level needs a "-", a "?", or a ":". The open
+// block levels stand at columns that grow with each level, so a block
+// level past maxDepth also needs a line longer than maxDepth bytes.
+// Input that cannot nest past maxDepth by that count costs one pass over
+// its bytes. Otherwise the probe tokenizes a prefix that ends just past
+// the opener that could first go too deep, and doubles the prefix until
+// the depth scan trips or the prefix covers the input.
+//
+// The tokens at the end of a prefix can differ from the ones the whole
+// input gives. A quoted scalar that runs past the cut becomes an invalid
+// token, and a "-" just before the cut reads as a sequence entry even
+// when the next byte makes it text. So a trip, or the end of the first
+// document, counts only when the previous prefix holds the same token at
+// the same index. That token then lies at least half a prefix before the
+// cut, past the reach of anything the scanner looks ahead at, and the
+// tokens up to it are the ones the whole input gives. A prefix that
+// covers the input counts as it stands.
+//
+// Each prefix gets the rewrites that change what the depth scan sees,
+// which are LF line breaks and quoted "<<<" keys, so the probe fails
+// what checkDepth would fail, on the same line. It sees a "{{x}}"
+// placeholder before the placeholder rewrite, so a placeholder counts as
+// the two flow levels yaml.v3 reads. The bare-dash rewrite only adds a
+// "~" after a "-" whose line a key follows, which never changes a trip.
+func probeDepth(src []byte, firstDocOnly bool) error {
+	cut := probeCut(src)
+	if cut < 0 {
+		return nil
+	}
+	var prev token.Tokens
+	for {
+		for cut < len(src) && !utf8.RuneStart(src[cut]) {
+			cut++
+		}
+		whole := cut == len(src)
+		toks := lexer.Tokenize(probeText(src[:cut], whole))
+		at, err := scanDepth(toks, firstDocOnly)
+		if at >= 0 && (whole || sameToken(prev, toks, at)) {
+			return err
+		}
+		if whole {
+			return nil
+		}
+		prev, cut = toks, min(2*cut, len(src))
+	}
+}
+
+// probeCut returns the length of the first prefix probeDepth tokenizes,
+// which ends just past the opener that could first nest past maxDepth.
+// It returns -1 when src holds too few openers to nest that deep.
+func probeCut(src []byte) int {
+	blockToo := hasLineLongerThan(src, maxDepth)
+	n := 0
+	for i, c := range src {
+		switch c {
+		case '[', '{':
+		case '-', '?', ':':
+			if !blockToo {
+				continue
+			}
+		default:
+			continue
+		}
+		n++
+		if n > maxDepth {
+			return i + 1
+		}
+	}
+	return -1
+}
+
+// hasLineLongerThan reports whether a line of src holds more than n
+// bytes. Only LF ends a line here, so a CR line break makes a line look
+// longer, never shorter.
+func hasLineLongerThan(src []byte, n int) bool {
+	for len(src) > n {
+		i := bytes.IndexByte(src, '\n')
+		if i < 0 || i > n {
+			return true
+		}
+		src = src[i+1:]
+	}
+	return false
+}
+
+// probeText returns the text the probe tokenizes for a prefix of the
+// input. Its line breaks become LF and its "<<<" keys are quoted, and
+// when the prefix is the whole input, it ends in a line break, as the
+// text Parse tokenizes does. goccy places an unquoted "<<<" key right of
+// where it starts, which the depth scan would read as a level.
+func probeText(prefix []byte, whole bool) string {
+	text := yamlprep.QuoteInjectKeys(normalizeLineBreaks(prefix))
+	if whole && len(text) > 0 && text[len(text)-1] != '\n' {
+		return string(text) + "\n"
+	}
+	return string(text)
+}
+
+// sameToken reports whether prev and toks hold tokens of one type at
+// one position at index i.
+func sameToken(prev, toks token.Tokens, i int) bool {
+	if i >= len(prev) {
+		return false
+	}
+	a, b := prev[i], toks[i]
+	return a.Type == b.Type && a.Position.Line == b.Position.Line && a.Position.Column == b.Position.Column
 }
 
 type depthScan struct {

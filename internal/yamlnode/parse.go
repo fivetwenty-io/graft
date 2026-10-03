@@ -36,24 +36,20 @@ func (e *ParseError) Error() string {
 // comments, yields no documents. CRLF and lone CR line breaks become LF
 // before anything lexes. goccy counts a CRLF comment line as two lines,
 // and libyaml reads a lone CR as a line break, so the document splitter
-// has to count it the way goccy's lexer does. A panic inside goccy comes
-// back as a ParseError.
+// has to count it the way goccy's lexer does. Nesting deeper than
+// yaml.v3 allows fails before anything tokenizes the whole stream. A
+// panic inside goccy comes back as a ParseError.
 func Parse(data []byte) (docs []*Node, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			docs, err = nil, &ParseError{Message: fmt.Sprintf("internal parser error: %v", r)}
 		}
 	}()
-	src, err := decodeEncoding(data)
+	src, err := readStream(data)
 	if err != nil {
 		return nil, err
 	}
-	if err := checkUTF8(src); err != nil {
-		return nil, err
-	}
-	src = bytes.ReplaceAll(src, []byte("\r\n"), []byte("\n"))
-	src = bytes.ReplaceAll(src, []byte("\r"), []byte("\n"))
-	prepared, nulled := yamlprep.Prepare(src)
+	prepared, nulled := yamlprep.Prepare(normalizeLineBreaks(src))
 	text, addedNewline := string(prepared), false
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		text, addedNewline = text+"\n", true
@@ -171,6 +167,28 @@ func dropTrailingBlankLines(src string, indent int) string {
 		body = body[:i]
 	}
 	return body + "\n"
+}
+
+// readStream decodes data and runs the checks that come before anything
+// tokenizes the whole stream: the encoding, UTF-8, and the depth probe.
+func readStream(data []byte) ([]byte, error) {
+	src, err := decodeEncoding(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkUTF8(src); err != nil {
+		return nil, err
+	}
+	if err := probeDepth(src, false); err != nil {
+		return nil, err
+	}
+	return src, nil
+}
+
+// normalizeLineBreaks turns CRLF and lone CR line breaks into LF.
+func normalizeLineBreaks(src []byte) []byte {
+	src = bytes.ReplaceAll(src, []byte("\r\n"), []byte("\n"))
+	return bytes.ReplaceAll(src, []byte("\r"), []byte("\n"))
 }
 
 // decodeEncoding strips a UTF-8 byte order mark and transcodes UTF-16
