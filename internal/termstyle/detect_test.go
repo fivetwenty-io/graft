@@ -64,6 +64,27 @@ func TestStdoutColorCapablePipe(t *testing.T) {
 	}
 }
 
+func TestColorCapable(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		goos       string
+		isTerminal bool
+		isCygwin   bool
+		want       bool
+	}{
+		{"windows cygwin terminal", "windows", false, true, true},
+		{"windows plain console", "windows", true, false, false},
+		{"windows neither", "windows", false, false, false},
+		{"darwin terminal", "darwin", true, false, true},
+		{"darwin cygwin terminal", "darwin", false, true, true},
+		{"darwin neither", "darwin", false, false, false},
+	} {
+		if got := colorCapable(tc.goos, tc.isTerminal, tc.isCygwin); got != tc.want {
+			t.Errorf("%s: colorCapable(%q, %v, %v) = %v, want %v", tc.name, tc.goos, tc.isTerminal, tc.isCygwin, got, tc.want)
+		}
+	}
+}
+
 func TestParseStatName(t *testing.T) {
 	for stat, want := range map[string]string{
 		"1 (garden-init) S 0 1 1 0 -1": "garden-init",

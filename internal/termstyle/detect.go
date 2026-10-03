@@ -74,10 +74,17 @@ func TrueColorFromEnv(getenv func(string) string) bool {
 // TERM=dumb are left to ansi.ResolveColor.
 func StdoutColorCapable(f *os.File) bool {
 	fd := f.Fd()
-	if runtime.GOOS == "windows" && !isatty.IsCygwinTerminal(fd) {
+	return colorCapable(runtime.GOOS, isatty.IsTerminal(fd), isatty.IsCygwinTerminal(fd))
+}
+
+// colorCapable makes the decision for StdoutColorCapable from the operating
+// system name and the two terminal probes, so tests can cover the Windows
+// and Cygwin branches on any host.
+func colorCapable(goos string, isTerminal, isCygwin bool) bool {
+	if goos == "windows" && !isCygwin {
 		return false
 	}
-	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
+	return isTerminal || isCygwin
 }
 
 // TerminalWidth returns the width gonvenience/term would report for f:
