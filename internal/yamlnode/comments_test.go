@@ -282,7 +282,9 @@ func renderFlowDiff(t *testing.T, fromText, toText string) string {
 // in the report graft diff prints. Both differ from yaml.v3 in the same
 // places, so they have to move together when that model changes. The
 // root flow starts either on its own line after "---" or on the "---"
-// line itself.
+// line itself. A foot comment depends on the line the flow starts on, as
+// yaml.v3 only has one past the first line of the stream, so the nested
+// flow starts on the same line as the root flow does.
 func TestCommentsRootFlowMatchesNestedFlow(t *testing.T) {
 	for _, flow := range []string{
 		"{\n# c2\n\nk0: 1\n}",
@@ -294,27 +296,31 @@ func TestCommentsRootFlowMatchesNestedFlow(t *testing.T) {
 		"{a: 1 # c1\n }",
 		"!!seq [1, # c1\n 2]",
 		"&a {a: 1 # c1\n }",
+		"{a: 1,\n# c1\n\nb: 2}",
 	} {
 		lines := strings.Split(flow, "\n")
 		for i := 1; i < len(lines); i++ {
 			lines[i] = "  " + lines[i]
 		}
 		body := strings.Join(lines, "\n")
-		nested := "r: " + body + "\n"
-		gotNested := map[string]string{}
-		flowSlots(mustParse(t, nested)[0].Content[0].Content[1], "", gotNested)
-		wantReport := renderFlowDiff(t, "r: x\n", nested)
-		for _, root := range []string{"---\n" + body + "\n", "--- " + body + "\n"} {
-			gotRoot := map[string]string{}
+		for _, form := range []struct{ root, above string }{{"---\n", "z: 0\n"}, {"--- ", ""}} {
+			root, nested := form.root+body+"\n", form.above+"r: "+body+"\n"
+			gotRoot, gotNested := map[string]string{}, map[string]string{}
 			flowSlots(mustParse(t, root)[0].Content[0], "", gotRoot)
-			if len(gotRoot) == 0 {
+			doc := mustParse(t, nested)[0].Content[0]
+			flowSlots(doc.Content[len(doc.Content)-1], "", gotNested)
+			// A block of comments right after the opening bracket of a flow that
+			// starts past the first line is a foot of the bracket, which holds
+			// no comments, so only the "--- " form has to keep every comment.
+			if form.above == "" && len(gotRoot) == 0 {
 				t.Errorf("Parse(%q) placed no comments inside the flow", root)
 			}
 			if !reflect.DeepEqual(gotRoot, gotNested) {
 				t.Errorf("root flow and nested flow place comments differently:\n%q\n got %q\n%q\n got %q", root, gotRoot, nested, gotNested)
 			}
-			if got := renderFlowDiff(t, "x\n", root); got != wantReport {
-				t.Errorf("root flow and nested flow render differently:\n%q\n got %q\n%q\n got %q", root, got, nested, wantReport)
+			got, want := renderFlowDiff(t, "x\n", root), renderFlowDiff(t, form.above+"r: x\n", nested)
+			if got != want {
+				t.Errorf("root flow and nested flow render differently:\n%q\n got %q\n%q\n got %q", root, got, nested, want)
 			}
 		}
 	}

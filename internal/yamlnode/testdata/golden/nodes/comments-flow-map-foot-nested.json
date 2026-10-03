@@ -1,0 +1,68 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "z",
+              "line": 1
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "r",
+                  "line": 2
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 2,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "a",
+                      "foot": "# m",
+                      "line": 2
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "1",
+                      "line": 2
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "b",
+                      "line": 5
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "2",
+                      "line": 5
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

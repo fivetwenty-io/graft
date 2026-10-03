@@ -514,10 +514,11 @@ func appendSlot(out map[string]string, slot, text string) {
 // inline marks every line that ends in a line comment.
 func lineComments(w *walker, l lexed, out map[string]string) (own map[int]cmt, dashLines, inline map[int]bool) {
 	own, dashLines, inline = map[int]cmt{}, map[int]bool{}, map[int]bool{}
-	for _, c := range l.cmts {
+	runs := l.flowRuns(w.items, w.offset)
+	for i, c := range l.cmts {
 		isInline := l.inline(w.items, c)
 		if c.flow {
-			flowComment(w.flows, c, isInline, l.blankAfter(c.line), out)
+			flowComment(w.flows, c, isInline, runs[i], out)
 			continue
 		}
 		if !isInline {
@@ -585,14 +586,68 @@ func (l lexed) blankAfter(line int) bool {
 	return line < len(l.lines) && strings.TrimSpace(l.lines[line]) == ""
 }
 
+// flowRun describes the block of comments on consecutive lines of their
+// own that a comment inside a flow collection belongs to.
+//
+// yaml.v3 reads such a block in yaml_parser_scan_comments, and a blank
+// line ends it. The block is a foot comment of the entry before it when
+// no blank line came before it, it starts on the line after that entry,
+// and the token before it is not a ":" that still waits for its value.
+// The scanner only has a foot line once it stands past the first line
+// of the stream, so a block that follows the first line is never a
+// foot. Any other block that a blank line ends is a head comment of the
+// entry after it, and keeps the blank line as a trailing newline.
+type flowRun struct {
+	last  bool // the comment is the last one of its block
+	blank bool // a blank line follows the block
+	foot  bool // the block is a foot comment of the entry before it
+}
+
+// flowRuns returns the flowRun of every comment in l.cmts that sits on a
+// line of its own inside a flow collection. offset is the number of
+// stream lines before the first line of the chunk.
+func (l lexed) flowRuns(items []item, offset int) []flowRun {
+	runs := make([]flowRun, len(l.cmts))
+	own := func(i int) bool { return l.cmts[i].flow && !l.inline(items, l.cmts[i]) }
+	for i := 0; i < len(l.cmts); i++ {
+		if !own(i) {
+			continue
+		}
+		j := i
+		for j+1 < len(l.cmts) && own(j+1) && l.cmts[j+1].line == l.cmts[j].line+1 {
+			j++
+		}
+		blank := l.blankAfter(l.cmts[j].line)
+		foot := blank && flowFoot(l.cmts[i], offset)
+		for k := i; k <= j; k++ {
+			runs[k] = flowRun{k == j, blank, foot}
+		}
+		i = j
+	}
+	return runs
+}
+
+// flowFoot reports whether the block that starts with c, and that a
+// blank line ends, is a foot comment of the entry before it.
+func flowFoot(c cmt, offset int) bool {
+	tk := c.prev
+	if tk == nil || c.line != endLine(tk)+1 || endLine(tk)+offset < 2 {
+		return false
+	}
+	if tk.Type == token.CollectEntryType {
+		tk = tk.Prev
+	}
+	return tk != nil && tk.Type != token.MappingValueType
+}
+
 // flowComment places a comment inside a flow collection. A comment after
 // an entry, or after the "," that follows it, is that entry's line
 // comment, and so is a comment after the ":" that follows a key, which
 // belongs to the key's value. A comment on a line of its own is the head
 // comment of the next entry, or the foot comment of the last one before
-// the closing bracket. A head comment keeps the blank line that follows
-// it, as a trailing newline. blank says whether such a line follows c.
-func flowComment(flows []*flowColl, c cmt, inline, blank bool, out map[string]string) {
+// the closing bracket. run says how a block of such comments is placed
+// when a blank line follows it.
+func flowComment(flows []*flowColl, c cmt, inline bool, run flowRun, out map[string]string) {
 	if inline {
 		flowLineComment(flows, c, out)
 		return
@@ -603,9 +658,16 @@ func flowComment(flows []*flowColl, c cmt, inline, blank bool, out map[string]st
 	}
 	for i, e := range f.entries {
 		if before(c.line, c.col, e.line, e.col) {
-			appendSlot(out, e.head, c.text)
-			if blank && e.head != "" {
-				out[e.head] += "\n"
+			switch {
+			case run.foot && i > 0:
+				appendSlot(out, f.entries[i-1].foot, c.text)
+			case run.foot:
+				// Nothing before the first entry holds a foot comment.
+			default:
+				appendSlot(out, e.head, c.text)
+				if run.last && run.blank && e.head != "" {
+					out[e.head] += "\n"
+				}
 			}
 			return
 		}
