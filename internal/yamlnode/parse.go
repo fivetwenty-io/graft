@@ -45,7 +45,7 @@ func Parse(data []byte) (docs []*Node, err error) {
 			docs, err = nil, &ParseError{Message: fmt.Sprintf("internal parser error: %v", r)}
 		}
 	}()
-	src, err := readStream(data)
+	src, probed, err := readStream(data)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,12 @@ func Parse(data []byte) (docs []*Node, err error) {
 	text, addedNewline := streamText(prepared)
 	b := newBuilder(nulled)
 
-	toks := lexer.Tokenize(text)
+	// The probe's text differs from Parse's only where the bare-dash or
+	// placeholder rewrite changed something, and then it tokenizes again.
+	toks := probed.toks
+	if toks == nil || probed.text != text {
+		toks = lexer.Tokenize(text)
+	}
 	if err := checkDepth(toks); err != nil {
 		return nil, err
 	}
@@ -183,18 +188,20 @@ func streamText(prepared []byte) (string, bool) {
 
 // readStream decodes data and runs the checks that come before anything
 // tokenizes the whole stream: the encoding, UTF-8, and the depth probe.
-func readStream(data []byte) ([]byte, error) {
+// It also returns what the probe tokenized, for Parse to reuse.
+func readStream(data []byte) ([]byte, probeResult, error) {
 	src, err := decodeEncoding(data)
 	if err != nil {
-		return nil, err
+		return nil, probeResult{}, err
 	}
 	if err := checkUTF8(src); err != nil {
-		return nil, err
+		return nil, probeResult{}, err
 	}
-	if err := probeDepth(src, false); err != nil {
-		return nil, err
+	probed, err := probeDepth(src, false)
+	if err != nil {
+		return nil, probeResult{}, err
 	}
-	return src, nil
+	return src, probed, nil
 }
 
 // normalizeLineBreaks turns CRLF and lone CR line breaks into LF. Input

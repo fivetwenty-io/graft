@@ -48,7 +48,11 @@ func QuoteBracePlaceholders(data []byte) []byte {
 		end := sp.end + sort.SearchInts(removed, sp.end)
 		out = append(out, data[prev:start]...)
 		out = append(out, '\'')
-		out = append(out, bytes.ReplaceAll(data[start:end], []byte("'"), []byte("''"))...)
+		if seg := data[start:end]; bytes.IndexByte(seg, '\'') < 0 {
+			out = append(out, seg...)
+		} else {
+			out = append(out, bytes.ReplaceAll(seg, []byte("'"), []byte("''"))...)
+		}
 		out = append(out, '\'')
 		prev = end
 	}

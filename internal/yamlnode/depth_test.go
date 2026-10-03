@@ -2,6 +2,7 @@ package yamlnode_test
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"strings"
 	"testing"
@@ -42,6 +43,32 @@ func TestParseRejectsDeepNestingCheaply(t *testing.T) {
 				t.Errorf("Parse allocated %d MB, want under %d MB", grew>>20, limit>>20)
 			}
 		})
+	}
+}
+
+// TestParseReusesProbeTokens parses JSON-like input that holds more than
+// 10,000 "[" and "{", so the depth probe tokenizes all of it without
+// tripping. Parse must reuse the probe's tokens instead of tokenizing the
+// same text again. Tokenizing it again costs about 24 MB on this input,
+// which takes Parse from about 148 MB to about 169 MB, past the bound.
+func TestParseReusesProbeTokens(t *testing.T) {
+	const limit = 159 << 20
+	var b strings.Builder
+	b.WriteString("{\"items\": [")
+	for i := range 6000 {
+		fmt.Fprintf(&b, "{\"name\": \"v%d\", \"list\": [\"a\", \"b\"]},\n", i)
+	}
+	b.WriteString("{}]}\n")
+	src := []byte(b.String())
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	docs, err := yamlnode.Parse(src)
+	runtime.ReadMemStats(&after)
+	if err != nil || len(docs) != 1 {
+		t.Fatalf("Parse = %d documents, %v; want 1 document", len(docs), err)
+	}
+	if grew := after.TotalAlloc - before.TotalAlloc; grew >= limit {
+		t.Errorf("Parse allocated %d MB, want under %d MB", grew>>20, limit>>20)
 	}
 }
 

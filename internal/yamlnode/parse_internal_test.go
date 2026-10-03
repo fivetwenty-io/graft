@@ -14,6 +14,10 @@ func TestNormalizeLineBreaksSharesInputWithoutCR(t *testing.T) {
 	}
 }
 
+// streamTextSink keeps streamText's result escaping, so the allocation
+// count cannot drop to zero when the compiler inlines the call.
+var streamTextSink string
+
 // TestStreamTextCopiesOnce checks that turning the prepared bytes into
 // the text Parse tokenizes copies them once, with or without the final
 // line break Parse adds.
@@ -33,7 +37,7 @@ func TestStreamTextCopiesOnce(t *testing.T) {
 		if c.in == "" {
 			continue
 		}
-		if n := testing.AllocsPerRun(10, func() { streamText(in) }); n != 1 {
+		if n := testing.AllocsPerRun(10, func() { streamTextSink, _ = streamText(in) }); n != 1 {
 			t.Errorf("streamText(%q) allocated %v times, want 1", c.in, n)
 		}
 	}

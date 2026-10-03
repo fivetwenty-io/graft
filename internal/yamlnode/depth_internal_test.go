@@ -32,7 +32,7 @@ func TestProbeDepthFirstDocument(t *testing.T) {
 				firstDocOnly bool
 				want         string
 			}{{true, c.first}, {false, c.all}} {
-				err := probeDepth([]byte(c.in), k.firstDocOnly)
+				_, err := probeDepth([]byte(c.in), k.firstDocOnly)
 				if got := errText(err); got != k.want {
 					t.Errorf("probeDepth(firstDocOnly=%v) = %q, want %q", k.firstDocOnly, got, k.want)
 				}
@@ -71,7 +71,8 @@ func TestProbeDepthMatchesCheckDepth(t *testing.T) {
 	for _, in := range inputs {
 		prepared, _ := yamlprep.Prepare(normalizeLineBreaks([]byte(in)))
 		want := errText(checkDepth(lexer.Tokenize(string(prepared))))
-		if got := errText(probeDepth([]byte(in), false)); got != want {
+		_, err := probeDepth([]byte(in), false)
+		if got := errText(err); got != want {
 			t.Errorf("probeDepth(%.30q...) = %q, checkDepth says %q", in, got, want)
 		}
 	}

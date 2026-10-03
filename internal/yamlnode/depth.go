@@ -111,10 +111,14 @@ func (d *firstDocument) ends(t *token.Token) bool {
 // placeholder before the placeholder rewrite, so a placeholder counts as
 // the two flow levels yaml.v3 reads. The bare-dash rewrite only adds a
 // "~" after a "-" whose line a key follows, which never changes a trip.
-func probeDepth(src []byte, firstDocOnly bool) error {
+//
+// When the probe tokenizes all of src without tripping, and firstDocOnly
+// is false, it returns the text it tokenized and the tokens, so Parse
+// can skip tokenizing the same text again.
+func probeDepth(src []byte, firstDocOnly bool) (probeResult, error) {
 	cut := probeCut(src)
 	if cut < 0 {
-		return nil
+		return probeResult{}, nil
 	}
 	var prev token.Tokens
 	for {
@@ -122,16 +126,27 @@ func probeDepth(src []byte, firstDocOnly bool) error {
 			cut++
 		}
 		whole := cut == len(src)
-		toks := lexer.Tokenize(probeText(src[:cut], whole))
+		text := probeText(src[:cut], whole)
+		toks := lexer.Tokenize(text)
 		at, err := scanDepth(toks, firstDocOnly)
 		if at >= 0 && (whole || sameToken(prev, toks, at)) {
-			return err
+			return probeResult{}, err
 		}
 		if whole {
-			return nil
+			if firstDocOnly {
+				return probeResult{}, nil
+			}
+			return probeResult{text: text, toks: toks}, nil
 		}
 		prev, cut = toks, min(2*cut, len(src))
 	}
+}
+
+// probeResult holds the text probeDepth tokenized and its tokens, when
+// the probe covered the whole stream. Both are empty otherwise.
+type probeResult struct {
+	text string
+	toks token.Tokens
 }
 
 // probeCut returns the length of the first prefix probeDepth tokenizes,
