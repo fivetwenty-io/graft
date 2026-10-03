@@ -1,0 +1,42 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "scalar",
+          "tag": "!!str",
+          "value": "a",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "kind": "document",
+      "line": 3,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 5,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "k",
+              "head": "# c0\n# c3\n",
+              "line": 5
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 5
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

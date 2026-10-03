@@ -1,0 +1,26 @@
+
+(root level)  (document #2)
+± type change from string to map
+- z
++ # c0
+  # c3
+  
+  k: 1
+
+
+(root level)  (document #3)
+± type change from string to map
+- z
++ # c4
+  j: 1
+
+
+(root level)  (document #4)
+± type change from string to map
+- z
++ # c5
+  # c6
+  i: 1
+
+
+

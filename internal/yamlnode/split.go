@@ -18,6 +18,11 @@ type chunk struct {
 	marker    bool // a "---" follows the chunk, or it ends with "..."
 	afterEnd  bool // a "..." ended the document before this one
 
+	// endComments holds the comments that sit on the "..." lines that
+	// end the document before this one. yaml.v3 gives them to this
+	// document as head comments, ahead of any comment above its "---".
+	endComments []string
+
 	// tail marks the comments after the last document's "...", which are
 	// no document but can still be that document's foot comment.
 	tail bool
@@ -84,6 +89,12 @@ type splitter struct {
 	// afterEnd that the section being read follows that "...".
 	endedByDots bool
 	afterEnd    bool
+
+	// endLine is the line of the last "...", and endComments holds the
+	// comments that sit on the "..." lines since the last chunk, which
+	// the next chunk takes as comment lines of its own.
+	endLine     int
+	endComments []string
 }
 
 func (s *splitter) token(t *token.Token) {
@@ -107,11 +118,14 @@ func (s *splitter) token(t *token.Token) {
 			s.endedByDots = true
 		}
 		s.afterEnd = s.endedByDots
+		s.endLine = line
 		s.textStart, s.segStart, s.explicit, s.hasContent = line+1, line+1, false, false
 	case t.Type == token.DirectiveType:
 		if s.pendingDirective == 0 {
 			s.pendingDirective = line
 		}
+	case t.Type == token.CommentType && line == s.endLine && s.endedByDots:
+		s.endComments = append(s.endComments, "#"+t.Value)
 	case t.Type == token.CommentType || s.directiveLines[line]:
 		// Comments and directive arguments never make a document.
 	default:
@@ -127,13 +141,19 @@ func (s *splitter) emit(endLine int, marker bool) bool {
 	if endLine < s.segStart || s.textStart > endLine+1 || (!s.explicit && !s.hasContent) {
 		return false
 	}
+	var endComments []string
+	if s.afterEnd {
+		endComments = s.endComments
+	}
+	s.endComments = nil
 	s.chunks = append(s.chunks, chunk{
-		text:      strings.Join(s.lines[s.textStart-1:endLine], ""),
-		startLine: s.segStart,
-		textLine:  s.textStart,
-		index:     len(s.chunks),
-		marker:    marker,
-		afterEnd:  s.afterEnd,
+		text:        strings.Join(s.lines[s.textStart-1:endLine], ""),
+		endComments: endComments,
+		startLine:   s.segStart,
+		textLine:    s.textStart,
+		index:       len(s.chunks),
+		marker:      marker,
+		afterEnd:    s.afterEnd,
 	})
 	return true
 }

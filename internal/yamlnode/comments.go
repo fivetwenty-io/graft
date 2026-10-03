@@ -42,6 +42,7 @@ package yamlnode
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -462,7 +463,7 @@ func placeComments(w *walker, c chunk, explicit bool, out map[string]string) doc
 		headFoot = w.items[0].ancs[len(w.items[0].ancs)-1].foot
 	}
 	for _, g := range buildGaps(w.items, len(lines), dashLines, c.marker) {
-		if !gapHasComment(g, own) {
+		if !gapHasComment(g, own) && (g.prev != nil || len(c.endComments) == 0) {
 			continue
 		}
 		s := newGapScanner(g, own, inline, lines, out, c)
@@ -770,6 +771,7 @@ func newGapScanner(g gap, own map[int]cmt, inline map[int]bool, lines []string, 
 	if g.prev == nil && c.index > 0 {
 		s.carryBefore, s.carryAfter = c.afterEnd, !c.afterEnd
 	}
+	s.seedEndComments(c)
 	switch {
 	case g.prev == nil && s.carryBefore:
 		s.footLine = 1
@@ -785,6 +787,15 @@ func newGapScanner(g gap, own map[int]cmt, inline map[int]bool, lines []string, 
 		}
 	}
 	return s
+}
+
+// seedEndComments starts the first gap's comment block with the comments
+// on the "..." line that ended the document before the chunk. They sit on
+// a line before the chunk, so a foot line never closes the block.
+func (s *gapScanner) seedEndComments(c chunk) {
+	if s.g.prev == nil && len(c.endComments) > 0 {
+		s.text, s.startLine, s.startCol = slices.Clone(c.endComments), 0, 1
+	}
 }
 
 func (s *gapScanner) scan() {
