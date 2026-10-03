@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -306,7 +307,7 @@ tags:
   [0] ../../assets/history/null-base.yml → - a …
   Final              → - a …  (unchanged)
 
-tags[0]:
+tags[2]:
   [1] ../../assets/history/null-override.yml → c
   Final              → c  (unchanged)
 `)
@@ -502,4 +503,34 @@ server.timeout:
 			t.Errorf("stdout =\n%s\nwant\n%s", stdout, want)
 		}
 	})
+}
+
+// TestMergeHistoryNumbersAppendedListEntriesByRealIndex pins that entries
+// an overlay appends to a list are recorded at their position in the
+// merged list, so a list of one entry that grows to three reports l[1]
+// and l[2] rather than numbering the appended entries from zero.
+func TestMergeHistoryNumbersAppendedListEntriesByRealIndex(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "base.yml")
+	overlay := filepath.Join(dir, "overlay.yml")
+	if err := os.WriteFile(base, []byte("l: [a]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(overlay, []byte("l:\n- (( append ))\n- b\n- c\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, stderr, rc := runGraftCommand(t, []string{"merge", "--history", base, overlay})
+	if rc != 0 {
+		t.Fatalf("rc = %d, stderr = %q", rc, stderr)
+	}
+
+	want := "l[1]:\n  [1] " + overlay + " → b\n  Final              → b  (unchanged)\n\n" +
+		"l[2]:\n  [1] " + overlay + " → c\n  Final              → c  (unchanged)\n"
+	if !strings.HasSuffix(stdout, want) {
+		t.Errorf("stdout =\n%s\nwant it to end with\n%s", stdout, want)
+	}
+	if strings.Contains(stdout, "l[0]:") {
+		t.Errorf("stdout lists an l[0] entry that no merge step added:\n%s", stdout)
+	}
 }

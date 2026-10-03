@@ -1,6 +1,8 @@
 package histdiff
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -152,5 +154,65 @@ func TestCompareScalarRootTypeChange(t *testing.T) {
 	}
 	if len(changes) != 1 || changes[0].Path != "a" {
 		t.Fatalf("expected single change at 'a', got %+v", changes)
+	}
+}
+
+func TestCompareNumbersListEntriesByRealIndex(t *testing.T) {
+	type pair struct {
+		Kind Kind
+		Path string
+	}
+	elevenItems := make([]interface{}, 11)
+	for i := range elevenItems {
+		elevenItems[i] = fmt.Sprintf("item%d", i)
+	}
+	elevenAdded := make([]pair, 11)
+	for i := range elevenAdded {
+		elevenAdded[i] = pair{Added, fmt.Sprintf("l[%d]", i)}
+	}
+
+	for _, c := range []struct {
+		name     string
+		from, to interface{}
+		want     []pair
+	}{
+		{"append", l{"a"}, l{"a", "b", "c"}, []pair{{Added, "l[1]"}, {Added, "l[2]"}}},
+		{"tail removal", l{"a", "b", "c"}, l{"a"}, []pair{{Removed, "l[1]"}, {Removed, "l[2]"}}},
+		{"front removal and end addition", l{"a", "b"}, l{"b", "c"}, []pair{{Removed, "l[0]"}, {Added, "l[1]"}}},
+		{"repeated value", l{"a", "a"}, l{"a", "a", "a"}, []pair{{Added, "l[2]"}}},
+		{"repeated value removal", l{"a", "a", "a"}, l{"a", "a"}, []pair{{Removed, "l[2]"}}},
+		{"named entries", l{m{"name": "x"}}, l{m{"name": "x"}, m{"name": "y"}}, []pair{{Added, "l[1]"}}},
+		{"named entry removal", l{m{"name": "x"}, m{"name": "y"}, m{"name": "z"}}, l{m{"name": "x"}, m{"name": "z"}}, []pair{{Removed, "l[1]"}}},
+		{"eleven appended entries in numeric order", l{}, elevenItems, elevenAdded},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			changes, err := Compare("from", m{"l": c.from}, "to", m{"l": c.to})
+			if err != nil {
+				t.Fatalf("Compare: %v", err)
+			}
+			var got []pair
+			for _, ch := range changes {
+				if ch.Kind == Modified {
+					continue
+				}
+				got = append(got, pair{ch.Kind, ch.Path})
+			}
+			if !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("got %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestComparePathOrderIsNumericWithinListIndexes(t *testing.T) {
+	changes := []Change{{Path: "l[10]"}, {Path: "l[2]"}, {Path: "l[1].b"}, {Path: "k"}, {Path: "l[1]"}}
+	sortChanges(changes)
+	var got []string
+	for _, c := range changes {
+		got = append(got, c.Path)
+	}
+	want := []string{"k", "l[1]", "l[1].b", "l[2]", "l[10]"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }

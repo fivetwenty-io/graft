@@ -382,15 +382,35 @@ func sequenceNodes(path Path, from, to *yamlnode.Node) ([]Diff, error) {
 	return simpleLists(path, from, to)
 }
 
-// hashedNodes is a list of nodes and their nodeHash values.
+// hashedNodes is a list of nodes, their nodeHash values, and their
+// positions in the list they came from.
 type hashedNodes struct {
-	nodes  []*yamlnode.Node
-	hashes []uint64
+	nodes   []*yamlnode.Node
+	hashes  []uint64
+	indexes []int
 }
 
-func (h *hashedNodes) add(node *yamlnode.Node, hash uint64) {
+func (h *hashedNodes) add(node *yamlnode.Node, hash uint64, index int) {
 	h.nodes = append(h.nodes, node)
 	h.hashes = append(h.hashes, hash)
+	h.indexes = append(h.indexes, index)
+}
+
+// entries returns the nodes with their positions, without the hashes.
+func (h *hashedNodes) entries() listEntries {
+	return listEntries{nodes: h.nodes, indexes: h.indexes}
+}
+
+// listEntries is a group of list entries that one side added or removed,
+// together with the position each has in its own list.
+type listEntries struct {
+	nodes   []*yamlnode.Node
+	indexes []int
+}
+
+func (l *listEntries) add(node *yamlnode.Node, index int) {
+	l.nodes = append(l.nodes, node)
+	l.indexes = append(l.indexes, index)
 }
 
 // contains reports whether a node with the given hash is in the list,
@@ -451,29 +471,32 @@ func simpleLists(path Path, from, to *yamlnode.Node) ([]Diff, error) {
 
 	orderChanges := findOrderChangesInSimpleList(fromCommon, toCommon)
 
-	return packChangesAndAddToResult([]Diff{}, path, orderChanges, additions.nodes, removals.nodes), nil
+	return packChangesAndAddToResult([]Diff{}, path, orderChanges, additions.entries(), removals.entries()), nil
 }
 
 // listSurplus walks the entries of one list. An entry whose hash the other
 // list lacks is surplus, and an entry that appears more often in this
 // list than in the other adds the difference in copies, once per distinct
-// entry. It also returns the entries both lists share, in order.
+// entry. Each surplus copy records the position of an unmatched entry
+// with its hash, so the k-th copy takes the k-th position after the ones
+// the other list matches. It also returns the entries both lists share,
+// in order.
 func listSurplus(entries []*yamlnode.Node, hashes []uint64, own, other map[uint64][]int) (surplus, common hashedNodes) {
 	for idx, entry := range entries {
 		hash := hashes[idx]
 		_, ok := other[hash]
 		if ok {
-			common.add(entry, hash)
+			common.add(entry, hash, idx)
 		}
 
 		switch {
 		case !ok:
-			surplus.add(entry, hash)
+			surplus.add(entry, hash, idx)
 
 		case len(own[hash]) > len(other[hash]):
 			if !surplus.contains(hash) {
-				for i := 0; i < len(own[hash])-len(other[hash]); i++ {
-					surplus.add(entry, hash)
+				for _, unmatched := range own[hash][len(other[hash]):] {
+					surplus.add(entry, hash, unmatched)
 				}
 			}
 		}
@@ -487,13 +510,13 @@ func listSurplus(entries []*yamlnode.Node, hashes []uint64, own, other map[uint6
 // a removal or an addition, and the shared names are checked for an
 // order change.
 func namedEntryLists(path Path, identifier listItemIdentifier, from, to *yamlnode.Node) ([]Diff, error) {
-	var removals, additions []*yamlnode.Node
+	var removals, additions listEntries
 	var result []Diff
 
 	fromNames := make([]string, 0, len(from.Content))
 	toNames := make([]string, 0, len(from.Content))
 
-	for _, fromEntry := range from.Content {
+	for fromIdx, fromEntry := range from.Content {
 		name, err := identifier.Name(fromEntry)
 		if err != nil {
 			return nil, fmt.Errorf("failed to identify name: %w", err)
@@ -501,7 +524,7 @@ func namedEntryLists(path Path, identifier listItemIdentifier, from, to *yamlnod
 
 		toEntry, err := identifier.FindNodeByName(to, name)
 		if err != nil {
-			removals = append(removals, fromEntry)
+			removals.add(fromEntry, fromIdx)
 			continue
 		}
 
@@ -517,14 +540,14 @@ func namedEntryLists(path Path, identifier listItemIdentifier, from, to *yamlnod
 		fromNames = append(fromNames, name)
 	}
 
-	for _, toEntry := range to.Content {
+	for toIdx, toEntry := range to.Content {
 		name, err := identifier.Name(toEntry)
 		if err != nil {
 			return nil, fmt.Errorf("failed to identify name: %w", err)
 		}
 
 		if _, err := identifier.FindNodeByName(from, name); err != nil {
-			additions = append(additions, toEntry)
+			additions.add(toEntry, toIdx)
 			continue
 		}
 		toNames = append(toNames, name)
@@ -653,25 +676,28 @@ func findOrderChangesInNamedEntryLists(fromNames, toNames []string) []Detail {
 
 // packChangesAndAddToResult puts one diff at path in front of list. It
 // holds the order changes, then one removal fragment, then one addition
-// fragment, and it is left out when there is none of them.
-func packChangesAndAddToResult(list []Diff, path Path, orderchanges []Detail, additions, removals []*yamlnode.Node) []Diff {
+// fragment, and it is left out when there is none of them. Each fragment
+// detail carries the list positions of its entries.
+func packChangesAndAddToResult(list []Diff, path Path, orderchanges []Detail, additions, removals listEntries) []Diff {
 	diff := Diff{Path: &path, Details: []Detail{}}
 
 	if len(orderchanges) > 0 {
 		diff.Details = append(diff.Details, orderchanges...)
 	}
 
-	if len(removals) > 0 {
+	if len(removals.nodes) > 0 {
 		diff.Details = append(diff.Details, Detail{
-			Kind: REMOVAL,
-			From: &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: yamlnode.TagSeq, Content: removals},
+			Kind:    REMOVAL,
+			From:    &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: yamlnode.TagSeq, Content: removals.nodes},
+			Indexes: removals.indexes,
 		})
 	}
 
-	if len(additions) > 0 {
+	if len(additions.nodes) > 0 {
 		diff.Details = append(diff.Details, Detail{
-			Kind: ADDITION,
-			To:   &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: yamlnode.TagSeq, Content: additions},
+			Kind:    ADDITION,
+			To:      &yamlnode.Node{Kind: yamlnode.SequenceNode, Tag: yamlnode.TagSeq, Content: additions.nodes},
+			Indexes: additions.indexes,
 		})
 	}
 

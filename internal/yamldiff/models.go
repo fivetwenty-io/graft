@@ -39,10 +39,16 @@ const (
 
 // Detail holds the kind of one difference and the values on each side.
 // An addition has no From, and a removal has no To.
+//
+// Indexes is set only on a list addition or removal. It holds, for each
+// entry of the fragment in To or From, the position of that entry in the
+// list it belongs to, which is the new list for an addition and the old
+// list for a removal. The report never prints it.
 type Detail struct {
-	Kind DetailKind
-	From *yamlnode.Node
-	To   *yamlnode.Node
+	Kind    DetailKind
+	From    *yamlnode.Node
+	To      *yamlnode.Node
+	Indexes []int
 }
 
 // Diff holds every difference found at one path. A document order change

@@ -37,9 +37,9 @@ func TestCompareCharacterization(t *testing.T) {
 		}, ""},
 		{"list-dupe", m{"l": l{"a", "a", "b"}}, m{"l": l{"a", "b", "b", "c"}}, []Change{
 			{Path: "l", Kind: Modified, Old: l{"a", "a", "b"}, New: l{"a", "b", "b"}},
-			{Path: "l[0]", Kind: Removed, Old: "a"},
-			{Path: "l[0]", Kind: Added, New: "b"},
-			{Path: "l[1]", Kind: Added, New: "c"},
+			{Path: "l[1]", Kind: Removed, Old: "a"},
+			{Path: "l[2]", Kind: Added, New: "b"},
+			{Path: "l[3]", Kind: Added, New: "c"},
 		}, ""},
 		{"list-order", m{"l": l{"a", "b", "c"}}, m{"l": l{"c", "b", "a"}}, []Change{
 			{Path: "l", Kind: Modified, Old: l{"a", "b", "c"}, New: l{"c", "b", "a"}},
@@ -47,7 +47,7 @@ func TestCompareCharacterization(t *testing.T) {
 		{"named-list", m{"jobs": l{m{"name": "x", "v": 1}, m{"name": "y"}}}, m{"jobs": l{m{"name": "y"}, m{"name": "x", "v": 2}, m{"name": "z"}}}, []Change{
 			{Path: "jobs", Kind: Modified, Old: l{"x", "y"}, New: l{"y", "x"}},
 			{Path: "jobs.x.v", Kind: Modified, Old: 1, New: 2},
-			{Path: "jobs[0]", Kind: Added, New: m{"name": "z"}},
+			{Path: "jobs[2]", Kind: Added, New: m{"name": "z"}},
 		}, ""},
 		{"time", m{"t": when}, m{"t": "2001-01-01T00:00:00Z"}, []Change{
 			{Path: "t", Kind: Modified, Old: when, New: "2001-01-01T00:00:00Z"},
@@ -61,12 +61,12 @@ func TestCompareCharacterization(t *testing.T) {
 		{"nested-tag-eq", m{"l": l{m{"a": 1}, m{"b": 2}}}, m{"l": l{m{"a": "1"}, m{"b": 2}}}, nil, ""},
 		{"root-scalar", "x", "y", []Change{{Path: "", Kind: Modified, Old: "x", New: "y"}}, ""},
 		{"bytes", m{"b": []byte("hi")}, m{"b": []byte("ho")}, []Change{
-			{Path: "b[0]", Kind: Removed, Old: 105},
-			{Path: "b[0]", Kind: Added, New: 111},
+			{Path: "b[1]", Kind: Removed, Old: 105},
+			{Path: "b[1]", Kind: Added, New: 111},
 		}, ""},
 		{"seq-add-idx", m{"l": l{"a", "b"}}, m{"l": l{"x", "a", "b", "y"}}, []Change{
 			{Path: "l[0]", Kind: Added, New: "x"},
-			{Path: "l[1]", Kind: Added, New: "y"},
+			{Path: "l[3]", Kind: Added, New: "y"},
 		}, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/yamlgolden"
@@ -166,4 +167,54 @@ func TestCompareNonStandardIdentifierThreshold(t *testing.T) {
 			t.Fatalf("detail = %+v, want a modification from 1 to 2", det)
 		}
 	})
+}
+
+// TestCompareListDetailsCarryEntryIndexes pins the positions a list
+// addition or removal records. The k-th surplus copy of a repeated value
+// takes the k-th position of that value after the ones the other list
+// matches, and a named entry takes its own position.
+func TestCompareListDetailsCarryEntryIndexes(t *testing.T) {
+	for _, c := range []struct {
+		name, from, to string
+		removals       []int
+		additions      []int
+	}{
+		{"append", "l: [a]\n", "l: [a, b, c]\n", nil, []int{1, 2}},
+		{"tail removal", "l: [a, b, c]\n", "l: [a]\n", []int{1, 2}, nil},
+		{"front removal and end addition", "l: [a, b]\n", "l: [b, c]\n", []int{0}, []int{1}},
+		{"repeated value", "l: [a, a]\n", "l: [a, a, a]\n", nil, []int{2}},
+		{"two surplus copies", "l: [a, b, a, a]\n", "l: [b, a]\n", []int{2, 3}, nil},
+		{"named entries", "l: [{name: x}, {name: y}]\n", "l: [{name: x}, {name: z}, {name: y}]\n", nil, []int{1}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			report, err := CompareInputFiles(
+				InputFile{Documents: mustParse(t, c.from)},
+				InputFile{Documents: mustParse(t, c.to)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var removals, additions []int
+			for _, diff := range report.Diffs {
+				for _, det := range diff.Details {
+					switch det.Kind {
+					case REMOVAL:
+						removals = append(removals, det.Indexes...)
+						if len(det.Indexes) != len(det.From.Content) {
+							t.Fatalf("removal has %d indexes for %d entries", len(det.Indexes), len(det.From.Content))
+						}
+					case ADDITION:
+						additions = append(additions, det.Indexes...)
+						if len(det.Indexes) != len(det.To.Content) {
+							t.Fatalf("addition has %d indexes for %d entries", len(det.Indexes), len(det.To.Content))
+						}
+					case MODIFICATION, ORDERCHANGE:
+					}
+				}
+			}
+			if !reflect.DeepEqual(removals, c.removals) || !reflect.DeepEqual(additions, c.additions) {
+				t.Fatalf("removals %v additions %v, want %v and %v", removals, additions, c.removals, c.additions)
+			}
+		})
+	}
 }

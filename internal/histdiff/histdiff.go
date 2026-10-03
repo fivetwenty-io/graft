@@ -100,8 +100,53 @@ func Compare(fromLabel string, from interface{}, toLabel string, to interface{})
 		}
 	}
 
-	sort.Slice(changes, func(i, j int) bool { return changes[i].Path < changes[j].Path })
+	sortChanges(changes)
 	return changes, nil
+}
+
+// sortChanges orders changes by path, keeping the order yamldiff reported
+// for changes at the same path. A list index sorts by its number, so
+// l[2] comes before l[10].
+func sortChanges(changes []Change) {
+	sort.SliceStable(changes, func(i, j int) bool { return pathLess(changes[i].Path, changes[j].Path) })
+}
+
+// pathLess compares two paths byte by byte, except that a run of digits
+// right after a "[" in both paths compares as a number.
+func pathLess(a, b string) bool {
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		if a[i] == '[' && b[j] == '[' {
+			aEnd, bEnd := digitsEnd(a, i+1), digitsEnd(b, j+1)
+			if aEnd > i+1 && bEnd > j+1 {
+				aNum, bNum := a[i+1:aEnd], b[j+1:bEnd]
+				if len(aNum) != len(bNum) {
+					return len(aNum) < len(bNum)
+				}
+				if aNum != bNum {
+					return aNum < bNum
+				}
+				i, j = aEnd, bEnd
+				continue
+			}
+		}
+		if a[i] != b[j] {
+			return a[i] < b[j]
+		}
+		i++
+		j++
+	}
+	return len(a)-i < len(b)-j
+}
+
+// digitsEnd returns the index just past the run of ASCII digits that
+// starts at s[from].
+func digitsEnd(s string, from int) int {
+	end := from
+	for end < len(s) && s[end] >= '0' && s[end] <= '9' {
+		end++
+	}
+	return end
 }
 
 // detailToChanges converts one yamldiff.Detail into zero or more Changes.
@@ -125,9 +170,9 @@ func Compare(fromLabel string, from interface{}, toLabel string, to interface{})
 func detailToChanges(path string, detail yamldiff.Detail) ([]Change, error) {
 	switch detail.Kind {
 	case yamldiff.ADDITION:
-		return fragmentToChanges(path, Added, detail.To)
+		return fragmentToChanges(path, Added, detail.To, detail.Indexes)
 	case yamldiff.REMOVAL:
-		return fragmentToChanges(path, Removed, detail.From)
+		return fragmentToChanges(path, Removed, detail.From, detail.Indexes)
 	case yamldiff.MODIFICATION:
 		oldVal, err := decodeNodeIfSet(detail.From)
 		if err != nil {
@@ -157,9 +202,11 @@ func detailToChanges(path string, detail yamldiff.Detail) ([]Change, error) {
 
 // fragmentToChanges expands an ADDITION/REMOVAL fragment node (see
 // detailToChanges) into one Change per immediate child entry, joined onto
-// parentPath. A nil fragment (shouldn't happen for ADDITION/REMOVAL, which
+// parentPath. A sequence fragment's entries take their list positions
+// from indexes, which yamldiff records because the fragment itself has
+// lost them. A nil fragment (shouldn't happen for ADDITION/REMOVAL, which
 // always carry a non-nil To/From) yields no changes.
-func fragmentToChanges(parentPath string, kind Kind, fragment *yamlnode.Node) ([]Change, error) {
+func fragmentToChanges(parentPath string, kind Kind, fragment *yamlnode.Node, indexes []int) ([]Change, error) {
 	if fragment == nil {
 		return nil, nil
 	}
@@ -197,7 +244,7 @@ func fragmentToChanges(parentPath string, kind Kind, fragment *yamlnode.Node) ([
 			if err != nil {
 				return nil, err
 			}
-			change := Change{Path: fmt.Sprintf("%s[%d]", parentPath, i), Kind: kind}
+			change := Change{Path: fmt.Sprintf("%s[%d]", parentPath, listIndex(indexes, i)), Kind: kind}
 			if kind == Added {
 				change.New = val
 			} else {
@@ -225,6 +272,15 @@ func fragmentToChanges(parentPath string, kind Kind, fragment *yamlnode.Node) ([
 		}
 		return []Change{change}, nil
 	}
+}
+
+// listIndex returns the list position of fragment entry i. A fragment
+// without recorded positions numbers its entries from zero.
+func listIndex(indexes []int, i int) int {
+	if i < len(indexes) {
+		return indexes[i]
+	}
+	return i
 }
 
 func decodeNodeIfSet(node *yamlnode.Node) (interface{}, error) {
