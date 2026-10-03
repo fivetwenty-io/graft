@@ -294,6 +294,7 @@ func TestMergeKeepsKeysThatStartWithThreeDots(t *testing.T) {
 		{"with a quote, a space, and a comment", "a: 1\n...x 'y: 2 # c\n", map[string]interface{}{"a": 1, "...x 'y": 2}},
 		{"with a nested value", "a: 1\n...x:\n  b: 2\n", map[string]interface{}{"a": 1, "...x": map[string]interface{}{"b": 2}}},
 		{"CRLF line breaks", "a: 1\r\n...x: 2\r\n", map[string]interface{}{"a": 1, "...x": 2}},
+		{"tab before the colon", "a: 1\n...x\t: 2\n", map[string]interface{}{"a": 1, "...x": 2}},
 		{"before a second document", "a: 1\n...x: 2\n---\nb: [\n", map[string]interface{}{"a": 1, "...x": 2}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -311,8 +312,8 @@ func TestMergeKeepsKeysThatStartWithThreeDots(t *testing.T) {
 // TestMergeKeepsDocumentEndMarkers merges documents whose first document
 // ends at a "..." that a blank, a "#", or the end of the line follows.
 // The merge reads only that first document, as it did before keys that
-// start with "..." were kept, and a scalar "...x" after a key still
-// fails on line 2, as it does in spruce.
+// start with "..." were kept. A scalar "...x" after a key, or as the
+// value of an empty key, still fails on line 2, as it does in spruce.
 func TestMergeKeepsDocumentEndMarkers(t *testing.T) {
 	for _, in := range []string{"a: 1\n...\nb: 2\n", "a: 1\n... # c\n", "a: 1\n...\t\nb: 2\n", "a: 1\n...#c\n", "a: 1\n..."} {
 		out, err := guardedMerge(t, in)
@@ -324,8 +325,10 @@ func TestMergeKeepsDocumentEndMarkers(t *testing.T) {
 			t.Errorf("merge of %q = %#v, want %#v", in, got, want)
 		}
 	}
-	if _, err := guardedMerge(t, "a: 1\n...x\n"); err == nil || !strings.Contains(err.Error(), "[2:") {
-		t.Errorf("merge of %q = %v, want an error on line 2", "a: 1\n...x\n", err)
+	for _, in := range []string{"a: 1\n...x\n", "a:\n...x\n", "a:\n...x\n...\n"} {
+		if _, err := guardedMerge(t, in); err == nil || !strings.Contains(err.Error(), "[2:4] unexpected end content") {
+			t.Errorf("merge of %q = %v, want goccy's error at [2:4]", in, err)
+		}
 	}
 }
 

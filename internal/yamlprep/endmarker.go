@@ -23,9 +23,13 @@ import (
 // puts a document end at column 1 outside every flow collection, so a
 // line inside a quoted string or a block scalar never changes. The
 // scalar runs to the ": " that makes it a key, and the rewrite quotes the
-// key alone. A scalar that is no key runs to a " #" or the end of the
-// line, and the rewrite quotes it only when no later line before the
-// next marker line could continue it. Any "'" inside the scalar is
+// key alone. goccy rejects a tab between a quoted key and its ":", so
+// the blanks there become spaces. A scalar that is no key runs to a " #"
+// or the end of the line. The rewrite quotes it only when it is the
+// first content of its document and no later line before the next
+// marker line could continue it. Anywhere else it is part of a longer
+// scalar or of a collection, where quotes would land inside a value, so
+// the line stays as goccy reads it. Any "'" inside the scalar is
 // doubled. Only quotes are added, so every line keeps its number, and
 // goccy reads the tokens after the scalar a column or more to the right.
 //
@@ -46,16 +50,23 @@ func QuoteEndMarkerScalars(data []byte) []byte {
 	out := make([]byte, 0, len(data)+4*len(spans))
 	prev := 0
 	for _, sp := range spans {
-		start := sp.start + sort.SearchInts(removed, sp.start)
-		end := sp.end + sort.SearchInts(removed, sp.end)
+		// A span lies within one line, so one shift maps all of it.
+		shift := sort.SearchInts(removed, sp.start)
+		start, quoteEnd, end := sp.start+shift, sp.quoteEnd+shift, sp.end+shift
 		out = append(out, data[prev:start]...)
 		out = append(out, '\'')
-		out = append(out, bytes.ReplaceAll(data[start:end], []byte("'"), []byte("''"))...)
+		out = append(out, bytes.ReplaceAll(data[start:quoteEnd], []byte("'"), []byte("''"))...)
 		out = append(out, '\'')
+		out = append(out, bytes.Repeat([]byte(" "), end-quoteEnd)...)
 		prev = end
 	}
 	return append(out, data[prev:]...)
 }
+
+// endSpan is the part of a line the rewrite changes. It quotes the
+// bytes from start to quoteEnd and turns the blanks from quoteEnd to end
+// into spaces.
+type endSpan struct{ start, quoteEnd, end int }
 
 // hasEndMarkerScalar reports whether a line of data starts with "..."
 // and a character that isEndMarkerScalar accepts.
@@ -86,9 +97,9 @@ func isEndMarkerScalar(line []byte) bool {
 // endMarkerSpans returns the byte spans of src to quote, in order. Each
 // one is the scalar at the start of a line where goccy's lexer puts a
 // document end at column 1 outside every flow collection.
-func endMarkerSpans(src string) []span {
+func endMarkerSpans(src string) []endSpan {
 	idx := newByteIndex(src)
-	var spans []span
+	var spans []endSpan
 	flow := 0
 	for _, tk := range lexer.Tokenize(src) {
 		switch tk.Type {
@@ -110,36 +121,40 @@ func endMarkerSpans(src string) []span {
 	return spans
 }
 
-// endMarkerSpan returns the span of the plain scalar that starts line,
-// numbered from 1, when the line starts with one goccy misreads and the
-// scalar's end is certain.
-func endMarkerSpan(src string, idx byteIndex, line int) (span, bool) {
+// endMarkerSpan returns the span to rewrite for the plain scalar that
+// starts line, numbered from 1, when the line starts with one goccy
+// misreads and quoting the scalar keeps its value. That holds for a key,
+// and for a scalar that is no key only when it is the first content of
+// its document and nothing after it continues it.
+func endMarkerSpan(src string, idx byteIndex, line int) (endSpan, bool) {
 	if line < 1 || line > len(idx.lines) {
-		return span{}, false
+		return endSpan{}, false
 	}
 	start := idx.lines[line-1]
-	rest := src[start:]
-	text, next, _ := strings.Cut(rest, "\n")
+	text, next, _ := strings.Cut(src[start:], "\n")
 	if !isEndMarkerScalar([]byte(text)) {
-		return span{}, false
+		return endSpan{}, false
 	}
-	n, key := plainScalarEnd(text)
-	if !key && !endsScalar(next) {
-		return span{}, false
+	n, colon := plainScalarEnd(text)
+	if colon >= 0 {
+		return endSpan{start, start + n, start + colon}, true
 	}
-	return span{start, start + n}, true
+	if !startsDocument(src[:start]) || !endsScalar(next) {
+		return endSpan{}, false
+	}
+	return endSpan{start, start + n, start + n}, true
 }
 
 // plainScalarEnd returns the length of the plain scalar that starts
 // text, a line in block context, with the blanks after it trimmed, and
-// whether a ":" after it makes it a key. A ":" ends the scalar when a
-// blank or the end of the line follows it, and a "#" ends it when a
-// blank comes before it.
-func plainScalarEnd(text string) (int, bool) {
-	end, key := len(text), false
+// the offset of the ":" that makes it a key, or -1 when it is no key. A
+// ":" ends the scalar when a blank or the end of the line follows it,
+// and a "#" ends it when a blank comes before it.
+func plainScalarEnd(text string) (int, int) {
+	end, colon := len(text), -1
 	for i := 3; i < len(text); i++ {
 		if text[i] == ':' && (i+1 == len(text) || isBlank(text[i+1])) {
-			end, key = i, true
+			end, colon = i, i
 			break
 		}
 		if text[i] == '#' && isBlank(text[i-1]) {
@@ -147,7 +162,52 @@ func plainScalarEnd(text string) (int, bool) {
 			break
 		}
 	}
-	return len(strings.TrimRight(text[:end], " \t\r")), key
+	return len(strings.TrimRight(text[:end], " \t\r")), colon
+}
+
+// startsDocument reports whether before, the text ahead of a line, puts
+// that line at the start of a document's content. Walking back to the
+// last marker line or the start of the input, every line has to be
+// blank, a comment, a directive, or node properties alone, and a "---"
+// may carry only node properties. Anything else holds content the line
+// would continue or join.
+func startsDocument(before string) bool {
+	for before != "" {
+		before = strings.TrimSuffix(before, "\n")
+		cut := strings.LastIndexByte(before, '\n')
+		text := strings.TrimSuffix(before[cut+1:], "\r")
+		before = before[:cut+1]
+		switch {
+		case isMarker(text, "---"):
+			return propertiesOnly(text[3:])
+		case isMarker(text, "..."):
+			return true
+		case strings.HasPrefix(text, "%"):
+		case !propertiesOnly(text):
+			return false
+		}
+	}
+	return true
+}
+
+// isMarker reports whether text is a marker line that starts with
+// marker and then a blank or the end of the line.
+func isMarker(text, marker string) bool {
+	return strings.HasPrefix(text, marker) && (len(text) == 3 || isBlank(text[3]))
+}
+
+// propertiesOnly reports whether text holds nothing but tags, anchors,
+// and a comment, or nothing at all.
+func propertiesOnly(text string) bool {
+	for _, f := range strings.Fields(text) {
+		if f[0] == '#' {
+			return true
+		}
+		if f[0] != '!' && f[0] != '&' {
+			return false
+		}
+	}
+	return true
 }
 
 // endsScalar reports whether no line of rest, the text after a line
@@ -161,7 +221,7 @@ func endsScalar(rest string) bool {
 		switch content := strings.Trim(text, " \t\r"); {
 		case content == "" || content[0] == '#':
 		case strings.HasPrefix(text, "---") || strings.HasPrefix(text, "..."):
-			return len(text) == 3 || isBlank(text[3])
+			return isMarker(text, text[:3])
 		default:
 			return false
 		}

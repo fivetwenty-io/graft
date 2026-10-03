@@ -43,7 +43,9 @@ func TestParseRejectsDocumentAfterEndMarker(t *testing.T) {
 // which dropped a key such as "...x" without an error. A "..." that a
 // blank, a "#", or the end of the line follows still ends the document,
 // and content after it still needs a "---". A scalar that is no key
-// keeps the error line it had.
+// becomes a string only when it is the first content of its document
+// and ends on its own line. Where it continues an earlier line, the
+// input fails as it did before, never with quotes inside the value.
 func TestParseKeepsEndMarkerLookalikes(t *testing.T) {
 	for in, want := range map[string][]string{
 		"a: 1\n...x: 2\n":           {"a", "1", "...x", "2"},
@@ -52,6 +54,7 @@ func TestParseKeepsEndMarkerLookalikes(t *testing.T) {
 		"a:\n- 1\n...: 2\n":         {"a", "", "...", "2"},
 		"a: 1\r\n...x y: 2\r\n":     {"a", "1", "...x y", "2"},
 		"a: 1\n...x'y: 2 # c\n":     {"a", "1", "...x'y", "2"},
+		"a: 1\n...x\t: 2\n":         {"a", "1", "...x", "2"},
 		"a: \"b\n...x: c\"\nd: 1\n": {"a", "b ...x: c", "d", "1"},
 	} {
 		docs, err := Parse([]byte(in))
@@ -67,18 +70,30 @@ func TestParseKeepsEndMarkerLookalikes(t *testing.T) {
 			t.Errorf("Parse(%q) keys and values = %q, want %q", in, got, want)
 		}
 	}
-	docs, err := Parse([]byte("...x\n"))
-	if err != nil || len(docs) != 1 || docs[0].Content[0].Value != "...x" || docs[0].Content[0].Tag != "!!str" {
-		t.Errorf("Parse(%q) = %d documents, %v; want the string \"...x\"", "...x\n", len(docs), err)
+	for _, in := range []string{"...x\n", "...x # c\n", "!!str\n...x\n", "&a\n...x\n", "--- !!str\n...x\n", "%YAML 1.1\n---\n...x\n", "# c\n\n...x\n"} {
+		docs, err := Parse([]byte(in))
+		if err != nil || len(docs) != 1 || docs[0].Content[0].Value != "...x" || docs[0].Content[0].Tag != "!!str" {
+			t.Errorf("Parse(%q) = %d documents, %v; want the string \"...x\"", in, len(docs), err)
+		}
 	}
-	for in, want := range map[string]int{"a: 1\n...\t\n": 1, "a: 1\n...#c\n": 1, "a: 1\n... # c\n---\nb: 2\n": 2} {
+	for in, want := range map[string]int{"...x\n---\n...\n": 2, "a: 1\n...\t\n": 1, "a: 1\n...#c\n": 1, "a: 1\n... # c\n---\nb: 2\n": 2} {
 		if docs, err := Parse([]byte(in)); err != nil || len(docs) != want {
 			t.Errorf("Parse(%q) = %d documents, %v; want %d", in, len(docs), err, want)
 		}
 	}
 	for in, want := range map[string]string{
 		"a: 1\n...\t\nb: 2\n": "yaml: line 2: did not find expected <document start>",
-		"a: 1\n...x\n":        "yaml: line 2: ",
+		"a\n...\n...x\n":      "yaml: line 2: did not find expected <document start>",
+		"a: 1\n...x\n":        "yaml: line 2: unexpected end content",
+		"foo\n...x\n":         "yaml: line 2: unexpected end content",
+		"--- foo\n...x\n":     "yaml: line 2: unexpected end content",
+		"foo\n  bar\n...x\n":  "yaml: line 3: unexpected end content",
+		"foo\n\n...x\n":       "yaml: line 3: unexpected end content",
+		"foo\n...x\n...\n":    "yaml: line 2: unexpected end content",
+		"...x\n...y\n":        "yaml: line 2: unexpected end content",
+		"a:\n...x\n":          "yaml: line 2: unexpected end content",
+		"a:\n...x\n...\n":     "yaml: line 2: unexpected end content",
+		"- a\n-\n...x\n":      "yaml: line 3: unexpected end content",
 	} {
 		if _, err := Parse([]byte(in)); err == nil || !strings.HasPrefix(err.Error(), want) {
 			t.Errorf("Parse(%q) = %v, want an error that starts %q", in, err, want)

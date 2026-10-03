@@ -22,12 +22,21 @@ func TestQuoteEndMarkerScalars(t *testing.T) {
 		{"key with a comment sign", "a: 1\n...x#y: 2\n", "a: 1\n'...x#y': 2\n"},
 		{"key with a colon", "a: 1\n...x:y: 2\n", "a: 1\n'...x:y': 2\n"},
 		{"space before the colon", "a: 1\n...x  : 2\n", "a: 1\n'...x'  : 2\n"},
+		{"tab before the colon", "a: 1\n...x\t: 2\n", "a: 1\n'...x' : 2\n"},
+		{"space and tab before the colon", "a: 1\n...x \t: 2\n", "a: 1\n'...x'  : 2\n"},
 		{"key with a nested value", "a: 1\n...x:\n  b: 2\n", "a: 1\n'...x':\n  b: 2\n"},
 		{"CRLF line breaks", "a: 1\r\n...x: 2\r\nb: 3\r\n", "a: 1\r\n'...x': 2\r\nb: 3\r\n"},
 		{"scalar document", "...x\n", "'...x'\n"},
 		{"scalar document with comments", "...x # c\n\n# d\n", "'...x' # c\n\n# d\n"},
 		{"scalar document before a marker", "...x\n---\nb: 1\n", "'...x'\n---\nb: 1\n"},
 		{"two keys", "...x: 1\n...y: 2\n", "'...x': 1\n'...y': 2\n"},
+		{"scalar document after a tag", "!!str\n...x\n", "!!str\n'...x'\n"},
+		{"scalar document after an anchor and a comment", "&a # c\n...x\n", "&a # c\n'...x'\n"},
+		{"scalar document after a tagged header", "--- !!str\n...x\n", "--- !!str\n'...x'\n"},
+		{"scalar document after a directive", "%YAML 1.1\n---\n...x\n", "%YAML 1.1\n---\n'...x'\n"},
+		{"scalar document after comments", "# c\n\n...x\n", "# c\n\n'...x'\n"},
+		{"scalar document in a second document", "a: 1\n---\n...x\n", "a: 1\n---\n'...x'\n"},
+		{"scalar document before an end marker", "...x\n---\n...\n", "'...x'\n---\n...\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if got := QuoteEndMarkerScalars([]byte(c.in)); string(got) != c.want {
@@ -41,8 +50,11 @@ func TestQuoteEndMarkerScalars(t *testing.T) {
 // of a document marker, and every "..." goccy does not misread, comes
 // back as the original slice. That covers a "..." followed by a blank,
 // a line break, a "#", or the end of the input, four dots, a "..." line
-// inside a quoted string, a block scalar, or a flow collection, and a
-// plain scalar that runs on to the next line.
+// inside a quoted string, a block scalar, or a flow collection, a
+// scalar that is no key and continues an earlier line, and a scalar
+// that is no key and runs on to a later line. The last two stay as
+// goccy reads them, which fails some and silently drops text from
+// others, such as "...x\ny", which spruce reads as "...x y".
 func TestQuoteEndMarkerScalarsLeavesOtherInput(t *testing.T) {
 	for _, in := range []string{
 		"a: 1\n",
@@ -61,6 +73,17 @@ func TestQuoteEndMarkerScalarsLeavesOtherInput(t *testing.T) {
 		"--- |\n...x\n",
 		"[a,\n...x]\n",
 		"...x\ny\n",
+		"...x # c\nfoo\n",
+		"foo\n...x\n",
+		"--- foo\n...x\n",
+		"foo\n  bar\n...x\n",
+		"foo\n\n...x\n",
+		"foo\n...x\n...\n",
+		"...x\n...y\n",
+		"a:\n...x\n",
+		"a:\n...x\n...\n",
+		"- a\n-\n...x\n",
+		"a: |\n  t\n...x\n",
 	} {
 		data := []byte(in)
 		out := QuoteEndMarkerScalars(data)

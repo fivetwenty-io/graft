@@ -107,11 +107,12 @@ func (d *firstDocument) ends(t *token.Token) bool {
 //
 // Each prefix gets the rewrites that change what the depth scan sees,
 // which are LF line breaks, quoted "<<<" keys, and quoted column-1
-// scalars that start with "...", so the probe fails what checkDepth
-// would fail, on the same line, and finds the same first document. It sees a "{{x}}"
-// placeholder before the placeholder rewrite, so a placeholder counts as
-// the two flow levels yaml.v3 reads. The bare-dash rewrite only adds a
-// "~" after a "-" whose line a key follows, which never changes a trip.
+// scalars that start with "...", so the probe fails what checkDepth would
+// fail, on the same line, and finds the same first document. It sees a
+// "{{x}}" placeholder before the placeholder rewrite, so a placeholder
+// counts as the two flow levels yaml.v3 reads. The bare-dash rewrite only
+// adds a "~" after a "-" whose line a key follows, which never changes a
+// trip.
 //
 // When the probe tokenizes all of src without tripping, and firstDocOnly
 // is false, it returns the text it tokenized and the tokens, so Parse
