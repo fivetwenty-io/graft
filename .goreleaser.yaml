@@ -172,6 +172,17 @@ homebrew_casks:
       bash: share/bash-completion/completions/graft.bash
       zsh: share/zsh/site-functions/_graft
       fish: share/fish/vendor_completions.d/graft.fish
+    # The darwin binary is signed and notarized above, but Homebrew still
+    # quarantines cask downloads, and macOS then shows its first-launch
+    # confirmation. Run from a terminal, graft blocks on that dialog until
+    # someone clicks it. Dropping the quarantine flag skips only that
+    # prompt; the binary keeps its Developer ID signature.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/graft"]
+          end
 
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
