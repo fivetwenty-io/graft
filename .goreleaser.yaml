@@ -176,13 +176,23 @@ homebrew_casks:
     # quarantines cask downloads, and macOS then shows its first-launch
     # confirmation. Run from a terminal, graft blocks on that dialog until
     # someone clicks it. Dropping the quarantine flag skips only that
-    # prompt; the binary keeps its Developer ID signature.
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/graft"]
-          end
+    # prompt; the binary keeps its Developer ID signature. xattr exits
+    # non-zero when the flag is already gone, which is fine.
+    #
+    # This goes through custom_block rather than hooks, because Homebrew
+    # deprecated the postflight block that hooks emit, and every brew
+    # command that loads the cask would warn about it. goreleaser places
+    # custom_block at the top of the cask, which brew style flags but brew
+    # itself ignores. The {{ "{{" }} escape keeps goreleaser's template
+    # engine from reading Homebrew's {{staged_path}} placeholder.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-d", "com.apple.quarantine", "{{ "{{" }}staged_path}}/graft"],
+              must_succeed: false, print_stderr: false,
+              writable_paths: ["graft"], writable_base: :staged_path
+        end
+      end
 
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
