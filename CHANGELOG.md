@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Release binaries and the container image are now built with Go
+  1.27.2, the current patch release, instead of 1.27.1.
+- The module's `go` directive moves from 1.27.1 to 1.27.2, so
+  `go install` and library consumers now need Go 1.27.2 or newer.
+
 ## [1.42.2] - 2026-10-03
 
 `graft merge` now writes every string and key in the style spruce writes it, so its output matches `spruce merge` byte for byte across our differential tests. Merged files can therefore differ in their bytes from what 1.42.1 wrote, although the values they hold are the same apart from the fixes listed below. graft also reads CRLF files, next-line characters, aliases, end markers, directives, anchors, and tags the way spruce does, and `graft diff` places more comments where spruce places them.
