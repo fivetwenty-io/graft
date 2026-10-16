@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.42.4] - 2026-10-16
+
+This release teaches `static_ips` to treat a subnet with no static range as an empty pool, so an AZ that only gives out dynamic IPs no longer fails the merge.
+
 ### Fixed
 
-- `(( static_ips ))` now treats a subnet with no `static` key as an empty pool, so an AZ that only gives out dynamic IPs no longer fails the merge when no instance needs a static IP from it. An instance that does need one from such an AZ still fails with the usual pool-size error. spruce fails on these files, so graft now merges input that spruce rejects.
+- `(( static_ips ))` now treats a subnet with no `static` key as an empty pool, so an AZ that only gives out dynamic IPs no longer fails the merge when no instance needs a static IP from it. An instance that does need one from such an AZ still fails with the usual pool-size error. spruce rejects such files, but graft now merges them.
 
 ## [1.42.3] - 2026-10-16
 
@@ -1052,6 +1056,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.42.4]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.4
 [1.42.3]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.3
 [1.42.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.2
 [1.42.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.1
