@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The module's `go` directive moves from 1.27.1 to 1.27.2, so
   `go install` and library consumers now need Go 1.27.2 or newer.
 
+### Fixed
+
+- `(( static_ips ))` now finds a network whose name contains dots, such as the `ocfp-lab-ocf.rabbitmq.net-rabbitmq` networks that Genesis 3 cloud configs define. The operator used to split the name on its dots and fail with `` `$.networks.ocfp-lab-ocf` could not be found in the datastructure ``. Instance group and job names with dots already worked, and still do.
+- `(( prune ))` now removes a key inside a list entry whose name contains dots, and a map key that contains dots, such as `meta.a.b: (( prune ))`. graft used to leave the literal `(( prune ))` in the output. The same fix covers the `(( grab X || (( prune )) ))` fallback, a `(( prune ))` marker in a later file that lands on existing content, and a marker that an `(( inject ))` value lands on. spruce has the same defect, so graft's output now differs from spruce's for these files.
+- A `(( sort ))` marker in a later file now sorts a list inside a list entry or under a map key whose name contains dots. The merge used to fail with `` `$.groups.a` could not be found in the datastructure ``.
+
 ## [1.42.2] - 2026-10-03
 
 `graft merge` now writes every string and key in the style spruce writes it, so its output matches `spruce merge` byte for byte across our differential tests. Merged files can therefore differ in their bytes from what 1.42.1 wrote, although the values they hold are the same apart from the fixes listed below. graft also reads CRLF files, next-line characters, aliases, end markers, directives, anchors, and tags the way spruce does, and `graft diff` places more comments where spruce places them.
