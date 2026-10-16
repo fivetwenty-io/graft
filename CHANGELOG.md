@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.42.3] - 2026-10-16
+
+This release lets `static_ips`, `prune`, and `sort` handle names and keys that contain dots, which is what Genesis 3 named cloud configs produce. It also moves the build to Go 1.27.2 with updated dependencies.
+
 ### Changed
 
-- Release binaries and the container image are now built with Go
-  1.27.2, the current patch release, instead of 1.27.1.
-- The module's `go` directive moves from 1.27.1 to 1.27.2, so
-  `go install` and library consumers now need Go 1.27.2 or newer.
+- Release binaries and the container image are now built with Go 1.27.2, the current patch release, instead of 1.27.1.
+- The module's `go` directive moves from 1.27.1 to 1.27.2, so `go install` and library consumers now need Go 1.27.2 or newer.
 
 ### Fixed
 
@@ -1046,6 +1048,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.42.3]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.3
 [1.42.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.2
 [1.42.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.1
 [1.42.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.0
