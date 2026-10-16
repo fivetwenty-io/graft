@@ -2,6 +2,7 @@ package operators
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -209,6 +210,19 @@ func statics(ev *Evaluator) (map[string][]string, []string, error) {
 		if len(subnet_zones) == 0 {
 			azs = append(azs, "z1")
 			subnet_zones = append(subnet_zones, "z1")
+		}
+
+		// a subnet with no static key is valid in BOSH: it only hands out
+		// dynamic IPs. Count it as an empty static pool for its zones.
+		c = r.Copy()
+		c.Push("static")
+		if _, err := c.Resolve(ev.Tree); errors.Is(err, tree.ErrNotFound) {
+			for _, az := range subnet_zones {
+				if _, ok := addrs[az]; !ok {
+					addrs[az] = []string{}
+				}
+			}
+			continue
 		}
 
 		c = r.Copy()

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `(( static_ips ))` now treats a subnet with no `static` key as an empty pool, so an AZ that only gives out dynamic IPs no longer fails the merge when no instance needs a static IP from it. An instance that does need one from such an AZ still fails with the usual pool-size error. spruce fails on these files, so graft now merges input that spruce rejects.
+
 ## [1.42.3] - 2026-10-16
 
 This release lets `static_ips`, `prune`, and `sort` handle names and keys that contain dots, which is what Genesis 3 named cloud configs produce. It also moves the build to Go 1.27.2 with updated dependencies.

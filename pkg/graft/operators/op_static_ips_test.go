@@ -488,3 +488,77 @@ func TestStaticIPsDottedNames(t *testing.T) {
 		})
 	}
 }
+
+// TestStaticIPsSubnetWithoutStatic verifies that a subnet with no
+// static key counts as an empty static pool. BOSH allows such a subnet
+// because it only hands out dynamic IPs, so it must not fail the merge
+// unless an instance actually needs a static IP from its AZ.
+func TestStaticIPsSubnetWithoutStatic(t *testing.T) {
+	ansi.Color(false)
+
+	const tmpl = `networks:
+- name: a.b.c
+  subnets:
+  - range: 10.0.0.0/24
+    static: [10.0.0.10-10.0.0.12]
+    az: z1
+%s
+instance_groups:
+- name: haproxy
+  instances: %d
+  azs: [%s]
+  networks:
+  - name: a.b.c
+    static_ips: (( static_ips %s ))
+`
+	const dynamicZ2 = `  - range: 10.0.1.0/24
+    az: z2`
+
+	t.Run("dynamic-only az is not an error", func(t *testing.T) {
+		data := evalYAML(t, fmt.Sprintf(tmpl, dynamicZ2, 1, "z1, z2", "0"))
+		assertStringSliceEqual(t, staticIPsUnder(t, data, "instance_groups"), []string{"10.0.0.10"})
+	})
+
+	t.Run("instance in the empty pool gets the pool-size error", func(t *testing.T) {
+		err := evalYAMLErr(t, fmt.Sprintf(tmpl, dynamicZ2, 2, "z1, z2", `"z1:0" "z2:0"`))
+		if err == nil {
+			t.Fatal("expected an error for an instance in an empty pool")
+		}
+		want := "request for static_ip(0) in a pool of only 0 (zero-indexed) static addresses"
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err, want)
+		}
+	})
+
+	t.Run("only az has no static pool", func(t *testing.T) {
+		const only = `networks:
+- name: a.b.c
+  subnets:
+  - range: 10.0.1.0/24
+    az: z2
+instance_groups:
+- name: haproxy
+  instances: 1
+  azs: [z2]
+  networks:
+  - name: a.b.c
+    static_ips: (( static_ips 0 ))
+`
+		err := evalYAMLErr(t, only)
+		if err == nil {
+			t.Fatal("expected an error for a group whose only az has no static pool")
+		}
+		want := "request for static_ip(0) in a pool of only 0 (zero-indexed) static addresses"
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err, want)
+		}
+	})
+
+	t.Run("multi-az with full pools is unchanged", func(t *testing.T) {
+		const full = `  - range: 10.0.1.0/24
+    static: [10.0.1.10-10.0.1.11]
+    az: z2`
+		data := evalYAML(t, fmt.Sprintf(tmpl, full, 2, "z1, z2", `"z1:1" "z2:0"`))
+		assertStringSliceEqual(t, staticIPsUnder(t, data, "instance_groups"), []string{"10.0.0.11", "10.0.1.10"})
+	})
+}
