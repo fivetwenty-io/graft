@@ -439,6 +439,14 @@ func (m *Merger) MergeObj(orig interface{}, n interface{}, node string) interfac
 	return m.mergeObj(orig, n, mergePath{shown: node, exact: node})
 }
 
+// MergeObjQuoted is MergeObj for a location whose nodes may contain dots.
+// node is the plain dotted path that errors and history report, and
+// quoted is the same location spelled by tree.Cursor.Quoted, which is the
+// path a prune or sort marker found here is queued under.
+func (m *Merger) MergeObjQuoted(orig interface{}, n interface{}, node, quoted string) interface{} {
+	return m.mergeObj(orig, n, mergePath{shown: node, exact: quoted})
+}
+
 // mergeObj is MergeObj at a location carried in both of its spellings
 // (see mergePath).
 //

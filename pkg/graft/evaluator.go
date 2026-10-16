@@ -1085,8 +1085,11 @@ func (ev *Evaluator) applyResponse(op *Opcall, resp *Response, oldValue interfac
 				m[k] = v
 			} else {
 				// Check type of existing and injected values for proper merging
+				// the quoted spelling keeps a dotted parent node or key
+				// whole if a prune marker under it is queued
+				quoted := fmt.Sprintf("%s.%s", parent.Quoted(), tree.QuoteNode(k))
 				mrg := &merger.Merger{AppendByDefault: true}
-				merged := mrg.MergeObj(v, m[k], path)
+				merged := mrg.MergeObjQuoted(v, m[k], path, quoted)
 				if err := mrg.Error(); err != nil {
 					return err
 				}

@@ -266,3 +266,34 @@ meta:
 		})
 	}
 }
+
+func TestInjectPruneMarkerUnderDottedNames(t *testing.T) {
+	const tmpl = `meta:
+  base:
+    %[1]s:
+      keep: 1
+      drop: 2
+target:
+  inherit: (( inject meta.base ))
+  %[1]s:
+    drop: (( prune ))
+`
+
+	for _, name := range dottedNames {
+		t.Run(name, func(t *testing.T) {
+			data := mergeYAMLData(t, fmt.Sprintf(tmpl, name))
+
+			target, ok := data["target"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("target is not a map: %#v", data["target"])
+			}
+			got, ok := target[name].(map[string]interface{})
+			if !ok {
+				t.Fatalf("target[%s] is not a map: %#v", name, target[name])
+			}
+			if want := map[string]interface{}{"keep": 1}; !reflect.DeepEqual(got, want) {
+				t.Errorf("target[%s] = %#v, want %#v", name, got, want)
+			}
+		})
+	}
+}
