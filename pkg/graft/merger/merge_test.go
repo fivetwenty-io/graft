@@ -720,7 +720,7 @@ func TestMergeMap(t *testing.T) {
 		expectMap := map[string]interface{}{"k2": "v2.new", "k3": "v3", "k1": "v1"}
 
 		m := &Merger{}
-		m.mergeMap(origMap, newMap, "node-path")
+		m.mergeMap(origMap, newMap, nodePath)
 		So(origMap, ShouldResemble, expectMap)
 		So(m.Error(), ShouldBeNil)
 	})
@@ -737,7 +737,7 @@ func TestMergeMap(t *testing.T) {
 			},
 		}
 		m := &Merger{}
-		m.mergeMap(origMap, newMap, "node-path")
+		m.mergeMap(origMap, newMap, nodePath)
 		err := m.Error()
 		So(err, ShouldNotBeNil)
 		So(err.Error(), ShouldContainSubstring, "node-path.array.0: new object is a string, not a map - cannot merge by key")
@@ -755,7 +755,7 @@ func TestMergeArray(t *testing.T) {
 			expect := []interface{}{"zeroth", "first", "second"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -766,7 +766,7 @@ func TestMergeArray(t *testing.T) {
 			expect := []interface{}{"first", "second", "third"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -801,7 +801,7 @@ func TestMergeArray(t *testing.T) {
 					"overwritten_last",
 				}
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -834,7 +834,7 @@ func TestMergeArray(t *testing.T) {
 					"orig_last",
 				}
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -862,7 +862,7 @@ func TestMergeArray(t *testing.T) {
 					"overwritten_last",
 				}
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -887,7 +887,7 @@ func TestMergeArray(t *testing.T) {
 					"overwritten_last",
 				}
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -909,7 +909,7 @@ func TestMergeArray(t *testing.T) {
 							"(( merge ))",
 							"string",
 						},
-					}, "node-path")
+					}, nodePath)
 
 				err := m.Error()
 				So(err, ShouldNotBeNil)
@@ -928,7 +928,7 @@ func TestMergeArray(t *testing.T) {
 							"(( merge ))",
 							"string", // this is not a map
 						},
-					}, "node-path")
+					}, nodePath)
 
 				err := m.Error()
 				So(err, ShouldNotBeNil)
@@ -956,7 +956,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -975,7 +975,7 @@ func TestMergeArray(t *testing.T) {
 					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				m := &Merger{}
-				output := m.mergeArray(orig, array, "node-path")
+				output := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldBeNil)
 				So(output, ShouldResemble, expect)
@@ -994,7 +994,7 @@ func TestMergeArray(t *testing.T) {
 					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				m := &Merger{}
-				output := m.mergeArray(orig, array, "node-path")
+				output := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldBeNil)
 				So(output, ShouldResemble, expect)
@@ -1013,7 +1013,7 @@ func TestMergeArray(t *testing.T) {
 					map[string]interface{}{"name": map[string]interface{}{"beep": "boop"}, "org": "org3"},
 				}
 				m := &Merger{}
-				output := m.mergeArray(orig, array, "node-path")
+				output := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldBeNil)
 				So(output, ShouldResemble, expect)
@@ -1032,7 +1032,7 @@ func TestMergeArray(t *testing.T) {
 					map[string]interface{}{"name": []interface{}{"beep", "boop"}, "org": "org2"},
 				}
 				m := &Merger{}
-				output := m.mergeArray(orig, array, "node-path")
+				output := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldBeNil)
 				So(output, ShouldResemble, expect)
@@ -1048,7 +1048,7 @@ func TestMergeArray(t *testing.T) {
 					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				m := &Merger{}
-				m.mergeArray(orig, array, "node-path")
+				m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldNotBeNil)
 			})
@@ -1063,7 +1063,7 @@ func TestMergeArray(t *testing.T) {
 					map[string]interface{}{"name": "bar", "org": "org4"},
 				}
 				m := &Merger{}
-				m.mergeArray(orig, array, "node-path")
+				m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldNotBeNil)
 			})
@@ -1078,7 +1078,7 @@ func TestMergeArray(t *testing.T) {
 					map[string]interface{}{"name": map[string]interface{}{"beep": "boop"}, "org": "org3"},
 				}
 				m := &Merger{}
-				m.mergeArray(orig, array, "node-path")
+				m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldNotBeNil)
 			})
@@ -1093,7 +1093,7 @@ func TestMergeArray(t *testing.T) {
 					map[string]interface{}{"name": []interface{}{"beep", "boop"}},
 				}
 				m := &Merger{}
-				m.mergeArray(orig, array, "node-path")
+				m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldNotBeNil)
 			})
@@ -1117,7 +1117,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1137,7 +1137,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				m.mergeArray(orig, array, "node-path")
+				m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldNotBeNil)
 				So(err.Error(), ShouldContainSubstring, "node-path.3: original object is a string, not a map - cannot merge by key")
@@ -1157,7 +1157,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				m.mergeArray(orig, array, "node-path")
+				m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldNotBeNil)
 				So(err.Error(), ShouldContainSubstring, "node-path.3: new object is a string, not a map - cannot merge by key")
@@ -1176,7 +1176,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				m.mergeArray(orig, array, "node-path")
+				m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldNotBeNil)
 			})
@@ -1194,7 +1194,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -1220,7 +1220,7 @@ func TestMergeArray(t *testing.T) {
 					},
 				}
 				m := &Merger{}
-				m.mergeArray(orig, array, "node-path")
+				m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(err, ShouldNotBeNil)
 				So(err.Error(), ShouldContainSubstring, "node-path.first.val.0: new object is a string, not a map - cannot merge by key")
@@ -1235,7 +1235,7 @@ func TestMergeArray(t *testing.T) {
 			expect := []interface{}{expectMapSlice}
 
 			m := &Merger{}
-			o := m.mergeArrayInline(orig, array, "node-path")
+			o := m.mergeArrayInline(orig, array, nodePath)
 			err := m.Error()
 			So(o, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -1367,7 +1367,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{"first", "new-kid-on-the-block", "second", "third", "fourth", "fifth", "sixth"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1379,7 +1379,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{"new-kid-on-the-block", "first", "second", "third", "fourth", "fifth", "sixth"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1391,7 +1391,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{"first", "second", "third", "fourth", "fifth", "new-kid-on-the-block", "sixth"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1403,7 +1403,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{"first", "second", "third", "fourth", "fifth", "sixth", "new-kid-on-the-block"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1414,7 +1414,7 @@ func TestMergeArray(t *testing.T) {
 				array := []interface{}{"(( insert after 6 ))", "new-kid-on-the-block"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -1439,7 +1439,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1463,7 +1463,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1487,7 +1487,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1511,7 +1511,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1543,7 +1543,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1575,7 +1575,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1611,7 +1611,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1653,7 +1653,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1691,7 +1691,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1747,7 +1747,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1784,7 +1784,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1821,7 +1821,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1839,7 +1839,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -1858,7 +1858,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -1877,7 +1877,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -1897,7 +1897,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -1912,7 +1912,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{"second", "third", "fourth", "fifth", "sixth"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1924,7 +1924,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{"first", "second", "third", "fourth", "sixth"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1935,7 +1935,7 @@ func TestMergeArray(t *testing.T) {
 				array := []interface{}{"(( delete 6 ))"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -1946,7 +1946,7 @@ func TestMergeArray(t *testing.T) {
 				array := []interface{}{"(( delete -2 ))"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -1968,7 +1968,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -1988,7 +1988,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2009,7 +2009,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2030,7 +2030,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2050,7 +2050,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2083,7 +2083,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2128,7 +2128,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2150,7 +2150,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2162,7 +2162,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{"first", "second", "third"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2174,7 +2174,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{"first", "second", "third"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2186,7 +2186,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{"first", "third"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2208,7 +2208,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2220,7 +2220,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2232,7 +2232,7 @@ func TestMergeArray(t *testing.T) {
 				expect := []interface{}{}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldResemble, expect)
 				So(err, ShouldBeNil)
@@ -2243,7 +2243,7 @@ func TestMergeArray(t *testing.T) {
 				array := []interface{}{"(( delete 42 ))"}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -2261,7 +2261,7 @@ func TestMergeArray(t *testing.T) {
 				}
 
 				m := &Merger{}
-				a := m.mergeArray(orig, array, "node-path")
+				a := m.mergeArray(orig, array, nodePath)
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
@@ -2512,3 +2512,6 @@ func TestMergeNullOverridePreservesKeys(t *testing.T) {
 		})
 	})
 }
+
+// nodePath is the merge location the internal merge-walk tests run at.
+var nodePath = mergePath{shown: "node-path", exact: "node-path"}

@@ -49,7 +49,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			expect := []interface{}{"alpha", "bravo", "delta", "charlie"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -60,7 +60,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			expect := []interface{}{"alpha", "delta", "bravo", "charlie"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -71,7 +71,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			expect := []interface{}{"alpha", "bravo", "charlie", "delta"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -82,7 +82,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			expect := []interface{}{"delta", "alpha", "bravo", "charlie"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -94,7 +94,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			expect := []interface{}{"alpha", "delta", "bravo", "alpha"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -104,7 +104,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			array := []interface{}{`(( insert after "missing" ))`, "delta"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldBeNil)
 			So(err, ShouldNotBeNil)
@@ -115,7 +115,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			array := []interface{}{`(( insert after "missing" ))`, "delta"}
 
 			m := &Merger{}
-			a := m.mergeArray([]interface{}{}, array, "node-path")
+			a := m.mergeArray([]interface{}{}, array, nodePath)
 			err := m.Error()
 			So(a, ShouldBeNil)
 			So(err, ShouldNotBeNil)
@@ -126,7 +126,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			array := []interface{}{`(( insert after name "bravo" ))`, "delta"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldBeNil)
 			So(err, ShouldNotBeNil)
@@ -140,7 +140,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			array := []interface{}{`(( insert after "2" ))`, "delta"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldBeNil)
 			So(err, ShouldNotBeNil)
@@ -152,7 +152,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			expect := []interface{}{"alpha", "delta", "bravo", "charlie"}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -185,7 +185,7 @@ func TestMergeArrayNamedInsertOnMapListRegressions(t *testing.T) {
 			}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldResemble, expect)
 			So(err, ShouldBeNil)
@@ -198,7 +198,7 @@ func TestMergeArrayNamedInsertOnMapListRegressions(t *testing.T) {
 			}
 
 			m := &Merger{}
-			a := m.mergeArray(orig, array, "node-path")
+			a := m.mergeArray(orig, array, nodePath)
 			err := m.Error()
 			So(a, ShouldBeNil)
 			So(err, ShouldNotBeNil)
