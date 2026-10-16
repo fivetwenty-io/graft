@@ -412,3 +412,79 @@ func TestStaticIPOperatorIsOrderSensitive(t *testing.T) {
 		t.Error("StaticIPOperator.OrderSensitive() returned false; static_ips claims from the same wave will run concurrently and race for the shared used-IP pool")
 	}
 }
+
+// staticIPsUnder digs <group>[0].networks[0].static_ips out of an
+// evaluated document, where group is "jobs" or "instance_groups".
+func staticIPsUnder(t *testing.T, data map[string]interface{}, group string) []string {
+	t.Helper()
+
+	groups, ok := data[group].([]interface{})
+	if !ok || len(groups) == 0 {
+		t.Fatalf("%s[0] not found in %#v", group, data)
+	}
+	first, ok := groups[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("%s[0] is not a map", group)
+	}
+	nets, ok := first["networks"].([]interface{})
+	if !ok || len(nets) == 0 {
+		t.Fatalf("%s[0].networks[0] not found", group)
+	}
+	net, ok := nets[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("%s[0].networks[0] is not a map", group)
+	}
+	ips, ok := net["static_ips"].([]interface{})
+	if !ok {
+		t.Fatalf("%s[0].networks[0].static_ips is not a list: %#v", group, net["static_ips"])
+	}
+	return ipStrings(t, ips)
+}
+
+// TestStaticIPsDottedNames verifies that static_ips finds its network
+// by the whole network name, even when that name contains dots. Genesis
+// 3 cloud configs name every network this way (for example
+// ocfp-lab-ocf.rabbitmq.net-rabbitmq), and a name that was split on its
+// dots used to fail with "`$.networks.a` could not be found". The
+// undotted cases pin the behavior that already worked.
+func TestStaticIPsDottedNames(t *testing.T) {
+	ansi.Color(false)
+
+	const tmpl = `networks:
+- name: %[1]s
+  subnets:
+  - range: 10.0.0.0/24
+    static: [10.0.0.10-10.0.0.12]
+    az: z1
+%[3]s:
+- name: %[2]s
+  instances: 1
+  azs: [z1]
+  networks:
+  - name: %[1]s
+    static_ips: (( static_ips 0 ))
+`
+
+	tests := []struct {
+		name    string
+		network string
+		group   string
+		member  string
+	}{
+		{name: "undotted network", network: "abc", group: "instance_groups", member: "x"},
+		{name: "dotted network", network: "a.b.c", group: "instance_groups", member: "x"},
+		{name: "dotted instance group", network: "abc", group: "instance_groups", member: "x.y.z"},
+		{name: "dotted network and instance group", network: "a.b.c", group: "instance_groups", member: "x.y.z"},
+		{name: "genesis cloud config network", network: "ocfp-lab-wayneeseguin-ocf.rabbitmq.net-rabbitmq", group: "instance_groups", member: "rabbitmq"},
+		{name: "undotted network under jobs", network: "abc", group: "jobs", member: "x"},
+		{name: "dotted network and job", network: "a.b.c", group: "jobs", member: "x.y.z"},
+		{name: "network name with brackets", network: "a[b]", group: "instance_groups", member: "x"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := evalYAML(t, fmt.Sprintf(tmpl, tt.network, tt.member, tt.group))
+			assertStringSliceEqual(t, staticIPsUnder(t, data, tt.group), []string{"10.0.0.10"})
+		})
+	}
+}

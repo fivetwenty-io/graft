@@ -160,10 +160,10 @@ func statics(ev *Evaluator) (map[string][]string, []string, error) {
 		return addrs, azs, err
 	}
 
-	c, err = tree.ParseCursor(fmt.Sprintf("networks.%s.subnets.*", name))
-	if err != nil {
-		return addrs, azs, err
-	}
+	// Build the cursor from nodes rather than parsing a dotted string,
+	// so a network name that contains dots (as every Genesis 3 cloud
+	// config network name does) stays one node and is matched whole.
+	c = &tree.Cursor{Nodes: []string{"networks", name, "subnets", "*"}}
 	keys, err := c.Glob(ev.Tree)
 	if err != nil {
 		return addrs, azs, err
@@ -181,21 +181,17 @@ func statics(ev *Evaluator) (map[string][]string, []string, error) {
 		subnet_zones := []string{}
 
 		// look for az definition in the `az` key
-		azCursor, parseErr := tree.ParseCursor(fmt.Sprintf("%s.az", r.String()))
-		if parseErr == nil {
-			z, resolveErr := azCursor.ResolveString(ev.Tree)
-			if resolveErr == nil && z != "" {
-				azs = append(azs, z) // to preserve subnet ordering
-				subnet_zones = append(subnet_zones, z)
-			}
+		azCursor := r.Copy()
+		azCursor.Push("az")
+		z, resolveErr := azCursor.ResolveString(ev.Tree)
+		if resolveErr == nil && z != "" {
+			azs = append(azs, z) // to preserve subnet ordering
+			subnet_zones = append(subnet_zones, z)
 		}
 
 		// look for az definitions in the `azs` key
-		azsCursor, parseErr := tree.ParseCursor(fmt.Sprintf("%s.azs", r.String()))
-		if parseErr != nil {
-			return addrs, azs, parseErr
-		}
-		c = azsCursor
+		c = r.Copy()
+		c.Push("azs")
 		os, err := c.Resolve(ev.Tree)
 		if err == nil {
 			if zs, ok := os.([]interface{}); ok {
@@ -215,10 +211,9 @@ func statics(ev *Evaluator) (map[string][]string, []string, error) {
 			subnet_zones = append(subnet_zones, "z1")
 		}
 
-		c, err = tree.ParseCursor(fmt.Sprintf("%s.static.*", r.String()))
-		if err != nil {
-			return addrs, azs, err
-		}
+		c = r.Copy()
+		c.Push("static")
+		c.Push("*")
 		keys, err := c.Glob(ev.Tree)
 		if err != nil {
 			return addrs, azs, err
