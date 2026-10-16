@@ -88,7 +88,7 @@ func EvaluateExpr(e *Expr, ev *Evaluator) (*Response, error) {
 			// Mark the current path for pruning
 			engine := GetEngine(ev)
 			if engine != nil && engine.GetOperatorState() != nil {
-				engine.GetOperatorState().AddKeyToPrune(ev.Here.String())
+				engine.GetOperatorState().AddKeyToPrune(ev.Here.Quoted())
 			}
 			// Return a special prune response
 			return &Response{

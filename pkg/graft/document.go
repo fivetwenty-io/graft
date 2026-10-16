@@ -390,12 +390,14 @@ func (d *document) Prune(keys ...string) Document {
 // must only invoke this on a document that is already an isolated clone
 // (see Prune); it mutates d.data directly rather than copying first.
 func (d *document) pruneKeyInPlace(key string) {
-	if !strings.Contains(key, ".") {
-		delete(d.data, key)
+	// Split on dots, keeping a bracketed dotted node (as the (( prune ))
+	// operator queues one) whole
+	segments := tree.SplitPath(key)
+	if len(segments) == 1 {
+		delete(d.data, segments[0])
 		return
 	}
 
-	segments := strings.Split(key, ".")
 	result := d.navigateForPrune(segments, d.data)
 	if !result.success {
 		return

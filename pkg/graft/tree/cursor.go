@@ -176,6 +176,65 @@ func (c *Cursor) String() string {
 	return strings.Join(c.Nodes, ".")
 }
 
+// QuoteNode returns node spelled so that ParseCursor and SplitPath read it
+// back as the single node it is. A node that contains a '.' is wrapped in
+// brackets, because a bare '.' would split it into several nodes. Any
+// other node is returned unchanged, and so is a node that already holds a
+// '[' or ']', since no path spelling can carry such a node whole.
+func QuoteNode(node string) string {
+	if strings.Contains(node, ".") && !strings.ContainsAny(node, "[]") {
+		return "[" + node + "]"
+	}
+	return node
+}
+
+// Quoted returns the cursor as a dot-separated string, like String, but
+// with each node spelled by QuoteNode, so that ParseCursor and SplitPath
+// read the result back into the same nodes. Use it wherever a path is
+// stored as a string and split again later, such as the prune and sort
+// lists. For a cursor with no dotted nodes it equals String.
+func (c *Cursor) Quoted() string {
+	nodes := make([]string, len(c.Nodes))
+	for i, node := range c.Nodes {
+		nodes[i] = QuoteNode(node)
+	}
+	return strings.Join(nodes, ".")
+}
+
+// SplitPath splits a dotted path string into its nodes. A path that holds
+// a node QuoteNode bracketed is parsed with ParseCursor so that node stays
+// whole. Every other path is split on each '.' exactly as
+// strings.Split(path, ".") splits it, so a caller that moves from
+// strings.Split to SplitPath keeps its behavior for every path it handled
+// before. As with ParseCursor, a bracketed path drops a leading "$" node,
+// so callers strip any "$." prefix first.
+func SplitPath(path string) []string {
+	if hasQuotedNode(path) {
+		if c, err := ParseCursor(path); err == nil {
+			return c.Nodes
+		}
+	}
+	return strings.Split(path, ".")
+}
+
+// hasQuotedNode reports whether path holds a bracketed node with a '.'
+// inside it, which is the spelling QuoteNode gives a dotted node.
+func hasQuotedNode(path string) bool {
+	for i := 0; i < len(path); i++ {
+		if path[i] != '[' {
+			continue
+		}
+		end := strings.IndexAny(path[i+1:], "[]")
+		if end < 0 {
+			return false
+		}
+		if path[i+1+end] == ']' && strings.Contains(path[i+1:i+1+end], ".") {
+			return true
+		}
+	}
+	return false
+}
+
 // Depth returns the depth of the cursor path.
 func (c *Cursor) Depth() int {
 	return len(c.Nodes)

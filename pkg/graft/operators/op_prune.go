@@ -54,7 +54,9 @@ func (PruneOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	defer DEBUG("done with (( prune ... )) operation at $.%s\n", ev.Here)
 
 	engine := graft.GetEngine(ev)
-	addToPruneListIfNecessary(engine, ev.Here.String())
+	// Quoted keeps a dotted node, such as a Genesis network name, whole
+	// when the prune step splits this path again
+	addToPruneListIfNecessary(engine, ev.Here.Quoted())
 
 	// Get the current value at this location
 	val, err := ev.Here.Resolve(ev.Tree)

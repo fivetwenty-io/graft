@@ -1619,11 +1619,12 @@ func (m *mergeBuilderImpl) removeKey(data map[string]interface{}, keyPath string
 		return
 	}
 
-	// Split path by dots
-	parts := strings.Split(keyPath, ".")
+	// Split path by dots, keeping a bracketed dotted node (as the
+	// (( prune )) operator queues one) whole
+	parts := tree.SplitPath(keyPath)
 	if len(parts) == 1 {
 		// Simple key
-		delete(data, keyPath)
+		delete(data, parts[0])
 		return
 	}
 
