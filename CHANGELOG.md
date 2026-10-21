@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.42.5] - 2026-10-21
+
+This release moves the build to Go 1.27.3 with updated dependencies and changes no behavior.
+
 ### Changed
 
-- Release binaries and the container image are now built with Go
-  1.27.3, the current patch release, instead of 1.27.2.
-- The module's `go` directive moves from 1.27.2 to 1.27.3, so
-  `go install` and library consumers now need Go 1.27.3 or newer.
+- Release binaries and the container image are now built with Go 1.27.3, the current patch release, instead of 1.27.2.
+- The module's `go` directive moves from 1.27.2 to 1.27.3, so `go install` and library consumers now need Go 1.27.3 or newer.
 
 ## [1.42.4] - 2026-10-16
 
@@ -1063,6 +1065,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.42.5]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.5
 [1.42.4]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.4
 [1.42.3]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.3
 [1.42.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.2
