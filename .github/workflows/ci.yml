@@ -79,7 +79,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           # The mounted /go volume is the module cache; the action's own
           # cache would restore a second copy over it and fail on tar.
           cache: false
@@ -124,7 +124,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           # The mounted /go volume is the module cache; the action's own
           # cache would restore a second copy over it and fail on tar.
           cache: false
@@ -159,7 +159,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           # The mounted /go volume is the module cache; the action's own
           # cache would restore a second copy over it and fail on tar.
           cache: false
@@ -194,7 +194,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           # The mounted /go volume is the module cache; the action's own
           # cache would restore a second copy over it and fail on tar.
           cache: false
@@ -231,7 +231,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           # The mounted /go volume is the module cache; the action's own
           # cache would restore a second copy over it and fail on tar.
           cache: false
@@ -280,7 +280,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           # The mounted /go volume is the module cache; the action's own
           # cache would restore a second copy over it and fail on tar.
           cache: false
@@ -319,7 +319,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           # The mounted /go volume is the module cache; the action's own
           # cache would restore a second copy over it and fail on tar.
           cache: false

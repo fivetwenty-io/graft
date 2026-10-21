@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Release binaries and the container image are now built with Go
+  1.27.3, the current patch release, instead of 1.27.2.
+- The module's `go` directive moves from 1.27.2 to 1.27.3, so
+  `go install` and library consumers now need Go 1.27.3 or newer.
+
 ## [1.42.4] - 2026-10-16
 
 This release teaches `static_ips` to treat a subnet with no static range as an empty pool, so an AZ that only gives out dynamic IPs no longer fails the merge.
