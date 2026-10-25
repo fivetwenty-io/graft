@@ -26,6 +26,9 @@ func RegisterCore(r *runtime.Registry) {
 	registerCore(r)
 	registerMath(r)
 	registerPaths(r)
+	registerStrings(r)
+	registerCollections(r)
+	registerStreams(r)
 }
 
 func registerCore(r *runtime.Registry) {

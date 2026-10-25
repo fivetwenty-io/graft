@@ -81,17 +81,33 @@ func TestRegisterCoreMarksSingleNatives(t *testing.T) {
 		arity int
 	}{
 		{"length", 0}, {"keys", 0}, {"has", 1}, {"_plus", 2}, {"_negate", 0}, {"setpath", 2},
-		{"getpath", 1}, {"delpaths", 1}, {"tostring", 0}, {"error", 1}, {"pow", 2},
+		{"getpath", 1}, {"delpaths", 1}, {"tostring", 0}, {"error", 1}, {"isempty", 1},
+		{"sort", 0}, {"_sort_by", 1}, {"split", 1}, {"pow", 2},
 	} {
 		if !r.Single(na.name, na.arity) {
 			t.Errorf("%s/%d is not single", na.name, na.arity)
+		}
+	}
+	for _, na := range []struct {
+		name  string
+		arity int
+	}{{"range", 2}, {"range", 3}, {"limit", 2}, {"first", 1}, {"tostream", 0}, {"fromstream", 1}} {
+		if _, ok := r.Lookup(na.name, na.arity); !ok {
+			t.Errorf("%s/%d is missing", na.name, na.arity)
+		}
+		if r.Single(na.name, na.arity) {
+			t.Errorf("%s/%d emits more than once and must not be single", na.name, na.arity)
 		}
 	}
 }
 
 func TestNativesCombineArgumentOutputs(t *testing.T) {
 	wantCall(t, "_plus", value.Null(), []consts{{n(1), n(2)}, {n(10), n(20)}}, "11 12 21 22")
+	wantCall(t, "range", value.Null(), []consts{{n(0), n(1)}, {n(2)}}, "0 1 1")
 	wantCall(t, "has", value.Obj(value.Pair{Key: "a", Value: n(1)}), []consts{{s("a"), s("b")}}, "true false")
+	wantCall(t, "limit", value.Null(), []consts{{n(2)}, {n(1), n(2), n(3)}}, "1 2")
+	wantCall(t, "first", value.Null(), []consts{{n(7), n(8)}}, "7")
+	wantCall(t, "isempty", value.Null(), []consts{{}}, "true")
 }
 
 func TestNativesReturnEmitErrorsUnchanged(t *testing.T) {
@@ -103,6 +119,10 @@ func TestNativesReturnEmitErrorsUnchanged(t *testing.T) {
 	}{
 		{"length", nil},
 		{"_plus", []runtime.Thunk{consts{n(1)}, consts{n(2)}}},
+		{"first", []runtime.Thunk{consts{n(1), n(2)}}},
+		{"limit", []runtime.Thunk{consts{n(2)}, consts{n(1), n(2)}}},
+		{"range", []runtime.Thunk{consts{n(0)}, consts{n(3)}}},
+		{"tostream", nil},
 	} {
 		fn, _ := r.Lookup(c.name, len(c.args))
 		err := fn(exact(), value.Arr(n(1)), c.args, func(*value.Value, value.Path) error { return stop })
@@ -110,6 +130,40 @@ func TestNativesReturnEmitErrorsUnchanged(t *testing.T) {
 			t.Errorf("%s: got %v, want the emit's error itself", c.name, err)
 		}
 	}
+}
+
+func TestStopSignalsStayPrivate(t *testing.T) {
+	// limit inside limit: the inner stop must not end the outer generator
+	// early, and the outer stop must not leak as an error.
+	r := registry()
+	limit, _ := r.Lookup("limit", 2)
+	inner := thunkFunc(func(in *value.Value, emit runtime.Emit) error {
+		return limit(exact(), in, []runtime.Thunk{consts{n(1)}, consts{n(1), n(2)}}, emit)
+	})
+	var got []string
+	err := limit(exact(), value.Null(), []runtime.Thunk{consts{n(3)}, multi{inner, inner, inner, inner}}, func(v *value.Value, _ value.Path) error {
+		got = append(got, runtime.JSON(v))
+		return nil
+	})
+	if err != nil || strings.Join(got, " ") != "1 1 1" {
+		t.Errorf("got %v, %v", got, err)
+	}
+}
+
+type thunkFunc func(*value.Value, runtime.Emit) error
+
+func (f thunkFunc) Each(in *value.Value, emit runtime.Emit) error { return f(in, emit) }
+
+// multi runs each thunk in turn.
+type multi []runtime.Thunk
+
+func (m multi) Each(in *value.Value, emit runtime.Emit) error {
+	for _, t := range m {
+		if err := t.Each(in, emit); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestIndexAndSlice(t *testing.T) {
@@ -227,6 +281,12 @@ func TestExactAndFloatArithmetic(t *testing.T) {
 	huge := value.NumText(strings.Repeat("9", 100001))
 	_, err = call(t, exact(), "_plus", value.Null(), consts{huge}, consts{n(1)})
 	wantFail(t, err, `number exceeds 100000 significant digits`)
+	_, err = call(t, exact(), "sort", value.Arr(huge, n(1)))
+	wantFail(t, err, `number exceeds 100000 significant digits`)
+	out, err = call(t, exact(), "sort", value.Arr(value.Arr(huge), value.Arr(n(1))))
+	if err != nil || len(out) != 1 || !strings.HasPrefix(out[0], "[[1],[9") {
+		t.Errorf("containers compare totally: got %.20v, %v", out, err)
+	}
 }
 
 func TestRaiseKeepsTheValue(t *testing.T) {
