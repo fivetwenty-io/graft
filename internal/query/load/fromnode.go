@@ -135,16 +135,21 @@ func (c *converter) node(n *yamlnode.Node) (*value.Value, error) {
 
 // document converts a document's root. Under KeepMeta the comments
 // yamlnode gives the document itself go to the root, ahead of the root's
-// own, as yq places them.
+// own, as yq places them, and an anchor on the root names that copy.
 func (c *converter) document(n *yamlnode.Node) (*value.Value, error) {
-	v, err := c.node(n.Content[0])
+	root := n.Content[0]
+	v, err := c.node(root)
 	if err != nil || !c.opts.KeepMeta || (n.HeadComment == "" && n.FootComment == "") {
 		return v, err
 	}
 	m := *v.Meta()
 	m.HeadComment = joinComments(n.HeadComment, m.HeadComment)
 	m.FootComment = joinComments(n.FootComment, m.FootComment)
-	return v.WithMeta(&m), nil
+	v = v.WithMeta(&m)
+	if root.Anchor != "" && c.inAlias == 0 {
+		c.anchors[root.Anchor] = v
+	}
+	return v, nil
 }
 
 func joinComments(a, b string) string {

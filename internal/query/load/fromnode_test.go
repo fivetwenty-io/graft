@@ -165,3 +165,14 @@ func TestDocumentCommentsReachTheRoot(t *testing.T) {
 	}
 	wantEqual(t, v.Meta().HeadComment, "# head")
 }
+
+func TestAnchoredRootKeepsDocumentComments(t *testing.T) {
+	docs := mustReadAll(t, "&r\na: 1\n\n# end\n", LoadOptions{KeepMeta: true})
+	wantEqual(t, docs[0].Value.Meta().FootComment, "# end")
+	r, ok := docs[0].Anchors["r"]
+	if !ok {
+		t.Fatal("anchor r missing")
+	}
+	wantEqual(t, r.Meta().FootComment, "# end") // the anchor holds the root as the document gives it
+	wantEqual(t, r.Meta().Anchor, "r")
+}
