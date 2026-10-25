@@ -243,9 +243,13 @@ type escapeKey struct {
 var escapeSets setCache[escapeKey]
 
 // escapeClass returns the set a class escape such as \d or \W stands for,
-// or nil when letter names none.
+// or nil when letter names none in flavor. jq's Oniguruma gives \h and \v
+// no meaning, so under that flavor they stand for their letters.
 func escapeClass(letter rune, flavor Flavor) runeSet {
 	if !strings.ContainsRune("dDwWsShHvV", letter) {
+		return nil
+	}
+	if flavor == Oniguruma && strings.ContainsRune("hHvV", letter) {
 		return nil
 	}
 	return escapeSets.get(escapeKey{letter, flavor}, func() runeSet { return buildEscapeClass(letter, flavor) })
@@ -261,11 +265,7 @@ func buildEscapeClass(letter rune, flavor Flavor) runeSet {
 	case 's':
 		s = spaceClass(flavor)
 	case 'h':
-		if flavor == Oniguruma {
-			s = hexDigit
-		} else {
-			s = horizontalSpace
-		}
+		s = horizontalSpace
 	case 'v':
 		s = verticalSpace
 	default:

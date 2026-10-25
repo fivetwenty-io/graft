@@ -503,8 +503,10 @@ func (p *parser) escape(start int) (*node, error) {
 	}
 	switch r {
 	case 'd', 'D', 'w', 'W', 's', 'S', 'h', 'H', 'v', 'V':
-		set := escapeClass(r, p.cfg.flavor)
-		return &node{kind: kindClass, set: set}, nil
+		if set := escapeClass(r, p.cfg.flavor); set != nil {
+			return &node{kind: kindClass, set: set}, nil
+		}
+		return p.literal(r), nil
 	case 'p', 'P':
 		set, err := p.property(start, r == 'P')
 		if err != nil {
@@ -608,6 +610,9 @@ func (p *parser) characterEscape(start int, r rune) (rune, error) {
 		}
 		return p.number(start, 16, 2, 0)
 	case 'u':
+		if p.cfg.flavor == Oniguruma {
+			return 'u', nil // jq's Oniguruma gives \u no meaning
+		}
 		c, err := p.number(start, 16, 4, 4)
 		if err != nil {
 			return 0, p.errorAt(start, `\u must be followed by four hexadecimal digits`)
@@ -895,8 +900,10 @@ func (p *parser) classAtom() (rune, runeSet, error) {
 	}
 	switch r {
 	case 'd', 'D', 'w', 'W', 's', 'S', 'h', 'H', 'v', 'V':
-		set := escapeClass(r, p.cfg.flavor)
-		return 0, set, nil
+		if set := escapeClass(r, p.cfg.flavor); set != nil {
+			return 0, set, nil
+		}
+		return r, nil, nil
 	case 'p', 'P':
 		set, err := p.property(start, r == 'P')
 		return 0, set, err

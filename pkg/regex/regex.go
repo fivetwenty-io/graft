@@ -18,9 +18,9 @@ const (
 	PCRE Flavor = iota
 
 	// Oniguruma reads patterns the way jq's Oniguruma does, so \d, \w, \s,
-	// and the POSIX classes are Unicode-aware, \h is a hexadecimal digit,
-	// and case-insensitive matching folds every item of a bracket class and
-	// applies full case folding, where ß matches ss.
+	// and the POSIX classes are Unicode-aware, \h, \v, and \u stand for
+	// their letters, and case-insensitive matching folds every item of a
+	// bracket class and applies full case folding, where ß matches ss.
 	Oniguruma
 )
 

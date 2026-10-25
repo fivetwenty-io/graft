@@ -24,17 +24,19 @@ and in runes.
 
 The PCRE flavor, the default, reads patterns the way PCRE2 does in UTF mode,
 and the Oniguruma flavor reads them the way jq does. They share one parser
-and differ in a small table of rules: \d, \w, \s, and the POSIX classes are
-ASCII under PCRE and Unicode-aware under Oniguruma, \h is horizontal space
-under PCRE and a hexadecimal digit under Oniguruma, and under IgnoreCase the
-Oniguruma flavor applies full case folding, so ss matches ß and ß matches ss,
-where PCRE folds one code point to one.
+and differ in a small table of rules. Under PCRE, \d, \w, \s, and the POSIX
+classes are ASCII, \h and \v are horizontal and vertical space, and \uhhhh
+names a code point. Under Oniguruma, those classes are Unicode-aware, and
+\h, \v, and \u stand for their letters, as jq reads them. Under IgnoreCase
+the Oniguruma flavor also applies full case folding, so ss matches ß and ß
+matches ss, where PCRE folds one code point to one.
 
 # Supported syntax
 
-The engine supports literals, the escapes \a, \e, \f, \n, \r, \t, \0, \cX,
-\xhh, \x{h...}, \uhhhh, and \o{o...}, the classes ., \N, \d, \w, \s, \h,
-\v, their negations, \p{...} and \P{...} over Unicode categories, scripts,
+The engine supports literals and the escapes \a, \e, \f, \n, \r, \t, \0,
+\cX, \xhh, \x{h...}, and \o{o...}, with \uhhhh under PCRE. It supports the
+classes ., \N, \d, \w, and \s, with \h and \v under PCRE, and their
+negations. It supports \p{...} and \P{...} over Unicode categories, scripts,
 and binary properties, and bracket classes with ranges, negation, and POSIX
 names. It also supports the anchors ^ and $, greedy and lazy quantifiers,
 alternation, numbered groups, named groups written (?<name>...),

@@ -222,9 +222,34 @@ func TestOnigurumaClassRules(t *testing.T) {
 	wantNoMatch(t, MustCompile(`^\w+$`), "héllo_1")
 	wantMatch(t, MustCompile(`\s`, onig), "\u2003")
 	wantNoMatch(t, MustCompile(`\s`), "\u2003")
-	wantText(t, MustCompile(`\h+`, onig), "xa0F9z", "a0F9") // \h is a hex digit under Oniguruma
 	wantMatch(t, MustCompile(`^[[:alpha:]]+$`, onig), "éa")
 	wantNoMatch(t, MustCompile(`^[[:alpha:]]+$`), "éa")
+}
+
+// jq's Oniguruma gives \h, \v, and \u no escape meaning, so each stands for
+// its letter, in a class or out of one. The expected matches were recorded
+// from jq 1.8.2. PCRE2 reads \h and \v as horizontal and vertical space and
+// \uhhhh as a code point, and the PCRE flavor keeps those readings.
+func TestOnigurumaReadsSomeEscapesAsLetters(t *testing.T) {
+	cases := []struct {
+		pattern              string
+		subjects, onig, pcre []string
+	}{
+		{`\h`, []string{"0", "h", "a", " ", "\t"}, []string{"h"}, []string{" ", "\t"}},
+		{`[\h]`, []string{"0", "h", "a", " ", "\t"}, []string{"h"}, []string{" ", "\t"}},
+		{`^\H$`, []string{"H", "h", " "}, []string{"H"}, []string{"H", "h"}},
+		{`^[\H]$`, []string{"H", "h", " "}, []string{"H"}, []string{"H", "h"}},
+		{`\v`, []string{"v", "\n", "\v"}, []string{"v"}, []string{"\n", "\v"}},
+		{`[\v]`, []string{"v", "\n", "\v"}, []string{"v"}, []string{"\n", "\v"}},
+		{`^\V$`, []string{"V", "v", "\n"}, []string{"V"}, []string{"V", "v"}},
+		{`^[\V]$`, []string{"V", "v", "\n"}, []string{"V"}, []string{"V", "v"}},
+		{`\u0041`, []string{"A", "u0041"}, []string{"u0041"}, []string{"A"}},
+		{`^[\u0041]$`, []string{"A", "u", "0", "4", "1"}, []string{"u", "0", "4", "1"}, []string{"A"}},
+	}
+	for _, c := range cases {
+		wantEqual(t, matching(t, MustCompile(c.pattern, WithFlavor(Oniguruma)), c.subjects), c.onig)
+		wantEqual(t, matching(t, MustCompile(c.pattern), c.subjects), c.pcre)
+	}
 }
 
 // The expected memberships were recorded from jq 1.8.2.
