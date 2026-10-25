@@ -76,7 +76,7 @@ func parseReportPlacement(s string) (reportPlacement, error) {
 // into a stream where a "---" line would open an unwanted second
 // document (Genesis's .genesis/config being the motivating case); false
 // renders exactly the bytes this function always produced.
-func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.DeferredPath, placement reportPlacement, noDocStart bool) ([]byte, int) {
+func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.DeferredPath, placement reportPlacement, noDocStart bool, less func(a, b string) bool) ([]byte, int) {
 	log.TRACE("Converting the following data back to YML:")
 	log.TRACE("%#v", tree)
 
@@ -86,7 +86,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 	}
 
 	if len(deferred) == 0 || placement == reportPlacementNone {
-		return marshalMergedDocument(tree, "", noDocStart)
+		return marshalMergedDocument(tree, "", noDocStart, less)
 	}
 
 	switch placement {
@@ -98,7 +98,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 				Lines: []string{" " + deferredCommentText(d, false)},
 			})
 		}
-		merged, err := graft.MarshalYAMLWithComments(tree, comments)
+		merged, err := graft.MarshalYAMLWithCommentsWith(tree, comments, less)
 		if err != nil {
 			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
 			return nil, 2
@@ -106,7 +106,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 		return finishMergedDocument(merged, "", noDocStart), 0
 
 	case reportPlacementEnd:
-		merged, err := graft.MarshalYAML(tree)
+		merged, err := graft.MarshalYAMLWith(tree, less)
 		if err != nil {
 			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
 			return nil, 2
@@ -114,7 +114,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 		return finishMergedDocument(merged, deferredReportBlock(deferred), noDocStart), 0
 
 	default: // reportPlacementBeginning
-		return marshalMergedDocument(tree, deferredReportBlock(deferred), noDocStart)
+		return marshalMergedDocument(tree, deferredReportBlock(deferred), noDocStart, less)
 	}
 }
 
@@ -132,8 +132,8 @@ func docStartMarker(noDocStart bool) []byte {
 // (document-start marker + optional leading block + marshaled document +
 // trailing newline), factored out so both the plain path and the "beginning"
 // --report-deferred placement share it.
-func marshalMergedDocument(tree map[string]interface{}, leadingBlock string, noDocStart bool) ([]byte, int) {
-	merged, err := graft.MarshalYAML(tree)
+func marshalMergedDocument(tree map[string]interface{}, leadingBlock string, noDocStart bool, less func(a, b string) bool) ([]byte, int) {
+	merged, err := graft.MarshalYAMLWith(tree, less)
 	if err != nil {
 		log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
 		return nil, 2

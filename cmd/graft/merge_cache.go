@@ -170,7 +170,7 @@ func handleMergeCached(opts *mergeOpts, store *cache.FileStore, placement report
 		deferred = engine.GetOperatorState().GetDeferredPaths()
 	}
 
-	out, rc := renderMergedTreeWithReport(tree, deferred, placement, opts.NoDocStart)
+	out, rc := renderMergedTreeWithReport(tree, deferred, placement, opts.NoDocStart, opts.keyLess())
 	if rc != 0 {
 		return rc
 	}
@@ -386,7 +386,8 @@ func mergeOutputCacheKey(opts *mergeOpts, inputs [][]byte, colorEnabled bool) st
 	// v3: the NoDocStart field joined the key (its choice changes the
 	// stored stdout bytes), which reshapes every key's hash input; the
 	// schema string is bumped alongside so the boundary is explicit.
-	field("graft-merge-output-v3")
+	// v4: the SortKeys field joined the key for the same reason.
+	field("graft-merge-output-v4")
 	field(buildFingerprint())
 	field(strconv.FormatBool(opts.SkipEval))
 	field(strconv.FormatBool(opts.MultiDoc))
@@ -394,6 +395,7 @@ func mergeOutputCacheKey(opts *mergeOpts, inputs [][]byte, colorEnabled bool) st
 	field(strconv.FormatBool(opts.FallbackAppend))
 	field(strconv.FormatBool(opts.NoDocStart))
 	field(opts.DataflowOrder)
+	field(opts.SortKeys)
 	field(strconv.Itoa(len(opts.Prune)))
 	for _, p := range opts.Prune {
 		field(p)

@@ -20,6 +20,7 @@ Files are merged left to right. Values in later files override values in earlier
 | `--fallback-append` | | Use append for array merges (default: inline) |
 | `--go-patch` | | Treat file as go-patch format |
 | `--multi-doc` | `-m` | Handle multi-document YAML |
+| `--sort-keys <mode>` | | Order of map keys in the output: `spruce` (default) or `lexical` |
 | `--history` | | Show merge history for all paths |
 | `--trace-path` | | Show history for specific path |
 | `--show-changes` | | Show merge change tree |
@@ -119,6 +120,16 @@ database:
 server:
   port: 8080
 ```
+
+### Sort Keys
+
+By default `graft merge` writes map keys in spruce's order, which sorts numeric keys by value, so `2` comes before `10`, and sorts everything else by natural order. Pass `--sort-keys lexical` when we want plain codepoint order instead, where `10` comes before `2`.
+
+```sh
+graft merge --sort-keys lexical base.yml overlay.yml
+```
+
+The flag takes `spruce` or `lexical`. The value `none` is refused, because a merged map has no input order left to keep.
 
 ## Operator Control
 

@@ -16,6 +16,7 @@ By default, converts YAML to JSON. Use `--reverse` to convert JSON to YAML.
 |------|-------|-------------|
 | `--reverse` | `-r` | Convert JSON to YAML |
 | `--strict` | | Error on non-string map keys |
+| `--sort-keys <mode>` | | Order of object keys in the output: `lexical` (default) or `spruce` |
 | `--multi-doc` | | Wrap the output documents into one pretty-printed JSON array instead of one compact object per line |
 
 ## YAML to JSON
@@ -49,6 +50,16 @@ features:
   ]
 }
 ```
+
+### Sort Keys
+
+By default `graft json` writes object keys in codepoint order, so `10` comes before `2`. Pass `--sort-keys spruce` when we want the order `graft merge` uses, where numeric keys sort by value and `2` comes first.
+
+```sh
+graft json --sort-keys spruce config.yml
+```
+
+The flag takes `lexical` or `spruce`. The value `none` is refused, because the converted document has no input order left to keep.
 
 ### From Stdin
 

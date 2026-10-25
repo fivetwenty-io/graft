@@ -172,6 +172,7 @@ reads stdin for that position.
 | `--go-patch` | Parse array-rooted documents as [go-patch](https://github.com/cppforlife/go-patch) operations instead of erroring on a non-map document root. |
 | `-m`, `--multi-doc` | Treat each `---`-separated document within a file as a separate input document rather than parsing the file as one document. |
 | `--dataflow-order` | Key ordering for the merged output: `alphabetical` (default when unset) or `insertion`. |
+| `--sort-keys <mode>` | Order of map keys in the merged output: `spruce` (default), which reproduces today's bytes, or `lexical`, which compares keys by codepoint. `none` is refused. |
 | `--history` | Print per-path merge history instead of the merged document. See [History/tracing flags](#history-tracing-flags) below. |
 | `--trace-path <path>` | Print detailed history for a single path instead of the merged document. |
 | `--show-changes` | Print a merge/evaluation change summary instead of the merged document. |
@@ -438,6 +439,7 @@ document. With no files given, `json` reads from stdin.
 |---|---|
 | `--strict` | Refuse to convert non-string map keys to strings; error instead. |
 | `-r`, `--reverse` | Convert JSON to YAML instead of YAML to JSON. Accepts either one JSON document (compact or pretty-printed) or newline-delimited JSON documents (the shape `graft json`'s own default output takes) per file/stdin; multiple documents in one input print as `---`-separated YAML documents. |
+| `--sort-keys <mode>` | Forward direction only: order of object keys in the JSON output, `lexical` (default), which reproduces today's bytes, or `spruce`. `none` is refused. |
 | `--multi-doc` | Forward direction only: wrap every JSON line into a single pretty-printed JSON array instead of one object per line. |
 
 ```bash

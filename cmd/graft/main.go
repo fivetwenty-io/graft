@@ -32,6 +32,7 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/controlflow" // Register the (( if/for/while/case )) preprocessor
 	_ "github.com/fivetwenty-io/graft/pkg/graft/operators" // Register operators
+	"github.com/fivetwenty-io/graft/pkg/sortkeys"
 
 	"github.com/goccy/go-yaml"
 )
@@ -148,7 +149,36 @@ type jsonOpts struct {
 	Strict   bool
 	Reverse  bool
 	MultiDoc bool
+	SortKeys string // --sort-keys mode; "" means the default, lexical
 	Files    []string
+}
+
+// sortKeysLess resolves a --sort-keys value for command cmd, which must
+// allow only lexical and spruce. It returns the comparison to hand the
+// encoder, or nil when the mode is def, because the default path keeps
+// its existing bytes without a custom order. An empty value means def.
+func sortKeysLess(value, cmd string, def sortkeys.Mode) (func(a, b string) bool, error) {
+	if value == "" {
+		return nil, nil
+	}
+	mode, err := sortkeys.Parse(value)
+	if err != nil {
+		return nil, errors.New(ansi.Sprintf("@R{Invalid --sort-keys value}: %s", err.Error()))
+	}
+	if mode == sortkeys.None {
+		return nil, errors.New(ansi.Sprintf("@R{Invalid --sort-keys value}: none is not available on %s (lexical or spruce)", cmd))
+	}
+	if mode == def {
+		return nil, nil
+	}
+	return sortkeys.Less(mode), nil
+}
+
+// keyLess is the key order merge output is written in. A nil result
+// keeps spruce's order, which is the default.
+func (o *mergeOpts) keyLess() func(a, b string) bool {
+	less, _ := sortKeysLess(o.SortKeys, "merge", sortkeys.Spruce)
+	return less
 }
 
 type mergeOpts struct {
@@ -159,6 +189,7 @@ type mergeOpts struct {
 	EnableGoPatch  bool
 	MultiDoc       bool
 	DataflowOrder  string
+	SortKeys       string // --sort-keys mode; "" means the default, spruce
 	Files          []string
 	OutputDir      string // fan only: write each result to <OutputDir>/<target-basename> instead of stdout
 
@@ -467,6 +498,10 @@ func resolveThemeTier(flagChanged bool, flagValue, envValue, fileValue, fileWarn
 // renderMergedTreeWithReport(tree, nil, placement) is byte-identical to
 // the plain pre-report rendering it replaced.
 func handleMerge(opts *mergeOpts) int {
+	if _, err := sortKeysLess(opts.SortKeys, "merge", sortkeys.Spruce); err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 1
+	}
 	if err := opts.validateHistoryFlags(); err != nil {
 		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{%s}", err.Error()))
 		return 1
@@ -504,7 +539,7 @@ func handleMerge(opts *mergeOpts) int {
 		deferred = engine.GetOperatorState().GetDeferredPaths()
 	}
 
-	out, rc := renderMergedTreeWithReport(tree, deferred, placement, opts.NoDocStart)
+	out, rc := renderMergedTreeWithReport(tree, deferred, placement, opts.NoDocStart, opts.keyLess())
 	if rc != 0 {
 		return rc
 	}
@@ -550,7 +585,7 @@ func handleAdaptiveMerge(opts *mergeOpts, placement reportPlacement) int {
 		return 2
 	}
 
-	out, rc := renderMergedTreeWithReport(result.Tree, result.Deferred, placement, opts.NoDocStart)
+	out, rc := renderMergedTreeWithReport(result.Tree, result.Deferred, placement, opts.NoDocStart, opts.keyLess())
 	if rc != 0 {
 		return rc
 	}
@@ -896,6 +931,10 @@ func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config
 }
 
 func handleJSON(opts jsonOpts) int {
+	if _, err := sortKeysLess(opts.SortKeys, "json", sortkeys.Lexical); err != nil {
+		log.PrintStdErrf("%s\n", err.Error())
+		return 1
+	}
 	if opts.Reverse {
 		yamls, err := cmdJSONReverseEval(opts)
 		if err != nil {
@@ -1323,7 +1362,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	// merge command
 	var mergeSkipEval, mergeFallbackAppend, mergeGoPatch, mergeMultiDoc bool
 	var mergePrune, mergeCherryPick []string
-	var mergeDataflowOrder string
+	var mergeDataflowOrder, mergeSortKeys string
 	var mergeHistory, mergeShowChanges, mergeChangesOnly, mergeInteractive bool
 	var mergeTracePath string
 	var mergeSkipVault, mergeSkipAws, mergeSkipNats bool
@@ -1344,6 +1383,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 				EnableGoPatch:  mergeGoPatch,
 				MultiDoc:       mergeMultiDoc,
 				DataflowOrder:  mergeDataflowOrder,
+				SortKeys:       mergeSortKeys,
 				Files:          args,
 				History:        mergeHistory,
 				TracePath:      mergeTracePath,
@@ -1386,6 +1426,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	mergeCmd.Flags().BoolVar(&mergeGoPatch, "go-patch", false, "Enable the use of go-patch when parsing files to be merged")
 	mergeCmd.Flags().BoolVarP(&mergeMultiDoc, "multi-doc", "m", false, "Treat multi-doc yaml as multiple files.")
 	mergeCmd.Flags().StringVar(&mergeDataflowOrder, "dataflow-order", "", "Order of operations in dataflow output: alphabetical (default) or insertion")
+	mergeCmd.Flags().StringVar(&mergeSortKeys, "sort-keys", "spruce", "Order of map keys in the output: spruce (default) or lexical")
 	mergeCmd.Flags().BoolVar(&mergeHistory, "history", false, "Print per-path merge history instead of the merged document")
 	mergeCmd.Flags().StringVar(&mergeTracePath, "trace-path", "", "Print detailed history for a single path instead of the merged document")
 	mergeCmd.Flags().BoolVar(&mergeShowChanges, "show-changes", false, "Print a merge/evaluation change summary instead of the merged document")
@@ -1429,6 +1470,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 
 	// json command
 	var jsonStrict, jsonReverse, jsonMultiDoc bool
+	var jsonSortKeys string
 
 	jsonCmd := &cobra.Command{
 		Use:   "json [files...]",
@@ -1438,6 +1480,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 				Strict:   jsonStrict,
 				Reverse:  jsonReverse,
 				MultiDoc: jsonMultiDoc,
+				SortKeys: jsonSortKeys,
 				Files:    args,
 			}
 			exit(handleJSON(opts))
@@ -1446,6 +1489,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 	}
 	jsonCmd.Flags().BoolVar(&jsonStrict, "strict", false, "Refuse to convert non-string keys to strings")
 	jsonCmd.Flags().BoolVarP(&jsonReverse, "reverse", "r", false, "Convert JSON to YAML instead of YAML to JSON")
+	jsonCmd.Flags().StringVar(&jsonSortKeys, "sort-keys", "lexical", "Order of object keys in the JSON output: lexical (default) or spruce")
 	jsonCmd.Flags().BoolVar(&jsonMultiDoc, "multi-doc", false, "Wrap multiple JSON documents into a single JSON array instead of one object per line")
 
 	// diff command
@@ -1836,7 +1880,8 @@ func cmdJSONEval(options jsonOpts) ([]string, error) {
 		return nil, err
 	}
 
-	output, err := graft.JSONifyFiles(files, options.Strict)
+	less, _ := sortKeysLess(options.SortKeys, "json", sortkeys.Lexical)
+	output, err := graft.JSONifyFilesWith(files, options.Strict, less)
 	if err != nil {
 		return nil, err
 	}

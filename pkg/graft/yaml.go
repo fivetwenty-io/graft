@@ -21,7 +21,14 @@ import (
 // block), folded at the same column, and keys spruce cannot write as
 // simple keys use the explicit "? key" form; see scalarEncoder.
 func MarshalYAML(v interface{}) ([]byte, error) {
-	return MarshalYAMLWithComments(v, nil)
+	return MarshalYAMLWith(v, spruceKeyLess)
+}
+
+// MarshalYAMLWith serializes v exactly like MarshalYAML, but orders every
+// map's keys with less instead of spruceKeyLess. A nil less keeps
+// spruce's order.
+func MarshalYAMLWith(v interface{}, less func(a, b string) bool) ([]byte, error) {
+	return MarshalYAMLWithCommentsWith(v, nil, less)
 }
 
 // YAMLHeadComment attaches a block of comment lines (rendered "# "-
@@ -50,7 +57,14 @@ type YAMLHeadComment struct {
 // "graft merge --report-deferred=inline" is the only current caller,
 // attaching one comment per deferred key directly above that key.
 func MarshalYAMLWithComments(v interface{}, comments []YAMLHeadComment) ([]byte, error) {
-	enc, prepared := newScalarEncoder(v, comments)
+	return MarshalYAMLWithCommentsWith(v, comments, spruceKeyLess)
+}
+
+// MarshalYAMLWithCommentsWith serializes v exactly like
+// MarshalYAMLWithComments, but orders every map's keys with less. A nil
+// less keeps spruce's order.
+func MarshalYAMLWithCommentsWith(v interface{}, comments []YAMLHeadComment, less func(a, b string) bool) ([]byte, error) {
+	enc, prepared := newScalarEncoder(v, comments, less)
 
 	opts := []yaml.EncodeOption{yaml.Indent(2)}
 	if len(comments) > 0 {
@@ -233,14 +247,18 @@ func seqItemPosition(d int) nodePosition {
 type scalarEncoder struct {
 	prefix string
 	slots  []scalarSlot
+	less   func(a, b string) bool
 }
 
 // newScalarEncoder prepares v for goccy and returns the encoder that
 // fills its placeholders back in.
-func newScalarEncoder(v interface{}, comments []YAMLHeadComment) (*scalarEncoder, interface{}) {
+func newScalarEncoder(v interface{}, comments []YAMLHeadComment, less func(a, b string) bool) (*scalarEncoder, interface{}) {
+	if less == nil {
+		less = spruceKeyLess
+	}
 	prefix := scalarPlaceholderPrefix
 	for {
-		e := &scalarEncoder{prefix: prefix}
+		e := &scalarEncoder{prefix: prefix, less: less}
 		prepared, ok := e.prepare(v, rootPosition)
 		if ok && !commentsContain(comments, prefix) {
 			return e, prepared
@@ -275,7 +293,7 @@ func (e *scalarEncoder) prepare(v interface{}, pos nodePosition) (interface{}, b
 			keys = append(keys, k)
 		}
 		sort.Slice(keys, func(i, j int) bool {
-			return spruceKeyLess(keys[i], keys[j])
+			return e.less(keys[i], keys[j])
 		})
 		out := make(yaml.MapSlice, 0, len(keys))
 		for _, k := range keys {

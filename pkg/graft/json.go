@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/goccy/go-yaml/ast"
@@ -17,6 +18,12 @@ import (
 )
 
 func jsonifyData(data []byte, strict bool) (string, error) {
+	return jsonifyDataWith(data, strict, nil)
+}
+
+// jsonifyDataWith is jsonifyData with the object key order chosen by
+// less. A nil less leaves json.Marshal's byte order.
+func jsonifyDataWith(data []byte, strict bool, less func(a, b string) bool) (string, error) {
 	// spruce's json reads only the first document of each part, and a
 	// part can hold more than one, since JSONifyFiles splits only at a
 	// bare "---" line. So the part is cut to its first document the way
@@ -75,12 +82,73 @@ func jsonifyData(data []byte, strict bool) (string, error) {
 		return "", err
 	}
 
-	b, err := json.Marshal(doc_)
+	var b []byte
+	if less == nil {
+		b, err = json.Marshal(doc_)
+	} else {
+		b, err = marshalOrdered(doc_, less)
+	}
 	if err != nil {
 		return "", err
 	}
 
 	return string(b), nil
+}
+
+// marshalOrdered writes v as compact JSON the way json.Marshal does, but
+// orders every object's keys with less instead of byte order. Scalars go
+// through json.Marshal, so their text matches the default path.
+func marshalOrdered(v interface{}, less func(a, b string) bool) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := writeOrdered(&buf, v, less); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func writeOrdered(buf *bytes.Buffer, v interface{}, less func(a, b string) bool) error {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		keys := make([]string, 0, len(t))
+		for k := range t {
+			keys = append(keys, k)
+		}
+		sort.SliceStable(keys, func(i, j int) bool { return less(keys[i], keys[j]) })
+		buf.WriteByte('{')
+		for i, k := range keys {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			kb, err := json.Marshal(k)
+			if err != nil {
+				return err
+			}
+			buf.Write(kb)
+			buf.WriteByte(':')
+			if err := writeOrdered(buf, t[k], less); err != nil {
+				return err
+			}
+		}
+		buf.WriteByte('}')
+	case []interface{}:
+		buf.WriteByte('[')
+		for i, item := range t {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			if err := writeOrdered(buf, item, less); err != nil {
+				return err
+			}
+		}
+		buf.WriteByte(']')
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		buf.Write(b)
+	}
+	return nil
 }
 
 // strictKeyMessage is what `json --strict` fails with, word for word what
@@ -185,6 +253,12 @@ func JSONifyIO(in io.Reader, strict bool) (string, error) {
 
 // JSONifyFiles reads files and converts them to JSON format.
 func JSONifyFiles(paths []string, strict bool) ([]string, error) {
+	return JSONifyFilesWith(paths, strict, nil)
+}
+
+// JSONifyFilesWith reads files and converts them to JSON format, ordering
+// object keys with less. A nil less leaves the encoder's byte order.
+func JSONifyFilesWith(paths []string, strict bool, less func(a, b string) bool) ([]string, error) {
 	l := []string{}
 	var err error
 	for _, path := range paths {
@@ -212,7 +286,7 @@ func JSONifyFiles(paths []string, strict bool) ([]string, error) {
 
 		docs := splitYAMLDocs(data)
 		for i, doc := range docs {
-			jsonData, err := jsonifyData(doc, strict)
+			jsonData, err := jsonifyDataWith(doc, strict, less)
 			if err != nil {
 				return nil, ansi.Errorf("%s[%d]: %s", path, i, err)
 			}

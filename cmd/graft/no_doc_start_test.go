@@ -105,7 +105,7 @@ func TestResolveNoDocStart(t *testing.T) {
 func TestRenderMergedTreeNoDocStart(t *testing.T) {
 	tree := map[string]interface{}{"key": "value"}
 
-	withMarker, rc := renderMergedTreeWithReport(tree, nil, reportPlacementBeginning, false)
+	withMarker, rc := renderMergedTreeWithReport(tree, nil, reportPlacementBeginning, false, nil)
 	if rc != 0 {
 		t.Fatalf("rc = %d with marker", rc)
 	}
@@ -113,7 +113,7 @@ func TestRenderMergedTreeNoDocStart(t *testing.T) {
 		t.Fatalf("default output must keep the document-start marker: %q", withMarker)
 	}
 
-	without, rc := renderMergedTreeWithReport(tree, nil, reportPlacementBeginning, true)
+	without, rc := renderMergedTreeWithReport(tree, nil, reportPlacementBeginning, true, nil)
 	if rc != 0 {
 		t.Fatalf("rc = %d without marker", rc)
 	}
@@ -136,7 +136,7 @@ func TestRenderMergedTreeNoDocStartPlacements(t *testing.T) {
 
 	for _, placement := range []reportPlacement{reportPlacementBeginning, reportPlacementInline, reportPlacementEnd} {
 		t.Run(string(placement), func(t *testing.T) {
-			out, rc := renderMergedTreeWithReport(tree, deferred, placement, true)
+			out, rc := renderMergedTreeWithReport(tree, deferred, placement, true, nil)
 			if rc != 0 {
 				t.Fatalf("rc = %d", rc)
 			}
