@@ -378,22 +378,7 @@ func (ev evaluator) object(n *ast.ObjectCons, env *Env, in *value.Value, emit ru
 }
 
 // typeName is the name jq gives a value's type in error messages.
-func typeName(v *value.Value) string {
-	switch v.Kind() {
-	case value.KindNull:
-		return "null"
-	case value.KindFalse, value.KindTrue:
-		return "boolean"
-	case value.KindNumber:
-		return "number"
-	case value.KindString:
-		return "string"
-	case value.KindArray:
-		return "array"
-	default:
-		return "object"
-	}
-}
+func typeName(v *value.Value) string { return runtime.TypeName(v) }
 
 // arithmetic maps each arithmetic operator to the native that implements
 // it, so a dialect decides what the operators mean.
