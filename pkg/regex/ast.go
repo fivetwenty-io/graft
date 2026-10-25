@@ -5,7 +5,7 @@ type nodeKind uint8
 
 const (
 	kindLiteral   nodeKind = iota // a run of runes matched in order
-	kindClass                     // one rune from a set
+	kindClass                     // one rune from a set, or one of the set's expansions
 	kindAny                       // any one rune, a newline only under dotAll
 	kindConcat                    // subs in order; no subs matches the empty string
 	kindAlternate                 // the first of subs that leads to a match
@@ -32,8 +32,10 @@ type node struct {
 	runes []rune
 	fold  bool
 
-	// set is a class's runes.
-	set runeSet
+	// set is a class's runes, and expansions are the multi-rune sequences
+	// a class also matches under full case folding, tried after set.
+	set        runeSet
+	expansions [][]rune
 
 	// dotAll lets an any node match a newline.
 	dotAll bool

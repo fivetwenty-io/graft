@@ -25,21 +25,88 @@ type inst struct {
 	assert assertKind
 }
 
-// lower rewrites the tree so that case-insensitive literals need no special
-// instructions. A folded literal becomes a sequence of classes, one per
-// rune, holding each rune's case-fold orbit.
-func lower(n *node) *node {
+// lower rewrites the tree so that case-insensitive literals and classes
+// need no special instructions. A folded literal becomes a sequence of
+// classes, one per rune, holding each rune's case-fold orbit. Under the
+// Oniguruma flavor it also gains alternations for full case folding, and a
+// class with expansions becomes an alternation of the class and its
+// expansions.
+func lower(n *node, cfg *config) *node {
 	for i, s := range n.subs {
-		n.subs[i] = lower(s)
+		n.subs[i] = lower(s, cfg)
 	}
-	if n.kind == kindLiteral && n.fold {
+	switch {
+	case n.kind == kindLiteral && n.fold && cfg.flavor == Oniguruma:
+		return fullFoldLiteral(n.runes)
+	case n.kind == kindLiteral && n.fold:
 		seq := &node{kind: kindConcat}
 		for _, r := range n.runes {
 			seq.append(orbitNode(r))
 		}
 		return single(seq)
+	case n.kind == kindClass && len(n.expansions) > 0:
+		alt := &node{kind: kindAlternate, subs: []*node{{kind: kindClass, set: n.set}}}
+		for _, e := range n.expansions {
+			alt.subs = append(alt.subs, orbitSequence(e))
+		}
+		return alt
 	}
 	return n
+}
+
+// fullFoldLiteral lowers a literal under full case folding. It reads the
+// literal from the left, and at each position takes the longest run of runes
+// that is the full folding of some rune, matching either that rune or the
+// run. A rune that is not the start of such a run matches its orbit, or its
+// own full folding when it has one.
+func fullFoldLiteral(runes []rune) *node {
+	seq := &node{kind: kindConcat}
+	for i := 0; i < len(runes); {
+		k, sources := longestExpansionAt(runes[i:])
+		if k > 0 {
+			seq.append(&node{kind: kindAlternate, subs: []*node{
+				{kind: kindClass, set: sources},
+				orbitSequence(runes[i : i+k]),
+			}})
+			i += k
+			continue
+		}
+		var expansion []rune
+		for _, r := range orbit(runes[i]) {
+			if expansion = fullFoldOf(r); expansion != nil {
+				break
+			}
+		}
+		if expansion == nil {
+			seq.append(orbitNode(runes[i]))
+		} else {
+			seq.append(&node{kind: kindAlternate, subs: []*node{orbitNode(runes[i]), orbitSequence(expansion)}})
+		}
+		i++
+	}
+	return single(seq)
+}
+
+// longestExpansionAt finds the longest full folding that runes starts with
+// and returns its length and every rune that folds to it, with their orbits.
+// It returns 0 when runes starts with none.
+func longestExpansionAt(runes []rune) (int, runeSet) {
+	best := 0
+	var sources []rune
+	for _, f := range fullFolds {
+		k := len(f.to)
+		if k < best || k > len(runes) || !foldEqual(f.to, runes[:k]) {
+			continue
+		}
+		if k > best {
+			best, sources = k, nil
+		}
+		sources = append(sources, orbit(f.from)...)
+	}
+	if best == 0 {
+		return 0, nil
+	}
+	return best, setOf(sources...)
 }
 
 // orbitNode matches r or any rune in its case-fold orbit.
@@ -49,6 +116,14 @@ func orbitNode(r rune) *node {
 		return &node{kind: kindLiteral, runes: []rune{c}}
 	}
 	return &node{kind: kindClass, set: set}
+}
+
+func orbitSequence(runes []rune) *node {
+	seq := &node{kind: kindConcat}
+	for _, r := range runes {
+		seq.append(orbitNode(r))
+	}
+	return single(seq)
 }
 
 // single unwraps a concat of one node.

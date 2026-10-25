@@ -3,6 +3,7 @@ package regex
 import (
 	"go/build"
 	"testing"
+	"unicode"
 )
 
 // TestImportsOnlyTheStandardLibrary pins the promise that a project can
@@ -29,4 +30,11 @@ func TestImportsOnlyTheStandardLibrary(t *testing.T) {
 			t.Errorf("pkg/regex imports %s, which is outside the standard library", path)
 		}
 	}
+}
+
+// TestFoldTableMatchesUnicodeVersion fails when the Go toolchain moves to a
+// new Unicode version, so the full case-folding table is regenerated with
+// `go generate` and stays in step with unicode.SimpleFold.
+func TestFoldTableMatchesUnicodeVersion(t *testing.T) {
+	wantEqual(t, foldUnicodeVersion, unicode.Version)
 }

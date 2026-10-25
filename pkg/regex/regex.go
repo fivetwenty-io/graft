@@ -18,7 +18,8 @@ const (
 
 	// Oniguruma reads patterns the way jq's Oniguruma does, so \d, \w, \s,
 	// and the POSIX classes are Unicode-aware, \h is a hexadecimal digit,
-	// and case-insensitive matching folds every item of a bracket class.
+	// and case-insensitive matching folds every item of a bracket class and
+	// applies full case folding, where ß matches ss.
 	Oniguruma
 )
 
@@ -116,7 +117,7 @@ func Compile(pattern string, opts ...Option) (*Pattern, error) {
 	if err != nil {
 		return nil, err
 	}
-	root = lower(root)
+	root = lower(root, cfg)
 	prog, marks := compile(root, len(names))
 	return &Pattern{
 		source:   pattern,

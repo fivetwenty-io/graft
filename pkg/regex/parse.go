@@ -780,13 +780,18 @@ func (p *parser) classItem(folded, kept []runeRange) ([]runeRange, []runeRange, 
 }
 
 // classNode builds a class from its items. PCRE folds only literals and
-// ranges, and Oniguruma folds every item, escapes, properties, and POSIX
-// names included.
+// ranges. Oniguruma folds every item, escapes, properties, and POSIX names
+// included, and the runes the folded class holds bring their full-folding
+// expansions with them.
 func (p *parser) classNode(folded, kept []runeRange, negated bool) *node {
 	var set runeSet
+	var expansions [][]rune
 	switch {
 	case p.cfg.has(IgnoreCase) && p.cfg.flavor == Oniguruma:
 		set = union(normalize(folded), normalize(kept)).foldClosure()
+		if !negated {
+			expansions = foldExpansions(set)
+		}
 	case p.cfg.has(IgnoreCase):
 		set = union(normalize(folded).foldClosure(), normalize(kept))
 	default:
@@ -795,7 +800,7 @@ func (p *parser) classNode(folded, kept []runeRange, negated bool) *node {
 	if negated {
 		set = set.negate()
 	}
-	return &node{kind: kindClass, set: set}
+	return &node{kind: kindClass, set: set, expansions: expansions}
 }
 
 // posix reads a [:name:] or [:^name:] item. It returns false, leaving the

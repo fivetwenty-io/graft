@@ -121,6 +121,16 @@ func orbit(r rune) []rune {
 	return out
 }
 
+// canonicalFold maps r to one representative of its orbit, so two runes
+// fold to the same letter exactly when their canonical folds are equal.
+func canonicalFold(r rune) rune {
+	m := r
+	for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+		m = min(m, f)
+	}
+	return m
+}
+
 // foldClosure adds to s every rune in the orbit of a rune s holds. Only the
 // runes that have a case mapping can widen the set, so the walk covers
 // unicode.CaseRanges rather than every rune s holds.
@@ -350,4 +360,35 @@ func looseName(name string) string {
 		}
 		return r
 	}, name))
+}
+
+//go:generate go run gen_fold.go
+
+// foldExpansions returns the multi-rune sequences a class holding set also
+// matches under full case folding, one for each distinct expansion of a rune
+// in set.
+func foldExpansions(set runeSet) [][]rune {
+	var out [][]rune
+	for _, f := range fullFolds {
+		if set.contains(f.from) && !slices.ContainsFunc(out, func(e []rune) bool { return foldEqual(e, f.to) }) {
+			out = append(out, f.to)
+		}
+	}
+	return out
+}
+
+// foldEqual reports whether two rune sequences are equal under simple case
+// folding.
+func foldEqual(a, b []rune) bool {
+	return slices.EqualFunc(a, b, func(x, y rune) bool { return canonicalFold(x) == canonicalFold(y) })
+}
+
+// fullFoldOf returns the expansion of r under full case folding, or nil
+// when r folds to a single rune.
+func fullFoldOf(r rune) []rune {
+	i, ok := slices.BinarySearchFunc(fullFolds, r, func(f fullFold, t rune) int { return int(f.from - t) })
+	if !ok {
+		return nil
+	}
+	return fullFolds[i].to
 }

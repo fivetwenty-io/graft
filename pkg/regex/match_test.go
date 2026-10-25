@@ -39,6 +39,9 @@ func TestFlags(t *testing.T) {
 	wantMatch(t, MustCompile(`a$`), "a\n")
 	wantMatch(t, MustCompile(`a$`, WithFlags(SingleLine)), "a\n") // SingleLine turns $ into \Z, which still matches before a final newline, as jq's s flag does
 	wantNoMatch(t, MustCompile(`a$`, WithFlags(SingleLine)), "a\nb")
+	wantMatch(t, MustCompile(`ss`, WithFlavor(Oniguruma), WithFlags(IgnoreCase)), "ß") // full case folding under the Oniguruma flavor, as jq answers
+	wantMatch(t, MustCompile(`ß`, WithFlavor(Oniguruma), WithFlags(IgnoreCase)), "ss")
+	wantMatch(t, MustCompile(`fi`, WithFlavor(Oniguruma), WithFlags(IgnoreCase)), "ﬁ")
 	wantNoMatch(t, MustCompile(`ss`, WithFlavor(PCRE), WithFlags(IgnoreCase)), "ß") // PCRE2 folds one code point to one
 	wantNoMatch(t, MustCompile(`^b`), "a\nb")
 }
@@ -164,6 +167,53 @@ func TestIgnoreCase(t *testing.T) {
 	wantText(t, MustCompile(`a`, WithFlags(IgnoreCase)), "A", "A") // single runes without orbits stay runes
 }
 
+func TestOnigurumaFullCaseFolding(t *testing.T) {
+	onig := []Option{WithFlavor(Oniguruma), WithFlags(IgnoreCase)}
+	cases := []struct {
+		pattern, subject string
+		want             bool
+	}{
+		{`ss`, "ß", true},
+		{`ß`, "ss", true},
+		{`ß`, "SS", true},
+		{`SS`, "ß", true},
+		{`ss`, "ẞ", true},
+		{`ß`, "s", false},
+		{`s`, "ß", false},
+		{`sss`, "ßs", true},
+		{`sss`, "sß", false}, // the pattern is read left to right in longest expansions, as Oniguruma does
+		{`ßs`, "sss", true},
+		{`sß`, "sss", true},
+		{`ssss`, "ßß", true},
+		{`ßß`, "ssss", true},
+		{`xss`, "xß", true},
+		{`assb`, "aßb", true},
+		{`fi`, "ﬁ", true},
+		{`ffi`, "ﬃ", true},
+		{`ffi`, "ﬀi", false},
+		{`ﬃ`, "ffi", true},
+		{`ﬃ`, "ﬀi", false},
+		{`s+`, "ß", false},
+		{`ßs?`, "ss", true},
+		{`(s)(s)`, "ß", false}, // a group boundary ends a literal run
+		{`s(ss)`, "sß", true},
+		{`s(?:ss)`, "sß", false}, // a non-capturing group does not
+		{`[ß]`, "ss", true},
+		{`[s][s]`, "ß", false},
+		{`[^x]`, "ß", true},
+	}
+	for _, c := range cases {
+		m := find(t, MustCompile(c.pattern, onig...), c.subject)
+		if (m != nil) != c.want {
+			t.Errorf("%q against %q: got match %v, want %v", c.pattern, c.subject, m != nil, c.want)
+		}
+	}
+	// A class tries its single runes before its expansions.
+	wantText(t, MustCompile(`[ß]`, onig...), "ss", "ss")
+	wantText(t, MustCompile(`[ßs]`, onig...), "ss", "s")
+	wantText(t, MustCompile(`[ß]+`, onig...), "ss", "ss")
+}
+
 func TestOnigurumaClassRules(t *testing.T) {
 	onig := WithFlavor(Oniguruma)
 	wantMatch(t, MustCompile(`\d`, onig), "٣")
@@ -198,6 +248,32 @@ func TestOnigurumaPosixClasses(t *testing.T) {
 	for name, want := range cases {
 		t.Run(name, func(t *testing.T) {
 			wantEqual(t, matching(t, MustCompile(`^[[:`+name+`:]]$`, WithFlavor(Oniguruma)), subjects), want)
+		})
+	}
+}
+
+// Under IgnoreCase Oniguruma closes every item of a bracket class under case
+// folding, including properties and POSIX names, before it negates the
+// class, but it leaves a bare \p{...} alone. The expected matches were
+// recorded from jq 1.8.2.
+func TestOnigurumaCaselessClasses(t *testing.T) {
+	subjects := []string{"ss", "ß", "a", "Z", "中", "ǅ", "ª", "1", "K", "k", "\u212a"}
+	cases := map[string][]string{
+		`\p{Lu}`:       {"Z", "K", "\u212a"},
+		`\p{Ll}`:       {"ß", "a", "k"},
+		`\P{Lu}`:       {"ß", "a", "中", "ǅ", "ª", "1", "k"},
+		`[\p{Lu}]`:     {"ss", "ß", "a", "Z", "ǅ", "K", "k", "\u212a"},
+		`[^\p{Ll}]`:    {"中", "ª", "1"},
+		`[[:upper:]]`:  {"ss", "ß", "a", "Z", "ǅ", "K", "k", "\u212a"},
+		`[^[:lower:]]`: {"中", "1"},
+		`[[:lower:]]`:  {"ss", "ß", "a", "Z", "ǅ", "ª", "K", "k", "\u212a"},
+		`[\w]`:         {"ss", "ß", "a", "Z", "中", "ǅ", "ª", "1", "K", "k", "\u212a"},
+		`[\P{Lu}]`:     {"ss", "ß", "a", "Z", "中", "ǅ", "ª", "1", "K", "k", "\u212a"},
+	}
+	for pattern, want := range cases {
+		t.Run(pattern, func(t *testing.T) {
+			p := MustCompile(`^`+pattern+`$`, WithFlavor(Oniguruma), WithFlags(IgnoreCase))
+			wantEqual(t, matching(t, p, subjects), want)
 		})
 	}
 }
