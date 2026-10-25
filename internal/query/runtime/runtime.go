@@ -75,14 +75,6 @@ type Ctx struct {
 	ticks int
 }
 
-// Cursor is where the evaluator is in its input, for builtins that report
-// it. Doc is the index of Root among the run's roots.
-type Cursor struct {
-	Root *value.Value
-	Path value.Path
-	Doc  int
-}
-
 // InputSource is the stream that input and inputs read. Next returns the
 // next value with the name of the file it came from, and false at the end.
 type InputSource interface {
