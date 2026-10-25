@@ -42,6 +42,9 @@ func TestLeadingContentStopsAtTheFirstNode(t *testing.T) {
 }
 
 func TestLeadingSeparatorWithContentOnItsLine(t *testing.T) {
+	// A deliberate departure from yq 4.54.1. yq drops the line break after
+	// the content of a "--- <content>" line, which joins it to the next
+	// line, so "--- # x\na: 1" loses .a. We keep the line break.
 	docs := mustReadAll(t, "--- # x\na: 1\n", keepMeta)
 	wantEqual(t, docs[0].LeadingContent, "$yqDocSeparator$\n# x\n")
 	wantEqual(t, mustGet(docs[0].Value, "a").Float(), 1.0)
