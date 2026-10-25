@@ -1,0 +1,134 @@
+package regex
+
+import (
+	"testing"
+)
+
+func TestUnsupportedConstructsAreNamedInJ1(t *testing.T) {
+	for _, pat := range []string{`(?=a)`, `(?!a)`, `(?<=a)b`, `(a)\1`, `(?>a)`, `a*+`, `(?i)a`, `\Qa.b\E`} {
+		_, err := Compile(pat)
+		var u *UnsupportedError
+		wantErrAs(t, err, &u)
+	}
+}
+
+func TestUnsupportedConstructNames(t *testing.T) {
+	cases := map[string]string{
+		`(?=a)`:          "lookahead (?=...)",
+		`(?!a)`:          "negative lookahead (?!...)",
+		`(?<=a)b`:        "lookbehind (?<=...)",
+		`(?<!a)b`:        "negative lookbehind (?<!...)",
+		`(a)\1`:          `backreference \1`,
+		`(?<n>a)\k<n>`:   `backreference \k<n>`,
+		`(a)\g{-1}`:      `backreference \g{-1}`,
+		`(?P<n>a)(?P=n)`: "backreference (?P=n)",
+		`(?>a)`:          "atomic group (?>...)",
+		`a*+`:            "possessive quantifier *+",
+		`a{2}+`:          "possessive quantifier {2}+",
+		`(?i)a`:          "inline flag group (?i)",
+		`(?i:a)`:         "inline flag group (?i:...)",
+		`(?-x)a`:         "inline flag group (?-x)",
+		`\Qa.b\E`:        `quoted sequence \Q...\E`,
+		`\bx`:            `assertion \b`,
+		`\Bx`:            `assertion \B`,
+		`\Ax`:            `assertion \A`,
+		`x\z`:            `assertion \z`,
+		`x\Z`:            `assertion \Z`,
+		`\Gx`:            `assertion \G`,
+		`x\Ky`:           `match reset \K`,
+		`\X`:             `extended grapheme cluster \X`,
+		`\R`:             `newline sequence \R`,
+		`(?R)`:           "recursion (?R)",
+		`(a)(?1)`:        "recursion (?1)",
+		`(?&n)`:          "recursion (?&n)",
+		`(?P>n)`:         "recursion (?P>n)",
+		`(a)\g<1>`:       `recursion \g<1>`,
+		`(?(1)a|b)`:      "conditional group (?(...)",
+		`(?C1)a`:         "callout (?C...)",
+		`(*FAIL)`:        "backtracking control verb (*FAIL)",
+		`(?|a)`:          "branch reset group (?|...)",
+		`\N{U+41}`:       `named character \N{...}`,
+	}
+	for pat, construct := range cases {
+		_, err := Compile(pat)
+		var u *UnsupportedError
+		wantErrAs(t, err, &u)
+		if u.Construct != construct {
+			t.Errorf("%q: got construct %q, want %q", pat, u.Construct, construct)
+		}
+	}
+	_, err := Compile(`(?=a)`)
+	wantEqual(t, err.Error(), "regex: lookahead (?=...) is not supported")
+}
+
+func TestSyntaxErrorHasPosition(t *testing.T) {
+	_, err := Compile(`a(b`)
+	var se *SyntaxError
+	wantErrAs(t, err, &se)
+	wantEqual(t, se.Pos, 1)
+	wantEqual(t, se.Error(), "regex: missing closing parenthesis at position 1")
+}
+
+func TestSyntaxErrors(t *testing.T) {
+	cases := []struct {
+		pattern string
+		pos     int
+		msg     string
+	}{
+		{`a)`, 1, "unmatched closing parenthesis"},
+		{`*a`, 0, "quantifier does not follow a repeatable item"},
+		{`a|*`, 2, "quantifier does not follow a repeatable item"},
+		{`(*)`, 1, "quantifier does not follow a repeatable item"},
+		{`^*a`, 1, "quantifier does not follow a repeatable item"},
+		{`a**`, 2, "quantifier does not follow a repeatable item"},
+		{`a{2}{3}`, 4, "quantifier does not follow a repeatable item"},
+		{`a{3,2}`, 1, "numbers out of order in {} quantifier"},
+		{`a{70000}`, 1, "number too big in {} quantifier"},
+		{`[a`, 0, "missing terminating ] for character class"},
+		{`[z-a]`, 1, "range out of order in character class"},
+		{`[\d-z]`, 1, "invalid range in character class"},
+		{`\`, 0, `\ at end of pattern`},
+		{`\c`, 0, `\c at end of pattern`},
+		{`\y`, 0, `unrecognized character follows \`},
+		{`\p{Foo}`, 0, `unknown property after \P or \p`},
+		{`\p{Greek`, 0, `malformed \P or \p sequence`},
+		{`\x{110000}`, 0, `character code point value in \x{} or \o{} is too large`},
+		{`\x{d800}`, 0, "disallowed Unicode code point (>= 0xd800 && <= 0xdfff)"},
+		{`\x{12`, 0, `missing } after \x{ or \o{`},
+		{`\u12`, 0, `\u must be followed by four hexadecimal digits`},
+		{`[:alpha:]`, 0, "POSIX named classes are supported only within a class"},
+		{`[[:alfa:]]`, 1, "unknown POSIX class name"},
+		{`(?<1a>x)`, 3, "subpattern name must start with a non-digit"},
+		{`(?<n>a)(?<n>b)`, 10, "two named subpatterns have the same name"},
+		{`(?<n`, 3, "syntax error in subpattern name (missing terminator?)"},
+		{`(?Q)`, 2, "unrecognized character after (? or (?-"},
+		{"a\xffb", 1, "invalid UTF-8"},
+		{`[\N]`, 1, `\N is not supported in a class`},
+	}
+	for _, c := range cases {
+		_, err := Compile(c.pattern)
+		var se *SyntaxError
+		wantErrAs(t, err, &se)
+		if se.Pos != c.pos || se.Msg != c.msg {
+			t.Errorf("%q: got %q at %d, want %q at %d", c.pattern, se.Msg, se.Pos, c.msg, c.pos)
+		}
+	}
+}
+
+func TestGroupNamesAndNumbering(t *testing.T) {
+	p := MustCompile(`(a)(?:b)(?<x>c)((d))`)
+	wantEqual(t, p.GroupNames(), []string{"", "", "x", "", ""})
+	names := p.GroupNames()
+	names[2] = "changed"
+	wantEqual(t, p.GroupNames()[2], "x") // the caller gets a copy
+}
+
+func TestLiteralRunsMerge(t *testing.T) {
+	n, _, err := parse(`ab(?:cd)e*f`, newConfig(nil))
+	wantNil(t, err)
+	wantEqual(t, n.kind, kindConcat)
+	wantEqual(t, len(n.subs), 3)
+	wantEqual(t, string(n.subs[0].runes), "abcd")
+	wantEqual(t, n.subs[1].kind, kindRepeat)
+	wantEqual(t, string(n.subs[2].runes), "f")
+}
