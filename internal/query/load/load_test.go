@@ -114,11 +114,6 @@ func TestBOMIsDropped(t *testing.T) {
 	wantEqual(t, mustGet(docs[0].Value, "a").Float(), 1.0)
 }
 
-func TestLeadingContentStaysEmptyInJ1(t *testing.T) {
-	docs := mustReadAll(t, "# c\na: 1\n", LoadOptions{KeepMeta: true})
-	wantEqual(t, docs[0].LeadingContent, "")
-}
-
 func TestYAMLDepthLimitOption(t *testing.T) {
 	r := Open(Source{"f", strings.NewReader("a: [[1]]\n")}, 0, LoadOptions{Format: FormatYAML, DepthLimit: 2})
 	_, err := r.Next()

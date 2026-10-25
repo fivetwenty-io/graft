@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
@@ -25,6 +26,7 @@ type Reader struct {
 	json     *JSONReader
 	raw      bool
 	docs     []*yamlnode.Node
+	leading  string
 	next     int
 	lines    int
 	docIndex int
@@ -153,9 +155,18 @@ func (r *Reader) start() error {
 	if len(data) > 0 && data[len(data)-1] != '\n' {
 		r.lines++
 	}
+	if r.opts.KeepMeta {
+		r.leading, data = splitLeadingContent(data)
+	}
 	r.docs, err = yamlnode.Parse(data)
 	if err != nil {
 		return r.yamlError(err)
+	}
+	if len(r.docs) == 0 && r.leading != "" {
+		// yq reads a source that holds only leading content as one null
+		// document carrying it.
+		null := &yamlnode.Node{Kind: yamlnode.ScalarNode, Tag: yamlnode.TagNull, Line: 1, Column: 1}
+		r.docs = []*yamlnode.Node{{Kind: yamlnode.DocumentNode, Line: 1, Column: 1, Content: []*yamlnode.Node{null}}}
 	}
 	return nil
 }
@@ -187,5 +198,93 @@ func (r *Reader) nextYAML() (Document, error) {
 	if len(n.Content) > 0 && n.Content[0].Line > 0 {
 		line = n.Content[0].Line
 	}
-	return Document{Line: line, Value: v, Anchors: anchors, LeadingContent: n.HeadComment}, nil
+	d := Document{Line: line, Value: v, Anchors: anchors}
+	switch {
+	case !r.opts.KeepMeta:
+	case r.next == 1:
+		d.LeadingContent = r.leading
+	default:
+		// Every document after the first starts with a "---".
+		d.LeadingContent = yqDocSeparator + "\n"
+	}
+	return d, nil
+}
+
+// yqDocSeparator stands for a "---" line in leading content, as in yq.
+const yqDocSeparator = "$yqDocSeparator$"
+
+// splitLeadingContent cuts the leading content off a YAML source the way
+// yq does before it parses. That is every comment line, blank line,
+// %YAML directive, and "---" before the first line of anything else, with
+// each "---" written as yqDocSeparator. It returns the leading content
+// and data with those lines left empty, so the parser never attaches the
+// comments to the first node and the lines after keep their numbers.
+//
+// Content after a "---" on the same line is read as a line of its own,
+// as yq does, but it keeps its line break, where yq joins it to the next
+// line.
+func splitLeadingContent(data []byte) (string, []byte) {
+	var lead, blank strings.Builder
+	rest := string(data)
+	for rest != "" {
+		line, newline, after := cutLine(rest)
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "---" {
+			lead.WriteString(yqDocSeparator + newline)
+			blank.WriteString(newline)
+			rest = after
+			continue
+		}
+		if body, ok := cutSeparator(line); ok {
+			sep := newline
+			if sep == "" {
+				sep = "\n"
+			}
+			lead.WriteString(yqDocSeparator + sep)
+			rest = body + newline + after
+			continue
+		}
+		left := strings.TrimLeft(line, yamlSpace)
+		if trimmed != "" && !strings.HasPrefix(left, "#") && !strings.HasPrefix(left, "%YAML") {
+			break
+		}
+		lead.WriteString(line + newline)
+		blank.WriteString(newline)
+		rest = after
+	}
+	if lead.Len() == 0 {
+		return "", data
+	}
+	return lead.String(), []byte(blank.String() + rest)
+}
+
+// yamlSpace is what yq's \s matches.
+const yamlSpace = " \t\n\f\r"
+
+// cutLine splits the first line off s, with its line break apart.
+func cutLine(s string) (line, newline, rest string) {
+	i := strings.IndexByte(s, '\n')
+	if i < 0 {
+		return s, "", ""
+	}
+	line, rest = s[:i], s[i+1:]
+	if strings.HasSuffix(line, "\r") {
+		return line[:len(line)-1], "\r\n", rest
+	}
+	return line, "\n", rest
+}
+
+// cutSeparator returns what follows a "---" and the blanks after it at
+// the start of line.
+func cutSeparator(line string) (string, bool) {
+	s := strings.TrimLeft(line, yamlSpace)
+	if !strings.HasPrefix(s, "---") {
+		return "", false
+	}
+	s = s[3:]
+	body := strings.TrimLeft(s, yamlSpace)
+	if body == s {
+		return "", false
+	}
+	return body, true
 }

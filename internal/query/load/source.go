@@ -51,8 +51,11 @@ type Document struct {
 	Line      int
 	Value     *value.Value
 	Anchors   map[string]*value.Value
-	// LeadingContent is empty in the J1 loader. The Y1 loader fills it from
-	// the comments and directives before the first node.
+	// LeadingContent is what comes before the first node of a source
+	// under KeepMeta, which is its comment lines, blank lines, %YAML
+	// directives, and "---" lines, with each "---" written as
+	// "$yqDocSeparator$". A later document holds only that marker, for the
+	// "---" that opened it. It is empty without KeepMeta.
 	LeadingContent string
 }
 
