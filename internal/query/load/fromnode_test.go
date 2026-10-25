@@ -155,3 +155,13 @@ func TestMetaStyleMapsEveryFlag(t *testing.T) {
 	wantEqual(t, h.Style, value.Tagged)
 	wantEqual(t, h.Tag, "!local")
 }
+
+func TestDocumentCommentsReachTheRoot(t *testing.T) {
+	docs := mustReadAll(t, "a: 1\n\n# end\n", LoadOptions{KeepMeta: true})
+	wantEqual(t, docs[0].Value.Meta().FootComment, "# end")
+	v, err := FromNode(mustParseYAML(t, "# head\n\na: 1 # a\n"), FromNodeOptions{KeepMeta: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, v.Meta().HeadComment, "# head")
+}
