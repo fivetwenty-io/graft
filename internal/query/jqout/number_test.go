@@ -2,6 +2,7 @@ package jqout
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/query/value"
@@ -38,6 +39,15 @@ func TestFloatNumberPrinting(t *testing.T) {
 	wantEqual(t, FormatNumberFloat(value.Num(math.Inf(-1))), `-1.7976931348623157e+308`)
 	wantEqual(t, FormatNumberFloat(value.Num(math.NaN())), `null`)
 	wantEqual(t, FormatNumberFloat(value.Num(math.Copysign(0, -1))), `-0`)
+}
+
+func TestDigitBoundLiteralPrintsCanonically(t *testing.T) {
+	text := strings.Repeat("1", 100001) + "e5"
+	for _, got := range []string{FormatNumber(value.NumText(text)), FormatNumberFloat(value.NumText(text))} {
+		if !strings.HasSuffix(got, "E+100005") || got != value.CanonicalLiteral(text) {
+			t.Errorf("got a %d-byte text ending %q, want the canonical form ending E+100005", len(got), got[len(got)-10:])
+		}
+	}
 }
 
 func TestOverBoundLiteralKeepsItsText(t *testing.T) {

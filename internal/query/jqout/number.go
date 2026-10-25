@@ -1,6 +1,8 @@
 package jqout
 
 import (
+	"errors"
+
 	"github.com/fivetwenty-io/graft/pkg/decimal"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
@@ -24,7 +26,7 @@ func FormatNumberFloat(v *value.Value) string {
 
 func format(v *value.Value, result func(decimal.Decimal) string) string {
 	if lit := v.Literal(); lit != "" {
-		if !v.Bounded() {
+		if errors.Is(v.Dec().Err(), decimal.ErrExponentRange) {
 			return lit
 		}
 		return value.CanonicalLiteral(lit)
