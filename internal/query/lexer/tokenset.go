@@ -28,13 +28,13 @@ var operatorKinds = map[string]TokenKind{
 	"}": RBrace, ":": Colon, ";": Semicolon,
 }
 
-// jqSet returns the token set for the jq dialect.
-func jqSet() TokenSet {
+// JQ returns the token set for the jq dialect.
+func JQ() TokenSet {
 	return TokenSet{
 		Keywords: []string{
 			"def", "if", "then", "elif", "else", "end", "as", "reduce",
 			"foreach", "try", "catch", "label", "import", "include",
-			"and", "or",
+			"and", "or", "module", "break",
 		},
 		Operators: []string{
 			"|", ",", "//", "=", "|=", "//=", "+=", "-=", "*=", "/=", "%=",
@@ -46,9 +46,9 @@ func jqSet() TokenSet {
 	}
 }
 
-// yqSet returns the token set for the yq dialect. Nothing but tests
-// consults it until the yq phase lands.
-func yqSet() TokenSet {
+// YQ returns the token set for the yq dialect. Only tests consult it
+// until the yq phase lands.
+func YQ() TokenSet {
 	return TokenSet{
 		Keywords: []string{"and", "or", "as", "def", "reduce", "foreach", "if", "then", "elif", "else", "end", "try", "catch", "label"},
 		Operators: []string{
