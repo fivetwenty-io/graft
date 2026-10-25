@@ -75,6 +75,7 @@ func runCase(c Case, d runtime.Dialect) Result {
 		return judgeFailure(res, d, err)
 	}
 	if c.WantFail {
+		res.Malformed = true
 		res.Err = fmt.Sprintf("*** Test program compiled successfully, but should fail at line number %d: %s", c.Line, c.Program)
 		return res
 	}

@@ -95,6 +95,8 @@ func TestRunFailCases(t *testing.T) {
 	wantContains(t, out.String(), "but expected 'jq: error: wrong' at line number 6: foo")
 	wantContains(t, out.String(), "*** Test program compiled successfully, but should fail at line number 14")
 	wantContains(t, out.String(), "*** Test program compiled successfully, but should fail at line number 18")
+	wantEqual(t, res[3].Malformed, true)
+	wantContains(t, out.String(), "2 of 5 tests passed (2 malformed, 0 skipped)")
 	wantEqual(t, res[3].Pass, false) // a runtime error does not satisfy %%FAIL, only a compile error does
 	wantEqual(t, res[1].Pass, false)
 	wantContains(t, res[1].Err, "wrong")
