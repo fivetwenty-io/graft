@@ -14,7 +14,15 @@ import (
 // Emit receives one output of a generator. p is the output's path from
 // the root while paths are being tracked, and nil otherwise or when the
 // output is not a path. An Emit returns an error to stop the generator
-// that called it.
+// that called it, and the generator must return that error unchanged,
+// neither wrapped nor replaced. The evaluator signals control flow through
+// these errors and recognizes each one by its type: a tail call handing
+// its frame back to the loop that runs its definition, eval.StopError
+// when a consumer such as first or limit has seen enough, eval.BreakError
+// for break, and eval.DownstreamError marking an error a try's consumer
+// raised. A generator that wraps one hides it, and a tail call then runs
+// in the wrong place, a stop or a break turns into an error, or a try
+// catches an error that is not its own.
 type Emit func(v *value.Value, p value.Path) error
 
 // Thunk is an unevaluated argument to a builtin. Each runs it against
@@ -24,7 +32,12 @@ type Thunk interface {
 }
 
 // Native is a builtin written in Go. It emits each output for input and
-// returns the first error.
+// returns the first error. When emit returns an error, the native stops
+// and returns that error unchanged, because the evaluator's control
+// signals travel as these errors, as Emit describes. The same goes for an
+// argument's Each, except that a native which catches errors may handle
+// a *query.RuntimeError its argument raised. A native wraps or replaces
+// only the errors it raises itself.
 type Native func(ctx *Ctx, input *value.Value, args []Thunk, emit Emit) error
 
 // NumberMode chooses how numbers compute.

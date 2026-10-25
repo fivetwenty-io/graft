@@ -355,7 +355,7 @@ func delPath(v *value.Value, p value.Path) (*value.Value, error) {
 
 func testRegistry() *runtime.Registry {
 	r := &runtime.Registry{}
-	r.Register("empty", 0, func(*runtime.Ctx, *value.Value, []runtime.Thunk, runtime.Emit) error { return nil })
+	r.RegisterSingle("empty", 0, func(*runtime.Ctx, *value.Value, []runtime.Thunk, runtime.Emit) error { return nil })
 	r.Register("error", 0, func(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, _ runtime.Emit) error {
 		return raise(in)
 	})

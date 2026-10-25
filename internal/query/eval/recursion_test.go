@@ -40,4 +40,19 @@ func TestTailCallsStayCorrect(t *testing.T) {
 	// A try around the call keeps it out of tail position.
 	wantOutputs(t, `def f: if . > 2 then error("x") else try (. + 1 | f) catch "c" end; 0 | f`, `null`, `"c"`)
 	wantErrorWithCtx(t, ctxCancelled(), `def f: if . > 1000000 then . else . + 1 | f end; 0 | f`, `null`, "context canceled")
+	// jq's own loops reach the self call through a filter parameter, so
+	// they loop when the parameter's body has one output.
+	wantOutputs(t, `def until(cond; update): def _until: if cond then . else (update | _until) end; _until; 0 | until(. >= 20000; . + 1)`, `null`, `20000`)
+	wantOutputs(t, `def while(cond; update): def _while: if cond then ., (update | _while) else empty end; _while; reduce (0 | while(. < 20000; . + 1)) as $x (0; . + 1)`, `null`, `20000`)
+	wantOutputs(t, `def repeat(f): def _repeat: ., (f | _repeat); _repeat; [limit(20000; 0 | repeat(. + 1))] | .[19999]`, `null`, `19999`)
+	wantOutputs(t, `def select(f): if f then . else empty end; def recurse(f; cond): def r: ., (f | select(cond) | r); r; reduce (0 | recurse(. + 1; . < 20000)) as $x (0; . + 1)`, `null`, `20000`)
+	// A parameter with more than one output keeps the call out of tail
+	// position, and the loop still runs.
+	wantOutputs(t, `def repeat(f): def _repeat: ., (f | _repeat); _repeat; [limit(5; 0 | repeat(. + 1, . + 10))]`, `null`, `[0,1,2,3,4]`)
+	// A def that shadows the parameter between its use and the call does
+	// not stand in for it.
+	wantOutputs(t, `def f(g): if . > 3 then . else g | def g: . + 1; f(g) end; 0 | f(. + 1, . + 2)`, `null`, `4`, `4`)
+	// Recursion through a parameter that is not in tail position still
+	// hits the depth limit.
+	wantError(t, `def f(g): [g | f(g)]; 0 | f(. + 1)`, `null`, "exceeds depth limit of 10000")
 }

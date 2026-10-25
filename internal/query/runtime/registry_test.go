@@ -71,6 +71,29 @@ func TestRegistryLaterRegistrationWins(t *testing.T) {
 	wantEqual(t, got.Str(), "second")
 }
 
+func TestRegistryRecordsSingleOutputNatives(t *testing.T) {
+	var r Registry
+	r.RegisterSingle("length", 0, emitOne(value.Null()))
+	r.Register("range", 1, emitOne(value.Null()))
+	if !r.Single("length", 0) {
+		t.Fatal("length/0 should be single")
+	}
+	if _, ok := r.Lookup("length", 0); !ok {
+		t.Fatal("length/0 is missing")
+	}
+	if r.Single("range", 1) || r.Single("length", 1) {
+		t.Fatal("only length/0 should be single")
+	}
+	r.Register("length", 0, emitOne(value.Null()))
+	if r.Single("length", 0) {
+		t.Fatal("a later Register should clear single")
+	}
+	var nilReg *Registry
+	if nilReg.Single("length", 0) {
+		t.Fatal("a nil Registry has nothing single")
+	}
+}
+
 func TestRegistryNamesIncludeThePrelude(t *testing.T) {
 	var r Registry
 	r.Register("length", 0, emitOne(value.Null()))

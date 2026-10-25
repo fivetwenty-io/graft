@@ -20,7 +20,7 @@ type state struct {
 	reg   *runtime.Registry
 	roots []*value.Value
 	lits  map[*ast.Literal]*value.Value
-	tails map[*ast.Call]ast.Node
+	tails map[*ast.Call]tailSite
 	used  map[callKey]bool
 
 	labels uintptr

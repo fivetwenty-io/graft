@@ -12,6 +12,7 @@ import (
 // The zero value is empty and ready to use.
 type Registry struct {
 	natives map[nameArity]Native
+	single  map[nameArity]bool
 	prelude []ast.Node
 }
 
@@ -26,6 +27,25 @@ func (r *Registry) Register(name string, arity int, fn Native) {
 		r.natives = map[nameArity]Native{}
 	}
 	r.natives[nameArity{name, arity}] = fn
+	delete(r.single, nameArity{name, arity})
+}
+
+// RegisterSingle adds fn as name/arity like Register, and records that fn
+// emits at most once for each combination of its arguments' outputs and
+// returns as soon as that emit returns. A self call can then loop as a
+// tail call behind it, as in jq's until, so fn must not do anything after
+// its emit but return the emit's error.
+func (r *Registry) RegisterSingle(name string, arity int, fn Native) {
+	r.Register(name, arity, fn)
+	if r.single == nil {
+		r.single = map[nameArity]bool{}
+	}
+	r.single[nameArity{name, arity}] = true
+}
+
+// Single reports whether name/arity was added with RegisterSingle.
+func (r *Registry) Single(name string, arity int) bool {
+	return r != nil && r.single[nameArity{name, arity}]
 }
 
 // Lookup returns the native registered as name/arity.

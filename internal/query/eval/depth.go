@@ -46,10 +46,11 @@ func (ev evaluator) call(n *ast.Call, env *Env, in *value.Value, p value.Path, e
 }
 
 // invoke calls a definition. A call in tail position of the definition's
-// own body hands its frame back to runBody instead of nesting, so it takes
-// no depth. Every other call counts one level against the depth limit.
+// own body, whose guards each have one output here, hands its frame back
+// to runBody instead of nesting, so it takes no depth. Every other call
+// counts one level against the depth limit.
 func (ev evaluator) invoke(n *ast.Call, fn *Closure, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
-	if body, ok := ev.tails[n]; ok && body == fn.Body && in != nil {
+	if site, ok := ev.tails[n]; ok && site.body == fn.Body && in != nil && ev.guarded(site.guards, env) {
 		if tc, ok, err := ev.tailFrame(n, fn, env, in, p); ok || err != nil {
 			if tc == nil {
 				return err
