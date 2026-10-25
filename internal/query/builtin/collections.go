@@ -165,7 +165,7 @@ func indices(ctx *runtime.Ctx, in, x *value.Value) (*value.Value, error) {
 	case in.Kind() == value.KindArray:
 		return indicesOf(in.Elems(), []*value.Value{x}, ctx.Equal), nil
 	}
-	return Index(in, x)
+	return Index(ctx, in, x)
 }
 
 // stringIndices returns the codepoint offsets where sub starts in s,

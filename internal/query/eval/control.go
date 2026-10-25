@@ -317,7 +317,7 @@ func (ev evaluator) destructureObject(entries []ast.PatEntry, v *value.Value, en
 // element indexes v by key for destructuring, where a missing value is
 // null.
 func (ev evaluator) element(v, key *value.Value) (*value.Value, error) {
-	x, err := ev.ctx.Dialect.Index(v, key, runtime.IndexRead)
+	x, err := ev.ctx.Dialect.Index(ev.ctx, v, key, runtime.IndexRead)
 	if err != nil {
 		return nil, err
 	}

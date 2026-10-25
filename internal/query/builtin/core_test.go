@@ -181,14 +181,14 @@ func TestIndexAndSlice(t *testing.T) {
 		{value.Obj(value.Pair{Key: "a", Value: n(1)}), s("a"), "1"},
 		{arr, value.Obj(value.Pair{Key: "start", Value: n(1)}, value.Pair{Key: "end", Value: value.Null()}), "[2,3]"},
 	} {
-		got, err := builtin.Index(c.c, c.key)
+		got, err := builtin.Index(exact(), c.c, c.key)
 		if err != nil || runtime.JSON(got) != c.want {
 			t.Errorf("Index(%s, %s): got %v, %v", runtime.JSON(c.c), runtime.JSON(c.key), got, err)
 		}
 	}
-	_, err := builtin.Index(s("abc"), n(0))
+	_, err := builtin.Index(exact(), s("abc"), n(0))
 	wantFail(t, err, `Cannot index string with number (0)`)
-	_, err = builtin.Index(value.Obj(), n(0))
+	_, err = builtin.Index(exact(), value.Obj(), n(0))
 	wantFail(t, err, `Cannot index object with number (0)`)
 	got, err := builtin.Slice(s("aéb"), n(1), value.Null())
 	if err != nil || got.Str() != "éb" {
@@ -233,7 +233,7 @@ func TestDelPathsResolvesAgainstTheOriginal(t *testing.T) {
 func TestEditorCopiesEachContainerOnce(t *testing.T) {
 	inner := value.Arr(n(1), n(2))
 	root := value.Obj(value.Pair{Key: "a", Value: inner}, value.Pair{Key: "b", Value: n(0)})
-	ed := builtin.NewEditor(root)
+	ed := builtin.NewEditor(exact(), root)
 	for i, v := range []float64{10, 20} {
 		cur, err := ed.Get(value.Path{s("a"), n(float64(i))})
 		if err != nil {
@@ -257,11 +257,11 @@ func TestEditorCopiesEachContainerOnce(t *testing.T) {
 	if err := ed.Set(value.Path{s("b"), s("x")}, n(1)); err == nil {
 		t.Errorf("setting a key of a number did not fail")
 	}
-	got, err := builtin.SetPath(value.Arr(n(1)), value.Path{n(-1)}, n(5))
+	got, err := builtin.SetPath(exact(), value.Arr(n(1)), value.Path{n(-1)}, n(5))
 	if err != nil || runtime.JSON(got) != "[5]" {
 		t.Errorf("SetPath: got %v, %v", got, err)
 	}
-	_, err = builtin.SetPath(value.Arr(), value.Path{n(1 << 30)}, n(5))
+	_, err = builtin.SetPath(exact(), value.Arr(), value.Path{n(1 << 30)}, n(5))
 	wantFail(t, err, `Array index too large`)
 }
 

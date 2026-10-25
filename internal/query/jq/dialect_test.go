@@ -23,6 +23,10 @@ func TestJQTruthinessAndErrors(t *testing.T) {
 func TestJQIndexing(t *testing.T) {
 	wantOutputs(t, `.[-0.5], .[-1.5], .[1.7], .[nan]`, `[1,2,3]`, `1`, `3`, `2`, `null`)
 	wantOutputs(t, `.[[]], .[[1,2]]`, `[1,2,1,2]`, `[]`, `[0,2]`)
+	// An array key finds its matches with the run's equality, so numbers
+	// that only differ past a double's precision match under float numbers.
+	wantOutputs(t, `.[[100000000000000000001]], getpath([[100000000000000000001]])`, `[100000000000000000000,100000000000000000001]`, `[1]`, `[1]`)
+	wantOutputsFloat(t, `.[[100000000000000000001]], getpath([[100000000000000000001]])`, `[100000000000000000000,100000000000000000001]`, `[0,1]`, `[0,1]`)
 	wantOutputs(t, `.[1.2:2.5], .[-2:], .[:1]`, `[1,2,3,4]`, `[2,3]`, `[3,4]`, `[1]`)
 	wantOutputs(t, `.[1:], .[:-1]`, `"aéb"`, `"éb"`, `"aé"`)
 	wantOutputs(t, `.a, .[0], .[1:]`, `null`, `null`, `null`, `null`)

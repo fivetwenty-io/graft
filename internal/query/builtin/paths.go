@@ -12,18 +12,18 @@ import (
 const maxArrayIndex = 1 << 29
 
 func registerPaths(r *runtime.Registry) {
-	binary(r, "getpath", func(_ *runtime.Ctx, in, path *value.Value) (*value.Value, error) {
+	binary(r, "getpath", func(ctx *runtime.Ctx, in, path *value.Value) (*value.Value, error) {
 		if path.Kind() != value.KindArray {
 			return nil, fail("Path must be specified as an array")
 		}
-		return GetPath(in, path.Elems())
+		return GetPath(ctx, in, path.Elems())
 	})
-	r.RegisterSingle("setpath", 2, func(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
+	r.RegisterSingle("setpath", 2, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return cartesian(in, args, func(vals []*value.Value) error {
 			if vals[0].Kind() != value.KindArray {
 				return fail("Path must be specified as an array")
 			}
-			out, err := SetPath(in, vals[0].Elems(), vals[1])
+			out, err := SetPath(ctx, in, vals[0].Elems(), vals[1])
 			if err != nil {
 				return err
 			}
@@ -48,11 +48,12 @@ func registerPaths(r *runtime.Registry) {
 // Index is jq's .[key]. A null input gives null for a string, a number,
 // or an object key, an object gives the value under a string key, and an
 // array gives the element at a number, the slice at a slice object, or
-// the indices where an array key starts. It returns nil, nil for no
-// output, which jq's index never asks for.
+// the indices where an array key starts, matching elements with
+// ctx.Equal. It returns nil, nil for no output, which jq's index never
+// asks for.
 //
 //nolint:gocyclo // one case for each container and key kind jq indexes
-func Index(c, key *value.Value) (*value.Value, error) {
+func Index(ctx *runtime.Ctx, c, key *value.Value) (*value.Value, error) {
 	ck, kk := c.Kind(), key.Kind()
 	if kk == value.KindObject && ck != value.KindObject && ck != value.KindNull {
 		start, end, ok := value.IsSliceComponent(key)
@@ -81,7 +82,7 @@ func Index(c, key *value.Value) (*value.Value, error) {
 		}
 		return value.Null(), nil
 	case ck == value.KindArray && kk == value.KindArray:
-		return indicesOf(c.Elems(), key.Elems(), value.Equal), nil
+		return indicesOf(c.Elems(), key.Elems(), ctx.Equal), nil
 	}
 	return nil, fail("Cannot index %s with %s", runtime.TypeName(c), describe(key))
 }
@@ -175,13 +176,13 @@ func sliceBounds(n int, start, end *value.Value) (int, int) {
 }
 
 // GetPath is jq's getpath. A null anywhere along the path gives null.
-func GetPath(v *value.Value, path value.Path) (*value.Value, error) {
+func GetPath(ctx *runtime.Ctx, v *value.Value, path value.Path) (*value.Value, error) {
 	for _, c := range path {
 		if v.Kind() == value.KindNull {
 			return value.Null(), nil
 		}
 		var err error
-		if v, err = Index(v, c); err != nil {
+		if v, err = Index(ctx, v, c); err != nil {
 			return nil, err
 		}
 	}
@@ -190,8 +191,8 @@ func GetPath(v *value.Value, path value.Path) (*value.Value, error) {
 
 // SetPath is jq's setpath. A null along the way becomes the container its
 // key asks for, and an index past the end of an array pads it with nulls.
-func SetPath(v *value.Value, path value.Path, nv *value.Value) (*value.Value, error) {
-	e := NewEditor(v)
+func SetPath(ctx *runtime.Ctx, v *value.Value, path value.Path, nv *value.Value) (*value.Value, error) {
+	e := NewEditor(ctx, v)
 	if err := e.Set(path, nv); err != nil {
 		return nil, err
 	}
@@ -246,7 +247,7 @@ func delSorted(ctx *runtime.Ctx, v *value.Value, paths []value.Path) (*value.Val
 			if err := deletable(v, key); err != nil {
 				return nil, err
 			}
-			child, err := Index(v, key)
+			child, err := Index(ctx, v, key)
 			if err != nil {
 				return nil, err
 			}
@@ -259,7 +260,7 @@ func delSorted(ctx *runtime.Ctx, v *value.Value, paths []value.Path) (*value.Val
 				return nil, err
 			}
 			if kept != child {
-				if v, err = SetPath(v, value.Path{key}, kept); err != nil {
+				if v, err = SetPath(ctx, v, value.Path{key}, kept); err != nil {
 					return nil, err
 				}
 			}
@@ -335,6 +336,7 @@ func deleteKeys(v *value.Value, keys []*value.Value) (*value.Value, error) {
 // Value seals every open container from the leaves up. So `.[] |= f` over
 // n elements copies the array once rather than n times.
 type Editor struct {
+	ctx  *runtime.Ctx
 	root slot
 }
 
@@ -357,9 +359,9 @@ type openNode struct {
 	elems []slot
 }
 
-// NewEditor starts editing v.
-func NewEditor(v *value.Value) *Editor {
-	return &Editor{root: slot{v: v}}
+// NewEditor starts editing v under the run's context.
+func NewEditor(ctx *runtime.Ctx, v *value.Value) *Editor {
+	return &Editor{ctx: ctx, root: slot{v: v}}
 }
 
 // Value seals the edits so far and returns the result. The editor can go
@@ -373,11 +375,11 @@ func (e *Editor) Get(path value.Path) (*value.Value, error) {
 	s := &e.root
 	for i, c := range path {
 		if s.n == nil {
-			return GetPath(s.v, path[i:])
+			return GetPath(e.ctx, s.v, path[i:])
 		}
 		kid, ok := s.n.child(c, false)
 		if !ok {
-			return GetPath(s.seal(), path[i:])
+			return GetPath(e.ctx, s.seal(), path[i:])
 		}
 		s = kid
 	}

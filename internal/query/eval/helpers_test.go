@@ -42,7 +42,7 @@ func (d *testDialect) Truthy(v *value.Value) bool {
 	return k != value.KindNull && k != value.KindFalse
 }
 
-func (d *testDialect) Index(c, key *value.Value, _ runtime.IndexMode) (*value.Value, error) {
+func (d *testDialect) Index(_ *runtime.Ctx, c, key *value.Value, _ runtime.IndexMode) (*value.Value, error) {
 	return indexJQ(c, key)
 }
 

@@ -48,8 +48,8 @@ func (*Dialect) Compare(a, b *value.Value) int { return value.Compare(a, b) }
 
 // Index is jq's .[key]. jq's index raises the same errors in every mode,
 // and the evaluator drops them for the optional forms.
-func (*Dialect) Index(container, key *value.Value, _ runtime.IndexMode) (*value.Value, error) {
-	return builtin.Index(container, key)
+func (*Dialect) Index(ctx *runtime.Ctx, container, key *value.Value, _ runtime.IndexMode) (*value.Value, error) {
+	return builtin.Index(ctx, container, key)
 }
 
 // Iterate emits an array's elements with their indices and an object's
@@ -128,7 +128,7 @@ func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, 
 				yield(nil, err)
 				return
 			}
-			out, err := setAll(root, paths, v, mode)
+			out, err := setAll(ctx, root, paths, v, mode)
 			if !yield(out, err) || err != nil {
 				return
 			}
@@ -136,8 +136,8 @@ func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, 
 	}
 }
 
-func setAll(root *value.Value, paths []value.Path, v *value.Value, mode runtime.AssignMode) (*value.Value, error) {
-	ed := builtin.NewEditor(root)
+func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Value, mode runtime.AssignMode) (*value.Value, error) {
+	ed := builtin.NewEditor(ctx, root)
 	for _, p := range paths {
 		nv := v
 		if mode.Arith() {
@@ -157,7 +157,7 @@ func setAll(root *value.Value, paths []value.Path, v *value.Value, mode runtime.
 }
 
 func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error]) (*value.Value, error) {
-	ed := builtin.NewEditor(root)
+	ed := builtin.NewEditor(ctx, root)
 	var dels []value.Path
 	// One yield serves every path, so taking the first output costs no
 	// allocation per path.

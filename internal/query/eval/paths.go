@@ -79,7 +79,7 @@ func (ev evaluator) lookup(v *value.Value, vp value.Path, key *value.Value, opt 
 	if opt && mode == runtime.IndexRead {
 		mode = runtime.IndexOptional
 	}
-	out, err := ev.ctx.Dialect.Index(v, key, mode)
+	out, err := ev.ctx.Dialect.Index(ev.ctx, v, key, mode)
 	if err != nil {
 		if opt && catchable(err) {
 			return nil

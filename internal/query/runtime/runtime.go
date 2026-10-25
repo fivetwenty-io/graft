@@ -118,9 +118,9 @@ type Dialect interface {
 	Capabilities() Capabilities
 	Truthy(v *value.Value) bool
 	Compare(a, b *value.Value) int
-	// Index returns container[key], and nil with no error when there is
-	// no output.
-	Index(container, key *value.Value, mode IndexMode) (*value.Value, error)
+	// Index returns container[key] under the run's context, and nil with
+	// no error when there is no output.
+	Index(ctx *Ctx, container, key *value.Value, mode IndexMode) (*value.Value, error)
 	Iterate(v *value.Value, emit func(key, elem *value.Value) error) error
 	// Recurse emits v and everything under it, each with its path
 	// relative to v.

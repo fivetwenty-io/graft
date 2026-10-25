@@ -185,10 +185,10 @@ func extendPath(p value.Path, c *value.Value) value.Path {
 // fromstream rebuilds values from the stream events f emits. An event
 // with a value sets it at its path, a top-level scalar is complete at
 // once, and a closing event one level deep completes the value.
-func fromstream(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
+func fromstream(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 	var ed *Editor
 	return args[0].Each(in, func(ev *value.Value, _ value.Path) error {
-		pv, err := Index(ev, value.Num(0))
+		pv, err := Index(ctx, ev, value.Num(0))
 		if err != nil {
 			return err
 		}
@@ -197,7 +197,7 @@ func fromstream(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runt
 		}
 		path := pv.Elems()
 		if ev.Len() > 1 {
-			leaf, err := Index(ev, value.Num(1))
+			leaf, err := Index(ctx, ev, value.Num(1))
 			if err != nil {
 				return err
 			}
@@ -206,7 +206,7 @@ func fromstream(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runt
 				return emit(leaf, nil)
 			}
 			if ed == nil {
-				ed = NewEditor(value.Null())
+				ed = NewEditor(ctx, value.Null())
 			}
 			return ed.Set(path, leaf)
 		}
