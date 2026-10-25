@@ -1,4 +1,4 @@
-package graft
+package sortkeys
 
 import (
 	"math"
