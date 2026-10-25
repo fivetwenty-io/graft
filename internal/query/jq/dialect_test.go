@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/query/jq"
+	"github.com/fivetwenty-io/graft/internal/query/runtime"
 	"github.com/fivetwenty-io/graft/pkg/query"
+	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
 func TestJQTruthinessAndErrors(t *testing.T) {
@@ -48,6 +50,33 @@ func TestJQAssignment(t *testing.T) {
 	wantError(t, `.[1] = 1`, `{}`, `Cannot index object with number (1)`)
 	wantError(t, `.[1:] = 1`, `[1]`, `A slice of an array can only be assigned another array`)
 	wantOutputs(t, `with_entries(.value += 1)`, `{"a":1}`, `{"a":2}`)
+}
+
+func TestUpdateDeletesUnderTheCallersContext(t *testing.T) {
+	// The paths an update deletes are sorted with the run's own context,
+	// so its number mode applies there too.
+	p, err := jq.Compile(`.[] |= empty`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := runtime.NewCtx(jq.New(), runtime.NumbersExact)
+	compared := 0
+	compare := ctx.Compare
+	ctx.Compare = func(a, b *value.Value) int {
+		compared++
+		return compare(a, b)
+	}
+	var got []string
+	err = p.Run(ctx, p.Env, []*value.Value{mustJSON(t, `[1,2,3]`)}, func(v *value.Value, _ value.Path) error {
+		got = append(got, runtime.JSON(v))
+		return nil
+	})
+	if err != nil || strings.Join(got, " ") != "[]" {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	if compared == 0 {
+		t.Errorf("the final delete did not compare paths through the run's context")
+	}
 }
 
 func TestAssignUsesBuildersOncePerContainer(t *testing.T) {

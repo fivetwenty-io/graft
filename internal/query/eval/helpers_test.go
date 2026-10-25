@@ -93,7 +93,7 @@ func (d *testDialect) Recurse(v *value.Value, _ bool, emit func(*value.Value, va
 	return walk(v, value.Path{})
 }
 
-func (d *testDialect) Assign(root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
+func (d *testDialect) Assign(_ *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
 	return func(yield func(*value.Value, error) bool) {
 		if mode.Op() == runtime.AssignUpdate.Op() {
 			out, err := updatePaths(root, paths, rhs)

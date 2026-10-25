@@ -32,7 +32,7 @@ func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Pat
 		if err != nil {
 			return err
 		}
-		for out, err := range ev.ctx.Dialect.Assign(root, paths, rhs, mode) {
+		for out, err := range ev.ctx.Dialect.Assign(ev.ctx, root, paths, rhs, mode) {
 			if err != nil {
 				return err
 			}

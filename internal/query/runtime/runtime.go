@@ -127,7 +127,7 @@ type Dialect interface {
 	Recurse(v *value.Value, includeKeys bool, emit func(*value.Value, value.Path) error) error
 	// Assign runs an assignment over the paths the left side produced
 	// against root, and yields each resulting root. rhs runs the right
-	// side against a value.
-	Assign(root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error], mode AssignMode) iter.Seq2[*value.Value, error]
+	// side against a value. ctx is the run's context.
+	Assign(ctx *Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error], mode AssignMode) iter.Seq2[*value.Value, error]
 	FormatError(err error) string
 }
