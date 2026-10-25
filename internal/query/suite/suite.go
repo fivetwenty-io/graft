@@ -19,20 +19,33 @@ import (
 
 // Result is how one case went. Got holds the outputs the program produced
 // as compact JSON, and Err says what was wrong when the case did not pass.
+// Malformed marks a case that could not be judged as a test, such as a
+// program that does not compile or a case with too few results, and it
+// also counts as a failure. Skipped marks a case Run did not run.
 type Result struct {
 	Case      Case
 	Pass      bool
 	Got       []string
 	Err       string
-	malformed bool
+	Malformed bool
+	Skipped   bool
 }
 
 // Run runs every case under dialect d, writes jq's line for each case and
 // each failure to w, then writes the summary. A malformed case counts as a
-// failure, and the summary says how many there were.
+// failure, and the summary says how many there were. A case with Skip set
+// is not run and counts as neither a pass nor a failure. A %%FAIL case
+// passes only when the program fails to compile, as it does in jq, so a
+// program that compiles and then raises an error does not satisfy it.
 func Run(cases []Case, d runtime.Dialect, w io.Writer) (pass, fail int, results []Result) {
-	malformed := 0
+	malformed, skipped := 0, 0
 	for i, c := range cases {
+		if c.Skip != "" {
+			skipped++
+			_, _ = fmt.Fprintf(w, "Test #%d: '%s' at line number %d skipped: %s\n", i+1, c.Program, c.Line, c.Skip)
+			results = append(results, Result{Case: c, Skipped: true})
+			continue
+		}
 		_, _ = fmt.Fprintf(w, "Test #%d: '%s' at line number %d\n", i+1, c.Program, c.Line)
 		res := runCase(c, d)
 		if res.Pass {
@@ -41,12 +54,12 @@ func Run(cases []Case, d runtime.Dialect, w io.Writer) (pass, fail int, results 
 			fail++
 			_, _ = fmt.Fprintln(w, res.Err)
 		}
-		if res.malformed {
+		if res.Malformed {
 			malformed++
 		}
 		results = append(results, res)
 	}
-	_, _ = fmt.Fprintf(w, "%d of %d tests passed (%d malformed, %d skipped)\n", pass, pass+fail, malformed, 0)
+	_, _ = fmt.Fprintf(w, "%d of %d tests passed (%d malformed, %d skipped)\n", pass, pass+fail, malformed, skipped)
 	return pass, fail, results
 }
 
@@ -55,29 +68,23 @@ func runCase(c Case, d runtime.Dialect) Result {
 	prog, err := jq.Compile(c.Program)
 	if err != nil {
 		if !c.WantFail {
-			res.malformed = true
+			res.Malformed = true
 			res.Err = fmt.Sprintf("*** Test program failed to compile at line %d: %s", c.Line, c.Program)
 			return res
 		}
 		return judgeFailure(res, d, err)
 	}
-	input := value.Null()
-	if !c.WantFail {
-		input, err = parseJSON(c.Input)
-		if c.Input == "" || err != nil {
-			res.malformed = true
-			res.Err = fmt.Sprintf("*** Input is invalid at line number %d: %s", c.Line, c.Program)
-			return res
-		}
+	if c.WantFail {
+		res.Err = fmt.Sprintf("*** Test program compiled successfully, but should fail at line number %d: %s", c.Line, c.Program)
+		return res
+	}
+	input, err := parseJSON(c.Input)
+	if c.Input == "" || err != nil {
+		res.Malformed = true
+		res.Err = fmt.Sprintf("*** Input is invalid at line number %d: %s", c.Line, c.Program)
+		return res
 	}
 	runErr := execute(prog, d, input, func(v *value.Value) { res.Got = append(res.Got, compact(v)) })
-	if c.WantFail {
-		if runErr == nil {
-			res.Err = fmt.Sprintf("*** Test program was expected to fail at line number %d: %s", c.Line, c.Program)
-			return res
-		}
-		return judgeFailure(res, d, runErr)
-	}
 	return judgeOutputs(res, d, runErr)
 }
 
@@ -102,7 +109,7 @@ func judgeOutputs(res Result, d runtime.Dialect, runErr error) Result {
 		}
 		want, err := parseJSON(c.Want[i])
 		if err != nil {
-			res.malformed = true
+			res.Malformed = true
 			res.Err = fmt.Sprintf("*** Expected output is invalid at line number %d: %s", c.Line, c.Want[i])
 			return res
 		}
@@ -113,7 +120,7 @@ func judgeOutputs(res Result, d runtime.Dialect, runErr error) Result {
 		}
 	}
 	if len(res.Got) < len(c.Want) {
-		res.malformed = true
+		res.Malformed = true
 		res.Err = fmt.Sprintf("*** Insufficient results for test at line number %d: %s", c.Line, c.Program)
 		return res
 	}

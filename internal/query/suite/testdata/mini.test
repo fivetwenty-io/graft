@@ -1,0 +1,26 @@
+# A small suite in jq's .test format. Every case is our own.
+
+.a
+{"a":1}
+1
+
+.[]
+[1,2]
+1
+2
+
+.
+{"a":1,"b":2}
+{"b":2,"a":1}
+
+.a.b
+{"a":{"b":[1]}}
+[1]
+
+%%FAIL
+foo
+jq: error: foo/0 is not defined at <top-level>, line 1, column 1:
+
+%%FAIL IGNORE MSG
+}
+whatever

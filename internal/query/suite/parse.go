@@ -21,6 +21,9 @@ type Case struct {
 	WantMsg   string
 	IgnoreMsg bool
 	Line      int
+	// Skip is a reason to leave the case out. Run reports it as skipped
+	// and counts it as neither a pass nor a failure.
+	Skip string
 }
 
 const failMarker = "%%FAIL"
@@ -105,6 +108,9 @@ func ReadAllowlist(r io.Reader) (map[string]string, error) {
 			continue
 		}
 		key, reason, _ := strings.Cut(line, " ")
+		if k, r, ok := strings.Cut(key, "\t"); ok {
+			key, reason = k, r+" "+reason
+		}
 		list[key] = strings.TrimSpace(reason)
 	}
 	return list, sc.Err()

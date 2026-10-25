@@ -84,16 +84,18 @@ func TestRunCountsMalformedCases(t *testing.T) {
 
 func TestRunFailCases(t *testing.T) {
 	var out bytes.Buffer
-	src := "%%FAIL\n{(0):1}\njq: error: Cannot use number (0) as object key at <top-level>, line 1, column 3:\n\n" +
-		"%%FAIL\n{(0):1}\njq: error: wrong\n\n" +
+	src := "%%FAIL\nfoo\njq: error: foo/0 is not defined at <top-level>, line 1, column 1:\n\n" +
+		"%%FAIL\nfoo\njq: error: wrong\n\n" +
 		"%%FAIL IGNORE MSG\n.a.[\nwhatever\n\n" +
 		"%%FAIL\nerror(\"x\")\njq: error (at <unknown>): x\n\n" +
 		"%%FAIL\n.\njq: error: nothing\n"
 	pass, fail, res := Run(mustParseSuite(t, src), jq.New(), &out)
-	wantEqual(t, pass, 3)
-	wantEqual(t, fail, 2)
-	wantContains(t, out.String(), "but expected 'jq: error: wrong' at line number 6: {(0):1}")
-	wantContains(t, out.String(), "was expected to fail")
+	wantEqual(t, pass, 2)
+	wantEqual(t, fail, 3)
+	wantContains(t, out.String(), "but expected 'jq: error: wrong' at line number 6: foo")
+	wantContains(t, out.String(), "*** Test program compiled successfully, but should fail at line number 14")
+	wantContains(t, out.String(), "*** Test program compiled successfully, but should fail at line number 18")
+	wantEqual(t, res[3].Pass, false) // a runtime error does not satisfy %%FAIL, only a compile error does
 	wantEqual(t, res[1].Pass, false)
 	wantContains(t, res[1].Err, "wrong")
 }
@@ -127,4 +129,22 @@ func TestReadAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantEqual(t, m, map[string]string{"jq.test:12": "uses ltrimstr on numbers", "other.test:7": ""})
+	m, err = ReadAllowlist(strings.NewReader("jq.test:3\tbecause\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, m, map[string]string{"jq.test:3": "because"})
+}
+
+func TestRunSkipsAndExportsMalformed(t *testing.T) {
+	var out bytes.Buffer
+	cases := mustParseSuite(t, ".a\n{\"a\":1}\n2\n\n.[]\n[1]\n1\n2\n\n.\n1\n1\n")
+	cases[0].Skip = "known difference"
+	pass, fail, res := Run(cases, jq.New(), &out)
+	wantEqual(t, pass, 1)
+	wantEqual(t, fail, 1)
+	wantEqual(t, res[0].Skipped, true)
+	wantEqual(t, res[0].Pass, false)
+	wantEqual(t, res[1].Malformed, true)
+	wantContains(t, out.String(), "1 of 2 tests passed (1 malformed, 1 skipped)")
 }
