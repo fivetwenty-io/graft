@@ -36,20 +36,58 @@ type evaluator struct {
 	mode  runtime.IndexMode
 }
 
+// Program is a parsed program ready to run any number of times. Env is
+// the environment it runs in, which holds the prelude and any variables
+// bound when it was compiled. The self calls in tail position of the
+// program and of the registry's prelude are found once here, not on every
+// run.
+type Program struct {
+	Node  ast.Node
+	Env   *Env
+	tails map[*ast.Call]tailSite
+}
+
+// NewProgram returns node ready to run in env, whose prelude is reg's. A
+// nil reg has no prelude.
+func NewProgram(node ast.Node, env *Env, reg *runtime.Registry) *Program {
+	progs := []ast.Node{node}
+	if reg != nil {
+		progs = append(progs, reg.Prelude()...)
+	}
+	return &Program{Node: node, Env: env, tails: tailSites(progs...)}
+}
+
+// Run is the package Run for the compiled program. env is usually p.Env
+// with the caller's variables bound on top.
+func (p *Program) Run(ctx *runtime.Ctx, env *Env, roots []*value.Value, emit runtime.Emit) error {
+	return run(newEvaluator(ctx, roots, p.tails, false), p.Node, env, emit)
+}
+
+// RunPaths is the package RunPaths for the compiled program.
+func (p *Program) RunPaths(ctx *runtime.Ctx, env *Env, roots []*value.Value, emit runtime.Emit) error {
+	return runPaths(newEvaluator(ctx, roots, p.tails, true), p.Node, env, emit)
+}
+
 // Run evaluates prog against roots and passes every output to emit. A
 // single root is the input. More than one root forms a candidate set, and
 // each node that reads its input runs once for every root.
 func Run(ctx *runtime.Ctx, prog ast.Node, env *Env, roots []*value.Value, emit runtime.Emit) error {
-	ev := newEvaluator(ctx, prog, roots, false, runtime.IndexRead)
-	return unwrapDownstream(ev.eval(prog, env, ev.input(), nil, emit))
+	return run(newEvaluator(ctx, roots, programTails(ctx, prog), false), prog, env, emit)
 }
 
 // RunPaths is Run in path mode. It passes emit each output with its path,
 // and it fails when an output is not a path into the input.
 func RunPaths(ctx *runtime.Ctx, prog ast.Node, env *Env, roots []*value.Value, emit runtime.Emit) error {
-	ev := newEvaluator(ctx, prog, roots, true, runtime.IndexRead)
+	return runPaths(newEvaluator(ctx, roots, programTails(ctx, prog), true), prog, env, emit)
+}
+
+func run(ev evaluator, prog ast.Node, env *Env, emit runtime.Emit) error {
+	return unwrapDownstream(ev.eval(prog, env, ev.input(), nil, emit))
+}
+
+func runPaths(ev evaluator, prog ast.Node, env *Env, emit runtime.Emit) error {
 	var root value.Path
-	if len(roots) == 1 {
+	if len(ev.roots) == 1 {
 		root = value.Path{}
 	}
 	err := ev.eval(prog, env, ev.input(), root, func(v *value.Value, p value.Path) error {
@@ -61,22 +99,32 @@ func RunPaths(ctx *runtime.Ctx, prog ast.Node, env *Env, roots []*value.Value, e
 	return unwrapDownstream(err)
 }
 
-func newEvaluator(ctx *runtime.Ctx, prog ast.Node, roots []*value.Value, paths bool, mode runtime.IndexMode) evaluator {
+// programTails finds the tail sites of prog and of the dialect's prelude
+// for a run that was not compiled into a Program.
+func programTails(ctx *runtime.Ctx, prog ast.Node) map[*ast.Call]tailSite {
+	var reg *runtime.Registry
+	if ctx.Dialect != nil {
+		reg = ctx.Dialect.Builtins()
+	}
+	return NewProgram(prog, nil, reg).tails
+}
+
+func newEvaluator(ctx *runtime.Ctx, roots []*value.Value, tails map[*ast.Call]tailSite, paths bool) evaluator {
 	st := &state{
 		ctx:   ctx,
 		roots: roots,
 		lits:  map[*ast.Literal]*value.Value{},
 		reg:   &runtime.Registry{},
+		tails: tails,
 		used:  map[callKey]bool{},
 	}
 	if ctx.Dialect != nil {
 		st.reg = ctx.Dialect.Builtins()
 	}
-	st.tails = tailSites(append([]ast.Node{prog}, st.reg.Prelude()...)...)
 	if len(roots) == 1 {
 		ctx.Cursor = &runtime.Cursor{Root: roots[0]}
 	}
-	return evaluator{state: st, paths: paths, mode: mode}
+	return evaluator{state: st, paths: paths, mode: runtime.IndexRead}
 }
 
 // input is the program's input, which is nil for a candidate set.

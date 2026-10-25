@@ -3,6 +3,8 @@ package eval
 import (
 	"strings"
 	"testing"
+
+	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
 func TestClosuresAndRecursion(t *testing.T) {
@@ -66,4 +68,32 @@ func TestLongWalksHonorTheDeadline(t *testing.T) {
 	wantErrorWithCtx(t, ctxCancelled(), `reduce .[] as $x (0; $x)`, big, "context canceled")
 	wantErrorWithCtx(t, ctxCancelled(), `reduce range(5000) as $x (0; $x)`, `null`, "context canceled")
 	wantErrorWithCtx(t, ctxCancelled(), `[foreach range(5000) as $x (0; $x)]`, `null`, "context canceled")
+}
+
+func TestProgramFindsTailSitesOnce(t *testing.T) {
+	ctx := ctxWithDepth(50)
+	reg := ctx.Dialect.Builtins()
+	prog := NewProgram(mustParse(t, `def f: if . >= 1000 then . else . + 1 | f end; f`), NewEnv(reg), reg)
+	if len(prog.tails) != 1 {
+		t.Fatalf("tail sites = %d, want 1", len(prog.tails))
+	}
+	for _, in := range []string{`0`, `500`} {
+		var got []*value.Value
+		err := prog.Run(ctx, prog.Env, []*value.Value{mustJSON(t, in)}, func(v *value.Value, _ value.Path) error {
+			got = append(got, v)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("run on %s: %v", in, err)
+		}
+		wantEqual(t, "f", got, []string{`1000`})
+	}
+	var paths []string
+	err := prog.RunPaths(ctx, prog.Env, []*value.Value{mustJSON(t, `1000`)}, func(_ *value.Value, p value.Path) error {
+		paths = append(paths, dump(value.Arr(p...)))
+		return nil
+	})
+	if err != nil || strings.Join(paths, " ") != "[]" {
+		t.Fatalf("paths = %v, %v; want [[]]", paths, err)
+	}
 }
