@@ -87,7 +87,7 @@ func step(v, k *value.Value) (*value.Value, bool) {
 		}
 		return value.Null(), true
 	case v.Kind() == value.KindArray && k.Kind() == value.KindNumber:
-		if f := math.Floor(k.Float()); math.Abs(f) <= 1<<53 {
+		if f := math.Trunc(k.Float()); math.Abs(f) <= 1<<53 {
 			if e, ok := v.Index(int(f)); ok {
 				return e, true
 			}

@@ -54,6 +54,7 @@ func TestCursorNodeFollowsGetpathRules(t *testing.T) {
 	wantEqual(t, at(value.Num(7)).Str(), "seven") // a non-string key, as yq loads it
 	wantEqual(t, at(value.Str("a"), value.Str("b"), value.Num(-1)).Float(), 2.0)
 	wantEqual(t, at(value.Str("a"), value.Str("b"), value.Num(1.5)).Float(), 2.0)
+	wantEqual(t, at(value.Str("a"), value.Str("b"), value.Num(-1.5)).Float(), 2.0) // truncated, as getpath does
 	wantEqual(t, at(value.Str("missing")).Kind(), value.KindNull)
 	wantEqual(t, at(value.Str("missing"), value.Str("deeper")).Kind(), value.KindNull)
 	wantEqual(t, at(value.Str("a"), value.Str("b"), value.Num(9)).Kind(), value.KindNull)
