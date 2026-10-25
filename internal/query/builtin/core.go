@@ -29,6 +29,7 @@ func RegisterCore(r *runtime.Registry) {
 	registerStrings(r)
 	registerCollections(r)
 	registerStreams(r)
+	registerFormats(r)
 }
 
 func registerCore(r *runtime.Registry) {

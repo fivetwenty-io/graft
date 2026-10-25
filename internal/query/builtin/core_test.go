@@ -82,7 +82,7 @@ func TestRegisterCoreMarksSingleNatives(t *testing.T) {
 	}{
 		{"length", 0}, {"keys", 0}, {"has", 1}, {"_plus", 2}, {"_negate", 0}, {"setpath", 2},
 		{"getpath", 1}, {"delpaths", 1}, {"tostring", 0}, {"error", 1}, {"isempty", 1},
-		{"sort", 0}, {"_sort_by", 1}, {"split", 1}, {"pow", 2},
+		{"sort", 0}, {"_sort_by", 1}, {"split", 1}, {"@csv", 0}, {"format", 1}, {"pow", 2},
 	} {
 		if !r.Single(na.name, na.arity) {
 			t.Errorf("%s/%d is not single", na.name, na.arity)
@@ -123,6 +123,7 @@ func TestNativesReturnEmitErrorsUnchanged(t *testing.T) {
 		{"limit", []runtime.Thunk{consts{n(2)}, consts{n(1), n(2)}}},
 		{"range", []runtime.Thunk{consts{n(0)}, consts{n(3)}}},
 		{"tostream", nil},
+		{"@sh", nil},
 	} {
 		fn, _ := r.Lookup(c.name, len(c.args))
 		err := fn(exact(), value.Arr(n(1)), c.args, func(*value.Value, value.Path) error { return stop })
