@@ -24,7 +24,11 @@ func registerMath(r *runtime.Registry) {
 			return nil, fail("%s cannot be negated", describe(in))
 		}
 		if ctx.Numbers == runtime.NumbersFloat {
-			return floatResult(-in.Float()), nil
+			// Negating a zero gives a positive zero, as jq does.
+			if f := in.Float(); f != 0 {
+				return floatResult(-f), nil
+			}
+			return floatResult(0), nil
 		}
 		return negate(in), nil
 	})

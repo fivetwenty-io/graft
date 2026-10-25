@@ -35,3 +35,10 @@ func TestNegatingLiterals(t *testing.T) {
 	wantOutputs(t, `map(-.) | tojson`, `[0.0, 0e5, -0.0, 0e-5, 1.50, -1.50]`, `"[0.0,0E+5,0.0,0.00000,-1.50,1.50]"`)
 	wantOutputs(t, `[.[] | -.] | tojson`, `[1e1000, -1e1000]`, `"[-1E+1000,1E+1000]"`)
 }
+
+func TestNegatingZeroInBothModes(t *testing.T) {
+	for _, run := range []func(*testing.T, string, string, ...string){wantOutputs, wantOutputsFloat} {
+		run(t, `[-0, (0 | -.), (0 * -1), (-1 * 0)] | tojson`, `null`, `"[0,0,-0,-0]"`)
+		run(t, `[., -., . * 1] | tojson`, `-0`, `"[-0,0,-0]"`)
+	}
+}
