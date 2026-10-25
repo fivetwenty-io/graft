@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 func TestFindWithNamedGroup(t *testing.T) {
@@ -289,6 +290,39 @@ func TestRepeatedClassesMatchAlike(t *testing.T) {
 	m, err := p.Find(context.Background(), "ss-x-SS", 0)
 	wantNil(t, err)
 	wantEqual(t, m, (*Match)(nil))
+}
+
+// Some runes have case partners without having a case mapping of their own,
+// such as ß, whose capital ẞ lowercases to it, and ΐ and ΰ, which share a
+// folding with U+1FD3 and U+1FE3. A caseless class holding one must match
+// the others.
+func TestCaselessClassesFoldRunesWithoutCaseMappings(t *testing.T) {
+	pairs := [][2]string{{"ß", "ẞ"}, {"\u0390", "\u1fd3"}, {"\u03b0", "\u1fe3"}}
+	for _, flavor := range []Flavor{PCRE, Oniguruma} {
+		for _, pair := range pairs {
+			for _, order := range [][2]string{pair, {pair[1], pair[0]}} {
+				p := MustCompile("^["+order[0]+"]$", WithFlavor(flavor), WithFlags(IgnoreCase))
+				wantMatch(t, p, order[1])
+			}
+		}
+	}
+}
+
+func TestFoldTableCoversEveryOrbit(t *testing.T) {
+	table := foldTable()
+	i := 0
+	for r := rune(0); r <= unicode.MaxRune; r++ {
+		partners := orbit(r)[1:]
+		if len(partners) == 0 {
+			continue
+		}
+		if i >= len(table) || table[i].r != r {
+			t.Fatalf("the fold table lacks %U", r)
+		}
+		wantEqual(t, table[i].partners[:table[i].n], partners)
+		i++
+	}
+	wantEqual(t, i, len(table))
 }
 
 func TestAnchors(t *testing.T) {

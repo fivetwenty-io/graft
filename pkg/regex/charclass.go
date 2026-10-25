@@ -195,22 +195,22 @@ type foldEntry struct {
 	partners [3]rune
 }
 
-// foldTable lists every rune with a case-fold partner, in order. Only runes
-// that have a case mapping can have one, so the table is built from
-// unicode.CaseRanges.
+// foldTable lists every rune with a case-fold partner, in order. A rune can
+// have a partner without having a case mapping of its own, as ß does, so
+// the table is built from every rune rather than from unicode.CaseRanges.
+// The scan stops at the last case range, since no rune above it has a
+// partner.
 var foldTable = sync.OnceValue(func() []foldEntry {
 	var table []foldEntry
-	for _, cr := range unicode.CaseRanges {
-		lo, hi := rune(cr.Lo), rune(cr.Hi)
-		for r := lo; r <= hi; r++ {
-			o := orbit(r)
-			if len(o) == 1 {
-				continue
-			}
-			e := foldEntry{r: r}
-			e.n = uint8(copy(e.partners[:], o[1:]))
-			table = append(table, e)
+	last := rune(unicode.CaseRanges[len(unicode.CaseRanges)-1].Hi)
+	for r := rune(0); r <= last; r++ {
+		o := orbit(r)
+		if len(o) == 1 {
+			continue
 		}
+		e := foldEntry{r: r}
+		e.n = uint8(copy(e.partners[:], o[1:]))
+		table = append(table, e)
 	}
 	return table
 })
