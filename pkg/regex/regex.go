@@ -101,17 +101,31 @@ func WithFlags(f Flags) Option {
 // Pattern is a compiled regular expression. A Pattern is safe for
 // concurrent use.
 type Pattern struct {
-	names []string // one per group, group 0 first, "" when unnamed
+	source   string
+	cfg      config
+	prog     []inst
+	names    []string // one per group, group 0 first, "" when unnamed
+	nslots   int      // capture slots followed by loop marks
+	anchored bool     // every match starts at the start of the subject
 }
 
 // Compile parses pattern and compiles it into a Pattern.
 func Compile(pattern string, opts ...Option) (*Pattern, error) {
 	cfg := newConfig(opts)
-	_, names, err := parse(pattern, cfg)
+	root, names, err := parse(pattern, cfg)
 	if err != nil {
 		return nil, err
 	}
-	return &Pattern{names: names}, nil
+	root = lower(root)
+	prog, marks := compile(root, len(names))
+	return &Pattern{
+		source:   pattern,
+		cfg:      *cfg,
+		prog:     prog,
+		names:    names,
+		nslots:   2*len(names) + marks,
+		anchored: anchoredAtStart(root),
+	}, nil
 }
 
 // MustCompile is like Compile but panics when the pattern does not compile.

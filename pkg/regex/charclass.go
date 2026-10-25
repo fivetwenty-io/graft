@@ -73,6 +73,14 @@ func (s runeSet) contains(r rune) bool {
 	return false
 }
 
+// single reports whether s holds exactly one rune, and which.
+func (s runeSet) single() (rune, bool) {
+	if len(s) == 1 && s[0].lo == s[0].hi {
+		return s[0].lo, true
+	}
+	return 0, false
+}
+
 func setOf(runes ...rune) runeSet {
 	rs := make([]runeRange, len(runes))
 	for i, r := range runes {

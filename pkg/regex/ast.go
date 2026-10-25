@@ -52,3 +52,57 @@ type node struct {
 
 // unbounded is a repeat's max when the repeat has no upper bound.
 const unbounded = -1
+
+// nullable reports whether n can match the empty string.
+func nullable(n *node) bool {
+	switch n.kind {
+	case kindLiteral:
+		return len(n.runes) == 0
+	case kindClass, kindAny:
+		return false
+	case kindConcat:
+		for _, s := range n.subs {
+			if !nullable(s) {
+				return false
+			}
+		}
+		return true
+	case kindAlternate:
+		for _, s := range n.subs {
+			if nullable(s) {
+				return true
+			}
+		}
+		return false
+	case kindRepeat:
+		return n.min == 0 || nullable(n.subs[0])
+	case kindGroup:
+		return nullable(n.subs[0])
+	default:
+		return true
+	}
+}
+
+// anchoredAtStart reports whether every match of n must begin at the start
+// of the subject, which lets a search try only that position.
+func anchoredAtStart(n *node) bool {
+	switch n.kind {
+	case kindAssert:
+		return n.assert == assertBeginText
+	case kindConcat:
+		return len(n.subs) > 0 && anchoredAtStart(n.subs[0])
+	case kindAlternate:
+		for _, s := range n.subs {
+			if !anchoredAtStart(s) {
+				return false
+			}
+		}
+		return len(n.subs) > 0
+	case kindGroup:
+		return anchoredAtStart(n.subs[0])
+	case kindRepeat:
+		return n.min > 0 && anchoredAtStart(n.subs[0])
+	default:
+		return false
+	}
+}
