@@ -18,8 +18,8 @@ const (
 
 // Style records how a node was written, with yaml.v3's meaning for each
 // flag. The flags combine, so !!str 'x' is both tagged and single-quoted.
-// The bits are in the order of value.StyleFlags, so the loader converts
-// one to the other directly.
+// The bits are in the order of value.StyleFlags, and the loader maps
+// each one to its value flag through a table.
 type Style uint8
 
 // The style flags. StyleTagged marks an explicit tag other than a bare

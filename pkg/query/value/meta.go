@@ -22,8 +22,9 @@ type Meta struct {
 	// Tag is the explicit tag as written, and empty when it was implied.
 	Tag   string
 	Style StyleFlags
-	// Text is the scalar's presentation text, for YAML round trips of
-	// spellings such as 0x10, 1_000, and .inf.
+	// Text is a scalar's text as written. The YAML loader sets it for
+	// every scalar, so round trips keep spellings such as 0x10, 1_000,
+	// and .inf.
 	Text string
 	// Anchor is the anchor this node defines, and AliasOf is the anchor
 	// an alias node refers to.
