@@ -56,6 +56,21 @@ func TestPrecedenceRowsRoundTrip(t *testing.T) {
 		`$x`:                                   `$x`,
 		`{(.a, .b): 1 | 2}`:                    `{((.a, .b)): (1 | 2)}`,
 		``:                                     `.`,
+		`- 1 as $x | $x + 10`:                  `(-1) as $x | ($x + 10)`,
+		`-"a" * 0`:                             `((-"a") * 0)`,
+		`- - 1`:                                `(-(-1))`,
+		`try 1 as $m | error("y")`:             `(try 1) as $m | error("y")`,
+		`try 1 catch . as $m | $m + 1`:         `(try 1 catch .) as $m | ($m + 1)`,
+		`1 + try 2`:                            `(1 + (try 2))`,
+		`{$k: 1}`:                              `{$k: 1}`,
+		`{a: 1 + 2, b: .c // 1, d: try 1}`:     `{a: (1 + 2), b: (.c // 1), d: try 1}`,
+		`module ({a:1}); 1`:                    `module {a: 1}; 1`,
+		`module {a:1} + {b:2}; 1`:              `module ({a: 1} + {b: 2}); 1`,
+		`. "a"`:                                `.["a"]`,
+		`.b.a?`:                                `(.b.a?)`,
+		`(.b.a)?`:                              `((.b.a))?`,
+		`1, def f: 1; f`:                       `(1, (def f: 1; f))`,
+		`1 | label $f | 2`:                     `(1 | (label $f | 2))`,
 	}
 	keys := make([]string, 0, len(cases))
 	for k := range cases {

@@ -159,3 +159,39 @@ func TestOptionalFieldHasOneShape(t *testing.T) {
 		t.Fatal("a parenthesized term should wrap in ast.Optional")
 	}
 }
+
+func TestNegationBindsBeforeAs(t *testing.T) {
+	b, ok := mustParse(t, `- 1 as $x | $x + 10`, JQ()).(*ast.Bind)
+	if !ok {
+		t.Fatalf("root = %T, want *ast.Bind", mustParse(t, `- 1 as $x | $x + 10`, JQ()))
+	}
+	u, ok := b.Src.(*ast.Unary)
+	if !ok {
+		t.Fatalf("bind source = %T, want *ast.Unary", b.Src)
+	}
+	wantEqual(t, u.Op, "-")
+	wantEqual(t, ast.Print(b.Body), `($x + 10)`)
+}
+
+func TestTryBindsAsWhole(t *testing.T) {
+	for _, src := range []string{`try 1 as $v | $v`, `try 1 catch . as $v | $v`} {
+		b, ok := mustParse(t, src, JQ()).(*ast.Bind)
+		if !ok {
+			t.Fatalf("%q root is not *ast.Bind", src)
+		}
+		if _, ok := b.Src.(*ast.Try); !ok {
+			t.Fatalf("%q bind source = %T, want *ast.Try", src, b.Src)
+		}
+	}
+}
+
+func TestObjectKeyFromVariable(t *testing.T) {
+	obj := mustParse(t, `{$k: 1}`, JQ()).(*ast.ObjectCons)
+	wantEqual(t, len(obj.Entries), 1)
+	k, ok := obj.Entries[0].Key.(*ast.Var)
+	if !ok {
+		t.Fatalf("key = %T, want *ast.Var", obj.Entries[0].Key)
+	}
+	wantEqual(t, k.Name, "k")
+	wantEqual(t, ast.Print(obj.Entries[0].Val), `1`)
+}
