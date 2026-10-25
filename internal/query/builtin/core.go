@@ -25,6 +25,7 @@ import (
 func RegisterCore(r *runtime.Registry) {
 	registerCore(r)
 	registerMath(r)
+	registerPaths(r)
 }
 
 func registerCore(r *runtime.Registry) {

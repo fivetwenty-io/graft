@@ -80,8 +80,8 @@ func TestRegisterCoreMarksSingleNatives(t *testing.T) {
 		name  string
 		arity int
 	}{
-		{"length", 0}, {"keys", 0}, {"has", 1}, {"_plus", 2}, {"_negate", 0}, {"tostring", 0},
-		{"error", 1}, {"pow", 2},
+		{"length", 0}, {"keys", 0}, {"has", 1}, {"_plus", 2}, {"_negate", 0}, {"setpath", 2},
+		{"getpath", 1}, {"delpaths", 1}, {"tostring", 0}, {"error", 1}, {"pow", 2},
 	} {
 		if !r.Single(na.name, na.arity) {
 			t.Errorf("%s/%d is not single", na.name, na.arity)
@@ -110,6 +110,104 @@ func TestNativesReturnEmitErrorsUnchanged(t *testing.T) {
 			t.Errorf("%s: got %v, want the emit's error itself", c.name, err)
 		}
 	}
+}
+
+func TestIndexAndSlice(t *testing.T) {
+	arr := value.Arr(n(1), n(2), n(3))
+	for _, c := range []struct {
+		c, key *value.Value
+		want   string
+	}{
+		{arr, n(-0.5), "1"},
+		{arr, n(-1.5), "3"},
+		{arr, n(5), "null"},
+		{arr, value.Arr(n(2), n(3)), "[1]"},
+		{value.Null(), s("a"), "null"},
+		{value.Obj(value.Pair{Key: "a", Value: n(1)}), s("a"), "1"},
+		{arr, value.Obj(value.Pair{Key: "start", Value: n(1)}, value.Pair{Key: "end", Value: value.Null()}), "[2,3]"},
+	} {
+		got, err := builtin.Index(c.c, c.key)
+		if err != nil || runtime.JSON(got) != c.want {
+			t.Errorf("Index(%s, %s): got %v, %v", runtime.JSON(c.c), runtime.JSON(c.key), got, err)
+		}
+	}
+	_, err := builtin.Index(s("abc"), n(0))
+	wantFail(t, err, `Cannot index string with number (0)`)
+	_, err = builtin.Index(value.Obj(), n(0))
+	wantFail(t, err, `Cannot index object with number (0)`)
+	got, err := builtin.Slice(s("aéb"), n(1), value.Null())
+	if err != nil || got.Str() != "éb" {
+		t.Errorf("string slice: got %v, %v", got, err)
+	}
+	got, err = builtin.Slice(arr, n(1.2), n(2.5))
+	if err != nil || runtime.JSON(got) != "[2,3]" {
+		t.Errorf("fractional slice: got %v, %v", got, err)
+	}
+	_, err = builtin.Slice(n(1), n(0), n(1))
+	wantFail(t, err, `Cannot index number with object ({"start":0,"end":1})`)
+}
+
+func TestDelPathsResolvesAgainstTheOriginal(t *testing.T) {
+	arr := value.Arr(n(1), n(2), n(3))
+	for _, c := range []struct {
+		paths []value.Path
+		want  string
+	}{
+		{[]value.Path{{n(-1)}, {n(-2)}}, "[1]"},
+		{[]value.Path{{n(0)}, {n(0)}}, "[2,3]"},
+		{[]value.Path{{n(0)}, {value.Obj(value.Pair{Key: "start", Value: n(1)}, value.Pair{Key: "end", Value: value.Null()})}}, "[]"},
+		{[]value.Path{{n(9)}}, "[1,2,3]"},
+		{nil, "[1,2,3]"},
+	} {
+		got, err := builtin.DelPaths(exact(), arr, c.paths)
+		if err != nil || runtime.JSON(got) != c.want {
+			t.Errorf("DelPaths: got %v, %v, want %s", got, err, c.want)
+		}
+	}
+	obj := value.Obj(value.Pair{Key: "a", Value: value.Obj(value.Pair{Key: "b", Value: n(1)})}, value.Pair{Key: "c", Value: n(2)})
+	got, err := builtin.DelPaths(exact(), obj, []value.Path{{s("a"), s("b")}, {s("c")}, {s("a"), s("x"), s("y")}})
+	if err != nil || runtime.JSON(got) != `{"a":{}}` {
+		t.Errorf("nested DelPaths: got %v, %v", got, err)
+	}
+	_, err = builtin.DelPaths(exact(), s("abc"), []value.Path{{n(0)}})
+	wantFail(t, err, `Cannot delete fields from string`)
+	_, err = builtin.DelPaths(exact(), obj, []value.Path{{n(0)}})
+	wantFail(t, err, `Cannot delete number field of object`)
+}
+
+func TestEditorCopiesEachContainerOnce(t *testing.T) {
+	inner := value.Arr(n(1), n(2))
+	root := value.Obj(value.Pair{Key: "a", Value: inner}, value.Pair{Key: "b", Value: n(0)})
+	ed := builtin.NewEditor(root)
+	for i, v := range []float64{10, 20} {
+		cur, err := ed.Get(value.Path{s("a"), n(float64(i))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ed.Set(value.Path{s("a"), n(float64(i))}, n(cur.Float()+v)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ed.Set(value.Path{s("c"), n(1)}, s("x")); err != nil {
+		t.Fatal(err)
+	}
+	got := ed.Value()
+	wantJSON := `{"a":[11,22],"b":0,"c":[null,"x"]}`
+	if runtime.JSON(got) != wantJSON {
+		t.Errorf("got %s, want %s", runtime.JSON(got), wantJSON)
+	}
+	if runtime.JSON(root) != `{"a":[1,2],"b":0}` || runtime.JSON(inner) != `[1,2]` {
+		t.Errorf("editing changed the original: %s", runtime.JSON(root))
+	}
+	if err := ed.Set(value.Path{s("b"), s("x")}, n(1)); err == nil {
+		t.Errorf("setting a key of a number did not fail")
+	}
+	got, err := builtin.SetPath(value.Arr(n(1)), value.Path{n(-1)}, n(5))
+	if err != nil || runtime.JSON(got) != "[5]" {
+		t.Errorf("SetPath: got %v, %v", got, err)
+	}
+	_, err = builtin.SetPath(value.Arr(), value.Path{n(1 << 30)}, n(5))
+	wantFail(t, err, `Array index too large`)
 }
 
 func TestExactAndFloatArithmetic(t *testing.T) {
