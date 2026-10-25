@@ -118,6 +118,9 @@ func (ev evaluator) reduce(n *ast.Reduce, env *Env, in *value.Value, p value.Pat
 	return ev.eval(n.Init, env, in, p, func(v0 *value.Value, p0 value.Path) error {
 		state := v0
 		err := ev.values().eval(n.Src, env, in, nil, func(x *value.Value, _ value.Path) error {
+			if err := ev.ctx.Tick(); err != nil {
+				return err
+			}
 			return ev.bindPats(n.Pats, x, env, func(env *Env) error {
 				var last *value.Value
 				err := ev.eval(n.Update, env, state, ev.statePath(state, v0, p0), func(v *value.Value, _ value.Path) error {
@@ -151,6 +154,9 @@ func (ev evaluator) foreach(n *ast.Foreach, env *Env, in *value.Value, p value.P
 	return ev.eval(n.Init, env, in, p, func(v0 *value.Value, p0 value.Path) error {
 		state := v0
 		return ev.values().eval(n.Src, env, in, nil, func(x *value.Value, _ value.Path) error {
+			if err := ev.ctx.Tick(); err != nil {
+				return err
+			}
 			return ev.bindPats(n.Pats, x, env, func(env *Env) error {
 				got := false
 				err := ev.eval(n.Update, env, state, ev.statePath(state, v0, p0), func(v *value.Value, vp value.Path) error {

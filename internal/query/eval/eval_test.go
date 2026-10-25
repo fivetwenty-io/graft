@@ -30,7 +30,14 @@ func TestBinaryOperatorsRunTheRightOperandOutermost(t *testing.T) {
 func TestComparisonRaisesTheNumberBound(t *testing.T) {
 	huge := strings.Repeat("9", 100001)
 	wantError(t, `. == 1`, huge, "number exceeds 100000 significant digits")
-	wantError(t, `[.] < [1]`, `1e1000000000`, "number exponent exceeds 999999999")
+	wantError(t, `. < 1`, `1e1000000000`, "number exponent exceeds 999999999")
+	wantError(t, `1 < .`, `1e1000000000`, "number exponent exceeds 999999999")
+	// Containers compare totally, by literal text for a number past the
+	// bounds.
+	wantOutputs(t, `[.] < [1]`, `1e1000000000`, `false`)
+	wantOutputs(t, `[1] < [.]`, `1e1000000000`, `true`)
+	wantOutputs(t, `[.] == [.]`, `1e1000000000`, `true`)
+	wantOutputs(t, `{"a": .} == {"a": 1}`, `1e1000000000`, `false`)
 	wantOutputs(t, `.`, `1e1000000000`, `1e1000000000`)
 	ctx := newCtx()
 	ctx.Numbers = runtime.NumbersFloat

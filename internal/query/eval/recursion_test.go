@@ -1,6 +1,9 @@
 package eval
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestClosuresAndRecursion(t *testing.T) {
 	wantOutputs(t, `def f(g): g | g; 2 | f(. * 3)`, `null`, `18`)
@@ -55,4 +58,12 @@ func TestTailCallsStayCorrect(t *testing.T) {
 	// Recursion through a parameter that is not in tail position still
 	// hits the depth limit.
 	wantError(t, `def f(g): [g | f(g)]; 0 | f(. + 1)`, `null`, "exceeds depth limit of 10000")
+}
+
+func TestLongWalksHonorTheDeadline(t *testing.T) {
+	big := "[" + strings.TrimSuffix(strings.Repeat("0,", 5000), ",") + "]"
+	wantErrorWithCtx(t, ctxCancelled(), `[.[] | .]`, big, "context canceled")
+	wantErrorWithCtx(t, ctxCancelled(), `reduce .[] as $x (0; $x)`, big, "context canceled")
+	wantErrorWithCtx(t, ctxCancelled(), `reduce range(5000) as $x (0; $x)`, `null`, "context canceled")
+	wantErrorWithCtx(t, ctxCancelled(), `[foreach range(5000) as $x (0; $x)]`, `null`, "context canceled")
 }

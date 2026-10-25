@@ -107,6 +107,10 @@ func (ev evaluator) iterate(n *ast.Iterate, env *Env, in *value.Value, p value.P
 			}
 			var downstream error
 			err := ev.ctx.Dialect.Iterate(v, func(k, e *value.Value) error {
+				if err := ev.ctx.Tick(); err != nil {
+					downstream = err
+					return err
+				}
 				var ep value.Path
 				if ev.paths {
 					ep = extend(vp, k)

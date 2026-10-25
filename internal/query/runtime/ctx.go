@@ -95,32 +95,18 @@ func (c *Ctx) Number(v *value.Value) (decimal.Decimal, error) {
 	return decimal.Decimal{}, &query.RuntimeError{Msg: err.Error()}
 }
 
-// CheckNumbers returns the bound error of the first number in v that
-// Number would refuse, so a comparison fails the way arithmetic does
-// while value.Compare stays total.
+// CheckNumbers returns the bound error for v when v is itself a number
+// that Number would refuse, so comparing such a number fails the way
+// arithmetic on it does. It looks only at the operand. A container is
+// never walked, so it costs nothing beyond the comparison, and value.Compare
+// orders containers totally, comparing a nested number past the bounds by
+// its literal text.
 func (c *Ctx) CheckNumbers(v *value.Value) error {
-	if c.Numbers == NumbersFloat {
+	if c.Numbers == NumbersFloat || v.Kind() != value.KindNumber {
 		return nil
 	}
-	switch v.Kind() {
-	case value.KindNumber:
-		_, err := c.Number(v)
-		return err
-	case value.KindArray:
-		for _, e := range v.Elems() {
-			if err := c.CheckNumbers(e); err != nil {
-				return err
-			}
-		}
-	case value.KindObject:
-		for _, e := range v.Entries() {
-			if err := c.CheckNumbers(e.Value); err != nil {
-				return err
-			}
-		}
-	default:
-	}
-	return nil
+	_, err := c.Number(v)
+	return err
 }
 
 // Enter counts one level of depth and fails once the limit is passed. A
