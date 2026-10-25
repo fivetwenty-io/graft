@@ -1,5 +1,7 @@
 package value
 
+import "slices"
+
 // ArrBuilder fills an array in place and seals it into an immutable Value.
 // It copies its source once, and after Seal the builder is dead. The builder
 // holds the Value it will seal, so building costs one allocation for both.
@@ -38,6 +40,7 @@ func (b *ArrBuilder) Set(i int, e *Value) {
 func (b *ArrBuilder) Seal() *Value {
 	b.live()
 	b.done = true
+	b.v.arr = slices.Clip(b.v.arr)
 	return &b.v
 }
 
@@ -113,7 +116,7 @@ func (b *ObjBuilder) Delete(key string) {
 func (b *ObjBuilder) Seal() *Value {
 	b.live()
 	v := b.v
-	v.obj = newObject(b.entry)
+	v.obj = newObject(slices.Clip(b.entry))
 	b.v, b.entry, b.index = nil, nil, nil
 	return v
 }

@@ -338,3 +338,34 @@ func TestNumConvertsDoublesExactly(t *testing.T) {
 	wantEqual(t, Num(math.NaN()).Dec().IsNaN(), true)
 	wantEqual(t, Num(9007199254740993).Float(), 9007199254740992.0)
 }
+
+func TestSealedArrayIsClipped(t *testing.T) {
+	b := NewArrBuilderFrom(Arr(Num(1)))
+	b.Append(Num(2))
+	out := b.Seal()
+	_ = append(out.Elems(), Num(99))
+	wantEqual(t, out.Len(), 2)
+	if cap(out.Elems()) != 2 {
+		t.Fatalf("spare capacity %d", cap(out.Elems()))
+	}
+	ob := NewObjBuilderFrom(Obj(Pair{"a", Num(1)}))
+	ob.Set("b", Num(2))
+	o := ob.Seal()
+	if cap(o.Entries()) != 2 {
+		t.Fatalf("spare capacity %d", cap(o.Entries()))
+	}
+}
+
+func TestEqualFollowsLastEntryRule(t *testing.T) {
+	dup := ObjEntries(Entry{Str("a"), Num(1)}, Entry{Str("a"), Num(2)})
+	if !Equal(dup, Obj(Pair{"a", Num(2)})) {
+		t.Fatal("a repeated key compares by its last entry")
+	}
+}
+
+func TestSliceComponentWithRepeatedStartKey(t *testing.T) {
+	c := ObjEntries(Entry{Str("start"), Num(1)}, Entry{Str("start"), Num(2)}, Entry{Str("end"), Num(3)})
+	if _, _, ok := IsSliceComponent(c); ok {
+		t.Fatal("a repeated key is not a slice component")
+	}
+}

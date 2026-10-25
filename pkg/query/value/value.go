@@ -231,6 +231,7 @@ func (v *Value) mustBe(k Kind, op string) {
 // Set returns a copy of an object with key set to val. It replaces the last
 // entry for the key and keeps that entry's key node, and otherwise appends
 // a new entry. Meta is carried.
+// It panics when v is not an object, which is part of the contract.
 func (v *Value) Set(key string, val *Value) *Value {
 	v.mustBe(KindObject, "Set")
 	entries := make([]Entry, len(v.obj.entries), len(v.obj.entries)+1)
@@ -247,6 +248,7 @@ func (v *Value) Set(key string, val *Value) *Value {
 
 // Delete returns a copy of an object without any entry whose key formats
 // to key. Meta is carried.
+// It panics when v is not an object, which is part of the contract.
 func (v *Value) Delete(key string) *Value {
 	v.mustBe(KindObject, "Delete")
 	entries := make([]Entry, 0, len(v.obj.entries))
@@ -263,6 +265,7 @@ func (v *Value) Delete(key string) *Value {
 // SetIndex returns a copy of an array with element i set to val. A negative
 // i counts from the end, and an i past the end pads with nulls. It panics
 // for a negative i before the start. Meta is carried.
+// It panics when v is not an array, which is part of the contract.
 func (v *Value) SetIndex(i int, val *Value) *Value {
 	v.mustBe(KindArray, "SetIndex")
 	if i < 0 {
@@ -288,6 +291,7 @@ func (v *Value) SetIndex(i int, val *Value) *Value {
 
 // DeleteIndex returns a copy of an array without element i, and v itself
 // when i is out of range. Meta is carried.
+// It panics when v is not an array, which is part of the contract.
 func (v *Value) DeleteIndex(i int) *Value {
 	v.mustBe(KindArray, "DeleteIndex")
 	if i < 0 {
