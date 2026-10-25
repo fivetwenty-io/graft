@@ -35,6 +35,10 @@ func registerMath(r *runtime.Registry) {
 		inf, _ := in.Dec().IsInf()
 		return value.Bool(in.Kind() == value.KindNumber && inf), nil
 	})
+	unary(r, "isfinite", func(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
+		inf, _ := in.Dec().IsInf()
+		return value.Bool(in.Kind() == value.KindNumber && !inf), nil
+	})
 	unary(r, "isnan", func(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
 		return value.Bool(in.Kind() == value.KindNumber && in.Dec().IsNaN()), nil
 	})

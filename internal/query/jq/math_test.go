@@ -9,6 +9,14 @@ import (
 const libmOneArg = `acos acosh asin asinh atan atanh cbrt cos cosh erf erfc exp exp10 exp2 expm1
 gamma j0 j1 lgamma log log10 log1p log2 logb nearbyint rint significand sin sinh sqrt tan tanh tgamma y0 y1`
 
+func TestIsfinite(t *testing.T) {
+	// jq counts NaN as finite, and a non-number is not finite.
+	wantOutputs(t, `[1, infinite, -infinite, nan, "a", null] | map(isfinite)`, `null`, `[true,false,false,true,false,false]`)
+}
+
+// The expected last digits below come from Go's math package. A float64
+// libm builtin may differ from the platform libm in the last place, and
+// gamma is lgamma here as in glibc, where macOS's gamma is tgamma.
 func TestLibmNamesAndEdges(t *testing.T) {
 	for _, n := range strings.Fields(libmOneArg) {
 		wantOutputs(t, n+" | type", `1`, `"number"`)
