@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -32,6 +33,13 @@ func wantErrAs(t *testing.T, err error, target any) {
 	t.Helper()
 	if !errors.As(err, target) {
 		t.Fatalf("got error %v (%T), want %T", err, err, target)
+	}
+}
+
+func wantErrContains(t *testing.T, err error, text string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), text) {
+		t.Fatalf("got error %v, want one containing %q", err, text)
 	}
 }
 

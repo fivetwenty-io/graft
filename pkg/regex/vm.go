@@ -16,7 +16,8 @@ type frame struct {
 }
 
 // machine runs a pattern's program over one subject. One machine serves a
-// whole call to Find, FindAll, Replace, or Split.
+// whole call to Find, FindAll, Replace, or Split, so every start position
+// and every match draws on the same step budget.
 type machine struct {
 	ctx      context.Context
 	p        *Pattern
@@ -97,6 +98,7 @@ func (m *machine) nextStart(s int) (int, bool) {
 //nolint:gocyclo // the dispatch loop runs once per step, so it stays one function
 func (m *machine) run(start int, longest bool) (bool, error) {
 	prog, s, caps := m.p.prog, m.subject, m.caps
+	maxSteps, maxStack := m.p.cfg.budget.Steps, m.p.cfg.budget.MaxStack
 	for i := range caps {
 		caps[i] = -1
 	}
@@ -106,6 +108,9 @@ func (m *machine) run(start int, longest bool) (bool, error) {
 	pc, pos := 0, start
 	for {
 		m.steps++
+		if m.steps > maxSteps {
+			return false, ErrBudget
+		}
 		if m.steps&ctxCheckMask == 0 {
 			if err := m.ctx.Err(); err != nil {
 				return false, err
@@ -134,6 +139,9 @@ func (m *machine) run(start int, longest bool) (bool, error) {
 				continue
 			}
 		case opSplit:
+			if len(stack) >= maxStack {
+				return false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
+			}
 			stack = append(stack, frame{pc: in.y, pos: pos, slot: -1})
 			pc = in.x
 			continue
@@ -141,6 +149,9 @@ func (m *machine) run(start int, longest bool) (bool, error) {
 			pc = in.x
 			continue
 		case opSave:
+			if len(stack) >= maxStack {
+				return false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
+			}
 			stack = append(stack, frame{slot: in.x, old: caps[in.x]})
 			caps[in.x] = pos
 			pc++

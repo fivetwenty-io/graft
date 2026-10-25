@@ -20,6 +20,7 @@ type parser struct {
 	src   string
 	pos   int
 	cfg   *config
+	depth int
 	names []string // one per group, group 0 first
 }
 
@@ -323,6 +324,12 @@ func (p *parser) literal(r rune) *node {
 
 // group parses everything after an opening parenthesis at start.
 func (p *parser) group(start int) (*node, error) {
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > p.cfg.budget.MaxNesting {
+		return nil, overBudget("group nesting exceeds the budget of %d levels", p.cfg.budget.MaxNesting)
+	}
+
 	capture, name := true, ""
 	switch {
 	case p.lookingAt("?"):

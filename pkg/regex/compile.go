@@ -134,6 +134,68 @@ func single(seq *node) *node {
 	return seq
 }
 
+// saturating keeps program sizes from overflowing: every sum and product
+// stops at limit+1, which is enough to know the limit was passed.
+type saturating int
+
+func (c saturating) add(a, b int) int { return min(a+b, int(c)) }
+
+func (c saturating) mul(a, b int) int {
+	if a == 0 || b == 0 {
+		return 0
+	}
+	if a > int(c)/b {
+		return int(c)
+	}
+	return min(a*b, int(c))
+}
+
+// programSize returns how many instructions n compiles to, or limit+1 when
+// that is more than limit. It mirrors compiler.node exactly, so a pattern is
+// refused before any of its program is allocated.
+func programSize(n *node, limit int) int {
+	c := saturating(limit + 1)
+	switch n.kind {
+	case kindLiteral:
+		return min(len(n.runes), int(c))
+	case kindConcat:
+		total := 0
+		for _, s := range n.subs {
+			total = c.add(total, programSize(s, limit))
+		}
+		return total
+	case kindAlternate:
+		total := 2 * (len(n.subs) - 1)
+		for _, s := range n.subs {
+			total = c.add(total, programSize(s, limit))
+		}
+		return total
+	case kindGroup:
+		return c.add(programSize(n.subs[0], limit), 2)
+	case kindRepeat:
+		return repeatSize(n, programSize(n.subs[0], limit), c)
+	default:
+		return 1
+	}
+}
+
+func repeatSize(n *node, body int, c saturating) int {
+	check := 0
+	if nullable(n.subs[0]) {
+		check = 2
+	}
+	switch {
+	case n.max == 0:
+		return 0
+	case n.max == unbounded && n.min == 0:
+		return c.add(body, 2+check)
+	case n.max == unbounded:
+		return c.add(c.mul(n.min-1, body), c.add(body, 1+check))
+	default:
+		return c.add(c.mul(n.min, body), c.mul(n.max-n.min, body+1))
+	}
+}
+
 // compiler emits a program for a tree.
 type compiler struct {
 	prog  []inst
@@ -144,13 +206,18 @@ type compiler struct {
 // compile lowers the tree to a program that records the whole match in
 // slots 0 and 1. It returns the program and the number of loop-mark slots
 // it uses beyond the capture slots.
-func compile(root *node, groups int) ([]inst, int) {
-	c := &compiler{marks: map[*node]int{}, base: 2 * groups}
+func compile(root *node, groups int, cfg *config) ([]inst, int, error) {
+	limit := cfg.budget.MaxInstructions
+	size := saturating(limit+1).add(programSize(root, limit), 3)
+	if size > limit {
+		return nil, 0, overBudget("compiled program exceeds the budget of %d instructions", limit)
+	}
+	c := &compiler{prog: make([]inst, 0, size), marks: map[*node]int{}, base: 2 * groups}
 	c.emit(inst{op: opSave, x: 0})
 	c.node(root)
 	c.emit(inst{op: opSave, x: 1})
 	c.emit(inst{op: opMatch})
-	return c.prog, len(c.marks)
+	return c.prog, len(c.marks), nil
 }
 
 func (c *compiler) emit(in inst) int {

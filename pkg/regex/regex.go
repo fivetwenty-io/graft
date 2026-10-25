@@ -1,6 +1,7 @@
 package regex
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 )
@@ -49,6 +50,76 @@ const (
 	Longest
 )
 
+// Budget bounds the work and memory a pattern may use. A zero field takes
+// its default, which is ten million VM steps, a pattern of 64 KiB, 200
+// levels of group nesting, a million compiled instructions, and a million
+// backtrack frames.
+type Budget struct {
+	// Steps bounds the VM steps of one call to Find, FindAll, Replace, or
+	// Split. Every start position and every match of a global search draws
+	// on the same count.
+	Steps int
+
+	// MaxPattern bounds the length of the pattern in bytes.
+	MaxPattern int
+
+	// MaxNesting bounds how deeply groups may nest.
+	MaxNesting int
+
+	// MaxInstructions bounds the compiled program. Counted repetitions are
+	// sized before they expand, so a pattern such as (a{1000}){1000} is
+	// refused before its program is allocated.
+	MaxInstructions int
+
+	// MaxStack bounds the backtrack stack of one match and the capture
+	// storage the pattern needs.
+	MaxStack int
+}
+
+const (
+	defaultSteps           = 10_000_000
+	defaultMaxPattern      = 64 << 10
+	defaultMaxNesting      = 200
+	defaultMaxInstructions = 1_000_000
+	defaultMaxStack        = 1_000_000
+)
+
+// withDefaults returns b with every field that is zero or negative set to
+// its default.
+func (b Budget) withDefaults() Budget {
+	orDefault := func(v, def int) int {
+		if v <= 0 {
+			return def
+		}
+		return v
+	}
+	return Budget{
+		Steps:           orDefault(b.Steps, defaultSteps),
+		MaxPattern:      orDefault(b.MaxPattern, defaultMaxPattern),
+		MaxNesting:      orDefault(b.MaxNesting, defaultMaxNesting),
+		MaxInstructions: orDefault(b.MaxInstructions, defaultMaxInstructions),
+		MaxStack:        orDefault(b.MaxStack, defaultMaxStack),
+	}
+}
+
+// ErrBudget is the error every budget bound reports. A call that runs out of
+// steps returns ErrBudget itself, and the other bounds return an error that
+// matches it under errors.Is and names the bound in its message.
+var ErrBudget = errors.New("regex: step budget exhausted")
+
+// budgetError reports a bound other than the step count.
+type budgetError struct {
+	msg string
+}
+
+func (e *budgetError) Error() string { return "regex: " + e.msg }
+
+func (e *budgetError) Is(target error) bool { return target == ErrBudget }
+
+func overBudget(format string, args ...any) error {
+	return &budgetError{msg: fmt.Sprintf(format, args...)}
+}
+
 // SyntaxError reports a pattern that is not well formed. Pos is the byte
 // offset in the pattern where the offending construct starts.
 type SyntaxError struct {
@@ -74,6 +145,7 @@ func (e *UnsupportedError) Error() string {
 type config struct {
 	flavor Flavor
 	flags  Flags
+	budget Budget
 }
 
 func newConfig(opts []Option) *config {
@@ -81,6 +153,7 @@ func newConfig(opts []Option) *config {
 	for _, opt := range opts {
 		opt(cfg)
 	}
+	cfg.budget = cfg.budget.withDefaults()
 	return cfg
 }
 
@@ -99,6 +172,11 @@ func WithFlags(f Flags) Option {
 	return func(c *config) { c.flags |= f }
 }
 
+// WithBudget bounds the pattern's compilation and matching.
+func WithBudget(b Budget) Option {
+	return func(c *config) { c.budget = b }
+}
+
 // Pattern is a compiled regular expression. A Pattern is safe for
 // concurrent use.
 type Pattern struct {
@@ -113,18 +191,28 @@ type Pattern struct {
 // Compile parses pattern and compiles it into a Pattern.
 func Compile(pattern string, opts ...Option) (*Pattern, error) {
 	cfg := newConfig(opts)
+	if len(pattern) > cfg.budget.MaxPattern {
+		return nil, overBudget("pattern length %d exceeds the budget of %d bytes", len(pattern), cfg.budget.MaxPattern)
+	}
 	root, names, err := parse(pattern, cfg)
 	if err != nil {
 		return nil, err
 	}
 	root = lower(root, cfg)
-	prog, marks := compile(root, len(names))
+	prog, marks, err := compile(root, len(names), cfg)
+	if err != nil {
+		return nil, err
+	}
+	nslots := 2*len(names) + marks
+	if nslots > cfg.budget.MaxStack {
+		return nil, overBudget("capture storage exceeds the budget of %d frames", cfg.budget.MaxStack)
+	}
 	return &Pattern{
 		source:   pattern,
 		cfg:      *cfg,
 		prog:     prog,
 		names:    names,
-		nslots:   2*len(names) + marks,
+		nslots:   nslots,
 		anchored: anchoredAtStart(root),
 	}, nil
 }
