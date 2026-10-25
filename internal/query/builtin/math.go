@@ -63,16 +63,79 @@ func registerMath(r *runtime.Registry) {
 		})
 	}
 
-	libm := map[string]func(float64) float64{
-		"sqrt":  math.Sqrt,
-		"log":   math.Log,
-		"log2":  math.Log2,
-		"log10": math.Log10,
-		"exp":   math.Exp,
-		"exp2":  math.Exp2,
-		"exp10": func(x float64) float64 { return math.Pow(10, x) },
-	}
-	for name, f := range libm {
+	registerLibm(r)
+}
+
+// libmOneArg maps each one-argument libm name to its float64 function.
+var libmOneArg = map[string]func(float64) float64{
+	"acos":      math.Acos,
+	"acosh":     math.Acosh,
+	"asin":      math.Asin,
+	"asinh":     math.Asinh,
+	"atan":      math.Atan,
+	"atanh":     math.Atanh,
+	"cbrt":      math.Cbrt,
+	"cos":       math.Cos,
+	"cosh":      math.Cosh,
+	"erf":       math.Erf,
+	"erfc":      math.Erfc,
+	"exp":       math.Exp,
+	"exp2":      math.Exp2,
+	"exp10":     func(x float64) float64 { return math.Pow(10, x) },
+	"expm1":     math.Expm1,
+	"gamma":     lgamma,
+	"j0":        math.J0,
+	"j1":        math.J1,
+	"lgamma":    lgamma,
+	"log":       math.Log,
+	"log10":     math.Log10,
+	"log1p":     math.Log1p,
+	"log2":      math.Log2,
+	"logb":      math.Logb,
+	"nearbyint": math.RoundToEven,
+	"rint":      math.RoundToEven,
+	"significand": func(x float64) float64 {
+		if x == 0 || math.IsInf(x, 0) || math.IsNaN(x) {
+			return x
+		}
+		frac, _ := math.Frexp(x)
+		return frac * 2
+	},
+	"sin":    math.Sin,
+	"sinh":   math.Sinh,
+	"sqrt":   math.Sqrt,
+	"tan":    math.Tan,
+	"tanh":   math.Tanh,
+	"tgamma": math.Gamma,
+	"y0":     math.Y0,
+	"y1":     math.Y1,
+}
+
+// libmTwoArg maps each two-argument libm name to its float64 function.
+var libmTwoArg = map[string]func(a, b float64) float64{
+	"atan2":      math.Atan2,
+	"copysign":   math.Copysign,
+	"drem":       math.Remainder,
+	"fdim":       fdim,
+	"fmax":       fmax,
+	"fmin":       fmin,
+	"fmod":       math.Mod,
+	"hypot":      math.Hypot,
+	"jn":         func(n, x float64) float64 { return math.Jn(clampInt(n), x) },
+	"ldexp":      ldexp,
+	"nextafter":  math.Nextafter,
+	"nexttoward": math.Nextafter,
+	"pow":        math.Pow,
+	"remainder":  math.Remainder,
+	"scalb":      ldexp,
+	"scalbln":    ldexp,
+	"yn":         func(n, x float64) float64 { return math.Yn(clampInt(n), x) },
+}
+
+// registerLibm registers jq's libm names. Each one converts its operands to
+// float64, computes there, and converts the result exactly.
+func registerLibm(r *runtime.Registry) {
+	for name, f := range libmOneArg {
 		unary(r, name, func(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
 			if _, err := numberArg(ctx, in); err != nil {
 				return nil, err
@@ -80,16 +143,107 @@ func registerMath(r *runtime.Registry) {
 			return floatResult(f(in.Float())), nil
 		})
 	}
-	r.RegisterSingle("pow", 2, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
+	for name, f := range libmTwoArg {
+		registerLibmArgs(r, name, 2, func(x []float64) *value.Value { return floatResult(f(x[0], x[1])) })
+	}
+	registerLibmArgs(r, "fma", 3, func(x []float64) *value.Value { return floatResult(math.FMA(x[0], x[1], x[2])) })
+
+	arrayResult := map[string]func(float64) (float64, float64){
+		"frexp": func(x float64) (float64, float64) {
+			frac, exp := math.Frexp(x)
+			return frac, float64(exp)
+		},
+		"modf": func(x float64) (float64, float64) {
+			if math.IsInf(x, 0) {
+				return math.Copysign(0, x), x
+			}
+			whole, frac := math.Modf(x)
+			return frac, whole
+		},
+		"lgamma_r": func(x float64) (float64, float64) {
+			lg, sign := math.Lgamma(x)
+			return lg, float64(sign)
+		},
+	}
+	for name, f := range arrayResult {
+		unary(r, name, func(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
+			if _, err := numberArg(ctx, in); err != nil {
+				return nil, err
+			}
+			a, b := f(in.Float())
+			out := value.NewArrBuilder(2)
+			out.Append(floatResult(a))
+			out.Append(floatResult(b))
+			return out.Seal(), nil
+		})
+	}
+}
+
+// registerLibmArgs registers a libm native over n number arguments, run
+// on every combination of their outputs.
+func registerLibmArgs(r *runtime.Registry, name string, n int, f func(x []float64) *value.Value) {
+	r.RegisterSingle(name, n, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return cartesian(in, args, func(vals []*value.Value) error {
-			for _, v := range vals {
+			x := make([]float64, len(vals))
+			for i, v := range vals {
 				if _, err := numberArg(ctx, v); err != nil {
 					return err
 				}
+				x[i] = v.Float()
 			}
-			return emit(floatResult(math.Pow(vals[0].Float(), vals[1].Float())), nil)
+			return emit(f(x), nil)
 		})
 	})
+}
+
+func lgamma(x float64) float64 {
+	lg, _ := math.Lgamma(x)
+	return lg
+}
+
+// clampInt truncates f to an int, saturating at the 64-bit ends and
+// treating NaN as zero.
+func clampInt(f float64) int {
+	if math.IsNaN(f) {
+		return 0
+	}
+	return int(toInt64(f))
+}
+
+func ldexp(x, e float64) float64 { return math.Ldexp(x, clampInt(e)) }
+
+func fdim(x, y float64) float64 {
+	switch {
+	case math.IsNaN(x) || math.IsNaN(y):
+		return math.NaN()
+	case x > y:
+		return x - y
+	default:
+		return 0
+	}
+}
+
+// fmin and fmax return the other operand when one is NaN, as C does.
+func fmin(x, y float64) float64 {
+	switch {
+	case math.IsNaN(x):
+		return y
+	case math.IsNaN(y):
+		return x
+	default:
+		return math.Min(x, y)
+	}
+}
+
+func fmax(x, y float64) float64 {
+	switch {
+	case math.IsNaN(x):
+		return y
+	case math.IsNaN(y):
+		return x
+	default:
+		return math.Max(x, y)
+	}
 }
 
 // constant registers a native with no arguments that ignores its input.
