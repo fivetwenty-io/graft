@@ -100,3 +100,12 @@ func TestStyleIgnoresQuotesAddedBeforeParsing(t *testing.T) {
 	wantStyle(t, "placeholder in flow sequence", seq.Content[0].Style, 0)
 	wantStyle(t, "quoted item after a placeholder", seq.Content[1].Style, yamlnode.StyleDouble)
 }
+
+func TestStyleSurvivesBlanksChangedBeforeParsing(t *testing.T) {
+	// graft turns the tab after a "..." key into a space when it quotes
+	// the key, and the value's quotes are still the source's own.
+	m := rootMapping(t, "...x\t: 'v'\n...y \t : \"w\"\n")
+	wantStyle(t, "key ...x", m.Content[0].Style, 0)
+	wantStyle(t, "value of ...x", m.Content[1].Style, yamlnode.StyleSingle)
+	wantStyle(t, "value of ...y", m.Content[3].Style, yamlnode.StyleDouble)
+}

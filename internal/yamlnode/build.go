@@ -265,13 +265,17 @@ func (b *builder) keepSourceLines(source, prepared []byte, text string) {
 }
 
 // quotedInSource reports whether the quote that opens tk was in the
-// source rather than added by yamlprep. yamlprep only inserts
-// characters, so matching the prepared line against the source line
-// from the left shows whether the quote has a source character of its
-// own. goccy counts columns in runes.
+// source rather than added by yamlprep. yamlprep inserts quotes and may
+// respell the blanks between tokens, so matching the prepared line
+// against the source line from the left, with a run of blanks matching
+// a run of blanks, shows whether the quote has a source character of
+// its own. goccy counts columns in runes.
 func (b *builder) quotedInSource(tk *token.Token) bool {
+	if b.sourceLines == nil {
+		return true
+	}
 	i := tk.Position.Line + b.lineOffset - 1
-	if b.sourceLines == nil || i < 0 || i >= len(b.preparedLines) || i >= len(b.sourceLines) || b.preparedLines[i] == b.sourceLines[i] {
+	if i < 0 || i >= len(b.preparedLines) || i >= len(b.sourceLines) || b.preparedLines[i] == b.sourceLines[i] {
 		return true
 	}
 	prepared, source := []rune(b.preparedLines[i]), []rune(b.sourceLines[i])
@@ -279,14 +283,33 @@ func (b *builder) quotedInSource(tk *token.Token) bool {
 	if col < 0 || col >= len(prepared) {
 		return true
 	}
-	j := 0
-	for _, r := range prepared[:col] {
-		if j < len(source) && r == source[j] {
-			j++
-		}
-	}
+	j := alignTo(prepared, source, col)
 	return j < len(source) && source[j] == prepared[col]
 }
+
+// alignTo returns the index in source that lines up with prepared[col],
+// matching from the left and taking a run of blanks for a run of blanks.
+func alignTo(prepared, source []rune, col int) int {
+	j := 0
+	for p := 0; p < col; {
+		if j < len(source) && isBlank(prepared[p]) && isBlank(source[j]) {
+			for p < col && isBlank(prepared[p]) {
+				p++
+			}
+			for j < len(source) && isBlank(source[j]) {
+				j++
+			}
+			continue
+		}
+		if j < len(source) && prepared[p] == source[j] {
+			j++
+		}
+		p++
+	}
+	return j
+}
+
+func isBlank(r rune) bool { return r == ' ' || r == '\t' }
 
 func (b *builder) pair(out *Node, mv *ast.MappingValueNode) error {
 	var keyNode ast.Node = mv.Key
