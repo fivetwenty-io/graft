@@ -549,10 +549,7 @@ func negate(in *value.Value) *value.Value {
 		return value.NumDec(in.Dec().Neg())
 	}
 	positive := strings.TrimPrefix(lit, "-")
-	switch {
-	case in.Bounded() && in.Dec().IsZero():
-		return value.NumText(positive)
-	case positive != lit:
+	if positive != lit || in.Dec().IsZero() {
 		return value.NumText(positive)
 	}
 	return value.NumText("-" + lit)
