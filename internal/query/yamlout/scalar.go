@@ -5,7 +5,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/fivetwenty-io/graft/pkg/decimal"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 
 	"github.com/fivetwenty-io/graft/internal/query/jqout"
@@ -33,7 +32,6 @@ type scalarContext struct {
 
 // scalarAnalysis records which styles can represent a string.
 type scalarAnalysis struct {
-	multiline     bool
 	plainOK       bool
 	singleOK      bool
 	blockOK       bool
@@ -55,7 +53,7 @@ func scalarStyle(text string, sc scalarContext) Style {
 		requested = StyleLiteral
 	}
 	style := requested
-	if sc.Key && a.multiline {
+	if sc.Key && a.hasLineBreaks {
 		style = StyleDoubleQuoted
 	}
 	if style == StylePlain {
@@ -175,7 +173,6 @@ func analyze(text string) scalarAnalysis {
 		}
 		prevBlankz = isBlankRune(r) || isBreakRune(r)
 	}
-	a.multiline = a.hasLineBreaks
 	if leadSpace || leadBreak || trailSpace || trailBreak {
 		a.plainOK = false
 	}
@@ -222,7 +219,12 @@ func readsAsOtherType(s string) bool {
 	if looksLikeBase60(s) {
 		return true
 	}
-	plain := strings.ReplaceAll(s, "_", "")
+	plain := s
+	if c != '.' {
+		// A leading dot starts a YAML float, and its digits take no
+		// underscores in the core schema.
+		plain = strings.ReplaceAll(s, "_", "")
+	}
 	if _, err := strconv.ParseInt(plain, 0, 64); err == nil {
 		return true
 	}
@@ -232,7 +234,7 @@ func readsAsOtherType(s string) bool {
 	if _, err := strconv.ParseFloat(plain, 64); err == nil {
 		return true
 	}
-	if _, rest, ok := cutBinary(plain); ok {
+	if rest, ok := cutBinary(plain); ok {
 		if _, err := strconv.ParseUint(rest, 2, 64); err == nil {
 			return true
 		}
@@ -241,14 +243,14 @@ func readsAsOtherType(s string) bool {
 }
 
 // cutBinary splits a 0b or -0b prefix off s.
-func cutBinary(s string) (neg bool, rest string, ok bool) {
+func cutBinary(s string) (rest string, ok bool) {
 	switch {
 	case strings.HasPrefix(s, "0b"):
-		return false, s[2:], true
+		return s[2:], true
 	case strings.HasPrefix(s, "-0b"):
-		return true, s[3:], true
+		return s[3:], true
 	}
-	return false, "", false
+	return "", false
 }
 
 // looksLikeBase60 matches YAML 1.1 sexagesimal numbers such as 1:30.
@@ -308,8 +310,6 @@ func yamlNumber(v *value.Value, floatMode bool) string {
 	}
 	return jqout.FormatNumber(v)
 }
-
-var _ = decimal.NaN
 
 const hexDigits = "0123456789ABCDEF"
 

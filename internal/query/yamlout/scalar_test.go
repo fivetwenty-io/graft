@@ -15,6 +15,7 @@ func TestScalarStyleChoices(t *testing.T) {
 		{"plain", scalarContext{}, StylePlain},
 		{"", scalarContext{}, StyleDoubleQuoted},
 		{"a\nb", scalarContext{}, StyleLiteral},
+		// A multi-line key is double-quoted on purpose, since a literal block cannot be a simple key.
 		{"a\nb", scalarContext{Key: true}, StyleDoubleQuoted},
 		{"a \nb", scalarContext{}, StyleDoubleQuoted},
 		{"a\r\nb", scalarContext{}, StyleDoubleQuoted},

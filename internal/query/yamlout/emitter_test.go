@@ -32,7 +32,7 @@ func TestNestedCollections(t *testing.T) {
 }
 
 func TestScalarStyleMatchesMarshalYAML(t *testing.T) {
-	corpus := []string{"1", "yes", "x: y", "plain", "", "null", "~", "1.0", "0x10", "- a", "a #b", "#c", "@x", "`x`", "%p", "!t", "&a", "*a", "'q'", "\"d\"", "line\nbreak", " lead", "trail ", "true", "True", "0o7", "1_000", ".inf", "2001-12-14", "a: ", ": b", "[x]", "{y}", "?", "|", ">", "\t", "é", " "}
+	corpus := []string{"1", "yes", "x: y", "plain", "", "null", "~", "1.0", "0x10", "- a", "a #b", "#c", "@x", "`x`", "%p", "!t", "&a", "*a", "'q'", "\"d\"", "line\nbreak", " lead", "trail ", "true", "True", "0o7", "1_000", ".inf", "2001-12-14", "a: ", ": b", "[x]", "{y}", "?", "|", ">", "\t", "é", " ", "._1", "0x_1", "1_0", "_1", "-1_000", "+1_0", "1__0", "0b1_0", "1.5_0", ".5_0", "1e1_0"}
 	for _, s := range corpus {
 		m := map[string]interface{}{"k": s}
 		want, err := graft.MarshalYAML(m)
@@ -69,4 +69,20 @@ func TestSpecialNumbers(t *testing.T) {
 func TestKeysThatNeedQuotes(t *testing.T) {
 	v := obj(pair("", lit("1")), pair("a: b", lit("2")), pair("true", lit("3")), pair("k\nl", lit("4")))
 	wantEqual(t, emitOne(t, v, Options{}), "\"\": 1\n'a: b': 2\n\"true\": 3\n\"k\\nl\": 4\n")
+}
+
+// "<<" departs from MarshalYAML on purpose: a plain << key reads back as a
+// YAML merge key in graft's own loader, so the emitter quotes it.
+func TestMergeKeyIsQuoted(t *testing.T) {
+	wantEqual(t, emitOne(t, obj(pair("<<", lit("1"))), Options{}), "\"<<\": 1\n")
+	wantEqual(t, scalarStyle("<<", scalarContext{}), StyleDoubleQuoted)
+}
+
+// These three depart from MarshalYAML on purpose, which writes bytes that
+// are not valid YAML for them. The emitter writes escapes that read back
+// as the same string.
+func TestDeliberateEscapes(t *testing.T) {
+	wantEqual(t, emitOne(t, obj(pair("k", value.Str("a\xffb"))), Options{}), "k: \"a\\xFFb\"\n")
+	wantEqual(t, emitOne(t, obj(pair("k", value.Str("a\u2028b"))), Options{}), "k: \"a\\Lb\"\n")
+	wantEqual(t, emitOne(t, obj(pair("k", value.Str("\ufeffa"))), Options{}), "k: \"\\uFEFFa\"\n")
 }
