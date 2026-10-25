@@ -219,10 +219,9 @@ func TestJQMath(t *testing.T) {
 	wantError(t, `[1,2] * 2`, `null`, `array ([1,2]) and number (2) cannot be multiplied`)
 	wantOutputs(t, `[null + 1, 1 + null, "a" + "b", [1] + [2], ({"a":1} + {"b":2}), ([1,2,1] - [1])]`, `null`, `[1,1,"ab",[1,2],{"a":1,"b":2},[2]]`)
 	wantOutputs(t, `{"a":{"b":1,"c":2}} * {"a":{"b":3}}`, `null`, `{"a":{"b":3,"c":2}}`)
-	// Negation prints the computed number, so 1e1000 becomes -1e+1000
-	// where jq 1.8.2 keeps the literal and prints -1E+1000. The J2
-	// number-literal task owns literal-preserving negation.
-	wantOutputs(t, `[.[] | -.]`, `[1,-0,1e1000]`, `[-1,0,-1e+1000]`)
+	// Negation keeps a literal's text, as jq 1.8.2 does, and negating a
+	// zero gives a positive one.
+	wantOutputs(t, `[.[] | -.]`, `[1,-0,1e1000]`, `[-1,0,-1E+1000]`)
 	wantOutputs(t, `[pow(2; 10), (16 | sqrt), (1 | exp | log), (8 | log2), (100 | log10), (3 | exp2), (2 | exp10)]`, `null`, `[1024,4,1,3,2,8,100]`)
 	wantOutputs(t, `[.[] | round, trunc]`, `[2.5,-2.5]`, `[3,2,-3,-2]`)
 	wantOutputs(t, `[infinite, -infinite, nan] | map(isinfinite, isnan, isnormal)`, `null`, `[true,false,false,true,false,false,false,true,false]`)

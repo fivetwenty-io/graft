@@ -48,12 +48,18 @@ func Dump(v *value.Value) string {
 // JSON returns v as compact JSON, with numbers printed as jq prints them
 // with exact decimals.
 func JSON(v *value.Value) string {
+	return JSONIn(v, NumbersExact)
+}
+
+// JSONIn is JSON with computed numbers printed as the number mode says,
+// which is what tojson, tostring, and @text do.
+func JSONIn(v *value.Value, numbers NumberMode) string {
 	var b strings.Builder
-	writeJSON(&b, v)
+	writeJSON(&b, v, numbers)
 	return b.String()
 }
 
-func writeJSON(b *strings.Builder, v *value.Value) {
+func writeJSON(b *strings.Builder, v *value.Value, numbers NumberMode) {
 	switch v.Kind() {
 	case value.KindNull:
 		b.WriteString("null")
@@ -62,7 +68,7 @@ func writeJSON(b *strings.Builder, v *value.Value) {
 	case value.KindTrue:
 		b.WriteString("true")
 	case value.KindNumber:
-		b.WriteString(numberText(v))
+		b.WriteString(numberText(v, numbers))
 	case value.KindString:
 		writeString(b, v.Str())
 	case value.KindArray:
@@ -71,7 +77,7 @@ func writeJSON(b *strings.Builder, v *value.Value) {
 			if i > 0 {
 				b.WriteByte(',')
 			}
-			writeJSON(b, e)
+			writeJSON(b, e, numbers)
 		}
 		b.WriteByte(']')
 	case value.KindObject:
@@ -82,7 +88,7 @@ func writeJSON(b *strings.Builder, v *value.Value) {
 			}
 			writeString(b, keyText(e.Key))
 			b.WriteByte(':')
-			writeJSON(b, e.Value)
+			writeJSON(b, e.Value, numbers)
 		}
 		b.WriteByte('}')
 	}
@@ -99,7 +105,7 @@ func keyText(k *value.Value) string {
 
 // numberText prints a literal in its canonical form and a computed number
 // reduced, with NaN as null and the infinities as the largest double.
-func numberText(v *value.Value) string {
+func numberText(v *value.Value, numbers NumberMode) string {
 	if lit := v.Literal(); lit != "" {
 		return value.CanonicalLiteral(lit)
 	}
@@ -112,6 +118,9 @@ func numberText(v *value.Value) string {
 			return "-1.7976931348623157e+308"
 		}
 		return "1.7976931348623157e+308"
+	}
+	if numbers == NumbersFloat {
+		return d.FloatString()
 	}
 	return d.String()
 }

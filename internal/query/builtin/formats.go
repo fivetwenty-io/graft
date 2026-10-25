@@ -16,8 +16,8 @@ import (
 // first.
 func registerFormats(r *runtime.Registry) {
 	text := func(name string, f func(s string) (string, error)) {
-		unary(r, "@"+name, func(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
-			s, err := f(textOf(in))
+		unary(r, "@"+name, func(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
+			s, err := f(textOf(in, ctx.Numbers))
 			if err != nil {
 				return nil, err
 			}
@@ -25,8 +25,8 @@ func registerFormats(r *runtime.Registry) {
 		})
 	}
 	text("text", func(s string) (string, error) { return s, nil })
-	unary(r, "@json", func(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
-		return value.Str(runtime.JSON(in)), nil
+	unary(r, "@json", func(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
+		return value.Str(runtime.JSONIn(in, ctx.Numbers)), nil
 	})
 	text("html", func(s string) (string, error) { return htmlEscaper.Replace(s), nil })
 	text("uri", func(s string) (string, error) { return uriEncode(s), nil })
@@ -69,11 +69,11 @@ func registerFormats(r *runtime.Registry) {
 }
 
 // textOf is a string's own text and any other value's JSON text.
-func textOf(v *value.Value) string {
+func textOf(v *value.Value, numbers runtime.NumberMode) string {
 	if v.Kind() == value.KindString {
 		return v.Str()
 	}
-	return runtime.JSON(v)
+	return runtime.JSONIn(v, numbers)
 }
 
 var (

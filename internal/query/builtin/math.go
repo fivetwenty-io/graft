@@ -26,7 +26,7 @@ func registerMath(r *runtime.Registry) {
 		if ctx.Numbers == runtime.NumbersFloat {
 			return floatResult(-in.Float()), nil
 		}
-		return value.NumDec(in.Dec().Neg()), nil
+		return negate(in), nil
 	})
 
 	constant(r, "infinite", value.NumDec(decimal.Inf(1)))
@@ -538,4 +538,22 @@ func saturate(d decimal.Decimal) decimal.Decimal {
 		return decimal.FromInt64(math.MaxInt64)
 	}
 	return d
+}
+
+// negate flips a number's sign. A literal stays a literal, so -1.0 prints as
+// written and a number past the bounds keeps its text, while negating a
+// zero gives a positive zero, as decNumber's minus does.
+func negate(in *value.Value) *value.Value {
+	lit := in.Literal()
+	if lit == "" {
+		return value.NumDec(in.Dec().Neg())
+	}
+	positive := strings.TrimPrefix(lit, "-")
+	switch {
+	case in.Bounded() && in.Dec().IsZero():
+		return value.NumText(positive)
+	case positive != lit:
+		return value.NumText(positive)
+	}
+	return value.NumText("-" + lit)
 }

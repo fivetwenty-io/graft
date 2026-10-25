@@ -54,14 +54,14 @@ func registerCore(r *runtime.Registry) {
 	r.RegisterSingle("error", 1, func(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, _ runtime.Emit) error {
 		return args[0].Each(in, func(v *value.Value, _ value.Path) error { return Raise(v) })
 	})
-	unary(r, "tostring", func(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
+	unary(r, "tostring", func(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
 		if in.Kind() == value.KindString {
 			return in, nil
 		}
-		return value.Str(runtime.JSON(in)), nil
+		return value.Str(runtime.JSONIn(in, ctx.Numbers)), nil
 	})
-	unary(r, "tojson", func(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
-		return value.Str(runtime.JSON(in)), nil
+	unary(r, "tojson", func(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
+		return value.Str(runtime.JSONIn(in, ctx.Numbers)), nil
 	})
 	unary(r, "tonumber", tonumber)
 	unary(r, "toboolean", func(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
