@@ -16,6 +16,23 @@ const (
 	AliasNode
 )
 
+// Style records how a node was written, with yaml.v3's meaning for each
+// flag. The flags combine, so !!str 'x' is both tagged and single-quoted.
+// The bits are in the order of value.StyleFlags, so the loader converts
+// one to the other directly.
+type Style uint8
+
+// The style flags. StyleTagged marks an explicit tag other than a bare
+// "!", including a core tag that resolution would have implied.
+const (
+	StyleTagged Style = 1 << iota
+	StyleSingle
+	StyleDouble
+	StyleLiteral
+	StyleFolded
+	StyleFlow
+)
+
 // Node is one YAML node with yaml.v3's conventions. A document holds
 // exactly one child, a mapping stores keys and values in one flat slice,
 // and an alias keeps its anchor name in Value and its target in Alias.
@@ -26,6 +43,7 @@ type Node struct {
 	Anchor  string  // the anchor defined on this node, without "&"
 	Alias   *Node   // the anchored node an AliasNode points at
 	Content []*Node // document: [root]; mapping: k0, v0, k1, v1, ...; sequence: items
+	Style   Style
 
 	HeadComment string // comment text including "#", lines joined with "\n"
 	LineComment string

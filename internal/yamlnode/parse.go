@@ -49,9 +49,11 @@ func Parse(data []byte) (docs []*Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	prepared, nulled := yamlprep.Prepare(normalizeLineBreaks(src))
+	normalized := normalizeLineBreaks(src)
+	prepared, nulled := yamlprep.Prepare(normalized)
 	text, addedNewline := streamText(prepared)
 	b := newBuilder(nulled)
+	b.keepSourceLines(normalized, prepared, text)
 
 	// The probe's text differs from Parse's only where the bare-dash or
 	// placeholder rewrite changed something, and then it tokenizes again.

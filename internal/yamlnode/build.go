@@ -1,6 +1,7 @@
 package yamlnode
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/goccy/go-yaml/ast"
@@ -29,6 +30,15 @@ type builder struct {
 	// when the stream ends inside that scalar.
 	lastBlock       *Node
 	lastBlockStrips bool
+
+	// flow counts the flow collections being built, so a mapping that a
+	// flow sequence holds as a single pair is flow style too.
+	flow int
+
+	// sourceLines and preparedLines are the stream's lines before and
+	// after yamlprep, which quotes some plain scalars so goccy reads
+	// them. Both are nil when yamlprep changed nothing.
+	sourceLines, preparedLines []string
 }
 
 func newBuilder(nulledLines []int) *builder {
@@ -134,6 +144,7 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 	delete(b.open, out)
 	if explicitTag != "" {
 		out.Tag = explicitTag
+		out.Style |= StyleTagged
 	}
 	if anchor != "" && out.Anchor == "" {
 		out.Anchor = anchor
@@ -148,6 +159,7 @@ func (b *builder) buildValue(n ast.Node, anchor string) (*Node, error) {
 		return &Node{Kind: ScalarNode, Tag: TagNull}, nil
 	case *ast.MappingNode:
 		out := b.collection(MappingNode, TagMap, anchor, x)
+		defer b.enter(out)()
 		for _, mv := range x.Values {
 			if err := b.pair(out, mv); err != nil {
 				return nil, err
@@ -159,6 +171,7 @@ func (b *builder) buildValue(n ast.Node, anchor string) (*Node, error) {
 		return out, b.pair(out, x)
 	case *ast.SequenceNode:
 		out := b.collection(SequenceNode, TagSeq, anchor, x)
+		defer b.enter(out)()
 		for _, v := range x.Values {
 			item, err := b.build(v)
 			if err != nil {
@@ -181,13 +194,24 @@ func (b *builder) buildScalar(n ast.ScalarNode) *Node {
 	switch x := n.(type) {
 	case *ast.LiteralNode:
 		out := b.scalar(x, TagStr, literalValue(x))
+		out.Style = StyleLiteral
+		if x.Start.Type == token.FoldedType {
+			out.Style = StyleFolded
+		}
 		b.lastBlock, b.lastBlockStrips = out, strings.Contains(x.Start.Value, "-")
 		return out
 	case *ast.MergeKeyNode:
 		return b.scalar(x, TagMerge, "<<")
 	case *ast.StringNode:
-		if tt := x.GetToken().Type; tt == token.SingleQuoteType || tt == token.DoubleQuoteType {
-			return b.scalar(x, TagStr, x.Value)
+		if tk := x.GetToken(); tk.Type == token.SingleQuoteType || tk.Type == token.DoubleQuoteType {
+			out := b.scalar(x, TagStr, x.Value)
+			if b.quotedInSource(tk) {
+				out.Style = StyleSingle
+				if tk.Type == token.DoubleQuoteType {
+					out.Style = StyleDouble
+				}
+			}
+			return out
 		}
 		return b.scalar(x, ResolvePlainTag(x.Value), x.Value)
 	case *ast.NullNode:
@@ -209,12 +233,59 @@ func (b *builder) buildScalar(n ast.ScalarNode) *Node {
 // inside can be caught.
 func (b *builder) collection(kind Kind, tag, anchor string, n ast.Node) *Node {
 	out := &Node{Kind: kind, Tag: tag, Anchor: anchor}
+	if b.flow > 0 || isFlow(n) {
+		out.Style = StyleFlow
+	}
 	if anchor != "" {
 		b.anchors[anchor] = out
 		b.open[out] = true
 	}
 	b.at(out, n)
 	return out
+}
+
+// enter notes that the children of out are being built, and returns the
+// function that notes they are done.
+func (b *builder) enter(out *Node) func() {
+	if out.Style&StyleFlow == 0 {
+		return func() {}
+	}
+	b.flow++
+	return func() { b.flow-- }
+}
+
+// keepSourceLines records the stream's lines before and after yamlprep
+// when yamlprep changed them, for quotedInSource. text is prepared as
+// goccy reads it.
+func (b *builder) keepSourceLines(source, prepared []byte, text string) {
+	if bytes.Equal(prepared, source) {
+		return
+	}
+	b.sourceLines, b.preparedLines = strings.Split(string(source), "\n"), strings.Split(text, "\n")
+}
+
+// quotedInSource reports whether the quote that opens tk was in the
+// source rather than added by yamlprep. yamlprep only inserts
+// characters, so matching the prepared line against the source line
+// from the left shows whether the quote has a source character of its
+// own. goccy counts columns in runes.
+func (b *builder) quotedInSource(tk *token.Token) bool {
+	i := tk.Position.Line + b.lineOffset - 1
+	if b.sourceLines == nil || i < 0 || i >= len(b.preparedLines) || i >= len(b.sourceLines) || b.preparedLines[i] == b.sourceLines[i] {
+		return true
+	}
+	prepared, source := []rune(b.preparedLines[i]), []rune(b.sourceLines[i])
+	col := tk.Position.Column - 1
+	if col < 0 || col >= len(prepared) {
+		return true
+	}
+	j := 0
+	for _, r := range prepared[:col] {
+		if j < len(source) && r == source[j] {
+			j++
+		}
+	}
+	return j < len(source) && source[j] == prepared[col]
 }
 
 func (b *builder) pair(out *Node, mv *ast.MappingValueNode) error {
