@@ -105,6 +105,10 @@ func TestJQTypesAndConversions(t *testing.T) {
 	wantOutputs(t, `[.[] | in({"a":1})]`, `["a","b"]`, `[true,false]`)
 	wantOutputs(t, `contains({"a":[1]}), inside({"x":1,"a":[1,2,3]}), inside({"a":[1]})`, `{"a":[1,2]}`, `true`, `true`, `false`)
 	wantError(t, `contains("b")`, `{}`, `object ({}) and string ("b") cannot have their containment checked`)
+	// Below the top level, values of different kinds are simply not
+	// contained, so only the outermost pair can raise the kind error.
+	wantOutputs(t, `contains({"a":"x"})`, `{"a":1}`, `false`)
+	wantOutputs(t, `contains({"a":[1]})`, `{"a":{"b":1}}`, `false`)
 	wantOutputs(t, `[contains("bar"), ("ar" | inside("bar"))]`, `"foobar"`, `[true,true]`)
 	wantOutputs(t, `keys`, `[5,6]`, `[0,1]`)
 	wantError(t, `keys`, `1`, `number (1) has no keys`)

@@ -215,53 +215,45 @@ func keys(in *value.Value, sorted bool) (*value.Value, error) {
 	}
 }
 
-// contains is jq's containment. A string contains its substrings, an array
-// contains b when every element of b is contained in one of its elements,
-// an object contains b when each of b's keys is present and contains b's
-// value, and any other value contains only what equals it. The two kinds
-// must match, and true and false are different kinds here.
+// contains is jq's containment. The two kinds must match, and true and
+// false are different kinds here. Below the top level, a value of another
+// kind is simply not contained.
 func contains(ctx *runtime.Ctx, a, b *value.Value) (bool, error) {
 	if a.Kind() != b.Kind() {
 		return false, fail("%s and %s cannot have their containment checked", describe(a), describe(b))
 	}
+	return contained(ctx, a, b), nil
+}
+
+// contained reports whether a contains b. A string contains its
+// substrings, an array contains b when every element of b is contained in
+// one of its elements, an object contains b when each of b's keys is
+// present and contains b's value, and any other value contains only what
+// equals it.
+func contained(ctx *runtime.Ctx, a, b *value.Value) bool {
+	if a.Kind() != b.Kind() {
+		return false
+	}
 	switch a.Kind() {
 	case value.KindString:
-		return strings.Contains(a.Str(), b.Str()), nil
+		return strings.Contains(a.Str(), b.Str())
 	case value.KindArray:
 		for _, be := range b.Elems() {
-			found := false
-			for _, ae := range a.Elems() {
-				if ae.Kind() != be.Kind() {
-					continue
-				}
-				ok, err := contains(ctx, ae, be)
-				if err != nil {
-					return false, err
-				}
-				if ok {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false, nil
+			if !slices.ContainsFunc(a.Elems(), func(ae *value.Value) bool { return contained(ctx, ae, be) }) {
+				return false
 			}
 		}
-		return true, nil
+		return true
 	case value.KindObject:
 		for _, e := range b.Entries() {
 			av, ok := a.Get(e.Key.Str())
-			if !ok {
-				return false, nil
-			}
-			ok, err := contains(ctx, av, e.Value)
-			if err != nil || !ok {
-				return false, err
+			if !ok || !contained(ctx, av, e.Value) {
+				return false
 			}
 		}
-		return true, nil
+		return true
 	default:
-		return ctx.Equal(a, b), nil
+		return ctx.Equal(a, b)
 	}
 }
 
