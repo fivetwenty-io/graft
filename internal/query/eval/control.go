@@ -204,7 +204,7 @@ func (ev evaluator) bind(n *ast.Bind, env *Env, in *value.Value, p value.Path, e
 // last pattern's error stands as it is.
 func (ev evaluator) bindPats(pats []ast.Pattern, x *value.Value, env *Env, body func(*Env) error) error {
 	if len(pats) == 1 {
-		return ev.destructure(&pats[0], x, env, body)
+		return ev.destructure(&pats[0], x, env, keyScope{outer: env}, body)
 	}
 	for i := range pats {
 		for _, name := range patternVars(&pats[i], nil) {
@@ -213,11 +213,11 @@ func (ev evaluator) bindPats(pats []ast.Pattern, x *value.Value, env *Env, body 
 	}
 	last := len(pats) - 1
 	for i := range last {
-		if err := ev.destructure(&pats[i], x, env, body); err == nil || !catchable(unwrapDownstream(err)) {
+		if err := ev.destructure(&pats[i], x, env, keyScope{alt: true}, body); err == nil || !catchable(unwrapDownstream(err)) {
 			return err
 		}
 	}
-	return ev.destructure(&pats[last], x, env, body)
+	return ev.destructure(&pats[last], x, env, keyScope{alt: true}, body)
 }
 
 // patternVars appends the names a pattern binds.
@@ -242,21 +242,38 @@ func patternVars(pat *ast.Pattern, names []string) []string {
 	return names
 }
 
+// keyScope is the environment an object pattern's key expressions run in.
+// It is the environment outside the pattern, except under ?//, where every
+// pattern's variables are bound before any of them destructures and keys
+// see the bindings made so far.
+type keyScope struct {
+	outer *Env
+	alt   bool
+}
+
+// of returns the environment for a key, given the bindings made so far.
+func (s keyScope) of(env *Env) *Env {
+	if s.alt {
+		return env
+	}
+	return s.outer
+}
+
 // destructure binds pat against v and runs k once for every set of
 // bindings, since an object pattern's key may have several outputs. Key
-// expressions read v, the value at their own level.
-func (ev evaluator) destructure(pat *ast.Pattern, v *value.Value, env *Env, k func(*Env) error) error {
+// expressions read v, the value at their own level, in scope.
+func (ev evaluator) destructure(pat *ast.Pattern, v *value.Value, env *Env, scope keyScope, k func(*Env) error) error {
 	switch pat.Kind {
 	case ast.PatVar:
 		return k(env.Bind(pat.Name, v))
 	case ast.PatArray:
-		return ev.destructureArray(pat.Elems, 0, v, env, k)
+		return ev.destructureArray(pat.Elems, 0, v, env, scope, k)
 	default:
-		return ev.destructureObject(pat.Entries, v, env, k)
+		return ev.destructureObject(pat.Entries, v, env, scope, k)
 	}
 }
 
-func (ev evaluator) destructureArray(elems []ast.Pattern, i int, v *value.Value, env *Env, k func(*Env) error) error {
+func (ev evaluator) destructureArray(elems []ast.Pattern, i int, v *value.Value, env *Env, scope keyScope, k func(*Env) error) error {
 	if i == len(elems) {
 		return k(env)
 	}
@@ -264,12 +281,12 @@ func (ev evaluator) destructureArray(elems []ast.Pattern, i int, v *value.Value,
 	if err != nil {
 		return err
 	}
-	return ev.destructure(&elems[i], x, env, func(env *Env) error {
-		return ev.destructureArray(elems, i+1, v, env, k)
+	return ev.destructure(&elems[i], x, env, scope, func(env *Env) error {
+		return ev.destructureArray(elems, i+1, v, env, scope, k)
 	})
 }
 
-func (ev evaluator) destructureObject(entries []ast.PatEntry, v *value.Value, env *Env, k func(*Env) error) error {
+func (ev evaluator) destructureObject(entries []ast.PatEntry, v *value.Value, env *Env, scope keyScope, k func(*Env) error) error {
 	if len(entries) == 0 {
 		return k(env)
 	}
@@ -283,16 +300,16 @@ func (ev evaluator) destructureObject(entries []ast.PatEntry, v *value.Value, en
 			env = env.Bind(e.KeyVar, x)
 		}
 		if e.Val == nil {
-			return ev.destructureObject(rest, v, env, k)
+			return ev.destructureObject(rest, v, env, scope, k)
 		}
-		return ev.destructure(e.Val, x, env, func(env *Env) error {
-			return ev.destructureObject(rest, v, env, k)
+		return ev.destructure(e.Val, x, env, scope, func(env *Env) error {
+			return ev.destructureObject(rest, v, env, scope, k)
 		})
 	}
 	if e.KeyVar != "" {
 		return next(value.Str(e.KeyVar), env)
 	}
-	return ev.values().eval(e.Key, env, v, nil, func(key *value.Value, _ value.Path) error {
+	return ev.values().eval(e.Key, scope.of(env), v, nil, func(key *value.Value, _ value.Path) error {
 		return next(key, env)
 	})
 }

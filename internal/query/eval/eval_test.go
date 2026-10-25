@@ -100,6 +100,12 @@ func TestDestructuringPatterns(t *testing.T) {
 	wantOutputs(t, `[.[] as [$a] ?// {$b} | [$a, $b]]`, `[[1],{"b":2}]`, `[[1,null],[null,2]]`)
 	wantError(t, `. as [$a] ?// [$b] | $a`, `{}`, "Cannot index object with number (0)")
 	wantError(t, `. as [$a] | $a`, `"x"`, "Cannot index string with number (0)")
+	// A key expression sees the variables bound outside its pattern, not
+	// the ones its own pattern binds, except under ?// where every
+	// pattern's variables are bound before any of them destructures.
+	wantOutputs(t, `"x" as $k | {"a":"y","y":3,"x":4} as {a: $k, ($k): $v} | [$k, $v]`, `null`, `["y",4]`)
+	wantOutputs(t, `"x" as $k | {"a":{"b":"y"},"y":3,"x":4} as {a: {b: $k}, ($k): $v} | $v`, `null`, `4`)
+	wantOutputs(t, `"o" as $k | {"a":"x","x":2,"o":5} as {a: $k, ($k): $v} ?// [$k] | $v`, `null`, `2`)
 }
 
 func TestCandidateSetRoots(t *testing.T) {
