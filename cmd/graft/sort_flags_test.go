@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+
+	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 var topKeyLine = regexp.MustCompile(`^["']?([^\s"':#-][^"':]*)["']?:`)
@@ -79,4 +81,41 @@ func TestSortFlags(t *testing.T) {
 		So(rc, ShouldEqual, 0)
 		So(out, ShouldContainSubstring, `"b":{"2":4,"10":3,"a":6,"a2":1,"a10":2,"b":5}`)
 	})
+}
+
+func TestSortKeysCacheKey(t *testing.T) {
+	inputs := [][]byte{[]byte("a: 1\n")}
+	spruce := mergeOutputCacheKey(&mergeOpts{SortKeys: "spruce"}, inputs, false)
+	lexical := mergeOutputCacheKey(&mergeOpts{SortKeys: "lexical"}, inputs, false)
+	if spruce == lexical {
+		t.Fatal("different sort modes must produce different cache keys")
+	}
+}
+
+func TestSortKeysHonoredByDeferredPlacements(t *testing.T) {
+	tree := map[string]interface{}{"2": 1, "10": 2, "a": 3}
+	deferred := []graft.DeferredPath{{Path: "a", Reason: "test reason"}}
+	lexical := func(a, b string) bool { return a < b }
+
+	for _, placement := range []reportPlacement{reportPlacementBeginning, reportPlacementInline, reportPlacementEnd} {
+		t.Run(string(placement), func(t *testing.T) {
+			def, rc := renderMergedTreeWithReport(tree, deferred, placement, false, nil)
+			if rc != 0 {
+				t.Fatalf("default rc = %d", rc)
+			}
+			lex, rc := renderMergedTreeWithReport(tree, deferred, placement, false, lexical)
+			if rc != 0 {
+				t.Fatalf("lexical rc = %d", rc)
+			}
+			if got, want := topKeys(string(def)), []string{"2", "10", "a"}; strings.Join(got, ",") != strings.Join(want, ",") {
+				t.Errorf("default keys = %v, want %v", got, want)
+			}
+			if got, want := topKeys(string(lex)), []string{"10", "2", "a"}; strings.Join(got, ",") != strings.Join(want, ",") {
+				t.Errorf("lexical keys = %v, want %v", got, want)
+			}
+			if !strings.Contains(string(lex), "deferred") {
+				t.Errorf("deferred report missing: %q", lex)
+			}
+		})
+	}
 }
