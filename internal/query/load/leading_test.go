@@ -83,3 +83,26 @@ func TestLeadingContentIsPerSource(t *testing.T) {
 	wantEqual(t, first.LeadingContent, "# f\n")
 	wantEqual(t, second.LeadingContent, "# g\n")
 }
+
+func TestLeadingSeparatorsKeepTheirLineBreaks(t *testing.T) {
+	// yq 4.54.1 keeps a CRLF in the first document's leading content and
+	// prints "---\n" before every later document, so a later document's
+	// separator ends in "\n" whatever the source used.
+	docs := mustReadAll(t, "# c\r\n---\r\na: 1\r\n---\r\nb: 2\r\n", keepMeta)
+	wantEqual(t, len(docs), 2)
+	wantEqual(t, docs[0].LeadingContent, "# c\r\n$yqDocSeparator$\r\n")
+	wantEqual(t, docs[1].LeadingContent, "$yqDocSeparator$\n")
+}
+
+func TestLeadingSeparatorWithoutALineBreak(t *testing.T) {
+	// As in yq 4.54.1, a source that is only "---" is one null document
+	// whose separator has no line break after it.
+	docs := mustReadAll(t, "---", keepMeta)
+	if len(docs) != 1 {
+		t.Fatalf("got %d documents, want 1", len(docs))
+	}
+	wantEqual(t, docs[0].LeadingContent, "$yqDocSeparator$")
+	wantEqual(t, docs[0].Value.Kind(), value.KindNull)
+	docs = mustReadAll(t, "# c\n---", keepMeta)
+	wantEqual(t, docs[0].LeadingContent, "# c\n$yqDocSeparator$")
+}
