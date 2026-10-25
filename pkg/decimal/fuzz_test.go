@@ -26,11 +26,30 @@ func FuzzDecimalArith(f *testing.F) {
 		if e1 != nil || e2 != nil {
 			return
 		}
-		_, _ = x.Add(y)
-		_, _ = x.Sub(y)
-		_, _ = x.Mul(y)
-		_, _ = x.Quo(y, Context128)
-		_, _ = x.Rem(y)
-		_ = x.Cmp(y)
+		results := map[string]func() (Decimal, error){
+			"add": func() (Decimal, error) { return x.Add(y) },
+			"sub": func() (Decimal, error) { return x.Sub(y) },
+			"mul": func() (Decimal, error) { return x.Mul(y) },
+			"quo": func() (Decimal, error) { return x.Quo(y, Context128) },
+			"rem": func() (Decimal, error) { return x.Rem(y) },
+		}
+		for name, op := range results {
+			r, err := op()
+			if err != nil || r.IsNaN() {
+				continue
+			}
+			if inf, _ := r.IsInf(); inf {
+				continue
+			}
+			if n := r.numDigits(); n > defaultMaxDigits {
+				t.Fatalf("%s(%q, %q) has %d digits, past the bound", name, a, b, n)
+			}
+			if e := r.adjusted(); e > defaultMaxExponent || e < -defaultMaxExponent {
+				t.Fatalf("%s(%q, %q) has adjusted exponent %d, past the bound", name, a, b, e)
+			}
+		}
+		if x.Cmp(y) != -y.Cmp(x) {
+			t.Fatalf("Cmp(%q, %q) is not antisymmetric", a, b)
+		}
 	})
 }
