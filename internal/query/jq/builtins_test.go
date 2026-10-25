@@ -204,6 +204,11 @@ func TestJQStrings(t *testing.T) {
 
 func TestJQMath(t *testing.T) {
 	wantOutputs(t, `[infinite % 3, -infinite % 3, 5.9 % 2.1, -5 % -3, nan % 1]`, `null`, `[1,-2,1,-2,null]`)
+	// Under --float-numbers, % converts both sides to 64-bit integers with
+	// saturation, as jq does, so 1e30 stands for the largest one. The
+	// exact mode takes the true remainder.
+	wantOutputsFloat(t, `[1e30 % 7, -1e30 % 7, 7 % 1e30, 5.9 % 2.1, -5 % 3, 5 % -3, infinite % 3, 1e19 % 1e18, -1e30 % -1, (nan % 2 | isnan)]`, `null`, `[0,-1,7,1,-2,2,1,223372036854775800,0,true]`)
+	wantOutputs(t, `1e30 % 7`, `null`, `1`)
 	wantError(t, `5 % 0.5`, `null`, `number (5) and number (0.5) cannot be divided (remainder) because the divisor is zero`)
 	wantError(t, `null - null`, `null`, `null (null) and null (null) cannot be subtracted`)
 	wantError(t, `{} / {}`, `null`, `object ({}) and object ({}) cannot be divided`)

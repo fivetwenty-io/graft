@@ -318,7 +318,8 @@ func splitString(s, sep string) *value.Value {
 // modulo truncates both operands toward zero and takes the remainder,
 // which has the dividend's sign, except that a zero result is +0. The
 // infinities stand for the largest 64-bit integers, as jq treats them, and
-// NaN on either side gives NaN.
+// NaN on either side gives NaN. Under float numbers, both operands become
+// 64-bit integers first, with saturation, so 1e30 % 7 is 0 as in jq.
 func modulo(ctx *runtime.Ctx, l, r *value.Value) (*value.Value, error) {
 	if !bothNumbers(l, r) {
 		return nil, fail("%s and %s cannot be divided (remainder)", describe(l), describe(r))
@@ -330,12 +331,22 @@ func modulo(ctx *runtime.Ctx, l, r *value.Value) (*value.Value, error) {
 	if a.IsNaN() || b.IsNaN() {
 		return value.NumDec(decimal.NaN()), nil
 	}
+	if ctx.Numbers == runtime.NumbersFloat {
+		x, y := toInt64(a.Float64()), toInt64(b.Float64())
+		switch y {
+		case 0:
+			return nil, fail("%s and %s cannot be divided (remainder) because the divisor is zero", describe(l), describe(r))
+		case -1:
+			// The smallest integer divided by -1 overflows, and every
+			// remainder by -1 is 0 anyway.
+			return value.Num(0), nil
+		default:
+		}
+		return floatResult(float64(x % y)), nil
+	}
 	a, b = saturate(a).Trunc(), saturate(b).Trunc()
 	if b.IsZero() {
 		return nil, fail("%s and %s cannot be divided (remainder) because the divisor is zero", describe(l), describe(r))
-	}
-	if ctx.Numbers == runtime.NumbersFloat {
-		return floatResult(math.Mod(a.Float64(), b.Float64()) + 0), nil
 	}
 	m, err := a.Rem(b)
 	if err != nil {
@@ -345,6 +356,19 @@ func modulo(ctx *runtime.Ctx, l, r *value.Value) (*value.Value, error) {
 		return value.Num(0), nil
 	}
 	return value.NumDec(m), nil
+}
+
+// toInt64 truncates f toward zero, and a value past either end of the
+// 64-bit integers, an infinity among them, becomes the integer at that end.
+func toInt64(f float64) int64 {
+	switch {
+	case f < math.MinInt64:
+		return math.MinInt64
+	case f >= math.MaxInt64:
+		return math.MaxInt64
+	default:
+		return int64(f)
+	}
 }
 
 // saturate turns an infinity into the 64-bit integer at its end.
