@@ -112,3 +112,46 @@ func TestFromNodeYes(t *testing.T) {
 	wantEqual(t, mustGet(v, "b").Kind(), value.KindString) // yq 4.54.1 reads a plain yes as a string
 	wantEqual(t, mustGet(v, "c").Kind(), value.KindTrue)
 }
+
+func TestMetaStyleTagAndKeyMeta(t *testing.T) {
+	v, err := FromNode(mustParseYAML(t, "'a': !!str 1\n"), FromNodeOptions{KeepMeta: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := v.Entries()[0]
+	wantEqual(t, e.Key.Meta().Style, value.SingleQuoted)
+	wantEqual(t, e.Key.Meta().Tag, "")
+	wantEqual(t, e.Value.Kind(), value.KindString)
+	wantEqual(t, e.Value.Meta().Style, value.Tagged)
+	wantEqual(t, e.Value.Meta().Tag, "!!str")
+	wantEqual(t, e.Value.Meta().Text, "1")
+}
+
+func TestMetaStyleMapsEveryFlag(t *testing.T) {
+	v, err := FromNode(mustParseYAML(t, "a: 'x'\nb: \"y\"\nc: |\n  z\nd: >\n  w\ne: [1]\nf: !!int 1\ng: !!str 'yes'\n!local h: {}\ni: plain\n"), FromNodeOptions{KeepMeta: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]value.StyleFlags{
+		"a": value.SingleQuoted,
+		"b": value.DoubleQuoted,
+		"c": value.Literal,
+		"d": value.Folded,
+		"e": value.Flow,
+		"f": value.Tagged,
+		"g": value.Tagged | value.SingleQuoted,
+		"h": value.Flow,
+		"i": 0,
+	}
+	for key, style := range want {
+		if got := mustGet(v, key).Meta().Style; got != style {
+			t.Errorf("value of %q has style %06b, want %06b", key, got, style)
+		}
+	}
+	wantEqual(t, mustGet(v, "f").Meta().Tag, "!!int")
+	wantEqual(t, mustGet(v, "i").Meta().Tag, "") // an implied tag is not recorded
+	wantEqual(t, mustGet(v, "c").Meta().Text, "z\n")
+	h := v.Entries()[7].Key.Meta()
+	wantEqual(t, h.Style, value.Tagged)
+	wantEqual(t, h.Tag, "!local")
+}

@@ -125,7 +125,7 @@ func (c *converter) node(n *yamlnode.Node) (*value.Value, error) {
 		return nil, err
 	}
 	if c.opts.KeepMeta {
-		v = v.WithMeta(c.meta(n, v))
+		v = v.WithMeta(c.meta(n))
 	}
 	if n.Anchor != "" && c.inAlias == 0 {
 		c.anchors[n.Anchor] = v
@@ -135,7 +135,7 @@ func (c *converter) node(n *yamlnode.Node) (*value.Value, error) {
 
 func (c *converter) alias(n *yamlnode.Node) (*value.Value, error) {
 	if c.opts.KeepMeta {
-		m := c.meta(n, nil)
+		m := c.meta(n)
 		m.AliasOf = n.Value
 		return value.Null().WithMeta(m), nil
 	}
@@ -308,7 +308,7 @@ func (c *converter) scalar(n *yamlnode.Node) *value.Value {
 	return value.Str(n.Value)
 }
 
-func (c *converter) meta(n *yamlnode.Node, v *value.Value) *value.Meta {
+func (c *converter) meta(n *yamlnode.Node) *value.Meta {
 	m := &value.Meta{
 		Anchor:      n.Anchor,
 		HeadComment: n.HeadComment, LineComment: n.LineComment, FootComment: n.FootComment,
@@ -318,13 +318,31 @@ func (c *converter) meta(n *yamlnode.Node, v *value.Value) *value.Meta {
 	if n.Kind == yamlnode.AliasNode {
 		return m
 	}
-	if strings.HasPrefix(n.Tag, "!") && !strings.HasPrefix(n.Tag, "!!") {
-		m.Tag, m.Style = n.Tag, value.Tagged
+	for _, s := range styleFlags {
+		if n.Style&s.node != 0 {
+			m.Style |= s.flag
+		}
 	}
-	if v != nil && v.Kind() == value.KindNumber && v.Literal() == "" {
+	if n.Style&yamlnode.StyleTagged != 0 {
+		m.Tag = n.Tag
+	}
+	if n.Kind == yamlnode.ScalarNode {
 		m.Text = n.Value
 	}
 	return m
+}
+
+// styleFlags pairs each yamlnode style with the value flag it becomes.
+var styleFlags = [...]struct {
+	node yamlnode.Style
+	flag value.StyleFlags
+}{
+	{yamlnode.StyleTagged, value.Tagged},
+	{yamlnode.StyleSingle, value.SingleQuoted},
+	{yamlnode.StyleDouble, value.DoubleQuoted},
+	{yamlnode.StyleLiteral, value.Literal},
+	{yamlnode.StyleFolded, value.Folded},
+	{yamlnode.StyleFlow, value.Flow},
 }
 
 // numberLiteral returns a number that prints as s. A literal past the decimal
