@@ -121,6 +121,39 @@ func TestProgramSizeEstimateIsExact(t *testing.T) {
 // TestLargePatternsCompileCheaply pins that a pattern within the length
 // bound cannot exhaust memory before its first step by repeating a class
 // whose set is large.
+// Clearing, copying, and reporting a pattern's capture slots is work that
+// grows with the slot count rather than with the instructions run, so it
+// draws on the step budget. Otherwise a pattern with tens of thousands of
+// groups could do that much unseen work at every start or every match.
+func TestSlotWorkDrawsOnStepBudget(t *testing.T) {
+	ctx := context.Background()
+	many := strings.Repeat("()", 32000)
+
+	// A search that never matches clears the slots once, not at every start.
+	start := time.Now()
+	m, err := MustCompile("x"+many).Find(ctx, strings.Repeat("a", 200_000), 0)
+	wantNil(t, err)
+	wantEqual(t, m, (*Match)(nil))
+	if el := time.Since(start); el > time.Second {
+		t.Fatalf("a failing search over many slots took %v", el)
+	}
+
+	// Under Longest every match at every start copies the slots, even
+	// those of groups the match never reached.
+	_, err = MustCompile("a|b"+many, WithFlags(Longest)).Find(ctx, strings.Repeat("a", 20_000), 0)
+	wantErrIs(t, err, ErrBudget)
+
+	// A global search builds every group of every match.
+	p := MustCompile("x|" + strings.Repeat("(y)", 21000))
+	for _, err := range p.FindAll(ctx, strings.Repeat("x", 2000), MatchOptions{Global: true}) {
+		if err != nil {
+			wantErrIs(t, err, ErrBudget)
+			return
+		}
+	}
+	t.Fatal("a global search over many groups finished within the step budget")
+}
+
 func TestLargePatternsCompileCheaply(t *testing.T) {
 	onig, ci := WithFlavor(Oniguruma), WithFlags(IgnoreCase)
 	cases := []struct {

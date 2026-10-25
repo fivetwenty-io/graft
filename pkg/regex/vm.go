@@ -40,13 +40,19 @@ func newMachine(ctx context.Context, p *Pattern, subject string, notEmpty bool) 
 }
 
 // search finds the first match that starts at or after the byte offset
-// start, or under Longest the longest, and leaves its slots in m.caps.
+// start, or under Longest the longest, and leaves its slots in m.caps. It
+// clears the slots once, since a failed attempt unwinds every slot it saved
+// and so leaves them clear for the next start. That clearing, and building
+// a match from the slots afterward, are charged here.
 func (m *machine) search(start int) (bool, error) {
 	if err := m.ctx.Err(); err != nil {
 		return false, err
 	}
 	if start < 0 || start > len(m.subject) || (m.p.anchored && start > 0) {
 		return false, nil
+	}
+	if err := m.clearCaps(); err != nil {
+		return false, err
 	}
 	if m.p.cfg.has(Longest) {
 		return m.searchLongest(start)
@@ -71,15 +77,45 @@ func (m *machine) searchLongest(start int) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		if ok && m.caps[1]-m.caps[0] > bestLen {
+		if !ok {
+			continue
+		}
+		if m.caps[1]-m.caps[0] > bestLen {
+			if err := m.charge(len(m.caps)); err != nil {
+				return false, err
+			}
 			found, bestLen = true, m.caps[1]-m.caps[0]
 			copy(m.best, m.caps)
+		}
+		if err := m.clearCaps(); err != nil {
+			return false, err
 		}
 	}
 	if found {
 		copy(m.caps, m.best)
 	}
 	return found, nil
+}
+
+// charge draws n steps for work that grows with the pattern's slots rather
+// than with the instructions run, such as clearing or copying them.
+func (m *machine) charge(n int) error {
+	m.steps += n
+	if m.steps > m.p.cfg.budget.Steps {
+		return ErrBudget
+	}
+	return m.ctx.Err()
+}
+
+// clearCaps marks every slot unset.
+func (m *machine) clearCaps() error {
+	if err := m.charge(len(m.caps)); err != nil {
+		return err
+	}
+	for i := range m.caps {
+		m.caps[i] = -1
+	}
+	return nil
 }
 
 // nextStart returns the start position one rune after s, and false when
@@ -92,16 +128,13 @@ func (m *machine) nextStart(s int) (int, bool) {
 	return s + w, true
 }
 
-// run tries the program at one start position. Under longest it explores
-// every path and keeps the match that ends last.
+// run tries the program at one start position, with every slot clear.
+// Under longest it explores every path and keeps the match that ends last.
 //
 //nolint:gocyclo // the dispatch loop runs once per step, so it stays one function
 func (m *machine) run(start int, longest bool) (bool, error) {
 	prog, s, caps := m.p.prog, m.subject, m.caps
 	maxSteps, maxStack := m.p.cfg.budget.Steps, m.p.cfg.budget.MaxStack
-	for i := range caps {
-		caps[i] = -1
-	}
 	stack := m.stack[:0]
 	defer func() { m.stack = stack[:0] }()
 	found := false
@@ -176,6 +209,9 @@ func (m *machine) run(start int, longest bool) (bool, error) {
 				return true, nil
 			}
 			if !found || pos > m.runBest[1] {
+				if err := m.charge(len(caps)); err != nil {
+					return false, err
+				}
 				found = true
 				copy(m.runBest, caps)
 			}
@@ -186,6 +222,9 @@ func (m *machine) run(start int, longest bool) (bool, error) {
 		for {
 			if len(stack) == 0 {
 				if found {
+					if err := m.charge(len(caps)); err != nil {
+						return false, err
+					}
 					copy(caps, m.runBest)
 				}
 				return found, nil
