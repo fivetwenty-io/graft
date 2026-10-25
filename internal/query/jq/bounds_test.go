@@ -1,9 +1,9 @@
 package jq_test
 
 import (
+	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/fivetwenty-io/graft/internal/query/jq"
 )
@@ -18,16 +18,28 @@ func wantErrContains(t *testing.T, err error, sub string) {
 	}
 }
 
+// allocated runs f and returns the bytes the process allocated meanwhile.
+func allocated(f func()) uint64 {
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	f()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
+}
+
 func TestOverBoundMathIsBounded(t *testing.T) {
-	start := time.Now()
 	huge := strings.Repeat("9", 100001)
 	wantErrContains(t, runErr(t, `. + 0`, huge), "number exceeds 100000 significant digits")
-	wantErrContains(t, runErr(t, `. * 2`, "1e1000000000"), "number exponent exceeds 999999999")
 	// A 60,000-digit literal squared passes the bound, and the product does not.
 	wantErrContains(t, runErr(t, `. * .`, strings.Repeat("9", 60000)), "number exceeds 100000 significant digits")
-	if el := time.Since(start); el > time.Second {
-		t.Fatalf("the bounded math took %v", el)
+	// Without the exponent check, scaling to 1e1000000000 would build a
+	// number of a billion digits.
+	const limit = 32 << 20
+	var err error
+	if n := allocated(func() { err = runErr(t, `. * 2`, "1e1000000000") }); n > limit {
+		t.Errorf("the exponent rejection allocated %d bytes, want under %d", n, limit)
 	}
+	wantErrContains(t, err, "number exponent exceeds 999999999")
 }
 
 func TestNULInProgramIsRejected(t *testing.T) {
