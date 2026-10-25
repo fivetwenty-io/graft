@@ -143,17 +143,18 @@ func (ev evaluator) reduce(n *ast.Reduce, env *Env, in *value.Value, p value.Pat
 
 // foreach is reduce that emits every output of each update, or of Extract
 // applied to it.
+//
+// Each output of the update becomes the state before it goes downstream,
+// as in jq 1.8.2, so a "?//" pattern that an error moves past leaves the
+// state its update set for the next pattern.
 func (ev evaluator) foreach(n *ast.Foreach, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
-	if len(n.Pats) > 1 {
-		emit = downstream(emit)
-	}
 	return ev.eval(n.Init, env, in, p, func(v0 *value.Value, p0 value.Path) error {
 		state := v0
 		return ev.values().eval(n.Src, env, in, nil, func(x *value.Value, _ value.Path) error {
 			return ev.bindPats(n.Pats, x, env, func(env *Env) error {
-				var last *value.Value
+				got := false
 				err := ev.eval(n.Update, env, state, ev.statePath(state, v0, p0), func(v *value.Value, vp value.Path) error {
-					last = v
+					state, got = v, true
 					if n.Extract == nil {
 						return emit(v, vp)
 					}
@@ -162,10 +163,9 @@ func (ev evaluator) foreach(n *ast.Foreach, env *Env, in *value.Value, p value.P
 				if err != nil {
 					return err
 				}
-				if last == nil {
-					last = value.Null()
+				if !got {
+					state = value.Null()
 				}
-				state = last
 				return nil
 			})
 		})
@@ -183,9 +183,6 @@ func (ev evaluator) statePath(state, v0 *value.Value, p0 value.Path) value.Path 
 // bind runs "Src as Pats | Body". The body reads the bind's own input, not
 // the value it destructures.
 func (ev evaluator) bind(n *ast.Bind, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
-	if len(n.Pats) > 1 {
-		emit = downstream(emit)
-	}
 	return ev.values().eval(n.Src, env, in, nil, func(x *value.Value, _ value.Path) error {
 		return ev.bindPats(n.Pats, x, env, func(env *Env) error {
 			return ev.eval(n.Body, env, in, p, emit)
@@ -194,10 +191,11 @@ func (ev evaluator) bind(n *ast.Bind, env *Env, in *value.Value, p value.Path, e
 }
 
 // bindPats destructures x by pats and runs body with the bindings. With
-// "?//" alternatives every variable starts out null, and an error that the
-// destructuring or the body raises moves on to the next pattern. The last
-// pattern's error stands. Callers with alternatives wrap their emit in
-// downstream, so a consumer's error never counts as the body's.
+// "?//" alternatives every variable starts out null, and an error or a
+// break raised while a pattern's bindings are live moves on to the next
+// pattern. That covers the destructuring, the body, and everything
+// downstream of the body's outputs, even past a try, as in jq 1.8.2. The
+// last pattern's error stands as it is.
 func (ev evaluator) bindPats(pats []ast.Pattern, x *value.Value, env *Env, body func(*Env) error) error {
 	if len(pats) == 1 {
 		return ev.destructure(&pats[0], x, env, body)
@@ -207,18 +205,13 @@ func (ev evaluator) bindPats(pats []ast.Pattern, x *value.Value, env *Env, body 
 			env = env.Bind(name, value.Null())
 		}
 	}
-	var err error
-	for i := range pats {
-		err = ev.destructure(&pats[i], x, env, body)
-		if err == nil {
-			return nil
-		}
-		var mine bool
-		if mine, err = ownError(err); !mine || !catchable(err) {
+	last := len(pats) - 1
+	for i := range last {
+		if err := ev.destructure(&pats[i], x, env, body); err == nil || !catchable(unwrapDownstream(err)) {
 			return err
 		}
 	}
-	return err
+	return ev.destructure(&pats[last], x, env, body)
 }
 
 // patternVars appends the names a pattern binds.

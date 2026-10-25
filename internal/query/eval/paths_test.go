@@ -50,6 +50,11 @@ func TestPathTracking(t *testing.T) {
 	wantPaths(t, `reduce empty as $k (.a; .b)`, `null`, `["a"]`)
 	wantPaths(t, `foreach ("a","b") as $k (.; .[$k])`, `null`, `["a"]`, `["b"]`)
 	wantPaths(t, `.a as $x | .b`, `null`, `["b"]`)
+	// A destructuring bind keeps the input's path too. This departs from
+	// jq 1.8.2, which raises an invalid path error for the object form and
+	// gives [0,"b"] for the array form.
+	wantPaths(t, `. as {a: $v} | .b`, `{"a":1}`, `["b"]`)
+	wantPaths(t, `. as [$a] | .b`, `null`, `["b"]`)
 	wantPaths(t, `try .a catch .b`, `null`, `["a"]`)
 	wantPaths(t, `label $f | .a, break $f`, `null`, `["a"]`)
 	wantPaths(t, `empty`, `null`)
@@ -65,4 +70,7 @@ func TestInvalidPathExpressions(t *testing.T) {
 	wantError(t, `path(reduce 1 as $k (.; .a))`, `{"a":{"b":1}}`, `Invalid path expression with result {"b":1}`)
 	wantError(t, `[path(foreach (1,2) as $k (.; .a))]`, `{"a":{"b":1}}`, `Invalid path expression near attempt to access element "a" of {"b":1}`)
 	wantError(t, `path(.a)`, `1`, `Cannot index number with string ("a")`)
+	// getpath's own errors come before the invalid path.
+	wantError(t, `path(1 | getpath(["a"]))`, `null`, `Cannot index number with string ("a")`)
+	wantError(t, `path(getpath("a"))`, `null`, "Path must be specified as an array")
 }

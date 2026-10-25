@@ -149,14 +149,15 @@ func (ev evaluator) pathOf(f ast.Node, env *Env, in *value.Value, p value.Path, 
 }
 
 // getpathOf runs getpath(f) in path mode, where its outputs extend the
-// input's path by each path f produces.
+// input's path by each path f produces. The native runs first, so its own
+// errors about the path or the input come before an invalid path.
 func (ev evaluator) getpathOf(f ast.Node, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	return ev.each(in, p, func(in *value.Value, p value.Path) error {
 		return ev.values().eval(f, env, in, nil, func(path *value.Value, _ value.Path) error {
-			if p == nil {
-				return invalidPathResult(in)
-			}
 			return ev.native("getpath", in, []runtime.Thunk{constThunk{path}}, func(v *value.Value, _ value.Path) error {
+				if p == nil {
+					return invalidPathResult(in)
+				}
 				if path.Kind() != value.KindArray {
 					return emit(v, nil)
 				}

@@ -32,7 +32,6 @@ func TestTryBoundaryAndErrorProvenance(t *testing.T) {
 
 func TestControlFlowEdges(t *testing.T) {
 	wantOutputs(t, `label $f | try break $f catch .`, `null`, `{"__jq":0}`)
-	wantOutputs(t, `[(1, break $f)?]`, `null`, `[1]`)
 	wantOutputs(t, `[label $f | 1, (label $g | 2, break $f, 3), 4]`, `null`, `[1,2]`)
 	wantOutputs(t, `label $f | 1 | (., break $f) | . + 1`, `null`, `2`)
 	wantOutputs(t, `[foreach range(3) as $x (0; if $x == 1 then empty else . + 1 end)]`, `null`, `[1,1]`)

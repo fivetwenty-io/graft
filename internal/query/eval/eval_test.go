@@ -81,6 +81,15 @@ func TestDestructuringPatterns(t *testing.T) {
 	wantOutputs(t, `. as {"a": $x, a: $y, ("a","b"): $z} | [$x, $y, $z]`, `{"a":1,"b":2}`, `[1,1,1]`, `[1,1,2]`)
 	wantOutputs(t, `. as [$a] ?// $a | $a`, `null`, `null`)
 	wantOutputs(t, `. as [$a] ?// $a | if $a == 1 then error("e") else $a end`, `[1]`, `[1]`)
+	// An error or a break raised downstream of a pattern that is not the
+	// last also moves on to the next pattern, as in jq 1.8.2.
+	wantOutputs(t, `[([1] as [$a] ?// $a | $a) | if . == 1 then error("n") else . end]`, `null`, `[[1]]`)
+	wantOutputs(t, `[label $f | ([1] as [$a] ?// $a | $a) | ., break $f]`, `null`, `[1,[1]]`)
+	wantOutputs(t, `[label $f | (try ([1] as [$a] ?// $a | $a) catch "c") | ., break $f]`, `null`, `[1,[1]]`)
+	wantError(t, `[1] as [$a] ?// $a | $a | ., error("z")`, `null`, "z")
+	// foreach keeps the state the first pattern's update set when it moves
+	// on.
+	wantOutputs(t, `[foreach ([1]) as [$a] ?// $a (10; . + 1) | if . == 11 then error("n") else . end]`, `null`, `[12]`)
 	wantOutputs(t, `[.[] as [$a] ?// {$b} | [$a, $b]]`, `[[1],{"b":2}]`, `[[1,null],[null,2]]`)
 	wantError(t, `. as [$a] ?// [$b] | $a`, `{}`, "Cannot index object with number (0)")
 	wantError(t, `. as [$a] | $a`, `"x"`, "Cannot index string with number (0)")

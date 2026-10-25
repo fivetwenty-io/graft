@@ -385,6 +385,9 @@ func testRegistry() *runtime.Registry {
 	})
 	r.Register("getpath", 1, func(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return args[0].Each(in, func(p *value.Value, _ value.Path) error {
+			if p.Kind() != value.KindArray {
+				return failf("Path must be specified as an array")
+			}
 			v, err := getPath(in, p.Elems())
 			if err != nil {
 				return err
