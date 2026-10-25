@@ -2,6 +2,8 @@ package regex
 
 import (
 	"context"
+	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -114,4 +116,58 @@ func TestProgramSizeEstimateIsExact(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestLargePatternsCompileCheaply pins that a pattern within the length
+// bound cannot exhaust memory before its first step by repeating a class
+// whose set is large.
+func TestLargePatternsCompileCheaply(t *testing.T) {
+	onig, ci := WithFlavor(Oniguruma), WithFlags(IgnoreCase)
+	cases := []struct {
+		item string
+		opts []Option
+	}{
+		{`\w`, []Option{onig}},
+		{`\W`, []Option{onig}},
+		{`[\pL]`, []Option{onig, ci}},
+		{`[^\pL]`, []Option{onig, ci}},
+		{`[[:alpha:]]`, []Option{onig, ci}},
+		{`\p{Lu}`, []Option{ci}},
+		{`[\x{0}-\x{10ffff}]`, []Option{ci}},
+	}
+	for _, c := range cases {
+		pattern := strings.Repeat(c.item, defaultMaxPattern/len(c.item))
+		alloc := allocatedBy(func() { _, _ = Compile(pattern, c.opts...) })
+		if alloc > 64<<20 {
+			t.Errorf("compiling %d copies of %s allocated %d MiB", len(pattern)/len(c.item), c.item, alloc>>20)
+		}
+	}
+
+	// Classes that differ in text cannot share their sets, so each one
+	// draws on the instruction budget instead.
+	var b strings.Builder
+	for r := rune(0xe000); b.Len() < defaultMaxPattern-16; r++ {
+		fmt.Fprintf(&b, `[\pL\x{%x}]`, r)
+	}
+	var err error
+	alloc := allocatedBy(func() { _, err = Compile(b.String(), onig, ci) })
+	if alloc > 64<<20 {
+		t.Errorf("compiling distinct letter classes allocated %d MiB", alloc>>20)
+	}
+	wantErrIs(t, err, ErrBudget)
+}
+
+func TestClassRangesDrawOnInstructionBudget(t *testing.T) {
+	_, err := Compile(`[\pL]`, WithFlavor(Oniguruma), WithBudget(Budget{MaxInstructions: 100}))
+	wantErrIs(t, err, ErrBudget)
+	wantErrContains(t, err, "character classes exceed the budget of 100 instructions")
+}
+
+// allocatedBy returns the bytes f allocates.
+func allocatedBy(f func()) uint64 {
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	f()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
 }

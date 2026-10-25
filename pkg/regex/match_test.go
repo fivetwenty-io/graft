@@ -278,6 +278,19 @@ func TestOnigurumaCaselessClasses(t *testing.T) {
 	}
 }
 
+// A class that repeats is built once and shared, so every place it appears
+// must still match and capture on its own.
+func TestRepeatedClassesMatchAlike(t *testing.T) {
+	p := MustCompile(`^([ß])-[ß]-([ß])$`, WithFlavor(Oniguruma), WithFlags(IgnoreCase))
+	subject := "ss-ß-SS"
+	m := find(t, p, subject)
+	wantEqual(t, m.Groups[1].Text(subject), "ss")
+	wantEqual(t, m.Groups[2].Text(subject), "SS")
+	m, err := p.Find(context.Background(), "ss-x-SS", 0)
+	wantNil(t, err)
+	wantEqual(t, m, (*Match)(nil))
+}
+
 func TestAnchors(t *testing.T) {
 	wantNoMatch(t, MustCompile(`a$`), "a\n\n")
 	wantMatch(t, MustCompile(`^$`), "")

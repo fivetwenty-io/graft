@@ -1,8 +1,10 @@
 package regex
 
 import (
+	"cmp"
 	"slices"
 	"strings"
+	"sync"
 	"unicode"
 )
 
@@ -12,15 +14,39 @@ type runeRange struct {
 }
 
 // runeSet is a set of runes held as sorted, disjoint, non-adjacent ranges.
-// The functions that build one return it normalized.
+// The functions that build one return it normalized. A set is never changed
+// once built, so the named sets below are built once and shared by every
+// pattern that uses them.
 type runeSet []runeRange
+
+// setCache memoizes the sets a key names. Every key it is given is drawn
+// from a fixed vocabulary, such as a Unicode table or a property name the
+// tables define, so it never grows past a bound the tables set.
+type setCache[K comparable] struct {
+	mu   sync.Mutex
+	sets map[K]runeSet
+}
+
+func (c *setCache[K]) get(key K, build func() runeSet) runeSet {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if s, ok := c.sets[key]; ok {
+		return s
+	}
+	if c.sets == nil {
+		c.sets = map[K]runeSet{}
+	}
+	s := build()
+	c.sets[key] = s
+	return s
+}
 
 // normalize sorts the ranges and merges the ones that overlap or touch.
 func normalize(rs []runeRange) runeSet {
 	if len(rs) == 0 {
 		return nil
 	}
-	slices.SortFunc(rs, func(a, b runeRange) int { return int(a.lo - b.lo) })
+	slices.SortFunc(rs, func(a, b runeRange) int { return cmp.Compare(a.lo, b.lo) })
 	out := rs[:1]
 	for _, r := range rs[1:] {
 		last := &out[len(out)-1]
@@ -89,7 +115,14 @@ func setOf(runes ...rune) runeSet {
 	return normalize(rs)
 }
 
+var tableSets setCache[*unicode.RangeTable]
+
+// fromTable returns the runes a Unicode table holds.
 func fromTable(t *unicode.RangeTable) runeSet {
+	return tableSets.get(t, func() runeSet { return buildFromTable(t) })
+}
+
+func buildFromTable(t *unicode.RangeTable) runeSet {
 	var rs []runeRange
 	for _, r := range t.R16 {
 		rs = appendStrided(rs, rune(r.Lo), rune(r.Hi), rune(r.Stride))
@@ -131,22 +164,20 @@ func canonicalFold(r rune) rune {
 	return m
 }
 
-// foldClosure adds to s every rune in the orbit of a rune s holds. Only the
-// runes that have a case mapping can widen the set, so the walk covers
-// unicode.CaseRanges rather than every rune s holds.
+// foldClosure adds to s every rune in the orbit of a rune s holds. It walks
+// the runes whose orbit is wider than themselves that fall in s's ranges, so
+// its cost follows how many cased runes s holds rather than how many runes,
+// and it allocates only for the partners s lacks.
 func (s runeSet) foldClosure() runeSet {
-	extra := []runeRange{}
-	for _, cr := range unicode.CaseRanges {
-		lo, hi := rune(cr.Lo), rune(cr.Hi) //nolint:gosec // Unicode tables hold nothing above unicode.MaxRune
-		if !s.overlaps(lo, hi) {
-			continue
-		}
-		for r := lo; r <= hi; r++ {
-			if !s.contains(r) {
-				continue
-			}
-			for _, f := range orbit(r)[1:] {
-				extra = append(extra, runeRange{f, f})
+	table := foldTable()
+	var extra []runeRange
+	for _, rr := range s {
+		i, _ := slices.BinarySearchFunc(table, rr.lo, func(e foldEntry, t rune) int { return cmp.Compare(e.r, t) })
+		for ; i < len(table) && table[i].r <= rr.hi; i++ {
+			for _, f := range table[i].partners[:table[i].n] {
+				if !s.contains(f) {
+					extra = append(extra, runeRange{f, f})
+				}
 			}
 		}
 	}
@@ -156,19 +187,33 @@ func (s runeSet) foldClosure() runeSet {
 	return union(s, extra)
 }
 
-func (s runeSet) overlaps(lo, hi rune) bool {
-	i, _ := slices.BinarySearchFunc(s, lo, func(r runeRange, t rune) int {
-		switch {
-		case r.hi < t:
-			return -1
-		case r.lo > t:
-			return 1
-		default:
-			return 0
-		}
-	})
-	return i < len(s) && s[i].lo <= hi
+// foldEntry is a rune whose case-fold orbit holds other runes, and those
+// runes. No orbit holds more than four runes.
+type foldEntry struct {
+	r        rune
+	n        uint8
+	partners [3]rune
 }
+
+// foldTable lists every rune with a case-fold partner, in order. Only runes
+// that have a case mapping can have one, so the table is built from
+// unicode.CaseRanges.
+var foldTable = sync.OnceValue(func() []foldEntry {
+	var table []foldEntry
+	for _, cr := range unicode.CaseRanges {
+		lo, hi := rune(cr.Lo), rune(cr.Hi)
+		for r := lo; r <= hi; r++ {
+			o := orbit(r)
+			if len(o) == 1 {
+				continue
+			}
+			e := foldEntry{r: r}
+			e.n = uint8(copy(e.partners[:], o[1:]))
+			table = append(table, e)
+		}
+	}
+	return table
+})
 
 // The ASCII sets the PCRE flavor uses for its escapes and POSIX classes.
 var (
@@ -190,9 +235,23 @@ var (
 	verticalSpace = runeSet{{'\n', '\r'}, {0x85, 0x85}, {0x2028, 0x2029}}
 )
 
+type escapeKey struct {
+	letter rune
+	flavor Flavor
+}
+
+var escapeSets setCache[escapeKey]
+
 // escapeClass returns the set a class escape such as \d or \W stands for,
 // or nil when letter names none.
 func escapeClass(letter rune, flavor Flavor) runeSet {
+	if !strings.ContainsRune("dDwWsShHvV", letter) {
+		return nil
+	}
+	return escapeSets.get(escapeKey{letter, flavor}, func() runeSet { return buildEscapeClass(letter, flavor) })
+}
+
+func buildEscapeClass(letter rune, flavor Flavor) runeSet {
 	var s runeSet
 	switch unicode.ToLower(letter) {
 	case 'd':
@@ -227,10 +286,14 @@ func digitClass(flavor Flavor) runeSet {
 
 func wordClass(flavor Flavor) runeSet {
 	if flavor == Oniguruma {
-		return union(alphabetic(), fromTable(unicode.M), fromTable(unicode.Nd), fromTable(unicode.Pc))
+		return unicodeWord()
 	}
 	return asciiWord
 }
+
+var unicodeWord = sync.OnceValue(func() runeSet {
+	return union(alphabetic(), fromTable(unicode.M), fromTable(unicode.Nd), fromTable(unicode.Pc))
+})
 
 func spaceClass(flavor Flavor) runeSet {
 	if flavor == Oniguruma {
@@ -241,15 +304,36 @@ func spaceClass(flavor Flavor) runeSet {
 
 // alphabetic is the Unicode Alphabetic property, which Go's tables hold as
 // letters, letter numbers, and Other_Alphabetic.
-func alphabetic() runeSet {
+var alphabetic = sync.OnceValue(func() runeSet {
 	return union(fromTable(unicode.L), fromTable(unicode.Nl), fromTable(unicode.Other_Alphabetic))
+})
+
+type posixKey struct {
+	name                string
+	flavor              Flavor
+	ignoreCase, negated bool
 }
 
+var posixSets setCache[posixKey]
+
 // posixClass returns the set a POSIX bracket name such as alpha stands for,
-// and false when the name is unknown. Under IgnoreCase the PCRE flavor reads
-// upper and lower as every ASCII letter, as PCRE2 does, where the Oniguruma
-// flavor folds them with the rest of their class.
-func posixClass(name string, flavor Flavor, ignoreCase bool) (runeSet, bool) {
+// or its complement when negated, and false when the name is unknown. Under
+// IgnoreCase the PCRE flavor reads upper and lower as every ASCII letter, as
+// PCRE2 does, where the Oniguruma flavor folds them with the rest of their
+// class.
+func posixClass(name string, flavor Flavor, ignoreCase, negated bool) (runeSet, bool) {
+	set, ok := namedPosixClass(name, flavor, ignoreCase)
+	if !ok {
+		return nil, false
+	}
+	if !negated {
+		return set, true
+	}
+	key := posixKey{name, flavor, ignoreCase, negated}
+	return posixSets.get(key, set.negate), true
+}
+
+func namedPosixClass(name string, flavor Flavor, ignoreCase bool) (runeSet, bool) {
 	if flavor == Oniguruma {
 		return unicodePosixClass(name)
 	}
@@ -282,6 +366,17 @@ var asciiPosixClasses = map[string]runeSet{
 // unicodePosixClass gives the POSIX names their Unicode meanings for the
 // Oniguruma flavor.
 func unicodePosixClass(name string) (runeSet, bool) {
+	// Both flavors know the same names.
+	if _, known := asciiPosixClasses[name]; !known {
+		return nil, false
+	}
+	return posixSets.get(posixKey{name: name, flavor: Oniguruma}, func() runeSet {
+		set, _ := buildUnicodePosixClass(name)
+		return set
+	}), true
+}
+
+func buildUnicodePosixClass(name string) (runeSet, bool) {
 	switch name {
 	case "alpha":
 		return alphabetic(), true
@@ -317,41 +412,69 @@ func unicodePosixClass(name string) (runeSet, bool) {
 
 // graphic is every assigned rune that is neither a space, a control, nor a
 // surrogate.
-func graphic() runeSet {
+var graphic = sync.OnceValue(func() runeSet {
 	return union(fromTable(unicode.L), fromTable(unicode.M), fromTable(unicode.N),
 		fromTable(unicode.P), fromTable(unicode.S), fromTable(unicode.Cf), fromTable(unicode.Co))
+})
+
+type propertyKey struct {
+	name              string
+	caseless, negated bool
 }
 
-// propertyClass returns the set \p{name} stands for. Names match loosely, as
-// in PCRE2, ignoring case, spaces, hyphens, and underscores, and they may
-// name a general category, a script, or a binary property. When caseless,
-// as under the PCRE flavor's IgnoreCase, the cased-letter categories Lu, Ll,
-// and Lt each stand for all three.
-func propertyClass(name string, caseless bool) (runeSet, bool) {
+var propertySets setCache[propertyKey]
+
+// propertyClass returns the set \p{name} stands for, or its complement when
+// negated. Names match loosely, as in PCRE2, ignoring case, spaces, hyphens,
+// and underscores, and they may name a general category, a script, or a
+// binary property. When caseless, as under the PCRE flavor's IgnoreCase, the
+// cased-letter categories Lu, Ll, and Lt each stand for all three.
+func propertyClass(name string, caseless, negated bool) (runeSet, bool) {
 	key := looseName(name)
+	if key != "any" && key != "l&" && key != "lc" && propertyTables()[key] == nil {
+		return nil, false
+	}
+	return propertySets.get(propertyKey{key, caseless, negated}, func() runeSet {
+		set := namedProperty(key, caseless)
+		if negated {
+			return set.negate()
+		}
+		return set
+	}), true
+}
+
+func namedProperty(key string, caseless bool) runeSet {
 	switch key {
 	case "any":
-		return runeSet{{0, unicode.MaxRune}}, true
+		return runeSet{{0, unicode.MaxRune}}
 	case "l&", "lc":
-		return casedLetters(), true
+		return casedLetters()
 	case "lu", "ll", "lt":
 		if caseless {
-			return casedLetters(), true
+			return casedLetters()
 		}
 	}
+	return fromTable(propertyTables()[key])
+}
+
+// propertyTables indexes Go's Unicode tables by their loose names. Where two
+// tables share a loose name, a general category wins over a script and a
+// script over a binary property.
+var propertyTables = sync.OnceValue(func() map[string]*unicode.RangeTable {
+	index := map[string]*unicode.RangeTable{}
 	for _, tables := range []map[string]*unicode.RangeTable{unicode.Categories, unicode.Scripts, unicode.Properties} {
 		for n, t := range tables {
-			if looseName(n) == key {
-				return fromTable(t), true
+			if _, taken := index[looseName(n)]; !taken {
+				index[looseName(n)] = t
 			}
 		}
 	}
-	return nil, false
-}
+	return index
+})
 
-func casedLetters() runeSet {
+var casedLetters = sync.OnceValue(func() runeSet {
 	return union(fromTable(unicode.Lu), fromTable(unicode.Ll), fromTable(unicode.Lt))
-}
+})
 
 func looseName(name string) string {
 	return strings.ToLower(strings.Map(func(r rune) rune {

@@ -30,11 +30,23 @@ type inst struct {
 // classes, one per rune, holding each rune's case-fold orbit. Under the
 // Oniguruma flavor it also gains alternations for full case folding, and a
 // class with expansions becomes an alternation of the class and its
-// expansions.
+// expansions. The parser shares one node among the places a class repeats,
+// and lower shares that class's lowering the same way.
 func lower(n *node, cfg *config) *node {
+	l := lowering{cfg: cfg, classes: map[*node]*node{}}
+	return l.node(n)
+}
+
+type lowering struct {
+	cfg     *config
+	classes map[*node]*node
+}
+
+func (l *lowering) node(n *node) *node {
 	for i, s := range n.subs {
-		n.subs[i] = lower(s, cfg)
+		n.subs[i] = l.node(s)
 	}
+	cfg := l.cfg
 	switch {
 	case n.kind == kindLiteral && n.fold && cfg.flavor == Oniguruma:
 		return fullFoldLiteral(n.runes)
@@ -45,10 +57,14 @@ func lower(n *node, cfg *config) *node {
 		}
 		return single(seq)
 	case n.kind == kindClass && len(n.expansions) > 0:
+		if alt, ok := l.classes[n]; ok {
+			return alt
+		}
 		alt := &node{kind: kindAlternate, subs: []*node{{kind: kindClass, set: n.set}}}
 		for _, e := range n.expansions {
 			alt.subs = append(alt.subs, orbitSequence(e))
 		}
+		l.classes[n] = alt
 		return alt
 	}
 	return n

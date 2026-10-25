@@ -22,6 +22,13 @@ type parser struct {
 	cfg   *config
 	depth int
 	names []string // one per group, group 0 first
+
+	// classes holds the bracket classes built so far by their text, so a
+	// class that repeats is built once and its node shared. classCost
+	// counts the ranges and expansion runes those classes hold, which
+	// draw on the instruction budget.
+	classes   map[string]*node
+	classCost int
 }
 
 // parse turns a pattern into a tree and returns the group names, group 0
@@ -708,12 +715,9 @@ func (p *parser) property(start int, negated bool) (runeSet, error) {
 	}
 	// Oniguruma leaves a bare property unfolded and folds one in a class
 	// along with the rest of the class.
-	set, ok := propertyClass(strings.TrimSpace(name), p.cfg.has(IgnoreCase) && p.cfg.flavor == PCRE)
+	set, ok := propertyClass(strings.TrimSpace(name), p.cfg.has(IgnoreCase) && p.cfg.flavor == PCRE, negated)
 	if !ok {
 		return nil, p.errorAt(start, `unknown property after \P or \p`)
-	}
-	if negated {
-		set = set.negate()
 	}
 	return set, nil
 }
@@ -728,14 +732,15 @@ func (p *parser) class(start int) (*node, error) {
 		negated = true
 		p.pos++
 	}
-	var folded, kept []runeRange
+	var folded []runeRange
+	var kept []runeSet
 	for first := true; ; first = false {
 		if p.eof() {
 			return nil, p.errorAt(start, "missing terminating ] for character class")
 		}
 		if p.src[p.pos] == ']' && !first {
 			p.pos++
-			return p.classNode(folded, kept, negated), nil
+			return p.classNode(p.src[start:p.pos], folded, kept, negated)
 		}
 		var err error
 		if folded, kept, err = p.classItem(folded, kept); err != nil {
@@ -747,7 +752,7 @@ func (p *parser) class(start int) (*node, error) {
 // classItem reads one item of a bracket class. A literal or a range goes on
 // folded, the items PCRE folds under IgnoreCase, and an escape, a property,
 // or a POSIX name goes on kept.
-func (p *parser) classItem(folded, kept []runeRange) ([]runeRange, []runeRange, error) {
+func (p *parser) classItem(folded []runeRange, kept []runeSet) ([]runeRange, []runeSet, error) {
 	itemPos := p.pos
 	if p.lookingAt("[:") {
 		set, ok, err := p.posix()
@@ -755,7 +760,7 @@ func (p *parser) classItem(folded, kept []runeRange) ([]runeRange, []runeRange, 
 			return nil, nil, err
 		}
 		if ok {
-			return folded, append(kept, set...), nil
+			return folded, append(kept, set), nil
 		}
 	}
 	lo, set, err := p.classAtom()
@@ -766,7 +771,7 @@ func (p *parser) classItem(folded, kept []runeRange) ([]runeRange, []runeRange, 
 		if p.lookingAt("-") && !p.lookingAt("-]") {
 			return nil, nil, p.errorAt(itemPos, "invalid range in character class")
 		}
-		return folded, append(kept, set...), nil
+		return folded, append(kept, set), nil
 	}
 	hi := lo
 	if p.lookingAt("-") && !p.lookingAt("-]") && p.pos+1 < len(p.src) {
@@ -786,28 +791,43 @@ func (p *parser) classItem(folded, kept []runeRange) ([]runeRange, []runeRange, 
 	return append(folded, runeRange{lo, hi}), kept, nil
 }
 
-// classNode builds a class from its items. PCRE folds only literals and
-// ranges. Oniguruma folds every item, escapes, properties, and POSIX names
-// included, and the runes the folded class holds bring their full-folding
-// expansions with them.
-func (p *parser) classNode(folded, kept []runeRange, negated bool) *node {
+// classNode builds the class whose text is text from its items. PCRE folds
+// only literals and ranges. Oniguruma folds every item, escapes, properties,
+// and POSIX names included, and the runes the folded class holds bring their
+// full-folding expansions with them.
+func (p *parser) classNode(text string, folded []runeRange, kept []runeSet, negated bool) (*node, error) {
+	if n, ok := p.classes[text]; ok {
+		return n, nil
+	}
 	var set runeSet
 	var expansions [][]rune
 	switch {
 	case p.cfg.has(IgnoreCase) && p.cfg.flavor == Oniguruma:
-		set = union(normalize(folded), normalize(kept)).foldClosure()
+		set = union(append(kept, normalize(folded))...).foldClosure()
 		if !negated {
 			expansions = foldExpansions(set)
 		}
 	case p.cfg.has(IgnoreCase):
-		set = union(normalize(folded).foldClosure(), normalize(kept))
+		set = union(append(kept, normalize(folded).foldClosure())...)
 	default:
-		set = union(normalize(folded), normalize(kept))
+		set = union(append(kept, normalize(folded))...)
 	}
 	if negated {
 		set = set.negate()
 	}
-	return &node{kind: kindClass, set: set, expansions: expansions}
+	p.classCost += len(set)
+	for _, e := range expansions {
+		p.classCost += len(e)
+	}
+	if p.classCost > p.cfg.budget.MaxInstructions {
+		return nil, overBudget("character classes exceed the budget of %d instructions", p.cfg.budget.MaxInstructions)
+	}
+	n := &node{kind: kindClass, set: set, expansions: expansions}
+	if p.classes == nil {
+		p.classes = map[string]*node{}
+	}
+	p.classes[text] = n
+	return n, nil
 }
 
 // posix reads a [:name:] or [:^name:] item. It returns false, leaving the
@@ -825,14 +845,11 @@ func (p *parser) posix() (runeSet, bool, error) {
 	if name == "" || !allLowerASCII(name) {
 		return nil, false, nil
 	}
-	set, ok := posixClass(name, p.cfg.flavor, p.cfg.has(IgnoreCase))
+	set, ok := posixClass(name, p.cfg.flavor, p.cfg.has(IgnoreCase), negated)
 	if !ok {
 		return nil, false, p.errorAt(at, "unknown POSIX class name")
 	}
 	p.pos += end + 4
-	if negated {
-		set = set.negate()
-	}
 	return set, true, nil
 }
 

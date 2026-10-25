@@ -68,7 +68,9 @@ type Budget struct {
 
 	// MaxInstructions bounds the compiled program. Counted repetitions are
 	// sized before they expand, so a pattern such as (a{1000}){1000} is
-	// refused before its program is allocated.
+	// refused before its program is allocated. The ranges and full-folding
+	// expansions of the pattern's distinct bracket classes count against
+	// the same bound, so a pattern cannot build more class data than it.
 	MaxInstructions int
 
 	// MaxStack bounds the backtrack stack of one match and the capture
