@@ -1,0 +1,167 @@
+package eval
+
+import (
+	"github.com/fivetwenty-io/graft/internal/query/ast"
+	"github.com/fivetwenty-io/graft/internal/query/runtime"
+	"github.com/fivetwenty-io/graft/pkg/query/value"
+)
+
+// extend returns p with c appended, always in a new array so that sibling
+// paths never share one.
+func extend(p value.Path, c ...*value.Value) value.Path {
+	out := make(value.Path, 0, len(p)+len(c))
+	out = append(out, p...)
+	return append(out, c...)
+}
+
+// target runs a postfix node's target, which is the input itself when the
+// node has none.
+func (ev evaluator) target(t ast.Node, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	if t == nil {
+		return emit(in, p)
+	}
+	return ev.eval(t, env, in, p, emit)
+}
+
+func (ev evaluator) field(n *ast.Field, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	key := value.Str(n.Name)
+	return ev.each(in, p, func(in *value.Value, p value.Path) error {
+		return ev.target(n.Target, env, in, p, func(v *value.Value, vp value.Path) error {
+			return ev.lookup(v, vp, key, n.Opt, emit)
+		})
+	})
+}
+
+// index runs Target[Key]. The key reads the node's own input and varies
+// slower than the target.
+func (ev evaluator) index(n *ast.Index, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	return ev.each(in, p, func(in *value.Value, p value.Path) error {
+		return ev.values().eval(n.Key, env, in, nil, func(key *value.Value, _ value.Path) error {
+			return ev.target(n.Target, env, in, p, func(v *value.Value, vp value.Path) error {
+				return ev.lookup(v, vp, key, n.Opt, emit)
+			})
+		})
+	})
+}
+
+// slice runs Target[From:To] as an index by the object {start, end}. The
+// start varies slowest and the target fastest.
+func (ev evaluator) slice(n *ast.Slice, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	vev := ev.values()
+	bound := func(b ast.Node, in *value.Value, k func(*value.Value) error) error {
+		if b == nil {
+			return k(value.Null())
+		}
+		return vev.eval(b, env, in, nil, func(v *value.Value, _ value.Path) error { return k(v) })
+	}
+	return ev.each(in, p, func(in *value.Value, p value.Path) error {
+		return bound(n.From, in, func(from *value.Value) error {
+			return bound(n.To, in, func(to *value.Value) error {
+				key := value.Obj(value.Pair{Key: "start", Value: from}, value.Pair{Key: "end", Value: to})
+				return ev.target(n.Target, env, in, p, func(v *value.Value, vp value.Path) error {
+					return ev.lookup(v, vp, key, n.Opt, emit)
+				})
+			})
+		})
+	})
+}
+
+// lookup indexes v by key through the dialect. With opt set it drops the
+// errors the index itself raises, but never one from emit.
+func (ev evaluator) lookup(v *value.Value, vp value.Path, key *value.Value, opt bool, emit runtime.Emit) error {
+	if ev.paths && vp == nil {
+		if opt {
+			return nil
+		}
+		return invalidPathAccess(key, v)
+	}
+	mode := ev.mode
+	if opt && mode == runtime.IndexRead {
+		mode = runtime.IndexOptional
+	}
+	out, err := ev.ctx.Dialect.Index(v, key, mode)
+	if err != nil {
+		if opt && catchable(err) {
+			return nil
+		}
+		return err
+	}
+	if out == nil {
+		return nil
+	}
+	if !ev.paths {
+		return emit(out, nil)
+	}
+	return emit(out, extend(vp, key))
+}
+
+// iterate runs Target[], with the same rule for opt as lookup.
+func (ev evaluator) iterate(n *ast.Iterate, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	return ev.each(in, p, func(in *value.Value, p value.Path) error {
+		return ev.target(n.Target, env, in, p, func(v *value.Value, vp value.Path) error {
+			if ev.paths && vp == nil {
+				if n.Opt {
+					return nil
+				}
+				return invalidPathIterate(v)
+			}
+			var downstream error
+			err := ev.ctx.Dialect.Iterate(v, func(k, e *value.Value) error {
+				var ep value.Path
+				if ev.paths {
+					ep = extend(vp, k)
+				}
+				if err := emit(e, ep); err != nil {
+					downstream = err
+					return err
+				}
+				return nil
+			})
+			if err != nil && downstream == nil && n.Opt && catchable(err) {
+				return nil
+			}
+			return err
+		})
+	})
+}
+
+// recurse runs "..", which emits in and everything under it, depth first.
+func (ev evaluator) recurse(in *value.Value, p value.Path, emit runtime.Emit) error {
+	return ev.ctx.Dialect.Recurse(in, false, func(v *value.Value, rel value.Path) error {
+		if !ev.paths || p == nil {
+			return emit(v, nil)
+		}
+		return emit(v, extend(p, rel...))
+	})
+}
+
+// pathOf runs path(f), which emits the path of every output of f.
+func (ev evaluator) pathOf(f ast.Node, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	pev := ev.pathsFor(runtime.IndexRead)
+	return ev.each(in, p, func(in *value.Value, _ value.Path) error {
+		return pev.eval(f, env, in, value.Path{}, func(v *value.Value, vp value.Path) error {
+			if vp == nil {
+				return invalidPathResult(v)
+			}
+			return emit(value.Arr(vp...), nil)
+		})
+	})
+}
+
+// getpathOf runs getpath(f) in path mode, where its outputs extend the
+// input's path by each path f produces.
+func (ev evaluator) getpathOf(f ast.Node, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	return ev.each(in, p, func(in *value.Value, p value.Path) error {
+		return ev.values().eval(f, env, in, nil, func(path *value.Value, _ value.Path) error {
+			if p == nil {
+				return invalidPathResult(in)
+			}
+			return ev.native("getpath", in, []runtime.Thunk{constThunk{path}}, func(v *value.Value, _ value.Path) error {
+				if path.Kind() != value.KindArray {
+					return emit(v, nil)
+				}
+				return emit(v, extend(p, path.Elems()...))
+			})
+		})
+	})
+}
