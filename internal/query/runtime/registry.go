@@ -3,8 +3,10 @@ package runtime
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/ast"
+	"github.com/fivetwenty-io/graft/pkg/query"
 )
 
 // Registry holds a dialect's builtins, keyed by name and arity, and the
@@ -52,6 +54,16 @@ func (r *Registry) Single(name string, arity int) bool {
 func (r *Registry) Lookup(name string, arity int) (Native, bool) {
 	fn, ok := r.natives[nameArity{name, arity}]
 	return fn, ok
+}
+
+// Format returns the format native registered as name, such as
+// "@base64". A name that isn't one gives the error jq gives, which names
+// the format without its @, so @foo and format("foo") say the same thing.
+func (r *Registry) Format(name string) (Native, error) {
+	if fn, ok := r.Lookup(name, 0); ok {
+		return fn, nil
+	}
+	return nil, &query.RuntimeError{Msg: strings.TrimPrefix(name, "@") + " is not a valid format"}
 }
 
 // AddPrelude adds a parsed program whose definitions become builtins. Each

@@ -74,7 +74,7 @@ func TestFormatsCallTheirNative(t *testing.T) {
 	})
 	wantOutputsWithCtx(t, ctx, `@up "x\("a")y\(1)"`, `null`, `"x\"A\"y1"`)
 	wantOutputsWithCtx(t, ctx, `@up`, `"q"`, `"\"Q\""`)
-	wantErrorWithCtx(t, ctx, `@nope`, `null`, "@nope is not a valid format")
+	wantErrorWithCtx(t, ctx, `@nope`, `null`, "nope is not a valid format")
 }
 
 func TestDestructuringAlternatives(t *testing.T) {

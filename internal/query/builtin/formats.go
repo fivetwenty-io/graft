@@ -55,13 +55,13 @@ func registerFormats(r *runtime.Registry) {
 			if name.Kind() != value.KindString {
 				return fail("%s is not a valid format", describe(name))
 			}
-			var f runtime.Native
-			ok := false
+			reg := &runtime.Registry{}
 			if ctx.Dialect != nil {
-				f, ok = ctx.Dialect.Builtins().Lookup("@"+name.Str(), 0)
+				reg = ctx.Dialect.Builtins()
 			}
-			if !ok {
-				return fail("%s is not a valid format", name.Str())
+			f, err := reg.Format("@" + name.Str())
+			if err != nil {
+				return err
 			}
 			return f(ctx, in, nil, emit)
 		})

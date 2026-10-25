@@ -265,6 +265,8 @@ func TestJQFormats(t *testing.T) {
 	wantOutputs(t, `format("csv"), format("text")`, `[1]`, `"1"`, `"[1]"`)
 	wantError(t, `format(1)`, `null`, `number (1) is not a valid format`)
 	wantError(t, `format("foo")`, `null`, `foo is not a valid format`)
+	wantError(t, `@foo`, `null`, `foo is not a valid format`)
+	wantError(t, `@foo "x\(.)"`, `null`, `foo is not a valid format`)
 	wantOutputs(t, `@sh "echo \(.)"`, `"a'b"`, `"echo 'a'\\''b'"`)
 }
 

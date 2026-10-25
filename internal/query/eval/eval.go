@@ -332,8 +332,8 @@ func (ev evaluator) variable(name string, env *Env) (*value.Value, error) {
 // its native.
 func (ev evaluator) str(n *ast.Str, env *Env, in *value.Value, emit runtime.Emit) error {
 	if n.Format != "" {
-		if _, ok := ev.reg.Lookup(n.Format, 0); !ok {
-			return RuntimeError(n.Format + " is not a valid format")
+		if _, err := ev.reg.Format(n.Format); err != nil {
+			return err
 		}
 	}
 	vev := ev.values()
@@ -373,9 +373,9 @@ func text(v *value.Value) string {
 
 // format applies the format native called name, such as "@base64", to in.
 func (ev evaluator) format(name string, in *value.Value, emit runtime.Emit) error {
-	fn, ok := ev.reg.Lookup(name, 0)
-	if !ok {
-		return RuntimeError(name + " is not a valid format")
+	fn, err := ev.reg.Format(name)
+	if err != nil {
+		return err
 	}
 	return fn(ev.ctx, in, nil, func(v *value.Value, _ value.Path) error { return emit(v, nil) })
 }
