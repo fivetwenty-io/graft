@@ -157,3 +157,25 @@ func TestSpruceKeyLessMatchesSortkeys(t *testing.T) {
 		}
 	}
 }
+
+// TestSpruceKeyLessAgreesWithSortkeysOnGeneratedKeys checks the two spruce
+// comparators over every pair drawn from a generated mixed key set.
+func TestSpruceKeyLessAgreesWithSortkeysOnGeneratedKeys(t *testing.T) {
+	var keys []string
+	for _, a := range []string{"", "a", "A", "b", "B", "z", "Z", "1", "2", "10", "007", "-3", "3.5", ".", "_", "-", "é", "É", "日本", "😀"} {
+		keys = append(keys, a)
+		for _, b := range []string{"", "1", "2", "10", "a", "A", ".", ".x", "-", "_", "é", "日"} {
+			keys = append(keys, a+b, b+a)
+		}
+	}
+	keys = append(keys, "a.b", "a.b.c", "a..b", "A.b", "a-1", "a_1", "a 1", "a1.5", "a1.50", "x10y2", "x2y10", "1.0", "01", "1e3", "0x10")
+
+	less := sk.Less(sk.Spruce)
+	for _, a := range keys {
+		for _, b := range keys {
+			if got, want := spruceKeyLess(a, b), less(a, b); got != want {
+				t.Errorf("spruceKeyLess(%q, %q) = %v, sortkeys says %v", a, b, got, want)
+			}
+		}
+	}
+}
