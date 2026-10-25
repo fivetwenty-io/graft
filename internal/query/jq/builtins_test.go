@@ -184,7 +184,11 @@ func TestJQCollections(t *testing.T) {
 	wantOutputs(t, `join(", "), join("")`, `["a",1,null,true]`, `"a, 1, , true"`, `"a1true"`)
 	wantOutputs(t, `[combinations], [[1,2] | combinations(2)]`, `[[1,2],[3]]`, `[[1,3],[2,3]]`, `[[1,1],[1,2],[2,1],[2,2]]`)
 	wantOutputs(t, `transpose`, `[[1],[2,3]]`, `[[1,2],[null,3]]`)
-	wantOutputs(t, `[.[] | ascii]`, `[65,97]`, `["A","a"]`)
+	wantOutputs(t, `[.[] | ascii]`, `[0,65,97,127]`, `["\u0000","A","a","\u007f"]`)
+	wantError(t, `ascii`, `200`, `number (200) is not an ASCII code point`)
+	wantError(t, `ascii`, `-1`, `number (-1) is not an ASCII code point`)
+	wantError(t, `ascii`, `65.5`, `number (65.5) is not an ASCII code point`)
+	wantError(t, `ascii`, `"A"`, `string ("A") is not an ASCII code point`)
 }
 
 func TestJQStrings(t *testing.T) {

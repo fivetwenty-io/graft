@@ -50,7 +50,7 @@ def combinations(n): . as $in | [range(n)] | map($in) | combinations;
 def walk(f): def _walk: if type == "object" then map_values(_walk) elif type == "array" then map(_walk) else . end | f; _walk;
 def transpose: [range(0; map(length) | max // 0) as $j | [.[][$j]]];
 def toarray: if type == "array" then . else [.] end;
-def ascii: [.] | implode;
+def ascii: if type == "number" and . >= 0 and . <= 127 and . == floor then [.] | implode else error("\(type) (\(tojson)) is not an ASCII code point") end;
 def isvalid(f): try (f | true) catch false;
 def abs: if . < 0 then - . else . end;
 def sort_by(f): _sort_by(map([f]));
