@@ -141,7 +141,13 @@ func TestJQPathBuiltins(t *testing.T) {
 	wantOutputs(t, `del(.a, .b[0]), del(.[]), del(..)`, `{"a":1,"b":[1,2],"c":3}`, `{"b":[2],"c":3}`, `{}`, `null`)
 	wantOutputs(t, `del(.[1:3])`, `[1,2,3,4]`, `[1,4]`)
 	wantOutputs(t, `to_entries, with_entries(.key |= ascii_upcase)`, `{"a":1}`, `[{"key":"a","value":1}]`, `{"A":1}`)
-	wantOutputs(t, `from_entries`, `[{"k":"a","v":1},{"name":"b","value":false},{"K":"c"},{"Key":"d","Value":1}]`, `{"a":1,"b":false,"c":null,"d":1}`)
+	wantOutputs(t, `from_entries`, `[{"name":"b","value":false},{"Name":"c"},{"Key":"d","Value":1},{"key":"e","value":null,"Value":2}]`, `{"b":false,"c":null,"d":1,"e":null}`)
+	// The key comes from key, Key, name, and Name in that order, and k, K,
+	// and v are not read at all.
+	wantOutputs(t, `from_entries`, `[{"name":"n","Key":"K"}]`, `{"K":null}`)
+	wantOutputs(t, `from_entries`, `[{"key":"a","v":1}]`, `{"a":null}`)
+	wantError(t, `from_entries`, `[{"k":"a","v":1}]`, `Cannot use null (null) as object key`)
+	wantError(t, `from_entries`, `[{"K":"a"}]`, `Cannot use null (null) as object key`)
 	wantError(t, `from_entries`, `[{"key":null,"value":2}]`, `Cannot use null (null) as object key`)
 	wantError(t, `from_entries`, `[{"key":1,"value":1}]`, `Cannot use number (1) as object key`)
 	wantOutputs(t, `[path(..)]`, `[[1]]`, `[[],[0],[0,0]]`)

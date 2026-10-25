@@ -16,7 +16,7 @@ def recurse(f): def _recurse: ., (f | _recurse); _recurse;
 def recurse(f; cond): def _recurse: ., (f | select(cond) | _recurse); _recurse;
 def recurse: recurse(.[]?);
 def to_entries: [keys_unsorted[] as $k | {key: $k, value: .[$k]}];
-def from_entries: reduce .[] as $e ({}; . + {($e | .key // .k // .name // .Name // .K // .Key): ($e | if has("value") then .value elif has("v") then .v else .Value end)});
+def from_entries: reduce .[] as $e ({}; . + {($e | .key // .Key // .name // .Name): ($e | if has("value") then .value else .Value end)});
 def with_entries(f): to_entries | map(f) | from_entries;
 def paths: path(..) | select(length > 0);
 def paths(f): . as $in | paths | select(. as $p | $in | getpath($p) | f);
