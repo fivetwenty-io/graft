@@ -64,3 +64,10 @@ def join($sep): reduce .[] as $x (null; (if . == null then "" else . + $sep end)
 def splits($sep): split($sep)[];
 def truncate_stream(stream): . as $n | null | stream | select(.[0] | length > $n) | .[0] |= .[$n:];
 def reverse: [.[length - 1 - range(0; length)]];
+def todate: strftime("%Y-%m-%dT%H:%M:%SZ");
+def fromdateiso8601: strptime("%Y-%m-%dT%H:%M:%SZ") | mktime;
+def todateiso8601: strftime("%Y-%m-%dT%H:%M:%SZ");
+def fromdate: fromdateiso8601;
+def date: todate;
+def dateadd(u; n): . + n;
+def datesub(u; n): . - n;
