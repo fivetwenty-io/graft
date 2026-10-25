@@ -32,7 +32,33 @@ func benchOp(b *testing.B, op func(x, y Decimal)) {
 }
 
 func BenchmarkAdd(b *testing.B) { benchOp(b, func(x, y Decimal) { _, _ = x.Add(y) }) }
-func BenchmarkMul(b *testing.B) { benchOp(b, func(x, y Decimal) { _, _ = x.Mul(y) }) }
+
+// BenchmarkMul has three sizes that fit and one that does not. The
+// digits=49998 case is the bound-sized figure, since its product has 99,996
+// digits and so fits the bound. The over-bound case multiplies two
+// 100,000-digit operands, whose product exceeds the bound, and times only
+// the rejection path.
+func BenchmarkMul(b *testing.B) {
+	for _, n := range []int{1, 34, 49_998} {
+		x, y := benchOperand(n), benchOperand(n)
+		b.Run(fmt.Sprintf("digits=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_, _ = x.Mul(y)
+			}
+		})
+	}
+	x := benchOperand(100_000)
+	b.Run("over-bound", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			if _, err := x.Mul(x); err == nil {
+				b.Fatal("the product fits the bound")
+			}
+		}
+	})
+}
+
 func BenchmarkQuo(b *testing.B) {
 	benchOp(b, func(x, y Decimal) { _, _ = x.Quo(y, Context128) })
 }
