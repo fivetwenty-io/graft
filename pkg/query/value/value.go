@@ -95,7 +95,8 @@ func NumText(lit string) *Value {
 // Str returns a string value.
 func Str(s string) *Value { return &Value{kind: KindString, str: s} }
 
-// Arr returns an array of elems. The slice is owned by the new value.
+// Arr returns an array of elems. It takes ownership of the slice, so the
+// caller must not modify it afterward.
 func Arr(elems ...*Value) *Value { return &Value{kind: KindArray, arr: elems} }
 
 // Obj returns an object whose keys are strings, in the order given.
@@ -108,7 +109,8 @@ func Obj(pairs ...Pair) *Value {
 }
 
 // ObjEntries returns an object whose keys are scalar values, repeats and
-// mixed key types included. The slice is owned by the new value.
+// mixed key types included. It takes ownership of the slice, so the caller
+// must not modify it afterward.
 func ObjEntries(entries ...Entry) *Value {
 	return &Value{kind: KindObject, obj: newObject(entries)}
 }
@@ -140,7 +142,9 @@ func (v *Value) Literal() string { return v.lit }
 // Str returns a string's text, and "" for any other kind.
 func (v *Value) Str() string { return v.str }
 
-// Elems returns an array's elements. The caller must not modify the slice.
+// Elems returns an array's elements as a read-only view of the value's own
+// storage. A caller who needs to change them copies the slice, or starts
+// from NewArrBuilderFrom.
 func (v *Value) Elems() []*Value { return v.arr }
 
 // Len is the length of a string in bytes, of an array in elements, and of
@@ -170,8 +174,9 @@ func (v *Value) Keys() []string {
 	return keys
 }
 
-// Entries returns an object's entries. The caller must not modify the
-// slice.
+// Entries returns an object's entries as a read-only view of the value's own
+// storage. A caller who needs to change them copies the slice, or starts
+// from NewObjBuilderFrom.
 func (v *Value) Entries() []Entry {
 	if v.kind != KindObject {
 		return nil
