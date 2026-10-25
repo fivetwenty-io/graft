@@ -21,3 +21,17 @@ func TestLiteralNumbersEndToEnd(t *testing.T) {
 	wantOutputs(t, `tonumber | tojson | length`, `"`+huge+`"`, `100001`) // jq 1.8.2 keeps the text and raises only in arithmetic
 	wantError(t, `tonumber | . + 0`, `"`+huge+`"`, `number exceeds 100000 significant digits`)
 }
+
+func TestFloatNumbersEveryConversion(t *testing.T) {
+	// jq 1.8.2 computes 1e17+1 as a double, so every conversion prints 1e+17.
+	wantOutputsFloat(t, `1e17+1 | tostring, @text, @json, ([., [.]] | tojson), "\(.)", @sh, ([.] | @csv), ([.] | @tsv)`, `null`,
+		`"1e+17"`, `"1e+17"`, `"1e+17"`, `"[1e+17,[1e+17]]"`, `"1e+17"`, `"1e+17"`, `"1e+17"`, `"1e+17"`)
+	wantOutputsFloat(t, `[0 * -1] | tojson, (.[0] | tostring)`, `null`, `"[-0]"`, `"-0"`)
+	wantOutputs(t, `1e17+1 | tostring, "\(.)", ([.] | @csv), ([.] | @tsv), @sh`, `null`,
+		`"100000000000000001"`, `"100000000000000001"`, `"100000000000000001"`, `"100000000000000001"`, `"100000000000000001"`)
+}
+
+func TestNegatingLiterals(t *testing.T) {
+	wantOutputs(t, `map(-.) | tojson`, `[0.0, 0e5, -0.0, 0e-5, 1.50, -1.50]`, `"[0.0,0E+5,0.0,0.00000,-1.50,1.50]"`)
+	wantOutputs(t, `[.[] | -.] | tojson`, `[1e1000, -1e1000]`, `"[-1E+1000,1E+1000]"`)
+}

@@ -351,11 +351,11 @@ func (ev evaluator) str(n *ast.Str, env *Env, in *value.Value, emit runtime.Emit
 		}
 		return vev.eval(n.Parts[i], env, in, nil, func(v *value.Value, _ value.Path) error {
 			if n.Format == "" {
-				pieces[i] = text(v)
+				pieces[i] = text(v, ev.ctx.Numbers)
 				return build(i - 1)
 			}
 			return ev.format(n.Format, v, func(s *value.Value, _ value.Path) error {
-				pieces[i] = text(s)
+				pieces[i] = text(s, ev.ctx.Numbers)
 				return build(i - 1)
 			})
 		})
@@ -364,11 +364,11 @@ func (ev evaluator) str(n *ast.Str, env *Env, in *value.Value, emit runtime.Emit
 }
 
 // text is a string's own text and any other value's JSON.
-func text(v *value.Value) string {
+func text(v *value.Value, numbers runtime.NumberMode) string {
 	if v.Kind() == value.KindString {
 		return v.Str()
 	}
-	return toJSON(v)
+	return runtime.JSONIn(v, numbers)
 }
 
 // format applies the format native called name, such as "@base64", to in.

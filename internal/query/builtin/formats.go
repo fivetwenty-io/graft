@@ -41,13 +41,13 @@ func registerFormats(r *runtime.Registry) {
 	text("base64d", base64Decode)
 	text("base32", func(s string) (string, error) { return base32.StdEncoding.EncodeToString([]byte(s)), nil })
 	text("base32d", base32Decode)
-	unary(r, "@csv", func(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
-		return row(in, "csv", ",", func(s string) string {
+	unary(r, "@csv", func(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
+		return row(ctx, in, "csv", ",", func(s string) string {
 			return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 		})
 	})
-	unary(r, "@tsv", func(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
-		return row(in, "tsv", "\t", tsvEscaper.Replace)
+	unary(r, "@tsv", func(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
+		return row(ctx, in, "tsv", "\t", tsvEscaper.Replace)
 	})
 	unary(r, "@sh", shell)
 	r.RegisterSingle("format", 1, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
@@ -83,7 +83,7 @@ var (
 
 // row formats an array as one csv or tsv row. Strings go through quote,
 // numbers and booleans print as JSON, and null is an empty field.
-func row(in *value.Value, kind, sep string, quote func(string) string) (*value.Value, error) {
+func row(ctx *runtime.Ctx, in *value.Value, kind, sep string, quote func(string) string) (*value.Value, error) {
 	if in.Kind() != value.KindArray {
 		return nil, fail("%s cannot be %s-formatted, only array", describe(in), kind)
 	}
@@ -96,7 +96,7 @@ func row(in *value.Value, kind, sep string, quote func(string) string) (*value.V
 		case value.KindArray, value.KindObject:
 			return nil, fail("%s is not valid in a csv row", describe(e))
 		default:
-			fields[i] = runtime.JSON(e)
+			fields[i] = runtime.JSONIn(e, ctx.Numbers)
 		}
 	}
 	return value.Str(strings.Join(fields, sep)), nil
@@ -104,7 +104,7 @@ func row(in *value.Value, kind, sep string, quote func(string) string) (*value.V
 
 // shell quotes a string, or each element of an array separated by spaces,
 // for a POSIX shell. Other scalars print as JSON.
-func shell(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
+func shell(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
 	elems := []*value.Value{in}
 	if in.Kind() == value.KindArray {
 		elems = in.Elems()
@@ -117,7 +117,7 @@ func shell(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
 		case value.KindArray, value.KindObject:
 			return nil, fail("%s can not be escaped for shell", describe(e))
 		default:
-			words[i] = runtime.JSON(e)
+			words[i] = runtime.JSONIn(e, ctx.Numbers)
 		}
 	}
 	return value.Str(strings.Join(words, " ")), nil

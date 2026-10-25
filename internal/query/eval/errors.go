@@ -66,6 +66,3 @@ func invalidPathIterate(v *value.Value) error {
 
 // dump quotes v for an error message the way jq does.
 func dump(v *value.Value) string { return runtime.Dump(v) }
-
-// toJSON returns v as compact JSON.
-func toJSON(v *value.Value) string { return runtime.JSON(v) }
