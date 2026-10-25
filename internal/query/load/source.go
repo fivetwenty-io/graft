@@ -45,12 +45,14 @@ type LoadOptions struct {
 
 // Document is one value read from a source.
 type Document struct {
-	Source         string
-	FileIndex      int
-	DocIndex       int
-	Line           int
-	Value          *value.Value
-	Anchors        map[string]*value.Value
+	Source    string
+	FileIndex int
+	DocIndex  int
+	Line      int
+	Value     *value.Value
+	Anchors   map[string]*value.Value
+	// LeadingContent is empty in the J1 loader. The Y1 loader fills it from
+	// the comments and directives before the first node.
 	LeadingContent string
 }
 

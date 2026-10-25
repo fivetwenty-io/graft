@@ -39,6 +39,9 @@ func Open(src Source, fileIndex int, opts LoadOptions) *Reader {
 
 // Chain yields every reader's documents in order.
 func Chain(readers ...*Reader) *Reader {
+	if readers == nil {
+		readers = []*Reader{}
+	}
 	return &Reader{chain: readers}
 }
 
@@ -171,9 +174,13 @@ func (r *Reader) nextYAML() (Document, error) {
 	}
 	n := r.docs[r.next]
 	r.next++
-	fo := FromNodeOptions{KeepMeta: r.opts.KeepMeta, StringKeys: r.opts.StringKeys, AliasBudget: r.opts.AliasBudget}
+	fo := FromNodeOptions{KeepMeta: r.opts.KeepMeta, StringKeys: r.opts.StringKeys, AliasBudget: r.opts.AliasBudget, DepthLimit: r.opts.DepthLimit}
 	v, anchors, err := convertDocument(n, fo, docSite{docIndex: r.docIndex, fileIndex: r.fileIndex, filename: r.src.Name})
 	if err != nil {
+		var ne *nodeError
+		if errors.As(err, &ne) {
+			return Document{}, &SyntaxError{Source: r.src.Name, Line: max(ne.Line, n.Line), Msg: ne.Msg}
+		}
 		return Document{}, &SyntaxError{Source: r.src.Name, Line: n.Line, Msg: err.Error()}
 	}
 	line := n.Line

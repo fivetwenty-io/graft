@@ -113,3 +113,34 @@ func TestBOMIsDropped(t *testing.T) {
 	docs = mustReadAll(t, "\xEF\xBB\xBFa: 1\n", LoadOptions{})
 	wantEqual(t, mustGet(docs[0].Value, "a").Float(), 1.0)
 }
+
+func TestLeadingContentStaysEmptyInJ1(t *testing.T) {
+	docs := mustReadAll(t, "# c\na: 1\n", LoadOptions{KeepMeta: true})
+	wantEqual(t, docs[0].LeadingContent, "")
+}
+
+func TestYAMLDepthLimitOption(t *testing.T) {
+	r := Open(Source{"f", strings.NewReader("a: [[1]]\n")}, 0, LoadOptions{Format: FormatYAML, DepthLimit: 2})
+	_, err := r.Next()
+	wantErrContains(t, err, "exceeds maximum depth of 2")
+	docs := mustReadAll(t, "a: [[1]]\n", LoadOptions{Format: FormatYAML, DepthLimit: 3})
+	wantEqual(t, len(docs), 1)
+}
+
+func TestConversionErrorsNameTheirLineOnce(t *testing.T) {
+	_, err := Open(Source{"f", strings.NewReader("x: 1\nm:\n  <<: 5\n")}, 0, LoadOptions{StringKeys: true}).Next()
+	wantEqual(t, err.Error(), "f: line 3: merge key value must be a mapping or a sequence of mappings")
+	_, err = Open(Source{"f", strings.NewReader("a: 1\nb: 2\nb: 3\n")}, 0, LoadOptions{StringKeys: true}).Next()
+	wantErrContains(t, err, `line 3: duplicate key "b"`)
+	if strings.Count(err.Error(), "line ") != 1 {
+		t.Errorf("line prefix repeated in %q", err)
+	}
+}
+
+func TestEmptyChainIsAChain(t *testing.T) {
+	c := Chain()
+	if c.chain == nil {
+		t.Fatal("Chain() is not a chain")
+	}
+	wantEqual(t, c.Line(), 0)
+}

@@ -27,6 +27,26 @@ type FromNodeOptions struct {
 	// AliasBudget caps the nodes alias expansion produces, and zero means
 	// 1,000,000.
 	AliasBudget int
+	// DepthLimit caps nesting, aliases included, and zero means 10,000.
+	DepthLimit int
+}
+
+// nodeError is a conversion failure, with the line of the node at fault
+// when yamlnode gives one.
+type nodeError struct {
+	Line int
+	Msg  string
+}
+
+func (e *nodeError) Error() string {
+	if e.Line > 0 {
+		return fmt.Sprintf("line %d: %s", e.Line, e.Msg)
+	}
+	return e.Msg
+}
+
+func errAt(line int, format string, args ...any) error {
+	return &nodeError{Line: line, Msg: fmt.Sprintf(format, args...)}
 }
 
 // FromNode converts a YAML node, or a document node's root, to a value.
@@ -45,6 +65,7 @@ type converter struct {
 	opts    FromNodeOptions
 	site    docSite
 	budget  int
+	limit   int
 	inAlias int
 	depth   int
 	anchors map[string]*value.Value
@@ -52,6 +73,10 @@ type converter struct {
 
 func convertDocument(n *yamlnode.Node, opts FromNodeOptions, site docSite) (*value.Value, map[string]*value.Value, error) {
 	c := &converter{opts: opts, site: site, budget: opts.AliasBudget, anchors: map[string]*value.Value{}}
+	c.limit = opts.DepthLimit
+	if c.limit <= 0 {
+		c.limit = defaultDepthLimit
+	}
 	if c.budget <= 0 {
 		c.budget = defaultAliasBudget
 	}
@@ -66,15 +91,10 @@ func (c *converter) node(n *yamlnode.Node) (*value.Value, error) {
 	if n == nil {
 		return value.Null(), nil
 	}
-	c.depth++
-	defer func() { c.depth-- }()
-	if c.depth > defaultDepthLimit {
-		return nil, fmt.Errorf("nesting exceeds maximum depth of %d", defaultDepthLimit)
-	}
 	if c.inAlias > 0 {
 		c.budget--
 		if c.budget < 0 {
-			return nil, fmt.Errorf("alias expansion limit exceeded")
+			return nil, errAt(n.Line, "alias expansion limit exceeded")
 		}
 	}
 	var v *value.Value
@@ -87,10 +107,17 @@ func (c *converter) node(n *yamlnode.Node) (*value.Value, error) {
 		return c.node(n.Content[0])
 	case yamlnode.AliasNode:
 		return c.alias(n)
-	case yamlnode.SequenceNode:
-		v, err = c.sequence(n)
-	case yamlnode.MappingNode:
-		v, err = c.mapping(n)
+	case yamlnode.SequenceNode, yamlnode.MappingNode:
+		c.depth++
+		if c.depth > c.limit {
+			return nil, errAt(n.Line, "nesting exceeds maximum depth of %d", c.limit)
+		}
+		if n.Kind == yamlnode.SequenceNode {
+			v, err = c.sequence(n)
+		} else {
+			v, err = c.mapping(n)
+		}
+		c.depth--
 	default:
 		v = c.scalar(n)
 	}
@@ -114,7 +141,7 @@ func (c *converter) alias(n *yamlnode.Node) (*value.Value, error) {
 	}
 	target := yamlnode.FollowAlias(n)
 	if target == nil || target == n || target.Kind == yamlnode.AliasNode {
-		return nil, fmt.Errorf("unknown anchor %q referenced", n.Value)
+		return nil, errAt(n.Line, "unknown anchor %q referenced", n.Value)
 	}
 	c.inAlias++
 	defer func() { c.inAlias-- }()
@@ -158,7 +185,7 @@ func (c *converter) key(k *yamlnode.Node) (*value.Value, error) {
 		return c.node(k)
 	}
 	if k.Kind != yamlnode.ScalarNode && k.Kind != yamlnode.AliasNode {
-		return nil, fmt.Errorf("line %d: mapping keys must be scalars", k.Line)
+		return nil, errAt(k.Line, "mapping keys must be scalars")
 	}
 	return c.node(k)
 }
@@ -177,7 +204,7 @@ func (c *converter) stringKeyed(n *yamlnode.Node) (*value.Value, error) {
 			return nil, err
 		}
 		if explicit[text] {
-			return nil, fmt.Errorf("duplicate key %q", text)
+			return nil, errAt(n.Content[i].Line, "duplicate key %q", text)
 		}
 		explicit[text] = true
 	}
@@ -223,12 +250,12 @@ func (c *converter) mergeSources(vn *yamlnode.Node) ([]value.Entry, error) {
 	case yamlnode.DocumentNode, yamlnode.ScalarNode, yamlnode.AliasNode:
 	}
 	if nodes == nil {
-		return nil, fmt.Errorf("line %d: merge key value must be a mapping or a sequence of mappings", vn.Line)
+		return nil, errAt(vn.Line, "merge key value must be a mapping or a sequence of mappings")
 	}
 	var out []value.Entry
 	for _, m := range nodes {
 		if yamlnode.FollowAlias(m).Kind != yamlnode.MappingNode {
-			return nil, fmt.Errorf("line %d: merge key value must be a mapping or a sequence of mappings", m.Line)
+			return nil, errAt(m.Line, "merge key value must be a mapping or a sequence of mappings")
 		}
 		v, err := c.expandedAlias(m)
 		if err != nil {
@@ -254,7 +281,7 @@ func isMergeKey(k *yamlnode.Node) bool {
 func keyText(k *yamlnode.Node) (string, error) {
 	k = yamlnode.FollowAlias(k)
 	if k.Kind != yamlnode.ScalarNode {
-		return "", fmt.Errorf("line %d: mapping keys must be scalars", k.Line)
+		return "", errAt(k.Line, "mapping keys must be scalars")
 	}
 	return k.Value, nil
 }
