@@ -142,6 +142,7 @@ func judgeFailure(res Result, d runtime.Dialect, err error) Result {
 		res.Pass = true
 		return res
 	}
+	res.Malformed = true
 	res.Err = fmt.Sprintf("*** Erroneous program failed with 'jq: error: %s', but expected '%s' at line number %d: %s", got, c.WantMsg, c.Line, c.Program)
 	return res
 }
