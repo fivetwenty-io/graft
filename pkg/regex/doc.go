@@ -3,6 +3,62 @@ Package regex is a backtracking regular expression engine with PCRE syntax
 and an Oniguruma flavor, written for graft's jq and yq commands and usable on
 its own. It imports nothing outside the standard library.
 
+# Overview
+
+Compile parses a pattern into a tree, lowers the tree to a flat program, and
+returns a Pattern. Find, FindAll, Replace, and Split run that program over a
+UTF-8 subject on a virtual machine with an explicit backtrack stack, so
+classes and . match whole runes, and every Match reports its offsets in bytes
+and in runes.
+
+	p := regex.MustCompile(`(?<user>\w+)@(?<host>[\w.]+)`)
+	m, err := p.Find(ctx, "mail: wayne@example.org", 0)
+	if err != nil {
+		return err
+	}
+	if m != nil {
+		fmt.Println(m.Groups[2].Text("mail: wayne@example.org")) // example.org
+	}
+
+# Flavors
+
+The PCRE flavor, the default, reads patterns the way PCRE2 does in UTF mode,
+and the Oniguruma flavor reads them the way jq does. They share one parser
+and differ in a small table of rules: \d, \w, \s, and the POSIX classes are
+ASCII under PCRE and Unicode-aware under Oniguruma, \h is horizontal space
+under PCRE and a hexadecimal digit under Oniguruma, and under IgnoreCase the
+Oniguruma flavor applies full case folding, so ss matches ß and ß matches ss,
+where PCRE folds one code point to one.
+
+# Supported syntax
+
+The engine supports literals, the escapes \a, \e, \f, \n, \r, \t, \0, \cX,
+\xhh, \x{h...}, \uhhhh, and \o{o...}, the classes ., \N, \d, \w, \s, \h,
+\v, their negations, \p{...} and \P{...} over Unicode categories, scripts,
+and binary properties, and bracket classes with ranges, negation, and POSIX
+names. It also supports the anchors ^ and $, greedy and lazy quantifiers,
+alternation, numbered groups, named groups written (?<name>...),
+(?'name'...), or (?P<name>...), non-capturing groups, and comments. ^ matches
+only at the start of the subject and $ only at its end or before a final
+newline.
+
+Lookaround, backreferences, atomic groups, possessive quantifiers, inline
+flag groups, \Q...\E, the assertions \A, \z, \Z, \b, \B, and \G, and the
+rarer PCRE constructs such as recursion and conditionals are recognized and
+refused with an UnsupportedError that names them.
+
+# Budgets
+
+A pattern on untrusted input can take exponential time on a backtracking
+engine. Every VM step counts against a Budget, ten million steps by default,
+and a call that runs out returns ErrBudget. One count covers every start
+position a search tries and every match a global search finds, so repetition
+cannot multiply the limit. The context passed to each call is checked every
+few thousand steps, so a deadline ends a long match with the context's
+error. The budget also bounds the pattern length, group nesting, the size of
+the compiled program, and the backtrack stack, so a pattern cannot exhaust
+memory before its first step.
+
 # Stability
 
 This package is experimental. Until the release that completes graft jq,
