@@ -23,10 +23,10 @@ type Encoder interface {
 
 // Options selects the output form.
 type Options struct {
-	Indent       int  // spaces per level; zero with neither Tab nor Indent prints compact
-	Tab          bool // indent with one tab per level
-	Compact      bool // no whitespace at all, whatever Indent says
-	Raw          bool // strings print without quotes
+	Indent       int  // spaces per level; zero still breaks lines but adds no indentation, as jq --indent 0 does
+	Tab          bool // indent with one tab per level instead of Indent spaces
+	Compact      bool // no whitespace at all; only Compact selects this, so the caller maps --compact-output and nothing else onto it
+	Raw          bool // top-level strings print without quotes, unless ASCII is set, which prints them quoted and escaped
 	Join         bool // implies Raw, and no newline after a value
 	RawNUL       bool // implies Raw, and a NUL byte after a value instead of a newline
 	ASCII        bool // escape every non-ASCII character as \uXXXX
@@ -57,7 +57,7 @@ func (e *encoder) Write(v *value.Value) error {
 	if e.o.SortKeys != "" {
 		v = sortkeys.Sort(v, e.o.SortKeys)
 	}
-	raw := (e.o.Raw || e.o.Join || e.o.RawNUL) && v.Kind() == value.KindString
+	raw := e.printsRaw(v)
 	if raw && e.o.RawNUL && strings.IndexByte(v.Str(), 0) >= 0 {
 		return errors.New("Cannot dump a string containing NUL with --raw-output0 option") //nolint:staticcheck // jq's wording
 	}
@@ -66,7 +66,7 @@ func (e *encoder) Write(v *value.Value) error {
 		e.buf = append(e.buf, recordSeparator)
 	}
 	if raw {
-		e.buf = append(e.buf, v.Str()...)
+		e.rawString(v.Str())
 	} else {
 		e.encode(v, 0)
 	}
@@ -85,7 +85,13 @@ func (e *encoder) Write(v *value.Value) error {
 	return nil
 }
 
-func (e *encoder) pretty() bool { return !e.o.Compact && (e.o.Tab || e.o.Indent > 0) }
+// printsRaw reports whether v is written as bare text. ASCII output keeps
+// strings quoted and escaped.
+func (e *encoder) printsRaw(v *value.Value) bool {
+	return (e.o.Raw || e.o.Join || e.o.RawNUL) && !e.o.ASCII && v.Kind() == value.KindString
+}
+
+func (e *encoder) pretty() bool { return !e.o.Compact }
 
 func (e *encoder) newline(depth int) {
 	e.buf = append(e.buf, '\n')
@@ -197,6 +203,19 @@ func (e *encoder) object(v *value.Value, depth int) {
 		e.newline(depth)
 	}
 	e.token(sgr, "}")
+}
+
+// rawString writes s as is, with one U+FFFD for each invalid byte, as jq does.
+func (e *encoder) rawString(s string) {
+	for i := 0; i < len(s); {
+		r, n := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError && n == 1 {
+			e.buf = utf8.AppendRune(e.buf, utf8.RuneError)
+		} else {
+			e.buf = append(e.buf, s[i:i+n]...)
+		}
+		i += n
+	}
 }
 
 const hexDigits = "0123456789abcdef"

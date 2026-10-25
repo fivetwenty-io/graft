@@ -21,7 +21,9 @@ func TestPrettyIndentTabCompact(t *testing.T) {
 	wantEqual(t, encode(t, v, Options{Tab: true}), "{\n\t\"a\": [\n\t\t1,\n\t\t{\n\t\t\t\"b\": null\n\t\t}\n\t],\n\t\"c\": \"x\"\n}\n")
 	wantEqual(t, encode(t, value.Arr(), Options{Indent: 2}), "[]\n")
 	wantEqual(t, encode(t, obj(), Options{Indent: 2}), "{}\n")
-	wantEqual(t, encode(t, v, Options{}), `{"a":[1,{"b":null}],"c":"x"}`+"\n") // indent 0 is compact, as in jq
+	// An explicit indent of 0 keeps the newlines and the space after the colon, as in jq.
+	wantEqual(t, encode(t, obj(pair("a", value.Arr(lit("1"), lit("2")))), Options{}), "{\n\"a\": [\n1,\n2\n]\n}\n")
+	wantEqual(t, encode(t, value.Arr(), Options{}), "[]\n")
 }
 
 func TestRawJoinNULAndASCII(t *testing.T) {
@@ -98,4 +100,16 @@ func TestColorDefaultAndJQCOLORS(t *testing.T) {
 	wantEqual(t, p.False, "1;5")
 	_, err = ParsePalette("0;31:1;2;3m")
 	wantErrContains(t, err, "invalid color")
+}
+
+func TestRawInteractions(t *testing.T) {
+	// Pinned against jq 1.8.2: -r -a prints the quoted, escaped string.
+	wantEqual(t, encode(t, value.Str("é"), Options{Raw: true, ASCII: true}), "\"\\u00e9\"\n")
+	wantEqual(t, encode(t, value.Str("é"), Options{Join: true, ASCII: true}), "\"\\u00e9\"")
+	wantEqual(t, encode(t, value.Str("é"), Options{RawNUL: true, ASCII: true}), "\"\\u00e9\"\x00")
+	// One U+FFFD for each invalid byte, raw or quoted.
+	wantEqual(t, encode(t, value.Str("\xff\xfe"), Options{Raw: true}), "\ufffd\ufffd\n")
+	wantEqual(t, encode(t, value.Str("a\xffb"), Options{Compact: true}), "\"a\ufffdb\"\n")
+	// A compound value gets the RS byte even with raw output on.
+	wantEqual(t, encode(t, value.Arr(lit("1")), Options{Seq: true, Raw: true, Compact: true}), "\x1e[1]\n")
 }
