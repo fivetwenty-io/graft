@@ -131,6 +131,18 @@ func TestBoundsAreEnforcedQuickly(t *testing.T) {
 	if _, err := MustParse("1e-999999999").Quo(MustParse("1e999999999"), Context128); !errors.Is(err, ErrExponentRange) {
 		t.Fatalf("got %v", err)
 	}
+	// An exponent of four million digits costs seconds when it is built as
+	// a big.Int, and milliseconds when it is kept as text.
+	vast := "1.5e-" + strings.Repeat("7", 4000000)
+	d, err := Parse(vast)
+	if !errors.Is(err, ErrExponentRange) {
+		t.Fatalf("got %v", err)
+	}
+	if d.Scientific() != strings.ToUpper(vast) || d.String() != vast {
+		t.Fatal("a vast exponent must print as written")
+	}
+	wantEqual(t, d.Cmp(MustParse("-1")), 1)
+	wantEqual(t, d.Neg().Cmp(d), -1)
 	if el := time.Since(start); el > time.Second {
 		t.Fatalf("bounds took %v, so a bound is checked after allocating", el)
 	}
@@ -267,6 +279,48 @@ func TestOverBoundLiteralsKeepTheirText(t *testing.T) {
 	MustParse("1e1000000000")
 }
 
+func TestWideExponentsCarryAndBorrow(t *testing.T) {
+	for _, c := range []struct{ in, str, sci string }{
+		{"1.5e10000000000000000000", "1.5e+10000000000000000000", "1.5E+10000000000000000000"},
+		{"15e9999999999999999999", "1.5e+10000000000000000000", "1.5E+10000000000000000000"},
+		{"1.50e10000000000000000000", "1.5e+10000000000000000000", "1.50E+10000000000000000000"},
+		{"1.5e-1000000000000000000", "1.5e-1000000000000000000", "1.5E-1000000000000000000"},
+		{"-12.5e-0000000000000000000099999", "-1.25e-99998", "-1.25E-99998"},
+		{"0.000e-99999999999999999999", "0", "0E-999999999"},
+	} {
+		d, _ := Parse(c.in)
+		if d.String() != c.str || d.Scientific() != c.sci {
+			t.Errorf("%s printed %s and %s, want %s and %s", c.in, d.String(), d.Scientific(), c.str, c.sci)
+		}
+	}
+	a, _ := Parse("1.5e10000000000000000000")
+	b, _ := Parse("15e9999999999999999999")
+	c, _ := Parse("1.6e9999999999999999999")
+	wantEqual(t, a.Cmp(b), 0)
+	wantEqual(t, a.Cmp(c), 1)
+	wantEqual(t, c.Neg().Cmp(a.Neg()), 1)
+	n, _ := Parse("1e-10000000000000000000")
+	wantEqual(t, n.Cmp(c), -1)
+	wantEqual(t, n.Cmp(Zero), 1)
+
+	for _, c := range []struct {
+		w    wideInt
+		n    int64
+		want string
+	}{
+		{wideInt{digits: "999"}, 1, "1000"},
+		{wideInt{digits: "1000"}, -1, "999"},
+		{wideInt{neg: true, digits: "1000"}, 1, "-999"},
+		{wideInt{neg: true, digits: "5"}, 5, "0"},
+		{wideInt{neg: true, digits: "5"}, 12, "7"},
+		{wideInt{digits: "5"}, -12, "-7"},
+		{wideInt{digits: "0"}, math.MinInt64, "-9223372036854775808"},
+		{wideInt{digits: "0"}, 0, "0"},
+	} {
+		wantEqual(t, c.w.add(c.n).String(), c.want)
+	}
+}
+
 func TestPrinters(t *testing.T) {
 	for _, c := range []struct{ in, str, sci string }{
 		{"0", "0", "0"},
@@ -349,7 +403,15 @@ func TestSpecialValueArithmetic(t *testing.T) {
 	r, err = MustParse("-2.5").Rem(Inf(1))
 	check("-2.5 % inf", r, err, "-2.5")
 	r, err = MustParse("-6").Rem(MustParse("3"))
-	check("-6 % 3", r, err, "-0")
+	check("-6 % 3", r, err, "0") // jq prints 0, so a zero remainder is +0
+	r, err = MustParse("-0").Rem(MustParse("3"))
+	check("-0 % 3", r, err, "0")
+	r, err = MustParse("-0.0").Rem(Inf(1))
+	check("-0.0 % inf", r, err, "0")
+	r, err = MustParse("-7.5").Rem(MustParse("2.5"))
+	check("-7.5 % 2.5", r, err, "0")
+	r, err = MustParse("-1e30").Rem(MustParse("5"))
+	check("-1e30 % 5", r, err, "0")
 	r, err = MustParse("5.5").Rem(two)
 	check("5.5 % 2", r, err, "1.5")
 	r, err = MustParse("1e30").Rem(MustParse("7"))

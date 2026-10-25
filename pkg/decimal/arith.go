@@ -129,9 +129,10 @@ func mulFinite(a, b Decimal, neg bool, lim limits) (Decimal, error) {
 
 // Rem returns the remainder of d divided by b, truncated toward zero the
 // way jq's % and C's fmod truncate, so the result has d's sign and a
-// magnitude below b's, and -5 rem 3 is -2. The remainder is exact for
-// fractional operands too. jq truncates its operands to integers before it
-// divides, and that step belongs to the caller. A dividend smaller than the
+// magnitude below b's, and -5 rem 3 is -2. A zero remainder is +0, as jq
+// prints it, so -6 rem 3 and -0 rem 3 are both 0. The remainder is exact
+// for fractional operands too. jq truncates its operands to integers before
+// it divides, and that step belongs to the caller. A dividend smaller than the
 // divisor is its own remainder; otherwise Rem fails with ErrTooManyDigits
 // before it aligns the operands when the aligned dividend would pass the
 // digit bound. A zero divisor fails with ErrDivisionByZero, a NaN operand
@@ -148,7 +149,9 @@ func (d Decimal) Rem(b Decimal) (Decimal, error) {
 		return Decimal{}, ErrDivisionByZero
 	case d.form == infinite:
 		return NaN(), nil
-	case b.form == infinite || d.IsZero():
+	case d.IsZero():
+		return d.Abs(), nil
+	case b.form == infinite:
 		return d, nil
 	}
 	return remFinite(d, b, defaultLimits)
@@ -166,11 +169,13 @@ func remFinite(a, b Decimal, lim limits) (Decimal, error) {
 		x, okx := scaleUint(a.small, int64(a.exp)-e)
 		y, oky := scaleUint(b.small, int64(b.exp)-e)
 		if okx && oky {
-			return lim.checkedUint(a.neg, x%y, e)
+			r := x % y
+			return lim.checkedUint(a.neg && r != 0, r, e)
 		}
 	}
 	x := a.scaledCoef(int64(a.exp) - e)
-	return lim.checked(a.neg, x.Rem(x, b.scaledCoef(int64(b.exp)-e)), e)
+	x.Rem(x, b.scaledCoef(int64(b.exp)-e))
+	return lim.checked(a.neg && x.Sign() != 0, x, e)
 }
 
 // Quo returns d ÷ b rounded to c.Precision significant digits under
@@ -333,7 +338,7 @@ func cmpMagnitude(a, b Decimal) int {
 // over-bound literal, which has no coefficient, compares with anything.
 func cmpText(a, b Decimal) int {
 	la, lb := a.layout().reduced(), b.layout().reduced()
-	if c := la.adjustedBig().Cmp(lb.adjustedBig()); c != 0 {
+	if c := la.adjustedWide().cmp(lb.adjustedWide()); c != 0 {
 		return c
 	}
 	// Both digit strings start with a nonzero digit and have no trailing

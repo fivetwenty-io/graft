@@ -14,8 +14,8 @@ type Rounding uint8
 const RoundHalfEven Rounding = 0
 
 // Context carries the precision and the rounding rule for division, the one
-// operation whose result may not terminate, along with the bounds that
-// every operation enforces. A field that is zero or negative takes
+// operation whose result may not terminate, along with the bounds Quo
+// enforces on its quotient. A field that is zero or negative takes
 // Context128's value, a Precision above MaxDigits is MaxDigits, and a
 // Rounding other than RoundHalfEven rounds half-even, because that is the
 // only rule the package implements.
@@ -24,10 +24,11 @@ type Context struct {
 	Precision int
 	// Rounding is the rule that drops the digits past Precision.
 	Rounding Rounding
-	// MaxDigits bounds the significant digits of an operand or a result.
+	// MaxDigits bounds the significant digits of a rounded quotient. Parse,
+	// Add, Sub, Mul, and Rem always enforce Context128's digit bound.
 	MaxDigits int
-	// MaxExponent bounds the adjusted exponent of an operand or a result,
-	// in either direction.
+	// MaxExponent bounds the adjusted exponent of a quotient, in either
+	// direction, and Quo checks it from the operands before it divides.
 	MaxExponent int32
 }
 

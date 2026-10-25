@@ -1,7 +1,6 @@
 package decimal
 
 import (
-	"math/big"
 	"strconv"
 	"strings"
 )
@@ -76,12 +75,8 @@ type layout struct {
 	neg    bool
 	digits string
 	exp    int64
-	bigExp *big.Int // the exponent instead of exp, for an over-bound literal whose exponent lies past what exp can hold
+	wide   *wideInt // the exponent instead of exp, for an over-bound literal whose exponent has more than 18 digits
 }
-
-// machineExp bounds the exponents a layout keeps in an int64, which leaves
-// room to add any digit count without overflow.
-const machineExp = 1 << 62
 
 func (d Decimal) layout() layout {
 	switch {
@@ -94,12 +89,10 @@ func (d Decimal) layout() layout {
 }
 
 func (o *overText) layout(neg bool) layout {
-	if o.exp.IsInt64() {
-		if e := o.exp.Int64(); e > -machineExp && e < machineExp {
-			return layout{neg: neg, digits: o.digits, exp: e}
-		}
+	if e, ok := o.exp.int64(); ok {
+		return layout{neg: neg, digits: o.digits, exp: e}
 	}
-	return layout{neg: neg, digits: o.digits, bigExp: o.exp}
+	return layout{neg: neg, digits: o.digits, wide: &o.exp}
 }
 
 // reduced strips the trailing zeros from the digits, and leaves a zero as
@@ -111,8 +104,9 @@ func (l layout) reduced() layout {
 	}
 	n := int64(len(l.digits) - len(t))
 	l.digits = t
-	if l.bigExp != nil {
-		l.bigExp = new(big.Int).Add(l.bigExp, big.NewInt(n))
+	if l.wide != nil {
+		w := l.wide.add(n)
+		l.wide = &w
 	} else {
 		l.exp += n
 	}
@@ -122,18 +116,18 @@ func (l layout) reduced() layout {
 // adjusted returns the exponent of the first digit, and reports false when
 // the exponent lies past an int64, where only exponent form applies.
 func (l layout) adjusted() (int64, bool) {
-	if l.bigExp != nil {
+	if l.wide != nil {
 		return 0, false
 	}
 	return l.exp + int64(len(l.digits)) - 1, true
 }
 
-func (l layout) adjustedBig() *big.Int {
-	e := l.bigExp
-	if e == nil {
-		e = big.NewInt(l.exp)
+// adjustedWide returns the exponent of the first digit at any size.
+func (l layout) adjustedWide() wideInt {
+	if l.wide == nil {
+		return wideOf(l.exp + int64(len(l.digits)) - 1)
 	}
-	return new(big.Int).Add(e, big.NewInt(int64(len(l.digits))-1))
+	return l.wide.add(int64(len(l.digits)) - 1)
 }
 
 // plain prints the digits with the point placed by the exponent, padding
@@ -178,21 +172,15 @@ func (l layout) exponential(marker byte, minDigits int) string {
 		b.WriteString(l.digits[1:])
 	}
 	b.WriteByte(marker)
-	var adj string
-	if a, ok := l.adjusted(); ok {
-		adj = strconv.FormatInt(a, 10)
-	} else {
-		adj = l.adjustedBig().String()
-	}
-	if rest, cut := strings.CutPrefix(adj, "-"); cut {
+	adj := l.adjustedWide()
+	if adj.neg {
 		b.WriteByte('-')
-		adj = rest
 	} else {
 		b.WriteByte('+')
 	}
-	for range minDigits - len(adj) {
+	for range minDigits - len(adj.digits) {
 		b.WriteByte('0')
 	}
-	b.WriteString(adj)
+	b.WriteString(adj.digits)
 	return b.String()
 }

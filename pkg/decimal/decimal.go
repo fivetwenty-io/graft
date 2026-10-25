@@ -37,10 +37,10 @@ type Decimal struct {
 
 // overText is what an over-bound literal keeps in place of a coefficient.
 type overText struct {
-	err    error    // ErrTooManyDigits or ErrExponentRange
-	digits string   // the significant digits as written, from the first nonzero digit on
-	exp    *big.Int // the exponent of the last digit, which may lie past any machine integer
-	approx float64  // the double nearest to the literal's magnitude
+	err    error   // ErrTooManyDigits or ErrExponentRange
+	digits string  // the significant digits as written, from the first nonzero digit on
+	exp    wideInt // the exponent of the last digit, which may lie past any machine integer
+	approx float64 // the double nearest to the literal's magnitude
 }
 
 var (

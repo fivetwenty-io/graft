@@ -179,13 +179,9 @@ func coefficient(neg bool, whole, frac string, n, exp int64) Decimal {
 // significant digits and its exponent as text in place of a coefficient.
 func (l literal) overBound(s, digits string, err error) Decimal {
 	exp, fits := l.exponent()
-	e := big.NewInt(exp)
+	e := wideOf(exp)
 	if !fits {
-		e.SetString(l.expDigits, 10)
-		if l.expNeg {
-			e.Neg(e)
-		}
-		e.Sub(e, big.NewInt(int64(len(l.frac))))
+		e = wideInt{neg: l.expNeg, digits: strings.TrimLeft(l.expDigits, "0")}.add(-int64(len(l.frac)))
 	}
 	// s is well formed, and a literal past float64's range comes back as
 	// the infinity or zero we want, with ErrRange.
