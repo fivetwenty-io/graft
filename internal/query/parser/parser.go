@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -33,9 +34,6 @@ type parser struct {
 	toks  []lexer.Token
 	i     int
 	depth int
-	// tight is above every row's precedence, so parseExpr(tight) reads a
-	// single operand with no infix operators.
-	tight int
 }
 
 // Parse reads a whole program. $__loc__ reports TopLevelFile.
@@ -48,14 +46,13 @@ func Parse(src string, g Grammar) (ast.Node, error) {
 func ParseFile(src, file string, g Grammar) (ast.Node, error) {
 	toks, err := lexer.Tokenize(src, g.Tokens)
 	if err != nil {
+		var le *lexer.Error
+		if errors.As(err, &le) {
+			return nil, &Error{Pos: le.Pos, Msg: le.Msg}
+		}
 		return nil, err
 	}
-	p := &parser{src: src, file: file, g: g, toks: toks, tight: 1}
-	for _, r := range g.Ops {
-		if r.Prec >= p.tight {
-			p.tight = r.Prec + 1
-		}
-	}
+	p := &parser{src: src, file: file, g: g, toks: toks}
 	return p.parseProgram()
 }
 
@@ -84,10 +81,11 @@ func describe(tok lexer.Token) string {
 	if tok.Kind == lexer.EOF {
 		return "end of input"
 	}
-	return "'" + p0(tok) + "'"
+	return "'" + tokenSpelling(tok) + "'"
 }
 
-func p0(tok lexer.Token) string {
+// tokenSpelling is how a token appears in a diagnostic.
+func tokenSpelling(tok lexer.Token) string {
 	if tok.Kind == lexer.StrStart {
 		return `"`
 	}
@@ -124,32 +122,40 @@ func (p *parser) expectKeyword(word string) error {
 	return nil
 }
 
-// parseProgram reads the module directives, then the body.
+// parseProgram reads the module directives, the library definitions that
+// may stand alone at the head of a program, and then the body.
 func (p *parser) parseProgram() (ast.Node, error) {
-	var directives []ast.Node
+	var chain []ast.Node
 	if p.g.Keywords.Modules {
 		var err error
-		if directives, err = p.parseDirectives(); err != nil {
+		if chain, err = p.parseDirectives(); err != nil {
 			return nil, err
 		}
 	}
+	for p.g.Keywords.Def && p.isKeyword("def") {
+		def, err := p.parseFuncDefHead()
+		if err != nil {
+			return nil, err
+		}
+		chain = append(chain, def)
+	}
 	var body ast.Node
 	if p.peek().Kind == lexer.EOF {
-		if len(directives) == 0 {
+		if len(chain) == 0 {
 			body = &ast.Identity{}
 		}
 	} else {
 		var err error
-		if body, err = p.parseExpr(0); err != nil {
+		if body, err = p.parseExpr(); err != nil {
 			return nil, err
 		}
 	}
 	if tok := p.peek(); tok.Kind != lexer.EOF {
 		return nil, p.unexpected(tok)
 	}
-	for i := len(directives) - 1; i >= 0; i-- {
-		setRest(directives[i], body)
-		body = directives[i]
+	for i := len(chain) - 1; i >= 0; i-- {
+		setRest(chain[i], body)
+		body = chain[i]
 	}
 	return body, nil
 }
@@ -162,6 +168,8 @@ func setRest(directive, rest ast.Node) {
 		d.Rest = rest
 	case *ast.Include:
 		d.Rest = rest
+	case *ast.FuncDef:
+		d.Rest = rest
 	}
 }
 
@@ -169,10 +177,7 @@ func (p *parser) parseDirectives() ([]ast.Node, error) {
 	var out []ast.Node
 	if t := p.peek(); t.Kind == lexer.Keyword && t.Text == "module" {
 		p.next()
-		if p.peek().Kind != lexer.LBrace {
-			return nil, p.expected("{")
-		}
-		meta, err := p.parseTerm()
+		meta, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
@@ -213,7 +218,7 @@ func (p *parser) parseImport() (ast.Node, error) {
 		}
 	}
 	if p.peek().Kind != lexer.Semicolon {
-		if imp.Meta, err = p.parseTerm(); err != nil {
+		if imp.Meta, err = p.parseExpr(); err != nil {
 			return nil, err
 		}
 	}
@@ -224,28 +229,6 @@ func (p *parser) parseImport() (ast.Node, error) {
 		return imp, nil
 	}
 	return &ast.Include{Path: path, Meta: imp.Meta}, nil
-}
-
-// parseConstString reads a string literal that has no interpolation.
-func (p *parser) parseConstString() (string, error) {
-	start := p.peek()
-	s, err := p.parseString("")
-	if err != nil {
-		return "", err
-	}
-	path := ""
-	for _, part := range s.Parts {
-		lit, ok := part.(*ast.Literal)
-		text, isText := "", false
-		if ok {
-			text, isText = lit.Value.(string)
-		}
-		if !isText {
-			return "", p.errAt(start, "import path must be a constant string")
-		}
-		path += text
-	}
-	return path, nil
 }
 
 // rowFor finds the infix row that a token spells.
@@ -270,15 +253,42 @@ func (p *parser) rowOfKind(kind RowKind) (Row, bool) {
 	return Row{}, false
 }
 
-// parseExpr is the Pratt loop. It reads one operand and then every infix
-// operator that binds at least as tightly as minPrec.
-func (p *parser) parseExpr(minPrec int) (ast.Node, error) {
+// exprContext says which of the forms that swallow the rest of an
+// expression are allowed where an expression starts. jq allows "def" and
+// "label" only at the start of a pipeline or comma operand, and "as" in
+// every operand except an object value.
+type exprContext struct {
+	def  bool
+	bind bool
+}
+
+var fullContext = exprContext{def: true, bind: true}
+
+// enter counts one level of parser nesting. The returned function leaves
+// it, and the error is set when the nesting limit is passed.
+func (p *parser) enter() (func(), error) {
 	p.depth++
-	defer func() { p.depth-- }()
+	leave := func() { p.depth-- }
 	if p.depth > maxDepth {
-		return nil, p.errAt(p.peek(), "exceeds maximum parser nesting depth")
+		return leave, p.errAt(p.peek(), "exceeds maximum parser nesting depth")
 	}
-	left, err := p.parsePrefix()
+	return leave, nil
+}
+
+// parseExpr reads an expression that starts a fresh context.
+func (p *parser) parseExpr() (ast.Node, error) {
+	return p.parseExprIn(0, fullContext)
+}
+
+// parseExprIn is the Pratt loop. It reads one operand and then every infix
+// operator that binds at least as tightly as minPrec.
+func (p *parser) parseExprIn(minPrec int, c exprContext) (ast.Node, error) {
+	leave, err := p.enter()
+	defer leave()
+	if err != nil {
+		return nil, err
+	}
+	left, err := p.parsePrefix(c)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +303,8 @@ func (p *parser) parseExpr(minPrec int) (ast.Node, error) {
 		if row.Assoc == Right {
 			rhsMin = row.Prec
 		}
-		right, err := p.parseExpr(rhsMin)
+		rc := exprContext{def: c.def && (row.Kind == Pipe || row.Kind == Comma), bind: c.bind}
+		right, err := p.parseExprIn(rhsMin, rc)
 		if err != nil {
 			return nil, err
 		}
@@ -324,42 +335,46 @@ func buildInfix(row Row, l, r ast.Node) ast.Node {
 	}
 }
 
-// parsePrefix reads the forms that open an operand: the keyword forms that
-// swallow what follows, unary minus, and a term with an optional binding.
-func (p *parser) parsePrefix() (ast.Node, error) {
+// parsePrefix reads the forms that open an expression: the definitions
+// and labels that swallow what follows, or an operand with an optional
+// binding.
+func (p *parser) parsePrefix(c exprContext) (ast.Node, error) {
 	tok := p.peek()
 	kw := p.g.Keywords
-	switch {
-	case tok.Kind == lexer.Keyword && tok.Text == "try" && kw.Try:
-		return p.parseTry()
-	case tok.Kind == lexer.Keyword && tok.Text == "def" && kw.Def:
-		return p.parseFuncDef()
-	case tok.Kind == lexer.Keyword && tok.Text == "label" && kw.Label:
-		return p.parseLabel()
-	case tok.Kind == lexer.Minus:
-		return p.parseNegation()
+	if tok.Kind == lexer.Keyword && c.def {
+		switch {
+		case tok.Text == "def" && kw.Def:
+			return p.parseFuncDef()
+		case tok.Text == "label" && kw.Label:
+			return p.parseLabel()
+		}
 	}
-	term, err := p.parseTerm()
+	operand, err := p.parseOperand()
 	if err != nil {
 		return nil, err
 	}
-	if kw.Bind && p.isKeyword("as") {
-		return p.parseBind(term)
+	if c.bind && kw.Bind && p.isKeyword("as") {
+		return p.parseBind(operand)
 	}
-	return term, nil
+	return operand, nil
 }
 
-func (p *parser) parseNegation() (ast.Node, error) {
-	p.next()
-	operandMin := p.tight
-	if r, ok := p.rowFor(lexer.Token{Kind: lexer.Minus, Text: "-"}); ok {
-		operandMin = r.Prec + 1
+// parseOperand reads a term, a negated operand, or a try expression. None
+// of them takes in a following "as", which binds the whole operand.
+func (p *parser) parseOperand() (ast.Node, error) {
+	tok := p.peek()
+	switch {
+	case tok.Kind == lexer.Minus:
+		p.next()
+		x, err := p.parseOperand()
+		if err != nil {
+			return nil, err
+		}
+		return &ast.Unary{Op: "-", X: x}, nil
+	case tok.Kind == lexer.Keyword && tok.Text == "try" && p.g.Keywords.Try:
+		return p.parseTry()
 	}
-	x, err := p.parseExpr(operandMin)
-	if err != nil {
-		return nil, err
-	}
-	return &ast.Unary{Op: "-", X: x}, nil
+	return p.parseTerm()
 }
 
 func (p *parser) parseBind(src ast.Node) (ast.Node, error) {
@@ -371,7 +386,7 @@ func (p *parser) parseBind(src ast.Node) (ast.Node, error) {
 	if err := p.expect(lexer.Pipe, "|"); err != nil {
 		return nil, err
 	}
-	body, err := p.parseExpr(0)
+	body, err := p.parseExpr()
 	if err != nil {
 		return nil, err
 	}
@@ -380,14 +395,14 @@ func (p *parser) parseBind(src ast.Node) (ast.Node, error) {
 
 func (p *parser) parseTry() (ast.Node, error) {
 	p.next()
-	body, err := p.parseExpr(p.tight)
+	body, err := p.parseOperand()
 	if err != nil {
 		return nil, err
 	}
 	t := &ast.Try{Body: body}
 	if p.isKeyword("catch") {
 		p.next()
-		if t.Catch, err = p.parseExpr(p.tight); err != nil {
+		if t.Catch, err = p.parseOperand(); err != nil {
 			return nil, err
 		}
 	}
@@ -404,17 +419,28 @@ func (p *parser) parseLabel() (ast.Node, error) {
 	if err := p.expect(lexer.Pipe, "|"); err != nil {
 		return nil, err
 	}
-	body, err := p.parseExpr(0)
+	body, err := p.parseExpr()
 	if err != nil {
 		return nil, err
 	}
 	return &ast.Label{Name: tok.Text[1:], Body: body}, nil
 }
 
+// parseFuncDef reads a definition and the expression that follows it.
 func (p *parser) parseFuncDef() (ast.Node, error) {
+	def, err := p.parseFuncDefHead()
+	if err != nil {
+		return nil, err
+	}
+	def.Rest, err = p.parseExpr()
+	return def, err
+}
+
+// parseFuncDefHead reads "def name(params): body;" and leaves Rest nil.
+func (p *parser) parseFuncDefHead() (*ast.FuncDef, error) {
 	p.next()
 	name := p.next()
-	if name.Kind != lexer.Ident && name.Kind != lexer.Keyword {
+	if name.Kind != lexer.Ident {
 		return nil, p.unexpected(name)
 	}
 	def := &ast.FuncDef{Name: name.Text}
@@ -422,7 +448,7 @@ func (p *parser) parseFuncDef() (ast.Node, error) {
 		p.next()
 		for {
 			param := p.next()
-			if param.Kind != lexer.Ident && param.Kind != lexer.Variable && param.Kind != lexer.Keyword {
+			if param.Kind != lexer.Ident && param.Kind != lexer.Variable {
 				return nil, p.unexpected(param)
 			}
 			def.Params = append(def.Params, param.Text)
@@ -439,28 +465,29 @@ func (p *parser) parseFuncDef() (ast.Node, error) {
 		return nil, err
 	}
 	var err error
-	if def.Body, err = p.parseExpr(0); err != nil {
+	if def.Body, err = p.parseExpr(); err != nil {
 		return nil, err
 	}
-	if err := p.expect(lexer.Semicolon, ";"); err != nil {
-		return nil, err
-	}
-	if p.peek().Kind == lexer.EOF {
-		return def, nil
-	}
-	def.Rest, err = p.parseExpr(0)
-	return def, err
+	return def, p.expect(lexer.Semicolon, ";")
 }
 
 // parseTerm reads a primary and the postfix forms that bind to it.
 func (p *parser) parseTerm() (ast.Node, error) {
+	first := p.peek()
 	t, err := p.parsePrimary()
 	if err != nil {
 		return nil, err
 	}
-	// last is the node that a following "?" can mark as optional, which
-	// is only a node this loop built.
+	// last is the node that a following "?" can mark as optional. It is a
+	// node this loop built, or a leading ".name" or ."str" that was not
+	// parenthesized.
 	var last ast.Node
+	if first.Kind == lexer.Field || first.Kind == lexer.Dot {
+		switch t.(type) {
+		case *ast.Field, *ast.Index:
+			last = t
+		}
+	}
 	for {
 		tok := p.peek()
 		switch tok.Kind {
@@ -542,7 +569,7 @@ func (p *parser) parseBracket(t ast.Node) (ast.Node, error) {
 	var from ast.Node
 	if p.peek().Kind != lexer.Colon {
 		var err error
-		if from, err = p.parseExpr(0); err != nil {
+		if from, err = p.parseExpr(); err != nil {
 			return nil, err
 		}
 		if p.peek().Kind != lexer.Colon {
@@ -556,7 +583,7 @@ func (p *parser) parseBracket(t ast.Node) (ast.Node, error) {
 	var to ast.Node
 	if p.peek().Kind != lexer.RBracket {
 		var err error
-		if to, err = p.parseExpr(0); err != nil {
+		if to, err = p.parseExpr(); err != nil {
 			return nil, err
 		}
 	}
@@ -615,8 +642,8 @@ func (p *parser) locAt(tok lexer.Token) *ast.Loc {
 
 // parseLeadingDot reads "." and the string key that can follow it.
 func (p *parser) parseLeadingDot() (ast.Node, error) {
-	dot := p.next()
-	if nt := p.peek(); nt.Kind == lexer.StrStart && nt.Pos == dot.End {
+	p.next()
+	if p.peek().Kind == lexer.StrStart {
 		key, err := p.parseString("")
 		if err != nil {
 			return nil, err
@@ -628,7 +655,7 @@ func (p *parser) parseLeadingDot() (ast.Node, error) {
 
 func (p *parser) parseParen() (ast.Node, error) {
 	p.next()
-	e, err := p.parseExpr(0)
+	e, err := p.parseExpr()
 	if err != nil {
 		return nil, err
 	}
@@ -644,7 +671,7 @@ func (p *parser) parseArray() (ast.Node, error) {
 		p.next()
 		return &ast.ArrayCons{}, nil
 	}
-	body, err := p.parseExpr(0)
+	body, err := p.parseExpr()
 	if err != nil {
 		return nil, err
 	}
@@ -670,7 +697,7 @@ func (p *parser) parseIdent() (ast.Node, error) {
 	}
 	p.next()
 	for {
-		arg, err := p.parseExpr(0)
+		arg, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
@@ -702,32 +729,32 @@ func (p *parser) parseIf() (ast.Node, error) {
 	p.next()
 	n := &ast.If{}
 	var err error
-	if n.Cond, err = p.parseExpr(0); err != nil {
+	if n.Cond, err = p.parseExpr(); err != nil {
 		return nil, err
 	}
 	if err := p.expectKeyword("then"); err != nil {
 		return nil, err
 	}
-	if n.Then, err = p.parseExpr(0); err != nil {
+	if n.Then, err = p.parseExpr(); err != nil {
 		return nil, err
 	}
 	for p.isKeyword("elif") {
 		p.next()
 		var e ast.Elif
-		if e.Cond, err = p.parseExpr(0); err != nil {
+		if e.Cond, err = p.parseExpr(); err != nil {
 			return nil, err
 		}
 		if err := p.expectKeyword("then"); err != nil {
 			return nil, err
 		}
-		if e.Then, err = p.parseExpr(0); err != nil {
+		if e.Then, err = p.parseExpr(); err != nil {
 			return nil, err
 		}
 		n.Elifs = append(n.Elifs, e)
 	}
 	if p.isKeyword("else") {
 		p.next()
-		if n.Else, err = p.parseExpr(0); err != nil {
+		if n.Else, err = p.parseExpr(); err != nil {
 			return nil, err
 		}
 	}
@@ -757,13 +784,13 @@ func (p *parser) parseReduce() (ast.Node, error) {
 		return nil, err
 	}
 	n := &ast.Reduce{Src: src, Pats: pats}
-	if n.Init, err = p.parseExpr(0); err != nil {
+	if n.Init, err = p.parseExpr(); err != nil {
 		return nil, err
 	}
 	if err := p.expect(lexer.Semicolon, ";"); err != nil {
 		return nil, err
 	}
-	if n.Update, err = p.parseExpr(0); err != nil {
+	if n.Update, err = p.parseExpr(); err != nil {
 		return nil, err
 	}
 	return n, p.expect(lexer.RParen, ")")
@@ -775,147 +802,22 @@ func (p *parser) parseForeach() (ast.Node, error) {
 		return nil, err
 	}
 	n := &ast.Foreach{Src: src, Pats: pats}
-	if n.Init, err = p.parseExpr(0); err != nil {
+	if n.Init, err = p.parseExpr(); err != nil {
 		return nil, err
 	}
 	if err := p.expect(lexer.Semicolon, ";"); err != nil {
 		return nil, err
 	}
-	if n.Update, err = p.parseExpr(0); err != nil {
+	if n.Update, err = p.parseExpr(); err != nil {
 		return nil, err
 	}
 	if p.peek().Kind == lexer.Semicolon {
 		p.next()
-		if n.Extract, err = p.parseExpr(0); err != nil {
+		if n.Extract, err = p.parseExpr(); err != nil {
 			return nil, err
 		}
 	}
 	return n, p.expect(lexer.RParen, ")")
-}
-
-// parseString reads a string literal from its opening quote to its closing
-// quote. format is the "@name" prefix, which the caller has consumed.
-func (p *parser) parseString(format string) (*ast.Str, error) {
-	if err := p.expect(lexer.StrStart, `"`); err != nil {
-		return nil, err
-	}
-	s := &ast.Str{Format: format}
-	for {
-		tok := p.next()
-		switch tok.Kind {
-		case lexer.StrLit:
-			s.Parts = append(s.Parts, &ast.Literal{Value: tok.Text})
-		case lexer.InterpStart:
-			e, err := p.parseExpr(0)
-			if err != nil {
-				return nil, err
-			}
-			if err := p.expect(lexer.InterpEnd, ")"); err != nil {
-				return nil, err
-			}
-			s.Parts = append(s.Parts, e)
-		case lexer.StrEnd:
-			return s, nil
-		default:
-			return nil, p.unexpected(tok)
-		}
-	}
-}
-
-// parseObject reads "{...}".
-func (p *parser) parseObject() (ast.Node, error) {
-	p.next()
-	obj := &ast.ObjectCons{}
-	if p.peek().Kind == lexer.RBrace {
-		p.next()
-		return obj, nil
-	}
-	for {
-		e, err := p.parseObjEntry()
-		if err != nil {
-			return nil, err
-		}
-		obj.Entries = append(obj.Entries, e)
-		if p.peek().Kind != lexer.Comma {
-			break
-		}
-		p.next()
-	}
-	return obj, p.expect(lexer.RBrace, "}")
-}
-
-func (p *parser) parseObjEntry() (ast.ObjEntry, error) {
-	tok := p.peek()
-	var key ast.Node
-	switch tok.Kind {
-	case lexer.Variable:
-		p.next()
-		name := tok.Text[1:]
-		return ast.ObjEntry{Key: &ast.Literal{Value: name}, Val: &ast.Var{Name: name}}, nil
-	case lexer.Loc:
-		p.next()
-		k := &ast.Str{Parts: []ast.Node{&ast.Literal{Value: "__loc__"}}}
-		return ast.ObjEntry{Key: k, Val: p.locAt(tok)}, nil
-	case lexer.Ident, lexer.Keyword:
-		p.next()
-		key = &ast.Literal{Value: tok.Text}
-		if p.peek().Kind != lexer.Colon {
-			return ast.ObjEntry{Key: key, Val: &ast.Field{Name: tok.Text}}, nil
-		}
-	case lexer.StrStart, lexer.Format:
-		format := ""
-		if tok.Kind == lexer.Format {
-			p.next()
-			format = tok.Text
-		}
-		s, err := p.parseString(format)
-		if err != nil {
-			return ast.ObjEntry{}, err
-		}
-		key = s
-		if p.peek().Kind != lexer.Colon {
-			return ast.ObjEntry{Key: key, Val: &ast.Index{Key: key}}, nil
-		}
-	case lexer.LParen:
-		p.next()
-		k, err := p.parseExpr(0)
-		if err != nil {
-			return ast.ObjEntry{}, err
-		}
-		if err := p.expect(lexer.RParen, ")"); err != nil {
-			return ast.ObjEntry{}, err
-		}
-		key = k
-	default:
-		return ast.ObjEntry{}, p.unexpected(tok)
-	}
-	if err := p.expect(lexer.Colon, ":"); err != nil {
-		return ast.ObjEntry{}, err
-	}
-	val, err := p.parseObjVal()
-	return ast.ObjEntry{Key: key, Val: val}, err
-}
-
-// parseObjVal reads an object value, which stops at the comma that
-// separates entries but keeps pipes.
-func (p *parser) parseObjVal() (ast.Node, error) {
-	floor := 0
-	if r, ok := p.rowOfKind(Comma); ok {
-		floor = r.Prec + 1
-	}
-	v, err := p.parseExpr(floor)
-	if err != nil {
-		return nil, err
-	}
-	if p.peek().Kind != lexer.Pipe {
-		return v, nil
-	}
-	p.next()
-	rest, err := p.parseObjVal()
-	if err != nil {
-		return nil, err
-	}
-	return &ast.Pipe{L: v, R: rest}, nil
 }
 
 func (p *parser) parseBreak() (ast.Node, error) {

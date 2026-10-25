@@ -194,7 +194,10 @@ type Break struct {
 	Name string
 }
 
-// Optional is a postfix "?" on a term that has no flag of its own.
+// Optional is a postfix "?" on a term other than a field, index, slice, or
+// iteration that the "?" directly follows. Those carry their own Opt flag,
+// so ".a?" and ".b.a?" are both a Field with Opt set, and "(.b.a)?" is an
+// Optional.
 type Optional struct {
 	X Node
 }

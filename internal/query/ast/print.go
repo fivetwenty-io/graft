@@ -17,6 +17,17 @@ func Print(n Node) string {
 
 // printNode tries each family of node types in turn. Each family printer
 // reports whether n was one of its types.
+// child renders an operand of an operator, a postfix form, or a try. The
+// forms that swallow what follows them are parenthesized there, so the
+// output has one reading.
+func child(n Node) string {
+	switch n.(type) {
+	case *Bind, *FuncDef, *Label, *Try:
+		return "(" + Print(n) + ")"
+	}
+	return Print(n)
+}
+
 func printNode(sb *strings.Builder, n Node) {
 	_ = printAtom(sb, n) || printAccess(sb, n) || printOperator(sb, n) ||
 		printForm(sb, n) || printDirective(sb, n)
@@ -56,7 +67,7 @@ func printAtom(sb *strings.Builder, n Node) bool {
 func printAccess(sb *strings.Builder, n Node) bool {
 	switch n := n.(type) {
 	case *Field:
-		printSuffix(sb, n.Target, "."+n.Name, n.Opt, false)
+		printField(sb, n)
 	case *Index:
 		printSuffix(sb, n.Target, "["+Print(n.Key)+"]", n.Opt, true)
 	case *Slice:
@@ -64,7 +75,7 @@ func printAccess(sb *strings.Builder, n Node) bool {
 	case *Iterate:
 		printSuffix(sb, n.Target, "[]", n.Opt, true)
 	case *Optional:
-		sb.WriteString("(" + Print(n.X) + ")?")
+		sb.WriteString("(" + child(n.X) + ")?")
 	default:
 		return false
 	}
@@ -84,7 +95,7 @@ func printOperator(sb *strings.Builder, n Node) bool {
 	case *Assign:
 		printInfix(sb, n.Op, n.L, n.R)
 	case *Unary:
-		sb.WriteString("(" + n.Op + Print(n.X) + ")")
+		sb.WriteString("(" + n.Op + child(n.X) + ")")
 	default:
 		return false
 	}
@@ -96,19 +107,19 @@ func printForm(sb *strings.Builder, n Node) bool {
 	case *If:
 		printIf(sb, n)
 	case *Try:
-		sb.WriteString("try " + Print(n.Body))
+		sb.WriteString("try " + child(n.Body))
 		if n.Catch != nil {
-			sb.WriteString(" catch " + Print(n.Catch))
+			sb.WriteString(" catch " + child(n.Catch))
 		}
 	case *Reduce:
-		sb.WriteString("reduce " + Print(n.Src) + " as " + printPatterns(n.Pats) +
+		sb.WriteString("reduce " + child(n.Src) + " as " + printPatterns(n.Pats) +
 			" (" + Print(n.Init) + "; " + Print(n.Update) + ")")
 	case *Foreach:
 		printForeach(sb, n)
 	case *FuncDef:
 		printFuncDef(sb, n)
 	case *Bind:
-		sb.WriteString(Print(n.Src) + " as " + printPatterns(n.Pats) + " | " + Print(n.Body))
+		sb.WriteString(child(n.Src) + " as " + printPatterns(n.Pats) + " | " + Print(n.Body))
 	case *Label:
 		sb.WriteString("label $" + n.Name + " | " + Print(n.Body))
 	case *Break:
@@ -138,7 +149,7 @@ func printDirective(sb *strings.Builder, n Node) bool {
 }
 
 func printForeach(sb *strings.Builder, n *Foreach) {
-	sb.WriteString("foreach " + Print(n.Src) + " as " + printPatterns(n.Pats) +
+	sb.WriteString("foreach " + child(n.Src) + " as " + printPatterns(n.Pats) +
 		" (" + Print(n.Init) + "; " + Print(n.Update))
 	if n.Extract != nil {
 		sb.WriteString("; " + Print(n.Extract))
@@ -148,6 +159,16 @@ func printForeach(sb *strings.Builder, n *Foreach) {
 
 // printSuffix renders a postfix form. A nil target means the form applies
 // to the input, so no parentheses surround it.
+// printField renders a field. A leading ".name?" prints with parentheses,
+// like the postfix "?" on any other term.
+func printField(sb *strings.Builder, n *Field) {
+	if n.Target == nil && n.Opt {
+		sb.WriteString("(." + n.Name + ")?")
+		return
+	}
+	printSuffix(sb, n.Target, "."+n.Name, n.Opt, false)
+}
+
 func printSuffix(sb *strings.Builder, target Node, tail string, opt, bracket bool) {
 	if opt {
 		tail += "?"
@@ -160,7 +181,7 @@ func printSuffix(sb *strings.Builder, target Node, tail string, opt, bracket boo
 		sb.WriteString("." + tail)
 		return
 	}
-	sb.WriteString("(" + Print(target) + tail + ")")
+	sb.WriteString("(" + child(target) + tail + ")")
 }
 
 func printInfix(sb *strings.Builder, op string, l, r Node) {
@@ -168,7 +189,7 @@ func printInfix(sb *strings.Builder, op string, l, r Node) {
 	if op == "," {
 		sep = ", "
 	}
-	sb.WriteString("(" + Print(l) + sep + Print(r) + ")")
+	sb.WriteString("(" + child(l) + sep + child(r) + ")")
 }
 
 func printRest(sb *strings.Builder, rest Node) {
@@ -273,6 +294,8 @@ func printKey(k Node) string {
 		}
 	case *Str:
 		return Print(k)
+	case *Var:
+		return "$" + k.Name
 	}
 	return "(" + Print(k) + ")"
 }

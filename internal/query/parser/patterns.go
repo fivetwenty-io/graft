@@ -22,6 +22,11 @@ func (p *parser) parsePatterns() ([]ast.Pattern, error) {
 }
 
 func (p *parser) parsePattern() (ast.Pattern, error) {
+	leave, err := p.enter()
+	defer leave()
+	if err != nil {
+		return ast.Pattern{}, err
+	}
 	tok := p.peek()
 	switch tok.Kind {
 	case lexer.Variable:
@@ -91,7 +96,7 @@ func (p *parser) parsePatEntry() (ast.PatEntry, error) {
 		entry.Key = key
 	case lexer.LParen:
 		p.next()
-		key, err := p.parseExpr(0)
+		key, err := p.parseExpr()
 		if err != nil {
 			return entry, err
 		}

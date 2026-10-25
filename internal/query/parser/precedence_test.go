@@ -41,7 +41,7 @@ func TestPrecedenceRowsRoundTrip(t *testing.T) {
 		`def f: 1;`:                            `def f: 1;`,
 		`. as [$a, {b: $c}] ?// $d | $a`:       `. as [$a, {b: $c}] ?// $d | $a`,
 		`. as {$a, "b": $c, (.d): [$e]} | $a`:  `. as {$a, "b": $c, (.d): [$e]} | $a`,
-		`1 + . as $x | $x`:                     `(1 + . as $x | $x)`,
+		`1 + . as $x | $x`:                     `(1 + (. as $x | $x))`,
 		`label $out | 1, break $out`:           `label $out | (1, break $out)`,
 		`"a\(1)b"`:                             `"a\(1)b"`,
 		`@base64 "x\(.)"`:                      `@base64 "x\(.)"`,
@@ -78,4 +78,18 @@ func TestToyGrammarProvesTableDriven(t *testing.T) {
 	g := JQ()
 	g.Ops = OperatorTable{{"+", 5, Right, Binary}, {"*", 10, Left, Binary}}
 	wantEqual(t, ast.Print(mustParse(t, `1 * 2 + 3 + 4`, g)), `((1 * 2) + (3 + 4))`)
+}
+
+func TestFormsThatJQRejects(t *testing.T) {
+	for _, src := range []string{
+		`1 | def f: 1;`, `1, def f: 1;`, `. as $x | def f: 1;`, `1 + def f: 1;`,
+		`1 + def f: 1; f`, `1 // label $x | 2`, `1 and def f: 1; f`,
+		`{a: def f: 1; f}`, `{a: . as $x | 1}`, `{a: label $x | 1}`,
+		`def if: 1; 2`, `def f(if): 1; 2`,
+		`try 1 as $x | error("e") catch 5`, `try def f: 1; f`, `try label $x | 1`,
+	} {
+		if _, err := Parse(src, JQ()); err == nil {
+			t.Errorf("Parse(%q) succeeded, want an error", src)
+		}
+	}
 }

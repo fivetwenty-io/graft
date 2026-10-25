@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/query/ast"
@@ -90,30 +91,29 @@ func TestDeepNestingIsBounded(t *testing.T) {
 	wantErrContains(t, err, "nesting")
 }
 
-func TestRealWorldProgramsParse(t *testing.T) {
-	for _, src := range []string{
-		`.. | .a? // empty`,
-		`.[] | select(.id == 1) | {id, name: .n, tags: [.t[]?]}`,
-		`def walk(f): . as $in | if type == "object" then reduce keys_unsorted[] as $k ({}; . + {($k): ($in[$k] | walk(f))}) | f else f end; walk(.)`,
-		`to_entries | map(select(.value != null)) | from_entries`,
-		`[.[] | tostring] | join(",")`,
-		`.a as [$x, $y] ?// {a: $x} | [$x, $y]`,
-		`try (.a | error) catch "x\(.)y"`,
-		`limit(3; range(10)) | . as $n | label $done | if $n > 1 then break $done else $n end`,
-		`"\(.a) and \("nested \(.b)")"`,
-		`.a += 1 | .b //= 2 | .c |= map(. * 2)`,
-		`path(..) | select(length > 0)`,
-		`.[-1:] | .[0] , .["x"]`,
-		`@sh "echo \(.a)", @json, @csv`,
-		`input_line_number, $ENV.HOME, $__prog_args`,
-		`reduce range(5) as $i ([]; . + [$i]) | .[2:4]`,
-		`first(.[] | select(. > 1)) // "none"`,
-		`not`,
-		`.a.b.c?`,
-	} {
-		if _, err := Parse(src, JQ()); err != nil {
-			t.Errorf("Parse(%q) error: %v", src, err)
-		}
+func TestRealWorldProgramsKeepTheirShape(t *testing.T) {
+	cases := map[string]string{
+		`.. | .a? // empty`: `(.. | ((.a)? // empty))`,
+		`.[] | select(.id == 1) | {id, name: .n, tags: [.t[]?]}`: `(.[] | (select((.id == 1)) | {id: .id, name: .n, tags: [(.t[]?)]}))`,
+		`def walk(f): . as $in | if type == "object" then reduce keys_unsorted[] as $k ({}; . + {($k): ($in[$k] | walk(f))}) | f else f end; walk(.)`: `def walk(f): . as $in | if (type == "object") then (reduce (keys_unsorted[]) as $k ({}; (. + {$k: (($in[$k]) | walk(f))})) | f) else f end; walk(.)`,
+		`to_entries | map(select(.value != null)) | from_entries`:                                                                                     `(to_entries | (map(select((.value != null))) | from_entries))`,
+		`[.[] | tostring] | join(",")`:          `([(.[] | tostring)] | join(","))`,
+		`.a as [$x, $y] ?// {a: $x} | [$x, $y]`: `.a as [$x, $y] ?// {a: $x} | [($x, $y)]`,
+		`try (.a | error) catch "x\(.)y"`:       `try (.a | error) catch "x\(.)y"`,
+		`limit(3; range(10)) | . as $n | label $done | if $n > 1 then break $done else $n end`: `(limit(3; range(10)) | (. as $n | label $done | if ($n > 1) then break $done else $n end))`,
+		`"\(.a) and \("nested \(.b)")"`:                 `"\(.a) and \("nested \(.b)")"`,
+		`.a += 1 | .b //= 2 | .c |= map(. * 2)`:         `((.a += 1) | ((.b //= 2) | (.c |= map((. * 2)))))`,
+		`path(..) | select(length > 0)`:                 `(path(..) | select((length > 0)))`,
+		`.[-1:] | .[0] , .["x"]`:                        `(.[(-1):] | (.[0], .["x"]))`,
+		`@sh "echo \(.a)", @json, @csv`:                 `((@sh "echo \(.a)", @json), @csv)`,
+		`input_line_number, $ENV.HOME, $__prog_args`:    `((input_line_number, ($ENV.HOME)), $__prog_args)`,
+		`reduce range(5) as $i ([]; . + [$i]) | .[2:4]`: `(reduce range(5) as $i ([]; (. + [$i])) | .[2:4])`,
+		`first(.[] | select(. > 1)) // "none"`:          `(first((.[] | select((. > 1)))) // "none")`,
+		`not`:                                           `not`,
+		`.a.b.c?`:                                       `((.a.b).c?)`,
+	}
+	for src, want := range cases {
+		wantEqual(t, ast.Print(mustParse(t, src, JQ())), want)
 	}
 }
 
@@ -123,6 +123,39 @@ func TestModuleAndBreakAreKeywords(t *testing.T) {
 	wantErrContains(t, err, "expected '$name'")
 	_, err = Parse(`1 | module {}; 2`, JQ())
 	wantErrContains(t, err, "unexpected 'module'")
-	_, err = Parse(`module 1; 2`, JQ())
-	wantErrContains(t, err, "expected '{'")
+	wantEqual(t, ast.Print(mustParse(t, `module 1; 2`, JQ())), `module 1; 2`)
+}
+
+func TestLexerErrorsArriveAsParserErrors(t *testing.T) {
+	_, err := Parse(`"abc`, JQ())
+	var pe *Error
+	if !errors.As(err, &pe) {
+		t.Fatalf("error type = %T, want *Error", err)
+	}
+	wantErrContains(t, err, "unterminated string")
+}
+
+func TestNestingGuardCoversPatternsAndObjectValues(t *testing.T) {
+	_, err := Parse(". as "+strings.Repeat("[", 20000)+"$a"+strings.Repeat("]", 20000)+" | 1", JQ())
+	wantErrContains(t, err, "nesting")
+	_, err = Parse("{a: "+strings.Repeat("1 | ", 20000)+"1}", JQ())
+	wantErrContains(t, err, "nesting")
+}
+
+func TestStringShorthandKeyAndIndexAreDistinctNodes(t *testing.T) {
+	e := mustParse(t, `{"a b"}`, JQ()).(*ast.ObjectCons).Entries[0]
+	if e.Key == e.Val.(*ast.Index).Key {
+		t.Fatal("shorthand key and index key are the same node")
+	}
+	wantEqual(t, ast.Print(e.Key), ast.Print(e.Val.(*ast.Index).Key))
+}
+
+func TestOptionalFieldHasOneShape(t *testing.T) {
+	f := mustParse(t, `.a?`, JQ()).(*ast.Field)
+	wantEqual(t, f.Opt, true)
+	f = mustParse(t, `.b.a?`, JQ()).(*ast.Field)
+	wantEqual(t, f.Opt, true)
+	if _, ok := mustParse(t, `(.b.a)?`, JQ()).(*ast.Optional); !ok {
+		t.Fatal("a parenthesized term should wrap in ast.Optional")
+	}
 }
