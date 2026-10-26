@@ -43,6 +43,10 @@ type parser struct {
 	// \K is refused.
 	looks int
 
+	// absents counts the absent operators open at the current position,
+	// inside which another is refused.
+	absents int
+
 	// closed holds each group's node once its ) is read, nil while it is
 	// open. widths holds the lengths of the groups a backreference has
 	// needed, and selfRef the open groups a backreference has named.
@@ -649,6 +653,10 @@ func (p *parser) groupBody(form groupForm) (*node, error) {
 		p.looks++
 		defer func() { p.looks-- }()
 	}
+	if form == formAbsent {
+		p.absents++
+		defer func() { p.absents-- }()
+	}
 	return p.alternation()
 }
 
@@ -683,6 +691,8 @@ func (p *parser) closeGroup(start int, form groupForm, index int, name string, b
 		return body, nil
 	case formAtomic:
 		return &node{kind: kindAtomic, subs: []*node{body}}, nil
+	case formAbsent:
+		return &node{kind: kindAbsent, subs: []*node{body}}, nil
 	case formAhead, formNotAhead:
 		return &node{kind: kindLook, subs: []*node{body}, neg: form == formNotAhead}, nil
 	case formBehind, formNotBehind:
@@ -703,6 +713,7 @@ const (
 	formCapture   groupForm = iota // (...), (?<name>...)
 	formPlain                      // (?:...) and (?flags:...)
 	formAtomic                     // (?>...)
+	formAbsent                     // (?~...)
 	formAhead                      // (?=...)
 	formNotAhead                   // (?!...)
 	formBehind                     // (?<=...)
@@ -786,6 +797,15 @@ func (p *parser) groupPrefix(start int) (form groupForm, name string, done bool,
 		return formPlain, "", true, unsupported("non-atomic lookahead (?*...)")
 	case strings.HasPrefix(rest, "<*"):
 		return formPlain, "", true, unsupported("non-atomic lookbehind (?<*...)")
+	case strings.HasPrefix(rest, "~|") && p.rules().absent:
+		return formPlain, "", true, unsupported("absent expression (?~|...)")
+	case strings.HasPrefix(rest, "~") && p.rules().absent && p.absents > 0:
+		// jq's Oniguruma lets an inner absent operator widen the range
+		// the outer one searches, so the two cannot be read alone.
+		return formPlain, "", true, unsupported("absent operator (?~...) inside an absent operator")
+	case strings.HasPrefix(rest, "~") && p.rules().absent:
+		p.pos++
+		return formAbsent, "", false, nil
 	case strings.HasPrefix(rest, "~"):
 		return formPlain, "", true, unsupported("absent operator (?~...)")
 	case strings.HasPrefix(rest, "|"):

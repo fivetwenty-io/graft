@@ -22,6 +22,7 @@ const (
 	kindBackref                   // the text group index captured, folded under fold
 	kindKeep                      // \K, which moves the start of the match to the position
 	kindCond                      // subs[0] when a group refs names has captured, and subs[1] otherwise
+	kindAbsent                    // the absent operator: the runes before the first place subs[0] matches, given back one at a time
 )
 
 // assertKind names the zero-width tests.
@@ -126,6 +127,8 @@ func emptyMatch(n *node) bool {
 	case kindGroup, kindAtomic:
 		return nullable(n.subs[0])
 	default:
+		// An assertion, a lookaround, a backreference, a \K, and an
+		// absent operator can all match nothing.
 		return true
 	}
 }
@@ -154,6 +157,9 @@ func surelyEmpty(n *node) bool {
 		return n.min == 0 || surelyEmpty(n.subs[0])
 	case kindGroup, kindAtomic:
 		return surelyEmpty(n.subs[0])
+	case kindAbsent:
+		// It gives back every rune it took, so it always holds empty.
+		return true
 	default:
 		return false
 	}
@@ -363,10 +369,10 @@ func needOf(n *node) need {
 		return repeatNeed(n)
 	case kindGroup, kindAtomic:
 		return needOf(n.subs[0])
-	case kindAny, kindLook, kindBackref:
-		// Any one rune, a test of text the match may not hold, or text
-		// that only a capture decides holds nothing a subject must
-		// contain.
+	case kindAny, kindLook, kindBackref, kindAbsent:
+		// Any one rune, a test of text the match may not hold, text that
+		// only a capture decides, or the runes before an absent holds
+		// nothing a subject must contain.
 	}
 	return need{}
 }
@@ -511,6 +517,8 @@ func width(n *node) (lo, hi int) {
 		return width(n.subs[0])
 	case kindBackref:
 		return n.min, n.max
+	case kindAbsent:
+		return 0, unbounded
 	default:
 		return 0, 0
 	}

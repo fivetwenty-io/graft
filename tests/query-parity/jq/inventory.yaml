@@ -2398,7 +2398,7 @@
   cases: [r-onig-subexp-call]
 - id: r-onig-absent-operator
   area: regex
-  phase: J3
+  phase: J2
   cases: [r-onig-absent-operator]
 - id: r-onig-named-backref
   area: regex

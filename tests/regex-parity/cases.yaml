@@ -2235,3 +2235,57 @@
   pattern: "\\y+"
   flags: ""
   subject: "a"
+
+- id: onig-absent-cut-at-start
+  flavor: oniguruma
+  pattern: "(?~ab)"
+  flags: "g"
+  subject: "aab"
+
+- id: onig-absent-comment
+  flavor: oniguruma
+  pattern: "/\\*(?~\\*/)\\*/"
+  flags: "g"
+  subject: "a/* x */b/* y * z */"
+
+- id: onig-absent-gives-back
+  flavor: oniguruma
+  pattern: "(?~bc)$"
+  flags: "g"
+  subject: "abc"
+
+- id: onig-absent-repeated
+  flavor: oniguruma
+  pattern: "(?~c)*c"
+  flags: "g"
+  subject: "abcabc"
+
+- id: onig-absent-drops-captures
+  flavor: oniguruma
+  pattern: "(?~(a)\\1)"
+  flags: "g"
+  subject: "xab"
+
+- id: onig-absent-reads-capture
+  flavor: oniguruma
+  pattern: "(a)(?~\\1)"
+  flags: "g"
+  subject: "xaab"
+
+- id: onig-absent-lookbehind
+  flavor: oniguruma
+  pattern: "(?~(?<=a)b)"
+  flags: "g"
+  subject: "abab"
+
+- id: onig-absent-ignore-case
+  flavor: oniguruma
+  pattern: "(?~x)"
+  flags: "gi"
+  subject: "aXb"
+
+- id: onig-absent-in-lookbehind
+  flavor: oniguruma
+  pattern: "(?<=x(?~a))b"
+  flags: ""
+  subject: "xb"

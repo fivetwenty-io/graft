@@ -339,6 +339,21 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			}
 			pc, pos = in.x, next
 			continue
+		case opAbsent:
+			m.stack = stack
+			cut, err := m.absent(in, pos)
+			stack = m.stack
+			if err != nil {
+				return 0, false, err
+			}
+			if cut > pos {
+				if len(stack) >= maxStack {
+					return 0, false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
+				}
+				stack = append(stack, frame{pc: pc, pos: cut, slot: loopFrame, old: pos})
+			}
+			pc, pos = in.x, cut
+			continue
 		case opMatch:
 			if m.notEmpty && pos == m.start {
 				break
@@ -391,6 +406,28 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			pc, pos = f.pc, f.pos
 			break
 		}
+	}
+}
+
+// absent finds where the absent operator in, reached at pos, stops taking
+// runes, which is the first position from pos on where its absent
+// matches, or the end of the subject. The absent's match is dropped with
+// every slot it set, as Oniguruma drops it. Each position tried draws at
+// least the step of the absent's first instruction.
+func (m *machine) absent(in *inst, pos int) (int, error) {
+	base := len(m.stack)
+	for at := pos; ; {
+		_, ok, err := m.exec(in.y, at, -1, false)
+		switch {
+		case err != nil:
+			return 0, err
+		case ok:
+			return at, m.unwind(base)
+		case at >= len(m.subject):
+			return at, nil
+		}
+		_, w := decodeAt(m.subject, at)
+		at += w
 	}
 }
 

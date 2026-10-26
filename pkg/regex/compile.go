@@ -22,6 +22,7 @@ const (
 	opOpen                     // start group x at the position and mark it unfinished, for a group that refers to itself under Oniguruma
 	opCapture                  // finish group x, starting where slot y recorded and ending at the position, for a group that refers to itself under PCRE
 	opCount                    // take between lo and hi runes that body accepts, greedily or lazily, then continue at x
+	opAbsent                   // take the runes up to where the body at y first matches, then continue at x, giving them back one at a time as a greedy counting loop does
 	opMatch                    // report a match
 )
 
@@ -209,7 +210,7 @@ func programSize(n *node, limit int) int {
 			total = c.add(total, programSize(s, limit))
 		}
 		return total
-	case kindGroup, kindAtomic:
+	case kindGroup, kindAtomic, kindAbsent:
 		return c.add(programSize(n.subs[0], limit), 2)
 	case kindLook:
 		if alt := behindBranches(n); alt != nil {
@@ -326,6 +327,8 @@ func (c *compiler) node(n *node) {
 		c.emit(inst{op: opSave, x: 0})
 	case kindCond:
 		c.cond(n)
+	case kindAbsent:
+		c.absent(n)
 	}
 }
 
@@ -354,6 +357,17 @@ func (c *compiler) body(in inst, body *node) {
 	c.node(body)
 	c.emit(inst{op: opSucceed})
 	c.prog[pc].x, c.prog[pc].y = pc+1, len(c.prog)
+}
+
+// absent emits an absent operator, then its absent ending in opSucceed. The
+// operator gives back its runes through a counting loop's frame, so it
+// carries what a greedy loop over any rune does, with x the instruction
+// after its absent.
+func (c *compiler) absent(n *node) {
+	pc := c.emit(inst{op: opAbsent, body: opAny, greedy: true})
+	c.node(n.subs[0])
+	c.emit(inst{op: opSucceed})
+	c.prog[pc].x, c.prog[pc].y = len(c.prog), pc+1
 }
 
 // look emits a lookaround. A lookbehind with several branches becomes one

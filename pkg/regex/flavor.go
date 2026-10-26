@@ -140,6 +140,10 @@ type rules struct {
 	// rules of jq's Oniguruma.
 	graphemes bool
 
+	// absent reads (?~absent) as the absent operator, which takes the runes
+	// before the first place its absent matches, as Oniguruma does.
+	absent bool
+
 	// onigMessages words the errors that the two engines word differently
 	// the way Oniguruma does.
 	onigMessages bool
@@ -178,6 +182,7 @@ var flavorRules = [...]rules{
 		openSelfRef:        true,
 		anyRuneO:           true,
 		graphemes:          true,
+		absent:             true,
 		onigMessages:       true,
 		fixedLookbehind:    true,
 		conditionTail:      true,
