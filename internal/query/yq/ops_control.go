@@ -36,8 +36,9 @@ def with(p; f): _yq_with(p | f);
 `
 
 // splitDoc is the document index split_doc gives an output, which run
-// turns into the output's own document.
-const splitDoc = -1
+// turns into the output's own document. It is below runtime.Detached, so
+// the two never meet.
+const splitDoc = runtime.Detached - 1
 
 // errFilesDisabled is yq's message when --security-disable-file-ops is
 // set.

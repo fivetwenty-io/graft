@@ -2,6 +2,7 @@ package yamlnode
 
 import (
 	"bytes"
+	"cmp"
 	"strings"
 
 	"github.com/goccy/go-yaml/ast"
@@ -94,9 +95,11 @@ func (b *builder) readDirective(dir *ast.DirectiveNode) {
 // apply to, so we peel them off first.
 func (b *builder) build(n ast.Node) (*Node, error) {
 	explicitTag, anchor := "", ""
+	var props *token.Token
 	for {
 		switch x := n.(type) {
 		case *ast.TagNode:
+			props = cmp.Or(props, x.Start)
 			t, err := b.tag(x.Start)
 			if err != nil {
 				return nil, err
@@ -107,6 +110,7 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 			n = x.Value
 			continue
 		case *ast.AnchorNode:
+			props = cmp.Or(props, x.Start)
 			if err := PropertyNameError(x.Start, x.Name.GetToken(), b.scannerLine); err != nil {
 				return nil, err
 			}
@@ -143,6 +147,7 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 		return nil, err
 	}
 	delete(b.open, out)
+	b.startAt(out, props)
 	if explicitTag != "" {
 		out.Tag = explicitTag
 		out.Style |= StyleTagged
@@ -333,6 +338,19 @@ func (b *builder) scalar(n ast.Node, tag, value string) *Node {
 	out := &Node{Kind: ScalarNode, Tag: tag, Value: value}
 	b.at(out, n)
 	return out
+}
+
+// startAt moves out's position to where yaml.v3 starts the node, which
+// is its first tag or anchor when it has one, and its first key for a
+// block mapping, which goccy places at the key's ":".
+func (b *builder) startAt(out *Node, props *token.Token) {
+	switch {
+	case props != nil && props.Position != nil:
+		out.Line, out.Column = props.Position.Line+b.lineOffset, props.Position.Column
+	case out.Kind == MappingNode && out.Style&StyleFlow == 0 && len(out.Content) > 0:
+		out.Line, out.Column = out.Content[0].Line, out.Content[0].Column
+	default:
+	}
 }
 
 // at records the source position of n on out.

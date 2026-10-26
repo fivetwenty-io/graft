@@ -32,11 +32,11 @@ func (ev evaluator) place(v *value.Value, vp value.Path, keys ...*value.Value) v
 
 // setCursor points the context's cursor at in, whose tracked path is p.
 // The path carries the root and the document, and a value with no path is
-// a root of its own in the first document.
+// a root of its own that belongs to no document.
 func (ev evaluator) setCursor(in *value.Value, p value.Path) {
 	root, doc, rel := runtime.Unroot(p)
 	if root == nil {
-		root, doc, rel = in, 0, nil
+		root, doc, rel = in, runtime.Detached, nil
 	}
 	ev.ctx.Cursor = &runtime.Cursor{Root: root, Path: rel, Doc: doc}
 }

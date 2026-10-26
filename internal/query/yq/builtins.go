@@ -45,7 +45,6 @@ func registry() *runtime.Registry {
 // registerYQ adds the operators that read the cursor, parent, key, and
 // path, and the node operators that read and change a node's details.
 func registerYQ(r *runtime.Registry) {
-	r.Register("parent", 0, parent)
 	r.Register("key", 0, key)
 	r.RegisterSingle("path", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 		var p value.Path
@@ -56,40 +55,13 @@ func registerYQ(r *runtime.Registry) {
 		return emit(value.Arr(p...), nil)
 	})
 	registerMeta(r)
-}
-
-// parent emits the node that holds the cursor's node, and nothing at a
-// root. When the cursor's node is a key or element the input lacks, yq
-// adds it as null so it has a parent, and the parent emitted is the one
-// in the input with that null added.
-func parent(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
-	c := ctx.Cursor
-	if c == nil {
-		return nil
-	}
-	rel, _ := nodePath(c)
-	if len(rel) == 0 {
-		return nil
-	}
-	p, found := resolve(c.Root, rel)
-	root := c.Root
-	if !found && in.Kind() == value.KindNull {
-		var err error
-		if root, err = builtin.SetPath(ctx, root, p, value.Null()); err != nil {
-			return err
-		}
-	}
-	pp := p[:len(p)-1]
-	v, err := builtin.GetPath(ctx, root, pp)
-	if err != nil {
-		return err
-	}
-	return emit(v, runtime.Rooted(root, c.Doc, pp))
+	registerPaths(r)
 }
 
 // key emits the key or index of the cursor's node in its parent, and
 // nothing at a root or for a key, which has no key of its own. The key
-// is a node at its value's path, as in yq.
+// is a node at its value's path, as in yq, with the details the map
+// gives it.
 func key(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 	c := ctx.Cursor
 	if c == nil || len(c.Path) == 0 {
@@ -100,8 +72,17 @@ func key(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit)
 	}
 	p, _ := resolve(c.Root, c.Path)
 	k := p[len(p)-1]
-	if orig := c.Path[len(c.Path)-1]; orig.Meta() != nil {
+	switch orig := c.Path[len(c.Path)-1]; {
+	case orig.Meta() != nil:
 		k = orig
+	case k.Kind() == value.KindString:
+		// A key the path names by text reads as the key the map holds.
+		if m, err := builtin.GetPath(ctx, c.Root, p[:len(p)-1]); err == nil {
+			if i, ok := entryAt(m, k); ok {
+				k = m.Entries()[i].Key
+			}
+		}
+	default:
 	}
 	return emit(k, runtime.Rooted(c.Root, c.Doc, append(p, runtime.KeyMark)))
 }

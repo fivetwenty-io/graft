@@ -28,9 +28,9 @@ func EvalAll(d *Dialect, expr string, docs []load.Document, emit func(load.Docum
 // cursors, so parent, key, and path can answer for every value without
 // back pointers, and the cursor's document is the one an output belongs
 // to, which the output's path carries. A value the expression built has
-// no path, and it belongs to the first document, as yq gives it document
-// index 0. The run is lax about undefined variables and about left sides
-// that are not paths, as yq is.
+// no path or a detached root, and it belongs to the first document, as yq
+// gives it document index 0. The run is lax about undefined variables and
+// about left sides that are not paths, as yq is.
 func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document, *value.Value) error) error {
 	node, err := Parse(expr)
 	if err != nil {
@@ -61,7 +61,8 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 		if m := v.Meta(); m != nil {
 			leading = m.LeadingContent
 		}
-		switch _, i, rel := runtime.Unroot(p); {
+		_, i, rel := runtime.Unroot(p)
+		switch {
 		case i == splitDoc:
 			// split_doc puts each output in a document of its own, which
 			// opens with no "---" of the input's. Only a document's root
@@ -72,10 +73,10 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 				leading = ""
 			}
 			split++
-		case i < len(docs):
+		case i >= 0 && i < len(docs):
 			doc = docs[i]
 		}
-		if p == nil {
+		if p == nil || i == runtime.Detached {
 			// A value the run built prints as the first document's, as
 			// yq's new node is, so it never starts a document of its own.
 			doc.DocIndex, doc.FileIndex = 0, 0

@@ -16,6 +16,11 @@ type Cursor struct {
 	Doc  int
 }
 
+// Detached is the document of a root that belongs to no document of the
+// run, such as a value the run built. It prints as yq prints a new node,
+// in the first document and never starting one of its own.
+const Detached = -1
+
 // rootMark heads a rooted path. It is compared by identity, so no value
 // a program builds can be mistaken for it.
 var rootMark = value.Str("")

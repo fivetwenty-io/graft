@@ -21,18 +21,21 @@ type Reader struct {
 	chain []*Reader
 	cur   int
 
-	started  bool
-	br       *bufio.Reader
-	json     *JSONReader
-	raw      bool
-	docs     []*yamlnode.Node
-	leading  string
-	next     int
-	evq      []*value.Value // streaming events of a loaded document
-	evLine   int
-	lines    int
-	docIndex int
-	err      error
+	started bool
+	br      *bufio.Reader
+	json    *JSONReader
+	raw     bool
+	docs    []*yamlnode.Node
+	leading string
+	// leadLines is how many lines the leading content took, which yq
+	// leaves out when it counts a node's line.
+	leadLines int
+	next      int
+	evq       []*value.Value // streaming events of a loaded document
+	evLine    int
+	lines     int
+	docIndex  int
+	err       error
 }
 
 // Open starts reading src, which is the fileIndex-th input. The format is
@@ -243,7 +246,7 @@ func (r *Reader) start() error {
 		// yq reads every input yaml.v3 does.
 		parse = yamlnode.ParseOptions{CollectionKeys: true, EmptyKeepBlocks: true}
 		if !r.opts.NodeComments {
-			r.leading, data = splitLeadingContent(data)
+			r.leading, data, r.leadLines = splitLeadingContent(data)
 		}
 	}
 	r.docs, err = yamlnode.ParseWith(data, parse)
@@ -274,7 +277,7 @@ func (r *Reader) nextYAML() (Document, error) {
 	n := r.docs[r.next]
 	r.next++
 	fo := FromNodeOptions{KeepMeta: r.opts.KeepMeta, StringKeys: r.opts.StringKeys, AliasBudget: r.opts.AliasBudget, DepthLimit: r.opts.DepthLimit}
-	v, anchors, err := convertDocument(n, fo, docSite{docIndex: r.docIndex, fileIndex: r.fileIndex, filename: r.src.Name})
+	v, anchors, err := convertDocument(n, fo, docSite{docIndex: r.docIndex, fileIndex: r.fileIndex, filename: r.src.Name, lineShift: r.leadLines})
 	if err != nil {
 		var ne *nodeError
 		if errors.As(err, &ne) {
@@ -304,14 +307,15 @@ const yqDocSeparator = "$yqDocSeparator$"
 // splitLeadingContent cuts the leading content off a YAML source the way
 // yq does before it parses. That is every comment line, blank line,
 // %YAML directive, and "---" before the first line of anything else, with
-// each "---" written as yqDocSeparator. It returns the leading content
-// and data with those lines left empty, so the parser never attaches the
-// comments to the first node and the lines after keep their numbers.
+// each "---" written as yqDocSeparator. It returns the leading content,
+// data with those lines left empty, so the parser never attaches the
+// comments to the first node and the lines after keep their numbers, and
+// how many lines it left empty.
 //
 // Content after a "---" on the same line is read as a line of its own,
 // as yq does, but it keeps its line break, where yq joins it to the next
 // line.
-func splitLeadingContent(data []byte) (string, []byte) {
+func splitLeadingContent(data []byte) (string, []byte, int) {
 	var lead, blank strings.Builder
 	rest := string(data)
 	for rest != "" {
@@ -341,9 +345,9 @@ func splitLeadingContent(data []byte) (string, []byte) {
 		rest = after
 	}
 	if lead.Len() == 0 {
-		return "", data
+		return "", data, 0
 	}
-	return lead.String(), []byte(blank.String() + rest)
+	return lead.String(), []byte(blank.String() + rest), strings.Count(blank.String(), "\n")
 }
 
 // yamlSpace is what yq's \s matches.

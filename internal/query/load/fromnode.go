@@ -59,6 +59,9 @@ func FromNode(n *yamlnode.Node, opts FromNodeOptions) (*value.Value, error) {
 type docSite struct {
 	docIndex, fileIndex int
 	filename            string
+	// lineShift is how many lines of leading content come before the
+	// source's first node. yq counts lines from after them.
+	lineShift int
 }
 
 type converter struct {
@@ -339,7 +342,7 @@ func (c *converter) meta(n *yamlnode.Node) *value.Meta {
 	m := &value.Meta{
 		Anchor:      n.Anchor,
 		HeadComment: n.HeadComment, LineComment: n.LineComment, FootComment: n.FootComment,
-		Line: n.Line, Column: n.Column,
+		Line: max(n.Line-c.site.lineShift, 0), Column: n.Column,
 		DocIndex: c.site.docIndex, FileIndex: c.site.fileIndex, Filename: c.site.filename,
 	}
 	if n.Kind == yamlnode.AliasNode {

@@ -22,7 +22,7 @@ func TestLeadingCommentsAreNotRepeatedOnTheFirstKey(t *testing.T) {
 	e := docs[0].Value.Entries()
 	wantEqual(t, e[0].Key.Meta().HeadComment, "")
 	wantEqual(t, docs[0].Value.Meta().HeadComment, "")
-	wantEqual(t, e[0].Key.Meta().Line, 2) // the lines after keep their numbers
+	wantEqual(t, e[0].Key.Meta().Line, 1) // yq counts lines from after the leading content
 	wantEqual(t, e[1].Key.Meta().HeadComment, "# b")
 }
 

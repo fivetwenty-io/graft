@@ -6,12 +6,14 @@
 package yq
 
 import (
+	"context"
 	"errors"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/ast"
 	"github.com/fivetwenty-io/graft/internal/query/lexer"
 	"github.com/fivetwenty-io/graft/internal/query/parser"
+	"github.com/fivetwenty-io/graft/pkg/regex"
 )
 
 // ParseError is an expression yq cannot parse. Its message is the one yq
@@ -47,6 +49,9 @@ func Parse(expr string) (ast.Node, error) {
 		}
 		if msg, at, missing := leftMissing(toks); missing {
 			return nil, &ParseError{Msg: msg, Pos: at}
+		}
+		if at, bad := badParent(expr, toks); bad {
+			return nil, &ParseError{Msg: badExpression, Pos: at}
 		}
 	}
 	n, err := parser.Parse(expr, Grammar())
@@ -130,6 +135,29 @@ func infix(tok lexer.Token) bool {
 		}
 	}
 	return false
+}
+
+// badExpression is yq's message for tokens its parser cannot put
+// together.
+const badExpression = "bad expression, please check expression syntax"
+
+// parentDepth is yq's token for parent with a depth, which takes nothing
+// but an integer written right after it.
+var parentDepth = regex.MustCompile(`^parent\(-?[0-9]+\)`)
+
+// badParent reports where parent is called with anything other than the
+// integer yq's parent(n) token takes. yq lexes the name alone there, and
+// a name followed by a bracket does not parse.
+func badParent(expr string, toks []lexer.Token) (int, bool) {
+	for i, tok := range toks {
+		if tok.Kind != lexer.Ident || tok.Text != "parent" || i+1 >= len(toks) || toks[i+1].Kind != lexer.LParen {
+			continue
+		}
+		if m, err := parentDepth.Find(context.Background(), expr[tok.Pos:], 0); err != nil || m == nil {
+			return tok.Pos, true
+		}
+	}
+	return 0, false
 }
 
 // leftMissing reports yq's message for an operator such as "style ="
