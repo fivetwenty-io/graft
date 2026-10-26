@@ -489,7 +489,7 @@ byte-identity: ## Fail unless the working tree prints exactly what origin/main p
 	@printf "$(GREEN)Checking byte identity against origin/main...$(RESET)\n"
 	@set -e; tmp=$$(mktemp -d); \
 	trap 'git worktree remove --force "$$tmp/base-tree" >/dev/null 2>&1 || true; rm -rf "$$tmp"' EXIT; \
-	git worktree add --detach "$$tmp/base-tree" origin/main >/dev/null 2>&1; \
+	git worktree add --quiet --detach "$$tmp/base-tree" origin/main; \
 	(cd "$$tmp/base-tree" && go build -o "$$tmp/graft-base" ./cmd/graft); \
 	go build -o "$$tmp/graft-head" ./cmd/graft; \
 	./scripts/byte-identity.sh "$$tmp/graft-base" "$$tmp/graft-head"
