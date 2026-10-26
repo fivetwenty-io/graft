@@ -95,6 +95,13 @@ func TestDebugQuery(t *testing.T) {
 		So(out, ShouldNotContainSubstring, "not available")
 	})
 
+	Convey("graft debug --yq opens in the yq dialect", t, func() {
+		out, rc := runDebugSessionArgs([]string{"--yq", ".meta.name", a}, "config dialect\nquit\n")
+		So(rc, ShouldEqual, 0)
+		So(out, ShouldContainSubstring, "web\n")
+		So(out, ShouldContainSubstring, "dialect: yq")
+	})
+
 	Convey("entering the REPL from graft jq and graft debug", t, func() {
 		out, errOut, st := runJQStdinScript(t, []string{"--repl", ".meta.name", a}, "quit\n")
 		So(st.Code, ShouldEqual, 0)
