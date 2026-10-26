@@ -48,34 +48,30 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 	return n, nil
 }
 
-// varLookup reports whether n starts with an index of a variable by a
-// key that reads its input. yq runs the right side of a pipe once over
-// all the left side's nodes, and such an index takes only the first node
-// for its key.
+// varLookup reports whether n starts with a variable, or a path below
+// one. yq runs the right side of a pipe once over all the left side's
+// nodes, so such a side gives its result once, and an index in it reads
+// its key from the first node.
 func varLookup(n ast.Node) bool {
 	if p, ok := n.(*ast.Pipe); ok {
 		n = p.L
 	}
-	idx, ok := n.(*ast.Index)
-	if !ok {
-		return false
-	}
-	if _, ok := idx.Target.(*ast.Var); !ok {
-		return false
-	}
-	switch k := idx.Key.(type) {
-	case *ast.Literal:
-		return false
-	case *ast.Str:
-		for _, part := range k.Parts {
-			if _, ok := part.(*ast.Literal); !ok {
-				return true
-			}
+	for {
+		switch t := n.(type) {
+		case *ast.Var:
+			return true
+		case *ast.Index:
+			n = t.Target
+		case *ast.Field:
+			n = t.Target
+		case *ast.Slice:
+			n = t.Target
+		case *ast.Iterate:
+			n = t.Target
+		default:
+			return false
 		}
-		return false
-	default:
 	}
-	return true
 }
 
 // stringify makes each non-literal part of an interpolated string read

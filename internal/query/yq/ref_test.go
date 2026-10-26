@@ -22,7 +22,10 @@ func TestYQVariableLookupTakesFirstNode(t *testing.T) {
 	// yq runs the right side once over every node on the left, and an
 	// index by a key read from that input takes only the first node.
 	wantYQ(t, `.names as $n | .ids[] | $n[.]`, in, "Bob\n")
-	wantYQ(t, `.names as $n | .ids[] | $n["a"]`, in, "Alice\nAlice\n")
+	wantYQ(t, `.names as $n | .ids[] | $n["a"]`, in, "Alice\n")
+	wantYQ(t, `.names as $n | .ids[] | $n`, in, "{a: Alice, b: Bob}\n")
+	wantYQ(t, `.names as $n | .ids[] | $n.a`, in, "Alice\n")
+	wantYQ(t, `.names as $n | .ids[] | [$n[.]]`, in, "- Bob\n- Alice\n")
 }
 
 func TestYQEvalAsUpdatePath(t *testing.T) {
