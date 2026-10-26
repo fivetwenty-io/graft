@@ -1,0 +1,3 @@
+--security-disable-file-ops
+-n
+load_str("data.txt")

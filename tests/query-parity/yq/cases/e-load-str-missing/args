@@ -1,0 +1,2 @@
+-n
+load_str("absent.txt")

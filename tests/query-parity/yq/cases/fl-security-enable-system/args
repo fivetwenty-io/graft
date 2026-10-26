@@ -1,0 +1,3 @@
+--security-enable-system-operator
+-n
+system("echo"; "from system")

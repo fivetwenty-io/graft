@@ -1,0 +1,4 @@
+-s
+"doc_" + $index
+.
+in.yaml

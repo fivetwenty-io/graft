@@ -1,11 +1,15 @@
 # area total allowlisted passing percent
 operator 349 14 326 93
-flag 17 0 17 100
-exit 7 0 7 100
+flag 65 4 54 83
+exit 30 0 30 100
 format 4 0 4 100
 meta 5 0 5 100
 cli 4 0 4 100
-overall 386 14 363 94
+overall 457 18 423 92
+allow fl-colors-json pending Y2 yq color layout
+allow fl-colors-yaml pending Y2 yq color layout
+allow fl-compact-seq-indent departure flag accepted with no effect
+allow fl-security-enable-system departure no system operator
 allow n-exact-decimal-arithmetic departure exact decimal
 allow n-exact-integer-widening departure exact decimal
 allow n-yaml-special-numbers departure yaml special numbers

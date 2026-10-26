@@ -1,0 +1,2 @@
+-n
+"${NOT_A} ${NOT_B}" | envsubst(nu,ff)

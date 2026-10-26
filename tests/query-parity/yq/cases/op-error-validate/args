@@ -1,0 +1,2 @@
+.n | select(tag == "!!int") // error("n must be a number")
+in.yaml

@@ -1,0 +1,2 @@
+-n
+system("echo"; "from system")

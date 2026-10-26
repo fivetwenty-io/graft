@@ -1,0 +1,3 @@
+--string-interpolation
+-n
+"x \(1 + 1)"

@@ -2,11 +2,15 @@
 # carries a reason from the spec's allowlist. A pending entry names the phase
 # that owes the work. An out-of-scope entry needs a format other than yaml and
 # json, and counts toward neither the pass ratio nor the departure cap.
+fl-compact-seq-indent departure flag accepted with no effect
+fl-security-enable-system departure no system operator
 n-exact-decimal-arithmetic departure exact decimal
 n-exact-integer-widening departure exact decimal
 n-yaml-special-numbers departure yaml special numbers
 op-date-from-unix-out-of-range departure from_unix fails out of range
 op-regex-pcre-syntax departure pcre syntax
+fl-colors-json pending Y2 yq color layout
+fl-colors-yaml pending Y2 yq color layout
 op-add-custom-tag-number pending Y2 arithmetic on custom tags
 op-env-dynamic-path pending Y2 eval as an assignment path
 op-eval-update pending Y2 eval as an assignment path

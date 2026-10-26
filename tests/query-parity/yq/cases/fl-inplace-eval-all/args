@@ -1,0 +1,4 @@
+eval-all
+-i
+.v += 1
+a.yaml

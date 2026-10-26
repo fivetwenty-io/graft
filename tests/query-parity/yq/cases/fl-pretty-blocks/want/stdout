@@ -1,0 +1,5 @@
+a: |
+  keep
+  lines
+b:
+  c: d

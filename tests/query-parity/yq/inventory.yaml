@@ -8,6 +8,10 @@
   area: operator
   phase: Y1
   cases: [a-update-multiple]
+- id: e-bad-yaml-input
+  area: exit
+  phase: Y1
+  cases: [e-bad-yaml-input]
 - id: e-compile-error
   area: exit
   phase: Y1
@@ -16,10 +20,34 @@
   area: exit
   phase: Y1
   cases: [e-inplace-parse-failure]
+- id: e-load-missing
+  area: exit
+  phase: Y1
+  cases: [e-load-missing]
+- id: e-load-missing-expression
+  area: exit
+  phase: Y1
+  cases: [e-load-missing-expression]
+- id: e-load-str-missing
+  area: exit
+  phase: Y1
+  cases: [e-load-str-missing]
 - id: e-missing-file
   area: exit
   phase: Y1
   cases: [e-missing-file]
+- id: e-missing-second-file
+  area: exit
+  phase: Y1
+  cases: [e-missing-second-file]
+- id: e-modulo-int-by-zero
+  area: exit
+  phase: Y1
+  cases: [e-modulo-int-by-zero]
+- id: e-status-empty-file
+  area: exit
+  phase: Y1
+  cases: [e-status-empty-file]
 - id: e-status-false
   area: exit
   phase: Y1
@@ -36,10 +64,234 @@
   area: exit
   phase: Y1
   cases: [e-status-value]
+- id: e-type-mismatch
+  area: exit
+  phase: Y1
+  cases: [e-type-mismatch]
+- id: e-unclosed-bracket
+  area: exit
+  phase: Y1
+  cases: [e-unclosed-bracket]
+- id: e-unknown-flag
+  area: exit
+  phase: Y1
+  cases: [e-unknown-flag]
+- id: e-unknown-operator
+  area: exit
+  phase: Y1
+  cases: [e-unknown-operator]
 - id: f-expression-file
   area: flag
   phase: Y1
   cases: [f-expression-file]
+- id: fl-colors-json
+  area: flag
+  phase: Y1
+  cases: [fl-colors-json]
+- id: fl-colors-yaml
+  area: flag
+  phase: Y1
+  cases: [fl-colors-yaml]
+- id: fl-compact-seq-indent
+  area: flag
+  phase: Y1
+  cases: [fl-compact-seq-indent]
+- id: fl-exit-status-no-output
+  area: exit
+  phase: Y1
+  cases: [fl-exit-status-no-output]
+- id: fl-exit-status-off
+  area: flag
+  phase: Y1
+  cases: [fl-exit-status-off]
+- id: fl-expression-flag
+  area: flag
+  phase: Y1
+  cases: [fl-expression-flag]
+- id: fl-expression-flag-file-like
+  area: flag
+  phase: Y1
+  cases: [fl-expression-flag-file-like]
+- id: fl-from-file-crlf
+  area: flag
+  phase: Y1
+  cases: [fl-from-file-crlf]
+- id: fl-front-matter-extract
+  area: flag
+  phase: Y2
+  cases: [fl-front-matter-extract]
+- id: fl-front-matter-process
+  area: flag
+  phase: Y2
+  cases: [fl-front-matter-process]
+- id: fl-indent-1
+  area: flag
+  phase: Y1
+  cases: [fl-indent-1]
+- id: fl-indent-12
+  area: flag
+  phase: Y1
+  cases: [fl-indent-12]
+- id: fl-indent-json
+  area: flag
+  phase: Y1
+  cases: [fl-indent-json]
+- id: fl-inplace-eval-all
+  area: flag
+  phase: Y1
+  cases: [fl-inplace-eval-all]
+- id: fl-inplace-json
+  area: flag
+  phase: Y1
+  cases: [fl-inplace-json]
+- id: fl-inplace-multiple-files
+  area: flag
+  phase: Y1
+  cases: [fl-inplace-multiple-files]
+- id: fl-inplace-no-expression
+  area: flag
+  phase: Y1
+  cases: [fl-inplace-no-expression]
+- id: fl-inplace-split
+  area: exit
+  phase: Y1
+  cases: [fl-inplace-split]
+- id: fl-inplace-stdin
+  area: exit
+  phase: Y1
+  cases: [fl-inplace-stdin]
+- id: fl-input-json-short
+  area: flag
+  phase: Y1
+  cases: [fl-input-json-short]
+- id: fl-input-yaml
+  area: flag
+  phase: Y1
+  cases: [fl-input-yaml]
+- id: fl-merge-anchor-spec-explode
+  area: flag
+  phase: Y1
+  cases: [fl-merge-anchor-spec-explode]
+- id: fl-no-colors
+  area: flag
+  phase: Y1
+  cases: [fl-no-colors]
+- id: fl-nul-output-json
+  area: flag
+  phase: Y1
+  cases: [fl-nul-output-json]
+- id: fl-nul-output-nul-value
+  area: exit
+  phase: Y1
+  cases: [fl-nul-output-nul-value]
+- id: fl-nul-output-quoted
+  area: flag
+  phase: Y1
+  cases: [fl-nul-output-quoted]
+- id: fl-null-input-eval-all
+  area: flag
+  phase: Y1
+  cases: [fl-null-input-eval-all]
+- id: fl-null-input-with-files
+  area: flag
+  phase: Y1
+  cases: [fl-null-input-with-files]
+- id: fl-output-auto
+  area: flag
+  phase: Y1
+  cases: [fl-output-auto]
+- id: fl-output-long
+  area: flag
+  phase: Y1
+  cases: [fl-output-long]
+- id: fl-output-short
+  area: flag
+  phase: Y1
+  cases: [fl-output-short]
+- id: fl-output-y
+  area: flag
+  phase: Y1
+  cases: [fl-output-y]
+- id: fl-pretty-blocks
+  area: flag
+  phase: Y1
+  cases: [fl-pretty-blocks]
+- id: fl-pretty-booleans
+  area: flag
+  phase: Y1
+  cases: [fl-pretty-booleans]
+- id: fl-pretty-keys
+  area: flag
+  phase: Y1
+  cases: [fl-pretty-keys]
+- id: fl-pretty-strings
+  area: flag
+  phase: Y1
+  cases: [fl-pretty-strings]
+- id: fl-pretty-with-expression
+  area: flag
+  phase: Y1
+  cases: [fl-pretty-with-expression]
+- id: fl-security-disable-env-envsubst
+  area: flag
+  phase: Y1
+  cases: [fl-security-disable-env-envsubst]
+- id: fl-security-disable-env-strenv
+  area: flag
+  phase: Y1
+  cases: [fl-security-disable-env-strenv]
+- id: fl-security-disable-file-base64
+  area: flag
+  phase: Y1
+  cases: [fl-security-disable-file-base64]
+- id: fl-security-disable-file-load-str
+  area: flag
+  phase: Y1
+  cases: [fl-security-disable-file-load-str]
+- id: fl-security-enable-system
+  area: flag
+  phase: Y1
+  cases: [fl-security-enable-system]
+- id: fl-split-exp
+  area: flag
+  phase: Y2
+  cases: [fl-split-exp]
+- id: fl-split-exp-dirs
+  area: flag
+  phase: Y2
+  cases: [fl-split-exp-dirs]
+- id: fl-split-exp-file
+  area: flag
+  phase: Y2
+  cases: [fl-split-exp-file]
+- id: fl-split-exp-index
+  area: flag
+  phase: Y2
+  cases: [fl-split-exp-index]
+- id: fl-string-interpolation-off
+  area: flag
+  phase: Y2
+  cases: [fl-string-interpolation-off]
+- id: fl-string-interpolation-on
+  area: flag
+  phase: Y1
+  cases: [fl-string-interpolation-on]
+- id: fl-system-disabled
+  area: flag
+  phase: Y1
+  cases: [fl-system-disabled]
+- id: fl-unwrap-json
+  area: flag
+  phase: Y1
+  cases: [fl-unwrap-json]
+- id: fl-unwrap-json-default
+  area: flag
+  phase: Y1
+  cases: [fl-unwrap-json-default]
+- id: fl-unwrap-root
+  area: flag
+  phase: Y1
+  cases: [fl-unwrap-root]
 - id: i-eval-all-collect
   area: cli
   phase: Y1
@@ -536,6 +788,10 @@
   area: operator
   phase: Y1
   cases: [op-delpaths-array]
+- id: op-delpaths-bad-argument
+  area: exit
+  phase: Y1
+  cases: [op-delpaths-bad-argument]
 - id: op-divide-even
   area: operator
   phase: Y1
@@ -592,10 +848,22 @@
   area: operator
   phase: Y1
   cases: [op-envsubst-document]
+- id: op-envsubst-ff
+  area: exit
+  phase: Y1
+  cases: [op-envsubst-ff]
 - id: op-envsubst-missing
   area: operator
   phase: Y1
   cases: [op-envsubst-missing]
+- id: op-envsubst-ne
+  area: exit
+  phase: Y1
+  cases: [op-envsubst-ne]
+- id: op-envsubst-nu
+  area: exit
+  phase: Y1
+  cases: [op-envsubst-nu]
 - id: op-envsubst-nu-default
   area: operator
   phase: Y1
@@ -616,6 +884,14 @@
   area: operator
   phase: Y1
   cases: [op-equals-string]
+- id: op-error
+  area: exit
+  phase: Y1
+  cases: [op-error]
+- id: op-error-validate
+  area: exit
+  phase: Y1
+  cases: [op-error-validate]
 - id: op-error-validate-ok
   area: operator
   phase: Y1
@@ -1324,6 +1600,14 @@
   area: operator
   phase: Y1
   cases: [op-to-number]
+- id: op-to-number-bad
+  area: exit
+  phase: Y1
+  cases: [op-to-number-bad]
+- id: op-to-number-null
+  area: exit
+  phase: Y1
+  cases: [op-to-number-null]
 - id: op-to-string
   area: operator
   phase: Y1
