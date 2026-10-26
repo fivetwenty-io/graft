@@ -358,3 +358,24 @@ func TestYQReadsAnyDashedArgumentAsFlags(t *testing.T) {
 		So(out, ShouldEqual, "-1\n")
 	})
 }
+
+func TestYQWarnsWhenAnExplicitInputFormatKeepsYAMLOutput(t *testing.T) {
+	Convey("-p with -o auto warns about the format the file's name implies", t, func() {
+		dir := t.TempDir()
+		for name, word := range map[string]string{"in.json": "json", "in.txt": "yaml", "in.YML": "yml", "in.tf": "tf"} {
+			So(os.WriteFile(filepath.Join(dir, name), []byte(`{"a": 5}`+"\n"), 0o600), ShouldBeNil)
+			out, errOut, _ := runYQIn(t, dir, []string{"-pj", ".a", name})
+			So(out, ShouldEqual, "5\n")
+			So(errOut, ShouldContainSubstring, "Normally yq would output '"+word+"', but for backwards compatibility")
+		}
+	})
+
+	Convey("stdin, -o, or -p auto gives no warning", t, func() {
+		dir := t.TempDir()
+		So(os.WriteFile(filepath.Join(dir, "in.txt"), []byte(`{"a": 5}`+"\n"), 0o600), ShouldBeNil)
+		for _, args := range [][]string{{"-pj", ".a"}, {"-pj", ".a", "-"}, {"-pj", "-oy", ".a", "in.txt"}, {"-pa", ".a", "in.txt"}} {
+			_, errOut, _ := runYQIn(t, dir, args)
+			So(errOut, ShouldBeEmpty)
+		}
+	})
+}

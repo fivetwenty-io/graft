@@ -124,11 +124,30 @@ func yqJSONNamed(opts yqOptions) bool {
 	return len(opts.Files) > 0 && strings.HasSuffix(strings.ToLower(opts.Files[0]), ".json")
 }
 
-// yqAutoOutputWarning is what yq says when -o auto would have chosen JSON
-// for a .json file but an explicit -p keeps the output YAML.
-const yqAutoOutputWarning = "yq default output is now 'auto' (based on the filename extension). " +
-	"Normally yq would output 'json', but for backwards compatibility 'yaml' has been set. " +
-	"Please use -oy to specify yaml, or drop the -p flag."
+// yqAutoOutputWarning is what yq says when an explicit -p keeps -o auto's
+// output YAML for a file, naming the format the file's extension implies,
+// and false when it says nothing: for stdin, an explicit -o, or -p auto.
+func yqAutoOutputWarning(opts yqOptions) (string, bool) {
+	if opts.OutputFormat != yqFormatAuto || opts.InputFormat == yqFormatAuto || len(opts.Files) == 0 || opts.Files[0] == "-" {
+		return "", false
+	}
+	return "yq default output is now 'auto' (based on the filename extension). " +
+		"Normally yq would output '" + yqExtensionFormat(opts.Files[0]) + "', but for backwards compatibility 'yaml' has been set. " +
+		"Please use -oy to specify yaml, or drop the -p flag.", true
+}
+
+// yqExtensionFormat is a file's extension, lowercased, when it names one
+// of yq's formats or their short names, and yaml otherwise.
+func yqExtensionFormat(name string) string {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
+	switch ext {
+	case "yaml", "y", "yml", "kyaml", "ky", "json", "j", "props", "p", "properties",
+		"csv", "c", "tsv", "t", "xml", "x", "base64", "base64url", "uri", "toml",
+		"hcl", "h", "tf", "shell", "s", "sh", "lua", "l", "ini", "i":
+		return ext
+	}
+	return yqFormatYAML
+}
 
 // yqIndent is the Indent an Encoder takes for -I. Unset keeps yq's
 // default, zero is compact JSON, and YAML clamps to 2 through 9.
@@ -435,8 +454,8 @@ func handleYQ(opts yqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 		log.DebugOn = true
 	}
 	log.DEBUG("expression: %s", opts.Expr)
-	if opts.OutputFormat == yqFormatAuto && opts.InputFormat != yqFormatAuto && yqJSONNamed(opts) {
-		_, _ = io.WriteString(stderr, colored("Y", "Warning")+": "+yqAutoOutputWarning+"\n")
+	if msg, ok := yqAutoOutputWarning(opts); ok {
+		_, _ = io.WriteString(stderr, colored("Y", "Warning")+": "+msg+"\n")
 	}
 
 	ev, err := yq.Compile(opts.Expr, yqCompileOptions(opts, stderr)...)
