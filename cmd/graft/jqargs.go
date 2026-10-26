@@ -238,7 +238,7 @@ func (p *jqParser) positional(arg string) error {
 	case p.stringArgs:
 		p.o.Positional = append(p.o.Positional, value.Str(arg))
 	case p.jsonArgs:
-		v, err := decodeJQArg(arg)
+		v, err := decodeJQArg(arg, jq.FormatJSON)
 		if err != nil {
 			return &usageError{Msg: "invalid JSON text passed to --jsonargs"}
 		}
@@ -344,7 +344,7 @@ func (p *jqParser) argJSON() error {
 	if _, ok := p.o.Args[vals[0]]; ok {
 		return nil
 	}
-	v, err := decodeJQArg(vals[1])
+	v, err := decodeJQArg(vals[1], jq.FormatAuto)
 	if err != nil {
 		return &usageError{Msg: "invalid JSON text passed to --argjson"}
 	}
@@ -460,10 +460,10 @@ func (o *jqOptions) yamlOutput() bool {
 	return o.Output == jqFormatYAML || o.Output == "y"
 }
 
-// decodeJQArg reads exactly one JSON or YAML value from text, as
-// --argjson and --jsonargs take it.
-func decodeJQArg(text string) (*value.Value, error) {
-	dec := jq.NewDecoder(strings.NewReader(text), jq.DecodeOptions{})
+// decodeJQArg reads exactly one value from text in format, which is JSON
+// alone for --jsonargs, as in jq, and JSON or YAML for --argjson.
+func decodeJQArg(text string, format jq.Format) (*value.Value, error) {
+	dec := jq.NewDecoder(strings.NewReader(text), jq.DecodeOptions{Format: format})
 	v, err := dec.Next()
 	if err != nil {
 		return nil, err

@@ -230,6 +230,13 @@ func TestJQOutputFormat(t *testing.T) {
 		_, e, st := runJQ(t, []string{"-n", ".", "--jsonargs", "{"}, "")
 		So(st.Code, ShouldEqual, 2)
 		So(e, ShouldStartWith, "Invalid flags: invalid JSON text passed to --jsonargs")
+		for _, text := range []string{"-n", "a: 1"} {
+			_, e, st = runJQ(t, []string{"-n", ".", "--jsonargs", "--", text}, "")
+			So(st.Code, ShouldEqual, 2) // --jsonargs takes JSON alone, as in jq
+			So(e, ShouldStartWith, "Invalid flags: invalid JSON text passed to --jsonargs")
+		}
+		out, _, _ = runJQ(t, []string{"-c", "-n", "$x", "--argjson", "x", "a: 1"}, "")
+		So(out, ShouldEqual, "{\"a\":1}\n") // while --argjson takes YAML too
 		out, _, _ = runJQ(t, nil, "{\"a\":1}") // no program means . when stdin is not a terminal
 		So(out, ShouldEqual, "{\n  \"a\": 1\n}\n")
 		out, _, _ = runJQ(t, []string{".", "-"}, "7")
