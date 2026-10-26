@@ -73,16 +73,24 @@ func TestJQStreamEvents(t *testing.T) {
 	})
 }
 
-// lockedBuffer is a writer one goroutine fills while another reads it.
+// lockedBuffer is a writer one goroutine fills while another reads it. It
+// closes reached once it holds want bytes.
 type lockedBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
+	mu      sync.Mutex
+	buf     bytes.Buffer
+	want    int
+	reached chan struct{}
+	signal  sync.Once
 }
 
 func (b *lockedBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.buf.Write(p)
+	n, err := b.buf.Write(p)
+	if b.reached != nil && b.buf.Len() >= b.want {
+		b.signal.Do(func() { close(b.reached) })
+	}
+	return n, err
 }
 
 func (b *lockedBuffer) String() string {
@@ -95,7 +103,8 @@ func TestJQStreamIsIncremental(t *testing.T) {
 	// The reader hands over the first value and then blocks. A loader that
 	// read the whole input before it printed anything would never return.
 	pr, pw := io.Pipe()
-	var out lockedBuffer
+	want := "[[0],1]\n[[1],2]\n[[1]]\n"
+	out := lockedBuffer{want: len(want), reached: make(chan struct{})}
 	opts, err := parseJQArgs([]string{"-c", "--unbuffered", "--stream", "."}, personaGraft)
 	if err != nil {
 		t.Fatal(err)
@@ -109,13 +118,9 @@ func TestJQStreamIsIncremental(t *testing.T) {
 	if _, err := io.WriteString(pw, "[1,2]\n"); err != nil {
 		t.Fatal(err)
 	}
-	want := "[[0],1]\n[[1],2]\n[[1]]\n"
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if len(out.String()) >= len(want) {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
+	select {
+	case <-out.reached:
+	case <-time.After(5 * time.Second):
 	}
 	if got := out.String(); got != want {
 		t.Errorf("before the rest of the input arrived got %q, want %q", got, want)
