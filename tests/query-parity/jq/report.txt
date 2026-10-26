@@ -7,17 +7,15 @@ number 47 9 38 80
 string 39 0 39 100
 regex 76 0 76 100
 date 32 1 31 96
-math 19 5 14 73
+math 19 3 16 84
 module 18 0 18 100
 stream 10 0 10 100
 cli 39 1 38 97
-overall 685 17 668 97
+overall 685 15 670 97
 allow c-yaml-input-departure pending J3 input parsed as strict JSON
 allow d-gmtime-fractional departure exact decimal
 allow e-invalid-input-literal pending J3 strict literal parsing in input
 allow m-gamma departure platform libm
-allow m-hyperbolic departure go math ulp
-allow m-roots-exp departure go math ulp
 allow m-special-values departure exact decimal
 allow m-trig departure platform libm
 allow n-add-decimal departure exact decimal
