@@ -33,14 +33,18 @@ type Source struct {
 //
 //nolint:revive // LoadOptions is the name the loader's callers are specified against.
 type LoadOptions struct {
-	Format      Format
-	RawLines    bool
-	KeepMeta    bool
-	StringKeys  bool
-	Seq         bool
-	Stream      bool
-	DepthLimit  int
-	AliasBudget int
+	Format   Format
+	RawLines bool
+	KeepMeta bool
+	// NodeComments leaves the comments before a YAML source's first node
+	// to the parser, as yq's load and from_yaml do, rather than cutting
+	// them off as leading content.
+	NodeComments bool
+	StringKeys   bool
+	Seq          bool
+	Stream       bool
+	DepthLimit   int
+	AliasBudget  int
 }
 
 // Document is one value read from a source.

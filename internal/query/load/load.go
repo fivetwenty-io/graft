@@ -200,7 +200,7 @@ func (r *Reader) start() error {
 	if len(data) > 0 && data[len(data)-1] != '\n' {
 		r.lines++
 	}
-	if r.opts.KeepMeta {
+	if r.opts.KeepMeta && !r.opts.NodeComments {
 		r.leading, data = splitLeadingContent(data)
 	}
 	r.docs, err = yamlnode.Parse(data)

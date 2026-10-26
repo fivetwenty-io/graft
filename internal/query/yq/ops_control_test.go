@@ -58,3 +58,20 @@ func TestYQWithChangesTheWholeDocument(t *testing.T) {
 	wantYQ(t, `with(.a; 5)`, "a: 1\n", "a: 1\n")
 	wantYQ(t, `with(1; . + 1)`, "a: 1\n", "a: 1\n")
 }
+
+func TestYQLoadKeepsComments(t *testing.T) {
+	// load keeps the comment above a document's first node, and reads a
+	// file with no node as an empty null. from_yaml keeps comments below
+	// the first node only, gives an empty null for text with no node, and
+	// fails on no text at all.
+	head := writeTemp(t, "# head\nb: 2 # line\n")
+	gap := writeTemp(t, "# doc\n\n# key\nb: 2\n")
+	empty := writeTemp(t, "")
+	only := writeTemp(t, "# only\n")
+	wantYQ(t, `.m = load("`+head+`")`, "a: 1\n", "a: 1\nm:\n  # head\n  b: 2 # line\n")
+	wantYQ(t, `.m = load("`+gap+`")`, "a: 1\n", "a: 1\nm:\n  # key\n  b: 2\n")
+	wantYQ(t, `.m = load("`+empty+`") | .n = load("`+only+`")`, "a: 1\n", "a: 1\nm:\nn:\n")
+	wantYQ(t, `.m = ("# head\nb: 2\n# c\nd: 3" | from_yaml)`, "a: 1\n", "a: 1\nm:\n  b: 2\n  # c\n  d: 3\n")
+	wantYQ(t, `.m = ("# only" | from_yaml) | .n = ("\n" | from_yaml)`, "a: 1\n", "a: 1\nm:\nn:\n")
+	wantYQError(t, `"" | from_yaml`, "a: 1\n", "EOF")
+}

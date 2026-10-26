@@ -89,12 +89,12 @@ func registerControl(r *runtime.Registry) {
 		return emit(in, runtime.Rooted(in, splitDoc, nil))
 	})
 	loader(r, "load", func(b []byte) (*value.Value, error) {
-		docs, err := parseDocuments(string(b))
+		docs, err := parseDocuments(string(b), true)
 		switch {
 		case err != nil:
 			return nil, err
 		case len(docs) == 0:
-			return value.Null(), nil
+			return emptyNull(), nil
 		case len(docs) == 1:
 			return docs[0], nil
 		default:

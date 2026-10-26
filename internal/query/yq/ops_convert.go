@@ -64,9 +64,10 @@ func registerConvert(r *runtime.Registry) {
 	}
 	encoder(r, "to_yaml", func(in *value.Value) (*value.Value, error) { return value.Str(yamlDoc(in, 2)), nil })
 	r.RegisterSingle("to_yaml", 1, indented(yamlDoc))
-	for _, name := range []string{"from_json", "fromjson", "from_yaml"} {
+	for _, name := range []string{"from_json", "fromjson"} {
 		encoder(r, name, func(in *value.Value) (*value.Value, error) { return parseYAML(nodeText(in), false) })
 	}
+	encoder(r, "from_yaml", func(in *value.Value) (*value.Value, error) { return fromYAML(nodeText(in)) })
 }
 
 // encoder registers a one-input, one-output operator.
