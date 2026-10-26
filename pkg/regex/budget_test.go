@@ -191,7 +191,7 @@ func TestLargePatternsCompileCheaply(t *testing.T) {
 	// draws on the instruction budget instead.
 	var b strings.Builder
 	for r := rune(0xe000); b.Len() < defaultMaxPattern-16; r++ {
-		fmt.Fprintf(&b, `[\pL\x{%x}]`, r)
+		fmt.Fprintf(&b, `[\p{L}\x{%x}]`, r)
 	}
 	var err error
 	alloc := allocatedBy(func() { _, err = Compile(b.String(), onig, ci) })
@@ -202,7 +202,7 @@ func TestLargePatternsCompileCheaply(t *testing.T) {
 }
 
 func TestClassRangesDrawOnInstructionBudget(t *testing.T) {
-	_, err := Compile(`[\pL]`, WithFlavor(Oniguruma), WithBudget(Budget{MaxInstructions: 100}))
+	_, err := Compile(`[\p{L}]`, WithFlavor(Oniguruma), WithBudget(Budget{MaxInstructions: 100}))
 	wantErrIs(t, err, ErrBudget)
 	wantErrContains(t, err, "character classes exceed the budget of 100 instructions")
 }

@@ -301,16 +301,11 @@ func TestBackreferences(t *testing.T) {
 	wantSyntaxError(t, `(a)\k<0>`, 3, "invalid backref number/name", onig)
 	wantSyntaxError(t, `(a)\k<2>`, 3, "invalid backref number/name", onig)
 	wantSyntaxError(t, `(a)\2`, 3, "invalid backref number/name", onig)
-	for pattern, construct := range map[string]string{
-		`(a)\g1`:         `backreference \g1`,
-		`(?<n>a)\k{n}`:   `backreference \k{n}`,
-		`(?P<n>a)(?P=n)`: "backreference (?P=n)",
-	} {
-		_, err := Compile(pattern, onig)
-		var u *UnsupportedError
-		wantErrAs(t, err, &u)
-		wantEqual(t, u.Construct, construct)
-	}
+	// It has no \g reference, no \k{name}, and no (?P=name), so \g and \k
+	// there are letters and (?P is a syntax error.
+	wantText(t, MustCompile(`(a)\g1`, onig), "ag1", "ag1")
+	wantText(t, MustCompile(`(?<n>a)\k{n}`, onig), "ak{n}", "ak{n}")
+	wantSyntaxError(t, `(?P<n>a)(?P=n)`, 2, "undefined group option", onig)
 
 	// Oniguruma lets groups share a name, and a reference to the name
 	// tries the last of them first and then each earlier one.

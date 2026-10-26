@@ -8,8 +8,9 @@ import (
 	"unicode/utf8"
 )
 
-// maxRepeat is the largest count a {} quantifier accepts, as in PCRE2.
-const maxRepeat = 65535
+// countLimit is larger than any flavor's largest {} count, so a count too
+// large to hold is read as countLimit+1 and refused like any other.
+const countLimit = 1 << 20
 
 // maxNameLen is the longest group name PCRE2 accepts.
 const maxNameLen = 32
@@ -87,6 +88,9 @@ func parse(src string, cfg *config) (*node, []string, error) {
 	return n, p.names, nil
 }
 
+// rules returns the rules of the flavor the pattern is read in.
+func (p *parser) rules() *rules { return p.cfg.flavor.rules() }
+
 func (p *parser) errorAt(pos int, msg string) error {
 	return &SyntaxError{Pos: pos, Msg: msg}
 }
@@ -126,7 +130,7 @@ func (p *parser) skipExtended() {
 	for !p.eof() {
 		r, w := utf8.DecodeRuneInString(p.src[p.pos:])
 		switch {
-		case isPatternSpace(r):
+		case isPatternSpace(r, p.rules().asciiExtended):
 			p.pos += w
 		case r == '#':
 			if i := strings.IndexByte(p.src[p.pos:], '\n'); i >= 0 {
@@ -140,9 +144,14 @@ func (p *parser) skipExtended() {
 	}
 }
 
-// isPatternSpace reports whether the Extended flag skips r, which follows
-// PCRE2's list for UTF mode.
-func isPatternSpace(r rune) bool {
+// isPatternSpace reports whether the Extended flag skips r. PCRE2 skips
+// the runes on its list for UTF mode, and Oniguruma skips only the ASCII
+// space, tab, newline, carriage return, and form feed, so asciiOnly asks
+// for its list.
+func isPatternSpace(r rune, asciiOnly bool) bool {
+	if asciiOnly {
+		return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '\f'
+	}
 	switch r {
 	case ' ', '\t', '\n', '\v', '\f', '\r', 0x85, 0x200e, 0x200f, 0x2028, 0x2029:
 		return true
@@ -254,9 +263,9 @@ func (p *parser) scanQuantifier() (lo, hi, width int, ok bool) {
 	return 0, 0, 0, false
 }
 
-// scanBraces reads {n}, {n,}, {n,m}, or {,m}. Anything else starting with {
-// is a literal brace, as in PCRE2. A count too large to hold is returned as
-// maxRepeat+1 so the caller can report it.
+// scanBraces reads {n}, {n,}, {n,m}, or, where the flavor allows it, {,m}.
+// Anything else starting with { is a literal brace. A count too large to
+// hold is returned as countLimit+1 so the caller can report it.
 func (p *parser) scanBraces() (lo, hi, width int, ok bool) {
 	s := p.src[p.pos+1:]
 	end := strings.IndexByte(s, '}')
@@ -265,7 +274,8 @@ func (p *parser) scanBraces() (lo, hi, width int, ok bool) {
 	}
 	body := s[:end]
 	loText, hiText, comma := strings.Cut(body, ",")
-	if !allDigits(loText) || !allDigits(hiText) || (loText == "" && hiText == "") || (loText == "" && !comma) {
+	if !allDigits(loText) || !allDigits(hiText) || (loText == "" && hiText == "") || (loText == "" && !comma) ||
+		(loText == "" && !p.rules().openLowerBound) {
 		return 0, 0, 0, false
 	}
 	lo = parseCount(loText)
@@ -294,13 +304,15 @@ func parseCount(s string) int {
 		return 0
 	}
 	n, err := strconv.Atoi(s)
-	if err != nil || n > maxRepeat {
-		return maxRepeat + 1
+	if err != nil || n > countLimit {
+		return countLimit + 1
 	}
 	return n
 }
 
-// quantified applies the quantifier that follows atom, if there is one.
+// quantified applies the quantifiers that follow atom, if there are any.
+// Only a flavor with stacked quantifiers lets a second one follow the
+// first, and it then repeats the repetition.
 func (p *parser) quantified(atom *node) (*node, error) {
 	if p.quoting {
 		if !p.lookingAt(`\E`) {
@@ -309,16 +321,27 @@ func (p *parser) quantified(atom *node) (*node, error) {
 		p.pos += 2
 		p.quoting = false
 	}
-	p.skipExtended()
-	qpos := p.pos
-	lo, hi, width, ok := p.scanQuantifier()
-	if !ok {
-		return atom, nil
+	for count := 0; ; count++ {
+		p.skipExtended()
+		qpos := p.pos
+		lo, hi, width, ok := p.scanQuantifier()
+		switch {
+		case !ok:
+			return atom, nil
+		case count > 0 && !p.rules().stackedQuantifiers:
+			return nil, p.errorAt(qpos, "quantifier does not follow a repeatable item")
+		}
+		if err := p.checkQuantifier(atom, qpos, lo, hi); err != nil {
+			return nil, err
+		}
+		p.pos += width
+		atom = p.repeat(atom, lo, hi)
 	}
-	if err := p.checkQuantifier(atom, qpos, lo, hi); err != nil {
-		return nil, err
-	}
-	p.pos += width
+}
+
+// repeat applies the quantifier with bounds lo and hi, whose text has just
+// been read, to atom, reading the ? or + that makes it lazy or possessive.
+func (p *parser) repeat(atom *node, lo, hi int) *node {
 	greedy, possessive := true, false
 	if !p.eof() {
 		switch p.src[p.pos] {
@@ -330,29 +353,29 @@ func (p *parser) quantified(atom *node) (*node, error) {
 			p.pos++
 		}
 	}
-	p.skipExtended()
-	if _, _, _, again := p.scanQuantifier(); again {
-		return nil, p.errorAt(p.pos, "quantifier does not follow a repeatable item")
-	}
 	if atom.kind == kindLook {
-		return quantifiedLook(atom, lo, hi, greedy), nil
+		return quantifiedLook(atom, lo, hi, greedy)
 	}
 	rep := &node{kind: kindRepeat, subs: []*node{atom}, min: lo, max: hi, greedy: greedy}
 	if possessive {
-		return &node{kind: kindAtomic, subs: []*node{rep}}, nil
+		return &node{kind: kindAtomic, subs: []*node{rep}}
 	}
-	return rep, nil
+	return rep
 }
 
 // checkQuantifier refuses a quantifier at qpos that atom cannot take or
 // whose counts lo and hi are out of range.
 func (p *parser) checkQuantifier(atom *node, qpos, lo, hi int) error {
+	limit := p.rules().maxRepeat
+	tooBig := lo > limit || hi > limit
 	switch {
 	case atom.kind == kindAssert:
 		return p.errorAt(qpos, "quantifier does not follow a repeatable item")
-	case atom.kind == kindLook && p.cfg.flavor == Oniguruma:
+	case atom.kind == kindLook && !p.rules().quantifiedLookaround:
 		return p.errorAt(qpos, "target of repeat operator is invalid")
-	case lo > maxRepeat || hi > maxRepeat:
+	case tooBig && p.rules().onigMessages:
+		return p.errorAt(qpos, "too big number for repeat range")
+	case tooBig:
 		return p.errorAt(qpos, "number too big in {} quantifier")
 	case hi != unbounded && hi < lo:
 		return p.errorAt(qpos, "numbers out of order in {} quantifier")
@@ -445,7 +468,7 @@ func (p *parser) group(start int) (*node, error) {
 
 	form, name, saved := formCapture, "", p.flags
 	switch {
-	case p.lookingAt("?P=") && p.cfg.flavor == PCRE:
+	case p.lookingAt("?P=") && p.rules().pythonNames:
 		return p.pythonRef(start)
 	case p.lookingAt("?"):
 		var err error
@@ -535,7 +558,7 @@ const maxLookbehind = 255
 // whose ( is at start has a length limit, and that a branch whose length
 // varies looks back no more than 255 runes. Oniguruma has no such rule.
 func (p *parser) checkLookbehind(start int, body *node) error {
-	if p.cfg.flavor != PCRE {
+	if !p.rules().boundedLookbehind {
 		return nil
 	}
 	branches := []*node{body}
@@ -607,6 +630,8 @@ func (p *parser) groupPrefix(start int) (form groupForm, name string, done bool,
 		return formPlain, "", true, unsupported("conditional group (?(...)")
 	case strings.HasPrefix(rest, "C"):
 		return formPlain, "", true, unsupported("callout (?C...)")
+	case strings.HasPrefix(rest, "P") && !p.rules().pythonNames:
+		return formPlain, "", true, p.errorAt(at, "undefined group option")
 	case strings.HasPrefix(rest, "P="):
 		return formPlain, "", true, unsupported("backreference (?P=" + upToParen(rest[2:]) + ")")
 	case strings.HasPrefix(rest, "P>"):
@@ -713,7 +738,7 @@ func (p *parser) groupName(term byte) (string, error) {
 			return "", p.errorAt(start, "syntax error in subpattern name (missing terminator?)")
 		}
 	}
-	if p.cfg.flavor == PCRE && slices.Contains(p.names, name) {
+	if !p.rules().duplicateNames && slices.Contains(p.names, name) {
 		return "", p.errorAt(start, "two named subpatterns have the same name")
 	}
 	p.pos = start + end + 1
@@ -738,11 +763,18 @@ func (p *parser) escape(start int) (*node, error) {
 		}
 		return p.literal(r), nil
 	case 'p', 'P':
+		if p.rules().letterEscapes && !p.lookingAt("{") {
+			return p.literal(r), nil
+		}
 		set, err := p.property(start, r == 'P')
 		if err != nil {
 			return nil, err
 		}
 		return &node{kind: kindClass, set: set}, nil
+	case 'O':
+		if p.rules().anyRuneO {
+			return &node{kind: kindAny, dotAll: true}, nil
+		}
 	case 'N':
 		if p.lookingAt("{") {
 			return nil, unsupported(`named character \N{...}`)
@@ -766,25 +798,30 @@ func (p *parser) escape(start int) (*node, error) {
 		return nil, unsupported(`extended grapheme cluster \X`)
 	case 'R':
 		return nil, unsupported(`newline sequence \R`)
+	case 'y', 'Y':
+		// Oniguruma's \y and \Y mean something, so they cannot fall to the
+		// letters the rest of its unused escapes stand for.
+		if p.rules().letterEscapes {
+			return nil, unsupported(`text segment boundary \` + string(r))
+		}
 	case 'Q':
 		p.quoting = true
 		return nil, nil
 	case 'E':
+		if p.rules().letterEscapes {
+			return p.literal('E'), nil
+		}
 		return nil, nil // a stray \E is ignored
 	case 'k':
 		return p.kRef(start)
 	case 'g':
-		if p.lookingAt("<") || p.lookingAt("'") {
+		switch {
+		case p.lookingAt("<") || p.lookingAt("'"):
 			return nil, unsupported(`recursion \g` + p.bracketed())
-		}
-		if p.cfg.flavor == PCRE {
+		case p.rules().pcreReferences:
 			return p.gRef(start)
 		}
-		ref := p.bracketed()
-		if ref == "" {
-			ref = p.digits()
-		}
-		return nil, unsupported(`backreference \g` + ref)
+		return p.literal('g'), nil
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		return p.numberedEscape(start)
 	}
@@ -797,13 +834,22 @@ func (p *parser) escape(start int) (*node, error) {
 
 // numberedEscape reads \ and a number outside a class, with the backslash
 // at start. As in PCRE2 and jq, the number is a backreference when it is
-// below 10, starts with 8 or 9, or names a group that has already opened.
-// Otherwise up to three octal digits name a character, and any digits after
-// them are literal.
+// below 10 or names a group that has already opened. PCRE2 also reads a
+// number that starts with 8 or 9 as a reference, where Oniguruma reads
+// that digit as itself and the rest of the number as text. Otherwise up to
+// three octal digits name a character, and any digits after them are
+// literal.
 func (p *parser) numberedEscape(start int) (*node, error) {
 	p.pos = start + 1
 	digits := p.digits()
-	if n := parseCount(digits); n < 10 || digits[0] >= '8' || n < len(p.names) {
+	n := parseCount(digits)
+	switch {
+	case n < 10 || n < len(p.names):
+		return p.numberedRef(start, n), nil
+	case digits[0] >= '8' && p.rules().literalHighDigits:
+		p.pos = start + 2
+		return p.literal(rune(digits[0])), nil
+	case digits[0] >= '8':
 		return p.numberedRef(start, n), nil
 	}
 	p.pos = start + 1
@@ -816,17 +862,21 @@ func (p *parser) numberedEscape(start int) (*node, error) {
 
 // kRef reads the reference after \k, whose backslash is at start. PCRE takes
 // a name in <>, ”, or {}. Oniguruma takes a name or a number in <> or ”,
-// where a signed number counts groups back from the reference or forward.
+// where a signed number counts groups back from the reference or forward,
+// and reads a \k that no such reference follows as the letter k.
 func (p *parser) kRef(start int) (*node, error) {
-	if p.cfg.flavor == Oniguruma && p.lookingAt("{") {
-		return nil, unsupported(`backreference \k` + p.bracketed())
+	if !p.rules().pcreReferences && p.lookingAt("{") {
+		return p.literal('k'), nil
 	}
 	ref := p.bracketed()
+	if ref == "" && p.rules().letterEscapes {
+		return p.literal('k'), nil
+	}
 	if ref == "" {
 		return nil, p.errorAt(start, `\k is not followed by a braced, angle-bracketed, or quoted name`)
 	}
 	text := ref[1 : len(ref)-1]
-	if p.cfg.flavor == Oniguruma && isSignedNumber(text) {
+	if p.rules().relativeK && isSignedNumber(text) {
 		n, ok := p.relative(text)
 		if !ok || n == 0 {
 			return nil, p.errorAt(start, "invalid backref number/name")
@@ -895,7 +945,7 @@ func isSignedNumber(s string) bool {
 // that names no possible group.
 func (p *parser) relative(text string) (int, bool) {
 	n := parseCount(strings.TrimLeft(text, "+-")) // isSignedNumber allows one sign
-	if n > maxRepeat {
+	if n > countLimit {
 		return 0, false
 	}
 	switch text[0] {
@@ -938,7 +988,7 @@ func (p *parser) namedRef(start int, name string) (*node, error) {
 		return refs[0], nil
 	case len(refs) > 1:
 		return &node{kind: kindAlternate, subs: refs}, nil
-	case p.cfg.flavor == Oniguruma:
+	case !p.rules().forwardNames:
 		return nil, p.errorAt(start, "undefined name <"+name+"> reference")
 	}
 	ref := &node{kind: kindBackref, fold: p.has(IgnoreCase), max: unbounded}
@@ -978,7 +1028,7 @@ func (p *parser) resolvePending() error {
 			r.n.index = slices.Index(p.names, r.name)
 		}
 		if r.n.index <= 0 || r.n.index >= len(p.names) {
-			if p.cfg.flavor == Oniguruma {
+			if p.rules().onigMessages {
 				return p.errorAt(r.pos, "invalid backref number/name")
 			}
 			return p.errorAt(r.pos, "reference to non-existent subpattern")
@@ -1036,6 +1086,9 @@ func (p *parser) characterEscape(start int, r rune) (rune, error) {
 	case '0':
 		return p.number(start, 8, 2, 0)
 	case 'o':
+		if !p.lookingAt("{") && p.rules().letterEscapes {
+			return 'o', nil
+		}
 		if !p.lookingAt("{") {
 			return 0, p.errorAt(start, `missing opening brace after \o`)
 		}
@@ -1046,7 +1099,7 @@ func (p *parser) characterEscape(start int, r rune) (rune, error) {
 		}
 		return p.number(start, 16, 2, 0)
 	case 'u':
-		if p.cfg.flavor == Oniguruma {
+		if !p.rules().codePointU {
 			return 'u', nil // jq's Oniguruma gives \u no meaning
 		}
 		c, err := p.number(start, 16, 4, 4)
@@ -1064,6 +1117,9 @@ func (p *parser) characterEscape(start int, r rune) (rune, error) {
 		}
 		p.pos++
 		return unicode.ToUpper(rune(c)) ^ 0x40, nil
+	}
+	if r < utf8.RuneSelf && unicode.IsLetter(r) && p.rules().letterEscapes {
+		return r, nil
 	}
 	if r < utf8.RuneSelf && (unicode.IsLetter(r) || unicode.IsDigit(r)) {
 		return 0, p.errorAt(start, `unrecognized character follows \`)
@@ -1156,8 +1212,17 @@ func (p *parser) property(start int, negated bool) (runeSet, error) {
 	}
 	// Oniguruma leaves a bare property unfolded and folds one in a class
 	// along with the rest of the class.
-	set, ok := propertyClass(strings.TrimSpace(name), p.has(IgnoreCase) && p.cfg.flavor == PCRE, negated)
-	if !ok {
+	var set runeSet
+	var ok bool
+	if p.rules().posixProperties {
+		set, ok = onigPropertyClass(strings.TrimSpace(name), negated)
+	} else {
+		set, ok = propertyClass(strings.TrimSpace(name), p.has(IgnoreCase) && p.rules().foldBareProperty, negated)
+	}
+	switch {
+	case !ok && p.rules().onigMessages:
+		return nil, p.errorAt(start, "invalid character property name {"+name+"}")
+	case !ok:
 		return nil, p.errorAt(start, `unknown property after \P or \p`)
 	}
 	return set, nil
@@ -1165,7 +1230,7 @@ func (p *parser) property(start int, negated bool) (runeSet, error) {
 
 // class parses a bracket class whose [ is at start.
 func (p *parser) class(start int) (*node, error) {
-	if isPosixItem(p.src[start:]) {
+	if isPosixItem(p.src[start:]) && !p.rules().barePosixOutside {
 		return nil, p.errorAt(start, "POSIX named classes are supported only within a class")
 	}
 	negated := false
@@ -1196,7 +1261,7 @@ func (p *parser) class(start int) (*node, error) {
 func (p *parser) classItem(folded []runeRange, kept []runeSet) ([]runeRange, []runeSet, error) {
 	itemPos := p.pos
 	switch {
-	case p.cfg.flavor == Oniguruma:
+	case !p.rules().classQuote:
 		// Oniguruma reads \Q and \E in a class as the letters Q and E.
 	case p.lookingAt(`\Q`):
 		folded, err := p.quotedClassItems(folded)
@@ -1219,7 +1284,7 @@ func (p *parser) classItem(folded []runeRange, kept []runeSet) ([]runeRange, []r
 		return nil, nil, err
 	}
 	if set != nil {
-		if p.lookingAt("-") && !p.lookingAt("-]") {
+		if p.lookingAt("-") && !p.lookingAt("-]") && !p.rules().rangeAfterSet {
 			return nil, nil, p.errorAt(itemPos, "invalid range in character class")
 		}
 		return folded, append(kept, set), nil
@@ -1280,7 +1345,7 @@ func (p *parser) classNode(text string, folded []runeRange, kept []runeSet, nega
 	var set runeSet
 	var expansions [][]rune
 	switch {
-	case p.has(IgnoreCase) && p.cfg.flavor == Oniguruma:
+	case p.has(IgnoreCase) && p.rules().foldClassItems:
 		set = union(append(kept, normalize(folded))...).foldClosure()
 		if !negated {
 			expansions = foldExpansions(set)
@@ -1378,6 +1443,9 @@ func (p *parser) classAtom() (rune, runeSet, error) {
 		}
 		return r, nil, nil
 	case 'p', 'P':
+		if p.rules().letterEscapes && !p.lookingAt("{") {
+			return r, nil, nil
+		}
 		set, err := p.property(start, r == 'P')
 		return 0, set, err
 	case 'b':
@@ -1385,7 +1453,7 @@ func (p *parser) classAtom() (rune, runeSet, error) {
 	case 'N':
 		return 0, nil, p.errorAt(start, `\N is not supported in a class`)
 	case 'Q', 'E':
-		if p.cfg.flavor == Oniguruma {
+		if !p.rules().classQuote {
 			return r, nil, nil
 		}
 	case '1', '2', '3', '4', '5', '6', '7':

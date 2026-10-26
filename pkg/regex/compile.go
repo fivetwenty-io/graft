@@ -58,7 +58,7 @@ func (l *lowering) node(n *node) *node {
 	}
 	cfg := l.cfg
 	switch {
-	case n.kind == kindLiteral && n.fold && cfg.flavor == Oniguruma:
+	case n.kind == kindLiteral && n.fold && cfg.flavor.rules().fullCaseFold:
 		return fullFoldLiteral(n.runes)
 	case n.kind == kindLiteral && n.fold:
 		seq := &node{kind: kindConcat}
@@ -381,7 +381,7 @@ func (c *compiler) group(n *node) {
 		c.emit(inst{op: opSave, x: start})
 		c.node(n.subs[0])
 		c.emit(inst{op: opSave, x: end})
-	case c.flavor == Oniguruma:
+	case c.flavor.rules().openSelfRef:
 		c.emit(inst{op: opOpen, x: n.index})
 		c.node(n.subs[0])
 		c.emit(inst{op: opSave, x: end})

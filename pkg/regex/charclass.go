@@ -249,7 +249,7 @@ func escapeClass(letter rune, flavor Flavor) runeSet {
 	if !strings.ContainsRune("dDwWsShHvV", letter) {
 		return nil
 	}
-	if flavor == Oniguruma && strings.ContainsRune("hHvV", letter) {
+	if !flavor.rules().spaceEscapes && strings.ContainsRune("hHvV", letter) {
 		return nil
 	}
 	return escapeSets.get(escapeKey{letter, flavor}, func() runeSet { return buildEscapeClass(letter, flavor) })
@@ -278,14 +278,14 @@ func buildEscapeClass(letter rune, flavor Flavor) runeSet {
 }
 
 func digitClass(flavor Flavor) runeSet {
-	if flavor == Oniguruma {
+	if flavor.rules().unicodeClasses {
 		return fromTable(unicode.Nd)
 	}
 	return asciiDigit
 }
 
 func wordClass(flavor Flavor) runeSet {
-	if flavor == Oniguruma {
+	if flavor.rules().unicodeClasses {
 		return unicodeWord()
 	}
 	return asciiWord
@@ -296,7 +296,7 @@ var unicodeWord = sync.OnceValue(func() runeSet {
 })
 
 func spaceClass(flavor Flavor) runeSet {
-	if flavor == Oniguruma {
+	if flavor.rules().unicodeClasses {
 		return fromTable(unicode.White_Space)
 	}
 	return asciiSpace
@@ -334,7 +334,7 @@ func posixClass(name string, flavor Flavor, ignoreCase, negated bool) (runeSet, 
 }
 
 func namedPosixClass(name string, flavor Flavor, ignoreCase bool) (runeSet, bool) {
-	if flavor == Oniguruma {
+	if flavor.rules().unicodeClasses {
 		return unicodePosixClass(name)
 	}
 	if ignoreCase && (name == "upper" || name == "lower") {
@@ -347,20 +347,20 @@ func namedPosixClass(name string, flavor Flavor, ignoreCase bool) (runeSet, bool
 // asciiPosixClasses gives the POSIX names their ASCII meanings for the PCRE
 // flavor.
 var asciiPosixClasses = map[string]runeSet{
-	"alpha":  asciiAlpha,
-	"digit":  asciiDigit,
-	"alnum":  asciiAlnum,
-	"upper":  asciiUpper,
-	"lower":  asciiLower,
-	"space":  asciiSpace,
-	"blank":  {{'\t', '\t'}, {' ', ' '}},
-	"cntrl":  {{0, 0x1f}, {0x7f, 0x7f}},
-	"graph":  {{'!', '~'}},
-	"print":  {{' ', '~'}},
-	"punct":  asciiPunct,
-	"word":   asciiWord,
-	"xdigit": hexDigit,
-	"ascii":  {{0, 0x7f}},
+	"alpha":   asciiAlpha,
+	"digit":   asciiDigit,
+	"alnum":   asciiAlnum,
+	"upper":   asciiUpper,
+	"lower":   asciiLower,
+	"space":   asciiSpace,
+	"blank":   {{'\t', '\t'}, {' ', ' '}},
+	"cntrl":   {{0, 0x1f}, {0x7f, 0x7f}},
+	"graph":   {{'!', '~'}},
+	"print":   {{' ', '~'}},
+	punctName: asciiPunct,
+	"word":    asciiWord,
+	"xdigit":  hexDigit,
+	"ascii":   {{0, 0x7f}},
 }
 
 // unicodePosixClass gives the POSIX names their Unicode meanings for the
@@ -398,7 +398,7 @@ func buildUnicodePosixClass(name string) (runeSet, bool) {
 		return graphic(), true
 	case "print":
 		return union(graphic(), fromTable(unicode.Zs)), true
-	case "punct":
+	case punctName:
 		// jq's Oniguruma counts every symbol as punctuation, not only the
 		// ASCII ones.
 		return union(fromTable(unicode.P), fromTable(unicode.S)), true
@@ -473,6 +473,45 @@ var propertyTables = sync.OnceValue(func() map[string]*unicode.RangeTable {
 	}
 	return index
 })
+
+// onigPropertyClass returns the set \p{name} stands for under the
+// Oniguruma flavor, or its complement when negated. Oniguruma reads the
+// POSIX names, such as Alpha and XDigit, as their Unicode classes, except
+// that Punct holds only the punctuation category. It also takes the long
+// names of the general categories, such as Lowercase_Letter, and it does not
+// know PCRE2's L&.
+// punctName is the POSIX name whose meaning each flavor and each
+// spelling of the class sets on its own.
+const punctName = "punct"
+
+func onigPropertyClass(name string, negated bool) (runeSet, bool) {
+	key := looseName(name)
+	switch {
+	case key == "l&":
+		return nil, false
+	case key == punctName:
+		return propertyClass("P", false, negated)
+	case asciiPosixClasses[key] != nil:
+		return posixClass(key, Oniguruma, false, negated)
+	case longCategories[key] != "":
+		key = longCategories[key]
+	}
+	return propertyClass(key, false, negated)
+}
+
+// longCategories maps the loose long name of each general category Go's
+// tables hold to its short name.
+var longCategories = map[string]string{
+	"letter": "L", "casedletter": "LC", "uppercaseletter": "Lu", "lowercaseletter": "Ll",
+	"titlecaseletter": "Lt", "modifierletter": "Lm", "otherletter": "Lo",
+	"mark": "M", "combiningmark": "M", "nonspacingmark": "Mn", "spacingmark": "Mc", "enclosingmark": "Me",
+	"number": "N", "decimalnumber": "Nd", "letternumber": "Nl", "othernumber": "No",
+	"punctuation": "P", "connectorpunctuation": "Pc", "dashpunctuation": "Pd", "openpunctuation": "Ps",
+	"closepunctuation": "Pe", "initialpunctuation": "Pi", "finalpunctuation": "Pf", "otherpunctuation": "Po",
+	"symbol": "S", "mathsymbol": "Sm", "currencysymbol": "Sc", "modifiersymbol": "Sk", "othersymbol": "So",
+	"separator": "Z", "spaceseparator": "Zs", "lineseparator": "Zl", "paragraphseparator": "Zp",
+	"other": "C", "control": "Cc", "format": "Cf", "surrogate": "Cs", "privateuse": "Co",
+}
 
 var casedLetters = sync.OnceValue(func() runeSet {
 	return union(fromTable(unicode.Lu), fromTable(unicode.Ll), fromTable(unicode.Lt))
