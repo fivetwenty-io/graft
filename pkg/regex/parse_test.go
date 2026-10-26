@@ -4,14 +4,6 @@ import (
 	"testing"
 )
 
-func TestUnsupportedConstructsAreNamedInJ1(t *testing.T) {
-	for _, pat := range []string{`(a)\1`} {
-		_, err := Compile(pat)
-		var u *UnsupportedError
-		wantErrAs(t, err, &u)
-	}
-}
-
 // Outside a class, \ and a number of two or more digits is a backreference
 // only when that many groups have opened before it, as in PCRE2 and jq.
 // Otherwise up to three octal digits name a character and the rest are
@@ -33,25 +25,19 @@ func TestMultiDigitEscapesPastTheGroupCountAreOctal(t *testing.T) {
 	}
 	wantMatch(t, MustCompile(`^\400$`), "\u0100")
 
-	for pattern, construct := range map[string]string{
-		`\1`:           `backreference \1`,
-		`\81`:          `backreference \81`,
-		twelve + `\12`: `backreference \12`,
-		`(a)\1`:        `backreference \1`,
-	} {
-		_, err := Compile(pattern)
-		var u *UnsupportedError
-		wantErrAs(t, err, &u)
-		wantEqual(t, u.Construct, construct)
+	// Otherwise the number is a backreference, which must name a group.
+	var se *SyntaxError
+	for _, flavor := range []Flavor{PCRE, Oniguruma} {
+		wantMatch(t, MustCompile(twelve+`\12`, WithFlavor(flavor)), "abcdefghijkll")
+		_, err := Compile(`\1`, WithFlavor(flavor))
+		wantErrAs(t, err, &se)
 	}
+	_, err := Compile(`\81`)
+	wantErrAs(t, err, &se)
 }
 
 func TestUnsupportedConstructNames(t *testing.T) {
 	cases := map[string]string{
-		`(a)\1`:                    `backreference \1`,
-		`(?<n>a)\k<n>`:             `backreference \k<n>`,
-		`(a)\g{-1}`:                `backreference \g{-1}`,
-		`(?P<n>a)(?P=n)`:           "backreference (?P=n)",
 		`\Gx`:                      `assertion \G`,
 		`x\Ky`:                     `match reset \K`,
 		`\X`:                       `extended grapheme cluster \X`,

@@ -127,9 +127,9 @@ func ExampleSyntaxError_Error() {
 }
 
 func ExampleUnsupportedError_Error() {
-	_, err := regex.Compile(`(a)\1`)
+	_, err := regex.Compile(`(a)(?1)`)
 	fmt.Println(err)
-	// Output: regex: backreference \1 is not supported
+	// Output: regex: recursion (?1) is not supported
 }
 
 func ExampleFlavor() {

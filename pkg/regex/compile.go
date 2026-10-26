@@ -17,6 +17,9 @@ const (
 	opBehind                  // like opAhead, with the body starting lo to hi runes back and ending at the position
 	opAtomic                  // run the body at x, then continue at y from where its first match ended
 	opSucceed                 // end a body that opAhead, opBehind, or opAtomic runs
+	opBackref                 // match the text group x captured, folding case under fold
+	opOpen                    // start group x at the position and mark it unfinished, for a group that refers to itself under Oniguruma
+	opCapture                 // finish group x, starting where slot y recorded and ending at the position, for a group that refers to itself under PCRE
 	opMatch                   // report a match
 )
 
@@ -28,6 +31,7 @@ type inst struct {
 	x, y   int
 	assert assertKind
 	neg    bool
+	fold   bool
 	lo, hi int // the runes a lookbehind looks back, hi unbounded when there is no limit
 }
 
@@ -62,6 +66,11 @@ func (l *lowering) node(n *node) *node {
 			seq.append(orbitNode(r))
 		}
 		return single(seq)
+	case n.kind == kindBackref:
+		// The parser gave a reference its group's lengths before
+		// lowering, which can change them under full case folding, so
+		// a lookbehind that holds one tries every length.
+		n.min, n.max = 0, unbounded
 	case n.kind == kindClass && len(n.expansions) > 0:
 		if alt, ok := l.classes[n]; ok {
 			return alt
@@ -228,24 +237,38 @@ type compiler struct {
 	flavor Flavor
 	prog   []inst
 	marks  map[*node]int // the loop-mark slot of each repeat that needs one
+	starts map[*node]int // the slot holding the start of each self-referring group under PCRE
 	base   int           // the first slot after the capture slots
+	extra  int           // the slots handed out past base
 }
 
 // compile lowers the tree to a program that records the whole match in
-// slots 0 and 1. It returns the program and the number of loop-mark slots
-// it uses beyond the capture slots.
+// slots 0 and 1. It returns the program and the number of slots it uses
+// beyond the capture slots, for loop marks and unfinished group starts.
 func compile(root *node, groups int, cfg *config) ([]inst, int, error) {
 	limit := cfg.budget.MaxInstructions
 	size := saturating(limit+1).add(programSize(root, limit), 3)
 	if size > limit {
 		return nil, 0, overBudget("compiled program exceeds the budget of %d instructions", limit)
 	}
-	c := &compiler{flavor: cfg.flavor, prog: make([]inst, 0, size), marks: map[*node]int{}, base: 2 * groups}
+	c := &compiler{flavor: cfg.flavor, prog: make([]inst, 0, size), marks: map[*node]int{}, starts: map[*node]int{}, base: 2 * groups}
 	c.emit(inst{op: opSave, x: 0})
 	c.node(root)
 	c.emit(inst{op: opSave, x: 1})
 	c.emit(inst{op: opMatch})
-	return c.prog, len(c.marks), nil
+	return c.prog, c.extra, nil
+}
+
+// slot returns the extra slot that n holds in slots, handing out the next
+// one the first time.
+func (c *compiler) slot(slots map[*node]int, n *node) int {
+	s, ok := slots[n]
+	if !ok {
+		s = c.base + c.extra
+		c.extra++
+		slots[n] = s
+	}
+	return s
 }
 
 func (c *compiler) emit(in inst) int {
@@ -280,9 +303,9 @@ func (c *compiler) node(n *node) {
 	case kindAlternate:
 		c.alternate(n.subs)
 	case kindGroup:
-		c.emit(inst{op: opSave, x: 2 * n.index})
-		c.node(n.subs[0])
-		c.emit(inst{op: opSave, x: 2*n.index + 1})
+		c.group(n)
+	case kindBackref:
+		c.emit(inst{op: opBackref, x: n.index, fold: n.fold})
 	case kindRepeat:
 		c.repeat(n)
 	case kindAtomic:
@@ -333,6 +356,31 @@ func behindBranches(n *node) *node {
 		return &node{kind: kindConcat, subs: looks}
 	}
 	return &node{kind: kindAtomic, subs: []*node{{kind: kindAlternate, subs: looks}}}
+}
+
+// group emits a capturing group. A group that holds a reference to itself
+// must not let the reference see a capture half made. Under Oniguruma the
+// reference fails while the group is open, as jq's does, so the group's
+// end is cleared when it opens. Under PCRE the reference sees the group's
+// last complete capture, as PCRE2's does, so the new start waits in a slot
+// of its own until the group closes.
+func (c *compiler) group(n *node) {
+	start, end := 2*n.index, 2*n.index+1
+	switch {
+	case !n.selfRef:
+		c.emit(inst{op: opSave, x: start})
+		c.node(n.subs[0])
+		c.emit(inst{op: opSave, x: end})
+	case c.flavor == Oniguruma:
+		c.emit(inst{op: opOpen, x: n.index})
+		c.node(n.subs[0])
+		c.emit(inst{op: opSave, x: end})
+	default:
+		pending := c.slot(c.starts, n)
+		c.emit(inst{op: opSave, x: pending})
+		c.node(n.subs[0])
+		c.emit(inst{op: opCapture, x: n.index, y: pending})
+	}
 }
 
 // alternate emits each branch behind a split that falls through to the
@@ -424,11 +472,7 @@ func (c *compiler) iteration(n *node) int {
 		c.node(n.subs[0])
 		return -1
 	}
-	slot, ok := c.marks[n]
-	if !ok {
-		slot = c.base + len(c.marks)
-		c.marks[n] = slot
-	}
+	slot := c.slot(c.marks, n)
 	c.emit(inst{op: opSave, x: slot})
 	c.node(n.subs[0])
 	return c.emit(inst{op: opLoopCheck, x: slot})

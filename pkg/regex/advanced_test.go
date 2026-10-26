@@ -220,3 +220,104 @@ func TestNestedBodiesShareTheBudget(t *testing.T) {
 		wantErrIs(t, err, ErrBudget)
 	}
 }
+
+func TestLookaroundBackrefsAndAtomic(t *testing.T) {
+	wantMatch(t, MustCompile(`a(?=b)`), "ab")
+	wantNoMatch(t, MustCompile(`a(?!b)`), "ab")
+	wantMatch(t, MustCompile(`(?<=a)b`), "ab")
+	wantNoMatch(t, MustCompile(`(?<!a)b`), "ab")
+	wantText(t, MustCompile(`(a)\1`), "xaab", "aa")
+	wantText(t, MustCompile(`(?<q>["']).*?\k<q>`), `say "hi" now`, `"hi"`)
+	wantNoMatch(t, MustCompile(`(?>a+)b`), "aaac")
+	wantNoMatch(t, MustCompile(`a*+a`), "aaa")
+	wantMatch(t, MustCompile(`(?i)A`), "a")
+	wantMatch(t, MustCompile(`\Qa.b\E`), "a.b")
+	wantNoMatch(t, MustCompile(`\Qa.b\E`), "axb")
+	wantMatch(t, MustCompile(`\Aa\z`), "a")
+	wantNoMatch(t, MustCompile(`\Aa\z`), "a\n")
+	wantMatch(t, MustCompile(`\Aa\Z`), "a\n")
+	wantText(t, MustCompile(`\bcat\b`), "concat cat", "cat")
+	_, err := Compile(`(?<=a+)b`)
+	var se *SyntaxError
+	wantErrAs(t, err, &se) // lookbehind must have bounded length
+}
+
+func TestBackreferences(t *testing.T) {
+	both := []Flavor{PCRE, Oniguruma}
+	for _, flavor := range both {
+		on := WithFlavor(flavor)
+		wantText(t, MustCompile(`(a)\1`, on), "xaab", "aa")
+		wantText(t, MustCompile(`(?<n>a)\k<n>`, on), "aa", "aa")
+		wantText(t, MustCompile(`(?<n>a)\k'n'`, on), "aa", "aa")
+		wantText(t, MustCompile(`(\w)(\w)\2\1`, on), "xabba", "abba")
+		wantNoMatch(t, MustCompile(`(a)?x\1`, on), "x") // a group that took no part fails
+		wantNoMatch(t, MustCompile(`\1(a)`, on), "aa")  // and so does one that has not yet
+		wantNoMatch(t, MustCompile(`(a)\1`, on), "aA")  // case counts
+		wantText(t, MustCompile(`(a)\1`, on, WithFlags(IgnoreCase)), "aA", "aA")
+		wantText(t, MustCompile(`(a)(?i)\1`, on), "aA", "aA") // the case rule at the reference applies
+		wantNoMatch(t, MustCompile(`(?i:(a))\1`, on), "aA")
+		wantNoMatch(t, MustCompile(`(ß)\1`, on, WithFlags(IgnoreCase)), "ßss")
+		wantText(t, MustCompile(`(a)|\1`, on), "a", "a")
+		wantNoMatch(t, MustCompile(`(a)(?:(b)|c)\2`, on), "acb")
+		wantText(t, MustCompile(`(a)(?<=\1)b`, on), "ab", "ab")
+		wantText(t, MustCompile(`(a+)(?=\1)`, on), "aaaa", "aa")
+		wantText(t, MustCompile(`(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)(k)(l)\12`, on), "abcdefghijkll", "abcdefghijkll")
+	}
+
+	// PCRE spells references in more ways and resolves forward names.
+	wantText(t, MustCompile(`(a)\g1`), "aa", "aa")
+	wantText(t, MustCompile(`(a)\g{1}`), "aa", "aa")
+	wantText(t, MustCompile(`(a)(b)\g{-2}`), "aba", "aba")
+	wantText(t, MustCompile(`(a)(b)\g-1`), "abb", "abb")
+	wantNoMatch(t, MustCompile(`(a)\g{+1}(b)`), "aab")
+	wantText(t, MustCompile(`(?<n>a)\g{n}`), "aa", "aa")
+	wantText(t, MustCompile(`(?<n>a)\k{n}`), "aa", "aa")
+	wantText(t, MustCompile(`(?P<n>a)(?P=n)`), "aa", "aa")
+	wantNoMatch(t, MustCompile(`\k<n>(?<n>a)`), "aa")
+	wantSyntaxError(t, `(a)\2`, 3, "reference to non-existent subpattern")
+	wantSyntaxError(t, `\k<nope>`, 0, "reference to non-existent subpattern")
+	wantSyntaxError(t, `(a)\g0`, 3, "reference to non-existent subpattern")
+	wantSyntaxError(t, `(a)\g{-2}`, 3, "reference to non-existent subpattern")
+	wantSyntaxError(t, `(a)\81`, 3, "reference to non-existent subpattern")
+	wantSyntaxError(t, `(a)\k`, 3, `\k is not followed by a braced, angle-bracketed, or quoted name`)
+	wantSyntaxError(t, `(a)\k<1>`, 3, "subpattern name must start with a non-digit")
+
+	// Oniguruma numbers references inside \k and wants names defined first.
+	onig := WithFlavor(Oniguruma)
+	wantText(t, MustCompile(`(a)\k<1>`, onig), "aa", "aa")
+	wantText(t, MustCompile(`(a)(b)\k<-2>`, onig), "aba", "aba")
+	wantNoMatch(t, MustCompile(`(a)\k<+1>(b)`, onig), "abb")
+	wantSyntaxError(t, `\k<n>(?<n>a)`, 0, "undefined name <n> reference", onig)
+	wantSyntaxError(t, `(a)\k<0>`, 3, "invalid backref number/name", onig)
+	wantSyntaxError(t, `(a)\k<2>`, 3, "invalid backref number/name", onig)
+	wantSyntaxError(t, `(a)\2`, 3, "invalid backref number/name", onig)
+	for pattern, construct := range map[string]string{
+		`(a)\g1`:         `backreference \g1`,
+		`(?<n>a)\k{n}`:   `backreference \k{n}`,
+		`(?P<n>a)(?P=n)`: "backreference (?P=n)",
+	} {
+		_, err := Compile(pattern, onig)
+		var u *UnsupportedError
+		wantErrAs(t, err, &u)
+		wantEqual(t, u.Construct, construct)
+	}
+
+	// A reference inside the group it names sees the group's last
+	// complete capture under PCRE, and fails under Oniguruma, where the
+	// group is still open.
+	wantEqual(t, groups(t, MustCompile(`^(a|b\1)+$`), "aba"), []string{"aba", "ba"})
+	wantNoMatch(t, MustCompile(`^(a|b\1)+$`, onig), "aba")
+	wantEqual(t, groups(t, MustCompile(`^(?:(a)|b\1)+$`, onig), "aba"), []string{"aba", "a"})
+	wantNoMatch(t, MustCompile(`(a\1)`), "aa")
+
+	// PCRE needs a reference in a lookbehind to have a bounded length.
+	wantSyntaxError(t, `(a(?<=\1))`, 2, "length of lookbehind assertion is not limited")
+	wantSyntaxError(t, `(a+)(?<=\1)`, 4, "length of lookbehind assertion is not limited")
+
+	// Comparing a reference draws on the step budget. This search takes
+	// a few thousand steps but compares over a million bytes.
+	pattern := `^(.*)` + strings.Repeat(`\1`, 21)
+	wantText(t, MustCompile(pattern), strings.Repeat("a", 1000), strings.Repeat("a", 990))
+	_, err := MustCompile(pattern, WithBudget(Budget{Steps: 100000})).Find(context.Background(), strings.Repeat("a", 1000), 0)
+	wantErrIs(t, err, ErrBudget)
+}

@@ -37,6 +37,23 @@ type parser struct {
 
 	// quoting is set between \Q and \E, where every rune is a literal.
 	quoting bool
+
+	// closed holds each group's node once its ) is read, nil while it is
+	// open. widths holds the lengths of the groups a backreference has
+	// needed, and selfRef the open groups a backreference has named.
+	// pending holds the backreferences to groups that come later, which
+	// are resolved once the whole pattern is read.
+	closed  []*node
+	widths  map[int][2]int
+	selfRef map[int]bool
+	pending []pendingRef
+}
+
+// pendingRef is a backreference whose group was not known where it stood.
+type pendingRef struct {
+	n    *node
+	pos  int
+	name string
 }
 
 // classKey identifies a bracket class by its text and whether it folds case.
@@ -54,7 +71,7 @@ func (p *parser) has(f Flags) bool { return p.flags&f != 0 }
 // parse turns a pattern into a tree and returns the group names, group 0
 // first.
 func parse(src string, cfg *config) (*node, []string, error) {
-	p := &parser{src: src, cfg: cfg, names: []string{""}, flags: cfg.flags}
+	p := &parser{src: src, cfg: cfg, names: []string{""}, closed: []*node{nil}, flags: cfg.flags}
 	n, err := p.alternation()
 	if err != nil {
 		return nil, nil, err
@@ -62,6 +79,9 @@ func parse(src string, cfg *config) (*node, []string, error) {
 	if p.pos < len(p.src) {
 		// alternation stops only at the end or at a ')' it did not open.
 		return nil, nil, p.errorAt(p.pos, "unmatched closing parenthesis")
+	}
+	if err := p.resolvePending(); err != nil {
+		return nil, nil, err
 	}
 	return n, p.names, nil
 }
@@ -417,6 +437,8 @@ func (p *parser) group(start int) (*node, error) {
 
 	form, name, saved := formCapture, "", p.flags
 	switch {
+	case p.lookingAt("?P=") && p.cfg.flavor == PCRE:
+		return p.pythonRef(start)
 	case p.lookingAt("?"):
 		var err error
 		var done bool
@@ -434,6 +456,7 @@ func (p *parser) group(start int) (*node, error) {
 	if form == formCapture {
 		index = len(p.names)
 		p.names = append(p.names, name)
+		p.closed = append(p.closed, nil)
 	}
 	body, err := p.alternation()
 	if err != nil {
@@ -446,7 +469,9 @@ func (p *parser) group(start int) (*node, error) {
 	p.flags = saved
 	switch form {
 	case formCapture:
-		return &node{kind: kindGroup, subs: []*node{body}, index: index, name: name}, nil
+		g := &node{kind: kindGroup, subs: []*node{body}, index: index, name: name, selfRef: p.selfRef[index]}
+		p.closed[index] = g
+		return g, nil
 	case formAtomic:
 		return &node{kind: kindAtomic, subs: []*node{body}}, nil
 	case formAhead, formNotAhead:
@@ -718,10 +743,13 @@ func (p *parser) escape(start int) (*node, error) {
 	case 'E':
 		return nil, nil // a stray \E is ignored
 	case 'k':
-		return nil, unsupported(`backreference \k` + p.bracketed())
+		return p.kRef(start)
 	case 'g':
 		if p.lookingAt("<") || p.lookingAt("'") {
 			return nil, unsupported(`recursion \g` + p.bracketed())
+		}
+		if p.cfg.flavor == PCRE {
+			return p.gRef(start)
 		}
 		ref := p.bracketed()
 		if ref == "" {
@@ -747,7 +775,7 @@ func (p *parser) numberedEscape(start int) (*node, error) {
 	p.pos = start + 1
 	digits := p.digits()
 	if n := parseCount(digits); n < 10 || digits[0] >= '8' || n < len(p.names) {
-		return nil, unsupported(`backreference \` + digits)
+		return p.numberedRef(start, n), nil
 	}
 	p.pos = start + 1
 	c, err := p.number(start, 8, 3, 1)
@@ -755,6 +783,170 @@ func (p *parser) numberedEscape(start int) (*node, error) {
 		return nil, err
 	}
 	return p.literal(c), nil
+}
+
+// kRef reads the reference after \k, whose backslash is at start. PCRE takes
+// a name in <>, ”, or {}. Oniguruma takes a name or a number in <> or ”,
+// where a signed number counts groups back from the reference or forward.
+func (p *parser) kRef(start int) (*node, error) {
+	if p.cfg.flavor == Oniguruma && p.lookingAt("{") {
+		return nil, unsupported(`backreference \k` + p.bracketed())
+	}
+	ref := p.bracketed()
+	if ref == "" {
+		return nil, p.errorAt(start, `\k is not followed by a braced, angle-bracketed, or quoted name`)
+	}
+	text := ref[1 : len(ref)-1]
+	if p.cfg.flavor == Oniguruma && isSignedNumber(text) {
+		n, ok := p.relative(text)
+		if !ok || n == 0 {
+			return nil, p.errorAt(start, "invalid backref number/name")
+		}
+		return p.numberedRef(start, n), nil
+	}
+	if text == "" {
+		return nil, p.errorAt(start, "subpattern name expected")
+	}
+	if text[0] >= '0' && text[0] <= '9' {
+		return nil, p.errorAt(start, "subpattern name must start with a non-digit")
+	}
+	return p.namedRef(start, text)
+}
+
+// gRef reads the reference after \g under PCRE, whose backslash is at
+// start: a number, signed or not, bare or in {}, or a name in {}.
+func (p *parser) gRef(start int) (*node, error) {
+	text := ""
+	if ref := p.bracketed(); ref != "" {
+		text = ref[1 : len(ref)-1]
+	} else {
+		at := p.pos
+		if p.lookingAt("-") || p.lookingAt("+") {
+			p.pos++
+		}
+		p.digits()
+		text = p.src[at:p.pos]
+	}
+	if !isSignedNumber(text) {
+		if text == "" || text[0] >= '0' && text[0] <= '9' {
+			return nil, p.errorAt(start, `\g is not followed by a braced, angle-bracketed, or quoted name/number or by a plain number`)
+		}
+		return p.namedRef(start, text)
+	}
+	n, ok := p.relative(text)
+	if !ok || n == 0 {
+		return nil, p.errorAt(start, "reference to non-existent subpattern")
+	}
+	return p.numberedRef(start, n), nil
+}
+
+// pythonRef reads (?P=name) under PCRE, whose ( is at start.
+func (p *parser) pythonRef(start int) (*node, error) {
+	p.pos += 3
+	end := strings.IndexByte(p.src[p.pos:], ')')
+	if end < 0 {
+		return nil, p.errorAt(start, "syntax error in subpattern name (missing terminator?)")
+	}
+	name := p.src[p.pos : p.pos+end]
+	p.pos += end + 1
+	return p.namedRef(start, name)
+}
+
+// isSignedNumber reports whether s is digits with an optional sign.
+func isSignedNumber(s string) bool {
+	if s != "" && (s[0] == '+' || s[0] == '-') {
+		s = s[1:]
+	}
+	return s != "" && allDigits(s)
+}
+
+// relative turns a reference number into a group number. An unsigned one is
+// the group number itself, -n names the nth group opened before the
+// reference, and +n the nth opened after it. It returns false for a number
+// that names no possible group.
+func (p *parser) relative(text string) (int, bool) {
+	n := parseCount(strings.TrimLeft(text, "+-")) // isSignedNumber allows one sign
+	if n > maxRepeat {
+		return 0, false
+	}
+	switch text[0] {
+	case '-':
+		n = len(p.names) - n
+		return n, n > 0
+	case '+':
+		return len(p.names) - 1 + n, n > 0
+	}
+	return n, true
+}
+
+// numberedRef builds a reference to group n, whose backslash or ( is at
+// start.
+func (p *parser) numberedRef(start, n int) *node {
+	ref := &node{kind: kindBackref, index: n, fold: p.has(IgnoreCase), max: unbounded}
+	if n >= len(p.names) {
+		p.pending = append(p.pending, pendingRef{n: ref, pos: start})
+		return ref
+	}
+	p.bind(ref)
+	return ref
+}
+
+// namedRef builds a reference to the group called name. PCRE lets the
+// group come later in the pattern, and Oniguruma wants it defined first.
+func (p *parser) namedRef(start int, name string) (*node, error) {
+	ref := &node{kind: kindBackref, fold: p.has(IgnoreCase), max: unbounded}
+	i := slices.Index(p.names, name)
+	switch {
+	case i > 0:
+		ref.index = i
+		p.bind(ref)
+	case p.cfg.flavor == Oniguruma:
+		return nil, p.errorAt(start, "undefined name <"+name+"> reference")
+	default:
+		p.pending = append(p.pending, pendingRef{n: ref, pos: start, name: name})
+	}
+	return ref, nil
+}
+
+// bind settles a reference to a group that has already opened. A closed
+// group gives the reference its lengths, and an open one, which holds the
+// reference, is marked as referring to itself.
+func (p *parser) bind(ref *node) {
+	g := p.closed[ref.index]
+	if g == nil {
+		if p.selfRef == nil {
+			p.selfRef = map[int]bool{}
+		}
+		p.selfRef[ref.index] = true
+		return
+	}
+	w, ok := p.widths[ref.index]
+	if !ok {
+		lo, hi := width(g)
+		w = [2]int{lo, hi}
+		if p.widths == nil {
+			p.widths = map[int][2]int{}
+		}
+		p.widths[ref.index] = w
+	}
+	ref.min, ref.max = w[0], w[1]
+}
+
+// resolvePending settles the references to groups that came after them,
+// which are past any lookbehind check, so their lengths stay unknown.
+func (p *parser) resolvePending() error {
+	for _, r := range p.pending {
+		if r.name != "" {
+			r.n.index = slices.Index(p.names, r.name)
+		}
+		if r.n.index <= 0 || r.n.index >= len(p.names) {
+			if p.cfg.flavor == Oniguruma {
+				return p.errorAt(r.pos, "invalid backref number/name")
+			}
+			return p.errorAt(r.pos, "reference to non-existent subpattern")
+		}
+	}
+	return nil
 }
 
 // bracketed consumes a <...>, '...', or {...} reference and returns it with

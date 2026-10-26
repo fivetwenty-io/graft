@@ -2,6 +2,7 @@ package regex
 
 import (
 	"context"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -244,6 +245,28 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			if end < 0 || pos == end {
 				return pos, true, nil
 			}
+		case opBackref:
+			next, ok, err := m.backref(in, pos)
+			if err != nil {
+				return 0, false, err
+			}
+			if ok {
+				pc, pos = pc+1, next
+				continue
+			}
+		case opOpen, opCapture:
+			if len(stack)+2 > maxStack {
+				return 0, false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
+			}
+			start, end := 2*in.x, 2*in.x+1
+			stack = append(stack, frame{slot: start, old: caps[start]}, frame{slot: end, old: caps[end]})
+			if in.op == opOpen {
+				caps[start], caps[end] = pos, -1
+			} else {
+				caps[start], caps[end] = caps[in.y], pos
+			}
+			pc++
+			continue
 		case opMatch:
 			if m.notEmpty && pos == m.start {
 				break
@@ -282,6 +305,39 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			break
 		}
 	}
+}
+
+// backref matches at pos the text that group in.x captured, and returns
+// where that match ends. A group without a complete capture matches
+// nothing. Under in.fold runes compare by their simple case folding, and
+// an invalid byte matches only itself. The bytes compared are charged as
+// steps.
+func (m *machine) backref(in *inst, pos int) (int, bool, error) {
+	start, end := m.caps[2*in.x], m.caps[2*in.x+1]
+	if start < 0 || end < 0 {
+		return 0, false, nil
+	}
+	text, s := m.subject[start:end], m.subject[pos:]
+	if err := m.spend(len(text)); err != nil {
+		return 0, false, err
+	}
+	if !in.fold {
+		return pos + len(text), strings.HasPrefix(s, text), nil
+	}
+	i, j := 0, 0
+	for i < len(text) {
+		if j >= len(s) {
+			return 0, false, nil
+		}
+		r, rw := utf8.DecodeRuneInString(text[i:])
+		c, cw := utf8.DecodeRuneInString(s[j:])
+		invalid := r == utf8.RuneError && rw == 1 || c == utf8.RuneError && cw == 1
+		if invalid && text[i:i+rw] != s[j:j+cw] || !invalid && canonicalFold(r) != canonicalFold(c) {
+			return 0, false, nil
+		}
+		i, j = i+rw, j+cw
+	}
+	return pos + j, true, nil
 }
 
 // look runs a lookaround's body at pos and reports whether the assertion

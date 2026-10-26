@@ -14,6 +14,7 @@ const (
 	kindAssert                    // a zero-width test at the current position
 	kindLook                      // a lookaround: subs[0] must match, or under neg must not, ahead of or behind the position
 	kindAtomic                    // subs[0], keeping only its first way of matching
+	kindBackref                   // the text group index captured, folded under fold
 )
 
 // assertKind names the zero-width tests.
@@ -52,9 +53,14 @@ type node struct {
 	min, max int
 	greedy   bool
 
-	// index is a group's number and name its name, "" when unnamed.
+	// index is a group's number and name its name, "" when unnamed. A
+	// backreference names its group by index, and its min and max are the
+	// runes it can match, max unbounded when they are not known.
 	index int
 	name  string
+
+	// selfRef marks a group that holds a backreference to itself.
+	selfRef bool
 
 	assert assertKind
 
@@ -164,6 +170,8 @@ func width(n *node) (lo, hi int) {
 		return lo, hi
 	case kindGroup, kindAtomic:
 		return width(n.subs[0])
+	case kindBackref:
+		return n.min, n.max
 	default:
 		return 0, 0
 	}
