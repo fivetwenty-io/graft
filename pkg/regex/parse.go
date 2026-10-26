@@ -348,6 +348,8 @@ func (p *parser) group(start int) (*node, error) {
 		}
 	case p.lookingAt("*") && p.pos+1 < len(p.src) && (isUpperASCII(p.src[p.pos+1]) || p.src[p.pos+1] == ':'):
 		return nil, unsupported("backtracking control verb (" + upToParen(p.src[p.pos:]) + ")")
+	case p.lookingAt("*") && alphaName(p.src[p.pos+1:]) != "":
+		return nil, unsupported("alpha assertion (*" + alphaName(p.src[p.pos+1:]) + ":...)")
 	}
 
 	index := 0
@@ -371,6 +373,19 @@ func (p *parser) group(start int) (*node, error) {
 
 func isUpperASCII(b byte) bool { return b >= 'A' && b <= 'Z' }
 
+// alphaName returns the name of a PCRE2 alpha assertion such as pla or
+// positive_lookahead when s starts with one and its colon, or "".
+func alphaName(s string) string {
+	i := 0
+	for i < len(s) && (s[i] >= 'a' && s[i] <= 'z' || s[i] == '_') {
+		i++
+	}
+	if i == 0 || i >= len(s) || s[i] != ':' {
+		return ""
+	}
+	return s[:i]
+}
+
 // groupPrefix reads what follows "(?" and says whether the group captures
 // and under which name. done is true when the group was a comment, which
 // leaves nothing to parse.
@@ -391,6 +406,12 @@ func (p *parser) groupPrefix(start int) (capture bool, name string, done bool, e
 		}
 		p.pos += end + 1
 		return false, "", true, nil
+	case strings.HasPrefix(rest, "*"):
+		return false, "", true, unsupported("non-atomic lookahead (?*...)")
+	case strings.HasPrefix(rest, "<*"):
+		return false, "", true, unsupported("non-atomic lookbehind (?<*...)")
+	case strings.HasPrefix(rest, "~"):
+		return false, "", true, unsupported("absent operator (?~...)")
 	case strings.HasPrefix(rest, "<="):
 		return false, "", true, unsupported("lookbehind (?<=...)")
 	case strings.HasPrefix(rest, "<!"):
