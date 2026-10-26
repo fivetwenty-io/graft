@@ -29,14 +29,23 @@ const (
 // CompileOptions are what Compile needs to find modules. SearchPaths is
 // the list -L builds, and nil means the compiler reads no module files at
 // all, so every import fails. A caller that wants jq's own default list
-// passes it, as the jq command does. ProgramOrigin is
-// the directory of the program file, and empty means the current
-// directory. JQOrigin is what $ORIGIN stands for, and empty means the
-// directory of the running executable.
+// passes it, as the jq command does. ProgramOrigin is the directory of the
+// program file, and empty means the current directory. JQOrigin is what
+// $ORIGIN stands for, and empty means the directory of the running
+// executable.
+//
+// Unless Unconfined is set, a program reads only files that sit under the
+// directories of SearchPaths. Such a search ignores the search key of a
+// directive's metadata, does not look in the current directory unless it
+// is listed, does not expand ~ or $ORIGIN, takes a relative entry from
+// ProgramOrigin, and refuses a file whose real path, after symbolic links,
+// leaves every listed directory. Unconfined gives jq's own rules, which
+// let a program name any directory.
 type CompileOptions struct {
 	SearchPaths   []string
 	ProgramOrigin string
 	JQOrigin      string
+	Unconfined    bool
 	// AutoInclude is the path of a library file whose definitions the
 	// program sees as if it began with an include of that file. Empty
 	// means none.
@@ -49,13 +58,14 @@ type ModuleResolver struct {
 	SearchPaths []string
 	Origin      string
 	JQDir       string
+	Unconfined  bool
 }
 
 var _ runtime.ModuleLibrary = (*ModuleResolver)(nil)
 
 // NewModuleResolver returns the resolver that opts describe.
 func NewModuleResolver(opts CompileOptions) *ModuleResolver {
-	return &ModuleResolver{SearchPaths: opts.SearchPaths, Origin: opts.ProgramOrigin, JQDir: opts.JQOrigin}
+	return &ModuleResolver{SearchPaths: opts.SearchPaths, Origin: opts.ProgramOrigin, JQDir: opts.JQOrigin, Unconfined: opts.Unconfined}
 }
 
 // SearchList returns the library directories as they were given.
@@ -66,11 +76,7 @@ func (r *ModuleResolver) SearchList() []string {
 // ProgOrigin returns the directory of the main program as an absolute
 // path.
 func (r *ModuleResolver) ProgOrigin() string {
-	abs, err := filepath.Abs(r.progDir())
-	if err != nil {
-		return r.progDir()
-	}
-	return abs
+	return realPath(r.progDir())
 }
 
 // JQOrigin returns the directory that $ORIGIN stands for.
@@ -112,12 +118,23 @@ func (r *ModuleResolver) find(relpath string, isData bool, search *value.Value, 
 		suffix = ".json"
 	}
 	if !strings.HasPrefix(relpath, "/") {
-		for _, dir := range r.chain(search, libOrigin) {
+		dirs := r.chain(search, libOrigin)
+		var roots []string
+		if !r.Unconfined {
+			roots = realDirs(dirs)
+		}
+		for _, dir := range dirs {
 			base := filepath.Join(dir, relpath)
 			for _, cand := range []string{base + suffix, filepath.Join(base, filepath.Base(relpath)+suffix)} {
-				if info, err := os.Stat(cand); err == nil && info.Mode().IsRegular() {
-					return cand, nil
+				info, err := os.Stat(cand)
+				if err != nil || !info.Mode().IsRegular() {
+					continue
 				}
+				resolved := realPath(cand)
+				if !r.Unconfined && !underAny(resolved, roots) {
+					continue
+				}
+				return resolved, nil
 			}
 		}
 	}
@@ -127,6 +144,9 @@ func (r *ModuleResolver) find(relpath string, isData bool, search *value.Value, 
 // chain is the list of directories to search. A directive that names
 // none searches the current directory and then the library path.
 func (r *ModuleResolver) chain(search *value.Value, libOrigin string) []string {
+	if !r.Unconfined {
+		return r.confinedChain()
+	}
 	var list []string
 	switch {
 	case search == nil:
@@ -147,6 +167,59 @@ func (r *ModuleResolver) chain(search *value.Value, libOrigin string) []string {
 		}
 	}
 	return dirs
+}
+
+// confinedChain is the list of directories a confined search reads: each
+// listed entry as given, taken from the program's directory when it is
+// relative.
+func (r *ModuleResolver) confinedChain() []string {
+	dirs := make([]string, 0, len(r.SearchPaths))
+	for _, p := range r.SearchPaths {
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(r.progDir(), p)
+		}
+		dirs = append(dirs, p)
+	}
+	return dirs
+}
+
+// realPath returns the absolute path of p with its symbolic links
+// resolved, or p when that cannot be done.
+func realPath(p string) string {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return p
+	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved
+	}
+	return abs
+}
+
+// realDirs returns the real path of each directory that exists.
+func realDirs(dirs []string) []string {
+	out := make([]string, 0, len(dirs))
+	for _, d := range dirs {
+		abs, err := filepath.Abs(d)
+		if err != nil {
+			continue
+		}
+		if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+			out = append(out, resolved)
+		}
+	}
+	return out
+}
+
+// underAny reports whether path is inside one of the directories.
+func underAny(path string, dirs []string) bool {
+	for _, d := range dirs {
+		rel, err := filepath.Rel(d, path)
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // expand turns one search entry into a directory. An entry that needs the

@@ -127,6 +127,7 @@ func TestModulesSearchMetadata(t *testing.T) {
 		"lib/user.jq":  `import "x" as x {search: "./"}; def g: x::f;`,
 		"lib/plain.jq": `import "x" as x; def g: x::f;`,
 	})
+	opts.Unconfined = true
 	dir := opts.SearchPaths[0]
 	wantOutputsOpts(t, opts, `import "lib/user" as u; u::g`, `null`, `"x"`)
 	wantOutputsOpts(t, opts, `import "lib/x" as x {search: "`+dir+`"}; x::f`, `null`, `"x"`)
@@ -231,6 +232,9 @@ func TestModuleResolverSearchOrder(t *testing.T) {
 	write("home/.jq/h.jq")
 	write("exe/lib/e.jq")
 	t.Setenv("HOME", filepath.Join(root, "home"))
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
 	r := &jq.ModuleResolver{
 		SearchPaths: []string{filepath.Join(root, "one"), filepath.Join(root, "two")},
 		JQDir:       filepath.Join(root, "exe", "bin"),
@@ -253,12 +257,12 @@ func TestModuleResolverSearchOrder(t *testing.T) {
 	listed := &jq.ModuleResolver{
 		SearchPaths: []string{"~/.jq", "$ORIGIN/../lib"},
 		JQDir:       filepath.Join(root, "exe", "bin"),
+		Unconfined:  true,
 	}
 	for rel, want := range map[string]string{
 		"h": filepath.Join(root, "home", ".jq", "h.jq"),
-		"e": filepath.Join(root, "exe", "bin", "..", "lib", "e.jq"),
+		"e": filepath.Join(root, "exe", "lib", "e.jq"),
 	} {
-		want = filepath.Clean(want)
 		got, err := listed.Resolve(rel, false)
 		if err != nil || got != want {
 			t.Errorf("listed Resolve(%q) = %q, %v; want %q", rel, got, err, want)
@@ -392,4 +396,79 @@ func TestModuleRunsShareInstancesConcurrently(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// confinement lays out a listed directory, files beside it that a program
+// has no business reading, and a home directory and executable directory
+// that jq would search.
+func confinement(t *testing.T) (root string, opts jq.CompileOptions) {
+	t.Helper()
+	root = t.TempDir()
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	write := func(rel, body string) {
+		t.Helper()
+		path := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("allowed/ok.jq", `def ok: "ok";`)
+	write("outside/o.jq", `def o: "outside";`)
+	write("outside/d.json", `{"secret":1}`)
+	write("home/.jq/h.jq", `def h: "home";`)
+	write("exe/lib/e.jq", `def e: "exe";`)
+	if err := os.Symlink(filepath.Join(root, "outside", "o.jq"), filepath.Join(root, "allowed", "link.jq")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "outside"), filepath.Join(root, "allowed", "dir")); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", filepath.Join(root, "home"))
+	t.Chdir(filepath.Join(root, "outside"))
+	return root, jq.CompileOptions{
+		SearchPaths:   []string{filepath.Join(root, "allowed")},
+		ProgramOrigin: filepath.Join(root, "allowed"),
+		JQOrigin:      filepath.Join(root, "exe", "bin"),
+	}
+}
+
+func TestConfinedModulesStayInListedDirectories(t *testing.T) {
+	root, opts := confinement(t)
+	wantOutputsOpts(t, opts, `import "ok" as m; m::ok`, `null`, `"ok"`)
+	notFound := func(prog string) {
+		t.Helper()
+		wantErrorOpts(t, opts, prog, `null`, `module not found`)
+	}
+	notFound(`import "o" as m {search: "` + filepath.Join(root, "outside") + `"}; m::o`)
+	notFound(`import "o" as m {search: "../outside"}; m::o`)
+	notFound(`import "h" as m {search: "~/.jq"}; m::h`)
+	notFound(`import "e" as m {search: "$ORIGIN/../lib"}; m::e`)
+	notFound(`import "o" as m; m::o`)
+	notFound(`import "d" as $d; $d`)
+	notFound(`import "link" as m; m::o`)
+	notFound(`import "dir/o" as m; m::o`)
+	notFound(`"o" | modulemeta`)
+
+	tilde := opts
+	tilde.SearchPaths = []string{"~/.jq", "$ORIGIN/../lib", "."}
+	for _, prog := range []string{`import "h" as m; m::h`, `import "e" as m; m::e`, `import "o" as m; m::o`} {
+		wantErrorOpts(t, tilde, prog, `null`, `module not found`)
+	}
+}
+
+func TestUnconfinedModulesKeepJQSearchRules(t *testing.T) {
+	root, opts := confinement(t)
+	opts.Unconfined = true
+	wantOutputsOpts(t, opts, `import "o" as m {search: "`+filepath.Join(root, "outside")+`"}; m::o`, `null`, `"outside"`)
+	wantOutputsOpts(t, opts, `import "o" as m {search: "../outside"}; m::o`, `null`, `"outside"`)
+	wantOutputsOpts(t, opts, `import "h" as m {search: "~/.jq"}; m::h`, `null`, `"home"`)
+	wantOutputsOpts(t, opts, `import "e" as m {search: "$ORIGIN/../lib"}; m::e`, `null`, `"exe"`)
+	wantOutputsOpts(t, opts, `import "o" as m; m::o`, `null`, `"outside"`)
+	wantOutputsOpts(t, opts, `import "link" as m; m::o`, `null`, `"outside"`)
+	wantOutputsOpts(t, opts, `import "dir/o" as m; m::o`, `null`, `"outside"`)
 }

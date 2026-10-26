@@ -554,7 +554,7 @@ func jqCompileOptions(opts jqOptions, in *jqInputs, origin string, stderr io.Wri
 	if origin != "" {
 		jqOpts = append(jqOpts, jq.WithProgramOrigin(origin))
 	}
-	jqOpts = append(jqOpts, jq.WithModulePaths(jqLibraryPaths(opts.LibraryPaths)))
+	jqOpts = append(jqOpts, jq.WithModulePaths(jqLibraryPaths(opts.LibraryPaths)), jq.WithUnconfinedModules())
 	if home := jqHomeLibrary(); home != "" {
 		jqOpts = append(jqOpts, jq.WithAutoInclude(home))
 	}

@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/pkg/jq"
@@ -178,6 +179,34 @@ func ExampleWithModulePaths() {
 	out, _ := q.RunAll(context.Background(), value.Num(21))
 	fmt.Println(out[0].Dec())
 	// Output: 42
+}
+
+func ExampleWithUnconfinedModules() {
+	dir, err := os.MkdirTemp("", "jqlib")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	if err := os.WriteFile(filepath.Join(dir, "double.jq"), []byte(`def twice: . * 2;`), 0o600); err != nil {
+		fmt.Println(err)
+		return
+	}
+	// The listed directory is empty, and the program names the directory
+	// of the module itself. A confined search ignores that.
+	prog := `import "double" as d {search: ` + strconv.Quote(dir) + `}; d::twice`
+	_, err = jq.Compile(prog, jq.WithModulePaths([]string{os.TempDir() + "/nowhere"}))
+	fmt.Println(err)
+	q, err := jq.Compile(prog, jq.WithModulePaths([]string{os.TempDir() + "/nowhere"}), jq.WithUnconfinedModules())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	out, _ := q.RunAll(context.Background(), value.Num(21))
+	fmt.Println(out[0].Dec())
+	// Output:
+	// module not found: double
+	// 42
 }
 
 func ExampleWithModulePaths_default() {

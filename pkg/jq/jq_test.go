@@ -371,7 +371,11 @@ func TestModulesRunThroughOptions(t *testing.T) {
 	wantEqual(t, len(out), 3)
 	wantJSON(t, out[0], `2`)
 	wantJSON(t, out[1], `["`+dir+`"]`)
-	wantJSON(t, out[2], `"`+dir+`"`)
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantJSON(t, out[2], `"`+realDir+`"`)
 	_, err = Compile(`import "missing" as m; 1`, WithModulePaths([]string{dir}))
 	wantErrContains(t, err, "module not found: missing")
 	meta := mustCompile(t, `"m" | modulemeta | .defs`, WithModulePaths([]string{dir}))
@@ -415,6 +419,35 @@ func TestAutoIncludeFileOption(t *testing.T) {
 	wantErrContains(t, err, "hello/0 is not defined")
 	_, err = Compile(`.`, WithAutoInclude(filepath.Join(dir, "missing.jq")))
 	wantErrContains(t, err, "missing.jq")
+}
+
+func TestModulePathsConfineReads(t *testing.T) {
+	root := t.TempDir()
+	allowed, outside := filepath.Join(root, "allowed"), filepath.Join(root, "outside")
+	for _, d := range []string{allowed, outside} {
+		if err := os.MkdirAll(d, 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(outside, "o.jq"), []byte(`def o: 1;`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "o.jq"), filepath.Join(allowed, "link.jq")); err != nil {
+		t.Fatal(err)
+	}
+	paths := WithModulePaths([]string{allowed})
+	_, err := Compile(`import "link" as l; l::o`, paths)
+	wantErrContains(t, err, "module not found: link")
+	_, err = Compile(`import "o" as o {search: "`+outside+`"}; o::o`, paths)
+	wantErrContains(t, err, "module not found: o")
+	_, err = Compile(`import "link" as l; l::o`, paths, WithUnconfinedModules())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Compile(`import "o" as o {search: "`+outside+`"}; o::o`, paths, WithUnconfinedModules())
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBuiltinsListsNameAndArity(t *testing.T) {

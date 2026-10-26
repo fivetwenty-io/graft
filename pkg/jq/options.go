@@ -22,6 +22,7 @@ type config struct {
 	env         map[string]string
 	modulePaths []string
 	autoInclude string
+	unconfined  bool
 	origin      string
 	inputs      func() (*value.Value, error)
 	filename    func() string
@@ -94,13 +95,20 @@ func WithAutoInclude(path string) Option {
 // WithModulePaths sets the directories that import and include search, as
 // -L does, and that get_search_list reports. A module name is looked up as
 // NAME.jq, or as NAME/NAME.jq, in each directory in turn, and a data
-// import looks for .json files the same way. An entry may start with ~/
-// or $ORIGIN/, and one that is relative is taken from the directory of
-// the module that imports. Without this option a query reads no module
-// files at all, so every import and include fails with a module-not-found
-// error and get_search_list is empty. That keeps a program from untrusted
-// text away from the home directory and the executable's neighbors. A
-// caller that wants jq's defaults passes them, as the jq command does.
+// import looks for .json files the same way.
+//
+// The search is confined to the directories listed, so a program cannot
+// make the compiler read anywhere else. The search key in a directive's
+// metadata is ignored, the current directory is searched only when it is
+// listed, ~ and $ORIGIN are not expanded, and a relative entry is taken
+// from the program's directory (see WithProgramOrigin). A file is used
+// only when its real path, after symbolic links, is under a listed
+// directory, so a link inside one that points outside it is refused.
+// WithUnconfinedModules turns all of this off.
+//
+// Without this option a query reads no module files at all, so every
+// import and include fails with a module-not-found error and
+// get_search_list is empty.
 func WithModulePaths(paths []string) Option {
 	return func(c *config) error {
 		c.modulePaths = append([]string{}, paths...)
@@ -174,6 +182,20 @@ func WithDepthLimit(n int) Option {
 func WithFloatNumbers() Option {
 	return func(c *config) error {
 		c.numbers = runtime.NumbersFloat
+		return nil
+	}
+}
+
+// WithUnconfinedModules gives the search that WithModulePaths sets the
+// rules jq itself uses. The current directory is searched first, an entry
+// may start with ~/ or $ORIGIN/, a relative entry is taken from the
+// directory of the module that imports, and the search key of a
+// directive's metadata replaces the list, so a program can name any
+// directory the process can read. Use it only for programs the caller
+// trusts, as the jq command does.
+func WithUnconfinedModules() Option {
+	return func(c *config) error {
+		c.unconfined = true
 		return nil
 	}
 }
