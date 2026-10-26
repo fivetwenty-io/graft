@@ -1,6 +1,11 @@
 package eval
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/fivetwenty-io/graft/internal/query/runtime"
+	"github.com/fivetwenty-io/graft/pkg/query/value"
+)
 
 func TestPathsAndAssignment(t *testing.T) {
 	wantOutputs(t, `path(.a[0].b)`, `null`, `["a",0,"b"]`)
@@ -73,4 +78,42 @@ func TestInvalidPathExpressions(t *testing.T) {
 	// getpath's own errors come before the invalid path.
 	wantError(t, `path(1 | getpath(["a"]))`, `null`, `Cannot index number with string ("a")`)
 	wantError(t, `path(getpath("a"))`, `null`, "Path must be specified as an array")
+}
+
+// cursorCtx returns a context that tracks cursors, with a native "here"
+// that emits the root and the path of the cursor it is called with.
+func cursorCtx() *runtime.Ctx {
+	ctx := newCtx()
+	ctx.Cursors = true
+	ctx.Dialect.Builtins().Register("here", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		c := ctx.Cursor
+		return emit(value.Arr(c.Root, value.Arr(c.Path...), value.Num(float64(c.Doc))), nil)
+	})
+	return ctx
+}
+
+func TestCursorsTrackValues(t *testing.T) {
+	ctx := cursorCtx()
+	wantOutputsWithCtx(t, ctx, `here`, `{"a":[1]}`, `[{"a":[1]},[],0]`)
+	wantOutputsWithCtx(t, ctx, `.a[0] | here`, `{"a":[1]}`, `[{"a":[1]},["a",0],0]`)
+	wantOutputsWithCtx(t, ctx, `.a[] | here`, `{"a":[1]}`, `[{"a":[1]},["a",0],0]`)
+	wantOutputsWithCtx(t, ctx, `.. | here`, `[1]`, `[[1],[],0]`, `[[1],[0],0]`)
+	wantOutputsWithCtx(t, ctx, `[.a] | .[0] | here`, `{"a":1}`, `[[1],[0],0]`)
+	wantOutputsWithCtx(t, ctx, `1 | here`, `null`, `[1,[],0]`)
+	wantOutputsWithCtx(t, ctx, `.a as $x | .b | here`, `{"a":1,"b":2}`, `[{"a":1,"b":2},["b"],0]`)
+	wantOutputsWithCtx(t, ctx, `.[1:] | .[0] | here`, `[1,2]`, `[[2],[0],0]`)
+	wantOutputsWithCtx(t, ctx, `(.a = 1) | .a | here`, `{}`, `[{"a":1},["a"],0]`)
+	outs, err := mustEval(t, ctx, `.a | here`, []string{`{"a":1}`, `{"a":2}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, `.a | here`, outs, []string{`[{"a":1},["a"],0]`, `[{"a":2},["a"],1]`})
+}
+
+func TestCursorPathsStayOutOfPathMode(t *testing.T) {
+	ctx := cursorCtx()
+	wantOutputsWithCtx(t, ctx, `path(.a[0])`, `null`, `["a",0]`)
+	wantOutputsWithCtx(t, ctx, `[.a] | path(.[0])`, `{"a":1}`, `[0]`)
+	wantOutputsWithCtx(t, ctx, `.a = 1 | .a`, `{}`, `1`)
+	wantErrorWithCtx(t, ctx, `path(1)`, `null`, "Invalid path expression with result 1")
 }

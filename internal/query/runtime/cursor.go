@@ -16,6 +16,30 @@ type Cursor struct {
 	Doc  int
 }
 
+// rootMark heads a rooted path. It is compared by identity, so no value
+// a program builds can be mistaken for it.
+var rootMark = value.Str("")
+
+// Rooted returns rel as a path that carries root ahead of it, for a value
+// whose place is in something other than the run's own root, such as an
+// array the program built or a document an update produced. The
+// evaluator passes such a path along like any other while it tracks
+// cursors, and only Unroot reads it.
+func Rooted(root *value.Value, rel value.Path) value.Path {
+	p := make(value.Path, 0, len(rel)+2)
+	p = append(p, rootMark, root)
+	return append(p, rel...)
+}
+
+// Unroot splits a path that Rooted built into its root and the path under
+// it. For any other path it returns a nil root and the path unchanged.
+func Unroot(p value.Path) (*value.Value, value.Path) {
+	if len(p) >= 2 && p[0] == rootMark {
+		return p[1], p[2:]
+	}
+	return nil, p
+}
+
 // Child returns the cursor one step further down, at component c. The
 // new cursor has a path of its own, so two children of one cursor never
 // share storage.

@@ -16,8 +16,11 @@ type Number string
 // Identity is ".".
 type Identity struct{}
 
-// RecurseDefault is "..".
-type RecurseDefault struct{}
+// RecurseDefault is "..". With Keys set it is yq's "...", which also
+// emits each map key ahead of its value.
+type RecurseDefault struct {
+	Keys bool
+}
 
 // Field is ".name". Target is nil for a field of the input.
 type Field struct {

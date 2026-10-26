@@ -69,7 +69,11 @@ type Ctx struct {
 	// matches, and its zero fields mean pkg/regex's defaults.
 	RegexBudget regex.Budget
 	Cursor      *Cursor
-	Numbers     NumberMode
+	// Cursors makes the evaluator track where every value it reads came
+	// from and set Cursor before each native it calls, which yq's parent,
+	// key, and path read.
+	Cursors bool
+	Numbers NumberMode
 	// Compare and Equal are the value comparisons for Numbers, which every
 	// comparison in the evaluator and the builtins calls.
 	Compare func(a, b *value.Value) int

@@ -59,6 +59,8 @@ type KeywordForms struct {
 	Label   bool
 	// Bind enables "term as patterns | body".
 	Bind bool
+	// IReduce enables yq's "term as $x ireduce (init; update)".
+	IReduce bool
 	// Modules enables module, import, and include directives.
 	Modules bool
 }
@@ -105,5 +107,41 @@ func JQ() Grammar {
 			Def: true, If: true, Try: true, Reduce: true, Foreach: true,
 			Label: true, Bind: true, Modules: true,
 		},
+	}
+}
+
+// YQ returns the yq 4 grammar. The precedences are yq's own, and every
+// row is right-associative because yq's parser folds operators of equal
+// precedence from the right, so "1 - 2 - 3" is "1 - (2 - 3)". The comma
+// binds looser than the pipe, the boolean keywords share one level, and
+// the arithmetic operators and "//" share the level above the
+// assignments and comparisons. "*" and "*=" take yq's merge flags.
+func YQ() Grammar {
+	return Grammar{
+		Tokens: lexer.YQ(),
+		Ops: OperatorTable{
+			{",", 10, Right, Comma},
+			{"or", 20, Right, Binary},
+			{"and", 20, Right, Binary},
+			{"|", 30, Right, Pipe},
+			{"=", 40, Right, Assign},
+			{"|=", 40, Right, Assign},
+			{"+=", 40, Right, Assign},
+			{"-=", 40, Right, Assign},
+			{"==", 40, Right, Binary},
+			{"!=", 40, Right, Binary},
+			{"<", 40, Right, Binary},
+			{"<=", 40, Right, Binary},
+			{">", 40, Right, Binary},
+			{">=", 40, Right, Binary},
+			{"*=", 42, Right, Assign},
+			{"+", 42, Right, Binary},
+			{"-", 42, Right, Binary},
+			{"*", 42, Right, Binary},
+			{"/", 42, Right, Binary},
+			{"%", 42, Right, Binary},
+			{"//", 42, Right, Alt},
+		},
+		Keywords: KeywordForms{If: true, Bind: true, IReduce: true},
 	}
 }

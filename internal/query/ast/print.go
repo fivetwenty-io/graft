@@ -39,6 +39,9 @@ func printAtom(sb *strings.Builder, n Node) bool {
 		sb.WriteString(".")
 	case *RecurseDefault:
 		sb.WriteString("..")
+		if n.Keys {
+			sb.WriteString(".")
+		}
 	case *Literal:
 		printLiteral(sb, n.Value)
 	case *Str:

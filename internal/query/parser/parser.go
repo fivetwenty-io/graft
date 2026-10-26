@@ -231,13 +231,18 @@ func (p *parser) parseImport() (ast.Node, error) {
 	return &ast.Include{Path: path, Meta: imp.Meta}, nil
 }
 
-// rowFor finds the infix row that a token spells.
+// rowFor finds the infix row that a token spells. A "*" or "*=" carrying
+// merge flags finds the row of the bare operator.
 func (p *parser) rowFor(tok lexer.Token) (Row, bool) {
 	if tok.Kind < lexer.Dot && tok.Kind != lexer.Keyword {
 		return Row{}, false
 	}
+	spelling := tok.Text
+	if tok.Kind == lexer.Star || tok.Kind == lexer.MulAssign {
+		spelling = strings.TrimRight(spelling, p.g.Tokens.MergeFlags)
+	}
 	for _, r := range p.g.Ops {
-		if r.Spelling == tok.Text {
+		if r.Spelling == spelling {
 			return r, true
 		}
 	}
@@ -308,7 +313,7 @@ func (p *parser) parseExprIn(minPrec int, c exprContext) (ast.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		left = buildInfix(row, left, right)
+		left = buildInfix(row, tok.Text, left, right)
 		if row.Assoc != NonAssoc {
 			continue
 		}
@@ -320,7 +325,9 @@ func (p *parser) parseExprIn(minPrec int, c exprContext) (ast.Node, error) {
 	}
 }
 
-func buildInfix(row Row, l, r ast.Node) ast.Node {
+// buildInfix builds the node for row, keeping the operator as written,
+// which differs from the row's spelling only by yq's merge flags.
+func buildInfix(row Row, op string, l, r ast.Node) ast.Node {
 	switch row.Kind {
 	case Pipe:
 		return &ast.Pipe{L: l, R: r}
@@ -329,9 +336,9 @@ func buildInfix(row Row, l, r ast.Node) ast.Node {
 	case Alt:
 		return &ast.Alt{L: l, R: r}
 	case Assign:
-		return &ast.Assign{Op: row.Spelling, L: l, R: r}
+		return &ast.Assign{Op: op, L: l, R: r}
 	default:
-		return &ast.Binary{Op: row.Spelling, L: l, R: r}
+		return &ast.Binary{Op: op, L: l, R: r}
 	}
 }
 
@@ -377,11 +384,17 @@ func (p *parser) parseOperand() (ast.Node, error) {
 	return p.parseTerm()
 }
 
+// parseBind reads "as patterns | body" after src, or yq's "as $x ireduce
+// (init; update)", which is a reduce and leaves what follows to the
+// operator loop.
 func (p *parser) parseBind(src ast.Node) (ast.Node, error) {
 	p.next()
 	pats, err := p.parsePatterns()
 	if err != nil {
 		return nil, err
+	}
+	if p.g.Keywords.IReduce && p.isKeyword("ireduce") {
+		return p.parseIReduce(src, pats)
 	}
 	if err := p.expect(lexer.Pipe, "|"); err != nil {
 		return nil, err
@@ -609,9 +622,9 @@ func (p *parser) parsePrimary() (ast.Node, error) {
 		return &ast.FormatRef{Name: tok.Text}, nil
 	case lexer.Dot:
 		return p.parseLeadingDot()
-	case lexer.DotDot:
+	case lexer.DotDot, lexer.DotDotDot:
 		p.next()
-		return &ast.RecurseDefault{}, nil
+		return &ast.RecurseDefault{Keys: tok.Kind == lexer.DotDotDot}, nil
 	case lexer.Field:
 		p.next()
 		return &ast.Field{Name: tok.Text[1:]}, nil
@@ -784,6 +797,25 @@ func (p *parser) parseReduce() (ast.Node, error) {
 		return nil, err
 	}
 	n := &ast.Reduce{Src: src, Pats: pats}
+	if n.Init, err = p.parseExpr(); err != nil {
+		return nil, err
+	}
+	if err := p.expect(lexer.Semicolon, ";"); err != nil {
+		return nil, err
+	}
+	if n.Update, err = p.parseExpr(); err != nil {
+		return nil, err
+	}
+	return n, p.expect(lexer.RParen, ")")
+}
+
+func (p *parser) parseIReduce(src ast.Node, pats []ast.Pattern) (ast.Node, error) {
+	p.next()
+	if err := p.expect(lexer.LParen, "("); err != nil {
+		return nil, err
+	}
+	n := &ast.Reduce{Src: src, Pats: pats}
+	var err error
 	if n.Init, err = p.parseExpr(); err != nil {
 		return nil, err
 	}

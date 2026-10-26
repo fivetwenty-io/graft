@@ -41,6 +41,9 @@ func (ev evaluator) call(n *ast.Call, env *Env, in *value.Value, p value.Path, e
 		for i, a := range n.Args {
 			args[i] = argThunk{ev: ev, node: a, env: env, in: in, p: p}
 		}
+		if ev.track && !ev.paths {
+			ev.setCursor(in, p)
+		}
 		return native(ev.ctx, in, args, emit)
 	})
 }
@@ -124,8 +127,8 @@ func (ev evaluator) argClosure(arg ast.Node, env *Env) *Closure {
 }
 
 // argThunk is a native's argument. Evaluated on the input of the call that
-// passed it, it keeps tracking paths when the call does, so a native such
-// as first passes its argument's paths through.
+// passed it, it keeps tracking paths or cursors when the call does, so a
+// native such as first passes its argument's paths through.
 type argThunk struct {
 	ev   evaluator
 	node ast.Node
@@ -136,7 +139,7 @@ type argThunk struct {
 
 // Each runs the argument on input.
 func (t argThunk) Each(input *value.Value, emit runtime.Emit) error {
-	if t.ev.paths && input == t.in {
+	if (t.ev.paths || t.ev.track) && input == t.in {
 		return t.ev.eval(t.node, t.env, input, t.p, emit)
 	}
 	return t.ev.values().eval(t.node, t.env, input, nil, emit)

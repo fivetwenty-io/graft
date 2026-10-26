@@ -14,6 +14,40 @@ func extend(p value.Path, c ...*value.Value) value.Path {
 	return append(out, c...)
 }
 
+// place returns the path of the output found at keys under v, whose own
+// path is vp. In path mode that is vp extended. Tracking cursors outside
+// path mode, a value with no path of its own is the root its outputs are
+// placed under. Otherwise outputs carry no path.
+func (ev evaluator) place(v *value.Value, vp value.Path, keys ...*value.Value) value.Path {
+	switch {
+	case ev.paths:
+		return extend(vp, keys...)
+	case !ev.track:
+		return nil
+	case vp == nil:
+		return runtime.Rooted(v, keys)
+	}
+	return extend(vp, keys...)
+}
+
+// setCursor points the context's cursor at in, whose tracked path is p,
+// in the document the cursor is already in.
+func (ev evaluator) setCursor(in *value.Value, p value.Path) {
+	doc := 0
+	if ev.ctx.Cursor != nil {
+		doc = ev.ctx.Cursor.Doc
+	}
+	root, rel := runtime.Unroot(p)
+	switch {
+	case root != nil:
+	case p != nil && doc < len(ev.roots):
+		root = ev.roots[doc]
+	default:
+		root, rel = in, nil
+	}
+	ev.ctx.Cursor = &runtime.Cursor{Root: root, Path: rel, Doc: doc}
+}
+
 // target runs a postfix node's target, which is the input itself when the
 // node has none.
 func (ev evaluator) target(t ast.Node, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
@@ -89,10 +123,13 @@ func (ev evaluator) lookup(v *value.Value, vp value.Path, key *value.Value, opt 
 	if out == nil {
 		return nil
 	}
-	if !ev.paths {
-		return emit(out, nil)
+	if !ev.paths && ev.track && v.Kind() != value.KindObject {
+		// A slice is a new value rather than a place in v.
+		if _, _, ok := value.IsSliceComponent(key); ok {
+			return emit(out, runtime.Rooted(out, nil))
+		}
 	}
-	return emit(out, extend(vp, key))
+	return emit(out, ev.place(v, vp, key))
 }
 
 // iterate runs Target[], with the same rule for opt as lookup.
@@ -111,11 +148,7 @@ func (ev evaluator) iterate(n *ast.Iterate, env *Env, in *value.Value, p value.P
 					downstream = err
 					return err
 				}
-				var ep value.Path
-				if ev.paths {
-					ep = extend(vp, k)
-				}
-				if err := emit(e, ep); err != nil {
+				if err := emit(e, ev.place(v, vp, k)); err != nil {
 					downstream = err
 					return err
 				}
@@ -130,12 +163,13 @@ func (ev evaluator) iterate(n *ast.Iterate, env *Env, in *value.Value, p value.P
 }
 
 // recurse runs "..", which emits in and everything under it, depth first.
-func (ev evaluator) recurse(in *value.Value, p value.Path, emit runtime.Emit) error {
-	return ev.ctx.Dialect.Recurse(in, false, func(v *value.Value, rel value.Path) error {
-		if !ev.paths || p == nil {
+// With keys set it is yq's "...", which also emits map keys.
+func (ev evaluator) recurse(in *value.Value, p value.Path, keys bool, emit runtime.Emit) error {
+	return ev.ctx.Dialect.Recurse(in, keys, func(v *value.Value, rel value.Path) error {
+		if ev.paths && p == nil {
 			return emit(v, nil)
 		}
-		return emit(v, extend(p, rel...))
+		return emit(v, ev.place(in, p, rel...))
 	})
 }
 

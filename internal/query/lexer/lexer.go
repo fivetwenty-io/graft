@@ -233,6 +233,10 @@ func (l *Lexer) lexOperator(start int) (Token, error) {
 				if top.depth > 0 {
 					top.depth--
 				}
+			case "*", "*=":
+				for l.pos < len(l.src) && l.set.MergeFlags != "" && strings.IndexByte(l.set.MergeFlags, l.src[l.pos]) >= 0 {
+					l.pos++
+				}
 			}
 			return l.tok(operatorKinds[o], start, l.pos), nil
 		}

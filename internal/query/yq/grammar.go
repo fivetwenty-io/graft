@@ -1,0 +1,127 @@
+// Package yq is the yq dialect over the shared query engine: yq's
+// grammar and diagnostics, its truthiness, indexing, recursion, and
+// assignment, the cursor operators parent, key, and path, and Eval and
+// EvalAll, which run an expression over one document or over every
+// document at once.
+package yq
+
+import (
+	"errors"
+	"strings"
+
+	"github.com/fivetwenty-io/graft/internal/query/ast"
+	"github.com/fivetwenty-io/graft/internal/query/lexer"
+	"github.com/fivetwenty-io/graft/internal/query/parser"
+)
+
+// ParseError is an expression yq cannot parse. Its message is the one yq
+// gives, which names no position. Pos is the byte offset the parser
+// stopped at.
+type ParseError struct {
+	Msg string
+	Pos int
+}
+
+// Error returns the message.
+func (e *ParseError) Error() string { return e.Msg }
+
+// Grammar returns the grammar yq expressions parse under.
+func Grammar() parser.Grammar { return parser.YQ() }
+
+// Parse parses a yq expression. A blank expression is the identity, as it
+// is in yq. A failure is a *ParseError worded the way yq words it where
+// yq's wording is known, and the parser's own message otherwise.
+func Parse(expr string) (ast.Node, error) {
+	if strings.TrimSpace(expr) == "" {
+		return &ast.Identity{}, nil
+	}
+	n, err := parser.Parse(expr, Grammar())
+	if err == nil {
+		return n, nil
+	}
+	var pe *parser.Error
+	if !errors.As(err, &pe) {
+		return nil, err
+	}
+	return nil, &ParseError{Msg: diagnose(expr, pe), Pos: pe.Pos}
+}
+
+// diagnose words a parse failure as yq does. Unbalanced brackets come
+// first, then an infix operator with an operand missing, and anything
+// else keeps the parser's message.
+func diagnose(expr string, pe *parser.Error) string {
+	toks, err := lexer.Tokenize(expr, Grammar().Tokens)
+	if err != nil {
+		return pe.Msg
+	}
+	if msg, ok := unbalanced(toks); ok {
+		return msg
+	}
+	for i, tok := range toks {
+		if tok.Pos != pe.Pos {
+			continue
+		}
+		switch {
+		case i == 0 && infix(tok):
+			return operandMissing(tok)
+		case i > 0 && infix(toks[i-1]) && (tok.Kind == lexer.EOF || infix(tok) || closer(tok)):
+			return operandMissing(toks[i-1])
+		}
+		break
+	}
+	return pe.Msg
+}
+
+// unbalanced reports yq's message for the first bracket that does not
+// pair up.
+func unbalanced(toks []lexer.Token) (string, bool) {
+	var open []lexer.TokenKind
+	for _, tok := range toks {
+		switch tok.Kind {
+		case lexer.LParen, lexer.LBracket, lexer.LBrace:
+			open = append(open, tok.Kind)
+		case lexer.RParen, lexer.RBracket, lexer.RBrace:
+			if len(open) == 0 {
+				return "bad expression, got close brackets without matching opening bracket", true
+			}
+			open = open[:len(open)-1]
+		default:
+		}
+	}
+	if len(open) == 0 {
+		return "", false
+	}
+	switch open[len(open)-1] {
+	case lexer.LParen:
+		return "bad expression - probably missing close bracket on (", true
+	case lexer.LBracket:
+		return "bad expression, could not find matching `]`", true
+	default:
+		return "bad expression, could not find matching `}`", true
+	}
+}
+
+// infix reports whether tok is one of yq's infix operators.
+func infix(tok lexer.Token) bool {
+	if tok.Kind < lexer.Dot && tok.Kind != lexer.Keyword {
+		return false
+	}
+	spelling := tok.Text
+	if tok.Kind == lexer.Star || tok.Kind == lexer.MulAssign {
+		spelling = strings.TrimRight(spelling, Grammar().Tokens.MergeFlags)
+	}
+	for _, r := range Grammar().Ops {
+		if r.Spelling == spelling {
+			return true
+		}
+	}
+	return false
+}
+
+func closer(tok lexer.Token) bool {
+	return tok.Kind == lexer.RParen || tok.Kind == lexer.RBracket || tok.Kind == lexer.RBrace
+}
+
+func operandMissing(op lexer.Token) string {
+	return "'" + op.Text + "' expects 2 args but there is 1"
+}

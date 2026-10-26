@@ -1,0 +1,198 @@
+package yq
+
+import (
+	"strings"
+	"sync"
+
+	"github.com/fivetwenty-io/graft/internal/query/builtin"
+	"github.com/fivetwenty-io/graft/internal/query/eval"
+	"github.com/fivetwenty-io/graft/internal/query/jq"
+	"github.com/fivetwenty-io/graft/internal/query/parser"
+	"github.com/fivetwenty-io/graft/internal/query/runtime"
+	"github.com/fivetwenty-io/graft/pkg/query/value"
+)
+
+// preludeFile is the file name the prelude's $__loc__ reports.
+const preludeFile = "<builtin>"
+
+var (
+	regOnce sync.Once
+	reg     *runtime.Registry
+	rootEnv *eval.Env
+)
+
+// registry returns the yq registry, which is the core natives, yq's own,
+// and jq's prelude, building it and the root environment on first use.
+// The prelude is jq source, so it parses under jq's grammar. A prelude
+// that fails to parse is a bug, so it panics.
+func registry() *runtime.Registry {
+	regOnce.Do(func() {
+		r := &runtime.Registry{}
+		builtin.RegisterCore(r)
+		registerYQ(r)
+		prog, err := parser.ParseFile(jq.Prelude, preludeFile, jq.Grammar())
+		if err != nil {
+			panic("yq: prelude does not parse: " + err.Error())
+		}
+		r.AddPrelude(prog)
+		reg = r
+		rootEnv = eval.NewEnv(r)
+	})
+	return reg
+}
+
+// registerYQ adds the operators that read the cursor, parent, key, and
+// path, and the node operators tag and kind that ".." filters lean on.
+func registerYQ(r *runtime.Registry) {
+	r.Register("parent", 0, parent)
+	r.Register("key", 0, key)
+	r.RegisterSingle("path", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		var p value.Path
+		if ctx.Cursor != nil {
+			p, _ = resolve(ctx.Cursor)
+		}
+		return emit(value.Arr(p...), nil)
+	})
+	r.RegisterSingle("tag", 0, func(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		return emit(value.Str(tagOf(in)), nil)
+	})
+	r.RegisterSingle("kind", 0, func(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		return emit(value.Str(kindOf(in)), nil)
+	})
+}
+
+// parent emits the node that holds the cursor's node, and nothing at a
+// root. When the cursor's node is a key or element the input lacks, yq
+// adds it as null so it has a parent, and the parent emitted is the one
+// in the input with that null added.
+func parent(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+	c := ctx.Cursor
+	if c == nil || len(c.Path) == 0 {
+		return nil
+	}
+	p, found := resolve(c)
+	root := c.Root
+	if !found && in.Kind() == value.KindNull {
+		var err error
+		if root, err = builtin.SetPath(ctx, root, p, value.Null()); err != nil {
+			return err
+		}
+	}
+	pp := p[:len(p)-1]
+	v, err := builtin.GetPath(ctx, root, pp)
+	if err != nil {
+		return err
+	}
+	return emit(v, runtime.Rooted(root, pp))
+}
+
+// key emits the key or index of the cursor's node in its parent, and
+// nothing at a root. The key sits at its node's path, as in yq.
+func key(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+	c := ctx.Cursor
+	if c == nil || len(c.Path) == 0 {
+		return nil
+	}
+	p, _ := resolve(c)
+	k := p[len(p)-1]
+	if orig := c.Path[len(c.Path)-1]; orig.Meta() != nil {
+		k = orig
+	}
+	return emit(k, runtime.Rooted(c.Root, p))
+}
+
+// resolve walks the cursor's path from its root. It returns the path with
+// each key stripped of its presentation details and each negative index
+// counted from the end, and reports whether every step names a key or an
+// element the value it meets holds.
+func resolve(c *runtime.Cursor) (value.Path, bool) {
+	p := make(value.Path, len(c.Path))
+	v, found := c.Root, true
+	for i, k := range c.Path {
+		if k.Meta() != nil {
+			k = k.WithMeta(nil)
+		}
+		next := value.Null()
+		switch v.Kind() {
+		case value.KindArray:
+			if n, ok := elementIndex(k, v.Len()); ok && n >= 0 {
+				k = value.Num(float64(n))
+				if e, ok := v.Index(n); ok {
+					next = e
+					break
+				}
+			}
+			found = false
+		case value.KindObject:
+			text := k.Str()
+			if k.Kind() == value.KindNumber {
+				text = numberText(k)
+			}
+			if e, ok := v.Get(text); ok {
+				next = e
+				break
+			}
+			found = false
+		default:
+			found = false
+		}
+		p[i], v = k, next
+	}
+	return p, found
+}
+
+// tagOf is a node's tag: the one written in the input, the one its kind
+// implies, or none for an alias.
+func tagOf(v *value.Value) string {
+	if m := v.Meta(); m != nil {
+		if m.AliasOf != "" {
+			return ""
+		}
+		if m.Tag != "" {
+			return m.Tag
+		}
+	}
+	switch v.Kind() {
+	case value.KindObject:
+		return "!!map"
+	case value.KindArray:
+		return "!!seq"
+	case value.KindString:
+		return "!!str"
+	case value.KindTrue, value.KindFalse:
+		return "!!bool"
+	case value.KindNumber:
+		if isFloat(v) {
+			return "!!float"
+		}
+		return "!!int"
+	default:
+	}
+	return "!!null"
+}
+
+// isFloat reports whether a number is a float in YAML's terms, which its
+// text decides when it has one and its value decides otherwise.
+func isFloat(v *value.Value) bool {
+	text := numberText(v)
+	lower := strings.ToLower(strings.TrimLeft(text, "+-"))
+	if strings.HasPrefix(lower, "0x") || strings.HasPrefix(lower, "0o") || strings.HasPrefix(lower, "0b") {
+		return false
+	}
+	return strings.ContainsAny(lower, ".en")
+}
+
+// kindOf is yq's node kind.
+func kindOf(v *value.Value) string {
+	if m := v.Meta(); m != nil && m.AliasOf != "" {
+		return "alias"
+	}
+	switch v.Kind() {
+	case value.KindObject:
+		return "map"
+	case value.KindArray:
+		return "seq"
+	default:
+	}
+	return "scalar"
+}

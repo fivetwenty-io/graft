@@ -25,6 +25,9 @@ type state struct {
 
 	labels uintptr
 	envVal *value.Value
+	// track is set when the run tracks cursors, so values carry their
+	// paths outside path mode too.
+	track bool
 }
 
 // evaluator walks the tree in one mode. With paths set it tracks the path
@@ -82,7 +85,11 @@ func RunPaths(ctx *runtime.Ctx, prog ast.Node, env *Env, roots []*value.Value, e
 }
 
 func run(ev evaluator, prog ast.Node, env *Env, emit runtime.Emit) error {
-	return unwrapDownstream(ev.eval(prog, env, ev.input(), nil, emit))
+	var root value.Path
+	if ev.track && len(ev.roots) == 1 {
+		root = value.Path{}
+	}
+	return unwrapDownstream(ev.eval(prog, env, ev.input(), root, emit))
 }
 
 func runPaths(ev evaluator, prog ast.Node, env *Env, emit runtime.Emit) error {
@@ -117,6 +124,7 @@ func newEvaluator(ctx *runtime.Ctx, roots []*value.Value, tails map[*ast.Call]ta
 		reg:   &runtime.Registry{},
 		tails: tails,
 		used:  map[callKey]bool{},
+		track: ctx.Cursors,
 	}
 	if ctx.Dialect != nil {
 		st.reg = ctx.Dialect.Builtins()
@@ -168,7 +176,7 @@ func (ev evaluator) each(in *value.Value, p value.Path, f func(in *value.Value, 
 	for i, r := range ev.roots {
 		ev.ctx.Cursor = &runtime.Cursor{Root: r, Doc: i}
 		var rp value.Path
-		if ev.paths {
+		if ev.paths || ev.track {
 			rp = value.Path{}
 		}
 		if err := f(r, rp); err != nil {
@@ -186,7 +194,7 @@ func (ev evaluator) eval(n ast.Node, env *Env, in *value.Value, p value.Path, em
 	case *ast.Identity:
 		return ev.each(in, p, emit)
 	case *ast.RecurseDefault:
-		return ev.each(in, p, func(in *value.Value, p value.Path) error { return ev.recurse(in, p, emit) })
+		return ev.each(in, p, func(in *value.Value, p value.Path) error { return ev.recurse(in, p, n.Keys, emit) })
 	case *ast.Field:
 		return ev.field(n, env, in, p, emit)
 	case *ast.Index:

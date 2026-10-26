@@ -124,3 +124,12 @@ func TestLexModuleAndBreakAreKeywords(t *testing.T) {
 	toks := mustLex(t, `module break`, JQ())
 	wantKinds(t, toks, Keyword, Keyword, EOF)
 }
+
+func TestLexMergeFlagsOnlyForYQ(t *testing.T) {
+	toks := mustLex(t, `.a *+ .b *=?d .c * .d`, YQ())
+	wantKinds(t, toks, Field, Star, Field, MulAssign, Field, Star, Field, EOF)
+	wantEqual(t, toks[1].Text, "*+")
+	wantEqual(t, toks[3].Text, "*=?d")
+	wantEqual(t, toks[5].Text, "*")
+	wantKinds(t, mustLex(t, `.a *+ .b`, JQ()), Field, Star, Plus, Field, EOF)
+}

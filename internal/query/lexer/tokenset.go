@@ -14,6 +14,10 @@ type TokenSet struct {
 	CommentContinuation bool
 	// TripleDot makes "..." a DotDotDot token.
 	TripleDot bool
+	// MergeFlags are the characters that may follow "*" and "*=" as part
+	// of the same token, which is how yq spells its merge options, such
+	// as "*+" and "*=d".
+	MergeFlags string
 }
 
 // operatorKinds maps every spelling the lexer knows to its kind. A
@@ -46,16 +50,22 @@ func JQ() TokenSet {
 	}
 }
 
-// YQ returns the token set for the yq dialect. Only tests consult it
-// until the yq phase lands.
+// YQ returns the token set for the yq dialect. It keeps jq's keywords
+// for the forms yq lacks, so they stay parse errors rather than calls,
+// and adds ireduce. It has no "?//", "/=", "%=", "//=", or "$__loc__",
+// comments never continue, and "*" and "*=" take yq's merge flags.
 func YQ() TokenSet {
 	return TokenSet{
-		Keywords: []string{"and", "or", "as", "def", "reduce", "foreach", "if", "then", "elif", "else", "end", "try", "catch", "label"},
-		Operators: []string{
-			"|", ",", "//", "=", "|=", "+=", "-=", "*=", "/=", "%=",
-			"==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "%",
-			"?", "(", ")", "[", "]", "{", "}", ":", ";",
+		Keywords: []string{
+			"and", "or", "as", "if", "then", "elif", "else", "end", "ireduce",
+			"def", "reduce", "foreach", "try", "catch", "label",
 		},
-		TripleDot: true,
+		Operators: []string{
+			"|", ",", "//", "=", "|=", "+=", "-=", "*=", "==", "!=", "<",
+			"<=", ">", ">=", "+", "-", "*", "/", "%", "?", "(", ")", "[",
+			"]", "{", "}", ":", ";",
+		},
+		TripleDot:  true,
+		MergeFlags: "+?cdn",
 	}
 }

@@ -36,7 +36,13 @@ func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Pat
 			if err != nil {
 				return err
 			}
-			if err := emit(out, nil); err != nil {
+			// Tracking cursors, the result stands in for its root, so it
+			// is a root of its own rather than a value built from nothing.
+			var op value.Path
+			if ev.track && !ev.paths {
+				op = runtime.Rooted(out, nil)
+			}
+			if err := emit(out, op); err != nil {
 				return err
 			}
 		}
