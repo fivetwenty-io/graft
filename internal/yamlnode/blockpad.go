@@ -28,7 +28,18 @@ import (
 // also gives the single-quoted and literal block scalars that hold one
 // the values libyaml reads for them, as fixLineSeparators describes.
 func ParseBytes(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
-	file, err := parseBlockPadded(data, mode, opts...)
+	return parseBytes(data, false, mode, opts...)
+}
+
+// parseBytes is ParseBytes, and with keep it also works around goccy's
+// handling of an empty keep block. goccy fails a keep block with no
+// indentation indicator whose lines are all blank when a less indented
+// line follows it, and fails one with no lines at all there, both with
+// "could not find multi-line content". With keep, the first has its
+// lines padded too, and the second gets the strip indicator, which reads
+// the same empty value.
+func parseBytes(data []byte, keep bool, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
+	file, err := parseBlockPadded(data, keep, mode, opts...)
 	if err == nil && file != nil && hasLineSeparator(data) {
 		fixLineSeparators(file)
 	}
@@ -38,12 +49,12 @@ func ParseBytes(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File
 // parseBlockPadded parses data with goccy, padding block scalar lines
 // and parsing again when goccy fails with an error that
 // padBlockScalarLines works around.
-func parseBlockPadded(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
+func parseBlockPadded(data []byte, keep bool, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
 	file, err := parser.ParseBytes(data, mode, opts...)
 	if err == nil || !isBlockIndentError(err) {
 		return file, err
 	}
-	padded, ok := padBlockScalarLines(data)
+	padded, ok := padBlockScalarLines(data, keep)
 	if !ok {
 		return file, err
 	}
@@ -66,18 +77,21 @@ func isBlockIndentError(err error) bool {
 // such as "k: |", "k: |2-", "- |2+", "- k: >1", or "? |2", optionally
 // followed by a comment. Group 1 is the line's indentation, group 2 the
 // "-", "?", and ":" indicators before the header, and group 3 a key the
-// header is the value of. Groups 4 and 5 hold the indentation indicator
-// digit, before or after a chomping indicator, when the header has one.
+// header is the value of. Groups 4 and 7 hold the indentation indicator
+// digit, before or after a chomping indicator, and groups 5 and 6 the
+// chomping indicator, when the header has them.
 var blockHeaderLineRe = regexp.MustCompile(
 	`^( *)((?:[-?:] +)*)((?:"(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^ #'"\-?:][^#]*?|[-?:][^ #][^#]*?) *: +)?` +
-		`(?:[!&][^ ]* +)*[|>](?:([1-9])[+-]?|[+-]([1-9])?)? *(?:#.*)?$`)
+		`(?:[!&][^ ]* +)*[|>](?:([1-9])([+-])?|([+-])([1-9])?)? *(?:#.*)?$`)
 
 // blockHeader describes the block scalar whose header ends a line. Its
 // content runs on while each line that is not blank is indented by at
 // least end spaces. pad is the indentation padBlockScalarLines pads the
-// block's blank lines to, or 0 when it leaves them alone.
+// block's blank lines to, or 0 when it leaves them alone. keep is the
+// offset in the line of the keep indicator of a block inside a block
+// collection with no indentation indicator, or 0 when there is none.
 type blockHeader struct {
-	end, pad int
+	end, pad, keep int
 }
 
 // padBlockScalarLines pads every line that holds only spaces, fewer than
@@ -88,10 +102,13 @@ type blockHeader struct {
 // content of every block scalar is skipped when looking for headers, so
 // a line inside a block that looks like a header, such as "k: |2-" in a
 // stringified map, never causes padding, and the content of a block
-// without an indicator is never changed. The last line of data counts
-// only when a line break ends it. It reports whether it changed
-// anything.
-func padBlockScalarLines(data []byte) ([]byte, bool) {
+// without an indicator is never changed. With keep, a keep block with
+// no indentation indicator inside a block collection whose lines are all
+// blank has them padded to the column after its collection's, and one
+// with no lines before a less indented line gets the strip indicator in
+// place of its keep indicator. The last line of data counts only when a
+// line break ends it. It reports whether it changed anything.
+func padBlockScalarLines(data []byte, keep bool) ([]byte, bool) {
 	lines := bytes.Split(data, []byte("\n"))
 	// The piece after the final line break, or a last line with no line
 	// break after it, is never padded.
@@ -103,6 +120,7 @@ func padBlockScalarLines(data []byte) ([]byte, bool) {
 			continue
 		}
 		j := i + 1
+		blank := true
 		for ; j < last; j++ {
 			line := lines[j]
 			spaces := len(line) - len(bytes.TrimLeft(line, " "))
@@ -116,6 +134,12 @@ func padBlockScalarLines(data []byte) ([]byte, bool) {
 			if spaces < h.end {
 				break
 			}
+			blank = false
+		}
+		if keep && h.keep > 0 && blank && j < last {
+			if padKeepBlock(lines, i, j, h) {
+				changed = true
+			}
 		}
 		i = j - 1
 	}
@@ -123,6 +147,27 @@ func padBlockScalarLines(data []byte) ([]byte, bool) {
 		return data, false
 	}
 	return bytes.Join(lines, []byte("\n")), true
+}
+
+// padKeepBlock pads the blank lines between the keep block header at
+// lines[i] and the less indented line at lines[j] to the block's
+// indentation, or gives the header the strip indicator when there are
+// none. It reports whether it changed anything.
+func padKeepBlock(lines [][]byte, i, j int, h blockHeader) bool {
+	if j == i+1 {
+		header := bytes.Clone(lines[i])
+		header[h.keep] = '-'
+		lines[i] = header
+		return true
+	}
+	changed := false
+	for k := i + 1; k < j; k++ {
+		if len(lines[k]) < h.end {
+			lines[k] = bytes.Repeat([]byte(" "), h.end)
+			changed = true
+		}
+	}
+	return changed
 }
 
 // parseBlockHeader reports whether line ends in a block scalar header
@@ -140,9 +185,15 @@ func parseBlockHeader(line string) (blockHeader, bool) {
 	if top {
 		line = strings.TrimLeft(line[len("---"):], " ")
 	}
-	m := blockHeaderLineRe.FindStringSubmatch(line)
-	if m == nil {
+	idx := blockHeaderLineRe.FindStringSubmatchIndex(line)
+	if idx == nil {
 		return blockHeader{}, false
+	}
+	m := make([]string, len(idx)/2)
+	for g := range m {
+		if idx[2*g] >= 0 {
+			m[g] = line[idx[2*g]:idx[2*g+1]]
+		}
 	}
 	parent := -1
 	switch {
@@ -153,9 +204,13 @@ func parseBlockHeader(line string) (blockHeader, bool) {
 		indicators := strings.TrimRight(m[2], " ")
 		parent = len(m[1]) + strings.LastIndexAny(indicators, "-?:")
 	}
-	if digit := m[4] + m[5]; digit != "" && parent >= 0 {
+	if digit := m[4] + m[7]; digit != "" && parent >= 0 {
 		indent := parent + int(digit[0]-'0')
 		return blockHeader{end: indent, pad: indent}, true
 	}
-	return blockHeader{end: max(parent+1, 1)}, true
+	h := blockHeader{end: max(parent+1, 1)}
+	if m[6] == "+" && parent >= 0 {
+		h.keep = idx[12]
+	}
+	return h, true
 }

@@ -32,9 +32,39 @@ func TestPadBlockScalarLines(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, changed := padBlockScalarLines([]byte(c.in))
+			got, changed := padBlockScalarLines([]byte(c.in), false)
 			if string(got) != c.want || changed != c.changed {
 				t.Errorf("padBlockScalarLines(%q) = %q, %v; want %q, %v", c.in, got, changed, c.want, c.changed)
+			}
+		})
+	}
+}
+
+// TestPadEmptyKeepBlocks checks the keep blocks with no indentation
+// indicator that padBlockScalarLines changes only when asked to.
+func TestPadEmptyKeepBlocks(t *testing.T) {
+	cases := []struct {
+		name, in, want string
+		changed        bool
+	}{
+		{"blank line before a key", "a: |+\n\nb: 1\n", "a: |+\n \nb: 1\n", true},
+		{"no lines before a key", "a: |+\nb: 1\n", "a: |-\nb: 1\n", true},
+		{"folded with a comment", "a: >+ # c\nb: 1\n", "a: >- # c\nb: 1\n", true},
+		{"nested mapping", "a:\n  b: |+\n\n\n  c: 1\n", "a:\n  b: |+\n   \n   \n  c: 1\n", true},
+		{"sequence item", "- |+\n\n- 1\n", "- |+\n \n- 1\n", true},
+		{"block with content", "a: |+\n  x\n\nb: 1\n", "a: |+\n  x\n\nb: 1\n", false},
+		{"block at the end", "a: |+\n\n", "a: |+\n\n", false},
+		{"clip block", "a: |\n\nb: 1\n", "a: |\n\nb: 1\n", false},
+		{"top level of a document", "--- |+\n\n", "--- |+\n\n", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got, changed := padBlockScalarLines([]byte(c.in), false); string(got) != c.in || changed {
+				t.Errorf("padBlockScalarLines(%q, false) = %q, %v; want it unchanged", c.in, got, changed)
+			}
+			got, changed := padBlockScalarLines([]byte(c.in), true)
+			if string(got) != c.want || changed != c.changed {
+				t.Errorf("padBlockScalarLines(%q, true) = %q, %v; want %q, %v", c.in, got, changed, c.want, c.changed)
 			}
 		})
 	}

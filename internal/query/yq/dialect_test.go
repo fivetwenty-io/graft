@@ -245,3 +245,13 @@ func TestYQKeepsCollectionComments(t *testing.T) {
 		wantYQ(t, ".", in, in)
 	}
 }
+
+// TestYQReadsWhatYAMLv3Reads checks inputs that goccy refuses and yq
+// reads: mapping keys that are collections, and keep blocks with no
+// content before a less indented line.
+func TestYQReadsWhatYAMLv3Reads(t *testing.T) {
+	keys := "? [a, b]\n: 1\n? - c\n  - d\n: 2\n{e: 3}: 4\n? &k [f] # on the key\n: 5\n"
+	wantYQ(t, ".", keys, "? [a, b]\n: 1\n? - c\n  - d\n: 2\n? {e: 3}\n: 4\n? &k [f] # on the key\n: 5\n")
+	wantYQ(t, ".", "a: |+\n\nb: 1\nc: |+\nd: 2\n", "a: |+\n\nb: 1\nc: \"\"\nd: 2\n")
+	wantYQ(t, ".a | length", "a: >+\n\n\nb: 1\n", "2\n")
+}

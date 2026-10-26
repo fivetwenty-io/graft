@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
+	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/parser"
 	"github.com/goccy/go-yaml/token"
@@ -40,6 +41,23 @@ func (e *ParseError) Error() string {
 // yaml.v3 allows fails before anything tokenizes the whole stream. A
 // panic inside goccy comes back as a ParseError.
 func Parse(data []byte) (docs []*Node, err error) {
+	return ParseWith(data, ParseOptions{})
+}
+
+// ParseOptions selects inputs that yaml.v3 reads and that Parse refuses,
+// as the commands graft shares with spruce refuse them.
+type ParseOptions struct {
+	// CollectionKeys reads a mapping key that is a collection, such as
+	// "? [a, b]" or "{x: 1}: 2".
+	CollectionKeys bool
+	// EmptyKeepBlocks reads a keep block scalar with no indentation
+	// indicator whose lines are all blank, or that has none, before a
+	// less indented line, such as "a: |+" followed by "b: 1".
+	EmptyKeepBlocks bool
+}
+
+// ParseWith is Parse with opts.
+func ParseWith(data []byte, opts ParseOptions) (docs []*Node, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			docs, err = nil, &ParseError{Message: fmt.Sprintf("internal parser error: %v", r)}
@@ -53,6 +71,7 @@ func Parse(data []byte) (docs []*Node, err error) {
 	prepared, nulled := yamlprep.Prepare(normalized)
 	text, addedNewline := streamText(prepared)
 	b := newBuilder(nulled)
+	b.opts = opts
 	b.keepSourceLines(normalized, prepared, text)
 
 	// The probe's text differs from Parse's only where the bare-dash or
@@ -102,22 +121,34 @@ func (b *builder) parseChunk(c chunk) (*Node, docSlots, bool, error) {
 	}
 	text, endsInBlock := normalizeChunkEnd(c.text, c.unterminated)
 	c.text = text
-	file, err := ParseBytes([]byte(c.text), 0, parser.AllowDuplicateMapKey())
+	var keys []complexKey
+	file, err := b.parseBytes(c.text)
 	if err != nil {
 		// goccy refuses a core tag over a node of another kind, which
 		// yaml.v3 reads. Only that refusal earns a second parse with
 		// those tags blanked, and if that parse fails too, the chunk
 		// fails with goccy's first error.
-		text, tags, ok := neutralizeKindTags(c.text, err)
-		if !ok {
-			return nil, docSlots{}, false, toParseError(err, c.lineOffset())
+		// goccy also refuses a mapping key that is a collection, which
+		// yaml.v3 reads, so under CollectionKeys a chunk with such keys
+		// gets a second parse with each of them standing in as a scalar.
+		var retried *ast.File
+		var retryErr error
+		if text, tags, ok := neutralizeKindTags(c.text, err); ok {
+			if retried, retryErr = b.parseBytes(text); retryErr == nil {
+				c.text, b.retagged = text, tags
+				defer func() { b.retagged = nil }()
+			}
+		} else if text, k, ok := b.placeComplexKeys(c.text); ok {
+			if retried, retryErr = b.parseBytes(text); retryErr == nil {
+				c.text, keys = text, k
+			}
+		} else {
+			retryErr = err
 		}
-		retried, retryErr := ParseBytes([]byte(text), 0, parser.AllowDuplicateMapKey())
 		if retryErr != nil {
 			return nil, docSlots{}, false, toParseError(err, c.lineOffset())
 		}
-		file, c.text, b.retagged = retried, text, tags
-		defer func() { b.retagged = nil }()
+		file = retried
 	}
 	doc, err := b.document(file, c)
 	if err != nil {
@@ -125,7 +156,16 @@ func (b *builder) parseChunk(c chunk) (*Node, docSlots, bool, error) {
 	}
 	slots, d := commentSlots(file, c, b.nulledLines)
 	applySlots(doc, "d0", slots)
+	if len(keys) > 0 {
+		restoreComplexKeys(doc, keys, c.lineOffset())
+	}
 	return doc, d, endsInBlock, nil
+}
+
+// parseBytes parses a chunk's text with goccy, the way ParseBytes does,
+// and reads empty keep blocks under EmptyKeepBlocks.
+func (b *builder) parseBytes(text string) (*ast.File, error) {
+	return parseBytes([]byte(text), b.opts.EmptyKeepBlocks, 0, parser.AllowDuplicateMapKey())
 }
 
 // normalizeChunkEnd works around goccy's handling of a block scalar that

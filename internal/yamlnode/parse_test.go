@@ -31,7 +31,7 @@ func compareNodeFixture(t *testing.T, name string, keepComments bool) {
 	var want nodeGolden
 	yamlgolden.ReadJSON(t, filepath.Join("testdata", "golden", "nodes", name+".json"), &want)
 
-	docs, err := yamlnode.Parse(data)
+	docs, err := yamlnode.ParseWith(data, fixtureOptions)
 	if want.Error != "" {
 		// Every erroring node fixture is one where libyaml and goccy agree
 		// on the line, which is where D6 asks graft to match it.
@@ -59,11 +59,33 @@ func compareNodeFixture(t *testing.T, name string, keepComments bool) {
 	}
 }
 
+// fixtureOptions reads every input yaml.v3 does, which the fixtures that
+// hold collection keys and empty keep blocks need.
+var fixtureOptions = yamlnode.ParseOptions{CollectionKeys: true, EmptyKeepBlocks: true}
+
+// TestParseRefusesWhatOptionsRead pins that Parse, which the commands
+// graft shares with spruce use, still refuses collection keys and empty
+// keep blocks before a less indented line, and ParseWith reads them.
+func TestParseRefusesWhatOptionsRead(t *testing.T) {
+	for _, name := range []string{"complex-keys", "keep-block-empty"} {
+		data, err := os.ReadFile(filepath.Join("testdata", "nodes", name+".yml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := yamlnode.Parse(data); err == nil {
+			t.Errorf("Parse(%s) succeeded, want goccy's error", name)
+		}
+		if _, err := yamlnode.ParseWith(data, fixtureOptions); err != nil {
+			t.Errorf("ParseWith(%s): %v", name, err)
+		}
+	}
+}
+
 func nodeFixtures(t *testing.T) []string {
 	t.Helper()
 	files, err := filepath.Glob("testdata/nodes/*.yml")
-	if err != nil || len(files) != 76 {
-		t.Fatalf("found %d node fixtures (%v), want 76", len(files), err)
+	if err != nil || len(files) != 78 {
+		t.Fatalf("found %d node fixtures (%v), want 78", len(files), err)
 	}
 	names := make([]string, len(files))
 	for i, f := range files {

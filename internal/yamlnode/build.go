@@ -12,6 +12,7 @@ import (
 // because yaml.v3 keeps anchors across documents. %TAG handles last only
 // for the document that declares them, as in libyaml.
 type builder struct {
+	opts        ParseOptions
 	anchors     map[string]*Node
 	open        map[*Node]bool // anchored collections still being built
 	tagHandles  map[string]string

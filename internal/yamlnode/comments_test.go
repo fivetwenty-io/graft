@@ -263,7 +263,11 @@ func mustParseFile(t *testing.T, path string) []*yamlnode.Node {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return mustParse(t, string(data))
+	docs, err := yamlnode.ParseWith(data, fixtureOptions)
+	if err != nil {
+		t.Fatalf("ParseWith(%s): %v", path, err)
+	}
+	return docs
 }
 
 // TestCommentsDedentedBlockDivergence pins the one comment layout where

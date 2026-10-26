@@ -1,0 +1,353 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 2,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 2,
+          "content": [
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "head": "# Mapping keys that are collections.",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "a",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "b",
+                  "line": 2
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 3
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 4,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "x",
+                  "line": 4
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 4
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "2",
+              "line": 5
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 6,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "c",
+                  "line": 6
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "d",
+                  "line": 7
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "3",
+              "line": 8
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 9,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "e",
+                  "line": 9
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "4",
+                  "line": 9
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "f",
+                  "line": 10
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "5",
+                  "line": 10
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "6",
+              "line": 11
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 12,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "g",
+                  "line": 12
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "7",
+              "line": 12
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 13,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "h",
+                  "line": 13
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "8",
+                  "line": 13
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "9",
+              "line": 13
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "anchor": "k",
+              "line_comment": "# on the key",
+              "line": 14,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "i",
+                  "line": 14
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "10",
+              "line": 15
+            },
+            {
+              "kind": "sequence",
+              "tag": "!t",
+              "line": 16,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "j",
+                  "line": 16
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "]",
+                  "line": 16
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "11",
+              "line": 17
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 18,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "k",
+                  "line": 18
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "l",
+                  "line": 19
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "12",
+              "line": 20
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "nested",
+              "line": 21
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 22,
+              "content": [
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "line": 22,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "m",
+                      "line": 22
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "13",
+                  "line": 23
+                },
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "line": 24,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "n",
+                      "line": 24
+                    }
+                  ]
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "14",
+                  "line": 24
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "list",
+              "line": 25
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 26,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line": 26,
+                  "content": [
+                    {
+                      "kind": "sequence",
+                      "tag": "!!seq",
+                      "line": 26,
+                      "content": [
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "o",
+                          "line": 26
+                        },
+                        {
+                          "kind": "scalar",
+                          "tag": "!!str",
+                          "value": "p",
+                          "line": 26
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "15",
+                      "line": 26
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "q",
+                      "line": 27
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "16",
+                      "line": 27
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

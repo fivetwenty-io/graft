@@ -238,10 +238,15 @@ func (r *Reader) start() error {
 	if len(data) > 0 && data[len(data)-1] != '\n' {
 		r.lines++
 	}
-	if r.opts.KeepMeta && !r.opts.NodeComments {
-		r.leading, data = splitLeadingContent(data)
+	var parse yamlnode.ParseOptions
+	if r.opts.KeepMeta {
+		// yq reads every input yaml.v3 does.
+		parse = yamlnode.ParseOptions{CollectionKeys: true, EmptyKeepBlocks: true}
+		if !r.opts.NodeComments {
+			r.leading, data = splitLeadingContent(data)
+		}
 	}
-	r.docs, err = yamlnode.Parse(data)
+	r.docs, err = yamlnode.ParseWith(data, parse)
 	if err != nil {
 		return r.yamlError(err)
 	}

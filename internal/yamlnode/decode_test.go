@@ -20,9 +20,17 @@ func TestDecodeMatchesYAMLv3(t *testing.T) {
 		if v.In == "? [a, b]\n: c\n" {
 			// goccy rejects a complex mapping key at parse time, where
 			// yaml.v3 parses it and fails only on decode. spruce diff
-			// accepts it, so this is an accepted divergence.
+			// accepts it, so this is an accepted divergence. Read with
+			// CollectionKeys, it parses and fails on decode too.
 			if err == nil {
 				t.Errorf("Parse(%q) must fail", v.In)
+			}
+			docs, err = yamlnode.ParseWith([]byte(v.In), fixtureOptions)
+			if err != nil {
+				t.Fatalf("ParseWith(%q): %v", v.In, err)
+			}
+			if _, err := yamlnode.Decode(docs[0]); err == nil || err.Error() != v.Error {
+				t.Errorf("Decode(%q) error = %v, want %q", v.In, err, v.Error)
 			}
 			continue
 		}

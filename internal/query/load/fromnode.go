@@ -205,12 +205,13 @@ func (c *converter) mapping(n *yamlnode.Node) (*value.Value, error) {
 	return value.ObjEntries(entries...), nil
 }
 
-// key converts a mapping key, which must be a scalar.
+// key converts a mapping key, which must be a scalar unless KeepMeta
+// keeps a collection key, as yq does.
 func (c *converter) key(k *yamlnode.Node) (*value.Value, error) {
-	if k.Kind == yamlnode.AliasNode && !c.opts.KeepMeta {
+	if c.opts.KeepMeta || k.Kind == yamlnode.AliasNode {
 		return c.node(k)
 	}
-	if k.Kind != yamlnode.ScalarNode && k.Kind != yamlnode.AliasNode {
+	if k.Kind != yamlnode.ScalarNode {
 		return nil, errAt(k.Line, "mapping keys must be scalars")
 	}
 	return c.node(k)
