@@ -152,32 +152,13 @@ func bareEnv(expr string) error {
 		}
 		start, end := 0, len(expr)
 		if len(opens) > 0 {
-			start = toks[opens[len(opens)-1]].End
-			end = interpEnd(toks[i:])
+			open := opens[len(opens)-1]
+			start, end = toks[open].End, interpEnd(toks, open)
 		}
 		at := tok.Pos - start
 		return &ParseError{Msg: "1:" + strconv.Itoa(at+1) + ": lexer: invalid input text " + strconv.Quote(expr[tok.Pos:end]), Pos: tok.Pos}
 	}
 	return &ParseError{Msg: "lexer: invalid input text " + strconv.Quote("env")}
-}
-
-// interpEnd is the offset of the ")" that closes the interpolation toks
-// start inside.
-func interpEnd(toks []lexer.Token) int {
-	depth := 0
-	for _, tok := range toks {
-		switch tok.Kind {
-		case lexer.InterpStart:
-			depth++
-		case lexer.InterpEnd:
-			if depth == 0 {
-				return tok.Pos
-			}
-			depth--
-		default:
-		}
-	}
-	return toks[len(toks)-1].Pos
 }
 
 // checkFlags fails envsubst flags other than ne, nu, and ff with yq's

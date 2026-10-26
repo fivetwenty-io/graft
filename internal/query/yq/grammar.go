@@ -29,11 +29,18 @@ func (e *ParseError) Error() string { return e.Msg }
 func Grammar() parser.Grammar { return parser.YQ() }
 
 // Parse parses a yq expression. A blank expression is the identity, as it
-// is in yq. A failure is a *ParseError worded the way yq words it where
-// yq's wording is known, and the parser's own message otherwise.
+// is in yq. A name yq's lexer lacks, such as jq's empty, fails first, as
+// it does in yq, which lexes the whole expression before it parses. A
+// failure is a *ParseError worded the way yq words it where yq's wording
+// is known, and the parser's own message otherwise.
 func Parse(expr string) (ast.Node, error) {
 	if strings.TrimSpace(expr) == "" {
 		return &ast.Identity{}, nil
+	}
+	if toks, err := lexer.Tokenize(expr, Grammar().Tokens); err == nil {
+		if msg, at, refused := unlexable(expr, toks); refused {
+			return nil, &ParseError{Msg: msg, Pos: at}
+		}
 	}
 	n, err := parser.Parse(expr, Grammar())
 	if err == nil {
