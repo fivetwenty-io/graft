@@ -53,8 +53,10 @@ func NewJSONReader(br *bufio.Reader, source string, opts LoadOptions) *JSONReade
 		limit = defaultDepthLimit
 	}
 	r := &JSONReader{br: br, source: source, limit: limit, seq: opts.Seq}
-	r.stream.explicitLimit = opts.DepthLimit > 0
+	r.stream.explicitLimit = opts.DepthLimit > 0 || opts.Seq && !opts.Stream
 	r.stream.recover = opts.StreamErrors
+	r.stream.seq, r.stream.waiting = opts.Seq, opts.Seq
+	r.stream.events, r.stream.warn = opts.Stream, opts.Warn
 	return r
 }
 
@@ -93,6 +95,13 @@ func (r *JSONReader) Next() (*value.Value, int, error) {
 	if r.err != nil {
 		return nil, 0, r.err
 	}
+	if r.seq {
+		v, line, err := r.nextSeqValue()
+		if err != nil && !errors.Is(err, io.EOF) {
+			r.err = err
+		}
+		return v, line, err
+	}
 	if err := r.skipSpace(); err != nil {
 		if !errors.Is(err, io.EOF) {
 			r.err = err
@@ -100,25 +109,16 @@ func (r *JSONReader) Next() (*value.Value, int, error) {
 		return nil, 0, err
 	}
 	start := r.line + 1
+	first, _ := r.peek()
 	v, err := r.value(0)
+	if err == nil && isLiteralByte(first) {
+		err = r.afterLiteral()
+	}
 	if err != nil {
 		r.err = err
 		return nil, 0, err
 	}
 	return v, start, nil
-}
-
-func (r *JSONReader) syntaxError(line, col int, format string, args ...any) error {
-	first, _ := r.peek()
-	return &SyntaxError{Source: r.source, Line: line, Col: col, Msg: fmt.Sprintf(format, args...)}
-	if err == nil && isLiteralByte(first) {
-		err = r.afterLiteral()
-	}
-}
-
-// errHere reports a problem at the next unread byte.
-func (r *JSONReader) errHere(format string, args ...any) error {
-	return r.syntaxError(r.line+1, r.col+1, format, args...)
 }
 
 // isLiteralByte reports whether jq takes c to be part of a number or
@@ -133,10 +133,22 @@ func isLiteralByte(c byte) bool {
 // finds the byte wrong, and loses the literal with it.
 func (r *JSONReader) afterLiteral() error {
 	c, err := r.peek()
-	if err != nil || !strings.ContainsRune("]},:", rune(c)) {
+	if err != nil {
+		return nil //nolint:nilerr // the end of input ends the literal, and a read failure shows on the next call
+	}
+	if !strings.ContainsRune("]},:", rune(c)) {
 		return nil
 	}
 	return r.errHere("unexpected character %q", c)
+}
+
+func (r *JSONReader) syntaxError(line, col int, format string, args ...any) error {
+	return &SyntaxError{Source: r.source, Line: line, Col: col, Msg: fmt.Sprintf(format, args...)}
+}
+
+// errHere reports a problem at the next unread byte.
+func (r *JSONReader) errHere(format string, args ...any) error {
+	return r.syntaxError(r.line+1, r.col+1, format, args...)
 }
 
 // peek returns the next byte without consuming it, and io.EOF at the end.

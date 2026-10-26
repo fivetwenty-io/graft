@@ -177,3 +177,51 @@ func TestJQNumberSpellings(t *testing.T) {
 		So(e, ShouldContainSubstring, "invalid literal")
 	})
 }
+
+func TestJQSeqRecovery(t *testing.T) {
+	const rs = "\x1e"
+	Convey("--seq warns about a damaged text and reads on", t, func() {
+		for _, c := range []struct {
+			name, in string
+			args     []string
+			out, err string
+		}{
+			{"truncated value", rs + `{"a":1` + rs + "{\"b\":2}\n", nil, "{\"b\":2}\n", "Truncated value at line 1, column 8"},
+			{"truncated stream", rs + "[1,2\n", []string{"--stream"}, "[[0],1]\n", "Unfinished JSON term at EOF at line 2, column 0"},
+			{"truncated stream by RS", rs + "[1,2" + rs + "3\n", []string{"--stream"}, "[[0],1]\n[[],3]\n", "Truncated value at line 1, column 6"},
+			{"abandoned text", "1 2\n", nil, "", "Unfinished abandoned text at EOF at line 2, column 0"},
+			{"empty input", "", nil, "", "Unfinished abandoned text at EOF at line 1, column 0"},
+			{"text before the first RS", "x\n" + rs + "3\n", nil, "3\n", ""},
+			{"whitespace before RS", rs + "[1,2 " + rs + "3\n", nil, "3\n", ""},
+			{"truncated top-level number", rs + "12" + rs + "4\n", nil, "4\n", "Potentially truncated top-level numeric value at line 1, column 4"},
+			{"number at EOF", rs + "12", nil, "", "Potentially truncated top-level numeric value at EOF at line 1, column 3"},
+			{"number at EOF streams", rs + "12", []string{"--stream"}, "[[],12]\n", ""},
+			{"truncated string", rs + `"ab` + rs + "4\n", nil, "4\n", "Truncated value at line 1, column 5"},
+			{"empty string cut", rs + `"` + rs + "3\n", nil, "3\n", ""},
+			{"truncated keyword", rs + "true" + rs + "3\n", nil, "3\n", "Truncated value at line 1, column 6"},
+			{"complete string at RS", rs + `"a"` + rs + "3\n", []string{"--stream"}, "[[],\"a\"]\n[[],3]\n", ""},
+			{"parse error resyncs", rs + "[1,]" + rs + "3\n", nil, "3\n", "Expected another array element at line 1, column 5 (need RS to resync)"},
+			{"parse error reads on", rs + "[1,] 3 4" + rs + "5\n", nil, "3\n5\n", "Expected another array element at line 1, column 5 (need RS to resync)"},
+			{"unfinished at EOF", rs + "[1,2", nil, "", "Unfinished JSON term at EOF at line 1, column 5"},
+			{"keyword at EOF", rs + "true", nil, "true\n", ""},
+			{"stream error event", rs + "[1,\n" + rs + "2\n", []string{"--stream-errors"}, "[[0],1]\n[\"Truncated value at line 2, column 1\",[1]]\n[[],2]\n", ""},
+		} {
+			args := append([]string{"-c", "--seq"}, c.args...)
+			// --seq writes an RS before each output.
+			out, e, st := runJQ(t, append(args, "."), c.in)
+			want := ""
+			for _, line := range strings.SplitAfter(c.out, "\n") {
+				if line != "" {
+					want += rs + line
+				}
+			}
+			So(out, ShouldEqual, want)
+			So(st.Code, ShouldEqual, 0)
+			if c.err == "" {
+				So(e, ShouldEqual, "")
+			} else {
+				So(e, ShouldContainSubstring, c.err)
+			}
+		}
+	})
+}

@@ -213,7 +213,10 @@ func (r *Reader) start() error {
 		return nil
 	}
 	format := r.opts.Format
-	if format == FormatAuto {
+	if format == FormatAuto && r.opts.Seq {
+		// A text sequence is JSON by definition.
+		format = FormatJSON
+	} else if format == FormatAuto {
 		format = detect(r.br)
 	}
 	if format == FormatJSON {

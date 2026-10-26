@@ -48,6 +48,23 @@ type streamState struct {
 	out    []*value.Value
 	err    error
 	done   bool
+
+	// A --seq text sequence.
+	seq     bool
+	waiting bool // text before the first RS is abandoned
+	lastWS  bool // the last byte read outside a string was whitespace
+	atRS    bool // the byte being handled is an RS
+	events  bool // the caller wants stream events, not whole values
+	warn    func(string)
+	notes   map[*value.Value]seqNote
+}
+
+// seqNote is something a --seq reader leaves in the event queue between
+// events: a warning to pass on, or the parser starting over, which drops
+// a value being put together.
+type seqNote struct {
+	text  string
+	reset bool
 }
 
 // NextEvent returns the next streaming event, which is [path, leaf] for a
@@ -58,19 +75,37 @@ type streamState struct {
 // after the last one. A failure is a *streamError after every event that
 // came before it, and then it sticks.
 func (r *JSONReader) NextEvent() (*value.Value, error) {
+	for {
+		ev, note, err := r.nextItem()
+		if err != nil || note == nil {
+			return ev, err
+		}
+		if note.text != "" && r.stream.warn != nil {
+			r.stream.warn(note.text)
+		}
+	}
+}
+
+// nextItem is NextEvent but also returns the notes a --seq reader leaves
+// between events, one at a time.
+func (r *JSONReader) nextItem() (*value.Value, *seqNote, error) {
 	s := &r.stream
 	for {
 		if len(s.out) > 0 {
 			ev := s.out[0]
 			s.out[0] = nil
 			s.out = s.out[1:]
-			return ev, nil
+			if n, ok := s.notes[ev]; ok {
+				delete(s.notes, ev)
+				return nil, &n, nil
+			}
+			return ev, nil, nil
 		}
 		if s.err != nil {
-			return nil, s.err
+			return nil, nil, s.err
 		}
 		if s.done {
-			return nil, io.EOF
+			return nil, nil, io.EOF
 		}
 		r.streamStep()
 	}
@@ -89,8 +124,11 @@ func (r *JSONReader) streamStep() {
 		return
 	}
 	r.advance(c)
+	if s.seq && r.seqByte(c) {
+		return
+	}
 	switch {
-	case c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == recordSeparator && r.seq:
+	case c == ' ' || c == '\t' || c == '\n' || c == '\r':
 		r.attempt(func() error { return r.flushLiteral(false) })
 	case c == '"':
 		// The quote ends a number or keyword on a step of its own, so
@@ -135,6 +173,10 @@ func (r *JSONReader) attempt(step func() error) bool {
 func (r *JSONReader) streamFail(err error) {
 	s := &r.stream
 	var se *streamError
+	if s.seq && errors.As(err, &se) {
+		r.seqFail(se)
+		return
+	}
 	if !s.recover || !errors.As(err, &se) {
 		s.err = err
 		return
@@ -149,6 +191,17 @@ func (r *JSONReader) streamFail(err error) {
 
 func (r *JSONReader) streamEOF() {
 	s := &r.stream
+	if s.waiting {
+		r.streamFail(r.failAt("Unfinished abandoned text at EOF"))
+		return
+	}
+	if s.seq && !s.events && !s.lastWS && len(s.path) == 0 && len(s.tok) > 0 {
+		if _, ok := jqNumber(string(s.tok)); ok {
+			s.tok = s.tok[:0]
+			r.streamFail(r.failAt("Potentially truncated top-level numeric value at EOF"))
+			return
+		}
+	}
 	if err := r.flushLiteral(true); err != nil {
 		r.streamFail(err)
 		return
@@ -212,14 +265,7 @@ func (r *JSONReader) flushLiteral(eof bool) error {
 			v = n
 			break
 		}
-		msg := "Invalid numeric literal"
-		if c := text[0]; c == 't' || c == 'f' || c == 'n' && len(text) > 1 && text[1] == 'u' {
-			msg = "Invalid literal"
-		}
-		if eof {
-			msg += " at EOF"
-		}
-		return r.failAt(msg)
+		return r.failAt(literalMessage(text, eof))
 	}
 	err := r.streamValue(v)
 	var se *streamError
@@ -258,6 +304,9 @@ func (r *JSONReader) streamString() error {
 			return err
 		}
 		r.advance(c)
+		if c == recordSeparator && r.stream.seq {
+			return r.seqCut(raw)
+		}
 		if c == '"' {
 			break
 		}
@@ -274,6 +323,9 @@ func (r *JSONReader) streamString() error {
 			return err
 		}
 		r.advance(e)
+		if e == recordSeparator && r.stream.seq {
+			return r.seqCut(raw)
+		}
 		raw = append(raw, e)
 	}
 	s, msg := decodeStreamString(raw)
@@ -386,7 +438,13 @@ func (r *JSONReader) checkOpen(c byte) error {
 	}
 	// jq lets a '[' follow a container that has closed, and refuses a '{'.
 	if s.next != nil || c == '{' && s.filled {
+		if !s.events {
+			return r.failAt("Expected separator between values")
+		}
 		return r.failAt("Expected a separator between values")
+	}
+	if !s.events {
+		return nil // the plain parser lets a container stand as a key
 	}
 	if top := s.path[len(s.path)-1]; top.obj && !top.keySet {
 		after := "'{'"
@@ -398,10 +456,25 @@ func (r *JSONReader) checkOpen(c byte) error {
 	return nil
 }
 
+// topLevel is what jq adds to a message about a bracket at the top level,
+// which its streaming parser says and its plain one does not.
+func (r *JSONReader) topLevel() string {
+	if r.stream.events {
+		return " at the top-level"
+	}
+	return ""
+}
+
 func (r *JSONReader) streamColon() error {
 	s := &r.stream
+	if !s.events && s.next == nil && (len(s.path) == 0 || !s.path[len(s.path)-1].obj) {
+		return r.failAt("Expected string key before ':'")
+	}
 	if len(s.path) == 0 || !s.path[len(s.path)-1].obj {
 		return r.failAt("':' not as part of an object")
+	}
+	if s.next == nil && s.filled && !s.events {
+		return r.failAt("Object keys must be strings")
 	}
 	if s.next == nil || s.comma {
 		return r.failAt("Expected string key before ':'")
@@ -442,12 +515,15 @@ func (r *JSONReader) streamComma() error {
 func (r *JSONReader) streamCloseArray() error {
 	s := &r.stream
 	if len(s.path) == 0 {
-		return r.failAt("Unmatched ']' at the top-level")
+		return r.failAt("Unmatched ']'" + r.topLevel())
 	}
 	if s.comma {
 		return r.failAt("Expected another array element")
 	}
 	if s.path[len(s.path)-1].obj {
+		if !s.events {
+			return r.failAt("Unmatched ']'")
+		}
 		return r.failAt("Unmatched ']' in the middle of an object")
 	}
 	r.closeContainer(value.Arr())
@@ -457,12 +533,18 @@ func (r *JSONReader) streamCloseArray() error {
 func (r *JSONReader) streamCloseObject() error {
 	s := &r.stream
 	if len(s.path) == 0 {
-		return r.failAt("Unmatched '}' at the top-level")
+		return r.failAt("Unmatched '}'" + r.topLevel())
 	}
 	if s.comma {
 		return r.failAt("Expected another key:value pair")
 	}
 	top := s.path[len(s.path)-1]
+	if !top.obj && !s.events {
+		if s.filled {
+			return r.failAt("Objects must consist of key:value pairs")
+		}
+		return r.failAt("Unmatched '}'")
+	}
 	if !top.obj {
 		return r.failAt("Unmatched '}' in the middle of an array")
 	}

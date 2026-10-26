@@ -48,6 +48,8 @@ type LoadOptions struct {
 	StreamErrors bool
 	DepthLimit   int
 	AliasBudget  int
+	// Warn receives the message for a damaged text that Seq skips over.
+	Warn func(string)
 }
 
 // Document is one value read from a source.

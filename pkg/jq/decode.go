@@ -39,6 +39,9 @@ type DecodeOptions struct {
 	// [message, path] event, as --stream-errors does, instead of as an
 	// error from Next.
 	StreamErrors bool
+	// Warn receives the message for each damaged text that Seq skips
+	// over, which jq reports on stderr as it reads on. It may be nil.
+	Warn func(message string)
 	// Filename names the source in error messages.
 	Filename string
 	// DepthLimit bounds how deeply a value may nest, and zero means jq's
@@ -72,6 +75,7 @@ func NewDecoder(r io.Reader, opts DecodeOptions) *Decoder {
 		Seq:          opts.Seq,
 		Stream:       opts.Stream || opts.StreamErrors,
 		StreamErrors: opts.StreamErrors,
+		Warn:         opts.Warn,
 		DepthLimit:   opts.DepthLimit,
 		AliasBudget:  opts.AliasBudget,
 	}

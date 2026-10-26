@@ -124,3 +124,28 @@ func TestJSONLineIsTheLinesTakenSoFar(t *testing.T) {
 		wantEqual(t, got, c.want)
 	}
 }
+
+func TestSeqSkipsADamagedTextAndWarns(t *testing.T) {
+	var warned []string
+	opts := LoadOptions{Format: FormatJSON, Seq: true, Warn: func(m string) { warned = append(warned, m) }}
+	got := events(t, "\x1e{\"a\":1\x1e{\"b\":2}\n\x1e[3,\x1e4\n", opts)
+	wantEqual(t, got, []string{`{"b":2}`, `4`})
+	wantEqual(t, warned, []string{
+		"Truncated value at line 1, column 8",
+		"Truncated value at line 2, column 5",
+	})
+}
+
+func TestSeqAssemblesRepeatedKeysAndNesting(t *testing.T) {
+	opts := LoadOptions{Format: FormatJSON, Seq: true}
+	got := events(t, "\x1e{\"a\":{\"x\":1},\"a\":{\"y\":2},\"b\":[[1],[2,3]],\"c\":[]}\n", opts)
+	wantEqual(t, got, []string{`{"a":{"y":2},"b":[[1],[2,3]],"c":[]}`})
+}
+
+func TestSeqReadsEventsAndRecoversAtTheNextByte(t *testing.T) {
+	opts := LoadOptions{Format: FormatJSON, Seq: true, Stream: true, StreamErrors: true}
+	wantEqual(t, events(t, "\x1e[1,]\n[2]\n", opts), []string{
+		`[[0],1]`, `["Expected another array element at line 1, column 5 (need RS to resync)",[1]]`,
+		`[[0],2]`, `[[0]]`,
+	})
+}

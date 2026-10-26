@@ -206,7 +206,7 @@ func (in *jqInputs) compose(stdin io.Reader) *query.Status {
 // decodeOptions is how every input source decodes.
 func (in *jqInputs) decodeOptions() jq.DecodeOptions {
 	format := jq.FormatAuto
-	stream := jq.DecodeOptions{Seq: in.opts.Seq, Stream: in.opts.Stream, StreamErrors: in.opts.StreamErrs}
+	stream := jq.DecodeOptions{Seq: in.opts.Seq, Stream: in.opts.Stream, StreamErrors: in.opts.StreamErrs, Warn: in.warnParse}
 	if in.composed != nil {
 		stream.Format, stream.Raw, stream.DepthLimit = jq.FormatYAML, in.opts.RawInput, in.opts.DepthLimit
 		return stream
@@ -219,6 +219,11 @@ func (in *jqInputs) decodeOptions() jq.DecodeOptions {
 	}
 	stream.Format, stream.Raw, stream.DepthLimit = format, in.opts.RawInput, in.opts.DepthLimit
 	return stream
+}
+
+// warnParse reports a damaged text that --seq skips, the way jq does.
+func (in *jqInputs) warnParse(message string) {
+	_, _ = io.WriteString(in.stderr, colored("R", "Ignoring parse error")+": "+message+"\n")
 }
 
 // open opens the source at the next index, reporting a failure on stderr.
