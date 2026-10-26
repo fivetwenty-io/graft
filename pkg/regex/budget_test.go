@@ -3,6 +3,7 @@ package regex
 import (
 	"context"
 	"fmt"
+	"math"
 	"runtime"
 	"strings"
 	"testing"
@@ -50,7 +51,8 @@ func TestBudgetIsSharedAcrossGlobalSearch(t *testing.T) {
 func TestContextDeadlineStopsMatching(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	_, err := MustCompile(`(a+)+$`).Find(ctx, strings.Repeat("a", 60)+"b", 0)
+	p := MustCompile(`(a+)+$`, WithBudget(Budget{Steps: math.MaxInt}))
+	_, err := p.Find(ctx, strings.Repeat("a", 60)+"b", 0)
 	wantErrIs(t, err, context.DeadlineExceeded)
 }
 
