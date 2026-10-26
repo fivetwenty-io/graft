@@ -84,3 +84,11 @@ func TestYQExplodeMergeToSpec(t *testing.T) {
 	_, err := runYQ(t, spec, `explode(.)`, "a: &x 1\nb:\n  <<: *x\n", false)
 	wantErrContains(t, err, "can only use merge anchors with maps (!!map) or sequences (!!seq) of maps, but got sequence containing !!int")
 }
+
+// The null of "b:" has no text, which plain style cannot write in flow
+// style, so it prints in single quotes there, as yq prints it.
+func TestYQEmptyNullInFlow(t *testing.T) {
+	wantYQ(t, `[.b] | . style = "flow"`, "b:\n", "['']\n")
+	wantYQ(t, `{"x": .b} | . style = "flow"`, "b:\n", "{x: ''}\n")
+	wantYQ(t, `[.b]`, "b:\n", "-\n")
+}

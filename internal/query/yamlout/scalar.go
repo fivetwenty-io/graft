@@ -403,6 +403,11 @@ func (e *emitter) scalarStyle(v *value.Value, c nodeCtx) (string, Style, bool) {
 	flow := e.flow > 0
 	if v.Kind() != value.KindString {
 		text := e.scalarText(v)
+		if text == "" && (flow || e.simpleKey) {
+			// An empty plain scalar cannot stand there, so the null
+			// of "a:" is written as libyaml writes it, as ''.
+			return text, StyleSingleQuoted, false
+		}
 		if m == nil || m.Style&quoteStyles == 0 {
 			return text, StylePlain, false
 		}
