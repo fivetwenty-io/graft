@@ -119,6 +119,37 @@ func TestOnigurumaQuantifierRules(t *testing.T) {
 	wantSyntaxError(t, `a{65536}`, 1, "number too big in {} quantifier")
 }
 
+// A run of stacked quantifiers as long as the pattern cap allows compiles,
+// and one walk of the tree answers nullable for every level of the stack,
+// so the compiler's question at each level costs nothing more. Before
+// nullable remembered its answers the 64 KiB pattern took tens of seconds.
+func TestStackedQuantifiersCompileInOneWalk(t *testing.T) {
+	onig := WithFlavor(Oniguruma)
+	for _, q := range []string{"+", "+?", "*"} {
+		_, err := Compile("a"+strings.Repeat(q, (64<<10-1)/len(q)), onig)
+		wantNil(t, err)
+	}
+	// A counted stack doubles the program at each level, so the
+	// instruction cap refuses it.
+	_, err := Compile("a"+strings.Repeat("{1,2}+", (64<<10-1)/6), onig)
+	wantErrIs(t, err, ErrBudget)
+
+	leaf := &node{kind: kindLiteral, runes: []rune("a")}
+	root := leaf
+	for range 1 << 16 {
+		root = &node{kind: kindRepeat, subs: []*node{root}, min: 1, max: unbounded, greedy: true}
+	}
+	wantEqual(t, nullable(root), false)
+	for n := root; ; n = n.subs[0] {
+		if !n.nullKnown {
+			t.Fatal("a node below the root was not answered by the walk from the root")
+		}
+		if n == leaf {
+			break
+		}
+	}
+}
+
 func TestOnigurumaHyphenAndBarePosix(t *testing.T) {
 	onig := WithFlavor(Oniguruma)
 	// A hyphen after a class escape or a POSIX name is a literal hyphen.

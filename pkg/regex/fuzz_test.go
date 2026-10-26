@@ -21,8 +21,15 @@ func FuzzCompile(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, pat string) {
 		for _, flavor := range []Flavor{PCRE, Oniguruma} {
+			began := time.Now()
 			_, err := Compile(pat, WithFlavor(flavor))
+			elapsed := time.Since(began)
 			wantCompileError(t, pat, err)
+			// The budget's caps on the pattern and the program keep
+			// Compile linear, so no input takes a second.
+			if elapsed > time.Second {
+				t.Fatalf("compiling %q took %v", pat, elapsed)
+			}
 		}
 	})
 }

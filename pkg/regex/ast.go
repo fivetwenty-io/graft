@@ -67,13 +67,28 @@ type node struct {
 	// neg and behind say whether a lookaround is negative and whether it
 	// looks behind the position rather than ahead of it.
 	neg, behind bool
+
+	// nullKnown says that null holds the answer nullable gave for n.
+	nullKnown, null bool
 }
 
 // unbounded is a repeat's max when the repeat has no upper bound.
 const unbounded = -1
 
-// nullable reports whether n can match the empty string.
+// nullable reports whether n can match the empty string. The compiler asks
+// it of every repeat's body, so it remembers each answer on the node, and a
+// stack of quantifiers costs one walk of the tree rather than one walk a
+// level. It is asked only after lowering, which is the last pass that
+// changes the tree.
 func nullable(n *node) bool {
+	if !n.nullKnown {
+		n.null, n.nullKnown = emptyMatch(n), true
+	}
+	return n.null
+}
+
+// emptyMatch works out the answer that nullable remembers.
+func emptyMatch(n *node) bool {
 	switch n.kind {
 	case kindLiteral:
 		return len(n.runes) == 0
