@@ -199,7 +199,7 @@ type Pattern struct {
 	names    []string // one per group, group 0 first, "" when unnamed
 	nslots   int      // capture slots followed by loop marks
 	anchored bool     // every match starts at the start of the subject
-	lead     dotLead  // where a search may restart, for a pattern that leads with .*
+	lead     *inst    // the loop over one rune a pattern leads with, after whose refused runes a search restarts
 	required string   // text every match holds, which a subject must contain to match
 }
 
@@ -231,7 +231,7 @@ func Compile(pattern string, opts ...Option) (*Pattern, error) {
 		anchored: anchoredAtStart(root),
 	}
 	if !cfg.plain {
-		p.lead, p.required = leadingDot(root), requiredText(root)
+		p.lead, p.required = leadingLoop(root), requiredText(root)
 	}
 	return p, nil
 }

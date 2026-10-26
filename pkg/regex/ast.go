@@ -272,46 +272,36 @@ func anchoredAtStart(n *node) bool {
 	}
 }
 
-// dotLead says where a search may restart for a pattern that leads with a
-// loop over . that has no upper bound.
-type dotLead uint8
-
-const (
-	noDotLead   dotLead = iota // the pattern leads with no such loop, so a search tries every start
-	dotLeadLine                // the loop stops only at a newline, so a search retries after each one
-	dotLeadAll                 // the loop takes every rune, so a search tries only its first start
-)
-
-// leadingDot reports whether n starts with a loop such as .* or .+ that no
-// backreference can see. When a run from a start p fails, so does a run
-// from any later start up to the next rune . refuses, because the loop
-// from p could take every rune up to where the loop from the later start
-// stopped and then go on the same way. A search for such a pattern need
-// only retry after each rune . refuses, which is a newline unless . takes
-// one too.
-func leadingDot(n *node) dotLead {
+// leadingLoop returns the loop over one rune with no upper bound that n
+// starts with, such as .*, a+, or [^,]{2,}, as a counting loop's
+// instruction whose accepts tests the loop's rune, or nil when n starts
+// with no such loop or holds a backreference. When a run from a start p
+// fails, so does a run from any later start up to and including the first
+// rune the loop refuses, because the loop from p could take every rune up
+// to where the loop from the later start stopped and then go on the same
+// way. A search for such a pattern need only retry after each rune the
+// loop refuses.
+func leadingLoop(n *node) *inst {
 	if hasBackref(n) {
-		return noDotLead
+		return nil
 	}
 	for {
 		switch n.kind {
 		case kindConcat:
 			if len(n.subs) == 0 {
-				return noDotLead
+				return nil
 			}
 			n = n.subs[0]
 		case kindGroup:
 			n = n.subs[0]
 		case kindRepeat:
-			switch {
-			case n.max != unbounded || n.subs[0].kind != kindAny:
-				return noDotLead
-			case n.subs[0].dotAll:
-				return dotLeadAll
+			one, ok := oneRune(n.subs[0])
+			if n.max != unbounded || !ok {
+				return nil
 			}
-			return dotLeadLine
+			return &inst{op: opCount, body: one.op, r: one.r, set: one.set, lo: n.min, hi: n.max, greedy: n.greedy}
 		default:
-			return noDotLead
+			return nil
 		}
 	}
 }

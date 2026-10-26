@@ -155,6 +155,7 @@ var shortcutPatterns = []string{
 	`a*`, `a*b`, `a*?b`, `a+b`, `a+?b`, `a{2}`, `a{2,4}`, `a{2,4}?b`, `a{0,3}`, `a?b`, `a??b`, `[ab]*c`,
 	`[^\n]*x`, `\w*\d`, `\d+\.\d*`, `x*+x`, `a*+a`, `(?>a*)a`, `a{2,}+b`, `(a*)*b`, `(a|b)*c`, `(?:a{2,3})+b`,
 	`é*e`, `\x{1F600}*\x{1F600}`, `ß*s`, `(?i)ß*s`, `(?i)s*ß`, `[à-ÿ]+x`, `\x{FFFD}*x`, `\x{FFFD}`, `\xff*`,
+	`a*[bc]`, `a*?[bc]`, `(?i)a*b`, `[^b]*?b`, `a{2,}b`, `(a+)b`, `[ab]+?x`, `é+x`,
 	`abc`, `a.c`, `ab(?=c)cd`, `(?<=ab)c`, `a\bb`, `foo|foo`, `foo|bar`, `(ab){2}c`, `(ab){2,}c`, `x(ab)?y`,
 	`(?i)abc`, `(?i:a)bc`, `a(?i)bc`, `(a)\1x`, `(?=x)`, `(?!x).*`, `\Ax*`, `x*\z`, `x*\Z`, `^$`, `$`,
 }
@@ -329,6 +330,34 @@ func TestLeadingDotStarSkipsStarts(t *testing.T) {
 		{`(.*)[xy]`, lines, false},
 		{`.*[xy]`, strings.Repeat("a", 1_000_000), false},
 		{`(?s).*[xy]`, lines, false},
+	} {
+		ok, steps, _ := pinSearch(t, c.pattern, c.subject)
+		if ok != c.want {
+			t.Errorf("%s against %d runes: matched %v, want %v", c.pattern, len(c.subject), ok, c.want)
+		}
+		if steps > defaultSteps/2 {
+			t.Errorf("%s against %d runes took %d steps", c.pattern, len(c.subject), steps)
+		}
+	}
+}
+
+// A pattern that leads with a loop over one rune, such as a* or [^,]+,
+// fails at every start up to the first rune the loop refuses once it
+// fails at the first, so a search retries only after each rune the loop
+// refuses, and a long run of the rune costs it steps in proportion to the
+// run rather than to the run's square.
+func TestLeadingLoopSkipsStarts(t *testing.T) {
+	as := strings.Repeat("a", 1_000_000)
+	for _, c := range []struct {
+		pattern, subject string
+		want             bool
+	}{
+		{`a*[bc]`, as + "xb", true},
+		{`a*?[bc]`, as + "xb", true},
+		{`(a+)[bc]`, as + "xb", false},
+		{`(?i)a*[bc]`, as + "xb", true},
+		{`[ab]*c`, strings.Repeat("ab", 500_000) + "xc", true},
+		{`a{2,}b`, as + "xab", false},
 	} {
 		ok, steps, _ := pinSearch(t, c.pattern, c.subject)
 		if ok != c.want {

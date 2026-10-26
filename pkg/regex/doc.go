@@ -231,9 +231,11 @@ every match of the pattern must contain, such as the x in .*x, and reports
 no match at once when it does not. A pattern that begins with .* is retried
 only where the search starts and just after each newline that . refuses,
 since a start in the middle of a line finds nothing the line's first start
-missed. The same holds for .+, .{n,}, \N, and \O, and for any of them inside
-a capture group, but a pattern that holds a backreference is retried at
-every start, because a later start captures different text. A repeat of a
+missed. The same holds for any repeat of a single rune with no upper bound,
+such as .+, a*, [^,]+, \N, or \O, which is retried just after each rune it
+refuses, and for any of them inside a capture group, but a pattern that
+holds a backreference or a call is retried at every start, because a later
+start captures different text. A repeat of a
 single rune, such as a*, [^,]+, or .{2,}, counts the runes it takes and
 gives them back one at a time from one stack entry, paying a step for each
 rune it takes or gives back, so it never reaches the backtrack stack's
