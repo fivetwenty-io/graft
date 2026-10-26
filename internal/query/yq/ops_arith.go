@@ -95,6 +95,9 @@ func numeric(ctx *runtime.Ctx, base runtime.Native, op byte, l, r *value.Value, 
 	if ints && op == '%' && r.Dec().IsZero() {
 		return &query.RuntimeError{Msg: "cannot modulo by 0"}
 	}
+	if !ints && (op == '/' || op == '%') && r.Dec().IsZero() {
+		return emit(numericResult(false, l, zeroDivisor(op, l, r)), nil)
+	}
 	var v *value.Value
 	var err error
 	switch {
@@ -114,6 +117,17 @@ func numeric(ctx *runtime.Ctx, base runtime.Native, op byte, l, r *value.Value, 
 	return base(ctx, nil, args, func(v *value.Value, p value.Path) error {
 		return emit(numericResult(ints, l, v), p)
 	})
+}
+
+// zeroDivisor is l op r for a zero r, where yq divides floats by zero as
+// float64 does, to an infinity or NaN, and the wrapped native would
+// report the zero divisor.
+func zeroDivisor(op byte, l, r *value.Value) *value.Value {
+	f := l.Float() / r.Float()
+	if op == '%' {
+		f = math.Mod(l.Float(), r.Float())
+	}
+	return asFloat(value.Num(f))
 }
 
 // numericResult tags v, the result of an arithmetic operator whose left
@@ -232,7 +246,7 @@ func int64Op(op byte, l, r *value.Value) (*value.Value, error) {
 }
 
 // float64Op is l op r on float64s, and reports false for a zero divisor,
-// which the wrapped native reports.
+// which numeric answers before it gets here.
 func float64Op(op byte, l, r float64) (*value.Value, bool) {
 	var f float64
 	switch op {
