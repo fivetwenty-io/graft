@@ -2,9 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
@@ -16,6 +19,20 @@ const composedName = "<merged>"
 // engineOptions are the options the engine is built with, which the
 // root's config loading produces.
 type engineOptions = []graft.EngineOption
+
+// startupEngineKey keys the engine options a root's hook loaded in the
+// command's context.
+type startupEngineKey struct{}
+
+// keepStartupEngine records the engine options a root's hook loaded, so
+// -m and -E build their engine from the same config and feature flags.
+func keepStartupEngine(cmd *cobra.Command, opts engineOptions) {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cmd.SetContext(context.WithValue(ctx, startupEngineKey{}, opts))
+}
 
 // composeContext is everything composeQueryInputs needs to run graft's
 // merge and eval passes ahead of a query.

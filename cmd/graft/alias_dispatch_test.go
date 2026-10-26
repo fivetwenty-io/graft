@@ -36,6 +36,23 @@ func TestAliasDispatch(t *testing.T) {
 		}
 	})
 
+	Convey("the link composes with -m and -E as graft jq does", t, func() {
+		for _, args := range [][]string{
+			{"-m", "-c", ".", "testdata/compose/a.yml", "testdata/compose/b.yml"},
+			{"-E", "-c", ".", "testdata/compose/a.yml", "testdata/compose/c.yml"},
+			{"-m", "--prune", "a", "-c", ".", "testdata/compose/a.yml"},
+			{"-m", ".", "testdata/compose/missing.yml"},
+		} {
+			a := execIn(t, ".", graft, append([]string{"jq"}, args...), "")
+			b := execIn(t, ".", jqLink, args, "")
+			So(b.Stdout, ShouldEqual, a.Stdout)
+			So(b.Stderr, ShouldEqual, a.Stderr)
+			So(b.Code, ShouldEqual, a.Code)
+		}
+		So(execIn(t, ".", jqLink, []string{"-m", "-c", ".", "testdata/compose/a.yml", "testdata/compose/b.yml"}, "").Stdout,
+			ShouldEqual, "{\"a\":1,\"b\":2,\"base\":1,\"list\":[1,2]}\n")
+	})
+
 	Convey("the link reads files relative to its working directory", t, func() {
 		dir := t.TempDir()
 		So(os.WriteFile(filepath.Join(dir, "in.json"), []byte(`{"a":1}`), 0o600), ShouldBeNil)

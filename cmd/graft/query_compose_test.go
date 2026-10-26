@@ -137,3 +137,15 @@ func TestQueryComposeErrorText(t *testing.T) {
 		So(strings.HasSuffix(string(errText), "\n\n"), ShouldBeFalse)
 	})
 }
+
+func TestAliasHookKeepsEngineOptions(t *testing.T) {
+	Convey("the alias root hands the engine options it loaded to -m and -E", t, func() {
+		root, _ := newPersonaRoot(personaJQ)
+		So(root.PersistentPreRunE(root, nil), ShouldBeNil)
+		loaded, ok := root.Context().Value(startupEngineKey{}).(engineOptions)
+		So(ok, ShouldBeTrue)
+		opts, err := composeEngineOpts(root)
+		So(err, ShouldBeNil)
+		So(len(opts), ShouldEqual, len(loaded))
+	})
+}

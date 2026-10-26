@@ -115,14 +115,15 @@ func newPersonaRoot(p persona) (*cobra.Command, *bool) {
 	// The engine options --merge needs come from the same config and
 	// feature flags the graft root loads, so a bad GRAFT_* value fails
 	// here as it does there.
-	root.PersistentPreRunE = func(*cobra.Command, []string) error {
-		if _, err := resolveStartupConfig(""); err != nil {
+	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		cfg, err := resolveStartupConfig("")
+		if err != nil {
 			aborted = true
 			log.PrintStdErrf("%s\n", err.Error())
 			exit(1)
 			return err
 		}
-		resolveStartupFeatureFlags()
+		keepStartupEngine(cmd, configEngineOpts(cfg, resolveStartupFeatureFlags()))
 		// The theme is resolved from GRAFT_THEME and the config file
 		// alone, and a bad value warns as it does under graft.
 		_, _, warnings := resolveTheme(root, false, themeNameAuto)

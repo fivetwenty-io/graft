@@ -762,6 +762,11 @@ func newJQCmdFor(pers persona) *cobra.Command {
 // composeEngineOpts are the engine options the root's config loading
 // produces, which graft jq needs for -m and -E as graft merge does.
 func composeEngineOpts(cmd *cobra.Command) (engineOptions, error) {
+	if ctx := cmd.Context(); ctx != nil {
+		if kept, ok := ctx.Value(startupEngineKey{}).(engineOptions); ok {
+			return kept, nil
+		}
+	}
 	path := ""
 	if f := cmd.Root().PersistentFlags().Lookup("config"); f != nil {
 		path = f.Value.String()
