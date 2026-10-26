@@ -1,6 +1,7 @@
 package yq
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -15,7 +16,10 @@ import (
 // JSON. A comma whose sides both give the list they were handed keeps
 // only its left side, since yq's union gives that list once.
 func rewrite(expr string, n ast.Node) (ast.Node, error) {
-	var err error
+	n, err := hexLiterals(n)
+	if err != nil {
+		return nil, err
+	}
 	walk(n, func(n ast.Node) {
 		if op, r, ok := infixOperands(n); ok && bareError(r) && err == nil {
 			err = &ParseError{Msg: "'" + op + "' expects 2 args but there is 1"}
@@ -282,4 +286,59 @@ func walk(n ast.Node, f func(ast.Node)) {
 		walk(n.Rest, f)
 	default:
 	}
+}
+
+// nodeType is the type of an expression node.
+var nodeType = reflect.TypeOf((*ast.Node)(nil)).Elem()
+
+// hexLiterals replaces each number written in hex, as 0x10, with a call
+// to _yq_hex, since the evaluator reads a number as a decimal. yq reads a
+// hex literal as an int64, so one past that fails here as it does there.
+// It reaches every child through reflection, since the node types hold
+// their children in fields of many shapes.
+func hexLiterals(n ast.Node) (ast.Node, error) {
+	var err error
+	var visit func(v reflect.Value)
+	replace := func(n ast.Node) ast.Node {
+		lit, ok := n.(*ast.Literal)
+		if !ok {
+			return n
+		}
+		num, ok := lit.Value.(ast.Number)
+		if !ok || len(num) < 3 || num[0] != '0' || (num[1] != 'x' && num[1] != 'X') {
+			return n
+		}
+		if _, e := strconv.ParseInt(string(num[2:]), 16, 64); e != nil && err == nil {
+			err = &ParseError{Msg: e.Error()}
+		}
+		return &ast.Call{Name: "_yq_hex", Args: []ast.Node{&ast.Literal{Value: string(num)}}}
+	}
+	visit = func(v reflect.Value) {
+		switch v.Kind() {
+		case reflect.Interface, reflect.Pointer:
+			if !v.IsNil() {
+				visit(v.Elem())
+			}
+		case reflect.Struct:
+			for i := range v.NumField() {
+				f := v.Field(i)
+				if f.CanSet() && f.Type() == nodeType && !f.IsNil() {
+					f.Set(reflect.ValueOf(replace(f.Interface().(ast.Node))))
+				}
+				visit(f)
+			}
+		case reflect.Slice:
+			for i := range v.Len() {
+				e := v.Index(i)
+				if e.CanSet() && e.Type() == nodeType && !e.IsNil() {
+					e.Set(reflect.ValueOf(replace(e.Interface().(ast.Node))))
+				}
+				visit(e)
+			}
+		default:
+		}
+	}
+	n = replace(n)
+	visit(reflect.ValueOf(n))
+	return n, err
 }

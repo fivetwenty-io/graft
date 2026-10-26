@@ -141,3 +141,18 @@ func TestLexAssignFlagsOnlyForYQ(t *testing.T) {
 	wantEqual(t, toks[3].Text, "|=c")
 	wantKinds(t, mustLex(t, `.a =c`, JQ()), Field, Assign, Ident, EOF)
 }
+
+func TestLexYQKeepsUnknownEscapes(t *testing.T) {
+	bs := string(rune(92))
+	toks := mustLex(t, `"`+bs+`d`+bs+`u00e9`+bs+`/`+bs+`n"`, YQ())
+	wantEqual(t, toks[1].Text, bs+"d"+bs+"u00e9"+bs+"/\n")
+	_, err := Tokenize(`"`+bs+`d"`, JQ())
+	wantErrContains(t, err, "invalid escape")
+}
+
+func TestLexHexNumbersInYQOnly(t *testing.T) {
+	toks := mustLex(t, "0x1F", YQ())
+	wantKinds(t, toks, Number, EOF)
+	wantEqual(t, toks[0].Text, "0x1F")
+	wantEqual(t, mustLex(t, "0x1F", JQ())[0].Text, "0")
+}

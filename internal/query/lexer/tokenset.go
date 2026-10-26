@@ -22,6 +22,12 @@ type TokenSet struct {
 	// of the same token, which is how yq spells its clobbering
 	// assignments, such as "=c".
 	AssignFlags string
+	// LenientEscapes makes a backslash that starts none of yq's escapes
+	// stand for itself, as it does in yq. The escapes are \\, \", \b,
+	// \f, \n, \r, \t, \a, and \v, so "\u" and "\/" keep their backslash.
+	LenientEscapes bool
+	// HexNumbers lets a number be written as 0x followed by hex digits.
+	HexNumbers bool
 }
 
 // operatorKinds maps every spelling the lexer knows to its kind. A
@@ -73,5 +79,8 @@ func YQ() TokenSet {
 		TripleDot:   true,
 		MergeFlags:  "+?cdn",
 		AssignFlags: "c",
+
+		LenientEscapes: true,
+		HexNumbers:     true,
 	}
 }

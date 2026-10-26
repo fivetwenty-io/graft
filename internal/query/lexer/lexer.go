@@ -281,6 +281,10 @@ func (l *Lexer) lexDot() Token {
 // A leading "." is allowed, so ".5" is a number.
 func (l *Lexer) lexNumber() Token {
 	start := l.pos
+	if end := l.scanHex(start); end > start {
+		l.pos = end
+		return l.tok(Number, start, end)
+	}
 	i := l.scanDigits(start)
 	if i < len(l.src) && l.src[i] == '.' {
 		i = l.scanDigits(i + 1)
@@ -296,6 +300,26 @@ func (l *Lexer) lexNumber() Token {
 	}
 	l.pos = i
 	return l.tok(Number, start, i)
+}
+
+// scanHex returns the offset after a hex number, as 0x10, that starts at i,
+// or i when the set has no hex numbers or one does not start there.
+func (l *Lexer) scanHex(i int) int {
+	if !l.set.HexNumbers || i+2 >= len(l.src) || l.src[i] != '0' || (l.src[i+1] != 'x' && l.src[i+1] != 'X') {
+		return i
+	}
+	j := i + 2
+	for j < len(l.src) && isHexDigit(l.src[j]) {
+		j++
+	}
+	if j == i+2 {
+		return i
+	}
+	return j
+}
+
+func isHexDigit(c byte) bool {
+	return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 }
 
 // scanDigits returns the offset after the run of digits starting at i.
@@ -371,28 +395,55 @@ func (l *Lexer) readEscape(sb *strings.Builder) error {
 	}
 	c := l.src[at+1]
 	l.pos += 2
-	switch c {
-	case '"', '\\', '/':
+	lenient := l.set.LenientEscapes
+	switch {
+	case c == '"' || c == '\\':
 		sb.WriteByte(c)
-	case 'b':
+	case c == '/' && !lenient:
+		sb.WriteByte(c)
+	case c == 'b':
 		sb.WriteByte('\b')
-	case 'f':
+	case c == 'f':
 		sb.WriteByte('\f')
-	case 'n':
+	case c == 'n':
 		sb.WriteByte('\n')
-	case 'r':
+	case c == 'r':
 		sb.WriteByte('\r')
-	case 't':
+	case c == 't':
 		sb.WriteByte('\t')
-	case 'u':
-		r, ok := l.hex4()
-		if !ok {
-			return l.errorf(at, "invalid \\u escape in string")
-		}
-		sb.WriteRune(l.joinSurrogates(r))
+	case c == 'a' && lenient:
+		sb.WriteByte('\a')
+	case c == 'v' && lenient:
+		sb.WriteByte('\v')
+	case c == 'u' && lenient:
+		return l.keepEscape(sb, at, "")
+	case c == 'u':
+		return l.readUnicode(sb, at)
 	default:
-		return l.errorf(at, "invalid escape in string")
+		return l.keepEscape(sb, at, "invalid escape in string")
 	}
+	return nil
+}
+
+// readUnicode decodes the \u escape at at into sb.
+func (l *Lexer) readUnicode(sb *strings.Builder, at int) error {
+	r, ok := l.hex4()
+	if !ok {
+		return l.errorf(at, "invalid \\u escape in string")
+	}
+	sb.WriteRune(l.joinSurrogates(r))
+	return nil
+}
+
+// keepEscape handles an escape at at that the string syntax does not
+// have. A lenient set keeps its backslash and goes on from the character
+// after it, and any other fails the lex with msg.
+func (l *Lexer) keepEscape(sb *strings.Builder, at int, msg string) error {
+	if !l.set.LenientEscapes {
+		return l.errorf(at, msg)
+	}
+	sb.WriteByte('\\')
+	l.pos = at + 1
 	return nil
 }
 

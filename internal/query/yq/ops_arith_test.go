@@ -62,3 +62,30 @@ func TestYQIntegersKeepTheLeftBase(t *testing.T) {
 func TestYQDecimalRemainder(t *testing.T) {
 	wantYQ(t, `[5.5 % 2, -5.5 % 2, 7 % 2.5]`, "null\n", "- 1.5\n- -1.5\n- 2\n")
 }
+
+func TestYQHexLiterals(t *testing.T) {
+	wantYQ(t, `.a = 0x10`, "a: 1\n", "a: 0x10\n")
+	wantYQ(t, `.a + 0x10`, "a: 1\n", "17\n")
+	wantYQ(t, `.a = 0xff + 1`, "a: 1\n", "a: 0x100\n")
+	wantYQ(t, `.a = 0x10 * 2`, "a: 1\n", "a: 0x20\n")
+	wantYQ(t, `0x10 | . + 1`, "a: 1\n", "0x11\n")
+	wantYQ(t, `[0x10, 0X1f]`, "a: 1\n", "- 0x10\n- 0X1f\n")
+	wantYQ(t, `0x10 | tag`, "a: 1\n", "!!int\n")
+	wantYQ(t, `.a = (0x10 | tostring)`, "a: 1\n", "a: \"0x10\"\n")
+	wantYQError(t, `.a = 0xFFFFFFFFFFFFFFFFFF`, "a: 1\n", `strconv.ParseInt: parsing "FFFFFFFFFFFFFFFFFF": value out of range`)
+	wantYQ(t, `0xA - 20`, "a: 1\n", "-10\n")
+	wantYQError(t, `0x`, "a: 1\n", `1:2: lexer: invalid input text "x"`)
+}
+
+func TestYQLenientEscapes(t *testing.T) {
+	// yq keeps \u as it is, the backslash included.
+	bs := string(rune(92))
+	wantYQ(t, `.a = "`+bs+`u00e9`+bs+`x"`, "a: 1\n", "a: "+bs+"u00e9"+bs+"x\n")
+	wantYQ(t, `.a = "`+bs+`ud83d`+bs+`ude00" | .a | length`, "a: 1\n", "12\n")
+	wantYQ(t, `.a = "\d"`, "a: 1\n", "a: \\d\n")
+	wantYQ(t, `.a = "x\/y"`, "a: 1\n", "a: x\\/y\n")
+	wantYQ(t, `.a = "\x\0\U\'"`, "a: 1\n", "a: \\x\\0\\U\\'\n")
+	wantYQ(t, `.a = "\\d\"q\n"`, "a: 1\n", "a: |\n  \\d\"q\n")
+	wantYQ(t, `.a = "\a\v" | .a | length`, "a: 1\n", "2\n")
+	wantYQ(t, `.a = "t\(1+1)\d"`, "a: 1\n", "a: t2\\d\n")
+}
