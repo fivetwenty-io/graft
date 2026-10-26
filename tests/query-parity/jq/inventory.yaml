@@ -2406,7 +2406,7 @@
   cases: [r-onig-named-backref]
 - id: r-onig-linebreak
   area: regex
-  phase: J3
+  phase: J2
   cases: [r-onig-linebreak]
 - id: r-onig-grapheme
   area: regex

@@ -807,7 +807,11 @@ func (p *parser) escape(start int) (*node, error) {
 	case 'X':
 		return nil, unsupported(`extended grapheme cluster \X`)
 	case 'R':
-		return nil, unsupported(`newline sequence \R`)
+		// A line break is a CR LF pair or any one vertical space, and the
+		// atomic group keeps the pair from giving its LF back.
+		crlf := &node{kind: kindLiteral, runes: []rune{'\r', '\n'}}
+		alt := &node{kind: kindAlternate, subs: []*node{crlf, {kind: kindClass, set: verticalSpace}}}
+		return &node{kind: kindAtomic, subs: []*node{alt}}, nil
 	case 'y', 'Y':
 		// Oniguruma's \y and \Y mean something, so they cannot fall to the
 		// letters the rest of its unused escapes stand for.

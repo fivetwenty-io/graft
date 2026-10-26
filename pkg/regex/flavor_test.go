@@ -69,7 +69,6 @@ func TestOnigurumaLetterEscapes(t *testing.T) {
 		`\y`: `text segment boundary \y`,
 		`\Y`: `text segment boundary \Y`,
 		`\X`: `extended grapheme cluster \X`,
-		`\R`: `newline sequence \R`,
 		`\K`: `match reset \K`,
 		`\G`: `assertion \G`,
 	} {

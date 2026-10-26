@@ -41,7 +41,6 @@ func TestUnsupportedConstructNames(t *testing.T) {
 		`\Gx`:                      `assertion \G`,
 		`x\Ky`:                     `match reset \K`,
 		`\X`:                       `extended grapheme cluster \X`,
-		`\R`:                       `newline sequence \R`,
 		`(?R)`:                     "recursion (?R)",
 		`(a)(?1)`:                  "recursion (?1)",
 		`(?&n)`:                    "recursion (?&n)",

@@ -219,6 +219,20 @@ func TestAtomicGroupsAndPossessives(t *testing.T) {
 	wantText(t, p, strings.Repeat("a", 500), strings.Repeat("a", 500))
 }
 
+// \R matches any one line break, taking a CR LF pair whole and never
+// giving its LF back to the rest of the pattern.
+func TestLineBreakEscape(t *testing.T) {
+	for _, flavor := range []Flavor{PCRE, Oniguruma} {
+		p := MustCompile(`\R`, WithFlavor(flavor))
+		wantEqual(t, texts(t, p, "a\r\nb\nc\rd\ve\ff\u0085g\u2028h\u2029i", MatchOptions{Global: true}),
+			[]string{"\r\n", "\n", "\r", "\v", "\f", "\u0085", "\u2028", "\u2029"})
+		wantNoMatch(t, p, "a b\tc")
+		wantNoMatch(t, MustCompile(`\R\n`, WithFlavor(flavor)), "\r\n")
+		wantText(t, MustCompile(`a\R+b`, WithFlavor(flavor)), "a\r\n\nb", "a\r\n\nb")
+		wantText(t, MustCompile(`(?i)\R`, WithFlavor(flavor)), "x\r\ny", "\r\n")
+	}
+}
+
 // The step budget is one count for a match, the bodies of its assertions
 // and atomic groups, and every start of a search, so nesting cannot
 // multiply it.
