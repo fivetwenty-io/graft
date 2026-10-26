@@ -32,6 +32,10 @@ func hexNumber(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runti
 	return emit(value.NumDec(decimal.FromInt64(n)).WithMeta(&value.Meta{Text: text}), nil)
 }
 
+// shuffleOrder permutes n elements through swap. It is rand.Shuffle, and
+// a test replaces it with a seeded source to get a fixed order.
+var shuffleOrder = rand.Shuffle
+
 // shuffle gives a sequence with its elements in a random order, in the
 // sequence's style with its comments.
 func shuffle(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
@@ -39,7 +43,6 @@ func shuffle(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.
 		return &query.RuntimeError{Msg: "node at path " + cursorPath(ctx) + " is not an array (it's a " + tagOf(in) + ")"}
 	}
 	out := slices.Clone(in.Elems())
-	//nolint:gosec // the order is not a secret
-	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+	shuffleOrder(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
 	return emit(like(in, value.Arr(out...)), nil)
 }

@@ -1,6 +1,7 @@
 package yq
 
 import (
+	"math/rand/v2"
 	"strings"
 	"testing"
 )
@@ -46,4 +47,21 @@ func TestYQShuffleVaries(t *testing.T) {
 	if len(seen) < 2 {
 		t.Fatalf("shuffle gave one order in 40 runs: %v", seen)
 	}
+}
+
+// Under a fixed seed, shuffle moves elements and keeps every one of them,
+// so an identity shuffle fails here every time.
+func TestYQShuffleMovesElements(t *testing.T) {
+	saved := shuffleOrder
+	t.Cleanup(func() { shuffleOrder = saved })
+	shuffleOrder = rand.New(rand.NewPCG(1, 2)).Shuffle //nolint:gosec // a fixed seed, for a fixed order
+	in := "[1, 2, 3, 4, 5, 6, 7, 8]"
+	got, err := runYQ(t, testOpts, `shuffle`, in+"\n", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(got) == in {
+		t.Fatalf("shuffle left %s in its order", in)
+	}
+	wantYQ(t, `shuffle | sort`, in+"\n", in+"\n")
 }
