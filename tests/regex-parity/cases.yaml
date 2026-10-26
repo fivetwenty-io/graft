@@ -2169,3 +2169,69 @@
   pattern: "(a)?(?(<>)b|c)"
   flags: ""
   subject: "c"
+
+- id: onig-grapheme-combining
+  flavor: oniguruma
+  pattern: "\\X"
+  flags: "g"
+  subject: "é*x"
+
+- id: onig-grapheme-crlf
+  flavor: oniguruma
+  pattern: "\\X"
+  flags: "g"
+  subject: "a\r\nb\n"
+
+- id: onig-grapheme-hangul
+  flavor: oniguruma
+  pattern: "\\X"
+  flags: "g"
+  subject: "각각ᄀ각"
+
+- id: onig-grapheme-emoji-zwj
+  flavor: oniguruma
+  pattern: "\\X"
+  flags: "g"
+  subject: "👨́‍👩a‍👩"
+
+- id: onig-grapheme-regional
+  flavor: oniguruma
+  pattern: "\\X"
+  flags: "g"
+  subject: "a🇺🇸🇫🇷🇩"
+
+- id: onig-grapheme-prepend-spacing
+  flavor: oniguruma
+  pattern: "\\X"
+  flags: "g"
+  subject: "؀aकःक्ष"
+
+- id: onig-grapheme-atomic
+  flavor: oniguruma
+  pattern: "^\\X́"
+  flags: ""
+  subject: "é"
+
+- id: onig-grapheme-captured
+  flavor: oniguruma
+  pattern: "(\\X)(\\X)"
+  flags: ""
+  subject: "xक्‍"
+
+- id: onig-text-segment-boundary
+  flavor: oniguruma
+  pattern: "\\y"
+  flags: "g"
+  subject: "ab\r\nc"
+
+- id: onig-text-segment-not-boundary
+  flavor: oniguruma
+  pattern: "e\\Y."
+  flags: ""
+  subject: "eé"
+
+- id: onig-text-segment-quantified
+  flavor: oniguruma
+  pattern: "\\y+"
+  flags: ""
+  subject: "a"

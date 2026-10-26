@@ -82,9 +82,9 @@ makes a greedy + or * possessive when what follows cannot start the same
 way, and it no longer counts a possessive repeat at its fewest, so jq
 refuses a lookbehind such as (?<=a+b) that this package accepts. jq also
 refuses a lookbehind that holds $ or \z, or a (?i:...) group whose length
-varies, and both are accepted here. The escapes \G, \X, \y, and \Y and
-subroutine calls are refused under both flavors, though jq accepts some of
-them, and so is a \K inside a lookaround, which jq accepts too. A condition
+varies, and both are accepted here. The escape \G and subroutine calls are
+refused under both flavors, though jq accepts them, and so is a \K inside a
+lookaround, which jq accepts too. A condition
 other than a group's number or bracketed name is refused under both
 flavors, though jq and PCRE2 accept some, such as a bare name, (?(R)...),
 and (?(DEFINE)...). A conditional whose one branch is not empty, such as
@@ -163,8 +163,17 @@ name several groups share holds when any of them has captured, and a
 conditional of one empty branch fails when its group has not captured. PCRE
 refuses a third branch and a name that starts with a digit, as PCRE2 does.
 
-The inline flags n, J, U, and ^, the assertion \G, the escapes \X, \y,
-and \Y, and the rarer constructs such as recursion, subroutine calls, and
+Under Oniguruma, \X matches one extended grapheme cluster, such as a letter
+and the combining marks after it or a whole emoji sequence, and \y and \Y
+test for a cluster boundary and for its absence. They follow the Unicode
+16.0 rules of Oniguruma 6.9.10, which jq 1.8.2 vendors, and those rules
+lack GB9c, so a virama does not join two consonants into one cluster. \X
+is atomic, so it never gives back part of a cluster, and \y and \Y take
+no quantifier, as jq's other anchors take none. PCRE refuses all three,
+since PCRE2 follows newer rules.
+
+The inline flags n, J, U, and ^, the assertion \G, the escape \X under
+PCRE, and the rarer constructs such as recursion, subroutine calls, and
 conditions other than a group's number or name are recognized and refused
 with an UnsupportedError that names them. A \K inside a lookaround is
 refused as well, with a SyntaxError under PCRE, as PCRE2 refuses it, and

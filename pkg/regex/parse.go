@@ -973,18 +973,23 @@ func (p *parser) escape(start int) (*node, error) {
 		}
 		return nil, p.errorAt(start, `\K is not allowed in lookarounds`)
 	case 'X':
-		return nil, unsupported(`extended grapheme cluster \X`)
+		if !p.rules().graphemes {
+			return nil, unsupported(`extended grapheme cluster \X`)
+		}
+		return graphemeCluster(), nil
 	case 'R':
 		// A line break is a CR LF pair or any one vertical space, and the
 		// atomic group keeps the pair from giving its LF back.
 		crlf := &node{kind: kindLiteral, runes: []rune{'\r', '\n'}}
 		alt := &node{kind: kindAlternate, subs: []*node{crlf, {kind: kindClass, set: verticalSpace}}}
 		return &node{kind: kindAtomic, subs: []*node{alt}}, nil
-	case 'y', 'Y':
-		// Oniguruma's \y and \Y mean something, so they cannot fall to the
-		// letters the rest of its unused escapes stand for.
-		if p.rules().letterEscapes {
-			return nil, unsupported(`text segment boundary \` + string(r))
+	case 'y':
+		if p.rules().graphemes {
+			return &node{kind: kindAssert, assert: assertGraphemeBoundary}, nil
+		}
+	case 'Y':
+		if p.rules().graphemes {
+			return &node{kind: kindAssert, assert: assertNotGrapheme}, nil
 		}
 	case 'Q':
 		p.quoting = true

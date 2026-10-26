@@ -248,7 +248,17 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			}
 			continue
 		case opAssert:
-			if m.assert(in, pos) {
+			ok := false
+			if in.assert == assertGraphemeBoundary || in.assert == assertNotGrapheme {
+				brk, read := graphemeBreak(s, pos)
+				if err := m.spend(read); err != nil {
+					return 0, false, err
+				}
+				ok = brk == (in.assert == assertGraphemeBoundary)
+			} else {
+				ok = m.assert(in, pos)
+			}
+			if ok {
 				pc++
 				continue
 			}
@@ -648,6 +658,9 @@ func (m *machine) assert(in *inst, pos int) bool {
 			after = in.set.contains(c)
 		}
 		return (before != after) == (in.assert == assertWordBoundary)
+	case assertGraphemeBoundary, assertNotGrapheme:
+		// exec tests these itself, since their look back draws on the
+		// step budget.
 	}
 	return false
 }

@@ -63,19 +63,12 @@ func TestOnigurumaLetterEscapes(t *testing.T) {
 	}
 	wantNoMatch(t, MustCompile(`(a)\k{1}`, onig), "aa")
 
-	// The letters Oniguruma gives a meaning this engine does not implement
-	// are refused by name rather than read as letters.
-	for pattern, construct := range map[string]string{
-		`\y`: `text segment boundary \y`,
-		`\Y`: `text segment boundary \Y`,
-		`\X`: `extended grapheme cluster \X`,
-		`\G`: `assertion \G`,
-	} {
-		_, err := Compile(pattern, onig)
-		var u *UnsupportedError
-		wantErrAs(t, err, &u)
-		wantEqual(t, u.Construct, construct)
-	}
+	// The letter Oniguruma gives a meaning this engine does not implement
+	// is refused by name rather than read as a letter.
+	_, err := Compile(`\G`, onig)
+	var u *UnsupportedError
+	wantErrAs(t, err, &u)
+	wantEqual(t, u.Construct, `assertion \G`)
 
 	// PCRE refuses the same letters and reads \pL as a property.
 	for _, pattern := range []string{`\U`, `\q`, `\kx`, `\o`, `\O`} {

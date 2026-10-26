@@ -2410,7 +2410,7 @@
   cases: [r-onig-linebreak]
 - id: r-onig-grapheme
   area: regex
-  phase: J3
+  phase: J2
   cases: [r-onig-grapheme]
 - id: r-onig-conditional
   area: regex

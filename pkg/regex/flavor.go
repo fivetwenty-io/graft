@@ -135,6 +135,11 @@ type rules struct {
 	// anyRuneO reads \O as any rune, a newline included.
 	anyRuneO bool
 
+	// graphemes reads \X as an extended grapheme cluster and \y and \Y as
+	// a grapheme cluster boundary and its complement, by the Unicode 16.0
+	// rules of jq's Oniguruma.
+	graphemes bool
+
 	// onigMessages words the errors that the two engines word differently
 	// the way Oniguruma does.
 	onigMessages bool
@@ -172,6 +177,7 @@ var flavorRules = [...]rules{
 		fullCaseFold:       true,
 		openSelfRef:        true,
 		anyRuneO:           true,
+		graphemes:          true,
 		onigMessages:       true,
 		fixedLookbehind:    true,
 		conditionTail:      true,
