@@ -250,6 +250,18 @@ func TestJQGenerators(t *testing.T) {
 	wantOutputs(t, `path(first(.a, .b)), path(limit(1; .a, .b))`, `{}`, `["a"]`, `["a"]`)
 }
 
+func TestJQSQLStyleBuiltins(t *testing.T) {
+	wantOutputs(t, `[3 | IN(1, 2)], [IN(empty; 1)], [[] | IN([])], [{"a":1} | IN({"a":1}, 2)], [IN(1, 2; 2, 3)]`, `null`,
+		`[false]`, `[false]`, `[true]`, `[true]`, `[true]`)
+	wantOutputs(t, `INDEX(.k)`, `[{"k":"a"},{"k":"a","n":2},{"k":null}]`, `{"a":{"k":"a","n":2},"null":{"k":null}}`)
+	wantOutputs(t, `INDEX(.), INDEX(empty; .)`, `{"x":1,"y":2}`, `{"1":1,"2":2}`, `{}`)
+	wantOutputs(t, `INDEX(.id)`, `[{"id":[1]}]`, `{"[1]":{"id":[1]}}`)
+	wantOutputs(t, `JOIN({"1":"x"}; .id | tostring), JOIN([5,6]; .id)`, `[{"id":1}]`, `[[{"id":1},"x"]]`, `[[{"id":1},6]]`)
+	wantOutputs(t, `[JOIN({"1":"x"}; .[]; .id | tostring)], [JOIN({"1":"x"}; .[]; .id | tostring; .[1])]`, `[{"id":1},{"id":2}]`,
+		`[[{"id":1},"x"],[{"id":2},null]]`, `["x",null]`)
+	wantError(t, `JOIN({"1":"a"}; .[]; .id | tostring; add)`, `[{"id":1}]`, `object ({"id":1}) and string ("a") cannot be added`)
+}
+
 func TestJQFormats(t *testing.T) {
 	wantOutputs(t, `@csv`, `[1,"a",null,true,1.5,"x\"y"]`, `"1,\"a\",,true,1.5,\"x\"\"y\""`)
 	wantOutputs(t, `@tsv`, `["a\tb\\c\r\n",1,null,true]`, `"a\\tb\\\\c\\r\\n\t1\t\ttrue"`)
