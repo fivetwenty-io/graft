@@ -519,8 +519,9 @@ var arithmetic = map[string]string{
 }
 
 // binary runs an operator. Arithmetic and comparison run the right operand
-// outermost, as jq does. The boolean operators run the left one outermost
-// and skip the right one when the left decides.
+// outermost, as jq does, or the left one under LeftFirst, as yq does. The
+// boolean operators run the left one outermost and skip the right one
+// when the left decides.
 func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	vev := ev.values()
 	switch n.Op {
@@ -541,30 +542,40 @@ func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, p value.Pat
 		lp = p
 	}
 	if name, ok := arithmetic[n.Op]; ok {
-		return vev.eval(n.R, env, in, nil, func(r *value.Value, _ value.Path) error {
-			return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error {
-				return ev.native(name, value.Null(), []runtime.Thunk{constThunk{l}, constThunk{r}}, ev.derive(l, p, emit))
-			})
+		return ev.operands(n, env, in, lp, func(l *value.Value, p value.Path, r *value.Value) error {
+			return ev.native(name, value.Null(), []runtime.Thunk{constThunk{l}, constThunk{r}}, ev.derive(l, p, emit))
 		})
 	}
-	return vev.eval(n.R, env, in, nil, func(r *value.Value, _ value.Path) error {
+	return ev.operands(n, env, in, lp, func(l *value.Value, p value.Path, r *value.Value) error {
 		if err := ev.ctx.CheckNumbers(r); err != nil {
 			return err
 		}
+		if err := ev.ctx.CheckNumbers(l); err != nil {
+			return err
+		}
+		b, err := ev.compare(n.Op, l, r)
+		if err != nil {
+			return err
+		}
+		out := value.Bool(b)
+		if ev.derives() {
+			return emit(out, derived(l, p, out))
+		}
+		return emit(out, nil)
+	})
+}
+
+// operands calls f on every pair of the outputs of an operator's two
+// sides, with the left output's path, in the order binary describes.
+func (ev evaluator) operands(n *ast.Binary, env *Env, in *value.Value, lp value.Path, f func(l *value.Value, p value.Path, r *value.Value) error) error {
+	vev := ev.values()
+	if ev.ctx.LeftFirst {
 		return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error {
-			if err := ev.ctx.CheckNumbers(l); err != nil {
-				return err
-			}
-			b, err := ev.compare(n.Op, l, r)
-			if err != nil {
-				return err
-			}
-			out := value.Bool(b)
-			if ev.derives() {
-				return emit(out, derived(l, p, out))
-			}
-			return emit(out, nil)
+			return vev.eval(n.R, env, in, nil, func(r *value.Value, _ value.Path) error { return f(l, p, r) })
 		})
+	}
+	return vev.eval(n.R, env, in, nil, func(r *value.Value, _ value.Path) error {
+		return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error { return f(l, p, r) })
 	})
 }
 

@@ -29,8 +29,8 @@ func registerArith(r *runtime.Registry) {
 			panic("yq: " + op.name + " is not registered")
 		}
 		r.RegisterSingle(op.name, 2, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
-			return args[1].Each(in, func(rv *value.Value, _ value.Path) error {
-				return args[0].Each(in, func(lv *value.Value, _ value.Path) error {
+			return args[0].Each(in, func(lv *value.Value, _ value.Path) error {
+				return args[1].Each(in, func(rv *value.Value, _ value.Path) error {
 					if lv.Kind() != value.KindNumber || rv.Kind() != value.KindNumber {
 						return base(ctx, in, []runtime.Thunk{constant{lv}, constant{rv}}, emit)
 					}

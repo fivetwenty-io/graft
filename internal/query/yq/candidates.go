@@ -43,6 +43,7 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 	}
 	ctx := runtime.NewCtx(d, numbers)
 	ctx.Cursors = true
+	ctx.LeftFirst = true
 	ctx.Lax = true
 	roots := make([]*value.Value, len(docs))
 	for i, doc := range docs {

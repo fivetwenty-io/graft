@@ -76,8 +76,11 @@ type Ctx struct {
 	// Lax is yq's leniency. An undefined variable has no value rather than
 	// raising an error, and an assignment skips an output of its left
 	// side that is not a path.
-	Lax     bool
-	Numbers NumberMode
+	Lax bool
+	// LeftFirst runs arithmetic and comparison over the left operand's
+	// outputs outermost, as yq does, where jq runs the right one's.
+	LeftFirst bool
+	Numbers   NumberMode
 	// Compare and Equal are the value comparisons for Numbers, which every
 	// comparison in the evaluator and the builtins calls.
 	Compare func(a, b *value.Value) int

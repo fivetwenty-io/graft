@@ -21,3 +21,11 @@ func TestYQFloatNumbers(t *testing.T) {
 	wantYQOpts(t, opts, `0.1 + 0.2`, "null\n", "0.30000000000000004\n")
 	wantYQErrorOpts(t, opts, `. + 1`, "9223372036854775807\n", "9223372036854775807 + 1 overflows int64")
 }
+
+func TestYQArithmeticRunsLeftFirst(t *testing.T) {
+	wantYQ(t, `[(1, 2) + (10, 20)]`, "null\n", "- 11\n- 21\n- 12\n- 22\n")
+	wantYQ(t, `[(1, 2) - (10, 20)]`, "null\n", "- -9\n- -19\n- -8\n- -18\n")
+	wantYQ(t, `[(10, 20) % (3, 7)]`, "null\n", "- 1\n- 3\n- 2\n- 6\n")
+	wantYQ(t, `[("a", "b") + ("c", "d")]`, "null\n", "- ac\n- ad\n- bc\n- bd\n")
+	wantYQ(t, `[(1, 3) < (2, 4)]`, "null\n", "- true\n- true\n- false\n- true\n")
+}
