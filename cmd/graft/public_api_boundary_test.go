@@ -18,11 +18,12 @@ import (
 const modulePath = "github.com/fivetwenty-io/graft"
 
 // publicPackages are the query engine's public packages, by directory
-// under the module root. pkg/yq joins them when it exists.
+// under the module root.
 var publicPackages = []string{
 	"pkg/query",
 	"pkg/query/value",
 	"pkg/jq",
+	"pkg/yq",
 	"pkg/regex",
 	"pkg/decimal",
 	"pkg/sortkeys",

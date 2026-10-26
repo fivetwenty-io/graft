@@ -1,0 +1,163 @@
+package yq
+
+import (
+	"bytes"
+	"context"
+	"testing"
+
+	"github.com/fivetwenty-io/graft/pkg/query"
+	"github.com/fivetwenty-io/graft/pkg/query/value"
+	"github.com/fivetwenty-io/graft/pkg/regex"
+	"github.com/fivetwenty-io/graft/pkg/sortkeys"
+)
+
+func TestFileOpsDisabledIsTypedError(t *testing.T) {
+	ev := mustCompile(t, `load("x.yaml")`, WithFileOps(false))
+	_, err := collect(ev.Eval(context.Background(), value.Null()))
+	var re *query.RuntimeError
+	wantErrAs(t, err, &re)
+	wantContains(t, re.Msg, "file operations have been disabled")
+}
+
+func TestEnvOpsDisabledIsTypedError(t *testing.T) {
+	ev := mustCompile(t, `env(HOME)`, WithEnvOps(false))
+	_, err := collect(ev.Eval(context.Background(), value.Null()))
+	var re *query.RuntimeError
+	wantErrAs(t, err, &re)
+	wantContains(t, re.Msg, "env operations have been disabled")
+}
+
+func TestEnvOpsAreOnByDefaultAndReadWithEnv(t *testing.T) {
+	out, err := collect(mustCompile(t, `env(GREETING)`, WithEnv([]string{"GREETING=hi", "junk"})).Eval(context.Background(), value.Null()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, out[0].Str(), "hi")
+}
+
+func TestParseReportsCompileErrorWithPosition(t *testing.T) {
+	_, err := Parse("a:\n  .b | |")
+	var ce *query.CompileError
+	wantErrAs(t, err, &ce)
+	wantEqual(t, ce.Line > 0, true)
+	_, err = Compile(`.a | | .b`)
+	wantErrAs(t, err, &ce)
+}
+
+func TestExpressionCompileMatchesCompile(t *testing.T) {
+	ex, err := Parse(`.a + 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, err := ex.Compile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := collect(ev.Eval(context.Background(), decodeOne(t, "a: 1\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, out[0].Float(), 2.0)
+}
+
+func TestEvalAllSeesEveryDocument(t *testing.T) {
+	docs := decodeAll(t, "a: 1\n---\na: 2\n")
+	out, _ := collect(mustCompile(t, `[.a] | .[0] + .[1]`).EvalAll(context.Background(), docs))
+	wantEqual(t, out[0].Float(), 3.0) // every document is a candidate, so .a yields both
+	out, _ = collect(mustCompile(t, `[.[] | .a]`).EvalAll(context.Background(), docs))
+	wantEqual(t, out[0].Len(), 0) // .[] on each map yields its scalars, and .a on a scalar is empty
+	out, _ = collect(mustCompile(t, `[.a]`).Eval(context.Background(), docs[0]))
+	wantEqual(t, out[0].Len(), 1)
+}
+
+func TestEvaluatorRunsRepeatedlyAndConcurrently(t *testing.T) {
+	ev := mustCompile(t, `.a = .a + 1`)
+	for range 3 {
+		got := render(t, `.a = .a + 1`, "a: 1\n", false)
+		wantEqual(t, got, "a: 2\n")
+	}
+	done := make(chan string, 4)
+	for range 4 {
+		go func() {
+			out, _ := collect(ev.Eval(context.Background(), decodeOne(t, "a: 5\n")))
+			done <- out[0].Meta().Filename
+		}()
+	}
+	for range 4 {
+		wantEqual(t, <-done, "in.yaml")
+	}
+}
+
+func TestStoppingTheRangeStopsTheRun(t *testing.T) {
+	n := 0
+	for _, err := range mustCompile(t, `.[]`).Eval(context.Background(), decodeOne(t, "[1, 2, 3]\n")) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		n++
+		break
+	}
+	wantEqual(t, n, 1)
+}
+
+func TestCancelledContextEndsTheRun(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	big := value.NewArrBuilder(200000)
+	for range 200000 {
+		big.Append(value.Num(1))
+	}
+	_, err := collect(mustCompile(t, `[.[] | . + 1] | length`).Eval(ctx, big.Seal()))
+	if err == nil {
+		t.Fatal("the canceled run finished without an error")
+	}
+}
+
+func TestFloatNumbersRestoresDoubles(t *testing.T) {
+	wantEqual(t, render(t, `.a + .b`, "a: 0.1\nb: 0.2\n", false), "0.3\n")
+	wantEqual(t, render(t, `.a + .b`, "a: 0.1\nb: 0.2\n", false, WithFloatNumbers()), "0.30000000000000004\n")
+}
+
+func TestRegexBudgetBoundsMatching(t *testing.T) {
+	ev := mustCompile(t, `test("abcdef")`, WithRegexBudget(regex.Budget{MaxPattern: 3}))
+	_, err := collect(ev.Eval(context.Background(), value.Str("abcdef")))
+	if err == nil {
+		t.Fatal("a pattern longer than the budget was accepted")
+	}
+	out, err := collect(mustCompile(t, `test("abcdef")`).Eval(context.Background(), value.Str("abcdef")))
+	if err != nil || out[0].Kind() != value.KindTrue {
+		t.Fatalf("without a budget got %v, %v", out, err)
+	}
+}
+
+func TestMergeAnchorAndInterpolationOptionsCompile(t *testing.T) {
+	mustCompile(t, `.`, WithMergeAnchorFix(true), WithStringInterpolation(false), WithHeaderPreprocess(false), WithSystemOps(true))
+}
+
+func TestOptionErrorStopsCompile(t *testing.T) {
+	_, err := Compile(`.`, func(*Config) error { return context.Canceled })
+	wantEqual(t, err, context.Canceled)
+}
+
+func TestSplitDocOutputsCarryTheirDocumentIndex(t *testing.T) {
+	wantEqual(t, render(t, `.[] | split_doc`, "- a: 1\n- b: 2\n", false), "a: 1\n---\nb: 2\n")
+}
+
+func TestEvalKeepsCommentsAndStyles(t *testing.T) {
+	got := render(t, `.a = 2 | .b += ["y"]`, "# top\na: 1 # keep\nb: [x]\n", false)
+	wantEqual(t, got, "# top\na: 2 # keep\nb: [x, y]\n")
+}
+
+func TestMultiDocumentRoundTripKeepsSeparators(t *testing.T) {
+	in := "a: 1\n---\na: 2\n"
+	wantEqual(t, render(t, `.`, in, false), in)
+	wantEqual(t, render(t, `.`, in, true), in)
+}
+
+func TestSortKeysOnEncode(t *testing.T) {
+	var buf bytes.Buffer
+	enc := NewEncoder(&buf, EncodeOptions{SortKeys: sortkeys.Lexical})
+	_ = enc.Encode(decodeOne(t, "b: 1\na: 2\n"))
+	_ = enc.Flush()
+	wantEqual(t, buf.String(), "a: 2\nb: 1\n")
+}

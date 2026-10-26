@@ -168,7 +168,7 @@ For detailed installation instructions, see the [Installation Guide](docs/gettin
 
 ## Go packages
 
-The jq engine is importable too. `pkg/jq` compiles and runs jq programs, `pkg/query/value` holds the values they read and produce, and `pkg/query` holds the errors a run can end with. The regular expression engine lives in `pkg/regex`, exact decimal arithmetic in `pkg/decimal`, and key ordering in `pkg/sortkeys`. These packages are experimental until graft jq is complete, so their exported names may still change between minor releases, and the changelog lists every such change.
+The jq and yq engines are importable too. `pkg/jq` compiles and runs jq programs, `pkg/yq` does the same for yq expressions while keeping the comments, styles, anchors, and tags of the YAML it reads, `pkg/query/value` holds the values they read and produce, and `pkg/query` holds the errors a run can end with. The regular expression engine lives in `pkg/regex`, exact decimal arithmetic in `pkg/decimal`, and key ordering in `pkg/sortkeys`. These packages are experimental until graft jq and graft yq are complete, so their exported names may still change between minor releases, and the changelog lists every such change.
 
 ```go
 q, _ := jq.Compile(`.items[] | select(.n > $min) | .name`, jq.WithArg("min", value.Num(1)))
@@ -179,7 +179,22 @@ for _, v := range out { _ = enc.Encode(v) }
 enc.Flush()
 ```
 
-Every exported name in these packages has a runnable example in its Go documentation, and the `pkg/jq` overview walks through a complete read, run, and write loop.
+The yq package has the same shape. Here `Eval` runs the expression once for each document, and `EvalAll` runs it once with every document in the candidate set, the way yq's `eval` and `eval-all` do.
+
+```go
+ev, _ := yq.Compile(`.a = 2 | .b += ["y"]`)
+doc, _ := yq.NewDecoder(os.Stdin, yq.DecodeOptions{}).Next()
+enc := yq.NewEncoder(os.Stdout, yq.EncodeOptions{})
+for v, err := range ev.Eval(context.Background(), doc) {
+	if err != nil { log.Fatal(err) }
+	_ = enc.Encode(v)
+}
+enc.Flush()
+```
+
+The options on `pkg/yq` stand for yq's flags. `WithEnvOps(false)`, `WithFileOps(false)`, and `WithSystemOps(true)` are the three `--security-*` flags, and `WithFloatNumbers`, `WithStringInterpolation`, `WithHeaderPreprocess`, and `WithMergeAnchorFix` are the flags of the same names. `ExitCode` gives the code yq would exit with, where `-e` fails only when nothing was produced or every output was null or false.
+
+Every exported name in these packages has a runnable example in its Go documentation, and the `pkg/jq` and `pkg/yq` overviews each walk through a complete read, run, and write loop.
 
 ## Documentation
 
