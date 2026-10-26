@@ -28,6 +28,8 @@ type TokenSet struct {
 	LenientEscapes bool
 	// HexNumbers lets a number be written as 0x followed by hex digits.
 	HexNumbers bool
+	// TildeNull makes "~" an identifier, which yq reads as null.
+	TildeNull bool
 }
 
 // operatorKinds maps every spelling the lexer knows to its kind. A
@@ -82,5 +84,6 @@ func YQ() TokenSet {
 
 		LenientEscapes: true,
 		HexNumbers:     true,
+		TildeNull:      true,
 	}
 }

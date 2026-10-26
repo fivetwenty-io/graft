@@ -210,6 +210,11 @@ func TestIsKeyMarksOnlyMapKeys(t *testing.T) {
 	wantEqual(t, compact(t, `[.a | key | is_key]`, "a: b\n"), "[true]\n")
 }
 
+func TestTildeIsANullLiteral(t *testing.T) {
+	wantEqual(t, compact(t, `[~, .b == ~, ~ == null, ~ | type]`, "a: 1\n"), "[null,true,true,\"!!null\"]\n")
+	wantEqual(t, render(t, `.x = ~`, "a: 1\n", false), "a: 1\nx: ~\n")
+}
+
 func TestEqualityComparesScalarTextWithWildcards(t *testing.T) {
 	in := "- 3\n- 3.0\n- \"3\"\n- cat\n- camel\n- dog\n"
 	wantEqual(t, compact(t, `[.[] | . == 3]`, in), "[true,false,true,false,false,false]\n")

@@ -180,6 +180,9 @@ func (l *Lexer) lexExpr() (Token, error) {
 		return l.lexVariable()
 	case c == '@':
 		return l.lexFormat()
+	case c == '~' && l.set.TildeNull:
+		l.pos++
+		return l.tok(Ident, start, l.pos), nil
 	}
 
 	return l.lexOperator(start)

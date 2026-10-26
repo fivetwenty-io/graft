@@ -267,6 +267,8 @@ func printLiteral(sb *strings.Builder, v any) {
 		sb.WriteString(quote(v))
 	case Number:
 		sb.WriteString(string(v))
+	case NullText:
+		sb.WriteString(string(v))
 	}
 }
 

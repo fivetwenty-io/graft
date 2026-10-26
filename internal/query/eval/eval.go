@@ -356,6 +356,8 @@ func (ev evaluator) literal(n *ast.Literal) *value.Value {
 		} else {
 			v = value.NumText(text)
 		}
+	case ast.NullText:
+		v = value.Null().WithMeta(&value.Meta{Text: string(lit)})
 	default:
 		v = value.Null()
 	}

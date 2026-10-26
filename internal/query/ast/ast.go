@@ -13,6 +13,10 @@ type Node interface {
 // never rounds.
 type Number string
 
+// NullText is a null literal spelled other than null, such as yq's "~",
+// which keeps its spelling when it is printed as YAML.
+type NullText string
+
 // Identity is ".".
 type Identity struct{}
 

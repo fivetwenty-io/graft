@@ -728,6 +728,8 @@ func (p *parser) parseIdent() (ast.Node, error) {
 		return &ast.Literal{Value: false}, nil
 	case "null":
 		return &ast.Literal{}, nil
+	case "~":
+		return &ast.Literal{Value: ast.NullText(tok.Text)}, nil
 	}
 	call := &ast.Call{Name: tok.Text}
 	if p.peek().Kind != lexer.LParen {
