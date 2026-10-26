@@ -10,18 +10,27 @@ n-huge-literal-arith departure resource limit
 n-modulo-huge departure exact decimal
 n-overflow-literal-arith departure exact decimal
 n-subtract-bigints departure exact decimal
+# m-special-values doubles asin(1), which is 1.5707963267948966, in exact
+# decimal, so graft prints 3.1415926535897932 where jq's double arithmetic
+# prints 3.141592653589793.
 m-special-values departure exact decimal
+# gmtime keeps the seconds of 1425599621.678 exact, so graft prints 41.678
+# where jq prints the double's 41.67799997329712.
 d-gmtime-fractional departure exact decimal
 # The math goldens record Apple's libm, which jq 1.8.2 on macOS calls, and
-# graft computes over Go's math on every platform. asin(.5) and atan(.5)
-# differ from Apple's in the last place. macOS gamma is tgamma where graft
-# keeps glibc's lgamma, and lgamma(5) and lgamma_r(.5) each differ in the
-# last place.
+# graft computes over Go's math on every platform. asin(.5) is
+# 0.5235987755982989 in graft and 0.5235987755982988 in jq, and atan(.5) is
+# 0.4636476090008061 in graft and 0.46364760900080615 in jq. macOS gamma is
+# tgamma, so gamma(5) is 24 in jq, while graft keeps glibc's lgamma and
+# prints 3.1780538303479458. lgamma(5) is 3.1780538303479458 in graft and
+# 3.1780538303479453 in jq, and lgamma_r(.5) is 0.5723649429247001 in graft
+# and 0.5723649429247 in jq.
 m-trig departure platform libm
 m-gamma departure platform libm
-# Go's math is one ulp from the correctly rounded result here. atanh(.5)
-# prints 0.5493061443340548, expm1(1) prints 1.718281828459045, and
-# exp2(.5) prints 1.414213562373095.
+# Go's math is one ulp from the correctly rounded result here. atanh(.5) is
+# 0.5493061443340548 in graft and 0.5493061443340549 in jq, expm1(1) is
+# 1.718281828459045 in graft and 1.7182818284590453 in jq, and exp2(.5) is
+# 1.414213562373095 in graft and 1.4142135623730951 in jq.
 m-hyperbolic departure go math ulp
 m-roots-exp departure go math ulp
 e-invalid-input-literal pending J3 strict literal parsing in input
