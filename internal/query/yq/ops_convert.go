@@ -23,7 +23,7 @@ const uriHint = ", can only operate on strings. Please first pipe through anothe
 // written in, as yq parses it as YAML.
 func registerConvert(r *runtime.Registry) {
 	encoder(r, "@base64", func(in *value.Value) (*value.Value, error) {
-		if in.Kind() != value.KindString {
+		if !isStr(in) {
 			return nil, &query.RuntimeError{Msg: "cannot encode " + tagOf(in) + " as base64, can only operate on strings"}
 		}
 		return value.Str(base64.StdEncoding.EncodeToString([]byte(in.Str()))), nil
@@ -36,7 +36,7 @@ func registerConvert(r *runtime.Registry) {
 		return value.Str(string(b)), nil
 	})
 	encoder(r, "@uri", func(in *value.Value) (*value.Value, error) {
-		if in.Kind() != value.KindString {
+		if !isStr(in) {
 			return nil, &query.RuntimeError{Msg: "cannot encode " + tagOf(in) + " as URI" + uriHint}
 		}
 		return value.Str(url.QueryEscape(in.Str())), nil
@@ -49,7 +49,7 @@ func registerConvert(r *runtime.Registry) {
 		return value.Str(s), nil
 	})
 	encoder(r, "@sh", func(in *value.Value) (*value.Value, error) {
-		if in.Kind() != value.KindString {
+		if !isStr(in) {
 			return nil, &query.RuntimeError{Msg: "cannot encode " + tagOf(in) + " as URI" + uriHint}
 		}
 		return value.Str(shellQuote(in.Str())), nil

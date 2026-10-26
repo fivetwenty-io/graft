@@ -25,3 +25,24 @@ func TestYQEncoders(t *testing.T) {
 	wantYQ(t, `to_json(0), (1 | to_string)`, "1\n", "1\n1\n")
 	wantYQError(t, `@base64`, "1\n", "cannot encode !!int as base64, can only operate on strings")
 }
+
+func TestYQStringOperatorsRefuseOtherTags(t *testing.T) {
+	in := "d: !!custom v\ns: !!str x\n"
+	wantYQ(t, `.s | upcase`, in, "X\n")
+	for expr, want := range map[string]string{
+		`.d | upcase`:              "cannot change case with !!custom, can only operate on strings. ",
+		`.d | downcase`:            "cannot change case with !!custom, can only operate on strings. ",
+		`.d | trim`:                "cannot trim !!custom, can only operate on strings. ",
+		`.d | split(",")`:          "cannot split !!custom, can only split strings",
+		`.d | test("v")`:           "cannot match with !!custom, can only match strings. " + substituteHint,
+		`.d | sub("v"; "w")`:       "cannot substitute with !!custom, can only substitute strings. " + substituteHint,
+		`.d | @base64`:             "cannot encode !!custom as base64, can only operate on strings",
+		`.d | @uri`:                "cannot encode !!custom as URI" + uriHint,
+		`.d | @sh`:                 "cannot encode !!custom as URI" + uriHint,
+		`.d | envsubst`:            "cannot substitute with !!custom, can only substitute strings. " + substituteHint,
+		`.d | match("v")`:          "cannot match with !!custom, can only match strings. " + substituteHint,
+		`.d | capture("(?P<x>v)")`: "cannot match with !!custom, can only match strings. " + substituteHint,
+	} {
+		wantYQError(t, expr, in, want)
+	}
+}

@@ -67,7 +67,7 @@ func envsubst(ctx *runtime.Ctx, in *value.Value, flags string, emit runtime.Emit
 	if !ctx.Caps.Env {
 		return errEnvDisabled
 	}
-	if in.Kind() != value.KindString {
+	if !isStr(in) {
 		return &query.RuntimeError{Msg: "cannot substitute with " + tagOf(in) + ", can only substitute strings. " + substituteHint}
 	}
 	s := substituter{noEmpty: strings.Contains(flags, "ne"), noUnset: strings.Contains(flags, "nu"), failFast: strings.Contains(flags, "ff")}

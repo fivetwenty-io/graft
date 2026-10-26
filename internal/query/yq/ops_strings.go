@@ -21,10 +21,10 @@ const substituteHint = "Hint: Most often you'll want to use '|=' over '=' for th
 func registerStrings(r *runtime.Registry) {
 	r.Register("split", 1, func(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return args[0].Each(in, func(sep *value.Value, _ value.Path) error {
-			switch in.Kind() {
-			case value.KindNull:
+			switch {
+			case in.Kind() == value.KindNull:
 				return nil
-			case value.KindString:
+			case isStr(in):
 			default:
 				return &query.RuntimeError{Msg: "cannot split " + tagOf(in) + ", can only split strings"}
 			}
@@ -92,11 +92,15 @@ func registerStrings(r *runtime.Registry) {
 	r.Register("_yq_sub", 2, rx.sub)
 }
 
+// isStr reports whether v is a string tagged as one. yq's string
+// operators refuse a string with any other tag.
+func isStr(v *value.Value) bool { return v.Kind() == value.KindString && tagOf(v) == "!!str" }
+
 // stringOp registers a string-to-string operator that fails on any other
 // node with msg, which names the node's tag.
 func stringOp(r *runtime.Registry, name, msg string, f func(string) string) {
 	r.RegisterSingle(name, 0, func(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
-		if in.Kind() != value.KindString {
+		if !isStr(in) {
 			return &query.RuntimeError{Msg: strings.Replace(msg, "%s", tagOf(in), 1)}
 		}
 		return emit(value.Str(f(in.Str())), nil)
@@ -198,7 +202,7 @@ func (m match) capture(subject string) *value.Value {
 func (rx regexOps) native(op string, f func(in *value.Value, ms []match, emit runtime.Emit) error) runtime.Native {
 	return func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return regexArgs(in, args, func(re, flags *value.Value) error {
-			if in.Kind() != value.KindString {
+			if !isStr(in) {
 				return &query.RuntimeError{Msg: "cannot " + op + " with " + tagOf(in) + ", can only " + op + " strings. " + substituteHint}
 			}
 			global := false
@@ -254,7 +258,7 @@ func regexArgs(in *value.Value, args []runtime.Thunk, f func(re, flags *value.Va
 // with fewer than two the input stays as it is.
 func (rx regexOps) sub(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 	apply := func(re, repl *value.Value) error {
-		if in.Kind() != value.KindString {
+		if !isStr(in) {
 			return &query.RuntimeError{Msg: "cannot substitute with " + tagOf(in) + ", can only substitute strings. " + substituteHint}
 		}
 		subject := in.Str()
