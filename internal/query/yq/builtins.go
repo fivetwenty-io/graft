@@ -62,6 +62,7 @@ func registerYQ(r *runtime.Registry) {
 	registerPaths(r)
 	registerEntries(r)
 	registerMisc(r)
+	registerDates(r)
 }
 
 // key emits the key or index of the cursor's node in its parent, and

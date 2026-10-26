@@ -36,8 +36,16 @@ func registerArith(r *runtime.Registry) {
 					switch {
 					case lv.Kind() == value.KindNumber && rv.Kind() == value.KindNumber:
 						return numeric(ctx, base, op.sym, lv, rv, emit)
-					case op.sym == '+':
-						return add(ctx, base, lv, lp, rv, rp, emit)
+					case op.sym == '+' || op.sym == '-':
+						if v, ok, err := dateArith(ctx, lv, rv, op.sym == '-'); ok || err != nil {
+							if err != nil {
+								return err
+							}
+							return emit(v, nil)
+						}
+						if op.sym == '+' {
+							return add(ctx, base, lv, lp, rv, rp, emit)
+						}
 					default:
 					}
 					return base(ctx, in, []runtime.Thunk{constant{lv}, constant{rv}}, emit)

@@ -517,7 +517,8 @@ func readsAs(text string, v *value.Value) bool {
 // scalarTag returns the tag a scalar is written with: one marked as
 // written, or one that is not the tag its kind takes anyway. A string
 // given a number's tag, which only an assignment of the tag does, prints
-// without it, as yq's does.
+// without it, as yq's does, and so does a string that reads as a
+// timestamp and is tagged one.
 func scalarTag(v *value.Value, m *value.Meta) string {
 	if m.Tag == "" || m.Style&value.Tagged != 0 {
 		return m.Tag
@@ -533,6 +534,9 @@ func scalarTag(v *value.Value, m *value.Meta) string {
 		if shortTag(m.Tag) == t {
 			return ""
 		}
+	}
+	if v.Kind() == value.KindString && shortTag(m.Tag) == yamlnode.TagTimestamp && yamlnode.ResolvePlainTag(v.Str()) == yamlnode.TagTimestamp {
+		return ""
 	}
 	return m.Tag
 }
