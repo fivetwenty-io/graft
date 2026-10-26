@@ -4,7 +4,7 @@
 # case. It refuses to run when either binary's version differs from
 # versions.env.
 #
-#   gen.sh             rewrite want/ from the binaries
+#   gen.sh             record into a temporary directory and swap it in for want/
 #   gen.sh --check     record into a temporary directory and diff it with want/
 #   gen.sh --versions  check the binaries' versions and record nothing
 #
@@ -44,8 +44,14 @@ record() {
 
 case "${1:-}" in
 "")
-	rm -f "$here"/want/*.json
-	record "$here/want"
+	# Record beside want/ and swap the new goldens in only when every case
+	# recorded, so a failed run leaves the old goldens in place.
+	tmp=$(mktemp -d "$here/want.XXXXXX")
+	trap 'rm -rf "$tmp"' EXIT
+	record "$tmp"
+	chmod 755 "$tmp"
+	rm -rf "$here/want"
+	mv "$tmp" "$here/want"
 	echo "gen.sh: recorded $(find "$here/want" -name '*.json' | wc -l | tr -d ' ') goldens"
 	;;
 --check)
