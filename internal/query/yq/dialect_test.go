@@ -1,8 +1,10 @@
 package yq
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/fivetwenty-io/graft/internal/query/load"
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
@@ -262,4 +264,25 @@ func TestYQReadsWhatYAMLv3Reads(t *testing.T) {
 	wantYQ(t, ".", keys, "? [a, b]\n: 1\n? - c\n  - d\n: 2\n? {e: 3}\n: 4\n? &k [f] # on the key\n: 5\n")
 	wantYQ(t, ".", "a: |+\n\nb: 1\nc: |+\nd: 2\n", "a: |+\n\nb: 1\nc: \"\"\nd: 2\n")
 	wantYQ(t, ".a | length", "a: >+\n\n\nb: 1\n", "2\n")
+}
+
+func TestRunNodeRunsAParsedExpressionRepeatedly(t *testing.T) {
+	node, err := Parse(".a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs := mustLoad(t, "a: 1\n---\na: 2\n")
+	var got []string
+	setups := 0
+	for range 2 {
+		err = RunNode(New(Options{}), node, docs[:1], func(*runtime.Ctx) { setups++ }, func(_ load.Document, v *value.Value) error {
+			got = append(got, v.Dec().String())
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	wantEqual(t, strings.Join(got, ","), "1,1")
+	wantEqual(t, setups, 2)
 }

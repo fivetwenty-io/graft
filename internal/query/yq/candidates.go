@@ -3,6 +3,7 @@ package yq
 import (
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/query/ast"
 	"github.com/fivetwenty-io/graft/internal/query/eval"
 	"github.com/fivetwenty-io/graft/internal/query/load"
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
@@ -36,6 +37,15 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 	if err != nil {
 		return err
 	}
+	return RunNode(d, node, docs, nil, emit)
+}
+
+// RunNode is EvalAll for an expression that Parse has already parsed, so a
+// caller who runs one expression many times parses it once. setup, when it
+// is not nil, adjusts the run's context before anything is evaluated, which
+// is how a caller sets the deadline, the environment, and the other bounds
+// of one run. Eval is RunNode over a single document.
+func RunNode(d *Dialect, node ast.Node, docs []load.Document, setup func(*runtime.Ctx), emit func(load.Document, *value.Value) error) error {
 	if len(docs) == 0 {
 		return nil
 	}
@@ -48,6 +58,9 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 	ctx.LeftFirst = true
 	ctx.Lax = true
 	ctx.RegexPCRE = true
+	if setup != nil {
+		setup(ctx)
+	}
 	roots := make([]*value.Value, len(docs))
 	for i, doc := range docs {
 		roots[i] = withLeadingContent(doc)
