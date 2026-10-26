@@ -34,10 +34,10 @@ func runYQ(t *testing.T, args []string, stdin string) (out, errOut string, st qu
 
 // runYQIn is runYQ in the directory dir, so that relative file names in
 // args resolve there.
-func runYQIn(t *testing.T, dir string, args []string, stdin string) (stdout, stderr string, st query.Status) {
+func runYQIn(t *testing.T, dir string, args []string) (stdout, stderr string, st query.Status) {
 	t.Helper()
 	t.Chdir(dir)
-	return runYQ(t, args, stdin)
+	return runYQ(t, args, "")
 }
 
 // runYQStdinScript runs `graft yq` with script as stdin, which is how
@@ -170,12 +170,22 @@ func TestYQArguments(t *testing.T) {
 	Convey("graft yq picks the output format from the first file", t, func() {
 		dir := t.TempDir()
 		So(os.WriteFile(filepath.Join(dir, "in.json"), []byte(`{"a":1}`), 0o600), ShouldBeNil)
-		out, _, _ := runYQIn(t, dir, []string{"-I", "0", ".", "in.json"}, "")
+		out, _, _ := runYQIn(t, dir, []string{"-I", "0", ".", "in.json"})
 		So(out, ShouldEqual, "{\"a\":1}\n")
-		out, _, _ = runYQIn(t, dir, []string{"-o", "y", ".", "in.json"}, "")
+		out, _, _ = runYQIn(t, dir, []string{"-o", "y", ".", "in.json"})
 		So(out, ShouldEqual, "{\"a\": 1}\n")
 		out, _, _ = runYQ(t, []string{"."}, `{"a":1.0}`)
 		So(out, ShouldEqual, "{\"a\": 1.0}\n") // stdin never selects JSON output
+		out, e, _ := runYQ(t, []string{"-p", "json", "."}, `{"a":1}`)
+		So(out, ShouldEqual, "a: 1\n") // stdin with -p json still prints YAML
+		So(e, ShouldBeEmpty)
+		out, e, _ = runYQIn(t, dir, []string{"-p", "json", ".", "in.json"})
+		So(out, ShouldEqual, "a: 1\n") // an explicit -p keeps YAML for a .json file
+		So(e, ShouldContainSubstring, "yq default output is now 'auto' (based on the filename extension).")
+		So(e, ShouldContainSubstring, "drop the -p flag.")
+		out, e, _ = runYQIn(t, dir, []string{"-p", "json", "-o", "json", "-I", "0", ".", "in.json"})
+		So(out, ShouldEqual, "{\"a\":1}\n") // an explicit -o needs no warning
+		So(e, ShouldBeEmpty)
 	})
 }
 

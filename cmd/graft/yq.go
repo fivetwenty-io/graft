@@ -101,11 +101,23 @@ func yqOutputFormat(opts yqOptions) yq.Format {
 	case yqFormatYAML:
 		return yq.FormatYAML
 	}
-	if len(opts.Files) > 0 && strings.HasSuffix(strings.ToLower(opts.Files[0]), ".json") {
+	if yqJSONNamed(opts) && opts.InputFormat == yqFormatAuto {
 		return yq.FormatJSON
 	}
 	return yq.FormatYAML
 }
+
+// yqJSONNamed reports whether the first file has a .json extension, which
+// is what -o auto looks at and stdin never matches.
+func yqJSONNamed(opts yqOptions) bool {
+	return len(opts.Files) > 0 && strings.HasSuffix(strings.ToLower(opts.Files[0]), ".json")
+}
+
+// yqAutoOutputWarning is what yq says when -o auto would have chosen JSON
+// for a .json file but an explicit -p keeps the output YAML.
+const yqAutoOutputWarning = "yq default output is now 'auto' (based on the filename extension). " +
+	"Normally yq would output 'json', but for backwards compatibility 'yaml' has been set. " +
+	"Please use -oy to specify yaml, or drop the -p flag."
 
 // yqIndent is the Indent an Encoder takes for -I. Unset keeps yq's
 // default, zero is compact JSON, and YAML clamps to 2 through 9.
@@ -333,6 +345,9 @@ func handleYQ(opts yqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 		log.DebugOn = true
 	}
 	log.DEBUG("expression: %s", opts.Expr)
+	if opts.OutputFormat == yqFormatAuto && opts.InputFormat != yqFormatAuto && yqJSONNamed(opts) {
+		_, _ = io.WriteString(stderr, colored("Y", "Warning")+": "+yqAutoOutputWarning+"\n")
+	}
 
 	ev, err := yq.Compile(opts.Expr, yqCompileOptions(opts, stderr)...)
 	if err != nil {
