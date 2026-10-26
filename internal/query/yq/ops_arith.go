@@ -57,7 +57,7 @@ func registerArith(r *runtime.Registry) {
 
 // add is yq's + for anything but two numbers. null takes the other
 // side's value, a sequence takes on a sequence's elements or any other
-// node, a map merges a map, and a scalar joins its text to a string's.
+// node but null, which adds nothing, a map merges a map, and a scalar joins its text to a string's.
 // A sequence or a map keeps the left side's style.
 // Anything else fails, naming the place each collection came from.
 func add(ctx *runtime.Ctx, base runtime.Native, l *value.Value, lp value.Path, r *value.Value, rp value.Path, emit runtime.Emit) error {
@@ -65,6 +65,8 @@ func add(ctx *runtime.Ctx, base runtime.Native, l *value.Value, lp value.Path, r
 	switch {
 	case l.Kind() == value.KindNull:
 		return emit(r, nil)
+	case l.Kind() == value.KindArray && r.Kind() == value.KindNull:
+		r = value.Arr()
 	case l.Kind() == value.KindArray && r.Kind() != value.KindArray:
 		r = value.Arr(r)
 	case l.Kind() == value.KindArray || (l.Kind() == value.KindObject && r.Kind() == value.KindObject):

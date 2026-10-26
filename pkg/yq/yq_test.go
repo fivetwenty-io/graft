@@ -215,6 +215,13 @@ func TestTildeIsANullLiteral(t *testing.T) {
 	wantEqual(t, render(t, `.x = ~`, "a: 1\n", false), "a: 1\nx: ~\n")
 }
 
+func TestAddingNullToASequenceAddsNothing(t *testing.T) {
+	in := "a: [1, 2]\n"
+	wantEqual(t, render(t, `.a + null`, in, false), "[1, 2]\n")
+	wantEqual(t, render(t, `.a + .missing`, in, false), "[1, 2]\n")
+	wantEqual(t, render(t, `.a + 3`, in, false), "[1, 2, 3]\n")
+}
+
 func TestEqualityComparesScalarTextWithWildcards(t *testing.T) {
 	in := "- 3\n- 3.0\n- \"3\"\n- cat\n- camel\n- dog\n"
 	wantEqual(t, compact(t, `[.[] | . == 3]`, in), "[true,false,true,false,false,false]\n")
