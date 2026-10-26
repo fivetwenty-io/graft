@@ -2,6 +2,7 @@ package eval
 
 import (
 	"iter"
+	"slices"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/ast"
@@ -55,12 +56,21 @@ func (ev evaluator) assignOn(n *ast.Assign, env *Env, mode runtime.AssignMode, l
 		}
 	}
 	var paths []value.Path
-	err := lhs.eval(n.L, env, root, value.Path{}, func(v *value.Value, vp value.Path) error {
+	start := value.Path{}
+	if ev.derives() {
+		// The left side runs at root's place, so an operator that reads
+		// the cursor, such as key, answers for the node it is given.
+		start = runtime.Rooted(root, doc, nil)
+	}
+	err := lhs.eval(n.L, env, root, start, func(v *value.Value, vp value.Path) error {
 		if vp == nil {
 			if ev.ctx.Lax {
 				return nil
 			}
 			return invalidPathResult(v)
+		}
+		if t, _, abs := runtime.Unroot(vp); t != nil {
+			vp = abs
 		}
 		paths = append(paths, vp)
 		return nil
@@ -136,11 +146,6 @@ func (ev evaluator) assignIn(n *ast.Assign, env *Env, mode runtime.AssignMode, l
 		if t == nil {
 			abs = extend(rel, vp...)
 		}
-		// A map key is no place a value can be put, so it changes
-		// nothing.
-		if len(abs) > 0 && abs[len(abs)-1] == runtime.KeyMark {
-			return nil
-		}
 		paths = append(paths, abs)
 		return nil
 	})
@@ -164,15 +169,53 @@ func (ev evaluator) assignIn(n *ast.Assign, env *Env, mode runtime.AssignMode, l
 			return err
 		}
 		ev.changed[doc] = docVersion{origin: origin, latest: changed}
-		out := runtime.Cursor{Root: changed, Path: rel}.Node()
+		at := renamedPath(base, changed, rel, paths)
+		out := runtime.Cursor{Root: changed, Path: at}.Node()
 		if out == nil {
 			out = value.Null()
 		}
-		if err := emit(out, runtime.Rooted(changed, doc, rel)); err != nil {
+		if err := emit(out, runtime.Rooted(changed, doc, at)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// renamedPath is rel, the place of the node an assignment ran at, after
+// the assignment renamed any map key on the way to it. A key it renamed
+// stands at the same position in the map as before.
+func renamedPath(base, changed *value.Value, rel value.Path, paths []value.Path) value.Path {
+	var keys []value.Path
+	for _, p := range paths {
+		if n := len(p); n > 1 && p[n-1] == runtime.KeyMark && n-1 <= len(rel) {
+			keys = append(keys, p[:n-1])
+		}
+	}
+	if len(keys) == 0 {
+		return rel
+	}
+	slices.SortStableFunc(keys, func(a, b value.Path) int { return len(a) - len(b) })
+	out := slices.Clone(rel)
+	for _, k := range keys {
+		j := len(k) - 1
+		if !slices.EqualFunc(k, rel[:j+1], func(a, b *value.Value) bool { return a.Kind() == b.Kind() && value.Compare(a, b) == 0 }) {
+			continue
+		}
+		before := runtime.Cursor{Root: base, Path: k[:j]}.Node()
+		after := runtime.Cursor{Root: changed, Path: out[:j]}.Node()
+		if before == nil || after == nil || before.Kind() != value.KindObject || after.Kind() != value.KindObject {
+			continue
+		}
+		for i, e := range before.Entries() {
+			if e.Key.Kind() == value.KindString && k[j].Kind() == value.KindString && e.Key.Str() == k[j].Str() && i < after.Len() {
+				if nk := after.Entries()[i].Key; nk.Kind() == value.KindString {
+					out[j] = value.Str(nk.Str())
+				}
+				break
+			}
+		}
+	}
+	return out
 }
 
 // assignMode returns the dialect mode for an assignment operator. The

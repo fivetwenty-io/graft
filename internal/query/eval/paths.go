@@ -199,8 +199,9 @@ func (ev evaluator) recurse(in *value.Value, p value.Path, keys bool, emit runti
 		if ev.paths && p == nil {
 			return emit(v, nil)
 		}
-		if n := len(rel); ev.paths && n > 0 && rel[n-1] == runtime.KeyMark {
+		if n := len(rel); ev.paths && ev.mode != runtime.IndexUpdate && n > 0 && rel[n-1] == runtime.KeyMark {
 			// A path names the key's value, as a path cannot name a key.
+			// An assignment keeps the mark, since it can replace the key.
 			rel = rel[:n-1]
 		}
 		return emit(v, ev.place(in, p, rel...))

@@ -57,6 +57,8 @@ func TestYQWithChangesTheWholeDocument(t *testing.T) {
 	wantYQ(t, `.a | (parent.d = 5) | parent`, "a: {b: 0}\n", "a: {b: 0}\nd: 5\n")
 	wantYQ(t, `.a | .b = .c | parent`, "a: {b: 0, c: 3}\n", "a: {b: 3, c: 3}\n")
 	wantYQ(t, `.a | key = "z"`, "a: {b: 0}\n", "{b: 0}\n")
+	wantYQ(t, `.a | key = "z" | parent`, "a: {b: 0}\n", "z: {b: 0}\n")
+	wantYQ(t, `(... | select(tag == "!!str")) += "z"`, "a: x\nb: {c: y}\n", "az: xz\nbz: {cz: yz}\n")
 	wantYQ(t, `with(.a; 5)`, "a: 1\n", "a: 1\n")
 	wantYQ(t, `with(1; . + 1)`, "a: 1\n", "a: 1\n")
 }

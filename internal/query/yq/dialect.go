@@ -3,6 +3,7 @@ package yq
 import (
 	"iter"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -355,8 +356,8 @@ func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, 
 
 func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Value, mode runtime.AssignMode, prefs assignPrefs) (*value.Value, error) {
 	ed := builtin.NewEditor(ctx, root)
-	for _, p := range paths {
-		cur, err := ed.Get(p)
+	for _, p := range keysLast(paths) {
+		cur, err := nodeAt(ed, p)
 		if err != nil {
 			return nil, err
 		}
@@ -371,6 +372,23 @@ func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Va
 	return ed.Value(), nil
 }
 
+// keysLast orders paths so that those naming map keys come after those
+// naming values, deepest first. Renaming a key changes the path of
+// everything under it, so a key goes only after the nodes it holds have
+// been set.
+func keysLast(paths []value.Path) []value.Path {
+	var values, keys []value.Path
+	for _, p := range paths {
+		if n := len(p); n > 0 && p[n-1] == runtime.KeyMark {
+			keys = append(keys, p)
+		} else {
+			values = append(values, p)
+		}
+	}
+	slices.SortStableFunc(keys, func(a, b value.Path) int { return len(b) - len(a) })
+	return append(values, keys...)
+}
+
 func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], prefs assignPrefs) (*value.Value, error) {
 	ed := builtin.NewEditor(ctx, root)
 	var first *value.Value
@@ -381,7 +399,7 @@ func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cu
 	}
 	for i := len(paths) - 1; i >= 0; i-- {
 		p := paths[i]
-		cur, err := ed.Get(p)
+		cur, err := nodeAt(ed, p)
 		if err != nil {
 			return nil, err
 		}
@@ -418,7 +436,7 @@ func set(ed *builtin.Editor, p value.Path, cur, nv *value.Value, prefs assignPre
 			}
 		}
 	}
-	return ed.Set(p, updateFrom(cur, nv, prefs))
+	return setNodeAt(ed, p, updateFrom(cur, nv, prefs))
 }
 
 // hasFlow reports whether v was written in flow style.
