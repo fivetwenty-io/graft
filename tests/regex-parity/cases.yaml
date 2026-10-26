@@ -2289,3 +2289,183 @@
   pattern: "(?<=x(?~a))b"
   flags: ""
   subject: "xb"
+
+- id: onig-call-named
+  flavor: oniguruma
+  pattern: "(?<a>[ab])\\g<a>"
+  flags: "g"
+  subject: "abbaxab"
+
+- id: onig-call-balanced-parens
+  flavor: oniguruma
+  pattern: "(?<p>\\((?:[^()]|\\g<p>)*\\))"
+  flags: "g"
+  subject: "x(a(b)c)y(d)((e)"
+
+- id: onig-call-sets-capture
+  flavor: oniguruma
+  pattern: "(a|b)\\g<1>\\1"
+  flags: "g"
+  subject: "abbabaabb"
+
+- id: onig-call-relative
+  flavor: oniguruma
+  pattern: "(a)(b)\\g<-2>\\g<+1>(c)"
+  flags: "g"
+  subject: "xabaccy"
+
+- id: onig-call-group-forms
+  flavor: oniguruma
+  pattern: "(?<n>a)(?&n)(?1)(?-1)\\g'n'"
+  flags: "g"
+  subject: "aaaaaaa"
+
+- id: onig-call-whole-pattern
+  flavor: oniguruma
+  pattern: "(?:a|b\\g<0>c)"
+  flags: "g"
+  subject: "bbaccbacx"
+
+- id: onig-call-definition-only
+  flavor: oniguruma
+  pattern: "(?<d>\\d+){0}\\g<d>-\\g<d>"
+  flags: "g"
+  subject: "12-345 6-7"
+
+- id: onig-call-nested-captures
+  flavor: oniguruma
+  pattern: "^(?<p>\\((?<r>a|\\g<p>)\\))$"
+  flags: ""
+  subject: "((a))"
+
+- id: onig-call-depth-limit
+  flavor: oniguruma
+  pattern: "(?<a>a\\g<a>?)"
+  flags: "g"
+  subject: "aaaaaaaaaaaaaaaaaaaaaaaaa"
+
+- id: onig-call-too-deep
+  flavor: oniguruma
+  pattern: "^(?<p>\\((?:a|\\g<p>)\\))$"
+  flags: ""
+  subject: "(((((((((((((((((((((a)))))))))))))))))))))"
+
+- id: onig-call-own-flags
+  flavor: oniguruma
+  pattern: "(?<a>a)(?i)\\g<a>\\k<a>"
+  flags: "g"
+  subject: "aaA aAA aaa"
+
+- id: onig-call-loop-per-level
+  flavor: oniguruma
+  pattern: "(?<a>[a-z](?:\\g<a>|)*)"
+  flags: "g"
+  subject: "abc de"
+
+- id: onig-call-mutual
+  flavor: oniguruma
+  pattern: "(?<a>\\g<b>|x)(?<b>y\\g<a>)"
+  flags: "g"
+  subject: "aabcxyxyx yyx"
+
+- id: onig-call-in-lookbehind
+  flavor: oniguruma
+  pattern: "(?<a>a|b)(?<=\\g<a>)b"
+  flags: "g"
+  subject: "aabbb"
+
+- id: onig-call-never-ending
+  flavor: oniguruma
+  pattern: "(?<a>(?:b|)\\g<a>|c)"
+  flags: ""
+  subject: "bc"
+
+- id: onig-call-variable-lookbehind
+  flavor: oniguruma
+  pattern: "(a+)(?<=\\g<1>)b"
+  flags: ""
+  subject: "aab"
+
+- id: onig-call-undefined-name
+  flavor: oniguruma
+  pattern: "(?<n>a)\\g<m>"
+  flags: ""
+  subject: "aa"
+
+- id: onig-call-backtracks-into-group
+  flavor: oniguruma
+  pattern: "(?<a>a|ab)\\g<a>c"
+  flags: "g"
+  subject: "aabc abac abab"
+
+- id: onig-call-backref-after-recursion
+  flavor: oniguruma
+  pattern: "(?<a>x\\g<a>?y)\\k<a>"
+  flags: "g"
+  subject: "xxyyxy xyxy"
+
+- id: onig-call-lazy
+  flavor: oniguruma
+  pattern: "(?<a>a\\g<a>??b)"
+  flags: "g"
+  subject: "aabbab"
+
+- id: onig-call-in-absent
+  flavor: oniguruma
+  pattern: "(?<a>x)(?~\\g<a>)"
+  flags: "g"
+  subject: "xabxcd"
+
+- id: onig-call-sets-condition
+  flavor: oniguruma
+  pattern: "(?<a>a){0}\\g<a>(?(<a>)b|c)"
+  flags: "g"
+  subject: "ab ac"
+
+- id: onig-call-whole-ignore-case
+  flavor: oniguruma
+  pattern: "a(?:\\g<0>)?b"
+  flags: "gi"
+  subject: "AaBb aAbB"
+
+- id: onig-call-repeated-definition
+  flavor: oniguruma
+  pattern: "(?<a>[ab]){2}\\g<a>"
+  flags: "g"
+  subject: "abaxbba"
+
+- id: onig-call-lookahead-in-recursion
+  flavor: oniguruma
+  pattern: "(?<a>a(?=b)|b\\g<a>)"
+  flags: "g"
+  subject: "bbabab"
+
+- id: onig-call-restores-captures
+  flavor: oniguruma
+  pattern: "(?<o>(?<i>q)?a\\g<o>?z|a)"
+  flags: "g"
+  subject: "qaaza"
+
+- id: onig-call-nested-lists
+  flavor: oniguruma
+  pattern: "(?<l>\\[(?<item>\\w+|\\g<l>)(?:,(?<item2>\\w+|\\g<l>))*\\])"
+  flags: "g"
+  subject: "[a,[b,c],d] [x]"
+
+- id: onig-call-after-dot-star
+  flavor: oniguruma
+  pattern: ".*(?<a>b)\\g<a>"
+  flags: "g"
+  subject: "aabbcbb\nbb"
+
+- id: onig-call-negative-lookbehind
+  flavor: oniguruma
+  pattern: "(?<a>[xy]){0}(?<!\\g<a>)b"
+  flags: "g"
+  subject: "ab xb yb b"
+
+- id: onig-call-whole-depth-limit
+  flavor: oniguruma
+  pattern: "(?:x\\g<0>?y)"
+  flags: ""
+  subject: "xxxxxxxxxxxxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyyy"

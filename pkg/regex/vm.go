@@ -11,8 +11,9 @@ import (
 const ctxCheckMask = 1<<12 - 1
 
 // frame is one entry of the backtrack stack. A frame with a slot restores
-// that slot to old, and a frame whose slot is loopFrame belongs to the
-// counting loop at pc, which has reached pos. Any other frame resumes
+// that slot to old, a frame whose slot is loopFrame belongs to the counting
+// loop at pc, which has reached pos, and a frame whose slot is below that
+// undoes a step of a call, as undo describes. Any other frame resumes
 // matching at pc and pos.
 type frame struct {
 	pc, pos   int
@@ -24,6 +25,18 @@ type frame struct {
 // the loop had taken the fewest runes it may. A lazy loop's frame takes one
 // more rune each time, and old counts the runes it has taken.
 const loopFrame = -2
+
+// The frames that undo the steps of a call. A call's frame drops the
+// return address the call pushed, and a return's frame pushes back the
+// address old that the return popped. A group start's frame drops the
+// start opPush pushed, and a group end's frame pushes back the start old
+// that opPop popped.
+const (
+	callFrame   = -3
+	returnFrame = -4
+	pushFrame   = -5
+	popFrame    = -6
+)
 
 // machine runs a pattern's program over one subject. One machine serves a
 // whole call to Find, FindAll, Replace, or Split, so every start position
@@ -39,6 +52,12 @@ type machine struct {
 	runBest  []int   // under Longest, the longest match at the current start
 	best     []int   // under Longest, the longest match at any start
 	stack    []frame // reused from start to start
+
+	// calls holds the return address of each call running, and opens the
+	// start of each group open in a program with calls, the innermost
+	// last.
+	calls []int
+	opens []int
 }
 
 func newMachine(ctx context.Context, p *Pattern, subject string, notEmpty bool) *machine {
@@ -162,6 +181,7 @@ func (m *machine) nextStart(s int) (int, bool) {
 func (m *machine) run(start int, longest bool) (bool, error) {
 	m.start = start
 	m.stack = m.stack[:0]
+	m.calls, m.opens = m.calls[:0], m.opens[:0]
 	_, ok, err := m.exec(0, start, -1, longest)
 	m.stack = m.stack[:0]
 	return ok, err
@@ -236,12 +256,13 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			if len(stack) >= maxStack {
 				return 0, false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
 			}
-			stack = append(stack, frame{slot: in.x, old: caps[in.x]})
-			caps[in.x] = pos
+			slot := in.x + len(m.calls)*in.lo
+			stack = append(stack, frame{slot: slot, old: caps[slot]})
+			caps[slot] = pos
 			pc++
 			continue
 		case opLoopCheck:
-			if caps[in.x] == pos {
+			if caps[in.x+len(m.calls)*in.lo] == pos {
 				pc = in.y
 			} else {
 				pc++
@@ -354,6 +375,50 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			}
 			pc, pos = in.x, cut
 			continue
+		case opCall:
+			if len(m.calls) >= maxCallDepth {
+				break
+			}
+			if len(stack) >= maxStack {
+				return 0, false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
+			}
+			stack = append(stack, frame{slot: callFrame})
+			m.calls = append(m.calls, pc+1)
+			pc = in.x
+			continue
+		case opReturn:
+			if len(stack) >= maxStack {
+				return 0, false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
+			}
+			back := m.calls[len(m.calls)-1]
+			m.calls = m.calls[:len(m.calls)-1]
+			stack = append(stack, frame{slot: returnFrame, old: back})
+			pc = back
+			continue
+		case opPush:
+			if len(stack)+3 > maxStack {
+				return 0, false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
+			}
+			stack = append(stack, frame{slot: pushFrame})
+			m.opens = append(m.opens, pos)
+			if in.neg {
+				start, end := 2*in.x, 2*in.x+1
+				stack = append(stack, frame{slot: start, old: caps[start]}, frame{slot: end, old: caps[end]})
+				caps[start], caps[end] = pos, -1
+			}
+			pc++
+			continue
+		case opPop:
+			if len(stack)+3 > maxStack {
+				return 0, false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
+			}
+			open := m.opens[len(m.opens)-1]
+			m.opens = m.opens[:len(m.opens)-1]
+			start, end := 2*in.x, 2*in.x+1
+			stack = append(stack, frame{slot: popFrame, old: open}, frame{slot: start, old: caps[start]}, frame{slot: end, old: caps[end]})
+			caps[start], caps[end] = open, pos
+			pc++
+			continue
 		case opMatch:
 			if m.notEmpty && pos == m.start {
 				break
@@ -401,6 +466,10 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			stack = stack[:len(stack)-1]
 			if f.slot >= 0 {
 				caps[f.slot] = f.old
+				continue
+			}
+			if f.slot < loopFrame {
+				m.undo(f)
 				continue
 			}
 			pc, pos = f.pc, f.pos
@@ -637,12 +706,32 @@ func (m *machine) unwind(base int) error {
 		return err
 	}
 	for i := len(m.stack) - 1; i >= base; i-- {
-		if f := m.stack[i]; f.slot >= 0 {
+		switch f := &m.stack[i]; {
+		case f.slot >= 0:
 			m.caps[f.slot] = f.old
+		case f.slot < loopFrame:
+			m.undo(f)
 		}
 	}
 	m.stack = m.stack[:base]
 	return nil
+}
+
+// undo reverses the step of a call that the frame f recorded. A body that
+// commit keeps the slots of runs every call it makes to its return and
+// ends every group it starts, so dropping its frames of these kinds leaves
+// the call and group stacks as they would be after undoing them.
+func (m *machine) undo(f *frame) {
+	switch f.slot {
+	case callFrame:
+		m.calls = m.calls[:len(m.calls)-1]
+	case returnFrame:
+		m.calls = append(m.calls, f.old)
+	case pushFrame:
+		m.opens = m.opens[:len(m.opens)-1]
+	case popFrame:
+		m.opens = append(m.opens, f.old)
+	}
 }
 
 // spend draws n steps for work the dispatch loop does not count, and checks

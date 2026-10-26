@@ -82,10 +82,10 @@ makes a greedy + or * possessive when what follows cannot start the same
 way, and it no longer counts a possessive repeat at its fewest, so jq
 refuses a lookbehind such as (?<=a+b) that this package accepts. jq also
 refuses a lookbehind that holds $ or \z, or a (?i:...) group whose length
-varies, and both are accepted here. The escape \G and subroutine calls are
-refused under both flavors, though jq accepts them, and so is a \K inside a
-lookaround, which jq accepts too. A condition
-other than a group's number or bracketed name is refused under both
+varies, and both are accepted here. The escape \G is refused under both
+flavors, though jq accepts it, and so is a \K inside a lookaround, which jq
+accepts too. A condition other than a group's number or bracketed name is
+refused under both
 flavors, though jq and PCRE2 accept some, such as a bare name, (?(R)...),
 and (?(DEFINE)...). A conditional whose one branch is not empty, such as
 (?(1)b), has an empty no branch under both flavors, as in PCRE2, but jq's
@@ -186,11 +186,29 @@ forms (?~|absent|exp), (?~|absent), and (?~|) are refused, and so is an
 absent operator inside another one, since jq lets the inner one change
 where the outer one stops. PCRE refuses the operator, as PCRE2 does.
 
-The inline flags n, J, U, and ^, the assertion \G, the escape \X and the
-absent operator under PCRE, the absent forms that start (?~| and an absent
-operator inside another, and the rarer constructs such as recursion,
-subroutine calls, and conditions other than a group's number or name are
-recognized and refused with an UnsupportedError that names them. A \K inside a lookaround is
+Under Oniguruma, \g<name> and \g'name' call the group of that name, which
+runs the group's pattern again where the call stands, and \g<n>, \g<-n>,
+and \g<+n> call a group by its number or by its place before or after the
+call. The forms (?n), (?-n), (?+n), and (?&name) call a group too, and a
+call of group 0 runs the whole pattern. A call may come before the group
+it names, and a group may call itself or a group that calls it back, so
+(?<p>\((?:[^()]|\g<p>)*\)) matches balanced parentheses. A called group
+keeps the flags in force where it stands rather than those at the call.
+Each call captures the group afresh, so the group holds what its last
+call matched, and a group that recursion enters again captures each
+entry's own text. As in jq, at most 20 calls may run at once, and the
+group's own place in the pattern counts as one of them, so a call past
+that limit fails rather than raising an error. A group that would call
+itself before matching any rune, or on every path through it, is refused
+with jq's error "never ending recursion", and a lookbehind accepts a call
+only of a group with one length. PCRE refuses calls, and both flavors
+refuse (?R).
+
+The inline flags n, J, U, and ^, the assertion \G, the escape \X, the
+absent operator, and calls under PCRE, the absent forms that start (?~|
+and an absent operator inside another, (?R), and conditions other than a
+group's number or name are recognized and refused with an UnsupportedError
+that names them. A \K inside a lookaround is
 refused as well, with a SyntaxError under PCRE, as PCRE2 refuses it, and
 an UnsupportedError under Oniguruma.
 
@@ -200,8 +218,8 @@ A pattern on untrusted input can take exponential time on a backtracking
 engine. Every VM step counts against a Budget, ten million steps by default,
 and a call that runs out returns ErrBudget. One count covers every start
 position a search tries, every match a global search finds, and the bodies
-of every assertion and atomic group, so neither repetition nor nesting can
-multiply the limit. The context passed to each call is checked every
+of every assertion, atomic group, and call, so neither repetition, nesting,
+nor recursion can multiply the limit. The context passed to each call is checked every
 few thousand steps, so a deadline ends a long match with the context's
 error. The budget also bounds the pattern length, group nesting, the size of
 the compiled program, and the backtrack stack, so a pattern cannot exhaust

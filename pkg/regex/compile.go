@@ -23,6 +23,10 @@ const (
 	opCapture                  // finish group x, starting where slot y recorded and ending at the position, for a group that refers to itself under PCRE
 	opCount                    // take between lo and hi runes that body accepts, greedily or lazily, then continue at x
 	opAbsent                   // take the runes up to where the body at y first matches, then continue at x, giving them back one at a time as a greedy counting loop does
+	opCall                     // run the called group at x, then continue at the next instruction, failing when maxCallDepth calls are running
+	opReturn                   // end a called group, continuing after the call that ran it
+	opPush                     // start group x at the position, on a stack of starts that recursion nests, and under neg mark it unfinished
+	opPop                      // finish group x, from the start opPush recorded to the position
 	opMatch                    // report a match
 )
 
@@ -35,7 +39,11 @@ type inst struct {
 	assert assertKind
 	neg    bool
 	fold   bool
-	lo, hi int // the runes a lookbehind looks back, or a counting loop takes, hi unbounded when there is no limit
+	// lo and hi are the runes a lookbehind looks back, or a counting loop
+	// takes, hi unbounded when there is no limit. In a program with calls,
+	// lo is also how far apart a loop mark's slots lie, one for each depth
+	// of calls, for the opSave and opLoopCheck of a mark.
+	lo, hi int
 
 	// body is the opRune, opClass, opAny, or opAnyNotNL that a counting
 	// loop's one rune must pass, using r and set, and greedy says whether
@@ -75,6 +83,9 @@ func (l *lowering) node(n *node) *node {
 			seq.append(orbitNode(r))
 		}
 		return single(seq)
+	case n.kind == kindGroup:
+		// Lowering can change the lengths a call measured.
+		n.widthKnown = false
 	case n.kind == kindBackref:
 		// The parser gave a reference its group's lengths before
 		// lowering, which can change them under full case folding, so
@@ -211,6 +222,9 @@ func programSize(n *node, limit int) int {
 		}
 		return total
 	case kindGroup, kindAtomic, kindAbsent:
+		if n.called {
+			return 1 // the call that runs the group's body where it stands
+		}
 		return c.add(programSize(n.subs[0], limit), 2)
 	case kindLook:
 		if alt := behindBranches(n); alt != nil {
@@ -228,6 +242,41 @@ func programSize(n *node, limit int) int {
 	default:
 		return 1
 	}
+}
+
+// totalSize returns how many instructions the whole program for root takes,
+// or limit+1 when that is more than limit. That is root's instructions and
+// the three around them, then the body of each called group, with its
+// start, its end, and its return, though the whole pattern, which is group
+// 0, has its return alone.
+func totalSize(root *node, limit int) int {
+	c := saturating(limit + 1)
+	total := c.add(programSize(root, limit), 3)
+	for _, g := range calledGroups(root) {
+		extra := 3
+		if g.index == 0 {
+			extra = 1
+		}
+		total = c.add(total, c.add(programSize(g.subs[0], limit), extra))
+	}
+	return total
+}
+
+// calledGroups returns the groups under n, n included, that some call
+// runs, in the order they open.
+func calledGroups(n *node) []*node {
+	var groups []*node
+	var walk func(*node)
+	walk = func(n *node) {
+		if n.kind == kindGroup && n.called {
+			groups = append(groups, n)
+		}
+		for _, s := range n.subs {
+			walk(s)
+		}
+	}
+	walk(n)
+	return groups
 }
 
 func repeatSize(n *node, body int, c saturating) int {
@@ -256,6 +305,19 @@ type compiler struct {
 	starts map[*node]int // the slot holding the start of each self-referring group under PCRE
 	base   int           // the first slot after the capture slots
 	extra  int           // the slots handed out past base
+
+	// calls is set when the program has calls, and then every group keeps
+	// its starts on a stack, so a group that recursion enters again
+	// captures each entry's own text. sites holds each opCall and the
+	// group it runs, whose body follows the main program.
+	calls bool
+	sites []callSite
+}
+
+// callSite is an opCall at pc that runs the group target.
+type callSite struct {
+	pc     int
+	target *node
 }
 
 // compile lowers the tree to a program that records the whole match in
@@ -263,16 +325,46 @@ type compiler struct {
 // beyond the capture slots, for loop marks and unfinished group starts.
 func compile(root *node, groups int, cfg *config) ([]inst, int, error) {
 	limit := cfg.budget.MaxInstructions
-	size := saturating(limit+1).add(programSize(root, limit), 3)
+	size := totalSize(root, limit)
 	if size > limit {
 		return nil, 0, overBudget("compiled program exceeds the budget of %d instructions", limit)
 	}
-	c := &compiler{flavor: cfg.flavor, plain: cfg.plain, prog: make([]inst, 0, size), marks: map[*node]int{}, starts: map[*node]int{}, base: 2 * groups}
+	c := &compiler{flavor: cfg.flavor, plain: cfg.plain, prog: make([]inst, 0, size), marks: map[*node]int{}, starts: map[*node]int{}, base: 2 * groups, calls: hasCall(root)}
 	c.emit(inst{op: opSave, x: 0})
 	c.node(root)
 	c.emit(inst{op: opSave, x: 1})
 	c.emit(inst{op: opMatch})
-	return c.prog, c.extra, nil
+	if !c.calls {
+		return c.prog, c.extra, nil
+	}
+	return c.prog, c.subroutines(root), nil
+}
+
+// subroutines emits the body of each called group after the main program,
+// ending in opReturn, and points each call at the body it runs. A loop
+// inside a called group can be running at several depths of calls at once,
+// so each loop mark gets one slot for every depth, and subroutines returns
+// how many slots the marks take.
+func (c *compiler) subroutines(root *node) int {
+	entries := map[*node]int{}
+	for _, g := range calledGroups(root) {
+		entries[g] = len(c.prog)
+		if g.index == 0 {
+			c.node(g.subs[0])
+		} else {
+			c.capture(g)
+		}
+		c.emit(inst{op: opReturn})
+	}
+	for _, site := range c.sites {
+		c.prog[site.pc].x = entries[site.target]
+	}
+	for i := range c.prog {
+		if in := &c.prog[i]; (in.op == opSave || in.op == opLoopCheck) && in.x >= c.base {
+			in.lo = c.extra
+		}
+	}
+	return c.extra * (maxCallDepth + 1)
 }
 
 // slot returns the extra slot that n holds in slots, handing out the next
@@ -329,7 +421,15 @@ func (c *compiler) node(n *node) {
 		c.cond(n)
 	case kindAbsent:
 		c.absent(n)
+	case kindCall:
+		c.call(n.target)
 	}
+}
+
+// call emits a call of the group g, to be pointed at g's body once that is
+// emitted.
+func (c *compiler) call(g *node) {
+	c.sites = append(c.sites, callSite{pc: c.emit(inst{op: opCall}), target: g})
 }
 
 // anyInst matches the any node n, which takes a newline only under dotAll.
@@ -413,6 +513,11 @@ func behindBranches(n *node) *node {
 func (c *compiler) group(n *node) {
 	start, end := 2*n.index, 2*n.index+1
 	switch {
+	case n.called:
+		// A called group runs where it stands as it does from any call.
+		c.call(n)
+	case c.calls:
+		c.capture(n)
 	case !n.selfRef:
 		c.emit(inst{op: opSave, x: start})
 		c.node(n.subs[0])
@@ -427,6 +532,16 @@ func (c *compiler) group(n *node) {
 		c.node(n.subs[0])
 		c.emit(inst{op: opCapture, x: n.index, y: pending})
 	}
+}
+
+// capture emits a capturing group in a program with calls, which records
+// the group's start on a stack and takes it back at the group's end. A
+// group that holds a reference to itself is also marked unfinished when it
+// starts, as group does under Oniguruma.
+func (c *compiler) capture(n *node) {
+	c.emit(inst{op: opPush, x: n.index, neg: n.selfRef && c.flavor.rules().openSelfRef})
+	c.node(n.subs[0])
+	c.emit(inst{op: opPop, x: n.index})
 }
 
 // alternate emits each branch behind a split that falls through to the

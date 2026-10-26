@@ -1,0 +1,1 @@
+[{"offset":0,"length":4,"string":"aabc","captures":[{"offset":1,"length":2,"string":"ab","name":"a"}]},{"offset":5,"length":4,"string":"abac","captures":[{"offset":7,"length":1,"string":"a","name":"a"}]}]

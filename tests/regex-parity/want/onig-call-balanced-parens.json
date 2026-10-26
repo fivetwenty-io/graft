@@ -1,0 +1,1 @@
+[{"offset":1,"length":7,"string":"(a(b)c)","captures":[{"offset":1,"length":7,"string":"(a(b)c)","name":"p"}]},{"offset":9,"length":3,"string":"(d)","captures":[{"offset":9,"length":3,"string":"(d)","name":"p"}]},{"offset":13,"length":3,"string":"(e)","captures":[{"offset":13,"length":3,"string":"(e)","name":"p"}]}]

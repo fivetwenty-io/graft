@@ -23,6 +23,7 @@ const (
 	kindKeep                      // \K, which moves the start of the match to the position
 	kindCond                      // subs[0] when a group refs names has captured, and subs[1] otherwise
 	kindAbsent                    // the absent operator: the runes before the first place subs[0] matches, given back one at a time
+	kindCall                      // a call of the group target, group index, or of the whole pattern when index is 0
 )
 
 // assertKind names the zero-width tests.
@@ -71,6 +72,15 @@ type node struct {
 
 	// selfRef marks a group that holds a backreference to itself.
 	selfRef bool
+
+	// target is the group a call runs, and called marks a group that some
+	// call runs. A called group remembers its lengths in wlo and whi once
+	// widthKnown is set, and busy is set while they are worked out, so a
+	// group that calls itself is measured once.
+	target           *node
+	called           bool
+	widthKnown, busy bool
+	wlo, whi         int
 
 	// refs are a conditional's references, one for each group whose
 	// capture picks the yes branch.
@@ -127,8 +137,9 @@ func emptyMatch(n *node) bool {
 	case kindGroup, kindAtomic:
 		return nullable(n.subs[0])
 	default:
-		// An assertion, a lookaround, a backreference, a \K, and an
-		// absent operator can all match nothing.
+		// An assertion, a lookaround, a backreference, a \K, an absent
+		// operator, and a call may all match nothing. A call is not
+		// followed into its group, which may be the one asking.
 		return true
 	}
 }
@@ -305,10 +316,11 @@ func leadingDot(n *node) dotLead {
 	}
 }
 
-// hasBackref reports whether n holds a backreference or a conditional
-// anywhere, each of which reads what a group captured.
+// hasBackref reports whether n holds a backreference, a conditional, or a
+// call anywhere. The first two read what a group captured, and a call
+// runs a group whose start the search cannot plan around.
 func hasBackref(n *node) bool {
-	if n.kind == kindBackref || n.kind == kindCond {
+	if n.kind == kindBackref || n.kind == kindCond || n.kind == kindCall {
 		return true
 	}
 	for _, s := range n.subs {
@@ -369,10 +381,10 @@ func needOf(n *node) need {
 		return repeatNeed(n)
 	case kindGroup, kindAtomic:
 		return needOf(n.subs[0])
-	case kindAny, kindLook, kindBackref, kindAbsent:
+	case kindAny, kindLook, kindBackref, kindAbsent, kindCall:
 		// Any one rune, a test of text the match may not hold, text that
-		// only a capture decides, or the runes before an absent holds
-		// nothing a subject must contain.
+		// only a capture decides, the runes before an absent, or a call,
+		// which may recurse, holds nothing a subject must contain.
 	}
 	return need{}
 }
@@ -519,9 +531,30 @@ func width(n *node) (lo, hi int) {
 		return n.min, n.max
 	case kindAbsent:
 		return 0, unbounded
+	case kindCall:
+		return callWidth(n)
 	default:
 		return 0, 0
 	}
+}
+
+// callWidth is width for a call, which is the width of the group it runs.
+// A call met while its group is being measured adds no runes and no limit,
+// so a group that recurses has no upper bound, as in Oniguruma. A call not
+// yet bound to its group has no known width.
+func callWidth(n *node) (lo, hi int) {
+	g := n.target
+	switch {
+	case g == nil || g.busy:
+		return 0, unbounded
+	case g.widthKnown:
+		return g.wlo, g.whi
+	}
+	g.busy = true
+	lo, hi = width(g.subs[0])
+	g.busy = false
+	g.wlo, g.whi, g.widthKnown = lo, hi, true
+	return lo, hi
 }
 
 // alternateWidth is width for a choice among subs.

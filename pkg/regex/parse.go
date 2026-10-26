@@ -60,6 +60,12 @@ type parser struct {
 	// options holds the bodies of flag groups such as (?i:...), which
 	// Oniguruma lets a quantifier follow whatever they hold.
 	options map[*node]bool
+
+	// calls holds every call, each bound to its group once the whole
+	// pattern is read, and behinds the lookbehinds holding a call, which
+	// are checked once the calls are bound.
+	calls   []pendingCall
+	behinds []pendingBehind
 }
 
 // pendingRef is a backreference whose group was not known where it stood.
@@ -95,6 +101,9 @@ func parse(src string, cfg *config) (*node, []string, error) {
 		return nil, nil, p.errorAt(p.pos, "unmatched closing parenthesis")
 	}
 	if err := p.resolvePending(); err != nil {
+		return nil, nil, err
+	}
+	if n, err = p.resolveCalls(n); err != nil {
 		return nil, nil, err
 	}
 	return n, p.names, nil
@@ -506,6 +515,8 @@ func (p *parser) group(start int) (*node, error) {
 		return p.pythonRef(start)
 	case p.lookingAt("?("):
 		return p.conditional(start)
+	case p.callAhead():
+		return p.groupCall(start)
 	case p.lookingAt("?"):
 		var err error
 		var done bool
@@ -696,7 +707,9 @@ func (p *parser) closeGroup(start int, form groupForm, index int, name string, b
 	case formAhead, formNotAhead:
 		return &node{kind: kindLook, subs: []*node{body}, neg: form == formNotAhead}, nil
 	case formBehind, formNotBehind:
-		if err := p.checkLookbehind(start, body); err != nil {
+		if p.rules().calls && hasCall(body) {
+			p.behinds = append(p.behinds, pendingBehind{start: start, body: body})
+		} else if err := p.checkLookbehind(start, body); err != nil {
 			return nil, err
 		}
 		return &node{kind: kindLook, subs: []*node{body}, neg: form == formNotBehind, behind: true}, nil
@@ -1023,6 +1036,8 @@ func (p *parser) escape(start int) (*node, error) {
 		return p.kRef(start)
 	case 'g':
 		switch {
+		case (p.lookingAt("<") || p.lookingAt("'")) && p.rules().calls:
+			return p.gCall(start)
 		case p.lookingAt("<") || p.lookingAt("'"):
 			return nil, unsupported(`recursion \g` + p.bracketed())
 		case p.rules().pcreReferences:

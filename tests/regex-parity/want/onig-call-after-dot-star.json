@@ -1,0 +1,1 @@
+[{"offset":0,"length":7,"string":"aabbcbb","captures":[{"offset":6,"length":1,"string":"b","name":"a"}]},{"offset":8,"length":2,"string":"bb","captures":[{"offset":9,"length":1,"string":"b","name":"a"}]}]

@@ -144,6 +144,10 @@ type rules struct {
 	// before the first place its absent matches, as Oniguruma does.
 	absent bool
 
+	// calls reads \g<name>, \g'name', \g<n>, (?n), and (?&name) as calls
+	// of a group, which may recurse, as Oniguruma does.
+	calls bool
+
 	// onigMessages words the errors that the two engines word differently
 	// the way Oniguruma does.
 	onigMessages bool
@@ -183,6 +187,7 @@ var flavorRules = [...]rules{
 		anyRuneO:           true,
 		graphemes:          true,
 		absent:             true,
+		calls:              true,
 		onigMessages:       true,
 		fixedLookbehind:    true,
 		conditionTail:      true,
