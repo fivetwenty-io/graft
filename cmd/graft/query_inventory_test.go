@@ -88,9 +88,10 @@ func hasEntry(entries []inventoryEntry, id string) bool {
 	return slices.ContainsFunc(entries, func(e inventoryEntry) bool { return e.ID == id })
 }
 
-// parityResults replays every case of a dialect once per test binary and
-// returns whether each one matched its golden.
-func parityResults(t *testing.T, dialect string) map[string]bool {
+// parityResults replays every jq case once per test binary and returns
+// whether each one matched its golden.
+func parityResults(t *testing.T) map[string]bool {
+	const dialect = "jq"
 	t.Helper()
 	inventoryMu.Lock()
 	defer inventoryMu.Unlock()
@@ -228,7 +229,7 @@ func TestJQInventoryMeetsFloors(t *testing.T) {
 	allow := mustReadAllowlist(t, "jq")
 	base := mustReadBaseline(t, "jq")
 	entries := loadInventory(t, "jq")
-	verdicts := inventoryVerdicts(entries, allow, parityResults(t, "jq"), floors.Phase)
+	verdicts := inventoryVerdicts(entries, allow, parityResults(t), floors.Phase)
 
 	for _, e := range entries {
 		switch v := verdicts[e.ID]; {
@@ -260,7 +261,7 @@ func TestJQInventoryMeetsFloors(t *testing.T) {
 func TestJQInventoryPassing(t *testing.T) {
 	floors := mustReadFloors(t)
 	entries := loadInventory(t, "jq")
-	verdicts := inventoryVerdicts(entries, mustReadAllowlist(t, "jq"), parityResults(t, "jq"), floors.Phase)
+	verdicts := inventoryVerdicts(entries, mustReadAllowlist(t, "jq"), parityResults(t), floors.Phase)
 	t.Logf("compat-entries: %d", len(entries))
 	var ids []string
 	for _, e := range entries {
@@ -280,7 +281,7 @@ func TestJQInventoryReport(t *testing.T) {
 	floors := mustReadFloors(t)
 	allow := mustReadAllowlist(t, "jq")
 	entries := loadInventory(t, "jq")
-	verdicts := inventoryVerdicts(entries, allow, parityResults(t, "jq"), floors.Phase)
+	verdicts := inventoryVerdicts(entries, allow, parityResults(t), floors.Phase)
 	stats := inventoryStats(entries, verdicts, allow)
 	for _, area := range append(slices.Clone(inventoryAreas), "overall") {
 		s, ok := stats[area]
@@ -340,7 +341,7 @@ func TestParityResultsAreKeyedByDialect(t *testing.T) {
 		delete(matchCache, "other")
 		inventoryMu.Unlock()
 	}()
-	if _, leaked := parityResults(t, "jq")["planted-case"]; leaked {
+	if _, leaked := parityResults(t)["planted-case"]; leaked {
 		t.Fatal("jq results carry a case another dialect cached")
 	}
 }
