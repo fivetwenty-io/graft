@@ -252,6 +252,18 @@ func TestOnigurumaReadsSomeEscapesAsLetters(t *testing.T) {
 	}
 }
 
+// jq's [[:punct:]] matches every punctuation and symbol character, so it
+// holds ©, €, ¬, and ¨ as well as the ASCII symbols. The expected matches
+// were recorded from jq 1.8.2.
+func TestOnigurumaPunctIncludesSymbols(t *testing.T) {
+	subjects := []string{"!", "$", "©", "€", "¬", "¨", "«", "·", "+", "^", "_", "☃", "😀", "a", "1", " ", "\u0300"}
+	punct := []string{"!", "$", "©", "€", "¬", "¨", "«", "·", "+", "^", "_", "☃", "😀"}
+	wantEqual(t, matching(t, MustCompile(`^[[:punct:]]$`, WithFlavor(Oniguruma)), subjects), punct)
+	wantEqual(t, matching(t, MustCompile(`^[[:^punct:]]$`, WithFlavor(Oniguruma)), subjects), []string{"a", "1", " ", "\u0300"})
+	set, _ := unicodePosixClass("punct")
+	wantEqual(t, set, union(fromTable(unicode.P), fromTable(unicode.S)))
+}
+
 // The expected memberships were recorded from jq 1.8.2.
 func TestOnigurumaPosixClasses(t *testing.T) {
 	subjects := []string{"a", "Z", "é", "中", "٣", "_", "$", "+", "!", " ", "\u00a0", "\t", "\n", "\u0001", "\u200b", "\u0300", "ǅ", "ª", "Ⅷ"}

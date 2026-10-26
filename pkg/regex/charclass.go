@@ -399,7 +399,9 @@ func buildUnicodePosixClass(name string) (runeSet, bool) {
 	case "print":
 		return union(graphic(), fromTable(unicode.Zs)), true
 	case "punct":
-		return union(fromTable(unicode.P), setOf('$', '+', '<', '=', '>', '^', '`', '|', '~')), true
+		// jq's Oniguruma counts every symbol as punctuation, not only the
+		// ASCII ones.
+		return union(fromTable(unicode.P), fromTable(unicode.S)), true
 	case "word":
 		return wordClass(Oniguruma), true
 	case "xdigit":
