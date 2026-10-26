@@ -133,7 +133,9 @@ func TestCLIFlagsBuildFromThePublicPackage(t *testing.T) {
 		{flags: "--sort-keys=none", expr: `.`, inputs: stdin("b: 1\na: 2\n"), encode: yq.EncodeOptions{SortKeys: sortkeys.None}, want: "b: 1\na: 2\n"},
 		{flags: "--float-numbers", expr: `.a + .b`, inputs: stdin("a: 0.1\nb: 0.2\n"), opts: []yq.Option{yq.WithFloatNumbers()}, want: "0.30000000000000004\n"},
 		{flags: "(exact numbers)", expr: `.a + .b`, inputs: stdin("a: 0.1\nb: 0.2\n"), want: "0.3\n"},
-		{flags: "--string-interpolation=false", expr: `.`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithStringInterpolation(false)}, want: "a: 1\n"},
+		// Stored and not honored yet: this row pins that the option changes
+		// nothing, and it must change when the parser starts reading it.
+		{flags: "--string-interpolation=false (stored, not honored)", expr: `.`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithStringInterpolation(false)}, want: "a: 1\n"},
 		{flags: "--header-preprocess=false", expr: `.`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithHeaderPreprocess(false)}, want: "a: 1\n"},
 		{flags: "--yaml-fix-merge-anchor-to-spec", expr: `.`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithMergeAnchorFix(true)}, want: "a: 1\n"},
 		{flags: "--security-disable-env-ops", expr: `strenv(HOME)`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithEnvOps(false)}, wantExit: 1},

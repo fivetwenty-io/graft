@@ -43,7 +43,9 @@ type Option func(*Config) error
 
 // WithEnv replaces the process environment that env, strenv, and envsubst
 // read with env, whose entries are KEY=VALUE as os.Environ returns them.
-// An entry with no = is skipped.
+// An entry with no = is skipped. A nil or empty env gives an empty
+// environment, not the process environment, so omit the option to keep the
+// process environment.
 func WithEnv(env []string) Option {
 	return func(c *Config) error {
 		c.env = make(map[string]string, len(env))
@@ -103,7 +105,9 @@ func WithFloatNumbers() Option {
 
 // WithStringInterpolation turns string interpolation, the "\(expr)" form,
 // on or off. It is on by default, and WithStringInterpolation(false) is
-// yq's --string-interpolation=false.
+// yq's --string-interpolation=false. The setting is stored and passed to
+// the dialect, and nothing honors it yet, so the expression parses the
+// same either way until the release that completes graft yq.
 func WithStringInterpolation(enabled bool) Option {
 	return func(c *Config) error {
 		c.interpolate = enabled

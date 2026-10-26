@@ -3,6 +3,8 @@ package yq
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/query"
@@ -76,15 +78,33 @@ func TestEvaluatorRunsRepeatedlyAndConcurrently(t *testing.T) {
 		got := render(t, `.a = .a + 1`, "a: 1\n", false)
 		wantEqual(t, got, "a: 2\n")
 	}
-	done := make(chan string, 4)
-	for range 4 {
+	// The goroutines only run and report. Every assertion happens here,
+	// because a goroutine must not call t.Fatal.
+	type result struct {
+		name string
+		err  error
+	}
+	docs := make([]*value.Value, 4)
+	for i := range docs {
+		docs[i] = decodeOne(t, "a: 5\n")
+	}
+	done := make(chan result, len(docs))
+	for _, doc := range docs {
 		go func() {
-			out, _ := collect(ev.Eval(context.Background(), decodeOne(t, "a: 5\n")))
-			done <- out[0].Meta().Filename
+			out, err := collect(ev.Eval(context.Background(), doc))
+			if err != nil || len(out) != 1 {
+				done <- result{err: fmt.Errorf("got %d outputs, error %v", len(out), err)}
+				return
+			}
+			done <- result{name: out[0].Meta().Filename}
 		}()
 	}
-	for range 4 {
-		wantEqual(t, <-done, "in.yaml")
+	for range docs {
+		r := <-done
+		if r.err != nil {
+			t.Error(r.err)
+		}
+		wantEqual(t, r.name, "in.yaml")
 	}
 }
 
@@ -108,8 +128,8 @@ func TestCancelledContextEndsTheRun(t *testing.T) {
 		big.Append(value.Num(1))
 	}
 	_, err := collect(mustCompile(t, `[.[] | . + 1] | length`).Eval(ctx, big.Seal()))
-	if err == nil {
-		t.Fatal("the canceled run finished without an error")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v, want context.Canceled", err)
 	}
 }
 
