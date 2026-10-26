@@ -200,6 +200,7 @@ type Pattern struct {
 	nslots   int      // capture slots followed by loop marks
 	anchored bool     // every match starts at the start of the subject
 	lead     dotLead  // where a search may restart, for a pattern that leads with .*
+	required string   // text every match holds, which a subject must contain to match
 }
 
 // Compile parses pattern and compiles it into a Pattern.
@@ -230,7 +231,7 @@ func Compile(pattern string, opts ...Option) (*Pattern, error) {
 		anchored: anchoredAtStart(root),
 	}
 	if !cfg.plain {
-		p.lead = leadingDot(root)
+		p.lead, p.required = leadingDot(root), requiredText(root)
 	}
 	return p, nil
 }

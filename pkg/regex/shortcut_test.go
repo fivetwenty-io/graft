@@ -360,3 +360,79 @@ func TestShortcutsKeepResultsOnGeneratedSearches(t *testing.T) {
 		}
 	}
 }
+
+// A search for a pattern whose every match holds some text looks for the
+// text first, and when the subject lacks it, reports no match at once.
+func TestRequiredTextRulesOutSubjects(t *testing.T) {
+	for _, subject := range []string{
+		strings.Repeat("a", 2_000_000),
+		strings.Repeat(strings.Repeat("a", 99)+"\n", 2000),
+	} {
+		ok, steps, _ := pinSearch(t, `.*x`, subject)
+		if ok || steps > 100 {
+			t.Errorf(".*x against %d runes: matched %v in %d steps", len(subject), ok, steps)
+		}
+	}
+}
+
+// requiredText finds text only where every match must hold it, and never
+// in a lookaround, a backreference, a choice, or a case-insensitive item.
+func TestRequiredText(t *testing.T) {
+	onig, ci := WithFlavor(Oniguruma), WithFlags(IgnoreCase)
+	for _, c := range []struct {
+		pattern string
+		opts    []Option
+		want    string
+	}{
+		{`abc`, nil, "abc"},
+		{`.*x`, nil, "x"},
+		{`a.bcd`, nil, "bcd"},
+		{`a[b]c`, nil, "abc"},
+		{`a\bb`, nil, "ab"},
+		{`^ab$`, nil, "ab"},
+		{`(ab)c`, nil, "abc"},
+		{`(?>ab)c`, nil, "abc"},
+		{`(ab){2}c`, nil, "ababc"},
+		{`(ab){2,}c`, nil, "abab"},
+		{`a{3}`, nil, "aaa"},
+		{`x(ab)+y`, nil, "ab"},
+		{`a*b`, nil, "b"},
+		{`a?b`, nil, "b"},
+		{`a{0}b`, nil, "b"},
+		{`ab(?=c)cd`, nil, "ab"},
+		{`(?<=ab)c`, nil, "c"},
+		{`(?!xyz)c`, nil, "c"},
+		{`(a)\1b`, nil, "a"},
+		{`foo|foo`, nil, "foo"},
+		{`foo|bar`, nil, ""},
+		{`(foo|bar)baz`, nil, "baz"},
+		{`a*`, nil, ""},
+		{`(?:ab)?`, nil, ""},
+		{`.`, nil, ""},
+		{`\x{FFFD}x`, nil, "x"},
+		{`[\x{FFFD}]`, nil, ""},
+		{`\xffx`, []Option{onig}, "x"},
+		{`\xc3\xa9`, []Option{onig}, "é"},
+		{`abc`, []Option{ci}, ""},
+		{`(?i:a)bc`, nil, "bc"},
+		{`a(?i)bc`, nil, "a"},
+		{`1-2`, []Option{ci}, "1-2"},
+		{`ss`, []Option{onig, ci}, ""},
+		{`(?i)k`, nil, ""},
+		{`a\Kb`, nil, ""},
+		{strings.Repeat("a", 300), nil, strings.Repeat("a", maxRequired)},
+		{strings.Repeat("é", 300), nil, strings.Repeat("é", maxRequired/2)},
+		{`(abc){100}`, nil, strings.Repeat("abc", maxRequired/3) + "a"},
+	} {
+		p, err := Compile(c.pattern, c.opts...)
+		if err != nil {
+			if c.want != "" {
+				t.Errorf("%q: %v", c.pattern, err)
+			}
+			continue
+		}
+		if p.required != c.want {
+			t.Errorf("%q: requires %q, want %q", c.pattern, p.required, c.want)
+		}
+	}
+}

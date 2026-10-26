@@ -61,6 +61,13 @@ func (m *machine) search(start int) (bool, error) {
 	if start < 0 || start > len(m.subject) || (m.p.anchored && start > 0) {
 		return false, nil
 	}
+	// A match lies after start, so it cannot hold text the rest of the
+	// subject lacks. A global search looks for the text again from each
+	// match's end, which lies past where the last look found it, so the
+	// looks cover the subject once.
+	if m.p.required != "" && !strings.Contains(m.subject[start:], m.p.required) {
+		return false, nil
+	}
 	if err := m.clearCaps(); err != nil {
 		return false, err
 	}

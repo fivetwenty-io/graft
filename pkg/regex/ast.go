@@ -1,5 +1,10 @@
 package regex
 
+import (
+	"strings"
+	"unicode/utf8"
+)
+
 // nodeKind names the kinds of node the parser builds.
 type nodeKind uint8
 
@@ -196,6 +201,173 @@ func hasBackref(n *node) bool {
 		}
 	}
 	return false
+}
+
+// maxRequired caps the text requiredText returns, in bytes. A longer text
+// would rule out few more subjects and cost more to look for.
+const maxRequired = 256
+
+// need is what requiredText learns about a node. When exact is set, every
+// match of the node consumes text and nothing else. best is the longest
+// text found that every match of the node holds.
+type need struct {
+	exact      bool
+	text, best string
+}
+
+// exactly is the need of a node that always consumes text, which stops
+// being exact once it is longer than requiredText keeps.
+func exactly(text string) need {
+	if len(text) > maxRequired {
+		return need{best: capRequired(text)}
+	}
+	return need{exact: true, text: text, best: text}
+}
+
+// requiredText returns text that every match of n holds, or "" when it
+// finds none, so a search can rule out a subject that lacks the text before
+// trying a single start. It reads the tree after lowering, where a
+// case-insensitive literal has become classes and alternations, so a
+// literal still standing matches only itself. It learns nothing from a
+// lookaround, a backreference, or a choice between different texts, and a
+// zero-width assertion consumes nothing between the texts around it.
+func requiredText(n *node) string {
+	return needOf(n).best
+}
+
+func needOf(n *node) need {
+	switch n.kind {
+	case kindLiteral:
+		return literalNeed(n)
+	case kindClass:
+		if c, ok := n.set.single(); ok && len(n.expansions) == 0 && plainRune(c) {
+			return exactly(string(c))
+		}
+	case kindAssert:
+		return exactly("")
+	case kindConcat:
+		return concatNeed(n.subs)
+	case kindAlternate:
+		return alternateNeed(n.subs)
+	case kindRepeat:
+		return repeatNeed(n)
+	case kindGroup, kindAtomic:
+		return needOf(n.subs[0])
+	}
+	return need{}
+}
+
+// plainRune reports whether a subject holds c exactly where its UTF-8
+// encoding stands. U+FFFD also matches an invalid byte, and a surrogate
+// or a value past U+10FFFF has no encoding, so neither is plain.
+func plainRune(c rune) bool {
+	return utf8.ValidRune(c) && c != utf8.RuneError
+}
+
+// literalNeed is the need of a literal, which is its text when every rune
+// in it is plain, and otherwise the longest run of plain runes it holds.
+func literalNeed(n *node) need {
+	if n.fold {
+		return need{}
+	}
+	var best, run []rune
+	for _, r := range n.runes {
+		if plainRune(r) {
+			run = append(run, r)
+			continue
+		}
+		if len(run) > len(best) {
+			best = run
+		}
+		run = nil
+	}
+	if len(run) == len(n.runes) {
+		return exactly(string(run))
+	}
+	if len(run) > len(best) {
+		best = run
+	}
+	return need{best: capRequired(string(best))}
+}
+
+// concatNeed joins the exact texts of neighbouring nodes in a sequence, so
+// a.bcd needs bcd, and keeps the longest text any part needs.
+func concatNeed(subs []*node) need {
+	exact, run, best := true, "", ""
+	for _, s := range subs {
+		sn := needOf(s)
+		switch {
+		case !sn.exact:
+			best = longest(best, run, sn.best)
+			exact, run = false, ""
+		case len(run)+len(sn.text) > maxRequired:
+			best = longest(best, capRequired(run+sn.text))
+			exact, run = false, sn.text
+		default:
+			run += sn.text
+		}
+	}
+	if exact {
+		return exactly(run)
+	}
+	return need{best: longest(best, run)}
+}
+
+// alternateNeed is the need of a choice, which is exact only when every
+// branch consumes the same text.
+func alternateNeed(subs []*node) need {
+	if len(subs) == 0 {
+		return need{}
+	}
+	first := needOf(subs[0])
+	for _, s := range subs[1:] {
+		if sn := needOf(s); !first.exact || !sn.exact || sn.text != first.text {
+			return need{}
+		}
+	}
+	return first
+}
+
+// repeatNeed is the need of a repeat. A repeat that may run no times needs
+// nothing, and one that runs at least once needs what its body needs, and
+// the body's text repeated as often as the repeat must run.
+func repeatNeed(n *node) need {
+	body := needOf(n.subs[0])
+	switch {
+	case n.max == 0 || body.exact && body.text == "":
+		return exactly("")
+	case n.min == 0:
+		return need{}
+	case !body.exact:
+		return need{best: body.best}
+	case n.min == n.max && len(body.text)*n.min <= maxRequired:
+		return exactly(strings.Repeat(body.text, n.min))
+	}
+	times := min(n.min, maxRequired/len(body.text)+1)
+	return need{best: capRequired(strings.Repeat(body.text, times))}
+}
+
+// capRequired cuts text to at most maxRequired bytes on a rune boundary.
+func capRequired(text string) string {
+	if len(text) <= maxRequired {
+		return text
+	}
+	end := maxRequired
+	for !utf8.RuneStart(text[end]) {
+		end--
+	}
+	return text[:end]
+}
+
+// longest returns the longest of texts, the first among equals.
+func longest(texts ...string) string {
+	best := ""
+	for _, t := range texts {
+		if len(t) > len(best) {
+			best = t
+		}
+	}
+	return best
 }
 
 // maxWidth caps the lengths width reports, which is far past any length a

@@ -28,7 +28,7 @@ func TestBudgetBoundsCompilation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = MustCompile(`(a|b)*c`, WithBudget(Budget{MaxStack: 100})).Find(context.Background(), strings.Repeat("a", 1000), 0)
+	_, err = MustCompile(`(a|b)*c`, WithBudget(Budget{MaxStack: 100})).Find(context.Background(), strings.Repeat("a", 1000)+"c", 0)
 	wantErrIs(t, err, ErrBudget)
 	if el := time.Since(start); el > time.Second {
 		t.Fatalf("compile bounds took %v", el)
@@ -72,7 +72,7 @@ func TestBudgetErrorsNameTheirBound(t *testing.T) {
 	wantErrIs(t, err, ErrBudget)
 	wantErrContains(t, err, "regex: capture storage exceeds the budget of 7 frames")
 
-	_, err = MustCompile(`(a|b)*c`, WithBudget(Budget{MaxStack: 100})).Find(context.Background(), strings.Repeat("a", 1000), 0)
+	_, err = MustCompile(`(a|b)*c`, WithBudget(Budget{MaxStack: 100})).Find(context.Background(), strings.Repeat("a", 1000)+"c", 0)
 	wantErrContains(t, err, "regex: backtrack stack exceeds the budget of 100 frames")
 
 	_, err = MustCompile(`(a+)+$`, WithBudget(Budget{Steps: 1000})).Find(context.Background(), strings.Repeat("a", 30)+"b", 0)
