@@ -48,7 +48,7 @@ type streamState struct {
 	filled bool         // the current slot holds a leaf or a closed container
 	comma  bool         // the last token was a comma
 	tok    []byte       // a number or keyword being read
-	out    []*value.Value
+	out    []queueItem
 	err    error
 	done   bool
 
@@ -59,7 +59,13 @@ type streamState struct {
 	atRS    bool // the byte being handled is an RS
 	events  bool // the caller wants stream events, not whole values
 	warn    func(string)
-	notes   map[*value.Value]seqNote
+}
+
+// queueItem is one place in the event queue, which holds an event or, for
+// a --seq reader, a note left between events.
+type queueItem struct {
+	ev   *value.Value
+	note *seqNote
 }
 
 // seqNote is something a --seq reader leaves in the event queue between
@@ -95,14 +101,10 @@ func (r *JSONReader) nextItem() (*value.Value, *seqNote, error) {
 	s := &r.stream
 	for {
 		if len(s.out) > 0 {
-			ev := s.out[0]
-			s.out[0] = nil
+			item := s.out[0]
+			s.out[0] = queueItem{}
 			s.out = s.out[1:]
-			if n, ok := s.notes[ev]; ok {
-				delete(s.notes, ev)
-				return nil, &n, nil
-			}
-			return ev, nil, nil
+			return item.ev, item.note, nil
 		}
 		if s.err != nil {
 			return nil, nil, s.err
@@ -162,7 +164,7 @@ func (r *JSONReader) attempt(step func() error) bool {
 		return true
 	}
 	for i := before; i < len(s.out); i++ {
-		s.out[i] = nil
+		s.out[i] = queueItem{}
 	}
 	s.out = s.out[:before]
 	r.streamFail(err)
@@ -184,7 +186,7 @@ func (r *JSONReader) streamFail(err error) {
 		s.err = err
 		return
 	}
-	s.out = append(s.out, value.Arr(value.Str(se.text()), se.path))
+	s.out = append(s.out, queueItem{ev: value.Arr(value.Str(se.text()), se.path)})
 	if s.done {
 		return
 	}
@@ -271,10 +273,10 @@ func (s *streamState) resetPath() {
 // emit queues [path, leaf], or [path] when leaf is nil.
 func (s *streamState) emit(path *value.Value, leaf *value.Value) {
 	if leaf == nil {
-		s.out = append(s.out, value.Arr(path))
+		s.out = append(s.out, queueItem{ev: value.Arr(path)})
 		return
 	}
-	s.out = append(s.out, value.Arr(path, leaf))
+	s.out = append(s.out, queueItem{ev: value.Arr(path, leaf)})
 }
 
 // flushLiteral ends the number or keyword being read.

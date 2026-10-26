@@ -104,7 +104,7 @@ func (r *JSONReader) seqFail(se *streamError) {
 		text += " (need RS to resync)"
 	}
 	if s.recover {
-		s.out = append(s.out, value.Arr(value.Str(text), se.path))
+		s.out = append(s.out, queueItem{ev: value.Arr(value.Str(text), se.path)})
 	} else {
 		s.note(seqNote{text: text})
 	}
@@ -122,12 +122,7 @@ func (r *JSONReader) seqReset() {
 
 // note leaves n in the queue behind the events already there.
 func (s *streamState) note(n seqNote) {
-	if s.notes == nil {
-		s.notes = map[*value.Value]seqNote{}
-	}
-	m := value.Arr(value.Num(0))
-	s.notes[m] = n
-	s.out = append(s.out, m)
+	s.out = append(s.out, queueItem{note: &n})
 }
 
 // nextSeqValue reads the next whole value of a text sequence. It puts a
