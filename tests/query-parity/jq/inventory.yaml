@@ -118,7 +118,7 @@
   cases: [input-filename]
 - id: input-line-number
   area: stream
-  phase: J2
+  phase: J1
   cases: [input-line-number]
 - id: invalid-after-valid
   area: cli
@@ -198,7 +198,7 @@
   cases: [runtime-error]
 - id: seq-raw-string
   area: stream
-  phase: J2
+  phase: J1
   cases: [seq-raw-string]
 - id: slurp-two-files
   area: flag
@@ -1802,47 +1802,47 @@
   cases: [f-slurp-raw-multi]
 - id: f-seq-output
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-seq-output]
 - id: f-seq-input
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-seq-input]
 - id: f-stream
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-stream]
 - id: f-stream-scalar
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-stream-scalar]
 - id: f-stream-empty-containers
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-stream-empty-containers]
 - id: f-stream-slurp
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-stream-slurp]
 - id: f-stream-null-input
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-stream-null-input]
 - id: f-stream-fromstream
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-stream-fromstream]
 - id: f-stream-truncated
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-stream-truncated]
 - id: f-stream-errors
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-stream-errors]
 - id: f-stream-multiple-values
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-stream-multiple-values]
 - id: f-search-path
   area: flag
@@ -2106,7 +2106,7 @@
   cases: [c-shtest-exit-status-halt]
 - id: c-shtest-seq-error-truncated
   area: cli
-  phase: J3
+  phase: J1
   cases: [c-shtest-seq-error-truncated]
 - id: c-shtest-indent-with-tab
   area: cli
@@ -2710,7 +2710,7 @@
   cases: [o-get-jq-origin]
 - id: t-input-line-number-multi
   area: stream
-  phase: J2
+  phase: J1
   cases: [t-input-line-number-multi]
 - id: t-stream-index
   area: stream
@@ -2738,5 +2738,5 @@
   cases: [t-stream-join-pair]
 - id: t-tojson-input-line
   area: stream
-  phase: J2
+  phase: J1
   cases: [t-tojson-input-line]

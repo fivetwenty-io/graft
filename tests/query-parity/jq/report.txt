@@ -1,28 +1,24 @@
 # area total allowlisted passing percent
-grammar 123 1 122 99
+grammar 123 0 123 100
 builtin 146 1 145 99
-flag 91 1 79 86
-exit 45 5 40 88
+flag 91 1 90 98
+exit 45 4 41 91
 number 47 9 38 80
-string 39 1 38 97
+string 39 0 39 100
 regex 76 0 69 90
 date 32 0 25 78
 math 19 0 14 73
 module 18 0 18 100
-stream 10 0 0 0
-cli 39 3 33 84
-overall 685 21 621 90
+stream 10 0 4 40
+cli 39 1 36 92
+overall 685 16 642 93
 allow b-fromjson-nan pending J2 nan from fromjson
-allow c-nan-in-input pending J2 nan literal in input
-allow c-surrogate-escape-input pending J3 surrogate escape in input
 allow c-yaml-input-departure pending J3 input parsed as strict JSON
 allow e-compile-bad-format pending J2 unknown format is a compile error
 allow e-compile-empty-program pending J2 empty program is a compile error
 allow e-compile-whitespace-program pending J2 blank program is a compile error
-allow e-invalid-input-leading-zero pending J2 leading-zero number in input
 allow e-invalid-input-literal pending J3 strict literal parsing in input
 allow f-from-file-comment-only pending J2 comment-only program file is a compile error
-allow g-input-nan-literal pending J2 nan literal in input
 allow n-add-decimal departure exact decimal
 allow n-add-exponent-form departure exact decimal
 allow n-add-large departure exact decimal
@@ -32,4 +28,3 @@ allow n-huge-literal-arith departure resource limit
 allow n-modulo-huge departure exact decimal
 allow n-overflow-literal-arith departure exact decimal
 allow n-subtract-bigints departure exact decimal
-allow s-surrogate-lone pending J3 lone surrogate in input

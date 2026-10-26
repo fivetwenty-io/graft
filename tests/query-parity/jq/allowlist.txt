@@ -15,10 +15,5 @@ e-compile-bad-format pending J2 unknown format is a compile error
 e-compile-empty-program pending J2 empty program is a compile error
 e-compile-whitespace-program pending J2 blank program is a compile error
 f-from-file-comment-only pending J2 comment-only program file is a compile error
-c-nan-in-input pending J2 nan literal in input
-g-input-nan-literal pending J2 nan literal in input
-e-invalid-input-leading-zero pending J2 leading-zero number in input
 e-invalid-input-literal pending J3 strict literal parsing in input
-c-surrogate-escape-input pending J3 surrogate escape in input
-s-surrogate-lone pending J3 lone surrogate in input
 c-yaml-input-departure pending J3 input parsed as strict JSON
