@@ -348,7 +348,8 @@ func constMeta(n ast.Node) (*value.Value, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, &query.CompileError{Msg: err.Error()}
+		// Folding failed, as in 1 / 0, and jq refuses what it cannot fold.
+		return nil, &query.CompileError{Msg: "Module metadata must be constant"}
 	}
 	if out == nil || out.Kind() != value.KindObject {
 		return nil, &query.CompileError{Msg: "Module metadata must be an object"}
@@ -356,7 +357,25 @@ func constMeta(n ast.Node) (*value.Value, error) {
 	return out, nil
 }
 
-// isConstant reports whether n is built from literals alone.
+// foldedOps are the binary operators jq folds when both operands are
+// constants. The logical operators, alternation, pipes, and a negated
+// literal are not folded.
+var foldedOps = map[string]bool{
+	"+": true, "-": true, "*": true, "/": true, "%": true,
+	"==": true, "!=": true, "<": true, "<=": true, ">": true, ">=": true,
+}
+
+// isConstOperand reports whether n is a constant that stands for one
+// value, which is what an operand of a folded operator must be.
+func isConstOperand(n ast.Node) bool {
+	if _, ok := n.(*ast.Comma); ok {
+		return false
+	}
+	return isConstant(n)
+}
+
+// isConstant reports whether n is built from literals, folded operators
+// over constants, and the collections that hold them.
 func isConstant(n ast.Node) bool {
 	switch n := n.(type) {
 	case nil:
@@ -364,25 +383,38 @@ func isConstant(n ast.Node) bool {
 	case *ast.Literal:
 		return true
 	case *ast.Str:
-		for _, p := range n.Parts {
-			if _, ok := p.(*ast.Literal); !ok {
-				return false
-			}
-		}
-		return true
+		return isConstStr(n)
 	case *ast.ArrayCons:
 		return isConstant(n.Body)
 	case *ast.Comma:
 		return isConstant(n.L) && isConstant(n.R)
+	case *ast.Binary:
+		return foldedOps[n.Op] && isConstOperand(n.L) && isConstOperand(n.R)
 	case *ast.ObjectCons:
-		for _, e := range n.Entries {
-			if e.Val == nil || !isConstant(e.Key) || !isConstant(e.Val) {
-				return false
-			}
-		}
-		return true
+		return isConstObject(n)
 	}
 	return false
+}
+
+// isConstStr reports whether a string has no interpolation.
+func isConstStr(n *ast.Str) bool {
+	for _, p := range n.Parts {
+		if _, ok := p.(*ast.Literal); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// isConstObject reports whether every entry of an object construction has
+// a constant key and a constant value.
+func isConstObject(n *ast.ObjectCons) bool {
+	for _, e := range n.Entries {
+		if e.Val == nil || !isConstant(e.Key) || !isConstant(e.Val) {
+			return false
+		}
+	}
+	return true
 }
 
 // loaded is a module the linker has read, with the state the resolver

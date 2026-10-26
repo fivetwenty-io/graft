@@ -302,3 +302,20 @@ func TestModulesAutoInclude(t *testing.T) {
 	wantOutputsOpts(t, jq.CompileOptions{AutoInclude: withImport, SearchPaths: []string{dir}}, `viaDep`, `null`, `"d"`)
 	wantErrorOpts(t, jq.CompileOptions{AutoInclude: withImport, SearchPaths: []string{dir}}, `d::dep`, `null`, `d::dep/0 is not defined`)
 }
+
+func TestModuleMetaFoldsConstants(t *testing.T) {
+	opts := modDir(t, map[string]string{
+		"sum.jq":    `module {a: (1 + 1), b: [2 * 3, 7 % 4], c: ("a" + "b"), d: (1 < 2)};`,
+		"nested.jq": `module {a: ((1 + 1) + 1), b: ({"x": 1} + {"y": 2}), c: ([1, 2] - [1]), d: (1 + (2 * 3)), e: ("a,b" / ",")};`,
+		"loose.jq":  `module {a: (null + 1), b: (1 == 1), c: (2 >= 3), d: (6 / 4)};`,
+	})
+	wantOutputsOpts(t, opts, `"sum" | modulemeta | .a, .b, .c, .d`, `null`, `2`, `[6,3]`, `"ab"`, `true`)
+	wantOutputsOpts(t, opts, `"nested" | modulemeta | .a, .b, .c, .d, .e`, `null`, `3`, `{"x":1,"y":2}`, `[2]`, `7`, `["a","b"]`)
+	wantOutputsOpts(t, opts, `"loose" | modulemeta | .a, .b, .c, .d`, `null`, `1`, `true`, `false`, `1.5`)
+	wantOutputsOpts(t, opts, `import "sum" as s {k: (1 + 2)}; 1`, `null`, `1`)
+
+	for _, meta := range []string{`(-1)`, `(true and false)`, `(null // 1)`, `([1] | .[0])`, `((1, 2) + 1)`, `(1 / 0)`, `("x" - "y")`, `(1 + "a")`, `(.a + 1)`, `(length + 1)`} {
+		o := modDir(t, map[string]string{"bad.jq": `module {a: ` + meta + `};`})
+		wantErrorOpts(t, o, `"bad" | modulemeta`, `null`, `Module metadata must be constant`)
+	}
+}
