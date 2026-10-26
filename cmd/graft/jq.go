@@ -136,6 +136,7 @@ func checkJQOptions(opts jqOptions) error {
 		{opts.Tab, "--tab"},
 		{opts.ASCII, "-a"},
 		{opts.RawOutput0, "--raw-output0"},
+		{opts.Seq, "--seq"},
 	} {
 		if conflict.set {
 			return &usageError{Msg: conflict.flag + " cannot be combined with -o " + opts.Output}
