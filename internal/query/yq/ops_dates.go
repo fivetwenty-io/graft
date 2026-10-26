@@ -3,7 +3,6 @@ package yq
 import (
 	"errors"
 	"strconv"
-	"sync"
 	"time"
 	_ "time/tzdata" // zone names resolve on a host with no zoneinfo
 
@@ -24,16 +23,14 @@ const dateOnly = "2006-01-02"
 // errFirst ends an argument at its first output.
 var errFirst = errors.New("first output")
 
-// layouts holds the layout with_dtf sets for the run it is called in,
-// keyed by the run's context. A run with no entry reads time.RFC3339.
-var layouts sync.Map
+// layoutKey is the key of the layout in a run's Local storage.
+type layoutKey struct{}
 
-// layoutOf is the date time layout in force for the run of ctx.
+// layoutOf is the date time layout in force for the run of ctx, which
+// is time.RFC3339 until with_dtf sets another.
 func layoutOf(ctx *runtime.Ctx) string {
-	if l, ok := layouts.Load(ctx); ok {
-		if s, ok := l.(string); ok {
-			return s
-		}
+	if s, ok := ctx.Local[layoutKey{}].(string); ok {
+		return s
 	}
 	return time.RFC3339
 }
@@ -205,22 +202,7 @@ func withDtf(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runti
 	if !ok {
 		return &query.RuntimeError{Msg: "could not get date time format: could not find layout for format_time"}
 	}
-	type output struct {
-		v *value.Value
-		p value.Path
-	}
-	var outs []output
-	prev, had := layouts.Load(ctx)
-	layouts.Store(ctx, layout)
-	err = args[1].Each(in, func(v *value.Value, p value.Path) error {
-		outs = append(outs, output{v, p})
-		return nil
-	})
-	if had {
-		layouts.Store(ctx, prev)
-	} else {
-		layouts.Delete(ctx)
-	}
+	outs, err := collectUnder(ctx, layout, in, args[1])
 	if err != nil {
 		return err
 	}
@@ -271,4 +253,33 @@ func dateArith(ctx *runtime.Ctx, l, r *value.Value, negate bool) (*value.Value, 
 		m.Tag = timestampTag
 	}
 	return withMeta(value.Str(m.Text), m), true, nil
+}
+
+// output is a value an expression gave, with the path it came from.
+type output struct {
+	v *value.Value
+	p value.Path
+}
+
+// collectUnder gathers the outputs of expr on in with layout in force,
+// and puts the layout that was in force back, however expr ends.
+func collectUnder(ctx *runtime.Ctx, layout string, in *value.Value, expr runtime.Thunk) ([]output, error) {
+	if ctx.Local == nil {
+		ctx.Local = map[any]any{}
+	}
+	prev, had := ctx.Local[layoutKey{}]
+	ctx.Local[layoutKey{}] = layout
+	defer func() {
+		if had {
+			ctx.Local[layoutKey{}] = prev
+		} else {
+			delete(ctx.Local, layoutKey{})
+		}
+	}()
+	var outs []output
+	err := expr.Each(in, func(v *value.Value, p value.Path) error {
+		outs = append(outs, output{v, p})
+		return nil
+	})
+	return outs, err
 }

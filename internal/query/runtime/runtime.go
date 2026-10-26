@@ -92,6 +92,10 @@ type Ctx struct {
 	Compare func(a, b *value.Value) int
 	Equal   func(a, b *value.Value) bool
 
+	// Local is storage a dialect's builtins keep for this run alone, so
+	// that they share no state between runs. It is nil until one sets it.
+	Local map[any]any
+
 	depth int
 	ticks int
 }

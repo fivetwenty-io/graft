@@ -1,8 +1,12 @@
 package yq
 
 import (
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/fivetwenty-io/graft/internal/query/load"
+	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
 // inLocal runs the rest of the test with t as the local time zone, which
@@ -185,4 +189,31 @@ func TestYQDateArithmetic(t *testing.T) {
 	wantYQError(t, `.a + "bogus"`, "a: 2021-01-01T00:00:00Z\n", `unable to parse duration [bogus]: time: invalid duration "bogus"`)
 	wantYQError(t, `.a + 5`, "a: 2021-01-01T00:00:00Z\n", `unable to parse duration [5]: time: missing unit in duration "5"`)
 	wantYQError(t, `.a - .b`, "a: 2021-01-02T00:00:00Z\nb: 2021-01-01T00:00:00Z\n", `unable to parse duration [2021-01-01T00:00:00Z]: time: unknown unit "-" in duration "-2021-01-01T00:00:00Z"`)
+}
+
+func TestYQWithDtfConcurrentRuns(t *testing.T) {
+	d := New(testOpts)
+	var wg sync.WaitGroup
+	for i := range 8 {
+		layout, in, want := "2006-01-02", `"2021-01-01"`, "2021-01-02"
+		if i%2 == 1 {
+			layout, in, want = "Jan 2 2006", `"Jan 1 2021"`, "Jan 2 2021"
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 50 {
+				var got string
+				err := Eval(d, `with_dtf("`+layout+`"; . + "24h")`, mustLoad(t, in)[0], func(_ load.Document, v *value.Value) error {
+					got = v.Str()
+					return nil
+				})
+				if err != nil || got != want {
+					t.Errorf("layout %q: got %q, %v, want %q", layout, got, err, want)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
