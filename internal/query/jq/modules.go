@@ -296,8 +296,13 @@ func (r *ModuleResolver) Meta(name string) (*value.Value, error) {
 		deps = append(deps, db.Seal())
 	}
 	defs := make([]*value.Value, 0, len(lib.defs))
+	seen := make(map[string]bool, len(lib.defs))
 	for _, d := range lib.defs {
-		defs = append(defs, value.Str(fmt.Sprintf("%s/%d", d.Name, len(d.Params))))
+		name := fmt.Sprintf("%s/%d", d.Name, len(d.Params))
+		if !seen[name] {
+			seen[name] = true
+			defs = append(defs, value.Str(name))
+		}
 	}
 	b.Set("deps", value.Arr(deps...))
 	b.Set("defs", value.Arr(defs...))

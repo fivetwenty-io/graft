@@ -499,3 +499,8 @@ func TestModuleDataErrorsNameOnlyPositions(t *testing.T) {
 		}
 	}
 }
+
+func TestModuleMetaListsRedefinedNamesOnce(t *testing.T) {
+	opts := modDir(t, map[string]string{"dup.jq": `def a: 1; def b: 2; def a: 3; def c: 4;`})
+	wantOutputsOpts(t, opts, `"dup" | modulemeta | .defs`, `null`, `["a/0","b/0","c/0"]`)
+}
