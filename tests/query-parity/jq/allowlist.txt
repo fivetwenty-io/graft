@@ -6,7 +6,7 @@ n-add-exponent-form departure exact decimal
 n-add-large departure exact decimal
 n-divide-third departure exact decimal
 n-floor-large departure exact decimal
-n-huge-literal-arith departure exact decimal
+n-huge-literal-arith departure resource limit
 n-modulo-huge departure exact decimal
 n-overflow-literal-arith departure exact decimal
 n-subtract-bigints departure exact decimal

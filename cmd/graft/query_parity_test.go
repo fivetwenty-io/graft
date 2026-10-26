@@ -48,6 +48,7 @@ type parityCase struct {
 	Stdin           string
 	Dir             string
 	WantGraftStdout string
+	PinsGraftStdout bool
 	WantStdout      string
 	WantExit        int
 	WantStderrFlag  bool
@@ -126,6 +127,8 @@ func loadParityCases(t *testing.T, dialect string) []parityCase {
 			t.Fatalf("case %s has no golden exit code: %v", c.Name, err)
 		}
 		c.WantExit = code
+		_, pinErr := os.Stat(filepath.Join(dir, "graft-stdout"))
+		c.PinsGraftStdout = pinErr == nil
 		c.WantStderrFlag = strings.TrimSpace(readOptional(t, filepath.Join(dir, "want", "stderr-flag"))) == "1"
 		_, statErr := os.Stat(filepath.Join(dir, "stderr-exact"))
 		c.StderrExact = statErr == nil
@@ -454,7 +457,7 @@ func TestQueryParity(t *testing.T) {
 				}
 				So(v, ShouldBeIn, parity.Pass, parity.ExpectedFail)
 				// A departure still pins graft's own output.
-				if v == parity.ExpectedFail && c.WantGraftStdout != "" {
+				if v == parity.ExpectedFail && c.PinsGraftStdout {
 					out, _, _, _ := runJQIn(t, c)
 					So(out, ShouldEqual, c.WantGraftStdout)
 				}
@@ -487,4 +490,11 @@ func TestFreshCopyPerRun(t *testing.T) {
 		So(os.WriteFile(filepath.Join(dir, "extra.json"), []byte("{}"), 0o600), ShouldBeNil)
 		So(diffFiles(dir, c.WantFiles), ShouldHaveLength, 2)
 	})
+}
+
+func TestHugeLiteralArithmeticPinsEmptyStdout(t *testing.T) {
+	c := caseNamed(t, "jq", "n-huge-literal-arith")
+	if !c.PinsGraftStdout || c.WantGraftStdout != "" {
+		t.Errorf("n-huge-literal-arith should pin an empty graft stdout at the digit bound, got pinned=%v %q", c.PinsGraftStdout, c.WantGraftStdout)
+	}
 }

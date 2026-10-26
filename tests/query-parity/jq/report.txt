@@ -28,7 +28,7 @@ allow n-add-exponent-form departure exact decimal
 allow n-add-large departure exact decimal
 allow n-divide-third departure exact decimal
 allow n-floor-large departure exact decimal
-allow n-huge-literal-arith departure exact decimal
+allow n-huge-literal-arith departure resource limit
 allow n-modulo-huge departure exact decimal
 allow n-overflow-literal-arith departure exact decimal
 allow n-subtract-bigints departure exact decimal
