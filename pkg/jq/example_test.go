@@ -180,6 +180,12 @@ func ExampleWithModulePaths() {
 	// Output: 42
 }
 
+func ExampleWithModulePaths_default() {
+	_, err := jq.Compile(`import "double" as d; d::twice`)
+	fmt.Println(err)
+	// Output: module not found: double
+}
+
 func ExampleWithProgramOrigin() {
 	_, err := jq.Compile(`.`, jq.WithModulePaths([]string{"./lib"}), jq.WithProgramOrigin("/srv/filters"))
 	fmt.Println(err)

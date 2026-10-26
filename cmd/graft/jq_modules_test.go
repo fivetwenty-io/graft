@@ -41,6 +41,11 @@ func TestJQLibraryPaths(t *testing.T) {
 		So(out, ShouldEqual, "[\""+resolved+"\",\"~/.jq\"]\n")
 	})
 
+	Convey("without -L the search list is jq's default list", t, func() {
+		out, _, _ := runJQ(t, []string{"-c", "get_search_list"}, "null")
+		So(out, ShouldEqual, "[\"~/.jq\",\"$ORIGIN/../lib/jq\",\"$ORIGIN/../lib\"]\n")
+	})
+
 	Convey("a module that cannot be found is a compile error", t, func() {
 		_, errOut, st := runJQ(t, []string{"-L", lib, `import "nope" as n; 1`}, "null")
 		So(st.Code, ShouldEqual, 3)

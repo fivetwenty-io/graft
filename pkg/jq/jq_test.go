@@ -382,6 +382,23 @@ func TestModulesRunThroughOptions(t *testing.T) {
 	wantJSON(t, out[0], `["inc/0"]`)
 }
 
+func TestModulesNeedModulePaths(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "m.jq"), []byte(`def inc: . + 1;`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Compile(`import "m" as m; m::inc`, WithProgramOrigin(dir))
+	wantErrContains(t, err, "module not found: m")
+	_, err = Compile(`include "m"; inc`)
+	wantErrContains(t, err, "module not found: m")
+	q := mustCompile(t, `get_search_list`)
+	out, err := q.RunAll(t.Context(), value.Null())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantJSON(t, out[0], `[]`)
+}
+
 func TestBuiltinsListsNameAndArity(t *testing.T) {
 	names := mustCompile(t, `.`).Builtins()
 	for _, want := range []string{"map/1", "path/1", "input/0", "halt_error/1"} {

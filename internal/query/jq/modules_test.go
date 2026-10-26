@@ -207,7 +207,7 @@ def h: 1; def h(x): x; def g($a; b): 3;`,
 func TestModuleOrigins(t *testing.T) {
 	opts := jq.CompileOptions{ProgramOrigin: "/some/where", JQOrigin: "/opt/jq/bin"}
 	wantOutputsOpts(t, opts, `get_prog_origin, get_jq_origin`, `null`, `"/some/where"`, `"/opt/jq/bin"`)
-	wantOutputsOpts(t, opts, `get_search_list`, `null`, `["~/.jq","$ORIGIN/../lib/jq","$ORIGIN/../lib"]`)
+	wantOutputsOpts(t, opts, `get_search_list`, `null`, `[]`)
 	wantOutputsOpts(t, jq.CompileOptions{SearchPaths: []string{"x", "y"}}, `get_search_list`, `null`, `["x","y"]`)
 }
 
@@ -242,18 +242,35 @@ func TestModuleResolverSearchOrder(t *testing.T) {
 			t.Errorf("Resolve(%q) = %q, %v; want %q", rel, got, err, want)
 		}
 	}
-	def := &jq.ModuleResolver{JQDir: filepath.Join(root, "exe", "bin")}
+	def := &jq.ModuleResolver{JQDir: filepath.Join(root, "exe", "bin"), Origin: root}
+	for _, rel := range []string{"h", "e", "one/m"} {
+		if got, err := def.Resolve(rel, false); err == nil {
+			t.Errorf("Resolve(%q) with no search paths found %q", rel, got)
+		}
+	}
+	listed := &jq.ModuleResolver{
+		SearchPaths: []string{"~/.jq", "$ORIGIN/../lib"},
+		JQDir:       filepath.Join(root, "exe", "bin"),
+	}
 	for rel, want := range map[string]string{
 		"h": filepath.Join(root, "home", ".jq", "h.jq"),
 		"e": filepath.Join(root, "exe", "bin", "..", "lib", "e.jq"),
 	} {
 		want = filepath.Clean(want)
-		got, err := def.Resolve(rel, false)
+		got, err := listed.Resolve(rel, false)
 		if err != nil || got != want {
-			t.Errorf("default Resolve(%q) = %q, %v; want %q", rel, got, err, want)
+			t.Errorf("listed Resolve(%q) = %q, %v; want %q", rel, got, err, want)
 		}
 	}
 	if _, err := r.Resolve("m", true); err == nil {
 		t.Error("Resolve of a data module found a .jq file")
 	}
+}
+
+func TestModulesNeedSearchPaths(t *testing.T) {
+	bare := jq.CompileOptions{ProgramOrigin: "testdata/mods"}
+	wantErrorOpts(t, bare, `import "a" as a; 1`, `null`, `module not found: a`)
+	wantErrorOpts(t, bare, `include "a"; 1`, `null`, `module not found: a`)
+	wantErrorOpts(t, jq.CompileOptions{}, `import "a" as a {search: "testdata/mods"}; 1`, `null`, `module not found: a`)
+	wantErrorOpts(t, bare, `"a" | modulemeta`, `null`, `module not found: a`)
 }

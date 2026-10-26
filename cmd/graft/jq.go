@@ -554,19 +554,25 @@ func jqCompileOptions(opts jqOptions, in *jqInputs, origin string, stderr io.Wri
 	if origin != "" {
 		jqOpts = append(jqOpts, jq.WithProgramOrigin(origin))
 	}
-	if len(opts.LibraryPaths) > 0 {
-		jqOpts = append(jqOpts, jq.WithModulePaths(jqLibraryPaths(opts.LibraryPaths)))
-	}
+	jqOpts = append(jqOpts, jq.WithModulePaths(jqLibraryPaths(opts.LibraryPaths)))
 	if opts.FloatNumbers {
 		jqOpts = append(jqOpts, jq.WithFloatNumbers())
 	}
 	return jqOpts
 }
 
+// jqDefaultLibraryPaths is the search list jq uses when no -L is given.
+var jqDefaultLibraryPaths = []string{"~/.jq", "$ORIGIN/../lib/jq", "$ORIGIN/../lib"}
+
 // jqLibraryPaths resolves each -L directory to its real path, the way jq
 // does, and keeps one that does not exist as it was given, which is how an
-// entry such as ~/.jq or $ORIGIN/lib gets through to the search.
+// entry such as ~/.jq or $ORIGIN/lib gets through to the search. With no
+// -L it returns jq's default list, because the library reads no module
+// files unless it is told where to look.
 func jqLibraryPaths(paths []string) []string {
+	if len(paths) == 0 {
+		return append([]string(nil), jqDefaultLibraryPaths...)
+	}
 	out := make([]string, len(paths))
 	for i, p := range paths {
 		out[i] = p

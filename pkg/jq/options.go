@@ -81,11 +81,14 @@ func WithEnv(env []string) Option {
 // NAME.jq, or as NAME/NAME.jq, in each directory in turn, and a data
 // import looks for .json files the same way. An entry may start with ~/
 // or $ORIGIN/, and one that is relative is taken from the directory of
-// the module that imports. Without this option the directories are jq's
-// defaults, which are ~/.jq, $ORIGIN/../lib/jq, and $ORIGIN/../lib.
+// the module that imports. Without this option a query reads no module
+// files at all, so every import and include fails with a module-not-found
+// error and get_search_list is empty. That keeps a program from untrusted
+// text away from the home directory and the executable's neighbors. A
+// caller that wants jq's defaults passes them, as the jq command does.
 func WithModulePaths(paths []string) Option {
 	return func(c *config) error {
-		c.modulePaths = append([]string(nil), paths...)
+		c.modulePaths = append([]string{}, paths...)
 		return nil
 	}
 }

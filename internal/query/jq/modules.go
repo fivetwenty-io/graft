@@ -26,11 +26,10 @@ const (
 	maxModules     = 1024
 )
 
-// defaultSearchPaths is the library path jq uses when no -L is given.
-var defaultSearchPaths = []string{"~/.jq", "$ORIGIN/../lib/jq", "$ORIGIN/../lib"}
-
 // CompileOptions are what Compile needs to find modules. SearchPaths is
-// the list -L builds, and nil selects jq's default list. ProgramOrigin is
+// the list -L builds, and nil means the compiler reads no module files at
+// all, so every import fails. A caller that wants jq's own default list
+// passes it, as the jq command does. ProgramOrigin is
 // the directory of the program file, and empty means the current
 // directory. JQOrigin is what $ORIGIN stands for, and empty means the
 // directory of the running executable.
@@ -55,13 +54,9 @@ func NewModuleResolver(opts CompileOptions) *ModuleResolver {
 	return &ModuleResolver{SearchPaths: opts.SearchPaths, Origin: opts.ProgramOrigin, JQDir: opts.JQOrigin}
 }
 
-// SearchList returns the library directories as they were given, or jq's
-// default list.
+// SearchList returns the library directories as they were given.
 func (r *ModuleResolver) SearchList() []string {
-	if r.SearchPaths == nil {
-		return append([]string(nil), defaultSearchPaths...)
-	}
-	return append([]string(nil), r.SearchPaths...)
+	return append([]string{}, r.SearchPaths...)
 }
 
 // ProgOrigin returns the directory of the main program as an absolute
@@ -104,6 +99,9 @@ func (r *ModuleResolver) Resolve(relpath string, isData bool) (string, error) {
 func (r *ModuleResolver) find(relpath string, isData bool, search *value.Value, libOrigin string) (string, error) {
 	if err := validateRelPath(relpath); err != nil {
 		return "", err
+	}
+	if r.SearchPaths == nil {
+		return "", errors.New("module not found: " + relpath)
 	}
 	suffix := ".jq"
 	if isData {
