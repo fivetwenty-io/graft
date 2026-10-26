@@ -185,9 +185,56 @@ func TestModulesRefuseIrregularFiles(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(dir, "dir.jq"), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	opts := jq.CompileOptions{SearchPaths: []string{dir}}
-	wantErrorOpts(t, opts, `import "dir" as d; 1`, `null`, `module not found: dir`)
-	wantErrorOpts(t, jq.CompileOptions{SearchPaths: []string{"/dev"}}, `import "null" as d {search: "/dev"}; 1`, `null`, `module not found: null`)
+	if err := os.Symlink("/dev/zero", filepath.Join(dir, "zero.jq")); err != nil {
+		t.Fatal(err)
+	}
+	for _, unconfined := range []bool{false, true} {
+		opts := jq.CompileOptions{SearchPaths: []string{dir}, Unconfined: unconfined}
+		wantErrorOpts(t, opts, `import "dir" as d; 1`, `null`, `module not found: dir`)
+		wantErrorOpts(t, opts, `import "zero" as z; 1`, `null`, `module not found: zero`)
+		wantErrorOpts(t, opts, `import "zero" as $z; 1`, `null`, `module not found: zero`)
+	}
+}
+
+func TestModulesRefuseBadNames(t *testing.T) {
+	opts := jq.CompileOptions{SearchPaths: []string{t.TempDir()}}
+	wantErrorOpts(t, opts, `import "a\\b" as x; 1`, `null`, `Modules must be named by relative paths using '/', not '\' (a\b)`)
+	wantErrorOpts(t, opts, `import "a\u0000b" as x; 1`, `null`, `Module path contains a NUL byte`)
+	wantErrorOpts(t, opts, `"a\\b" | modulemeta`, `null`, `Modules must be named by relative paths`)
+}
+
+func TestModuleDataErrorsNameOnlyPositions(t *testing.T) {
+	opts := modDir(t, map[string]string{
+		"lit.json":  `{"a": nullsecretword}`,
+		"open.json": "[1,\n",
+	})
+	for _, name := range []string{"lit", "open"} {
+		_, err := runOpts(t, opts, `import "`+name+`" as $d; $d`, `null`)
+		if err == nil {
+			t.Fatalf("%s: want an error", name)
+		}
+		got := message(err)
+		if strings.Contains(got, "secretword") {
+			t.Errorf("%s: the error quotes the file: %q", name, got)
+		}
+		if strings.Count(got, name+".json") != 1 || !strings.Contains(got, "error loading data file") || !strings.Contains(got, "at line") {
+			t.Errorf("%s: want one path and a position, got %q", name, got)
+		}
+	}
+}
+
+func TestModuleMetaListsRedefinedNamesOnce(t *testing.T) {
+	opts := modDir(t, map[string]string{"dup.jq": `def a: 1; def b: 2; def a: 3; def c: 4;`})
+	wantOutputsOpts(t, opts, `"dup" | modulemeta | .defs`, `null`, `["a/0","b/0","c/0"]`)
+}
+
+func TestModuleMetaFoldsLikeJQAtTheEdges(t *testing.T) {
+	opts := modDir(t, map[string]string{"loc.jq": `module {$__loc__, a: 1};`})
+	wantOutputsOpts(t, opts, `"loc" | modulemeta | .__loc__.line, .a`, `null`, `1`, `1`)
+	for _, meta := range []string{`(1, 2)`, `("a\(1)")`} {
+		o := modDir(t, map[string]string{"bad.jq": `module {a: ` + meta + `};`})
+		wantErrorOpts(t, o, `"bad" | modulemeta`, `null`, `Module metadata must be constant`)
+	}
 }
 
 func TestModuleMeta(t *testing.T) {
@@ -471,45 +518,4 @@ func TestUnconfinedModulesKeepJQSearchRules(t *testing.T) {
 	wantOutputsOpts(t, opts, `import "o" as m; m::o`, `null`, `"outside"`)
 	wantOutputsOpts(t, opts, `import "link" as m; m::o`, `null`, `"outside"`)
 	wantOutputsOpts(t, opts, `import "dir/o" as m; m::o`, `null`, `"outside"`)
-}
-
-func TestModulesRefuseBadNames(t *testing.T) {
-	opts := jq.CompileOptions{SearchPaths: []string{t.TempDir()}}
-	wantErrorOpts(t, opts, `import "a\\b" as x; 1`, `null`, `Modules must be named by relative paths using '/', not '\' (a\b)`)
-	wantErrorOpts(t, opts, `import "a\u0000b" as x; 1`, `null`, `Module path contains a NUL byte`)
-	wantErrorOpts(t, opts, `"a\\b" | modulemeta`, `null`, `Modules must be named by relative paths`)
-}
-
-func TestModuleDataErrorsNameOnlyPositions(t *testing.T) {
-	opts := modDir(t, map[string]string{
-		"lit.json":  `{"a": nullsecretword}`,
-		"open.json": "[1,\n",
-	})
-	for _, name := range []string{"lit", "open"} {
-		_, err := runOpts(t, opts, `import "`+name+`" as $d; $d`, `null`)
-		if err == nil {
-			t.Fatalf("%s: want an error", name)
-		}
-		got := message(err)
-		if strings.Contains(got, "secretword") {
-			t.Errorf("%s: the error quotes the file: %q", name, got)
-		}
-		if strings.Count(got, name+".json") != 1 || !strings.Contains(got, "error loading data file") || !strings.Contains(got, "at line") {
-			t.Errorf("%s: want one path and a position, got %q", name, got)
-		}
-	}
-}
-
-func TestModuleMetaListsRedefinedNamesOnce(t *testing.T) {
-	opts := modDir(t, map[string]string{"dup.jq": `def a: 1; def b: 2; def a: 3; def c: 4;`})
-	wantOutputsOpts(t, opts, `"dup" | modulemeta | .defs`, `null`, `["a/0","b/0","c/0"]`)
-}
-
-func TestModuleMetaFoldsLikeJQAtTheEdges(t *testing.T) {
-	opts := modDir(t, map[string]string{"loc.jq": `module {$__loc__, a: 1};`})
-	wantOutputsOpts(t, opts, `"loc" | modulemeta | .__loc__.line, .a`, `null`, `1`, `1`)
-	for _, meta := range []string{`(1, 2)`, `("a\(1)")`} {
-		o := modDir(t, map[string]string{"bad.jq": `module {a: ` + meta + `};`})
-		wantErrorOpts(t, o, `"bad" | modulemeta`, `null`, `Module metadata must be constant`)
-	}
 }

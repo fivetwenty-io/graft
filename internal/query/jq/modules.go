@@ -343,7 +343,7 @@ type library struct {
 // file, and one larger than maxModuleBytes, because the path comes from a
 // program that may be untrusted.
 func readFile(path string) ([]byte, error) {
-	f, err := os.Open(path) // #nosec G304 -- the search path and the module name pick the file
+	f, err := openNoBlock(path)
 	if err != nil {
 		return nil, err
 	}
