@@ -81,8 +81,10 @@ func multiplyScalars(ctx *runtime.Ctx, base runtime.Native, l, r *value.Value, e
 		return multiplyCustom(ctx, base, l, r, emit)
 	case tagOf(l) == strTag && rt == intTag:
 		return repeat(l, l, r, emit)
-	case lt == intTag && tagOf(r) == strTag:
+	case lt == intTag && (tagOf(r) == strTag || customTag(tagOf(r)) && rt == strTag):
 		return repeat(l, r, l, emit)
+	case customTag(tagOf(l)) && lt == strTag && rt == intTag:
+		return unreadable(l, intTag)
 	default:
 	}
 	return cannotMultiply(l, r)
@@ -102,7 +104,10 @@ func multiplyCustom(ctx *runtime.Ctx, base runtime.Native, l, r *value.Value, em
 	if !lok || !rok {
 		// yq cannot multiply text such as .inf, which reads as a
 		// float but not as a number.
-		return cannotMultiply(l, r)
+		if !lok {
+			return unreadable(l, floatTag)
+		}
+		return unreadable(r, floatTag)
 	}
 	return base(ctx, nil, []runtime.Thunk{fixedThunk{ln}, fixedThunk{rn}}, func(v *value.Value, p value.Path) error {
 		if !customTag(tagOf(l)) || v.Kind() != value.KindNumber {
@@ -116,6 +121,23 @@ func multiplyCustom(ctx *runtime.Ctx, base runtime.Native, l, r *value.Value, em
 		}
 		return emit(out.WithMeta(&m), p)
 	})
+}
+
+// unreadable is the error for a scalar with a custom tag that "*" takes
+// as a number but whose text is not one. yq reports what Go makes of the
+// text as an int or a float, as tag says.
+func unreadable(v *value.Value, tag string) error {
+	text := nodeText(v)
+	var err error
+	if tag == floatTag {
+		_, err = strconv.ParseFloat(text, 64)
+	} else {
+		_, err = strconv.ParseInt(text, 10, 64)
+	}
+	if err != nil {
+		return &query.RuntimeError{Msg: err.Error()}
+	}
+	return cannotMultiply(v, v)
 }
 
 // asNumber is a scalar as the number its text reads as, and reports
