@@ -81,14 +81,14 @@ func scalarKind(v *value.Value) bool {
 // isTimestamp reports whether yq reads v as a timestamp, which is a node
 // tagged so or an unquoted scalar written as one.
 func isTimestamp(v *value.Value) bool {
-	if v.Kind() != value.KindString {
-		return false
-	}
+	return v.Kind() == value.KindString && tagOf(v) == timestampTag
+}
+
+// plainTimestamp reports whether v is an unquoted, untagged scalar
+// from a document that is written as a timestamp, which yq reads as one.
+func plainTimestamp(v *value.Value) bool {
 	m := v.Meta()
-	if m != nil && m.Tag != "" {
-		return m.Tag == timestampTag
-	}
-	if m != nil && m.Style&(value.SingleQuoted|value.DoubleQuoted|value.Literal|value.Folded) != 0 {
+	if m == nil || m.Tag != "" || m.AliasOf != "" || m.Style&(value.SingleQuoted|value.DoubleQuoted|value.Literal|value.Folded) != 0 {
 		return false
 	}
 	return yamlnode.ResolvePlainTag(v.Str()) == yamlnode.TagTimestamp

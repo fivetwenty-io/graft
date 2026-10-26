@@ -166,6 +166,9 @@ func tagOf(v *value.Value) string {
 	case value.KindArray:
 		return "!!seq"
 	case value.KindString:
+		if plainTimestamp(v) {
+			return timestampTag
+		}
 		return strTag
 	case value.KindTrue, value.KindFalse:
 		return "!!bool"

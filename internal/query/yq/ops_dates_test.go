@@ -191,6 +191,17 @@ func TestYQDateArithmetic(t *testing.T) {
 	wantYQError(t, `.a - .b`, "a: 2021-01-02T00:00:00Z\nb: 2021-01-01T00:00:00Z\n", `unable to parse duration [2021-01-01T00:00:00Z]: time: unknown unit "-" in duration "-2021-01-01T00:00:00Z"`)
 }
 
+func TestYQTagOfTimestamps(t *testing.T) {
+	inLocal(t, "UTC")
+	wantYQ(t, `.t | tag`, "t: 2021-01-01T00:00:00Z\n", "!!timestamp\n")
+	wantYQ(t, `.t | tag`, "t: 2021-01-01\n", "!!timestamp\n")
+	wantYQ(t, `.t | type`, "t: 2021-01-01T00:00:00Z\n", "!!timestamp\n")
+	wantYQ(t, `.t | tag`, "t: \"2021-01-01\"\n", "!!str\n")
+	wantYQ(t, `.t | tag`, "t: !!timestamp 2021-01-01\n", "!!timestamp\n")
+	wantYQ(t, `.t | tz("UTC") | tag`, "t: 2021-01-01T00:00:00Z\n", "!!timestamp\n")
+	wantYQ(t, `"2021-01-01" | tag`, "t: 1\n", "!!str\n")
+}
+
 func TestYQFromUnixRange(t *testing.T) {
 	inLocal(t, "UTC")
 	wantYQ(t, `.a | from_unix`, "a: 253402300800\n", "10000-01-01T00:00:00Z\n")
