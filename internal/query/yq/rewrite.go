@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/ast"
+	"github.com/fivetwenty-io/graft/internal/query/lexer"
 )
 
 // rewrite adjusts a parsed expression for the yq operators whose argument
@@ -17,6 +18,9 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 	walk(n, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.Call:
+			if n.Name == "env" && len(n.Args) == 0 && err == nil {
+				err = bareEnv(expr)
+			}
 			if e := rewriteCall(expr, n); e != nil && err == nil {
 				err = e
 			}
@@ -56,6 +60,59 @@ func rewriteCall(expr string, n *ast.Call) error {
 	default:
 	}
 	return nil
+}
+
+// bareEnv is yq's lexer error for env without an argument, which yq
+// does not have, so that jq's whole-environment env is out of reach. yq
+// reads an interpolation's text on its own, so the error inside one
+// counts from the interpolation's start and quotes only its text.
+func bareEnv(expr string) error {
+	toks, err := lexer.Tokenize(expr, Grammar().Tokens)
+	if err != nil {
+		return &ParseError{Msg: "lexer: invalid input text " + strconv.Quote("env")}
+	}
+	var opens []int
+	for i, tok := range toks {
+		switch tok.Kind {
+		case lexer.InterpStart:
+			opens = append(opens, i)
+			continue
+		case lexer.InterpEnd:
+			opens = opens[:len(opens)-1]
+			continue
+		default:
+		}
+		if tok.Kind != lexer.Ident || tok.Text != "env" || toks[i+1].Kind == lexer.LParen {
+			continue
+		}
+		start, end := 0, len(expr)
+		if len(opens) > 0 {
+			start = toks[opens[len(opens)-1]].End
+			end = interpEnd(toks[i:])
+		}
+		at := tok.Pos - start
+		return &ParseError{Msg: "1:" + strconv.Itoa(at+1) + ": lexer: invalid input text " + strconv.Quote(expr[tok.Pos:end]), Pos: tok.Pos}
+	}
+	return &ParseError{Msg: "lexer: invalid input text " + strconv.Quote("env")}
+}
+
+// interpEnd is the offset of the ")" that closes the interpolation toks
+// start inside.
+func interpEnd(toks []lexer.Token) int {
+	depth := 0
+	for _, tok := range toks {
+		switch tok.Kind {
+		case lexer.InterpStart:
+			depth++
+		case lexer.InterpEnd:
+			if depth == 0 {
+				return tok.Pos
+			}
+			depth--
+		default:
+		}
+	}
+	return toks[len(toks)-1].Pos
 }
 
 // checkFlags fails envsubst flags other than ne, nu, and ff with yq's

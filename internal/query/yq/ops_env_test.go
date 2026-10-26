@@ -16,3 +16,13 @@ func TestYQEnv(t *testing.T) {
 	wantYQError(t, `env(NOPE)`, "null\n", "value for env variable 'NOPE' not provided in env()")
 	wantYQErrorOpts(t, Options{Caps: runtime.Capabilities{Files: true}}, `env(YQ_T)`, "null\n", "env operations have been disabled")
 }
+
+func TestYQBareEnvIsNotAnOperator(t *testing.T) {
+	t.Setenv("YQ_T", "v")
+	wantYQError(t, `env | .YQ_T`, "null\n", `1:1: lexer: invalid input text "env | .YQ_T"`)
+	wantYQError(t, `[env]`, "null\n", `1:2: lexer: invalid input text "env]"`)
+	wantYQError(t, `"\(1 + env.YQ_T) x"`, "null\n", `1:5: lexer: invalid input text "env.YQ_T"`)
+	wantYQError(t, `eval("env")`, "null\n", `1:1: lexer: invalid input text "env"`)
+	wantYQErrorOpts(t, Options{}, `env`, "null\n", `1:1: lexer: invalid input text "env"`)
+	wantYQ(t, `.env, env(YQ_T)`, "env: 1\n", "1\nv\n")
+}

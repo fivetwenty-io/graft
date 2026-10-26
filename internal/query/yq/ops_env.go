@@ -3,6 +3,7 @@ package yq
 import (
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
@@ -16,6 +17,11 @@ var errEnvDisabled = &query.RuntimeError{Msg: "env operations have been disabled
 // registerEnv adds env, strenv, and envsubst. Each reads the process
 // environment only while the dialect's capabilities allow it.
 func registerEnv(r *runtime.Registry) {
+	// yq has no env without an argument, and Parse already refuses one.
+	// This keeps jq's whole-environment env out of reach all the same.
+	r.RegisterSingle("env", 0, func(*runtime.Ctx, *value.Value, []runtime.Thunk, runtime.Emit) error {
+		return &query.RuntimeError{Msg: "lexer: invalid input text " + strconv.Quote("env")}
+	})
 	r.RegisterSingle("env", 1, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return envName(ctx, in, args[0], func(name string) error {
 			text, ok := os.LookupEnv(name)
