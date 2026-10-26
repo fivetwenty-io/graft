@@ -48,7 +48,7 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 
 - A jq program that is blank, holds only comments, or holds only definitions and module directives now fails with jq's "Top-level program not given" error and exit code 3, where it used to run as the identity.
 
-- `localtime`, `strflocaltime`, and the local-time round trip through `mktime` now read `TZ` at each call, as the C library does, instead of fixing the zone when graft starts.
+- `localtime`, `strflocaltime`, and the local-time round trip through `mktime` now read `TZ` at each call instead of fixing the zone when graft starts. `TZ` is read as a zone name such as `Europe/Paris`, and a POSIX string such as `UTC+3` isn't parsed, so graft works in UTC for it where jq applies the offset.
 
 - `fromjson` reads `nan` as NaN rather than null, and a format such as `@nosuch` on a string with nothing to interpolate no longer fails, because jq applies a format only to the values an interpolation produces.
 

@@ -64,9 +64,12 @@ var zoneCache struct {
 }
 
 // localZone is the zone localtime and strflocaltime work in. TZ is read at
-// each call, as the C library reads it, rather than once when the process
-// starts the way time.Local is. An unset TZ means time.Local, and an empty
-// one, or one that names no zone, means UTC. A leading colon is dropped.
+// each call rather than once when the process starts the way time.Local
+// is. It is read as the name of a zone, such as Europe/Paris, which
+// time.LoadLocation looks up. A POSIX TZ string such as UTC+3, which the C
+// library reads as an offset, is not parsed and names no zone. An unset TZ
+// means time.Local, and an empty one, or one that names no zone, means
+// UTC. A leading colon is dropped.
 func localZone() *time.Location {
 	tz, ok := os.LookupEnv("TZ")
 	if !ok {
