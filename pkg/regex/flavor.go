@@ -83,10 +83,11 @@ type rules struct {
 	// back without limit.
 	boundedLookbehind bool
 
-	// evenLookbehind refuses a lookbehind holding a choice whose branches
-	// differ in length, as jq's Oniguruma does, unless the lookbehind can
-	// match the empty string with no test of the text and so always holds.
-	evenLookbehind bool
+	// fixedLookbehind refuses a lookbehind without one length once the
+	// repeats leading each branch count at their fewest, as jq's
+	// Oniguruma does, unless the lookbehind can match the empty string
+	// with no test of the text and so always holds.
+	fixedLookbehind bool
 
 	// conditionTail makes every branch of a conditional after the first
 	// its no branch, and makes a conditional of one empty branch only test
@@ -170,7 +171,7 @@ var flavorRules = [...]rules{
 		openSelfRef:        true,
 		anyRuneO:           true,
 		onigMessages:       true,
-		evenLookbehind:     true,
+		fixedLookbehind:    true,
 		conditionTail:      true,
 	},
 }

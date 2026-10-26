@@ -1714,6 +1714,162 @@
   flags: "g"
   subject: "d ad"
 
+- id: onig-lookbehind-least-uneven-most
+  flavor: oniguruma
+  pattern: "(?<=a{1,2}|b{1,3})c"
+  flags: "g"
+  subject: "ac bbbc c"
+
+- id: onig-lookbehind-least-even-fixed
+  flavor: oniguruma
+  pattern: "(?<=a{2,3}|bb)c"
+  flags: "g"
+  subject: "aaac bbc ac"
+
+- id: onig-lookbehind-least-mixed
+  flavor: oniguruma
+  pattern: "(?<=a{2,3}|bc)d"
+  flags: "g"
+  subject: "aad bcd ad"
+
+- id: onig-lookbehind-least-mixed-first
+  flavor: oniguruma
+  pattern: "(?<=bc|a{2,3})d"
+  flags: "g"
+  subject: "bcd aaad cd"
+
+- id: onig-lookbehind-least-one
+  flavor: oniguruma
+  pattern: "(?<=a|b{1,2})c"
+  flags: "g"
+  subject: "ac bbc c"
+
+- id: onig-lookbehind-least-three
+  flavor: oniguruma
+  pattern: "(?<=aa|b{2,3}|cc)x"
+  flags: "g"
+  subject: "aax bbbx ccx cx"
+
+- id: onig-lookbehind-least-unbounded
+  flavor: oniguruma
+  pattern: "(?<=aa|b{2,})x"
+  flags: "g"
+  subject: "aax bbbbx bx"
+
+- id: onig-lookbehind-least-unbounded-first
+  flavor: oniguruma
+  pattern: "(?<=a{2,}|b{2,3})x"
+  flags: "g"
+  subject: "aaaax bbx ax"
+
+- id: onig-lookbehind-least-in-group
+  flavor: oniguruma
+  pattern: "(?<=(?:aa|b{2,3}))x"
+  flags: "g"
+  subject: "bbbx aax ax"
+
+- id: onig-lookbehind-least-in-nested-group
+  flavor: oniguruma
+  pattern: "(?<=(?:(?:aa|b{2,3})))x"
+  flags: "g"
+  subject: "bbx ax"
+
+- id: onig-lookbehind-zero-repeat
+  flavor: oniguruma
+  pattern: "(?<=(?:a|bc){0}a)x"
+  flags: "g"
+  subject: "ax bx"
+
+- id: onig-negative-lookbehind-zero-repeat
+  flavor: oniguruma
+  pattern: "(?<!(?:a|bc){0}a)x"
+  flags: "g"
+  subject: "ax bx"
+
+- id: onig-lookbehind-least-after-optional
+  flavor: oniguruma
+  pattern: "(?<=a?b+)c"
+  flags: "g"
+  subject: "abbc bc c"
+
+- id: onig-lookbehind-least-nested-repeat
+  flavor: oniguruma
+  pattern: "(?<=(?:a+)+)b"
+  flags: "g"
+  subject: "aab b"
+
+- id: onig-lookbehind-least-then-literal
+  flavor: oniguruma
+  pattern: "(?<=a{1,2}b)c"
+  flags: "g"
+  subject: "abc aabc bc"
+
+- id: onig-lookbehind-repeat-after-literal
+  flavor: oniguruma
+  pattern: "(?<=xa+)b"
+  flags: ""
+  subject: "xaab"
+
+- id: onig-lookbehind-repeat-after-literal-negative
+  flavor: oniguruma
+  pattern: "(?<!xa+)b"
+  flags: ""
+  subject: "xaab"
+
+- id: onig-lookbehind-nested-varying-choice
+  flavor: oniguruma
+  pattern: "(?<=x(?:a{1,2}|b{1,2}))y"
+  flags: ""
+  subject: "xay"
+
+- id: onig-lookbehind-nested-unbounded-choice
+  flavor: oniguruma
+  pattern: "(?<=x(?:a+|b+))y"
+  flags: ""
+  subject: "xay"
+
+- id: onig-lookbehind-leading-varying-choice
+  flavor: oniguruma
+  pattern: "(?<=(?:a{1,2}|b{1,2})x)y"
+  flags: ""
+  subject: "axy"
+
+- id: onig-lookbehind-literal-before-repeat
+  flavor: oniguruma
+  pattern: "(?<=bb+|bc)x"
+  flags: ""
+  subject: "bbx"
+
+- id: onig-lookbehind-least-uneven
+  flavor: oniguruma
+  pattern: "(?<=a{1,2}|bc)x"
+  flags: ""
+  subject: "ax"
+
+- id: onig-lookbehind-capture-choice
+  flavor: oniguruma
+  pattern: "(?<=(aa|b{2,3}))x"
+  flags: ""
+  subject: "aax"
+
+- id: onig-lookbehind-repeated-choice
+  flavor: oniguruma
+  pattern: "(?<=(?:ab|cd)+x)y"
+  flags: ""
+  subject: "abxy"
+
+- id: onig-lookbehind-zero-choice-then-repeat
+  flavor: oniguruma
+  pattern: "(?<=(?:a|bc){0}a+)x"
+  flags: ""
+  subject: "ax"
+
+- id: onig-lookbehind-branch-repeat-after-literal
+  flavor: oniguruma
+  pattern: "(?<=xx|ya+)z"
+  flags: ""
+  subject: "yaz"
+
 - id: onig-conditional-number
   flavor: oniguruma
   pattern: "(a)?(?(1)b|c)"

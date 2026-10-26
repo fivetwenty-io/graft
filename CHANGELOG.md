@@ -52,7 +52,7 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 
 - `fromjson` reads `nan` as NaN rather than null, and a format such as `@nosuch` on a string with nothing to interpolate no longer fails, because jq applies a format only to the values an interpolation produces.
 
-- Inside a lookbehind, the Oniguruma flavor that `graft jq` uses now refuses a choice whose branches differ in length, with jq's "invalid pattern in look-behind" error.
+- Inside a lookbehind, the Oniguruma flavor that `graft jq` uses now needs one length, as jq does, and refuses anything else with jq's "invalid pattern in look-behind" error. A repeat of one literal, class, or backreference that starts a branch counts at its fewest repetitions first, so `(?<=a+|b)` is accepted while `(?<=xa+)`, `(?<=a|bc)`, and `(?<=bb+|bc)` are refused.
 
 ### Documentation
 

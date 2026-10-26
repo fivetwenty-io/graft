@@ -157,27 +157,76 @@ func surelyEmpty(n *node) bool {
 	}
 }
 
-// unevenChoice reports whether n holds a choice whose branches differ in
-// their fewest or most runes. It leaves a nested lookaround to the check
-// of its own.
-func unevenChoice(n *node) bool {
-	if n.kind == kindLook {
-		return false
+// fixedBehind reports whether the lookbehind body n has one length once
+// the repeats that lead each of its top-level branches count at their
+// fewest, which is the length jq's Oniguruma needs. A lookbehind that a
+// repeat of one literal, class, or backreference can satisfy, its fewest
+// repetitions satisfy too, so Oniguruma counts such a repeat that way when
+// it starts a branch, and when that is none it does the same for the
+// repeat after it. Every other part of a branch, such as a choice below
+// the top level, a group, or a repeat after a literal, keeps its own
+// length, and every branch must come to the same one.
+func fixedBehind(n *node) bool {
+	branches := []*node{n}
+	if n.kind == kindAlternate {
+		branches = n.subs
 	}
-	if n.kind == kindAlternate || n.kind == kindCond {
-		lo, hi := width(n.subs[0])
-		for _, s := range n.subs[1:] {
-			if slo, shi := width(s); slo != lo || shi != hi {
-				return true
+	length := -1
+	for _, b := range branches {
+		lo, hi := leastWidth(b)
+		if lo != hi || length >= 0 && lo != length {
+			return false
+		}
+		length = lo
+	}
+	return true
+}
+
+// leastWidth is the width of the lookbehind branch n with its leading
+// repeats counted at their fewest, as fixedBehind describes.
+func leastWidth(n *node) (lo, hi int) {
+	items := []*node{n}
+	if n.kind == kindConcat {
+		items = n.subs
+	}
+	leading := true
+	for _, s := range items {
+		slo, shi := width(s)
+		if leading {
+			item, least, ok := leastRepeat(s)
+			if ok {
+				slo, shi = repeatWidth(&node{kind: kindRepeat, subs: []*node{item}, min: least, max: least})
 			}
+			leading = ok && least == 0
 		}
+		lo = min(lo+slo, maxWidth)
+		hi = addWidth(hi, shi)
 	}
-	for _, s := range n.subs {
-		if unevenChoice(s) {
-			return true
-		}
+	return lo, hi
+}
+
+// leastRepeat returns the item the repeat n repeats and the fewest times
+// it must, when that item is a literal, a class, any rune, or a
+// backreference. A ?, *, or + repeat of another counts as one repeat, as
+// Oniguruma merges the two.
+func leastRepeat(n *node) (item *node, least int, ok bool) {
+	if n.kind != kindRepeat {
+		return nil, 0, false
 	}
-	return false
+	least, item = n.min, n.subs[0]
+	for plainCount(n) && item.kind == kindRepeat && plainCount(item) {
+		least *= item.min
+		n, item = item, item.subs[0]
+	}
+	if item.kind == kindLiteral || item.kind == kindClass || item.kind == kindAny || item.kind == kindBackref {
+		return item, least, true
+	}
+	return nil, 0, false
+}
+
+// plainCount reports whether the repeat n is a ?, *, or +, lazy or not.
+func plainCount(n *node) bool {
+	return n.min <= 1 && (n.max == 1 || n.max == unbounded)
 }
 
 // anchoredAtStart reports whether every match of n must begin at the start

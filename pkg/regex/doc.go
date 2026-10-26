@@ -72,20 +72,25 @@ does, so it pins that stepping rather than PCRE2's own. A few differences
 remain on purpose. PCRE takes \uhhhh, which PCRE2 refuses. A global search
 moves one rune past an empty match, where jq moves one byte. Oniguruma
 accepts a lookbehind that holds a lookahead, and a capture inside a
-negative or varying lookbehind, both of which jq refuses. The escapes \G,
-\X, \y, and \Y and subroutine calls are refused under both flavors, though
-jq accepts some of them, and so is a \K inside a lookaround, which jq
-accepts too. A condition other than a group's number or bracketed name is
-refused under both flavors, though jq and PCRE2 accept some, such as a bare
-name, (?(R)...), and (?(DEFINE)...). The Oniguruma flavor also refuses a
-conditional whose one branch is not empty, such as (?(1)b), because jq's
-search plans as if that branch matched nothing and misses matches through
-it. That flavor refuses a group name such as n-1 that jq accepts as well,
-and it reads a \x at the end of the pattern as NUL where jq matches
-nothing. A byte escape that jq would match against part of a character,
-such as a lone \x80 in a negated class, holds no rune here. Error messages
-follow each engine's wording where the tests pin it, and a golden for a
-pattern jq or PCRE2 refuses checks only that Compile refuses it too.
+negative or varying lookbehind, both of which jq refuses. jq's Oniguruma
+makes a greedy + or * possessive when what follows cannot start the same
+way, and it no longer counts a possessive repeat at its fewest, so jq
+refuses a lookbehind such as (?<=a+b) that this package accepts. jq also
+refuses a lookbehind that holds $ or \z, or a (?i:...) group whose length
+varies, and both are accepted here. The escapes \G, \X, \y, and \Y and
+subroutine calls are refused under both flavors, though jq accepts some of
+them, and so is a \K inside a lookaround, which jq accepts too. A condition
+other than a group's number or bracketed name is refused under both
+flavors, though jq and PCRE2 accept some, such as a bare name, (?(R)...),
+and (?(DEFINE)...). The Oniguruma flavor also refuses a conditional whose
+one branch is not empty, such as (?(1)b), because jq's search plans as if
+that branch matched nothing and misses matches through it. That flavor
+refuses a group name such as n-1 that jq accepts as well, and it reads a \x
+at the end of the pattern as NUL where jq matches nothing. A byte escape
+that jq would match against part of a character, such as a lone \x80 in a
+negated class, holds no rune here. Error messages follow each engine's
+wording where the tests pin it, and a golden for a pattern jq or PCRE2
+refuses checks only that Compile refuses it too.
 
 # Supported syntax
 
@@ -119,10 +124,14 @@ groups set inside a positive one keep their values. Each branch of a
 lookbehind looks back by its own lengths, the longest first. Under PCRE a
 branch must have a length limit and may vary by no more than 255 runes, as
 in PCRE2, while Oniguruma lets a lookbehind look back without limit.
-Oniguruma refuses a lookbehind that holds a choice whose branches differ
-in length, as jq does, unless the lookbehind can match the empty string
-and so always holds. PCRE treats a quantified assertion as PCRE2 does, and
-Oniguruma refuses one as jq does.
+Oniguruma needs a lookbehind to have one length, as jq does, but first
+counts a repeat of one literal, class, or backreference at its fewest
+repetitions when the repeat starts a top-level branch, and when that is
+none it does the same for the repeat after it. So (?<=a+|b) and
+(?<=aa|b{2,3}) are accepted, while (?<=xa+), (?<=a|bc), and (?<=bb+|bc) are
+refused. A lookbehind that can match the empty string without testing the
+text always holds, so it is accepted too. PCRE treats a quantified
+assertion as PCRE2 does, and Oniguruma refuses one as jq does.
 
 Backreferences \1 through \9, longer numbers that name a group, \k<name>,
 and \k'name' are supported. PCRE also takes \k{name}, \g with a number or

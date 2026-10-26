@@ -175,21 +175,39 @@ func TestLookbehind(t *testing.T) {
 	wantSyntaxError(t, `(?<=a{1,256})b`, 0, "branch too long in variable-length lookbehind assertion")
 	wantMatch(t, MustCompile(`(?<=a{1,255})b`), "ab")
 	wantNoMatch(t, MustCompile(`(?<=a{300})b`), "ab")
-	wantText(t, MustCompile(`(?<=xa+)b`, WithFlavor(Oniguruma)), "xaab", "b")
-	wantNoMatch(t, MustCompile(`(?<=xa+)b`, WithFlavor(Oniguruma)), "aab")
+	wantText(t, MustCompile(`(?<=a+)b`, WithFlavor(Oniguruma)), "xaab", "b")
+	wantNoMatch(t, MustCompile(`(?<=a+)b`, WithFlavor(Oniguruma)), "xb")
 	wantNoMatch(t, MustCompile(`(?<!a*)b`, WithFlavor(Oniguruma)), "b")
 
-	// Oniguruma, as jq builds it, refuses a lookbehind holding a choice
-	// whose branches differ in length, unless the lookbehind can match
-	// nothing at all and so always holds.
+	// Oniguruma, as jq builds it, needs a lookbehind to have one length
+	// once a repeat of one item that starts a top-level branch counts at
+	// its fewest, as does the repeat after one whose fewest is none,
+	// unless the lookbehind can match nothing at all and so always holds.
 	onig := WithFlavor(Oniguruma)
 	for pattern, pos := range map[string]int{
 		`(?<=a|cd)`: 0, `x(?<=x(?:ab|c))`: 1, `(?<=(?:a+|bc))`: 0,
 		`(?<=a|\b)`: 0, `(?<!a|bc)d`: 0, `(?<=(?:a|bc)+)`: 0,
+		`(?<=xa+)`: 0, `(?<=bb+|bc)`: 0, `(?<=x(?:a{1,2}|b{1,2}))`: 0,
+		`(?<=x(?:a+|b+))`: 0, `(?<=(?:a{1,2}|b{1,2})x)`: 0, `(?<=(aa|b{2,3}))`: 0,
+		`(?<=(?:ab|cd)+x)`: 0, `(?<=xx|ya+)`: 0, `(?<=(?:a+){2})`: 0,
+		`(?<=(?:a|bc){0}a+)`: 0, `(?<=ab?)`: 0, `(?<=a++)`: 0,
+		`(?<=a{1,2}|bc)`: 0, `(?<!xa+)`: 0, `x(?<=(?:a|bc)?\b)`: 1,
 	} {
 		wantSyntaxError(t, pattern, pos, "invalid pattern in look-behind", onig)
 	}
+	for _, pattern := range []string{
+		`(?<=a{1,2}|b{1,3})`, `(?<=a{2,3}|bb)`, `(?<=a{2,3}|bc)`, `(?<=bc|a{2,3})`,
+		`(?<=a|b{1,2})`, `(?<=aa|b{2,3}|cc)`, `(?<=aa|b{2,})`, `(?<=a{2,}|b{2,3})`,
+		`(?<=(?:aa|b{2,3}))`, `(?<=(?:(?:aa|b{2,3})))`, `(?<=(?:a|bc){0}a)`,
+		`(?<!(?:a|bc){0}a)`, `(?<=a?b+)`, `(?<=x{0}a+)`, `(?<=(?:a+)+)`,
+		`(?<=(?:a+?)*|c)`, `(?<=(?:ab)+|cd)`, `(?<=a{1,2}b)`, `(?<=[ab]+|c)`,
+	} {
+		if _, err := Compile(pattern, onig); err != nil {
+			t.Errorf("Compile(%q) under Oniguruma: %v", pattern, err)
+		}
+	}
 	wantEqual(t, runeStarts(t, MustCompile(`(?<=ab|cd)`, onig), "abcd", MatchOptions{Global: true}), []int{2, 4})
+	wantEqual(t, runeStarts(t, MustCompile(`(?<=bc|a{2,3})d`, onig), "bcd aad ad", MatchOptions{Global: true}), []int{2, 6})
 	wantEqual(t, runeStarts(t, MustCompile(`(?<=(?:a{1,2}|b{1,2}))`, onig), "abcd", MatchOptions{Global: true}), []int{1, 2})
 	for _, pattern := range []string{`(?<=a*|b)`, `(?<=a|)`, `(?<=(?:a|bc)?)`} {
 		wantEqual(t, runeStarts(t, MustCompile(pattern, onig), "ab", MatchOptions{Global: true}), []int{0, 1, 2})
@@ -355,7 +373,7 @@ func TestConditional(t *testing.T) {
 // multiply it.
 func TestNestedBodiesShareTheBudget(t *testing.T) {
 	subject := strings.Repeat("a", 40) + "b"
-	for _, pattern := range []string{`(?=(a+)+$)`, `(?!(a+)+$)`, `$(?<=^(a+)+)`, `(?>(a+)+$)`, `(?=(?=(?=(a+)+$)))`} {
+	for _, pattern := range []string{`(?=(a+)+$)`, `(?!(a+)+$)`, `$(?<=(?:a+)+)`, `(?>(a+)+$)`, `(?=(?=(?=(a+)+$)))`} {
 		p := MustCompile(pattern, WithFlavor(Oniguruma), WithBudget(Budget{Steps: 100000}))
 		_, err := p.Find(context.Background(), subject, 0)
 		wantErrIs(t, err, ErrBudget)
