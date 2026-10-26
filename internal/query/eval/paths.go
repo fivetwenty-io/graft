@@ -16,8 +16,8 @@ func extend(p value.Path, c ...*value.Value) value.Path {
 
 // place returns the path of the output found at keys under v, whose own
 // path is vp. In path mode that is vp extended. Tracking cursors outside
-// path mode, a value with no path of its own is the root its outputs are
-// placed under. Otherwise outputs carry no path.
+// path mode, a value with no path of its own is a root in no document,
+// which its outputs are placed under. Otherwise outputs carry no path.
 func (ev evaluator) place(v *value.Value, vp value.Path, keys ...*value.Value) value.Path {
 	switch {
 	case ev.paths:
@@ -25,7 +25,7 @@ func (ev evaluator) place(v *value.Value, vp value.Path, keys ...*value.Value) v
 	case !ev.track:
 		return nil
 	case vp == nil:
-		return runtime.Rooted(v, 0, keys)
+		return runtime.Rooted(v, runtime.Detached, keys)
 	}
 	return extend(vp, keys...)
 }

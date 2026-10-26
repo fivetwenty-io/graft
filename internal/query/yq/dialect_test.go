@@ -125,6 +125,10 @@ func TestYQEvalAll(t *testing.T) {
 	wantYQAll(t, `.a = 3`, two, "a: 3\n---\na: 3\n")
 	wantYQAll(t, `.a | parent`, two, "a: 1\n---\na: 2\n")
 	wantYQ(t, `.a = 3`, two, "a: 3\n---\na: 3\n")
+
+	// A node a document's operators build belongs to no document, so the
+	// nodes under it print without a "---".
+	wantYQ(t, `[.a] | .[0]`, two, "1\n2\n")
 }
 
 // Under eval-all a definition, a literal, a variable, an if, and an

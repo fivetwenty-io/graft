@@ -98,7 +98,7 @@ func TestCursorsTrackValues(t *testing.T) {
 	wantOutputsWithCtx(t, ctx, `.a[0] | here`, `{"a":[1]}`, `[{"a":[1]},["a",0],0]`)
 	wantOutputsWithCtx(t, ctx, `.a[] | here`, `{"a":[1]}`, `[{"a":[1]},["a",0],0]`)
 	wantOutputsWithCtx(t, ctx, `.. | here`, `[1]`, `[[1],[],0]`, `[[1],[0],0]`)
-	wantOutputsWithCtx(t, ctx, `[.a] | .[0] | here`, `{"a":1}`, `[[1],[0],0]`)
+	wantOutputsWithCtx(t, ctx, `[.a] | .[0] | here`, `{"a":1}`, `[[1],[0],-1]`)
 	wantOutputsWithCtx(t, ctx, `1 | here`, `null`, `[1,[],-1]`)
 	wantOutputsWithCtx(t, ctx, `.a as $x | .b | here`, `{"a":1,"b":2}`, `[{"a":1,"b":2},["b"],0]`)
 	wantOutputsWithCtx(t, ctx, `.[1:] | .[0] | here`, `[1,2]`, `[[2],[0],0]`)
