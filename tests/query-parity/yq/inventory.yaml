@@ -1214,7 +1214,7 @@
   cases: [op-any-c]
 - id: op-array-to-map
   area: operator
-  phase: Y2
+  phase: Y1
   cases: [op-array-to-map]
 - id: op-assign-clobber-tag
   area: operator
@@ -1546,15 +1546,15 @@
   cases: [op-filter-map]
 - id: op-first-map
   area: operator
-  phase: Y2
+  phase: Y1
   cases: [op-first-map]
 - id: op-first-match
   area: operator
-  phase: Y2
+  phase: Y1
   cases: [op-first-match]
 - id: op-first-no-match
   area: operator
-  phase: Y2
+  phase: Y1
   cases: [op-first-no-match]
 - id: op-first-plain
   area: operator
