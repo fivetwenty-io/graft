@@ -164,6 +164,16 @@ func TestJQPathBuiltins(t *testing.T) {
 	wantOutputs(t, `[fromstream([[0],1],[[1],2],[[1]])]`, `null`, `[[1,2]]`)
 }
 
+// Adding an empty array gives back the array itself, so a reduce whose
+// update adds [] keeps its state's path, as jq's does, while the sum
+// outside a reduce is still no path.
+func TestAddingNothingKeepsTheReducePath(t *testing.T) {
+	wantOutputs(t, `[path(reduce range(1) as $i (.a; . + []))]`, `{"a":[1]}`, `[["a"]]`)
+	wantOutputs(t, `[path(reduce range(2) as $i (.a; . + []))]`, `{"a":[]}`, `[["a"]]`)
+	wantOutputs(t, `reduce range(1) as $i (.a; . + []) |= 5`, `{"a":[1]}`, `{"a":5}`)
+	wantError(t, `path(.a + [])`, `{"a":[1]}`, `Invalid path expression with result [1]`)
+}
+
 func TestJQCollections(t *testing.T) {
 	wantOutputs(t, `sort, sort_by(-.)`, `[3,1,2]`, `[1,2,3]`, `[3,2,1]`)
 	wantOutputs(t, `sort_by(.a, .b)`, `[{"a":1,"b":2},{"a":1,"b":1},{"a":0,"b":3}]`, `[{"a":0,"b":3},{"a":1,"b":1},{"a":1,"b":2}]`)
