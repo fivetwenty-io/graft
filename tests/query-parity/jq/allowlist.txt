@@ -10,5 +10,6 @@ n-huge-literal-arith departure resource limit
 n-modulo-huge departure exact decimal
 n-overflow-literal-arith departure exact decimal
 n-subtract-bigints departure exact decimal
+m-special-values departure exact decimal
 e-invalid-input-literal pending J3 strict literal parsing in input
 c-yaml-input-departure pending J3 input parsed as strict JSON
