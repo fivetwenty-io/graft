@@ -1223,3 +1223,24 @@
   pattern: "(a"
   flags: ""
   subject: "a"
+
+# An unclosed \k< or \k' starts a reference under the Oniguruma flavor,
+# so it is an error rather than the letters it spells.
+
+- id: onig-k-unclosed-angle
+  flavor: oniguruma
+  pattern: "\\k<"
+  flags: ""
+  subject: "k<"
+
+- id: onig-k-unclosed-name
+  flavor: oniguruma
+  pattern: "(?<a>x)\\k<a"
+  flags: ""
+  subject: "xk<a"
+
+- id: onig-k-unclosed-quote
+  flavor: oniguruma
+  pattern: "\\k'"
+  flags: ""
+  subject: "k'"

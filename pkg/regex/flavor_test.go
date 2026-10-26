@@ -220,6 +220,12 @@ func TestOnigurumaGroupSyntax(t *testing.T) {
 	wantText(t, MustCompile(`(a)\81`, onig), "a81", "a81")
 	wantText(t, MustCompile(`(a)\91`, onig), "a91", "a91")
 	wantSyntaxError(t, `(a)\8`, 3, "invalid backref number/name", onig)
+
+	// A \k before < or ' starts a reference, so an unclosed one is an
+	// error rather than letters.
+	wantSyntaxError(t, `\k<`, 0, "group name is empty", onig)
+	wantSyntaxError(t, `\k''`, 0, "group name is empty", onig)
+	wantSyntaxError(t, `(?<a>x)\k<a`, 7, "invalid group name <a>", onig)
 	wantSyntaxError(t, `(a)\81`, 3, "reference to non-existent subpattern")
 }
 

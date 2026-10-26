@@ -868,9 +868,10 @@ func (p *parser) kRef(start int) (*node, error) {
 	if !p.rules().pcreReferences && p.lookingAt("{") {
 		return p.literal('k'), nil
 	}
+	opener := p.pos
 	ref := p.bracketed()
 	if ref == "" && p.rules().letterEscapes {
-		return p.literal('k'), nil
+		return p.unbracketedK(start, opener)
 	}
 	if ref == "" {
 		return nil, p.errorAt(start, `\k is not followed by a braced, angle-bracketed, or quoted name`)
@@ -883,13 +884,30 @@ func (p *parser) kRef(start int) (*node, error) {
 		}
 		return p.numberedRef(start, n), nil
 	}
-	if text == "" {
+	switch {
+	case text == "" && p.rules().onigMessages:
+		return nil, p.errorAt(start, "group name is empty")
+	case text == "":
 		return nil, p.errorAt(start, "subpattern name expected")
 	}
 	if text[0] >= '0' && text[0] <= '9' {
 		return nil, p.errorAt(start, "subpattern name must start with a non-digit")
 	}
 	return p.namedRef(start, text)
+}
+
+// unbracketedK reads a \k that no complete bracketed name follows under
+// the letter-escape rule. Oniguruma reads a \k before < or ' as a
+// reference, so one that is never closed is an error, and any other \k is
+// the letter k. opener is where the bracket would start.
+func (p *parser) unbracketedK(start, opener int) (*node, error) {
+	if !p.lookingAt("<") && !p.lookingAt("'") {
+		return p.literal('k'), nil
+	}
+	if name := p.src[opener+1:]; name != "" {
+		return nil, p.errorAt(start, "invalid group name <"+name+">")
+	}
+	return nil, p.errorAt(start, "group name is empty")
 }
 
 // gRef reads the reference after \g under PCRE, whose backslash is at
