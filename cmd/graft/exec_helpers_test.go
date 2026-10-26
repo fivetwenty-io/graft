@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -26,19 +27,51 @@ var (
 	graftBuildErr  error
 )
 
-// TestMain pins the zone the diff goldens were rendered in, runs the
-// package's tests, and then removes the binary buildGraftBinary built for
+// TestMain pins the zone the diff goldens were rendered in, points HOME at
+// an empty directory and clears the Vault and safe variables so no test
+// reaches the developer's own Vault, runs the package's tests, and then
+// removes the binary buildGraftBinary built for
 // them, if any test asked for one. Earlier tests leak cleanup tickers
 // whose goroutines call time.Now, which reads time.Local, so a write made
 // from inside a test (as yamlgolden.PinLocal does) races with them. Only a
 // write made before any test starts is race-free.
 func TestMain(m *testing.M) {
 	time.Local = time.FixedZone("UTC-4", -4*60*60)
+	_, cleanup := isolateVaultEnv()
 	code := m.Run()
+	cleanup()
 	if graftBuildDir != "" {
 		_ = os.RemoveAll(graftBuildDir)
 	}
 	os.Exit(code)
+}
+
+// isolateVaultEnv gives the test binary an empty HOME, so ~/.saferc,
+// ~/.svtoken and ~/.vault-token cannot be found, and unsets the variables
+// that name a Vault target or token. The Go caches are pinned to their
+// real locations first, because go build in a test would otherwise fall
+// back to the empty HOME and rebuild the world.
+func isolateVaultEnv() (string, func()) {
+	for _, key := range []string{"GOCACHE", "GOMODCACHE"} {
+		if os.Getenv(key) != "" {
+			continue
+		}
+		if out, err := exec.CommandContext(context.Background(), "go", "env", key).Output(); err == nil {
+			_ = os.Setenv(key, strings.TrimSpace(string(out)))
+		}
+	}
+	for _, kv := range os.Environ() {
+		name, _, _ := strings.Cut(kv, "=")
+		if strings.HasPrefix(name, "VAULT_") || strings.HasPrefix(name, "SAFE_") {
+			_ = os.Unsetenv(name)
+		}
+	}
+	home, err := os.MkdirTemp("", "graft-home-")
+	if err != nil {
+		return "", func() {}
+	}
+	_ = os.Setenv("HOME", home)
+	return home, func() { _ = os.RemoveAll(home) }
 }
 
 // buildGraftBinary builds ./cmd/graft once per test run, into a temporary
