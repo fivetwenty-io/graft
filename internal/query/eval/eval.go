@@ -28,9 +28,10 @@ type state struct {
 	// track is set when the run tracks cursors, so values carry their
 	// paths outside path mode too.
 	track bool
-	// changed maps a document an assignment changed below its root to
-	// the latest version of it, so sibling assignments share changes.
-	changed map[*value.Value]*value.Value
+	// changed holds, by document index, the latest version of each
+	// document an assignment changed below its root, so sibling
+	// assignments share their changes.
+	changed map[int]docVersion
 }
 
 // evaluator walks the tree in one mode. With paths set it tracks the path
@@ -130,7 +131,7 @@ func newEvaluator(ctx *runtime.Ctx, roots []*value.Value, tails map[*ast.Call]ta
 		track: ctx.Cursors,
 	}
 	if ctx.Cursors {
-		st.changed = map[*value.Value]*value.Value{}
+		st.changed = map[int]docVersion{}
 	}
 	if ctx.Dialect != nil {
 		st.reg = ctx.Dialect.Builtins()

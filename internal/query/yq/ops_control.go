@@ -32,7 +32,7 @@ def test(re; flags): _yq_test(re; flags);
 def capture(re): _yq_capture(re);
 def capture(re; flags): _yq_capture(re; flags);
 def sub(re; repl): _yq_sub(re; repl);
-def with(p; f): p |= _yq_with(f);
+def with(p; f): _yq_with(p | f);
 `
 
 // splitDoc is the document index split_doc gives an output, which run
@@ -113,19 +113,20 @@ func registerControl(r *runtime.Registry) {
 	})
 }
 
-// with runs f on the node at the cursor for the changes it makes there,
-// and gives the node as the last of f's outputs at or below it left it.
-// An output that is not at or below the node, such as a literal, changes
-// nothing.
+// with runs its argument, which is with's body at each node its path
+// names, for the changes that makes to the document, and gives its input
+// as the last of the argument's outputs in that document left it. The
+// body may change the document anywhere, as yq's does. An output with no
+// place in the document, such as a literal, changes nothing.
 func with(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
-	c := ctx.Cursor
-	var base value.Path
-	if c != nil {
-		base, _ = nodePath(c)
+	var c *runtime.Cursor
+	if ctx.Cursor != nil {
+		cur := *ctx.Cursor
+		c = &cur
 	}
 	var root *value.Value
 	err := args[0].Each(in, func(_ *value.Value, p value.Path) error {
-		if r, _, rel := runtime.Unroot(p); r != nil && c != nil && hasPrefix(rel, base) {
+		if r, doc, _ := runtime.Unroot(p); r != nil && c != nil && doc == c.Doc {
 			root = r
 		}
 		return nil
@@ -133,15 +134,16 @@ func with(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.
 	if err != nil {
 		return err
 	}
-	if root == nil {
+	if root == nil || root == c.Root {
 		return emit(in, nil)
 	}
+	base, _ := nodePath(c)
 	at, _ := resolve(root, base)
 	v, err := builtin.GetPath(ctx, root, at)
 	if err != nil {
 		return err
 	}
-	return emit(v, nil)
+	return emit(v, runtime.Rooted(root, c.Doc, at))
 }
 
 // evalOp parses each string its argument gives as a yq expression and

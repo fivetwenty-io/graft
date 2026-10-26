@@ -48,7 +48,7 @@ func (ev evaluator) call(n *ast.Call, env *Env, in *value.Value, p value.Path, e
 		for i, a := range n.Args {
 			args[i] = argThunk{ev: ev, node: a, env: env, in: in, p: p}
 		}
-		if ev.derives() {
+		if ev.track {
 			ev.setCursor(in, p)
 		}
 		return native(ev.ctx, in, args, ev.derive(in, p, emit))

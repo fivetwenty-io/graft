@@ -13,7 +13,8 @@ import (
 // changes the value at each one. The right side of "|=" reads as any
 // expression does, and that of "=" and the arithmetic forms reads in
 // IndexSource mode. Tracking cursors, the right side runs at the place of
-// the value it is given.
+// the value it is given, and an assignment below a document's root runs
+// on the document, as assignIn describes.
 func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	mode, err := ev.assignMode(n.Op)
 	if err != nil {
@@ -24,69 +25,153 @@ func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Pat
 	if n.Op == "|=" {
 		src.mode = runtime.IndexRead
 	}
-	rhs := func(cur *value.Value, _ value.Path) iter.Seq2[*value.Value, error] {
-		return src.seq(n.R, env, cur, nil)
-	}
 	return ev.each(in, p, func(root *value.Value, rp value.Path) error {
-		f := rhs
-		var doc int
 		if ev.derives() {
-			_, doc, _ = runtime.Unroot(rp)
-			f = func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error] {
-				if rp == nil {
-					return src.seq(n.R, env, cur, runtime.Rooted(root, 0, at))
+			if top, doc, rel := runtime.Unroot(rp); top != nil && len(rel) > 0 {
+				if base, ok := ev.docFor(top, doc, rel, root); ok {
+					return ev.assignIn(n, env, mode, lhs, src, root, rp, base, emit)
 				}
-				return src.seq(n.R, env, cur, extend(rp, at...))
 			}
 		}
-		var paths []value.Path
-		err := lhs.eval(n.L, env, root, value.Path{}, func(v *value.Value, vp value.Path) error {
-			if vp == nil {
-				if ev.ctx.Lax {
-					return nil
-				}
-				return invalidPathResult(v)
+		return ev.assignOn(n, env, mode, lhs, src, root, rp, emit)
+	})
+}
+
+// assignOn runs an assignment on root, whose path is rp, as a value of its
+// own.
+func (ev evaluator) assignOn(n *ast.Assign, env *Env, mode runtime.AssignMode, lhs, src evaluator, root *value.Value, rp value.Path, emit runtime.Emit) error {
+	f := func(cur *value.Value, _ value.Path) iter.Seq2[*value.Value, error] {
+		return src.seq(n.R, env, cur, nil)
+	}
+	var doc int
+	if ev.derives() {
+		_, doc, _ = runtime.Unroot(rp)
+		f = func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error] {
+			if rp == nil {
+				return src.seq(n.R, env, cur, runtime.Rooted(root, 0, at))
 			}
-			paths = append(paths, vp)
-			return nil
-		})
+			return src.seq(n.R, env, cur, extend(rp, at...))
+		}
+	}
+	var paths []value.Path
+	err := lhs.eval(n.L, env, root, value.Path{}, func(v *value.Value, vp value.Path) error {
+		if vp == nil {
+			if ev.ctx.Lax {
+				return nil
+			}
+			return invalidPathResult(v)
+		}
+		paths = append(paths, vp)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for out, err := range ev.ctx.Dialect.Assign(ev.ctx, root, paths, f, mode) {
 		if err != nil {
 			return err
 		}
-		for out, err := range ev.ctx.Dialect.Assign(ev.ctx, root, paths, f, mode) {
-			if err != nil {
-				return err
-			}
-			// Tracking cursors, the result stands in for its root, so it
-			// is a root of its own rather than a value built from nothing.
-			// A root below a document's root changes in place, as yq's
-			// nodes do, so the result sits where its root sat in the
-			// document with the change made. The change builds on those
-			// that earlier siblings made to the same document, so the
-			// last of them holds every change, as yq's shared nodes do.
-			// An output already emitted keeps the document as it was
-			// then, where yq, printing after it evaluates, shows the
-			// final one.
-			var op value.Path
-			if ev.derives() {
-				op = runtime.Rooted(out, doc, nil)
-				if top, _, rel := runtime.Unroot(rp); top != nil && len(rel) > 0 {
-					base := top
-					if latest, ok := ev.changed[top]; ok {
-						base = latest
-					}
-					if changed, ok := replaceAt(base, rel, out); ok {
-						ev.changed[top] = changed
-						op = runtime.Rooted(changed, doc, rel)
-					}
-				}
-			}
-			if err := emit(out, op); err != nil {
-				return err
-			}
+		// Tracking cursors, the result stands in for its root, so it is a
+		// root of its own rather than a value built from nothing.
+		var op value.Path
+		if ev.derives() {
+			op = runtime.Rooted(out, doc, nil)
 		}
+		if err := emit(out, op); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// docVersion is the latest version of a document that assignments below
+// its root changed, and the version that lineage started from.
+type docVersion struct {
+	origin, latest *value.Value
+}
+
+// latest returns the version of document doc an assignment whose input
+// sits in top should change. That is the latest version when top is one
+// that lineage started from or reached, so sibling assignments build on
+// each other's changes as yq's shared nodes do, and top itself otherwise.
+func (ev evaluator) latest(top *value.Value, doc int) *value.Value {
+	if d, ok := ev.changed[doc]; ok && (top == d.origin || top == d.latest) {
+		return d.latest
+	}
+	return top
+}
+
+// docFor returns the document an assignment whose input root sits at rel
+// in top should change. That is the latest version of it, with root put
+// in place when root is a value computed there rather than top's own
+// node. It reports false when rel cannot hold root.
+func (ev evaluator) docFor(top *value.Value, doc int, rel value.Path, root *value.Value) (*value.Value, bool) {
+	base := ev.latest(top, doc)
+	put, ok := replaceAt(base, rel, root)
+	if !ok || (runtime.Cursor{Root: top, Path: rel}).Node() != root {
+		return put, ok
+	}
+	return base, true
+}
+
+// assignIn runs an assignment whose input root sits below the root of a
+// document, as yq's do: base is that document with root in its place,
+// the left side runs at root's place in it and may name a node anywhere
+// in it, such as parent.d, and the change is made to the document. The
+// output is root as the change left it, at its place in the changed
+// document. An output already emitted keeps the document as it was then,
+// where yq, printing after it evaluates, shows the final one.
+func (ev evaluator) assignIn(n *ast.Assign, env *Env, mode runtime.AssignMode, lhs, src evaluator, root *value.Value, rp value.Path, base *value.Value, emit runtime.Emit) error {
+	top, doc, rel := runtime.Unroot(rp)
+	var paths []value.Path
+	err := lhs.eval(n.L, env, root, rp, func(v *value.Value, vp value.Path) error {
+		if vp == nil {
+			if ev.ctx.Lax {
+				return nil
+			}
+			return invalidPathResult(v)
+		}
+		t, _, abs := runtime.Unroot(vp)
+		if t == nil {
+			abs = extend(rel, vp...)
+		}
+		// A map key is no place a value can be put, so it changes
+		// nothing.
+		if len(abs) > 0 && abs[len(abs)-1] == runtime.KeyMark {
+			return nil
+		}
+		paths = append(paths, abs)
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// The right side of "=" runs on root, and that of the other forms on
+	// the value at each path.
+	f := func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error] {
+		if at == nil {
+			return src.seq(n.R, env, root, rp)
+		}
+		return src.seq(n.R, env, cur, runtime.Rooted(base, doc, at))
+	}
+	origin := top
+	if d, ok := ev.changed[doc]; ok && top == d.latest {
+		origin = d.origin
+	}
+	for changed, err := range ev.ctx.Dialect.Assign(ev.ctx, base, paths, f, mode) {
+		if err != nil {
+			return err
+		}
+		ev.changed[doc] = docVersion{origin: origin, latest: changed}
+		out := runtime.Cursor{Root: changed, Path: rel}.Node()
+		if out == nil {
+			out = value.Null()
+		}
+		if err := emit(out, runtime.Rooted(changed, doc, rel)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // assignMode returns the dialect mode for an assignment operator. The
