@@ -1,0 +1,8 @@
+# area total allowlisted passing percent
+operator 28 0 28 100
+flag 17 0 17 100
+exit 7 0 7 100
+format 4 0 4 100
+meta 5 0 5 100
+cli 4 0 4 100
+overall 65 0 65 100

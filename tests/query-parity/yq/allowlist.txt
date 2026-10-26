@@ -1,0 +1,4 @@
+# Entries expected to differ from the reference yq. A departure is permanent and
+# carries a reason from the spec's allowlist. A pending entry names the phase
+# that owes the work. An out-of-scope entry needs a format other than yaml and
+# json, and counts toward neither the pass ratio nor the departure cap.

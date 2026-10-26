@@ -511,16 +511,16 @@ test-query-parity: ## Replay the jq and yq parity goldens in process, with no re
 	@printf "$(GREEN)Replaying query parity goldens...$(RESET)\n"
 	@go test ./tests/query-parity/ ./cmd/graft/ -run 'TestEvaluate|TestRead|TestQueryParity|TestFreshCopy'
 
-# The compatibility gate reads only in-repo artifacts, so none of these four targets needs jq.
+# The compatibility gate reads only in-repo artifacts, so none of these four targets needs jq or yq.
 
 inventory-check: ## Fail when an inventory entry names no case or a case belongs to no entry
-	@go test ./cmd/graft/ -count=1 -run 'TestJQInventoryIsComplete|TestInventoryStats'
+	@go test ./cmd/graft/ -count=1 -run 'TestJQInventoryIsComplete|TestYQInventoryIsComplete|TestInventoryStats'
 
-compat-report: ## Regenerate tests/query-parity/jq/report.txt
+compat-report: ## Regenerate tests/query-parity/jq/report.txt and yq/report.txt
 	@./scripts/compat-report.sh
 
 compat-check: ## Fail when a compatibility floor, the departure cap, or the baseline ratchet is broken, or the report is stale
-	@go test ./cmd/graft/ -count=1 -run 'TestJQInventoryMeetsFloors'
+	@go test ./cmd/graft/ -count=1 -run 'TestJQInventoryMeetsFloors|TestYQInventoryMeetsFloors'
 	@./scripts/compat-report.sh --check
 
 compat-baseline: ## Record the entry count and passing entries as the new ratchet, only after compat-check passes
