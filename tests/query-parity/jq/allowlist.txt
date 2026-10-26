@@ -11,5 +11,18 @@ n-modulo-huge departure exact decimal
 n-overflow-literal-arith departure exact decimal
 n-subtract-bigints departure exact decimal
 m-special-values departure exact decimal
+d-gmtime-fractional departure exact decimal
+# The math goldens record Apple's libm, which jq 1.8.2 on macOS calls, and
+# graft computes over Go's math on every platform. asin(.5) and atan(.5)
+# differ from Apple's in the last place. macOS gamma is tgamma where graft
+# keeps glibc's lgamma, and lgamma(5) and lgamma_r(.5) each differ in the
+# last place.
+m-trig departure platform libm
+m-gamma departure platform libm
+# Go's math is one ulp from the correctly rounded result here. atanh(.5)
+# prints 0.5493061443340548, expm1(1) prints 1.718281828459045, and
+# exp2(.5) prints 1.414213562373095.
+m-hyperbolic departure go math ulp
+m-roots-exp departure go math ulp
 e-invalid-input-literal pending J3 strict literal parsing in input
 c-yaml-input-departure pending J3 input parsed as strict JSON
