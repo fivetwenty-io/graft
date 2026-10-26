@@ -558,3 +558,4 @@ fuzz-regex: ## Fuzz the regex engine for 30 seconds a target
 	@printf "$(GREEN)Fuzzing the regex engine...$(RESET)\n"
 	@go test ./pkg/regex/ -run '^$$' -fuzz '^FuzzCompile$$' -fuzztime 30s
 	@go test ./pkg/regex/ -run '^$$' -fuzz '^FuzzFind$$' -fuzztime 30s
+	@go test ./pkg/regex/ -run '^$$' -fuzz '^FuzzShortcuts$$' -fuzztime 30s
