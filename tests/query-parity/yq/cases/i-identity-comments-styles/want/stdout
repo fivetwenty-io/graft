@@ -1,0 +1,15 @@
+# top comment
+name: demo # trailing note
+tags:
+  - alpha
+  - 'beta'
+  - "gamma"
+base: &base
+  size: 3
+  color: red
+copy: *base
+text: |
+  line one
+  line two
+folded: >-
+  folded text

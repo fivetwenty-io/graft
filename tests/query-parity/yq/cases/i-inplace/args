@@ -1,0 +1,3 @@
+-i
+.a = 2 | .c = "new"
+doc.yaml

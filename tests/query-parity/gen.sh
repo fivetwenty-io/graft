@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# gen.sh [--check] jq
+# gen.sh [--check] jq|yq
 #
-# Records the goldens for every case under tests/query-parity/jq/cases by
+# Records the goldens for every case under tests/query-parity/DIALECT/cases by
 # running the pinned reference binary in a fresh copy of each case under
 # the fixed environment in env.sh, and writes want/stdout, want/exit,
 # want/stderr-flag, want/stderr for cases with a stderr-exact marker, and
@@ -10,7 +10,8 @@
 #
 # With --check it regenerates into a temporary directory instead and fails
 # when any checked-in golden differs. Only this script and run.sh need the
-# reference binary. JQ_BIN names it and defaults to jq on PATH.
+# reference binary. JQ_BIN and YQ_BIN name them and default to jq and yq on
+# PATH.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -25,21 +26,30 @@ if [ "${1:-}" = "--check" ]; then
   shift
 fi
 dialect="${1:-}"
-if [ "$dialect" != "jq" ]; then
-  echo "usage: gen.sh [--check] jq" >&2
-  exit 2
-fi
+case "$dialect" in
+  jq)
+    bin_name="${JQ_BIN:-jq}"
+    pinned="$JQ_BUILD"
+    ;;
+  yq)
+    bin_name="${YQ_BIN:-yq}"
+    pinned="$YQ_BUILD"
+    ;;
+  *)
+    echo "usage: gen.sh [--check] jq|yq" >&2
+    exit 2
+    ;;
+esac
 
 # parity_run resets PATH to /usr/bin:/bin, so a bare name would run
-# whatever jq lives there rather than the one checked below.
-jq_name="${JQ_BIN:-jq}"
-if ! JQ_BIN="$(command -v "$jq_name")"; then
-  echo "gen.sh: reference binary $jq_name is missing" >&2
+# whatever lives there rather than the binary checked below.
+if ! REF_BIN="$(command -v "$bin_name")"; then
+  echo "gen.sh: reference binary $bin_name is missing" >&2
   exit 2
 fi
-got="$("$JQ_BIN" --version 2>&1 | head -1)" || true
-if [ "$got" != "$JQ_BUILD" ]; then
-  echo "gen.sh: $JQ_BIN reports '$got' but versions.env pins '$JQ_BUILD'" >&2
+got="$("$REF_BIN" --version 2>&1 | head -1)" || true
+if [ "$got" != "$pinned" ]; then
+  echo "gen.sh: $REF_BIN reports '$got' but versions.env pins '$pinned'" >&2
   exit 2
 fi
 
@@ -60,7 +70,7 @@ record() { # record CASE_DIR OUT_DIR
 
   mkdir -p "$out"
   set +e
-  parity_run "$tmp" "$stdin_file" "$JQ_BIN" "${PARITY_ARGV[@]}" >"$out/stdout" 2>"$out/stderr.raw"
+  parity_run "$tmp" "$stdin_file" "$REF_BIN" "${PARITY_ARGV[@]}" >"$out/stdout" 2>"$out/stderr.raw"
   rc=$?
   set -e
   echo "$rc" >"$out/exit"
@@ -99,7 +109,7 @@ for case_dir in "$HERE/$dialect/cases"/*/; do
 done
 
 if [ "$check" = 1 ]; then
-  [ "$status" = 0 ] && echo "gen.sh: every $dialect golden matches $JQ_BUILD"
+  [ "$status" = 0 ] && echo "gen.sh: every $dialect golden matches $pinned"
   exit "$status"
 fi
-echo "gen.sh: recorded $(ls "$HERE/$dialect/cases" | wc -l | tr -d ' ') $dialect cases with $JQ_BUILD"
+echo "gen.sh: recorded $(ls "$HERE/$dialect/cases" | wc -l | tr -d ' ') $dialect cases with $pinned"

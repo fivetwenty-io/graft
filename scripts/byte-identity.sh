@@ -39,6 +39,17 @@ if [ "$BASE_HAS_JQ" = 1 ]; then
   case "$("$SCRATCH/probe/jq" --version 2>/dev/null | head -1)" in jq-*) BASE_HAS_JQ_LINK=1 ;; esac
 fi
 
+# graft yq and the yq link join the corpus the same way.
+BASE_HAS_YQ=0
+if "$BASE_BIN" yq --help >/dev/null 2>&1; then BASE_HAS_YQ=1; fi
+
+BASE_HAS_YQ_LINK=0
+if [ "$BASE_HAS_YQ" = 1 ]; then
+  mkdir -p "$SCRATCH/probe"
+  ln -sf "$(cd "$(dirname "$BASE_BIN")" && pwd)/$(basename "$BASE_BIN")" "$SCRATCH/probe/yq"
+  case "$("$SCRATCH/probe/yq" --version 2>/dev/null | head -1)" in yq\ *) BASE_HAS_YQ_LINK=1 ;; esac
+fi
+
 # Example dirs whose operators dial external services, plus shuffle,
 # whose output is nondeterministic by design.
 SKIP="aws aws-targets base64-decode nats nats-targets shuffle targets ternary unified-parser vault vault-defaults vault-migration vault-targets vault-try"
@@ -107,6 +118,28 @@ capture() { # capture BIN OUTDIR
     run_in jqlink-null     "$WORK/jq-input.json" "$jq_link" -n -c '[inputs]'
     run_in jqlink-error    "$WORK/jq-input.json" "$jq_link" '.a.b.c'
     run_in jqlink-compile  "$WORK/jq-input.json" "$jq_link" '.a |'
+  fi
+
+  if [ "$BASE_HAS_YQ" = 1 ]; then
+    printf 'a: 1 # one\nb:\n  - x\n  - y\n---\nc: [1, 2]\n' >"$WORK/yq-input.yaml"
+    run_in yq-identity "$WORK/yq-input.yaml" "$bin" yq .
+    run_in yq-json     "$WORK/yq-input.yaml" "$bin" yq -o json -I 0 '.'
+    run_in yq-null     "$WORK/yq-input.yaml" "$bin" yq -n '.a.b = [1, 2]'
+    run_in yq-error    "$WORK/yq-input.yaml" "$bin" yq '.a.b.c'
+    run_in yq-compile  "$WORK/yq-input.yaml" "$bin" yq '.a |'
+  fi
+
+  if [ "$BASE_HAS_YQ_LINK" = 1 ]; then
+    local ylinks yq_link
+    ylinks="$out.ylinks"
+    mkdir -p "$ylinks"
+    ln -sf "$(cd "$(dirname "$bin")" && pwd)/$(basename "$bin")" "$ylinks/yq"
+    yq_link="$ylinks/yq"
+    run_in yqlink-identity "$WORK/yq-input.yaml" "$yq_link" .
+    run_in yqlink-json     "$WORK/yq-input.yaml" "$yq_link" -o json -I 0 '.'
+    run_in yqlink-null     "$WORK/yq-input.yaml" "$yq_link" -n '.a.b = [1, 2]'
+    run_in yqlink-error    "$WORK/yq-input.yaml" "$yq_link" '.a.b.c'
+    run_in yqlink-compile  "$WORK/yq-input.yaml" "$yq_link" '.a |'
   fi
 
   (cd "$out" && $SHA ./*.out ./*.err ./*.rc | sort -k2 >MANIFEST)

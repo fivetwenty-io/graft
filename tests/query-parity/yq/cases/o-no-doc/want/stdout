@@ -1,0 +1,7 @@
+# first
+a: 1
+# second
+b:
+  - x
+  - y
+c: [1, 2]

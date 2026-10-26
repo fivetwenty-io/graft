@@ -1,0 +1,6 @@
+-o
+json
+-I
+0
+.
+in.yaml

@@ -42,6 +42,7 @@ type fileExpect struct {
 // and the golden the reference binary recorded for it.
 type parityCase struct {
 	Name            string
+	Dialect         string
 	Phase           string
 	Args            []string
 	GraftArgs       []string
@@ -106,6 +107,7 @@ func loadParityCases(t *testing.T, dialect string) []parityCase {
 		dir := filepath.Join(root, e.Name())
 		c := parityCase{
 			Name:            e.Name(),
+			Dialect:         dialect,
 			Phase:           strings.TrimSpace(readOptional(t, filepath.Join(dir, "phase"))),
 			Args:            readLines(t, filepath.Join(dir, "args")),
 			GraftArgs:       readLines(t, filepath.Join(dir, "graft_args")),
@@ -262,6 +264,38 @@ func runJQIn(t *testing.T, c parityCase) (stdout, stderr string, st query.Status
 	return scrub(out.String()), scrub(errOut.String()), st, dir
 }
 
+// runYQCaseIn is runJQIn for a yq case: it runs the case through handleYQ
+// under the same fixed environment and fresh copy.
+func runYQCaseIn(t *testing.T, c parityCase) (stdout, stderr string, st query.Status, dir string) {
+	t.Helper()
+	dir = copyCase(t, c.Dir)
+	applyParityEnv(t, dir)
+
+	var out, errOut bytes.Buffer
+	args := append(append([]string{}, c.Args...), c.GraftArgs...)
+	opts, err := parseYQArgs(args, personaGraft)
+	switch {
+	case err != nil:
+		st = yqArgsError(err)
+	case opts.Version:
+		out.WriteString(yqVersionOutput())
+	default:
+		st = handleYQ(opts, strings.NewReader(c.Stdin), &out, &errOut)
+	}
+	errOut.WriteString(st.Message)
+	scrub := func(s string) string { return strings.ReplaceAll(s, dir, caseDirMarker) }
+	return scrub(out.String()), scrub(errOut.String()), st, dir
+}
+
+// runParityIn replays a case through the command its dialect names.
+func runParityIn(t *testing.T, c parityCase) (stdout, stderr string, st query.Status, dir string) {
+	t.Helper()
+	if c.Dialect == "yq" {
+		return runYQCaseIn(t, c)
+	}
+	return runJQIn(t, c)
+}
+
 // diffFiles lists how the files in dir differ from what the case expects:
 // a file missing, changed, with other mode bits, or not expected at all.
 func diffFiles(dir string, want map[string]fileExpect) []string {
@@ -395,6 +429,9 @@ func mustReadBaseline(t *testing.T, dialect string) parity.Baseline {
 // the case, or nil. A case no entry names has no allowlist entry.
 func allowFor(t *testing.T, dialect, name string) *parity.AllowEntry {
 	t.Helper()
+	if _, err := os.Stat(filepath.Join(parityRoot, dialect, "inventory.yaml")); os.IsNotExist(err) {
+		return nil
+	}
 	allow := mustReadAllowlist(t, dialect)
 	for _, e := range loadInventory(t, dialect) {
 		if slices.Contains(e.Cases, name) {
@@ -409,6 +446,9 @@ func allowFor(t *testing.T, dialect, name string) *parity.AllowEntry {
 // currentParityPhase is the phase the compatibility floors are at.
 func currentParityPhase(t *testing.T, dialect string) string {
 	t.Helper()
+	if dialect == "yq" {
+		return "Y1"
+	}
 	if dialect != "jq" {
 		t.Fatalf("no floors for dialect %s", dialect)
 	}
@@ -420,7 +460,7 @@ func currentParityPhase(t *testing.T, dialect string) string {
 // second result describes a mismatch.
 func caseMatches(t *testing.T, c parityCase) (bool, string) {
 	t.Helper()
-	out, errOut, st, dir := runJQIn(t, c)
+	out, errOut, st, dir := runParityIn(t, c)
 	problems := diffFiles(dir, c.WantFiles)
 	matched := out == c.WantStdout && st.Code == c.WantExit && stderrMatches(c, errOut) && len(problems) == 0
 	detail := fmt.Sprintf("%s\nargs: %q\nstdout: %q\nwant:   %q\nexit: %d want %d\nstderr: %q want %q (exact %v, flag %v)\nfiles: %v",
@@ -441,15 +481,17 @@ func caseNamed(t *testing.T, dialect, name string) parityCase {
 	return parityCase{}
 }
 
-func TestQueryParity(t *testing.T) {
-	phase := currentParityPhase(t, "jq")
-	cases := loadParityCases(t, "jq")
+// replayParity replays every case of a dialect against its golden.
+func replayParity(t *testing.T, dialect string) {
+	t.Helper()
+	phase := currentParityPhase(t, dialect)
+	cases := loadParityCases(t, dialect)
 	for i := range cases {
 		c := cases[i]
 		t.Run(c.Name, func(t *testing.T) {
 			Convey("the case matches the reference golden", t, func() {
 				matched, detail := caseMatches(t, c)
-				v := parity.Evaluate(parity.Expectation{Entry: c.Name, Phase: c.Phase, Allow: allowFor(t, "jq", c.Name)}, matched, phase)
+				v := parity.Evaluate(parity.Expectation{Entry: c.Name, Phase: c.Phase, Allow: allowFor(t, dialect, c.Name)}, matched, phase)
 				// Every replay goes through the verdict evaluator, so a
 				// ruled departure never turns the gate red.
 				if v != parity.Pass && v != parity.ExpectedFail {
@@ -458,12 +500,20 @@ func TestQueryParity(t *testing.T) {
 				So(v, ShouldBeIn, parity.Pass, parity.ExpectedFail)
 				// A departure still pins graft's own output.
 				if v == parity.ExpectedFail && c.PinsGraftStdout {
-					out, _, _, _ := runJQIn(t, c)
+					out, _, _, _ := runParityIn(t, c)
 					So(out, ShouldEqual, c.WantGraftStdout)
 				}
 			})
 		})
 	}
+}
+
+func TestQueryParity(t *testing.T) {
+	replayParity(t, "jq")
+}
+
+func TestQueryParityYQ(t *testing.T) {
+	replayParity(t, "yq")
 }
 
 func TestFreshCopyPerRun(t *testing.T) {

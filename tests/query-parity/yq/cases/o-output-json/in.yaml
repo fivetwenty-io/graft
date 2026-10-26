@@ -1,0 +1,8 @@
+top:
+  list:
+    - name: one
+      vals: [1, 2]
+    - name: two
+      vals: []
+  map:
+    k: v

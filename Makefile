@@ -75,7 +75,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 .PHONY: hooks hooks-install hooks-uninstall hooks-check pre-commit pre-push
 .PHONY: validate-imports validate-imports-example
 .PHONY: oracle-vectors diff-goldens diff-oracle-check byte-identity
-.PHONY: test-query-parity jq-oracle-check jq-oracle-refresh query-oracle-audit
+.PHONY: test-query-parity jq-oracle-check jq-oracle-refresh yq-oracle-check yq-oracle-refresh query-oracle-audit
 .PHONY: test-regex-parity regex-oracle-check regex-oracle-refresh fuzz-regex
 
 ##@ General
@@ -192,8 +192,8 @@ test-unit: test-alias-dispatch test-query-parity test-regex-parity ## Run Go uni
 	@go test -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic ./...
 	@printf "$(GREEN)✓ Unit tests complete$(RESET)\n"
 
-test-alias-dispatch: ## Run the jq link dispatch tests against a built binary
-	@go test ./cmd/graft/ -run TestAliasDispatch
+test-alias-dispatch: ## Run the jq and yq link dispatch and parity tests against a built binary
+	@go test ./cmd/graft/ -run 'TestAliasDispatch|TestAliasParity'
 
 test-clean: ## Run tests without linker warnings (CGO disabled)
 	@printf "$(GREEN)Running tests with CGO disabled...$(RESET)\n"
@@ -505,9 +505,9 @@ byte-identity: ## Fail unless the working tree prints exactly what origin/main p
 	go build -o "$$tmp/graft-head" ./cmd/graft; \
 	./scripts/byte-identity.sh "$$tmp/graft-base" "$$tmp/graft-head"
 
-# The query parity harness replays the checked-in goldens through graft in process, so it needs no jq. Only the three oracle targets below run the reference binary, and nothing else depends on them.
+# The query parity harness replays the checked-in goldens through graft in process, so it needs no jq or yq. Only the oracle targets below run the reference binaries, and nothing else depends on them.
 
-test-query-parity: ## Replay the jq parity goldens in process, with no reference binary
+test-query-parity: ## Replay the jq and yq parity goldens in process, with no reference binary
 	@printf "$(GREEN)Replaying query parity goldens...$(RESET)\n"
 	@go test ./tests/query-parity/ ./cmd/graft/ -run 'TestEvaluate|TestRead|TestQueryParity|TestFreshCopy'
 
@@ -532,8 +532,15 @@ jq-oracle-check: ## Fail when any checked-in jq golden differs from the pinned j
 jq-oracle-refresh: ## Rewrite the jq goldens from the pinned jq for review (needs jq)
 	@./tests/query-parity/gen.sh jq
 
-query-oracle-audit: ## Run graft and the reference binaries side by side over the parity cases (needs jq and pcre2test)
+yq-oracle-check: ## Fail when any checked-in yq golden differs from the pinned yq (needs yq)
+	@./tests/query-parity/gen.sh --check yq
+
+yq-oracle-refresh: ## Rewrite the yq goldens from the pinned yq for review (needs yq)
+	@./tests/query-parity/gen.sh yq
+
+query-oracle-audit: ## Run graft and the reference binaries side by side over the parity cases (needs jq, yq, and pcre2test)
 	@./tests/query-parity/run.sh jq
+	@./tests/query-parity/run.sh yq
 	@./tests/regex-parity/run.sh
 
 ##@ Regex Parity Oracle

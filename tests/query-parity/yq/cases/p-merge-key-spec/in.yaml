@@ -1,0 +1,7 @@
+base: &base
+  size: 3
+  color: red
+item:
+  <<: *base
+  color: blue
+  extra: true

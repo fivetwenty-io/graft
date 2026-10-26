@@ -1,0 +1,2 @@
+load_str("inner.yaml")
+in.yaml

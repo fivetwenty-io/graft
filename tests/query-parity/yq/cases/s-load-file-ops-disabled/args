@@ -1,0 +1,3 @@
+--security-disable-file-ops
+load("other.yaml")
+in.yaml

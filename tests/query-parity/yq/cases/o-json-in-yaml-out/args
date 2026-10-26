@@ -1,0 +1,6 @@
+-p
+json
+-o
+yaml
+.
+in.json

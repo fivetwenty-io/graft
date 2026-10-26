@@ -1,0 +1,3 @@
+--security-disable-file-ops
+load_str("inner.yaml")
+in.yaml

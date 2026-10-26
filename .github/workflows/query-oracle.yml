@@ -42,8 +42,20 @@ jobs:
           "$RUNNER_TEMP/jq" --version
           echo "JQ_BIN=$RUNNER_TEMP/jq" >> "$GITHUB_ENV"
 
+      - name: Install the pinned yq
+        run: |
+          . tests/query-parity/versions.env
+          curl -fsSL -o "$RUNNER_TEMP/yq" "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+          echo "${YQ_SHA256_LINUX_AMD64}  $RUNNER_TEMP/yq" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/yq"
+          "$RUNNER_TEMP/yq" --version
+          echo "YQ_BIN=$RUNNER_TEMP/yq" >> "$GITHUB_ENV"
+
       - name: Check the jq goldens
         run: make jq-oracle-check
+
+      - name: Check the yq goldens
+        run: make yq-oracle-check
 
       - name: Audit graft against the reference binaries
         run: QUERY_COMPAT_STRICT=1 make query-oracle-audit

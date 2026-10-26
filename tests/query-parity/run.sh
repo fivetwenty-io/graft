@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run.sh [--as-alias] [jq]
+# run.sh [--as-alias] [jq|yq]
 #
 # A by-hand audit that runs the reference binary and graft side by side
 # over the same cases, each in its own fresh copy under the fixed
@@ -27,21 +27,23 @@ if [ "${1:-}" = "--as-alias" ]; then
   shift
 fi
 dialect="${1:-jq}"
-if [ "$dialect" != "jq" ]; then
-  echo "usage: run.sh [--as-alias] [jq]" >&2
-  exit 2
-fi
-
-JQ_BIN="${JQ_BIN:-jq}"
-if ! command -v "$JQ_BIN" >/dev/null 2>&1; then
+case "$dialect" in
+  jq) REF_BIN="${JQ_BIN:-jq}" ;;
+  yq) REF_BIN="${YQ_BIN:-yq}" ;;
+  *)
+    echo "usage: run.sh [--as-alias] [jq|yq]" >&2
+    exit 2
+    ;;
+esac
+if ! command -v "$REF_BIN" >/dev/null 2>&1; then
   if [ "${QUERY_COMPAT_STRICT:-0}" = 1 ]; then
-    echo "run.sh: reference binary $JQ_BIN is missing and QUERY_COMPAT_STRICT=1" >&2
+    echo "run.sh: reference binary $REF_BIN is missing and QUERY_COMPAT_STRICT=1" >&2
     exit 1
   fi
-  echo "run.sh: reference binary $JQ_BIN is missing, skipping the audit"
+  echo "run.sh: reference binary $REF_BIN is missing, skipping the audit"
   exit 0
 fi
-JQ_BIN="$(command -v "$JQ_BIN")"
+REF_BIN="$(command -v "$REF_BIN")"
 
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
@@ -97,11 +99,11 @@ for case_dir in "$HERE/$dialect/cases"/*/; do
   name="$(basename "$case_dir")"
   total=$((total + 1))
   parity_args "$case_dir"
-  observe "$case_dir" "$scratch/want-$name" "$JQ_BIN" "${PARITY_ARGV[@]}"
+  observe "$case_dir" "$scratch/want-$name" "$REF_BIN" "${PARITY_ARGV[@]}"
   if [ "$as_alias" = 1 ]; then
-    observe "$case_dir" "$scratch/got-$name" "$scratch/links/jq" "${PARITY_ARGV[@]}" ${PARITY_GRAFT_ARGV[@]+"${PARITY_GRAFT_ARGV[@]}"}
+    observe "$case_dir" "$scratch/got-$name" "$scratch/links/$dialect" "${PARITY_ARGV[@]}" ${PARITY_GRAFT_ARGV[@]+"${PARITY_GRAFT_ARGV[@]}"}
   else
-    observe "$case_dir" "$scratch/got-$name" "$GRAFT_BIN" jq "${PARITY_ARGV[@]}" ${PARITY_GRAFT_ARGV[@]+"${PARITY_GRAFT_ARGV[@]}"}
+    observe "$case_dir" "$scratch/got-$name" "$GRAFT_BIN" "$dialect" "${PARITY_ARGV[@]}" ${PARITY_GRAFT_ARGV[@]+"${PARITY_GRAFT_ARGV[@]}"}
   fi
   if diff -r "$scratch/want-$name" "$scratch/got-$name" >"$scratch/$name.diff" 2>&1; then
     continue

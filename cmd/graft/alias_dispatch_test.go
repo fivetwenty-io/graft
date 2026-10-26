@@ -226,3 +226,23 @@ func TestAliasParity(t *testing.T) {
 		})
 	}
 }
+
+// TestAliasParityYQ is TestAliasParity for the yq corpus.
+func TestAliasParityYQ(t *testing.T) {
+	graft := buildGraftBinary(t)
+	yqLink := linkAs(t, graft, "yq")
+	cases := loadParityCases(t, "yq")
+	for i := range cases {
+		c := cases[i]
+		t.Run(c.Name, func(t *testing.T) {
+			Convey("the yq link and graft yq agree byte for byte", t, func() {
+				wantOut, wantErr, wantCode, wantFiles := runBinaryIn(t, graft, []string{"yq"}, c)
+				out, errOut, code, files := runBinaryIn(t, yqLink, nil, c)
+				So(out, ShouldEqual, wantOut)
+				So(errOut, ShouldEqual, wantErr)
+				So(code, ShouldEqual, wantCode)
+				So(files, ShouldResemble, wantFiles)
+			})
+		})
+	}
+}
