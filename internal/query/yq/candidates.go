@@ -47,6 +47,7 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 	ctx.Cursors = true
 	ctx.LeftFirst = true
 	ctx.Lax = true
+	ctx.RegexPCRE = true
 	roots := make([]*value.Value, len(docs))
 	for i, doc := range docs {
 		roots[i] = doc.Value

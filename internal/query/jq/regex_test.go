@@ -86,6 +86,7 @@ func TestRegexErrors(t *testing.T) {
 	wantError(t, `sub(1; "x")`, `"a"`, `number (1) is not a string`)
 	wantError(t, `[scan(1)]`, `"a"`, `number (1) is not a string`)
 	wantError(t, `test("(")`, `"a"`, `Regex failure: missing closing parenthesis at position 0`)
+	wantError(t, `capture("(?P<x>c)at")`, `"cat"`, `Regex failure: undefined group option at position 2`)
 }
 
 func TestRegexBudgetAndDeadlineComeFromTheCtx(t *testing.T) {

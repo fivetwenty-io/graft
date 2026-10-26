@@ -43,7 +43,11 @@ func matchImpl(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit run
 		if err != nil {
 			return err
 		}
-		p, err := patterns.get(re.Str(), compileFlags, ctx.RegexBudget)
+		flavor := regex.Oniguruma
+		if ctx.RegexPCRE {
+			flavor = regex.PCRE
+		}
+		p, err := patterns.get(re.Str(), compileFlags, flavor, ctx.RegexBudget)
 		if err != nil {
 			return fail("Regex failure: %s", strings.TrimPrefix(err.Error(), "regex: "))
 		}
@@ -195,8 +199,8 @@ type cachedPattern struct {
 	used uint64 // the clock at the pattern's last use
 }
 
-func (c *patternCache) get(pattern string, flags regex.Flags, budget regex.Budget) (*regex.Pattern, error) {
-	key := patternKey{pattern, flags, regex.Oniguruma, budget}
+func (c *patternCache) get(pattern string, flags regex.Flags, flavor regex.Flavor, budget regex.Budget) (*regex.Pattern, error) {
+	key := patternKey{pattern, flags, flavor, budget}
 	c.mu.Lock()
 	if e, ok := c.entries[key]; ok {
 		c.clock++

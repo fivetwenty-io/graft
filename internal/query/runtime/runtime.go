@@ -80,6 +80,10 @@ type Ctx struct {
 	// LeftFirst runs arithmetic and comparison over the left operand's
 	// outputs outermost, as yq does, where jq runs the right one's.
 	LeftFirst bool
+	// RegexPCRE compiles the regex builtins' patterns under pkg/regex's
+	// PCRE flavor, which is nearer the Go syntax yq takes, where jq's
+	// builtins use Oniguruma.
+	RegexPCRE bool
 	Numbers   NumberMode
 	// Compare and Equal are the value comparisons for Numbers, which every
 	// comparison in the evaluator and the builtins calls.

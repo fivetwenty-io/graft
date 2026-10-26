@@ -11,7 +11,7 @@ func TestPatternCacheKeepsTheRecentPatterns(t *testing.T) {
 	c := &patternCache{entries: map[patternKey]*cachedPattern{}}
 	get := func(pattern string) *regex.Pattern {
 		t.Helper()
-		p, err := c.get(pattern, 0, regex.Budget{})
+		p, err := c.get(pattern, 0, regex.Oniguruma, regex.Budget{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -34,16 +34,19 @@ func TestPatternCacheKeepsTheRecentPatterns(t *testing.T) {
 	if get("p1") == second {
 		t.Error("the least recently used pattern was kept")
 	}
-	if _, err := c.get("(", 0, regex.Budget{}); err == nil {
+	if _, err := c.get("(", 0, regex.Oniguruma, regex.Budget{}); err == nil {
 		t.Error("a pattern that does not compile gave no error")
 	}
 	if _, ok := c.entries[patternKey{"(", 0, regex.Oniguruma, regex.Budget{}}]; ok {
 		t.Error("a pattern that does not compile was cached")
 	}
-	if p, _ := c.get("p0", regex.IgnoreCase, regex.Budget{}); p == first {
+	if p, _ := c.get("p0", regex.IgnoreCase, regex.Oniguruma, regex.Budget{}); p == first {
 		t.Error("patterns with different flags share an entry")
 	}
-	if p, _ := c.get("p0", 0, regex.Budget{Steps: 10}); p == first {
+	if p, _ := c.get("p0", 0, regex.Oniguruma, regex.Budget{Steps: 10}); p == first {
 		t.Error("patterns with different budgets share an entry")
+	}
+	if p, _ := c.get("p0", 0, regex.PCRE, regex.Budget{}); p == first {
+		t.Error("patterns with different flavors share an entry")
 	}
 }
