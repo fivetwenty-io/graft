@@ -53,7 +53,9 @@ func TestJSONSyntaxErrors(t *testing.T) {
 		`nan1`:           "invalid literal",
 		`[`:              "unexpected end of input",
 		`{"a":1`:         "unexpected end of input",
-		`@`:              "unexpected character '@'",
+		`@`:              "invalid literal",
+		`1]`:             "unexpected character ']'",
+		`null}`:          "unexpected character '}'",
 		"[1,\n  2,\n x]": "line 3, column 2",
 	} {
 		_, _, err := jsonReader(in, LoadOptions{}).Next()
@@ -98,7 +100,7 @@ func TestJSONSeqSkipsRecordSeparators(t *testing.T) {
 	}
 	wantEqual(t, n, 2)
 	_, _, err := jsonReader("\x1e1", LoadOptions{}).Next()
-	wantErrContains(t, err, "unexpected character")
+	wantErrContains(t, err, "invalid literal")
 }
 
 func TestJSONDepthLimitOption(t *testing.T) {

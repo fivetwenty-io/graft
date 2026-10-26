@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
 
@@ -108,12 +109,34 @@ func (r *JSONReader) Next() (*value.Value, int, error) {
 }
 
 func (r *JSONReader) syntaxError(line, col int, format string, args ...any) error {
+	first, _ := r.peek()
 	return &SyntaxError{Source: r.source, Line: line, Col: col, Msg: fmt.Sprintf(format, args...)}
+	if err == nil && isLiteralByte(first) {
+		err = r.afterLiteral()
+	}
 }
 
 // errHere reports a problem at the next unread byte.
 func (r *JSONReader) errHere(format string, args ...any) error {
 	return r.syntaxError(r.line+1, r.col+1, format, args...)
+}
+
+// isLiteralByte reports whether jq takes c to be part of a number or
+// keyword, which is any byte that is not whitespace, a bracket, a comma, a
+// colon, or a quote.
+func isLiteralByte(c byte) bool {
+	return !strings.ContainsRune(" \t\n\r[]{},:\"", rune(c))
+}
+
+// afterLiteral refuses a number or keyword that a closing bracket, comma,
+// or colon follows at once. jq finishes such a literal on that very byte,
+// finds the byte wrong, and loses the literal with it.
+func (r *JSONReader) afterLiteral() error {
+	c, err := r.peek()
+	if err != nil || !strings.ContainsRune("]},:", rune(c)) {
+		return nil
+	}
+	return r.errHere("unexpected character %q", c)
 }
 
 // peek returns the next byte without consuming it, and io.EOF at the end.
@@ -187,7 +210,7 @@ func (r *JSONReader) value(depth int) (*value.Value, error) {
 			return nil, err
 		}
 		return value.Str(s), nil
-	case isTokenByte(c):
+	case isLiteralByte(c):
 		return r.token()
 	}
 	return nil, r.errHere("unexpected character %q", c)
@@ -330,7 +353,7 @@ func (r *JSONReader) token() (*value.Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		if !isTokenByte(c) {
+		if !isLiteralByte(c) {
 			break
 		}
 		tok = append(tok, c)
