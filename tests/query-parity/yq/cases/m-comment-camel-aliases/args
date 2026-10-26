@@ -1,0 +1,2 @@
+[.a | lineComment, (.a | key | headComment)]
+in.yaml

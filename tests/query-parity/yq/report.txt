@@ -2,17 +2,51 @@
 operator 349 14 326 93
 flag 65 4 54 83
 exit 30 0 30 100
-format 4 0 4 100
-meta 5 0 5 100
-cli 4 0 4 100
-overall 457 18 423 92
+format 16 1 15 93
+meta 95 6 83 87
+cli 35 1 34 97
+overall 590 26 542 91
+out-of-scope 25
+allow c-multi-doc-comments-stripped pending Y2 recursive descent skips map keys
 allow fl-colors-json pending Y2 yq color layout
 allow fl-colors-yaml pending Y2 yq color layout
 allow fl-compact-seq-indent departure flag accepted with no effect
 allow fl-security-enable-system departure no system operator
+allow fmt-base64-output out-of-scope format out of scope
+allow fmt-csv-decoder out-of-scope format out of scope
+allow fmt-csv-input out-of-scope format out of scope
+allow fmt-csv-output out-of-scope format out of scope
+allow fmt-hcl-input out-of-scope format out of scope
+allow fmt-ini-input out-of-scope format out of scope
+allow fmt-json-special-numbers departure json special numbers
+allow fmt-kyaml-output out-of-scope format out of scope
+allow fmt-load-props out-of-scope format out of scope
+allow fmt-load-xml out-of-scope format out of scope
+allow fmt-lua-output out-of-scope format out of scope
+allow fmt-props-decoder out-of-scope format out of scope
+allow fmt-props-encoder out-of-scope format out of scope
+allow fmt-props-input out-of-scope format out of scope
+allow fmt-props-output out-of-scope format out of scope
+allow fmt-shell-output out-of-scope format out of scope
+allow fmt-toml-input out-of-scope format out of scope
+allow fmt-tsv-decoder out-of-scope format out of scope
+allow fmt-tsv-input out-of-scope format out of scope
+allow fmt-tsv-output out-of-scope format out of scope
+allow fmt-uri-output out-of-scope format out of scope
+allow fmt-xml-decoder out-of-scope format out of scope
+allow fmt-xml-encoder out-of-scope format out of scope
+allow fmt-xml-input out-of-scope format out of scope
+allow fmt-xml-input-auto out-of-scope format out of scope
+allow m-alias-splat pending Y2 traversal through an alias
+allow m-alias-traverse pending Y2 traversal through an alias
+allow m-comments-strip pending Y2 recursive descent skips map keys
+allow m-head-comment-entry pending Y2 map keys carry no comments
+allow m-key-update pending Y2 assignment to a map key
+allow m-style-double-keys pending Y2 recursive descent skips map keys
 allow n-exact-decimal-arithmetic departure exact decimal
 allow n-exact-integer-widening departure exact decimal
 allow n-yaml-special-numbers departure yaml special numbers
+allow o-output-xml out-of-scope format out of scope
 allow op-add-custom-tag-number pending Y2 arithmetic on custom tags
 allow op-date-from-unix-out-of-range departure from_unix fails out of range
 allow op-env-dynamic-path pending Y2 eval as an assignment path

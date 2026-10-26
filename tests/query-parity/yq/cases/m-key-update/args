@@ -1,0 +1,2 @@
+(.old | key) = "new"
+in.yaml

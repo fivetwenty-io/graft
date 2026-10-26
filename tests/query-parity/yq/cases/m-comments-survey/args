@@ -1,0 +1,2 @@
+[... | {"p": path | join("."), "k": is_key, "h": head_comment, "l": line_comment}]
+in.yaml

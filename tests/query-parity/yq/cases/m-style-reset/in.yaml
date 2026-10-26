@@ -1,0 +1,9 @@
+a: plain
+b: "double"
+c: 'single'
+d: |
+  lit
+e: >
+  fold
+f: [1, 2]
+g: {k: v}

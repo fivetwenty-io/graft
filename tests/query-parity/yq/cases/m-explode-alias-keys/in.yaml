@@ -1,0 +1,3 @@
+k: &k name
+m:
+  *k : value

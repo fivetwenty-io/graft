@@ -1,0 +1,5 @@
+match: first
+doc: 0
+---
+match: second
+doc: 1

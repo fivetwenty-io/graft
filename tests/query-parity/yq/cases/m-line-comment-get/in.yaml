@@ -1,0 +1,9 @@
+# head of doc
+
+# about a
+a: 1 # beside a
+# under a
+b:
+  - x # beside x
+  - y
+# foot of doc

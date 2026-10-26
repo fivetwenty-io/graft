@@ -1,0 +1,9 @@
+base:
+  size: m
+  color: red
+use:
+  size: m
+  color: red
+list:
+  - one
+  - one

@@ -1,0 +1,2 @@
+.m line_comment = "on map" | .l line_comment = "on list"
+in.yaml

@@ -1,0 +1,3 @@
+orig: &orig 1
+copy:
+  target: orig

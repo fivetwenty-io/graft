@@ -1,0 +1,3 @@
+a: !thing 1
+b: !!str 2
+c: !!binary aGk=

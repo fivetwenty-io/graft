@@ -1,0 +1,7 @@
+base: &base
+  size: m
+  color: red
+use: *base
+list:
+  - &item one
+  - *item

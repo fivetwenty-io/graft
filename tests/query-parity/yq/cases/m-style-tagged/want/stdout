@@ -1,0 +1,3 @@
+!!map
+a: !!str x
+b: !!int 1

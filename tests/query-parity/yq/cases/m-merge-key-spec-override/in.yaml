@@ -1,0 +1,6 @@
+base: &base
+  size: m
+  color: red
+item:
+  <<: *base
+  color: blue

@@ -1,0 +1,2 @@
+.copy alias |= .target
+in.yaml

@@ -1,0 +1,4 @@
+a: &a {size: s}
+b: &b {size: l, w: 1}
+item:
+  <<: [*a, *b]

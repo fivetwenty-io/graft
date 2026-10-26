@@ -1,0 +1,2 @@
+select(di == 0) | .name
+in.yaml

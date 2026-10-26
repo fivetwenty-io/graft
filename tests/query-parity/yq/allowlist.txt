@@ -4,13 +4,21 @@
 # json, and counts toward neither the pass ratio nor the departure cap.
 fl-compact-seq-indent departure flag accepted with no effect
 fl-security-enable-system departure no system operator
+fmt-json-special-numbers departure json special numbers
 n-exact-decimal-arithmetic departure exact decimal
 n-exact-integer-widening departure exact decimal
 n-yaml-special-numbers departure yaml special numbers
 op-date-from-unix-out-of-range departure from_unix fails out of range
 op-regex-pcre-syntax departure pcre syntax
+c-multi-doc-comments-stripped pending Y2 recursive descent skips map keys
 fl-colors-json pending Y2 yq color layout
 fl-colors-yaml pending Y2 yq color layout
+m-alias-splat pending Y2 traversal through an alias
+m-alias-traverse pending Y2 traversal through an alias
+m-comments-strip pending Y2 recursive descent skips map keys
+m-head-comment-entry pending Y2 map keys carry no comments
+m-key-update pending Y2 assignment to a map key
+m-style-double-keys pending Y2 recursive descent skips map keys
 op-add-custom-tag-number pending Y2 arithmetic on custom tags
 op-env-dynamic-path pending Y2 eval as an assignment path
 op-eval-update pending Y2 eval as an assignment path
@@ -20,3 +28,28 @@ op-subtract-custom-tag pending Y2 arithmetic on custom tags
 op-variable-lookup pending Y2 indexing a variable by an expression
 op-variable-ref pending Y2 ref bindings
 op-wildcard-key pending Y2 wildcard key traversal
+fmt-base64-output out-of-scope format out of scope
+fmt-csv-decoder out-of-scope format out of scope
+fmt-csv-input out-of-scope format out of scope
+fmt-csv-output out-of-scope format out of scope
+fmt-hcl-input out-of-scope format out of scope
+fmt-ini-input out-of-scope format out of scope
+fmt-kyaml-output out-of-scope format out of scope
+fmt-load-props out-of-scope format out of scope
+fmt-load-xml out-of-scope format out of scope
+fmt-lua-output out-of-scope format out of scope
+fmt-props-decoder out-of-scope format out of scope
+fmt-props-encoder out-of-scope format out of scope
+fmt-props-input out-of-scope format out of scope
+fmt-props-output out-of-scope format out of scope
+fmt-shell-output out-of-scope format out of scope
+fmt-toml-input out-of-scope format out of scope
+fmt-tsv-decoder out-of-scope format out of scope
+fmt-tsv-input out-of-scope format out of scope
+fmt-tsv-output out-of-scope format out of scope
+fmt-uri-output out-of-scope format out of scope
+fmt-xml-decoder out-of-scope format out of scope
+fmt-xml-encoder out-of-scope format out of scope
+fmt-xml-input out-of-scope format out of scope
+fmt-xml-input-auto out-of-scope format out of scope
+o-output-xml out-of-scope format out of scope
