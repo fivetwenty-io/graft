@@ -116,26 +116,30 @@ func (ev evaluator) label(n *ast.Label, env *Env, in *value.Value, p value.Path,
 // only while it is that very value, which is how jq 1.8.2 tracks it.
 func (ev evaluator) reduce(n *ast.Reduce, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	return ev.eval(n.Init, env, in, p, func(v0 *value.Value, p0 value.Path) error {
+		// One step finishes before the next begins, so the steps share
+		// their continuations rather than allocate them each time.
 		state := v0
+		var last *value.Value
+		keep := runtime.Emit(func(v *value.Value, _ value.Path) error {
+			last = v
+			return nil
+		})
+		step := func(env *Env) error {
+			last = nil
+			if err := ev.eval(n.Update, env, state, ev.statePath(state, v0, p0), keep); err != nil {
+				return err
+			}
+			if last == nil {
+				last = value.Null()
+			}
+			state = last
+			return nil
+		}
 		err := ev.values().eval(n.Src, env, in, nil, func(x *value.Value, _ value.Path) error {
 			if err := ev.ctx.Tick(); err != nil {
 				return err
 			}
-			return ev.bindPats(n.Pats, x, env, func(env *Env) error {
-				var last *value.Value
-				err := ev.eval(n.Update, env, state, ev.statePath(state, v0, p0), func(v *value.Value, _ value.Path) error {
-					last = v
-					return nil
-				})
-				if err != nil {
-					return err
-				}
-				if last == nil {
-					last = value.Null()
-				}
-				state = last
-				return nil
-			})
+			return ev.bindPats(n.Pats, x, env, step)
 		})
 		if err != nil {
 			return err

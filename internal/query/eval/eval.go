@@ -584,6 +584,9 @@ func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, p value.Pat
 		lp = p
 	}
 	if name, flags, ok := arithmeticOp(n.Op); ok {
+		if op, ok := ev.reg.Operator(name); ok && flags == "" && !ev.derives() {
+			return ev.operate(n, env, in, op, emit)
+		}
 		return ev.operands(n, env, in, lp, func(l *value.Value, p value.Path, r *value.Value, rp value.Path) error {
 			args := []runtime.Thunk{constThunk{l}, constThunk{r}}
 			if ev.derives() {
@@ -622,6 +625,17 @@ func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, p value.Pat
 // sides, with their paths, in the order binary describes.
 func (ev evaluator) operands(n *ast.Binary, env *Env, in *value.Value, lp value.Path, f func(l *value.Value, p value.Path, r *value.Value, rp value.Path) error) error {
 	vev := ev.values()
+	// A side with one value and no effects runs in either order, so it
+	// needs no continuation of its own.
+	if r, ok := vev.single(n.R, env, in); ok {
+		if l, ok := vev.single(n.L, env, in); ok {
+			return f(l, nil, r, nil)
+		}
+		return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error { return f(l, p, r, nil) })
+	}
+	if l, ok := vev.single(n.L, env, in); ok {
+		return vev.eval(n.R, env, in, nil, func(r *value.Value, rp value.Path) error { return f(l, nil, r, rp) })
+	}
 	if ev.ctx.LeftFirst {
 		return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error {
 			return vev.eval(n.R, env, in, nil, func(r *value.Value, rp value.Path) error { return f(l, p, r, rp) })
@@ -630,6 +644,56 @@ func (ev evaluator) operands(n *ast.Binary, env *Env, in *value.Value, lp value.
 	return vev.eval(n.R, env, in, nil, func(r *value.Value, rp value.Path) error {
 		return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error { return f(l, p, r, rp) })
 	})
+}
+
+// operate runs an operator's own function on every pair of the outputs of
+// its two sides, in the order operands describes, without the thunks and
+// continuations that calling its native costs.
+func (ev evaluator) operate(n *ast.Binary, env *Env, in *value.Value, op runtime.Operator, emit runtime.Emit) error {
+	vev := ev.values()
+	l, lok := vev.single(n.L, env, in)
+	r, rok := vev.single(n.R, env, in)
+	switch {
+	case lok && rok:
+		return ev.apply(op, l, r, emit)
+	case lok:
+		return vev.eval(n.R, env, in, nil, func(r *value.Value, _ value.Path) error { return ev.apply(op, l, r, emit) })
+	case rok:
+		return vev.eval(n.L, env, in, nil, func(l *value.Value, _ value.Path) error { return ev.apply(op, l, r, emit) })
+	}
+	return ev.operands(n, env, in, nil, func(l *value.Value, _ value.Path, r *value.Value, _ value.Path) error {
+		return ev.apply(op, l, r, emit)
+	})
+}
+
+// apply emits op's result on one pair of operands.
+func (ev evaluator) apply(op runtime.Operator, l, r *value.Value, emit runtime.Emit) error {
+	v, err := op(ev.ctx, l, r)
+	if err != nil {
+		return err
+	}
+	return emit(v, nil)
+}
+
+// single returns the one value n gives on in when n is a literal, a bound
+// variable, or ".", which have no effects and cannot fail. It reports
+// false for anything else, on the candidate set, where a literal gives a
+// value for every candidate, and whenever values carry their places.
+func (ev evaluator) single(n ast.Node, env *Env, in *value.Value) (*value.Value, bool) {
+	if in == nil || ev.derives() || ev.paths {
+		return nil, false
+	}
+	switch n := n.(type) {
+	case *ast.Literal:
+		return ev.literal(n), true
+	case *ast.Var:
+		if v, _, ok := env.LookupAt(n.Name); ok {
+			return v, true
+		}
+	case *ast.Identity:
+		return in, true
+	}
+	return nil, false
 }
 
 // derive passes on each output of a native that came from in, whose path

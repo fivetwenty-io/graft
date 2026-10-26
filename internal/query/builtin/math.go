@@ -14,11 +14,11 @@ import (
 const maxRepeat = 1 << 29
 
 func registerMath(r *runtime.Registry) {
-	arith(r, "_plus", plus)
-	arith(r, "_minus", minus)
-	arith(r, "_multiply", multiply)
-	arith(r, "_divide", divide)
-	arith(r, "_mod", modulo)
+	r.RegisterOperator("_plus", plus)
+	r.RegisterOperator("_minus", minus)
+	r.RegisterOperator("_multiply", multiply)
+	r.RegisterOperator("_divide", divide)
+	r.RegisterOperator("_mod", modulo)
 	unary(r, "_negate", func(ctx *runtime.Ctx, in *value.Value) (*value.Value, error) {
 		if in.Kind() != value.KindNumber {
 			return nil, fail("%s cannot be negated", describe(in))
@@ -277,24 +277,6 @@ func numberArg(ctx *runtime.Ctx, v *value.Value) (decimal.Decimal, error) {
 // floatResult wraps a double that libm or --float-numbers computed.
 func floatResult(f float64) *value.Value {
 	return value.NumDec(decimal.FromFloat64(f))
-}
-
-// arith registers a binary operator's native. The evaluator passes the
-// left operand first and runs the right one outermost.
-func arith(r *runtime.Registry, name string, op func(ctx *runtime.Ctx, l, r *value.Value) (*value.Value, error)) {
-	r.RegisterSingle(name, 2, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
-		// The two loops are written out rather than run through cartesian,
-		// since arithmetic runs once for every element an update touches.
-		return args[1].Each(in, func(rv *value.Value, _ value.Path) error {
-			return args[0].Each(in, func(lv *value.Value, _ value.Path) error {
-				v, err := op(ctx, lv, rv)
-				if err != nil {
-					return err
-				}
-				return emit(v, nil)
-			})
-		})
-	})
 }
 
 // operands returns two numbers' decimals, or the bound error of the first

@@ -245,3 +245,49 @@ func TestRuntimeImportsNoEvaluatorOrBuiltins(t *testing.T) {
 		}
 	}
 }
+
+func TestOperatorRunsDirectlyUntilReplaced(t *testing.T) {
+	var r Registry
+	join := func(_ *Ctx, l, rv *value.Value) (*value.Value, error) { return value.Str(l.Str() + rv.Str()), nil }
+	r.RegisterOperator("_plus", join)
+	if !r.Single("_plus", 2) {
+		t.Fatal("an operator's native emits once a pair")
+	}
+	op, ok := r.Operator("_plus")
+	if !ok {
+		t.Fatal("_plus is no operator")
+	}
+	v, err := op(nil, value.Str("a"), value.Str("b"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, v.Str(), "ab")
+	fn, _ := r.Lookup("_plus", 2)
+	var got []string
+	args := []Thunk{strThunk{"a", "b"}, strThunk{"x", "y"}}
+	if err := fn(nil, value.Null(), args, func(v *value.Value, _ value.Path) error { got = append(got, v.Str()); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, strings.Join(got, " "), "ax bx ay by")
+
+	r.Register("_plus", 1, emitOne(value.Null()))
+	if _, ok := r.Operator("_plus"); !ok {
+		t.Fatal("another arity must leave the operator alone")
+	}
+	r.Register("_plus", 2, emitOne(value.Null()))
+	if _, ok := r.Operator("_plus"); ok {
+		t.Fatal("a native registered over the operator must replace it")
+	}
+}
+
+// strThunk is an argument that emits each of its strings.
+type strThunk []string
+
+func (s strThunk) Each(_ *value.Value, emit Emit) error {
+	for _, x := range s {
+		if err := emit(value.Str(x), nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
