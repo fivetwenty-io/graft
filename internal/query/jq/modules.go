@@ -560,10 +560,7 @@ func (lk *linker) load(rel string, isData bool, meta *value.Value, libOrigin str
 // loadPath reads the module or data file at path, once, and loads what
 // the module imports.
 func (lk *linker) loadPath(path string, isData bool) (*loaded, error) {
-	key := path
-	if abs, err := filepath.Abs(path); err == nil {
-		key = abs
-	}
+	key := realPath(path)
 	if isData {
 		key += "\x00data"
 	}
