@@ -122,8 +122,21 @@ func (o *yqOutput) writeSplit(v *value.Value) (err error) {
 		}
 	}()
 	o.sink.w = w
+	if f, ok := w.(interface{ Name() string }); ok {
+		o.last = f.Name()
+	}
 	if err := o.enc.Encode(v); err != nil {
 		return err
 	}
 	return o.enc.Flush()
+}
+
+// rawSplit writes data over the split file written last, which is what
+// yq does with the content after the front matter: the file ends up
+// holding that content alone.
+func (o *yqOutput) rawSplit(data []byte) error {
+	if o.last == "" {
+		return nil
+	}
+	return os.WriteFile(o.last, data, 0o666) // #nosec G306,G304 -- the file the split just wrote
 }

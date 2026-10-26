@@ -152,6 +152,7 @@ type yqOutput struct {
 	eo     yq.EncodeOptions
 	split  func(doc yq.Document, v *value.Value) (io.WriteCloser, error)
 	sink   *splitSink // where the encoder writes under split
+	last   string     // the split file written last
 	styler debugStyler
 	color  bool
 }
@@ -210,6 +211,9 @@ func (o *yqOutput) flush() error { return o.enc.Flush() }
 
 // raw writes data after everything written so far, untouched.
 func (o *yqOutput) raw(data []byte) error {
+	if o.split != nil {
+		return o.rawSplit(data)
+	}
 	if err := o.enc.Flush(); err != nil {
 		return err
 	}

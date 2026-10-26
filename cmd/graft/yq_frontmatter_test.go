@@ -55,4 +55,11 @@ func TestYQFrontMatter(t *testing.T) {
 		So(err, ShouldBeNil)
 		So(string(data), ShouldEqual, "---\ntitle: q\n---\n# body\n")
 	})
+
+	Convey("front matter with a split leaves the content in the last split file", t, func() {
+		dir := t.TempDir()
+		_, _, st := runYQ2(t, dir, []string{"-f", "process", "-s", `"o"`, ".t = 2"}, "---\nt: 1\n---\nbody\n")
+		So(st.Code, ShouldEqual, 0)
+		So(readSplit(t, filepath.Join(dir, "o.yml")), ShouldEqual, "---\nbody\n")
+	})
 }

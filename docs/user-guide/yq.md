@@ -138,7 +138,7 @@ $ ls
 a.yml  b.yml  services.yml
 ```
 
-The `--split-exp-file FILE` flag reads the expression from FILE, and it wins when both flags are given. An expression that does not compile, or that fails on an output, ends the run with exit code 1. The `-i` flag cannot be combined with a split. Using `-f process` together with a split is not supported.
+The `--split-exp-file FILE` flag reads the expression from FILE, and it wins when both flags are given. An expression that does not compile, or that fails on an output, ends the run with exit code 1. The `-i` flag cannot be combined with a split. A name can leave the working directory, through `../x` or an absolute path, the same as in yq. With `-f process`, the text after the front matter is written over the last split file, so that file holds only that text, as it does in yq.
 
 ## Flags
 
