@@ -30,7 +30,13 @@ if [ "$dialect" != "jq" ]; then
   exit 2
 fi
 
-JQ_BIN="${JQ_BIN:-jq}"
+# parity_run resets PATH to /usr/bin:/bin, so a bare name would run
+# whatever jq lives there rather than the one checked below.
+jq_name="${JQ_BIN:-jq}"
+if ! JQ_BIN="$(command -v "$jq_name")"; then
+  echo "gen.sh: reference binary $jq_name is missing" >&2
+  exit 2
+fi
 got="$("$JQ_BIN" --version 2>&1 | head -1)" || true
 if [ "$got" != "$JQ_BUILD" ]; then
   echo "gen.sh: $JQ_BIN reports '$got' but versions.env pins '$JQ_BUILD'" >&2
