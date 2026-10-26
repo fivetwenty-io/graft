@@ -74,6 +74,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 .PHONY: hooks hooks-install hooks-uninstall hooks-check pre-commit pre-push
 .PHONY: validate-imports validate-imports-example
 .PHONY: oracle-vectors diff-goldens diff-oracle-check byte-identity
+.PHONY: test-query-parity jq-oracle-check jq-oracle-refresh query-oracle-audit
 
 ##@ General
 
@@ -183,7 +184,7 @@ clean: ## Remove build artifacts and binaries
 
 test: test-unit ## Run all unit tests (alias for test-unit)
 
-test-unit: test-alias-dispatch ## Run Go unit tests with coverage
+test-unit: test-alias-dispatch test-query-parity ## Run Go unit tests with coverage
 	@printf "$(GREEN)Running unit tests...$(RESET)\n"
 	@mkdir -p $(COVERAGE_DIR)
 	@go test -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic ./...
@@ -496,3 +497,19 @@ byte-identity: ## Fail unless the working tree prints exactly what origin/main p
 	(cd "$$tmp/base-tree" && go build -o "$$tmp/graft-base" ./cmd/graft); \
 	go build -o "$$tmp/graft-head" ./cmd/graft; \
 	./scripts/byte-identity.sh "$$tmp/graft-base" "$$tmp/graft-head"
+
+# The query parity harness replays the checked-in goldens through graft in process, so it needs no jq. Only the three oracle targets below run the reference binary, and nothing else depends on them.
+
+test-query-parity: ## Replay the jq parity goldens in process, with no reference binary
+	@printf "$(GREEN)Replaying query parity goldens...$(RESET)\n"
+	@go test ./tests/query-parity/ ./cmd/graft/ -run 'TestEvaluate|TestRead|TestQueryParity|TestFreshCopy'
+
+jq-oracle-check: ## Fail when any checked-in jq golden differs from the pinned jq (needs jq)
+	@./tests/query-parity/gen.sh --check jq
+
+jq-oracle-refresh: ## Rewrite the jq goldens from the pinned jq for review (needs jq)
+	@./tests/query-parity/gen.sh jq
+
+query-oracle-audit: ## Run graft and the reference binaries side by side over the parity cases (needs jq and pcre2test)
+	@./tests/query-parity/run.sh jq
+	@./tests/regex-parity/run.sh

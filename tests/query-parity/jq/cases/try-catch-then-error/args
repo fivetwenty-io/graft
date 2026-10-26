@@ -1,0 +1,2 @@
+-n
+try 1 catch "caught" | error("outside")

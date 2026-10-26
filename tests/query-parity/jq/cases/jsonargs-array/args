@@ -1,0 +1,7 @@
+-n
+-c
+$ARGS
+--jsonargs
+1
+{"a":2}
+null

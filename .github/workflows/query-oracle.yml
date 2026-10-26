@@ -1,0 +1,48 @@
+name: query-oracle
+
+# An opt-in audit of the checked-in parity goldens against the pinned
+# reference binaries. It runs only when a maintainer starts it, it is not a
+# required check, and neither the CI workflow nor the release workflow
+# depends on it. The normal gates replay the goldens with no reference
+# binary installed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+
+      # pcre2test records the regex goldens that tests/regex-parity replays,
+      # and the audit runs that harness beside the jq one.
+      - name: Install pcre2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pcre2-utils
+
+      - name: Install the pinned jq
+        run: |
+          . tests/query-parity/versions.env
+          curl -fsSL -o "$RUNNER_TEMP/jq" "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-amd64"
+          chmod +x "$RUNNER_TEMP/jq"
+          "$RUNNER_TEMP/jq" --version
+          echo "JQ_BIN=$RUNNER_TEMP/jq" >> "$GITHUB_ENV"
+
+      - name: Check the jq goldens
+        run: make jq-oracle-check
+
+      - name: Audit graft against the reference binaries
+        run: QUERY_COMPAT_STRICT=1 make query-oracle-audit

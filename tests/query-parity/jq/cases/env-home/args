@@ -1,0 +1,3 @@
+-n
+-c
+[$ENV.HOME, env.HOME, env.PWD, env.TZ, env.LANG]

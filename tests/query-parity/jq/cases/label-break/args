@@ -1,0 +1,2 @@
+-n
+label $f | try (1, break $f) catch "caught"

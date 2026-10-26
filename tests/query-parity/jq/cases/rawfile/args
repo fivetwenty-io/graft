@@ -1,0 +1,5 @@
+-n
+--rawfile
+f
+text.txt
+$f

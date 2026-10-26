@@ -1,0 +1,2 @@
+-n
+"bye\n" | halt_error

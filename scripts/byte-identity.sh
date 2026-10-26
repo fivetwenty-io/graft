@@ -24,6 +24,12 @@ command -v sha256sum >/dev/null 2>&1 && SHA=sha256sum || SHA="shasum -a 256"
 
 (cd "$REPO" && go run ./scripts/gen-workload "$WORK")
 
+# graft jq joins the corpus only once the base binary has it, so the check
+# keeps passing before the first release that includes the command and
+# starts guarding afterwards.
+BASE_HAS_JQ=0
+if "$BASE_BIN" jq --help >/dev/null 2>&1; then BASE_HAS_JQ=1; fi
+
 # Example dirs whose operators dial external services, plus shuffle,
 # whose output is nondeterministic by design.
 SKIP="aws aws-targets base64-decode nats nats-targets shuffle targets ternary unified-parser vault vault-defaults vault-migration vault-targets vault-try"
@@ -36,6 +42,15 @@ capture() { # capture BIN OUTDIR
     name="$1"; shift
     set +e
     "$@" >"$out/$name.out" 2>"$out/$name.err"
+    echo "$?" >"$out/$name.rc"
+    set -e
+  }
+
+  run_in() { # run_in NAME STDIN_FILE CMD...
+    local stdin_file="$2"
+    name="$1"; shift 2
+    set +e
+    "$@" <"$stdin_file" >"$out/$name.out" 2>"$out/$name.err"
     echo "$?" >"$out/$name.rc"
     set -e
   }
@@ -62,6 +77,15 @@ capture() { # capture BIN OUTDIR
     run "ex-$d" "$bin" merge $files
   done
   cd "$REPO"
+
+  if [ "$BASE_HAS_JQ" = 1 ]; then
+    printf '{"a":[1,2,{"b":null}],"s":"x"}\n3 "four"\n' >"$WORK/jq-input.json"
+    run_in jq-identity "$WORK/jq-input.json" "$bin" jq .
+    run_in jq-compact  "$WORK/jq-input.json" "$bin" jq -c '.'
+    run_in jq-null     "$WORK/jq-input.json" "$bin" jq -n -c '[inputs]'
+    run_in jq-error    "$WORK/jq-input.json" "$bin" jq '.a.b.c'
+    run_in jq-compile  "$WORK/jq-input.json" "$bin" jq '.a |'
+  fi
 
   (cd "$out" && $SHA ./*.out ./*.err ./*.rc | sort -k2 >MANIFEST)
 }
