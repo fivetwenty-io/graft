@@ -34,6 +34,9 @@ type EncodeOptions struct {
 	PrettyPrint bool
 	// SortKeys orders object keys. The empty mode keeps input order.
 	SortKeys sortkeys.Mode
+	// FloatNumbers is --float-numbers. A float an operator computed then
+	// prints as Go prints a float64, which is how yq writes one.
+	FloatNumbers bool
 }
 
 // Encoder writes values to a writer. It buffers its output, so the caller
@@ -59,6 +62,7 @@ func NewEncoder(w io.Writer, opts EncodeOptions) *Encoder {
 			SortKeys: opts.SortKeys,
 			Color:    opts.Colors,
 			Palette:  jqout.DefaultPalette,
+			GoFloats: opts.FloatNumbers,
 		})}
 	}
 	return &Encoder{
@@ -67,6 +71,7 @@ func NewEncoder(w io.Writer, opts EncodeOptions) *Encoder {
 			NoDoc:        opts.NoDocSeparators,
 			UnwrapScalar: opts.UnwrapScalar,
 			SortKeys:     opts.SortKeys,
+			GoFloats:     opts.FloatNumbers,
 		}),
 		pretty: opts.PrettyPrint,
 	}

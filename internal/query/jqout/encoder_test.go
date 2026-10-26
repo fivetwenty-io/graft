@@ -113,3 +113,10 @@ func TestRawInteractions(t *testing.T) {
 	// A compound value gets the RS byte even with raw output on.
 	wantEqual(t, encode(t, value.Arr(lit("1")), Options{Seq: true, Raw: true, Compact: true}), "\x1e[1]\n")
 }
+
+func TestGoFloats(t *testing.T) {
+	f := value.Num(1234567.5).WithMeta(&value.Meta{Tag: "!!float"})
+	wantEqual(t, encode(t, f, Options{Compact: true, GoFloats: true}), "1.2345675e+06\n")
+	wantEqual(t, encode(t, f, Options{Compact: true}), "1234567.5\n")
+	wantEqual(t, encode(t, value.Num(1234567.5), Options{Compact: true, GoFloats: true}), "1234567.5\n")
+}

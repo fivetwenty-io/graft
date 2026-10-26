@@ -37,6 +37,7 @@ type Options struct {
 	NoDoc            bool // omit the --- line between documents
 	UnwrapScalar     bool // a top-level scalar prints as its bare text
 	FloatNumbers     bool // print computed numbers by jq's double rule
+	GoFloats         bool // print a computed !!float as Go prints a float64
 	SortKeys         sortkeys.Mode
 	CompactSeqIndent bool // a sequence under a mapping key is not indented
 	NUL              bool // end each document with a NUL in place of its last line break

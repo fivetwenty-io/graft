@@ -290,8 +290,9 @@ func allDigits(s, extra string) bool {
 
 // yamlNumber writes a number the way YAML spells it. YAML can say NaN, the
 // infinities, and negative zero where JSON cannot, and a computed infinity
-// must not print as a finite number.
-func yamlNumber(v *value.Value, floatMode bool) string {
+// must not print as a finite number. With goFloats, a number a yq operator
+// tagged !!float prints as Go prints a float64.
+func yamlNumber(v *value.Value, floatMode, goFloats bool) string {
 	if v.Literal() == "" {
 		d := v.Dec()
 		switch {
@@ -306,6 +307,11 @@ func yamlNumber(v *value.Value, floatMode bool) string {
 			}
 			return ".inf"
 		}
+	}
+	if goFloats && v.Literal() == "" && v.Meta() != nil && v.Meta().Tag == yamlnode.TagFloat {
+		// A float64 a yq operator computed prints as Go prints one,
+		// with an exponent from 1e+06 up.
+		return strconv.FormatFloat(v.Float(), 'g', -1, 64)
 	}
 	if floatMode {
 		return jqout.FormatNumberFloat(v)
@@ -494,7 +500,7 @@ func (e *emitter) scalarText(v *value.Value) string {
 	case value.KindFalse:
 		return "false"
 	case value.KindNumber:
-		return yamlNumber(v, e.o.FloatNumbers)
+		return yamlNumber(v, e.o.FloatNumbers, e.o.GoFloats)
 	case value.KindString:
 		return v.Str()
 	case value.KindArray, value.KindObject:

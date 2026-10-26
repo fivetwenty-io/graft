@@ -6,9 +6,12 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"math"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 	"github.com/fivetwenty-io/graft/pkg/sortkeys"
 )
@@ -32,6 +35,7 @@ type Options struct {
 	ASCII        bool // escape every non-ASCII character as \uXXXX
 	Seq          bool // write an RS byte before each value
 	FloatNumbers bool // print computed numbers by jq's double rule
+	GoFloats     bool // print a computed !!float as Go prints a float64, as yq does
 	SortKeys     sortkeys.Mode
 	Color        bool
 	Palette      Palette
@@ -136,9 +140,12 @@ func (e *encoder) encode(v *value.Value, depth int) {
 	case value.KindTrue:
 		e.token(p.True, "true")
 	case value.KindNumber:
-		if e.o.FloatNumbers {
+		switch {
+		case e.o.GoFloats && goFloat(v):
+			e.token(p.Number, strconv.FormatFloat(v.Float(), 'g', -1, 64))
+		case e.o.FloatNumbers:
 			e.token(p.Number, FormatNumberFloat(v))
-		} else {
+		default:
 			e.token(p.Number, FormatNumber(v))
 		}
 	case value.KindString:
@@ -259,4 +266,14 @@ func (e *encoder) quote(s string) {
 		}
 	}
 	e.buf = append(e.buf, '"')
+}
+
+// goFloat reports whether v is a finite float a yq operator computed, which
+// carries no literal and the !!float tag.
+func goFloat(v *value.Value) bool {
+	if v.Literal() != "" || v.Meta() == nil || v.Meta().Tag != yamlnode.TagFloat {
+		return false
+	}
+	f := v.Float()
+	return !math.IsInf(f, 0) && !math.IsNaN(f)
 }

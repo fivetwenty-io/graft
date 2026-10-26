@@ -48,7 +48,12 @@ func TestLiteralChomping(t *testing.T) {
 }
 
 func TestYAMLNumber(t *testing.T) {
-	wantEqual(t, yamlNumber(lit("1.50"), false), "1.50")
-	wantEqual(t, yamlNumber(dec("0.1"), true), "0.1")
-	wantEqual(t, yamlNumber(value.Num(-1), false), "-1")
+	wantEqual(t, yamlNumber(lit("1.50"), false, false), "1.50")
+	wantEqual(t, yamlNumber(dec("0.1"), true, false), "0.1")
+	wantEqual(t, yamlNumber(value.Num(-1), false, false), "-1")
+
+	f := value.Num(1234567.5).WithMeta(&value.Meta{Tag: "!!float"})
+	wantEqual(t, yamlNumber(f, true, true), "1.2345675e+06")
+	wantEqual(t, yamlNumber(f, true, false), "1234567.5")
+	wantEqual(t, yamlNumber(value.Num(1234567.5), true, true), "1234567.5")
 }

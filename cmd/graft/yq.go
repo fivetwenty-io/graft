@@ -154,6 +154,7 @@ func newYQOutput(opts yqOptions, format yq.Format, out io.Writer, color bool) *y
 		NoDocSeparators: opts.NoDoc,
 		PrettyPrint:     opts.PrettyPrint,
 		SortKeys:        opts.SortKeys,
+		FloatNumbers:    opts.FloatNumbers,
 	}
 	o := &yqOutput{out: out, nul: opts.NulOutput}
 	if opts.NulOutput || (color && format == yq.FormatYAML) {
