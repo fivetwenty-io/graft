@@ -474,16 +474,16 @@ var propertyTables = sync.OnceValue(func() map[string]*unicode.RangeTable {
 	return index
 })
 
+// punctName is the POSIX name whose meaning each flavor and each
+// spelling of the class sets on its own.
+const punctName = "punct"
+
 // onigPropertyClass returns the set \p{name} stands for under the
 // Oniguruma flavor, or its complement when negated. Oniguruma reads the
 // POSIX names, such as Alpha and XDigit, as their Unicode classes, except
 // that Punct holds only the punctuation category. It also takes the long
 // names of the general categories, such as Lowercase_Letter, and it does not
 // know PCRE2's L&.
-// punctName is the POSIX name whose meaning each flavor and each
-// spelling of the class sets on its own.
-const punctName = "punct"
-
 func onigPropertyClass(name string, negated bool) (runeSet, bool) {
 	key := looseName(name)
 	switch {
