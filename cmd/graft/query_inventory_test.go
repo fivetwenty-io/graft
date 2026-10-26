@@ -36,7 +36,7 @@ var inventoryAreas = []string{"grammar", "builtin", "flag", "exit", "number", "s
 var (
 	inventoryMu    sync.Mutex
 	inventoryCache = map[string][]inventoryEntry{}
-	matchCache     = map[string]bool{}
+	matchCache     = map[string]map[string]bool{}
 )
 
 // loadInventory reads a dialect's inventory.yaml.
@@ -94,16 +94,18 @@ func parityResults(t *testing.T, dialect string) map[string]bool {
 	t.Helper()
 	inventoryMu.Lock()
 	defer inventoryMu.Unlock()
-	if len(matchCache) > 0 {
-		return matchCache
+	if matched, ok := matchCache[dialect]; ok {
+		return matched
 	}
+	results := map[string]bool{}
 	cases := loadParityCases(t, dialect)
 	for i := range cases {
 		c := cases[i]
 		matched, _ := caseMatches(t, c)
-		matchCache[c.Name] = matched
+		results[c.Name] = matched
 	}
-	return matchCache
+	matchCache[dialect] = results
+	return results
 }
 
 // allMatched reports whether every named case matched. An entry that
@@ -326,5 +328,19 @@ func TestInventoryStats(t *testing.T) {
 	}
 	if fmt.Sprint(allMatched(nil, nil)) != "false" {
 		t.Error("an entry with no case passed")
+	}
+}
+
+func TestParityResultsAreKeyedByDialect(t *testing.T) {
+	inventoryMu.Lock()
+	matchCache["other"] = map[string]bool{"planted-case": true}
+	inventoryMu.Unlock()
+	defer func() {
+		inventoryMu.Lock()
+		delete(matchCache, "other")
+		inventoryMu.Unlock()
+	}()
+	if _, leaked := parityResults(t, "jq")["planted-case"]; leaked {
+		t.Fatal("jq results carry a case another dialect cached")
 	}
 }
