@@ -1,5 +1,3 @@
-// Package value defines the ordered, immutable value model that the jq and
-// yq engines share.
 package value
 
 import (

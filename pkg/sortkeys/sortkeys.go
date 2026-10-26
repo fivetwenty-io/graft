@@ -1,5 +1,3 @@
-// Package sortkeys orders object keys for graft's merge output and for the
-// jq and yq commands, so that all of them agree on what sorted means.
 package sortkeys
 
 import (
