@@ -125,13 +125,13 @@ func TestProgramSizeEstimateIsExact(t *testing.T) {
 	for _, pat := range []string{
 		`a`, `abc`, `a|b|c`, `(a)(b)`, `a*`, `a+?`, `(a*)*`, `(a?)+`, `a{2,5}`, `a{3,}`, `(?:ab|c){0,2}`,
 		`[a-z]+x`, `^a$`, `.*`, `(a|)*b{2}c{1,}d{0}`, `x{0,}`,
-		`(?=ab)c`, `(?<!a|bc)d`, `(?<=a|bc)d`, `(?>a|b)*`, `a*+`, `a{2,3}+`, `(?=a(?<=a))b`, `(?<=ß|k)x`,
+		`(?=ab)c`, `(?<!a|bc)d`, `(?<=a|bc)d`, `(?<=ab|cd)d`, `(?>a|b)*`, `a*+`, `a{2,3}+`, `(?=a(?<=a))b`, `(?<=ß|k)x`,
 		`(a)\1`, `(a|b\1)+`, `(?<n>a)\k<n>`, `\1(a)`,
 		`(a)?(?(1)b|cd)`, `(a)?(?(1)b|)`, `(?:(?(1)b|c)(a))+`, `(a)(?<=(?(1)a|b))`,
 	} {
 		for i, opts := range [][]Option{nil, {WithFlags(IgnoreCase)}, {WithFlavor(Oniguruma), WithFlags(IgnoreCase)}} {
 			if i == 2 && (pat == `(?<!a|bc)d` || pat == `(?<=a|bc)d`) {
-				continue // Oniguruma refuses a lookbehind of uneven branches
+				continue // Oniguruma refuses branches of different lengths
 			}
 			p := MustCompile(pat, opts...)
 			cfg := newConfig(opts)
