@@ -124,6 +124,11 @@ const (
 func matchObject(m *regex.Match, subject string) *value.Value {
 	captures := make([]*value.Value, 0, len(m.Groups)-1)
 	for _, g := range m.Groups[1:] {
+		if m.End == m.Start && g.Matched {
+			// jq reports a group inside an empty match as empty at the
+			// match's offset, whatever the group captured.
+			g.Start, g.End, g.RuneStart, g.RuneEnd = m.Start, m.End, m.RuneStart, m.RuneEnd
+		}
 		captures = append(captures, captureObject(g, subject))
 	}
 	return value.Obj(

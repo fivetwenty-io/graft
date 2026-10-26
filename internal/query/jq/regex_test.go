@@ -37,6 +37,13 @@ func TestMatchObjects(t *testing.T) {
 		`{"offset":0,"length":1,"string":"b","captures":[{"offset":-1,"string":null,"length":0,"name":null},{"offset":0,"length":1,"string":"b","name":null}]}`)
 	wantOutputs(t, `match("(?<n>)y")`, `"xy"`,
 		`{"offset":1,"length":1,"string":"y","captures":[{"offset":1,"string":"","length":0,"name":"n"}]}`)
+	// Inside an empty match, jq reports every group that took part as an
+	// empty capture at the match's offset, whatever the group captured.
+	wantOutputs(t, `match("(?=(a))")`, `"a"`,
+		`{"offset":0,"length":0,"string":"","captures":[{"offset":0,"string":"","length":0,"name":null}]}`)
+	wantOutputs(t, `match("(?<=(a))|(z)") | .captures`, `"ab"`,
+		`[{"offset":1,"string":"","length":0,"name":null},{"offset":-1,"string":null,"length":0,"name":null}]`)
+	wantOutputs(t, `capture("(?=(?<x>a))"), gsub("(?=(?<x>a))"; "[\(.x)]"), [scan("(?=(a))")]`, `"ba"`, `{"x":""}`, `"b[]a"`, `[[""]]`)
 	wantOutputs(t, `([match(["a","g"])] | length), test(["A","i"]), test(["A"])`, `"aXa"`, `2`, `true`, `false`)
 	wantOutputs(t, `_match_impl("a"; null; true), _match_impl("a"; null; 1)`, `"a"`,
 		`true`, `[{"offset":0,"length":1,"string":"a","captures":[]}]`)
