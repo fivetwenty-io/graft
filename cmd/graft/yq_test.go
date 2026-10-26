@@ -348,6 +348,19 @@ func TestYQNullInputRefusesFiles(t *testing.T) {
 	})
 }
 
+func TestYQWritesNothingFromADocumentThatFails(t *testing.T) {
+	Convey("an error drops the failing document's outputs but not an earlier document's", t, func() {
+		path := writeTempNamed(t, "in.yaml", "a: [1]\n---\na: [2, x]\n")
+		out, errOut, st := runYQ(t, []string{".a[] | to_number", path}, "")
+		So(st.Code, ShouldEqual, 1)
+		So(out, ShouldEqual, "1\n")
+		So(errOut, ShouldContainSubstring, "cannot convert node value [x]")
+		out, _, st = runYQ(t, []string{"ea", ".a[] | to_number", path}, "")
+		So(st.Code, ShouldEqual, 1)
+		So(out, ShouldBeEmpty)
+	})
+}
+
 func TestYQReadsAnyDashedArgumentAsFlags(t *testing.T) {
 	Convey("an argument that starts with a dash is a flag group, as in yq", t, func() {
 		out, e, st := runYQ(t, []string{"-n", "-7 % 3"}, "")

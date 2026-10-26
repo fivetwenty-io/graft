@@ -362,20 +362,24 @@ func truthy(v *value.Value) bool {
 }
 
 // emit runs the evaluator over docs and writes each output, and it stops
-// at the first error.
+// at the first error. Like yq, it holds a run's outputs until the run
+// ends, so a run that fails writes none of them.
 func (r *yqRun) emit(seq iter.Seq2[*value.Value, error], out *yqOutput) error {
-	wrote := false
+	var outs []*value.Value
 	for v, err := range seq {
-		if err == nil {
-			err = out.write(v)
-		}
 		if err != nil {
 			return &locatedError{Where: r.where, Err: err}
 		}
-		wrote, r.produced = true, true
+		outs = append(outs, v)
+	}
+	for _, v := range outs {
+		if err := out.write(v); err != nil {
+			return &locatedError{Where: r.where, Err: err}
+		}
+		r.produced = true
 		r.anyTruthy = r.anyTruthy || truthy(v)
 	}
-	if wrote && r.appendix != nil {
+	if len(outs) > 0 && r.appendix != nil {
 		appendix := r.appendix
 		r.appendix = nil
 		if err := out.raw(appendix); err != nil {
