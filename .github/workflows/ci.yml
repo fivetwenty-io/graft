@@ -426,4 +426,9 @@ jobs:
 
       - name: Run the query benchmarks
         continue-on-error: true
+        env:
+          # A single pass over a 10 MB document keeps the job from
+          # starving the gating jobs on the shared runner.
+          GRAFT_BENCH_BYTES: '10000000'
+          BENCH_QUERY_FLAGS: -benchtime=1x
         run: make bench-query
