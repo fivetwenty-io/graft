@@ -21,6 +21,6 @@ its exported names may change between minor releases, and the changelog
 lists every such change. From that release on, the module's v1 promise
 applies, which is that we add exported names and never remove or change
 one. The package imports nothing outside the standard library and
-pkg/decimal and pkg/keyorder.
+pkg/decimal, apart from graft's internal key comparator.
 */
 package value

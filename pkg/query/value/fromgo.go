@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/fivetwenty-io/graft/internal/keyorder"
 	"github.com/fivetwenty-io/graft/pkg/decimal"
-	"github.com/fivetwenty-io/graft/pkg/keyorder"
 )
 
 // FromGo converts a Go value as the YAML and JSON decoders produce it into

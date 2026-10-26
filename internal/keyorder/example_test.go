@@ -3,7 +3,7 @@ package keyorder_test
 import (
 	"fmt"
 
-	"github.com/fivetwenty-io/graft/pkg/keyorder"
+	"github.com/fivetwenty-io/graft/internal/keyorder"
 )
 
 func ExampleSpruceLess() {

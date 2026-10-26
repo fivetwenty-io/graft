@@ -12,7 +12,7 @@ func TestImportsOnlyTheStandardLibraryDecimalAndKeyorder(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, imp := range p.Imports {
-		if strings.Contains(imp, ".") && imp != "github.com/fivetwenty-io/graft/pkg/decimal" && imp != "github.com/fivetwenty-io/graft/pkg/keyorder" {
+		if strings.Contains(imp, ".") && imp != "github.com/fivetwenty-io/graft/pkg/decimal" && imp != "github.com/fivetwenty-io/graft/internal/keyorder" {
 			t.Errorf("pkg/query/value imports %s", imp)
 		}
 	}

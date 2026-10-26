@@ -3,13 +3,7 @@ Package keyorder compares object keys the way spruce's YAML encoder orders
 them. pkg/sortkeys sorts with it and pkg/query/value builds objects in it,
 and neither can import the other, so both import this leaf.
 
-# Stability
-
-This package is experimental. Until the release that completes graft jq,
-its exported names may change between minor releases, and the changelog
-lists every such change. From that release on, the module's v1 promise
-applies, which is that we add exported names and never remove or change
-one. The package imports nothing outside the standard library.
+The package imports nothing outside the standard library.
 */
 package keyorder
 

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/fivetwenty-io/graft/pkg/keyorder"
+	"github.com/fivetwenty-io/graft/internal/keyorder"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 

@@ -7,7 +7,7 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/sortkeys"
 )
 
-// FromGo and pkg/sortkeys share one comparator in pkg/keyorder. This keeps
+// FromGo and pkg/sortkeys share one comparator in internal/keyorder. This keeps
 // that true if either stops using it.
 func TestFromGoKeyOrderAgreesWithSortkeys(t *testing.T) {
 	in := map[string]interface{}{}
