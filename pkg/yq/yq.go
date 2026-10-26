@@ -115,6 +115,7 @@ func evaluatorFor(x *Expression, cfg Config) *Evaluator {
 		MergeAnchorToSpec:   cfg.mergeFix,
 		StringInterpolation: cfg.interpolate,
 		FloatNumbers:        cfg.numbers == runtime.NumbersFloat,
+		NoHeaderPreprocess:  !cfg.headerPre,
 	})
 	return &Evaluator{node: x.node, dialect: d, cfg: cfg}
 }

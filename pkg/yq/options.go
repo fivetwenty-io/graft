@@ -114,11 +114,11 @@ func WithStringInterpolation(enabled bool) Option {
 	}
 }
 
-// WithHeaderPreprocess records whether the comment block before the first
-// "---" is kept apart from the first document. It is on by default, and
-// WithHeaderPreprocess(false) is yq's --header-preprocess=false. The
-// setting is kept for the release that completes graft yq, and the
-// Decoder reads DecodeOptions.NoHeaderPreprocess instead.
+// WithHeaderPreprocess sets whether the comments before a document's first
+// node are kept apart from it. It is on by default, and
+// WithHeaderPreprocess(false) is yq's --header-preprocess=false, which makes
+// from_yaml leave those comments on the node. It does not change how a
+// Decoder reads a source, which takes DecodeOptions.NoHeaderPreprocess.
 func WithHeaderPreprocess(enabled bool) Option {
 	return func(c *Config) error {
 		c.headerPre = enabled

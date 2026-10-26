@@ -37,12 +37,14 @@ func parseYAML(text string, scalar bool) (*value.Value, error) {
 // fromYAML reads text as from_yaml does: one YAML document with its
 // presentation, but for comments above its first node, which yq keeps
 // only as the leading content of a document it prints. Text with no node
-// reads as an empty null, and no text at all fails.
-func fromYAML(text string) (*value.Value, error) {
+// reads as an empty null, and no text at all fails. With noHeader set, as
+// under --header-preprocess=false, those comments stay with the first
+// node instead.
+func fromYAML(text string, noHeader bool) (*value.Value, error) {
 	if text == "" {
 		return nil, &query.RuntimeError{Msg: "EOF"}
 	}
-	docs, err := parseDocuments(text, false)
+	docs, err := parseDocuments(text, noHeader)
 	switch {
 	case err != nil:
 		return nil, err

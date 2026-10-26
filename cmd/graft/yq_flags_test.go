@@ -29,3 +29,15 @@ func TestYQStringInterpolationFlag(t *testing.T) {
 		So(out, ShouldEqual, "x\\(.a\n")
 	})
 }
+
+func TestYQHeaderPreprocessFlag(t *testing.T) {
+	Convey("header preprocessing", t, func() {
+		// These two rows already passed before the flag reached from_yaml.
+		out, _, _ := runYQ(t, []string{"."}, "# c\n---\na: 1\n")
+		So(out, ShouldEqual, "# c\n---\na: 1\n")
+		out, _, _ = runYQ(t, []string{"--header-preprocess=false", "."}, "# c\n---\na: 1\n")
+		So(out, ShouldEqual, "# c\na: 1\n")
+		out, _, _ = runYQ(t, []string{"--header-preprocess=false", ".x | from_yaml"}, "x: \"# c\\n---\\na: 1\\n\"\n")
+		So(out, ShouldEqual, "# c\na: 1\n")
+	})
+}

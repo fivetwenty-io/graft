@@ -69,7 +69,17 @@ func registerConvert(r *runtime.Registry) {
 	for _, name := range []string{"from_json", "fromjson"} {
 		encoder(r, name, func(in *value.Value) (*value.Value, error) { return parseYAML(nodeText(in), false) })
 	}
-	encoder(r, "from_yaml", func(in *value.Value) (*value.Value, error) { return fromYAML(nodeText(in)) })
+	r.RegisterSingle("from_yaml", 0, func(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		noHeader := false
+		if d, ok := ctx.Dialect.(*Dialect); ok {
+			noHeader = d.opts.NoHeaderPreprocess
+		}
+		v, err := fromYAML(nodeText(in), noHeader)
+		if err != nil {
+			return err
+		}
+		return emit(v, nil)
+	})
 }
 
 // encoder registers a one-input, one-output operator.

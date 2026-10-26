@@ -713,7 +713,7 @@ Flags:
       --float-numbers         do arithmetic in int64 and doubles, as yq does
       --expression EXPR       take the expression from EXPR, so every argument is a file
       --from-file FILE        read the expression from FILE
-      --header-preprocess     accepted, no effect yet (default true)
+      --header-preprocess     keep a comment before the first node apart from it (default true)
       --string-interpolation  read "\(expr)" in a string as an interpolation (default true)
       --security-disable-env-ops, --security-disable-file-ops
                               turn off the env or the file operators

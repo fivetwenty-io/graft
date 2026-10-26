@@ -25,6 +25,10 @@ type Options struct {
 	MergeAnchorToSpec   bool
 	StringInterpolation bool
 	FloatNumbers        bool
+	// NoHeaderPreprocess is yq's --header-preprocess=false, which keeps
+	// the comments above a document's first node with that node where
+	// from_yaml reads a document.
+	NoHeaderPreprocess bool
 }
 
 // Dialect implements runtime.Dialect for yq. Where yq behaves as jq does,

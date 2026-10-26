@@ -168,7 +168,7 @@ The table lists the flags that matter here, and `--color` and `--no-color` work 
 | `-f`, `--front-matter` | Run the expression over the front matter of the first file, see below | Available |
 | `-s`, `--split-exp`, `--split-exp-file` | Write each output to a file named by an expression, see below | Available |
 
-The inert flags do nothing today. `-c` leaves sequence indentation as it is. `--string-interpolation=false` and `--header-preprocess=false` are not inert. The first leaves `\(` in a string as written, and the second changes how a leading comment is handled.
+The inert flags do nothing today. `-c` leaves sequence indentation as it is. `--string-interpolation=false` and `--header-preprocess=false` are not inert. The first leaves `\(` in a string as written, and the second changes how a leading comment is handled, including the one `from_yaml` reads.
 
 The `-m` and `-E` flags also accept the feature flags `graft merge` reads, which are `--skip-eval`, `--fallback-append`, `--go-patch`, `--multi-doc`, `--skip-vault`, `--skip-aws`, and `--skip-nats`.
 
