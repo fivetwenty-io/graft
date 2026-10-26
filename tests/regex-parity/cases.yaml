@@ -1,0 +1,1225 @@
+# The regex parity corpus. Each case names its flavor, its pattern, its jq
+# flag letters, and its subject, and tests/regex-parity/want/<id>.json holds
+# what jq 1.8.2's match printed for it, or for a PCRE case what pcre2test
+# 10.49 found, written the same way. tests/regex-parity/gen.sh records the
+# goldens. Every value but an id or a flavor is a JSON string.
+#
+# An Oniguruma case avoids a global match that can be empty on a subject
+# with multibyte runes, because jq moves past an empty match one byte at a
+# time where this package moves one rune. A PCRE case's subject holds
+# neither \x{ nor <unset>, which pcre2test's output would make ambiguous.
+#
+# The corpus leaves out the departures pkg/regex/doc.go lists, such as \uhhhh,
+# which the PCRE flavor reads as a code point where PCRE2 refuses it.
+
+- id: onig-manual-test-foo
+  flavor: oniguruma
+  pattern: "foo"
+  flags: ""
+  subject: "foo"
+
+- id: onig-manual-abc-plus-global
+  flavor: oniguruma
+  pattern: "(abc)+"
+  flags: "g"
+  subject: "abc abc"
+
+- id: onig-manual-first-foo
+  flavor: oniguruma
+  pattern: "foo"
+  flags: ""
+  subject: "foo bar foo"
+
+- id: onig-manual-foo-ig
+  flavor: oniguruma
+  pattern: "foo"
+  flags: "ig"
+  subject: "foo bar FOO"
+
+- id: onig-manual-named-optional
+  flavor: oniguruma
+  pattern: "foo (?<bar123>bar)? foo"
+  flags: "ig"
+  subject: "foo bar foo foo  foo"
+
+- id: onig-manual-dot-global
+  flavor: oniguruma
+  pattern: "."
+  flags: "g"
+  subject: "abc"
+
+- id: onig-manual-capture-named
+  flavor: oniguruma
+  pattern: "(?<a>[a-z]+)-(?<n>[0-9]+)"
+  flags: ""
+  subject: "xyzzy-14"
+
+- id: onig-manual-scan-c
+  flavor: oniguruma
+  pattern: "c"
+  flags: "g"
+  subject: "abcdabcd"
+
+- id: onig-manual-splits-comma
+  flavor: oniguruma
+  pattern: ", *"
+  flags: "g"
+  subject: "ab,cd, ef"
+
+- id: onig-manual-gsub-captures
+  flavor: oniguruma
+  pattern: "(?<x>.)[^a]*"
+  flags: "g"
+  subject: "Abcabc"
+
+- id: onig-manual-test-a-c-x
+  flavor: oniguruma
+  pattern: "a. c"
+  flags: "x"
+  subject: "abc"
+
+- id: onig-empty-group-star-global
+  flavor: oniguruma
+  pattern: "( )*"
+  flags: "g"
+  subject: "abc"
+
+- id: onig-empty-group-star-skip-empty
+  flavor: oniguruma
+  pattern: "( )*"
+  flags: "gn"
+  subject: "abc"
+
+- id: onig-ignorecase-macron
+  flavor: oniguruma
+  pattern: "a"
+  flags: "gi"
+  subject: "āáàä"
+
+- id: onig-a-star-global
+  flavor: oniguruma
+  pattern: "a*"
+  flags: "g"
+  subject: "baaab"
+
+- id: onig-a-star-skip-empty
+  flavor: oniguruma
+  pattern: "a*"
+  flags: "gn"
+  subject: "baaab"
+
+- id: onig-empty-pattern-global
+  flavor: oniguruma
+  pattern: ""
+  flags: "g"
+  subject: "abc"
+
+- id: onig-begin-global
+  flavor: oniguruma
+  pattern: "^"
+  flags: "g"
+  subject: "ab"
+
+- id: onig-optional-groups-empty-match
+  flavor: oniguruma
+  pattern: "(a?)(b?)"
+  flags: "g"
+  subject: "ab"
+
+- id: onig-alternation-captures
+  flavor: oniguruma
+  pattern: "(a)|(b)"
+  flags: "g"
+  subject: "ab"
+
+- id: onig-nested-captures
+  flavor: oniguruma
+  pattern: "((a)(b)?)+"
+  flags: ""
+  subject: "aab"
+
+- id: onig-optional-unset
+  flavor: oniguruma
+  pattern: "(a)?b"
+  flags: "g"
+  subject: "b ab"
+
+- id: onig-unicode-offsets
+  flavor: oniguruma
+  pattern: "β"
+  flags: "g"
+  subject: "αβγβ"
+
+- id: onig-astral
+  flavor: oniguruma
+  pattern: "😀+"
+  flags: ""
+  subject: "x😀😀y"
+
+- id: onig-property-L-strip
+  flavor: oniguruma
+  pattern: "\\p{L}"
+  flags: "g"
+  subject: "ab1ç"
+
+- id: onig-property-Ll-macron
+  flavor: oniguruma
+  pattern: "\\p{Ll}"
+  flags: ""
+  subject: "ā"
+
+- id: onig-dollar-final-newline
+  flavor: oniguruma
+  pattern: "a$"
+  flags: ""
+  subject: "a\n"
+
+- id: onig-dollar-two-newlines
+  flavor: oniguruma
+  pattern: "a$"
+  flags: ""
+  subject: "a\n\n"
+
+- id: onig-Z-final-newline
+  flavor: oniguruma
+  pattern: "a\\Z"
+  flags: ""
+  subject: "xa\n"
+
+- id: onig-z-end
+  flavor: oniguruma
+  pattern: "a\\z"
+  flags: ""
+  subject: "a\n"
+
+- id: onig-inline-m-multiline
+  flavor: oniguruma
+  pattern: "(?m)^b"
+  flags: ""
+  subject: "a\nb"
+
+- id: onig-inline-m-no-dotall
+  flavor: oniguruma
+  pattern: "(?m)a.b"
+  flags: ""
+  subject: "a\nb"
+
+- id: onig-inline-s-dotall
+  flavor: oniguruma
+  pattern: "(?s)a.b"
+  flags: ""
+  subject: "a\nb"
+
+- id: onig-flag-m-dotall
+  flavor: oniguruma
+  pattern: "a.b"
+  flags: "m"
+  subject: "a\nb"
+
+- id: onig-flag-p
+  flavor: oniguruma
+  pattern: "a.b$"
+  flags: "p"
+  subject: "a\nb"
+
+- id: onig-flag-s
+  flavor: oniguruma
+  pattern: "^b"
+  flags: "gs"
+  subject: "a\nb"
+
+- id: onig-longest
+  flavor: oniguruma
+  pattern: "a|ab"
+  flags: "l"
+  subject: "ab"
+
+- id: onig-extended
+  flavor: oniguruma
+  pattern: "a b # comment\n c"
+  flags: "x"
+  subject: "abc"
+
+- id: onig-extended-nbsp-kept
+  flavor: oniguruma
+  pattern: "a b"
+  flags: "x"
+  subject: "a b"
+
+- id: onig-ignorecase-full-fold
+  flavor: oniguruma
+  pattern: "ss"
+  flags: "i"
+  subject: "Straße"
+
+- id: onig-ignorecase-kelvin
+  flavor: oniguruma
+  pattern: "k"
+  flags: "gi"
+  subject: "kKK"
+
+- id: onig-inline-scoped-case
+  flavor: oniguruma
+  pattern: "a(?i:b)c"
+  flags: "g"
+  subject: "aBc aBC"
+
+- id: onig-digit-unicode
+  flavor: oniguruma
+  pattern: "\\d+"
+  flags: "g"
+  subject: "a٣٤b12"
+
+- id: onig-word-unicode
+  flavor: oniguruma
+  pattern: "\\w+"
+  flags: "g"
+  subject: "héllo wörld"
+
+- id: onig-space-unicode
+  flavor: oniguruma
+  pattern: "\\s"
+  flags: "g"
+  subject: "a bc d"
+
+- id: onig-word-boundary-unicode
+  flavor: oniguruma
+  pattern: "\\bé\\w*"
+  flags: "g"
+  subject: "été é"
+
+- id: onig-posix-alpha-unicode
+  flavor: oniguruma
+  pattern: "[[:alpha:]]+"
+  flags: "g"
+  subject: "éa1ß"
+
+- id: onig-posix-punct-symbols
+  flavor: oniguruma
+  pattern: "[[:punct:]]+"
+  flags: "g"
+  subject: "a!€©b"
+
+- id: onig-posix-upper-ignorecase
+  flavor: oniguruma
+  pattern: "[[:upper:]]+"
+  flags: "i"
+  subject: "abcÉ"
+
+- id: onig-property-Greek
+  flavor: oniguruma
+  pattern: "\\p{Greek}+"
+  flags: ""
+  subject: "abc αβγ"
+
+- id: onig-property-negated-caret
+  flavor: oniguruma
+  pattern: "\\p{^L}+"
+  flags: ""
+  subject: "ab12cd"
+
+- id: onig-property-Alpha
+  flavor: oniguruma
+  pattern: "\\p{Alpha}+"
+  flags: ""
+  subject: "1éa!"
+
+- id: onig-property-Punct-only-P
+  flavor: oniguruma
+  pattern: "\\p{Punct}+"
+  flags: "g"
+  subject: "a$!+?"
+
+- id: onig-property-long-name
+  flavor: oniguruma
+  pattern: "\\p{Lowercase_Letter}+"
+  flags: ""
+  subject: "ABcdé"
+
+- id: onig-property-unknown
+  flavor: oniguruma
+  pattern: "\\p{Foo}"
+  flags: ""
+  subject: "x"
+
+- id: onig-property-L-amp
+  flavor: oniguruma
+  pattern: "\\p{L&}"
+  flags: ""
+  subject: "a"
+
+- id: onig-h-letter
+  flavor: oniguruma
+  pattern: "\\h"
+  flags: "g"
+  subject: "hf h"
+
+- id: onig-v-letter
+  flavor: oniguruma
+  pattern: "\\v+"
+  flags: ""
+  subject: "vv\n"
+
+- id: onig-u-letter
+  flavor: oniguruma
+  pattern: "\\u0041"
+  flags: ""
+  subject: "Au0041"
+
+- id: onig-letter-escapes
+  flavor: oniguruma
+  pattern: "\\q\\j\\i"
+  flags: ""
+  subject: "xqji"
+
+- id: onig-property-bare-letters
+  flavor: oniguruma
+  pattern: "\\pL"
+  flags: ""
+  subject: "LpL"
+
+- id: onig-stray-E
+  flavor: oniguruma
+  pattern: "x\\Ey"
+  flags: ""
+  subject: "xEy"
+
+- id: onig-quote
+  flavor: oniguruma
+  pattern: "\\Qa.b\\E+"
+  flags: ""
+  subject: "a.bb a.b"
+
+- id: onig-class-quote-letters
+  flavor: oniguruma
+  pattern: "[\\Qx\\E]+"
+  flags: ""
+  subject: "-QEx"
+
+- id: onig-O-any
+  flavor: oniguruma
+  pattern: "a\\Ob"
+  flags: ""
+  subject: "a\nb"
+
+- id: onig-N-not-newline
+  flavor: oniguruma
+  pattern: "a\\Nb"
+  flags: ""
+  subject: "a\nb axb"
+
+- id: onig-k-letter
+  flavor: oniguruma
+  pattern: "\\kx"
+  flags: ""
+  subject: "kx"
+
+- id: onig-g-letter
+  flavor: oniguruma
+  pattern: "(a)\\g1"
+  flags: ""
+  subject: "ag1"
+
+- id: onig-hex-escapes
+  flavor: oniguruma
+  pattern: "\\x41\\x{3b1}"
+  flags: ""
+  subject: "Aα"
+
+- id: onig-control-escape
+  flavor: oniguruma
+  pattern: "\\cA"
+  flags: ""
+  subject: "\u0001"
+
+- id: onig-octal-escape
+  flavor: oniguruma
+  pattern: "\\101"
+  flags: ""
+  subject: "A"
+
+- id: onig-open-lower-bound-literal
+  flavor: oniguruma
+  pattern: "a{,2}"
+  flags: ""
+  subject: "aaa{,2}"
+
+- id: onig-stacked-intervals
+  flavor: oniguruma
+  pattern: "a{2}{3}"
+  flags: ""
+  subject: "aaaaaaa"
+
+- id: onig-stacked-stars
+  flavor: oniguruma
+  pattern: "a**b"
+  flags: ""
+  subject: "aaab"
+
+- id: onig-possessive
+  flavor: oniguruma
+  pattern: "a++a"
+  flags: ""
+  subject: "aaa"
+
+- id: onig-lazy-global
+  flavor: oniguruma
+  pattern: "a+?"
+  flags: "g"
+  subject: "aaa"
+
+- id: onig-repeat-too-big
+  flavor: oniguruma
+  pattern: "a{100001}"
+  flags: ""
+  subject: "a"
+
+- id: onig-interval-global
+  flavor: oniguruma
+  pattern: "\\d{2,3}"
+  flags: "g"
+  subject: "1 12 1234"
+
+- id: onig-brace-literal
+  flavor: oniguruma
+  pattern: "a{x}"
+  flags: ""
+  subject: "a{x}"
+
+- id: onig-greedy-dot-star
+  flavor: oniguruma
+  pattern: "<.*>"
+  flags: ""
+  subject: "<a><b>"
+
+- id: onig-lazy-dot-star
+  flavor: oniguruma
+  pattern: "<.*?>"
+  flags: "g"
+  subject: "<a><b>"
+
+- id: onig-nothing-to-repeat
+  flavor: oniguruma
+  pattern: "*a"
+  flags: ""
+  subject: "a"
+
+- id: onig-hyphen-after-set
+  flavor: oniguruma
+  pattern: "[\\d-z]+"
+  flags: ""
+  subject: "5-z"
+
+- id: onig-bare-posix-outside
+  flavor: oniguruma
+  pattern: "[:alpha:]+"
+  flags: ""
+  subject: "x:ahp"
+
+- id: onig-class-negated
+  flavor: oniguruma
+  pattern: "[^aeiou ]+"
+  flags: "g"
+  subject: "rhythm and blues"
+
+- id: onig-class-bracket-first
+  flavor: oniguruma
+  pattern: "[]a]+"
+  flags: ""
+  subject: "x]a]"
+
+- id: onig-python-group
+  flavor: oniguruma
+  pattern: "(?P<n>a)"
+  flags: ""
+  subject: "a"
+
+- id: onig-high-digit-literal
+  flavor: oniguruma
+  pattern: "(a)\\81"
+  flags: ""
+  subject: "a81"
+
+- id: onig-backref
+  flavor: oniguruma
+  pattern: "(a)\\1"
+  flags: ""
+  subject: "aa"
+
+- id: onig-octal-after-group
+  flavor: oniguruma
+  pattern: "(a)\\11"
+  flags: ""
+  subject: "a\t"
+
+- id: onig-backref-undefined
+  flavor: oniguruma
+  pattern: "(a)\\8"
+  flags: ""
+  subject: "a8"
+
+- id: onig-k-relative
+  flavor: oniguruma
+  pattern: "(a)(b)\\k<-2>"
+  flags: ""
+  subject: "aba"
+
+- id: onig-duplicate-names
+  flavor: oniguruma
+  pattern: "(?<n>a)(?<n>b)\\k<n>"
+  flags: "g"
+  subject: "aba abb"
+
+- id: onig-named-quote
+  flavor: oniguruma
+  pattern: "(?'n'x)\\k'n'"
+  flags: ""
+  subject: "xx"
+
+- id: onig-forward-name
+  flavor: oniguruma
+  pattern: "\\k<n>(?<n>a)"
+  flags: ""
+  subject: "aa"
+
+- id: onig-atomic
+  flavor: oniguruma
+  pattern: "(?>a+)a"
+  flags: ""
+  subject: "aaa"
+
+- id: onig-lookahead
+  flavor: oniguruma
+  pattern: "\\w+(?=!)"
+  flags: ""
+  subject: "hi there!"
+
+- id: onig-negative-lookahead
+  flavor: oniguruma
+  pattern: "q(?!u)"
+  flags: "g"
+  subject: "quit qat"
+
+- id: onig-lookbehind
+  flavor: oniguruma
+  pattern: "(?<=\\$)\\d+"
+  flags: ""
+  subject: "cost $42"
+
+- id: onig-negative-lookbehind
+  flavor: oniguruma
+  pattern: "(?<!x)y"
+  flags: "g"
+  subject: "xy zy"
+
+- id: onig-lookbehind-variable
+  flavor: oniguruma
+  pattern: "(?<=a+)b"
+  flags: ""
+  subject: "aaab"
+
+- id: onig-comment-group
+  flavor: oniguruma
+  pattern: "a(?#note)b"
+  flags: ""
+  subject: "ab"
+
+- id: onig-unmatched-paren
+  flavor: oniguruma
+  pattern: "("
+  flags: ""
+  subject: "x"
+
+- id: pcre-literal
+  flavor: pcre
+  pattern: "abc"
+  flags: ""
+  subject: "xabcx"
+
+- id: pcre-literal-global
+  flavor: pcre
+  pattern: "ab"
+  flags: "g"
+  subject: "abab ab"
+
+- id: pcre-digit-ascii
+  flavor: pcre
+  pattern: "\\d+"
+  flags: "g"
+  subject: "a٣٤b12"
+
+- id: pcre-word-ascii
+  flavor: pcre
+  pattern: "\\w+"
+  flags: "g"
+  subject: "héllo"
+
+- id: pcre-space-ascii
+  flavor: pcre
+  pattern: "\\s"
+  flags: "g"
+  subject: "a b\tc"
+
+- id: pcre-h-space
+  flavor: pcre
+  pattern: "\\h+"
+  flags: "g"
+  subject: "a \t b"
+
+- id: pcre-v-space
+  flavor: pcre
+  pattern: "\\v"
+  flags: "g"
+  subject: "a\nb c"
+
+- id: pcre-H-not-space
+  flavor: pcre
+  pattern: "\\H+"
+  flags: ""
+  subject: " ab "
+
+- id: pcre-x-braced-astral
+  flavor: pcre
+  pattern: "\\x{1f600}"
+  flags: ""
+  subject: "a😀"
+
+- id: pcre-x-braced
+  flavor: pcre
+  pattern: "\\x{3b1}+"
+  flags: ""
+  subject: "αα"
+
+- id: pcre-x-two-digits
+  flavor: pcre
+  pattern: "\\x41"
+  flags: ""
+  subject: "A"
+
+- id: pcre-o-braced
+  flavor: pcre
+  pattern: "\\o{101}"
+  flags: ""
+  subject: "A"
+
+- id: pcre-octal-zero
+  flavor: pcre
+  pattern: "\\012"
+  flags: ""
+  subject: "a\nb"
+
+- id: pcre-control-escape
+  flavor: pcre
+  pattern: "\\cA"
+  flags: ""
+  subject: "\u0001"
+
+- id: pcre-escape-e
+  flavor: pcre
+  pattern: "\\e"
+  flags: ""
+  subject: "\u001b"
+
+- id: pcre-quote
+  flavor: pcre
+  pattern: "\\Qa.b\\E+"
+  flags: ""
+  subject: "a.bb"
+
+- id: pcre-class-quote
+  flavor: pcre
+  pattern: "[\\Q]\\E]+"
+  flags: ""
+  subject: "x]]"
+
+- id: pcre-stray-E
+  flavor: pcre
+  pattern: "x\\Ey"
+  flags: ""
+  subject: "xy"
+
+- id: pcre-astral
+  flavor: pcre
+  pattern: "😀+"
+  flags: ""
+  subject: "x😀😀y"
+
+- id: pcre-unicode-offsets
+  flavor: pcre
+  pattern: "β"
+  flags: "g"
+  subject: "αβγβ"
+
+- id: pcre-unknown-escape
+  flavor: pcre
+  pattern: "\\q"
+  flags: ""
+  subject: "q"
+
+- id: pcre-k-without-name
+  flavor: pcre
+  pattern: "\\k"
+  flags: ""
+  subject: "k"
+
+- id: pcre-posix-alpha-ascii
+  flavor: pcre
+  pattern: "[[:alpha:]]+"
+  flags: "g"
+  subject: "éab"
+
+- id: pcre-posix-punct
+  flavor: pcre
+  pattern: "[[:punct:]]+"
+  flags: "g"
+  subject: "a!$€b"
+
+- id: pcre-posix-negated
+  flavor: pcre
+  pattern: "[[:^digit:]]+"
+  flags: ""
+  subject: "12ab3"
+
+- id: pcre-property-L
+  flavor: pcre
+  pattern: "\\p{L}+"
+  flags: ""
+  subject: "12déf"
+
+- id: pcre-property-bare
+  flavor: pcre
+  pattern: "\\pL+"
+  flags: ""
+  subject: "1ab"
+
+- id: pcre-property-Lu
+  flavor: pcre
+  pattern: "\\p{Lu}+"
+  flags: ""
+  subject: "abCDé"
+
+- id: pcre-property-Lu-caseless
+  flavor: pcre
+  pattern: "\\p{Lu}+"
+  flags: "i"
+  subject: "1abCD"
+
+- id: pcre-property-L-amp
+  flavor: pcre
+  pattern: "\\p{L&}+"
+  flags: ""
+  subject: "1aB"
+
+- id: pcre-property-Greek
+  flavor: pcre
+  pattern: "\\p{Greek}+"
+  flags: ""
+  subject: "abc αβγ"
+
+- id: pcre-property-negated
+  flavor: pcre
+  pattern: "\\P{L}+"
+  flags: ""
+  subject: "ab12"
+
+- id: pcre-property-unknown
+  flavor: pcre
+  pattern: "\\p{Foo}"
+  flags: ""
+  subject: "x"
+
+- id: pcre-class-negated
+  flavor: pcre
+  pattern: "[^aeiou ]+"
+  flags: "g"
+  subject: "rhythm and blues"
+
+- id: pcre-class-bracket-first
+  flavor: pcre
+  pattern: "[]a]+"
+  flags: ""
+  subject: "x]a]"
+
+- id: pcre-class-hyphen-end
+  flavor: pcre
+  pattern: "[a-]+"
+  flags: ""
+  subject: "x-a-"
+
+- id: pcre-range-after-set
+  flavor: pcre
+  pattern: "[\\d-z]"
+  flags: ""
+  subject: "5"
+
+- id: pcre-range-out-of-order
+  flavor: pcre
+  pattern: "[z-a]"
+  flags: ""
+  subject: "a"
+
+- id: pcre-bare-posix
+  flavor: pcre
+  pattern: "[:alpha:]"
+  flags: ""
+  subject: "a"
+
+- id: pcre-dollar-final-newline
+  flavor: pcre
+  pattern: "a$"
+  flags: ""
+  subject: "a\n"
+
+- id: pcre-dollar-two-newlines
+  flavor: pcre
+  pattern: "a$"
+  flags: ""
+  subject: "a\n\n"
+
+- id: pcre-Z-final-newline
+  flavor: pcre
+  pattern: "a\\Z"
+  flags: ""
+  subject: "a\n"
+
+- id: pcre-z-end
+  flavor: pcre
+  pattern: "a\\z"
+  flags: ""
+  subject: "a\n"
+
+- id: pcre-A-global
+  flavor: pcre
+  pattern: "\\Aa"
+  flags: "g"
+  subject: "aa"
+
+- id: pcre-multiline
+  flavor: pcre
+  pattern: "(?m)^b$"
+  flags: ""
+  subject: "a\nb\nc"
+
+- id: pcre-inline-s-dotall
+  flavor: pcre
+  pattern: "(?s)a.b"
+  flags: ""
+  subject: "a\nb"
+
+- id: pcre-dot-no-newline
+  flavor: pcre
+  pattern: "a.b"
+  flags: ""
+  subject: "a\nb"
+
+- id: pcre-flag-m-dotall
+  flavor: pcre
+  pattern: "a.b"
+  flags: "m"
+  subject: "a\nb"
+
+- id: pcre-word-boundary
+  flavor: pcre
+  pattern: "\\bfoo\\b"
+  flags: "g"
+  subject: "foo foobar foo"
+
+- id: pcre-not-boundary
+  flavor: pcre
+  pattern: "\\Boo"
+  flags: "g"
+  subject: "foo oo"
+
+- id: pcre-caseless
+  flavor: pcre
+  pattern: "abc"
+  flags: "i"
+  subject: "xAbC"
+
+- id: pcre-caseless-unicode
+  flavor: pcre
+  pattern: "é"
+  flags: "i"
+  subject: "É"
+
+- id: pcre-caseless-sharp-s
+  flavor: pcre
+  pattern: "ß"
+  flags: "i"
+  subject: "ẞ"
+
+- id: pcre-inline-scoped-case
+  flavor: pcre
+  pattern: "a(?i:b)c"
+  flags: "g"
+  subject: "aBc aBC"
+
+- id: pcre-inline-unset
+  flavor: pcre
+  pattern: "(?i)a(?-i)b"
+  flags: "g"
+  subject: "AB Ab"
+
+- id: pcre-extended
+  flavor: pcre
+  pattern: "a b # comment\n c"
+  flags: "x"
+  subject: "abc"
+
+- id: pcre-extended-class-space
+  flavor: pcre
+  pattern: "[ ]x"
+  flags: "x"
+  subject: " x"
+
+- id: pcre-comment-group
+  flavor: pcre
+  pattern: "a(?#note)b"
+  flags: ""
+  subject: "ab"
+
+- id: pcre-greedy
+  flavor: pcre
+  pattern: "a+"
+  flags: ""
+  subject: "baaa"
+
+- id: pcre-lazy-global
+  flavor: pcre
+  pattern: "a+?"
+  flags: "g"
+  subject: "aaa"
+
+- id: pcre-possessive
+  flavor: pcre
+  pattern: "a++a"
+  flags: ""
+  subject: "aaa"
+
+- id: pcre-interval-global
+  flavor: pcre
+  pattern: "\\d{2,3}"
+  flags: "g"
+  subject: "1 12 1234"
+
+- id: pcre-open-lower-bound
+  flavor: pcre
+  pattern: "a{,2}"
+  flags: ""
+  subject: "aaa"
+
+- id: pcre-brace-literal
+  flavor: pcre
+  pattern: "a{x}"
+  flags: ""
+  subject: "a{x}"
+
+- id: pcre-greedy-dot-star
+  flavor: pcre
+  pattern: "<.*>"
+  flags: ""
+  subject: "<a><b>"
+
+- id: pcre-lazy-dot-star
+  flavor: pcre
+  pattern: "<.*?>"
+  flags: "g"
+  subject: "<a><b>"
+
+- id: pcre-empty-global
+  flavor: pcre
+  pattern: "a*"
+  flags: "g"
+  subject: "baaab"
+
+- id: pcre-empty-pattern-global
+  flavor: pcre
+  pattern: ""
+  flags: "g"
+  subject: "abc"
+
+- id: pcre-empty-global-unicode
+  flavor: pcre
+  pattern: "x*"
+  flags: "g"
+  subject: "αβ"
+
+- id: pcre-skip-empty
+  flavor: pcre
+  pattern: "a*"
+  flags: "gn"
+  subject: "baaab"
+
+- id: pcre-stacked-quantifiers
+  flavor: pcre
+  pattern: "a**"
+  flags: ""
+  subject: "aaa"
+
+- id: pcre-interval-out-of-order
+  flavor: pcre
+  pattern: "a{2,1}"
+  flags: ""
+  subject: "aa"
+
+- id: pcre-repeat-too-big
+  flavor: pcre
+  pattern: "a{65536}"
+  flags: ""
+  subject: "a"
+
+- id: pcre-quantified-lookahead
+  flavor: pcre
+  pattern: "(?=a)?b"
+  flags: ""
+  subject: "b"
+
+- id: pcre-alternation-captures
+  flavor: pcre
+  pattern: "(a)|(b)"
+  flags: "g"
+  subject: "ab"
+
+- id: pcre-nested-captures
+  flavor: pcre
+  pattern: "((a)(b)?)+"
+  flags: ""
+  subject: "aab"
+
+- id: pcre-optional-unset
+  flavor: pcre
+  pattern: "(a)?b"
+  flags: "g"
+  subject: "b ab"
+
+- id: pcre-optional-groups-empty-match
+  flavor: pcre
+  pattern: "(a?)(b?)"
+  flags: "g"
+  subject: "ab"
+
+- id: pcre-named-groups
+  flavor: pcre
+  pattern: "(?<year>\\d+)-(?<mo>\\d+)"
+  flags: ""
+  subject: "on 2024-05"
+
+- id: pcre-atomic
+  flavor: pcre
+  pattern: "(?>a+)b"
+  flags: ""
+  subject: "aaab"
+
+- id: pcre-lookahead
+  flavor: pcre
+  pattern: "\\w+(?=!)"
+  flags: ""
+  subject: "hi there!"
+
+- id: pcre-negative-lookahead
+  flavor: pcre
+  pattern: "q(?!u)"
+  flags: "g"
+  subject: "quit qat"
+
+- id: pcre-lookbehind
+  flavor: pcre
+  pattern: "(?<=\\$)\\d+"
+  flags: ""
+  subject: "cost $42"
+
+- id: pcre-lookbehind-alternation
+  flavor: pcre
+  pattern: "(?<=a|bc)d"
+  flags: "g"
+  subject: "ad bcd cd"
+
+- id: pcre-lookbehind-bounded
+  flavor: pcre
+  pattern: "(?<=ab?)c"
+  flags: "g"
+  subject: "ac abc"
+
+- id: pcre-lookbehind-unbounded
+  flavor: pcre
+  pattern: "(?<=a+)b"
+  flags: ""
+  subject: "ab"
+
+- id: pcre-negative-lookbehind
+  flavor: pcre
+  pattern: "(?<!x)y"
+  flags: "g"
+  subject: "xy zy"
+
+- id: pcre-backref
+  flavor: pcre
+  pattern: "(a)\\1"
+  flags: ""
+  subject: "aa"
+
+- id: pcre-backref-g
+  flavor: pcre
+  pattern: "(a)\\g1"
+  flags: ""
+  subject: "aa"
+
+- id: pcre-backref-g-relative
+  flavor: pcre
+  pattern: "(a)(b)\\g{-2}"
+  flags: ""
+  subject: "aba"
+
+- id: pcre-backref-k-angle
+  flavor: pcre
+  pattern: "(?<n>a)\\k<n>"
+  flags: ""
+  subject: "aa"
+
+- id: pcre-backref-k-brace
+  flavor: pcre
+  pattern: "(?<n>a)\\k{n}"
+  flags: ""
+  subject: "aa"
+
+- id: pcre-python-names
+  flavor: pcre
+  pattern: "(?P<n>a)(?P=n)"
+  flags: ""
+  subject: "aa"
+
+- id: pcre-named-quote
+  flavor: pcre
+  pattern: "(?'n'x)\\k'n'"
+  flags: ""
+  subject: "xx"
+
+- id: pcre-self-reference
+  flavor: pcre
+  pattern: "^(a|b\\1)+$"
+  flags: ""
+  subject: "aba"
+
+- id: pcre-duplicate-names
+  flavor: pcre
+  pattern: "(?<n>a)(?<n>b)"
+  flags: ""
+  subject: "ab"
+
+- id: pcre-backref-missing-group
+  flavor: pcre
+  pattern: "(a)\\2"
+  flags: ""
+  subject: "aa"
+
+- id: pcre-backref-high-digit
+  flavor: pcre
+  pattern: "(a)\\81"
+  flags: ""
+  subject: "a81"
+
+- id: pcre-unmatched-paren
+  flavor: pcre
+  pattern: "(a"
+  flags: ""
+  subject: "a"

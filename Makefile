@@ -75,6 +75,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 .PHONY: validate-imports validate-imports-example
 .PHONY: oracle-vectors diff-goldens diff-oracle-check byte-identity
 .PHONY: test-query-parity jq-oracle-check jq-oracle-refresh query-oracle-audit
+.PHONY: test-regex-parity regex-oracle-check regex-oracle-refresh
 
 ##@ General
 
@@ -184,7 +185,7 @@ clean: ## Remove build artifacts and binaries
 
 test: test-unit ## Run all unit tests (alias for test-unit)
 
-test-unit: test-alias-dispatch test-query-parity ## Run Go unit tests with coverage
+test-unit: test-alias-dispatch test-query-parity test-regex-parity ## Run Go unit tests with coverage
 	@printf "$(GREEN)Running unit tests...$(RESET)\n"
 	@mkdir -p $(COVERAGE_DIR)
 	@go test -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic ./...
@@ -513,3 +514,21 @@ jq-oracle-refresh: ## Rewrite the jq goldens from the pinned jq for review (need
 query-oracle-audit: ## Run graft and the reference binaries side by side over the parity cases (needs jq and pcre2test)
 	@./tests/query-parity/run.sh jq
 	@./tests/regex-parity/run.sh
+
+##@ Regex Parity Oracle
+
+# The regex parity goldens were recorded from the pinned jq and pcre2test,
+# and test-regex-parity replays them with neither binary installed. The
+# oracle targets run by hand, and no other target calls them.
+
+test-regex-parity: ## Replay the regex parity goldens under tests/regex-parity
+	@printf "$(GREEN)Replaying regex parity goldens...$(RESET)\n"
+	@go test ./pkg/regex/ -run '^TestRegexParity' -count=1
+
+regex-oracle-check: ## Fail when a regex parity golden no longer matches jq or pcre2test
+	@printf "$(GREEN)Checking regex parity goldens...$(RESET)\n"
+	@tests/regex-parity/gen.sh --check
+
+regex-oracle-refresh: ## Re-record the regex parity goldens from jq and pcre2test
+	@printf "$(GREEN)Recording regex parity goldens...$(RESET)\n"
+	@tests/regex-parity/gen.sh
