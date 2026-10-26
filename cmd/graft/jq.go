@@ -651,7 +651,7 @@ func (jqStderr) Write(p []byte) (int, error) {
 // rules rather than cobra's, so it parses them itself and hands any of
 // graft's persistent flags back to the root's flag set.
 func newJQCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "jq [flags] PROGRAM [FILE...]",
 		Short: "Run a jq program over JSON and YAML input",
 		Long: "Run a jq program over JSON and YAML input, the way jq " + jqCompatVersion + " does.\n\n" +
@@ -698,6 +698,64 @@ func newJQCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.SetHelpFunc(jqHelp)
+	return cmd
+}
+
+// jqFlagsHelp summarizes the flags graft jq reads after the verb.
+const jqFlagsHelp = `Flags:
+  -n, --null-input            run the program once on null rather than on each input
+  -R, --raw-input             read each line of input as a string
+  -s, --slurp                 read every input into one array and run the program on it
+      --input-format FORMAT   read input as auto, json, or yaml
+  -c, --compact-output        print each output on one line
+  -r, --raw-output            print strings without quotes or escapes
+  -j, --join-output           print as -r does, with no newline after each output
+      --raw-output0           print as -r does, with a NUL after each output
+  -a, --ascii-output          escape every character outside ASCII
+  -o FORMAT                   print json, or yaml (also y)
+  -S, --sort-keys[=MODE]      sort object keys, where MODE is lexical, spruce, or none
+  -C, --color-output          color the output
+  -M, --monochrome-output     never color the output
+      --tab                   indent with a tab
+      --indent N              indent with N spaces, from 0 to 7
+      --unbuffered            write each output as soon as it is produced
+      --float-numbers         do arithmetic in doubles, as jq does
+  -f, --from-file FILE        read the program from FILE
+      --arg NAME VALUE        bind $NAME to the string VALUE
+      --argjson NAME TEXT     bind $NAME to the JSON or YAML value TEXT
+      --slurpfile NAME FILE   bind $NAME to an array of every value in FILE
+      --rawfile NAME FILE     bind $NAME to the text of FILE
+      --args                  read the remaining arguments as positional strings
+      --jsonargs              read the remaining arguments as positional JSON texts
+  -e, --exit-status           exit 1 when the last output is false or null, and 4 when there is none
+      --run-tests [FILE]      run the jq test cases in FILE, or on stdin
+  -h, --help                  print this help
+      --                      read every later argument as a program, file, or positional
+`
+
+// jqHelp prints graft jq's help. Its flags are jq's, which cobra cannot
+// list because the command parses them itself, and graft's own flags are
+// listed only in the forms graft jq takes after the verb, which leaves
+// out -D, -T, and -v, since -v and --version are jq's there.
+func jqHelp(cmd *cobra.Command, _ []string) {
+	global := pflag.NewFlagSet("", pflag.ContinueOnError)
+	cmd.Root().PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == "version" {
+			return
+		}
+		shown := *f
+		shown.Shorthand = ""
+		global.AddFlag(&shown)
+	})
+	w := cmd.OutOrStdout()
+	_, _ = io.WriteString(w, cmd.Long+"\n\n"+
+		"Usage:\n"+
+		"  graft jq [flags] PROGRAM [FILE...]\n"+
+		"  graft jq [flags] --args PROGRAM [STRING...]\n"+
+		"  graft jq [flags] --jsonargs PROGRAM [JSON...]\n\n"+
+		jqFlagsHelp+"\n"+
+		"Global Flags:\n"+global.FlagUsages())
 }
 
 // preVerbArgs returns how many of args came before the verb on graft's

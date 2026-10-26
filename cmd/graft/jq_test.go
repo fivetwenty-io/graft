@@ -350,5 +350,11 @@ func TestJQCommand(t *testing.T) {
 		out, _, rc = run("-", "jq", "--help")
 		So(out, ShouldStartWith, "Run a jq program over JSON and YAML input, the way jq "+jqCompatVersion+" does.\n")
 		So(rc, ShouldEqual, 0)
+		for _, flag := range []string{"-n, --null-input", "-e, --exit-status", "--arg NAME VALUE", "-o FORMAT", "--sort-keys[=MODE]", "      --debug", "      --trace", "--theme"} {
+			So(out, ShouldContainSubstring, flag) // jq's flags, and graft's in the forms graft jq takes
+		}
+		for _, flag := range []string{"-D, --debug", "-T, --trace", "-v, --version", "Display version information"} {
+			So(out, ShouldNotContainSubstring, flag) // flags graft jq refuses after the verb
+		}
 	})
 }
