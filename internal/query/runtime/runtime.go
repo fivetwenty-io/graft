@@ -9,6 +9,7 @@ import (
 	"iter"
 
 	"github.com/fivetwenty-io/graft/pkg/query/value"
+	"github.com/fivetwenty-io/graft/pkg/regex"
 )
 
 // Emit receives one output of a generator. p is the output's path from
@@ -64,8 +65,11 @@ type Ctx struct {
 	// DepthLimit bounds non-tail calls and recursive builtins, and zero
 	// means DefaultDepthLimit.
 	DepthLimit int
-	Cursor     *Cursor
-	Numbers    NumberMode
+	// RegexBudget bounds every regular expression the run compiles and
+	// matches, and its zero fields mean pkg/regex's defaults.
+	RegexBudget regex.Budget
+	Cursor      *Cursor
+	Numbers     NumberMode
 	// Compare and Equal are the value comparisons for Numbers, which every
 	// comparison in the evaluator and the builtins calls.
 	Compare func(a, b *value.Value) int

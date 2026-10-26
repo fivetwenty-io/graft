@@ -237,6 +237,7 @@ func TestRuntimeImportsNoEvaluatorOrBuiltins(t *testing.T) {
 		"github.com/fivetwenty-io/graft/pkg/decimal",
 		"github.com/fivetwenty-io/graft/pkg/query",
 		"github.com/fivetwenty-io/graft/pkg/query/value",
+		"github.com/fivetwenty-io/graft/pkg/regex",
 	}
 	for _, imp := range p.Imports {
 		if strings.Contains(imp, ".") && !slices.Contains(allowed, imp) {
