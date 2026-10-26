@@ -54,6 +54,12 @@ func TestEncoderYAMLIndentAndNoDocSeparators(t *testing.T) {
 	wantEqual(t, encodeString(t, EncodeOptions{NoDocSeparators: true}, docs...), "a:\n  b: 1\nc: 2\n")
 }
 
+func TestEncoderYAMLCompactSeqIndent(t *testing.T) {
+	v := decodeOne(t, "a:\n  - 1\n  - b:\n      - c\n")
+	wantEqual(t, encodeString(t, EncodeOptions{}, v), "a:\n  - 1\n  - b:\n      - c\n")
+	wantEqual(t, encodeString(t, EncodeOptions{CompactSeqIndent: true}, v), "a:\n- 1\n- b:\n  - c\n")
+}
+
 func TestEncoderYAMLUnwrapScalar(t *testing.T) {
 	wantEqual(t, encodeString(t, EncodeOptions{UnwrapScalar: true}, decodeOne(t, "\"hi\"\n")), "hi\n")
 	wantEqual(t, encodeString(t, EncodeOptions{}, decodeOne(t, "\"hi\"\n")), "\"hi\"\n")

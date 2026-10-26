@@ -50,6 +50,7 @@ e-unclosed-bracket
 e-unknown-flag
 e-unknown-operator
 f-expression-file
+fl-compact-seq-indent
 fl-exit-status-no-output
 fl-exit-status-off
 fl-expression-flag

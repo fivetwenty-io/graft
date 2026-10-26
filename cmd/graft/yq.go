@@ -191,14 +191,15 @@ type yqOutput struct {
 
 func newYQOutput(opts yqOptions, format yq.Format, out io.Writer, color bool) *yqOutput {
 	eo := yq.EncodeOptions{
-		Format:          format,
-		Indent:          yqIndent(opts, format),
-		Colors:          color && format == yq.FormatJSON,
-		UnwrapScalar:    yqUnwrap(opts, format),
-		NoDocSeparators: opts.NoDoc,
-		PrettyPrint:     opts.PrettyPrint,
-		SortKeys:        opts.SortKeys,
-		FloatNumbers:    opts.FloatNumbers,
+		Format:           format,
+		Indent:           yqIndent(opts, format),
+		Colors:           color && format == yq.FormatJSON,
+		UnwrapScalar:     yqUnwrap(opts, format),
+		NoDocSeparators:  opts.NoDoc,
+		PrettyPrint:      opts.PrettyPrint,
+		CompactSeqIndent: opts.CompactSeqIndent,
+		SortKeys:         opts.SortKeys,
+		FloatNumbers:     opts.FloatNumbers,
 	}
 	o := &yqOutput{out: out, nul: opts.NulOutput, eo: eo}
 	if opts.NulOutput || (color && format == yq.FormatYAML) {
@@ -707,7 +708,7 @@ Flags:
   -C, --colors                color the output
   -M, --no-colors             never color the output
   -c, --yaml-compact-seq-indent
-                              accepted, no effect yet
+                              write a sequence under a key at the key's indentation
   -S, --sort-keys[=MODE]      sort object keys, where MODE is lexical, spruce, or none
       --float-numbers         do arithmetic in int64 and doubles, as yq does
       --expression EXPR       take the expression from EXPR, so every argument is a file

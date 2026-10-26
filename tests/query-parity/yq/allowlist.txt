@@ -2,7 +2,6 @@
 # carries a reason from the spec's allowlist. A pending entry names the phase
 # that owes the work. An out-of-scope entry needs a format other than yaml and
 # json, and counts toward neither the pass ratio nor the departure cap.
-fl-compact-seq-indent departure flag accepted with no effect
 fl-security-enable-system departure no system operator
 fmt-json-special-numbers departure json special numbers
 n-exact-decimal-arithmetic departure exact decimal

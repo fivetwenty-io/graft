@@ -33,6 +33,9 @@ type EncodeOptions struct {
 	// PrettyPrint drops the quoting, flow, and block styles of YAML
 	// output while keeping explicit tags, as -P does.
 	PrettyPrint bool
+	// CompactSeqIndent writes a YAML sequence under a mapping key at the
+	// key's own indentation, as -c does.
+	CompactSeqIndent bool
 	// SortKeys orders object keys. The empty mode keeps input order.
 	SortKeys sortkeys.Mode
 	// FloatNumbers is --float-numbers. A float an operator computed then
@@ -68,11 +71,12 @@ func NewEncoder(w io.Writer, opts EncodeOptions) *Encoder {
 	}
 	return &Encoder{
 		yaml: yamlout.New(w, yamlout.Options{
-			Indent:       indent,
-			NoDoc:        opts.NoDocSeparators,
-			UnwrapScalar: opts.UnwrapScalar,
-			SortKeys:     opts.SortKeys,
-			GoFloats:     opts.FloatNumbers,
+			Indent:           indent,
+			NoDoc:            opts.NoDocSeparators,
+			UnwrapScalar:     opts.UnwrapScalar,
+			SortKeys:         opts.SortKeys,
+			GoFloats:         opts.FloatNumbers,
+			CompactSeqIndent: opts.CompactSeqIndent,
 		}),
 		pretty: opts.PrettyPrint,
 	}

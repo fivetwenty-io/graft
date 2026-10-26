@@ -84,6 +84,8 @@ func TestYQEvaluates(t *testing.T) {
 		So(out, ShouldBeEmpty) // yq's overflows int64
 		out, _, _ = runYQ(t, []string{"-P", "."}, `{"a":[1]}`)
 		So(out, ShouldEqual, "a:\n  - 1\n")
+		out, _, _ = runYQ(t, []string{"-c", "."}, "a:\n  - 1\n  - b:\n      - c\n")
+		So(out, ShouldEqual, "a:\n- 1\n- b:\n  - c\n") // a sequence under a key is not indented
 		out, _, _ = runYQ(t, []string{"-N", "."}, "a: 1\n---\nb: 2\n")
 		So(out, ShouldEqual, "a: 1\nb: 2\n")
 		out, _, _ = runYQ(t, []string{"-r=false", ".a"}, "a: x\n")
