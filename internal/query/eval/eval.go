@@ -287,10 +287,15 @@ func (ev evaluator) literal(n *ast.Literal) *value.Value {
 	case string:
 		v = value.Str(lit)
 	case ast.Number:
-		if d, err := decimal.Parse(string(lit)); err == nil {
-			v = value.NumLit(d, string(lit))
+		// A literal such as .1 or 1. is valid jq but not valid JSON.
+		text := string(lit)
+		if norm, ok := ast.NormalizeNumber(text); ok {
+			text = norm
+		}
+		if d, err := decimal.Parse(text); err == nil {
+			v = value.NumLit(d, text)
 		} else {
-			v = value.NumText(string(lit))
+			v = value.NumText(text)
 		}
 	default:
 		v = value.Null()

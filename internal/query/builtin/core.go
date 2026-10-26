@@ -15,6 +15,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/fivetwenty-io/graft/internal/query/ast"
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
 	"github.com/fivetwenty-io/graft/pkg/decimal"
 	"github.com/fivetwenty-io/graft/pkg/query"
@@ -273,7 +274,7 @@ func tonumber(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
 	if v, ok := special(s); ok {
 		return v, nil
 	}
-	norm, ok := normalizeNumber(s)
+	norm, ok := ast.NormalizeNumber(s)
 	if !ok {
 		return nil, fail("%s cannot be parsed as a number", describe(in))
 	}
@@ -304,48 +305,6 @@ func special(s string) (*value.Value, bool) {
 		return value.NumDec(decimal.Inf(1)), true
 	}
 	return nil, false
-}
-
-// normalizeNumber rewrites jq's looser number syntax as a JSON number. It
-// drops a plus sign and leading zeros, puts a zero before a bare fraction,
-// and drops a trailing point, and it reports false for anything else.
-func normalizeNumber(s string) (string, bool) {
-	sign, rest := "", s
-	if rest != "" && (rest[0] == '+' || rest[0] == '-') {
-		if rest[0] == '-' {
-			sign = "-"
-		}
-		rest = rest[1:]
-	}
-	exp := ""
-	if i := strings.IndexAny(rest, "eE"); i >= 0 {
-		digits := strings.TrimPrefix(strings.TrimPrefix(rest[i+1:], "+"), "-")
-		if digits == "" || !allDigits(digits) || len(rest[i+1:])-len(digits) > 1 {
-			return "", false
-		}
-		rest, exp = rest[:i], "e"+rest[i+1:]
-	}
-	whole, frac, _ := strings.Cut(rest, ".")
-	if whole+frac == "" || !allDigits(whole) || !allDigits(frac) {
-		return "", false
-	}
-	whole = strings.TrimLeft(whole, "0")
-	if whole == "" {
-		whole = "0"
-	}
-	if frac != "" {
-		whole += "." + frac
-	}
-	return sign + whole + exp, true
-}
-
-func allDigits(s string) bool {
-	for i := range len(s) {
-		if !isDigit(s[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 func isDigit(c byte) bool { return c >= '0' && c <= '9' }
