@@ -16,6 +16,7 @@ import (
 func TestAliasDispatch(t *testing.T) {
 	graft := buildGraftBinary(t)
 	jqLink := linkAs(t, graft, "jq")
+	yqLink := linkAs(t, graft, "yq")
 	spruceLink := linkAs(t, graft, "spruce")
 
 	Convey("the link composes with -m and -E as graft jq does", t, func() {
@@ -134,6 +135,42 @@ func TestAliasDispatch(t *testing.T) {
 		args := []string{"-C", "-o", "yaml", "-n", `{"a":[1,"x"]}`}
 		g = execInEnv(t, env, ".", graft, append([]string{"jq"}, args...), "")
 		So(execInEnv(t, env, ".", jqLink, args, ""), ShouldResemble, g)
+	})
+
+	Convey("the yq link reports yq's version and runs expressions as graft yq does", t, func() {
+		for _, bin := range [][]string{{yqLink}, {graft, "yq"}} {
+			v := execIn(t, ".", bin[0], append(bin[1:], "--version"), "")
+			lines := strings.Split(v.Stdout, "\n")
+			So(v.Code, ShouldEqual, 0)
+			So(lines[0], ShouldEqual, "yq (https://github.com/mikefarah/yq/) version v"+yqCompatVersion)
+			So(lines[1], ShouldContainSubstring, "graft")
+		}
+		// -v is verbose under the yq name and graft's version under graft.
+		v := execIn(t, ".", yqLink, []string{"-v", ".a"}, "a: 1\n")
+		So(v.Code, ShouldEqual, 0)
+		So(v.Stdout, ShouldEqual, "1\n")
+		So(v.Stdout, ShouldNotContainSubstring, "graft")
+		g := execIn(t, ".", graft, []string{"yq", "-v"}, "")
+		So(g.Code, ShouldEqual, 0)
+		So(g.Stdout, ShouldContainSubstring, "graft")
+	})
+
+	Convey("graft's flags do not exist under the yq alias", t, func() {
+		r := execIn(t, ".", yqLink, []string{"--theme", "x", "."}, "a: 1\n")
+		So(r.Code, ShouldEqual, 1)
+		So(r.Stderr, ShouldContainSubstring, "Unknown option: --theme")
+	})
+
+	Convey("the yq link and graft yq agree", t, func() {
+		for _, args := range [][]string{
+			{"-m", "-o", "json", "-I", "0", ".", "testdata/compose/a.yml", "testdata/compose/b.yml"},
+			{".a +", "testdata/compose/a.yml"},
+			{"-n", ".a = 1"},
+		} {
+			a := execIn(t, ".", graft, append([]string{"yq"}, args...), "")
+			b := execIn(t, ".", yqLink, args, "")
+			So(b, ShouldResemble, a)
+		}
 	})
 
 	Convey("the spruce link is unchanged", t, func() {
