@@ -1,0 +1,5 @@
+-p=json
+-o=json
+-I=0
+.
+in.json

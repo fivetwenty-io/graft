@@ -69,6 +69,8 @@ Invalid -o value: "xml" is not built into graft yq (auto, yaml, and json only)
 - `-p`, `--input-format`
   The input format is `auto`, `yaml`, or `json`. YAML is a superset of JSON, so `auto` reads both with the YAML reader.
 
+  With `-p json`, graft reads every number as a double, as yq does, so `1.0` prints as `1` and `9007199254740993` prints as `9007199254740992`. A number beyond a double, such as `1e400`, is an error. Arithmetic on those numbers stays exact unless we pass `--float-numbers`.
+
 - `-I`, `--indent`
   This indents the output by N spaces, and the default is 2. For JSON, `-I 0` prints each value on one line.
 

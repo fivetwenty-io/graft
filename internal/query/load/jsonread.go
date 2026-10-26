@@ -386,7 +386,10 @@ func (r *JSONReader) token() (*value.Value, error) {
 			return nil, r.syntaxError(line, col, "invalid literal %q", s)
 		}
 		if r.floats {
-			v = floatNumber(v)
+			var err error
+			if v, err = floatNumber(v, s); err != nil {
+				return nil, err
+			}
 		}
 		return v, nil
 	}

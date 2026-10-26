@@ -15,6 +15,23 @@ func TestYQJSONNumbers(t *testing.T) {
 	})
 }
 
+func TestYQJSONNumbersAtInt64Limits(t *testing.T) {
+	Convey("json integers at the int64 limits read as yq reads them", t, func() {
+		in := `{"a":9223372036854775807,"b":9223372036854775808,"c":9223372036854775809,"d":9223372036854774784,"e":-9223372036854775808,"f":-9223372036854775809,"g":9223372036854777856,"h":-9223372036854777856,"i":9.3e18,"j":1e19}`
+		out, _, _ := runYQ(t, []string{"-p", "json", "-o", "json", "-I0", "."}, in)
+		So(out, ShouldEqual, `{"a":9223372036854775807,"b":9223372036854775807,"c":9223372036854775807,"d":9223372036854774784,"e":-9223372036854775808,"f":-9223372036854775808,"g":9.223372036854778e+18,"h":-9.223372036854778e+18,"i":9.3e+18,"j":1e+19}`+"\n")
+		out, _, _ = runYQ(t, []string{"-p", "json", "(.a | tag), (.g | tag)"}, in)
+		So(out, ShouldEqual, "!!int\n!!float\n")
+	})
+
+	Convey("a json number beyond a double is an error, as in yq", t, func() {
+		out, errOut, code := runYQ(t, []string{"-p", "json", "."}, `{"a":1e400}`)
+		So(out, ShouldBeEmpty)
+		So(errOut, ShouldContainSubstring, `strconv.ParseFloat: parsing "1e400": value out of range`)
+		So(code.Code, ShouldNotEqual, 0)
+	})
+}
+
 func TestYQStringInterpolationFlag(t *testing.T) {
 	Convey("string interpolation", t, func() {
 		out, _, _ := runYQ(t, []string{`"x\(.a)"`}, "a: 1\n")

@@ -1,6 +1,7 @@
 package load
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -73,17 +74,24 @@ func canonicalDecimal(body string, neg bool) (string, bool) {
 	return text + exp, true
 }
 
-// floatNumber is v as yq's JSON decoder gives it, the float64 nearest the
-// text. A whole value inside the int64 range prints as an integer, and any
-// other is a float64 tagged !!float that keeps the shortest text that
-// reads back, which is how yq spells 1e+20 and 1.23456785e+07.
-func floatNumber(v *value.Value) *value.Value {
+// floatNumber is v, the number written as text, as yq's JSON decoder gives
+// it: the float64 nearest the text. A whole value inside the int64 range
+// prints as an integer, and one at its edge clamps to the largest or the
+// smallest integer, as it does in yq. Any other is a float64 tagged !!float
+// that keeps the shortest text that reads back, which is how yq spells
+// 1e+20 and 1.23456785e+07. A number beyond a double is an error.
+func floatNumber(v *value.Value, text string) (*value.Value, error) {
 	f := v.Float()
 	if math.IsInf(f, 0) || math.IsNaN(f) {
-		return v
+		return nil, fmt.Errorf("strconv.ParseFloat: parsing %q: value out of range", text)
 	}
-	if f == math.Trunc(f) && math.Abs(f) < 1<<63 {
-		return numberLiteral(strconv.FormatInt(int64(f), 10))
+	switch {
+	case f == 1<<63:
+		return numberLiteral(strconv.FormatInt(math.MaxInt64, 10)), nil
+	case f == -(1 << 63):
+		return numberLiteral(strconv.FormatInt(math.MinInt64, 10)), nil
+	case f == math.Trunc(f) && math.Abs(f) < 1<<63:
+		return numberLiteral(strconv.FormatInt(int64(f), 10)), nil
 	}
-	return value.Num(f).WithMeta(&value.Meta{Tag: yamlnode.TagFloat, Text: strconv.FormatFloat(f, 'g', -1, 64)})
+	return value.Num(f).WithMeta(&value.Meta{Tag: yamlnode.TagFloat, Text: strconv.FormatFloat(f, 'g', -1, 64)}), nil
 }
