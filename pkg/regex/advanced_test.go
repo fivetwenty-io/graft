@@ -300,6 +300,41 @@ func TestMatchReset(t *testing.T) {
 	}
 }
 
+// A quantifier cannot follow \K itself. PCRE2 lets one follow a group
+// around it, and Oniguruma refuses the group too, as it does an anchor,
+// unless the group is a capture or holds a sequence.
+func TestQuantifiedMatchReset(t *testing.T) {
+	onig := WithFlavor(Oniguruma)
+	for _, pattern := range []string{`a\K*b`, `a\K+b`, `a\K?b`, `a\K{2}b`, `a\K*?b`, `a\K++b`} {
+		wantSyntaxError(t, pattern, 3, "quantifier does not follow a repeatable item")
+		wantSyntaxError(t, pattern, 3, "target of repeat operator is invalid", onig)
+	}
+	wantText(t, MustCompile(`a(?:\K)*b`), "ab", "b")
+	wantText(t, MustCompile(`a(?:\K|x)*b`), "ab", "b")
+
+	wantSyntaxError(t, `a(?:\K)*b`, 7, "target of repeat operator is invalid", onig)
+	wantSyntaxError(t, `a(?:\K)?b`, 7, "target of repeat operator is invalid", onig)
+	wantSyntaxError(t, `a(?:(?:\K))+b`, 11, "target of repeat operator is invalid", onig)
+	wantSyntaxError(t, `a(?:\K|x)*b`, 9, "target of repeat operator is invalid", onig)
+	wantSyntaxError(t, `a(?:x|\K(?#c))*b`, 14, "target of repeat operator is invalid", onig)
+	wantSyntaxError(t, `^*a`, 1, "target of repeat operator is invalid", onig)
+	wantSyntaxError(t, `a(?:^)*b`, 6, "target of repeat operator is invalid", onig)
+	wantSyntaxError(t, `a(?:$|x)*b`, 8, "target of repeat operator is invalid", onig)
+	wantText(t, MustCompile(`a(\K)*b`, onig), "ab", "b")
+	wantText(t, MustCompile(`a(?:\K\K)*b`, onig), "ab", "b")
+	wantText(t, MustCompile(`a(?:x\K)*b`, onig), "ab", "ab")
+	wantText(t, MustCompile(`a(?:^x)*b`, onig), "ab", "ab")
+
+	// A flag group hides what it holds from Oniguruma's check.
+	wantText(t, MustCompile(`a(?i:\K)*b`, onig), "ab", "b")
+	wantText(t, MustCompile(`a(?:(?i:\K))*b`, onig), "ab", "b")
+	wantText(t, MustCompile(`a(?i:\K|x)*b`, onig), "ab", "b")
+	wantText(t, MustCompile(`a(?i:^)*b`, onig), "ab", "ab")
+	wantText(t, MustCompile(`(?i:^)+b`, onig), "b", "b")
+	wantNoMatch(t, MustCompile(`x(?i:^)+b`, onig), "xb")
+	wantSyntaxError(t, `a(?i)\K*b`, 7, "target of repeat operator is invalid", onig)
+}
+
 func TestConditional(t *testing.T) {
 	all := MatchOptions{Global: true}
 	for _, flavor := range []Flavor{PCRE, Oniguruma} {

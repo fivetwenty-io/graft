@@ -40,6 +40,11 @@ The other rules the Oniguruma flavor changes follow jq 1.8.2 as well.
   - {,n} is literal text rather than a quantifier, a quantifier may follow
     another one and repeats the repetition, so a{2}{3} is six a's, and a
     count may reach 100,000, where PCRE stops at 65,535.
+  - A quantifier may not follow a lookaround, an anchor, or a \K, even
+    inside a (?:...) group, nor an alternation that has one of them as a
+    branch, where PCRE repeats a lookaround or a group around a \K. A
+    capture group, a flag group such as (?i:\K), and a sequence such as
+    (?:x\K) may still repeat.
   - A hyphen after a class escape, a property, or a POSIX name inside a
     bracket class is a literal hyphen, and [:alpha:] outside a bracket
     class is the plain class of its runes, where PCRE refuses both.

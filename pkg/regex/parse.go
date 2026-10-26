@@ -52,6 +52,10 @@ type parser struct {
 	widths  map[int][2]int
 	selfRef map[int]bool
 	pending []pendingRef
+
+	// options holds the bodies of flag groups such as (?i:...), which
+	// Oniguruma lets a quantifier follow whatever they hold.
+	options map[*node]bool
 }
 
 // pendingRef is a backreference whose group was not known where it stood.
@@ -193,6 +197,7 @@ func (p *parser) concat() (*node, error) {
 		if p.eof() || !p.quoting && (p.peek() == '|' || p.peek() == ')') {
 			break
 		}
+		bare := p.quoting || p.peek() != '('
 		atom, err := p.atom()
 		if err != nil {
 			return nil, err
@@ -203,7 +208,7 @@ func (p *parser) concat() (*node, error) {
 			}
 			continue
 		}
-		if atom, err = p.quantified(atom); err != nil {
+		if atom, err = p.quantified(atom, bare); err != nil {
 			return nil, err
 		}
 		seq.append(atom)
@@ -316,8 +321,9 @@ func parseCount(s string) int {
 
 // quantified applies the quantifiers that follow atom, if there are any.
 // Only a flavor with stacked quantifiers lets a second one follow the
-// first, and it then repeats the repetition.
-func (p *parser) quantified(atom *node) (*node, error) {
+// first, and it then repeats the repetition. bare is false when atom came
+// from a group.
+func (p *parser) quantified(atom *node, bare bool) (*node, error) {
 	if p.quoting {
 		if !p.lookingAt(`\E`) {
 			return atom, nil // a quoted quantifier is a literal
@@ -335,7 +341,7 @@ func (p *parser) quantified(atom *node) (*node, error) {
 		case count > 0 && !p.rules().stackedQuantifiers:
 			return nil, p.errorAt(qpos, "quantifier does not follow a repeatable item")
 		}
-		if err := p.checkQuantifier(atom, qpos, lo, hi); err != nil {
+		if err := p.checkQuantifier(atom, bare, qpos, lo, hi); err != nil {
 			return nil, err
 		}
 		p.pos += width
@@ -368,15 +374,16 @@ func (p *parser) repeat(atom *node, lo, hi int) *node {
 }
 
 // checkQuantifier refuses a quantifier at qpos that atom cannot take or
-// whose counts lo and hi are out of range.
-func (p *parser) checkQuantifier(atom *node, qpos, lo, hi int) error {
+// whose counts lo and hi are out of range. bare is false when atom came
+// from a group, which lets PCRE2 repeat a \K.
+func (p *parser) checkQuantifier(atom *node, bare bool, qpos, lo, hi int) error {
 	limit := p.rules().maxRepeat
 	tooBig := lo > limit || hi > limit
 	switch {
-	case atom.kind == kindAssert:
-		return p.errorAt(qpos, "quantifier does not follow a repeatable item")
-	case atom.kind == kindLook && !p.rules().quantifiedLookaround:
+	case !p.rules().quantifiedLookaround && p.unrepeatable(atom):
 		return p.errorAt(qpos, "target of repeat operator is invalid")
+	case p.rules().quantifiedLookaround && (atom.kind == kindAssert || atom.kind == kindKeep && bare):
+		return p.errorAt(qpos, "quantifier does not follow a repeatable item")
 	case tooBig && p.rules().onigMessages:
 		return p.errorAt(qpos, "too big number for repeat range")
 	case tooBig:
@@ -385,6 +392,25 @@ func (p *parser) checkQuantifier(atom *node, qpos, lo, hi int) error {
 		return p.errorAt(qpos, "numbers out of order in {} quantifier")
 	}
 	return nil
+}
+
+// unrepeatable reports whether Oniguruma refuses to repeat n. It refuses
+// an anchor, a \K, a lookaround, and an alternation with a branch it
+// refuses. It never refuses a sequence, and it does not look inside a
+// capture, an atomic group, or a flag group, so (\K)*, (?i:\K)*, and
+// (?:x\K)* are all allowed.
+func (p *parser) unrepeatable(n *node) bool {
+	if p.options[n] {
+		return false
+	}
+	switch n.kind {
+	case kindAssert, kindKeep, kindLook:
+		return true
+	case kindAlternate:
+		return slices.ContainsFunc(n.subs, p.unrepeatable)
+	default:
+		return false
+	}
 }
 
 // quantifiedLook applies a quantifier to a lookaround the way PCRE2 does.
@@ -648,6 +674,12 @@ func (p *parser) closeGroup(start int, form groupForm, index int, name string, b
 		p.closed[index] = g
 		return g, nil
 	case formPlain:
+		if !strings.HasPrefix(p.src[start:], "(?:") {
+			if p.options == nil {
+				p.options = map[*node]bool{}
+			}
+			p.options[body] = true
+		}
 		return body, nil
 	case formAtomic:
 		return &node{kind: kindAtomic, subs: []*node{body}}, nil

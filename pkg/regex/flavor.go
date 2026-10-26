@@ -50,7 +50,9 @@ type rules struct {
 	stackedQuantifiers bool
 
 	// quantifiedLookaround lets a quantifier follow a lookaround, as PCRE2
-	// does. Without it the quantifier is a syntax error.
+	// does. Without it, as in Oniguruma, a quantifier is a syntax error
+	// after a lookaround, an anchor, a \K, or an alternation with one of
+	// those as a branch, even inside a (?:...) group.
 	quantifiedLookaround bool
 
 	// pythonNames accepts (?P<name>...) and (?P=name).

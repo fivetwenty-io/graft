@@ -1612,6 +1612,60 @@
   flags: "g"
   subject: "aaa"
 
+- id: onig-keep-quantified
+  flavor: oniguruma
+  pattern: "a\\K*b"
+  flags: ""
+  subject: "ab"
+
+- id: onig-keep-group-quantified
+  flavor: oniguruma
+  pattern: "a(?:\\K)*b"
+  flags: ""
+  subject: "ab"
+
+- id: onig-keep-branch-quantified
+  flavor: oniguruma
+  pattern: "a(?:\\K|x)*b"
+  flags: ""
+  subject: "ab"
+
+- id: onig-keep-capture-quantified
+  flavor: oniguruma
+  pattern: "a(\\K)*b"
+  flags: ""
+  subject: "ab"
+
+- id: onig-keep-sequence-quantified
+  flavor: oniguruma
+  pattern: "a(?:\\K\\K)*b"
+  flags: ""
+  subject: "ab"
+
+- id: onig-keep-flag-group-quantified
+  flavor: oniguruma
+  pattern: "a(?i:\\K)*b"
+  flags: ""
+  subject: "ab"
+
+- id: onig-anchor-flag-group-quantified
+  flavor: oniguruma
+  pattern: "a(?i:^)*b"
+  flags: ""
+  subject: "ab"
+
+- id: onig-anchor-group-quantified
+  flavor: oniguruma
+  pattern: "a(?:^)*b"
+  flags: ""
+  subject: "ab"
+
+- id: onig-anchor-branch-quantified
+  flavor: oniguruma
+  pattern: "a(?:$|x)*b"
+  flags: ""
+  subject: "ab"
+
 - id: pcre-keep
   flavor: pcre
   pattern: "foo\\Kbar"
@@ -1635,6 +1689,18 @@
   pattern: "a(?=b\\Kc)"
   flags: ""
   subject: "abc"
+
+- id: pcre-keep-quantified
+  flavor: pcre
+  pattern: "a\\K+b"
+  flags: ""
+  subject: "ab"
+
+- id: pcre-keep-group-quantified
+  flavor: pcre
+  pattern: "a(?:\\K)*b"
+  flags: ""
+  subject: "ab"
 
 - id: onig-linebreak
   flavor: oniguruma
