@@ -1,40 +1,24 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+
+	parity "github.com/fivetwenty-io/graft/tests/query-parity"
 )
 
 func TestAliasDispatch(t *testing.T) {
 	graft := buildGraftBinary(t)
 	jqLink := linkAs(t, graft, "jq")
 	spruceLink := linkAs(t, graft, "spruce")
-
-	Convey("the jq link behaves as graft jq byte for byte", t, func() {
-		for _, c := range []struct {
-			args  []string
-			stdin string
-		}{
-			{[]string{"."}, `{"a":[1,2,{"b":null}]}`},
-			{[]string{"-c", ".a[]"}, `{"a":[1,2,{"b":null}]}`},
-			{[]string{"-r", ".s"}, `{"s":"line"}`},
-			{[]string{"-n", "[1,2]|add"}, ""},
-			{[]string{"-o", "yaml", ".a"}, `{"a":{"b":[1,2]}}`},
-			{[]string{"--arg", "x", "7", "-n", "$x"}, ""},
-			{[]string{".a | error"}, `{"a":"boom"}`},
-			{[]string{"-e", ".a"}, `{"a":false}`},
-		} {
-			a := execIn(t, ".", graft, append([]string{"jq"}, c.args...), c.stdin)
-			b := execIn(t, ".", jqLink, c.args, c.stdin)
-			So(b.Stdout, ShouldEqual, a.Stdout)
-			So(b.Stderr, ShouldEqual, a.Stderr)
-			So(b.Code, ShouldEqual, a.Code)
-		}
-	})
 
 	Convey("the link composes with -m and -E as graft jq does", t, func() {
 		for _, args := range [][]string{
@@ -158,4 +142,53 @@ func TestAliasDispatch(t *testing.T) {
 		So(execIn(t, ".", spruceLink, []string{"-v"}, "").Stdout, ShouldContainSubstring, "spruce - Version")
 		So(execIn(t, ".", spruceLink, []string{"-v"}, "").Stdout, ShouldNotContainSubstring, "jq-")
 	})
+}
+
+// runLinkIn runs a case through a link to graft in a fresh copy of the
+// case directory, under the environment the goldens were recorded in. It
+// returns what the run wrote, with the copy's path written as $CASE_DIR,
+// the exit code, and the copy's path.
+func runLinkIn(t *testing.T, link string, c parityCase) (stdout, stderr string, code int, dir string) {
+	t.Helper()
+	dir = copyCase(t, c.Dir)
+	args := append(append([]string{}, c.Args...), c.GraftArgs...)
+	cmd := exec.CommandContext(context.Background(), link, args...)
+	cmd.Dir = dir
+	cmd.Env = []string{"HOME=" + dir, "TZ=UTC", "LANG=C.UTF-8", "PWD=" + dir, "PATH=/usr/bin:/bin"}
+	cmd.Stdin = bytes.NewBufferString(c.Stdin)
+	var out, errOut bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	var ee *exec.ExitError
+	if err := cmd.Run(); errors.As(err, &ee) {
+		code = ee.ExitCode()
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	scrub := func(s string) string { return strings.ReplaceAll(s, dir, caseDirMarker) }
+	return scrub(out.String()), scrub(errOut.String()), code, dir
+}
+
+func TestAliasParity(t *testing.T) {
+	jqLink := linkAs(t, buildGraftBinary(t), "jq")
+	phase := currentParityPhase(t, "jq")
+	cases := loadParityCases(t, "jq")
+	for i := range cases {
+		c := cases[i]
+		t.Run(c.Name, func(t *testing.T) {
+			Convey("the jq link matches the reference golden as graft jq does", t, func() {
+				out, errOut, code, dir := runLinkIn(t, jqLink, c)
+				problems := diffFiles(dir, c.WantFiles)
+				matched := out == c.WantStdout && code == c.WantExit && stderrMatches(c, errOut) && len(problems) == 0
+				v := parity.Evaluate(parity.Expectation{Entry: c.Name, Phase: c.Phase, Allow: allowFor(t, "jq", c.Name)}, matched, phase)
+				if v != parity.Pass && v != parity.ExpectedFail {
+					t.Logf("%s: %v\nargs: %q\nstdout: %q\nwant:   %q\nexit: %d want %d\nstderr: %q want %q\nfiles: %v",
+						c.Name, v, c.Args, out, c.WantStdout, code, c.WantExit, errOut, c.WantStderr, problems)
+				}
+				So(v, ShouldBeIn, parity.Pass, parity.ExpectedFail)
+				if v == parity.ExpectedFail && c.WantGraftStdout != "" {
+					So(out, ShouldEqual, c.WantGraftStdout)
+				}
+			})
+		})
+	}
 }
