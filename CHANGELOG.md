@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, and `graft install-aliases`, which lets graft answer to the names `jq` and `spruce`. It is the first of three jq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 87 percent overall, and the per-area figures are in [the jq guide](docs/user-guide/jq.md).
+
+### Added
+
+- `graft jq` runs a jq program over JSON or YAML from files or standard input, with jq's flags for input, output, variables, and exit status. It also reads multi-document YAML streams, prints YAML with `-o yaml`, sorts keys with `-S` and `--sort-keys=lexical|spruce|none`, and runs `graft merge` or per-document operator evaluation first with `-m` and `-E`. Errors use graft's diagnostics, and exit codes match jq's.
+
+- The `graft jq` compatibility report records 99 percent for grammar, 99 percent for builtins, 97 percent for strings, 90 percent for regular expressions, 88 percent for exit codes, 84 percent for flags and for the CLI, 80 percent for numbers, 78 percent for dates, 73 percent for math, 5 percent for modules, and 0 percent for streaming, which is 87 percent overall. Modules and streaming (`-L`, `import`, `--stream`, and `--seq`) arrive in the next phase, and until then `-L`, `--stream`, and `--seq` answer with a usage error and exit code 2.
+
+- `graft install-aliases` links `jq` and `spruce` to graft, or installs copies on Windows, and `--remove` takes them away again. A link named exactly `jq` runs `graft jq`.
+
+- `graft jq --repl` opens the debugger on the inputs, and `graft debug` gains the `jq`, `yq`, `select`, and `watch` query verbs and `break jq:` paths.
+
+- The Go packages `pkg/jq`, `pkg/query`, `pkg/query/value`, `pkg/regex`, `pkg/decimal`, and `pkg/sortkeys` are new and experimental until `graft jq` is complete, so their exported names may change between minor releases.
+
+### Changed
+
+- `graft jq` does exact decimal arithmetic, so `0.1 + 0.2` is `0.3` where jq prints `0.30000000000000004`. Passing `--float-numbers` restores jq's arithmetic.
+
+### Documentation
+
+- New user guide pages describe [graft jq](docs/user-guide/jq.md) and [aliases](docs/user-guide/aliases.md), and the release notes explain how to use graft as `jq`.
+
 ## [1.42.5] - 2026-10-21
 
 This release moves the build to Go 1.27.3 with updated dependencies and changes no behavior.

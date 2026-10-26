@@ -86,6 +86,12 @@ Use graft to:
   byte-identical repeat merges near-instantly
   ([details](docs/features/extras.md#caching))
 
+- **Built-In jq**
+
+  `graft jq` runs jq programs over JSON and YAML with graft's own engine,
+  and a link named `jq` makes graft answer to jq's name
+  ([details](docs/user-guide/jq.md))
+
 - **Embeddable Go Library**
 
   `pkg/graft` - embed configuration merging in your applications
@@ -186,6 +192,10 @@ Comprehensive documentation is available in the [docs/](docs/) directory:
 - **[Getting Started](docs/getting-started/)**
 
   Installation, quick start tutorial, and Spruce migration guide
+
+- **[jq and aliases](docs/user-guide/jq.md)**
+
+  Running jq programs with `graft jq`, and `graft install-aliases` for the `jq` and `spruce` names
 
 - **[User Guide](docs/user-guide/)**
 

@@ -25,6 +25,21 @@ Complete reference for all command-line operations.
 - [vaultinfo](cli/vaultinfo.md) - List Vault references
 - [debug](cli/debug.md) - Interactive step-through merge REPL
 
+### [jq](jq.md)
+
+Run jq programs over JSON and YAML, with a merge first if we want one.
+
+- `graft jq` with jq's flags, plus `-o yaml`, `-S`, `-m`, and `-E`
+- Exit codes, diagnostics, and the departures from jq
+- Measured compatibility with jq 1.8.2
+
+### [Aliases](aliases.md)
+
+Run graft under the names `jq` and `spruce`.
+
+- `ln -s` and `graft install-aliases`
+- Windows copies and removal
+
 ### [Operators](operators/)
 
 All 48 registered operators, plus the control-flow keywords.

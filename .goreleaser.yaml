@@ -247,3 +247,14 @@ release:
     # spruce - Version {{ .Version }}
     # graft version {{ .Version }} (commit: {{ .ShortCommit }}, built: ..., go: ..., os/arch: ...)
     ```
+
+    ### Using graft as jq (optional)
+
+    `graft jq` runs jq programs over JSON and YAML. A link named `jq`
+    runs it under jq's own name, and `graft install-aliases` makes the
+    links for `jq` and `spruce` in one step:
+
+    ```bash
+    graft install-aliases --dir /usr/local/bin
+    jq '.items[].name' config.yml
+    ```
