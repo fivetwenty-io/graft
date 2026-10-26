@@ -1,0 +1,186 @@
+package main
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/pkg/graft"
+)
+
+// composedName is the name a composed input goes by in error locations
+// and input_filename.
+const composedName = "<merged>"
+
+// engineOptions are the options the engine is built with, which the
+// root's config loading produces.
+type engineOptions = []graft.EngineOption
+
+// composeContext is everything composeQueryInputs needs to run graft's
+// merge and eval passes ahead of a query.
+type composeContext struct {
+	Stdin  io.Reader
+	Merge  mergeOpts
+	Engine engineOptions
+	Eval   bool
+}
+
+// newComposeContext builds the context a parsed command line asks for,
+// where the merge options come from the command's pass-through flags.
+func newComposeContext(opts jqOptions, stdin io.Reader, engine engineOptions) composeContext {
+	for _, skip := range []struct {
+		set bool
+		opt graft.EngineOption
+	}{
+		{opts.SkipVault, graft.WithSkipVault(true)},
+		{opts.SkipAws, graft.WithSkipAws(true)},
+		{opts.SkipNats, graft.WithSkipNats(true)},
+	} {
+		if skip.set {
+			engine = append(engine[:len(engine):len(engine)], skip.opt)
+		}
+	}
+	return composeContext{
+		Stdin: stdin,
+		Merge: mergeOpts{
+			SkipEval:       opts.SkipEval,
+			Prune:          opts.Prune,
+			CherryPick:     opts.CherryPick,
+			FallbackAppend: opts.FallbackAppend,
+			EnableGoPatch:  opts.GoPatch,
+			MultiDoc:       opts.MultiDoc,
+			EngineOpts:     engine,
+		},
+		Engine: engine,
+		Eval:   opts.Eval,
+	}
+}
+
+// validateComposeFlags refuses the combinations of composition flags that
+// have no meaning.
+func validateComposeFlags(o jqOptions) error {
+	if o.Merge && o.Eval {
+		return &usageError{Msg: "-m and -E cannot be combined"}
+	}
+	if o.Merge || o.Eval {
+		return nil
+	}
+	for _, passed := range []struct {
+		set  bool
+		flag string
+	}{
+		{len(o.Prune) > 0, "--prune"},
+		{len(o.CherryPick) > 0, "--cherry-pick"},
+		{o.SkipEval, "--skip-eval"},
+		{o.FallbackAppend, "--fallback-append"},
+		{o.GoPatch, "--go-patch"},
+		{o.MultiDoc, "--multi-doc"},
+		{o.SkipVault, "--skip-vault"},
+		{o.SkipAws, "--skip-aws"},
+		{o.SkipNats, "--skip-nats"},
+	} {
+		if passed.set {
+			return &usageError{Msg: passed.flag + " needs -m or -E"}
+		}
+	}
+	return nil
+}
+
+// composeQueryInputs runs the merge, or under Eval the eval of each
+// document on its own, over files and returns the YAML a query then reads.
+// A failure comes back as the text to print on stderr and the exit code.
+func composeQueryInputs(cc composeContext, files []string) (merged []byte, errText []byte, code int) {
+	if len(files) == 0 {
+		files = []string{"-"}
+	}
+	var sources [][]YamlFile
+	for _, file := range files {
+		docs, err := cc.load(file)
+		if err != nil {
+			return nil, []byte(err.Error() + "\n"), 2
+		}
+		sources = append(sources, docs)
+	}
+
+	opts := cc.Merge
+	if cc.Eval {
+		var out [][]byte
+		for _, docs := range sources {
+			for _, doc := range docs {
+				text, err := cc.render([]YamlFile{doc}, &opts)
+				if err != nil {
+					return nil, []byte(err.Error() + "\n"), 2
+				}
+				out = append(out, text)
+			}
+		}
+		return bytes.Join(out, []byte("---\n")), nil, 0
+	}
+
+	var all []YamlFile
+	for _, docs := range sources {
+		all = append(all, docs...)
+	}
+	text, err := cc.render(all, &opts)
+	if err != nil {
+		return nil, []byte(err.Error() + "\n"), 2
+	}
+	return text, nil, 0
+}
+
+// render merges docs and writes the result as YAML without a document
+// start.
+func (cc composeContext) render(docs []YamlFile, opts *mergeOpts) ([]byte, error) {
+	tree, _, err := mergeAllDocs(docs, opts)
+	if err != nil {
+		return nil, err
+	}
+	out, rc := marshalMergedDocument(tree, "", true, opts.keyLess())
+	if rc != 0 {
+		return nil, errors.New("unable to render the merged result")
+	}
+	return out, nil
+}
+
+// load reads one file, or stdin for "-", as the documents it holds. A
+// file is one document unless it is being split, which Eval and
+// --multi-doc both do.
+func (cc composeContext) load(file string) ([]YamlFile, error) {
+	var data []byte
+	var err error
+	path := file
+	if file == "-" {
+		path = stdinPath
+		data, err = io.ReadAll(cc.Stdin)
+		if err != nil {
+			return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s", path, err.Error())
+		}
+		if len(data) == 0 {
+			return nil, ansi.Errorf("@R{Error reading STDIN}: no data found. Did you forget to pipe data to STDIN, or specify yaml files to merge?")
+		}
+	} else if data, err = os.ReadFile(file); err != nil { // #nosec G304 -- the user names the input files
+		return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s", file, err.Error())
+	}
+	if !cc.Eval && !cc.Merge.MultiDoc {
+		return []YamlFile{{Path: path, Reader: io.NopCloser(bytes.NewReader(data))}}, nil
+	}
+	return splitYamlBytes(path, data), nil
+}
+
+// splitYamlBytes splits data into its documents the way --multi-doc does.
+func splitYamlBytes(path string, data []byte) []YamlFile {
+	raw := bytes.Split(data, []byte("\n---\n"))
+	// An empty first document is the separator at the top of the file,
+	// which would shift the indexes error messages name.
+	if len(raw[0]) == 0 {
+		raw = raw[1:]
+	}
+	docs := make([]YamlFile, 0, len(raw))
+	for i, doc := range raw {
+		docs = append(docs, YamlFile{Path: fmt.Sprintf("%s[%d]", path, i), Reader: io.NopCloser(bytes.NewReader(doc))})
+	}
+	return docs
+}

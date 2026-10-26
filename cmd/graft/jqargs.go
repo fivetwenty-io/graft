@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/jq"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 	"github.com/fivetwenty-io/graft/pkg/sortkeys"
@@ -53,6 +54,25 @@ type jqOptions struct {
 	LibraryPaths []string                // -L
 	Files        []string
 
+	// Engine is the engine options for -m and -E, which the command fills
+	// in from the root's config before it runs.
+	Engine []graft.EngineOption
+
+	// Composition. -m merges every input before the program runs, and -E
+	// resolves each input document on its own. The rest are graft
+	// merge's own flags, which both modes pass through to the merge.
+	Merge          bool     // -m, --merge
+	Eval           bool     // -E, --eval
+	Prune          []string // --prune
+	CherryPick     []string // --cherry-pick
+	SkipEval       bool     // --skip-eval
+	FallbackAppend bool     // --fallback-append
+	GoPatch        bool     // --go-patch
+	MultiDoc       bool     // --multi-doc
+	SkipVault      bool     // --skip-vault
+	SkipAws        bool     // --skip-aws
+	SkipNats       bool     // --skip-nats
+
 	// Modes that replace a normal run.
 	ExitStatus   bool   // -e
 	Help         bool   // -h
@@ -83,6 +103,9 @@ const (
 	jqFormatJSON = "json"
 	jqFormatYAML = "yaml"
 )
+
+// jqEvalFlag is --eval, which shares its name with a graft command.
+const jqEvalFlag = "eval"
 
 // jqHelpFlag is --help, which graft jq reads as jq does rather than
 // through cobra.
@@ -121,6 +144,8 @@ var jqShortFlags = map[byte]func(*jqOptions){
 	'S': func(o *jqOptions) { o.SortKeys = sortkeys.Lexical },
 	'R': func(o *jqOptions) { o.RawInput = true },
 	'n': func(o *jqOptions) { o.NullInput = true },
+	'm': func(o *jqOptions) { o.Merge = true },
+	'E': func(o *jqOptions) { o.Eval = true },
 	'f': func(o *jqOptions) { o.FromFile = true },
 	'e': func(o *jqOptions) { o.ExitStatus = true },
 	'h': func(o *jqOptions) { o.Help = true },
@@ -151,6 +176,15 @@ var jqLongFlags = map[string]func(*jqOptions){
 	"version":           func(o *jqOptions) { o.Version = true },
 	"repl":              func(o *jqOptions) { o.Repl = true },
 	"float-numbers":     func(o *jqOptions) { o.FloatNumbers = true },
+	"merge":             func(o *jqOptions) { o.Merge = true },
+	jqEvalFlag:          func(o *jqOptions) { o.Eval = true },
+	"skip-eval":         func(o *jqOptions) { o.SkipEval = true },
+	"fallback-append":   func(o *jqOptions) { o.FallbackAppend = true },
+	"go-patch":          func(o *jqOptions) { o.GoPatch = true },
+	"multi-doc":         func(o *jqOptions) { o.MultiDoc = true },
+	"skip-vault":        func(o *jqOptions) { o.SkipVault = true },
+	"skip-aws":          func(o *jqOptions) { o.SkipAws = true },
+	"skip-nats":         func(o *jqOptions) { o.SkipNats = true },
 }
 
 // jqLongValueFlags are the long options that read the arguments after
@@ -172,6 +206,8 @@ var jqLongValueFlags = map[string]func(*jqParser) error{
 	"jsonargs":     func(p *jqParser) error { p.stringArgs, p.jsonArgs = false, true; return nil },
 	"run-tests":    (*jqParser).runTests,
 	"input-format": (*jqParser).inputFormat,
+	"prune":        func(p *jqParser) error { return p.mergeKeys("prune", &p.o.Prune) },
+	"cherry-pick":  func(p *jqParser) error { return p.mergeKeys("cherry-pick", &p.o.CherryPick) },
 }
 
 // jqParser is the state of one parseJQArgs run.
@@ -384,6 +420,16 @@ func (p *jqParser) runTests() error {
 	return nil
 }
 
+// mergeKeys reads --prune or --cherry-pick, each of which names one key
+// path and may be given more than once.
+func (p *jqParser) mergeKeys(name string, into *[]string) error {
+	vals, err := p.need(1, "--"+name+" takes a parameter")
+	if err == nil {
+		*into = append(*into, vals[0])
+	}
+	return err
+}
+
 func (p *jqParser) inputFormat() error {
 	vals, err := p.need(1, "--input-format takes a parameter (auto, json, or yaml)")
 	if err != nil {
@@ -407,6 +453,12 @@ func (p *jqParser) longWithValue(name string) error {
 		return nil
 	case key == "input-format" && hasVal:
 		return p.o.setInputFormat(val)
+	case key == "prune" && hasVal:
+		p.o.Prune = append(p.o.Prune, val)
+		return nil
+	case key == "cherry-pick" && hasVal:
+		p.o.CherryPick = append(p.o.CherryPick, val)
+		return nil
 	}
 	takesValue, isRoot := rootFlagTakesValue[key]
 	if p.persona != personaGraft || !isRoot {

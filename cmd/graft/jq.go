@@ -123,6 +123,9 @@ func jqArgsError(err error) query.Status {
 // layout flags that describe JSON text under -o yaml, before any input is
 // read.
 func checkJQOptions(opts jqOptions) error {
+	if err := validateComposeFlags(opts); err != nil {
+		return err
+	}
 	for _, deferred := range []struct {
 		set  bool
 		flag string
@@ -193,11 +196,34 @@ type jqInputs struct {
 
 	// Under -s, whether the slurped value has been read.
 	slurped bool
+
+	// composed is the YAML that graft's merge or eval passes produced,
+	// which stands in for the input files when it is set.
+	composed []byte
+}
+
+// compose runs the merge or eval pass a command line asks for and makes
+// its result the only input. It returns the status to end with when the
+// pass fails.
+func (in *jqInputs) compose(stdin io.Reader) *query.Status {
+	if !in.opts.Merge && !in.opts.Eval {
+		return nil
+	}
+	merged, errText, code := composeQueryInputs(newComposeContext(in.opts, stdin, in.opts.Engine), in.opts.Files)
+	if code != 0 {
+		_, _ = in.stderr.Write(errText)
+		return &query.Status{Code: code}
+	}
+	in.composed, in.files = merged, []string{composedName}
+	return nil
 }
 
 // decodeOptions is how every input source decodes.
 func (in *jqInputs) decodeOptions() jq.DecodeOptions {
 	format := jq.FormatAuto
+	if in.composed != nil {
+		return jq.DecodeOptions{Format: jq.FormatYAML, Raw: in.opts.RawInput}
+	}
 	switch in.opts.InputFormat {
 	case jqFormatJSON:
 		format = jq.FormatJSON
@@ -211,6 +237,9 @@ func (in *jqInputs) decodeOptions() jq.DecodeOptions {
 func (in *jqInputs) open() (*jqInput, bool) {
 	path := in.files[in.next]
 	in.next++
+	if in.composed != nil {
+		return &jqInput{name: path, dec: jq.NewDecoder(bytes.NewReader(in.composed), in.decodeOptions())}, true
+	}
 	if path == "-" {
 		return &jqInput{name: "<stdin>", dec: jq.NewDecoder(in.stdin, in.decodeOptions())}, true
 	}
@@ -454,6 +483,9 @@ func handleJQ(opts jqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 		files = []string{"-"}
 	}
 	in := &jqInputs{opts: opts, stdin: stdin, stderr: stderr, files: files}
+	if st := in.compose(stdin); st != nil {
+		return *st
+	}
 	defer in.close()
 
 	q, err := jq.Compile(program, jqCompileOptions(opts, in, origin, stderr)...)
@@ -707,6 +739,9 @@ func newJQCmdFor(pers persona) *cobra.Command {
 			} else {
 				opts.Theme, _, _ = resolveTheme(cmd, false, themeNameAuto)
 			}
+			if opts.Merge || opts.Eval {
+				opts.Engine = composeEngineOpts(cmd)
+			}
 			st := handleJQ(opts, os.Stdin, jqStdout{}, jqStderr{})
 			if st.Message != "" {
 				log.PrintStdErrf("%s", st.Message)
@@ -717,6 +752,20 @@ func newJQCmdFor(pers persona) *cobra.Command {
 	}
 	cmd.SetHelpFunc(func(c *cobra.Command, a []string) { jqHelp(c, a, pers) })
 	return cmd
+}
+
+// composeEngineOpts are the engine options the root's config loading
+// produces, which graft jq needs for -m and -E as graft merge does.
+func composeEngineOpts(cmd *cobra.Command) engineOptions {
+	path := ""
+	if f := cmd.Root().PersistentFlags().Lookup("config"); f != nil {
+		path = f.Value.String()
+	}
+	cfg, err := resolveStartupConfig(path)
+	if err != nil {
+		cfg = nil
+	}
+	return configEngineOpts(cfg, resolveStartupFeatureFlags())
 }
 
 // jqFlagsHelp summarizes the flags graft jq reads after the verb.
@@ -745,6 +794,13 @@ const jqFlagsHelp = `Flags:
       --rawfile NAME FILE     bind $NAME to the text of FILE
       --args                  read the remaining arguments as positional strings
       --jsonargs              read the remaining arguments as positional JSON texts
+  -m, --merge                 merge every input with graft merge before the program runs
+  -E, --eval                  resolve each input document on its own before the program runs
+      --prune KEY             with -m or -E, prune KEY from the result (repeatable)
+      --cherry-pick KEY       with -m or -E, keep only KEY in the result (repeatable)
+      --skip-eval, --fallback-append, --go-patch, --multi-doc, --skip-vault,
+      --skip-aws, --skip-nats
+                              with -m or -E, as graft merge reads them
   -e, --exit-status           exit 1 when the last output is false or null, and 4 when there is none
       --run-tests [FILE]      run the jq test cases in FILE, or on stdin
   -h, --help                  print this help
