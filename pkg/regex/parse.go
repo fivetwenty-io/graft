@@ -684,7 +684,7 @@ func (p *parser) groupName(term byte) (string, error) {
 			return "", p.errorAt(start, "syntax error in subpattern name (missing terminator?)")
 		}
 	}
-	if slices.Contains(p.names, name) {
+	if p.cfg.flavor == PCRE && slices.Contains(p.names, name) {
 		return "", p.errorAt(start, "two named subpatterns have the same name")
 	}
 	p.pos = start + end + 1
@@ -893,18 +893,27 @@ func (p *parser) numberedRef(start, n int) *node {
 
 // namedRef builds a reference to the group called name. PCRE lets the
 // group come later in the pattern, and Oniguruma wants it defined first.
+// Oniguruma also lets groups share a name, and a reference to a shared
+// name tries the last of its groups first and then each earlier one.
 func (p *parser) namedRef(start int, name string) (*node, error) {
-	ref := &node{kind: kindBackref, fold: p.has(IgnoreCase), max: unbounded}
-	i := slices.Index(p.names, name)
+	var refs []*node
+	for i := len(p.names) - 1; i > 0; i-- {
+		if p.names[i] == name {
+			ref := &node{kind: kindBackref, index: i, fold: p.has(IgnoreCase), max: unbounded}
+			p.bind(ref)
+			refs = append(refs, ref)
+		}
+	}
 	switch {
-	case i > 0:
-		ref.index = i
-		p.bind(ref)
+	case len(refs) == 1:
+		return refs[0], nil
+	case len(refs) > 1:
+		return &node{kind: kindAlternate, subs: refs}, nil
 	case p.cfg.flavor == Oniguruma:
 		return nil, p.errorAt(start, "undefined name <"+name+"> reference")
-	default:
-		p.pending = append(p.pending, pendingRef{n: ref, pos: start, name: name})
 	}
+	ref := &node{kind: kindBackref, fold: p.has(IgnoreCase), max: unbounded}
+	p.pending = append(p.pending, pendingRef{n: ref, pos: start, name: name})
 	return ref, nil
 }
 

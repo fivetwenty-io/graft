@@ -120,6 +120,13 @@ func TestProgramSizeEstimateIsExact(t *testing.T) {
 			}
 		}
 	}
+	shared := `(?<n>a)(?<n>b)\k<n>`
+	cfg := newConfig([]Option{WithFlavor(Oniguruma)})
+	n, _, err := parse(shared, cfg)
+	wantNil(t, err)
+	if got, want := programSize(lower(n, cfg), cfg.budget.MaxInstructions)+3, len(MustCompile(shared, WithFlavor(Oniguruma)).prog); got != want {
+		t.Errorf("%q: estimated %d instructions, emitted %d", shared, got, want)
+	}
 }
 
 // TestLargePatternsCompileCheaply pins that a pattern within the length

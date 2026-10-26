@@ -302,6 +302,18 @@ func TestBackreferences(t *testing.T) {
 		wantEqual(t, u.Construct, construct)
 	}
 
+	// Oniguruma lets groups share a name, and a reference to the name
+	// tries the last of them first and then each earlier one.
+	shared := MustCompile(`(?<a>x)|(?<a>y)`, onig)
+	wantEqual(t, shared.GroupNames(), []string{"", "a", "a"})
+	wantEqual(t, groups(t, shared, "y"), []string{"y", "-", "y"})
+	wantText(t, MustCompile(`(?<a>x)(?<a>y)\k<a>`, onig), "xyy", "xyy")
+	wantText(t, MustCompile(`(?<a>x)(?<a>y)\k<a>`, onig), "xyx", "xyx")
+	wantNoMatch(t, MustCompile(`(?<a>x)(?<a>y)\k<a>`, onig), "xyz")
+	wantText(t, MustCompile(`(?<a>a)(?<a>\k<a>)`, onig), "aa", "aa")
+	wantText(t, MustCompile(`(?<a>x)(?<a>y)(?i)\k<a>`, onig), "xyY", "xyY")
+	wantSyntaxError(t, `(?<n>a)(?<n>b)`, 10, "two named subpatterns have the same name")
+
 	// A reference inside the group it names sees the group's last
 	// complete capture under PCRE, and fails under Oniguruma, where the
 	// group is still open.

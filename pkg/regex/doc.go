@@ -66,7 +66,9 @@ Backreferences \1 through \9, longer numbers that name a group, \k<name>,
 and \k'name' are supported. PCRE also takes \k{name}, \g with a number or
 a braced name, and (?P=name), and resolves a name defined later in the
 pattern. Oniguruma also takes \k<n>, \k<-n>, and \k<+n>, and wants a
-name defined before its reference. A reference to a group that has not
+name defined before its reference. Oniguruma lets several groups share a
+name, and a reference to that name tries the last of them first and then
+each earlier one, while PCRE refuses a repeated name. A reference to a group that has not
 captured fails, and one to a group that does not exist is a SyntaxError. A
 reference compares case by the IgnoreCase setting in force where it
 stands. A reference inside the group it names fails under Oniguruma, and
