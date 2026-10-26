@@ -35,6 +35,7 @@ func registry() *runtime.Registry {
 			panic("yq: prelude does not parse: " + err.Error())
 		}
 		r.AddPrelude(prog)
+		addOps(r)
 		reg = r
 		rootEnv = eval.NewEnv(r)
 	})

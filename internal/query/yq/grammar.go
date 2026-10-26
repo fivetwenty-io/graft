@@ -37,7 +37,7 @@ func Parse(expr string) (ast.Node, error) {
 	}
 	n, err := parser.Parse(expr, Grammar())
 	if err == nil {
-		return n, nil
+		return rewrite(expr, n)
 	}
 	var pe *parser.Error
 	if !errors.As(err, &pe) {

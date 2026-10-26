@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/query/ast"
 	"github.com/fivetwenty-io/graft/internal/query/load"
 	"github.com/fivetwenty-io/graft/internal/query/parser"
+	"github.com/fivetwenty-io/graft/internal/query/runtime"
 	"github.com/fivetwenty-io/graft/internal/query/yamlout"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
@@ -83,9 +86,18 @@ func runYQ(t *testing.T, opts Options, expr, in string, all bool) (string, error
 	return buf.String(), err
 }
 
+// testOpts lets the tests read the environment and files, as yq does by
+// default.
+var testOpts = Options{Caps: runtime.Capabilities{Env: true, Files: true}}
+
 func wantYQ(t *testing.T, expr, in, want string) {
 	t.Helper()
-	got, err := runYQ(t, Options{}, expr, in, false)
+	wantYQOpts(t, testOpts, expr, in, want)
+}
+
+func wantYQOpts(t *testing.T, opts Options, expr, in, want string) {
+	t.Helper()
+	got, err := runYQ(t, opts, expr, in, false)
 	if err != nil {
 		t.Fatalf("%s on %q: %v", expr, in, err)
 	}
@@ -96,7 +108,7 @@ func wantYQ(t *testing.T, expr, in, want string) {
 
 func wantYQAll(t *testing.T, expr, in, want string) {
 	t.Helper()
-	got, err := runYQ(t, Options{}, expr, in, true)
+	got, err := runYQ(t, testOpts, expr, in, true)
 	if err != nil {
 		t.Fatalf("eval-all %s on %q: %v", expr, in, err)
 	}
@@ -109,9 +121,25 @@ func wantYQAll(t *testing.T, expr, in, want string) {
 // ends the run.
 func wantYQError(t *testing.T, expr, in, want string) {
 	t.Helper()
-	_, err := runYQ(t, Options{}, expr, in, false)
+	wantYQErrorOpts(t, testOpts, expr, in, want)
+}
+
+func wantYQErrorOpts(t *testing.T, opts Options, expr, in, want string) {
+	t.Helper()
+	_, err := runYQ(t, opts, expr, in, false)
 	if err == nil {
 		t.Fatalf("%s on %q: no error, want %q", expr, in, want)
 	}
-	wantEqual(t, New(Options{}).FormatError(err), want)
+	wantEqual(t, New(opts).FormatError(err), want)
+}
+
+// writeTemp writes content to a new file that lasts as long as the test
+// and gives its path.
+func writeTemp(t *testing.T, content string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
 }

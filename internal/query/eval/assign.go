@@ -59,9 +59,17 @@ func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Pat
 			}
 			// Tracking cursors, the result stands in for its root, so it
 			// is a root of its own rather than a value built from nothing.
+			// A root below a document's root changes in place, as yq's
+			// nodes do, so the result sits where its root sat in the
+			// document with the change made.
 			var op value.Path
 			if ev.derives() {
 				op = runtime.Rooted(out, doc, nil)
+				if top, _, rel := runtime.Unroot(rp); top != nil && len(rel) > 0 {
+					if changed, ok := replaceAt(top, rel, out); ok {
+						op = runtime.Rooted(changed, doc, rel)
+					}
+				}
 			}
 			if err := emit(out, op); err != nil {
 				return err
@@ -124,4 +132,51 @@ func (ev evaluator) seq(n ast.Node, env *Env, cur *value.Value, at value.Path) i
 			yield(nil, unwrapDownstream(err))
 		}
 	}
+}
+
+// replaceAt returns root with v in place of the value at path, adding a
+// key a map or null on the way lacks. It reports false for a path it
+// cannot follow, such as one past the end of a sequence or to a key.
+func replaceAt(root *value.Value, path value.Path, v *value.Value) (*value.Value, bool) {
+	if len(path) == 0 {
+		return v, true
+	}
+	k := path[0]
+	if k == runtime.KeyMark {
+		return nil, false
+	}
+	switch {
+	case root.Kind() == value.KindNull && k.Kind() == value.KindString:
+		c, ok := replaceAt(value.Null(), path[1:], v)
+		if !ok {
+			return nil, false
+		}
+		return value.Obj(value.Pair{Key: k.Str(), Value: c}), true
+	case root.Kind() == value.KindObject && k.Kind() == value.KindString:
+		cur, found := root.Get(k.Str())
+		if !found {
+			cur = value.Null()
+		}
+		c, ok := replaceAt(cur, path[1:], v)
+		if !ok {
+			return nil, false
+		}
+		return root.Set(k.Str(), c), true
+	case root.Kind() == value.KindArray && k.Kind() == value.KindNumber:
+		i := int(k.Float())
+		if i < 0 {
+			i += root.Len()
+		}
+		cur, found := root.Index(i)
+		if !found {
+			return nil, false
+		}
+		c, ok := replaceAt(cur, path[1:], v)
+		if !ok {
+			return nil, false
+		}
+		return root.SetIndex(i, c), true
+	default:
+	}
+	return nil, false
 }

@@ -50,9 +50,18 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 	}
 	r := registry()
 	prog := eval.NewProgram(node, rootEnv, r)
+	split := 0
 	return prog.Run(ctx, prog.Env, roots, func(v *value.Value, p value.Path) error {
 		doc := docs[0]
-		if _, i, _ := runtime.Unroot(p); i < len(docs) {
+		switch _, i, _ := runtime.Unroot(p); {
+		case i == splitDoc:
+			// split_doc puts each output in a document of its own.
+			doc.DocIndex = split
+			if split > 0 {
+				doc.LeadingContent = ""
+			}
+			split++
+		case i < len(docs):
 			doc = docs[i]
 		}
 		return emit(doc, v)
