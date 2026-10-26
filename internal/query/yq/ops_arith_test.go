@@ -141,3 +141,12 @@ func TestYQCustomTagArithmetic(t *testing.T) {
 	wantYQ(t, `.a % 5`, in, "1\n")
 	wantYQ(t, `.a + 1.5`, in, "42.5\n")
 }
+
+func TestYQCustomTagDivideByZeroAndOrder(t *testing.T) {
+	in := "n: !foo 5\nr: !foo -5\n"
+	wantYQ(t, `.n / 0`, in, "+Inf\n")
+	wantYQ(t, `.r / 0`, in, "-Inf\n")
+	wantYQ(t, `.n > 3`, in, "true\n")
+	wantYQ(t, `.n < 3`, in, "false\n")
+	wantYQ(t, `.n >= 5`, in, "true\n")
+}

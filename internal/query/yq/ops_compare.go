@@ -54,6 +54,10 @@ func yqOrder(ctx *runtime.Ctx, op string, l, r *value.Value) (bool, error) {
 		c = ctx.Compare(l, r)
 	case l.Kind() == value.KindString && r.Kind() == value.KindString:
 		c = strings.Compare(l.Str(), r.Str())
+	case customNumbers(l, r):
+		ln, _ := asNumber(l)
+		rn, _ := asNumber(r)
+		c = ctx.Compare(ln, rn)
 	default:
 		return false, fmt.Errorf("%s not yet supported for comparison", tagOf(l))
 	}

@@ -125,6 +125,13 @@ func retagCustom(l, v *value.Value) *value.Value {
 	}
 	m := metaOf(l)
 	m.Text = numberText(v)
+	switch f := v.Float(); {
+	case math.IsInf(f, 1):
+		m.Text = "+Inf"
+	case math.IsInf(f, -1):
+		m.Text = "-Inf"
+	default:
+	}
 	out := v
 	if l.Kind() == value.KindString {
 		out = value.Str(m.Text)
