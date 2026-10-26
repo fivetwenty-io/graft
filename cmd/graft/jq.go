@@ -798,7 +798,7 @@ const jqFlagsHelp = `Flags:
       --indent N              indent with N spaces, from 0 to 7
       --unbuffered            write each output as soon as it is produced
       --float-numbers         do arithmetic in doubles, as jq does
-      --depth-limit N         bound call and input nesting (default 10000)
+      --depth-limit N         bound call and input-file nesting (default 10000)
   -f, --from-file FILE        read the program from FILE
       --arg NAME VALUE        bind $NAME to the string VALUE
       --argjson NAME TEXT     bind $NAME to the JSON or YAML value TEXT

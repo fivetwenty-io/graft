@@ -367,7 +367,8 @@ func (p *jqParser) indent() error {
 }
 
 // depthLimit reads --depth-limit N, the bound on call nesting and on input
-// nesting together.
+// nesting together. The values --argjson, --slurpfile, and --rawfile read
+// are decoded as their options are met, so they keep the default bound.
 func (p *jqParser) depthLimit() error {
 	const usage = "--depth-limit takes a positive number"
 	vals, err := p.need(1, usage)

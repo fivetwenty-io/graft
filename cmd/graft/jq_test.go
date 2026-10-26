@@ -385,5 +385,8 @@ func TestJQDepthLimitFlag(t *testing.T) {
 		out, _, st := runJQ(t, []string{"--depth-limit", "3", "-c", "."}, "[[1]]")
 		So(st.Code, ShouldEqual, 0)
 		So(out, ShouldEqual, "[[1]]\n")
+		out, _, st = runJQ(t, []string{"--depth-limit", "3", "-c", "."}, "[[[1]]]")
+		So(st.Code, ShouldEqual, 0)
+		So(out, ShouldEqual, "[[[1]]]\n")
 	})
 }
