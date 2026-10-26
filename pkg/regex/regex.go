@@ -200,6 +200,7 @@ type Pattern struct {
 	nslots   int      // capture slots followed by loop marks
 	anchored bool     // every match starts at the start of the subject
 	lead     *inst    // the loop over one rune a pattern leads with, after whose refused runes a search restarts
+	absent   int      // the pc of the absent operator a pattern leads with, after where it stops a search restarts, or -1
 	required string   // text every match holds, which a subject must contain to match
 }
 
@@ -229,9 +230,15 @@ func Compile(pattern string, opts ...Option) (*Pattern, error) {
 		names:    names,
 		nslots:   nslots,
 		anchored: anchoredAtStart(root),
+		absent:   -1,
 	}
 	if !cfg.plain {
 		p.lead, p.required = leadingLoop(root), requiredText(root)
+		if leadingAbsent(root) {
+			// Only the saves that open its groups come before it, so the
+			// leading absent operator is the program's first.
+			p.absent = slices.IndexFunc(prog, func(in inst) bool { return in.op == opAbsent })
+		}
 	}
 	return p, nil
 }

@@ -157,6 +157,7 @@ var shortcutPatterns = []string{
 	`é*e`, `\x{1F600}*\x{1F600}`, `ß*s`, `(?i)ß*s`, `(?i)s*ß`, `[à-ÿ]+x`, `\x{FFFD}*x`, `\x{FFFD}`, `\xff*`,
 	`(a*)(x)`, `(?:a*)+x`, `[ab]*b`, `a{1,3}ab`, `(?<n>a*)x\g<n>`, `(?<n>x(?:a|\g<n>)*b)`, `.*(?:x|y)`,
 	`a*[bc]`, `a*?[bc]`, `(?i)a*b`, `[^b]*?b`, `a{2,}b`, `(a+)b`, `[ab]+?x`, `é+x`,
+	`(?~b)x`, `(?~ab)x`, `((?~b))x`, `(?~x)`, `(?~\n)x`, `(?~(?<=a)b)x`, `(?~b)(?~a)x`, `((?~b))\1x`, `(?~$)x`,
 	`abc`, `a.c`, `ab(?=c)cd`, `(?<=ab)c`, `a\bb`, `foo|foo`, `foo|bar`, `(ab){2}c`, `(ab){2,}c`, `x(ab)?y`,
 	`(?i)abc`, `(?i:a)bc`, `a(?i)bc`, `(a)\1x`, `(?=x)`, `(?!x).*`, `\Ax*`, `x*\z`, `x*\Z`, `^$`, `$`,
 }
@@ -385,6 +386,33 @@ func TestLeadingLoopSkipsStarts(t *testing.T) {
 		{`(?i)a*[bc]`, as + "xb", true},
 		{`[ab]*c`, strings.Repeat("ab", 500_000) + "xc", true},
 		{`a{2,}b`, as + "xab", false},
+	} {
+		ok, steps, _ := pinSearch(t, c.pattern, c.subject)
+		if ok != c.want {
+			t.Errorf("%s against %d runes: matched %v, want %v", c.pattern, len(c.subject), ok, c.want)
+		}
+		if steps > defaultSteps/2 {
+			t.Errorf("%s against %d runes took %d steps", c.pattern, len(c.subject), steps)
+		}
+	}
+}
+
+// A pattern that leads with an absent operator, such as (?~b)[cd], fails
+// at every start up to where the operator stopped taking runes once it
+// fails at the first, so a search retries only after that place, and a
+// long stretch without the absent costs steps in proportion to the
+// stretch rather than to its square.
+func TestLeadingAbsentSkipsStarts(t *testing.T) {
+	as := strings.Repeat("a", 500_000)
+	for _, c := range []struct {
+		pattern, subject string
+		want             bool
+	}{
+		{`(?~b)[cd]`, as, false},
+		{`(?~b)[cd]`, as + "bc", true},
+		{`((?~bb))c`, as + "bbac", true},
+		{`(?~b|x)[cd]`, as + "xd", true},
+		{`(?~(?<=a)b)c`, as, false},
 	} {
 		ok, steps, _ := pinSearch(t, c.pattern, c.subject)
 		if ok != c.want {

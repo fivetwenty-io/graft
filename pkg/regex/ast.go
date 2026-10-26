@@ -282,6 +282,32 @@ func anchoredAtStart(n *node) bool {
 // way. A search for such a pattern need only retry after each rune the
 // loop refuses.
 func leadingLoop(n *node) *inst {
+	n = leader(n)
+	if n == nil || n.kind != kindRepeat {
+		return nil
+	}
+	one, ok := oneRune(n.subs[0])
+	if n.max != unbounded || !ok {
+		return nil
+	}
+	return &inst{op: opCount, body: one.op, r: one.r, set: one.set, lo: n.min, hi: n.max, greedy: n.greedy, peek: -1}
+}
+
+// leadingAbsent reports whether n starts with an absent operator and holds
+// no backreference. Whether the absent matches at a position then depends
+// on that position alone, so the operator from a later start up to where
+// it stopped from p stops at the same place, and gives back a part of the
+// runes it gave back from p. When a run from p fails, so does a run from
+// any of those starts, and a search need only retry after that place.
+func leadingAbsent(n *node) bool {
+	n = leader(n)
+	return n != nil && n.kind == kindAbsent
+}
+
+// leader returns the node n starts with, past the concatenations and the
+// groups that open it, or nil when n starts with nothing or holds a
+// backreference.
+func leader(n *node) *node {
 	if hasBackref(n) {
 		return nil
 	}
@@ -294,14 +320,8 @@ func leadingLoop(n *node) *inst {
 			n = n.subs[0]
 		case kindGroup:
 			n = n.subs[0]
-		case kindRepeat:
-			one, ok := oneRune(n.subs[0])
-			if n.max != unbounded || !ok {
-				return nil
-			}
-			return &inst{op: opCount, body: one.op, r: one.r, set: one.set, lo: n.min, hi: n.max, greedy: n.greedy, peek: -1}
 		default:
-			return nil
+			return n
 		}
 	}
 }

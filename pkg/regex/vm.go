@@ -48,6 +48,7 @@ type machine struct {
 	steps    int
 	notEmpty bool    // reject a match that consumes nothing
 	start    int     // the position the current run started at
+	cut      int     // where the leading absent operator stopped taking runes in the current run, or -1
 	caps     []int   // the slots of the match in progress, then of the match found
 	runBest  []int   // under Longest, the longest match at the current start
 	best     []int   // under Longest, the longest match at any start
@@ -158,11 +159,19 @@ func (m *machine) clearCaps() error {
 // nextStart returns the start position one rune after s, and false when
 // there is none to try. For a pattern that leads with a loop over one rune
 // it returns the start after the first rune from s that the loop refuses,
-// a newline for .*, or none when the loop takes every rune, since the
+// a newline for .*, or none when the loop takes every rune, and for one
+// that leads with an absent operator the start after where the operator
+// stopped from s, or none when it took the rest of the subject, since the
 // starts in between can only fail where s did.
 func (m *machine) nextStart(s int) (int, bool) {
 	if s >= len(m.subject) || m.p.anchored {
 		return 0, false
+	}
+	if m.cut >= s {
+		if m.cut >= len(m.subject) {
+			return 0, false
+		}
+		s = m.cut
 	}
 	if lead := m.p.lead; lead != nil {
 		if lead.body == opAny {
@@ -188,7 +197,7 @@ func (m *machine) nextStart(s int) (int, bool) {
 // run tries the program at one start position, with every slot clear.
 // Under longest it explores every path and keeps the match that ends last.
 func (m *machine) run(start int, longest bool) (bool, error) {
-	m.start = start
+	m.start, m.cut = start, -1
 	m.stack = m.stack[:0]
 	m.calls, m.opens = m.calls[:0], m.opens[:0]
 	_, ok, err := m.exec(0, start, -1, longest)
@@ -375,6 +384,9 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			stack = m.stack
 			if err != nil {
 				return 0, false, err
+			}
+			if pc == m.p.absent {
+				m.cut = cut
 			}
 			if cut > pos {
 				if len(stack) >= maxStack {
