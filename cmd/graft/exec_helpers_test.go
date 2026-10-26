@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 )
 
 // execResult is what a process wrote and how it ended.
@@ -25,9 +26,14 @@ var (
 	graftBuildErr  error
 )
 
-// TestMain runs the package's tests and then removes the binary
-// buildGraftBinary built for them, if any test asked for one.
+// TestMain pins the zone the diff goldens were rendered in, runs the
+// package's tests, and then removes the binary buildGraftBinary built for
+// them, if any test asked for one. Earlier tests leak cleanup tickers
+// whose goroutines call time.Now, which reads time.Local, so a write made
+// from inside a test (as yamlgolden.PinLocal does) races with them. Only a
+// write made before any test starts is race-free.
 func TestMain(m *testing.M) {
+	time.Local = time.FixedZone("UTC-4", -4*60*60)
 	code := m.Run()
 	if graftBuildDir != "" {
 		_ = os.RemoveAll(graftBuildDir)

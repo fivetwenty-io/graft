@@ -11,8 +11,6 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-
-	parity "github.com/fivetwenty-io/graft/tests/query-parity"
 )
 
 func TestAliasDispatch(t *testing.T) {
@@ -144,15 +142,16 @@ func TestAliasDispatch(t *testing.T) {
 	})
 }
 
-// runLinkIn runs a case through a link to graft in a fresh copy of the
-// case directory, under the environment the goldens were recorded in. It
-// returns what the run wrote, with the copy's path written as $CASE_DIR,
-// the exit code, and the copy's path.
-func runLinkIn(t *testing.T, link string, c parityCase) (stdout, stderr string, code int, dir string) {
+// runBinaryIn runs bin with lead and then the case's arguments in a fresh
+// copy of the case directory, under the environment the goldens were
+// recorded in. It returns what the run wrote, with the copy's path written
+// as $CASE_DIR, the exit code, and how the files left behind differ from
+// what the case expects.
+func runBinaryIn(t *testing.T, bin string, lead []string, c parityCase) (stdout, stderr string, code int, files []string) {
 	t.Helper()
-	dir = copyCase(t, c.Dir)
-	args := append(append([]string{}, c.Args...), c.GraftArgs...)
-	cmd := exec.CommandContext(context.Background(), link, args...)
+	dir := copyCase(t, c.Dir)
+	args := append(append(append([]string{}, lead...), c.Args...), c.GraftArgs...)
+	cmd := exec.CommandContext(context.Background(), bin, args...)
 	cmd.Dir = dir
 	cmd.Env = []string{"HOME=" + dir, "TZ=UTC", "LANG=C.UTF-8", "PWD=" + dir, "PATH=/usr/bin:/bin"}
 	cmd.Stdin = bytes.NewBufferString(c.Stdin)
@@ -165,29 +164,27 @@ func runLinkIn(t *testing.T, link string, c parityCase) (stdout, stderr string, 
 		t.Fatal(err)
 	}
 	scrub := func(s string) string { return strings.ReplaceAll(s, dir, caseDirMarker) }
-	return scrub(out.String()), scrub(errOut.String()), code, dir
+	return scrub(out.String()), scrub(errOut.String()), code, diffFiles(dir, c.WantFiles)
 }
 
+// TestAliasParity runs every case of the jq corpus as `graft jq ARGS` and
+// as `jq ARGS` through a link, and asserts that the two names agree on
+// stdout, stderr, the exit code, and the files left behind. TestQueryParity
+// judges `graft jq` against the reference goldens.
 func TestAliasParity(t *testing.T) {
-	jqLink := linkAs(t, buildGraftBinary(t), "jq")
-	phase := currentParityPhase(t, "jq")
+	graft := buildGraftBinary(t)
+	jqLink := linkAs(t, graft, "jq")
 	cases := loadParityCases(t, "jq")
 	for i := range cases {
 		c := cases[i]
 		t.Run(c.Name, func(t *testing.T) {
-			Convey("the jq link matches the reference golden as graft jq does", t, func() {
-				out, errOut, code, dir := runLinkIn(t, jqLink, c)
-				problems := diffFiles(dir, c.WantFiles)
-				matched := out == c.WantStdout && code == c.WantExit && stderrMatches(c, errOut) && len(problems) == 0
-				v := parity.Evaluate(parity.Expectation{Entry: c.Name, Phase: c.Phase, Allow: allowFor(t, "jq", c.Name)}, matched, phase)
-				if v != parity.Pass && v != parity.ExpectedFail {
-					t.Logf("%s: %v\nargs: %q\nstdout: %q\nwant:   %q\nexit: %d want %d\nstderr: %q want %q\nfiles: %v",
-						c.Name, v, c.Args, out, c.WantStdout, code, c.WantExit, errOut, c.WantStderr, problems)
-				}
-				So(v, ShouldBeIn, parity.Pass, parity.ExpectedFail)
-				if v == parity.ExpectedFail && c.WantGraftStdout != "" {
-					So(out, ShouldEqual, c.WantGraftStdout)
-				}
+			Convey("the jq link and graft jq agree byte for byte", t, func() {
+				wantOut, wantErr, wantCode, wantFiles := runBinaryIn(t, graft, []string{"jq"}, c)
+				out, errOut, code, files := runBinaryIn(t, jqLink, nil, c)
+				So(out, ShouldEqual, wantOut)
+				So(errOut, ShouldEqual, wantErr)
+				So(code, ShouldEqual, wantCode)
+				So(files, ShouldResemble, wantFiles)
 			})
 		})
 	}

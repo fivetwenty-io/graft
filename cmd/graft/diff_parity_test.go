@@ -6,22 +6,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/fivetwenty-io/graft/internal/humanreport"
 	"github.com/fivetwenty-io/graft/internal/yamlgolden"
 )
-
-// init pins the zone the goldens were rendered in, once, before any test
-// runs. Earlier tests in this package leak cleanup tickers whose goroutines
-// call time.Now, which reads time.Local, so a write made from inside a test
-// (as yamlgolden.PinLocal does) races with them. Only a write made before
-// any test starts is race-free.
-//
-//nolint:gochecknoinits // The pin must happen before any test starts, and package-level initializers may read the zone before TestMain runs.
-func init() {
-	time.Local = time.FixedZone("UTC-4", -4*60*60)
-}
 
 var parityModes = []struct {
 	name string
