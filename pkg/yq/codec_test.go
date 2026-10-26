@@ -66,6 +66,12 @@ func TestEncoderPrettyPrintDropsStyles(t *testing.T) {
 	wantEqual(t, encodeString(t, EncodeOptions{}, decodeOne(t, in)), in)
 }
 
+func TestEncoderPrettyPrintKeepsBoolWordStyles(t *testing.T) {
+	in := "'yes': 'On'\nb: \"NO\"\nc: 'y'\nd: 'yesno'\n"
+	want := "'yes': 'On'\nb: \"NO\"\nc: 'y'\nd: yesno\n"
+	wantEqual(t, encodeString(t, EncodeOptions{PrettyPrint: true}, decodeOne(t, in)), want)
+}
+
 func TestDecoderValuesCarryMeta(t *testing.T) {
 	docs := decodeAll(t, "a: &x 1 # line\nb: *x\n---\nc: 2\n")
 	wantEqual(t, len(docs), 2)

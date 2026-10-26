@@ -2,6 +2,7 @@ package yq
 
 import (
 	"io"
+	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/jqout"
 	"github.com/fivetwenty-io/graft/internal/query/yamlout"
@@ -102,7 +103,9 @@ func (e *Encoder) Flush() error {
 }
 
 // plain is v with every quoting, flow, and block style cleared, as
-// "... style=\"\"" leaves it. An explicit tag stays.
+// "... style=\"\"" leaves it. An explicit tag stays. A string that is a
+// YAML 1.1 bool word, such as yes or Off, keeps its style, as yq's -P
+// leaves it, so that it stays quoted.
 func plain(v *value.Value) *value.Value {
 	out := v
 	switch v.Kind() {
@@ -121,10 +124,23 @@ func plain(v *value.Value) *value.Value {
 	default:
 	}
 	m := out.Meta()
-	if m == nil || m.Style&^value.Tagged == 0 {
+	if m == nil || m.Style&^value.Tagged == 0 || boolWord(out, m) {
 		return out
 	}
 	c := *m
 	c.Style &= value.Tagged
 	return out.WithMeta(&c)
+}
+
+// boolWord reports whether v is a !!str whose text is one of the YAML 1.1
+// bool words y, yes, n, no, on, and off, in any case.
+func boolWord(v *value.Value, m *value.Meta) bool {
+	if v.Kind() != value.KindString || (m.Tag != "" && m.Tag != "!!str") {
+		return false
+	}
+	switch strings.ToLower(v.Str()) {
+	case "y", "yes", "n", "no", "on", "off":
+		return true
+	}
+	return false
 }
