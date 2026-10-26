@@ -29,7 +29,9 @@ type yqOptions struct {
 	// Input.
 	NullInput        bool   // -n
 	InputFormat      string // -p, --input-format: auto, yaml, or json
-	FrontMatter      string // -f, --front-matter
+	FrontMatter      string // -f, --front-matter: extract or process
+	SplitExp         string // -s, --split-exp
+	SplitExpFile     string // --split-exp-file
 	HeaderPreprocess bool   // --header-preprocess, true unless =false
 
 	// Output.
@@ -91,9 +93,6 @@ const (
 	yqFormatYAML = jqFormatYAML
 	yqFormatJSON = jqFormatJSON
 )
-
-// yqLaterRelease is what a flag that belongs to a later release answers.
-const yqLaterRelease = " is not available until a later release"
 
 // yqBoolFlags are the options that take no value, by long name, with the
 // short letter that spells each one in a group. A bool also takes =true
@@ -368,9 +367,9 @@ func (p *yqParser) value(name, val string) error {
 	case "front-matter":
 		p.o.FrontMatter = val
 	case "split-exp":
-		return &usageError{Msg: "-s" + yqLaterRelease}
+		p.o.SplitExp = val
 	case "split-exp-file":
-		return &usageError{Msg: "--split-exp-file" + yqLaterRelease}
+		p.o.SplitExpFile = val
 	case "expression":
 		p.expression, p.hasExpression = val, true
 	case flagFromFile:

@@ -1,0 +1,4 @@
+--split-exp-file
+name.yq
+.[]
+in.yaml

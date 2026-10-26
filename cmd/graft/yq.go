@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"iter"
@@ -51,6 +52,9 @@ func yqArgsError(err error) query.Status {
 func checkYQOptions(opts yqOptions) error {
 	if err := validateComposeFlags(opts); err != nil {
 		return err
+	}
+	if opts.Inplace && (opts.SplitExp != "" || opts.SplitExpFile != "") {
+		return &usageError{Msg: errSplitInplace}
 	}
 	if opts.Inplace && opts.Merge {
 		return &usageError{Msg: "-m cannot be combined with -i"}
@@ -145,6 +149,9 @@ type yqOutput struct {
 	buf    *bytes.Buffer // the encoder's target when a value is post-processed
 	out    io.Writer
 	nul    bool
+	eo     yq.EncodeOptions
+	split  func(doc yq.Document, v *value.Value) (io.WriteCloser, error)
+	sink   *splitSink // where the encoder writes under split
 	styler debugStyler
 	color  bool
 }
@@ -160,7 +167,7 @@ func newYQOutput(opts yqOptions, format yq.Format, out io.Writer, color bool) *y
 		SortKeys:        opts.SortKeys,
 		FloatNumbers:    opts.FloatNumbers,
 	}
-	o := &yqOutput{out: out, nul: opts.NulOutput}
+	o := &yqOutput{out: out, nul: opts.NulOutput, eo: eo}
 	if opts.NulOutput || (color && format == yq.FormatYAML) {
 		o.buf = &bytes.Buffer{}
 		o.enc = yq.NewEncoder(o.buf, eo)
@@ -175,6 +182,9 @@ func newYQOutput(opts yqOptions, format yq.Format, out io.Writer, color bool) *y
 }
 
 func (o *yqOutput) write(v *value.Value) error {
+	if o.split != nil {
+		return o.writeSplit(v)
+	}
 	if err := o.enc.Encode(v); err != nil {
 		return err
 	}
@@ -402,6 +412,11 @@ func handleYQ(opts yqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 		return yqCompileFailure(err)
 	}
 
+	split, st, ok := newYQSplit(opts, stderr)
+	if !ok {
+		return st
+	}
+
 	src, st, ok := newYQSource(opts, stdin, stderr)
 	if !ok {
 		return st
@@ -411,7 +426,16 @@ func handleYQ(opts yqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 	}
 
 	var rewritten bytes.Buffer
-	out := newYQOutput(opts, yqOutputFormat(opts), yqTarget(opts, stdout, &rewritten), yqColor(opts, stdout))
+	format := yqOutputFormat(opts)
+	var out *yqOutput
+	if split != nil {
+		sink := &splitSink{w: io.Discard}
+		opts.NulOutput = false
+		out = newYQOutput(opts, format, sink, false)
+		out.split, out.sink = split(format), sink
+	} else {
+		out = newYQOutput(opts, format, yqTarget(opts, stdout, &rewritten), yqColor(opts, stdout))
+	}
 
 	run := &yqRun{where: unknownSource}
 	ctx := context.Background()
@@ -427,6 +451,31 @@ func handleYQ(opts yqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 		return yqFailure(run.err)
 	}
 	return finishYQ(opts, run, rewritten.Bytes())
+}
+
+// newYQSplit compiles the file-name expression of -s or --split-exp-file.
+// It returns nil when neither was given, and otherwise a function that
+// builds the split writer for an output format. When the expression
+// cannot be read or compiled it returns the status to end with and false.
+func newYQSplit(opts yqOptions, stderr io.Writer) (func(yq.Format) func(yq.Document, *value.Value) (io.WriteCloser, error), query.Status, bool) {
+	expr, err := yqSplitExpression(opts)
+	if err != nil {
+		return nil, yqArgsError(err), false
+	}
+	if expr == "" {
+		return nil, query.Status{}, true
+	}
+	ev, err := yq.Compile(expr, yqCompileOptions(opts, stderr)...)
+	if err != nil {
+		return nil, yqStatus(errCompile, fmt.Errorf("bad split document expression: %w", err)), false
+	}
+	return func(format yq.Format) func(yq.Document, *value.Value) (io.WriteCloser, error) {
+		ext := ".yml"
+		if format == yq.FormatJSON {
+			ext = ".json"
+		}
+		return splitWriter(expr, ev, ext)
+	}, query.Status{}, true
 }
 
 // newYQSource builds the source of the documents a run reads, composing
@@ -614,6 +663,10 @@ Flags:
                               accepted, since graft yq has no system operator
       --yaml-fix-merge-anchor-to-spec
                               make a merge key follow the YAML specification
+  -f, --front-matter MODE     with extract, read the YAML at the head of the first file, and with
+                              process, print the text after it too
+  -s, --split-exp EXPR        write each output to a file named by EXPR
+      --split-exp-file FILE   read the file-name expression from FILE
   -m, --merge                 merge every input with graft merge before the expression runs
   -E, --eval                  resolve each input document on its own before the expression runs
       --prune KEY             with -m or -E, prune KEY from the result (repeatable)

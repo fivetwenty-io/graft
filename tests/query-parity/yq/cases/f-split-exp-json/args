@@ -1,0 +1,6 @@
+-s
+.name
+-o
+json
+.[]
+in.yaml

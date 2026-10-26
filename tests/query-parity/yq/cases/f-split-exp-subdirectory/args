@@ -1,0 +1,4 @@
+-s
+"sub/" + .name
+.
+in.yaml
