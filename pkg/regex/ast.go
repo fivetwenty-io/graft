@@ -123,6 +123,58 @@ func emptyMatch(n *node) bool {
 	}
 }
 
+// surelyEmpty reports whether n can match the empty string without testing
+// the text around it, so a lookbehind of n always holds.
+func surelyEmpty(n *node) bool {
+	switch n.kind {
+	case kindLiteral:
+		return len(n.runes) == 0
+	case kindConcat:
+		for _, s := range n.subs {
+			if !surelyEmpty(s) {
+				return false
+			}
+		}
+		return true
+	case kindAlternate:
+		for _, s := range n.subs {
+			if surelyEmpty(s) {
+				return true
+			}
+		}
+		return false
+	case kindRepeat:
+		return n.min == 0 || surelyEmpty(n.subs[0])
+	case kindGroup, kindAtomic:
+		return surelyEmpty(n.subs[0])
+	default:
+		return false
+	}
+}
+
+// unevenChoice reports whether n holds a choice whose branches differ in
+// their fewest or most runes. It leaves a nested lookaround to the check
+// of its own.
+func unevenChoice(n *node) bool {
+	if n.kind == kindLook {
+		return false
+	}
+	if n.kind == kindAlternate {
+		lo, hi := width(n.subs[0])
+		for _, s := range n.subs[1:] {
+			if slo, shi := width(s); slo != lo || shi != hi {
+				return true
+			}
+		}
+	}
+	for _, s := range n.subs {
+		if unevenChoice(s) {
+			return true
+		}
+	}
+	return false
+}
+
 // anchoredAtStart reports whether every match of n must begin at the start
 // of the subject, which lets a search try only that position.
 func anchoredAtStart(n *node) bool {

@@ -567,8 +567,12 @@ const maxLookbehind = 255
 
 // checkLookbehind applies PCRE2's rule that every branch of a lookbehind
 // whose ( is at start has a length limit, and that a branch whose length
-// varies looks back no more than 255 runes. Oniguruma has no such rule.
+// varies looks back no more than 255 runes. Oniguruma has no such rule,
+// but refuses a choice whose branches differ in length.
 func (p *parser) checkLookbehind(start int, body *node) error {
+	if p.rules().evenLookbehind && !surelyEmpty(body) && unevenChoice(body) {
+		return p.errorAt(start, "invalid pattern in look-behind")
+	}
 	if !p.rules().boundedLookbehind {
 		return nil
 	}

@@ -179,6 +179,22 @@ func TestLookbehind(t *testing.T) {
 	wantNoMatch(t, MustCompile(`(?<=xa+)b`, WithFlavor(Oniguruma)), "aab")
 	wantNoMatch(t, MustCompile(`(?<!a*)b`, WithFlavor(Oniguruma)), "b")
 
+	// Oniguruma, as jq builds it, refuses a lookbehind holding a choice
+	// whose branches differ in length, unless the lookbehind can match
+	// nothing at all and so always holds.
+	onig := WithFlavor(Oniguruma)
+	for pattern, pos := range map[string]int{
+		`(?<=a|cd)`: 0, `x(?<=x(?:ab|c))`: 1, `(?<=(?:a+|bc))`: 0,
+		`(?<=a|\b)`: 0, `(?<!a|bc)d`: 0, `(?<=(?:a|bc)+)`: 0,
+	} {
+		wantSyntaxError(t, pattern, pos, "invalid pattern in look-behind", onig)
+	}
+	wantEqual(t, runeStarts(t, MustCompile(`(?<=ab|cd)`, onig), "abcd", MatchOptions{Global: true}), []int{2, 4})
+	wantEqual(t, runeStarts(t, MustCompile(`(?<=(?:a{1,2}|b{1,2}))`, onig), "abcd", MatchOptions{Global: true}), []int{1, 2})
+	for _, pattern := range []string{`(?<=a*|b)`, `(?<=a|)`, `(?<=(?:a|bc)?)`} {
+		wantEqual(t, runeStarts(t, MustCompile(pattern, onig), "ab", MatchOptions{Global: true}), []int{0, 1, 2})
+	}
+
 	// Under full case folding a lookbehind's length follows its lowering.
 	wantMatch(t, MustCompile(`(?<=ß)x`, WithFlavor(Oniguruma), WithFlags(IgnoreCase)), "ssx")
 }

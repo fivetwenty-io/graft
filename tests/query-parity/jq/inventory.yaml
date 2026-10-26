@@ -2426,7 +2426,7 @@
   cases: [r-onig-char-class-ranges]
 - id: r-onig-lookbehind-alternation
   area: regex
-  phase: J3
+  phase: J2
   cases: [r-onig-lookbehind-alternation]
 - id: r-onig-unicode-case-fold
   area: regex

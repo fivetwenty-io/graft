@@ -83,6 +83,11 @@ type rules struct {
 	// back without limit.
 	boundedLookbehind bool
 
+	// evenLookbehind refuses a lookbehind holding a choice whose branches
+	// differ in length, as jq's Oniguruma does, unless the lookbehind can
+	// match the empty string with no test of the text and so always holds.
+	evenLookbehind bool
+
 	// posixProperties accepts the POSIX class names, such as Alpha and
 	// XDigit, and the long names of the general categories, such as
 	// Lowercase_Letter, inside \p{...}, with the meanings Oniguruma gives
@@ -158,6 +163,7 @@ var flavorRules = [...]rules{
 		openSelfRef:        true,
 		anyRuneO:           true,
 		onigMessages:       true,
+		evenLookbehind:     true,
 	},
 }
 

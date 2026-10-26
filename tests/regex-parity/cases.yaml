@@ -1671,3 +1671,45 @@
   pattern: "a\\R+b"
   flags: ""
   subject: "a\r\n\n\rb"
+
+- id: onig-lookbehind-uneven
+  flavor: oniguruma
+  pattern: "(?<=a|cd)x"
+  flags: ""
+  subject: "ax cdx"
+
+- id: onig-lookbehind-uneven-nested
+  flavor: oniguruma
+  pattern: "(?<=x(?:ab|c))y"
+  flags: ""
+  subject: "xaby"
+
+- id: onig-lookbehind-uneven-variable
+  flavor: oniguruma
+  pattern: "(?<=(?:a+|bc))d"
+  flags: ""
+  subject: "aad"
+
+- id: onig-lookbehind-uneven-negative
+  flavor: oniguruma
+  pattern: "(?<!a|bc)d"
+  flags: ""
+  subject: "cd"
+
+- id: onig-lookbehind-even
+  flavor: oniguruma
+  pattern: "(?<=ab|cd)."
+  flags: "g"
+  subject: "abx cdy"
+
+- id: onig-lookbehind-even-variable
+  flavor: oniguruma
+  pattern: "(?<=(?:a{1,2}|b{1,2}))c"
+  flags: "g"
+  subject: "ac bbc c"
+
+- id: onig-lookbehind-can-be-empty
+  flavor: oniguruma
+  pattern: "(?<=a*|bc)d"
+  flags: "g"
+  subject: "d ad"

@@ -71,12 +71,13 @@ recorded one search at a time and steps past an empty match as this package
 does, so it pins that stepping rather than PCRE2's own. A few differences
 remain on purpose. PCRE takes \uhhhh, which PCRE2 refuses. A global search
 moves one rune past an empty match, where jq moves one byte. Oniguruma
-accepts a lookbehind whose branches differ in length or that holds a
-capture, both of which jq refuses. The escapes \G, \X, \y, and \Y and
-subroutine calls are refused under both flavors, though jq accepts some of
-them, and so is a \K inside a lookaround, which jq accepts too. The
-Oniguruma flavor refuses a group name such as n-1 that jq accepts, and it
-reads a \x at the end of the pattern as NUL where jq matches nothing. A byte escape that jq would match against part of a
+accepts a lookbehind that holds a lookahead, and a capture inside a
+negative or varying lookbehind, both of which jq refuses. The escapes \G,
+\X, \y, and \Y and subroutine calls are refused under both flavors,
+though jq accepts some of them, and so is a \K inside a lookaround, which
+jq accepts too. The Oniguruma flavor refuses a group name such as n-1 that
+jq accepts, and it reads a \x at the end of the pattern as NUL where jq
+matches nothing. A byte escape that jq would match against part of a
 character, such as a lone \x80 in a negated class, holds no rune here.
 Error messages follow each engine's wording where the tests pin it, and a
 golden for a pattern jq or PCRE2 refuses checks only that Compile refuses
@@ -113,7 +114,10 @@ assertion is atomic, so once it holds no later failure retries it, and the
 groups set inside a positive one keep their values. Each branch of a
 lookbehind looks back by its own lengths, the longest first. Under PCRE a
 branch must have a length limit and may vary by no more than 255 runes, as
-in PCRE2, while Oniguruma lets a lookbehind look back without limit. PCRE
+in PCRE2, while Oniguruma lets a lookbehind look back without limit.
+Oniguruma refuses a lookbehind that holds a choice whose branches differ
+in length, as jq does, unless the lookbehind can match the empty string
+and so always holds. PCRE
 treats a quantified assertion as PCRE2 does, and Oniguruma refuses one as
 jq does.
 
