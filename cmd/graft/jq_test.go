@@ -267,6 +267,18 @@ func TestJQCommand(t *testing.T) {
 		out, _, rc = run("-", "-D", "jq", "-c", ".", "t1.yml")
 		So(out, ShouldEqual, "{\"replicas\":1}\n") // graft's flags before the verb are graft's
 		So(rc, ShouldEqual, 0)
+		for _, pre := range [][]string{
+			{"-D", "--color=on"},
+			{"--theme=mono", "-T"},
+			{"-T", "--theme=mono"},
+			{"-DT"},
+			{"--theme", "mono", "-D"},
+			{"--max-loop-iterations=50", "--no-color"},
+		} {
+			out, _, rc = run("-", append(pre, "jq", "-M", "-c", ".", "t1.yml")...)
+			So(out, ShouldEqual, "{\"replicas\":1}\n") // in every form merge takes
+			So(rc, ShouldEqual, 0)
+		}
 		out, _, rc = run("-", "jq", "--theme", "mono", "-c", "--arg", "x", "--debug", "-n", "$x")
 		So(out, ShouldEqual, "\"--debug\"\n") // a value is never a flag
 		So(rc, ShouldEqual, 0)

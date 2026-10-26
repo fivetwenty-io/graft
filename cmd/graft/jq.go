@@ -14,6 +14,7 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
@@ -712,35 +713,37 @@ func newJQCmd() *cobra.Command {
 
 // preVerbArgs returns how many of args came before the verb on graft's
 // command line, which cobra leaves at the front of the arguments of a
-// command that parses its own flags. A root flag that takes a value as the
-// next argument carries that value with it.
+// command that parses its own flags. It reads them with the root's own
+// flag definitions, so every form cobra takes before any other verb is
+// taken here too, and it leaves checking the values to the real parse.
 func preVerbArgs(cmd *cobra.Command, args []string) int {
 	line := os.Args[1:]
-	flags := cmd.Root().PersistentFlags()
-	for i := 0; i < len(line) && i < len(args) && line[i] == args[i]; i++ {
-		arg := line[i]
-		if arg == "--" || !strings.HasPrefix(arg, "-") || strings.Contains(arg, "=") {
-			return 0
-		}
-		f := flags.Lookup(strings.TrimPrefix(arg, "--"))
-		if !strings.HasPrefix(arg, "--") {
-			if len(arg) != 2 {
-				return 0
-			}
-			f = flags.ShorthandLookup(arg[1:])
-		}
-		if f == nil {
-			return 0
-		}
-		if f.NoOptDefVal == "" {
-			i++
-		}
-		if i+1 < len(line) && line[i+1] == cmd.Name() {
-			return i + 1
-		}
+	flags := pflag.NewFlagSet("", pflag.ContinueOnError)
+	flags.SetInterspersed(false)
+	flags.SetOutput(io.Discard)
+	cmd.Root().PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		shadow := *f
+		shadow.Value = anyFlagValue(f.Value.Type())
+		flags.AddFlag(&shadow)
+	})
+	if flags.Parse(line) != nil || flags.ArgsLenAtDash() != -1 {
+		return 0
 	}
-	return 0
+	rest := flags.Args()
+	n := len(line) - len(rest)
+	if len(rest) == 0 || rest[0] != cmd.Name() || n > len(args) || !slices.Equal(line[:n], args[:n]) {
+		return 0
+	}
+	return n
 }
+
+// anyFlagValue is a flag value that takes any text, so preVerbArgs can
+// find where graft's flags end without setting them.
+type anyFlagValue string
+
+func (anyFlagValue) String() string   { return "" }
+func (anyFlagValue) Set(string) error { return nil }
+func (v anyFlagValue) Type() string   { return string(v) }
 
 // applyJQRootFlags parses graft's own flags out of a graft jq command line
 // and runs the root's hook over them, which cobra could not do before the
