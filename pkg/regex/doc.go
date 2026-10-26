@@ -69,35 +69,33 @@ The other rules the Oniguruma flavor changes follow jq 1.8.2 as well.
     these escapes as a code point.
   - (?P<name>...) and (?P=name) are refused, as jq refuses them.
 
-The tests/regex-parity directory holds a corpus of patterns with the
-matches pcre2test and jq printed for them, and the tests replay those
-goldens without either program. A PCRE golden for a global search is
-recorded one search at a time and steps past an empty match as this package
-does, so it pins that stepping rather than PCRE2's own. A few differences
-remain on purpose. PCRE takes \uhhhh, which PCRE2 refuses. A global search
-moves one rune past an empty match, where jq moves one byte. Oniguruma
-accepts a lookbehind that holds a lookahead, and a capture inside a
-negative or varying lookbehind, both of which jq refuses. jq's Oniguruma
-makes a greedy + or * possessive when what follows cannot start the same
-way, and it no longer counts a possessive repeat at its fewest, so jq
-refuses a lookbehind such as (?<=a+b) that this package accepts. jq also
-refuses a lookbehind that holds $ or \z, or a (?i:...) group whose length
-varies, and both are accepted here. The escape \G is refused under both
-flavors, though jq accepts it, and so is a \K inside a lookaround, which jq
-accepts too. A condition other than a group's number or bracketed name is
-refused under both
-flavors, though jq and PCRE2 accept some, such as a bare name, (?(R)...),
-and (?(DEFINE)...). A conditional whose one branch is not empty, such as
-(?(1)b), has an empty no branch under both flavors, as in PCRE2, but jq's
-search plans as if that branch matched nothing and misses matches through
-it when something follows it, so (a)(?(1)b)c matches "abc" here and nowhere
-in jq. The Oniguruma flavor refuses a group name such as n-1 that jq
-accepts as well, and it reads a \x at the end of the pattern as NUL where
-jq matches nothing. A byte escape that jq would match against part of a
-character, such as a lone \x80 in a negated class, holds no rune here.
-Error messages follow each engine's wording where the tests pin it, and a
-golden for a pattern jq or PCRE2 refuses checks only that Compile refuses
-it too.
+The tests/regex-parity directory holds a corpus of patterns with the matches
+pcre2test and jq printed for them, and the tests replay those goldens
+without either program. A PCRE golden for a global search is recorded one
+search at a time and steps past an empty match as this package does, so it
+pins that stepping rather than PCRE2's own. A few differences remain on
+purpose. PCRE takes \uhhhh, which PCRE2 refuses. A global search moves one
+rune past an empty match, where jq moves one byte. Oniguruma accepts a
+lookbehind that holds a lookahead, and a capture inside a negative or
+varying lookbehind, both of which jq refuses. jq's Oniguruma makes a greedy
++ or * possessive when what follows cannot start the same way, and it no
+longer counts a possessive repeat at its fewest, so jq refuses a lookbehind
+such as (?<=a+b) that this package accepts. jq also refuses a lookbehind
+that holds $ or \z, or a (?i:...) group whose length varies, and both are
+accepted here. The escape \G is refused under both flavors, though jq
+accepts it, and so is a \K inside a lookaround, which jq accepts too. A
+condition other than a group's number or bracketed name is refused under
+both flavors, though jq and PCRE2 accept some, such as a bare name,
+(?(R)...), and (?(DEFINE)...). A conditional whose one branch is not empty,
+such as (?(1)b), has an empty no branch under both flavors, as in PCRE2, but
+jq's search plans as if that branch matched nothing and misses matches
+through it when something follows it, so (a)(?(1)b)c matches "abc" here and
+nowhere in jq. The Oniguruma flavor refuses a group name such as n-1 that jq
+accepts as well, and it reads a \x at the end of the pattern as NUL where jq
+matches nothing. A byte escape that jq would match against part of a
+character, such as a lone \x80 in a negated class, holds no rune here. Error
+messages follow each engine's wording where the tests pin it, and a golden
+for a pattern jq or PCRE2 refuses checks only that Compile refuses it too.
 
 # Supported syntax
 
@@ -220,11 +218,11 @@ engine. Every VM step counts against a Budget, ten million steps by default,
 and a call that runs out returns ErrBudget. One count covers every start
 position a search tries, every match a global search finds, and the bodies
 of every assertion, atomic group, and call, so neither repetition, nesting,
-nor recursion can multiply the limit. The context passed to each call is checked every
-few thousand steps, so a deadline ends a long match with the context's
-error. The budget also bounds the pattern length, group nesting, the size of
-the compiled program, and the backtrack stack, so a pattern cannot exhaust
-memory before its first step.
+nor recursion can multiply the limit. The context passed to each call is
+checked every few thousand steps, so a deadline ends a long match with the
+context's error. The budget also bounds the pattern length, group nesting,
+the size of the compiled program, and the backtrack stack, so a pattern
+cannot exhaust memory before its first step.
 
 Three shortcuts let common patterns finish well inside the budget without
 changing any result. A search first checks that the subject holds the text
@@ -236,14 +234,14 @@ missed. The same holds for any repeat of a single rune with no upper bound,
 such as .+, a*, [^,]+, \N, or \O, which is retried just after each rune it
 refuses, and for any of them inside a capture group, but a pattern that
 holds a backreference or a call is retried at every start, because a later
-start captures different text. A repeat of a
-single rune, such as a*, [^,]+, or .{2,}, counts the runes it takes and
-gives them back from one stack entry, paying a step for each rune it takes
-and for each place it gives back to, so it never reaches the backtrack
-stack's bound. When what follows the repeat must start with one rune or
-class, such as the [xy] in .*[xy], the repeat gives back only to the places
-where that rune or class matches. A repeat of anything longer, such as (a|b)*, keeps one stack entry
-per iteration and stays bounded as before.
+start captures different text. A repeat of a single rune, such as a*, [^,]+,
+or .{2,}, counts the runes it takes and gives them back from one stack
+entry, paying a step for each rune it takes and for each place it gives back
+to, so it never reaches the backtrack stack's bound. When what follows the
+repeat must start with one rune or class, such as the [xy] in .*[xy], the
+repeat gives back only to the places where that rune or class matches. A
+repeat of anything longer, such as (a|b)*, keeps one stack entry per
+iteration and stays bounded as before.
 
 # Stability
 
