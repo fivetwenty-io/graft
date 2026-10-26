@@ -480,16 +480,9 @@ func handleJQ(opts jqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 	}
 	log.DEBUG("program: %s", program)
 
-	colors := os.Getenv("JQ_COLORS")
-	if colors != "" && jq.CheckColors(colors) != nil {
-		_, _ = io.WriteString(stderr, "Failed to set $JQ_COLORS\n")
-		colors = ""
-	}
+	colors := jqColorsFromEnv(stderr)
 
-	files := opts.Files
-	if len(files) == 0 {
-		files = []string{"-"}
-	}
+	files := jqInputFiles(opts)
 	for _, f := range files {
 		log.DEBUG("input: %s", f)
 	}
@@ -501,11 +494,7 @@ func handleJQ(opts jqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 
 	q, err := jq.Compile(program, jqCompileOptions(opts, in, origin, stderr)...)
 	if err != nil {
-		var ce *query.CompileError
-		if errors.As(err, &ce) {
-			return queryCommandError(errCompile, err)
-		}
-		return queryCommandError(errUsage, err)
+		return jqCompileFailure(err)
 	}
 
 	color := !opts.Monochrome && (opts.ColorOutput || (os.Getenv("NO_COLOR") == "" && stdoutIsTTY(stdout)))
@@ -516,6 +505,35 @@ func handleJQ(opts jqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 		run.err = &fs.PathError{Op: "write", Path: "<stdout>", Err: err}
 	}
 	return query.Status{Code: jq.ExitCode(run.last, run.produced, run.err, opts.ExitStatus)}
+}
+
+// jqColorsFromEnv is $JQ_COLORS, or "" with a warning on stderr when jq
+// would not accept it.
+func jqColorsFromEnv(stderr io.Writer) string {
+	colors := os.Getenv("JQ_COLORS")
+	if colors != "" && jq.CheckColors(colors) != nil {
+		_, _ = io.WriteString(stderr, "Failed to set $JQ_COLORS\n")
+		return ""
+	}
+	return colors
+}
+
+// jqInputFiles are the files to read, which is stdin when none are named.
+func jqInputFiles(opts jqOptions) []string {
+	if len(opts.Files) == 0 {
+		return []string{"-"}
+	}
+	return opts.Files
+}
+
+// jqCompileFailure is the status for a program that did not compile: a
+// compile error for a bad program, a usage error for a bad option.
+func jqCompileFailure(err error) query.Status {
+	var ce *query.CompileError
+	if errors.As(err, &ce) {
+		return queryCommandError(errCompile, err)
+	}
+	return queryCommandError(errUsage, err)
 }
 
 // loadJQProgram returns the program text and, for a program read with -f,
