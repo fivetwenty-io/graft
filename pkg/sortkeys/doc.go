@@ -15,6 +15,6 @@ its exported names may change between minor releases, and the changelog
 lists every such change. From that release on, the module's v1 promise
 applies, which is that we add exported names and never remove or change
 one. The package imports nothing outside the standard library and
-pkg/query/value.
+pkg/query/value and pkg/keyorder.
 */
 package sortkeys

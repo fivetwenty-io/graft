@@ -7,8 +7,8 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/sortkeys"
 )
 
-// FromGo carries its own copy of spruce's key order, because pkg/sortkeys
-// imports this package. The two must never disagree.
+// FromGo and pkg/sortkeys share one comparator in pkg/keyorder. This keeps
+// that true if either stops using it.
 func TestFromGoKeyOrderAgreesWithSortkeys(t *testing.T) {
 	in := map[string]interface{}{}
 	keys := []string{"b", "a", "10", "9", "1.5", "01", "int_val", "int64_val", "z1", "z10", "z2", "_x", "-3", "1e3", "Ab", "ab"}

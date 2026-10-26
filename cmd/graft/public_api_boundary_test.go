@@ -26,6 +26,7 @@ var publicPackages = []string{
 	"pkg/regex",
 	"pkg/decimal",
 	"pkg/sortkeys",
+	"pkg/keyorder",
 }
 
 // publicStandIns are packages the boundary walker treats as public so it

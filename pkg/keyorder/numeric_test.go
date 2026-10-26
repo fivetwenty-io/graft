@@ -1,4 +1,4 @@
-package sortkeys
+package keyorder
 
 import (
 	"math"
@@ -19,7 +19,7 @@ func keyNumericValueReference(s string) (f float64, isInt bool, ok bool) {
 	return n, false, true
 }
 
-func TestKeyNumericValueMatchesReference(t *testing.T) {
+func TestKeykeyNumericValueMatchesReference(t *testing.T) {
 	corpus := []string{
 		"", "0", "1", "-1", "+1", "10", "01", "1.5", "-.5", "+.5", ".5",
 		"1e3", "-1e-3", "1E3", "9223372036854775807", "-9223372036854775808",
