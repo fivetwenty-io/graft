@@ -618,6 +618,8 @@ func (s *debugSession) namePath(p value.Path, quote bool) string {
 				out.WriteString("[" + c.Dec().String() + "]")
 			}
 			cur = next
+		default:
+			// A path segment is a key or an index; nothing else names a child.
 		}
 	}
 	return out.String()
@@ -756,10 +758,10 @@ func nonMappingRoot(files []string) (*value.Value, bool) {
 // debugNeedsMapping lists the verbs that work on a merged mapping, which a
 // session opened on an array, a scalar, or null cannot offer.
 var debugNeedsMapping = map[string]bool{
-	"step": true, "continue": true, "break": true, "unbreak": true,
-	"history": true, "defer": true, debugCmdAutodefer: true, "eval": true,
+	"step": true, "continue": true, debugCmdBreak: true, debugCmdUnbreak: true,
+	debugCmdHistory: true, "defer": true, debugCmdAutodefer: true, debugCmdEval: true,
 	debugCmdTree: true, "output": true, debugCmdPruneReport: true,
-	"diff": true, "export": true,
+	"diff": true, debugCmdExport: true,
 }
 
 // documentKind names the root for a message, with its article.
@@ -775,8 +777,9 @@ func documentKind(v *value.Value) string {
 		return "a string"
 	case value.KindArray:
 		return "an array"
+	default:
+		return "an object"
 	}
-	return "an object"
 }
 
 // refuseWithoutMapping says why a verb cannot run on a session that holds
@@ -802,6 +805,8 @@ func valueAt(v *value.Value, p value.Path) (*value.Value, bool) {
 				return nil, false
 			}
 			v, ok = v.Index(int(idx))
+		default:
+			// A path segment is a key or an index; nothing else names a child.
 		}
 		if !ok {
 			return nil, false
