@@ -66,13 +66,22 @@ func (v *Value) Append(elems ...*Value) *Value {
 	if len(elems) == 0 {
 		return v
 	}
+	return v.extend(len(elems), true, func(tail []*Value) { copy(tail, elems) })
+}
+
+// extend returns a copy of an array with k more elements, which fill
+// writes into the new tail. It grows in shared storage when it can, and
+// otherwise copies into a new array, with room to grow again when roomy
+// is set. Meta is carried.
+func (v *Value) extend(k int, roomy bool, fill func(tail []*Value)) *Value {
 	out := v.copyShell()
-	n, total := len(v.arr), len(v.arr)+len(elems)
+	n, total := len(v.arr), len(v.arr)+k
 	if s := v.grow; s != nil {
 		s.share()
 		s.mu.Lock()
 		if s.used == n && total <= cap(v.arr) {
-			out.arr = append(v.arr, elems...)
+			out.arr = v.arr[:total]
+			fill(out.arr[n:])
 			out.grow = s
 			s.used = total
 			s.mu.Unlock()
@@ -80,9 +89,13 @@ func (v *Value) Append(elems ...*Value) *Value {
 		}
 		s.mu.Unlock()
 	}
-	arr := make([]*Value, total, max(total, room(total)))
+	size := total
+	if roomy {
+		size = max(total, room(total))
+	}
+	arr := make([]*Value, total, size)
 	copy(arr, v.arr)
-	copy(arr[n:], elems)
+	fill(arr[n:])
 	out.arr = arr
 	if cap(arr) > total {
 		out.grow = &spare{used: total}

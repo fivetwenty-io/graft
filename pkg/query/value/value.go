@@ -309,12 +309,14 @@ func (v *Value) SetIndex(i int, val *Value) *Value {
 		return v.Append(val)
 	}
 	if i > len(v.arr) {
-		pad := make([]*Value, i-len(v.arr)+1)
-		for j := range pad {
-			pad[j] = nullValue
-		}
-		pad[len(pad)-1] = val
-		return v.Append(pad...)
+		// A jump past the end is no growth pattern, so the copy keeps no
+		// spare room.
+		return v.extend(i-len(v.arr)+1, false, func(tail []*Value) {
+			for j := range tail {
+				tail[j] = nullValue
+			}
+			tail[len(tail)-1] = val
+		})
 	}
 	arr := make([]*Value, len(v.arr))
 	copy(arr, v.arr)

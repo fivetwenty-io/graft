@@ -2,9 +2,11 @@ package value
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
+	"unsafe"
 )
 
 // bigObj returns an object with n keys k0 to k(n-1), each holding its
@@ -151,4 +153,25 @@ func TestGrowingSharedValuesConcurrently(t *testing.T) {
 	wg.Wait()
 	wantEqual(t, obj.Len(), 21)
 	wantEqual(t, arr.Len(), 9)
+}
+
+// Padding an array past its end writes the padding straight into the new
+// array, rather than building it apart and copying it in.
+func TestSetIndexPastTheEndAllocatesOneArray(t *testing.T) {
+	const n = 1 << 20
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	v := Arr().SetIndex(n, Num(1))
+	runtime.ReadMemStats(&after)
+	wantEqual(t, v.Len(), n+1)
+	if got, _ := v.Index(n - 1); got.Kind() != KindNull {
+		t.Errorf("v[%d] is %v", n-1, got)
+	}
+	if got, _ := v.Index(n); got.Float() != 1 {
+		t.Errorf("v[%d] is %v", n, got)
+	}
+	need := float64(n * int(unsafe.Sizeof(v)))
+	if got := float64(after.TotalAlloc - before.TotalAlloc); got > 1.6*need {
+		t.Errorf("padding to %d allocated %.1f times the array", n, got/need)
+	}
 }
