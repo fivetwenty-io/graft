@@ -44,10 +44,18 @@ func TestQuotedSequences(t *testing.T) {
 	wantText(t, MustCompile(`\Qab\E`, WithFlags(IgnoreCase)), "AB", "AB")
 	wantText(t, MustCompile(`[\Q]-\E]+`), "a]-]", "]-]")
 	wantText(t, MustCompile(`[a\E]+`), "aa", "aa")
-	for _, flavor := range []Flavor{PCRE, Oniguruma} {
-		wantMatch(t, MustCompile(`[\Q.\E]`, WithFlavor(flavor)), ".")
-		wantNoMatch(t, MustCompile(`[\Q.\E]`, WithFlavor(flavor)), "a")
+	wantMatch(t, MustCompile(`[\Q.\E]`), ".")
+	wantNoMatch(t, MustCompile(`[\Q.\E]`), "Q")
+
+	// In an Oniguruma class, \Q and \E are the letters Q and E, as jq reads
+	// them.
+	onig := WithFlavor(Oniguruma)
+	for _, s := range []string{"Q", ".", "E"} {
+		wantMatch(t, MustCompile(`[\Q.\E]`, onig), s)
 	}
+	wantNoMatch(t, MustCompile(`[\Q.\E]`, onig), "a")
+	wantText(t, MustCompile(`[a\E]+`, onig), "aEa", "aEa")
+	wantNoMatch(t, MustCompile(`[\Q]-\E]+`, onig), "a]-]")
 
 	_, err := Compile(`[\Qab`)
 	var se *SyntaxError

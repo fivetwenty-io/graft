@@ -44,7 +44,9 @@ numbered groups, named groups written (?<name>...), (?'name'...), or
 (?P<name>...), non-capturing groups, and comments. ^ and \A match only at the
 start of the subject, $ and \Z only at its end or before a final newline,
 and \z only at its end. \b and \B test for a boundary between a \w rune and
-a rune that is not one, so they follow the flavor's \w.
+a rune that is not one, so they follow the flavor's \w. PCRE also reads
+\Q...\E as a quote inside a bracket class, while Oniguruma reads \Q and \E
+there as the letters Q and E.
 
 Inline flag groups such as (?i), (?-s), and (?im:...) turn the flags i, m,
 s, and x on or off up to the end of the group that holds them, the way both

@@ -1195,6 +1195,8 @@ func (p *parser) class(start int) (*node, error) {
 func (p *parser) classItem(folded []runeRange, kept []runeSet) ([]runeRange, []runeSet, error) {
 	itemPos := p.pos
 	switch {
+	case p.cfg.flavor == Oniguruma:
+		// Oniguruma reads \Q and \E in a class as the letters Q and E.
 	case p.lookingAt(`\Q`):
 		folded, err := p.quotedClassItems(folded)
 		return folded, kept, err
@@ -1381,6 +1383,10 @@ func (p *parser) classAtom() (rune, runeSet, error) {
 		return '\b', nil, nil
 	case 'N':
 		return 0, nil, p.errorAt(start, `\N is not supported in a class`)
+	case 'Q', 'E':
+		if p.cfg.flavor == Oniguruma {
+			return r, nil, nil
+		}
 	case '1', '2', '3', '4', '5', '6', '7':
 		p.pos--
 		c, err := p.number(start, 8, 3, 1)
