@@ -31,3 +31,17 @@ func TestYQEvalAsUpdatePath(t *testing.T) {
 	wantYQ(t, `eval(.where) = "set"`, "where: .t.u\n", "where: .t.u\nt:\n  u: set\n")
 	wantYQ(t, `(.a | eval(.where)) = "set"`, "a: {where: .t.u}\n", "a: {where: .t.u, t: {u: set}}\n")
 }
+
+func TestYQRefVariableKeepsItsPlace(t *testing.T) {
+	in := "a: {b: 1}\nl: [1, 2]\n"
+	// It is read against the place it bound, from below the input too.
+	wantYQ(t, `.a ref $a | [.l[] | $a.b + .]`, in, "- 2\n- 3\n")
+	// A place the document lacks stays absent, whatever is done to it.
+	wantYQ(t, `.nonexist ref $q | $q = 1`, in, in)
+	wantYQ(t, `.a.zz ref $z | $z`, in, "")
+	// Every match of a wildcard is its place.
+	colors := "colors: {red: 1, rose: 2, \"r*\": 3, blue: 4}\n"
+	want := "colors: {red: 9, rose: 9, \"r*\": 9, blue: 4}\n"
+	wantYQ(t, `.colors."r*" ref $c | $c = 9`, colors, want+want+want)
+	wantYQ(t, `.colors."r*" ref $q | del($q)`, colors, "colors: {blue: 4}\ncolors: {blue: 4}\ncolors: {blue: 4}\n")
+}

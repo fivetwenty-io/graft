@@ -354,33 +354,99 @@ func (ev evaluator) element(v, key *value.Value) (*value.Value, error) {
 	return x, nil
 }
 
-// bindRef runs "Src ref $x | Body". The variable is bound to each path
-// Src gives, relative to the bind's input, and reads whatever sits at
-// that path in the input it is read against, so it follows changes the
-// body makes to the document and an assignment to it changes the
-// document.
+// bindRef runs "Src ref $x | Body". The variable is bound to every place
+// Src names, in the document the bind's input sits in, and the body runs
+// once for each, reading that place, or all of them when it names a
+// place to change. It reads those places in the version of the document it
+// is read in, so it follows changes the body makes, an assignment to it
+// changes every place, and a place the document lacks gives nothing.
 func (ev evaluator) bindRef(n *ast.Bind, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	name := n.Pats[0].Name
 	pev := ev.pathsFor(runtime.IndexRead)
 	return ev.each(in, p, func(in *value.Value, p value.Path) error {
-		return pev.eval(n.Src, env, in, value.Path{}, func(v *value.Value, vp value.Path) error {
+		var places []value.Path
+		err := pev.eval(n.Src, env, in, value.Path{}, func(v *value.Value, vp value.Path) error {
 			if vp == nil {
 				return invalidPathResult(v)
 			}
-			return ev.eval(n.Body, env.BindRef(name, vp), in, p, emit)
+			places = append(places, vp)
+			return nil
 		})
+		if err != nil {
+			return err
+		}
+		for i := range places {
+			inner := env.BindRef(name, p, places, i)
+			if err := ev.eval(n.Body, inner, in, p, emit); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
-// refVar reads a variable bound to the place rel in in, with that place's
-// path while paths or cursors are tracked.
-func (ev evaluator) refVar(rel value.Path, in *value.Value, p value.Path, emit runtime.Emit) error {
+// refVar reads a variable bound to places. Each place is below the bound
+// input's own place, read in the version of its document that in sits in
+// when it sits in one, and in the latest version otherwise.
+func (ev evaluator) refVar(base value.Path, places []value.Path, in *value.Value, p value.Path, emit runtime.Emit) error {
 	return ev.each(in, p, func(in *value.Value, p value.Path) error {
-		return ev.native("getpath", in, []runtime.Thunk{constThunk{value.Arr(rel...)}}, func(v *value.Value, _ value.Path) error {
-			if ev.paths && p == nil {
-				return emit(v, nil)
+		btop, bdoc, brel := runtime.Unroot(base)
+		top, doc, _ := runtime.Unroot(p)
+		root, rooted := in, false
+		switch {
+		case btop == nil:
+		case top != nil && doc == bdoc:
+			root, rooted = top, true
+		default:
+			root, rooted = ev.latest(btop, bdoc), true
+		}
+		for _, rel := range places {
+			abs := extend(brel, rel...)
+			if !rooted {
+				abs = rel
 			}
-			return emit(v, ev.place(in, p, rel...))
-		})
+			v, ok := existingAt(root, abs)
+			if !ok {
+				continue
+			}
+			switch {
+			case !ev.track && !ev.paths:
+				if err := emit(v, nil); err != nil {
+					return err
+				}
+			case rooted && !(ev.paths && top == nil):
+				if err := emit(v, runtime.Rooted(root, bdoc, abs)); err != nil {
+					return err
+				}
+			default:
+				if err := emit(v, ev.place(in, p, rel...)); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	})
+}
+
+// existingAt is the value at path in v, and false when v lacks the place.
+func existingAt(v *value.Value, path value.Path) (*value.Value, bool) {
+	for _, k := range path {
+		var ok bool
+		switch {
+		case v.Kind() == value.KindObject && k.Kind() == value.KindString:
+			v, ok = v.Get(k.Str())
+		case v.Kind() == value.KindObject:
+			for _, e := range v.Entries() {
+				if value.Equal(e.Key, k) {
+					v, ok = e.Value, true
+				}
+			}
+		case v.Kind() == value.KindArray && k.Kind() == value.KindNumber:
+			v, ok = v.Index(int(k.Float()))
+		}
+		if !ok {
+			return nil, false
+		}
+	}
+	return v, true
 }

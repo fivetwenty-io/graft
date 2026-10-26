@@ -29,9 +29,13 @@ type Env struct {
 	val    *value.Value
 	at     value.Path
 	fn     *Closure
-	// ref marks a variable bound to a place, which at holds relative to
-	// the input the variable is read against.
-	ref   bool
+	// ref marks a variable bound to places, each relative to the input it
+	// was bound against, whose own path is at.
+	ref    bool
+	places []value.Path
+	// turn is the one place a read gives while the body runs for each in
+	// turn, and the rest of them when it is negative.
+	turn int
 	label uintptr
 	fns   map[funcKey]*Closure
 }
@@ -82,21 +86,23 @@ func (env *Env) BindAt(name string, v *value.Value, at value.Path) *Env {
 	return &Env{parent: env, kind: bindVar, name: name, val: v, at: at}
 }
 
-// BindRef returns env with $name bound to the place at, which is
-// relative to the input $name is read against.
-func (env *Env) BindRef(name string, at value.Path) *Env {
-	return &Env{parent: env, kind: bindVar, name: name, at: at, ref: true}
+// BindRef returns env with $name bound to places, each relative to the
+// input $name was bound against, whose own path is at. A read gives the
+// place numbered turn, or every place when turn is negative.
+func (env *Env) BindRef(name string, at value.Path, places []value.Path, turn int) *Env {
+	return &Env{parent: env, kind: bindVar, name: name, at: at, places: places, turn: turn, ref: true}
 }
 
-// LookupRef returns the place $name is bound to, and false when it is
-// bound to a value or not at all.
-func (env *Env) LookupRef(name string) (value.Path, bool) {
+// LookupRef returns the path of the input $name was bound against and the
+// places it is bound to, and false when it is bound to a value or not at
+// all.
+func (env *Env) LookupRef(name string) (value.Path, []value.Path, int, bool) {
 	for e := env; e != nil; e = e.parent {
 		if e.kind == bindVar && e.name == name {
-			return e.at, e.ref
+			return e.at, e.places, e.turn, e.ref
 		}
 	}
-	return nil, false
+	return nil, nil, 0, false
 }
 
 // Lookup returns the value bound to $name.
