@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -92,13 +94,14 @@ func TestInstallAliases(t *testing.T) {
 		jq := installAliasesOpts{Dir: cdir, Names: []string{"jq"}, copyMode: true}
 		So(handleInstallAliases(jq, &out, &errOut), ShouldEqual, 0)
 		So(handleInstallAliases(jq, &out, &errOut), ShouldEqual, 0)
-		So(out.String(), ShouldContainSubstring, "already installed jq")                           // recognized by content hash
-		So(os.WriteFile(filepath.Join(cdir, "jq.exe"), []byte("older graft"), 0o755), ShouldBeNil) // #nosec G306
+		So(out.String(), ShouldContainSubstring, "already installed jq") // recognized by content hash
+		writeOtherGraft(t, filepath.Join(cdir, "jq.exe"))
 		So(handleInstallAliases(jq, &out, &errOut), ShouldEqual, 1)
 		So(errOut.String(), ShouldContainSubstring, "is a copy of another graft (use --force to replace it)")
 		jq.Force = true
 		So(handleInstallAliases(jq, &out, &errOut), ShouldEqual, 0)
 		So(string(mustReadFile(t, filepath.Join(cdir, "jq.exe"))), ShouldEqual, "fake graft binary")
+		So(out.String(), ShouldContainSubstring, "copies")
 		jq.Force, jq.Remove = false, true
 		So(handleInstallAliases(jq, &out, &errOut), ShouldEqual, 0)
 		_, err := os.Stat(filepath.Join(cdir, "jq.exe"))
@@ -156,7 +159,186 @@ func TestInstallAliasesThroughBinary(t *testing.T) {
 		r := execIn(t, ".", graft, []string{"install-aliases", "--dir", dir}, "")
 		So(r.Code, ShouldEqual, 0)
 		So(execIn(t, ".", filepath.Join(dir, "jq"), []string{"-n", "1"}, "").Stdout, ShouldEqual, "1\n")
-		// The default set includes spruce.
-		So(execIn(t, ".", filepath.Join(dir, "spruce"), []string{"-v"}, "").Stdout, ShouldContainSubstring, "spruce - Version")
+		// The default set includes spruce, and spruce leads with the name it
+		// was run by.
+		So(execIn(t, ".", filepath.Join(dir, "spruce"), []string{"-v"}, "").Stdout, ShouldStartWith, filepath.Join(dir, "spruce")+" - Version ")
+	})
+}
+
+// writeOtherGraft writes a real graft build that differs from the running
+// one by a trailing byte, as an older release would.
+func writeOtherGraft(t *testing.T, path string) {
+	t.Helper()
+	data := append(mustReadFile(t, buildGraftBinary(t)), 0)
+	if err := os.WriteFile(path, data, 0o755); err != nil { // #nosec G306 -- an executable stand-in
+		t.Fatal(err)
+	}
+}
+
+func skipIfRoot(t *testing.T) {
+	t.Helper()
+	if os.Geteuid() == 0 || runtime.GOOS == "windows" {
+		t.Skip("permission checks need an unprivileged user on a Unix host")
+	}
+}
+
+func TestInstallAliasesNeverTouchesWhatIsNotGrafts(t *testing.T) {
+	Convey("--remove removes only graft's own links and copies, whatever --force says", t, func() {
+		dir := t.TempDir()
+		useGraftExecutable(t, writeFakeBinary(t, dir))
+		var out, errOut bytes.Buffer
+		foreign := filepath.Join(dir, "jq")
+		So(os.WriteFile(foreign, []byte("real"), 0o755), ShouldBeNil) // #nosec G306
+		So(handleInstallAliases(installAliasesOpts{Dir: dir, Names: []string{"jq"}, Remove: true, Force: true}, &out, &errOut), ShouldEqual, 1)
+		So(errOut.String(), ShouldContainSubstring, "ot removing")
+		So(string(mustReadFile(t, foreign)), ShouldEqual, "real")
+		out.Reset()
+		errOut.Reset()
+		// A default name is skipped, with exit 0.
+		So(os.WriteFile(filepath.Join(dir, "spruce"), []byte("real"), 0o755), ShouldBeNil) // #nosec G306
+		So(handleInstallAliases(installAliasesOpts{Dir: dir, Remove: true, Force: true}, &out, &errOut), ShouldEqual, 0)
+		So(out.String(), ShouldContainSubstring, "not removing")
+		So(string(mustReadFile(t, filepath.Join(dir, "spruce"))), ShouldEqual, "real")
+
+		cdir := t.TempDir()
+		other := filepath.Join(cdir, "jq.exe")
+		writeOtherGraft(t, other)
+		before := mustReadFile(t, other)
+		So(handleInstallAliases(installAliasesOpts{Dir: cdir, Names: []string{"jq"}, Remove: true, Force: true, copyMode: true}, io.Discard, io.Discard), ShouldEqual, 1)
+		So(mustReadFile(t, other), ShouldResemble, before)
+	})
+
+	Convey("a file that merely mentions graft is foreign, not another graft", t, func() {
+		dir := t.TempDir()
+		useGraftExecutable(t, writeFakeBinary(t, dir))
+		cdir := t.TempDir()
+		So(os.WriteFile(filepath.Join(cdir, "jq.exe"), []byte("#!/bin/sh\n# wraps graft\n"), 0o755), ShouldBeNil) // #nosec G306
+		var errOut bytes.Buffer
+		So(handleInstallAliases(installAliasesOpts{Dir: cdir, Names: []string{"jq"}, copyMode: true}, io.Discard, &errOut), ShouldEqual, 1)
+		So(errOut.String(), ShouldContainSubstring, "exists and is not a link to graft")
+		So(errOut.String(), ShouldNotContainSubstring, "another graft")
+	})
+
+	Convey("a failed replacement leaves the existing file in place", t, func() {
+		skipIfRoot(t)
+		dir := t.TempDir()
+		graft := writeFakeBinary(t, dir)
+		useGraftExecutable(t, graft)
+		cdir := t.TempDir()
+		target := filepath.Join(cdir, "jq.exe")
+		So(os.WriteFile(target, []byte("real"), 0o755), ShouldBeNil) // #nosec G306
+		So(os.Chmod(graft, 0o000), ShouldBeNil)
+		t.Cleanup(func() { _ = os.Chmod(graft, 0o755) }) // #nosec G302
+		So(handleInstallAliases(installAliasesOpts{Dir: cdir, Names: []string{"jq"}, copyMode: true, Force: true}, io.Discard, io.Discard), ShouldEqual, 1)
+		So(string(mustReadFile(t, target)), ShouldEqual, "real")
+		entries, err := os.ReadDir(cdir)
+		So(err, ShouldBeNil)
+		So(entries, ShouldHaveLength, 1) // no temporary file is left behind
+	})
+
+	Convey("the running binary is never removed or relinked", t, func() {
+		skipIfRoot(t)
+		root := t.TempDir()
+		realDir := filepath.Join(root, "real")
+		So(os.Mkdir(realDir, 0o755), ShouldBeNil) // #nosec G301
+		jq := writeFakeBinary(t, realDir)
+		So(os.Rename(jq, filepath.Join(realDir, "jq")), ShouldBeNil)
+		jq = filepath.Join(realDir, "jq")
+		running := filepath.Join(root, "graft")
+		So(os.Symlink(jq, running), ShouldBeNil)
+		useGraftExecutable(t, running)
+		var errOut bytes.Buffer
+		So(handleInstallAliases(installAliasesOpts{Dir: realDir, Names: []string{"jq"}, Force: true}, io.Discard, &errOut), ShouldEqual, 1)
+		So(string(mustReadFile(t, jq)), ShouldEqual, "fake graft binary")
+		So(errOut.String(), ShouldContainSubstring, "running graft")
+
+		// The legacy host, where graft is a link to a file named spruce.
+		legacy := t.TempDir()
+		spruce := filepath.Join(legacy, "spruce")
+		So(os.WriteFile(spruce, []byte("fake graft binary"), 0o755), ShouldBeNil) // #nosec G306
+		gl := filepath.Join(legacy, "graft")
+		So(os.Symlink(spruce, gl), ShouldBeNil)
+		useGraftExecutable(t, gl)
+		So(handleInstallAliases(installAliasesOpts{Dir: legacy, Force: true}, io.Discard, io.Discard), ShouldEqual, 0)
+		So(string(mustReadFile(t, spruce)), ShouldEqual, "fake graft binary")
+		_, err := os.Stat(gl)
+		So(err, ShouldBeNil)
+	})
+
+	Convey("a directory at the target is never replaced", t, func() {
+		dir := t.TempDir()
+		useGraftExecutable(t, writeFakeBinary(t, dir))
+		So(os.Mkdir(filepath.Join(dir, "jq"), 0o755), ShouldBeNil) // #nosec G301
+		So(handleInstallAliases(installAliasesOpts{Dir: dir, Names: []string{"jq"}, Force: true}, io.Discard, io.Discard), ShouldEqual, 1)
+		info, err := os.Lstat(filepath.Join(dir, "jq"))
+		So(err, ShouldBeNil)
+		So(info.IsDir(), ShouldBeTrue)
+	})
+}
+
+func TestInstallAliasesReports(t *testing.T) {
+	Convey("--remove --dry-run says what it would remove and changes nothing", t, func() {
+		dir := t.TempDir()
+		useGraftExecutable(t, writeFakeBinary(t, dir))
+		So(handleInstallAliases(installAliasesOpts{Dir: dir, Names: []string{"jq"}}, io.Discard, io.Discard), ShouldEqual, 0)
+		var out bytes.Buffer
+		So(handleInstallAliases(installAliasesOpts{Dir: dir, Names: []string{"jq"}, Remove: true, DryRun: true}, &out, io.Discard), ShouldEqual, 0)
+		So(out.String(), ShouldContainSubstring, "would remove jq\n")
+		So(out.String(), ShouldEndWith, "would remove 1, skipped 0\n")
+		_, err := os.Lstat(filepath.Join(dir, "jq"))
+		So(err, ShouldBeNil)
+	})
+
+	Convey("a permission error is reported with a hint and counted", t, func() {
+		skipIfRoot(t)
+		dir := t.TempDir()
+		useGraftExecutable(t, writeFakeBinary(t, dir))
+		ro := t.TempDir()
+		So(os.Chmod(ro, 0o555), ShouldBeNil)          // #nosec G302
+		t.Cleanup(func() { _ = os.Chmod(ro, 0o755) }) // #nosec G302
+		var out, errOut bytes.Buffer
+		So(handleInstallAliases(installAliasesOpts{Dir: ro, Names: []string{"jq"}}, &out, &errOut), ShouldEqual, 1)
+		So(errOut.String(), ShouldStartWith, "Unable to write "+filepath.Join(ro, "jq")+": permission denied\n")
+		So(errOut.String(), ShouldContainSubstring, "sudo")
+		So(strings.Count(errOut.String(), "/graft"), ShouldEqual, 0)
+		So(out.String(), ShouldEndWith, "linked 0, already installed 0, skipped 0, failed 1\n")
+	})
+}
+
+func TestInstallAliasesBinary(t *testing.T) {
+	Convey("the default directory and link target keep the path graft was run by", t, func() {
+		if runtime.GOOS == "linux" {
+			t.Skip("Linux reports the resolved path as the executable")
+		}
+		graft := buildGraftBinary(t)
+		root := t.TempDir()
+		keg := filepath.Join(root, "keg")
+		bin := filepath.Join(root, "bin")
+		So(os.Mkdir(keg, 0o755), ShouldBeNil) // #nosec G301
+		So(os.Mkdir(bin, 0o755), ShouldBeNil) // #nosec G301
+		So(os.Symlink(graft, filepath.Join(keg, "graft")), ShouldBeNil)
+		runner := filepath.Join(bin, "graft")
+		So(os.Symlink(filepath.Join(keg, "graft"), runner), ShouldBeNil)
+		r := execIn(t, ".", runner, []string{"install-aliases", "jq"}, "")
+		So(r.Code, ShouldEqual, 0)
+		dest, err := os.Readlink(filepath.Join(bin, "jq"))
+		So(err, ShouldBeNil)
+		So(dest, ShouldEqual, runner)
+	})
+
+	Convey("a jq link ahead of a real jq on PATH answers as graft", t, func() {
+		if runtime.GOOS == "windows" {
+			t.Skip("the PATH lookup here needs a Unix shell")
+		}
+		graft := buildGraftBinary(t)
+		first, second := t.TempDir(), t.TempDir()
+		So(execIn(t, ".", graft, []string{"install-aliases", "--dir", first, "jq"}, "").Code, ShouldEqual, 0)
+		So(os.WriteFile(filepath.Join(second, "jq"), []byte("#!/bin/sh\necho jq-1.8.2\n"), 0o755), ShouldBeNil) // #nosec G306
+		path := first + string(os.PathListSeparator) + second + string(os.PathListSeparator) + "/usr/bin:/bin"
+		r := execInEnv(t, []string{"PATH=" + path}, ".", "/bin/sh", []string{"-c", "jq --version"}, "")
+		lines := strings.Split(r.Stdout, "\n")
+		So(r.Code, ShouldEqual, 0)
+		So(lines[0], ShouldEqual, "jq-"+jqCompatVersion)
+		So(lines[1], ShouldContainSubstring, "graft")
 	})
 }

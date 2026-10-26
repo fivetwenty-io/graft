@@ -3,12 +3,17 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"debug/buildinfo"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -19,17 +24,27 @@ import (
 // occupy.
 type aliasTargetState uint8
 
-// The states a target can be in.
+// The states a target can be in. Only a link to this graft and a copy of
+// it are ever removed or left alone as installed. The foreign, other-graft
+// states are replaced only with --force, and the running binary and a
+// directory are never touched.
 const (
 	aliasAbsent aliasTargetState = iota
 	aliasLinkToThisGraft
 	aliasCopyOfThisGraft
 	aliasCopyOfOtherGraft
+	aliasLinkToOtherGraft
 	aliasForeign
+	aliasRunningBinary
+	aliasDirectory
 )
 
 // spruceName is the name graft answers to as spruce.
 const spruceName = "spruce"
+
+// graftModulePath is the main package path a graft build records in its
+// build info.
+const graftModulePath = "github.com/fivetwenty-io/graft/cmd/graft"
 
 // aliasOutcome is what install-aliases did, or declined to do, for one
 // name.
@@ -38,9 +53,9 @@ type aliasOutcome struct {
 }
 
 // installAliasesOpts are the options of one install-aliases run. Names
-// empty means the default set, whose foreign targets are skipped, where a
-// name the caller typed is refused. copyMode installs copies in place of
-// links. It is set on Windows, and by tests on every OS.
+// empty means the default set, whose unreplaceable targets are skipped,
+// where a name the caller typed is refused. copyMode installs copies in
+// place of links. It is set on Windows, and by tests on every OS.
 type installAliasesOpts struct {
 	Dir                   string
 	Force, Remove, DryRun bool
@@ -48,20 +63,30 @@ type installAliasesOpts struct {
 	copyMode              bool
 }
 
-// aliasCopyMarker is what a file in copy mode must contain for it to count
-// as another graft build, since every graft binary carries its own name in
-// its module path and usage text.
-var aliasCopyMarker = []byte("graft")
+// The actions an outcome can record.
+const (
+	actionLinked      = "linked"
+	actionWouldLink   = "would link"
+	actionAlready     = "already installed"
+	actionRemoved     = "removed"
+	actionWouldRemove = "would remove"
+	actionSkipped     = "skipped"
+	actionRefused     = "refused"
+	actionFailed      = "failed"
+)
 
-// graftExecutablePath names the running graft binary with its symlinks
-// resolved. It is a variable so tests can point the installer at a
-// stand-in.
+// graftExecutablePath names the running graft binary as it was found,
+// without resolving symlinks, so links made from it and the default
+// directory follow the path the user runs graft by, such as the Homebrew
+// bin directory, and not the versioned directory behind it. Targets are
+// compared by file identity, not by this path. It is a variable so tests
+// can point the installer at a stand-in.
 var graftExecutablePath = func() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
-	return filepath.EvalSymlinks(exe)
+	return filepath.Abs(exe)
 }
 
 // defaultAliasNames are the names install-aliases installs when none are
@@ -83,102 +108,195 @@ func aliasPath(dir, name string, copyMode bool) string {
 	return filepath.Join(dir, name)
 }
 
+// aliasChecker classifies alias targets against the running graft.
+type aliasChecker struct {
+	info     os.FileInfo
+	copyMode bool
+	graft    string
+	sum      []byte
+}
+
+func newAliasChecker(graft string, copyMode bool) (*aliasChecker, error) {
+	info, err := os.Stat(graft)
+	if err != nil {
+		return nil, err
+	}
+	return &aliasChecker{info: info, copyMode: copyMode, graft: graft}, nil
+}
+
 // inspectAliasTarget classifies what sits at path when aliases are links.
 func inspectAliasTarget(path, graftPath string) (aliasTargetState, error) {
 	return targetState(path, graftPath, false)
 }
 
-// targetState classifies what sits at path. A link counts as this graft's
-// when the path it resolves to is graft's, and a regular file in copy mode
-// is matched by SHA-256 against graft. It never runs the target, because
-// what a program says about itself is no proof of what it is.
+// targetState classifies what sits at path.
 func targetState(path, graft string, copyMode bool) (aliasTargetState, error) {
-	info, err := os.Lstat(path)
-	if os.IsNotExist(err) {
+	c, err := newAliasChecker(graft, copyMode)
+	if err != nil {
+		return aliasForeign, err
+	}
+	return c.state(path)
+}
+
+// state classifies what sits at path. A link counts as this graft's when
+// it leads to the same file as the running binary, and a regular file in
+// copy mode when its SHA-256 equals the binary's. Another graft is a Go
+// executable whose build info names graft's main package. Nothing is
+// ever run, because what a program says about itself is no proof of what
+// it is.
+func (c *aliasChecker) state(path string) (aliasTargetState, error) {
+	li, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
 		return aliasAbsent, nil
 	}
 	if err != nil {
 		return aliasForeign, err
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		resolved, err := filepath.EvalSymlinks(path)
-		if err != nil {
-			// A link that leads nowhere is not ours.
-			return aliasForeign, nil //nolint:nilerr // a dangling link is classified, not an error
-		}
-		want, err := filepath.EvalSymlinks(graft)
+	if li.IsDir() {
+		return aliasDirectory, nil
+	}
+	if li.Mode()&os.ModeSymlink != 0 {
+		return c.linkState(path), nil
+	}
+	if os.SameFile(li, c.info) {
+		return aliasRunningBinary, nil
+	}
+	if !c.copyMode || !li.Mode().IsRegular() {
+		return aliasForeign, nil
+	}
+	if li.Size() == c.info.Size() {
+		same, err := c.sameContent(path)
 		if err != nil {
 			return aliasForeign, err
 		}
-		if resolved == want {
-			return aliasLinkToThisGraft, nil
+		if same {
+			return aliasCopyOfThisGraft, nil
 		}
-		return aliasForeign, nil
 	}
-	if !copyMode || !info.Mode().IsRegular() {
-		return aliasForeign, nil
-	}
-	have, err := os.ReadFile(path) // #nosec G304 -- the path is an alias location the caller chose
-	if err != nil {
-		return aliasForeign, err
-	}
-	want, err := os.ReadFile(graft) // #nosec G304 -- the running binary
-	if err != nil {
-		return aliasForeign, err
-	}
-	if sha256.Sum256(have) == sha256.Sum256(want) {
-		return aliasCopyOfThisGraft, nil
-	}
-	if bytes.Contains(have, aliasCopyMarker) {
+	if isGraftBuild(path) {
 		return aliasCopyOfOtherGraft, nil
 	}
 	return aliasForeign, nil
 }
 
-// copyFile copies src to dst as an executable file.
+// linkState classifies a symbolic link by where it leads.
+func (c *aliasChecker) linkState(path string) aliasTargetState {
+	ti, err := os.Stat(path)
+	if err != nil {
+		// A link that leads nowhere, or loops, is not ours.
+		return aliasForeign
+	}
+	if os.SameFile(ti, c.info) {
+		return aliasLinkToThisGraft
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil && isGraftBuild(resolved) {
+		return aliasLinkToOtherGraft
+	}
+	return aliasForeign
+}
+
+// sameContent reports whether the file at path has graft's SHA-256. The
+// running binary is hashed once per run.
+func (c *aliasChecker) sameContent(path string) (bool, error) {
+	if c.sum == nil {
+		sum, err := fileSum(c.graft)
+		if err != nil {
+			return false, err
+		}
+		c.sum = sum
+	}
+	sum, err := fileSum(path)
+	if err != nil {
+		return false, err
+	}
+	return bytes.Equal(sum, c.sum), nil
+}
+
+// fileSum streams a file through SHA-256.
+func fileSum(path string) ([]byte, error) {
+	f, err := os.Open(path) // #nosec G304 -- an alias location or the running binary
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return nil, err
+	}
+	return h.Sum(nil), nil
+}
+
+// isGraftBuild reports whether path is a Go executable built from graft's
+// main package. It reads the build info and never runs the file, and a
+// file whose build info does not parse is not graft.
+func isGraftBuild(path string) bool {
+	bi, err := buildinfo.ReadFile(path)
+	return err == nil && bi.Path == graftModulePath
+}
+
+// copyFile copies src to dst as an executable file. It never overwrites,
+// and it removes what it wrote if the copy fails.
 func copyFile(src, dst string) error {
 	in, err := os.Open(src) // #nosec G304 -- the running binary
 	if err != nil {
 		return err
 	}
 	defer func() { _ = in.Close() }()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755) // #nosec G302 G304 -- an alias must be executable
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o755) // #nosec G302 G304 -- an alias must be executable
 	if err != nil {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
 		_ = out.Close()
+		_ = os.Remove(dst)
 		return err
 	}
-	return out.Close()
-}
-
-// refusal is the clause that says why a target is left alone.
-func refusal(state aliasTargetState) string {
-	if state == aliasCopyOfOtherGraft {
-		return "is a copy of another graft (use --force to replace it)"
+	if err := out.Close(); err != nil {
+		_ = os.Remove(dst)
+		return err
 	}
-	return "exists and is not a link to graft (use --force to replace it)"
+	return nil
 }
 
-// The actions an outcome can record.
-const (
-	actionLinked    = "linked"
-	actionWouldLink = "would link"
-	actionAlready   = "already installed"
-	actionRemoved   = "removed"
-	actionSkipped   = "skipped"
-	actionRefused   = "refused"
-)
+// clause says why a target is left alone.
+func clause(state aliasTargetState, remove bool) string {
+	var base string
+	switch state {
+	case aliasCopyOfOtherGraft:
+		base = "is a copy of another graft"
+	case aliasLinkToOtherGraft:
+		base = "is a link to another graft"
+	case aliasRunningBinary:
+		return "is the running graft binary"
+	case aliasDirectory:
+		return "is a directory"
+	default:
+		base = "exists and is not a link to graft"
+	}
+	if remove {
+		return base + " (not removing it)"
+	}
+	return base + " (use --force to replace it)"
+}
+
+// replaceable reports whether --force may replace a target in this state.
+func replaceable(state aliasTargetState) bool {
+	return state == aliasCopyOfOtherGraft || state == aliasLinkToOtherGraft || state == aliasForeign
+}
 
 // handleInstallAliases installs or removes the aliases opts names and
-// returns the exit code. A foreign target the caller named gives 1, after
-// the other names are handled, where a foreign target among the defaults
-// is skipped.
+// returns the exit code. A target the caller named that is not graft's
+// gives 1, after the other names are handled, where one among the
+// defaults is skipped.
 func handleInstallAliases(opts installAliasesOpts, stdout, stderr io.Writer) int {
 	graft, err := graftExecutablePath()
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, ansi.Sprintf("@R{Cannot locate graft}: %s", err.Error()))
+		return 1
+	}
+	checker, err := newAliasChecker(graft, opts.copyMode)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, ansi.Sprintf("@R{Cannot locate graft}: %s", reasonOf(err)))
 		return 1
 	}
 	dir := opts.Dir
@@ -196,88 +314,124 @@ func handleInstallAliases(opts installAliasesOpts, stdout, stderr io.Writer) int
 			return 2
 		}
 	}
+	if opts.copyMode && !opts.Remove {
+		_, _ = fmt.Fprintln(stdout, "Installing copies of graft named NAME.exe in place of links.")
+	}
 
 	code := 0
 	var outcomes []aliasOutcome
 	for _, name := range names {
-		o, ok := installOne(opts, graft, aliasPath(dir, name, opts.copyMode), explicit, stderr)
+		o := installOne(opts, checker, aliasPath(dir, name, opts.copyMode), explicit, stderr)
 		o.Name = name
-		if !ok || o.Action == actionRefused {
+		if o.Action == actionRefused || o.Action == actionFailed {
 			code = 1
 		}
-		if o.Action != "" {
-			outcomes = append(outcomes, o)
-		}
+		outcomes = append(outcomes, o)
 	}
 	printAliasOutcomes(stdout, outcomes, graft, opts)
 	return code
 }
 
-// installOne installs or removes the alias at path. It returns what it did
-// and false when it could not, having said why on stderr, in which case
-// the outcome has no action.
-func installOne(opts installAliasesOpts, graft, path string, explicit bool, stderr io.Writer) (aliasOutcome, bool) {
+// reasonOf is the cause inside a path or link error, which repeats the
+// paths the caller already knows.
+func reasonOf(err error) string {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return pe.Err.Error()
+	}
+	var le *os.LinkError
+	if errors.As(err, &le) {
+		return le.Err.Error()
+	}
+	return err.Error()
+}
+
+// installOne installs or removes the alias at path. It returns what it
+// did, and says why on stderr when it refused or could not.
+func installOne(opts installAliasesOpts, checker *aliasChecker, path string, explicit bool, stderr io.Writer) aliasOutcome {
 	o := aliasOutcome{Path: path}
-	fail := func(phrase string, err error) (aliasOutcome, bool) {
-		_, _ = fmt.Fprintln(stderr, ansi.Sprintf("@R{%s} @m{%s}: %s", phrase, path, err.Error()))
-		return aliasOutcome{Path: path}, false
+	fail := func(phrase string, err error) aliasOutcome {
+		_, _ = fmt.Fprintln(stderr, ansi.Sprintf("@R{%s} @m{%s}: %s", phrase, path, reasonOf(err)))
+		if errors.Is(err, fs.ErrPermission) {
+			_, _ = fmt.Fprintln(stderr, "Rerun with sudo, or give --dir a directory you can write to.")
+		}
+		return aliasOutcome{Path: path, Action: actionFailed}
 	}
-	state, err := targetState(path, graft, opts.copyMode)
-	if err != nil {
-		return fail("Cannot inspect", err)
-	}
-	if opts.Remove && state == aliasAbsent {
-		o.Action, o.Reason = actionSkipped, path+" does not exist"
-		return o, true
-	}
-	if (state == aliasForeign || state == aliasCopyOfOtherGraft) && !opts.Force {
-		o.Reason = path + " " + refusal(state)
+	decline := func(state aliasTargetState) aliasOutcome {
+		o.Reason = path + " " + clause(state, opts.Remove)
 		o.Action = actionSkipped
 		if explicit {
 			o.Action = actionRefused
-			_, _ = fmt.Fprintln(stderr, ansi.Sprintf("@R{Refusing to replace} @m{%s}: %s", path, refusal(state)))
+			phrase := "Refusing to replace"
+			if opts.Remove {
+				phrase = "Not removing"
+			}
+			_, _ = fmt.Fprintln(stderr, ansi.Sprintf("@R{%s} @m{%s}: %s", phrase, path, clause(state, opts.Remove)))
 		}
-		return o, true
+		return o
 	}
-	o.Action = aliasAction(opts, state)
-	if opts.DryRun || o.Action == actionAlready {
-		return o, true
-	}
-	if err := applyAlias(opts, graft, path, state); err != nil {
-		return fail("Cannot update", err)
-	}
-	return o, true
-}
-
-// aliasAction names what a run does about a target in the given state,
-// once refusals are out of the way.
-func aliasAction(opts installAliasesOpts, state aliasTargetState) string {
-	switch {
-	case opts.Remove:
-		return actionRemoved
-	case state == aliasLinkToThisGraft || state == aliasCopyOfThisGraft:
-		return actionAlready
-	case opts.DryRun:
-		return actionWouldLink
-	}
-	return actionLinked
-}
-
-// applyAlias makes the change on disk: it clears whatever sits at path,
-// and then, unless it is removing, puts the alias there.
-func applyAlias(opts installAliasesOpts, graft, path string, state aliasTargetState) error {
-	if state != aliasAbsent {
-		if err := os.Remove(path); err != nil {
-			return err
-		}
+	state, err := checker.state(path)
+	if err != nil {
+		return fail("Unable to read", err)
 	}
 	if opts.Remove {
-		return nil
+		return removeOne(opts, path, state, o, decline, fail)
 	}
+	switch {
+	case state == aliasLinkToThisGraft || state == aliasCopyOfThisGraft:
+		o.Action = actionAlready
+		return o
+	case state != aliasAbsent && (!replaceable(state) || !opts.Force):
+		return decline(state)
+	case opts.DryRun:
+		o.Action = actionWouldLink
+		return o
+	}
+	if err := installAlias(opts, checker.graft, path); err != nil {
+		return fail("Unable to write", err)
+	}
+	o.Action = actionLinked
+	return o
+}
+
+// removeOne removes the alias at path when it is a link to this graft or a
+// copy of it, and declines everything else whatever --force says.
+func removeOne(opts installAliasesOpts, path string, state aliasTargetState, o aliasOutcome,
+	decline func(aliasTargetState) aliasOutcome, fail func(string, error) aliasOutcome) aliasOutcome {
+	switch {
+	case state == aliasAbsent:
+		o.Action, o.Reason = actionSkipped, path+" does not exist"
+	case state != aliasLinkToThisGraft && state != aliasCopyOfThisGraft:
+		return decline(state)
+	case opts.DryRun:
+		o.Action = actionWouldRemove
+	default:
+		if err := os.Remove(path); err != nil {
+			return fail("Unable to write", err)
+		}
+		o.Action = actionRemoved
+	}
+	return o
+}
+
+// installAlias puts the alias at path. It builds the link or copy under a
+// temporary name beside path and renames it into place, so a failure
+// leaves whatever was there untouched, and rename never follows the
+// destination.
+func installAlias(opts installAliasesOpts, graft, path string) error {
+	tmp := filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".graft-"+strconv.FormatInt(time.Now().UnixNano(), 36))
+	create := linkOrCopy
 	if opts.copyMode {
-		return copyFile(graft, path)
+		create = copyFile
 	}
-	return linkOrCopy(graft, path)
+	if err := create(graft, tmp); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // printAliasOutcomes writes one line per name that was acted on or
@@ -287,23 +441,32 @@ func printAliasOutcomes(w io.Writer, outcomes []aliasOutcome, graft string, opts
 	for _, o := range outcomes {
 		counts[o.Action]++
 		switch o.Action {
-		case actionLinked, actionWouldLink:
-			_, _ = fmt.Fprintf(w, "%s %s -> %s\n", o.Action, o.Name, graft)
-		case actionAlready, actionRemoved:
+		case actionLinked:
+			_, _ = fmt.Fprintf(w, "linked %s -> %s\n", o.Name, graft)
+		case actionWouldLink:
+			_, _ = fmt.Fprintf(w, "would link %s -> %s at %s\n", o.Name, graft, o.Path)
+		case actionAlready, actionRemoved, actionWouldRemove:
 			_, _ = fmt.Fprintf(w, "%s %s\n", o.Action, o.Name)
 		case actionSkipped:
 			_, _ = fmt.Fprintf(w, "skipped %s: %s\n", o.Name, o.Reason)
 		}
 	}
 	skipped := counts[actionSkipped] + counts[actionRefused]
+	var line string
 	switch {
+	case opts.Remove && opts.DryRun:
+		line = fmt.Sprintf("would remove %d, skipped %d", counts[actionWouldRemove], skipped)
 	case opts.Remove:
-		_, _ = fmt.Fprintf(w, "removed %d, skipped %d\n", counts[actionRemoved], skipped)
+		line = fmt.Sprintf("removed %d, skipped %d", counts[actionRemoved], skipped)
 	case opts.DryRun:
-		_, _ = fmt.Fprintf(w, "would link %d, already installed %d, skipped %d\n", counts[actionWouldLink], counts[actionAlready], skipped)
+		line = fmt.Sprintf("would link %d, already installed %d, skipped %d", counts[actionWouldLink], counts[actionAlready], skipped)
 	default:
-		_, _ = fmt.Fprintf(w, "linked %d, already installed %d, skipped %d\n", counts[actionLinked], counts[actionAlready], skipped)
+		line = fmt.Sprintf("linked %d, already installed %d, skipped %d", counts[actionLinked], counts[actionAlready], skipped)
 	}
+	if n := counts[actionFailed]; n > 0 {
+		line += fmt.Sprintf(", failed %d", n)
+	}
+	_, _ = fmt.Fprintln(w, line)
 }
 
 // newInstallAliasesCmd builds the install-aliases command.
@@ -313,9 +476,12 @@ func newInstallAliasesCmd() *cobra.Command {
 		Use:   "install-aliases [flags] [NAME...]",
 		Short: "Install jq and spruce names that run graft",
 		Long: "Install links named jq and spruce, or the NAMEs given, that run graft under\n" +
-			"those names. They go beside the graft binary unless --dir says otherwise. An\n" +
-			"existing file or link that is not graft's is skipped among the defaults and\n" +
-			"refused when named, and --force replaces it. --remove takes the links away,\n" +
+			"those names. They go in the directory graft was run from unless --dir says\n" +
+			"otherwise, and they point at the path graft was run by. Where the system\n" +
+			"reports only the resolved path, as Linux does, that path is used. A target that\n" +
+			"is not graft's is skipped among the defaults and refused when named, and\n" +
+			"--force replaces it, except for a directory or the running binary, which are\n" +
+			"never touched. --remove takes away only links to this graft and copies of it,\n" +
 			"and --dry-run shows what would happen. On Windows graft installs copies named\n" +
 			"NAME.exe in place of links.",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -327,7 +493,7 @@ func newInstallAliasesCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&opts.Dir, "dir", "", "Directory to install into (default: the directory of the graft binary)")
+	cmd.Flags().StringVar(&opts.Dir, "dir", "", "Directory to install into (default: the directory graft was run from)")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "Replace a target that is not graft's")
 	cmd.Flags().BoolVar(&opts.Remove, "remove", false, "Remove the aliases instead of installing them")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show what would happen without changing anything")
