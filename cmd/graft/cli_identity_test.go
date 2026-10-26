@@ -173,9 +173,11 @@ func replayCLIIdentity(t *testing.T, dir string, c cliIdentityCase) (stdout, std
 		input = filepath.Join(dir, c.Stdin)
 	}
 
+	// The record script runs the binary under env -i with PATH and the
+	// four variables below, so the replay clears everything else.
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
-		if strings.HasPrefix(name, "GRAFT_") || name == "DEBUG" || name == "TRACE" {
+		if name != "PATH" {
 			t.Setenv(name, "")
 			_ = os.Unsetenv(name)
 		}
@@ -185,6 +187,7 @@ func replayCLIIdentity(t *testing.T, dir string, c cliIdentityCase) (stdout, std
 	t.Setenv("HOME", fixtures)
 	t.Setenv("GRAFT_CACHE_L2_PATH", "cache")
 	t.Chdir(fixtures)
+	_ = os.Unsetenv("PWD") // t.Chdir sets it, and env -i passes none
 
 	scratch := t.TempDir()
 	in, err := os.Open(input)
@@ -282,4 +285,20 @@ func TestCLIIdentity(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestCLIIdentityReplayEnvironment(t *testing.T) {
+	dir, err := filepath.Abs(cliIdentityDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("JQ_COLORS", "bogus")
+	t.Setenv("DEFAULT_ARRAY_MERGE_KEY", "id")
+	out, errOut, rc := replayCLIIdentity(t, dir, cliIdentityCase{Name: "env", Stdin: "-", Args: []string{"jq", "-n", "-c", "env | keys"}})
+
+	Convey("the replay runs under the environment the record script gives env -i", t, func() {
+		So(out, ShouldEqual, "[\"GRAFT_CACHE_L2_PATH\",\"HOME\",\"NO_COLOR\",\"PATH\",\"TERM\"]\n")
+		So(errOut, ShouldEqual, "")
+		So(rc, ShouldEqual, 0)
+	})
 }
