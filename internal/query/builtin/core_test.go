@@ -265,6 +265,27 @@ func TestEditorCopiesEachContainerOnce(t *testing.T) {
 	wantFail(t, err, `Array index too large`)
 }
 
+func TestSetPathGrowsANullWithItsDetails(t *testing.T) {
+	n, s := value.Num, value.Str
+	null := value.Null().WithMeta(&value.Meta{Tag: "!!null", Text: "~", Anchor: "x", LineComment: "# c", LeadingContent: "# only\n"})
+	for _, key := range []*value.Value{s("a"), n(0)} {
+		got, err := builtin.SetPath(exact(), null, value.Path{key}, n(1))
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := got.Meta()
+		if m == nil || m.Anchor != "x" || m.LineComment != "# c" || m.LeadingContent != "# only\n" {
+			t.Errorf("%s: the grown container lost the null's details: %+v", runtime.JSON(key), m)
+		} else if m.Tag != "" || m.Text != "" {
+			t.Errorf("%s: the grown container kept the null's tag or text: %+v", runtime.JSON(key), m)
+		}
+	}
+	got, err := builtin.SetPath(exact(), value.Null(), value.Path{s("a")}, n(1))
+	if err != nil || got.Meta() != nil {
+		t.Errorf("a bare null grew details: %v, %v", got.Meta(), err)
+	}
+}
+
 func TestExactAndFloatArithmetic(t *testing.T) {
 	out, err := call(t, exact(), "_divide", value.Null(), consts{n(1)}, consts{n(3)})
 	if err != nil || out[0] != "0.3333333333333333333333333333333333" {

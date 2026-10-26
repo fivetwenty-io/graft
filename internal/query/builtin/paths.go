@@ -501,6 +501,20 @@ func (s *slot) seal() *value.Value {
 	return s.v
 }
 
+// grownFrom is the container a null grows into, keeping the null's
+// comments, anchor, leading content, and position, as yq keeps them on
+// the node it turns into a container. A null with no details, which is
+// every null jq loads, grows into the bare container.
+func grownFrom(null, container *value.Value) *value.Value {
+	m := null.Meta()
+	if m == nil {
+		return container
+	}
+	kept := *m
+	kept.Tag, kept.Style, kept.Text = "", 0, ""
+	return container.WithMeta(&kept)
+}
+
 // setPersistent is setpath on a sealed value for the edits the editor does
 // not keep open: growing null into a container, padding an array, slices,
 // and every error.
@@ -512,11 +526,12 @@ func setPersistent(v *value.Value, path value.Path, nv *value.Value) (*value.Val
 	}
 	c := path[0]
 	if v.Kind() == value.KindNull {
+		null := v
 		switch c.Kind() {
 		case value.KindString:
-			v = value.Obj()
+			v = grownFrom(null, value.Obj())
 		case value.KindNumber, value.KindObject:
-			v = value.Arr()
+			v = grownFrom(null, value.Arr())
 		default:
 		}
 	}
