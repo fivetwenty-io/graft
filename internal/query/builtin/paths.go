@@ -74,7 +74,7 @@ func Index(ctx *runtime.Ctx, c, key *value.Value) (*value.Value, error) {
 		return value.Null(), nil
 	case ck == value.KindArray && kk == value.KindNumber:
 		i, ok := arrayIndex(key, c.Len())
-		if !ok {
+		if !ok || i < 0 {
 			return value.Null(), nil
 		}
 		if v, ok := c.Index(i); ok {

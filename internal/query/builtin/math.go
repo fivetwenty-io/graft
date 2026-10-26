@@ -67,6 +67,10 @@ func registerMath(r *runtime.Registry) {
 			if err != nil {
 				return nil, err
 			}
+			if ctx.Numbers == runtime.NumbersFloat {
+				// A double result, even from a literal that fits a decimal.
+				d = decimal.FromFloat64(in.Float())
+			}
 			return value.NumDec(f(d)), nil
 		})
 	}
