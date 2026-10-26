@@ -92,6 +92,12 @@ type Ctx struct {
 	Compare func(a, b *value.Value) int
 	Equal   func(a, b *value.Value) bool
 
+	// Owner, while it is set, holds the state of the reduce whose update
+	// is running, and the Editor changes that state in place rather than
+	// copying it. The evaluator sets it only around an update that cannot
+	// keep a reference to the state, and the Editor is all that reads it.
+	Owner *value.Owner
+
 	// Local is storage a dialect's builtins keep for this run alone, so
 	// that they share no state between runs. It is nil until one sets it.
 	Local map[any]any

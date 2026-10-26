@@ -12,6 +12,10 @@ type spare struct {
 	mu   sync.RWMutex
 	used int // slots claimed, guarded by mu
 
+	// owner is the Owner that holds the one value on this store and may
+	// change it in place, or nil. Only a store an Owner made has one.
+	owner *Owner
+
 	// An object's store indexes its keys. Every value on the store holds
 	// at least its first base entries, and index maps each key among them
 	// to its last position. added maps each key claimed since to its
@@ -65,6 +69,7 @@ func (v *Value) Append(elems ...*Value) *Value {
 	out := v.copyShell()
 	n, total := len(v.arr), len(v.arr)+len(elems)
 	if s := v.grow; s != nil {
+		s.share()
 		s.mu.Lock()
 		if s.used == n && total <= cap(v.arr) {
 			out.arr = append(v.arr, elems...)
@@ -91,6 +96,7 @@ func (v *Value) add(e Entry, key string) *Value {
 	out := v.copyShell()
 	n := len(v.obj.entries)
 	if s := v.grow; s != nil {
+		s.share()
 		s.mu.Lock()
 		if s.used == n && n < cap(v.obj.entries) {
 			if s.added == nil {

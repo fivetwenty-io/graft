@@ -229,6 +229,59 @@ func ExampleValue_DeleteIndex() {
 	// Output: 1 b 2
 }
 
+func ExampleOwner() {
+	start := value.Obj()
+	var o value.Owner
+	v := start
+	for _, w := range []string{"a", "b", "a"} {
+		n := 0.0
+		if c, ok := v.Get(w); ok {
+			n = c.Float()
+		}
+		v = o.Set(v, w, value.Num(n+1))
+	}
+	o.Release()
+	a, _ := v.Get("a")
+	fmt.Println(v.Keys(), a.Float(), start.Len())
+	// Output: [a b] 2 0
+}
+
+func ExampleOwner_Set() {
+	var o value.Owner
+	v := value.Obj(value.Pair{Key: "a", Value: value.Num(1)})
+	w := o.Set(v, "a", value.Num(2)) // a copy o holds
+	x := o.Set(w, "b", value.Num(3)) // w itself, changed
+	fmt.Println(w == v, x == w, v.Keys(), x.Keys())
+	// Output: false true [a] [a b]
+}
+
+func ExampleOwner_SetIndex() {
+	var o value.Owner
+	v := value.Arr(value.Num(1))
+	w := o.SetIndex(v, 1, value.Num(2))
+	w = o.SetIndex(w, 0, value.Num(0))
+	fmt.Println(v.Len(), w.Len(), w.Elems()[0].Float())
+	// Output: 1 2 0
+}
+
+func ExampleOwner_Disown() {
+	var o value.Owner
+	v := o.Set(value.Obj(), "a", value.Num(1))
+	o.Disown(v)
+	w := o.Set(v, "b", value.Num(2))
+	fmt.Println(w == v, v.Keys(), w.Keys())
+	// Output: false [a] [a b]
+}
+
+func ExampleOwner_Release() {
+	var o value.Owner
+	v := o.SetIndex(value.Arr(), 0, value.Num(1))
+	o.Release()
+	w := o.SetIndex(v, 1, value.Num(2))
+	fmt.Println(v.Len(), w.Len())
+	// Output: 1 2
+}
+
 func ExampleValue_Meta() {
 	fmt.Println(value.Str("x").Meta() == nil)
 	// Output: true

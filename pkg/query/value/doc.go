@@ -10,7 +10,9 @@ order. Constructors such as Null, Num, Str, Arr, and Obj build values, the
 accessors read them, and the updaters, such as Set and SetIndex, return a
 changed copy that shares every untouched part with the original. An
 ArrBuilder or ObjBuilder fills a new container in place before sealing it,
-which is cheaper than a run of updates. Compare and Equal follow jq's sort
+which is cheaper than a run of updates. An Owner goes further for a loop
+that keeps changing one container: it copies the container once and then
+changes its copy in place, until anything else may see it. Compare and Equal follow jq's sort
 order and its == operator. Meta carries the YAML presentation details yq
 keeps, such as comments, anchors, and scalar styles.
 

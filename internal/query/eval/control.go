@@ -124,9 +124,19 @@ func (ev evaluator) reduce(n *ast.Reduce, env *Env, in *value.Value, p value.Pat
 			last = v
 			return nil
 		})
+		// An owner lets the update change the state in place, from the
+		// first copy it takes, as ownsState describes.
+		var owner *value.Owner
+		if ev.ownsState(n) {
+			owner = &value.Owner{}
+		}
 		step := func(env *Env) error {
 			last = nil
-			if err := ev.eval(n.Update, env, state, ev.statePath(state, v0, p0), keep); err != nil {
+			outer := ev.ctx.Owner
+			ev.ctx.Owner = owner
+			err := ev.eval(n.Update, env, state, ev.statePath(state, v0, p0), keep)
+			ev.ctx.Owner = outer
+			if err != nil {
 				return err
 			}
 			if last == nil {
@@ -141,6 +151,9 @@ func (ev evaluator) reduce(n *ast.Reduce, env *Env, in *value.Value, p value.Pat
 			}
 			return ev.bindPats(n.Pats, x, env, step)
 		})
+		if owner != nil {
+			owner.Release()
+		}
 		if err != nil {
 			return err
 		}

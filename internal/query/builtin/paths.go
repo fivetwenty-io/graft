@@ -394,6 +394,15 @@ func (e *Editor) Get(path value.Path) (*value.Value, error) {
 
 // Set is SetPath on the value as edited so far.
 func (e *Editor) Set(path value.Path, nv *value.Value) error {
+	if o := e.ctx.Owner; o != nil {
+		// nv is about to be shared, so the run's owner lets it go.
+		o.Disown(nv)
+		if e.root.n == nil && len(path) > 0 {
+			if done, err := e.setOwned(o, path, nv); done {
+				return err
+			}
+		}
+	}
 	s := &e.root
 	for i, c := range path {
 		if s.n == nil && !s.open(c) {
@@ -417,6 +426,56 @@ func (e *Editor) Set(path value.Path, nv *value.Value) error {
 	}
 	*s = slot{v: nv}
 	return nil
+}
+
+// setOwned sets path in a root that o holds, or takes and holds a copy
+// of, changing the root in place. Only the root is held, so a longer path
+// copies the child it passes through. It reports false, having done
+// nothing, for a path the root cannot hold in place, which Set then
+// handles as usual, errors included.
+func (e *Editor) setOwned(o *value.Owner, path value.Path, nv *value.Value) (bool, error) {
+	root, c := e.root.v, path[0]
+	switch {
+	case root.Kind() == value.KindObject && c.Kind() == value.KindString:
+		child, err := ownedChild(path, nv, func() *value.Value {
+			v, _ := root.Get(c.Str())
+			return v
+		})
+		if err != nil {
+			return true, err
+		}
+		e.root.v = o.Set(root, c.Str(), child)
+		return true, nil
+	case root.Kind() == value.KindArray && c.Kind() == value.KindNumber:
+		i, ok := arrayIndex(c, root.Len())
+		if !ok || i < 0 || i > root.Len() {
+			return false, nil
+		}
+		child, err := ownedChild(path, nv, func() *value.Value {
+			v, _ := root.Index(i)
+			return v
+		})
+		if err != nil {
+			return true, err
+		}
+		e.root.v = o.SetIndex(root, i, child)
+		return true, nil
+	}
+	return false, nil
+}
+
+// ownedChild is the value setOwned puts in the root: nv itself for a path
+// of one key, and otherwise the child that cur returns, or null, with the
+// rest of the path set in a copy of it.
+func ownedChild(path value.Path, nv *value.Value, cur func() *value.Value) (*value.Value, error) {
+	if len(path) == 1 {
+		return nv, nil
+	}
+	c := cur()
+	if c == nil {
+		c = value.Null()
+	}
+	return setPersistent(c, path[1:], nv)
 }
 
 // open starts editing a sealed container when c addresses an existing

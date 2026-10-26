@@ -22,7 +22,9 @@ const (
 
 // Value is a JSON or YAML value. Values are immutable once built, so the
 // updaters copy only the spine from the root to the changed node and share
-// everything else, Meta included.
+// everything else, Meta included. The one exception is a container an
+// Owner copied for itself and still holds, which only the Owner's holder
+// can reach.
 type Value struct {
 	kind Kind
 	num  decimal.Decimal // KindNumber
@@ -144,7 +146,10 @@ func (v *Value) Str() string { return v.str }
 // Elems returns an array's elements as a read-only view of the value's own
 // storage. A caller who needs to change them copies the slice, or starts
 // from NewArrBuilderFrom.
-func (v *Value) Elems() []*Value { return v.arr[:len(v.arr):len(v.arr)] }
+func (v *Value) Elems() []*Value {
+	v.grow.share()
+	return v.arr[:len(v.arr):len(v.arr)]
+}
 
 // Len is the length of a string in bytes, of an array in elements, and of
 // an object in entries.
@@ -180,6 +185,7 @@ func (v *Value) Entries() []Entry {
 	if v.kind != KindObject {
 		return nil
 	}
+	v.grow.share()
 	return v.obj.entries[:len(v.obj.entries):len(v.obj.entries)]
 }
 
@@ -215,6 +221,7 @@ func (v *Value) Meta() *Meta { return v.meta }
 
 // WithMeta returns a copy of v carrying m.
 func (v *Value) WithMeta(m *Meta) *Value {
+	v.grow.share()
 	c := *v
 	c.meta = m
 	return &c

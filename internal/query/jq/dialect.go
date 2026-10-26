@@ -123,7 +123,35 @@ func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, 
 			yield(update(ctx, root, paths, rhs))
 			return
 		}
-		for v, err := range rhs(root, nil) {
+		outs := rhs(root, nil)
+		if ctx.Owner != nil {
+			// The owner may change root in place, so the right side runs
+			// to its end before root changes, and more than one value has
+			// root let go so that each starts from root as it was.
+			var vals []*value.Value
+			var rerr error
+			for v, err := range outs {
+				if err != nil {
+					rerr = err
+					break
+				}
+				vals = append(vals, v)
+			}
+			if len(vals) > 1 {
+				ctx.Owner.Disown(root)
+			}
+			outs = func(yield func(*value.Value, error) bool) {
+				for _, v := range vals {
+					if !yield(v, nil) {
+						return
+					}
+				}
+				if rerr != nil {
+					yield(nil, rerr)
+				}
+			}
+		}
+		for v, err := range outs {
 			if err != nil {
 				yield(nil, err)
 				return
