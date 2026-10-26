@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
 )
 
@@ -116,6 +117,9 @@ func newPersonaRoot(p persona) (*cobra.Command, *bool) {
 	// feature flags the graft root loads, so a bad GRAFT_* value fails
 	// here as it does there.
 	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		// Diagnostics are colored on the rule the graft root uses, which
+		// is a terminal on stderr and an environment that allows color.
+		ansi.Color(ansi.ResolveColor(nil, isStderrTTY()))
 		cfg, err := resolveStartupConfig("")
 		if err != nil {
 			aborted = true
