@@ -226,28 +226,6 @@ func boolRank(v *value.Value) int {
 	return 0
 }
 
-// nodeText is a node's text as yq holds it: a scalar's text as written,
-// or as yq would write it, and nothing for a collection.
-func nodeText(v *value.Value) string {
-	if m := v.Meta(); m != nil && m.Text != "" && v.Kind() != value.KindString {
-		return m.Text
-	}
-	switch v.Kind() {
-	case value.KindString:
-		return v.Str()
-	case value.KindNumber:
-		return numberText(v)
-	case value.KindTrue:
-		return "true"
-	case value.KindFalse:
-		return "false"
-	case value.KindNull:
-		return "null"
-	default:
-	}
-	return ""
-}
-
 // identity is the text yq tells equal nodes apart by in unique and
 // group_by: a scalar's text, or a collection's YAML, so "1" and 1 are
 // the same key.

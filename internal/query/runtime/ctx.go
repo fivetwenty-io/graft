@@ -30,6 +30,10 @@ func AssignArith(op string, apply func(cur, rhs *value.Value) (*value.Value, err
 	return AssignMode{op: op, apply: apply}
 }
 
+// AssignNamed returns the mode for an assignment that a name leads, such
+// as yq's "style=", which the dialect reads from Op.
+func AssignNamed(op string) AssignMode { return AssignMode{op: op} }
+
 // Op returns the assignment operator as written.
 func (m AssignMode) Op() string { return m.op }
 

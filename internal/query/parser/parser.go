@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/ast"
@@ -298,11 +299,12 @@ func (p *parser) parseExprIn(minPrec int, c exprContext) (ast.Node, error) {
 		return nil, err
 	}
 	for {
-		tok := p.peek()
+		tok, op, ahead := p.peekOperator()
 		row, ok := p.rowFor(tok)
 		if !ok || row.Prec < minPrec {
 			return left, nil
 		}
+		p.i += ahead
 		p.next()
 		rhsMin := row.Prec + 1
 		if row.Assoc == Right {
@@ -313,7 +315,7 @@ func (p *parser) parseExprIn(minPrec int, c exprContext) (ast.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		left = buildInfix(row, tok.Text, left, right)
+		left = buildInfix(row, op, left, right)
 		if row.Assoc != NonAssoc {
 			continue
 		}
@@ -323,6 +325,20 @@ func (p *parser) parseExprIn(minPrec int, c exprContext) (ast.Node, error) {
 			}
 		}
 	}
+}
+
+// peekOperator returns the next token, the operator it spells, and how
+// many tokens before it the operator takes. A name of the grammar's
+// MetaAssign just before "=" or "|=" makes one operator with it, such as
+// "style=", which the assignment token's row binds.
+func (p *parser) peekOperator() (lexer.Token, string, int) {
+	tok := p.peek()
+	if tok.Kind == lexer.Ident && slices.Contains(p.g.MetaAssign, tok.Text) {
+		if at := p.peekAt(1); at.Kind == lexer.Assign || at.Kind == lexer.UpdateAssign {
+			return at, tok.Text + at.Text, 1
+		}
+	}
+	return tok, tok.Text, 0
 }
 
 // buildInfix builds the node for row, keeping the operator as written,

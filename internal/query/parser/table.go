@@ -73,6 +73,11 @@ type Grammar struct {
 	Tokens   lexer.TokenSet
 	Ops      OperatorTable
 	Keywords KeywordForms
+	// MetaAssign are the names that join the "=" or "|=" just after them
+	// into one assignment operator, as yq's ".a style = \"double\"" does.
+	// The operator is the name and the assignment as written, such as
+	// "style=", and binds as the assignment does.
+	MetaAssign []string
 }
 
 // JQ returns the jq 1.8 grammar. The rows follow parser.y's declarations

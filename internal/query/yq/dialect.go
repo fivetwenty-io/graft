@@ -274,8 +274,14 @@ func extend(p value.Path, c ...*value.Value) value.Path {
 // child changes before the parent that holds it, and takes the first
 // output, leaving a path whose update has none as it was. The value that
 // replaces another takes its place's presentation, as place describes.
+// An operator a name leads, such as "style=", sets what the name reads,
+// as assignMeta describes.
 func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
 	return func(yield func(*value.Value, error) bool) {
+		if name, upd, ok := metaOp(mode.Op()); ok {
+			yield(assignMeta(ctx, root, paths, rhs, name, upd))
+			return
+		}
 		if mode.Op() == runtime.AssignUpdate.Op() {
 			yield(update(ctx, root, paths, rhs))
 			return
@@ -377,7 +383,8 @@ func place(cur, nv *value.Value) *value.Value {
 	}
 	style := placeStyle(cur, nv)
 	comments := hasComments(cm) && !hasComments(nv.Meta())
-	if style == 0 && !comments {
+	lead := cm.LeadingContent != "" && (nv.Meta() == nil || nv.Meta().LeadingContent == "")
+	if style == 0 && !comments && !lead {
 		return nv
 	}
 	m := value.Meta{}
@@ -390,6 +397,9 @@ func place(cur, nv *value.Value) *value.Value {
 	if comments {
 		m.HeadComment, m.LineComment, m.FootComment = cm.HeadComment, cm.LineComment, cm.FootComment
 	}
+	if lead {
+		m.LeadingContent = cm.LeadingContent
+	}
 	return nv.WithMeta(&m)
 }
 
@@ -400,7 +410,7 @@ func placeStyle(cur, nv *value.Value) value.StyleFlags {
 	if hasFlow(cur) && cur.Len() == 0 || kindOf(cur) != kindOf(nv) {
 		return 0
 	}
-	if kindOf(cur) == "scalar" && tagOf(cur) != tagOf(nv) {
+	if kindOf(cur) == kindScalar && tagOf(cur) != tagOf(nv) {
 		return 0
 	}
 	return cur.Meta().Style & styles

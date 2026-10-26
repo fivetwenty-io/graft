@@ -50,27 +50,37 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 	ctx.RegexPCRE = true
 	roots := make([]*value.Value, len(docs))
 	for i, doc := range docs {
-		roots[i] = doc.Value
+		roots[i] = withLeadingContent(doc)
 	}
 	r := registry()
 	prog := eval.NewProgram(node, rootEnv, r)
 	split := 0
 	return prog.Run(ctx, prog.Env, roots, func(v *value.Value, p value.Path) error {
 		doc := docs[0]
-		switch top, i, rel := runtime.Unroot(p); {
+		leading := ""
+		if m := v.Meta(); m != nil {
+			leading = m.LeadingContent
+		}
+		switch _, i, rel := runtime.Unroot(p); {
 		case i == splitDoc:
 			// split_doc puts each output in a document of its own, which
 			// opens with no "---" of the input's. Only a document's root
 			// keeps its leading comments, as in yq.
 			doc.DocIndex = split
-			doc.LeadingContent = ""
-			if len(rel) == 0 {
-				doc.LeadingContent = leadingOf(docs, top)
+			leading = withoutSeparators(leading)
+			if len(rel) > 0 {
+				leading = ""
 			}
 			split++
 		case i < len(docs):
 			doc = docs[i]
 		}
+		if p == nil {
+			// A value the run built prints as the first document's, as
+			// yq's new node is, so it never starts a document of its own.
+			doc.DocIndex, doc.FileIndex = 0, 0
+		}
+		doc.LeadingContent = leading
 		return emit(doc, v)
 	})
 }
@@ -78,20 +88,29 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 // docSeparator stands for a "---" line in leading content.
 const docSeparator = "$yqDocSeparator$"
 
-// leadingOf is the leading content of the document whose root is root,
-// without its "---" lines.
-func leadingOf(docs []load.Document, root *value.Value) string {
+// withoutSeparators is leading content without its "---" lines.
+func withoutSeparators(leading string) string {
 	var b strings.Builder
-	for _, d := range docs {
-		if d.Value != root {
-			continue
+	for line := range strings.SplitAfterSeq(leading, "\n") {
+		if strings.TrimSpace(line) != docSeparator {
+			b.WriteString(line)
 		}
-		for line := range strings.SplitAfterSeq(d.LeadingContent, "\n") {
-			if strings.TrimSpace(line) != docSeparator {
-				b.WriteString(line)
-			}
-		}
-		break
 	}
 	return b.String()
+}
+
+// withLeadingContent is the document's root carrying the document's
+// leading content, which yq keeps on the root node. So head_comment reads
+// it, a head comment set on the root replaces it, and only an output that
+// still carries it prints it, as in yq, where ".a" prints without it.
+func withLeadingContent(doc load.Document) *value.Value {
+	if doc.LeadingContent == "" {
+		return doc.Value
+	}
+	var m value.Meta
+	if dm := doc.Value.Meta(); dm != nil {
+		m = *dm
+	}
+	m.LeadingContent = doc.LeadingContent
+	return doc.Value.WithMeta(&m)
 }

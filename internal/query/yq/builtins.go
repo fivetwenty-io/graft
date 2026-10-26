@@ -43,7 +43,7 @@ func registry() *runtime.Registry {
 }
 
 // registerYQ adds the operators that read the cursor, parent, key, and
-// path, and the node operators tag and kind that ".." filters lean on.
+// path, and the node operators that read and change a node's details.
 func registerYQ(r *runtime.Registry) {
 	r.Register("parent", 0, parent)
 	r.Register("key", 0, key)
@@ -55,12 +55,7 @@ func registerYQ(r *runtime.Registry) {
 		}
 		return emit(value.Arr(p...), nil)
 	})
-	r.RegisterSingle("tag", 0, func(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
-		return emit(value.Str(tagOf(in)), nil)
-	})
-	r.RegisterSingle("kind", 0, func(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
-		return emit(value.Str(kindOf(in)), nil)
-	})
+	registerMeta(r)
 }
 
 // parent emits the node that holds the cursor's node, and nothing at a
@@ -210,7 +205,7 @@ func isFloat(v *value.Value) bool {
 // kindOf is yq's node kind.
 func kindOf(v *value.Value) string {
 	if m := v.Meta(); m != nil && m.AliasOf != "" {
-		return "alias"
+		return kindAlias
 	}
 	switch v.Kind() {
 	case value.KindObject:
@@ -219,5 +214,5 @@ func kindOf(v *value.Value) string {
 		return "seq"
 	default:
 	}
-	return "scalar"
+	return kindScalar
 }

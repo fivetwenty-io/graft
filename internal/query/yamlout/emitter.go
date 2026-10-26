@@ -646,6 +646,14 @@ func utf8Len(s string) int {
 	return n
 }
 
+// LeadingContent is content printed the way yq prints leading content,
+// with its separator markers as "---" or as nothing, as separators says.
+func LeadingContent(content string, separators bool) string {
+	var b strings.Builder
+	writeLeadingContent(&b, content, separators)
+	return b.String()
+}
+
 // writeLeadingContent writes content the way yq prints leading content: a
 // separator marker as "---" when separators print and as nothing when
 // they do not, and any other line not already a comment, a blank line, or

@@ -26,7 +26,11 @@ type ParseError struct {
 func (e *ParseError) Error() string { return e.Msg }
 
 // Grammar returns the grammar yq expressions parse under.
-func Grammar() parser.Grammar { return parser.YQ() }
+func Grammar() parser.Grammar {
+	g := parser.YQ()
+	g.MetaAssign = MetaAssignNames()
+	return g
+}
 
 // Parse parses a yq expression. A blank expression is the identity, as it
 // is in yq. A name yq's lexer lacks, such as jq's empty, fails first, as
@@ -39,6 +43,9 @@ func Parse(expr string) (ast.Node, error) {
 	}
 	if toks, err := lexer.Tokenize(expr, Grammar().Tokens); err == nil {
 		if msg, at, refused := unlexable(expr, toks); refused {
+			return nil, &ParseError{Msg: msg, Pos: at}
+		}
+		if msg, at, missing := leftMissing(toks); missing {
 			return nil, &ParseError{Msg: msg, Pos: at}
 		}
 	}
@@ -121,6 +128,45 @@ func infix(tok lexer.Token) bool {
 		if r.Spelling == spelling {
 			return true
 		}
+	}
+	return false
+}
+
+// leftMissing reports yq's message for an operator such as "style ="
+// with nothing on its left. yq's operator takes the operand of the
+// operator before it, which then has one too few, so the message names
+// that operator, or the name itself when nothing comes before it.
+func leftMissing(toks []lexer.Token) (string, int, bool) {
+	for i, tok := range toks {
+		if tok.Kind != lexer.Ident || i+1 >= len(toks) {
+			continue
+		}
+		if _, ok := metaNames[tok.Text]; !ok {
+			continue
+		}
+		if next := toks[i+1].Kind; next != lexer.Assign && next != lexer.UpdateAssign {
+			continue
+		}
+		switch {
+		case i == 0 || opener(toks[i-1]):
+			return operandMissing(tok), tok.Pos, true
+		case infix(toks[i-1]):
+			return operandMissing(toks[i-1]), toks[i-1].Pos, true
+		default:
+		}
+	}
+	return "", 0, false
+}
+
+// opener reports whether tok opens a group, or is a keyword that is not
+// an operator, either of which an operand follows.
+func opener(tok lexer.Token) bool {
+	switch tok.Kind {
+	case lexer.LParen, lexer.LBracket, lexer.LBrace:
+		return true
+	case lexer.Keyword:
+		return !infix(tok)
+	default:
 	}
 	return false
 }

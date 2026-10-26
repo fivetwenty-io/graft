@@ -421,7 +421,8 @@ func (e *emitter) scalarStyle(v *value.Value, c nodeCtx) (string, Style, bool) {
 // requestedStyle is the style scalar v with Meta asks for. Without a
 // style flag, text with a line break asks for a literal block, and an
 // untagged scalar that plain style would read back as something else
-// asks for double quotes.
+// asks for double quotes. A scalar given a tag other than !!str, which
+// only an assignment of the tag does, keeps plain style, as yq's does.
 func requestedStyle(m *value.Meta, text string, v *value.Value) Style {
 	switch {
 	case m.Style&value.DoubleQuoted != 0:
@@ -435,7 +436,7 @@ func requestedStyle(m *value.Meta, text string, v *value.Value) Style {
 	case strings.Contains(text, "\n"):
 		return StyleLiteral
 	}
-	if m.Style&value.Tagged == 0 && !readsAs(text, v) {
+	if m.Style&value.Tagged == 0 && (m.Tag == "" || shortTag(m.Tag) == yamlnode.TagStr) && !readsAs(text, v) {
 		return StyleDoubleQuoted
 	}
 	return StylePlain
@@ -509,13 +510,15 @@ func readsAs(text string, v *value.Value) bool {
 }
 
 // scalarTag returns the tag a scalar is written with: one marked as
-// written, or one that is not the tag its kind takes anyway.
+// written, or one that is not the tag its kind takes anyway. A string
+// given a number's tag, which only an assignment of the tag does, prints
+// without it, as yq's does.
 func scalarTag(v *value.Value, m *value.Meta) string {
 	if m.Tag == "" || m.Style&value.Tagged != 0 {
 		return m.Tag
 	}
 	own := map[value.Kind][]string{
-		value.KindString: {yamlnode.TagStr},
+		value.KindString: {yamlnode.TagStr, yamlnode.TagInt, yamlnode.TagFloat},
 		value.KindNumber: {yamlnode.TagInt, yamlnode.TagFloat},
 		value.KindTrue:   {yamlnode.TagBool},
 		value.KindFalse:  {yamlnode.TagBool},

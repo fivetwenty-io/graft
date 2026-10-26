@@ -2,6 +2,7 @@ package eval
 
 import (
 	"iter"
+	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/ast"
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
@@ -10,11 +11,11 @@ import (
 
 // assign runs an assignment operator. It collects the paths the left side
 // names and hands them to the dialect, which decides how the right side
-// changes the value at each one. The right side of "|=" reads as any
-// expression does, and that of "=" and the arithmetic forms reads in
-// IndexSource mode. Tracking cursors, the right side runs at the place of
-// the value it is given, and an assignment below a document's root runs
-// on the document, as assignIn describes.
+// changes the value at each one. The right side of "|=", and of a named
+// form such as yq's "style|=", reads as any expression does, and that of
+// "=" and the other forms reads in IndexSource mode. Tracking cursors, the
+// right side runs at the place of the value it is given, and an assignment
+// below a document's root runs on the document, as assignIn describes.
 func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	mode, err := ev.assignMode(n.Op)
 	if err != nil {
@@ -22,7 +23,7 @@ func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Pat
 	}
 	lhs := ev.pathsFor(runtime.IndexUpdate)
 	src := evaluator{state: ev.state, mode: runtime.IndexSource}
-	if n.Op == "|=" {
+	if strings.HasSuffix(n.Op, "|=") {
 		src.mode = runtime.IndexRead
 	}
 	return ev.each(in, p, func(root *value.Value, rp value.Path) error {
@@ -192,6 +193,9 @@ func (ev evaluator) assignMode(op string) (runtime.AssignMode, error) {
 		}), nil
 	}
 	name, ok := arithmetic[op[:len(op)-1]]
+	if !ok && named(op) {
+		return runtime.AssignNamed(op), nil
+	}
 	if !ok {
 		return runtime.AssignMode{}, RuntimeError("unknown assignment operator " + op)
 	}
@@ -202,6 +206,13 @@ func (ev evaluator) assignMode(op string) (runtime.AssignMode, error) {
 		}
 		return out, err
 	}), nil
+}
+
+// named reports whether op is an assignment that a name leads, such as
+// "style=" or "line_comment|=".
+func named(op string) bool {
+	c := op[0]
+	return c == '_' || 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
 }
 
 // seqStop is the signal a sequence raises inside the evaluator when its
