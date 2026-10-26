@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"math"
+	"math/big"
 	"testing"
 )
 
@@ -68,5 +69,20 @@ func TestCorrectlyRoundedLibm(t *testing.T) {
 	}
 	if exp2(math.Copysign(0, -1)) != 1 {
 		t.Error("exp2(-0) is not 1")
+	}
+}
+
+// bigLn2 keeps each precision's ln 2 once it has it, and hands out a copy
+// the caller may change.
+func TestBigLn2HandsOutCopies(t *testing.T) {
+	const prec = 300
+	want := bigLn2(prec).Text('g', 80)
+	if want[:20] != "0.693147180559945309" {
+		t.Fatalf("ln 2 is %s", want)
+	}
+	first := bigLn2(prec)
+	first.Mul(first, big.NewFloat(3))
+	if got := bigLn2(prec); got.Text('g', 80) != want || got.Prec() != prec {
+		t.Errorf("ln 2 became %s at %d bits", got.Text('g', 80), got.Prec())
 	}
 }

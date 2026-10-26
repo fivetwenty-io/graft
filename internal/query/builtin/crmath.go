@@ -3,6 +3,7 @@ package builtin
 import (
 	"math"
 	"math/big"
+	"sync"
 )
 
 // The functions in this file return the float64 nearest to the exact
@@ -37,11 +38,32 @@ func roundNearest(eval func(prec uint) *big.Float) float64 {
 	}
 }
 
-// bigLn2 returns ln 2 at precision prec, as 2·atanh(1/3).
+// ln2s holds ln 2 at each precision bigLn2 has computed it at. The
+// precisions come from roundNearest's doubling, so there are few.
+var ln2s struct {
+	sync.RWMutex
+	at map[uint]*big.Float // never changed once stored
+}
+
+// bigLn2 returns ln 2 at precision prec, as 2·atanh(1/3), in a new
+// big.Float the caller may change.
 func bigLn2(prec uint) *big.Float {
+	ln2s.RLock()
+	kept := ln2s.at[prec]
+	ln2s.RUnlock()
+	if kept != nil {
+		return new(big.Float).Set(kept)
+	}
 	third := new(big.Float).SetPrec(prec).Quo(big.NewFloat(1), big.NewFloat(3))
 	ln2 := atanhSeries(third, prec)
-	return ln2.SetMantExp(ln2, 1)
+	ln2.SetMantExp(ln2, 1)
+	ln2s.Lock()
+	if ln2s.at == nil {
+		ln2s.at = map[uint]*big.Float{}
+	}
+	ln2s.at[prec] = new(big.Float).Set(ln2)
+	ln2s.Unlock()
+	return ln2
 }
 
 // atanhSeries returns atanh(x) for |x| <= 1/2 at precision prec, from
@@ -54,9 +76,10 @@ func atanhSeries(x *big.Float, prec uint) *big.Float {
 	x2 := new(big.Float).SetPrec(prec).Mul(x, x)
 	pow := new(big.Float).SetPrec(prec).Set(x)
 	term := new(big.Float).SetPrec(prec)
+	odd := new(big.Float)
 	for k := int64(1); ; k++ {
 		pow.Mul(pow, x2)
-		term.Quo(pow, new(big.Float).SetInt64(2*k+1))
+		term.Quo(pow, odd.SetInt64(2*k+1))
 		if negligible(term, sum, prec) {
 			return sum
 		}
@@ -80,9 +103,10 @@ func expm1Small(r *big.Float, prec uint) *big.Float {
 	}
 	sum := new(big.Float).SetPrec(prec).Set(y)
 	term := new(big.Float).SetPrec(prec).Set(y)
+	bn := new(big.Float)
 	for n := int64(2); ; n++ {
 		term.Mul(term, y)
-		term.Quo(term, new(big.Float).SetInt64(n))
+		term.Quo(term, bn.SetInt64(n))
 		if negligible(term, sum, prec) {
 			break
 		}
