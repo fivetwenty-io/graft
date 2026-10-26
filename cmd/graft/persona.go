@@ -44,8 +44,9 @@ func personaFromArgv0(argv0 string) persona {
 
 // queryInvocation reports whether a run is a jq or yq query run and which
 // persona it speaks for. It is true under the jq and yq names, and under
-// the graft name when the first argument is jq or yq. A spruce run is
-// never a query run, because spruce has no such commands.
+// the graft name when the first argument that is not one of graft's own
+// root flags is jq or yq. A spruce run is never a query run, because
+// spruce has no such commands.
 func queryInvocation(argv []string) (persona, bool) {
 	if len(argv) == 0 {
 		return personaGraft, false
@@ -54,10 +55,43 @@ func queryInvocation(argv []string) (persona, bool) {
 	if p == personaJQ || p == personaYQ {
 		return p, true
 	}
-	if p == personaGraft && len(argv) > 1 && (argv[1] == "jq" || argv[1] == "yq") {
-		return p, true
+	if p != personaGraft {
+		return personaGraft, false
+	}
+	rest := argv[1:]
+	for len(rest) > 0 {
+		verb := rest[0]
+		if verb == "jq" || verb == "yq" {
+			return p, true
+		}
+		n, ok := rootFlagWidth(verb)
+		if !ok || n > len(rest) {
+			break
+		}
+		rest = rest[n:]
 	}
 	return personaGraft, false
+}
+
+// rootFlagWidth reports how many arguments a leading graft root flag
+// takes, counting the flag itself, and false when the argument is not one.
+// A bare --color takes no value, because pflag reads one only after =.
+func rootFlagWidth(arg string) (int, bool) {
+	if name, ok := strings.CutPrefix(arg, "--"); ok {
+		key, _, hasVal := strings.Cut(name, "=")
+		takesValue, known := rootFlagTakesValue[key]
+		if !known {
+			return 0, false
+		}
+		if takesValue && !hasVal {
+			return 2, true
+		}
+		return 1, true
+	}
+	if len(arg) > 1 && arg[0] == '-' && strings.Trim(arg[1:], "DTv") == "" {
+		return 1, true
+	}
+	return 0, false
 }
 
 // newPersonaRoot builds the root command for a run under an alias name.
@@ -71,7 +105,7 @@ func newPersonaRoot(p persona) (*cobra.Command, *bool) {
 		return newRootCmd()
 	}
 	var aborted bool
-	root := newJQCmd()
+	root := newJQCmdFor(personaJQ)
 	root.Use = "jq [options] <jq filter> [file...]"
 	root.Short = "jq - commandline JSON processor [graft " + Version + ", jq " + jqCompatVersion + " compatible]"
 	root.Long = root.Short
@@ -89,6 +123,12 @@ func newPersonaRoot(p persona) (*cobra.Command, *bool) {
 			return err
 		}
 		resolveStartupFeatureFlags()
+		// The theme is resolved from GRAFT_THEME and the config file
+		// alone, and a bad value warns as it does under graft.
+		_, _, warnings := resolveTheme(root, false, themeNameAuto)
+		for _, w := range warnings {
+			log.PrintStdErrf("%s\n", w)
+		}
 		return nil
 	}
 	return root, &aborted

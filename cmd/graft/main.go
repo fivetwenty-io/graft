@@ -1611,9 +1611,12 @@ func main() {
 		os.Args = normalizeLegacyColorArgs(os.Args)
 	}
 
-	rootCmd, aborted := newRootCmd()
+	var rootCmd *cobra.Command
+	var aborted *bool
 	if isQuery && pers == personaJQ {
 		rootCmd, aborted = newPersonaRoot(pers)
+	} else {
+		rootCmd, aborted = newRootCmd()
 	}
 
 	err := rootCmd.Execute()

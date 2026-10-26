@@ -27,6 +27,26 @@ func TestPersona(t *testing.T) {
 		So(ok, ShouldBeFalse)
 		_, ok = queryInvocation([]string{"spruce", "jq", "."})
 		So(ok, ShouldBeFalse) // spruce never had jq
+		for _, argv := range [][]string{
+			{"graft", "--theme", "mono", "jq", "."},
+			{"graft", "--theme=mono", "-D", "jq", "."},
+			{"graft", "--no-color", "--config", "c.yml", "--max-loop-iterations", "3", "yq", "."},
+			{"graft", "--color=on", "jq", "."},
+		} {
+			p, ok = queryInvocation(argv)
+			So(ok, ShouldBeTrue)
+			So(p, ShouldEqual, personaGraft)
+		}
+		for _, argv := range [][]string{
+			{"graft", "--color", "on", "jq", "."}, // the legacy form, where on is the verb
+			{"graft", "--theme", "jq"},            // jq is the theme's value
+			{"graft", "--theme", "mono", "merge", "jq"},
+			{"graft", "--", "jq"},
+			{"graft", "--bogus", "jq"},
+		} {
+			_, ok = queryInvocation(argv)
+			So(ok, ShouldBeFalse)
+		}
 		_, ok = queryInvocation(nil)
 		So(ok, ShouldBeFalse)
 	})

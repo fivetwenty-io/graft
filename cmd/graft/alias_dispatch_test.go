@@ -11,7 +11,6 @@ import (
 
 func TestAliasDispatch(t *testing.T) {
 	graft := buildGraftBinary(t)
-	t.Cleanup(removeGraftBinary)
 	jqLink := linkAs(t, graft, "jq")
 	spruceLink := linkAs(t, graft, "spruce")
 
@@ -66,10 +65,19 @@ func TestAliasDispatch(t *testing.T) {
 	})
 
 	Convey("the legacy usage fallback is never reached", t, func() {
-		for _, args := range [][]string{{"--bogus", "."}, {".", "/nonexistent"}, {".a |"}} {
+		for _, c := range []struct {
+			args []string
+			err  string
+			code int
+		}{
+			{[]string{"--bogus", "."}, "Unknown option: --bogus\n", 2},
+			{[]string{".", "/nonexistent"}, "Unable to open file /nonexistent: no such file or directory\n", 2},
+			{[]string{".a |"}, "Compile error: unexpected end of input at line 1, column 5\n", 3},
+		} {
+			args := c.args
 			r := execIn(t, ".", jqLink, args, "1")
-			So(r.Stderr, ShouldNotContainSubstring, "Usage:")
-			So(r.Code, ShouldNotEqual, 1)
+			So(r.Stderr, ShouldEqual, c.err)
+			So(r.Code, ShouldEqual, c.code)
 			g := execIn(t, ".", graft, append([]string{"jq"}, args...), "1")
 			So(g.Stderr, ShouldEqual, r.Stderr)
 			So(g.Code, ShouldEqual, r.Code)
@@ -77,14 +85,26 @@ func TestAliasDispatch(t *testing.T) {
 	})
 
 	Convey("normalizeLegacyColorArgs does not rewrite query arguments", t, func() {
-		// --arg takes the next two tokens, so --color is the value and
-		// $x is "--color" in both names.
-		args := []string{"--arg", "x", "--color", "-n", "-r", "$x"}
+		// The legacy rewrite would join --color and on into one
+		// positional, --color=on.
+		args := []string{"-n", "-r", "$ARGS.positional[]", "--args", "--", "--color", "on"}
+		want := "--color\non\n"
+		So(execIn(t, ".", graft, append([]string{"jq"}, args...), "").Stdout, ShouldEqual, want)
+		So(execIn(t, ".", jqLink, args, "").Stdout, ShouldEqual, want)
+		// A root flag given before the verb still leaves the query's
+		// arguments alone. Left alone, "on" is the program, which jq
+		// refuses, where the rewrite would have bound $x and succeeded.
+		pre := []string{"--theme", "mono", "jq", "-n", "-r", "--arg", "x", "--color", "on", "$x"}
+		r := execIn(t, ".", graft, pre, "")
+		So(r.Stderr, ShouldContainSubstring, "on/0 is not defined")
+		So(r.Code, ShouldEqual, 3)
+
+		// --arg takes the next two tokens, so --color is the value.
+		args = []string{"--arg", "x", "--color", "-n", "-r", "$x"}
 		So(execIn(t, ".", graft, append([]string{"jq"}, args...), "").Stdout, ShouldEqual, "--color\n")
 		So(execIn(t, ".", jqLink, args, "").Stdout, ShouldEqual, "--color\n")
 
-		// The legacy rewrite would join --color and on into --color=on and
-		// bind it to $x. Left alone, "on" is the program, which jq refuses.
+		// Left alone, "on" is the program, which jq refuses.
 		args = []string{"-n", "-r", "--arg", "x", "--color", "on", "$x"}
 		g := execIn(t, ".", graft, append([]string{"jq"}, args...), "")
 		l := execIn(t, ".", jqLink, args, "")
@@ -92,6 +112,29 @@ func TestAliasDispatch(t *testing.T) {
 		So(g.Stderr, ShouldContainSubstring, "on/0 is not defined")
 		So(g.Code, ShouldEqual, 3)
 		So(l, ShouldResemble, g)
+	})
+
+	Convey("the jq name matches the way a symlink is named or chained", t, func() {
+		for _, name := range []string{"jq.exe", "JQ"} {
+			So(execIn(t, ".", linkAs(t, graft, name), []string{"--version"}, "").Stdout, ShouldStartWith, "jq-"+jqCompatVersion+"\n")
+		}
+		hop := linkAs(t, graft, "hop")
+		chain := filepath.Join(t.TempDir(), "jq")
+		So(os.Symlink(hop, chain), ShouldBeNil)
+		So(execIn(t, ".", chain, []string{"-n", "1+1"}, "").Stdout, ShouldEqual, "2\n")
+		So(execIn(t, ".", linkAs(t, graft, "jq-1.7"), []string{"-n", "1"}, "").Code, ShouldNotEqual, 0) // runs as graft
+	})
+
+	Convey("an invalid GRAFT_THEME warns the same under both names", t, func() {
+		env := []string{"GRAFT_THEME=nope"}
+		g := execInEnv(t, env, ".", graft, []string{"jq", "-n", "1"}, "")
+		l := execInEnv(t, env, ".", jqLink, []string{"-n", "1"}, "")
+		So(g.Stderr, ShouldContainSubstring, "Invalid GRAFT_THEME value")
+		So(l, ShouldResemble, g)
+		env = []string{"GRAFT_THEME=mono"}
+		args := []string{"-C", "-o", "yaml", "-n", `{"a":[1,"x"]}`}
+		g = execInEnv(t, env, ".", graft, append([]string{"jq"}, args...), "")
+		So(execInEnv(t, env, ".", jqLink, args, ""), ShouldResemble, g)
 	})
 
 	Convey("the spruce link is unchanged", t, func() {

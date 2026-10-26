@@ -19,42 +19,48 @@ type execResult struct {
 }
 
 var (
-	graftBuildOnce sync.Once
+	graftBuildMu   sync.Mutex
+	graftBuildRefs int
 	graftBuildDir  string
 	graftBuildPath string
-	graftBuildErr  error
 )
 
-// buildGraftBinary builds ./cmd/graft once per test binary into a shared
-// temporary directory, which removeGraftBinary deletes.
+// buildGraftBinary builds ./cmd/graft into a temporary directory shared by
+// every test that holds it, and returns its path. The first holder builds
+// it and the last one to finish removes it, so the binary stays valid for
+// every caller, under -count too. The package's TestMain is an ordinary
+// test, so there is no process-wide teardown to hang the removal on.
 func buildGraftBinary(t *testing.T) string {
 	t.Helper()
-	graftBuildOnce.Do(func() {
-		graftBuildDir, graftBuildErr = os.MkdirTemp("", "graft-alias-test-")
-		if graftBuildErr != nil {
-			return
+	graftBuildMu.Lock()
+	defer graftBuildMu.Unlock()
+	if graftBuildRefs == 0 {
+		dir, err := os.MkdirTemp("", "graft-alias-test-")
+		if err != nil {
+			t.Fatal(err)
 		}
 		name := "graft"
 		if runtime.GOOS == "windows" {
 			name += ".exe"
 		}
-		graftBuildPath = filepath.Join(graftBuildDir, name)
-		cmd := exec.CommandContext(context.Background(), "go", "build", "-o", graftBuildPath, ".")
+		path := filepath.Join(dir, name)
+		cmd := exec.CommandContext(context.Background(), "go", "build", "-o", path, ".")
 		if out, err := cmd.CombinedOutput(); err != nil {
-			graftBuildErr = errors.New("go build: " + err.Error() + "\n" + string(out))
+			_ = os.RemoveAll(dir)
+			t.Fatal(errors.New("go build: " + err.Error() + "\n" + string(out)))
+		}
+		graftBuildDir, graftBuildPath = dir, path
+	}
+	graftBuildRefs++
+	t.Cleanup(func() {
+		graftBuildMu.Lock()
+		defer graftBuildMu.Unlock()
+		graftBuildRefs--
+		if graftBuildRefs == 0 {
+			_ = os.RemoveAll(graftBuildDir)
 		}
 	})
-	if graftBuildErr != nil {
-		t.Fatal(graftBuildErr)
-	}
 	return graftBuildPath
-}
-
-// removeGraftBinary deletes the directory buildGraftBinary made.
-func removeGraftBinary() {
-	if graftBuildDir != "" {
-		_ = os.RemoveAll(graftBuildDir)
-	}
 }
 
 // linkAs makes a symlink to graft under name in a new temporary
@@ -73,6 +79,13 @@ func linkAs(t *testing.T, graft, name string) string {
 // a color setting or a user config, changes the output.
 func execIn(t *testing.T, dir, bin string, args []string, stdin string) execResult {
 	t.Helper()
+	return execInEnv(t, nil, dir, bin, args, stdin)
+}
+
+// execInEnv is execIn with extra environment entries, each NAME=value,
+// added after the fixed ones.
+func execInEnv(t *testing.T, env []string, dir, bin string, args []string, stdin string) execResult {
+	t.Helper()
 	cmd := exec.CommandContext(context.Background(), bin, args...)
 	cmd.Dir = dir
 	cmd.Env = []string{
@@ -82,6 +95,7 @@ func execIn(t *testing.T, dir, bin string, args []string, stdin string) execResu
 		"TERM=dumb",
 		"LC_ALL=C",
 	}
+	cmd.Env = append(cmd.Env, env...)
 	cmd.Stdin = bytes.NewBufferString(stdin)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr

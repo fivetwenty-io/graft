@@ -650,6 +650,12 @@ func (jqStderr) Write(p []byte) (int, error) {
 // rules rather than cobra's, so it parses them itself and hands any of
 // graft's persistent flags back to the root's flag set.
 func newJQCmd() *cobra.Command {
+	return newJQCmdFor(personaGraft)
+}
+
+// newJQCmdFor returns the jq command for a persona, which is graft when it
+// is a subcommand of the graft root and jq when it is the root itself.
+func newJQCmdFor(pers persona) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "jq [flags] PROGRAM [FILE...]",
 		Short: "Run a jq program over JSON and YAML input",
@@ -667,16 +673,17 @@ func newJQCmd() *cobra.Command {
 			// cobra hands over the flags given before the verb as
 			// well, which are graft's own in every form cobra reads.
 			n := preVerbArgs(cmd, args)
-			pers := personaGraft
-			if cmd.Parent() == nil {
-				pers = personaJQ // the alias root
+			// As the root, cobra has already run the hook, and there
+			// are no graft flags to parse.
+			applyRoot := func(rootArgs []string) bool {
+				return pers == personaJQ || applyJQRootFlags(cmd, rootArgs)
 			}
 			opts, err := parseJQArgs(args[n:], pers)
 			opts.RootArgs = append(slices.Clip(args[:n]), opts.RootArgs...)
 			if err != nil {
 				// The root's flags given before the bad one still
 				// decide whether the diagnostic is colored.
-				if !applyJQRootFlags(cmd, opts.RootArgs) {
+				if !applyRoot(opts.RootArgs) {
 					return nil
 				}
 				st := jqArgsError(err)
@@ -692,11 +699,13 @@ func newJQCmd() *cobra.Command {
 				exit(0)
 				return nil
 			}
-			if !applyJQRootFlags(cmd, opts.RootArgs) {
+			if !applyRoot(opts.RootArgs) {
 				return nil
 			}
 			if theme := cmd.Root().PersistentFlags().Lookup("theme"); theme != nil {
 				opts.Theme, _, _ = resolveTheme(cmd, theme.Changed, theme.Value.String())
+			} else {
+				opts.Theme, _, _ = resolveTheme(cmd, false, themeNameAuto)
 			}
 			st := handleJQ(opts, os.Stdin, jqStdout{}, jqStderr{})
 			if st.Message != "" {
@@ -706,7 +715,7 @@ func newJQCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.SetHelpFunc(jqHelp)
+	cmd.SetHelpFunc(func(c *cobra.Command, a []string) { jqHelp(c, a, pers) })
 	return cmd
 }
 
@@ -746,8 +755,8 @@ const jqFlagsHelp = `Flags:
 // list because the command parses them itself, and graft's own flags are
 // listed only in the forms graft jq takes after the verb, which leaves
 // out -D, -T, and -v, since -v and --version are jq's there.
-func jqHelp(cmd *cobra.Command, _ []string) {
-	if cmd.Parent() == nil {
+func jqHelp(cmd *cobra.Command, _ []string, pers persona) {
+	if pers == personaJQ {
 		_, _ = io.WriteString(cmd.OutOrStdout(), cmd.Long+"\n\n"+
 			"Usage:\n"+
 			"  jq [options] <jq filter> [file...]\n"+
