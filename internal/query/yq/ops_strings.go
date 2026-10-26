@@ -65,7 +65,10 @@ func registerStrings(r *runtime.Registry) {
 		})
 	}
 	builtin.RegisterRegex(r)
-	matchImpl, _ := r.Lookup("_match_impl", 3)
+	matchImpl, ok := r.Lookup("_match_impl", 3)
+	if !ok {
+		panic("yq: _match_impl is not registered")
+	}
 	rx := regexOps{impl: matchImpl}
 	for arity := 1; arity <= 2; arity++ {
 		r.Register("_yq_match", arity, rx.native("match", func(in *value.Value, ms []match, emit runtime.Emit) error {
