@@ -54,6 +54,11 @@ const (
 // its default, which is ten million VM steps, a pattern of 64 KiB, 200
 // levels of group nesting, a million compiled instructions, and a million
 // backtrack frames.
+//
+// The compile-time bounds limit how much memory Compile can allocate, but
+// not how long it takes. A large pattern full of bracket classes can take
+// about half a second to compile within the defaults, so a caller that
+// compiles untrusted patterns should also set a smaller MaxPattern.
 type Budget struct {
 	// Steps bounds the VM steps of one call to Find, FindAll, Replace, or
 	// Split. Every start position and every match of a global search draws
