@@ -10,11 +10,19 @@ import (
 const ctxCheckMask = 1<<12 - 1
 
 // frame is one entry of the backtrack stack. A frame with a slot restores
-// that slot to old; any other frame resumes matching at pc and pos.
+// that slot to old, and a frame whose slot is loopFrame belongs to the
+// counting loop at pc, which has reached pos. Any other frame resumes
+// matching at pc and pos.
 type frame struct {
 	pc, pos   int
 	slot, old int
 }
+
+// loopFrame marks the frame of a counting loop. A greedy loop's frame gives
+// back one rune each time it is resumed, down to old, the position where
+// the loop had taken the fewest runes it may. A lazy loop's frame takes one
+// more rune each time, and old counts the runes it has taken.
+const loopFrame = -2
 
 // machine runs a pattern's program over one subject. One machine serves a
 // whole call to Find, FindAll, Replace, or Split, so every start position
@@ -267,6 +275,35 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			}
 			pc++
 			continue
+		case opCount:
+			floor, n, err := m.take(in, pos, in.lo, true)
+			if err != nil {
+				return 0, false, err
+			}
+			if n < in.lo {
+				break
+			}
+			next, f := floor, frame{pc: pc, slot: loopFrame, old: n}
+			more := in.hi == unbounded || n < in.hi
+			if in.greedy {
+				limit := unbounded
+				if in.hi != unbounded {
+					limit = in.hi - in.lo
+				}
+				if next, _, err = m.take(in, floor, limit, in.lo == 0); err != nil {
+					return 0, false, err
+				}
+				f.old, more = floor, next > floor
+			}
+			if more {
+				if len(stack) >= maxStack {
+					return 0, false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)
+				}
+				f.pos = next
+				stack = append(stack, f)
+			}
+			pc, pos = in.x, next
+			continue
 		case opMatch:
 			if m.notEmpty && pos == m.start {
 				break
@@ -295,7 +332,22 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 				}
 				return 0, found, nil
 			}
-			f := stack[len(stack)-1]
+			f := &stack[len(stack)-1]
+			if f.slot == loopFrame {
+				loop := &prog[f.pc]
+				next, more, err := m.retake(loop, f)
+				if err != nil {
+					return 0, false, err
+				}
+				if !more {
+					stack = stack[:len(stack)-1]
+				}
+				if next < 0 {
+					continue
+				}
+				pc, pos = loop.x, next
+				break
+			}
 			stack = stack[:len(stack)-1]
 			if f.slot >= 0 {
 				caps[f.slot] = f.old
@@ -304,6 +356,72 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 			pc, pos = f.pc, f.pos
 			break
 		}
+	}
+}
+
+// take matches up to limit runes that the counting loop in accepts from
+// pos, or as many as there are when limit is unbounded, and returns where
+// it stopped and how many it took. Every rune it tries costs a step but
+// the first under free, which the step that reached in has paid for.
+func (m *machine) take(in *inst, pos, limit int, free bool) (int, int, error) {
+	n := 0
+	for ; limit == unbounded || n < limit; n++ {
+		if !free {
+			if err := m.spend(1); err != nil {
+				return 0, 0, err
+			}
+		}
+		free = false
+		c, w := decodeAt(m.subject, pos)
+		if w == 0 || !in.accepts(c) {
+			break
+		}
+		pos += w
+	}
+	return pos, n, nil
+}
+
+// retake resumes the counting loop in from its frame f, for a step. A
+// greedy loop gives back its last rune and a lazy one takes one more. It
+// returns the position to continue from, or -1 when a lazy loop can take
+// no more, and whether f can be resumed again.
+func (m *machine) retake(in *inst, f *frame) (int, bool, error) {
+	if err := m.spend(1); err != nil {
+		return 0, false, err
+	}
+	if in.greedy {
+		// Read backward, the subject splits into the runes it splits into
+		// read forward, except where the loop started inside a rune, as a
+		// search from such a start does. The bytes there are continuation
+		// bytes, which the loop took one at a time, so it gives them back
+		// one at a time.
+		_, w := utf8.DecodeLastRuneInString(m.subject[:f.pos])
+		if f.pos-w < f.old {
+			w = 1
+		}
+		f.pos -= w
+		return f.pos, f.pos > f.old, nil
+	}
+	c, w := decodeAt(m.subject, f.pos)
+	if w == 0 || !in.accepts(c) {
+		return -1, false, nil
+	}
+	f.pos += w
+	f.old++
+	return f.pos, in.hi == unbounded || f.old < in.hi, nil
+}
+
+// accepts reports whether the counting loop in takes the rune c.
+func (in *inst) accepts(c rune) bool {
+	switch in.body {
+	case opRune:
+		return c == in.r
+	case opClass:
+		return in.set.contains(c)
+	case opAny:
+		return true
+	default:
+		return c != '\n'
 	}
 }
 

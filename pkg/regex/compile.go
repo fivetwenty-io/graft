@@ -20,6 +20,7 @@ const (
 	opBackref                 // match the text group x captured, folding case under fold
 	opOpen                    // start group x at the position and mark it unfinished, for a group that refers to itself under Oniguruma
 	opCapture                 // finish group x, starting where slot y recorded and ending at the position, for a group that refers to itself under PCRE
+	opCount                   // take between lo and hi runes that body accepts, greedily or lazily, then continue at x
 	opMatch                   // report a match
 )
 
@@ -32,7 +33,13 @@ type inst struct {
 	assert assertKind
 	neg    bool
 	fold   bool
-	lo, hi int // the runes a lookbehind looks back, hi unbounded when there is no limit
+	lo, hi int // the runes a lookbehind looks back, or a counting loop takes, hi unbounded when there is no limit
+
+	// body is the opRune, opClass, opAny, or opAnyNotNL that a counting
+	// loop's one rune must pass, using r and set, and greedy says whether
+	// the loop prefers more runes to fewer.
+	body   opcode
+	greedy bool
 }
 
 // lower rewrites the tree so that case-insensitive literals and classes
@@ -235,6 +242,7 @@ func repeatSize(n *node, body int, c saturating) int {
 // compiler emits a program for a tree.
 type compiler struct {
 	flavor Flavor
+	plain  bool // emit no counting loops
 	prog   []inst
 	marks  map[*node]int // the loop-mark slot of each repeat that needs one
 	starts map[*node]int // the slot holding the start of each self-referring group under PCRE
@@ -251,7 +259,7 @@ func compile(root *node, groups int, cfg *config) ([]inst, int, error) {
 	if size > limit {
 		return nil, 0, overBudget("compiled program exceeds the budget of %d instructions", limit)
 	}
-	c := &compiler{flavor: cfg.flavor, prog: make([]inst, 0, size), marks: map[*node]int{}, starts: map[*node]int{}, base: 2 * groups}
+	c := &compiler{flavor: cfg.flavor, plain: cfg.plain, prog: make([]inst, 0, size), marks: map[*node]int{}, starts: map[*node]int{}, base: 2 * groups}
 	c.emit(inst{op: opSave, x: 0})
 	c.node(root)
 	c.emit(inst{op: opSave, x: 1})
@@ -414,7 +422,7 @@ func (c *compiler) alternate(subs []*node) {
 }
 
 func (c *compiler) repeat(n *node) {
-	body := n.subs[0]
+	body, first := n.subs[0], len(c.prog)
 	switch {
 	case n.max == 0:
 	case n.max == unbounded && n.min == 0:
@@ -437,6 +445,35 @@ func (c *compiler) repeat(n *node) {
 			c.branch(s, s+1, len(c.prog), n.greedy)
 		}
 	}
+	c.count(n, first)
+}
+
+// count turns the loop emitted for the repeat n from first on into a
+// counting loop when n's body is a single rune, so that a long run of the
+// rune holds one backtrack frame rather than one a rune. The counting loop
+// takes the place of the loop's first instruction and continues past the
+// rest, which stays where it is, so the program keeps the length the
+// instruction budget counted.
+func (c *compiler) count(n *node, first int) {
+	one, ok := oneRune(n.subs[0])
+	if c.plain || !ok || len(c.prog) == first {
+		return
+	}
+	c.prog[first] = inst{op: opCount, body: one.op, r: one.r, set: one.set, lo: n.min, hi: n.max, greedy: n.greedy, x: len(c.prog)}
+}
+
+// oneRune returns the instruction that matches n when n always matches
+// exactly one rune and captures nothing.
+func oneRune(n *node) (inst, bool) {
+	switch {
+	case n.kind == kindLiteral && len(n.runes) == 1 && !n.fold:
+		return inst{op: opRune, r: n.runes[0]}, true
+	case n.kind == kindClass && len(n.expansions) == 0:
+		return inst{op: opClass, set: n.set}, true
+	case n.kind == kindAny:
+		return anyInst(n), true
+	}
+	return inst{}, false
 }
 
 // branch sets the split at pc to prefer more when greedy and less when lazy.

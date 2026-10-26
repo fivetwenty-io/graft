@@ -265,3 +265,48 @@ func FuzzShortcuts(f *testing.F) {
 		})
 	})
 }
+
+// pinSearch runs one search of subject for pattern under the Oniguruma
+// flavor, as jq's test runs it, and the default budget, and returns whether
+// it matched, the steps it took, and the backtrack frames it held.
+func pinSearch(t *testing.T, pattern, subject string) (bool, int, int) {
+	t.Helper()
+	m := newMachine(context.Background(), MustCompile(pattern, WithFlavor(Oniguruma)), subject, false)
+	ok, err := m.search(0)
+	wantNil(t, err)
+	return ok, m.steps, cap(m.stack)
+}
+
+// A loop whose body is one rune counts the runes it takes and gives them
+// back from a single backtrack entry, so a long run costs a step a rune
+// and no frame a rune.
+func TestSingleRuneLoopsTakeOneFrame(t *testing.T) {
+	as := strings.Repeat("a", 2_000_000)
+	for _, c := range []struct {
+		pattern, subject string
+		want             bool
+	}{
+		{`.*x`, as + "x", true},
+		{`a+x`, as + "x", true},
+		{`[^x]*x`, as + "x", true},
+		{`a{2,100000}a*x`, as + "x", true},
+		{`.*?x`, as + "x", true},
+	} {
+		ok, steps, frames := pinSearch(t, c.pattern, c.subject)
+		if ok != c.want {
+			t.Errorf("%s against %d runes: matched %v, want %v", c.pattern, len(c.subject), ok, c.want)
+		}
+		if steps > defaultSteps/2 || frames > 16 {
+			t.Errorf("%s against %d runes took %d steps and %d frames", c.pattern, len(c.subject), steps, frames)
+		}
+	}
+}
+
+// A loop whose body is more than one rune keeps a frame a rune, so the
+// budget still bounds it as it did.
+func TestGroupLoopsStayBounded(t *testing.T) {
+	_, err := MustCompile(`^(a|b)*$`, WithBudget(Budget{MaxStack: 100})).Find(context.Background(), strings.Repeat("a", 1000), 0)
+	wantErrIs(t, err, ErrBudget)
+	_, err = MustCompile(`^(a|b)*$`, WithFlavor(Oniguruma)).Find(context.Background(), strings.Repeat("a", 2_000_000), 0)
+	wantErrIs(t, err, ErrBudget)
+}
