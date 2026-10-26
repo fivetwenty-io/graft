@@ -92,8 +92,12 @@ func TestEvaluatorRunsRepeatedlyAndConcurrently(t *testing.T) {
 	for _, doc := range docs {
 		go func() {
 			out, err := collect(ev.Eval(context.Background(), doc))
-			if err != nil || len(out) != 1 {
-				done <- result{err: fmt.Errorf("got %d outputs, error %v", len(out), err)}
+			if err != nil {
+				done <- result{err: fmt.Errorf("eval after %d outputs: %w", len(out), err)}
+				return
+			}
+			if len(out) != 1 {
+				done <- result{err: fmt.Errorf("got %d outputs", len(out))}
 				return
 			}
 			done <- result{name: out[0].Meta().Filename}
