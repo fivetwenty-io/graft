@@ -340,14 +340,15 @@ func plus(ctx *runtime.Ctx, l, r *value.Value) (*value.Value, error) {
 	case l.Kind() == value.KindString:
 		return value.Str(l.Str() + r.Str()), nil
 	case l.Kind() == value.KindArray:
-		b := value.NewArrBuilder(l.Len() + r.Len())
-		for _, e := range l.Elems() {
-			b.Append(e)
+		// The sum carries no Meta. Append grows into l's spare room when l
+		// ends its storage, so a loop that appends a step stays linear.
+		if l.Meta() != nil {
+			l = l.WithMeta(nil)
 		}
-		for _, e := range r.Elems() {
-			b.Append(e)
-		}
-		return b.Seal(), nil
+		return l.Append(r.Elems()...), nil
+	case l.Kind() == value.KindObject && r.Len() == 1:
+		e := r.Entries()[0]
+		return l.SetEntry(e.Key, e.Value), nil
 	case l.Kind() == value.KindObject:
 		b := value.NewObjBuilderFrom(l)
 		for _, e := range r.Entries() {

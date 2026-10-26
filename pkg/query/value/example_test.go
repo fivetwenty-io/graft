@@ -192,6 +192,13 @@ func ExampleValue_Set() {
 	// Output: [a] [a b]
 }
 
+func ExampleValue_SetEntry() {
+	v := value.Obj(value.Pair{Key: "a", Value: value.Num(1)})
+	w := v.SetEntry(value.Str("a").WithMeta(&value.Meta{LineComment: "new"}), value.Num(2))
+	fmt.Println(w.Entries()[0].Key.Meta().LineComment, v.Entries()[0].Key.Meta() == nil)
+	// Output: new true
+}
+
 func ExampleValue_Delete() {
 	v := value.Obj(value.Pair{Key: "a", Value: value.Num(1)}, value.Pair{Key: "b", Value: value.Num(2)})
 	fmt.Println(v.Delete("a").Keys(), v.Keys())
@@ -206,6 +213,13 @@ func ExampleValue_SetIndex() {
 	}
 	fmt.Println(v.Len())
 	// Output: false true false 1
+}
+
+func ExampleValue_Append() {
+	v := value.Arr(value.Num(1))
+	w := v.Append(value.Num(2), value.Num(3))
+	fmt.Println(v.Len(), w.Len())
+	// Output: 1 3
 }
 
 func ExampleValue_DeleteIndex() {

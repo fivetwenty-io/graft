@@ -31,6 +31,7 @@ type Value struct {
 	arr  []*Value        // KindArray
 	obj  *object         // KindObject
 	meta *Meta
+	grow *spare // KindArray, KindObject: storage shared with values grown from it
 }
 
 // Pair is a string-keyed member for Obj.
@@ -143,7 +144,7 @@ func (v *Value) Str() string { return v.str }
 // Elems returns an array's elements as a read-only view of the value's own
 // storage. A caller who needs to change them copies the slice, or starts
 // from NewArrBuilderFrom.
-func (v *Value) Elems() []*Value { return v.arr }
+func (v *Value) Elems() []*Value { return v.arr[:len(v.arr):len(v.arr)] }
 
 // Len is the length of a string in bytes, of an array in elements, and of
 // an object in entries.
@@ -179,7 +180,7 @@ func (v *Value) Entries() []Entry {
 	if v.kind != KindObject {
 		return nil
 	}
-	return v.obj.entries
+	return v.obj.entries[:len(v.obj.entries):len(v.obj.entries)]
 }
 
 // Get returns the value of the last entry whose key formats to key.
@@ -187,7 +188,7 @@ func (v *Value) Get(key string) (*Value, bool) {
 	if v.kind != KindObject {
 		return nil, false
 	}
-	i, ok := v.obj.find(key)
+	i, ok := v.find(key)
 	if !ok {
 		return nil, false
 	}
@@ -237,13 +238,33 @@ func (v *Value) mustBe(k Kind, op string) {
 // It panics when v is not an object, which is part of the contract.
 func (v *Value) Set(key string, val *Value) *Value {
 	v.mustBe(KindObject, "Set")
-	entries := make([]Entry, len(v.obj.entries), len(v.obj.entries)+1)
-	copy(entries, v.obj.entries)
-	if i, ok := v.obj.find(key); ok {
-		entries[i].Value = val
-	} else {
-		entries = append(entries, Entry{Str(key), val})
+	i, ok := v.find(key)
+	if !ok {
+		return v.add(Entry{Str(key), val}, key)
 	}
+	return v.replace(i, Entry{v.obj.entries[i].Key, val})
+}
+
+// SetEntry returns a copy of an object with the entry whose key formats
+// like k set to val. It replaces the last such entry wholesale, so the new
+// key node's comments and style win, and otherwise appends. Meta is
+// carried.
+// It panics when v is not an object, which is part of the contract.
+func (v *Value) SetEntry(k, val *Value) *Value {
+	v.mustBe(KindObject, "SetEntry")
+	key := keyString(k)
+	i, ok := v.find(key)
+	if !ok {
+		return v.add(Entry{k, val}, key)
+	}
+	return v.replace(i, Entry{k, val})
+}
+
+// replace returns a copy of an object with entry i replaced by e.
+func (v *Value) replace(i int, e Entry) *Value {
+	entries := make([]Entry, len(v.obj.entries))
+	copy(entries, v.obj.entries)
+	entries[i] = e
 	out := v.copyShell()
 	out.obj = newObject(entries)
 	return out
@@ -277,15 +298,19 @@ func (v *Value) SetIndex(i int, val *Value) *Value {
 			panic("value: SetIndex before the start of the array")
 		}
 	}
-	n := len(v.arr)
-	if i >= n {
-		n = i + 1
+	if i == len(v.arr) {
+		return v.Append(val)
 	}
-	arr := make([]*Value, n)
+	if i > len(v.arr) {
+		pad := make([]*Value, i-len(v.arr)+1)
+		for j := range pad {
+			pad[j] = nullValue
+		}
+		pad[len(pad)-1] = val
+		return v.Append(pad...)
+	}
+	arr := make([]*Value, len(v.arr))
 	copy(arr, v.arr)
-	for j := len(v.arr); j < i; j++ {
-		arr[j] = nullValue
-	}
 	arr[i] = val
 	out := v.copyShell()
 	out.arr = arr

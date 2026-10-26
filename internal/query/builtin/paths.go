@@ -353,13 +353,15 @@ type slot struct {
 
 // openNode is a container being edited. base is the container as it was
 // opened. An object's kids are the children edited since, in the order
-// first touched. An array's elems hold a slot for every element, and a
-// slot whose value is still nil was never touched, so opening an array
-// costs one allocation however many elements change.
+// first touched, and added counts the kids whose keys base lacked. An
+// array's elems hold a slot for every element, and a slot whose value is
+// still nil was never touched, so opening an array costs one allocation
+// however many elements change.
 type openNode struct {
 	base  *value.Value
 	order []string
 	kids  map[string]*slot
+	added int
 	elems []slot
 }
 
@@ -450,6 +452,7 @@ func (n *openNode) child(c *value.Value, create bool) (*slot, bool) {
 				return nil, false
 			}
 			cur = value.Null()
+			n.added++
 		}
 		if n.kids == nil {
 			n.kids = map[string]*slot{}
@@ -490,6 +493,14 @@ func (s *slot) seal() *value.Value {
 			}
 		}
 		s.v = b.Seal()
+	} else if n.added == len(n.order) {
+		// Only new keys, which Set adds in the base's spare room when it
+		// has some, so a loop that adds a key a step stays linear.
+		v := n.base
+		for _, k := range n.order {
+			v = v.Set(k, n.kids[k].seal())
+		}
+		s.v = v
 	} else {
 		b := value.NewObjBuilderFrom(n.base)
 		for _, k := range n.order {
