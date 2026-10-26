@@ -194,8 +194,8 @@ func ExampleWithStderr() {
 }
 
 func ExampleWithRegexBudget() {
-	// A pattern that needs more than a thousand steps fails instead of
-	// running on, and the run's other work is unaffected.
+	// The budget bounds the regular expressions a run compiles and
+	// matches. This program uses none, so it runs as it would without one.
 	q, err := jq.Compile(`. + 1`, jq.WithRegexBudget(regex.Budget{Steps: 1000, MaxPattern: 256}))
 	if err != nil {
 		log.Fatal(err)
