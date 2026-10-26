@@ -186,7 +186,7 @@ func parseYQArgs(args []string, pers persona) (yqOptions, error) {
 		arg := args[p.i]
 		var err error
 		switch {
-		case p.done || (!isOptish(arg) && arg != "-0"):
+		case p.done || !yqOptish(arg):
 			p.positional(arg)
 		case arg == "--":
 			p.done = true
@@ -203,6 +203,13 @@ func parseYQArgs(args []string, pers persona) (yqOptions, error) {
 		return p.o, nil
 	}
 	return p.o, p.resolveExpression()
+}
+
+// yqOptish reports whether arg reads as a flag group, which for yq is any
+// argument longer than a lone dash that starts with one, so that "-7"
+// is the unknown flag -7 rather than an expression.
+func yqOptish(arg string) bool {
+	return len(arg) > 1 && arg[0] == '-'
 }
 
 // stopped reports whether an option has ended the parse.

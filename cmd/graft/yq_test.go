@@ -347,3 +347,14 @@ func TestYQNullInputRefusesFiles(t *testing.T) {
 		So(errOut, ShouldContainSubstring, "cannot pass files in when using null-input flag")
 	})
 }
+
+func TestYQReadsAnyDashedArgumentAsFlags(t *testing.T) {
+	Convey("an argument that starts with a dash is a flag group, as in yq", t, func() {
+		out, e, st := runYQ(t, []string{"-n", "-7 % 3"}, "")
+		So(st.Code, ShouldEqual, 1)
+		So(out, ShouldBeEmpty)
+		So(e, ShouldContainSubstring, "-7")
+		out, _, _ = runYQ(t, []string{"-n", "--", "-7 % 3"}, "")
+		So(out, ShouldEqual, "-1\n")
+	})
+}
