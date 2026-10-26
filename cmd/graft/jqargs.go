@@ -40,6 +40,7 @@ type jqOptions struct {
 	SortKeys     sortkeys.Mode // -S or --sort-keys[=MODE]
 	Output       string        // -o: json, j, yaml, or y
 	FloatNumbers bool          // --float-numbers
+	DepthLimit   int           // --depth-limit, or zero for the default
 	ColorOutput  bool          // -C
 	Monochrome   bool          // -M
 	Unbuffered   bool          // --unbuffered
@@ -206,6 +207,7 @@ var jqLongValueFlags = map[string]func(*jqParser) error{
 	"jsonargs":     func(p *jqParser) error { p.stringArgs, p.jsonArgs = false, true; return nil },
 	"run-tests":    (*jqParser).runTests,
 	"input-format": (*jqParser).inputFormat,
+	"depth-limit":  (*jqParser).depthLimit,
 	"prune":        func(p *jqParser) error { return p.mergeKeys("prune", &p.o.Prune) },
 	"cherry-pick":  func(p *jqParser) error { return p.mergeKeys("cherry-pick", &p.o.CherryPick) },
 }
@@ -361,6 +363,22 @@ func (p *jqParser) indent() error {
 		return &usageError{Msg: "--indent takes a number between -1 and 7"}
 	}
 	p.o.setIndent(n)
+	return nil
+}
+
+// depthLimit reads --depth-limit N, the bound on call nesting and on input
+// nesting together.
+func (p *jqParser) depthLimit() error {
+	const usage = "--depth-limit takes a positive number"
+	vals, err := p.need(1, usage)
+	if err != nil {
+		return err
+	}
+	n, err := strconv.Atoi(vals[0])
+	if err != nil || n < 1 {
+		return &usageError{Msg: usage}
+	}
+	p.o.DepthLimit = n
 	return nil
 }
 

@@ -397,3 +397,33 @@ jobs:
           --exit-code 1
           --skip-dirs .git
           .
+
+  # Reports the query benchmarks and never gates a build. Neither the job
+  # nor its step can fail the run, and it needs no jq.
+  bench-query:
+    name: Query Benchmarks
+    runs-on: self-hosted
+    container:
+      image: golang:1.27
+      volumes:
+        - /home/runner/gha-container-cache/go:/go
+        - /home/runner/gha-container-cache/go-build:/root/.cache/go-build
+    env:
+      GOCACHE: /root/.cache/go-build
+    continue-on-error: true
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache: false
+
+      - name: Run the query benchmarks
+        continue-on-error: true
+        run: make bench-query

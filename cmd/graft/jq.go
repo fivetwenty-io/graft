@@ -222,7 +222,7 @@ func (in *jqInputs) compose(stdin io.Reader) *query.Status {
 func (in *jqInputs) decodeOptions() jq.DecodeOptions {
 	format := jq.FormatAuto
 	if in.composed != nil {
-		return jq.DecodeOptions{Format: jq.FormatYAML, Raw: in.opts.RawInput}
+		return jq.DecodeOptions{Format: jq.FormatYAML, Raw: in.opts.RawInput, DepthLimit: in.opts.DepthLimit}
 	}
 	switch in.opts.InputFormat {
 	case jqFormatJSON:
@@ -230,7 +230,7 @@ func (in *jqInputs) decodeOptions() jq.DecodeOptions {
 	case jqFormatYAML:
 		format = jq.FormatYAML
 	}
-	return jq.DecodeOptions{Format: format, Raw: in.opts.RawInput}
+	return jq.DecodeOptions{Format: format, Raw: in.opts.RawInput, DepthLimit: in.opts.DepthLimit}
 }
 
 // open opens the source at the next index, reporting a failure on stderr.
@@ -541,6 +541,7 @@ func jqCompileOptions(opts jqOptions, in *jqInputs, origin string, stderr io.Wri
 		jq.WithInputFilename(in.filename),
 		jq.WithStderr(stderr),
 		jq.WithPositional(opts.Positional),
+		jq.WithDepthLimit(opts.DepthLimit),
 	}
 	for _, name := range opts.ArgNames {
 		jqOpts = append(jqOpts, jq.WithArg(name, opts.Args[name]))
@@ -797,6 +798,7 @@ const jqFlagsHelp = `Flags:
       --indent N              indent with N spaces, from 0 to 7
       --unbuffered            write each output as soon as it is produced
       --float-numbers         do arithmetic in doubles, as jq does
+      --depth-limit N         bound call and input nesting (default 10000)
   -f, --from-file FILE        read the program from FILE
       --arg NAME VALUE        bind $NAME to the string VALUE
       --argjson NAME TEXT     bind $NAME to the JSON or YAML value TEXT

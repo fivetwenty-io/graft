@@ -47,3 +47,6 @@ jobs:
 
       - name: Audit graft against the reference binaries
         run: QUERY_COMPAT_STRICT=1 make query-oracle-audit
+
+      - name: Time graft against jq
+        run: tests/query-bench/run.sh

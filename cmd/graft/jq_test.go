@@ -358,3 +358,32 @@ func TestJQCommand(t *testing.T) {
 		}
 	})
 }
+
+func TestJQDepthLimitFlag(t *testing.T) {
+	const deep = "def f: if . == 0 then 0 else (. - 1 | f) + 1 end; 20000 | f"
+	Convey("--depth-limit moves the recursion bound", t, func() {
+		_, errOut, st := runJQ(t, []string{deep}, "null")
+		So(st.Code, ShouldEqual, 5)
+		So(errOut, ShouldContainSubstring, "exceeds depth limit of 10000")
+
+		out, _, st := runJQ(t, []string{"--depth-limit", "30000", deep}, "null")
+		So(st.Code, ShouldEqual, 0)
+		So(out, ShouldEqual, "20000\n")
+
+		_, errOut, st = runJQ(t, []string{"--depth-limit", "0", "."}, "null")
+		So(st.Code, ShouldEqual, 2)
+		So(errOut, ShouldContainSubstring, "--depth-limit takes a positive number")
+		_, errOut, st = runJQ(t, []string{"--depth-limit", "x", "."}, "null")
+		So(st.Code, ShouldEqual, 2)
+		So(errOut, ShouldContainSubstring, "--depth-limit takes a positive number")
+	})
+
+	Convey("--depth-limit bounds the nesting of the input too", t, func() {
+		_, errOut, st := runJQ(t, []string{"--depth-limit", "3", "."}, "[[[[1]]]]")
+		So(st.Code, ShouldEqual, 5)
+		So(errOut, ShouldContainSubstring, "nesting exceeds maximum depth of 3")
+		out, _, st := runJQ(t, []string{"--depth-limit", "3", "-c", "."}, "[[1]]")
+		So(st.Code, ShouldEqual, 0)
+		So(out, ShouldEqual, "[[1]]\n")
+	})
+}

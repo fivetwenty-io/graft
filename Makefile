@@ -69,7 +69,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 .PHONY: fmt vet lint security gosec vuln trivy coverage coverage-text
 .PHONY: staticcheck gocyclo ineffassign errcheck goimports deadcode golangci
 .PHONY: check check-all
-.PHONY: bench bench-full
+.PHONY: bench bench-full bench-query
 .PHONY: deps deps-update deps-tidy check-prereq ci install-tools
 .PHONY: hooks hooks-install hooks-uninstall hooks-check pre-commit pre-push
 .PHONY: validate-imports validate-imports-example
@@ -373,6 +373,11 @@ bench-full: ## Run comprehensive benchmarks (10s)
 	@printf "$(GREEN)Running comprehensive benchmarks...$(RESET)\n"
 	@go test -bench=. -benchmem -benchtime=10s ./...
 	@printf "$(GREEN)✓ Benchmarks complete$(RESET)\n"
+
+bench-query: ## Run the graft jq benchmarks (opt-in; GRAFT_BENCH_BYTES shrinks the input)
+	@printf "$(GREEN)Running query benchmarks...$(RESET)\n"
+	@go test -run '^$$' -bench . -benchmem ./internal/query/
+	@printf "$(GREEN)✓ Query benchmarks complete$(RESET)\n"
 
 ##@ Dependencies
 
