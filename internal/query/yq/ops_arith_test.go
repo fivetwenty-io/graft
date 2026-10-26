@@ -29,3 +29,19 @@ func TestYQArithmeticRunsLeftFirst(t *testing.T) {
 	wantYQ(t, `[("a", "b") + ("c", "d")]`, "null\n", "- ac\n- ad\n- bc\n- bd\n")
 	wantYQ(t, `[(1, 3) < (2, 4)]`, "null\n", "- true\n- true\n- false\n- true\n")
 }
+
+func TestYQAddingOtherNodes(t *testing.T) {
+	wantYQ(t, `"3" + 1, (1 + "3"), ("a" + null), (null + "a"), ("a" + true), (true + "a")`, "null\n", "31\n13\na\na\natrue\ntruea\n")
+	wantYQ(t, `"3" + 1 | tag`, "null\n", "!!str\n")
+	wantYQ(t, `null + 1 | tag`, "null\n", "!!int\n")
+	wantYQ(t, `[1] + 2, ([1] + {"a": 1}), ({"a": 1} + {"b": 2})`, "null\n", "- 1\n- 2\n- 1\n- a: 1\na: 1\nb: 2\n")
+	in := "a: {k: 1}\nb: [1, [2]]\nd: !!custom v\ne: 2.50\n"
+	wantYQ(t, `"x" + .d, (.e + "s")`, in, "xv\n2.50s\n")
+	wantYQ(t, `.b + .a, (.a + {"z": 1})`, in, "[1, [2], {k: 1}]\n{k: 1, z: 1}\n")
+	wantYQError(t, `1 + null`, "null\n", "!!int cannot be added to !!null")
+	wantYQError(t, `true + 1`, "null\n", "!!bool cannot be added to !!int")
+	wantYQError(t, `.d + 1`, in, "!!custom cannot be added to !!int")
+	wantYQError(t, `2 + [1]`, "null\n", "!!seq () cannot be added to a !!int ()")
+	wantYQError(t, `.a + 1`, in, "!!int () cannot be added to a !!map (a)")
+	wantYQError(t, `.a.k + .b[1]`, in, "!!seq (b[1]) cannot be added to a !!int (a.k)")
+}

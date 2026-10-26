@@ -148,23 +148,37 @@ func sortBy(ctx *runtime.Ctx, in *value.Value, f runtime.Thunk, emit runtime.Emi
 // cursorPath is the cursor's path as yq writes it in a message, such as
 // [a.b[0]], and [] at a root.
 func cursorPath(ctx *runtime.Ctx) string {
-	var b strings.Builder
-	b.WriteByte('[')
 	if c := ctx.Cursor; c != nil {
 		rel, _ := nodePath(c)
-		p, _ := resolve(c.Root, rel)
-		for i, k := range p {
-			switch {
-			case k.Kind() == value.KindNumber:
-				b.WriteString("[" + numberText(k) + "]")
-			case i == 0:
-				b.WriteString(k.Str())
-			default:
-				b.WriteString("." + k.Str())
-			}
+		return "[" + keysText(c.Root, rel) + "]"
+	}
+	return "[]"
+}
+
+// pathText is where a value came from as yq writes it in a message, and
+// empty for a value that came from no document.
+func pathText(p value.Path) string {
+	root, _, rel := runtime.Unroot(p)
+	if root == nil {
+		return ""
+	}
+	return keysText(root, rel)
+}
+
+// keysText writes the path rel below root as yq does, as a.b[0].
+func keysText(root *value.Value, rel value.Path) string {
+	var b strings.Builder
+	p, _ := resolve(root, rel)
+	for i, k := range p {
+		switch {
+		case k.Kind() == value.KindNumber:
+			b.WriteString("[" + numberText(k) + "]")
+		case i == 0:
+			b.WriteString(k.Str())
+		default:
+			b.WriteString("." + k.Str())
 		}
 	}
-	b.WriteByte(']')
 	return b.String()
 }
 

@@ -542,11 +542,17 @@ func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, p value.Pat
 		lp = p
 	}
 	if name, ok := arithmetic[n.Op]; ok {
-		return ev.operands(n, env, in, lp, func(l *value.Value, p value.Path, r *value.Value) error {
-			return ev.native(name, value.Null(), []runtime.Thunk{constThunk{l}, constThunk{r}}, ev.derive(l, p, emit))
+		return ev.operands(n, env, in, lp, func(l *value.Value, p value.Path, r *value.Value, rp value.Path) error {
+			args := []runtime.Thunk{constThunk{l}, constThunk{r}}
+			if ev.derives() {
+				// yq names where each operand came from when it cannot
+				// combine them.
+				args = []runtime.Thunk{pathThunk{l, p}, pathThunk{r, rp}}
+			}
+			return ev.native(name, value.Null(), args, ev.derive(l, p, emit))
 		})
 	}
-	return ev.operands(n, env, in, lp, func(l *value.Value, p value.Path, r *value.Value) error {
+	return ev.operands(n, env, in, lp, func(l *value.Value, p value.Path, r *value.Value, _ value.Path) error {
 		if err := ev.ctx.CheckNumbers(r); err != nil {
 			return err
 		}
@@ -566,16 +572,16 @@ func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, p value.Pat
 }
 
 // operands calls f on every pair of the outputs of an operator's two
-// sides, with the left output's path, in the order binary describes.
-func (ev evaluator) operands(n *ast.Binary, env *Env, in *value.Value, lp value.Path, f func(l *value.Value, p value.Path, r *value.Value) error) error {
+// sides, with their paths, in the order binary describes.
+func (ev evaluator) operands(n *ast.Binary, env *Env, in *value.Value, lp value.Path, f func(l *value.Value, p value.Path, r *value.Value, rp value.Path) error) error {
 	vev := ev.values()
 	if ev.ctx.LeftFirst {
 		return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error {
-			return vev.eval(n.R, env, in, nil, func(r *value.Value, _ value.Path) error { return f(l, p, r) })
+			return vev.eval(n.R, env, in, nil, func(r *value.Value, rp value.Path) error { return f(l, p, r, rp) })
 		})
 	}
-	return vev.eval(n.R, env, in, nil, func(r *value.Value, _ value.Path) error {
-		return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error { return f(l, p, r) })
+	return vev.eval(n.R, env, in, nil, func(r *value.Value, rp value.Path) error {
+		return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error { return f(l, p, r, rp) })
 	})
 }
 
@@ -671,3 +677,13 @@ type constThunk struct{ v *value.Value }
 
 // Each emits the value.
 func (c constThunk) Each(_ *value.Value, emit runtime.Emit) error { return emit(c.v, nil) }
+
+// pathThunk is an argument that gives one value with the path it came
+// from.
+type pathThunk struct {
+	v *value.Value
+	p value.Path
+}
+
+// Each emits the value and its path.
+func (c pathThunk) Each(_ *value.Value, emit runtime.Emit) error { return emit(c.v, c.p) }

@@ -29,16 +29,53 @@ func registerArith(r *runtime.Registry) {
 			panic("yq: " + op.name + " is not registered")
 		}
 		r.RegisterSingle(op.name, 2, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
-			return args[0].Each(in, func(lv *value.Value, _ value.Path) error {
-				return args[1].Each(in, func(rv *value.Value, _ value.Path) error {
-					if lv.Kind() != value.KindNumber || rv.Kind() != value.KindNumber {
-						return base(ctx, in, []runtime.Thunk{constant{lv}, constant{rv}}, emit)
+			return args[0].Each(in, func(lv *value.Value, lp value.Path) error {
+				return args[1].Each(in, func(rv *value.Value, rp value.Path) error {
+					switch {
+					case lv.Kind() == value.KindNumber && rv.Kind() == value.KindNumber:
+						return numeric(ctx, base, op.sym, lv, rv, emit)
+					case op.sym == '+':
+						return add(ctx, base, lv, lp, rv, rp, emit)
+					default:
 					}
-					return numeric(ctx, base, op.sym, lv, rv, emit)
+					return base(ctx, in, []runtime.Thunk{constant{lv}, constant{rv}}, emit)
 				})
 			})
 		})
 	}
+}
+
+// add is yq's + for anything but two numbers. null takes the other
+// side's value, a sequence takes on a sequence's elements or any other
+// node, a map merges a map, and a scalar joins its text to a string's.
+// A sequence or a map keeps the left side's style.
+// Anything else fails, naming the place each collection came from.
+func add(ctx *runtime.Ctx, base runtime.Native, l *value.Value, lp value.Path, r *value.Value, rp value.Path, emit runtime.Emit) error {
+	collection := func(v *value.Value) bool { return v.Kind() == value.KindArray || v.Kind() == value.KindObject }
+	switch {
+	case l.Kind() == value.KindNull:
+		return emit(r, nil)
+	case l.Kind() == value.KindArray && r.Kind() != value.KindArray:
+		r = value.Arr(r)
+	case l.Kind() == value.KindArray || (l.Kind() == value.KindObject && r.Kind() == value.KindObject):
+	case collection(l) || collection(r):
+		return &query.RuntimeError{Msg: tagOf(r) + " (" + pathText(rp) + ") cannot be added to a " + tagOf(l) + " (" + pathText(lp) + ")"}
+	case tagOf(l) == "!!str" || tagOf(r) == "!!str":
+		return emit(value.Str(addText(l)+addText(r)), nil)
+	default:
+		return &query.RuntimeError{Msg: tagOf(l) + " cannot be added to " + tagOf(r)}
+	}
+	return base(ctx, nil, []runtime.Thunk{constant{l}, constant{r}}, func(v *value.Value, p value.Path) error {
+		return emit(like(l, v), p)
+	})
+}
+
+// addText is a scalar's text as + joins it, where null has none.
+func addText(v *value.Value) string {
+	if v.Kind() == value.KindNull {
+		return ""
+	}
+	return nodeText(v)
 }
 
 // numeric emits l op r tagged as yq tags it.
