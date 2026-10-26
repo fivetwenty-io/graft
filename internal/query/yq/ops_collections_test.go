@@ -28,3 +28,7 @@ func TestYQUnionOfTheSameNodes(t *testing.T) {
 	wantYQ(t, `[., .], [(. | .), .], (.a as $x | [$x, $x])`, "{a: 1}\n", "- {a: 1}\n- {a: 1}\n- 1\n")
 	wantYQ(t, `[., ., .] | length, ([., .a, .] | length), ([.a, ., .] | length), ([.a, .a] | length)`, "{a: 1}\n", "2\n3\n2\n2\n")
 }
+
+func TestYQSortsNumbersByValue(t *testing.T) {
+	wantYQ(t, `sort, sort_by(.)`, "[10, 9, 1.5]\n", "[1.5, 9, 10]\n[1.5, 9, 10]\n")
+}

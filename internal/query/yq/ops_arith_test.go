@@ -58,3 +58,7 @@ func TestYQIntegersKeepTheLeftBase(t *testing.T) {
 	opts.FloatNumbers = true
 	wantYQOpts(t, opts, `.a + 1, (.o * 2)`, in, "0x11\n0o36\n")
 }
+
+func TestYQDecimalRemainder(t *testing.T) {
+	wantYQ(t, `[5.5 % 2, -5.5 % 2, 7 % 2.5]`, "null\n", "- 1.5\n- -1.5\n- 2\n")
+}

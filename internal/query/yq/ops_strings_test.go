@@ -46,3 +46,8 @@ func TestYQStringOperatorsRefuseOtherTags(t *testing.T) {
 		wantYQError(t, expr, in, want)
 	}
 }
+
+func TestYQMatchGivesByteOffsets(t *testing.T) {
+	// yq counts a match's offset in bytes, so é counts twice.
+	wantYQ(t, `[match("a"; "g") | .offset]`, "éa-a\n", "- 2\n- 4\n")
+}
