@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/query/jq"
@@ -318,4 +320,76 @@ func TestModuleMetaFoldsConstants(t *testing.T) {
 		o := modDir(t, map[string]string{"bad.jq": `module {a: ` + meta + `};`})
 		wantErrorOpts(t, o, `"bad" | modulemeta`, `null`, `Module metadata must be constant`)
 	}
+}
+
+// bigImports returns options that find a module of defs definitions and a
+// program that imports it imports times.
+func bigImports(t *testing.T, defs, imports int) (jq.CompileOptions, string) {
+	t.Helper()
+	var mod, prog strings.Builder
+	for i := range defs {
+		mod.WriteString("def f" + strconv.Itoa(i) + ": . + " + strconv.Itoa(i) + ";\n")
+	}
+	for i := range imports {
+		prog.WriteString(`import "big" as a` + strconv.Itoa(i) + ";\n")
+	}
+	prog.WriteString("a0::f1 | a" + strconv.Itoa(imports-1) + "::f2")
+	return modDir(t, map[string]string{"big.jq": mod.String()}), prog.String()
+}
+
+func TestModuleImportCostDoesNotGrowWithDefinitions(t *testing.T) {
+	opts, prog := bigImports(t, 300, 60)
+	p, err := jq.CompileWith(prog, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := runtime.NewCtx(jq.New(), runtime.NumbersExact)
+	in := []*value.Value{value.Num(1)}
+	run := func() {
+		if err := p.Run(ctx, p.Env, in, func(*value.Value, value.Path) error { return nil }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run()
+	// Binding a module costs the same however many definitions it holds,
+	// so one run allocates a few times per import and not once per
+	// definition of each.
+	if got := testing.AllocsPerRun(5, run); got > 60*10 {
+		t.Errorf("a run allocated %.0f times for 60 imports of a 300-definition module", got)
+	}
+	if got := testing.AllocsPerRun(1, func() {
+		if _, err := jq.CompileWith(prog, opts); err != nil {
+			t.Fatal(err)
+		}
+	}); got > 20000 {
+		t.Errorf("compiling allocated %.0f times for 60 imports of a 300-definition module", got)
+	}
+}
+
+func TestModuleRunsShareInstancesConcurrently(t *testing.T) {
+	opts, prog := bigImports(t, 20, 5)
+	p, err := jq.CompileWith(prog, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx := runtime.NewCtx(jq.New(), runtime.NumbersExact)
+			for range 50 {
+				var got []string
+				err := p.Run(ctx, p.Env, []*value.Value{value.Num(1)}, func(v *value.Value, _ value.Path) error {
+					got = append(got, runtime.JSON(v))
+					return nil
+				})
+				if err != nil || len(got) != 1 || got[0] != "4" {
+					t.Errorf("got %q, %v", got, err)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

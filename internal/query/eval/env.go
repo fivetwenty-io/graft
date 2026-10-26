@@ -40,6 +40,9 @@ const (
 	bindFunc
 	bindLabel
 	bindFuncs
+	// bindNS binds the table in fns under name::, which is what an import
+	// makes of a module.
+	bindNS
 )
 
 type funcKey struct {
@@ -118,6 +121,12 @@ func (env *Env) lookupFunc(name string, arity int) (*Closure, bool) {
 		case bindFuncs:
 			if fn, ok := e.fns[funcKey{name, arity}]; ok {
 				return fn, true
+			}
+		case bindNS:
+			if len(name) > len(e.name)+2 && name[:len(e.name)] == e.name && name[len(e.name):len(e.name)+2] == "::" {
+				if fn, ok := e.fns[funcKey{name[len(e.name)+2:], arity}]; ok {
+					return fn, true
+				}
 			}
 		case bindVar, bindLabel:
 		}

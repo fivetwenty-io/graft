@@ -95,7 +95,18 @@ const (
 	scopeVar scopeKind = iota
 	scopeFunc
 	scopeLabel
+	// scopeNS stands for an import. It holds the module's exports, which
+	// a call reaches as name::function. scopeFuncs holds an include's
+	// exports, which a call reaches under their own names.
+	scopeNS
+	scopeFuncs
 )
+
+// exportKey names one function of a module's export table.
+type exportKey struct {
+	name  string
+	arity int
+}
 
 // scope is one name the resolver can see. A function's scope keeps its
 // definition and the scope it was defined in, so its body resolves there
@@ -107,12 +118,29 @@ type scope struct {
 	arity  int
 	def    *ast.FuncDef
 	at     *scope
+	table  map[exportKey]*scope
 }
 
 func (s *scope) find(kind scopeKind, name string, arity int) (*scope, bool) {
 	for ; s != nil; s = s.parent {
 		if s.kind == kind && s.name == name && (kind != scopeFunc || s.arity == arity) {
 			return s, true
+		}
+		if kind != scopeFunc {
+			continue
+		}
+		switch s.kind {
+		case scopeNS:
+			if len(name) > len(s.name)+2 && name[:len(s.name)] == s.name && name[len(s.name):len(s.name)+2] == "::" {
+				if e, ok := s.table[exportKey{name[len(s.name)+2:], arity}]; ok {
+					return e, true
+				}
+			}
+		case scopeFuncs:
+			if e, ok := s.table[exportKey{name, arity}]; ok {
+				return e, true
+			}
+		case scopeVar, scopeFunc, scopeLabel:
 		}
 	}
 	return nil, false

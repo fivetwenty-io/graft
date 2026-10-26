@@ -7,6 +7,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/fivetwenty-io/graft/internal/query/ast"
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
@@ -23,12 +24,11 @@ type state struct {
 	tails map[*ast.Call]tailSite
 	used  map[callKey]bool
 
-	// mods, base, and insts carry the modules of a compiled program: the
-	// module each import and include loaded, the environment their
-	// definitions build on, and the definitions built so far.
-	mods  map[ast.Node]*Module
-	base  *Env
-	insts map[*Module][]*Closure
+	// mods and set carry the modules of a compiled program: the module
+	// each import and include loaded, and the definitions built for the
+	// environment this run started in.
+	mods map[ast.Node]*Module
+	set  *instanceSet
 
 	labels uintptr
 	envVal *value.Value
@@ -60,6 +60,7 @@ type Program struct {
 	Env   *Env
 	tails map[*ast.Call]tailSite
 	mods  map[ast.Node]*Module
+	insts atomic.Pointer[instanceSet]
 }
 
 // NewProgram returns node ready to run in env, whose prelude is reg's. A
@@ -81,7 +82,9 @@ func (p *Program) Run(ctx *runtime.Ctx, env *Env, roots []*value.Value, emit run
 // evaluator returns an evaluator for one run of p.
 func (p *Program) evaluator(ctx *runtime.Ctx, roots []*value.Value, env *Env, paths bool) evaluator {
 	ev := newEvaluator(ctx, roots, p.tails, paths)
-	ev.mods, ev.base = p.mods, env
+	if len(p.mods) > 0 {
+		ev.mods, ev.set = p.mods, p.instances(env)
+	}
 	return ev
 }
 

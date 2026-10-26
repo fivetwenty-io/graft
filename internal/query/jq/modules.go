@@ -424,7 +424,7 @@ type loaded struct {
 	mod     *eval.Module
 	loading bool
 	deps    []*loaded
-	exports []*scope
+	exports map[exportKey]*scope
 }
 
 // linker loads the modules a program imports, once each, and records
@@ -546,20 +546,15 @@ func (r *resolver) bindLink(s *scope, l eval.Link, m *loaded) *scope {
 		s = &scope{parent: s, kind: scopeVar, name: l.Alias + "::" + l.Alias}
 		return &scope{parent: s, kind: scopeVar, name: l.Alias}
 	}
-	for _, e := range r.exports(m) {
-		name := e.name
-		if !l.Include {
-			name = l.Alias + "::" + name
-		}
-		s = &scope{parent: s, kind: scopeFunc, name: name, arity: e.arity, def: e.def, at: e.at}
+	if l.Include {
+		return &scope{parent: s, kind: scopeFuncs, table: r.exports(m)}
 	}
-	return s
+	return &scope{parent: s, kind: scopeNS, name: l.Alias, table: r.exports(m)}
 }
 
-// exports lists the definitions that m offers, each with the scope its
-// body resolves in. That scope is the module's own: the program's
-// variables, the module's imports, and the definitions before it.
-func (r *resolver) exports(m *loaded) []*scope {
+// exports returns the functions a module defines, by name and arity. A
+// name defined twice is the later definition.
+func (r *resolver) exports(m *loaded) map[exportKey]*scope {
 	if m.exports != nil {
 		return m.exports
 	}
@@ -567,10 +562,10 @@ func (r *resolver) exports(m *loaded) []*scope {
 	for i, d := range m.lib.dirs {
 		s = r.bindLink(s, eval.Link{Alias: d.alias, Include: d.include, Data: d.data}, m.deps[i])
 	}
-	out := make([]*scope, 0, len(m.lib.defs))
+	out := make(map[exportKey]*scope, len(m.lib.defs))
 	for _, def := range m.lib.defs {
 		s = &scope{parent: s, kind: scopeFunc, name: def.Name, arity: len(def.Params), def: def, at: s}
-		out = append(out, s)
+		out[exportKey{def.Name, len(def.Params)}] = s
 	}
 	m.exports = out
 	return out

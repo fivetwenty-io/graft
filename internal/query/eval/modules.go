@@ -1,6 +1,8 @@
 package eval
 
 import (
+	"sync"
+
 	"github.com/fivetwenty-io/graft/internal/query/ast"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
@@ -69,44 +71,82 @@ func (ev evaluator) linked(n, rest ast.Node, env *Env, in *value.Value, p value.
 	if rest == nil {
 		return ev.each(in, p, emit)
 	}
-	return ev.eval(rest, ev.bindLink(env, link), in, p, emit)
+	return ev.eval(rest, ev.set.bindLink(env, link), in, p, emit)
 }
 
-// bindLink returns env with what one import or include binds.
-func (ev evaluator) bindLink(env *Env, l Link) *Env {
+// instanceSet holds the definitions of the modules a program loaded,
+// built once for one base environment. A module's definitions see the
+// base environment, the module's own imports, and the definitions before
+// them, and nothing of the program that imported them. Concurrent runs of
+// one program share a set, and a run that passes another base gets a new
+// set.
+type instanceSet struct {
+	base   *Env
+	mu     sync.RWMutex
+	tables map[*Module]map[funcKey]*Closure
+}
+
+// instances returns the set for runs on base, building an empty one when
+// the last run used another base.
+func (p *Program) instances(base *Env) *instanceSet {
+	if s := p.insts.Load(); s != nil && s.base == base {
+		return s
+	}
+	s := &instanceSet{base: base, tables: map[*Module]map[funcKey]*Closure{}}
+	p.insts.Store(s)
+	return s
+}
+
+// bindLink returns env with what one import or include binds. An import
+// binds a single entry that names the module's table of definitions, and
+// an include binds a single entry holding the table, so the cost of a link
+// does not grow with the size of the module.
+func (s *instanceSet) bindLink(env *Env, l Link) *Env {
 	if l.Data {
 		return env.Bind(l.Alias+"::"+l.Alias, l.Mod.Data).Bind(l.Alias, l.Mod.Data)
 	}
-	for _, fn := range ev.instance(l.Mod) {
-		name := fn.Name
-		if !l.Include {
-			name = l.Alias + "::" + name
-		}
-		env = env.defAs(name, len(fn.Params), fn)
+	t := s.table(l.Mod)
+	if l.Include {
+		return &Env{parent: env, kind: bindFuncs, fns: t}
 	}
-	return env
+	return &Env{parent: env, kind: bindNS, name: l.Alias, fns: t}
 }
 
-// instance builds a code module's definitions once for the run. They see
-// the program's base environment, the module's own imports, and the
-// definitions before them, and nothing of the program that imported them.
-func (ev evaluator) instance(m *Module) []*Closure {
-	if fns, ok := ev.insts[m]; ok {
-		return fns
+// table returns the definitions of m by name and arity, building them the
+// first time they are asked for.
+func (s *instanceSet) table(m *Module) map[funcKey]*Closure {
+	s.mu.RLock()
+	t, ok := s.tables[m]
+	s.mu.RUnlock()
+	if ok {
+		return t
 	}
-	env := ev.base
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.build(m)
+}
+
+func (s *instanceSet) build(m *Module) map[funcKey]*Closure {
+	if t, ok := s.tables[m]; ok {
+		return t
+	}
+	env := s.base
 	for _, l := range m.Links {
-		env = ev.bindLink(env, l)
+		switch {
+		case l.Data:
+			env = env.Bind(l.Alias+"::"+l.Alias, l.Mod.Data).Bind(l.Alias, l.Mod.Data)
+		case l.Include:
+			env = &Env{parent: env, kind: bindFuncs, fns: s.build(l.Mod)}
+		default:
+			env = &Env{parent: env, kind: bindNS, name: l.Alias, fns: s.build(l.Mod)}
+		}
 	}
-	fns := make([]*Closure, 0, len(m.Defs))
+	t := make(map[funcKey]*Closure, len(m.Defs))
 	for _, d := range m.Defs {
 		fn := &Closure{Name: d.Name, Params: d.Params, Body: d.Body}
 		env = env.Def(fn)
-		fns = append(fns, fn)
+		t[funcKey{d.Name, len(d.Params)}] = fn
 	}
-	if ev.insts == nil {
-		ev.insts = map[*Module][]*Closure{}
-	}
-	ev.insts[m] = fns
-	return fns
+	s.tables[m] = t
+	return t
 }
