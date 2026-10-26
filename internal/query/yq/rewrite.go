@@ -298,47 +298,63 @@ var nodeType = reflect.TypeOf((*ast.Node)(nil)).Elem()
 // their children in fields of many shapes.
 func hexLiterals(n ast.Node) (ast.Node, error) {
 	var err error
-	var visit func(v reflect.Value)
-	replace := func(n ast.Node) ast.Node {
-		lit, ok := n.(*ast.Literal)
-		if !ok {
-			return n
+	replace := func(child ast.Node) ast.Node {
+		out, e := hexCall(child)
+		if e != nil && err == nil {
+			err = e
 		}
-		num, ok := lit.Value.(ast.Number)
-		if !ok || len(num) < 3 || num[0] != '0' || (num[1] != 'x' && num[1] != 'X') {
-			return n
-		}
-		if _, e := strconv.ParseInt(string(num[2:]), 16, 64); e != nil && err == nil {
-			err = &ParseError{Msg: e.Error()}
-		}
-		return &ast.Call{Name: "_yq_hex", Args: []ast.Node{&ast.Literal{Value: string(num)}}}
-	}
-	visit = func(v reflect.Value) {
-		switch v.Kind() {
-		case reflect.Interface, reflect.Pointer:
-			if !v.IsNil() {
-				visit(v.Elem())
-			}
-		case reflect.Struct:
-			for i := range v.NumField() {
-				f := v.Field(i)
-				if f.CanSet() && f.Type() == nodeType && !f.IsNil() {
-					f.Set(reflect.ValueOf(replace(f.Interface().(ast.Node))))
-				}
-				visit(f)
-			}
-		case reflect.Slice:
-			for i := range v.Len() {
-				e := v.Index(i)
-				if e.CanSet() && e.Type() == nodeType && !e.IsNil() {
-					e.Set(reflect.ValueOf(replace(e.Interface().(ast.Node))))
-				}
-				visit(e)
-			}
-		default:
-		}
+		return out
 	}
 	n = replace(n)
-	visit(reflect.ValueOf(n))
+	replaceChildren(reflect.ValueOf(n), replace)
 	return n, err
+}
+
+// hexCall is the call to _yq_hex that stands for n when n is a hex
+// literal, and n otherwise.
+func hexCall(n ast.Node) (ast.Node, error) {
+	lit, ok := n.(*ast.Literal)
+	if !ok {
+		return n, nil
+	}
+	num, ok := lit.Value.(ast.Number)
+	if !ok || len(num) < 3 || num[0] != '0' || (num[1] != 'x' && num[1] != 'X') {
+		return n, nil
+	}
+	call := &ast.Call{Name: "_yq_hex", Args: []ast.Node{&ast.Literal{Value: string(num)}}}
+	if _, err := strconv.ParseInt(string(num[2:]), 16, 64); err != nil {
+		return call, &ParseError{Msg: err.Error()}
+	}
+	return call, nil
+}
+
+// replaceChildren replaces each node below v with what replace gives.
+func replaceChildren(v reflect.Value, replace func(ast.Node) ast.Node) {
+	switch v.Kind() {
+	case reflect.Interface, reflect.Pointer:
+		if !v.IsNil() {
+			replaceChildren(v.Elem(), replace)
+		}
+	case reflect.Struct:
+		for i := range v.NumField() {
+			swapNode(v.Field(i), replace)
+			replaceChildren(v.Field(i), replace)
+		}
+	case reflect.Slice:
+		for i := range v.Len() {
+			swapNode(v.Index(i), replace)
+			replaceChildren(v.Index(i), replace)
+		}
+	default:
+	}
+}
+
+// swapNode replaces the node held in v, a field or an element.
+func swapNode(v reflect.Value, replace func(ast.Node) ast.Node) {
+	if !v.CanSet() || v.Type() != nodeType || v.IsNil() {
+		return
+	}
+	if child, ok := v.Interface().(ast.Node); ok {
+		v.Set(reflect.ValueOf(replace(child)))
+	}
 }

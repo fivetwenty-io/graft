@@ -31,7 +31,9 @@ var layouts sync.Map
 // layoutOf is the date time layout in force for the run of ctx.
 func layoutOf(ctx *runtime.Ctx) string {
 	if l, ok := layouts.Load(ctx); ok {
-		return l.(string)
+		if s, ok := l.(string); ok {
+			return s
+		}
 	}
 	return time.RFC3339
 }

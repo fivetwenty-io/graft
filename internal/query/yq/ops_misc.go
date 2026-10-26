@@ -39,6 +39,7 @@ func shuffle(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.
 		return &query.RuntimeError{Msg: "node at path " + cursorPath(ctx) + " is not an array (it's a " + tagOf(in) + ")"}
 	}
 	out := slices.Clone(in.Elems())
+	//nolint:gosec // the order is not a secret
 	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
 	return emit(like(in, value.Arr(out...)), nil)
 }

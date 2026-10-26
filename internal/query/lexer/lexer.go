@@ -397,32 +397,43 @@ func (l *Lexer) readEscape(sb *strings.Builder) error {
 	l.pos += 2
 	lenient := l.set.LenientEscapes
 	switch {
-	case c == '"' || c == '\\':
-		sb.WriteByte(c)
-	case c == '/' && !lenient:
-		sb.WriteByte(c)
-	case c == 'b':
-		sb.WriteByte('\b')
-	case c == 'f':
-		sb.WriteByte('\f')
-	case c == 'n':
-		sb.WriteByte('\n')
-	case c == 'r':
-		sb.WriteByte('\r')
-	case c == 't':
-		sb.WriteByte('\t')
-	case c == 'a' && lenient:
-		sb.WriteByte('\a')
-	case c == 'v' && lenient:
-		sb.WriteByte('\v')
 	case c == 'u' && lenient:
 		return l.keepEscape(sb, at, "")
 	case c == 'u':
 		return l.readUnicode(sb, at)
-	default:
-		return l.keepEscape(sb, at, "invalid escape in string")
 	}
-	return nil
+	if r, ok := simpleEscape(c, lenient); ok {
+		sb.WriteByte(r)
+		return nil
+	}
+	return l.keepEscape(sb, at, "invalid escape in string")
+}
+
+// simpleEscape is the byte a one-character escape stands for. A lenient
+// set has \a and \v and lacks \/, which yq reads as it is written.
+func simpleEscape(c byte, lenient bool) (byte, bool) {
+	switch c {
+	case '"', '\\':
+		return c, true
+	case '/':
+		return c, !lenient
+	case 'b':
+		return '\b', true
+	case 'f':
+		return '\f', true
+	case 'n':
+		return '\n', true
+	case 'r':
+		return '\r', true
+	case 't':
+		return '\t', true
+	case 'a':
+		return '\a', lenient
+	case 'v':
+		return '\v', lenient
+	default:
+		return 0, false
+	}
 }
 
 // readUnicode decodes the \u escape at at into sb.
