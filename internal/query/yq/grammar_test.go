@@ -43,15 +43,16 @@ func TestYQMergeFlags(t *testing.T) {
 
 func TestYQParseErrors(t *testing.T) {
 	cases := map[string]string{
-		`.a +`:   `'+' expects 2 args but there is 1`,
-		`.a |`:   `'|' expects 2 args but there is 1`,
-		`| .a`:   `'|' expects 2 args but there is 1`,
-		`.a =`:   `'=' expects 2 args but there is 1`,
-		`.a,`:    `',' expects 2 args but there is 1`,
-		`.a and`: `'and' expects 2 args but there is 1`,
-		`(.a`:    `bad expression - probably missing close bracket on (`,
-		`.a)`:    `bad expression, got close brackets without matching opening bracket`,
-		`.[`:     "bad expression, could not find matching `]`",
+		`.a +`:             `'+' expects 2 args but there is 1`,
+		`.a |`:             `'|' expects 2 args but there is 1`,
+		`| .a`:             `'|' expects 2 args but there is 1`,
+		`.a =`:             `'=' expects 2 args but there is 1`,
+		`.a,`:              `',' expects 2 args but there is 1`,
+		`.a and`:           `'and' expects 2 args but there is 1`,
+		`(.a`:              `bad expression - probably missing close bracket on (`,
+		`.a)`:              `bad expression, got close brackets without matching opening bracket`,
+		`.[`:               "bad expression, could not find matching `]`",
+		`.[] as [$a] | $a`: `RHS of 'as' operator must be a variable name e.g. $foo`,
 	}
 	for src, want := range cases {
 		_, err := Parse(src)

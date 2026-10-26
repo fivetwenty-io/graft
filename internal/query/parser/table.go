@@ -61,6 +61,9 @@ type KeywordForms struct {
 	Bind bool
 	// IReduce enables yq's "term as $x ireduce (init; update)".
 	IReduce bool
+	// VarBind limits "as" to one plain variable, as yq has no
+	// destructuring.
+	VarBind bool
 	// Modules enables module, import, and include directives.
 	Modules bool
 }
@@ -142,6 +145,6 @@ func YQ() Grammar {
 			{"%", 42, Right, Binary},
 			{"//", 42, Right, Alt},
 		},
-		Keywords: KeywordForms{If: true, Bind: true, IReduce: true},
+		Keywords: KeywordForms{If: true, Bind: true, IReduce: true, VarBind: true},
 	}
 }

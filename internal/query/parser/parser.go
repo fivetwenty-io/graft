@@ -389,9 +389,13 @@ func (p *parser) parseOperand() (ast.Node, error) {
 // operator loop.
 func (p *parser) parseBind(src ast.Node) (ast.Node, error) {
 	p.next()
+	at := p.peek()
 	pats, err := p.parsePatterns()
 	if err != nil {
 		return nil, err
+	}
+	if p.g.Keywords.VarBind && (len(pats) > 1 || pats[0].Kind != ast.PatVar) {
+		return nil, p.errAt(at, "RHS of 'as' operator must be a variable name e.g. $foo")
 	}
 	if p.g.Keywords.IReduce && p.isKeyword("ireduce") {
 		return p.parseIReduce(src, pats)
