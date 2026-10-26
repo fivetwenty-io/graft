@@ -5,7 +5,7 @@ import (
 )
 
 func TestUnsupportedConstructsAreNamedInJ1(t *testing.T) {
-	for _, pat := range []string{`(?=a)`, `(?!a)`, `(?<=a)b`, `(a)\1`, `(?>a)`, `a*+`} {
+	for _, pat := range []string{`(a)\1`} {
 		_, err := Compile(pat)
 		var u *UnsupportedError
 		wantErrAs(t, err, &u)
@@ -48,17 +48,10 @@ func TestMultiDigitEscapesPastTheGroupCountAreOctal(t *testing.T) {
 
 func TestUnsupportedConstructNames(t *testing.T) {
 	cases := map[string]string{
-		`(?=a)`:                    "lookahead (?=...)",
-		`(?!a)`:                    "negative lookahead (?!...)",
-		`(?<=a)b`:                  "lookbehind (?<=...)",
-		`(?<!a)b`:                  "negative lookbehind (?<!...)",
 		`(a)\1`:                    `backreference \1`,
 		`(?<n>a)\k<n>`:             `backreference \k<n>`,
 		`(a)\g{-1}`:                `backreference \g{-1}`,
 		`(?P<n>a)(?P=n)`:           "backreference (?P=n)",
-		`(?>a)`:                    "atomic group (?>...)",
-		`a*+`:                      "possessive quantifier *+",
-		`a{2}+`:                    "possessive quantifier {2}+",
 		`\Gx`:                      `assertion \G`,
 		`x\Ky`:                     `match reset \K`,
 		`\X`:                       `extended grapheme cluster \X`,
@@ -88,8 +81,8 @@ func TestUnsupportedConstructNames(t *testing.T) {
 			t.Errorf("%q: got construct %q, want %q", pat, u.Construct, construct)
 		}
 	}
-	_, err := Compile(`(?=a)`)
-	wantEqual(t, err.Error(), "regex: lookahead (?=...) is not supported")
+	_, err := Compile(`(?R)`)
+	wantEqual(t, err.Error(), "regex: recursion (?R) is not supported")
 }
 
 func TestSyntaxErrorHasPosition(t *testing.T) {

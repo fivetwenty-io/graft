@@ -12,6 +12,8 @@ const (
 	kindRepeat                    // subs[0] between min and max times
 	kindGroup                     // subs[0], captured as group index
 	kindAssert                    // a zero-width test at the current position
+	kindLook                      // a lookaround: subs[0] must match, or under neg must not, ahead of or behind the position
+	kindAtomic                    // subs[0], keeping only its first way of matching
 )
 
 // assertKind names the zero-width tests.
@@ -55,6 +57,10 @@ type node struct {
 	name  string
 
 	assert assertKind
+
+	// neg and behind say whether a lookaround is negative and whether it
+	// looks behind the position rather than ahead of it.
+	neg, behind bool
 }
 
 // unbounded is a repeat's max when the repeat has no upper bound.
@@ -83,7 +89,7 @@ func nullable(n *node) bool {
 		return false
 	case kindRepeat:
 		return n.min == 0 || nullable(n.subs[0])
-	case kindGroup:
+	case kindGroup, kindAtomic:
 		return nullable(n.subs[0])
 	default:
 		return true
@@ -105,11 +111,74 @@ func anchoredAtStart(n *node) bool {
 			}
 		}
 		return len(n.subs) > 0
-	case kindGroup:
+	case kindGroup, kindAtomic:
 		return anchoredAtStart(n.subs[0])
 	case kindRepeat:
 		return n.min > 0 && anchoredAtStart(n.subs[0])
 	default:
 		return false
 	}
+}
+
+// maxWidth caps the lengths width reports, which is far past any length a
+// lookbehind can use and keeps the products of nested counts in range.
+const maxWidth = 1 << 30
+
+// width returns the fewest and the most runes n can match, with hi
+// unbounded when there is no limit.
+func width(n *node) (lo, hi int) {
+	switch n.kind {
+	case kindLiteral:
+		return len(n.runes), len(n.runes)
+	case kindClass, kindAny:
+		return 1, 1
+	case kindConcat:
+		for _, s := range n.subs {
+			slo, shi := width(s)
+			lo = min(lo+slo, maxWidth)
+			hi = addWidth(hi, shi)
+		}
+		return lo, hi
+	case kindAlternate:
+		for i, s := range n.subs {
+			slo, shi := width(s)
+			if i == 0 || slo < lo {
+				lo = slo
+			}
+			if i == 0 || hi != unbounded && (shi == unbounded || shi > hi) {
+				hi = shi
+			}
+		}
+		return lo, hi
+	case kindRepeat:
+		slo, shi := width(n.subs[0])
+		lo = mulWidth(slo, n.min)
+		switch {
+		case shi == 0 || n.max == 0:
+			hi = 0
+		case shi == unbounded || n.max == unbounded:
+			hi = unbounded
+		default:
+			hi = mulWidth(shi, n.max)
+		}
+		return lo, hi
+	case kindGroup, kindAtomic:
+		return width(n.subs[0])
+	default:
+		return 0, 0
+	}
+}
+
+func addWidth(a, b int) int {
+	if a == unbounded || b == unbounded {
+		return unbounded
+	}
+	return min(a+b, maxWidth)
+}
+
+func mulWidth(a, b int) int {
+	if a != 0 && b > maxWidth/a {
+		return maxWidth
+	}
+	return min(a*b, maxWidth)
 }

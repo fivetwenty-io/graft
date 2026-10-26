@@ -1,6 +1,8 @@
 package regex
 
 import (
+	"context"
+	"strings"
 	"testing"
 )
 
@@ -90,5 +92,131 @@ func TestInlineFlags(t *testing.T) {
 		var u *UnsupportedError
 		wantErrAs(t, err, &u)
 		wantEqual(t, u.Construct, construct)
+	}
+}
+
+// groups returns the text of every group of the first match, with "-" for
+// a group that took no part.
+func groups(t *testing.T, p *Pattern, subject string) []string {
+	t.Helper()
+	m := find(t, p, subject)
+	if m == nil {
+		t.Fatalf("%q does not match %q", p.source, subject)
+	}
+	out := make([]string, len(m.Groups))
+	for i, g := range m.Groups {
+		out[i] = "-"
+		if g.Matched {
+			out[i] = g.Text(subject)
+		}
+	}
+	return out
+}
+
+func wantSyntaxError(t *testing.T, pattern string, pos int, msg string, opts ...Option) {
+	t.Helper()
+	_, err := Compile(pattern, opts...)
+	var se *SyntaxError
+	wantErrAs(t, err, &se)
+	if se.Pos != pos || se.Msg != msg {
+		t.Fatalf("%q: got %q at %d, want %q at %d", pattern, se.Msg, se.Pos, msg, pos)
+	}
+}
+
+func TestLookahead(t *testing.T) {
+	wantMatch(t, MustCompile(`a(?=b)`), "ab")
+	wantText(t, MustCompile(`a(?=b)`), "ab", "a")
+	wantNoMatch(t, MustCompile(`a(?!b)`), "ab")
+	wantEqual(t, runeStarts(t, MustCompile(`a(?!b)`), "abac", MatchOptions{Global: true}), []int{2})
+	wantEqual(t, groups(t, MustCompile(`(?=(a))a`), "a"), []string{"a", "a"})
+	wantEqual(t, groups(t, MustCompile(`(?!(b))a`), "a"), []string{"a", "-"})
+
+	// An assertion is atomic, and backtracking past it restores the
+	// groups its body set.
+	wantEqual(t, groups(t, MustCompile(`(?:(?=(a))ax|ab)`), "ab"), []string{"ab", "-"})
+}
+
+func TestLookbehind(t *testing.T) {
+	wantMatch(t, MustCompile(`(?<=a)b`), "ab")
+	wantNoMatch(t, MustCompile(`(?<!a)b`), "ab")
+	wantMatch(t, MustCompile(`(?<!a)b`), "cb")
+	wantMatch(t, MustCompile(`(?<!a)b`), "b")
+	wantEqual(t, runeStarts(t, MustCompile(`(?<=a)b`), "abab", MatchOptions{Global: true}), []int{1, 3})
+	wantEqual(t, runeStarts(t, MustCompile(`(?<=é)b`), "ébb", MatchOptions{Global: true}), []int{1})
+	wantEqual(t, runeStarts(t, MustCompile(`(?<=..)b`), "éxb", MatchOptions{Global: true}), []int{2})
+	wantMatch(t, MustCompile(`(?<=a(?<=a))b`), "ab")
+	wantMatch(t, MustCompile(`(?<=(?=a)a)b`), "ab")
+	wantMatch(t, MustCompile(`(?<=\b)a`), "a")
+	wantText(t, MustCompile(`(?<=^|,)a`), ",a", "a")
+
+	// Branches are tried in order, each at its own lengths, and a
+	// variable branch tries its longest length first, as in PCRE2.
+	wantEqual(t, groups(t, MustCompile(`(?<=(a)|(aa))b`), "xaab"), []string{"b", "a", "-"})
+	wantEqual(t, groups(t, MustCompile(`(?<=(aa)|(a))b`), "xaab"), []string{"b", "aa", "-"})
+	wantEqual(t, groups(t, MustCompile(`(?<=(a{1,3}))b`), "aaab"), []string{"b", "aaa"})
+	wantEqual(t, groups(t, MustCompile(`(?<=(a|aa))b`), "aaab"), []string{"b", "aa"})
+	wantNoMatch(t, MustCompile(`(?<!a|bc)d`), "bcd")
+	wantMatch(t, MustCompile(`(?<!a|bc)d`), "cd")
+
+	// PCRE refuses a branch with no length limit or one that varies past
+	// 255 runes. Oniguruma accepts an unbounded lookbehind.
+	wantSyntaxError(t, `(?<=a+)b`, 0, "length of lookbehind assertion is not limited")
+	wantSyntaxError(t, `x(?<!a|b*)b`, 1, "length of lookbehind assertion is not limited")
+	wantSyntaxError(t, `(?<=a{1,256})b`, 0, "branch too long in variable-length lookbehind assertion")
+	wantMatch(t, MustCompile(`(?<=a{1,255})b`), "ab")
+	wantNoMatch(t, MustCompile(`(?<=a{300})b`), "ab")
+	wantText(t, MustCompile(`(?<=xa+)b`, WithFlavor(Oniguruma)), "xaab", "b")
+	wantNoMatch(t, MustCompile(`(?<=xa+)b`, WithFlavor(Oniguruma)), "aab")
+	wantNoMatch(t, MustCompile(`(?<!a*)b`, WithFlavor(Oniguruma)), "b")
+
+	// Under full case folding a lookbehind's length follows its lowering.
+	wantMatch(t, MustCompile(`(?<=ß)x`, WithFlavor(Oniguruma), WithFlags(IgnoreCase)), "ssx")
+}
+
+func TestQuantifiedLookaround(t *testing.T) {
+	// PCRE2 obeys a quantified assertion once, or may skip it when the
+	// quantifier allows zero, and never obeys it under {0}.
+	wantText(t, MustCompile(`a(?=b)+`), "ab", "a")
+	wantMatch(t, MustCompile(`(?=x)?b`), "b")
+	wantEqual(t, groups(t, MustCompile(`(?=(b))?b`), "b"), []string{"b", "b"})
+	wantMatch(t, MustCompile(`(?=x){0}b`), "b")
+	wantMatch(t, MustCompile(`(?<!b)*b`), "bb")
+
+	// jq's Oniguruma refuses them.
+	wantSyntaxError(t, `a(?=b)+`, 6, "target of repeat operator is invalid", WithFlavor(Oniguruma))
+}
+
+func TestAtomicGroupsAndPossessives(t *testing.T) {
+	wantNoMatch(t, MustCompile(`(?>a+)b`), "aaac")
+	wantText(t, MustCompile(`(?>a+)b`), "aab", "aab")
+	wantNoMatch(t, MustCompile(`(?>a|ab)c`), "abc")
+	wantMatch(t, MustCompile(`(?:a|ab)c`), "abc")
+	wantNoMatch(t, MustCompile(`a*+a`), "aaa")
+	wantText(t, MustCompile(`a++b`), "aab", "aab")
+	wantNoMatch(t, MustCompile(`a?+a`), "a")
+	wantText(t, MustCompile(`a{2}+`), "aaa", "aa")
+	wantText(t, MustCompile(`(?:ab)*+c`), "ababc", "ababc")
+	wantText(t, MustCompile(`(?>a)*b`), "aab", "aab")
+	wantEqual(t, groups(t, MustCompile(`(?>(a))b`), "ab"), []string{"ab", "a"})
+	wantEqual(t, groups(t, MustCompile(`(?:(?>(a))x|ab)`), "ab"), []string{"ab", "-"})
+	for _, flavor := range []Flavor{PCRE, Oniguruma} {
+		wantNoMatch(t, MustCompile(`a*+a`, WithFlavor(flavor)), "aaa")
+	}
+
+	// An atomic group keeps none of its branches, so the stack stays
+	// flat however many it passes.
+	p := MustCompile(`(?>a?){500}`, WithBudget(Budget{MaxStack: 100}))
+	wantText(t, p, strings.Repeat("a", 500), strings.Repeat("a", 500))
+}
+
+// The step budget is one count for a match, the bodies of its assertions
+// and atomic groups, and every start of a search, so nesting cannot
+// multiply it.
+func TestNestedBodiesShareTheBudget(t *testing.T) {
+	subject := strings.Repeat("a", 40) + "b"
+	for _, pattern := range []string{`(?=(a+)+$)`, `(?!(a+)+$)`, `$(?<=^(a+)+)`, `(?>(a+)+$)`, `(?=(?=(?=(a+)+$)))`} {
+		p := MustCompile(pattern, WithFlavor(Oniguruma), WithBudget(Budget{Steps: 100000}))
+		_, err := p.Find(context.Background(), subject, 0)
+		wantErrIs(t, err, ErrBudget)
 	}
 }

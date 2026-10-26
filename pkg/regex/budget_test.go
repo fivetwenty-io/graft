@@ -106,6 +106,7 @@ func TestProgramSizeEstimateIsExact(t *testing.T) {
 	for _, pat := range []string{
 		`a`, `abc`, `a|b|c`, `(a)(b)`, `a*`, `a+?`, `(a*)*`, `(a?)+`, `a{2,5}`, `a{3,}`, `(?:ab|c){0,2}`,
 		`[a-z]+x`, `^a$`, `.*`, `(a|)*b{2}c{1,}d{0}`, `x{0,}`,
+		`(?=ab)c`, `(?<!a|bc)d`, `(?<=a|bc)d`, `(?>a|b)*`, `a*+`, `a{2,3}+`, `(?=a(?<=a))b`, `(?<=ß|k)x`,
 	} {
 		for _, opts := range [][]Option{nil, {WithFlags(IgnoreCase)}, {WithFlavor(Oniguruma), WithFlags(IgnoreCase)}} {
 			p := MustCompile(pat, opts...)

@@ -13,6 +13,10 @@ const (
 	opSave                    // record the position in slot x
 	opLoopCheck               // leave a loop for y when slot x holds the position, as an empty iteration does
 	opAssert                  // test assert at the position, with set the word runes for a boundary
+	opAhead                   // run the body at x from the position, then continue at y if it matched, or under neg if it did not
+	opBehind                  // like opAhead, with the body starting lo to hi runes back and ending at the position
+	opAtomic                  // run the body at x, then continue at y from where its first match ended
+	opSucceed                 // end a body that opAhead, opBehind, or opAtomic runs
 	opMatch                   // report a match
 )
 
@@ -23,6 +27,8 @@ type inst struct {
 	set    runeSet
 	x, y   int
 	assert assertKind
+	neg    bool
+	lo, hi int // the runes a lookbehind looks back, hi unbounded when there is no limit
 }
 
 // lower rewrites the tree so that case-insensitive literals and classes
@@ -186,7 +192,12 @@ func programSize(n *node, limit int) int {
 			total = c.add(total, programSize(s, limit))
 		}
 		return total
-	case kindGroup:
+	case kindGroup, kindAtomic:
+		return c.add(programSize(n.subs[0], limit), 2)
+	case kindLook:
+		if alt := behindBranches(n); alt != nil {
+			return programSize(alt, limit)
+		}
 		return c.add(programSize(n.subs[0], limit), 2)
 	case kindRepeat:
 		return repeatSize(n, programSize(n.subs[0], limit), c)
@@ -274,7 +285,54 @@ func (c *compiler) node(n *node) {
 		c.emit(inst{op: opSave, x: 2*n.index + 1})
 	case kindRepeat:
 		c.repeat(n)
+	case kindAtomic:
+		c.body(inst{op: opAtomic}, n.subs[0])
+	case kindLook:
+		c.look(n)
 	}
+}
+
+// body emits in, then a body that in runs, ending in opSucceed, and points
+// in at the body and at what follows it.
+func (c *compiler) body(in inst, body *node) {
+	pc := c.emit(in)
+	c.node(body)
+	c.emit(inst{op: opSucceed})
+	c.prog[pc].x, c.prog[pc].y = pc+1, len(c.prog)
+}
+
+// look emits a lookaround. A lookbehind with several branches becomes one
+// lookbehind per branch, so each branch looks back by its own lengths.
+func (c *compiler) look(n *node) {
+	if alt := behindBranches(n); alt != nil {
+		c.node(alt)
+		return
+	}
+	in := inst{op: opAhead, neg: n.neg}
+	if n.behind {
+		in.op = opBehind
+		in.lo, in.hi = width(n.subs[0])
+	}
+	c.body(in, n.subs[0])
+}
+
+// behindBranches rewrites a lookbehind of several branches as one lookbehind
+// per branch, or returns nil for any other node. The positive form tries the
+// branches in order inside an atomic group, since an assertion that held is
+// never retried, and the negative form requires each branch to fail.
+func behindBranches(n *node) *node {
+	body := n.subs[0]
+	if !n.behind || body.kind != kindAlternate {
+		return nil
+	}
+	looks := make([]*node, len(body.subs))
+	for i, b := range body.subs {
+		looks[i] = &node{kind: kindLook, subs: []*node{b}, neg: n.neg, behind: true}
+	}
+	if n.neg {
+		return &node{kind: kindConcat, subs: looks}
+	}
+	return &node{kind: kindAtomic, subs: []*node{{kind: kindAlternate, subs: looks}}}
 }
 
 // alternate emits each branch behind a split that falls through to the

@@ -21,7 +21,7 @@ func ExampleCompile_errors() {
 	var se *regex.SyntaxError
 	fmt.Println(errors.As(err, &se), se.Pos)
 
-	_, err = regex.Compile(`(?=a)`)
+	_, err = regex.Compile(`(?R)`)
 	var ue *regex.UnsupportedError
 	fmt.Println(errors.As(err, &ue), ue.Construct)
 
@@ -29,7 +29,7 @@ func ExampleCompile_errors() {
 	fmt.Println(errors.Is(err, regex.ErrBudget))
 	// Output:
 	// true 1
-	// true lookahead (?=...)
+	// true recursion (?R)
 	// true
 }
 
@@ -228,10 +228,10 @@ func ExampleSyntaxError() {
 }
 
 func ExampleUnsupportedError() {
-	_, err := regex.Compile(`(?<=a)b`)
+	_, err := regex.Compile(`\Gx`)
 	var ue *regex.UnsupportedError
 	if errors.As(err, &ue) {
 		fmt.Println(ue.Construct)
 	}
-	// Output: lookbehind (?<=...)
+	// Output: assertion \G
 }

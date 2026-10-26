@@ -297,29 +297,53 @@ func (p *parser) quantified(atom *node) (*node, error) {
 	if atom.kind == kindAssert {
 		return nil, p.errorAt(qpos, "quantifier does not follow a repeatable item")
 	}
+	if atom.kind == kindLook && p.cfg.flavor == Oniguruma {
+		return nil, p.errorAt(qpos, "target of repeat operator is invalid")
+	}
 	if lo > maxRepeat || hi > maxRepeat {
 		return nil, p.errorAt(qpos, "number too big in {} quantifier")
 	}
 	if hi != unbounded && hi < lo {
 		return nil, p.errorAt(qpos, "numbers out of order in {} quantifier")
 	}
-	text := p.src[qpos : qpos+width]
 	p.pos += width
-	greedy := true
+	greedy, possessive := true, false
 	if !p.eof() {
 		switch p.src[p.pos] {
 		case '?':
 			greedy = false
 			p.pos++
 		case '+':
-			return nil, unsupported("possessive quantifier " + text + "+")
+			possessive = true
+			p.pos++
 		}
 	}
 	p.skipExtended()
 	if _, _, _, again := p.scanQuantifier(); again {
 		return nil, p.errorAt(p.pos, "quantifier does not follow a repeatable item")
 	}
-	return &node{kind: kindRepeat, subs: []*node{atom}, min: lo, max: hi, greedy: greedy}, nil
+	if atom.kind == kindLook {
+		return quantifiedLook(atom, lo, hi, greedy), nil
+	}
+	rep := &node{kind: kindRepeat, subs: []*node{atom}, min: lo, max: hi, greedy: greedy}
+	if possessive {
+		return &node{kind: kindAtomic, subs: []*node{rep}}, nil
+	}
+	return rep, nil
+}
+
+// quantifiedLook applies a quantifier to a lookaround the way PCRE2 does.
+// Since an assertion matches nothing, obeying it twice is the same as
+// obeying it once, so a quantifier that allows zero makes it optional, {0}
+// drops it, and any other quantifier leaves it as it was.
+func quantifiedLook(look *node, lo, hi int, greedy bool) *node {
+	switch {
+	case hi == 0:
+		return &node{kind: kindConcat}
+	case lo == 0:
+		return &node{kind: kindRepeat, subs: []*node{look}, min: 0, max: 1, greedy: greedy}
+	}
+	return look
 }
 
 // atom parses one item that a quantifier can follow. It returns nil for an
@@ -391,12 +415,12 @@ func (p *parser) group(start int) (*node, error) {
 		return nil, overBudget("group nesting exceeds the budget of %d levels", p.cfg.budget.MaxNesting)
 	}
 
-	capture, name, saved := true, "", p.flags
+	form, name, saved := formCapture, "", p.flags
 	switch {
 	case p.lookingAt("?"):
 		var err error
 		var done bool
-		capture, name, done, err = p.groupPrefix(start)
+		form, name, done, err = p.groupPrefix(start)
 		if err != nil || done {
 			return nil, err
 		}
@@ -407,7 +431,7 @@ func (p *parser) group(start int) (*node, error) {
 	}
 
 	index := 0
-	if capture {
+	if form == formCapture {
 		index = len(p.names)
 		p.names = append(p.names, name)
 	}
@@ -420,10 +444,60 @@ func (p *parser) group(start int) (*node, error) {
 	}
 	p.pos++ // ')'
 	p.flags = saved
-	if !capture {
-		return body, nil
+	switch form {
+	case formCapture:
+		return &node{kind: kindGroup, subs: []*node{body}, index: index, name: name}, nil
+	case formAtomic:
+		return &node{kind: kindAtomic, subs: []*node{body}}, nil
+	case formAhead, formNotAhead:
+		return &node{kind: kindLook, subs: []*node{body}, neg: form == formNotAhead}, nil
+	case formBehind, formNotBehind:
+		if err := p.checkLookbehind(start, body); err != nil {
+			return nil, err
+		}
+		return &node{kind: kindLook, subs: []*node{body}, neg: form == formNotBehind, behind: true}, nil
 	}
-	return &node{kind: kindGroup, subs: []*node{body}, index: index, name: name}, nil
+	return body, nil
+}
+
+// groupForm names what a parenthesized group does with its body.
+type groupForm uint8
+
+const (
+	formCapture   groupForm = iota // (...), (?<name>...)
+	formPlain                      // (?:...) and (?flags:...)
+	formAtomic                     // (?>...)
+	formAhead                      // (?=...)
+	formNotAhead                   // (?!...)
+	formBehind                     // (?<=...)
+	formNotBehind                  // (?<!...)
+)
+
+// maxLookbehind is the most runes PCRE2 lets a lookbehind branch of varying
+// length look back.
+const maxLookbehind = 255
+
+// checkLookbehind applies PCRE2's rule that every branch of a lookbehind
+// whose ( is at start has a length limit, and that a branch whose length
+// varies looks back no more than 255 runes. Oniguruma has no such rule.
+func (p *parser) checkLookbehind(start int, body *node) error {
+	if p.cfg.flavor != PCRE {
+		return nil
+	}
+	branches := []*node{body}
+	if body.kind == kindAlternate {
+		branches = body.subs
+	}
+	for _, b := range branches {
+		lo, hi := width(b)
+		switch {
+		case hi == unbounded:
+			return p.errorAt(start, "length of lookbehind assertion is not limited")
+		case hi != lo && hi > maxLookbehind:
+			return p.errorAt(start, "branch too long in variable-length lookbehind assertion")
+		}
+	}
+	return nil
 }
 
 func isUpperASCII(b byte) bool { return b >= 'A' && b <= 'Z' }
@@ -441,75 +515,71 @@ func alphaName(s string) string {
 	return s[:i]
 }
 
-// groupPrefix reads what follows "(?" and says whether the group captures
-// and under which name. done is true when the group was a comment or an
-// inline flag setting, which leave nothing to parse.
+// groupPrefix reads what follows "(?" and says what the group does with its
+// body and, for a capture, under which name. done is true when the group was
+// a comment or an inline flag setting, which leave nothing to parse.
 //
 //nolint:gocyclo // one case per group form, each a line or two
-func (p *parser) groupPrefix(start int) (capture bool, name string, done bool, err error) {
+func (p *parser) groupPrefix(start int) (form groupForm, name string, done bool, err error) {
 	p.pos++ // '?'
 	at := p.pos
 	rest := p.src[p.pos:]
+	for _, f := range []struct {
+		prefix string
+		form   groupForm
+	}{{":", formPlain}, {">", formAtomic}, {"=", formAhead}, {"!", formNotAhead}, {"<=", formBehind}, {"<!", formNotBehind}} {
+		if strings.HasPrefix(rest, f.prefix) {
+			p.pos += len(f.prefix)
+			return f.form, "", false, nil
+		}
+	}
 	switch {
-	case strings.HasPrefix(rest, ":"):
-		p.pos++
-		return false, "", false, nil
 	case strings.HasPrefix(rest, "#"):
 		end := strings.IndexByte(rest, ')')
 		if end < 0 {
-			return false, "", true, p.errorAt(start, "missing ) after (?# comment")
+			return formPlain, "", true, p.errorAt(start, "missing ) after (?# comment")
 		}
 		p.pos += end + 1
-		return false, "", true, nil
+		return formPlain, "", true, nil
 	case strings.HasPrefix(rest, "*"):
-		return false, "", true, unsupported("non-atomic lookahead (?*...)")
+		return formPlain, "", true, unsupported("non-atomic lookahead (?*...)")
 	case strings.HasPrefix(rest, "<*"):
-		return false, "", true, unsupported("non-atomic lookbehind (?<*...)")
+		return formPlain, "", true, unsupported("non-atomic lookbehind (?<*...)")
 	case strings.HasPrefix(rest, "~"):
-		return false, "", true, unsupported("absent operator (?~...)")
-	case strings.HasPrefix(rest, "<="):
-		return false, "", true, unsupported("lookbehind (?<=...)")
-	case strings.HasPrefix(rest, "<!"):
-		return false, "", true, unsupported("negative lookbehind (?<!...)")
-	case strings.HasPrefix(rest, "="):
-		return false, "", true, unsupported("lookahead (?=...)")
-	case strings.HasPrefix(rest, "!"):
-		return false, "", true, unsupported("negative lookahead (?!...)")
-	case strings.HasPrefix(rest, ">"):
-		return false, "", true, unsupported("atomic group (?>...)")
+		return formPlain, "", true, unsupported("absent operator (?~...)")
 	case strings.HasPrefix(rest, "|"):
-		return false, "", true, unsupported("branch reset group (?|...)")
+		return formPlain, "", true, unsupported("branch reset group (?|...)")
 	case strings.HasPrefix(rest, "("):
-		return false, "", true, unsupported("conditional group (?(...)")
+		return formPlain, "", true, unsupported("conditional group (?(...)")
 	case strings.HasPrefix(rest, "C"):
-		return false, "", true, unsupported("callout (?C...)")
+		return formPlain, "", true, unsupported("callout (?C...)")
 	case strings.HasPrefix(rest, "P="):
-		return false, "", true, unsupported("backreference (?P=" + upToParen(rest[2:]) + ")")
+		return formPlain, "", true, unsupported("backreference (?P=" + upToParen(rest[2:]) + ")")
 	case strings.HasPrefix(rest, "P>"):
-		return false, "", true, unsupported("recursion (?P>" + upToParen(rest[2:]) + ")")
+		return formPlain, "", true, unsupported("recursion (?P>" + upToParen(rest[2:]) + ")")
 	case strings.HasPrefix(rest, "&"):
-		return false, "", true, unsupported("recursion (?&" + upToParen(rest[1:]) + ")")
+		return formPlain, "", true, unsupported("recursion (?&" + upToParen(rest[1:]) + ")")
 	case strings.HasPrefix(rest, "R"), rest != "" && (rest[0] >= '0' && rest[0] <= '9'),
 		len(rest) > 1 && (rest[0] == '+' || rest[0] == '-') && rest[1] >= '0' && rest[1] <= '9':
-		return false, "", true, unsupported("recursion (?" + upToParen(rest) + ")")
+		return formPlain, "", true, unsupported("recursion (?" + upToParen(rest) + ")")
 	case strings.HasPrefix(rest, "P<"):
 		p.pos += 2
 		name, err = p.groupName('>')
-		return true, name, false, err
+		return formCapture, name, false, err
 	case strings.HasPrefix(rest, "<"):
 		p.pos++
 		name, err = p.groupName('>')
-		return true, name, false, err
+		return formCapture, name, false, err
 	case strings.HasPrefix(rest, "'"):
 		p.pos++
 		name, err = p.groupName('\'')
-		return true, name, false, err
+		return formCapture, name, false, err
 	}
 	if letters, scoped, isFlags := inlineFlags(rest); isFlags {
 		p.pos += len(letters) + 1
-		return false, "", !scoped, p.setFlags(letters, scoped)
+		return formPlain, "", !scoped, p.setFlags(letters, scoped)
 	}
-	return false, "", true, p.errorAt(at, "unrecognized character after (? or (?-")
+	return formPlain, "", true, p.errorAt(at, "unrecognized character after (? or (?-")
 }
 
 // inlineFlags recognizes (?flags) and (?flags:...), returning the flag

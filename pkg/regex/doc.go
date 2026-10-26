@@ -52,18 +52,28 @@ PCRE2 and jq read them. i is IgnoreCase, s is DotAll, and x is Extended.
 m makes ^ match after every newline that is not the subject's last rune and
 $ match before every newline, which no Flags value does.
 
-Lookaround, backreferences, atomic groups, possessive quantifiers, the
-inline flags n, J, U, and ^, the assertion \G, and the rarer PCRE
-constructs such as recursion and conditionals are recognized and refused
-with an UnsupportedError that names them.
+Lookahead (?=...) and (?!...), lookbehind (?<=...) and (?<!...), atomic
+groups (?>...), and possessive quantifiers such as a*+ are supported. An
+assertion is atomic, so once it holds no later failure retries it, and the
+groups set inside a positive one keep their values. Each branch of a
+lookbehind looks back by its own lengths, the longest first. Under PCRE a
+branch must have a length limit and may vary by no more than 255 runes, as
+in PCRE2, while Oniguruma lets a lookbehind look back without limit. PCRE
+treats a quantified assertion as PCRE2 does, and Oniguruma refuses one as
+jq does.
+
+Backreferences, the inline flags n, J, U, and ^, the assertion \G, and the
+rarer PCRE constructs such as recursion and conditionals are recognized and
+refused with an UnsupportedError that names them.
 
 # Budgets
 
 A pattern on untrusted input can take exponential time on a backtracking
 engine. Every VM step counts against a Budget, ten million steps by default,
 and a call that runs out returns ErrBudget. One count covers every start
-position a search tries and every match a global search finds, so repetition
-cannot multiply the limit. The context passed to each call is checked every
+position a search tries, every match a global search finds, and the bodies
+of every assertion and atomic group, so neither repetition nor nesting can
+multiply the limit. The context passed to each call is checked every
 few thousand steps, so a deadline ends a long match with the context's
 error. The budget also bounds the pattern length, group nesting, the size of
 the compiled program, and the backtrack stack, so a pattern cannot exhaust
