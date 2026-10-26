@@ -251,8 +251,9 @@ jobs:
         env:
           BASE_SHA: ${{ github.event_name == 'push' && github.event.before || github.event.pull_request.base.sha }}
         run: |
-          # A push that creates a branch has no commit before it.
-          case "$BASE_SHA" in ''|0000000000000000000000000000000000000000) BASE_SHA=$(git rev-parse origin/main) ;; esac
+          # A force-push can leave the commit before the push out of the
+          # history, and then the pushed commit's parent stands in for it.
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then BASE_SHA=$(git rev-parse HEAD~1); fi
           git worktree remove --force "$RUNNER_TEMP/base-tree" 2>/dev/null || true
           rm -rf "$RUNNER_TEMP/base-tree"
           git worktree add "$RUNNER_TEMP/base-tree" "$BASE_SHA"
