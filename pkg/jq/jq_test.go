@@ -299,6 +299,15 @@ func TestNamedArgsKeepTheFirstBinding(t *testing.T) {
 	wantEqual(t, got, []string{`{"b":"1","a":"2"}`, `"1"`}) // jq 1.8.2 keeps the first --arg of a name
 }
 
+func TestNilNamedArgHasNoValue(t *testing.T) {
+	// A variable bound to nil gives no output, in an operator as anywhere
+	// else, so each array below collects nothing.
+	for _, src := range []string{`[$x + 1]`, `[1 + $x]`, `[$x == 1]`, `[$x]`} {
+		got := outputs(t, src, `null`, WithArg("x", nil))
+		wantEqual(t, got, []string{`[]`})
+	}
+}
+
 func TestNamedArgsNeverShadowTheBuiltinVariables(t *testing.T) {
 	// jq 1.8.2 keeps $ENV and $ARGS when --arg reuses their names, and
 	// lists the arguments only under $ARGS.named.

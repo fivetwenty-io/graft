@@ -687,7 +687,9 @@ func (ev evaluator) single(n ast.Node, env *Env, in *value.Value) (*value.Value,
 	case *ast.Literal:
 		return ev.literal(n), true
 	case *ast.Var:
-		if v, _, ok := env.LookupAt(n.Name); ok {
+		// A variable bound to nil has no value, as the Var case in eval
+		// treats it.
+		if v, _, ok := env.LookupAt(n.Name); ok && v != nil {
 			return v, true
 		}
 	case *ast.Identity:
