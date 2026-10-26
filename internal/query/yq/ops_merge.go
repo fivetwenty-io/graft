@@ -2,6 +2,7 @@ package yq
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -68,12 +69,16 @@ func multiply(ctx *runtime.Ctx, base runtime.Native, l, r *value.Value, flags st
 }
 
 // multiplyScalars is yq's "*" of two scalars. Two numbers go to base, and
-// a string and an integer, in either order, repeat the string.
+// so does a scalar with a custom tag whose text reads as a number, as
+// multiplyCustom describes. A string and an integer, in either order,
+// repeat the string.
 func multiplyScalars(ctx *runtime.Ctx, base runtime.Native, l, r *value.Value, emit runtime.Emit) error {
 	lt, rt := guessTag(l), guessTag(r)
 	switch {
 	case l.Kind() == value.KindNumber && r.Kind() == value.KindNumber:
 		return base(ctx, nil, []runtime.Thunk{fixedThunk{l}, fixedThunk{r}}, emit)
+	case numericTag(lt) && numericTag(rt):
+		return multiplyCustom(ctx, base, l, r, emit)
 	case tagOf(l) == strTag && rt == intTag:
 		return repeat(l, l, r, emit)
 	case lt == intTag && tagOf(r) == strTag:
@@ -81,6 +86,50 @@ func multiplyScalars(ctx *runtime.Ctx, base runtime.Native, l, r *value.Value, e
 	default:
 	}
 	return cannotMultiply(l, r)
+}
+
+// numericTag reports whether t is the tag of a number.
+func numericTag(t string) bool { return t == intTag || t == floatTag }
+
+// multiplyCustom multiplies l and r, at least one of which is a scalar
+// with a custom tag whose text reads as a number, as those numbers. With
+// the custom tag on the left, the product is the left node with the
+// product's text, so it keeps its tag, style, anchor, and comments, as
+// yq's does. Otherwise it is the number base gives.
+func multiplyCustom(ctx *runtime.Ctx, base runtime.Native, l, r *value.Value, emit runtime.Emit) error {
+	ln, lok := asNumber(l)
+	rn, rok := asNumber(r)
+	if !lok || !rok {
+		// yq cannot multiply text such as .inf, which reads as a
+		// float but not as a number.
+		return cannotMultiply(l, r)
+	}
+	return base(ctx, nil, []runtime.Thunk{fixedThunk{ln}, fixedThunk{rn}}, func(v *value.Value, p value.Path) error {
+		if !customTag(tagOf(l)) || v.Kind() != value.KindNumber {
+			return emit(v, p)
+		}
+		m := metaOf(l)
+		m.Text = numberText(v)
+		out := v
+		if l.Kind() == value.KindString {
+			out = value.Str(m.Text)
+		}
+		return emit(out.WithMeta(&m), p)
+	})
+}
+
+// asNumber is a scalar as the number its text reads as, and reports
+// false when its text reads as no number.
+func asNumber(v *value.Value) (*value.Value, bool) {
+	if v.Kind() == value.KindNumber {
+		return v, true
+	}
+	n, err := scalarOf(nodeText(v))
+	if err != nil || n.Kind() != value.KindNumber {
+		return nil, false
+	}
+	f := n.Float()
+	return n, !math.IsInf(f, 0) && !math.IsNaN(f)
 }
 
 // cannotMultiply is yq's error for operands "*" does not take.

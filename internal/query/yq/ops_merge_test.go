@@ -201,3 +201,31 @@ func TestYQAssignNull(t *testing.T) {
 		wantYQ(t, c.expr, c.in, c.want)
 	}
 }
+
+// A scalar with a custom tag whose text reads as a number multiplies as
+// that number. With the custom tag on the left, the result is the left
+// node with the product's text, keeping its tag, style, anchor, and
+// comment, and otherwise it is a plain number.
+func TestYQMultiplyCustomTaggedNumbers(t *testing.T) {
+	in := "a: !foo \"5\"\nb: !foo \"6\"\nc: !foo 5\nd: !foo 1.5\n"
+	runMergeCases(t, in, []mergeCase{
+		{".a * .b", "30\n", ""},
+		{".a * 2", "10\n", ""},
+		{`{"x": .a * .b}`, "x: !foo \"30\"\n", ""},
+		{`{"x": .a * 2}`, "x: !foo \"10\"\n", ""},
+		{`{"x": 2 * .a}`, "x: 10\n", ""},
+		{`{"x": .c * .c}`, "x: !foo 25\n", ""},
+		{`{"x": .c * 2}`, "x: !foo 10\n", ""},
+		{`{"x": .d * 2}`, "x: !foo 3\n", ""},
+		{`{"x": .a * .d}`, "x: !foo \"7.5\"\n", ""},
+		{`{"x": .a *+ .b}`, "x: !foo \"30\"\n", ""},
+		{"(.a * 2) | tag", "!foo\n", ""},
+		{"(2 * .a) | tag", "!!int\n", ""},
+		{"(1.5 * .c) | tag", "!!float\n", ""},
+		{`.a * "x"`, "xxxxx\n", ""},
+	})
+	wantYQ(t, `{"x": .a * 2}`, "a: !foo 0x10\n", "x: !foo 0x20\n")
+	wantYQ(t, `{"x": .a * 2}`, "a: &an !foo 5 # c\n", "x: &an !foo 10 # c\n")
+	wantYQ(t, ".a *= 3", "a: !foo \"5\"\n", "a: !foo \"15\"\n")
+	wantYQError(t, ".a * 2", "a: !foo .inf\n", "cannot multiply !foo with !!int")
+}
