@@ -89,3 +89,16 @@ func TestYQLenientEscapes(t *testing.T) {
 	wantYQ(t, `.a = "\a\v" | .a | length`, "a: 1\n", "2\n")
 	wantYQ(t, `.a = "t\(1+1)\d"`, "a: 1\n", "a: t2\\d\n")
 }
+
+func TestYQArithmeticKeepsTheLeftAnchor(t *testing.T) {
+	wantYQ(t, `.a += 1`, "a: &x 1\nb: *x\n", "a: &x 2\nb: *x\n")
+	wantYQ(t, `.a -= 1`, "a: &x 3\n", "a: &x 2\n")
+	wantYQ(t, `.a *= 2`, "a: &x 3 # c\n", "a: &x 6 # c\n")
+	wantYQ(t, `.a += "b"`, "a: &x s\n", "a: &x sb\n")
+	wantYQ(t, `.a += {"k": 1}`, "a: &x {j: 0}\n", "a: &x {j: 0, k: 1}\n")
+	wantYQ(t, `.a += [2]`, "a: &x [1]\n", "a: &x [1, 2]\n")
+	wantYQ(t, `.a = .a + 1`, "a: &x 1\n", "a: &x 2\n")
+	wantYQ(t, `.c = .a + 1`, "a: &x 1\n", "a: &x 1\nc: 2\n")
+	wantYQ(t, `.a = .a / 2`, "a: &x 3\n", "a: &x 1.5\n")
+	wantYQ(t, `.a = .a % 2`, "a: &x 3\n", "a: &x 1\n")
+}

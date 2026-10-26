@@ -71,12 +71,12 @@ func add(ctx *runtime.Ctx, base runtime.Native, l *value.Value, lp value.Path, r
 	case collection(l) || collection(r):
 		return &query.RuntimeError{Msg: tagOf(r) + " (" + pathText(rp) + ") cannot be added to a " + tagOf(l) + " (" + pathText(lp) + ")"}
 	case tagOf(l) == strTag || tagOf(r) == strTag:
-		return emit(value.Str(addText(l)+addText(r)), nil)
+		return emit(keepAnchor(l, value.Str(addText(l)+addText(r))), nil)
 	default:
 		return &query.RuntimeError{Msg: tagOf(l) + " cannot be added to " + tagOf(r)}
 	}
 	return base(ctx, nil, []runtime.Thunk{constant{l}, constant{r}}, func(v *value.Value, p value.Path) error {
-		return emit(like(l, v), p)
+		return emit(keepAnchor(l, like(l, v)), p)
 	})
 }
 
@@ -120,6 +120,23 @@ func numeric(ctx *runtime.Ctx, base runtime.Native, op byte, l, r *value.Value, 
 // operand is l, as yq does: an integer keeps l's base and any other
 // number is a float.
 func numericResult(ints bool, l, v *value.Value) *value.Value {
+	return keepAnchor(l, numberResult(ints, l, v))
+}
+
+// keepAnchor gives v the anchor l defines, as yq's arithmetic does for
+// the node it builds from its left operand.
+func keepAnchor(l, v *value.Value) *value.Value {
+	lm := l.Meta()
+	if lm == nil || lm.Anchor == "" {
+		return v
+	}
+	m := metaOf(v)
+	m.Anchor = lm.Anchor
+	return withMeta(v, m)
+}
+
+// numberResult is numericResult without the anchor.
+func numberResult(ints bool, l, v *value.Value) *value.Value {
 	switch {
 	case v.Kind() != value.KindNumber:
 		return v
