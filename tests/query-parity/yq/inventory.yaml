@@ -394,7 +394,7 @@
   cases: [fl-split-exp-index]
 - id: fl-string-interpolation-off
   area: flag
-  phase: Y2
+  phase: Y1
   cases: [fl-string-interpolation-off]
 - id: fl-string-interpolation-on
   area: flag
@@ -834,19 +834,19 @@
   cases: [m-line-root]
 - id: m-merge-key-list
   area: meta
-  phase: Y2
+  phase: Y1
   cases: [m-merge-key-list]
 - id: m-merge-key-list-splat
   area: meta
-  phase: Y2
+  phase: Y1
   cases: [m-merge-key-list-splat]
 - id: m-merge-key-override
   area: meta
-  phase: Y2
+  phase: Y1
   cases: [m-merge-key-override]
 - id: m-merge-key-spec-list
   area: meta
-  phase: Y2
+  phase: Y1
   cases: [m-merge-key-spec-list]
 - id: m-merge-key-spec-override
   area: meta
@@ -854,11 +854,11 @@
   cases: [m-merge-key-spec-override]
 - id: m-merge-key-splat
   area: meta
-  phase: Y2
+  phase: Y1
   cases: [m-merge-key-splat]
 - id: m-merge-key-traverse
   area: meta
-  phase: Y2
+  phase: Y1
   cases: [m-merge-key-traverse]
 - id: m-merge-with-merge-keys
   area: meta

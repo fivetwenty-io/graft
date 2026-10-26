@@ -11,8 +11,6 @@ op-regex-pcre-syntax departure the yq dialect compiles regex as PCRE by ruling
 c-multi-doc-comments-stripped pending Y2 Y1 behavior deferred to Task 47
 fl-colors-json pending Y2 yq color layout
 fl-colors-yaml pending Y2 yq color layout
-m-alias-splat pending Y2 traversal through an alias
-m-alias-traverse pending Y2 traversal through an alias
 m-comments-strip pending Y2 Y1 behavior deferred to Task 47
 m-head-comment-entry pending Y2 Y1 behavior deferred to Task 47
 m-key-update pending Y2 Y1 behavior deferred to Task 47
