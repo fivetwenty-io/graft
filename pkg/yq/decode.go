@@ -50,6 +50,11 @@ type DecodeOptions struct {
 	// other than empty makes Next fail until the release that completes
 	// graft yq supports it.
 	FrontMatter string
+	// NoHeaderPreprocess is yq's --header-preprocess=false. The comments
+	// before the first node stay with the parser instead of being cut off
+	// as leading content, so a "---" ahead of the first node is dropped on
+	// output.
+	NoHeaderPreprocess bool
 }
 
 // Decoder reads documents from a source one at a time. Nothing is read
@@ -70,7 +75,7 @@ func NewDecoder(r io.Reader, opts DecodeOptions) *Decoder {
 		d.err = errors.New("front matter is not supported yet")
 		return d
 	}
-	lo := load.LoadOptions{Format: load.FormatYAML, KeepMeta: true}
+	lo := load.LoadOptions{Format: load.FormatYAML, KeepMeta: true, NodeComments: opts.NoHeaderPreprocess}
 	if opts.Format == FormatJSON {
 		lo.Format = load.FormatJSON
 	}

@@ -137,6 +137,8 @@ func TestCLIFlagsBuildFromThePublicPackage(t *testing.T) {
 		// nothing, and it must change when the parser starts reading it.
 		{flags: "--string-interpolation=false (stored, not honored)", expr: `.`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithStringInterpolation(false)}, want: "a: 1\n"},
 		{flags: "--header-preprocess=false", expr: `.`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithHeaderPreprocess(false)}, want: "a: 1\n"},
+		{flags: "--header-preprocess=false (comment before ---)", expr: `.`, inputs: stdin("# lead\n---\na: 1\n"), decode: yq.DecodeOptions{NoHeaderPreprocess: true}, want: "# lead\na: 1\n"},
+		{flags: "--header-preprocess (comment before ---)", expr: `.`, inputs: stdin("# lead\n---\na: 1\n"), want: "# lead\n---\na: 1\n"},
 		{flags: "--yaml-fix-merge-anchor-to-spec", expr: `.`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithMergeAnchorFix(true)}, want: "a: 1\n"},
 		{flags: "--security-disable-env-ops", expr: `strenv(HOME)`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithEnvOps(false)}, wantExit: 1},
 		{flags: "--security-disable-file-ops", expr: `load("x.yaml")`, inputs: stdin("a: 1\n"), opts: []yq.Option{yq.WithFileOps(false)}, wantExit: 1},

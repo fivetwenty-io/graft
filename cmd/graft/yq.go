@@ -217,7 +217,7 @@ func (s *yqSource) decodeOptions(name string, index int) yq.DecodeOptions {
 	if s.opts.InputFormat == yqFormatJSON {
 		format = yq.FormatJSON
 	}
-	return yq.DecodeOptions{Format: format, Filename: name, FileIndex: index}
+	return yq.DecodeOptions{Format: format, Filename: name, FileIndex: index, NoHeaderPreprocess: !s.opts.HeaderPreprocess}
 }
 
 // each calls fn with every document, in order, and stops at the first

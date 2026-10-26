@@ -119,7 +119,7 @@ func WithStringInterpolation(enabled bool) Option {
 // "---" is kept apart from the first document. It is on by default, and
 // WithHeaderPreprocess(false) is yq's --header-preprocess=false. The
 // setting is kept for the release that completes graft yq, and the
-// Decoder does not read it yet.
+// Decoder reads DecodeOptions.NoHeaderPreprocess instead.
 func WithHeaderPreprocess(enabled bool) Option {
 	return func(c *Config) error {
 		c.headerPre = enabled
