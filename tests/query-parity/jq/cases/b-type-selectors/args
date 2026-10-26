@@ -1,0 +1,2 @@
+-c
+[.[] | arrays], [.[] | objects], [.[] | iterables], [.[] | booleans], [.[] | numbers], [.[] | strings], [.[] | nulls], [.[] | values], [.[] | scalars]

@@ -1,0 +1,2 @@
+-nc
+[true, "true", "false", false] | map(toboolean)

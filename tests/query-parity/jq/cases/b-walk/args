@@ -1,0 +1,2 @@
+-c
+walk(if type == "array" then sort else . end), walk(numbers |= . + 1)

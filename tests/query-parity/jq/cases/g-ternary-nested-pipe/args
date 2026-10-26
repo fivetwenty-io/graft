@@ -1,0 +1,2 @@
+-c
+if . > 3 then (. | tostring | length) else 0 end

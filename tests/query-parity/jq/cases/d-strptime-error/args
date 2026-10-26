@@ -1,0 +1,2 @@
+-nc
+"nope" | strptime("%Y-%m-%d")

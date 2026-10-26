@@ -1,0 +1,2 @@
+-nc
+[infinite - infinite | isnan], [infinite + 1], [-infinite * 2], [infinite / infinite | isnan]

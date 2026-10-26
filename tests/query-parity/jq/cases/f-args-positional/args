@@ -1,0 +1,6 @@
+-nc
+$ARGS.positional
+--args
+x
+y
+1

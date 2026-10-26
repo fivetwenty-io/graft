@@ -1,0 +1,4 @@
+-nc
+-L
+.
+import "pkg" as p; p::f

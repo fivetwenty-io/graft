@@ -1,0 +1,2 @@
+-nc
+try error("boom") catch ., try error({a:1}) catch .a

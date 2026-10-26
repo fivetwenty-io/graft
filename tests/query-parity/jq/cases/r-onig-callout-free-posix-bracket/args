@@ -1,0 +1,2 @@
+-nc
+"a-b" | [match("[a-c&&[^b]]"; "g") | .string]

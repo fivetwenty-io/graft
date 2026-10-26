@@ -65,6 +65,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 
 # Phony targets
 .PHONY: help build build-linux build-windows build-release build-spruce-alias package checksums clean install
+.PHONY: inventory-check compat-report compat-check compat-baseline
 .PHONY: test test-unit test-alias-dispatch test-clean test-verbose test-race test-short test-all test-spruce-compat test-spruce-e2e
 .PHONY: fmt vet lint security gosec vuln trivy coverage coverage-text
 .PHONY: staticcheck gocyclo ineffassign errcheck goimports deadcode golangci
@@ -509,6 +510,21 @@ byte-identity: ## Fail unless the working tree prints exactly what origin/main p
 test-query-parity: ## Replay the jq parity goldens in process, with no reference binary
 	@printf "$(GREEN)Replaying query parity goldens...$(RESET)\n"
 	@go test ./tests/query-parity/ ./cmd/graft/ -run 'TestEvaluate|TestRead|TestQueryParity|TestFreshCopy'
+
+# The compatibility gate reads only in-repo artifacts, so none of these four targets needs jq.
+
+inventory-check: ## Fail when an inventory entry names no case or a case belongs to no entry
+	@go test ./cmd/graft/ -count=1 -run 'TestJQInventoryIsComplete|TestInventoryStats'
+
+compat-report: ## Regenerate tests/query-parity/jq/report.txt
+	@./scripts/compat-report.sh
+
+compat-check: ## Fail when a compatibility floor, the departure cap, or the baseline ratchet is broken, or the report is stale
+	@go test ./cmd/graft/ -count=1 -run 'TestJQInventoryMeetsFloors'
+	@./scripts/compat-report.sh --check
+
+compat-baseline: ## Record the entry count and passing entries as the new ratchet, only after compat-check passes
+	@./scripts/compat-baseline.sh
 
 jq-oracle-check: ## Fail when any checked-in jq golden differs from the pinned jq (needs jq)
 	@./tests/query-parity/gen.sh --check jq

@@ -1,0 +1,2 @@
+-nc
+any(true, error("no"); .), all(false, error("no"); .)

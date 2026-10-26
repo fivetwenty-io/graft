@@ -1,0 +1,2 @@
+-nc
+"a\r\nb\nc" | [match("\\R"; "g") | .length]

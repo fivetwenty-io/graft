@@ -1,0 +1,2 @@
+-nc
+[nextafter(1; 2) > 1], [nexttoward(1; 0) < 1]

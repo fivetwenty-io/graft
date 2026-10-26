@@ -1,0 +1,2 @@
+-nc
+1 as $x | def f: $x; 2 as $x | f

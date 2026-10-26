@@ -1,0 +1,2 @@
+-nc
+"2015-03-05T23:51:47+0100" | strptime("%Y-%m-%dT%H:%M:%S%z") | mktime

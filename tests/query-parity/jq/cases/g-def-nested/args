@@ -1,0 +1,2 @@
+-c
+def outer: def inner: . + 1; inner | inner; outer

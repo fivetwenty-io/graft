@@ -1,0 +1,2 @@
+-c
+map(. * 2), map(select(. > 1)), map(empty)

@@ -1,0 +1,2 @@
+-nc
+try (try error("in") catch error("out")) catch .

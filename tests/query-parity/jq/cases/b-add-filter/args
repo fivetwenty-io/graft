@@ -1,0 +1,2 @@
+-c
+add(.a, .b), add(empty), add(.[] | . * 2)

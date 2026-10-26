@@ -1,0 +1,2 @@
+-nc
+["1e2", "0.10", "-0", "007", "1_0", ".5", "5.", "1e", "0x10", "nan", "infinity"] | map(try tonumber catch "err")

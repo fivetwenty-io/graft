@@ -1,0 +1,4 @@
+-c
+--from-file
+prog.jq
+in.json

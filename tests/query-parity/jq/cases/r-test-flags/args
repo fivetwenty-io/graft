@@ -1,0 +1,2 @@
+-nc
+["foo bar" | test("BAR"; "i"), test("FOO BAR"; "ix"), test("f o o"; "x"), test("^bar"; "n")]

@@ -1,0 +1,2 @@
+-nc
+[27 | cbrt], [1 | expm1], [1 | log1p], [0.5 | exp2, exp10, log2, log10]

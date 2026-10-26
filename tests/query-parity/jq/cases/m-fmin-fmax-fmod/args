@@ -1,0 +1,2 @@
+-nc
+[fmin(1; 2)], [fmax(1; 2)], [fmod(7; 3)], [fmod(-7; 3)], [drem(7; 3)], [remainder(7; 3)]

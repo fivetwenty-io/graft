@@ -1,0 +1,2 @@
+-nc
+["foobar" | ltrimstr("foo"), rtrimstr("bar"), ltrimstr("x"), rtrimstr("x")], [1 | ltrimstr("a"), rtrimstr("a")], ["a" | ltrimstr(1)]

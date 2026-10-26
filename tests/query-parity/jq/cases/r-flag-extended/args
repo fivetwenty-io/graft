@@ -1,0 +1,2 @@
+-nc
+"ab" | test("a  b # comment"; "x"), test("a b"; "x")

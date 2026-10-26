@@ -1,0 +1,2 @@
+-nc
+[ldexp(1; 4)], [scalb(1; 4)], [scalbln(1; 4)]

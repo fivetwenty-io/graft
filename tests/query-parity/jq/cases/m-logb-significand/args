@@ -1,0 +1,2 @@
+-nc
+[8, 10, 0.1] | map(logb), map(significand)

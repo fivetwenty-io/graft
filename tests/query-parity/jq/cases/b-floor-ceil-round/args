@@ -1,0 +1,2 @@
+-nc
+[1.5, -1.5, 2.5, -0.4, 0.5] | map(floor), map(ceil), map(round), map(trunc)

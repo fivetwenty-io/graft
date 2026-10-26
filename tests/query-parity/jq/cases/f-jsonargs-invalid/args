@@ -1,0 +1,4 @@
+-nc
+$ARGS
+--jsonargs
+{bad

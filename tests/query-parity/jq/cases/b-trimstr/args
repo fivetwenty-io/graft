@@ -1,0 +1,2 @@
+-nc
+["xaax" | trimstr("x")], ["abc" | trimstr("z")], ["aa" | trimstr("a")], [1 | trimstr("a")]

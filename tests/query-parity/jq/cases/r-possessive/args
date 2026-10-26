@@ -1,0 +1,2 @@
+-nc
+"aaab" | test("a++b"), test("a++ab"), test("a*+b")

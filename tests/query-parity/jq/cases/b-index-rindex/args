@@ -1,0 +1,2 @@
+-nc
+"a,b, cd, efg" | index(","), rindex(","), index("zz"), rindex("zz")

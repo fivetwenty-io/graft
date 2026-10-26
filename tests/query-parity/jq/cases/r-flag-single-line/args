@@ -1,0 +1,2 @@
+-nc
+"a\nb" | test("a.b"), test("a.b"; "s"), test("a$"; "s")

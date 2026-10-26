@@ -1,0 +1,2 @@
+-nc
+"a" | match("(a)|(b)") | .captures

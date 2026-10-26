@@ -1,0 +1,4 @@
+-nc
+-L
+.
+import "d" as $d; $d, $d::d

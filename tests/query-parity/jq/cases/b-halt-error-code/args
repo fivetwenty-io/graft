@@ -1,0 +1,2 @@
+-nc
+"x" | halt_error(5)

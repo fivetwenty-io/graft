@@ -1,0 +1,2 @@
+-nc
+[5 | gamma, lgamma, tgamma], [0.5 | lgamma_r]

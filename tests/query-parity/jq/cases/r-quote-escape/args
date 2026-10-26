@@ -1,0 +1,2 @@
+-nc
+"a.b*c" | test("\\Qa.b*c\\E"), test("\\Qa.b\\E\\*c"), test("\\Q.\\E")

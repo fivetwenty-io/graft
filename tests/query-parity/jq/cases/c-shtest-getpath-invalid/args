@@ -1,0 +1,2 @@
+-c
+try getpath(["a","b"]) catch .

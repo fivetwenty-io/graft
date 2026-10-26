@@ -1,0 +1,4 @@
+-nc
+-L
+.
+import "sub/m" as m; m::f

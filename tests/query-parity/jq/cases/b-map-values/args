@@ -1,0 +1,2 @@
+-c
+map_values(. + 1), map_values(empty), map_values(select(. > 1))

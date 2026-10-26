@@ -1,0 +1,2 @@
+-nc
+[("foobar" | contains("bar")), ([1,[2,3]] | contains([[2]])), ({"a":{"b":1},"c":2} | contains({"a":{}})), ("a" | contains("b")), ([1,2] | contains([3]))]

@@ -1,0 +1,2 @@
+-nr
+["", "a", "ab", "abc", "héllo"] | map(@base64)[]

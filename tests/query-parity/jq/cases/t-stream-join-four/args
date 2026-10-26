@@ -1,0 +1,2 @@
+-nc
+[JOIN({"1":"a"}; [{"id":1},{"id":3}][]; .id | tostring; add)]

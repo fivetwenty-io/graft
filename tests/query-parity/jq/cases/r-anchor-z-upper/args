@@ -1,0 +1,2 @@
+-nc
+"b\n" | [match("b\\Z"; "g")] | length, ([match("b\\z"; "g")] | length)

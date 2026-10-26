@@ -1,0 +1,2 @@
+-nc
+["a, b,c" | split(", ")], ["abc" | split("")], ["" | split(",")], ["a,b" | split(",")]

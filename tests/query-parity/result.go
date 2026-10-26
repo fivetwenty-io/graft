@@ -1,14 +1,15 @@
 // Package parity decides what each differential case in tests/query-parity
-// is expected to do at the current phase, and reads the allowlist and the
-// compatibility floors that decision depends on. It holds no case data and
-// runs no command, so cmd/graft/query_parity_test.go replays the cases and
-// asks this package what the outcome means.
+// is expected to do at the current phase, and reads the allowlist, the
+// compatibility floors, and the baseline that decision depends on. It
+// holds no case data and runs no command, so cmd/graft/query_parity_test.go
+// replays the cases and asks this package what the outcome means.
 package parity
 
 import (
 	"bufio"
 	"fmt"
-	"os"
+	"io"
+	"strconv"
 	"strings"
 )
 
@@ -54,10 +55,11 @@ type Observed struct {
 	Files      map[string][]byte
 }
 
-// AllowEntry is one line of an allowlist. Kind is "departure" for an
-// authorized permanent exception, or "pending" for work a later phase
-// owes, which names that phase.
+// AllowEntry is one line of an allowlist. ID names an inventory entry.
+// Kind is "departure" for an authorized permanent exception, or "pending"
+// for work a later phase owes, which names that phase.
 type AllowEntry struct {
+	ID     string
 	Kind   string
 	Phase  string
 	Reason string
@@ -97,68 +99,125 @@ func Evaluate(exp Expectation, matched bool, currentPhase string) Verdict {
 	return Fail
 }
 
-// ReadAllowlist reads an allowlist file, which holds one tab-separated
-// entry per line. A departure line is NAME, "departure", and the reason.
-// A pending line is NAME, "pending", the phase that owes the work, and the
-// reason. Blank lines and lines starting with # are skipped, and a missing
-// file is an empty allowlist.
-func ReadAllowlist(path string) (map[string]AllowEntry, error) {
-	f, err := os.Open(path) // #nosec G304 -- the harness names its own allowlist
-	if os.IsNotExist(err) {
-		return map[string]AllowEntry{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
-
+// ReadAllowlist reads an allowlist, which holds one entry per line in the
+// form ID kind [phase] reason..., separated by white space. Kind is
+// "departure" or "pending", and a pending line must name its phase between
+// the kind and the reason. Blank lines and lines starting with # are
+// skipped.
+func ReadAllowlist(r io.Reader) (map[string]AllowEntry, error) {
 	entries := map[string]AllowEntry{}
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(r)
 	for n := 1; sc.Scan(); n++ {
-		line := sc.Text()
-		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		fields := strings.Split(line, "\t")
+		fields := strings.Fields(line)
 		var e AllowEntry
 		switch {
-		case len(fields) == 3 && fields[1] == "departure":
-			e = AllowEntry{Kind: "departure", Reason: fields[2]}
-		case len(fields) == 4 && fields[1] == "pending" && phaseOrder[fields[2]] != 0:
-			e = AllowEntry{Kind: "pending", Phase: fields[2], Reason: fields[3]}
+		case len(fields) >= 3 && fields[1] == "departure":
+			e = AllowEntry{ID: fields[0], Kind: "departure", Reason: strings.Join(fields[2:], " ")}
+		case len(fields) >= 4 && fields[1] == "pending" && phaseOrder[fields[2]] != 0:
+			e = AllowEntry{ID: fields[0], Kind: "pending", Phase: fields[2], Reason: strings.Join(fields[3:], " ")}
 		default:
-			return nil, fmt.Errorf("%s:%d: want NAME<TAB>departure<TAB>REASON or NAME<TAB>pending<TAB>PHASE<TAB>REASON", path, n)
+			return nil, fmt.Errorf("allowlist line %d: want ID departure REASON or ID pending PHASE REASON", n)
 		}
-		if _, dup := entries[fields[0]]; dup {
-			return nil, fmt.Errorf("%s:%d: %s is listed twice", path, n, fields[0])
+		if _, dup := entries[e.ID]; dup {
+			return nil, fmt.Errorf("allowlist line %d: %s is listed twice", n, e.ID)
 		}
-		entries[fields[0]] = e
+		entries[e.ID] = e
 	}
 	return entries, sc.Err()
 }
 
-// ReadFloors returns the phase the compatibility floors file names for a
-// dialect, which is JQ_PHASE for jq and YQ_PHASE for yq. A missing file or
-// key means the first phase of the dialect.
-func ReadFloors(path, dialect string) (phase string, err error) {
-	key, phase := "JQ_PHASE", "J1"
-	if dialect == "yq" {
-		key, phase = "YQ_PHASE", "Y1"
-	}
-	data, err := os.ReadFile(path) // #nosec G304 -- the harness names its own floors file
-	if os.IsNotExist(err) {
-		return phase, nil
-	}
-	if err != nil {
-		return "", err
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if k, v, ok := strings.Cut(strings.TrimSpace(line), "="); ok && k == key {
-			phase = strings.Trim(v, `"' `)
+// Floors is what tests/compat-floors.env holds for jq. Phase is the phase
+// the gate is at, Inventory and Regex are the percentage floors for the
+// whole inventory and for its regex area, DepartureCapPercent caps the
+// departures as a share of the inventory, and Values keeps every numeric
+// setting the file carries by its key.
+type Floors struct {
+	Phase               string
+	Inventory, Regex    int
+	DepartureCapPercent int
+	Values              map[string]int
+}
+
+// ReadFloors reads a floors file, which holds KEY=VALUE lines. JQ_PHASE
+// names the phase and defaults to J1, JQ_INVENTORY_FLOOR, JQ_REGEX_FLOOR,
+// and JQ_DEPARTURE_CAP are whole numbers, and every other numeric setting
+// lands in Values. Blank lines and lines starting with # are skipped.
+func ReadFloors(r io.Reader) (Floors, error) {
+	f := Floors{Phase: "J1", Values: map[string]int{}}
+	sc := bufio.NewScanner(r)
+	for n := 1; sc.Scan(); n++ {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
 		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			return Floors{}, fmt.Errorf("floors line %d: want KEY=VALUE", n)
+		}
+		k, v = strings.TrimSpace(k), strings.Trim(strings.TrimSpace(v), `"' `)
+		if strings.HasSuffix(k, "_PHASE") {
+			if phaseOrder[v] == 0 {
+				return Floors{}, fmt.Errorf("floors line %d: %s names an unknown phase %q", n, k, v)
+			}
+			if k == "JQ_PHASE" {
+				f.Phase = v
+			}
+			continue
+		}
+		num, err := strconv.Atoi(v)
+		if err != nil || num < 0 || num > 100 {
+			return Floors{}, fmt.Errorf("floors line %d: %s wants a percentage, got %q", n, k, v)
+		}
+		f.Values[k] = num
 	}
-	if phaseOrder[phase] == 0 {
-		return "", fmt.Errorf("%s: %s names an unknown phase %q", path, key, phase)
+	if err := sc.Err(); err != nil {
+		return Floors{}, err
 	}
-	return phase, nil
+	f.Inventory = f.Values["JQ_INVENTORY_FLOOR"]
+	f.Regex = f.Values["JQ_REGEX_FLOOR"]
+	f.DepartureCapPercent = f.Values["JQ_DEPARTURE_CAP"]
+	return f, nil
+}
+
+// Baseline is the last gate's record. Entries is how many inventory
+// entries there were, and Passing holds the IDs that passed.
+type Baseline struct {
+	Entries int
+	Passing map[string]bool
+}
+
+// ReadBaseline reads a baseline file, whose first line is "entries N" and
+// whose other lines are the IDs of the entries that passed. Blank lines and
+// lines starting with # are skipped.
+func ReadBaseline(r io.Reader) (Baseline, error) {
+	b := Baseline{Passing: map[string]bool{}}
+	sawCount := false
+	sc := bufio.NewScanner(r)
+	for n := 1; sc.Scan(); n++ {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if !sawCount {
+			count, ok := strings.CutPrefix(line, "entries ")
+			num, err := strconv.Atoi(strings.TrimSpace(count))
+			if !ok || err != nil || num < 0 {
+				return Baseline{}, fmt.Errorf("baseline line %d: want \"entries N\"", n)
+			}
+			b.Entries, sawCount = num, true
+			continue
+		}
+		b.Passing[line] = true
+	}
+	if err := sc.Err(); err != nil {
+		return Baseline{}, err
+	}
+	if !sawCount {
+		return Baseline{}, fmt.Errorf("baseline has no \"entries N\" line")
+	}
+	return b, nil
 }

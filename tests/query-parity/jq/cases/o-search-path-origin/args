@@ -1,0 +1,4 @@
+-nc
+-L
+.
+import "m" as m {search: "$ORIGIN"}; m::f

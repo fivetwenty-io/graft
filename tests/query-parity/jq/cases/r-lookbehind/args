@@ -1,0 +1,2 @@
+-nc
+"xa ya" | [match("(?<=y)a"; "g") | .offset], [match("(?<!y)a"; "g") | .offset]

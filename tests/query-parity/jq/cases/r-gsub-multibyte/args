@@ -1,0 +1,2 @@
+-nc
+"héllo wörld" | gsub("[éö]"; "_"), gsub("\\w+"; "W")

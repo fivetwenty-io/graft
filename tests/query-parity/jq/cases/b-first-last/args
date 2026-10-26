@@ -1,0 +1,2 @@
+-c
+first, last, first(.[]), last(.[]), ([] | first, last), first(empty)

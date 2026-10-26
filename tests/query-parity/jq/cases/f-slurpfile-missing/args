@@ -1,0 +1,5 @@
+-n
+--slurpfile
+f
+nope.json
+$f

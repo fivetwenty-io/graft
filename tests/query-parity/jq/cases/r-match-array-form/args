@@ -1,0 +1,2 @@
+-nc
+"aAa" | [match(["a", "gi"]) | .offset]

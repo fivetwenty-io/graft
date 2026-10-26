@@ -1,0 +1,2 @@
+-nc
+"a\nb\n" | [match("\\Aa"; "g") | .offset], [match("b\\z"; "g")] | length

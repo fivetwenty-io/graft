@@ -1,0 +1,2 @@
+-nc
+"banana" | gsub("a"; "o"), gsub("an"; ""), gsub("^"; ">"), gsub("$"; "<")

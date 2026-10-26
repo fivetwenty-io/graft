@@ -1,0 +1,2 @@
+-nc
+"aé1日" | [match("\\p{L}"; "g") | .string], [match("\\p{Nd}"; "g") | .string], [match("\\P{L}"; "g") | .string]

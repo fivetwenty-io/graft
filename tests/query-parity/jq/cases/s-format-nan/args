@@ -1,0 +1,2 @@
+-nr
+[nan, infinite, -infinite] | map(@text), map(@json)

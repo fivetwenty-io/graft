@@ -1,0 +1,2 @@
+-nc
+"héllo ☃ wörld 😀 x" | [match("[wx]"; "g") | {offset, length}]

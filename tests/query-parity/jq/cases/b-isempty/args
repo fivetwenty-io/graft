@@ -1,0 +1,2 @@
+-nc
+isempty(empty), isempty(1, error("x")), isempty(.[]?)

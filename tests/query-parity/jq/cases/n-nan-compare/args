@@ -1,0 +1,2 @@
+-nc
+[nan < 1, nan > 1, nan == nan, nan != nan, (nan | isnan), ([nan] | sort), ([nan, 1, -1] | sort)]

@@ -1,0 +1,2 @@
+-n
+try (break $x) catch .

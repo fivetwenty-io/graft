@@ -1,0 +1,2 @@
+-nc
+"abc" | [match("x*"; "gn")] | length

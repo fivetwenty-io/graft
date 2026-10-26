@@ -1,0 +1,7 @@
+-nc
+$ARGS
+--args
+--arg
+a
+b
+x

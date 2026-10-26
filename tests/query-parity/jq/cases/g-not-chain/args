@@ -1,0 +1,2 @@
+-nc
+[true, false, null, 0, "", []] | map(not)

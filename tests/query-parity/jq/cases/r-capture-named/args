@@ -1,0 +1,2 @@
+-nc
+"xyz-123" | capture("(?<letters>[a-z]+)-(?<digits>[0-9]+)")

@@ -1,0 +1,2 @@
+-nc
+["foobar" | startswith("foo"), endswith("bar"), startswith("bar"), endswith("foo")]

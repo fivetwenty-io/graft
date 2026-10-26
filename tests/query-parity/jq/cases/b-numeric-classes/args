@@ -1,0 +1,2 @@
+-nc
+[0, 1, infinite, -infinite, nan, 1e-320] | map(isinfinite), map(isnan), map(isnormal)

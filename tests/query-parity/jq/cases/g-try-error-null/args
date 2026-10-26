@@ -1,0 +1,2 @@
+-nc
+try error(null) catch .

@@ -1,0 +1,2 @@
+-nc
+import "m" as m {search: "./lib"}; m::f

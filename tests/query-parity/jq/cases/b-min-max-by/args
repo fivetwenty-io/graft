@@ -1,0 +1,2 @@
+-c
+min_by(.a).n, max_by(.a).n, ([] | min_by(.a), max_by(.a))

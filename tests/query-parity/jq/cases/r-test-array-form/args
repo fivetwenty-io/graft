@@ -1,0 +1,2 @@
+-nc
+"Foo" | test(["foo", "i"]), test(["foo"])

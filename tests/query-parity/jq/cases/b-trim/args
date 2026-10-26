@@ -1,0 +1,2 @@
+-nc
+" \nab c\t" | trim, ltrim, rtrim

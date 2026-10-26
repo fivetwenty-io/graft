@@ -1,0 +1,2 @@
+-nc
+[infinite, -infinite, nan] | tojson, (map(isnan))

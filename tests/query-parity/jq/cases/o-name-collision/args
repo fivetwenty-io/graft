@@ -1,0 +1,4 @@
+-nc
+-L
+.
+import "m" as m; def f: 1; [f, m::f]

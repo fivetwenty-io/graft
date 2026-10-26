@@ -1,0 +1,2 @@
+-nc
+[true and false, true or error("no"), false and error("no"), (true, false) and (true, false)]

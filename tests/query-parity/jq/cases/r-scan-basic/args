@@ -1,0 +1,2 @@
+-nc
+"abAB12ab" | [scan("ab")], [scan("[0-9]")], [scan("ab"; "i")]

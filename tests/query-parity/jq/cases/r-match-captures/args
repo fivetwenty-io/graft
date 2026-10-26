@@ -1,0 +1,2 @@
+-nc
+"xyz abc" | match("(x)(y)?(q)?(?<n>z)")

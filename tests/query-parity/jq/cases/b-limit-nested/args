@@ -1,0 +1,2 @@
+-nc
+[limit(2; limit(5; range(10)))]

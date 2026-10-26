@@ -1,0 +1,2 @@
+-nc
+"" | [match("^"; "g")] | length

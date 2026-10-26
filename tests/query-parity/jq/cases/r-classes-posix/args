@@ -1,0 +1,2 @@
+-nc
+"aB1 _" | [match("[[:alpha:]]"; "g") | .string], [match("[[:digit:][:space:]]"; "g") | .string]

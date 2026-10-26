@@ -1,0 +1,2 @@
+-nc
+"foobar foobaz" | [match("foo(?=baz)"; "g") | .offset], [match("foo(?!baz)"; "g") | .offset]

@@ -1,0 +1,4 @@
+-nc
+-L
+.
+import "a" as a; a::f

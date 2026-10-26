@@ -1,0 +1,2 @@
+-nr
+["", "YQ==", "YWI=", "YWJj", "aMOpbGxv", "YQ", "YWI"] | map(@base64d)[]

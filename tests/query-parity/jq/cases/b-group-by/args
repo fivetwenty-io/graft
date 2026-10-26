@@ -1,0 +1,2 @@
+-c
+group_by(.a), (group_by(.a, .b) | length)

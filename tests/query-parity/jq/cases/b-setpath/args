@@ -1,0 +1,2 @@
+-c
+setpath(["b","c"]; 2), setpath([]; 9)

@@ -1,0 +1,2 @@
+-nc
+"foo bar foo" | [match("foo"; "g") | .offset]

@@ -1,0 +1,2 @@
+-nr
+["it's", 1, null, true, "a b"] | @sh

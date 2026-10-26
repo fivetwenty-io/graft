@@ -1,0 +1,2 @@
+-nc
+"héllo wörld" | index("w"), rindex("l"), indices("l")

@@ -1,0 +1,2 @@
+-c
+., map(isnan)

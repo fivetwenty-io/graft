@@ -1,0 +1,2 @@
+-nc
+[(0 | log), (-1 | log | isnan), (infinite | atan), (1 | asin | . * 2), (2 | asin | isnan)]

@@ -1,0 +1,2 @@
+-nc
+[-5, "a", null, true] | map(try abs catch "err")

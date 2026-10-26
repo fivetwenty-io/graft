@@ -1,0 +1,2 @@
+-nc
+"10 March 2015" | strptime("%d %B %Y") | mktime

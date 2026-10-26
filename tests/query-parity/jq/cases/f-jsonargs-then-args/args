@@ -1,0 +1,6 @@
+-nc
+$ARGS.positional
+--jsonargs
+1
+--args
+two

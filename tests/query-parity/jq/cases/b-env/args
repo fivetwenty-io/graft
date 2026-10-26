@@ -1,0 +1,2 @@
+-nc
+env | type, ($ENV.HOME == env.HOME)

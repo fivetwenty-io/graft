@@ -1,0 +1,2 @@
+-nc
+[foreach range(5) as $i (0; . + $i)]

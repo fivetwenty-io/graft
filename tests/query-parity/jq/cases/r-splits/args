@@ -1,0 +1,2 @@
+-nc
+"a1b22c" | [splits("[0-9]+")], [splits("B"; "i")]

@@ -1,0 +1,2 @@
+-nc
+"ab cd" | [match("(?<=a|cd)\\S?"; "g") | .offset]

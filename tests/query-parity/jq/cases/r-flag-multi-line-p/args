@@ -1,0 +1,2 @@
+-nc
+"a\nb" | test("a.b"; "p"), [match("^b"; "p")] | length

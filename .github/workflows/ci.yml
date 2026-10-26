@@ -132,6 +132,9 @@ jobs:
       - name: Run unit tests
         run: make test-unit
 
+      - name: Check the jq compatibility inventory and floors
+        run: make inventory-check compat-check
+
       - name: Run race detector tests
         run: make test-race
 

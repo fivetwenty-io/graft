@@ -1,0 +1,2 @@
+-nc
+"a1 _é" | [match("\\w"; "g") | .string], [match("\\d"; "g") | .string], [match("\\s"; "g") | .string], [match("\\W"; "g") | .string]

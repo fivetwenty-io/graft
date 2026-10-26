@@ -1,0 +1,2 @@
+-nc
+"abab" | test("(?<x>ab)\\k<x>")

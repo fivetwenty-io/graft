@@ -1,0 +1,2 @@
+-c
+[combinations], ([0,1] | [combinations(2)])

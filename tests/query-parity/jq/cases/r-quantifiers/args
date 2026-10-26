@@ -1,0 +1,2 @@
+-nc
+"aaaa" | [match("a{2}"; "g") | .length], [match("a{1,3}"; "g") | .length], [match("a{,2}"; "g") | .length], [match("a+?"; "g") | .length]

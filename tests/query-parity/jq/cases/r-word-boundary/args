@@ -1,0 +1,2 @@
+-nc
+"cat concat" | [match("\\bcat\\b"; "g") | .offset], [match("\\Bcat"; "g") | .offset]

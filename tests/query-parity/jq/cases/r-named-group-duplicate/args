@@ -1,0 +1,2 @@
+-nc
+"ab" | capture("(?<x>a)(?<x>b)")

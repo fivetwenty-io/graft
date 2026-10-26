@@ -1,0 +1,2 @@
+-nc
+[(4 | sqrt), (0.01 | sqrt), (2 | sqrt), (-1 | sqrt | isnan)]

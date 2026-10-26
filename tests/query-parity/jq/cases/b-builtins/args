@@ -1,0 +1,2 @@
+-nc
+builtins | type, (map(select(startswith("map"))) | sort)

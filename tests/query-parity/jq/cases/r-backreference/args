@@ -1,0 +1,2 @@
+-nc
+"abab abba" | [match("(ab)\\1"; "g") | .offset], [match("(a)(b)\\2\\1"; "g") | .offset]

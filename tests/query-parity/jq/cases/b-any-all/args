@@ -1,0 +1,2 @@
+-c
+any, all, (map(not) | any, all), ([] | any, all)

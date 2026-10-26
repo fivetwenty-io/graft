@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -329,15 +331,74 @@ func stderrMatches(c parityCase, errOut string) bool {
 	return (errOut != "") == c.WantStderrFlag
 }
 
-// allowFor returns the allowlist entry for a case, or nil.
-func allowFor(t *testing.T, dialect, name string) *parity.AllowEntry {
+// openParityFile opens a file under the parity root or the tests
+// directory, and returns nil with no error when it does not exist.
+func openParityFile(t *testing.T, rel string) *os.File {
 	t.Helper()
-	entries, err := parity.ReadAllowlist(filepath.Join(parityRoot, dialect, "allowlist.txt"))
+	f, err := os.Open(filepath.Join(parityRoot, rel)) // #nosec G304 -- the test reads its own checked-in files
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e, ok := entries[name]; ok {
-		return &e
+	t.Cleanup(func() { _ = f.Close() })
+	return f
+}
+
+// mustReadAllowlist reads a dialect's allowlist, which may be absent.
+func mustReadAllowlist(t *testing.T, dialect string) map[string]parity.AllowEntry {
+	t.Helper()
+	f := openParityFile(t, filepath.Join(dialect, "allowlist.txt"))
+	if f == nil {
+		return map[string]parity.AllowEntry{}
+	}
+	entries, err := parity.ReadAllowlist(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return entries
+}
+
+// mustReadFloors reads tests/compat-floors.env, which may be absent.
+func mustReadFloors(t *testing.T) parity.Floors {
+	t.Helper()
+	f := openParityFile(t, filepath.Join("..", "compat-floors.env"))
+	if f == nil {
+		return parity.Floors{Phase: "J1", Values: map[string]int{}}
+	}
+	floors, err := parity.ReadFloors(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return floors
+}
+
+// mustReadBaseline reads a dialect's baseline, which may be absent.
+func mustReadBaseline(t *testing.T, dialect string) parity.Baseline {
+	t.Helper()
+	f := openParityFile(t, filepath.Join(dialect, "baseline.txt"))
+	if f == nil {
+		return parity.Baseline{Passing: map[string]bool{}}
+	}
+	b, err := parity.ReadBaseline(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// allowFor returns the allowlist entry of the inventory entry that names
+// the case, or nil. A case no entry names has no allowlist entry.
+func allowFor(t *testing.T, dialect, name string) *parity.AllowEntry {
+	t.Helper()
+	allow := mustReadAllowlist(t, dialect)
+	for _, e := range loadInventory(t, dialect) {
+		if slices.Contains(e.Cases, name) {
+			if a, ok := allow[e.ID]; ok {
+				return &a
+			}
+		}
 	}
 	return nil
 }
@@ -345,11 +406,23 @@ func allowFor(t *testing.T, dialect, name string) *parity.AllowEntry {
 // currentParityPhase is the phase the compatibility floors are at.
 func currentParityPhase(t *testing.T, dialect string) string {
 	t.Helper()
-	phase, err := parity.ReadFloors(filepath.Join(parityRoot, "..", "compat-floors.env"), dialect)
-	if err != nil {
-		t.Fatal(err)
+	if dialect != "jq" {
+		t.Fatalf("no floors for dialect %s", dialect)
 	}
-	return phase
+	return mustReadFloors(t).Phase
+}
+
+// caseMatches replays a case and reports whether stdout, the exit code,
+// the stderr rule, and the files it left all matched the golden. The
+// second result describes a mismatch.
+func caseMatches(t *testing.T, c parityCase) (bool, string) {
+	t.Helper()
+	out, errOut, st, dir := runJQIn(t, c)
+	problems := diffFiles(dir, c.WantFiles)
+	matched := out == c.WantStdout && st.Code == c.WantExit && stderrMatches(c, errOut) && len(problems) == 0
+	detail := fmt.Sprintf("%s\nargs: %q\nstdout: %q\nwant:   %q\nexit: %d want %d\nstderr: %q want %q (exact %v, flag %v)\nfiles: %v",
+		c.Name, c.Args, out, c.WantStdout, st.Code, c.WantExit, errOut, c.WantStderr, c.StderrExact, c.WantStderrFlag, problems)
+	return matched, detail
 }
 
 // caseNamed returns the case of that name.
@@ -372,19 +445,17 @@ func TestQueryParity(t *testing.T) {
 		c := cases[i]
 		t.Run(c.Name, func(t *testing.T) {
 			Convey("the case matches the reference golden", t, func() {
-				out, errOut, st, dir := runJQIn(t, c)
-				problems := diffFiles(dir, c.WantFiles)
-				matched := out == c.WantStdout && st.Code == c.WantExit && stderrMatches(c, errOut) && len(problems) == 0
+				matched, detail := caseMatches(t, c)
 				v := parity.Evaluate(parity.Expectation{Entry: c.Name, Phase: c.Phase, Allow: allowFor(t, "jq", c.Name)}, matched, phase)
 				// Every replay goes through the verdict evaluator, so a
 				// ruled departure never turns the gate red.
 				if v != parity.Pass && v != parity.ExpectedFail {
-					t.Logf("%s: %v\nargs: %q\nstdout: %q\nwant:   %q\nexit: %d want %d\nstderr: %q want %q (exact %v, flag %v)\nfiles: %v",
-						c.Name, v, c.Args, out, c.WantStdout, st.Code, c.WantExit, errOut, c.WantStderr, c.StderrExact, c.WantStderrFlag, problems)
+					t.Logf("%v: %s", v, detail)
 				}
 				So(v, ShouldBeIn, parity.Pass, parity.ExpectedFail)
 				// A departure still pins graft's own output.
 				if v == parity.ExpectedFail && c.WantGraftStdout != "" {
+					out, _, _, _ := runJQIn(t, c)
 					So(out, ShouldEqual, c.WantGraftStdout)
 				}
 			})

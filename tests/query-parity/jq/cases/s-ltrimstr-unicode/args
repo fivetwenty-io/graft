@@ -1,0 +1,2 @@
+-nc
+"日本語" | ltrimstr("日"), length, utf8bytelength, explode

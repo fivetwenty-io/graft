@@ -1,0 +1,2 @@
+-c
+with_entries(.value += 1), with_entries(select(.key == "a")), with_entries(.key |= ascii_upcase)

@@ -1,0 +1,2 @@
+-nc
+import "nosuch" as m; 1

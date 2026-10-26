@@ -1,0 +1,2 @@
+-nc
+"0fG" | [match("\\h"; "g") | .string], [match("\\H"; "g") | .string]

@@ -1,0 +1,2 @@
+-nc
+"ab b" | [match("(a)?(?(1)b| b)"; "g") | .string]

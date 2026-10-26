@@ -1,0 +1,2 @@
+-c
+sort_by(.a) | map(.b), (sort_by(.a, .b) | map(.b)), (sort_by(.b) | map(.b))

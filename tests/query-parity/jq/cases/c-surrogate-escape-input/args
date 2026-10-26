@@ -1,0 +1,2 @@
+-c
+., (explode | map(. > 55295 and . < 57344 | not))

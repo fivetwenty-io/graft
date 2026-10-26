@@ -1,8 +1,7 @@
 package parity
 
 import (
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -26,42 +25,68 @@ func TestEvaluateVerdicts(t *testing.T) {
 }
 
 func TestReadAllowlist(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "allowlist.txt")
-	text := "# comment\n\nfloat-literals\tdeparture\texact decimal\nseq-raw-string\tpending\tJ2\t--seq\n"
-	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	got, err := ReadAllowlist(path)
+	text := "# comment\n\nfloat-literals departure exact decimal\nseq-raw-string  pending J2   --seq arrives\n"
+	got, err := ReadAllowlist(strings.NewReader(text))
 	if err != nil {
 		t.Fatal(err)
 	}
 	wantEqual(t, len(got), 2)
-	wantEqual(t, got["float-literals"], AllowEntry{Kind: "departure", Reason: "exact decimal"})
-	wantEqual(t, got["seq-raw-string"], AllowEntry{Kind: "pending", Phase: "J2", Reason: "--seq"})
+	wantEqual(t, got["float-literals"], AllowEntry{ID: "float-literals", Kind: "departure", Reason: "exact decimal"})
+	wantEqual(t, got["seq-raw-string"], AllowEntry{ID: "seq-raw-string", Kind: "pending", Phase: "J2", Reason: "--seq arrives"})
 
-	if err := os.WriteFile(path, []byte("x\tpending\treason\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ReadAllowlist(path); err == nil {
-		t.Fatal("a pending entry with no phase is accepted")
+	for _, bad := range []string{
+		"x pending reason\n",
+		"x pending J9 reason\n",
+		"x departure\n",
+		"x other J2 reason\n",
+		"x departure a\nx departure b\n",
+	} {
+		if _, err := ReadAllowlist(strings.NewReader(bad)); err == nil {
+			t.Errorf("allowlist %q is accepted", bad)
+		}
 	}
 
-	missing, err := ReadAllowlist(filepath.Join(t.TempDir(), "absent"))
-	wantEqual(t, err == nil && len(missing) == 0, true)
+	empty, err := ReadAllowlist(strings.NewReader(""))
+	wantEqual(t, err == nil && len(empty) == 0, true)
 }
 
 func TestReadFloors(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "compat-floors.env")
-	if err := os.WriteFile(path, []byte("JQ_PHASE=J2\nYQ_PHASE=\"Y1\"\n"), 0o600); err != nil {
+	text := "# floors\nJQ_PHASE=J2\nJQ_INVENTORY_FLOOR=70\nJQ_REGEX_FLOOR=\"90\"\nJQ_DEPARTURE_CAP=3\nYQ_PHASE=Y1\nYQ_INVENTORY_FLOOR=50\n"
+	f, err := ReadFloors(strings.NewReader(text))
+	if err != nil {
 		t.Fatal(err)
 	}
-	jq, err := ReadFloors(path, "jq")
-	wantEqual(t, jq, "J2")
-	wantEqual(t, err == nil, true)
-	yq, _ := ReadFloors(path, "yq")
-	wantEqual(t, yq, "Y1")
+	wantEqual(t, f.Phase, "J2")
+	wantEqual(t, f.Inventory, 70)
+	wantEqual(t, f.Regex, 90)
+	wantEqual(t, f.DepartureCapPercent, 3)
+	wantEqual(t, f.Values["YQ_INVENTORY_FLOOR"], 50)
 
-	first, err := ReadFloors(filepath.Join(t.TempDir(), "absent"), "jq")
-	wantEqual(t, first, "J1")
-	wantEqual(t, err == nil, true)
+	first, err := ReadFloors(strings.NewReader(""))
+	wantEqual(t, err == nil && first.Phase == "J1", true)
+
+	for _, bad := range []string{"JQ_PHASE=J9\n", "JQ_INVENTORY_FLOOR=high\n", "JQ_REGEX_FLOOR=101\n", "nokey\n"} {
+		if _, err := ReadFloors(strings.NewReader(bad)); err == nil {
+			t.Errorf("floors %q are accepted", bad)
+		}
+	}
+}
+
+func TestReadBaseline(t *testing.T) {
+	b, err := ReadBaseline(strings.NewReader("# baseline\nentries 3\na\nb\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, b.Entries, 3)
+	wantEqual(t, len(b.Passing), 2)
+	wantEqual(t, b.Passing["a"] && b.Passing["b"] && !b.Passing["c"], true)
+
+	zero, err := ReadBaseline(strings.NewReader("entries 0\n"))
+	wantEqual(t, err == nil && zero.Entries == 0 && len(zero.Passing) == 0, true)
+
+	for _, bad := range []string{"", "a\nentries 1\n", "entries many\n"} {
+		if _, err := ReadBaseline(strings.NewReader(bad)); err == nil {
+			t.Errorf("baseline %q is accepted", bad)
+		}
+	}
 }

@@ -1,0 +1,2 @@
+-c
+walk(if . == 2 then empty else . end)

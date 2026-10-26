@@ -1,0 +1,2 @@
+-nc
+"ABC" | test("(?i)abc"), test("a(?i)bc"), test("(?i:a)BC"), test("(?-i:a)bc"; "i")

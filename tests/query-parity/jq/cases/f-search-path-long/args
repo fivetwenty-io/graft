@@ -1,0 +1,4 @@
+-nc
+--library-path
+lib
+include "m"; f

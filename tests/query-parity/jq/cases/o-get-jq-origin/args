@@ -1,0 +1,2 @@
+-nc
+get_jq_origin | type

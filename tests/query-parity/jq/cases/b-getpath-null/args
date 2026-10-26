@@ -1,0 +1,2 @@
+-nc
+null | getpath(["a","b"])

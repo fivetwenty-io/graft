@@ -1,0 +1,2 @@
+-nc
+def f: 1; import "m" as m; f

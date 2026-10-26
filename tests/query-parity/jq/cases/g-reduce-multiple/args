@@ -1,0 +1,2 @@
+-nc
+reduce range(3) as $i ([]; . + [$i, $i * 2])

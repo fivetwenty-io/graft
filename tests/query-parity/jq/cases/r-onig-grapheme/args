@@ -1,0 +1,2 @@
+-nc
+"éx" | [match("\\X"; "g") | .length]

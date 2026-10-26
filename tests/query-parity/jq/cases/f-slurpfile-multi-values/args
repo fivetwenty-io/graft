@@ -1,0 +1,5 @@
+-nc
+--slurpfile
+f
+data.json
+$f

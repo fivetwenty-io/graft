@@ -1,0 +1,2 @@
+-nc
+{"1":"a","2":"b"} as $idx | [[{"id":1},{"id":2}] | JOIN($idx; .id | tostring)]

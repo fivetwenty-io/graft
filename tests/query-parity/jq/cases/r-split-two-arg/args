@@ -1,0 +1,2 @@
+-nc
+"a, b;c" | split(", *|;"; null), split("B"; "i"), split("x"; "g")

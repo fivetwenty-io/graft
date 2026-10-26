@@ -1,0 +1,2 @@
+-c
+[paths(type == "number")] as $p | $p[0] as $q | getpath($q)

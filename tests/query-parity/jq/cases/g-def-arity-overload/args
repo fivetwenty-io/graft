@@ -1,0 +1,2 @@
+-nc
+def f: 1; def f(a): a + 10; [f, f(5)]

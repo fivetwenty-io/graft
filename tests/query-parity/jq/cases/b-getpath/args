@@ -1,0 +1,2 @@
+-c
+getpath(["a","b",1]), getpath(["x","y"]), [getpath(["a","b"], ["a"])]

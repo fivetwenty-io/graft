@@ -1,0 +1,2 @@
+-nc
+"foobar" | sub("foo\\Kbar"; "X")

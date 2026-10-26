@@ -1,0 +1,2 @@
+-nc
+[null, true, 1, "a", [], {}] | map(type)
