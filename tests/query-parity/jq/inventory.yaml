@@ -2414,7 +2414,7 @@
   cases: [r-onig-grapheme]
 - id: r-onig-conditional
   area: regex
-  phase: J3
+  phase: J2
   cases: [r-onig-conditional]
 - id: r-onig-callout-free-posix-bracket
   area: regex

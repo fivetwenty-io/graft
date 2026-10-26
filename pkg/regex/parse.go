@@ -474,6 +474,8 @@ func (p *parser) group(start int) (*node, error) {
 	switch {
 	case p.lookingAt("?P=") && p.rules().pythonNames:
 		return p.pythonRef(start)
+	case p.lookingAt("?("):
+		return p.conditional(start)
 	case p.lookingAt("?"):
 		var err error
 		var done bool
@@ -493,14 +495,7 @@ func (p *parser) group(start int) (*node, error) {
 		p.names = append(p.names, name)
 		p.closed = append(p.closed, nil)
 	}
-	look := form == formAhead || form == formNotAhead || form == formBehind || form == formNotBehind
-	if look {
-		p.looks++
-	}
-	body, err := p.alternation()
-	if look {
-		p.looks--
-	}
+	body, err := p.groupBody(form)
 	if err != nil {
 		return nil, err
 	}
@@ -510,6 +505,127 @@ func (p *parser) group(start int) (*node, error) {
 	p.pos++ // ')'
 	p.flags = saved
 	return p.closeGroup(start, form, index, name, body)
+}
+
+// conditional parses a conditional group, (?(cond)yes|no), whose ( is at
+// start. The condition names a group by number or by name, and the yes
+// branch runs when one of the groups it names has captured, the no branch
+// otherwise. A missing no branch matches the empty string. Under
+// Oniguruma every branch after the first makes up the no branch, and a
+// conditional of one empty branch only tests its group, failing when the
+// group has not captured. Oniguruma's search plans as if a yes branch with
+// no no branch matched nothing, so jq misses matches through one, and the
+// flavor refuses that form. PCRE2 refuses a third branch.
+func (p *parser) conditional(start int) (*node, error) {
+	p.pos += 2 // "?("
+	cond := upToParen(p.src[p.pos:])
+	refs, err := p.condition(start)
+	if err != nil {
+		return nil, err
+	}
+	saved := p.flags
+	testOnly := p.lookingAt(")")
+	var branches []*node
+	for {
+		b, err := p.concat()
+		if err != nil {
+			return nil, err
+		}
+		branches = append(branches, b)
+		if p.eof() || p.peek() != '|' {
+			break
+		}
+		p.pos++
+	}
+	if p.eof() {
+		return nil, p.errorAt(start, "missing closing parenthesis")
+	}
+	p.pos++ // ')'
+	p.flags = saved
+	no := &node{kind: kindConcat}
+	switch {
+	case len(branches) > 2 && !p.rules().conditionTail:
+		return nil, p.errorAt(start, "conditional subpattern contains more than two branches")
+	case len(branches) > 2:
+		no = &node{kind: kindAlternate, subs: branches[1:]}
+	case len(branches) == 2:
+		no = branches[1]
+	case testOnly && p.rules().conditionTail:
+		no = &node{kind: kindLook, subs: []*node{{kind: kindConcat}}, neg: true}
+	case p.rules().conditionTail:
+		return nil, unsupported("conditional group (?(" + cond + ")...) with no no branch")
+	}
+	return &node{kind: kindCond, subs: []*node{branches[0], no}, refs: refs}, nil
+}
+
+// condition reads a conditional's condition up to and past its ), which
+// names a group by number, signed or not, or by a name in angle brackets
+// or single quotes. It
+// returns a reference to each group the condition names, and refuses any
+// other condition as unsupported.
+func (p *parser) condition(start int) ([]*node, error) {
+	end := strings.IndexByte(p.src[p.pos:], ')')
+	if end < 0 {
+		return nil, p.errorAt(start, "missing closing parenthesis")
+	}
+	text := p.src[p.pos : p.pos+end]
+	var ref *node
+	var err error
+	switch {
+	case isSignedNumber(text):
+		ref, err = p.conditionNumber(start, text)
+	case len(text) >= 2 && (text[0] == '<' && text[len(text)-1] == '>' || text[0] == '\'' && text[len(text)-1] == '\''):
+		ref, err = p.conditionName(start, text[1:len(text)-1])
+	default:
+		return nil, unsupported("conditional group (?(" + text + ")...)")
+	}
+	if err != nil {
+		return nil, err
+	}
+	p.pos += end + 1
+	if ref.kind == kindAlternate {
+		return ref.subs, nil
+	}
+	return []*node{ref}, nil
+}
+
+// conditionNumber builds the reference for a condition that names a group
+// by number.
+func (p *parser) conditionNumber(start int, text string) (*node, error) {
+	n, ok := p.relative(text)
+	switch {
+	case (!ok || n == 0) && p.rules().onigMessages:
+		return nil, p.errorAt(start, "invalid backref number/name")
+	case !ok || n == 0:
+		return nil, p.errorAt(start, "reference to non-existent subpattern")
+	}
+	return p.numberedRef(start, n), nil
+}
+
+// conditionName builds the reference for a condition that names a group
+// in brackets, which Oniguruma reads as a number when it is one.
+func (p *parser) conditionName(start int, name string) (*node, error) {
+	switch {
+	case p.rules().relativeK && isSignedNumber(name):
+		return p.conditionNumber(start, name)
+	case name == "" && p.rules().onigMessages:
+		return nil, p.errorAt(start, "group name is empty")
+	case name == "":
+		return nil, p.errorAt(start, "subpattern name expected")
+	case name[0] >= '0' && name[0] <= '9':
+		return nil, p.errorAt(start, "subpattern name must start with a non-digit")
+	}
+	return p.namedRef(start, name)
+}
+
+// groupBody parses the body of a group of the given form, counting a
+// lookaround as open while it does.
+func (p *parser) groupBody(form groupForm) (*node, error) {
+	if form >= formAhead {
+		p.looks++
+		defer func() { p.looks-- }()
+	}
+	return p.alternation()
 }
 
 // starVerb refuses a backtracking control verb or an alpha assertion,
@@ -551,6 +667,8 @@ func (p *parser) closeGroup(start int, form groupForm, index int, name string, b
 // groupForm names what a parenthesized group does with its body.
 type groupForm uint8
 
+// The lookarounds come last, so a form is one when it is at least
+// formAhead.
 const (
 	formCapture   groupForm = iota // (...), (?<name>...)
 	formPlain                      // (?:...) and (?flags:...)
@@ -641,8 +759,6 @@ func (p *parser) groupPrefix(start int) (form groupForm, name string, done bool,
 		return formPlain, "", true, unsupported("absent operator (?~...)")
 	case strings.HasPrefix(rest, "|"):
 		return formPlain, "", true, unsupported("branch reset group (?|...)")
-	case strings.HasPrefix(rest, "("):
-		return formPlain, "", true, unsupported("conditional group (?(...)")
 	case strings.HasPrefix(rest, "C"):
 		return formPlain, "", true, unsupported("callout (?C...)")
 	case strings.HasPrefix(rest, "P") && !p.rules().pythonNames:

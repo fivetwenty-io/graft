@@ -226,6 +226,12 @@ func (m *machine) exec(pc, pos, end int, longest bool) (int, bool, error) {
 		case opJmp:
 			pc = in.x
 			continue
+		case opIfCaptured:
+			pc++
+			if caps[2*in.x] >= 0 && caps[2*in.x+1] >= 0 {
+				pc = in.y
+			}
+			continue
 		case opSave:
 			if len(stack) >= maxStack {
 				return 0, false, overBudget("backtrack stack exceeds the budget of %d frames", maxStack)

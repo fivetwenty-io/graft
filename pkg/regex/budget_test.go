@@ -16,6 +16,19 @@ func TestBudgetStopsCatastrophicPattern(t *testing.T) {
 	wantErrIs(t, err, ErrBudget)
 }
 
+// A conditional draws on the step budget like any other choice, so one
+// inside a nested repeat still stops at the budget.
+func TestBudgetStopsCatastrophicConditional(t *testing.T) {
+	subject := strings.Repeat("a", 40) + "!"
+	for _, flavor := range []Flavor{PCRE, Oniguruma} {
+		for _, pattern := range []string{`^(?:(x)?(?(1)y|a+))+$`, `^(?:(a)(?<=(?(1)a|b))a*)+$`} {
+			p := MustCompile(pattern, WithFlavor(flavor), WithBudget(Budget{Steps: 100000}))
+			_, err := p.Find(context.Background(), subject, 0)
+			wantErrIs(t, err, ErrBudget)
+		}
+	}
+}
+
 func TestBudgetBoundsCompilation(t *testing.T) {
 	start := time.Now()
 	_, err := Compile(strings.Repeat("(", 201)+"a"+strings.Repeat(")", 201), WithBudget(Budget{MaxNesting: 200}))
@@ -114,6 +127,7 @@ func TestProgramSizeEstimateIsExact(t *testing.T) {
 		`[a-z]+x`, `^a$`, `.*`, `(a|)*b{2}c{1,}d{0}`, `x{0,}`,
 		`(?=ab)c`, `(?<!a|bc)d`, `(?<=a|bc)d`, `(?>a|b)*`, `a*+`, `a{2,3}+`, `(?=a(?<=a))b`, `(?<=ß|k)x`,
 		`(a)\1`, `(a|b\1)+`, `(?<n>a)\k<n>`, `\1(a)`,
+		`(a)?(?(1)b|cd)`, `(a)?(?(1)b|)`, `(?:(?(1)b|c)(a))+`, `(a)(?<=(?(1)a|b))`,
 	} {
 		for i, opts := range [][]Option{nil, {WithFlags(IgnoreCase)}, {WithFlavor(Oniguruma), WithFlags(IgnoreCase)}} {
 			if i == 2 && (pat == `(?<!a|bc)d` || pat == `(?<=a|bc)d`) {
@@ -129,12 +143,13 @@ func TestProgramSizeEstimateIsExact(t *testing.T) {
 			}
 		}
 	}
-	shared := `(?<n>a)(?<n>b)\k<n>`
-	cfg := newConfig([]Option{WithFlavor(Oniguruma)})
-	n, _, err := parse(shared, cfg)
-	wantNil(t, err)
-	if got, want := programSize(lower(n, cfg), cfg.budget.MaxInstructions)+3, len(MustCompile(shared, WithFlavor(Oniguruma)).prog); got != want {
-		t.Errorf("%q: estimated %d instructions, emitted %d", shared, got, want)
+	for _, shared := range []string{`(?<n>a)(?<n>b)\k<n>`, `(?<n>a)?(?<n>b)?(?(<n>)c|d)`, `(a)?(?(1)b|c|d)`, `(a)?(?(1))`} {
+		cfg := newConfig([]Option{WithFlavor(Oniguruma)})
+		n, _, err := parse(shared, cfg)
+		wantNil(t, err)
+		if got, want := programSize(lower(n, cfg), cfg.budget.MaxInstructions)+3, len(MustCompile(shared, WithFlavor(Oniguruma)).prog); got != want {
+			t.Errorf("%q: estimated %d instructions, emitted %d", shared, got, want)
+		}
 	}
 }
 

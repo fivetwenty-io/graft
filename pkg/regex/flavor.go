@@ -88,6 +88,13 @@ type rules struct {
 	// match the empty string with no test of the text and so always holds.
 	evenLookbehind bool
 
+	// conditionTail makes every branch of a conditional after the first
+	// its no branch, and makes a conditional of one empty branch only test
+	// its group, as Oniguruma does. It refuses a conditional of one branch
+	// that is not empty, which jq's search mishandles. PCRE2 refuses a
+	// third branch, and takes one branch with an empty no branch.
+	conditionTail bool
+
 	// posixProperties accepts the POSIX class names, such as Alpha and
 	// XDigit, and the long names of the general categories, such as
 	// Lowercase_Letter, inside \p{...}, with the meanings Oniguruma gives
@@ -164,6 +171,7 @@ var flavorRules = [...]rules{
 		anyRuneO:           true,
 		onigMessages:       true,
 		evenLookbehind:     true,
+		conditionTail:      true,
 	},
 }
 

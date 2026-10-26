@@ -4,24 +4,25 @@ package regex
 type opcode uint8
 
 const (
-	opRune      opcode = iota // match the rune r
-	opClass                   // match one rune in set
-	opAny                     // match any rune
-	opAnyNotNL                // match any rune but a newline
-	opSplit                   // continue at x, and on failure at y
-	opJmp                     // continue at x
-	opSave                    // record the position in slot x
-	opLoopCheck               // leave a loop for y when slot x holds the position, as an empty iteration does
-	opAssert                  // test assert at the position, with set the word runes for a boundary
-	opAhead                   // run the body at x from the position, then continue at y if it matched, or under neg if it did not
-	opBehind                  // like opAhead, with the body starting lo to hi runes back and ending at the position
-	opAtomic                  // run the body at x, then continue at y from where its first match ended
-	opSucceed                 // end a body that opAhead, opBehind, or opAtomic runs
-	opBackref                 // match the text group x captured, folding case under fold
-	opOpen                    // start group x at the position and mark it unfinished, for a group that refers to itself under Oniguruma
-	opCapture                 // finish group x, starting where slot y recorded and ending at the position, for a group that refers to itself under PCRE
-	opCount                   // take between lo and hi runes that body accepts, greedily or lazily, then continue at x
-	opMatch                   // report a match
+	opRune       opcode = iota // match the rune r
+	opClass                    // match one rune in set
+	opAny                      // match any rune
+	opAnyNotNL                 // match any rune but a newline
+	opSplit                    // continue at x, and on failure at y
+	opJmp                      // continue at x
+	opSave                     // record the position in slot x
+	opLoopCheck                // leave a loop for y when slot x holds the position, as an empty iteration does
+	opAssert                   // test assert at the position, with set the word runes for a boundary
+	opAhead                    // run the body at x from the position, then continue at y if it matched, or under neg if it did not
+	opBehind                   // like opAhead, with the body starting lo to hi runes back and ending at the position
+	opAtomic                   // run the body at x, then continue at y from where its first match ended
+	opSucceed                  // end a body that opAhead, opBehind, or opAtomic runs
+	opBackref                  // match the text group x captured, folding case under fold
+	opIfCaptured               // continue at y when group x has captured
+	opOpen                     // start group x at the position and mark it unfinished, for a group that refers to itself under Oniguruma
+	opCapture                  // finish group x, starting where slot y recorded and ending at the position, for a group that refers to itself under PCRE
+	opCount                    // take between lo and hi runes that body accepts, greedily or lazily, then continue at x
+	opMatch                    // report a match
 )
 
 // inst is one instruction of a compiled program.
@@ -217,6 +218,12 @@ func programSize(n *node, limit int) int {
 		return c.add(programSize(n.subs[0], limit), 2)
 	case kindRepeat:
 		return repeatSize(n, programSize(n.subs[0], limit), c)
+	case kindCond:
+		total := len(n.refs) + 1
+		for _, s := range n.subs {
+			total = c.add(total, programSize(s, limit))
+		}
+		return total
 	default:
 		return 1
 	}
@@ -284,6 +291,9 @@ func (c *compiler) emit(in inst) int {
 	return len(c.prog) - 1
 }
 
+// node emits the instructions for n.
+//
+//nolint:gocyclo // one case per node kind, each a line or two
 func (c *compiler) node(n *node) {
 	switch n.kind {
 	case kindLiteral:
@@ -314,6 +324,8 @@ func (c *compiler) node(n *node) {
 		c.look(n)
 	case kindKeep:
 		c.emit(inst{op: opSave, x: 0})
+	case kindCond:
+		c.cond(n)
 	}
 }
 
@@ -421,6 +433,22 @@ func (c *compiler) alternate(subs []*node) {
 	for _, j := range jumps {
 		c.prog[j].x = len(c.prog)
 	}
+}
+
+// cond emits a conditional, which tests each group in turn and runs the
+// yes branch when one of them has captured, and the no branch otherwise.
+func (c *compiler) cond(n *node) {
+	tests := make([]int, len(n.refs))
+	for i, r := range n.refs {
+		tests[i] = c.emit(inst{op: opIfCaptured, x: r.index})
+	}
+	c.node(n.subs[1])
+	done := c.emit(inst{op: opJmp})
+	for _, t := range tests {
+		c.prog[t].y = len(c.prog)
+	}
+	c.node(n.subs[0])
+	c.prog[done].x = len(c.prog)
 }
 
 func (c *compiler) repeat(n *node) {

@@ -73,15 +73,19 @@ remain on purpose. PCRE takes \uhhhh, which PCRE2 refuses. A global search
 moves one rune past an empty match, where jq moves one byte. Oniguruma
 accepts a lookbehind that holds a lookahead, and a capture inside a
 negative or varying lookbehind, both of which jq refuses. The escapes \G,
-\X, \y, and \Y and subroutine calls are refused under both flavors,
-though jq accepts some of them, and so is a \K inside a lookaround, which
-jq accepts too. The Oniguruma flavor refuses a group name such as n-1 that
-jq accepts, and it reads a \x at the end of the pattern as NUL where jq
-matches nothing. A byte escape that jq would match against part of a
-character, such as a lone \x80 in a negated class, holds no rune here.
-Error messages follow each engine's wording where the tests pin it, and a
-golden for a pattern jq or PCRE2 refuses checks only that Compile refuses
-it too.
+\X, \y, and \Y and subroutine calls are refused under both flavors, though
+jq accepts some of them, and so is a \K inside a lookaround, which jq
+accepts too. A condition other than a group's number or bracketed name is
+refused under both flavors, though jq and PCRE2 accept some, such as a bare
+name, (?(R)...), and (?(DEFINE)...). The Oniguruma flavor also refuses a
+conditional whose one branch is not empty, such as (?(1)b), because jq's
+search plans as if that branch matched nothing and misses matches through
+it. That flavor refuses a group name such as n-1 that jq accepts as well,
+and it reads a \x at the end of the pattern as NUL where jq matches
+nothing. A byte escape that jq would match against part of a character,
+such as a lone \x80 in a negated class, holds no rune here. Error messages
+follow each engine's wording where the tests pin it, and a golden for a
+pattern jq or PCRE2 refuses checks only that Compile refuses it too.
 
 # Supported syntax
 
@@ -117,9 +121,8 @@ branch must have a length limit and may vary by no more than 255 runes, as
 in PCRE2, while Oniguruma lets a lookbehind look back without limit.
 Oniguruma refuses a lookbehind that holds a choice whose branches differ
 in length, as jq does, unless the lookbehind can match the empty string
-and so always holds. PCRE
-treats a quantified assertion as PCRE2 does, and Oniguruma refuses one as
-jq does.
+and so always holds. PCRE treats a quantified assertion as PCRE2 does, and
+Oniguruma refuses one as jq does.
 
 Backreferences \1 through \9, longer numbers that name a group, \k<name>,
 and \k'name' are supported. PCRE also takes \k{name}, \g with a number or
@@ -133,12 +136,24 @@ SyntaxError. A reference compares case by the IgnoreCase setting in force
 where it stands. A reference inside the group it names fails under
 Oniguruma, and under PCRE matches the group's last complete capture.
 
+A conditional group (?(cond)yes|no) runs its yes branch when the group its
+condition names has captured and its no branch otherwise, and under PCRE a
+missing no branch matches the empty string. The condition names the group
+by number, which may be signed as a reference's is, or by a name in angle
+brackets or single quotes. A condition reads a capture the way a reference
+does, including inside the group it names. Under Oniguruma every branch
+after the first makes up the no branch, a number in <> names a group by
+number, a name several groups share holds when any of them has captured,
+and a conditional of one empty branch fails when its group has not
+captured. PCRE refuses a third branch and a name that starts with a digit,
+as PCRE2 does.
+
 The inline flags n, J, U, and ^, the assertion \G, the escapes \X, \y,
 and \Y, and the rarer constructs such as recursion, subroutine calls, and
-conditionals are recognized and refused with an UnsupportedError that
-names them. A \K inside a lookaround is refused as well, with a
-SyntaxError under PCRE, as PCRE2 refuses it, and an UnsupportedError under
-Oniguruma.
+conditions other than a group's number or name are recognized and refused
+with an UnsupportedError that names them. A \K inside a lookaround is
+refused as well, with a SyntaxError under PCRE, as PCRE2 refuses it, and
+an UnsupportedError under Oniguruma.
 
 # Budgets
 

@@ -45,7 +45,7 @@ func TestUnsupportedConstructNames(t *testing.T) {
 		`(?&n)`:                    "recursion (?&n)",
 		`(?P>n)`:                   "recursion (?P>n)",
 		`(a)\g<1>`:                 `recursion \g<1>`,
-		`(?(1)a|b)`:                "conditional group (?(...)",
+		`(?(R)a|b)`:                "conditional group (?(R)...)",
 		`(?C1)a`:                   "callout (?C...)",
 		`(*FAIL)`:                  "backtracking control verb (*FAIL)",
 		`(*pla:a)`:                 "alpha assertion (*pla:...)",

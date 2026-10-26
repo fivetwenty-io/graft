@@ -1,0 +1,1 @@
+[{"offset":0,"length":3,"string":"abc","captures":[{"offset":0,"length":1,"string":"a","name":null}]},{"offset":4,"length":1,"string":"c","captures":[{"offset":-1,"length":0,"string":null,"name":null}]},{"offset":7,"length":1,"string":"c","captures":[{"offset":-1,"length":0,"string":null,"name":null}]}]

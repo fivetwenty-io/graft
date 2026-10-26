@@ -282,6 +282,74 @@ func TestMatchReset(t *testing.T) {
 	}
 }
 
+func TestConditional(t *testing.T) {
+	all := MatchOptions{Global: true}
+	for _, flavor := range []Flavor{PCRE, Oniguruma} {
+		with := WithFlavor(flavor)
+		wantEqual(t, texts(t, MustCompile(`(x)?(?(1)y|z)`, with), "xy z xz", all), []string{"xy", "z", "z"})
+		wantEqual(t, texts(t, MustCompile(`(?<q>x)?(?(<q>)y|z)`, with), "xy z", all), []string{"xy", "z"})
+		wantEqual(t, texts(t, MustCompile(`(?'q'x)?(?('q')y|z)`, with), "xy z", all), []string{"xy", "z"})
+		wantEqual(t, texts(t, MustCompile(`(x)?(?(01)y|z)`, with), "xy z", all), []string{"xy", "z"})
+		wantEqual(t, texts(t, MustCompile(`(x)?(?(-1)y|z)`, with), "xy z", all), []string{"xy", "z"})
+
+		// A condition may name a group that comes after it, which has not
+		// captured yet the first time the condition is tested.
+		wantText(t, MustCompile(`(?:(?(1)y|z)(x))+`, with), "zxyx", "zxyx")
+
+		// A yes branch that is a group of its own is not split into two.
+		wantEqual(t, texts(t, MustCompile(`(x)?(?(1)(?:y|v)|z)w`, with), "xvw xyw zw", all), []string{"xvw", "xyw", "zw"})
+		wantEqual(t, groups(t, MustCompile(`(x)?(?(1)(y)|(z))`, with), "z"), []string{"z", "-", "-", "z"})
+		wantEqual(t, texts(t, MustCompile(`(x)?(?(1)y|z)+`, with), "xyy zz", all), []string{"xyy", "zz"})
+
+		for _, bad := range []string{`(?(1)y|z)`, `(x)(?(2)y|z)`, `(x)(?(0)y|z)`, `(x)(?(-2)y|z)`, `(?(<q>)y)`} {
+			var se *SyntaxError
+			_, err := Compile(bad, with)
+			wantErrAs(t, err, &se)
+		}
+		for _, other := range []string{`(?(R)a|b)`, `(?(DEFINE)a)b`, `(?(?=a)ab|c)`, `(x)(?(q)y)`} {
+			var u *UnsupportedError
+			_, err := Compile(other, with)
+			wantErrAs(t, err, &u)
+		}
+	}
+
+	// Under PCRE a condition inside its group sees the group's last
+	// complete capture, and under Oniguruma the group has not captured
+	// while it is open.
+	wantEqual(t, texts(t, MustCompile(`(x(?(1)y|z))+`), "xzxy", all), []string{"xzxy"})
+	wantEqual(t, texts(t, MustCompile(`(x(?(1)y|z))+`, WithFlavor(Oniguruma)), "xzxy", all), []string{"xz"})
+
+	// Oniguruma takes every branch after the first as the no branch, where
+	// PCRE2 refuses a third branch, and its conditional of one empty
+	// branch fails when the group has not captured.
+	onig := WithFlavor(Oniguruma)
+	wantEqual(t, texts(t, MustCompile(`(x)?(?(1)y|z|w)`, onig), "w xy z", all), []string{"w", "xy", "z"})
+	wantSyntaxError(t, `(x)?(?(1)y|z|w)`, 4, "conditional subpattern contains more than two branches")
+	wantEqual(t, texts(t, MustCompile(`(x)?(?(1))`, onig), "x w x", all), []string{"x", "x"})
+	wantEqual(t, len(texts(t, MustCompile(`(x)?(?(1))`), "x w", all)), 4)
+
+	// Under PCRE a missing no branch matches the empty string. Oniguruma
+	// refuses a conditional of one branch that is not empty, because jq's
+	// search plans as if the branch matched nothing and misses matches.
+	wantEqual(t, texts(t, MustCompile(`(x)?(?(1)y)w`), "xyw w", all), []string{"xyw", "w"})
+	for _, yesOnly := range []string{`(x)?(?(1)y)w`, `(x)?(?(1)(?:))`, `(x)?(?(1)y*)`} {
+		var u *UnsupportedError
+		_, err := Compile(yesOnly, onig)
+		wantErrAs(t, err, &u)
+	}
+
+	// Oniguruma reads a number in brackets as a group number and lets
+	// groups share the name a condition tests, where PCRE2 wants a name.
+	wantEqual(t, texts(t, MustCompile(`(x)?(?(<1>)y|z)`, onig), "xy z", all), []string{"xy", "z"})
+	wantEqual(t, texts(t, MustCompile(`(?<q>x)?(?<q>v)?(?(<q>)y|z)`, onig), "xy vy z", all), []string{"xy", "vy", "z"})
+	wantSyntaxError(t, `(x)?(?(<1>)y|z)`, 4, "subpattern name must start with a non-digit")
+	wantSyntaxError(t, `(x)?(?(<>)y|z)`, 4, "subpattern name expected")
+	wantSyntaxError(t, `(x)?(?(<>)y|z)`, 4, "group name is empty", onig)
+	wantSyntaxError(t, `(x)?(?(2)y|z)`, 4, "invalid backref number/name", onig)
+	wantSyntaxError(t, `(x)?(?(<q>)y|z)`, 4, "undefined name <q> reference", onig)
+	wantSyntaxError(t, `(x)?(?(1)y|z`, 4, "missing closing parenthesis")
+}
+
 // The step budget is one count for a match, the bodies of its assertions
 // and atomic groups, and every start of a search, so nesting cannot
 // multiply it.

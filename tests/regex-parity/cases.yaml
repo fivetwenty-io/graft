@@ -1713,3 +1713,195 @@
   pattern: "(?<=a*|bc)d"
   flags: "g"
   subject: "d ad"
+
+- id: onig-conditional-number
+  flavor: oniguruma
+  pattern: "(a)?(?(1)b|c)"
+  flags: "g"
+  subject: "ab c ac"
+
+- id: onig-conditional-named
+  flavor: oniguruma
+  pattern: "(?<n>a)?(?(<n>)b|c)"
+  flags: "g"
+  subject: "ab c ac"
+
+- id: onig-conditional-quoted
+  flavor: oniguruma
+  pattern: "(?<n>a)?(?('n')b|c)"
+  flags: "g"
+  subject: "ab c ac"
+
+- id: onig-conditional-bracketed-number
+  flavor: oniguruma
+  pattern: "(a)?(?(<1>)b|c)"
+  flags: "g"
+  subject: "ab c"
+
+- id: onig-conditional-relative
+  flavor: oniguruma
+  pattern: "(a)?(?(-1)b|c)"
+  flags: "g"
+  subject: "ab c"
+
+- id: onig-conditional-three-branches
+  flavor: oniguruma
+  pattern: "(a)?(?(1)b|c|d)"
+  flags: "g"
+  subject: "d c ab"
+
+- id: onig-conditional-test-only
+  flavor: oniguruma
+  pattern: "(a)?(?(1))"
+  flags: "g"
+  subject: "a b a"
+
+- id: onig-conditional-group-yes
+  flavor: oniguruma
+  pattern: "(a)?(?(1)(?:b|x)|y)c"
+  flags: "g"
+  subject: "abc axc yc c"
+
+- id: onig-conditional-inside-group
+  flavor: oniguruma
+  pattern: "(a(?(1)b|c))+"
+  flags: "g"
+  subject: "acab ac"
+
+- id: onig-conditional-forward
+  flavor: oniguruma
+  pattern: "(?:(?(1)b|c)(a))+"
+  flags: "g"
+  subject: "cabaxca"
+
+- id: onig-conditional-shared-name
+  flavor: oniguruma
+  pattern: "(?<n>a)?(?<n>x)?(?(<n>)b|c)"
+  flags: "g"
+  subject: "ab xb c"
+
+- id: onig-conditional-ignore-case
+  flavor: oniguruma
+  pattern: "(a)?(?(1)B|c)"
+  flags: "gi"
+  subject: "Ab C"
+
+- id: onig-conditional-repeated
+  flavor: oniguruma
+  pattern: "(a)?(?(1)b|c)+"
+  flags: "g"
+  subject: "abb cc"
+
+- id: onig-conditional-in-lookbehind
+  flavor: oniguruma
+  pattern: "(a)(?<=(?(1)a|b))x"
+  flags: "g"
+  subject: "axbx"
+
+- id: onig-conditional-in-lookbehind-uneven
+  flavor: oniguruma
+  pattern: "(a)(?<=(?(1)a|bc))"
+  flags: ""
+  subject: "a"
+
+- id: onig-conditional-missing-group
+  flavor: oniguruma
+  pattern: "(a)?(?(2)b|c)"
+  flags: ""
+  subject: "c"
+
+- id: onig-conditional-group-zero
+  flavor: oniguruma
+  pattern: "(a)?(?(0)b|c)"
+  flags: ""
+  subject: "c"
+
+- id: onig-conditional-undefined-name
+  flavor: oniguruma
+  pattern: "(?(<x>)b|c)"
+  flags: ""
+  subject: "c"
+
+- id: onig-conditional-empty-name
+  flavor: oniguruma
+  pattern: "(a)?(?(<>)b|c)"
+  flags: ""
+  subject: "c"
+
+- id: pcre-conditional-number
+  flavor: pcre
+  pattern: "(a)?(?(1)b|c)"
+  flags: "g"
+  subject: "ab c ac"
+
+- id: pcre-conditional-named
+  flavor: pcre
+  pattern: "(?<n>a)?(?(<n>)b|c)"
+  flags: "g"
+  subject: "ab c ac"
+
+- id: pcre-conditional-quoted
+  flavor: pcre
+  pattern: "(?<n>a)?(?('n')b|c)"
+  flags: "g"
+  subject: "ab c ac"
+
+- id: pcre-conditional-relative-forward
+  flavor: pcre
+  pattern: "(a)?(?(+1)b|c)(x)"
+  flags: "g"
+  subject: "cx abx"
+
+- id: pcre-conditional-no-else
+  flavor: pcre
+  pattern: "(a)?(?(1)b)c"
+  flags: "g"
+  subject: "abc c ac"
+
+- id: pcre-conditional-empty-yes
+  flavor: pcre
+  pattern: "(a)?(?(1))"
+  flags: "g"
+  subject: "a b a"
+
+- id: pcre-conditional-inside-group
+  flavor: pcre
+  pattern: "(a(?(1)b|c))+"
+  flags: "g"
+  subject: "acab ac"
+
+- id: pcre-conditional-forward-name
+  flavor: pcre
+  pattern: "(?:(?(<n>)b|c)(?<n>a))+"
+  flags: "g"
+  subject: "cabaxca"
+
+- id: pcre-conditional-in-lookbehind
+  flavor: pcre
+  pattern: "(a)(?<=(?(1)a|bc))x"
+  flags: "g"
+  subject: "ax bcx"
+
+- id: pcre-conditional-three-branches
+  flavor: pcre
+  pattern: "(a)?(?(1)b|c|d)"
+  flags: ""
+  subject: "c"
+
+- id: pcre-conditional-missing-group
+  flavor: pcre
+  pattern: "(a)?(?(2)b|c)"
+  flags: ""
+  subject: "c"
+
+- id: pcre-conditional-digit-name
+  flavor: pcre
+  pattern: "(a)?(?(<1>)b|c)"
+  flags: ""
+  subject: "c"
+
+- id: pcre-conditional-empty-name
+  flavor: pcre
+  pattern: "(a)?(?(<>)b|c)"
+  flags: ""
+  subject: "c"

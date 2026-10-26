@@ -21,6 +21,7 @@ const (
 	kindAtomic                    // subs[0], keeping only its first way of matching
 	kindBackref                   // the text group index captured, folded under fold
 	kindKeep                      // \K, which moves the start of the match to the position
+	kindCond                      // subs[0] when a group refs names has captured, and subs[1] otherwise
 )
 
 // assertKind names the zero-width tests.
@@ -68,6 +69,10 @@ type node struct {
 	// selfRef marks a group that holds a backreference to itself.
 	selfRef bool
 
+	// refs are a conditional's references, one for each group whose
+	// capture picks the yes branch.
+	refs []*node
+
 	assert assertKind
 
 	// neg and behind say whether a lookaround is negative and whether it
@@ -107,7 +112,7 @@ func emptyMatch(n *node) bool {
 			}
 		}
 		return true
-	case kindAlternate:
+	case kindAlternate, kindCond:
 		for _, s := range n.subs {
 			if nullable(s) {
 				return true
@@ -159,7 +164,7 @@ func unevenChoice(n *node) bool {
 	if n.kind == kindLook {
 		return false
 	}
-	if n.kind == kindAlternate {
+	if n.kind == kindAlternate || n.kind == kindCond {
 		lo, hi := width(n.subs[0])
 		for _, s := range n.subs[1:] {
 			if slo, shi := width(s); slo != lo || shi != hi {
@@ -243,9 +248,10 @@ func leadingDot(n *node) dotLead {
 	}
 }
 
-// hasBackref reports whether n holds a backreference anywhere.
+// hasBackref reports whether n holds a backreference or a conditional
+// anywhere, each of which reads what a group captured.
 func hasBackref(n *node) bool {
-	if n.kind == kindBackref {
+	if n.kind == kindBackref || n.kind == kindCond {
 		return true
 	}
 	for _, s := range n.subs {
@@ -300,7 +306,7 @@ func needOf(n *node) need {
 		return exactly("")
 	case kindConcat:
 		return concatNeed(n.subs)
-	case kindAlternate:
+	case kindAlternate, kindCond:
 		return alternateNeed(n.subs)
 	case kindRepeat:
 		return repeatNeed(n)
@@ -446,7 +452,7 @@ func width(n *node) (lo, hi int) {
 			hi = addWidth(hi, shi)
 		}
 		return lo, hi
-	case kindAlternate:
+	case kindAlternate, kindCond:
 		return alternateWidth(n.subs)
 	case kindRepeat:
 		return repeatWidth(n)
