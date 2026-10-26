@@ -18,7 +18,6 @@ m-style-double-keys pending Y2 Y1 behavior deferred to Task 47
 op-date-from-unix-out-of-range pending Y2 graft prints a far-future year in local time where yq saturates to 292278994 in Z
 op-env-dynamic-path pending Y2 eval as an assignment path
 op-eval-update pending Y2 eval as an assignment path
-op-object-splat pending Y2 object key without parentheses
 op-variable-lookup pending Y2 indexing a variable by an expression
 op-variable-ref pending Y2 Y1 behavior deferred to Task 47
 fmt-base64-output out-of-scope format out of scope

@@ -75,7 +75,14 @@ func (p *parser) parseObjEntry() (ast.ObjEntry, error) {
 		}
 		key = k
 	default:
-		return ast.ObjEntry{}, p.unexpected(tok)
+		if !p.g.ExprKeys || tok.Kind == lexer.RBrace || tok.Kind == lexer.EOF {
+			return ast.ObjEntry{}, p.unexpected(tok)
+		}
+		k, err := p.parseObjVal()
+		if err != nil {
+			return ast.ObjEntry{}, err
+		}
+		key = k
 	}
 	if err := p.expect(lexer.Colon, ":"); err != nil {
 		return ast.ObjEntry{}, err

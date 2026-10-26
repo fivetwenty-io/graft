@@ -29,6 +29,12 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 			if sameList(n.L, n.R) {
 				n.R = &ast.Call{Name: "_yq_none"}
 			}
+		case *ast.ObjectCons:
+			for i, e := range n.Entries {
+				if !textKey(e.Key) {
+					n.Entries[i].Key = &ast.Pipe{L: e.Key, R: &ast.Call{Name: "_yq_keytext"}}
+				}
+			}
 		case *ast.Call:
 			if e := rewriteCall(expr, n); e != nil && err == nil {
 				err = e
@@ -42,6 +48,20 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 		return nil, err
 	}
 	return n, nil
+}
+
+// textKey reports whether an object key is text as written, so it needs
+// no reading as the text of a node.
+func textKey(k ast.Node) bool {
+	switch k := k.(type) {
+	case *ast.Str:
+		return true
+	case *ast.Literal:
+		_, ok := k.Value.(string)
+		return ok
+	default:
+	}
+	return false
 }
 
 // stringify makes each non-literal part of an interpolated string read

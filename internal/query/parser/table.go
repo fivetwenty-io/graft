@@ -78,6 +78,10 @@ type Grammar struct {
 	// The operator is the name and the assignment as written, such as
 	// "style=", and binds as the assignment does.
 	MetaAssign []string
+	// ExprKeys lets an object key be any expression that no other form of
+	// key starts, as yq's "{.name: .tags[]}" does. The key stops at the
+	// comma and keeps pipes.
+	ExprKeys bool
 }
 
 // JQ returns the jq 1.8 grammar. The rows follow parser.y's declarations
@@ -151,5 +155,6 @@ func YQ() Grammar {
 			{"//", 42, Right, Alt},
 		},
 		Keywords: KeywordForms{If: true, Bind: true, IReduce: true, VarBind: true},
+		ExprKeys: true,
 	}
 }
