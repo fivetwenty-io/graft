@@ -178,6 +178,11 @@ func TestMultiDocumentRoundTripKeepsSeparators(t *testing.T) {
 	wantEqual(t, render(t, `.`, in, true), in)
 }
 
+func TestAMissingKeyInALaterDocumentPrintsNull(t *testing.T) {
+	in := "a: 1\n---\nb: 2\n---\nc: 3\n"
+	wantEqual(t, render(t, `.a`, in, false), "1\n---\nnull\n---\nnull\n")
+}
+
 func TestSortKeysOnEncode(t *testing.T) {
 	var buf bytes.Buffer
 	enc := NewEncoder(&buf, EncodeOptions{SortKeys: sortkeys.Lexical})

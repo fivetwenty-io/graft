@@ -169,6 +169,11 @@ func stamp(d load.Document, v *value.Value) *value.Value {
 			return v
 		}
 		c = *m
+	} else if v.Kind() == value.KindNull {
+		// A null with no text prints as an empty line, which is how a
+		// null read from "a:" prints. A null the run built has no
+		// details, and yq prints it as null in every document.
+		c.Text = "null"
 	}
 	c.DocIndex, c.FileIndex, c.LeadingContent = d.DocIndex, d.FileIndex, d.LeadingContent
 	return v.WithMeta(&c)
