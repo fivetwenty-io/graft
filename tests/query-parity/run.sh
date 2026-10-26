@@ -56,6 +56,7 @@ GRAFT_BIN="$(cd "$(dirname "$GRAFT_BIN")" && pwd)/$(basename "$GRAFT_BIN")"
 if [ "$as_alias" = 1 ]; then
   mkdir -p "$scratch/links"
   ln -s "$GRAFT_BIN" "$scratch/links/jq"
+  ln -s "$GRAFT_BIN" "$scratch/links/yq"
 fi
 
 scrub() { # scrub COPY FILE

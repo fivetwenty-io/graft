@@ -30,6 +30,15 @@ command -v sha256sum >/dev/null 2>&1 && SHA=sha256sum || SHA="shasum -a 256"
 BASE_HAS_JQ=0
 if "$BASE_BIN" jq --help >/dev/null 2>&1; then BASE_HAS_JQ=1; fi
 
+# The jq link joins the corpus the same way, once the base binary answers
+# to the jq name.
+BASE_HAS_JQ_LINK=0
+if [ "$BASE_HAS_JQ" = 1 ]; then
+  mkdir -p "$SCRATCH/probe"
+  ln -sf "$(cd "$(dirname "$BASE_BIN")" && pwd)/$(basename "$BASE_BIN")" "$SCRATCH/probe/jq"
+  case "$("$SCRATCH/probe/jq" --version 2>/dev/null | head -1)" in jq-*) BASE_HAS_JQ_LINK=1 ;; esac
+fi
+
 # Example dirs whose operators dial external services, plus shuffle,
 # whose output is nondeterministic by design.
 SKIP="aws aws-targets base64-decode nats nats-targets shuffle targets ternary unified-parser vault vault-defaults vault-migration vault-targets vault-try"
@@ -85,6 +94,19 @@ capture() { # capture BIN OUTDIR
     run_in jq-null     "$WORK/jq-input.json" "$bin" jq -n -c '[inputs]'
     run_in jq-error    "$WORK/jq-input.json" "$bin" jq '.a.b.c'
     run_in jq-compile  "$WORK/jq-input.json" "$bin" jq '.a |'
+  fi
+
+  if [ "$BASE_HAS_JQ_LINK" = 1 ]; then
+    local links jq_link
+    links="$out.links"
+    mkdir -p "$links"
+    ln -sf "$(cd "$(dirname "$bin")" && pwd)/$(basename "$bin")" "$links/jq"
+    jq_link="$links/jq"
+    run_in jqlink-identity "$WORK/jq-input.json" "$jq_link" .
+    run_in jqlink-compact  "$WORK/jq-input.json" "$jq_link" -c '.'
+    run_in jqlink-null     "$WORK/jq-input.json" "$jq_link" -n -c '[inputs]'
+    run_in jqlink-error    "$WORK/jq-input.json" "$jq_link" '.a.b.c'
+    run_in jqlink-compile  "$WORK/jq-input.json" "$jq_link" '.a |'
   fi
 
   (cd "$out" && $SHA ./*.out ./*.err ./*.rc | sort -k2 >MANIFEST)

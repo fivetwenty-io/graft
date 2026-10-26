@@ -32,7 +32,7 @@ const (
 func personaFromArgv0(argv0 string) persona {
 	base := strings.ToLower(filepath.Base(argv0))
 	switch strings.TrimSuffix(base, ".exe") {
-	case "spruce":
+	case spruceName:
 		return personaSpruce
 	case "jq":
 		return personaJQ

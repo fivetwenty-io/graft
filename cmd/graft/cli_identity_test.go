@@ -30,9 +30,10 @@ type helpEntry struct {
 }
 
 var (
-	jqCommandEntry = helpEntry{"Available Commands:", "jq", "Run a jq program over JSON and YAML input"}
-	mergeSortKeys  = helpEntry{"Flags:", "      --sort-keys string", "Order of map keys in the output: spruce (default) or lexical (default \"spruce\")"}
-	jsonSortKeys   = helpEntry{"Flags:", "      --sort-keys string", "Order of object keys in the JSON output: lexical (default) or spruce (default \"lexical\")"}
+	jqCommandEntry      = helpEntry{"Available Commands:", "jq", "Run a jq program over JSON and YAML input"}
+	installAliasesEntry = helpEntry{"Available Commands:", "install-aliases", "Install jq and spruce names that run graft"}
+	mergeSortKeys       = helpEntry{"Flags:", "      --sort-keys string", "Order of map keys in the output: spruce (default) or lexical (default \"spruce\")"}
+	jsonSortKeys        = helpEntry{"Flags:", "      --sort-keys string", "Order of object keys in the JSON output: lexical (default) or spruce (default \"lexical\")"}
 )
 
 // knownAdditions are the only lines a help text may gain over the
@@ -43,8 +44,8 @@ var (
 // moves the description column and nothing else. Every other golden
 // must match byte for byte.
 var knownAdditions = map[string][]helpEntry{
-	"root-help":  {jqCommandEntry},
-	"help":       {jqCommandEntry},
+	"root-help":  {jqCommandEntry, installAliasesEntry},
+	"help":       {jqCommandEntry, installAliasesEntry},
 	"help-merge": {mergeSortKeys},
 	"merge-help": {mergeSortKeys},
 	"json-help":  {jsonSortKeys},
