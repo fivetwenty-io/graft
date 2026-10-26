@@ -12,7 +12,7 @@ const (
 	opJmp                     // continue at x
 	opSave                    // record the position in slot x
 	opLoopCheck               // leave a loop for y when slot x holds the position, as an empty iteration does
-	opAssert                  // test assert at the position
+	opAssert                  // test assert at the position, with set the word runes for a boundary
 	opMatch                   // report a match
 )
 
@@ -214,9 +214,10 @@ func repeatSize(n *node, body int, c saturating) int {
 
 // compiler emits a program for a tree.
 type compiler struct {
-	prog  []inst
-	marks map[*node]int // the loop-mark slot of each repeat that needs one
-	base  int           // the first slot after the capture slots
+	flavor Flavor
+	prog   []inst
+	marks  map[*node]int // the loop-mark slot of each repeat that needs one
+	base   int           // the first slot after the capture slots
 }
 
 // compile lowers the tree to a program that records the whole match in
@@ -228,7 +229,7 @@ func compile(root *node, groups int, cfg *config) ([]inst, int, error) {
 	if size > limit {
 		return nil, 0, overBudget("compiled program exceeds the budget of %d instructions", limit)
 	}
-	c := &compiler{prog: make([]inst, 0, size), marks: map[*node]int{}, base: 2 * groups}
+	c := &compiler{flavor: cfg.flavor, prog: make([]inst, 0, size), marks: map[*node]int{}, base: 2 * groups}
 	c.emit(inst{op: opSave, x: 0})
 	c.node(root)
 	c.emit(inst{op: opSave, x: 1})
@@ -256,7 +257,11 @@ func (c *compiler) node(n *node) {
 			c.emit(inst{op: opAnyNotNL})
 		}
 	case kindAssert:
-		c.emit(inst{op: opAssert, assert: n.assert})
+		in := inst{op: opAssert, assert: n.assert}
+		if n.assert == assertWordBoundary || n.assert == assertNotBoundary {
+			in.set = escapeClass('w', c.flavor)
+		}
+		c.emit(in)
 	case kindConcat:
 		for _, s := range n.subs {
 			c.node(s)

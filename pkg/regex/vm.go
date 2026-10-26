@@ -197,7 +197,7 @@ func (m *machine) run(start int, longest bool) (bool, error) {
 			}
 			continue
 		case opAssert:
-			if m.assert(in.assert, pos) {
+			if m.assert(in, pos) {
 				pc++
 				continue
 			}
@@ -253,13 +253,25 @@ func decodeAt(s string, pos int) (rune, int) {
 	return utf8.DecodeRuneInString(s[pos:])
 }
 
-func (m *machine) assert(kind assertKind, pos int) bool {
+func (m *machine) assert(in *inst, pos int) bool {
 	s := m.subject
-	switch kind {
+	switch in.assert {
 	case assertBeginText:
 		return pos == 0
 	case assertEndText:
 		return pos == len(s) || (pos == len(s)-1 && s[pos] == '\n')
+	case assertEndSubject:
+		return pos == len(s)
+	case assertWordBoundary, assertNotBoundary:
+		before, after := false, false
+		if pos > 0 {
+			c, _ := utf8.DecodeLastRuneInString(s[:pos])
+			before = in.set.contains(c)
+		}
+		if c, w := decodeAt(s, pos); w > 0 {
+			after = in.set.contains(c)
+		}
+		return (before != after) == (in.assert == assertWordBoundary)
 	}
 	return false
 }

@@ -38,16 +38,18 @@ The engine supports literals and the escapes \a, \e, \f, \n, \r, \t, \0,
 classes ., \N, \d, \w, and \s, with \h and \v under PCRE, and their
 negations. It supports \p{...} and \P{...} over Unicode categories, scripts,
 and binary properties, and bracket classes with ranges, negation, and POSIX
-names. It also supports the anchors ^ and $, greedy and lazy quantifiers,
-alternation, numbered groups, named groups written (?<name>...),
-(?'name'...), or (?P<name>...), non-capturing groups, and comments. ^ matches
-only at the start of the subject and $ only at its end or before a final
-newline.
+names. It also supports the anchors ^ and $, the assertions \A, \z, \Z, \b,
+and \B, quoted sequences \Q...\E, greedy and lazy quantifiers, alternation,
+numbered groups, named groups written (?<name>...), (?'name'...), or
+(?P<name>...), non-capturing groups, and comments. ^ and \A match only at the
+start of the subject, $ and \Z only at its end or before a final newline,
+and \z only at its end. \b and \B test for a boundary between a \w rune and
+a rune that is not one, so they follow the flavor's \w.
 
 Lookaround, backreferences, atomic groups, possessive quantifiers, inline
-flag groups, \Q...\E, the assertions \A, \z, \Z, \b, \B, and \G, and the
-rarer PCRE constructs such as recursion and conditionals are recognized and
-refused with an UnsupportedError that names them.
+flag groups, the assertion \G, and the rarer PCRE constructs such as
+recursion and conditionals are recognized and refused with an
+UnsupportedError that names them.
 
 # Budgets
 

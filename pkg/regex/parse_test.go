@@ -5,7 +5,7 @@ import (
 )
 
 func TestUnsupportedConstructsAreNamedInJ1(t *testing.T) {
-	for _, pat := range []string{`(?=a)`, `(?!a)`, `(?<=a)b`, `(a)\1`, `(?>a)`, `a*+`, `(?i)a`, `\Qa.b\E`} {
+	for _, pat := range []string{`(?=a)`, `(?!a)`, `(?<=a)b`, `(a)\1`, `(?>a)`, `a*+`, `(?i)a`} {
 		_, err := Compile(pat)
 		var u *UnsupportedError
 		wantErrAs(t, err, &u)
@@ -62,12 +62,6 @@ func TestUnsupportedConstructNames(t *testing.T) {
 		`(?i)a`:                    "inline flag group (?i)",
 		`(?i:a)`:                   "inline flag group (?i:...)",
 		`(?-x)a`:                   "inline flag group (?-x)",
-		`\Qa.b\E`:                  `quoted sequence \Q...\E`,
-		`\bx`:                      `assertion \b`,
-		`\Bx`:                      `assertion \B`,
-		`\Ax`:                      `assertion \A`,
-		`x\z`:                      `assertion \z`,
-		`x\Z`:                      `assertion \Z`,
 		`\Gx`:                      `assertion \G`,
 		`x\Ky`:                     `match reset \K`,
 		`\X`:                       `extended grapheme cluster \X`,

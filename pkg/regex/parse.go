@@ -29,6 +29,9 @@ type parser struct {
 	// draw on the instruction budget.
 	classes   map[string]*node
 	classCost int
+
+	// quoting is set between \Q and \E, where every rune is a literal.
+	quoting bool
 }
 
 // parse turns a pattern into a tree and returns the group names, group 0
@@ -79,7 +82,7 @@ func (p *parser) lookingAt(s string) bool { return strings.HasPrefix(p.src[p.pos
 
 // skipExtended skips whitespace and comments under the Extended flag.
 func (p *parser) skipExtended() {
-	if !p.cfg.has(Extended) {
+	if !p.cfg.has(Extended) || p.quoting {
 		return
 	}
 	for !p.eof() {
@@ -136,7 +139,7 @@ func (p *parser) concat() (*node, error) {
 	seq := &node{kind: kindConcat}
 	for {
 		p.skipExtended()
-		if p.eof() || p.peek() == '|' || p.peek() == ')' {
+		if p.eof() || !p.quoting && (p.peek() == '|' || p.peek() == ')') {
 			break
 		}
 		atom, err := p.atom()
@@ -184,6 +187,9 @@ func (seq *node) append(n *node) {
 
 // refuseQuantifier reports a quantifier that follows nothing repeatable.
 func (p *parser) refuseQuantifier() error {
+	if p.quoting {
+		return nil
+	}
 	p.skipExtended()
 	if _, _, _, ok := p.scanQuantifier(); ok {
 		return p.errorAt(p.pos, "quantifier does not follow a repeatable item")
@@ -258,6 +264,13 @@ func parseCount(s string) int {
 
 // quantified applies the quantifier that follows atom, if there is one.
 func (p *parser) quantified(atom *node) (*node, error) {
+	if p.quoting {
+		if !p.lookingAt(`\E`) {
+			return atom, nil // a quoted quantifier is a literal
+		}
+		p.pos += 2
+		p.quoting = false
+	}
 	p.skipExtended()
 	qpos := p.pos
 	lo, hi, width, ok := p.scanQuantifier()
@@ -295,6 +308,9 @@ func (p *parser) quantified(atom *node) (*node, error) {
 // atom parses one item that a quantifier can follow. It returns nil for an
 // item that matches nothing at all, such as a comment.
 func (p *parser) atom() (*node, error) {
+	if p.quoting {
+		return p.quoted()
+	}
 	start := p.pos
 	r, err := p.next()
 	if err != nil {
@@ -321,6 +337,21 @@ func (p *parser) atom() (*node, error) {
 			return nil, p.errorAt(start, "quantifier does not follow a repeatable item")
 		}
 		p.pos++
+	}
+	return p.literal(r), nil
+}
+
+// quoted reads one rune between \Q and \E, or the \E that ends the quote,
+// which matches nothing.
+func (p *parser) quoted() (*node, error) {
+	if p.lookingAt(`\E`) {
+		p.pos += 2
+		p.quoting = false
+		return nil, nil
+	}
+	r, err := p.next()
+	if err != nil {
+		return nil, err
 	}
 	return p.literal(r), nil
 }
@@ -539,8 +570,18 @@ func (p *parser) escape(start int) (*node, error) {
 			return nil, unsupported(`named character \N{...}`)
 		}
 		return &node{kind: kindAny}, nil
-	case 'b', 'B', 'A', 'z', 'Z', 'G':
-		return nil, unsupported(`assertion \` + string(r))
+	case 'A':
+		return &node{kind: kindAssert, assert: assertBeginText}, nil
+	case 'Z':
+		return &node{kind: kindAssert, assert: assertEndText}, nil
+	case 'z':
+		return &node{kind: kindAssert, assert: assertEndSubject}, nil
+	case 'b':
+		return &node{kind: kindAssert, assert: assertWordBoundary}, nil
+	case 'B':
+		return &node{kind: kindAssert, assert: assertNotBoundary}, nil
+	case 'G':
+		return nil, unsupported(`assertion \G`)
 	case 'K':
 		return nil, unsupported(`match reset \K`)
 	case 'X':
@@ -548,7 +589,8 @@ func (p *parser) escape(start int) (*node, error) {
 	case 'R':
 		return nil, unsupported(`newline sequence \R`)
 	case 'Q':
-		return nil, unsupported(`quoted sequence \Q...\E`)
+		p.quoting = true
+		return nil, nil
 	case 'E':
 		return nil, nil // a stray \E is ignored
 	case 'k':
@@ -799,6 +841,14 @@ func (p *parser) class(start int) (*node, error) {
 // or a POSIX name goes on kept.
 func (p *parser) classItem(folded []runeRange, kept []runeSet) ([]runeRange, []runeSet, error) {
 	itemPos := p.pos
+	switch {
+	case p.lookingAt(`\Q`):
+		folded, err := p.quotedClassItems(folded)
+		return folded, kept, err
+	case p.lookingAt(`\E`):
+		p.pos += 2 // a stray \E is ignored
+		return folded, kept, nil
+	}
 	if p.lookingAt("[:") {
 		set, ok, err := p.posix()
 		if err != nil {
@@ -834,6 +884,24 @@ func (p *parser) classItem(folded []runeRange, kept []runeSet) ([]runeRange, []r
 		}
 	}
 	return append(folded, runeRange{lo, hi}), kept, nil
+}
+
+// quotedClassItems reads the runes between \Q and \E in a class, each a
+// literal item. A quote that runs to the end of the pattern leaves the
+// class unterminated for the caller to report.
+func (p *parser) quotedClassItems(folded []runeRange) ([]runeRange, error) {
+	p.pos += 2
+	for !p.eof() && !p.lookingAt(`\E`) {
+		r, err := p.next()
+		if err != nil {
+			return nil, err
+		}
+		folded = append(folded, runeRange{r, r})
+	}
+	if !p.eof() {
+		p.pos += 2
+	}
+	return folded, nil
 }
 
 // classNode builds the class whose text is text from its items. PCRE folds
@@ -951,8 +1019,6 @@ func (p *parser) classAtom() (rune, runeSet, error) {
 		return '\b', nil, nil
 	case 'N':
 		return 0, nil, p.errorAt(start, `\N is not supported in a class`)
-	case 'Q':
-		return 0, nil, unsupported(`quoted sequence \Q...\E`)
 	case '1', '2', '3', '4', '5', '6', '7':
 		p.pos--
 		c, err := p.number(start, 8, 3, 1)
