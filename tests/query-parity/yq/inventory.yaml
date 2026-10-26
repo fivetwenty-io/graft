@@ -144,6 +144,10 @@
   area: exit
   phase: Y1
   cases: [e-inplace-parse-failure]
+- id: e-json-number-beyond-double
+  area: format
+  phase: Y1
+  cases: [e-json-number-beyond-double]
 - id: e-load-missing
   area: exit
   phase: Y1
@@ -632,6 +636,10 @@
   area: meta
   phase: Y1
   cases: [m-anchor-set-relative]
+- id: m-assign-merged-key
+  area: meta
+  phase: Y1
+  cases: [m-assign-merged-key]
 - id: m-column
   area: meta
   phase: Y1
@@ -660,6 +668,10 @@
   area: meta
   phase: Y1
   cases: [m-comments-survey]
+- id: m-delete-merged-key
+  area: meta
+  phase: Y1
+  cases: [m-delete-merged-key]
 - id: m-doc-comments-multi
   area: meta
   phase: Y1
@@ -896,6 +908,10 @@
   area: meta
   phase: Y1
   cases: [m-parents]
+- id: m-path-merged-children
+  area: meta
+  phase: Y1
+  cases: [m-path-merged-children]
 - id: m-style-double
   area: meta
   phase: Y1
@@ -952,6 +968,22 @@
   area: meta
   phase: Y1
   cases: [m-trailing-separator]
+- id: m-update-merged-iterate-default
+  area: meta
+  phase: Y1
+  cases: [m-update-merged-iterate-default]
+- id: m-update-merged-iterate-spec
+  area: meta
+  phase: Y1
+  cases: [m-update-merged-iterate-spec]
+- id: m-update-merged-sequence-default
+  area: meta
+  phase: Y1
+  cases: [m-update-merged-sequence-default]
+- id: m-update-merged-sequence-spec
+  area: meta
+  phase: Y1
+  cases: [m-update-merged-sequence-spec]
 - id: n-add-big-integer-float
   area: operator
   phase: Y1
@@ -1012,6 +1044,10 @@
   area: operator
   phase: Y1
   cases: [n-json-float-add]
+- id: n-json-int64-boundary
+  area: operator
+  phase: Y1
+  cases: [n-json-int64-boundary]
 - id: n-literal-beyond-double
   area: operator
   phase: Y1

@@ -1,11 +1,11 @@
 # area total allowlisted passing percent
-operator 349 22 326 93
+operator 350 22 327 93
 flag 65 3 60 92
 exit 30 0 30 100
-format 16 1 15 93
-meta 95 4 91 95
+format 17 1 16 94
+meta 102 4 98 96
 cli 35 1 34 97
-overall 590 31 556 94
+overall 599 31 565 94
 out-of-scope 25
 allow c-multi-doc-comments-stripped pending Y2 Y1 behavior deferred to Task 47
 allow fl-colors-json pending Y2 yq color layout
