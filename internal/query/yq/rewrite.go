@@ -29,6 +29,10 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 			if sameList(n.L, n.R) {
 				n.R = &ast.Call{Name: "_yq_none"}
 			}
+		case *ast.Pipe:
+			if varLookup(n.R) {
+				n.L = &ast.Call{Name: "limit", Args: []ast.Node{&ast.Literal{Value: ast.Number("1")}, n.L}}
+			}
 		case *ast.ObjectCons:
 			for i, e := range n.Entries {
 				if !textKey(e.Key) {
@@ -48,6 +52,36 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 		return nil, err
 	}
 	return n, nil
+}
+
+// varLookup reports whether n starts with an index of a variable by a
+// key that reads its input. yq runs the right side of a pipe once over
+// all the left side's nodes, and such an index takes only the first node
+// for its key.
+func varLookup(n ast.Node) bool {
+	if p, ok := n.(*ast.Pipe); ok {
+		n = p.L
+	}
+	idx, ok := n.(*ast.Index)
+	if !ok {
+		return false
+	}
+	if _, ok := idx.Target.(*ast.Var); !ok {
+		return false
+	}
+	switch k := idx.Key.(type) {
+	case *ast.Literal:
+		return false
+	case *ast.Str:
+		for _, part := range k.Parts {
+			if _, ok := part.(*ast.Literal); !ok {
+				return true
+			}
+		}
+		return false
+	default:
+	}
+	return true
 }
 
 // textKey reports whether an object key is text as written, so it needs

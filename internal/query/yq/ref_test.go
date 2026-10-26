@@ -16,3 +16,11 @@ func TestYQRefVariable(t *testing.T) {
 	wantYQ(t, `.cfg.mode as $m | .cfg.mode = "z" | $m`, in, "off\n")
 	wantYQ(t, `.l[0] ref $x | .l[1] = $x`, in, "cfg:\n  mode: off\nl: [1, 1]\n")
 }
+
+func TestYQVariableLookupTakesFirstNode(t *testing.T) {
+	in := "names: {a: Alice, b: Bob}\nids: [b, a]\n"
+	// yq runs the right side once over every node on the left, and an
+	// index by a key read from that input takes only the first node.
+	wantYQ(t, `.names as $n | .ids[] | $n[.]`, in, "Bob\n")
+	wantYQ(t, `.names as $n | .ids[] | $n["a"]`, in, "Alice\nAlice\n")
+}
