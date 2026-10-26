@@ -33,9 +33,17 @@ Run jq programs over JSON and YAML, with a merge first if we want one.
 - Exit codes, diagnostics, and the departures from jq
 - Measured compatibility with jq 1.8.2
 
+### [yq](yq.md)
+
+Run yq expressions over YAML and JSON, keeping comments and styles, with a merge first if we want one.
+
+- `graft yq` with yq's flags, plus `-S`, `-m`, and `-E`
+- Exit codes, diagnostics, and the departures from yq
+- The flags that are accepted but inert
+
 ### [Aliases](aliases.md)
 
-Run graft under the names `jq` and `spruce`.
+Run graft under the names `jq`, `yq`, and `spruce`.
 
 - `ln -s` and `graft install-aliases`
 - Windows copies and removal
