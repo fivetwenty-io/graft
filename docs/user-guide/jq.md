@@ -1,6 +1,6 @@
 # jq Command
 
-Run jq programs over JSON and YAML, with graft's own engine and no jq binary installed.
+Run jq programs over JSON and YAML, with graft's own engine, so no jq binary is needed.
 
 ## Usage
 
@@ -10,7 +10,7 @@ graft jq [flags] --args PROGRAM [STRING...]
 graft jq [flags] --jsonargs PROGRAM [JSON...]
 ```
 
-`graft jq` takes jq's flags, reads JSON or YAML from each file or from standard input, runs the program, and writes JSON. We target jq 1.8.2, so a script that calls `jq` can call `graft jq` with the same flags, the same program, and the same inputs, and get the same output and the same exit code. The departures are listed below, and there are only a handful of them.
+`graft jq` takes jq's flags, reads JSON or YAML from each file or from standard input, runs the program, and writes JSON. We target jq 1.8.2, so a script that calls `jq` can call `graft jq` with the same flags, the same program, and the same inputs, and get the same output and the same exit code. The departures are listed below.
 
 ```sh
 $ graft jq '.items[].n' config.yml
@@ -41,13 +41,13 @@ $ echo '{a: 1}' | graft jq --input-format yaml -c .
 
 ## Output
 
-The default output is JSON, indented by two spaces. `-c` prints each result on one line, `--tab` indents with a tab, and `--indent N` indents with N spaces, from 0 to 7. `-r`, `-j`, and `--raw-output0` print strings without quotes, with no newline, or with a NUL after each result. `-a` escapes everything outside ASCII, and `-C` and `-M` force or forbid color.
+The default output is JSON, indented by two spaces. `-c` prints each result on one line, `--tab` indents with a tab, and `--indent N` indents with N spaces, from -1 to 7, where -1 means a tab. `-r`, `-j`, and `--raw-output0` print strings without quotes, with no newline, or with a NUL after each result. `-a` escapes everything outside ASCII, and `-C` and `-M` force or forbid color.
 
 `-o yaml`, which can also be written `-o y`, prints each result as a YAML document instead. jq has no such flag, so this one is graft's own.
 
 ## Flags
 
-The table lists every flag. A phase note means the flag is accepted by the parser but not wired up yet, and graft answers with a usage error and exit code 2 until that release.
+The table lists the flags that matter here, and `--color` and `--no-color` work as they do for the other graft commands. A phase note means the flag is accepted by the parser but not wired up yet, and graft answers with a usage error and exit code 2 until that release.
 
 | Flag | Meaning | Status |
 |------|---------|--------|
@@ -97,7 +97,7 @@ $ graft jq -E --prune meta -c . base.yml
 {"a":2,"name":"x","z":1}
 ```
 
-Because the merge builds a map, the merged document's keys come out in graft's usual order, with numbers first and then names in natural order. Pass `--sort-keys=lexical` when we want the keys ordered by code point instead.
+Because the merge builds a map, the merged document's keys come out in graft's usual order, with numeric keys first and then names in natural order. For example, merging a file that holds the keys `10`, `9`, `b`, and `a` prints them as `9`, `10`, `a`, and `b`. Pass `--sort-keys=lexical` when we want the keys ordered by code point instead.
 
 ## Sorting keys
 
@@ -126,7 +126,7 @@ jq looks only at the last output for `-e`, so `(false, true)` exits 0 and `(true
 
 ## Diagnostics
 
-Errors use graft's style, which is a red bold phrase, a colon, and the detail. Color on standard error follows `--color`, `--no-color`, `NO_COLOR`, and whether standard error is a terminal, exactly as `graft merge` does.
+Errors use graft's style, which is a bold red phrase, a colon, and the detail. Color on standard error follows `--color`, `--no-color`, `NO_COLOR`, and whether standard error is a terminal, exactly as `graft merge` does.
 
 | Phrase | When |
 |--------|------|
@@ -159,33 +159,33 @@ These are the places where `graft jq` deliberately differs from jq 1.8.2.
   `-o yaml`, `-S` with named modes, `-m`, `-E`, and `--repl` are graft's own. None of them collides with a jq flag.
 
 - Names and help
-  Only the exact names `jq` and `jq.exe` dispatch to this command when graft is linked under them, so a link named `jq-1.7` runs as graft. Under the `jq` name, `--version` leads with jq's version line and then prints graft's own. `--help` shows graft's layout rather than jq's text. See [Aliases](aliases.md).
+  Only the exact name `jq` dispatches to this command, and a link named `jq-1.7` runs as graft. Under the `jq` name, `--version` leads with jq's version line and then prints graft's own. `--help` shows graft's layout rather than jq's text. See [Aliases](aliases.md).
 
 ## Debugging with --repl
 
-`graft jq --repl PROGRAM FILE` opens the graft debugger on the inputs. In a debug session, the `jq`, `yq`, `select`, and `watch` verbs run queries over the tree as it stands at the current step, and `break jq:EXPR` stops where a query matches. The [debug command](cli/debug.md) page describes each verb.
+`graft jq --repl PROGRAM FILE` opens the graft debugger on the inputs. In a debug session, the `jq`, `select`, and `watch` verbs run queries over the tree as it stands at the current step, and `break jq:EXPR` stops where a query matches. The `yq` verb exists but answers that it is not available until a later release. The [debug command](cli/debug.md) page describes each verb.
 
 ## Compatibility
 
-We measure compatibility against a coverage inventory of jq behaviors. Each entry passes when every differential case it names matches a golden recorded from the real jq 1.8.2. The percentages below come from `tests/query-parity/jq/report.txt`, and they are measured at the end of phase J1. The J1 floor is 70 percent overall.
+We measure compatibility against a coverage inventory of jq behaviors. Each entry passes when every differential case it names matches a golden recorded from the real jq 1.8.2. The percentages below come from `tests/query-parity/jq/report.txt`, and each one was measured at the end of phase J1, which is the release this page describes. The last column says when we expect the figure to rise.
 
-| Area | Passing |
-|------|---------|
-| Grammar | 99% |
-| Builtins | 99% |
-| Flags | 84% |
-| Exit codes | 88% |
-| Numbers | 80% |
-| Strings | 97% |
-| Regular expressions | 90% |
-| Dates | 78% |
-| Math | 73% |
-| Modules | 5% |
-| Streaming | 0% |
-| CLI | 84% |
-| Overall | 87% |
+| Area | Passing | Phase measured | Expected to rise |
+|------|---------|----------------|------------------|
+| Grammar | 99% | J1 | J2 |
+| Builtins | 99% | J1 | J2 |
+| Flags | 84% | J1 | J2 |
+| Exit codes | 88% | J1 | J2 |
+| Numbers | 80% | J1 | J2 |
+| Strings | 97% | J1 | J2 |
+| Regular expressions | 90% | J1 | J3 |
+| Dates | 78% | J1 | J2 |
+| Math | 73% | J1 | J2 |
+| Modules | 5% | J1 | J2 |
+| Streaming | 0% | J1 | J2 |
+| CLI | 84% | J1 | J3 |
+| Overall | 87% | J1 | J2 |
 
-Modules and streaming sit near zero because they ship in phase J2. Phase J2 is the complete language and raises the overall floor to 97 percent, and phase J3 hardens the result and raises it to 99 percent. Each phase is a plain minor release.
+Modules and streaming sit near zero because they arrive in phase J2, which completes the language with regular expressions, dates, math, formats, modules, and streaming. Phase J3 hardens the result with performance work, fuzzing, and the remaining regular expression flavor. Each phase is a plain minor release.
 
 ## Related
 

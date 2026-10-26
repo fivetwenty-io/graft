@@ -7,17 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, and `graft install-aliases`, which lets graft answer to the names `jq` and `spruce`. It is the first of three jq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 87 percent overall, and the per-area figures are in [the jq guide](docs/user-guide/jq.md).
+This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, and `graft install-aliases`, which lets graft answer to the names `jq` and `spruce`. It is the first of three jq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 87 percent overall at the end of phase J1, and the per-area figures are in [the jq guide](docs/user-guide/jq.md).
 
 ### Added
 
 - `graft jq` runs a jq program over JSON or YAML from files or standard input, with jq's flags for input, output, variables, and exit status. It also reads multi-document YAML streams, prints YAML with `-o yaml`, sorts keys with `-S` and `--sort-keys=lexical|spruce|none`, and runs `graft merge` or per-document operator evaluation first with `-m` and `-E`. Errors use graft's diagnostics, and exit codes match jq's.
 
-- The `graft jq` compatibility report records 99 percent for grammar, 99 percent for builtins, 97 percent for strings, 90 percent for regular expressions, 88 percent for exit codes, 84 percent for flags and for the CLI, 80 percent for numbers, 78 percent for dates, 73 percent for math, 5 percent for modules, and 0 percent for streaming, which is 87 percent overall. Modules and streaming (`-L`, `import`, `--stream`, and `--seq`) arrive in the next phase, and until then `-L`, `--stream`, and `--seq` answer with a usage error and exit code 2.
+- The compatibility report for this first phase, J1, puts `graft jq` at 87 percent overall. The figures by area are in the table below. Modules and streaming sit near zero because both arrive in phase J2, and until then `-L`, `--stream`, and `--seq` answer with a usage error and exit code 2.
+
+  | Area | Passing | Phase |
+  |------|---------|-------|
+  | Grammar | 99% | J1 |
+  | Builtins | 99% | J1 |
+  | Strings | 97% | J1 |
+  | Regular expressions | 90% | J1 |
+  | Exit codes | 88% | J1 |
+  | Flags | 84% | J1 |
+  | CLI | 84% | J1 |
+  | Numbers | 80% | J1 |
+  | Dates | 78% | J1 |
+  | Math | 73% | J1 |
+  | Modules | 5% | J1 |
+  | Streaming | 0% | J1 |
 
 - `graft install-aliases` links `jq` and `spruce` to graft, or installs copies on Windows, and `--remove` takes them away again. A link named exactly `jq` runs `graft jq`.
 
-- `graft jq --repl` opens the debugger on the inputs, and `graft debug` gains the `jq`, `yq`, `select`, and `watch` query verbs and `break jq:` paths.
+- `graft jq --repl` opens the debugger on the inputs, and `graft debug` gains the `jq`, `select`, and `watch` query verbs and `break jq:` paths. The `yq` verb is present but answers that it is not available until a later release.
 
 - The Go packages `pkg/jq`, `pkg/query`, `pkg/query/value`, `pkg/regex`, `pkg/decimal`, and `pkg/sortkeys` are new and experimental until `graft jq` is complete, so their exported names may change between minor releases.
 

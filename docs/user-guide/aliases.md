@@ -6,7 +6,7 @@ Graft looks at the name it was run under, and it behaves as a different tool whe
 
 Scripts and tools call `jq` and `spruce` by name. When graft runs under one of those names, those callers get graft without any change to the script. Genesis relies on this for `spruce`, and `jq` now works the same way through `graft jq`.
 
-Only the exact names `jq` and `spruce` dispatch, with an optional `.exe` suffix on Windows. A link named `jq-1.7` runs as plain graft.
+Only the exact names `jq` and `spruce` dispatch, with an optional `.exe` suffix on Windows. A link named `jq-1.7` runs as plain graft. The [jq page](jq.md) describes what changes under the `jq` name.
 
 ## Linking by hand
 
@@ -30,7 +30,7 @@ graft install-aliases --dry-run
 graft install-aliases jq
 ```
 
-With no names, it installs both `jq` and `spruce`. Name one or more aliases to install only those. The links go in the directory graft was run from unless `--dir` says otherwise, and they point at the path graft was run by. Where the system reports only the resolved path, as Linux does, that path is used.
+With no names, it installs both `jq` and `spruce`. Name one or more aliases to install only those. The links go in the directory that holds graft unless `--dir` says otherwise. They point at the path we ran graft by, or at the resolved path on systems such as Linux that report only that.
 
 | Flag | Meaning |
 |------|---------|
@@ -64,12 +64,12 @@ This removes only links to this graft and copies of it. A file with the same nam
 
 A link named `jq` shadows a real jq that sits elsewhere on `PATH`, and which one wins depends on the order of the directories. If a script behaves differently after we install the alias, `command -v jq` shows which one runs. `jq --version` under the alias prints jq's version line first, then graft's own, so the two are easy to tell apart.
 
-The `spruce` alias leads its version output with the exact line spruce prints, which is what the Genesis version gate reads.
+When we run it from `PATH`, the `spruce` alias leads its version output with the exact line spruce prints, which is what the Genesis version gate reads.
 
 ```sh
 $ spruce --version
-spruce - Version 1.42.5
-graft version 1.42.5 (commit: ..., built: ..., go: ..., os/arch: ...)
+spruce - Version X.Y.Z
+graft version X.Y.Z (commit: ..., built: ..., go: ..., os/arch: ...)
 ```
 
 Under the `jq` name, graft's own persistent flags such as `--debug` and `--trace` are not registered, because jq's flag set takes precedence. The `graft jq` form accepts them.
