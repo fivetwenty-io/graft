@@ -16,8 +16,8 @@ import (
 )
 
 // j1Names is the J1 builtin list from the spec as name/arity tokens. The
-// regex family and the dates wait for J2, and the formats are checked
-// under their @ names.
+// regex family has its own tests, the dates wait for J2, and the formats
+// are checked under their @ names.
 const j1Names = `
 length/0 utf8bytelength/0 not/0 keys/0 keys_unsorted/0 has/1 in/1 map/1
 map_values/1 path/1 paths/0 paths/1 leaf_paths/0 getpath/1 setpath/2

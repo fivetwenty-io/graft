@@ -31,7 +31,7 @@ func TestCoreBuiltinBehaviors(t *testing.T) {
 	wantOutputs(t, `to_entries`, `{"b":1,"a":2}`, `[{"key":"b","value":1},{"key":"a","value":2}]`)
 	wantOutputs(t, `[.[] | select(. > 1)]`, `[1,2,3]`, `[2,3]`)
 	wantOutputs(t, `group_by(.a) | map(length)`, `[{"a":1},{"a":2},{"a":1}]`, `[2,1]`)
-	wantOutputs(t, `[splits(", ")]`, `"a, b"`, `["a","b"]`) // J1 defines splits over split/1; J2 replaces it with the regex form
+	wantOutputs(t, `[splits(", ")]`, `"a, b"`, `["a","b"]`) // splits takes a regex
 	wantOutputs(t, `@csv, @tsv, @sh`, `["a b",1]`, `"\"a b\",1"`, `"a b\t1"`, `"'a b' 1"`)
 	wantOutputs(t, `@html, @uri, @base64, (@base64 | @base64d)`, `[1,"a"]`, `"[1,&quot;a&quot;]"`, `"%5B1%2C%22a%22%5D"`, `"WzEsImEiXQ=="`, `"[1,\"a\"]"`) // non-strings format their JSON text, pinned jq 1.8.2
 	wantOutputs(t, `@html "<\(.)>&"`, `"x"`, `"<x>&"`)                                                                                                     // only the interpolated segment is escaped

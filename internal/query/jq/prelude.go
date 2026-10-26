@@ -32,6 +32,7 @@ func registry() *runtime.Registry {
 	regOnce.Do(func() {
 		r := &runtime.Registry{}
 		builtin.RegisterCore(r)
+		builtin.RegisterRegex(r)
 		registerJQ(r)
 		prog, err := parser.ParseFile(Prelude, preludeFile, Grammar())
 		if err != nil {
