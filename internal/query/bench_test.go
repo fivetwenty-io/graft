@@ -14,28 +14,26 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
-// benchBytes is the size of the generated input, which GRAFT_BENCH_BYTES
-// overrides for a quick run.
-const benchBytes = 50 << 20
-
 var (
 	inputOnce sync.Once
 	inputText string
 )
 
-// largeInput returns a JSON array of small objects about benchBytes long.
+// largeInput returns a JSON array of small objects about GRAFT_BENCH_BYTES
+// long, and skips the benchmark when it is unset so that a plain make bench
+// stays small. make bench-query sets it to 50 MiB.
 // tests/query-bench/gen-input.sh writes the same document for jq.
 func largeInput(b *testing.B) string {
 	b.Helper()
+	v := os.Getenv("GRAFT_BENCH_BYTES")
+	if v == "" {
+		b.Skip("GRAFT_BENCH_BYTES is unset, and make bench-query sets it")
+	}
+	size, err := strconv.Atoi(v)
+	if err != nil || size < 1 {
+		b.Fatalf("GRAFT_BENCH_BYTES must be a positive number, got %q", v)
+	}
 	inputOnce.Do(func() {
-		size := benchBytes
-		if v := os.Getenv("GRAFT_BENCH_BYTES"); v != "" {
-			n, err := strconv.Atoi(v)
-			if err != nil || n < 1 {
-				b.Fatalf("GRAFT_BENCH_BYTES must be a positive number, got %q", v)
-			}
-			size = n
-		}
 		var buf bytes.Buffer
 		buf.Grow(size + 256)
 		buf.WriteByte('[')

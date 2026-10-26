@@ -374,9 +374,9 @@ bench-full: ## Run comprehensive benchmarks (10s)
 	@go test -bench=. -benchmem -benchtime=10s ./...
 	@printf "$(GREEN)✓ Benchmarks complete$(RESET)\n"
 
-bench-query: ## Run the graft jq benchmarks (opt-in; GRAFT_BENCH_BYTES shrinks the input)
+bench-query: ## Run the graft jq benchmarks (opt-in; GRAFT_BENCH_BYTES sizes the input, BENCH_QUERY_FLAGS adds go test flags)
 	@printf "$(GREEN)Running query benchmarks...$(RESET)\n"
-	@go test -run '^$$' -bench . -benchmem ./internal/query/
+	@GRAFT_BENCH_BYTES=$${GRAFT_BENCH_BYTES:-52428800} go test -run '^$$' -bench . -benchmem $(BENCH_QUERY_FLAGS) ./internal/query/
 	@printf "$(GREEN)✓ Query benchmarks complete$(RESET)\n"
 
 ##@ Dependencies
