@@ -75,7 +75,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 .PHONY: validate-imports validate-imports-example
 .PHONY: oracle-vectors diff-goldens diff-oracle-check byte-identity
 .PHONY: test-query-parity jq-oracle-check jq-oracle-refresh query-oracle-audit
-.PHONY: test-regex-parity regex-oracle-check regex-oracle-refresh
+.PHONY: test-regex-parity regex-oracle-check regex-oracle-refresh fuzz-regex
 
 ##@ General
 
@@ -519,7 +519,7 @@ query-oracle-audit: ## Run graft and the reference binaries side by side over th
 
 # The regex parity goldens were recorded from the pinned jq and pcre2test,
 # and test-regex-parity replays them with neither binary installed. The
-# oracle targets run by hand, and no other target calls them.
+# oracle targets and fuzz-regex run by hand, and no other target calls them.
 
 test-regex-parity: ## Replay the regex parity goldens under tests/regex-parity
 	@printf "$(GREEN)Replaying regex parity goldens...$(RESET)\n"
@@ -532,3 +532,8 @@ regex-oracle-check: ## Fail when a regex parity golden no longer matches jq or p
 regex-oracle-refresh: ## Re-record the regex parity goldens from jq and pcre2test
 	@printf "$(GREEN)Recording regex parity goldens...$(RESET)\n"
 	@tests/regex-parity/gen.sh
+
+fuzz-regex: ## Fuzz the regex engine for 30 seconds a target
+	@printf "$(GREEN)Fuzzing the regex engine...$(RESET)\n"
+	@go test ./pkg/regex/ -run '^$$' -fuzz '^FuzzCompile$$' -fuzztime 30s
+	@go test ./pkg/regex/ -run '^$$' -fuzz '^FuzzFind$$' -fuzztime 30s
