@@ -370,7 +370,7 @@ EOF — it never reads a merge document from stdin.
 | `--prune <key>` | Same meaning as `merge --prune`; may be given more than once. Not applied to the session's own `step`/`output`/`export`/`history` (they always show the pre-prune tree); see `prune-report`. |
 | `--cherry-pick <key>` | Same meaning as `merge --cherry-pick`; may be given more than once. Same `--prune` caveat. |
 | `--jq <program>` | Run a jq program once against the merged inputs before the prompt appears. It stays the program a bare `jq` verb runs. |
-| `--yq <expression>` | The same for a yq expression. yq is not available until a later release. |
+| `--yq <expression>` | The same for a yq expression. |
 
 These are the only `merge` flags `debug`/`merge --interactive` honor. The
 remaining `merge` flags are not accepted by `debug` and have no meaning

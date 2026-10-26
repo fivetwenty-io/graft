@@ -26,7 +26,7 @@ it cannot also read a document from stdin the way `merge`/`json` do.
 | `--prune <key>` | Same meaning as `merge --prune`: mark a key to remove from the final output. May be given more than once. Does not affect `step`/`output`/`export`/`history` while stepping — see below — use `prune-report` to see what it would remove. |
 | `--cherry-pick <key>` | Same meaning as `merge --cherry-pick`: the opposite of `--prune`, keep only the given keys. Same `output`/`history` caveat as `--prune`. |
 | `--jq <program>` | Run a jq program once against the fully merged inputs before the prompt appears. The program stays the one a bare `jq` runs. |
-| `--yq <expression>` | The same for a yq expression. yq is not available until a later release. |
+| `--yq <expression>` | The same for a yq expression. |
 
 `--skip-eval`/`--dataflow-order`/`--history`/`--trace-path`/
 `--show-changes`/`--changes-only` have no meaning for an interactive
@@ -90,7 +90,7 @@ The debug REPL provides interactive control over the merge process:
 | `export <file>` | Export the current state to file (YAML, or JSON if the name ends `.json`) |
 | `help [command]` | Show command list, or detail for one command |
 | `jq <program>` | Run a jq program on the current tree |
-| `yq <expression>` | Run a yq expression on the current tree (not available until a later release) |
+| `yq <expression>` | Run a yq expression on the current tree |
 | `select [expression]` | Select the paths a query names, for the path commands to use |
 | `unselect` | Clear the selection |
 | `watch [expression]` | Report when a query's value changes during `step` and `continue` |
@@ -717,7 +717,7 @@ The flags `-r` and `-c` are accepted so jq habits keep working, and they change 
 
 ### yq
 
-Takes the same form as `jq` and will evaluate a yq expression. Until the yq dialect ships it answers `yq is not available until a later release`. Comments and styles will not be available under `graft debug`, because the merged tree is a plain map, so yq's metadata operators will return null.
+Takes the same form as `jq` and evaluates a yq expression on the current tree. Comments and styles are not available under `graft debug`, because the merged tree is a plain map, so yq's metadata operators return null. The [yq page](../yq.md) describes the command.
 
 ### select and unselect
 

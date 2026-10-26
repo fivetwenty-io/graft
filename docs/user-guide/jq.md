@@ -163,7 +163,7 @@ These are the places where `graft jq` deliberately differs from jq 1.8.2.
 
 ## Debugging with --repl
 
-`graft jq --repl PROGRAM FILE` opens the graft debugger on the inputs. In a debug session, the `jq`, `select`, and `watch` verbs run queries over the tree as it stands at the current step, and `break jq:EXPR` stops where a query matches. The `yq` verb exists but answers that it is not available until a later release. The [debug command](cli/debug.md) page describes each verb.
+`graft jq --repl PROGRAM FILE` opens the graft debugger on the inputs. In a debug session, the `jq`, `select`, and `watch` verbs run queries over the tree as it stands at the current step, and `break jq:EXPR` stops where a query matches. The `yq` verb runs yq expressions in the same session. The [debug command](cli/debug.md) page describes each verb.
 
 ## Compatibility
 
@@ -190,5 +190,9 @@ Phase J2 completes the language with dates, math, formats, modules, streaming, a
 ## Related
 
 - [Aliases](aliases.md) covers running graft as `jq`.
+
 - [merge](cli/merge.md) describes the merge that `-m` and `-E` run first.
+
+- [yq](yq.md) describes the sibling command for yq expressions.
+
 - [debug](cli/debug.md) describes the debugger that `--repl` opens.
