@@ -59,3 +59,9 @@ func TestYQStringOperatorsOnCustomTags(t *testing.T) {
 	wantYQ(t, `.a | split("e")`, "a: !word hey\n", "- h\n- y\n")
 	wantYQError(t, `.a | upcase`, "a: !word 7\n", "cannot change case with !word, can only operate on strings. ")
 }
+
+func TestYQContainsSkipsCustomTaggedText(t *testing.T) {
+	in := "tg: !foo hello\ns: hello\n"
+	wantYQ(t, `.tg | contains("el")`, in, "false\n")
+	wantYQ(t, `.s | contains("el")`, in, "true\n")
+}

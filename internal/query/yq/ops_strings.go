@@ -19,6 +19,15 @@ const substituteHint = "Hint: Most often you'll want to use '|=' over '=' for th
 // does, with ^ and $ at the ends of the subject and offsets counted in
 // bytes.
 func registerStrings(r *runtime.Registry) {
+	if base, ok := r.Lookup("contains", 1); ok {
+		// yq's contains takes text only of the !!str tag.
+		r.RegisterSingle("contains", 1, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
+			if in.Kind() == value.KindString && customTag(tagOf(in)) {
+				return emit(value.Bool(false), nil)
+			}
+			return base(ctx, in, args, emit)
+		})
+	}
 	r.Register("split", 1, func(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return args[0].Each(in, func(sep *value.Value, _ value.Path) error {
 			switch {
