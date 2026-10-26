@@ -332,7 +332,12 @@ func updateFrom(cur, other *value.Value, p assignPrefs) *value.Value {
 	if collection(cur) && cur.Len() == 0 || guessTag(cur) != guessTag(other) {
 		m.Style = metaOf(other).Style
 	}
-	m.Text = metaOf(other).Text
+	m.Text = nodeText(other)
+	if om := other.Meta(); om != nil {
+		// A node read from a document keeps the text it was read with,
+		// where one the run built takes the text yq writes it with.
+		m.Text = om.Text
+	}
 	if m = attributes(m, other, p); m == (value.Meta{}) && other.Meta() != nil {
 		// A node read from a document keeps its Meta, empty as it
 		// is, so the empty null of "a:" still prints as nothing.

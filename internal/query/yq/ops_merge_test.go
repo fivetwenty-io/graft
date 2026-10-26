@@ -175,3 +175,29 @@ func TestYQMergeAssign(t *testing.T) {
 		{`.e *=n {"p": 2, "w": 3}`, head + "e: {p: 1, w: 3}\nf: [1]\ng: !bar {q: 1}\n", ""},
 	})
 }
+
+// A null the run builds, put in place of a node read from a document,
+// prints as null, in block and in flow style. A null read from a
+// document keeps the text it was read with, which is nothing for "b:".
+func TestYQAssignNull(t *testing.T) {
+	block, flow := "a:\n  x: 1\n  y: 2\n", "a: {x: 1, y: 2}\n"
+	for _, c := range []struct{ expr, in, want string }{
+		{".a = null", "a: 1\n", "a: null\n"},
+		{".a = null", "{a: 1}\n", "{a: null}\n"},
+		{".a.x = null", flow, "a: {x: null, y: 2}\n"},
+		{".a.x = null", block, "a:\n  x: null\n  y: 2\n"},
+		{".a.x |= null", flow, "a: {x: null, y: 2}\n"},
+		{".a.x |= null", block, "a:\n  x: null\n  y: 2\n"},
+		{".a.x = null", "a:\n  x: 1\n", "a:\n  x: null\n"},
+		{".a.x = null", "a: {x: 1}\n", "a: {x: null}\n"},
+		{`. * {"a": {"x": null}}`, flow, "a: {x: null, y: 2}\n"},
+		{`. * {"a": {"x": null}}`, block, "a:\n  x: null\n  y: 2\n"},
+		{".a.x = .b", flow + "b:\n", "a: {x: '', y: 2}\nb:\n"},
+		{".a.x = .b", block + "b:\n", "a:\n  x:\n  y: 2\nb:\n"},
+		{".a[0] = null", "a: [1]\n", "a: [null]\n"},
+		{".a[0] = null", "a:\n  - 1\n", "a:\n  - null\n"},
+		{".a[0] = .b", "a: [1]\nb:\n", "a: ['']\nb:\n"},
+	} {
+		wantYQ(t, c.expr, c.in, c.want)
+	}
+}
