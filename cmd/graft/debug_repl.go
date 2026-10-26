@@ -1116,13 +1116,18 @@ func debugArgKindFor(name string) debugArgKind {
 	return debugArgNone
 }
 
-// debugCmdAutodefer/debugCmdPruneReport name the two multi-word REPL
-// commands used in both the help table below and the debugCommands
-// dispatch map, so the two tables cannot drift apart on the spelling.
+// The debugCmd constants name the REPL commands that appear in more than
+// one of the session gate, the help table below, and the debugCommands
+// dispatch map, so those tables cannot drift apart on the spelling.
 const (
 	debugCmdAutodefer   = "autodefer"
+	debugCmdBreak       = "break"
+	debugCmdEval        = "eval"
+	debugCmdExport      = "export"
+	debugCmdHistory     = "history"
 	debugCmdPruneReport = "prune-report"
 	debugCmdTree        = "tree"
+	debugCmdUnbreak     = "unbreak"
 	debugCmdUnselect    = "unselect"
 )
 
@@ -1130,20 +1135,20 @@ var debugCommandHelp = []debugHelpEntry{
 	{"load", "Load all documents", "load", "Parses every input file individually and establishes the first file as the starting document.", debugArgNone},
 	{"step", "Execute next merge step", "step", "Merges the next file (or evaluates operators, on the final step).", debugArgNone},
 	{"continue", "Run to completion", "continue", "Repeats 'step' until the merge and evaluation are complete or a breakpoint is hit.", debugArgNone},
-	{"break", "Set breakpoint on path", "break <path>", "Sets a breakpoint on a path. The debugger reports when this path changes during a later step or continue.\n\nExample:\n  break database.password", debugArgPath},
-	{"unbreak", "Remove breakpoint", "unbreak <path>", "Removes a previously set breakpoint.", debugArgBreakpoint},
+	{debugCmdBreak, "Set breakpoint on path", "break <path>", "Sets a breakpoint on a path. The debugger reports when this path changes during a later step or continue.\n\nExample:\n  break database.password", debugArgPath},
+	{debugCmdUnbreak, "Remove breakpoint", "unbreak <path>", "Removes a previously set breakpoint.", debugArgBreakpoint},
 	{"breaks", "List all breakpoints", "breaks", "Lists every breakpoint currently set.", debugArgNone},
 	{"inspect", "Show current value at path", "inspect <path>", "Shows the current (raw or evaluated, depending on progress) value at path.", debugArgPath},
-	{"history", "Show change history for path", "history <path>", "Shows the same per-file history 'merge --history' would show for path.", debugArgPath},
+	{debugCmdHistory, "Show change history for path", "history <path>", "Shows the same per-file history 'merge --history' would show for path.", debugArgPath},
 	{debugCmdTree, "Show tree of the document at path", treeUsage, "Prints a box-drawing tree of the document (or the subtree at path) as of the session's current step, with map keys in cyan, list indices dim, and still-unevaluated (( ... )) operators in yellow. A leading $ or $. on the path is accepted.\n\nFlags:\n  --depth N, -d N   limit display depth, N >= 1 (deeper containers collapse to {N keys}/[N items], hiding annotations beneath them)\n  --keys, -k        structure only, no leaf values (--annotate overrides it)\n  --annotate, -a    inline each node's history entries, up to the current step\n  --history, -H     append per-path history blocks, up to the current step (requires a path)\n  --no-color        plain output for this command\n\nUnlike 'history', which reports the whole run, --annotate/--history stop at the session's current step; each block ends with an 'As of step N' line. History never descends into lists. Tab completion completes the path when it is the first word after tree.\n\nExample:\n  tree database --annotate", debugArgPath},
 	{"defer", "Mark path for deferred evaluation", "defer <path>", "Marks path so its operator is left unevaluated (via the real (( defer ... )) operator) when 'step'/'continue' evaluates.", debugArgPath},
 	{debugCmdAutodefer, "Defer every failing operator and retry", debugCmdAutodefer, "Runs the same defer-on-error retry loop 'graft merge --defer-on-error'/'--adaptive' uses against the session's current tree: wraps each failing operator in (( defer ... )) and retries to a fixed point, hard-failing on a true cycle with the original error. Composes with paths already deferred via 'defer' - they are protected, not re-attempted - and every path this discovers is added to the session's deferred set too, so 'output'/'export'/'history'/'inspect' all agree afterward. Prints a summary: how many keys were deferred, each with its root-cause reason.", debugArgNone},
-	{"eval", "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress.", debugArgPath},
+	{debugCmdEval, "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress.", debugArgPath},
 	{"config", "View/set configuration", "config [key] [value]", "Views or sets a small set of Vault connection settings (vault.addr, vault.token, vault.namespace) for the rest of the session, or the debugger's own color theme (auto, dark, light, mono) via 'config theme [name]'. Vault keys also set the matching environment variable; the theme choice is session-only and touches no environment variable or config file.", debugArgConfigKey},
 	{"output", "Show current document state", "output", "Prints the current document state as YAML. Always shows the pre-(--prune/--cherry-pick)-flag tree, even once fully evaluated; see 'prune-report'.", debugArgNone},
 	{debugCmdPruneReport, "Show what --prune/--cherry-pick would remove", debugCmdPruneReport, "Once the session is fully evaluated, reports the paths this session's --prune/--cherry-pick flags would remove. Does not change 'output'/'export'/'history', which always show the pre-flag tree.", debugArgNone},
 	{"diff", "Show changes from original", "diff", "Shows the changes between the first loaded file and the current state.", debugArgNone},
-	{"export", "Export current state to file", "export <file>", "Writes the current document state to file (YAML, or JSON if file ends in .json).", debugArgFile},
+	{debugCmdExport, "Export current state to file", "export <file>", "Writes the current document state to file (YAML, or JSON if file ends in .json).", debugArgFile},
 	{"help", "Show help", "help [command]", "Lists every command, or shows detailed help for one command.", debugArgCommand},
 	{"quit", "Exit the debugger", "quit", "Exits the debugger without exporting.", debugArgNone},
 }
@@ -1541,25 +1546,25 @@ func debugPromptString(s *debugSession) string {
 // pattern, a filename - so they join their fields back together; only
 // config and tree read their arguments as separate words.
 var debugCommands = map[string]func(sess *debugSession, args []string){
-	"load":     func(sess *debugSession, _ []string) { sess.cmdLoad() },
-	"step":     func(sess *debugSession, _ []string) { sess.cmdStep() },
-	"continue": func(sess *debugSession, _ []string) { sess.cmdContinue() },
-	"break":    func(sess *debugSession, args []string) { sess.cmdBreakArg(strings.Join(args, " ")) },
-	"unbreak":  func(sess *debugSession, args []string) { sess.cmdUnbreakArg(strings.Join(args, " ")) },
-	"breaks":   func(sess *debugSession, _ []string) { sess.cmdBreaks() },
-	"inspect":  func(sess *debugSession, args []string) { sess.cmdInspectArg(strings.Join(args, " ")) },
-	"history": func(sess *debugSession, args []string) {
+	"load":          func(sess *debugSession, _ []string) { sess.cmdLoad() },
+	"step":          func(sess *debugSession, _ []string) { sess.cmdStep() },
+	"continue":      func(sess *debugSession, _ []string) { sess.cmdContinue() },
+	debugCmdBreak:   func(sess *debugSession, args []string) { sess.cmdBreakArg(strings.Join(args, " ")) },
+	debugCmdUnbreak: func(sess *debugSession, args []string) { sess.cmdUnbreakArg(strings.Join(args, " ")) },
+	"breaks":        func(sess *debugSession, _ []string) { sess.cmdBreaks() },
+	"inspect":       func(sess *debugSession, args []string) { sess.cmdInspectArg(strings.Join(args, " ")) },
+	debugCmdHistory: func(sess *debugSession, args []string) {
 		sess.eachPath(strings.Join(args, " "), sess.trackPath, sess.cmdHistory)
 	},
 	debugCmdTree:        func(sess *debugSession, args []string) { sess.cmdTree(args) },
 	"defer":             func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), nil, sess.cmdDefer) },
 	debugCmdAutodefer:   func(sess *debugSession, _ []string) { sess.cmdAutodefer() },
-	"eval":              func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), nil, sess.cmdEval) },
+	debugCmdEval:        func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), nil, sess.cmdEval) },
 	"config":            func(sess *debugSession, args []string) { sess.cmdConfig(args) },
 	"output":            func(sess *debugSession, _ []string) { sess.cmdOutput() },
 	debugCmdPruneReport: func(sess *debugSession, _ []string) { sess.cmdPruneReport() },
 	"diff":              func(sess *debugSession, _ []string) { sess.cmdDiff() },
-	"export":            func(sess *debugSession, args []string) { sess.cmdExport(strings.Join(args, " ")) },
+	debugCmdExport:      func(sess *debugSession, args []string) { sess.cmdExport(strings.Join(args, " ")) },
 	"help":              func(sess *debugSession, args []string) { sess.cmdHelp(strings.Join(args, " ")) },
 	"jq":                func(sess *debugSession, args []string) { sess.cmdJQ(strings.Join(args, " ")) },
 	"yq":                func(sess *debugSession, args []string) { sess.cmdYQ(strings.Join(args, " ")) },
