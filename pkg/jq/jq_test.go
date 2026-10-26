@@ -257,6 +257,17 @@ func TestNamedArgsKeepTheFirstBinding(t *testing.T) {
 	wantEqual(t, got, []string{`{"b":"1","a":"2"}`, `"1"`}) // jq 1.8.2 keeps the first --arg of a name
 }
 
+func TestNamedArgsNeverShadowTheBuiltinVariables(t *testing.T) {
+	// jq 1.8.2 keeps $ENV and $ARGS when --arg reuses their names, and
+	// lists the arguments only under $ARGS.named.
+	got := outputs(t, `$ENV | type`, `null`, WithArg("ENV", value.Str("x")))
+	wantEqual(t, got, []string{`"object"`})
+	got = outputs(t, `$ARGS`, `null`, WithArg("ARGS", value.Str("x")))
+	wantEqual(t, got, []string{`{"positional":[],"named":{"ARGS":"x"}}`})
+	got = outputs(t, `[$ARGS.named, ($ENV | type)]`, `null`, WithArg("ARGS", value.Str("x")), WithArg("ENV", value.Str("y")))
+	wantEqual(t, got, []string{`[{"ARGS":"x","ENV":"y"},"object"]`})
+}
+
 func TestStderrReceivesDebugAndStderr(t *testing.T) {
 	var buf bytes.Buffer
 	outputs(t, `debug | stderr | debug("m")`, `[1]`, WithStderr(&buf))

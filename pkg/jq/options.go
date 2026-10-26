@@ -38,7 +38,8 @@ type namedArg struct {
 
 // WithArg binds $name to v and adds it to $ARGS.named, as --arg and
 // --argjson do. When a name is bound twice the first binding stands, as it
-// does in jq.
+// does in jq. The names ARGS and ENV appear only under $ARGS.named, so
+// $ARGS and $ENV keep their usual values.
 func WithArg(name string, v *value.Value) Option {
 	return func(c *config) error {
 		for _, a := range c.named {

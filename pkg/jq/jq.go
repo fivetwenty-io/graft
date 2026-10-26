@@ -57,10 +57,12 @@ func Compile(src string, opts ...Option) (*Query, error) {
 			return nil, err
 		}
 	}
-	names := make([]string, len(cfg.named))
+	names := make([]string, 0, len(cfg.named))
 	named := value.NewObjBuilder(len(cfg.named))
-	for i, a := range cfg.named {
-		names[i] = a.name
+	for _, a := range cfg.named {
+		if !builtinVariable(a.name) {
+			names = append(names, a.name)
+		}
 		named.Set(a.name, a.val)
 	}
 	prog, err := jqdialect.Compile(src, names...)
@@ -73,9 +75,18 @@ func Compile(src string, opts ...Option) (*Query, error) {
 	)
 	env := prog.Env.Bind("ARGS", args)
 	for _, a := range cfg.named {
-		env = env.Bind(a.name, a.val)
+		if !builtinVariable(a.name) {
+			env = env.Bind(a.name, a.val)
+		}
 	}
 	return &Query{prog: prog, env: env, cfg: cfg}, nil
+}
+
+// builtinVariable reports whether name is $ARGS or $ENV, which an argument
+// of the same name never shadows. As in jq, such an argument appears only
+// under $ARGS.named.
+func builtinVariable(name string) bool {
+	return name == "ARGS" || name == "ENV"
 }
 
 // errStopped is how Run unwinds the evaluator once its caller stops
