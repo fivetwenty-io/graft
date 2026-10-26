@@ -153,6 +153,7 @@ func TestCallsThatNestAbsentOperatorsAreRefused(t *testing.T) {
 	onig := WithFlavor(Oniguruma)
 	for _, pattern := range []string{
 		`(?<a>b(?~\g<a>))`,
+		`(?<a>b(?~(?&a)))`,
 		`x(?~a\g<0>)`,
 		`(?<a>x(?~a\g<a>)y)`,
 		`(?<a>c(?~\g<1>?b+?)[ab]).`,
