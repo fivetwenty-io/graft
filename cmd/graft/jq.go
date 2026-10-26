@@ -130,7 +130,6 @@ func checkJQOptions(opts jqOptions) error {
 		set  bool
 		flag string
 	}{
-		{opts.Repl, "--repl"},
 		{len(opts.LibraryPaths) > 0, "-L"},
 		{opts.Seq, "--seq"},
 		{opts.StreamErrs, "--stream-errors"},
@@ -467,10 +466,14 @@ func handleJQ(opts jqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 	if opts.RunTests {
 		return runJQTests(opts, stdin, stdout)
 	}
+	if opts.Repl {
+		return runJQRepl(opts, stdin, stdout)
+	}
 	program, origin, st := loadJQProgram(opts, stdin, stdout)
 	if st != nil {
 		return *st
 	}
+	log.DEBUG("program: %s", program)
 
 	colors := os.Getenv("JQ_COLORS")
 	if colors != "" && jq.CheckColors(colors) != nil {
@@ -481,6 +484,9 @@ func handleJQ(opts jqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 	files := opts.Files
 	if len(files) == 0 {
 		files = []string{"-"}
+	}
+	for _, f := range files {
+		log.DEBUG("input: %s", f)
 	}
 	in := &jqInputs{opts: opts, stdin: stdin, stderr: stderr, files: files}
 	if st := in.compose(stdin); st != nil {

@@ -1,0 +1,6 @@
+jobs:
+  - name: nats
+    port: 4223
+  - name: router
+  - name: uaa
+    port: 8080

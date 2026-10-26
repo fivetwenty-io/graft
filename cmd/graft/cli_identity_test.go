@@ -34,7 +34,21 @@ var (
 	installAliasesEntry = helpEntry{"Available Commands:", "install-aliases", "Install jq and spruce names that run graft"}
 	mergeSortKeys       = helpEntry{"Flags:", "      --sort-keys string", "Order of map keys in the output: spruce (default) or lexical (default \"spruce\")"}
 	jsonSortKeys        = helpEntry{"Flags:", "      --sort-keys string", "Order of object keys in the JSON output: lexical (default) or spruce (default \"lexical\")"}
+	debugJQ             = helpEntry{"Flags:", "      --jq string", "Run this jq program once against the merged inputs before the prompt appears; it stays the program a bare 'jq' runs"}
+	debugYQ             = helpEntry{"Flags:", "      --yq string", "Run this yq expression once against the merged inputs before the prompt appears"}
 )
+
+// debugQueriesHelp is what the debugger's help gains after its command
+// list: the query verbs, under their own heading.
+const debugQueriesHelp = `
+Queries:
+  jq              Run a jq program on the current tree
+  yq              Run a yq expression on the current tree
+  select          Select the paths a query names
+  unselect        Clear the selection
+  watch           Report when a query's value changes
+  unwatch         Remove a watch
+`
 
 // knownAdditions are the only lines a help text may gain over the
 // recorded goldens. The root help and `graft help` list each command
@@ -49,6 +63,21 @@ var knownAdditions = map[string][]helpEntry{
 	"help-merge": {mergeSortKeys},
 	"merge-help": {mergeSortKeys},
 	"json-help":  {jsonSortKeys},
+	"debug-help": {debugJQ, debugYQ},
+}
+
+// knownInsertions are the text blocks a recorded session transcript may
+// gain, each placed after the line it follows.
+var knownInsertions = map[string][2]string{
+	"debug-session": {"  quit            Exit the debugger\n", debugQueriesHelp},
+}
+
+// withKnownInsertion adds the block a session transcript is known to gain.
+func withKnownInsertion(golden string, ins [2]string) string {
+	if ins[0] == "" {
+		return golden
+	}
+	return strings.Replace(golden, ins[0], ins[0]+ins[1], 1)
 }
 
 // cliIdentityCase is one line of tests/cli-identity/cases.
@@ -271,7 +300,7 @@ func TestCLIIdentity(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			wantOut := withKnownAdditions(readGolden(t, dir, c.Name, ".out"), knownAdditions[c.Name])
+			wantOut := withKnownInsertion(withKnownAdditions(readGolden(t, dir, c.Name, ".out"), knownAdditions[c.Name]), knownInsertions[c.Name])
 			wantErr := readGolden(t, dir, c.Name, ".err")
 			wantRC, err := strconv.Atoi(strings.TrimSpace(readGolden(t, dir, c.Name, ".rc")))
 			if err != nil {

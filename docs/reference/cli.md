@@ -369,6 +369,8 @@ EOF — it never reads a merge document from stdin.
 | `--fallback-append` | Same meaning as `merge --fallback-append`; applied to every merge the session performs. |
 | `--prune <key>` | Same meaning as `merge --prune`; may be given more than once. Not applied to the session's own `step`/`output`/`export`/`history` (they always show the pre-prune tree); see `prune-report`. |
 | `--cherry-pick <key>` | Same meaning as `merge --cherry-pick`; may be given more than once. Same `--prune` caveat. |
+| `--jq <program>` | Run a jq program once against the merged inputs before the prompt appears. It stays the program a bare `jq` verb runs. |
+| `--yq <expression>` | The same for a yq expression. yq is not available until a later release. |
 
 These are the only `merge` flags `debug`/`merge --interactive` honor. The
 remaining `merge` flags are not accepted by `debug` and have no meaning
@@ -385,9 +387,12 @@ would remove once the session is fully evaluated, without applying it, and
 `--adaptive` uses against the session's current tree — see
 `docs/user-guide/cli/debug.md` for both.
 
+The debugger also has query verbs (`jq`, `yq`, `select`, `unselect`, `watch`, and `unwatch`), and its path verbs accept `jq:EXPR` and `yq:EXPR` in place of a dotted path. `graft jq --repl PROGRAM FILE...` opens the same debugger over the files with the program already run once. See the debug manual for each.
+
 ```bash
 graft debug base.yml overlay.yml
 graft debug --go-patch base.yml overlay.yml
+graft debug --jq '.jobs | length' base.yml overlay.yml
 ```
 
 ### graft fan

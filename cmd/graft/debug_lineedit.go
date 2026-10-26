@@ -348,6 +348,9 @@ func (c *debugCompleter) completeArgument(cmd string, argIndex int, word string)
 		return c.completePath(word)
 	case debugArgFile:
 		return debugFileCandidates(word)
+	case debugArgQuery:
+		// A query is free-form text, so there is nothing to offer.
+		return nil
 	case debugArgNone:
 		return nil
 	}

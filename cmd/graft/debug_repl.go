@@ -17,6 +17,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/utils/termbg"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
+	qvalue "github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
 // debugConfigKeys maps the REPL `config` command's dotted key names to the
@@ -123,6 +124,20 @@ type debugSession struct {
 	// debugSession built directly (as several tests do), in which case
 	// a theme switch simply has no prompt to restyle.
 	reader debugLineReader
+
+	// dialect is the query language the query verbs and `select` speak,
+	// "jq" until `config dialect` changes it (see dialectName).
+	dialect string
+	// query is the last program the jq or yq verb ran, or the one the
+	// session started with, which a bare `jq` runs again.
+	query string
+	// root is the tree as a query engine value, rebuilt by evalQuery.
+	root *qvalue.Value
+	// selection is the set of typed paths `select` chose. The path verbs
+	// use it when they are given no argument.
+	selection []qvalue.Path
+	// watches are the expressions re-evaluated after every step.
+	watches []debugWatch
 }
 
 // newDebugSession loads and caches every input file's raw bytes (without
@@ -353,7 +368,9 @@ func (s *debugSession) cmdStep() {
 		s.printf("%s\n", s.style(roleSuccess, "Merge complete. Nothing more to step."))
 		return
 	}
-	s.stepOnce()
+	if _, failed := s.stepOnce(); !failed {
+		s.reportWatches()
+	}
 }
 
 // cmdContinue implements the `continue` REPL command: repeats stepOnce
@@ -374,6 +391,9 @@ func (s *debugSession) cmdContinue() {
 	}
 	for s.step < s.totalSteps {
 		hit, failed := s.stepOnce()
+		if !failed {
+			s.reportWatches()
+		}
 		if hit || failed {
 			return
 		}
@@ -437,15 +457,28 @@ func (s *debugSession) cmdInspect(path string) {
 		s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Path not found: %s", path)))
 		return
 	}
-	raw, err := graft.MarshalYAML(value)
+	if !s.writeValue(value) {
+		return
+	}
+	s.printDeferred()
+}
+
+// writeValue renders v as YAML to the session, and reports whether it
+// could.
+func (s *debugSession) writeValue(v interface{}) bool {
+	raw, err := graft.MarshalYAML(v)
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error rendering value"),
 			ansi.StripEscapes(err.Error()))
-		return
+		return false
 	}
 	s.writeYAML(raw)
+	return true
+}
 
+// printDeferred lists the session's deferred paths, when it has any.
+func (s *debugSession) printDeferred() {
 	if len(s.deferred) == 0 {
 		return
 	}
@@ -717,6 +750,11 @@ func (s *debugSession) cmdEval(path string) {
 // section).
 const debugConfigKeyTheme = "theme"
 
+// debugConfigKeyDialect is the session-only `config` key that picks the
+// query language for `select` and `watch`. Like theme it names no
+// environment variable, and it stays out of the bare listing.
+const debugConfigKeyDialect = "dialect"
+
 // debugConfigKnownKeysDisplay renders every recognized `config` key for
 // the "Unknown config key" message: debugConfigKeyOrder's own entries
 // (the Vault keys, in their display order) plus debugConfigKeyTheme.
@@ -750,6 +788,10 @@ func (s *debugSession) cmdConfig(args []string) {
 			s.printf("%s: %s\n", key, envOrNotSet(debugConfigKeys[key]))
 		}
 	case 1:
+		if args[0] == debugConfigKeyDialect {
+			s.cmdConfigDialect(nil)
+			return
+		}
 		if args[0] == debugConfigKeyTheme {
 			s.printf("Current: %s\n", s.currentThemeDisplay())
 			return
@@ -761,6 +803,10 @@ func (s *debugSession) cmdConfig(args []string) {
 		}
 		s.printf("Current: %s\n", envOrNotSet(envVar))
 	default:
+		if args[0] == debugConfigKeyDialect {
+			s.cmdConfigDialect(args[1:])
+			return
+		}
 		if args[0] == debugConfigKeyTheme {
 			s.cmdConfigTheme(strings.Join(args[1:], " "))
 			return
@@ -996,9 +1042,13 @@ func (s *debugSession) cmdHelp(command string) {
 			// column width and the summary column stays aligned.
 			s.printf("  %s %s\n", s.style(roleCommand, fmt.Sprintf("%-15s", c.name)), c.summary)
 		}
+		s.printf("\n%s\n", s.style(roleHeading, "Queries:"))
+		for _, c := range debugQueryHelp {
+			s.printf("  %s %s\n", s.style(roleCommand, fmt.Sprintf("%-15s", c.name)), c.summary)
+		}
 		return
 	}
-	for _, c := range debugCommandHelp {
+	for _, c := range allDebugHelp() {
 		if c.name == command {
 			s.printf("%s\n\n%s\n", c.usage, c.detail)
 			return
@@ -1025,12 +1075,15 @@ const (
 	debugArgConfigKey
 	debugArgFile
 	debugArgCommand
+	// debugArgQuery is a jq or yq expression, which the read loop hands
+	// to its verb whole, spaces and quotes intact.
+	debugArgQuery
 )
 
 // debugArgKindFor is the argument kind of the named command, or
 // debugArgNone for a command that takes none (or is not a command).
 func debugArgKindFor(name string) debugArgKind {
-	for _, c := range debugCommandHelp {
+	for _, c := range allDebugHelp() {
 		if c.name == name {
 			return c.arg
 		}
@@ -1044,6 +1097,8 @@ func debugArgKindFor(name string) debugArgKind {
 const (
 	debugCmdAutodefer   = "autodefer"
 	debugCmdPruneReport = "prune-report"
+	debugCmdTree        = "tree"
+	debugCmdUnselect    = "unselect"
 )
 
 var debugCommandHelp = []debugHelpEntry{
@@ -1055,7 +1110,7 @@ var debugCommandHelp = []debugHelpEntry{
 	{"breaks", "List all breakpoints", "breaks", "Lists every breakpoint currently set.", debugArgNone},
 	{"inspect", "Show current value at path", "inspect <path>", "Shows the current (raw or evaluated, depending on progress) value at path.", debugArgPath},
 	{"history", "Show change history for path", "history <path>", "Shows the same per-file history 'merge --history' would show for path.", debugArgPath},
-	{"tree", "Show tree of the document at path", treeUsage, "Prints a box-drawing tree of the document (or the subtree at path) as of the session's current step, with map keys in cyan, list indices dim, and still-unevaluated (( ... )) operators in yellow. A leading $ or $. on the path is accepted.\n\nFlags:\n  --depth N, -d N   limit display depth, N >= 1 (deeper containers collapse to {N keys}/[N items], hiding annotations beneath them)\n  --keys, -k        structure only, no leaf values (--annotate overrides it)\n  --annotate, -a    inline each node's history entries, up to the current step\n  --history, -H     append per-path history blocks, up to the current step (requires a path)\n  --no-color        plain output for this command\n\nUnlike 'history', which reports the whole run, --annotate/--history stop at the session's current step; each block ends with an 'As of step N' line. History never descends into lists. Tab completion completes the path when it is the first word after tree.\n\nExample:\n  tree database --annotate", debugArgPath},
+	{debugCmdTree, "Show tree of the document at path", treeUsage, "Prints a box-drawing tree of the document (or the subtree at path) as of the session's current step, with map keys in cyan, list indices dim, and still-unevaluated (( ... )) operators in yellow. A leading $ or $. on the path is accepted.\n\nFlags:\n  --depth N, -d N   limit display depth, N >= 1 (deeper containers collapse to {N keys}/[N items], hiding annotations beneath them)\n  --keys, -k        structure only, no leaf values (--annotate overrides it)\n  --annotate, -a    inline each node's history entries, up to the current step\n  --history, -H     append per-path history blocks, up to the current step (requires a path)\n  --no-color        plain output for this command\n\nUnlike 'history', which reports the whole run, --annotate/--history stop at the session's current step; each block ends with an 'As of step N' line. History never descends into lists. Tab completion completes the path when it is the first word after tree.\n\nExample:\n  tree database --annotate", debugArgPath},
 	{"defer", "Mark path for deferred evaluation", "defer <path>", "Marks path so its operator is left unevaluated (via the real (( defer ... )) operator) when 'step'/'continue' evaluates.", debugArgPath},
 	{debugCmdAutodefer, "Defer every failing operator and retry", debugCmdAutodefer, "Runs the same defer-on-error retry loop 'graft merge --defer-on-error'/'--adaptive' uses against the session's current tree: wraps each failing operator in (( defer ... )) and retries to a fixed point, hard-failing on a true cycle with the original error. Composes with paths already deferred via 'defer' - they are protected, not re-attempted - and every path this discovers is added to the session's deferred set too, so 'output'/'export'/'history'/'inspect' all agree afterward. Prints a summary: how many keys were deferred, each with its root-cause reason.", debugArgNone},
 	{"eval", "Force evaluate operator at path", "eval <path>", "Immediately evaluates the operator at path, regardless of 'defer' or overall step progress.", debugArgPath},
@@ -1066,6 +1121,22 @@ var debugCommandHelp = []debugHelpEntry{
 	{"export", "Export current state to file", "export <file>", "Writes the current document state to file (YAML, or JSON if file ends in .json).", debugArgFile},
 	{"help", "Show help", "help [command]", "Lists every command, or shows detailed help for one command.", debugArgCommand},
 	{"quit", "Exit the debugger", "quit", "Exits the debugger without exporting.", debugArgNone},
+}
+
+// debugQueryHelp lists the verbs that evaluate jq and yq expressions,
+// which `help` shows under their own heading.
+var debugQueryHelp = []debugHelpEntry{
+	{"jq", "Run a jq program on the current tree", "jq <program>", "Runs a jq program against the document as of the session's current step and prints each output as YAML. -r and -c are accepted and change nothing, because the output is always YAML with a string bare. With no program it runs the last one again.\n\nExample:\n  jq [.jobs[] | select(.port != null)]", debugArgQuery},
+	{"yq", "Run a yq expression on the current tree", "yq <expression>", "Runs a yq expression against the current document. Comments and styles are not available here, because the merged tree is a plain map, so yq's metadata operators return null. yq is not available until a later release.", debugArgQuery},
+	{"select", "Select the paths a query names", "select [<expression>]", "Evaluates the expression with the session's dialect and keeps the paths it names. 'inspect', 'history', 'tree', 'break', 'unbreak', 'defer', and 'eval' use the selection when given no argument. With no expression it shows the selection.\n\nExample:\n  select .jobs[] | select(.name == \"nats\")", debugArgQuery},
+	{debugCmdUnselect, "Clear the selection", "unselect", "Clears the selection.", debugArgNone},
+	{"watch", "Report when a query's value changes", "watch [<expression>]", "Evaluates the expression now and again after every 'step' and 'continue', printing 'watch (EXPR): OLD -> NEW' when the value changed. With no expression it lists the watches.\n\nExample:\n  watch .jobs | length", debugArgQuery},
+	{"unwatch", "Remove a watch", "unwatch [<expression>]", "Removes the watch on the expression, or every watch when none is given.", debugArgQuery},
+}
+
+// allDebugHelp is every help entry, the queries included.
+func allDebugHelp() []debugHelpEntry {
+	return append(append([]debugHelpEntry(nil), debugCommandHelp...), debugQueryHelp...)
 }
 
 // noneDisplay is the placeholder shown for a side of a change that does
@@ -1275,6 +1346,12 @@ func mustYAML(v interface{}) string {
 // (both `graft debug` and `graft merge --interactive`'s RunE closures)
 // from --color/--no-color and, from a later phase, --theme/GRAFT_THEME.
 func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, ui debugUIOptions) int {
+	return handleDebugWith(files, opts, in, out, ui, debugInit{})
+}
+
+// handleDebugWith is handleDebug with a query to run once, against the
+// fully merged inputs, before the prompt appears.
+func handleDebugWith(files []string, opts *mergeOpts, in io.Reader, out io.Writer, ui debugUIOptions, init debugInit) int {
 	if len(files) == 0 {
 		// Unlike merge/fan/json/vaultinfo, debug can't fall back to reading
 		// a document from stdin: stdin is the REPL's own command input
@@ -1294,6 +1371,10 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, u
 	if err != nil {
 		log.PrintStdErrf("%s\n", err.Error())
 		return 2
+	}
+
+	if init.Query != "" {
+		sess.runStartupQuery(init)
 	}
 
 	sess.printf("%s\n%s\n\n",
@@ -1325,6 +1406,7 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, u
 
 		fields := strings.Fields(line)
 		cmd, args := fields[0], fields[1:]
+		args = debugVerbArgs(cmd, line, args)
 
 		if cmd == "quit" || cmd == "exit" {
 			return 0
@@ -1337,6 +1419,19 @@ func handleDebug(files []string, opts *mergeOpts, in io.Reader, out io.Writer, u
 		}
 		run(sess, args)
 	}
+}
+
+// debugVerbArgs is the argument list a verb receives. A query carries
+// spaces and quotes that strings.Fields would flatten, so the verbs that
+// take one get the rest of the line as it was typed, and so do the path
+// verbs when the path is a query.
+func debugVerbArgs(cmd, line string, fields []string) []string {
+	rest := strings.TrimSpace(strings.TrimPrefix(line, cmd))
+	kind := debugArgKindFor(cmd)
+	if kind == debugArgQuery || (kind == debugArgPath && cmd != debugCmdTree && hasQueryPrefix(rest)) {
+		return []string{rest}
+	}
+	return fields
 }
 
 // debugPromptString builds the REPL prompt: rolePrompt applied to the
@@ -1357,19 +1452,25 @@ var debugCommands = map[string]func(sess *debugSession, args []string){
 	"load":              func(sess *debugSession, _ []string) { sess.cmdLoad() },
 	"step":              func(sess *debugSession, _ []string) { sess.cmdStep() },
 	"continue":          func(sess *debugSession, _ []string) { sess.cmdContinue() },
-	"break":             func(sess *debugSession, args []string) { sess.cmdBreak(strings.Join(args, " ")) },
-	"unbreak":           func(sess *debugSession, args []string) { sess.cmdUnbreak(strings.Join(args, " ")) },
+	"break":             func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdBreak) },
+	"unbreak":           func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdUnbreak) },
 	"breaks":            func(sess *debugSession, _ []string) { sess.cmdBreaks() },
-	"inspect":           func(sess *debugSession, args []string) { sess.cmdInspect(strings.Join(args, " ")) },
-	"history":           func(sess *debugSession, args []string) { sess.cmdHistory(strings.Join(args, " ")) },
-	"tree":              func(sess *debugSession, args []string) { sess.cmdTree(args) },
-	"defer":             func(sess *debugSession, args []string) { sess.cmdDefer(strings.Join(args, " ")) },
+	"inspect":           func(sess *debugSession, args []string) { sess.cmdInspectArg(strings.Join(args, " ")) },
+	"history":           func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdHistory) },
+	debugCmdTree:        func(sess *debugSession, args []string) { sess.cmdTree(args) },
+	"defer":             func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdDefer) },
 	debugCmdAutodefer:   func(sess *debugSession, _ []string) { sess.cmdAutodefer() },
-	"eval":              func(sess *debugSession, args []string) { sess.cmdEval(strings.Join(args, " ")) },
+	"eval":              func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdEval) },
 	"config":            func(sess *debugSession, args []string) { sess.cmdConfig(args) },
 	"output":            func(sess *debugSession, _ []string) { sess.cmdOutput() },
 	debugCmdPruneReport: func(sess *debugSession, _ []string) { sess.cmdPruneReport() },
 	"diff":              func(sess *debugSession, _ []string) { sess.cmdDiff() },
 	"export":            func(sess *debugSession, args []string) { sess.cmdExport(strings.Join(args, " ")) },
 	"help":              func(sess *debugSession, args []string) { sess.cmdHelp(strings.Join(args, " ")) },
+	"jq":                func(sess *debugSession, args []string) { sess.cmdJQ(strings.Join(args, " ")) },
+	"yq":                func(sess *debugSession, args []string) { sess.cmdYQ(strings.Join(args, " ")) },
+	"select":            func(sess *debugSession, args []string) { sess.cmdSelect(strings.Join(args, " ")) },
+	debugCmdUnselect:    func(sess *debugSession, _ []string) { sess.cmdUnselect() },
+	"watch":             func(sess *debugSession, args []string) { sess.cmdWatch(strings.Join(args, " ")) },
+	"unwatch":           func(sess *debugSession, args []string) { sess.cmdUnwatch(strings.Join(args, " ")) },
 }

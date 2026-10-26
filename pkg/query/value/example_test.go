@@ -396,3 +396,28 @@ func ExampleCanonicalLiteral() {
 	// 1.50
 	// abc
 }
+
+func ExampleFromGo() {
+	v, _ := value.FromGo(map[string]interface{}{"b": 1, "a": []interface{}{"x"}})
+	fmt.Println(v.Keys())
+	// Output: [a b]
+}
+
+func ExampleToGo() {
+	v := value.Obj(value.Pair{Key: "n", Value: value.Num(3)})
+	m := value.ToGo(v, value.ToGoOptions{Numbers: value.ToGoInt64}).(map[string]interface{})
+	fmt.Println(m["n"])
+	// Output: 3
+}
+
+func ExampleToGoNumbers() {
+	v := value.Num(7)
+	fmt.Printf("%T %T\n", value.ToGo(v), value.ToGo(v, value.ToGoOptions{Numbers: value.ToGoFloat64}))
+	// Output: decimal.Decimal float64
+}
+
+func ExampleToGoOptions() {
+	opts := value.ToGoOptions{Numbers: value.ToGoInt64}
+	fmt.Printf("%T\n", value.ToGo(value.Num(7), opts))
+	// Output: int64
+}

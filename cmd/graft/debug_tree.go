@@ -303,12 +303,39 @@ func (s *debugSession) cmdTree(args []string) {
 		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
+	if hasQueryPrefix(opts.path) || opts.path == "" && len(s.selection) > 0 {
+		paths, err := resolveDebugPaths(s, opts.path)
+		if err != nil {
+			s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(err.Error())))
+			return
+		}
+		if len(paths) == 0 {
+			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("No paths matched: %s", opts.path)))
+			return
+		}
+		for _, p := range paths {
+			o := opts
+			o.path = dottedPath(p)
+			v, found := s.lookupPath(p)
+			if !found {
+				s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Path not found: %s", o.path)))
+				continue
+			}
+			s.renderTreeAt(o, v)
+		}
+		return
+	}
 	value, ok := lookupDottedPath(s.tree, opts.path)
 	if !ok {
 		s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Path not found: %s", opts.path)))
 		return
 	}
+	s.renderTreeAt(opts, value)
+}
 
+// renderTreeAt prints the tree for the value at opts.path, with the
+// history blocks opts asks for.
+func (s *debugSession) renderTreeAt(opts treeOptions, value interface{}) {
 	// --no-color overrides only this render, independent of the
 	// session's own color/theme resolution: an identity styler when the
 	// flag is set (matching the session's own color-off identity

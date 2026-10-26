@@ -23,3 +23,10 @@ func lit(s string) *Value {
 func nan() *Value { return NumDec(decimal.NaN()) }
 
 func repeat(s string, n int) string { return strings.Repeat(s, n) }
+
+func wantErrContains(t *testing.T, err error, sub string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), sub) {
+		t.Errorf("error %v, want one containing %q", err, sub)
+	}
+}

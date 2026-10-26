@@ -25,6 +25,8 @@ it cannot also read a document from stdin the way `merge`/`json` do.
 | `--fallback-append` | Same meaning as `merge --fallback-append`: use append semantics instead of inline for the default array-merge fallback. |
 | `--prune <key>` | Same meaning as `merge --prune`: mark a key to remove from the final output. May be given more than once. Does not affect `step`/`output`/`export`/`history` while stepping — see below — use `prune-report` to see what it would remove. |
 | `--cherry-pick <key>` | Same meaning as `merge --cherry-pick`: the opposite of `--prune`, keep only the given keys. Same `output`/`history` caveat as `--prune`. |
+| `--jq <program>` | Run a jq program once against the fully merged inputs before the prompt appears. The program stays the one a bare `jq` runs. |
+| `--yq <expression>` | The same for a yq expression. yq is not available until a later release. |
 
 `--skip-eval`/`--dataflow-order`/`--history`/`--trace-path`/
 `--show-changes`/`--changes-only` have no meaning for an interactive
@@ -87,6 +89,12 @@ The debug REPL provides interactive control over the merge process:
 | `diff` | Show changes from the first loaded file to the current state |
 | `export <file>` | Export the current state to file (YAML, or JSON if the name ends `.json`) |
 | `help [command]` | Show command list, or detail for one command |
+| `jq <program>` | Run a jq program on the current tree |
+| `yq <expression>` | Run a yq expression on the current tree (not available until a later release) |
+| `select [expression]` | Select the paths a query names, for the path commands to use |
+| `unselect` | Clear the selection |
+| `watch [expression]` | Report when a query's value changes during `step` and `continue` |
+| `unwatch [expression]` | Remove one watch, or all of them |
 | `quit` / `exit` | Exit the debugger |
 
 `config` wires three Vault settings — `VAULT_ADDR`, `VAULT_TOKEN`, and
@@ -695,6 +703,59 @@ Setting a value here really does `os.Setenv` the corresponding variable for
 the rest of the process — a later `eval`/`continue` will use it for real
 Vault lookups. It does not, however, force any already-constructed Vault
 client (from an earlier evaluation) to reconnect with the new value.
+
+### jq
+
+Runs a jq program against the document as of the current step and prints each output as YAML, with a string printed bare. The program is everything after the verb, so spaces and quotes reach jq untouched. Before `load` there is no document, and the verb says so. With no program, `jq` runs the last one again.
+
+```
+graft> jq [.jobs[] | select(.port != null) | .name]
+- nats
+```
+
+The flags `-r` and `-c` are accepted so jq habits keep working, and they change nothing, because the output is always YAML. The tree here is the merged Go map, so numbers print as plain decimals and keys come out in the order graft writes them.
+
+### yq
+
+Takes the same form as `jq` and will evaluate a yq expression. Until the yq dialect ships it answers `yq is not available until a later release`. Comments and styles will not be available under `graft debug`, because the merged tree is a plain map, so yq's metadata operators will return null.
+
+### select and unselect
+
+Evaluates a query and keeps the paths it names. From then on `inspect`, `history`, `tree`, `break`, `unbreak`, `defer`, and `eval` use the selection when we give them no argument. `unselect` clears it.
+
+```
+graft> select .jobs[] | select(.name == "nats")
+selected 1 path: jobs.[0]
+graft> inspect
+jobs.[0]:
+name: nats
+port: 4222
+```
+
+A key that holds a dot, is empty, or is all digits prints in brackets, so `["a.b"]` and `a.b` stay distinct. The query follows the session's dialect, which `config dialect jq` and `config dialect yq` change. A bare `config dialect` shows it.
+
+### watch and unwatch
+
+Evaluates a query now and again after every `step` and `continue`, and reports it when the value changed. `unwatch` removes one watch by its expression, or all of them when it has no argument.
+
+```
+graft> watch .jobs | length
+watching (.jobs | length): 2
+graft> step
+[1/2] Merging b.yml...
+watch (.jobs | length): 2 -> 3
+```
+
+### Queries as paths
+
+The verbs `break`, `unbreak`, `inspect`, `history`, `tree`, `defer`, and `eval` also accept `jq:EXPR` or `yq:EXPR` where a path goes. The query resolves to zero or more paths, and the verb applies to each one. Any other prefix, such as `xq:`, is refused by name.
+
+```
+graft> break jq:.jobs[] | select(.port != null)
+Breakpoint set on jobs.[0]
+```
+
+Breakpoints are matched against the paths `step` reports, and `step` names a list entry by its `name` key, as in `jobs.nats.port`. A breakpoint on a list index such as `jobs.[0].port` therefore sets, but it only fires for changes the step reports under that spelling.
 
 ### output
 

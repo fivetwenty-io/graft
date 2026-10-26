@@ -1,0 +1,6 @@
+meta:
+  name: web
+jobs:
+  - name: nats
+    port: 4222
+  - name: router
