@@ -1846,11 +1846,11 @@
   cases: [f-stream-multiple-values]
 - id: f-search-path
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-search-path]
 - id: f-search-path-long
   area: flag
-  phase: J2
+  phase: J1
   cases: [f-search-path-long]
 - id: f-args-after-dashdash
   area: flag
@@ -2638,63 +2638,63 @@
   cases: [m-significand-zero]
 - id: o-import-function
   area: module
-  phase: J2
+  phase: J1
   cases: [o-import-function]
 - id: o-import-data
   area: module
-  phase: J2
+  phase: J1
   cases: [o-import-data]
 - id: o-include
   area: module
-  phase: J2
+  phase: J1
   cases: [o-include]
 - id: o-module-directive
   area: module
-  phase: J2
+  phase: J1
   cases: [o-module-directive]
 - id: o-modulemeta
   area: module
-  phase: J2
+  phase: J1
   cases: [o-modulemeta]
 - id: o-search-path-metadata
   area: module
-  phase: J2
+  phase: J1
   cases: [o-search-path-metadata]
 - id: o-search-path-origin
   area: module
-  phase: J2
+  phase: J1
   cases: [o-search-path-origin]
 - id: o-search-list
   area: module
-  phase: J2
+  phase: J1
   cases: [o-search-list]
 - id: o-nested-import
   area: module
-  phase: J2
+  phase: J1
   cases: [o-nested-import]
 - id: o-import-subdirectory
   area: module
-  phase: J2
+  phase: J1
   cases: [o-import-subdirectory]
 - id: o-import-directory-module
   area: module
-  phase: J2
+  phase: J1
   cases: [o-import-directory-module]
 - id: o-missing-module
   area: module
-  phase: J2
+  phase: J1
   cases: [o-missing-module]
 - id: o-name-collision
   area: module
-  phase: J2
+  phase: J1
   cases: [o-name-collision]
 - id: o-module-closure
   area: module
-  phase: J2
+  phase: J1
   cases: [o-module-closure]
 - id: o-module-data-in-module
   area: module
-  phase: J2
+  phase: J1
   cases: [o-module-data-in-module]
 - id: o-import-after-def-error
   area: module
@@ -2702,11 +2702,11 @@
   cases: [o-import-after-def-error]
 - id: o-get-prog-origin
   area: module
-  phase: J2
+  phase: J1
   cases: [o-get-prog-origin]
 - id: o-get-jq-origin
   area: module
-  phase: J2
+  phase: J1
   cases: [o-get-jq-origin]
 - id: t-input-line-number-multi
   area: stream
