@@ -17,7 +17,8 @@ func TestBlockStyleInInputOrder(t *testing.T) {
 	wantEqual(t, emitOne(t, v, Options{Indent: 2}), "b: 1\na:\n  \"10\": 1\n  \"2\": 2\n  x:\n    - 1\n    - y: null\ne: []\no: {}\n")
 	wantEqual(t, emitOne(t, v, Options{Indent: 4}), "b: 1\na:\n    \"10\": 1\n    \"2\": 2\n    x:\n        - 1\n        - y: null\ne: []\no: {}\n")
 	wantEqual(t, emitOne(t, v, Options{Indent: 1}), emitOne(t, v, Options{Indent: 2}))
-	wantEqual(t, emitOne(t, v, Options{Indent: 12}), emitOne(t, v, Options{Indent: 7}))
+	wantEqual(t, emitOne(t, v, Options{Indent: 12}), emitOne(t, v, Options{Indent: 9}))
+	wantEqual(t, emitOne(t, obj(pair("a", obj(pair("b", lit("1"))))), Options{Indent: 9}), "a:\n         b: 1\n")
 	wantEqual(t, emitOne(t, v, Options{}), emitOne(t, v, Options{Indent: 2}))
 }
 

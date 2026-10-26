@@ -21,7 +21,7 @@ import (
 
 const (
 	minIndent = 2
-	maxIndent = 7
+	maxIndent = 9
 )
 
 // docSeparator stands for a "---" line in leading content. It is the
@@ -33,7 +33,7 @@ var errNULInValue = errors.New("can't serialise value because it contains NUL ch
 
 // Options selects the output form.
 type Options struct {
-	Indent           int  // spaces per level, clamped to 2 through 7
+	Indent           int  // spaces per level, clamped to 2 through 9
 	NoDoc            bool // omit the --- line between documents
 	UnwrapScalar     bool // a top-level scalar prints as its bare text
 	FloatNumbers     bool // print computed numbers by jq's double rule
