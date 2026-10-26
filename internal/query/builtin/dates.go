@@ -2,6 +2,9 @@ package builtin
 
 import (
 	"math"
+	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
@@ -52,9 +55,39 @@ func registerDates(r *runtime.Registry) {
 	})
 }
 
+// zoneCache holds the zone TZ named at the last call, so a loop over
+// localtime reads the zone database once.
+var zoneCache struct {
+	sync.Mutex
+	tz  string
+	loc *time.Location
+}
+
+// localZone is the zone localtime and strflocaltime work in. TZ is read at
+// each call, as the C library reads it, rather than once when the process
+// starts the way time.Local is. An unset TZ means time.Local, and an empty
+// one, or one that names no zone, means UTC. A leading colon is dropped.
+func localZone() *time.Location {
+	tz, ok := os.LookupEnv("TZ")
+	if !ok {
+		return time.Local
+	}
+	zoneCache.Lock()
+	defer zoneCache.Unlock()
+	if zoneCache.loc != nil && zoneCache.tz == tz {
+		return zoneCache.loc
+	}
+	loc, err := time.LoadLocation(strings.TrimPrefix(tz, ":"))
+	if tz == "" || err != nil {
+		loc = time.UTC
+	}
+	zoneCache.tz, zoneCache.loc = tz, loc
+	return loc
+}
+
 // localFields is the broken-down local time of a number of seconds.
 func localFields(sec int64) brokenTime {
-	t := time.Unix(sec, 0).In(time.Local)
+	t := time.Unix(sec, 0).In(localZone())
 	return brokenTime{
 		float64(t.Year()), float64(t.Month() - 1), float64(t.Day()),
 		float64(t.Hour()), float64(t.Minute()), float64(t.Second()),
@@ -202,7 +235,7 @@ func format(ctx *runtime.Ctx, in, layout *value.Value, what string, local bool) 
 		}
 		if local {
 			bt = localFields(sec)
-			name, off := time.Unix(sec, 0).In(time.Local).Zone()
+			name, off := time.Unix(sec, 0).In(localZone()).Zone()
 			z = zoneInfo{name: name, offset: off, epoch: sec}
 		} else {
 			bt = fieldsAt(sec)
@@ -220,7 +253,7 @@ func format(ctx *runtime.Ctx, in, layout *value.Value, what string, local bool) 
 		z = zoneInfo{name: utc, epoch: epochOf(bt)}
 		if local {
 			t := time.Date(int(bt[btYear]), time.Month(bt[btMon]+1), int(bt[btMday]),
-				int(bt[btHour]), int(bt[btMin]), int(bt[btSec]), 0, time.Local)
+				int(bt[btHour]), int(bt[btMin]), int(bt[btSec]), 0, localZone())
 			name, off := t.Zone()
 			z = zoneInfo{name: name, offset: off, epoch: t.Unix()}
 		}

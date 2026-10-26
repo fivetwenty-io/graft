@@ -5,14 +5,16 @@ import (
 	"time"
 )
 
-// pinLocal makes the local zone the named one for the rest of the test, so
-// nothing here depends on the machine's TZ.
+// pinLocal makes the local zone the named one for the rest of the test,
+// through TZ and time.Local both, so nothing here depends on the machine's
+// zone.
 func pinLocal(t *testing.T, name string) {
 	t.Helper()
 	loc, err := time.LoadLocation(name)
 	if err != nil {
 		t.Skipf("zone %s is unavailable: %v", name, err)
 	}
+	t.Setenv("TZ", name)
 	old := time.Local
 	time.Local = loc
 	t.Cleanup(func() { time.Local = old })
@@ -146,4 +148,20 @@ func TestLocalDates(t *testing.T) {
 	wantOutputs(t, `localtime | mktime`, `1436140800`, `1436126400`)
 	wantOutputs(t, `gmtime | strflocaltime("%H %Z")`, `1425599621`, `"23 EST"`)
 	wantOutputs(t, `localtime`, `1425599621.678`, `[2015,2,5,18,53,41.678,4,63]`)
+}
+
+// TZ is read when the builtin runs, as the C library reads it, so a zone
+// set after the process started still counts.
+func TestLocalDatesFollowTZ(t *testing.T) {
+	pinLocal(t, "America/New_York")
+	t.Setenv("TZ", "UTC")
+	wantOutputs(t, `localtime, (localtime | mktime)`, `1425599621`, `[2015,2,5,23,53,41,4,63]`, `1425599621`)
+	wantOutputs(t, `strflocaltime("%H %Z %z")`, `1425599621`, `"23 UTC +0000"`)
+	wantOutputs(t, `strflocaltime("%H %Z %z")`, `[2015,6,5,23,53,41,4,63]`, `"23 UTC +0000"`)
+	t.Setenv("TZ", ":Asia/Tokyo")
+	wantOutputs(t, `strflocaltime("%H %Z %z")`, `1425599621`, `"08 JST +0900"`)
+	t.Setenv("TZ", "")
+	wantOutputs(t, `strflocaltime("%H %Z")`, `1425599621`, `"23 UTC"`)
+	t.Setenv("TZ", "No/Such_Zone")
+	wantOutputs(t, `strflocaltime("%H %Z")`, `1425599621`, `"23 UTC"`)
 }
