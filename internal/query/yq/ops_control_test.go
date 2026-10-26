@@ -9,6 +9,7 @@ import (
 
 func TestYQControl(t *testing.T) {
 	wantYQ(t, `with(.a; . = 2)`, "a: 1\n", "a: 2\n")
+	wantYQ(t, `with(.a; . = 2 | . style = "double")`, "a: 1\n", "a: \"2\"\n")
 	wantYQ(t, `.[] as $i ireduce (0; . + $i)`, "- 1\n- 2\n", "3\n")
 	wantYQ(t, `eval(".a")`, "a: 1\n", "1\n")
 	wantYQ(t, `.[] | split_doc`, "[1, 2]\n", "1\n---\n2\n")

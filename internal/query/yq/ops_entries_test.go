@@ -55,6 +55,7 @@ func TestYQEntries(t *testing.T) {
 		{".b | with_entries(.)", "0: 1\n", ""},
 		{".c | with_entries(.value += 1)", "d: 3\n", ""},
 		{".c | with_entries(.key |= . + \"x\")", "dx: 2\n", ""},
+		{".c | with_entries(.key |= upcase)", "D: 2\n", ""},
 		{"with_entries(select(.key == \"a\"))", "# head\na: 1 # la\n", ""},
 		{".c | with_entries(.) | path", "[]\n", ""},
 		{"collect(.a, .b[])", "- 1 # la\n- 1\n", ""},
