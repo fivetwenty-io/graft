@@ -1635,3 +1635,39 @@
   pattern: "a(?=b\\Kc)"
   flags: ""
   subject: "abc"
+
+- id: onig-linebreak
+  flavor: oniguruma
+  pattern: "\\R"
+  flags: "g"
+  subject: "a\r\nb\nc\rd\u000be\ff"
+
+- id: onig-linebreak-keeps-pair
+  flavor: oniguruma
+  pattern: "\\R\\n"
+  flags: ""
+  subject: "a\r\nb"
+
+- id: onig-linebreak-repeat
+  flavor: oniguruma
+  pattern: "a\\R+b"
+  flags: ""
+  subject: "a\r\n\n\rb"
+
+- id: pcre-linebreak
+  flavor: pcre
+  pattern: "\\R"
+  flags: "g"
+  subject: "a\r\nb\nc\rd\u000be\ff"
+
+- id: pcre-linebreak-keeps-pair
+  flavor: pcre
+  pattern: "\\R\\n"
+  flags: ""
+  subject: "a\r\nb"
+
+- id: pcre-linebreak-repeat
+  flavor: pcre
+  pattern: "a\\R+b"
+  flags: ""
+  subject: "a\r\n\n\rb"
