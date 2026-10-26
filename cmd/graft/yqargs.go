@@ -366,7 +366,7 @@ func (p *yqParser) value(name, val string) error {
 		p.o.InputFormat = format
 		return err
 	case "front-matter":
-		return &usageError{Msg: "-f" + yqLaterRelease}
+		p.o.FrontMatter = val
 	case "split-exp":
 		return &usageError{Msg: "-s" + yqLaterRelease}
 	case "split-exp-file":

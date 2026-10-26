@@ -21,6 +21,10 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/yq"
 )
 
+// yqFrontMatterProcess is the -f value that prints the content after the
+// front matter. Any other value only extracts the front matter, as in yq.
+const yqFrontMatterProcess = "process"
+
 // yqFailed is the one code yq exits with for every failure.
 const yqFailed = 1
 
@@ -194,6 +198,15 @@ func (o *yqOutput) write(v *value.Value) error {
 
 func (o *yqOutput) flush() error { return o.enc.Flush() }
 
+// raw writes data after everything written so far, untouched.
+func (o *yqOutput) raw(data []byte) error {
+	if err := o.enc.Flush(); err != nil {
+		return err
+	}
+	_, err := o.out.Write(data)
+	return err
+}
+
 // yqSource is where the documents come from: the input files in order, or
 // the composed YAML a merge or eval pass produced.
 type yqSource struct {
@@ -207,6 +220,7 @@ type yqSource struct {
 // errors name, and the facts yq.ExitCode takes.
 type yqRun struct {
 	where     string
+	appendix  []byte // front matter content to print after the first output
 	produced  bool
 	anyTruthy bool
 	err       error
@@ -242,7 +256,7 @@ func (s *yqSource) each(run *yqRun, fn func(doc *value.Value) error) error {
 func (s *yqSource) eachInFile(run *yqRun, index int, path string, fn func(doc *value.Value) error) error {
 	if path == "-" {
 		run.where = "<stdin>"
-		return s.drain(run, yq.NewDecoder(s.stdin, s.decodeOptions("-", index)), fn)
+		return s.drain(run, yq.NewDecoder(s.frontMatter(run, index, s.stdin), s.decodeOptions("-", index)), fn)
 	}
 	run.where = path
 	f, err := os.Open(path) // #nosec G304 -- the user names the input files
@@ -250,8 +264,31 @@ func (s *yqSource) eachInFile(run *yqRun, index int, path string, fn func(doc *v
 		return &yqOpenError{err}
 	}
 	defer func() { _ = f.Close() }()
-	return s.drain(run, yq.NewDecoder(f, s.decodeOptions(path, index)), fn)
+	return s.drain(run, yq.NewDecoder(s.frontMatter(run, index, f), s.decodeOptions(path, index)), fn)
 }
+
+// frontMatter is the reader the decoder takes for the file at index. Under
+// -f it is only the YAML at the head of the first file, and -f process
+// keeps the content after it for the run to print once the first output
+// is written. Every other file reads as it is.
+func (s *yqSource) frontMatter(run *yqRun, index int, r io.Reader) io.Reader {
+	if index != 0 || s.opts.FrontMatter == "" {
+		return r
+	}
+	head, rest, _, err := yq.SplitFrontMatter(r)
+	if err != nil {
+		return &failingReader{err}
+	}
+	if s.opts.FrontMatter == yqFrontMatterProcess {
+		run.appendix = rest
+	}
+	return bytes.NewReader(head)
+}
+
+// failingReader is a reader whose first read fails with err.
+type failingReader struct{ err error }
+
+func (f *failingReader) Read([]byte) (int, error) { return 0, f.err }
 
 func (s *yqSource) drain(run *yqRun, dec *yq.Decoder, fn func(doc *value.Value) error) error {
 	for {
@@ -281,6 +318,7 @@ func truthy(v *value.Value) bool {
 // emit runs the evaluator over docs and writes each output, and it stops
 // at the first error.
 func (r *yqRun) emit(seq iter.Seq2[*value.Value, error], out *yqOutput) error {
+	wrote := false
 	for v, err := range seq {
 		if err == nil {
 			err = out.write(v)
@@ -288,8 +326,15 @@ func (r *yqRun) emit(seq iter.Seq2[*value.Value, error], out *yqOutput) error {
 		if err != nil {
 			return &locatedError{Where: r.where, Err: err}
 		}
-		r.produced = true
+		wrote, r.produced = true, true
 		r.anyTruthy = r.anyTruthy || truthy(v)
+	}
+	if wrote && r.appendix != nil {
+		appendix := r.appendix
+		r.appendix = nil
+		if err := out.raw(appendix); err != nil {
+			return &locatedError{Where: r.where, Err: err}
+		}
 	}
 	return nil
 }

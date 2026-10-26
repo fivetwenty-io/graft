@@ -135,9 +135,6 @@ func TestYQArguments(t *testing.T) {
 		So(out, ShouldEqual, "a:\n  \"2\": 2\n  \"10\": 1\nb: 1\n")
 		_, _, st = runYQ(t, []string{"-e", ".a"}, "a: 1\n")
 		So(st.Code, ShouldEqual, 0)
-		_, e, st = runYQ(t, []string{"-f", "extract", "."}, "a: 1\n")
-		So(st.Code, ShouldEqual, 1)
-		So(e, ShouldContainSubstring, "later release")
 	})
 
 	Convey("graft yq reads its flags the way yq does", t, func() {
