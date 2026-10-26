@@ -41,17 +41,12 @@ func yqEqual(l, r *value.Value) bool {
 
 // yqOrder is yq's <, <=, >, and >=.
 func yqOrder(ctx *runtime.Ctx, op string, l, r *value.Value) (bool, error) {
-	orEqual := op == "<=" || op == ">="
-	greater := op == ">" || op == ">="
-	switch kindOf(l) {
-	case "map":
-		return false, fmt.Errorf("maps not yet supported for comparison")
-	case "seq":
-		return false, fmt.Errorf("arrays not yet supported for comparison")
-	default:
+	if err := orderable(l, r); err != nil {
+		return false, err
 	}
-	if kindOf(r) != kindScalar {
-		return false, fmt.Errorf("%s cannot be subtracted from %s", tagOf(r), tagOf(l))
+	orEqual := op == "<=" || op == ">="
+	if l.Kind() == value.KindNull || r.Kind() == value.KindNull {
+		return orEqual && l.Kind() == r.Kind(), nil
 	}
 	var c int
 	switch {
@@ -59,21 +54,33 @@ func yqOrder(ctx *runtime.Ctx, op string, l, r *value.Value) (bool, error) {
 		c = ctx.Compare(l, r)
 	case l.Kind() == value.KindString && r.Kind() == value.KindString:
 		c = strings.Compare(l.Str(), r.Str())
-	case l.Kind() == value.KindNull && r.Kind() == value.KindNull:
-		return orEqual, nil
-	case l.Kind() == value.KindNull || r.Kind() == value.KindNull:
-		return false, nil
 	default:
 		return false, fmt.Errorf("%s not yet supported for comparison", tagOf(l))
 	}
 	switch {
 	case orEqual && c == 0:
 		return true, nil
-	case greater:
+	case op == ">" || op == ">=":
 		return c > 0, nil
 	default:
 	}
 	return c < 0, nil
+}
+
+// orderable is the error yq gives when either side of an ordering
+// operator is a map or a sequence.
+func orderable(l, r *value.Value) error {
+	switch kindOf(l) {
+	case "map":
+		return fmt.Errorf("maps not yet supported for comparison")
+	case "seq":
+		return fmt.Errorf("arrays not yet supported for comparison")
+	default:
+	}
+	if kindOf(r) != kindScalar {
+		return fmt.Errorf("%s cannot be subtracted from %s", tagOf(r), tagOf(l))
+	}
+	return nil
 }
 
 // wildcardMatch reports whether text matches pattern, where * stands for
