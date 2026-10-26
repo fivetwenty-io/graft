@@ -2,6 +2,7 @@ package yq
 
 import (
 	"fmt"
+	"io"
 	"iter"
 	"maps"
 	"slices"
@@ -436,7 +437,7 @@ func explode(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runti
 	// One exploder serves every path, so an alias in a later one still
 	// finds an anchor an earlier one exploded away, as yq's alias holds
 	// the node itself rather than its anchor's name.
-	x := &exploder{anchors: map[string]*value.Value{}, toSpec: toSpec}
+	x := &exploder{anchors: map[string]*value.Value{}, toSpec: toSpec, stderr: ctx.Stderr}
 	for _, t := range targets {
 		if _, found := resolve(root, t); !found {
 			// yq reads the paths as an assignment does, so a missing
@@ -464,6 +465,22 @@ func explode(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runti
 type exploder struct {
 	anchors map[string]*value.Value
 	toSpec  bool
+	// stderr receives the merge key warning, once per run.
+	stderr io.Writer
+	warned bool
+}
+
+// mergeWarning is what a run writes the first time it folds a merge key
+// in the way yq does by default.
+const mergeWarning = "Warning: --yaml-fix-merge-anchor-to-spec is false, so a merge key overrides the values the map already holds, which the YAML spec does not do. The flag will default to true in a later release.\n"
+
+// warnMerge writes mergeWarning the first time it is called.
+func (x *exploder) warnMerge() {
+	if x.warned || x.stderr == nil {
+		return
+	}
+	x.warned = true
+	_, _ = io.WriteString(x.stderr, mergeWarning)
 }
 
 // at walks v, which sits at p, and explodes the node at target, noting
@@ -608,6 +625,7 @@ func (x *exploder) mapping(v *value.Value) (*value.Value, error) {
 	if x.toSpec {
 		return x.mergeToSpec(entries)
 	}
+	x.warnMerge()
 	return x.mergeLegacy(entries)
 }
 

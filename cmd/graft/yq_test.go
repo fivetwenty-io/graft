@@ -264,3 +264,20 @@ func TestYQVersionAndPersona(t *testing.T) {
 		So(defaultAliasNames(), ShouldResemble, []string{"jq", "yq", "spruce"})
 	})
 }
+
+func TestYQMergeKeyWarning(t *testing.T) {
+	const doc = "base: &base\n  size: 3\nitem:\n  <<: *base\n  extra: true\n"
+	Convey("explode warns once about the default merge key behavior", t, func() {
+		out, errOut, st := runYQ(t, []string{"explode(.) | .item"}, doc)
+		So(st.Code, ShouldEqual, 0)
+		So(out, ShouldEqual, "size: 3\nextra: true\n")
+		So(strings.Count(errOut, "--yaml-fix-merge-anchor-to-spec"), ShouldEqual, 1)
+	})
+
+	Convey("the spec flag and a document with no merge key stay quiet", t, func() {
+		_, errOut, _ := runYQ(t, []string{"--yaml-fix-merge-anchor-to-spec", "explode(.)"}, doc)
+		So(errOut, ShouldEqual, "")
+		_, errOut, _ = runYQ(t, []string{"explode(.)"}, "a: 1\n")
+		So(errOut, ShouldEqual, "")
+	})
+}
