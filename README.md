@@ -160,6 +160,21 @@ make build
 
 For detailed installation instructions, see the [Installation Guide](docs/getting-started/installation.md).
 
+## Go packages
+
+The jq engine is importable too. `pkg/jq` compiles and runs jq programs, `pkg/query/value` holds the values they read and produce, and `pkg/query` holds the errors a run can end with. The regular expression engine lives in `pkg/regex`, exact decimal arithmetic in `pkg/decimal`, and key ordering in `pkg/sortkeys`. These packages are experimental until graft jq is complete, so their exported names may still change between minor releases, and the changelog lists every such change.
+
+```go
+q, _ := jq.Compile(`.items[] | select(.n > $min) | .name`, jq.WithArg("min", value.Num(1)))
+in, _ := jq.NewDecoder(os.Stdin, jq.DecodeOptions{}).Next()
+out, _ := q.RunAll(context.Background(), in)
+enc := jq.NewEncoder(os.Stdout, jq.EncodeOptions{Raw: true})
+for _, v := range out { _ = enc.Encode(v) }
+enc.Flush()
+```
+
+Every exported name in these packages has a runnable example in its Go documentation, and the `pkg/jq` overview walks through a complete read, run, and write loop.
+
 ## Documentation
 
 Comprehensive documentation is available in the [docs/](docs/) directory:
