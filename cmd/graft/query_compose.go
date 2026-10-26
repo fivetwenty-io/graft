@@ -3,11 +3,8 @@ package main
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
-	"os"
 
-	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
@@ -147,40 +144,21 @@ func (cc composeContext) render(docs []YamlFile, opts *mergeOpts) ([]byte, error
 
 // load reads one file, or stdin for "-", as the documents it holds. A
 // file is one document unless it is being split, which Eval and
-// --multi-doc both do.
+// --multi-doc both do. It reads and reports errors as graft merge does.
 func (cc composeContext) load(file string) ([]YamlFile, error) {
-	var data []byte
-	var err error
-	path := file
-	if file == "-" {
-		path = stdinPath
-		data, err = io.ReadAll(cc.Stdin)
-		if err != nil {
-			return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s", path, err.Error())
-		}
-		if len(data) == 0 {
-			return nil, ansi.Errorf("@R{Error reading STDIN}: no data found. Did you forget to pipe data to STDIN, or specify yaml files to merge?")
-		}
-	} else if data, err = os.ReadFile(file); err != nil { // #nosec G304 -- the user names the input files
-		return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s", file, err.Error())
+	yf, err := loadYamlFile(file)
+	if err != nil {
+		return nil, err
+	}
+	if yf.Path != "-" {
+		defer func() { _ = yf.Reader.Close() }()
+	}
+	data, err := readFileFrom(&yf, cc.Stdin)
+	if err != nil {
+		return nil, err
 	}
 	if !cc.Eval && !cc.Merge.MultiDoc {
-		return []YamlFile{{Path: path, Reader: io.NopCloser(bytes.NewReader(data))}}, nil
+		return []YamlFile{{Path: yf.Path, Reader: io.NopCloser(bytes.NewReader(data))}}, nil
 	}
-	return splitYamlBytes(path, data), nil
-}
-
-// splitYamlBytes splits data into its documents the way --multi-doc does.
-func splitYamlBytes(path string, data []byte) []YamlFile {
-	raw := bytes.Split(data, []byte("\n---\n"))
-	// An empty first document is the separator at the top of the file,
-	// which would shift the indexes error messages name.
-	if len(raw[0]) == 0 {
-		raw = raw[1:]
-	}
-	docs := make([]YamlFile, 0, len(raw))
-	for i, doc := range raw {
-		docs = append(docs, YamlFile{Path: fmt.Sprintf("%s[%d]", path, i), Reader: io.NopCloser(bytes.NewReader(doc))})
-	}
-	return docs
+	return splitYamlBytes(yf.Path, data), nil
 }

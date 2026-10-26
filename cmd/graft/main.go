@@ -1678,8 +1678,6 @@ func loadYamlFile(file string) (YamlFile, error) {
 }
 
 func splitLoadYamlFile(file string) ([]YamlFile, error) {
-	docs := []YamlFile{}
-
 	yamlFile, err := loadYamlFile(file)
 	if err != nil {
 		return nil, err
@@ -1690,19 +1688,25 @@ func splitLoadYamlFile(file string) ([]YamlFile, error) {
 		return nil, err
 	}
 
-	rawDocs := bytes.Split(fileData, []byte("\n---\n"))
+	return splitYamlBytes(yamlFile.Path, fileData), nil
+}
+
+// splitYamlBytes splits data into its documents the way --multi-doc does,
+// naming each one path[index].
+func splitYamlBytes(path string, data []byte) []YamlFile {
+	rawDocs := bytes.Split(data, []byte("\n---\n"))
 	// strip off empty document created if the first three bytes of the file are the doc separator
 	// keeps the indexing correct for when used with error messages
 	if len(rawDocs[0]) == 0 {
 		rawDocs = rawDocs[1:]
 	}
 
+	docs := make([]YamlFile, 0, len(rawDocs))
 	for i, docBytes := range rawDocs {
 		buf := bytes.NewBuffer(docBytes)
-		doc := YamlFile{Path: fmt.Sprintf("%s[%d]", yamlFile.Path, i), Reader: io.NopCloser(buf)}
-		docs = append(docs, doc)
+		docs = append(docs, YamlFile{Path: fmt.Sprintf("%s[%d]", path, i), Reader: io.NopCloser(buf)})
 	}
-	return docs, nil
+	return docs
 }
 
 // resolveMergeInputFiles resolves options.Files to the actual list of
@@ -1990,17 +1994,27 @@ func formatVaultInfoExtended(refs yamlVaultRefs, jsonOutput, pathsOnly bool) (st
 }
 
 func readFile(file *YamlFile) ([]byte, error) {
+	return readFileFrom(file, os.Stdin)
+}
+
+// readFileFrom is readFile with the stream "-" reads from named, where a
+// stream that is a character device counts as having no data.
+func readFileFrom(file *YamlFile, stdin io.Reader) ([]byte, error) {
 	var data []byte
 	var err error
 
 	if file.Path == "-" {
 		file.Path = stdinPath
-		stat, statErr := os.Stdin.Stat()
-		if statErr != nil {
-			return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", statErr.Error())
+		isDevice := false
+		if f, ok := stdin.(*os.File); ok {
+			stat, statErr := f.Stat()
+			if statErr != nil {
+				return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", statErr.Error())
+			}
+			isDevice = stat.Mode()&os.ModeCharDevice != 0
 		}
-		if stat.Mode()&os.ModeCharDevice == 0 {
-			data, err = io.ReadAll(os.Stdin)
+		if !isDevice {
+			data, err = io.ReadAll(stdin)
 			if err != nil {
 				return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s\n", file.Path, err.Error())
 			}

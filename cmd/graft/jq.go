@@ -740,7 +740,12 @@ func newJQCmdFor(pers persona) *cobra.Command {
 				opts.Theme, _, _ = resolveTheme(cmd, false, themeNameAuto)
 			}
 			if opts.Merge || opts.Eval {
-				opts.Engine = composeEngineOpts(cmd)
+				var err error
+				if opts.Engine, err = composeEngineOpts(cmd); err != nil {
+					log.PrintStdErrf("%s\n", err.Error())
+					exit(1)
+					return nil
+				}
 			}
 			st := handleJQ(opts, os.Stdin, jqStdout{}, jqStderr{})
 			if st.Message != "" {
@@ -756,16 +761,16 @@ func newJQCmdFor(pers persona) *cobra.Command {
 
 // composeEngineOpts are the engine options the root's config loading
 // produces, which graft jq needs for -m and -E as graft merge does.
-func composeEngineOpts(cmd *cobra.Command) engineOptions {
+func composeEngineOpts(cmd *cobra.Command) (engineOptions, error) {
 	path := ""
 	if f := cmd.Root().PersistentFlags().Lookup("config"); f != nil {
 		path = f.Value.String()
 	}
 	cfg, err := resolveStartupConfig(path)
 	if err != nil {
-		cfg = nil
+		return nil, err
 	}
-	return configEngineOpts(cfg, resolveStartupFeatureFlags())
+	return configEngineOpts(cfg, resolveStartupFeatureFlags()), nil
 }
 
 // jqFlagsHelp summarizes the flags graft jq reads after the verb.
