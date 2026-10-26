@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+
+	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
 // The path verbs take a path a query chose without flattening it, so a key
@@ -77,5 +79,54 @@ func TestDebugQueryBreakpoints(t *testing.T) {
 			"load\nbreak jq:.jobs[] | select(.name == \"nats\")\nunbreak jq:.jobs[] | select(.name == \"nats\")\nstep\nquit\n")
 		So(out, ShouldContainSubstring, "Breakpoint removed")
 		So(out, ShouldNotContainSubstring, "Breakpoint hit")
+	})
+}
+
+func TestDebugStepFollowsSelection(t *testing.T) {
+	a, b := "testdata/debug/a.yml", "testdata/debug/b.yml"
+
+	Convey("step prints every change when nothing is selected", t, func() {
+		out, _ := runDebugSession([]string{a, b}, "load\nstep\nquit\n")
+		So(out, ShouldContainSubstring, "jobs.nats.port")
+		So(out, ShouldContainSubstring, "jobs[2]")
+	})
+
+	Convey("step prints only the changes under the selection", t, func() {
+		out, _ := runDebugSession([]string{a, b},
+			"load\nselect .jobs[] | select(.name == \"nats\")\nstep\nquit\n")
+		So(out, ShouldContainSubstring, "jobs.nats.port")
+		So(out, ShouldNotContainSubstring, "jobs[2]")
+	})
+
+	Convey("unselect restores the full list of changes", t, func() {
+		out, _ := runDebugSession([]string{a, b},
+			"load\nselect .jobs[] | select(.name == \"nats\")\nunselect\nstep\nquit\n")
+		So(out, ShouldContainSubstring, "jobs[2]")
+	})
+}
+
+func TestHistPathNamesEntries(t *testing.T) {
+	Convey("histPath names a list entry by its name and falls back to its index", t, func() {
+		s := &debugSession{tree: map[string]interface{}{
+			"jobs":  []interface{}{map[string]interface{}{"name": "nats"}, map[string]interface{}{"port": 1}},
+			"plain": []interface{}{"x", "y"},
+			"a.b":   map[string]interface{}{"c": 1},
+		}}
+		p := func(segs ...interface{}) value.Path {
+			out := make(value.Path, len(segs))
+			for i, sg := range segs {
+				if n, ok := sg.(int); ok {
+					out[i] = value.Num(float64(n))
+				} else {
+					out[i] = value.Str(sg.(string))
+				}
+			}
+			return out
+		}
+		So(s.histPath(p("jobs", 0, "port")), ShouldEqual, "jobs.nats.port")
+		So(s.histPath(p("jobs", 1, "port")), ShouldEqual, "jobs[1].port")
+		So(s.histPath(p("plain", 1)), ShouldEqual, "plain[1]")
+		So(s.histPath(p("a.b", "c")), ShouldEqual, "a.b.c")
+		So(s.trackPath(p("a.b", "c")), ShouldEqual, `"a.b".c`)
 	})
 }

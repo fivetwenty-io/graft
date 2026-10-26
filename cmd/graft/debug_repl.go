@@ -139,6 +139,9 @@ type debugSession struct {
 	// selection is the set of typed paths `select` chose. The path verbs
 	// use it when they are given no argument.
 	selection []qvalue.Path
+	// selectionNames is the selection spelled as the step diff names paths,
+	// taken when the selection was made.
+	selectionNames []string
 	// watches are the expressions re-evaluated after every step.
 	watches []debugWatch
 }
@@ -299,6 +302,9 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 		changes, cmpErr := histdiff.Compare("before", s.tree, s.cached[fileIdx].Path, newTree)
 		if cmpErr == nil {
 			for _, c := range changes {
+				if !s.inSelection(c.Path) {
+					continue
+				}
 				s.printf("  %s: %s %s %s\n",
 					s.style(rolePath, c.Path),
 					s.styleChangeValue(roleValueOld, changeOldDisplay(c)),

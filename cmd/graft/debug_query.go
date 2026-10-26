@@ -388,6 +388,10 @@ func (s *debugSession) cmdSelect(arg string) {
 		return
 	}
 	s.selection = paths
+	s.selectionNames = make([]string, len(paths))
+	for i, p := range paths {
+		s.selectionNames[i] = s.histPath(p)
+	}
 	s.printSelection()
 }
 
@@ -406,6 +410,7 @@ func (s *debugSession) printSelection() {
 // cmdUnselect implements `unselect`.
 func (s *debugSession) cmdUnselect() {
 	s.selection = nil
+	s.selectionNames = nil
 	s.printf("%s\n", s.style(roleSuccess, "Selection cleared"))
 }
 
@@ -559,7 +564,13 @@ func (s *debugSession) trackPath(p value.Path) string {
 
 func (s *debugSession) namePath(p value.Path, quote bool) string {
 	var cur interface{} = s.tree
-	parts := make([]string, 0, len(p))
+	var out strings.Builder
+	add := func(seg string) {
+		if out.Len() > 0 {
+			out.WriteByte('.')
+		}
+		out.WriteString(seg)
+	}
 	for _, c := range p {
 		switch c.Kind() {
 		case value.KindString:
@@ -567,26 +578,29 @@ func (s *debugSession) namePath(p value.Path, quote bool) string {
 			if quote {
 				seg = history.EscapePathSegment(seg)
 			}
-			parts = append(parts, seg)
+			add(seg)
 			m, _ := cur.(map[string]interface{})
 			cur = m[c.Str()]
 		case value.KindNumber:
-			seg := "[" + c.Dec().String() + "]"
 			var next interface{}
 			arr, _ := cur.([]interface{})
+			named := false
 			if idx, ok := c.Dec().Int64(); ok && idx >= 0 && idx < int64(len(arr)) {
 				next = arr[idx]
 				if m, isMap := next.(map[string]interface{}); isMap {
 					if name, isStr := m["name"].(string); isStr {
-						seg = name
+						add(name)
+						named = true
 					}
 				}
 			}
-			parts = append(parts, seg)
+			if !named {
+				out.WriteString("[" + c.Dec().String() + "]")
+			}
 			cur = next
 		}
 	}
-	return strings.Join(parts, ".")
+	return out.String()
 }
 
 // cmdBreakArg is `break`: a plain path sets one exact breakpoint, as it
@@ -620,6 +634,20 @@ func (s *debugSession) breakpointHit(path string) bool {
 	}
 	for bp := range s.coverBreaks {
 		if s.breakpoints[bp] && strings.HasPrefix(path, bp+".") {
+			return true
+		}
+	}
+	return false
+}
+
+// inSelection reports whether a change at path lies under a selected path.
+// With nothing selected every change does.
+func (s *debugSession) inSelection(path string) bool {
+	if len(s.selectionNames) == 0 {
+		return true
+	}
+	for _, sel := range s.selectionNames {
+		if path == sel || strings.HasPrefix(path, sel+".") || strings.HasPrefix(path, sel+"[") {
 			return true
 		}
 	}
