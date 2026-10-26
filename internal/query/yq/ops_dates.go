@@ -16,6 +16,9 @@ import (
 // timestampTag is the tag of a time the date operators write.
 const timestampTag = "!!timestamp"
 
+// secondsLimit is 2^63, the bound of the int64 seconds time.Unix takes.
+const secondsLimit = 1 << 63
+
 // dateOnly is the layout parseDateTime tries when a time does not read in
 // the layout in force.
 const dateOnly = "2006-01-02"
@@ -177,6 +180,9 @@ func fromUnix(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.E
 	f, err := strconv.ParseFloat(nodeText(in), 64)
 	if err != nil {
 		return &query.RuntimeError{Msg: err.Error()}
+	}
+	if f < -secondsLimit || f >= secondsLimit {
+		return &query.RuntimeError{Msg: "from_unix: " + nodeText(in) + " is outside the range of int64 seconds"}
 	}
 	return emit(timestamp(time.Unix(int64(f), 0).Format(time.RFC3339)), nil)
 }
