@@ -12,7 +12,8 @@ import (
 // yq reads as text: env and strenv take the variable name as written,
 // envsubst takes its flags, and with must have two arguments. It also
 // makes an interpolated value read as tostring gives it rather than as
-// JSON.
+// JSON. A comma whose sides both give the list they were handed keeps
+// only its left side, since yq's union gives that list once.
 func rewrite(expr string, n ast.Node) (ast.Node, error) {
 	var err error
 	walk(n, func(n ast.Node) {
@@ -20,6 +21,10 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 			err = &ParseError{Msg: "'" + op + "' expects 2 args but there is 1"}
 		}
 		switch n := n.(type) {
+		case *ast.Comma:
+			if sameList(n.L, n.R) {
+				n.R = &ast.Call{Name: "_yq_none"}
+			}
 		case *ast.Call:
 			if bareError(n) && err == nil {
 				err = &ParseError{Msg: errorArgMissing}
@@ -66,6 +71,29 @@ func rewriteCall(expr string, n *ast.Call) error {
 	default:
 	}
 	return nil
+}
+
+// sameList reports whether l and r both give the very list a yq
+// operator is handed: each is . (or a pipe of them), or both read one
+// variable.
+func sameList(l, r ast.Node) bool {
+	if lv, ok := l.(*ast.Var); ok {
+		rv, ok := r.(*ast.Var)
+		return ok && lv.Name == rv.Name
+	}
+	return isSelf(l) && isSelf(r)
+}
+
+// isSelf reports whether n gives its input list unchanged.
+func isSelf(n ast.Node) bool {
+	switch n := n.(type) {
+	case *ast.Identity:
+		return true
+	case *ast.Pipe:
+		return isSelf(n.L) && isSelf(n.R)
+	default:
+		return false
+	}
 }
 
 // bareError reports whether n is error without an argument, which yq

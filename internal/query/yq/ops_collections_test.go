@@ -19,3 +19,12 @@ func TestYQCollectionErrors(t *testing.T) {
 	wantYQError(t, `flatten`, "a: 1\n", "only arrays are supported for flatten")
 	wantYQError(t, `any_c(.)`, "a: 1\n", "any only supports arrays, was !!map")
 }
+
+func TestYQUnionOfTheSameNodes(t *testing.T) {
+	// yq's comma gives a list once when both its sides give the very list
+	// they were handed, as . and one variable do.
+	wantYQ(t, `map(., .)`, "[1, 2]\n", "[1, 2]\n")
+	wantYQ(t, `map((., .) | . + 1)`, "[1, 2]\n", "[2, 3]\n")
+	wantYQ(t, `[., .], [(. | .), .], (.a as $x | [$x, $x])`, "{a: 1}\n", "- {a: 1}\n- {a: 1}\n- 1\n")
+	wantYQ(t, `[., ., .] | length, ([., .a, .] | length), ([.a, ., .] | length), ([.a, .a] | length)`, "{a: 1}\n", "2\n3\n2\n2\n")
+}

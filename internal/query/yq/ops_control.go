@@ -76,6 +76,10 @@ func registerControl(r *runtime.Registry) {
 	r.RegisterSingle("error", 0, func(*runtime.Ctx, *value.Value, []runtime.Thunk, runtime.Emit) error {
 		return &query.RuntimeError{Msg: errorArgMissing}
 	})
+	// rewrite puts _yq_none in place of a comma's repeated side.
+	r.RegisterSingle("_yq_none", 0, func(*runtime.Ctx, *value.Value, []runtime.Thunk, runtime.Emit) error {
+		return nil
+	})
 	r.RegisterSingle("_yq_with", 1, with)
 	r.Register("eval", 1, evalOp)
 	r.RegisterSingle("split_doc", 0, func(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
