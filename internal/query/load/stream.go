@@ -40,7 +40,12 @@ type streamState struct {
 	explicitLimit bool
 	recover       bool // report a failure as an event and read on
 
-	path   []pathElem
+	path []pathElem
+	// pv holds the value of each step of path, which is what an event
+	// reports. An event takes a view of it, so events share the steps they
+	// have in common, and a step an event has seen is never written again.
+	pv     []*value.Value
+	shared int          // the most steps of pv any event has taken
 	next   *value.Value // the leaf read but not yet confirmed by a delimiter
 	filled bool         // the current slot holds a leaf or a closed container
 	comma  bool         // the last token was a comma
@@ -185,7 +190,8 @@ func (r *JSONReader) streamFail(err error) {
 	if s.done {
 		return
 	}
-	s.path, s.next, s.filled, s.comma, s.tok = s.path[:0], nil, false, false, s.tok[:0]
+	s.resetPath()
+	s.next, s.filled, s.comma, s.tok = nil, false, false, s.tok[:0]
 	r.pos = len(r.buf)
 }
 
@@ -216,23 +222,52 @@ func (r *JSONReader) failAt(msg string) *streamError {
 	return &streamError{msg: msg, line: r.line + 1, col: r.col, path: r.stream.pathValue()}
 }
 
+// pathValue is the path the parser is at, as an event reports it. It
+// shares its steps with pv, and a view that long cannot grow into pv.
 func (s *streamState) pathValue() *value.Value {
-	return pathOf(s.path)
+	return s.pathPrefix(len(s.pv))
 }
 
-func pathOf(path []pathElem) *value.Value {
-	elems := make([]*value.Value, len(path))
-	for i, p := range path {
-		switch {
-		case !p.obj:
-			elems[i] = value.Num(float64(p.idx))
-		case p.keySet:
-			elems[i] = value.Str(p.key)
-		default:
-			elems[i] = value.Null()
-		}
+// pathPrefix is the first n steps of the path, shared in the same way.
+func (s *streamState) pathPrefix(n int) *value.Value {
+	s.shared = max(s.shared, n)
+	return value.Arr(s.pv[:n:n]...)
+}
+
+// setStep sets step i of the path, which is the last step or the next one.
+// A step an event has already taken is copied out first, so the event keeps
+// the path it reported.
+func (s *streamState) setStep(i int, v *value.Value) {
+	if i < s.shared {
+		s.pv = append(make([]*value.Value, 0, len(s.pv)+1), s.pv...)
+		s.shared = 0
 	}
-	return value.Arr(elems...)
+	if i == len(s.pv) {
+		s.pv = append(s.pv, v)
+		return
+	}
+	s.pv[i] = v
+}
+
+// push enters a container.
+func (s *streamState) push(obj bool) {
+	s.path = append(s.path, pathElem{obj: obj})
+	if obj {
+		s.setStep(len(s.path)-1, value.Null())
+	} else {
+		s.setStep(len(s.path)-1, value.Num(0))
+	}
+}
+
+// pop leaves the innermost container.
+func (s *streamState) pop() {
+	s.path = s.path[:len(s.path)-1]
+	s.pv = s.pv[:len(s.path)]
+}
+
+// resetPath forgets the path, as a parser starting over does.
+func (s *streamState) resetPath() {
+	s.path, s.pv = s.path[:0], s.pv[:0]
 }
 
 // emit queues [path, leaf], or [path] when leaf is nil.
@@ -416,7 +451,7 @@ func (r *JSONReader) streamToken(c byte) error {
 		if s.explicitLimit && len(s.path) >= r.limit {
 			return r.failAt("Exceeds depth limit for parsing")
 		}
-		s.path = append(s.path, pathElem{obj: c == '{'})
+		s.push(c == '{')
 		s.next, s.filled, s.comma = nil, false, false
 	case ':':
 		return r.streamColon()
@@ -484,6 +519,7 @@ func (r *JSONReader) streamColon() error {
 	}
 	top := &s.path[len(s.path)-1]
 	top.key, top.keySet = s.next.Str(), true
+	s.setStep(len(s.path)-1, s.next)
 	s.next, s.filled = nil, false
 	return nil
 }
@@ -505,8 +541,10 @@ func (r *JSONReader) streamComma() error {
 	}
 	if top.obj {
 		top.key, top.keySet = "", false
+		s.setStep(len(s.path)-1, value.Null())
 	} else {
 		top.idx++
+		s.setStep(len(s.path)-1, value.Num(float64(top.idx)))
 	}
 	s.next, s.filled, s.comma = nil, false, true
 	return nil
@@ -570,9 +608,9 @@ func (r *JSONReader) closeContainer(empty *value.Value) {
 		}
 		s.emit(here, nil)
 	} else {
-		s.emit(pathOf(s.path[:len(s.path)-1]), empty)
+		s.emit(s.pathPrefix(len(s.path)-1), empty)
 	}
-	s.path = s.path[:len(s.path)-1]
+	s.pop()
 	s.next, s.comma = nil, false
 	s.filled = len(s.path) > 0
 }

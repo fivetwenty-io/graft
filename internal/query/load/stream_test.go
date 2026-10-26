@@ -1,12 +1,15 @@
 package load
 
 import (
+	"bufio"
 	"errors"
 	"io"
+	goruntime "runtime"
 	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
+	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
 // events reads every document of text under opts and prints each as
@@ -148,4 +151,95 @@ func TestSeqReadsEventsAndRecoversAtTheNextByte(t *testing.T) {
 		`[[0],1]`, `["Expected another array element at line 1, column 5 (need RS to resync)",[1]]`,
 		`[[0],2]`, `[[0]]`,
 	})
+}
+
+// allocatedBy returns the bytes allocated while f runs.
+func allocatedBy(f func()) uint64 {
+	var before, after goruntime.MemStats
+	goruntime.GC()
+	goruntime.ReadMemStats(&before)
+	f()
+	goruntime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
+}
+
+// countDocs reads every document of text under opts and counts them.
+func countDocs(t *testing.T, text string, opts LoadOptions) int {
+	t.Helper()
+	r := Open(Source{"f", strings.NewReader(text)}, 0, opts)
+	n := 0
+	for {
+		_, err := r.Next()
+		if errors.Is(err, io.EOF) {
+			return n
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		n++
+	}
+}
+
+// A path that every event copies in full costs the square of the depth, so
+// the bytes allocated for deeply nested input tell the two apart without
+// a clock.
+func TestStreamWorkIsLinearInDepth(t *testing.T) {
+	const depth = 20000
+	text := strings.Repeat("[", depth) + strings.Repeat("]", depth)
+	var n int
+	got := allocatedBy(func() { n = countDocs(t, text, LoadOptions{Format: FormatJSON, Stream: true}) })
+	wantEqual(t, n, depth)
+	if limit := uint64(depth) * 4096; got > limit {
+		t.Errorf("allocated %d bytes for %d levels, want at most %d", got, depth, limit)
+	}
+}
+
+func TestSeqWorkIsLinearInDepth(t *testing.T) {
+	const depth = 9990
+	text := "\x1e" + strings.Repeat("[", depth) + strings.Repeat("]", depth)
+	var n int
+	got := allocatedBy(func() { n = countDocs(t, text, LoadOptions{Format: FormatJSON, Seq: true}) })
+	wantEqual(t, n, 1)
+	if limit := uint64(depth) * 4096; got > limit {
+		t.Errorf("allocated %d bytes for %d levels, want at most %d", got, depth, limit)
+	}
+}
+
+func TestStreamSharedPathsKeepTheirOwnValues(t *testing.T) {
+	opts := LoadOptions{Format: FormatJSON, Stream: true}
+	wantEqual(t, events(t, `[[1,[2]],[3]]`, opts), []string{
+		`[[0,0],1]`, `[[0,1,0],2]`, `[[0,1,0]]`, `[[0,1]]`,
+		`[[1,0],3]`, `[[1,0]]`, `[[1]]`,
+	})
+	wantEqual(t, events(t, `{"a":{"b":[]},"c":{"d":1}}`, opts), []string{
+		`[["a","b"],[]]`, `[["a","b"]]`, `[["c","d"],1]`, `[["c","d"]]`, `[["c"]]`,
+	})
+}
+
+// The assembler is given the events of a deeply nested value and must find
+// the container of each in a few steps, not by walking from the root.
+func TestAssemblerFindsContainersWithoutWalkingFromTheRoot(t *testing.T) {
+	const depth = 9990
+	text := strings.Repeat("[", depth) + "1" + strings.Repeat("]", depth) + "\n"
+	r := NewJSONReader(bufio.NewReader(strings.NewReader(text)), "f", LoadOptions{Format: FormatJSON, Stream: true, DepthLimit: depth + 1})
+	var a assembler
+	var done *value.Value
+	for {
+		ev, err := r.NextEvent()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v := a.add(ev); v != nil {
+			done = v
+		}
+	}
+	if done == nil {
+		t.Fatal("the assembler completed no value")
+	}
+	if limit := 4 * depth; a.walked > limit {
+		t.Errorf("walked %d steps for %d levels, want at most %d", a.walked, depth, limit)
+	}
 }

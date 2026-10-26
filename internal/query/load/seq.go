@@ -115,7 +115,8 @@ func (r *JSONReader) seqFail(se *streamError) {
 // seqReset makes the parser start a new text.
 func (r *JSONReader) seqReset() {
 	s := &r.stream
-	s.path, s.next, s.filled, s.comma, s.tok = s.path[:0], nil, false, false, s.tok[:0]
+	s.resetPath()
+	s.next, s.filled, s.comma, s.tok = nil, false, false, s.tok[:0]
 	s.note(seqNote{reset: true})
 }
 
@@ -159,6 +160,16 @@ func (r *JSONReader) nextSeqValue() (*value.Value, int, error) {
 // string for an object key.
 type assembler struct {
 	root *anode
+	// stack holds the open containers from the root down to the one the
+	// last event went into, each with the path step that led to it.
+	stack  []astep
+	walked int // containers looked up, which tests count
+}
+
+// astep is an open container and the step of the path that reached it.
+type astep struct {
+	via  *value.Value
+	node *anode
 }
 
 type anode struct {
@@ -185,7 +196,7 @@ func (a *assembler) add(ev *value.Value) *value.Value {
 	}
 	if n == 1 {
 		v := a.root.build()
-		a.root = nil
+		a.root, a.stack = nil, a.stack[:0]
 		return v
 	}
 	a.container(path, n-1).closed = true
@@ -194,15 +205,29 @@ func (a *assembler) add(ev *value.Value) *value.Value {
 
 // container returns the container at the given depth of path, making the
 // ones on the way as needed. A repeated key starts a new member.
+//
+// Events come in document order, and the parser makes a new value for a
+// step each time it sets one, with the steps an event shares with the one
+// before it being the same values. So a container on the stack is still the
+// right one while the step that reached it is the very value in path, and
+// only the containers below the first step that changed are looked up.
 func (a *assembler) container(path []*value.Value, depth int) *anode {
 	if a.root == nil {
 		a.root = &anode{obj: isKeyElem(path[0])}
+		a.stack = append(a.stack[:0], astep{node: a.root})
 	}
-	cur := a.root
-	for d := 0; d < depth; d++ {
-		cur = cur.member(path[d], isKeyElem(path[d+1]))
+	if len(a.stack) > depth+1 {
+		a.stack = a.stack[:depth+1]
 	}
-	return cur
+	for k := len(a.stack) - 1; k > 0 && a.stack[k].via != path[k-1]; k-- {
+		a.stack = a.stack[:k]
+	}
+	for d := len(a.stack) - 1; d < depth; d++ {
+		kid := a.stack[d].node.member(path[d], isKeyElem(path[d+1]))
+		a.stack = append(a.stack, astep{via: path[d], node: kid})
+		a.walked++
+	}
+	return a.stack[depth].node
 }
 
 // member returns the open container under elem, or starts one.
