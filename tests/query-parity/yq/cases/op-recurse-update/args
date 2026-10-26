@@ -1,0 +1,2 @@
+(.. | select(. == "old")) = "new"
+in.yaml

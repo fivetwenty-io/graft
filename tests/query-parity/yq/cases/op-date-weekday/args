@@ -1,0 +1,2 @@
+.d | format_datetime("Monday")
+in.yaml

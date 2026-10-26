@@ -1,0 +1,12 @@
+store:
+  name: corner
+  open: true
+  hours:
+    mon: 9
+    tue: 10
+stock:
+  - apples
+  - kiwis
+  - pears
+  - plums
+  - figs

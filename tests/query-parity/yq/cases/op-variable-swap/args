@@ -1,0 +1,2 @@
+.a as $x | .b as $y | .a = $y | .b = $x
+in.yaml

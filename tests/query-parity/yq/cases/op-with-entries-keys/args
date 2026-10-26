@@ -1,0 +1,2 @@
+with_entries(.key |= "k_" + .)
+in.yaml

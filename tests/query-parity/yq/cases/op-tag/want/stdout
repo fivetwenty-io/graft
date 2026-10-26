@@ -1,0 +1,7 @@
+- '!!map'
+- '!!int'
+- '!!str'
+- '!!seq'
+- '!!bool'
+- '!!float'
+- '!!null'

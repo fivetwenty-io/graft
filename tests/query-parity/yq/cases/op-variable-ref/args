@@ -1,0 +1,2 @@
+.cfg.mode ref $m | $m = "on"
+in.yaml

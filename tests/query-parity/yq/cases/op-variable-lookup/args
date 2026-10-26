@@ -1,0 +1,2 @@
+.names as $n | .ids[] | $n[.]
+in.yaml

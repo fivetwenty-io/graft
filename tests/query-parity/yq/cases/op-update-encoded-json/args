@@ -1,0 +1,2 @@
+.a |= (from_json | .k = 2 | to_json(0))
+in.yaml

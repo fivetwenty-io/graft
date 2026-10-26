@@ -1,0 +1,2 @@
+[contains([{"x": 1}]), contains([{"x": 9}])]
+in.yaml

@@ -1,0 +1,4 @@
+secret: 1
+n:
+  secret: 2
+  open: 3

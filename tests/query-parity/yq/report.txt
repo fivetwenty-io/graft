@@ -1,8 +1,22 @@
 # area total allowlisted passing percent
-operator 28 0 28 100
+operator 349 14 326 93
 flag 17 0 17 100
 exit 7 0 7 100
 format 4 0 4 100
 meta 5 0 5 100
 cli 4 0 4 100
-overall 65 0 65 100
+overall 386 14 363 94
+allow n-exact-decimal-arithmetic departure exact decimal
+allow n-exact-integer-widening departure exact decimal
+allow n-yaml-special-numbers departure yaml special numbers
+allow op-add-custom-tag-number pending Y2 arithmetic on custom tags
+allow op-date-from-unix-out-of-range departure from_unix fails out of range
+allow op-env-dynamic-path pending Y2 eval as an assignment path
+allow op-eval-update pending Y2 eval as an assignment path
+allow op-object-splat pending Y2 object key without parentheses
+allow op-regex-pcre-syntax departure pcre syntax
+allow op-string-custom-tag pending Y2 string operators on custom tags
+allow op-subtract-custom-tag pending Y2 arithmetic on custom tags
+allow op-variable-lookup pending Y2 indexing a variable by an expression
+allow op-variable-ref pending Y2 ref bindings
+allow op-wildcard-key pending Y2 wildcard key traversal

@@ -1,0 +1,2 @@
+-n
+"zone ${TZ}" | envsubst

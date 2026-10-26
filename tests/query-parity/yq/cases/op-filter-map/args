@@ -1,0 +1,2 @@
+filter(. == "keep")
+in.yaml

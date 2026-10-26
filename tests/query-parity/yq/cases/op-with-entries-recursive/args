@@ -1,0 +1,2 @@
+(.. | select(tag == "!!map")) |= with_entries(.key |= upcase)
+in.yaml

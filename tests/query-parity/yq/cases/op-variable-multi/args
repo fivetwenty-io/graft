@@ -1,0 +1,2 @@
+.[] as $x | $x
+in.yaml

@@ -1,0 +1,4 @@
+eval-all
+. as $d ireduce ({}; . * $d)
+one.yaml
+two.yaml

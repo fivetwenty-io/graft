@@ -1,0 +1,2 @@
+.[] | if . == 1 then "one" elif . == 2 then "two" else "many" end
+in.yaml

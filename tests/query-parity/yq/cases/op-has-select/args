@@ -1,0 +1,2 @@
+.[] | select(.inner | has("x"))
+in.yaml

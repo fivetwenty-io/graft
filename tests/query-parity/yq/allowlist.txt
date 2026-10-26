@@ -2,3 +2,17 @@
 # carries a reason from the spec's allowlist. A pending entry names the phase
 # that owes the work. An out-of-scope entry needs a format other than yaml and
 # json, and counts toward neither the pass ratio nor the departure cap.
+n-exact-decimal-arithmetic departure exact decimal
+n-exact-integer-widening departure exact decimal
+n-yaml-special-numbers departure yaml special numbers
+op-date-from-unix-out-of-range departure from_unix fails out of range
+op-regex-pcre-syntax departure pcre syntax
+op-add-custom-tag-number pending Y2 arithmetic on custom tags
+op-env-dynamic-path pending Y2 eval as an assignment path
+op-eval-update pending Y2 eval as an assignment path
+op-object-splat pending Y2 object key without parentheses
+op-string-custom-tag pending Y2 string operators on custom tags
+op-subtract-custom-tag pending Y2 arithmetic on custom tags
+op-variable-lookup pending Y2 indexing a variable by an expression
+op-variable-ref pending Y2 ref bindings
+op-wildcard-key pending Y2 wildcard key traversal

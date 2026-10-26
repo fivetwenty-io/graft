@@ -1,0 +1,2 @@
+to_entries | sort_by(.value) | from_entries
+in.yaml

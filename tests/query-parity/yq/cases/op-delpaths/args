@@ -1,0 +1,2 @@
+delpaths([["a", "x"], ["b"]])
+in.yaml

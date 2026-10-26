@@ -1,0 +1,2 @@
+-n
+setpath(["a", "b"]; "set")

@@ -1,0 +1,2 @@
+-n
+"zone ${NOT_SET_ANYWHERE:-mars}" | envsubst

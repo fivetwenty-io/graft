@@ -1,0 +1,2 @@
+-n
+.lang = strenv(LANG)

@@ -1,0 +1,2 @@
+.[] | select(. == "*el")
+in.yaml

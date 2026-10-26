@@ -1,0 +1,2 @@
+[match("a(.)"; "g") | .captures[0].string]
+in.yaml

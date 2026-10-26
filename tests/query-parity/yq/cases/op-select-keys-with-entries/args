@@ -1,0 +1,2 @@
+with_entries(select(.key | test("^keep")))
+in.yaml

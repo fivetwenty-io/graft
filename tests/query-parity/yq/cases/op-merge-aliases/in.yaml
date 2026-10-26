@@ -1,0 +1,6 @@
+base: &b
+  k: 1
+over:
+  k: 2
+  j: 3
+use: *b

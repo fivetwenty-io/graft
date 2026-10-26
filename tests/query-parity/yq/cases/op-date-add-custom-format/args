@@ -1,0 +1,2 @@
+with_dtf("02 Jan 2006 15:04"; .d += "2h")
+in.yaml

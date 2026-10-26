@@ -1,0 +1,2 @@
+.d |= with_dtf("02 Jan 2006"; format_datetime("2006-01-02"))
+in.yaml

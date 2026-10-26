@@ -1,0 +1,2 @@
+if (.a, .b) then "yes" else "no" end
+in.yaml

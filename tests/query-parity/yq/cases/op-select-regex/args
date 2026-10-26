@@ -1,0 +1,2 @@
+.[] | select(test("^[a-z]+-[0-9]+$"))
+in.yaml

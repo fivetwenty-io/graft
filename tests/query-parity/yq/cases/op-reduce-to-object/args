@@ -1,0 +1,2 @@
+.[] as $p ireduce ({}; .[$p.k] = $p.v)
+in.yaml
