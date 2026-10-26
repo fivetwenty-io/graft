@@ -16,6 +16,18 @@ import (
 // errSplitInplace is what yq answers when -i meets a split expression.
 const errSplitInplace = "write in place cannot be used with split file"
 
+// extYML is the extension graft gives a YAML file it names itself.
+const extYML = ".yml"
+
+// yqSplitExtension is the extension a split file gets for an output
+// format.
+func yqSplitExtension(format yq.Format) string {
+	if format == yq.FormatJSON {
+		return ".json"
+	}
+	return extYML
+}
+
 // yqSplitExpression is the expression that names the split files, which
 // is the contents of --split-exp-file when it was given and -s otherwise.
 func yqSplitExpression(opts yqOptions) (string, error) {

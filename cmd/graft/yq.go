@@ -426,16 +426,7 @@ func handleYQ(opts yqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 	}
 
 	var rewritten bytes.Buffer
-	format := yqOutputFormat(opts)
-	var out *yqOutput
-	if split != nil {
-		sink := &splitSink{w: io.Discard}
-		opts.NulOutput = false
-		out = newYQOutput(opts, format, sink, false)
-		out.split, out.sink = split(format), sink
-	} else {
-		out = newYQOutput(opts, format, yqTarget(opts, stdout, &rewritten), yqColor(opts, stdout))
-	}
+	out := newYQRunOutput(opts, split, stdout, &rewritten)
 
 	run := &yqRun{where: unknownSource}
 	ctx := context.Background()
@@ -451,6 +442,21 @@ func handleYQ(opts yqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 		return yqFailure(run.err)
 	}
 	return finishYQ(opts, run, rewritten.Bytes())
+}
+
+// newYQRunOutput is the output of a run, which writes to the split files
+// when there is a split writer and to the stream or the -i buffer
+// otherwise.
+func newYQRunOutput(opts yqOptions, split func(yq.Format) func(yq.Document, *value.Value) (io.WriteCloser, error), stdout io.Writer, rewritten *bytes.Buffer) *yqOutput {
+	format := yqOutputFormat(opts)
+	if split == nil {
+		return newYQOutput(opts, format, yqTarget(opts, stdout, rewritten), yqColor(opts, stdout))
+	}
+	sink := &splitSink{w: io.Discard}
+	opts.NulOutput = false
+	out := newYQOutput(opts, format, sink, false)
+	out.split, out.sink = split(format), sink
+	return out
 }
 
 // newYQSplit compiles the file-name expression of -s or --split-exp-file.
@@ -470,11 +476,7 @@ func newYQSplit(opts yqOptions, stderr io.Writer) (func(yq.Format) func(yq.Docum
 		return nil, yqStatus(errCompile, fmt.Errorf("bad split document expression: %w", err)), false
 	}
 	return func(format yq.Format) func(yq.Document, *value.Value) (io.WriteCloser, error) {
-		ext := ".yml"
-		if format == yq.FormatJSON {
-			ext = ".json"
-		}
-		return splitWriter(expr, ev, ext)
+		return splitWriter(expr, ev, yqSplitExtension(format))
 	}, query.Status{}, true
 }
 

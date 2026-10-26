@@ -692,7 +692,7 @@ func fanOutputPath(outputDir, docPath string) string {
 	name := filepath.Base(base)
 	ext := filepath.Ext(name)
 	if ext == "" {
-		ext = ".yml"
+		ext = extYML
 		name += ext
 	}
 	if index > 0 {
@@ -739,7 +739,7 @@ func expandFanTargets(paths []string) ([]string, error) {
 				continue
 			}
 			switch strings.ToLower(filepath.Ext(name)) {
-			case ".yml", ".yaml", ".json":
+			case extYML, ".yaml", ".json":
 				names = append(names, name)
 			}
 		}
