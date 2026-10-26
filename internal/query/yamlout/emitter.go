@@ -76,6 +76,10 @@ type emitter struct {
 	// index once, from the first result, and never again.
 	started           bool
 	prevDoc, prevFile int
+	// laterDoc is set while a file's second or later document is written.
+	// yq keeps leading content only on a file's first document, so an
+	// empty scalar in a later one still ends its line.
+	laterDoc bool
 
 	layout
 }
@@ -144,7 +148,9 @@ func (e *emitter) WriteDocument(d load.Document, v *value.Value) error {
 	e.docs++
 	e.buf.Reset()
 	writeLeadingContent(&e.buf, d.LeadingContent, separators)
+	e.laterDoc = d.DocIndex > 0
 	e.encode(e.sorted(v), d.LeadingContent)
+	e.laterDoc = false
 	return e.finish(sep)
 }
 
@@ -208,7 +214,7 @@ func (e *emitter) unwrapped(v *value.Value, leading string) {
 		text = v.Str()
 	}
 	e.buf.WriteString(text)
-	if leading == "" || text != "" {
+	if leading == "" || text != "" || e.laterDoc {
 		if strings.Contains(leading, "\r\n") {
 			e.buf.WriteString("\r\n")
 		} else {

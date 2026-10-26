@@ -183,6 +183,13 @@ func TestAMissingKeyInALaterDocumentPrintsNull(t *testing.T) {
 	wantEqual(t, render(t, `.a`, in, false), "1\n---\nnull\n---\nnull\n")
 }
 
+func TestAnEmptyLaterDocumentPrintsABlankLine(t *testing.T) {
+	wantEqual(t, render(t, `.`, "a: 1\n---\n", false), "a: 1\n---\n\n")
+	wantEqual(t, render(t, `.`, "a: 1\n--- # x\n", false), "a: 1\n---\n\n")
+	wantEqual(t, render(t, `.`, "a: 1\n---\n# c\n---\n", false), "a: 1\n---\n\n---\n\n")
+	wantEqual(t, render(t, `.`, "---\n", false), "---\n")
+}
+
 // compact runs src over the one document in and returns its outputs as
 // JSON on one line each.
 func compact(t *testing.T, src, in string) string {
