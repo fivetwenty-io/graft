@@ -64,6 +64,8 @@ func TestQuotedSequences(t *testing.T) {
 }
 
 func TestInlineFlags(t *testing.T) {
+	// Per-line anchors come only from (?m), never from a Flags value.
+	wantNoMatch(t, MustCompile(`^b`, WithFlags(Flags(1)<<15)), "a\nb")
 	wantMatch(t, MustCompile(`(?i)A`), "a")
 	wantText(t, MustCompile(`(a(?i)b)c`), "aBc", "aBc")
 	wantNoMatch(t, MustCompile(`(a(?i)b)c`), "aBC") // a flag ends with its group

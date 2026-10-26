@@ -63,7 +63,8 @@ type classKey struct {
 }
 
 // multiLine makes ^ and $ match at the start and end of every line. Only
-// the inline flag (?m) sets it, since jq's m flag means DotAll.
+// the inline flag (?m) sets it, since jq's m flag means DotAll, so parse
+// clears it from the flags a caller passes.
 const multiLine Flags = 1 << 15
 
 func (p *parser) has(f Flags) bool { return p.flags&f != 0 }
@@ -71,7 +72,7 @@ func (p *parser) has(f Flags) bool { return p.flags&f != 0 }
 // parse turns a pattern into a tree and returns the group names, group 0
 // first.
 func parse(src string, cfg *config) (*node, []string, error) {
-	p := &parser{src: src, cfg: cfg, names: []string{""}, closed: []*node{nil}, flags: cfg.flags}
+	p := &parser{src: src, cfg: cfg, names: []string{""}, closed: []*node{nil}, flags: cfg.flags &^ multiLine}
 	n, err := p.alternation()
 	if err != nil {
 		return nil, nil, err
