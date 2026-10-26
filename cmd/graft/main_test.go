@@ -314,7 +314,7 @@ func TestMergeAllDocs(t *testing.T) {
 	})
 }
 
-func TestMain(t *testing.T) {
+func TestMainCommands(t *testing.T) {
 	Convey("main()", t, func() {
 		var stdout string
 		printStdOutf = func(format string, args ...interface{}) {

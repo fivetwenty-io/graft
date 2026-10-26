@@ -43,15 +43,15 @@ import (
 //   - one-JSON-object-per-line framing (contract:85-91): pinned at the
 //     library level by TestJSONifyFilesMultiDoc, pkg/graft/json_test.go, and
 //     at the CLI level by the "json command emits one JSON object per line
-//     for multi-doc input" case in TestMain, this package (main_test.go).
+//     for multi-doc input" case in TestMainCommands, this package (main_test.go).
 //   - exit codes 0/1/2 (contract:102-111): pinned per-command across
-//     TestMain, this package (main_test.go) -- e.g. the "diff command"
+//     TestMainCommands, this package (main_test.go) -- e.g. the "diff command"
 //     sub-tests assert 0 (identical inputs), 1 (differences), and 2 (load
 //     error) explicitly; merge and json sub-tests assert the same 0/2
 //     split for their own success/error cases.
 //   - "-v"/"--version" shape and the genesis minimum-version gate
 //     (contract:10-27): pinned by the "Should output version" sub-tests in
-//     TestMain, this package (main_test.go), including the
+//     TestMainCommands, this package (main_test.go), including the
 //     genesisVersionRegex match and a semverAtLeast(..., minGenesisVersion)
 //     check.
 //

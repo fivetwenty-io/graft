@@ -19,26 +19,34 @@ type execResult struct {
 }
 
 var (
-	graftBuildMu   sync.Mutex
-	graftBuildRefs int
+	graftBuildOnce sync.Once
 	graftBuildDir  string
 	graftBuildPath string
+	graftBuildErr  error
 )
 
-// buildGraftBinary builds ./cmd/graft into a temporary directory shared by
-// every test that holds it, and returns its path. The first holder builds
-// it and the last one to finish removes it, so the binary stays valid for
-// every caller, under -count too. The package's TestMain is an ordinary
-// test, so there is no process-wide teardown to hang the removal on.
+// TestMain runs the package's tests and then removes the binary
+// buildGraftBinary built for them, if any test asked for one.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if graftBuildDir != "" {
+		_ = os.RemoveAll(graftBuildDir)
+	}
+	os.Exit(code)
+}
+
+// buildGraftBinary builds ./cmd/graft once per test run, into a temporary
+// directory that TestMain removes at the end, and returns its path. A run
+// that never calls it pays nothing.
 func buildGraftBinary(t *testing.T) string {
 	t.Helper()
-	graftBuildMu.Lock()
-	defer graftBuildMu.Unlock()
-	if graftBuildRefs == 0 {
+	graftBuildOnce.Do(func() {
 		dir, err := os.MkdirTemp("", "graft-alias-test-")
 		if err != nil {
-			t.Fatal(err)
+			graftBuildErr = err
+			return
 		}
+		graftBuildDir = dir
 		name := "graft"
 		if runtime.GOOS == "windows" {
 			name += ".exe"
@@ -46,20 +54,14 @@ func buildGraftBinary(t *testing.T) string {
 		path := filepath.Join(dir, name)
 		cmd := exec.CommandContext(context.Background(), "go", "build", "-o", path, ".")
 		if out, err := cmd.CombinedOutput(); err != nil {
-			_ = os.RemoveAll(dir)
-			t.Fatal(errors.New("go build: " + err.Error() + "\n" + string(out)))
+			graftBuildErr = errors.New("go build: " + err.Error() + "\n" + string(out))
+			return
 		}
-		graftBuildDir, graftBuildPath = dir, path
-	}
-	graftBuildRefs++
-	t.Cleanup(func() {
-		graftBuildMu.Lock()
-		defer graftBuildMu.Unlock()
-		graftBuildRefs--
-		if graftBuildRefs == 0 {
-			_ = os.RemoveAll(graftBuildDir)
-		}
+		graftBuildPath = path
 	})
+	if graftBuildErr != nil {
+		t.Fatal(graftBuildErr)
+	}
 	return graftBuildPath
 }
 

@@ -18,7 +18,7 @@ import (
 // (as yamlgolden.PinLocal does) races with them. Only a write made before
 // any test starts is race-free.
 //
-//nolint:gochecknoinits // The pin must happen before any test starts, and TestMain is already a test name here.
+//nolint:gochecknoinits // The pin must happen before any test starts, and package-level initializers may read the zone before TestMain runs.
 func init() {
 	time.Local = time.FixedZone("UTC-4", -4*60*60)
 }
