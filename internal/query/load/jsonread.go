@@ -187,7 +187,7 @@ func (r *JSONReader) value(depth int) (*value.Value, error) {
 			return nil, err
 		}
 		return value.Str(s), nil
-	case c == '-' || c >= '0' && c <= '9' || c == 't' || c == 'f' || c == 'n':
+	case isTokenByte(c):
 		return r.token()
 	}
 	return nil, r.errHere("unexpected character %q", c)
@@ -344,10 +344,11 @@ func (r *JSONReader) token() (*value.Value, error) {
 	case "null":
 		return value.Null(), nil
 	default:
-		if !isJSONNumber(s) {
+		v, ok := jqNumber(s)
+		if !ok {
 			return nil, r.syntaxError(line, col, "invalid literal %q", s)
 		}
-		return numberLiteral(s), nil
+		return v, nil
 	}
 }
 

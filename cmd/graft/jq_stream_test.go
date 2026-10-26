@@ -165,3 +165,15 @@ func TestJQInputLineNumber(t *testing.T) {
 		So(strings.TrimSpace(out), ShouldEqual, `[{"a":1},2]`)
 	})
 }
+
+func TestJQNumberSpellings(t *testing.T) {
+	Convey("graft jq reads the number spellings jq does", t, func() {
+		out, _, _ := runJQ(t, []string{"-c", "--input-format", "json", "."}, "01 -01 nan -nan +1 .5 1. infinity\n")
+		So(out, ShouldEqual, "1\n-1\nnull\nnull\n1\n0.5\n1\n1.7976931348623157e+308\n")
+		out, _, _ = runJQ(t, []string{"-c", "--stream", "--input-format", "json", "."}, "[01,nan]")
+		So(out, ShouldEqual, "[[0],1]\n[[1],null]\n[[1]]\n")
+		_, e, st := runJQ(t, []string{"-c", "--input-format", "json", "."}, "0x10")
+		So(st.Code, ShouldNotEqual, 0)
+		So(e, ShouldContainSubstring, "invalid literal")
+	})
+}

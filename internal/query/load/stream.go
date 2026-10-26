@@ -208,12 +208,12 @@ func (r *JSONReader) flushLiteral(eof bool) error {
 	case "null":
 		v = value.Null()
 	default:
-		if isJSONNumber(text) {
-			v = numberLiteral(text)
+		if n, ok := jqNumber(text); ok {
+			v = n
 			break
 		}
 		msg := "Invalid numeric literal"
-		if c := text[0]; c == 't' || c == 'f' || c == 'n' {
+		if c := text[0]; c == 't' || c == 'f' || c == 'n' && len(text) > 1 && text[1] == 'u' {
 			msg = "Invalid literal"
 		}
 		if eof {
