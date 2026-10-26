@@ -24,3 +24,10 @@ func TestYQVariableLookupTakesFirstNode(t *testing.T) {
 	wantYQ(t, `.names as $n | .ids[] | $n[.]`, in, "Bob\n")
 	wantYQ(t, `.names as $n | .ids[] | $n["a"]`, in, "Alice\nAlice\n")
 }
+
+func TestYQEvalAsUpdatePath(t *testing.T) {
+	// eval names the place an assignment changes, at the top or below a
+	// pipe, as yq does.
+	wantYQ(t, `eval(.where) = "set"`, "where: .t.u\n", "where: .t.u\nt:\n  u: set\n")
+	wantYQ(t, `(.a | eval(.where)) = "set"`, "a: {where: .t.u}\n", "a: {where: .t.u, t: {u: set}}\n")
+}
