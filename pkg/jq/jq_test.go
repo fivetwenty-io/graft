@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/query"
@@ -101,6 +102,23 @@ func TestRunStopsWhenTheCallerStops(t *testing.T) {
 			t.Errorf("%s read %d inputs after the caller stopped at the first output", src, reads)
 		}
 	}
+}
+
+func TestOneSequenceRangesFromManyGoroutines(t *testing.T) {
+	// Run with -race: ranging one Seq2 concurrently must not write
+	// anything the goroutines share, such as a nil input.
+	seq := mustCompile(t, `. // 1`).Run(t.Context(), nil)
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			for v, err := range seq {
+				if err != nil || compactJSON(t, v) != "1" {
+					t.Errorf("got %v, %v", v, err)
+				}
+			}
+		})
+	}
+	wg.Wait()
 }
 
 func TestRunHonorsTheContext(t *testing.T) {

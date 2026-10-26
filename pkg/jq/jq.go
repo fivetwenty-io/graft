@@ -100,10 +100,10 @@ var errStopped = errors.New("the caller stopped reading outputs")
 // ctx ends the run, or an error from the WithInputs function. Stopping the
 // range early stops the evaluation too. A nil input is null.
 func (q *Query) Run(ctx context.Context, input *value.Value) iter.Seq2[*value.Value, error] {
+	if input == nil {
+		input = value.Null()
+	}
 	return func(yield func(*value.Value, error) bool) {
-		if input == nil {
-			input = value.Null()
-		}
 		stopped := false
 		err := q.prog.Run(q.newCtx(ctx), q.env, []*value.Value{input}, func(v *value.Value, _ value.Path) error {
 			if stopped || !yield(v, nil) {
