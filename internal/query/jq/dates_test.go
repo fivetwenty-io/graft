@@ -33,12 +33,18 @@ func TestDates(t *testing.T) {
 
 func TestDatesAliases(t *testing.T) {
 	pinLocal(t, "UTC")
-	wantOutputs(t, `date, todateiso8601`, `1425599621`, `"2015-03-05T23:53:41Z"`, `"2015-03-05T23:53:41Z"`)
+	wantOutputs(t, `todateiso8601`, `1425599621`, `"2015-03-05T23:53:41Z"`)
 	wantOutputs(t, `fromdateiso8601`, `"2015-03-05T23:53:41Z"`, `1425599621`)
-	wantOutputs(t, `dateadd("seconds"; 10), datesub("seconds"; 10)`, `1425599621`, `1425599631`, `1425599611`)
 	wantOutputs(t, `-1 | todate`, `null`, `"1969-12-31T23:59:59Z"`)
 	wantOutputs(t, `todate`, `1e12`, `"33658-09-27T01:46:40Z"`)
 	wantOutputs(t, `todate`, `1425599621.678`, `"2015-03-05T23:53:41Z"`)
+}
+
+// jq 1.8.2 dropped date, dateadd, and datesub, so they are undefined.
+func TestDatesDroppedFromJQ(t *testing.T) {
+	wantError(t, `date`, `1425599621`, `date/0 is not defined`)
+	wantError(t, `dateadd("seconds"; 10)`, `1425599621`, `dateadd/2 is not defined`)
+	wantError(t, `datesub("seconds"; 10)`, `1425599621`, `datesub/2 is not defined`)
 }
 
 func TestGmtimeFraction(t *testing.T) {
