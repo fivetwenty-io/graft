@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/load"
-	"github.com/fivetwenty-io/graft/pkg/query"
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
+	"github.com/fivetwenty-io/graft/pkg/query"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
