@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"github.com/fivetwenty-io/graft/pkg/query"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
@@ -19,13 +18,4 @@ type ModuleLibrary interface {
 	// Meta reads the module named name and returns its metadata object
 	// with the deps and defs that describe it.
 	Meta(name string) (*value.Value, error)
-}
-
-// RequireFiles returns the runtime error for a read of a file when Files
-// is off.
-func (c Capabilities) RequireFiles() error {
-	if c.Files {
-		return nil
-	}
-	return &query.RuntimeError{Msg: "file operations are disabled"}
 }

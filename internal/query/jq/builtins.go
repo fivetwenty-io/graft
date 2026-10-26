@@ -136,9 +136,6 @@ func registerModules(r *runtime.Registry) {
 		if in.Kind() != value.KindString {
 			return &query.RuntimeError{Msg: "modulemeta input module name must be a string"}
 		}
-		if err := ctx.Caps.RequireFiles(); err != nil {
-			return err
-		}
 		meta, err := lib(ctx).Meta(in.Str())
 		if err != nil {
 			return err
