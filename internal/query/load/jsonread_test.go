@@ -45,8 +45,8 @@ func TestJSONSyntaxErrors(t *testing.T) {
 		`[1 2]`:          "expected ',' or ']'",
 		`"abc`:           "unexpected end of input",
 		"\"a\nb\"":       "control characters",
-		`"\q"`:           "invalid escape",
-		`"\u12G4"`:       "invalid \\u escape",
+		`"\q"`:           "Invalid escape",
+		`"\u12G4"`:       "Invalid characters in \\uXXXX escape",
 		`tru`:            "invalid literal",
 		`1e`:             "invalid literal",
 		`0x10`:           "invalid literal",
@@ -68,8 +68,8 @@ func TestJSONSyntaxErrors(t *testing.T) {
 }
 
 func TestJSONStringEscapes(t *testing.T) {
-	v := mustReadJSON(t, `"a\n\t\"\\\/é😀\ud800x\udc00"`)
-	wantEqual(t, v.Str(), "a\n\t\"\\/é😀�x�")
+	v := mustReadJSON(t, `"a\n\t\"\\\/é😀\ud83d\ude00x\udc00"`)
+	wantEqual(t, v.Str(), "a\n\t\"\\/é😀😀x�")
 	v = mustReadJSON(t, "\"a\xffb\xfe\xfdc\"")
 	wantEqual(t, v.Str(), "a�b��c")
 }

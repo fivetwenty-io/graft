@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"unicode/utf16"
-	"unicode/utf8"
 
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
@@ -69,7 +67,7 @@ func (r *JSONReader) Line() int { return r.fed }
 // fill takes the next piece of input into buf, which is the rest of the
 // line br has ready, ending at its newline. It returns an error only when
 // br has no more bytes to give.
-func (r *JSONReader) fill(keep bool) error {
+func (r *JSONReader) fill() error {
 	if _, err := r.br.Peek(1); err != nil {
 		return err
 	}
@@ -79,12 +77,8 @@ func (r *JSONReader) fill(keep bool) error {
 		n = i + 1
 		r.fed++
 	}
-	if keep {
-		r.buf = append(r.buf, ready[:n]...)
-	} else {
-		r.buf = append(r.buf[:0], ready[:n]...)
-		r.pos = 0
-	}
+	r.buf = append(r.buf[:0], ready[:n]...)
+	r.pos = 0
 	_, _ = r.br.Discard(n)
 	return nil
 }
@@ -154,7 +148,7 @@ func (r *JSONReader) errHere(format string, args ...any) error {
 // peek returns the next byte without consuming it, and io.EOF at the end.
 func (r *JSONReader) peek() (byte, error) {
 	if r.pos >= len(r.buf) {
-		if err := r.fill(false); err != nil {
+		if err := r.fill(); err != nil {
 			return 0, err
 		}
 	}
@@ -387,9 +381,11 @@ func (r *JSONReader) token() (*value.Value, error) {
 	}
 }
 
+// str reads a string. It takes the text up to the closing quote, as jq
+// does, and then decodes it, so a bad escape is reported after the quote.
 func (r *JSONReader) str() (string, error) {
 	r.advance('"')
-	var buf []byte
+	var raw []byte
 	for {
 		c, err := r.peekIn()
 		if err != nil {
@@ -398,122 +394,26 @@ func (r *JSONReader) str() (string, error) {
 		switch {
 		case c == '"':
 			r.advance(c)
-			return toValidUTF8(buf), nil
-		case c == '\\':
-			r.advance(c)
-			if buf, err = r.escape(buf); err != nil {
-				return "", err
+			s, msg := decodeString(raw)
+			if msg != "" {
+				return "", r.errHere("%s", msg)
 			}
+			return s, nil
 		case c < 0x20:
 			return "", r.errHere("invalid string: control characters from U+0000 through U+001F must be escaped")
-		default:
-			buf = append(buf, c)
-			r.advance(c)
 		}
-	}
-}
-
-// escape reads the text after a backslash and appends what it stands for.
-func (r *JSONReader) escape(buf []byte) ([]byte, error) {
-	c, err := r.peekIn()
-	if err != nil {
-		return nil, err
-	}
-	var out byte
-	switch c {
-	case '"', '\\', '/':
-		out = c
-	case 'b':
-		out = '\b'
-	case 'f':
-		out = '\f'
-	case 'n':
-		out = '\n'
-	case 'r':
-		out = '\r'
-	case 't':
-		out = '\t'
-	case 'u':
+		raw = append(raw, c)
 		r.advance(c)
-		return r.unicodeEscape(buf)
-	default:
-		return nil, r.errHere("invalid escape \\%c", c)
-	}
-	r.advance(c)
-	return append(buf, out), nil
-}
-
-// unicodeEscape reads the four hex digits after \u, joining a surrogate
-// pair and turning a lone surrogate into U+FFFD.
-func (r *JSONReader) unicodeEscape(buf []byte) ([]byte, error) {
-	hi, err := r.hex4()
-	if err != nil {
-		return nil, err
-	}
-	rn := hi
-	switch {
-	case utf16.IsSurrogate(rn) && rn < 0xDC00:
-		if lo, ok := r.pairedLow(); ok {
-			rn = utf16.DecodeRune(rn, lo)
-		} else {
-			rn = utf8.RuneError
+		if c != '\\' {
+			continue
 		}
-	case utf16.IsSurrogate(rn):
-		rn = utf8.RuneError
-	}
-	return utf8.AppendRune(buf, rn), nil
-}
-
-// pairedLow consumes a following \uXXXX escape when it is a low surrogate.
-func (r *JSONReader) pairedLow() (rune, bool) {
-	for len(r.buf)-r.pos < 6 {
-		// Only a following escape is worth reading ahead for, and a
-		// newline in the way rules it out without taking the next line.
-		if !mayStartEscape(r.buf[r.pos:]) || r.fill(true) != nil {
-			return 0, false
-		}
-	}
-	b := r.buf[r.pos : r.pos+6]
-	if b[0] != '\\' || b[1] != 'u' {
-		return 0, false
-	}
-	n, ok := parseHex4(b[2:6])
-	if !ok || n < 0xDC00 || n > 0xDFFF {
-		return 0, false
-	}
-	for _, c := range b {
-		r.advance(c)
-	}
-	return n, true
-}
-
-// mayStartEscape reports whether rest could be the start of a \uXXXX
-// escape that has not all arrived.
-func mayStartEscape(rest []byte) bool {
-	for i, c := range rest {
-		switch {
-		case i == 0 && c != '\\', i == 1 && c != 'u', c == '\n':
-			return false
-		}
-	}
-	return true
-}
-
-func (r *JSONReader) hex4() (rune, error) {
-	var digits [4]byte
-	for i := range digits {
-		c, err := r.peekIn()
+		e, err := r.peekIn()
 		if err != nil {
-			return 0, err
+			return "", err
 		}
-		digits[i] = c
-		if _, ok := parseHex4([]byte{c, '0', '0', '0'}); !ok {
-			return 0, r.errHere("invalid \\u escape")
-		}
-		r.advance(c)
+		raw = append(raw, e)
+		r.advance(e)
 	}
-	n, _ := parseHex4(digits[:])
-	return n, nil
 }
 
 func parseHex4(b []byte) (rune, bool) {

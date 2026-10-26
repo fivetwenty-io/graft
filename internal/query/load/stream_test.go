@@ -243,3 +243,46 @@ func TestAssemblerFindsContainersWithoutWalkingFromTheRoot(t *testing.T) {
 		t.Errorf("walked %d steps for %d levels, want at most %d", a.walked, depth, limit)
 	}
 }
+
+// jq refuses a high surrogate that no low surrogate escape follows, and
+// reads a lone low surrogate as U+FFFD.
+func TestStringEscapeFailuresAreJQs(t *testing.T) {
+	for in, want := range map[string]string{
+		`"\ud800"`:       "Invalid \\uXXXX\\uXXXX surrogate pair escape",
+		`"\ud800x"`:      "Invalid \\uXXXX\\uXXXX surrogate pair escape",
+		`"\ud800A"`:      "Invalid \\uXXXX\\uXXXX surrogate pair escape",
+		`"\ud800\ud800"`: "Invalid \\uXXXX\\uXXXX surrogate pair escape",
+		`"\udc00\ud800"`: "Invalid \\uXXXX\\uXXXX surrogate pair escape",
+		`"\ud800\uzzzz"`: "Invalid \\uXXXX\\uXXXX surrogate pair escape",
+		`"\uzzzz"`:       "Invalid characters in \\uXXXX escape",
+		`"\u12zz"`:       "Invalid characters in \\uXXXX escape",
+		`"\u12"`:         "Invalid \\uXXXX escape",
+		`"\q"`:           "Invalid escape",
+	} {
+		stream := events(t, in, LoadOptions{Format: FormatJSON, Stream: true})
+		plain := events(t, in, LoadOptions{Format: FormatJSON})
+		for name, got := range map[string][]string{"stream": stream, "plain": plain} {
+			if len(got) != 1 || !strings.Contains(got[0], want) {
+				t.Errorf("%s %s: got %q, want an error containing %q", name, in, got, want)
+			}
+		}
+	}
+}
+
+func TestStringEscapesThatDecode(t *testing.T) {
+	for in, want := range map[string]string{
+		`"😀"`:      `"😀"`,
+		`"𐀀􏿿"`:     `"𐀀􏿿"`,
+		`"\udc00"`: "\"�\"",
+		`"aA\n\/"`: `"aA\n/"`,
+	} {
+		wantEqual(t, events(t, in, LoadOptions{Format: FormatJSON}), []string{want})
+		wantEqual(t, events(t, in, LoadOptions{Format: FormatJSON, Stream: true}), []string{"[[]," + want + "]"})
+	}
+}
+
+func TestStreamErrorsReportABadEscapeAtTheClosingQuote(t *testing.T) {
+	opts := LoadOptions{Format: FormatJSON, Stream: true, StreamErrors: true}
+	wantEqual(t, events(t, `"\ud800"`, opts), []string{`["Invalid \\uXXXX\\uXXXX surrogate pair escape at line 1, column 8",[]]`})
+	wantEqual(t, events(t, `"\uzzzz"`, opts), []string{`["Invalid characters in \\uXXXX escape at line 1, column 8",[]]`})
+}

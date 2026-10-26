@@ -5,8 +5,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"unicode/utf16"
-	"unicode/utf8"
 
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
@@ -363,81 +361,11 @@ func (r *JSONReader) streamString() error {
 		}
 		raw = append(raw, e)
 	}
-	s, msg := decodeStreamString(raw)
+	s, msg := decodeString(raw)
 	if msg != "" {
 		return r.failAt(msg)
 	}
 	return r.streamValue(value.Str(s))
-}
-
-// decodeStreamString resolves the escapes in the text between a string's
-// quotes, joining a surrogate pair and turning a lone surrogate or a bad
-// UTF-8 byte into U+FFFD. It returns jq's message when the text is bad.
-func decodeStreamString(raw []byte) (string, string) {
-	out := make([]byte, 0, len(raw))
-	for i := 0; i < len(raw); i++ {
-		c := raw[i]
-		switch {
-		case c < 0x20:
-			return "", "Invalid string: control characters from U+0000 through U+001F must be escaped"
-		case c != '\\':
-			out = append(out, c)
-			continue
-		}
-		i++
-		var esc byte
-		switch raw[i] {
-		case '"', '\\', '/':
-			esc = raw[i]
-		case 'b':
-			esc = '\b'
-		case 'f':
-			esc = '\f'
-		case 'n':
-			esc = '\n'
-		case 'r':
-			esc = '\r'
-		case 't':
-			esc = '\t'
-		case 'u':
-			rn, n, ok := unicodeAt(raw[i+1:])
-			if !ok {
-				return "", "Invalid \\uXXXX escape"
-			}
-			i += n
-			out = utf8.AppendRune(out, rn)
-			continue
-		default:
-			return "", "Invalid escape"
-		}
-		out = append(out, esc)
-	}
-	return toValidUTF8(out), ""
-}
-
-// unicodeAt reads the four hex digits after \u in rest, and a following
-// \uXXXX when it completes a surrogate pair. It returns the rune and the
-// bytes of rest it used.
-func unicodeAt(rest []byte) (rune, int, bool) {
-	if len(rest) < 4 {
-		return 0, 0, false
-	}
-	hi, ok := parseHex4(rest)
-	if !ok {
-		return 0, 0, false
-	}
-	switch {
-	case utf16.IsSurrogate(hi) && hi < 0xDC00:
-		if len(rest) >= 10 && rest[4] == '\\' && rest[5] == 'u' {
-			if lo, ok := parseHex4(rest[6:]); ok && lo >= 0xDC00 && lo <= 0xDFFF {
-				return utf16.DecodeRune(hi, lo), 10, true
-			}
-		}
-		return utf8.RuneError, 4, true
-	case utf16.IsSurrogate(hi):
-		return utf8.RuneError, 4, true
-	}
-	return hi, 4, true
 }
 
 // streamToken handles one of the structural characters.
