@@ -630,6 +630,7 @@ func runJQProgram(q *jq.Query, input *value.Value, in *jqInputs, out *jqOutput, 
 			_, _ = io.WriteString(stderr, queryCommandError(kind, err).Message)
 			return nil, err
 		}
+		traceOutput(v)
 		if err := out.write(v); err != nil {
 			err = &locatedError{Where: in.where(), Err: err}
 			_, _ = io.WriteString(stderr, queryCommandError(errRuntime, err).Message)

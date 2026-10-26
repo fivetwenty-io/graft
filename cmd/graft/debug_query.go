@@ -51,10 +51,14 @@ func debugInitFor(jqProgram, yqExpr string) debugInit {
 	return debugInit{Dialect: debugDialectJQ, Query: jqProgram}
 }
 
-// debugQueryPrefix matches the `jq:` or `yq:` marker, or any other two
-// letters before a colon, at the start of a path argument. The second kind
-// is matched so it can be refused by name instead of being read as a key.
-var debugQueryPrefix = regexp.MustCompile(`^([A-Za-z]{2}):`)
+// debugQueryPrefix matches the `jq:` or `yq:` marker at the start of a path
+// argument. Nothing else is a query, so a key such as `ns:x` stays a path.
+var debugQueryPrefix = regexp.MustCompile(`^(jq|yq):`)
+
+// debugAnyPrefix is any two letters before a colon, which resolveDebugPaths
+// refuses by name when it is asked to resolve one that is not `jq:` or
+// `yq:`.
+var debugAnyPrefix = regexp.MustCompile(`^([A-Za-z]{2}):`)
 
 // hasQueryPrefix reports whether a path argument names a query.
 func hasQueryPrefix(arg string) bool {
@@ -71,17 +75,21 @@ func (s *debugSession) dialectName() string {
 }
 
 // evalQuery runs expr in dialect against the session's current tree and
-// returns every output. The tree is converted again on each call, because
-// `eval` edits it in place and a stale root would hide the edit.
+// returns every output. The tree is converted again only when it has
+// changed since the last call.
 func (s *debugSession) evalQuery(dialect, expr string) ([]*value.Value, error) {
 	if s.tree == nil {
 		return nil, errDebugNotLoaded
 	}
-	root, err := value.FromGo(s.tree)
-	if err != nil {
-		return nil, err
+	if s.root == nil || s.rootGen != s.treeGen {
+		root, err := value.FromGo(s.tree)
+		if err != nil {
+			return nil, err
+		}
+		s.root, s.rootGen = root, s.treeGen
+		s.rootBuilds++
 	}
-	s.root = root
+	root := s.root
 	switch dialect {
 	case debugDialectJQ:
 		q, err := jq.Compile(expr)
@@ -136,11 +144,11 @@ func resolveDebugPaths(s *debugSession, arg string) ([]value.Path, error) {
 	if arg == "" {
 		return append([]value.Path(nil), s.selection...), nil
 	}
-	if m := debugQueryPrefix.FindStringSubmatch(arg); m != nil {
+	if m := debugAnyPrefix.FindStringSubmatch(arg); m != nil {
 		expr := strings.TrimSpace(arg[len(m[0]):])
-		switch strings.ToLower(m[1]) {
+		switch m[1] {
 		case debugDialectJQ, debugDialectYQ:
-			return s.evalPaths(strings.ToLower(m[1]), expr)
+			return s.evalPaths(m[1], expr)
 		}
 		return nil, fmt.Errorf("unknown query prefix %q (jq: or yq:)", m[0])
 	}
@@ -323,6 +331,9 @@ func (s *debugSession) runQuery(dialect, expr string) {
 	if err != nil {
 		s.printQueryError(err)
 		return
+	}
+	for _, o := range outs {
+		traceOutput(o)
 	}
 	for i, d := range docs {
 		if i > 0 {
@@ -529,10 +540,12 @@ func (s *debugSession) runStartupQuery(init debugInit) {
 		return
 	}
 	prevTree, prevDialect := s.tree, s.dialect
-	s.tree, s.dialect, s.query = merged, init.Dialect, init.Query
+	s.setTree(merged)
+	s.dialect, s.query = init.Dialect, init.Query
 	log.DEBUG("debug query: %s", init.Query)
 	s.runQuery(init.Dialect, init.Query)
-	s.tree, s.dialect = prevTree, prevDialect
+	s.setTree(prevTree)
+	s.dialect = prevDialect
 }
 
 // runJQRepl is `graft jq --repl PROGRAM FILE...`: the debugger over the
@@ -652,4 +665,23 @@ func (s *debugSession) inSelection(path string) bool {
 		}
 	}
 	return false
+}
+
+// setTree replaces the session's tree and marks the query root stale.
+func (s *debugSession) setTree(t map[string]interface{}) {
+	s.tree = t
+	s.treeGen++
+}
+
+// traceOutput logs one query output under -D, as compact JSON.
+func traceOutput(v *value.Value) {
+	if !log.DebugOn {
+		return
+	}
+	var buf bytes.Buffer
+	enc := jq.NewEncoder(&buf, jq.EncodeOptions{Compact: true})
+	if enc.Encode(v) != nil || enc.Flush() != nil {
+		return
+	}
+	log.DEBUG("output: %s", strings.TrimSpace(buf.String()))
 }

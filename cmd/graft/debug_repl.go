@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -136,6 +137,9 @@ type debugSession struct {
 	query string
 	// root is the tree as a query engine value, rebuilt by evalQuery.
 	root *qvalue.Value
+	// treeGen counts the changes made to tree, rootGen is the count root
+	// was built at, and rootBuilds counts the conversions done.
+	treeGen, rootGen, rootBuilds int
 	// selection is the set of typed paths `select` chose. The path verbs
 	// use it when they are given no argument.
 	selection []qvalue.Path
@@ -263,7 +267,7 @@ func (s *debugSession) cmdLoad() {
 			ansi.StripEscapes(err.Error()))
 		return
 	}
-	s.tree = base
+	s.setTree(base)
 	s.step = 0
 	s.loaded = true
 }
@@ -312,7 +316,7 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 					s.styleChangeValue(roleValueNew, changeNewDisplay(c)))
 			}
 		}
-		s.tree = newTree
+		s.setTree(newTree)
 
 		for _, c := range changes {
 			if s.breakpointHit(c.Path) {
@@ -352,7 +356,7 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 	}
 
 	changes, cmpErr := histdiff.Compare(mergedDocPath, s.tree, "<evaluated>", evaluated)
-	s.tree = evaluated
+	s.setTree(evaluated)
 
 	if cmpErr == nil {
 		for _, c := range changes {
@@ -709,7 +713,7 @@ func (s *debugSession) cmdAutodefer() {
 		}
 	}
 
-	s.tree = result.Tree
+	s.setTree(result.Tree)
 	s.step = s.totalSteps
 }
 
@@ -749,6 +753,7 @@ func (s *debugSession) cmdEval(path string) {
 	}
 	s.printf("%s %s\n", s.style(roleSuccess, "Result:"), inlineValue(resolved))
 	setDottedPath(s.tree, path, resolved)
+	s.treeGen++
 }
 
 // debugConfigKeyTheme is `config`'s one non-Vault key: the debugger's
@@ -1490,8 +1495,22 @@ func debugVerbArgs(cmd, line string, fields []string) []string {
 	if kind == debugArgQuery || (kind == debugArgPath && cmd != debugCmdTree && hasQueryPrefix(rest)) {
 		return []string{rest}
 	}
+	if cmd == debugCmdTree {
+		// tree reads flags as words, so only the query from its prefix
+		// on stays whole.
+		if loc := debugTreeQuery.FindStringIndex(rest); loc != nil {
+			start := loc[0]
+			if rest[start] == ' ' || rest[start] == '\t' {
+				start++
+			}
+			return append(strings.Fields(rest[:start]), rest[start:])
+		}
+	}
 	return fields
 }
+
+// debugTreeQuery finds where a query path starts in tree's arguments.
+var debugTreeQuery = regexp.MustCompile(`(^|\s)(jq|yq):`)
 
 // debugPromptString builds the REPL prompt: rolePrompt applied to the
 // literal "graft>", with the trailing space left outside the styled

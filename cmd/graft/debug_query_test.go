@@ -80,10 +80,9 @@ func TestDebugQuery(t *testing.T) {
 	Convey("query prefixes work wherever a path is accepted", t, func() {
 		// The query names jobs[0], the only job with a port once a.yml is loaded.
 		out, _ := runDebugSession([]string{a, b},
-			"load\nbreak jq:.jobs[] | select(.port != null)\nbreaks\nbreak xq:.a\nquit\n")
+			"load\nbreak jq:.jobs[] | select(.port != null)\nbreaks\nquit\n")
 		So(out, ShouldContainSubstring, "  - jobs.nats\n")
 		So(out, ShouldNotContainSubstring, "jobs.[1]")
-		So(out, ShouldContainSubstring, "unknown query prefix \"xq:\" (jq: or yq:)")
 		out, _ = runDebugSession([]string{a}, "load\ncontinue\ntree jq:.jobs[0]\nconfig dialect\nquit\n")
 		So(out, ShouldContainSubstring, "name: nats")
 		So(out, ShouldContainSubstring, "dialect: jq")
@@ -113,6 +112,10 @@ func TestDebugQuery(t *testing.T) {
 		So(st, ShouldEqual, 0)
 		So(errOut, ShouldContainSubstring, "DEBUG> program: .a")
 		So(errOut, ShouldContainSubstring, "DEBUG> input: "+a)
+		_, errOut, st = runGraftCommand(t, []string{"-D", "jq", "-c", ".meta, .jobs[0].port", a})
+		So(st, ShouldEqual, 0)
+		So(errOut, ShouldContainSubstring, `DEBUG> output: {"name":"web"}`)
+		So(errOut, ShouldContainSubstring, "DEBUG> output: 4222")
 	})
 }
 
@@ -136,5 +139,72 @@ func TestDottedPathKeepsKeysDistinct(t *testing.T) {
 		v, ok = s.lookupPath(value.Path{value.Str("80")})
 		So(ok, ShouldBeTrue)
 		So(v, ShouldEqual, 1)
+	})
+}
+
+func TestDebugRootRebuild(t *testing.T) {
+	a, b := "testdata/debug/a.yml", "testdata/debug/b.yml"
+
+	Convey("evalQuery converts the tree again only after the merge advances", t, func() {
+		var out bytes.Buffer
+		s, err := newDebugSession([]string{a, b}, &mergeOpts{}, &out, debugUIOptions{})
+		So(err, ShouldBeNil)
+		s.cmdLoad()
+		for i := 0; i < 3; i++ {
+			_, err = s.evalQuery(debugDialectJQ, ".meta")
+			So(err, ShouldBeNil)
+		}
+		So(s.rootBuilds, ShouldEqual, 1)
+		s.cmdStep()
+		_, err = s.evalQuery(debugDialectJQ, ".meta")
+		So(err, ShouldBeNil)
+		So(s.rootBuilds, ShouldEqual, 2)
+	})
+
+	Convey("eval changes the tree, so the next query sees the edit", t, func() {
+		var out bytes.Buffer
+		s, err := newDebugSession([]string{"testdata/debug/e.yml"}, &mergeOpts{}, &out, debugUIOptions{})
+		So(err, ShouldBeNil)
+		s.cmdLoad()
+		before, err := s.evalQuery(debugDialectJQ, `.["80"]`)
+		So(err, ShouldBeNil)
+		So(before[0].Str(), ShouldContainSubstring, "((")
+		s.cmdEval(`["80"]`)
+		after, err := s.evalQuery(debugDialectJQ, `.["80"]`)
+		So(err, ShouldBeNil)
+		So(after[0].Str(), ShouldEqual, "rs")
+	})
+}
+
+func TestDebugQueryPrefixIsExact(t *testing.T) {
+	a, b := "testdata/debug/a.yml", "testdata/debug/b.yml"
+
+	Convey("only jq: and yq: name a query", t, func() {
+		So(hasQueryPrefix("jq:.a"), ShouldBeTrue)
+		So(hasQueryPrefix(" yq: .a"), ShouldBeTrue)
+		So(hasQueryPrefix("ns:x"), ShouldBeFalse)
+		So(hasQueryPrefix("xq:.a"), ShouldBeFalse)
+		So(hasQueryPrefix("JQ:.a"), ShouldBeFalse)
+	})
+
+	Convey("a path that starts with two letters and a colon stays a path", t, func() {
+		out, _ := runDebugSession([]string{a, b}, "load\nbreak ns:x\nbreaks\nquit\n")
+		So(out, ShouldContainSubstring, "Breakpoint set on ns:x")
+		So(out, ShouldContainSubstring, "  - ns:x\n")
+	})
+
+	Convey("resolveDebugPaths still names an unknown prefix", t, func() {
+		_, err := resolveDebugPaths(&debugSession{}, "xq:.a")
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, `unknown query prefix "xq:" (jq: or yq:)`)
+	})
+}
+
+func TestDebugTreeTakesTheQueryWhole(t *testing.T) {
+	Convey("tree keeps a query's spaces, quotes, and leading dashes", t, func() {
+		out, _ := runDebugSession([]string{"testdata/debug/a.yml"},
+			"load\ntree -k jq:.jobs[] | select(.name == \"nats\"  and .port - 1 > 0)\nquit\n")
+		So(out, ShouldContainSubstring, "port")
+		So(out, ShouldNotContainSubstring, "unknown flag")
 	})
 }
