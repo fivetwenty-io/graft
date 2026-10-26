@@ -22,19 +22,21 @@ const uriHint = ", can only operate on strings. Please first pipe through anothe
 // and YAML text. Text that is read back keeps the presentation it was
 // written in, as yq parses it as YAML.
 func registerConvert(r *runtime.Registry) {
-	encoder(r, "@base64", func(in *value.Value) (*value.Value, error) {
-		if !isStr(in) {
-			return nil, &query.RuntimeError{Msg: "cannot encode " + tagOf(in) + " as base64, can only operate on strings"}
-		}
-		return value.Str(base64.StdEncoding.EncodeToString([]byte(in.Str()))), nil
-	})
-	encoder(r, "@base64d", func(in *value.Value) (*value.Value, error) {
-		b, err := decodeBase64(nodeText(in))
-		if err != nil {
-			return nil, &query.RuntimeError{Msg: err.Error()}
-		}
-		return value.Str(string(b)), nil
-	})
+	for name, enc := range map[string]*base64.Encoding{"@base64": base64.StdEncoding, "@base64url": base64.URLEncoding} {
+		encoder(r, name, func(in *value.Value) (*value.Value, error) {
+			if !isStr(in) {
+				return nil, &query.RuntimeError{Msg: "cannot encode " + tagOf(in) + " as base64, can only operate on strings"}
+			}
+			return value.Str(enc.EncodeToString([]byte(in.Str()))), nil
+		})
+		encoder(r, name+"d", func(in *value.Value) (*value.Value, error) {
+			b, err := decodeBase64(enc, nodeText(in))
+			if err != nil {
+				return nil, &query.RuntimeError{Msg: err.Error()}
+			}
+			return value.Str(string(b)), nil
+		})
+	}
 	encoder(r, "@uri", func(in *value.Value) (*value.Value, error) {
 		if !isStr(in) {
 			return nil, &query.RuntimeError{Msg: "cannot encode " + tagOf(in) + " as URI" + uriHint}
@@ -116,12 +118,13 @@ func yamlDoc(v *value.Value, n int) string {
 	return yamlText(v, n) + "\n"
 }
 
-// decodeBase64 reads padded or unpadded base64.
-func decodeBase64(s string) ([]byte, error) {
+// decodeBase64 reads padded or unpadded base64 in enc's alphabet, which
+// is a padded encoding.
+func decodeBase64(enc *base64.Encoding, s string) ([]byte, error) {
 	if len(s)%4 != 0 {
-		return base64.RawStdEncoding.DecodeString(strings.TrimRight(s, "="))
+		return enc.WithPadding(base64.NoPadding).DecodeString(strings.TrimRight(s, "="))
 	}
-	return base64.StdEncoding.DecodeString(s)
+	return enc.DecodeString(s)
 }
 
 // shellQuote quotes s for a POSIX shell the way yq's @sh does. It leaves

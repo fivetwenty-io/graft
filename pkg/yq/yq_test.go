@@ -228,6 +228,12 @@ func TestSubtractingSequencesKeepsTheLeftStyle(t *testing.T) {
 	wantEqual(t, render(t, `.a - .b`, "a:\n  - 1\n  - 2\nb: [2]\n", false), "- 1\n")
 }
 
+func TestBase64URLEncodesWithTheURLAlphabet(t *testing.T) {
+	in := "s: \"??>>\"\nt: \"?\"\nu: Pz8-Pg\nv: Pz8-Pg==\n"
+	wantEqual(t, render(t, `(.s, .t) | @base64url`, in, false), "Pz8-Pg==\nPw==\n")
+	wantEqual(t, render(t, `(.u, .v) | @base64urld`, in, false), "??>>\n??>>\n")
+}
+
 func TestEqualityComparesScalarTextWithWildcards(t *testing.T) {
 	in := "- 3\n- 3.0\n- \"3\"\n- cat\n- camel\n- dog\n"
 	wantEqual(t, compact(t, `[.[] | . == 3]`, in), "[true,false,true,false,false,false]\n")

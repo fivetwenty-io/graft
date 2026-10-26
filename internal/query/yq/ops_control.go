@@ -1,6 +1,7 @@
 package yq
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 
@@ -106,7 +107,7 @@ func registerControl(r *runtime.Registry) {
 		loader(r, name, func(b []byte) (*value.Value, error) { return value.Str(string(b)), nil })
 	}
 	loader(r, "load_base64", func(b []byte) (*value.Value, error) {
-		d, err := decodeBase64(string(b))
+		d, err := decodeBase64(base64.StdEncoding, string(b))
 		if err != nil {
 			return nil, &query.RuntimeError{Msg: err.Error()}
 		}
