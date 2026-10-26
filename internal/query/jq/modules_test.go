@@ -472,3 +472,10 @@ func TestUnconfinedModulesKeepJQSearchRules(t *testing.T) {
 	wantOutputsOpts(t, opts, `import "link" as m; m::o`, `null`, `"outside"`)
 	wantOutputsOpts(t, opts, `import "dir/o" as m; m::o`, `null`, `"outside"`)
 }
+
+func TestModulesRefuseBadNames(t *testing.T) {
+	opts := jq.CompileOptions{SearchPaths: []string{t.TempDir()}}
+	wantErrorOpts(t, opts, `import "a\\b" as x; 1`, `null`, `Modules must be named by relative paths using '/', not '\' (a\b)`)
+	wantErrorOpts(t, opts, `import "a\u0000b" as x; 1`, `null`, `Module path contains a NUL byte`)
+	wantErrorOpts(t, opts, `"a\\b" | modulemeta`, `null`, `Modules must be named by relative paths`)
+}

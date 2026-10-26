@@ -246,6 +246,12 @@ func (r *ModuleResolver) expand(p, libOrigin string) (string, bool) {
 // validateRelPath refuses a module name that climbs out of its search
 // directory or repeats a component, as jq does.
 func validateRelPath(rel string) error {
+	if strings.IndexByte(rel, 0) >= 0 {
+		return errors.New("Module path contains a NUL byte") //nolint:staticcheck // jq's own message
+	}
+	if strings.Contains(rel, `\`) {
+		return errors.New(`Modules must be named by relative paths using '/', not '\' (` + rel + ")")
+	}
 	parts := strings.Split(rel, "/")
 	for i, part := range parts {
 		if part == ".." {
