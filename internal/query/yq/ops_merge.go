@@ -18,6 +18,8 @@ const maxRepeat = 10 * 1024 * 1024
 // nullTag and intTag are the tags of null and an integer.
 const (
 	nullTag = "!!null"
+	mapTag  = "!!map"
+	seqTag  = "!!seq"
 	intTag  = "!!int"
 )
 

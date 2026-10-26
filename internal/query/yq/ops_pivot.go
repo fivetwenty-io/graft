@@ -20,7 +20,7 @@ func registerPivots(r *runtime.Registry) {
 		}
 		entries := make([]value.Entry, 0, in.Len())
 		for i, e := range in.Elems() {
-			if tagOf(e) == "!!null" {
+			if tagOf(e) == nullTag {
 				continue
 			}
 			entries = append(entries, value.Entry{Key: value.Num(float64(i)), Value: e})
@@ -41,7 +41,7 @@ func pivot(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit
 		return &query.RuntimeError{Msg: "can only pivot elements of !!seq or !!map types, received "}
 	}
 	first := tagOf(rows[0])
-	if first != "!!seq" && first != "!!map" {
+	if first != seqTag && first != mapTag {
 		return &query.RuntimeError{Msg: "can only pivot elements of !!seq or !!map types, received " + first}
 	}
 	for _, r := range rows[1:] {
@@ -49,24 +49,34 @@ func pivot(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit
 			return &query.RuntimeError{Msg: "sequence contains elements of " + first + " and " + t + " types"}
 		}
 	}
-	if first == "!!seq" {
-		width := 0
-		for _, r := range rows {
-			width = max(width, r.Len())
-		}
-		cols := make([]*value.Value, width)
-		for j := range cols {
-			col := make([]*value.Value, len(rows))
-			for i, r := range rows {
-				col[i] = emptyNull()
-				if e, ok := r.Index(j); ok {
-					col[i] = e
-				}
-			}
-			cols[j] = value.Arr(col...)
-		}
-		return emit(value.Arr(cols...), nil)
+	if first == seqTag {
+		return emit(pivotSeqs(rows), nil)
 	}
+	return emit(pivotMaps(rows), nil)
+}
+
+// pivotSeqs is the columns of a sequence of sequences, padded with null.
+func pivotSeqs(rows []*value.Value) *value.Value {
+	width := 0
+	for _, r := range rows {
+		width = max(width, r.Len())
+	}
+	cols := make([]*value.Value, width)
+	for j := range cols {
+		col := make([]*value.Value, len(rows))
+		for i, r := range rows {
+			col[i] = emptyNull()
+			if e, ok := r.Index(j); ok {
+				col[i] = e
+			}
+		}
+		cols[j] = value.Arr(col...)
+	}
+	return value.Arr(cols...)
+}
+
+// pivotMaps is the map from each key of a sequence of maps to its column.
+func pivotMaps(rows []*value.Value) *value.Value {
 	var keys []*value.Value
 	seen := map[string]bool{}
 	for _, r := range rows {
@@ -88,7 +98,7 @@ func pivot(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit
 		}
 		entries[j] = value.Entry{Key: k, Value: value.Arr(col...)}
 	}
-	return emit(value.ObjEntries(entries...), nil)
+	return value.ObjEntries(entries...)
 }
 
 // numberOrText is a map key as the map looks it up: its text, or for a

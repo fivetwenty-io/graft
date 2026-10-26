@@ -64,21 +64,8 @@ func (p *parser) parseObjEntry() (ast.ObjEntry, error) {
 			p.i = end
 			return ast.ObjEntry{Key: key, Val: &ast.Index{Key: again}}, err
 		}
-	case lexer.LParen:
-		p.next()
-		k, err := p.parseExpr()
-		if err != nil {
-			return ast.ObjEntry{}, err
-		}
-		if err := p.expect(lexer.RParen, ")"); err != nil {
-			return ast.ObjEntry{}, err
-		}
-		key = k
 	default:
-		if !p.g.ExprKeys || tok.Kind == lexer.RBrace || tok.Kind == lexer.EOF {
-			return ast.ObjEntry{}, p.unexpected(tok)
-		}
-		k, err := p.parseObjVal()
+		k, err := p.parseOtherKey(tok)
 		if err != nil {
 			return ast.ObjEntry{}, err
 		}
@@ -89,6 +76,23 @@ func (p *parser) parseObjEntry() (ast.ObjEntry, error) {
 	}
 	val, err := p.parseObjVal()
 	return ast.ObjEntry{Key: key, Val: val}, err
+}
+
+// parseOtherKey reads a key that is a parenthesized expression, or under
+// ExprKeys any expression at all.
+func (p *parser) parseOtherKey(tok lexer.Token) (ast.Node, error) {
+	if tok.Kind == lexer.LParen {
+		p.next()
+		k, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		return k, p.expect(lexer.RParen, ")")
+	}
+	if !p.g.ExprKeys || tok.Kind == lexer.RBrace || tok.Kind == lexer.EOF {
+		return nil, p.unexpected(tok)
+	}
+	return p.parseObjVal()
 }
 
 // parseObjVal reads an object value, which stops at the comma that

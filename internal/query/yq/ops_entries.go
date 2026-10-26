@@ -223,7 +223,7 @@ func fromEntries(in *value.Value) (*value.Value, error) {
 	}
 	m := metaOf(in)
 	if m.Tag != "" {
-		m.Tag = "!!map"
+		m.Tag = mapTag
 	}
 	return withMeta(value.ObjEntries(es...), m), nil
 }

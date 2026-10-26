@@ -84,7 +84,7 @@ func (*Dialect) Truthy(v *value.Value) bool {
 			return true
 		}
 		switch m.Tag {
-		case "!!null":
+		case nullTag:
 			return false
 		case "!!bool":
 			switch strings.ToLower(v.Str()) {

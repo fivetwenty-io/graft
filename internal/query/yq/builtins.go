@@ -170,9 +170,9 @@ func tagOf(v *value.Value) string {
 	}
 	switch v.Kind() {
 	case value.KindObject:
-		return "!!map"
+		return mapTag
 	case value.KindArray:
-		return "!!seq"
+		return seqTag
 	case value.KindString:
 		if plainTimestamp(v) {
 			return timestampTag
@@ -187,7 +187,7 @@ func tagOf(v *value.Value) string {
 		return "!!int"
 	default:
 	}
-	return "!!null"
+	return nullTag
 }
 
 // isFloat reports whether a number is a float in YAML's terms, which its

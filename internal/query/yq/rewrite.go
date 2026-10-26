@@ -34,11 +34,7 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 				n.L = &ast.Call{Name: "limit", Args: []ast.Node{&ast.Literal{Value: ast.Number("1")}, n.L}}
 			}
 		case *ast.ObjectCons:
-			for i, e := range n.Entries {
-				if !textKey(e.Key) {
-					n.Entries[i].Key = &ast.Pipe{L: e.Key, R: &ast.Call{Name: "_yq_keytext"}}
-				}
-			}
+			readKeys(n)
 		case *ast.Call:
 			if e := rewriteCall(expr, n); e != nil && err == nil {
 				err = e
@@ -82,6 +78,16 @@ func varLookup(n ast.Node) bool {
 	default:
 	}
 	return true
+}
+
+// readKeys makes each key of an object that is not text as written read
+// as the text of a node.
+func readKeys(n *ast.ObjectCons) {
+	for i, e := range n.Entries {
+		if !textKey(e.Key) {
+			n.Entries[i].Key = &ast.Pipe{L: e.Key, R: &ast.Call{Name: "_yq_keytext"}}
+		}
+	}
 }
 
 // textKey reports whether an object key is text as written, so it needs
