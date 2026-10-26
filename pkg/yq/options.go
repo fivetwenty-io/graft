@@ -105,9 +105,8 @@ func WithFloatNumbers() Option {
 
 // WithStringInterpolation turns string interpolation, the "\(expr)" form,
 // on or off. It is on by default, and WithStringInterpolation(false) is
-// yq's --string-interpolation=false. The setting is stored and passed to
-// the dialect, and nothing honors it yet, so the expression parses the
-// same either way until the release that completes graft yq.
+// yq's --string-interpolation=false, which leaves "\(" in a string as the
+// two characters it is written with.
 func WithStringInterpolation(enabled bool) Option {
 	return func(c *Config) error {
 		c.interpolate = enabled

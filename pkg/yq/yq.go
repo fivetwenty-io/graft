@@ -62,27 +62,61 @@ type Evaluator struct {
 // does not parse returns a *query.CompileError, and an option that cannot
 // apply returns its own error.
 func Compile(src string, opts ...Option) (*Evaluator, error) {
-	x, err := Parse(src)
+	cfg, err := configure(opts)
 	if err != nil {
 		return nil, err
 	}
-	return newEvaluator(x, opts)
+	x, err := parseWith(src, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return evaluatorFor(x, cfg), nil
 }
 
-func newEvaluator(x *Expression, opts []Option) (*Evaluator, error) {
+// parseWith is Parse for a run that cfg configures. The lexer decides what
+// "\(" in a string means, so interpolation has to be known before the
+// expression is read.
+func parseWith(src string, cfg Config) (*Expression, error) {
+	node, err := yqdialect.ParseWith(src, yqdialect.ParseOptions{NoInterpolation: !cfg.interpolate})
+	if err != nil {
+		return nil, compileError(src, err)
+	}
+	return &Expression{src: src, node: node}, nil
+}
+
+// configure applies opts to the default configuration.
+func configure(opts []Option) (Config, error) {
 	cfg := defaultConfig()
 	for _, opt := range opts {
 		if err := opt(&cfg); err != nil {
+			return cfg, err
+		}
+	}
+	return cfg, nil
+}
+
+func newEvaluator(x *Expression, opts []Option) (*Evaluator, error) {
+	cfg, err := configure(opts)
+	if err != nil {
+		return nil, err
+	}
+	if !cfg.interpolate {
+		// x was parsed with interpolation on, so it is read again.
+		if x, err = parseWith(x.src, cfg); err != nil {
 			return nil, err
 		}
 	}
+	return evaluatorFor(x, cfg), nil
+}
+
+func evaluatorFor(x *Expression, cfg Config) *Evaluator {
 	d := yqdialect.New(yqdialect.Options{
 		Caps:                cfg.caps,
 		MergeAnchorToSpec:   cfg.mergeFix,
 		StringInterpolation: cfg.interpolate,
 		FloatNumbers:        cfg.numbers == runtime.NumbersFloat,
 	})
-	return &Evaluator{node: x.node, dialect: d, cfg: cfg}, nil
+	return &Evaluator{node: x.node, dialect: d, cfg: cfg}
 }
 
 // errStopped is how a run unwinds once its caller stops ranging. It is not

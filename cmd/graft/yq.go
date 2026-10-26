@@ -714,7 +714,7 @@ Flags:
       --expression EXPR       take the expression from EXPR, so every argument is a file
       --from-file FILE        read the expression from FILE
       --header-preprocess     accepted, no effect yet (default true)
-      --string-interpolation  accepted, no effect yet (default true)
+      --string-interpolation  read "\(expr)" in a string as an interpolation (default true)
       --security-disable-env-ops, --security-disable-file-ops
                               turn off the env or the file operators
       --security-enable-system-operator

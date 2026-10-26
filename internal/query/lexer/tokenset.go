@@ -30,6 +30,9 @@ type TokenSet struct {
 	HexNumbers bool
 	// TildeNull makes "~" an identifier, which yq reads as null.
 	TildeNull bool
+	// NoInterpolation makes "\(" in a string stand for itself rather than
+	// open an interpolation, as yq's --string-interpolation=false does.
+	NoInterpolation bool
 }
 
 // operatorKinds maps every spelling the lexer knows to its kind. A

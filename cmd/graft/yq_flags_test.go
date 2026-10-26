@@ -14,3 +14,18 @@ func TestYQJSONNumbers(t *testing.T) {
 		So(out, ShouldEqual, `{"a":1.5,"b":1000,"c":1e+20,"d":1.23456785e+07,"e":1e-05,"f":0,"g":9007199254740992,"h":[1]}`+"\n")
 	})
 }
+
+func TestYQStringInterpolationFlag(t *testing.T) {
+	Convey("string interpolation", t, func() {
+		out, _, _ := runYQ(t, []string{`"x\(.a)"`}, "a: 1\n")
+		So(out, ShouldEqual, "x1\n")
+		out, _, _ = runYQ(t, []string{"--string-interpolation=false", `"x\(.a)"`}, "a: 1\n")
+		So(out, ShouldEqual, "x\\(.a)\n")
+		out, _, _ = runYQ(t, []string{"--string-interpolation=false", `"a\nb"`}, "a: 1\n")
+		So(out, ShouldEqual, "a\nb\n")
+		out, _, _ = runYQ(t, []string{"--string-interpolation=false", `"x\(.a) \(1+2)"`}, "a: 1\n")
+		So(out, ShouldEqual, "x\\(.a) \\(1+2)\n")
+		out, _, _ = runYQ(t, []string{"--string-interpolation=false", `"x\(.a"`}, "a: 1\n")
+		So(out, ShouldEqual, "x\\(.a\n")
+	})
+}

@@ -349,7 +349,7 @@ func (l *Lexer) lexStringPart() (Token, error) {
 			l.stack = l.stack[:len(l.stack)-1]
 			return l.emit(lit, end), nil
 		case '\\':
-			if l.pos+1 < len(l.src) && l.src[l.pos+1] == '(' {
+			if l.pos+1 < len(l.src) && l.src[l.pos+1] == '(' && !l.set.NoInterpolation {
 				lit := l.takeLit(&sb, litStart)
 				interp := l.tok(InterpStart, l.pos, l.pos+2)
 				l.pos += 2

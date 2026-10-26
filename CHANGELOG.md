@@ -44,7 +44,7 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 
 - A link named exactly `yq` runs `graft yq`.
 
-- The flags `-c`, `--yaml-compact-seq-indent`, and `--string-interpolation` are accepted by `graft yq` but have no effect yet.
+- The flags `-c` and `--yaml-compact-seq-indent` are accepted by `graft yq` but have no effect yet.
 
 ### Changed
 

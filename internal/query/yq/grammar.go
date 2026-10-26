@@ -34,16 +34,28 @@ func Grammar() parser.Grammar {
 	return g
 }
 
+// ParseOptions adjust how Parse reads an expression.
+type ParseOptions struct {
+	// NoInterpolation leaves "\(" in a string as the two characters it
+	// is written with, as yq's --string-interpolation=false does.
+	NoInterpolation bool
+}
+
 // Parse parses a yq expression. A blank expression is the identity, as it
 // is in yq. A name yq's lexer lacks, such as jq's empty, fails first, as
 // it does in yq, which lexes the whole expression before it parses. A
 // failure is a *ParseError worded the way yq words it where yq's wording
 // is known, and the parser's own message otherwise.
-func Parse(expr string) (ast.Node, error) {
+func Parse(expr string) (ast.Node, error) { return ParseWith(expr, ParseOptions{}) }
+
+// ParseWith is Parse under opts.
+func ParseWith(expr string, opts ParseOptions) (ast.Node, error) {
 	if strings.TrimSpace(expr) == "" {
 		return &ast.Identity{}, nil
 	}
-	if toks, err := lexer.Tokenize(expr, Grammar().Tokens); err == nil {
+	g := Grammar()
+	g.Tokens.NoInterpolation = opts.NoInterpolation
+	if toks, err := lexer.Tokenize(expr, g.Tokens); err == nil {
 		if msg, at, refused := unlexable(expr, toks); refused {
 			return nil, &ParseError{Msg: msg, Pos: at}
 		}
@@ -54,7 +66,7 @@ func Parse(expr string) (ast.Node, error) {
 			return nil, &ParseError{Msg: badExpression, Pos: at}
 		}
 	}
-	n, err := parser.Parse(expr, Grammar())
+	n, err := parser.Parse(expr, g)
 	if err == nil {
 		return rewrite(expr, n)
 	}
@@ -62,14 +74,14 @@ func Parse(expr string) (ast.Node, error) {
 	if !errors.As(err, &pe) {
 		return nil, err
 	}
-	return nil, &ParseError{Msg: diagnose(expr, pe), Pos: pe.Pos}
+	return nil, &ParseError{Msg: diagnose(expr, pe, g), Pos: pe.Pos}
 }
 
 // diagnose words a parse failure as yq does. Unbalanced brackets come
 // first, then an infix operator with an operand missing, and anything
 // else keeps the parser's message.
-func diagnose(expr string, pe *parser.Error) string {
-	toks, err := lexer.Tokenize(expr, Grammar().Tokens)
+func diagnose(expr string, pe *parser.Error, g parser.Grammar) string {
+	toks, err := lexer.Tokenize(expr, g.Tokens)
 	if err != nil {
 		return pe.Msg
 	}

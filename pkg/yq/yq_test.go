@@ -275,3 +275,42 @@ func TestSortKeysOnEncode(t *testing.T) {
 	_ = enc.Flush()
 	wantEqual(t, buf.String(), "a: 2\nb: 1\n")
 }
+
+func TestStringInterpolationOffKeepsTheEscape(t *testing.T) {
+	in := decodeOne(t, "a: 1\n")
+	for _, ev := range []*Evaluator{
+		mustCompile(t, `"x\(.a)"`, WithStringInterpolation(false)),
+		mustParse(t, `"x\(.a)"`).mustCompile(t, WithStringInterpolation(false)),
+	} {
+		out, err := collect(ev.Eval(context.Background(), in))
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantEqual(t, out[0].Str(), `x\(.a)`)
+	}
+	out, err := collect(mustCompile(t, `"x\(.a)"`).Eval(context.Background(), in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, out[0].Str(), "x1")
+}
+
+func mustParse(t *testing.T, src string) *parsed {
+	t.Helper()
+	x, err := Parse(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &parsed{x}
+}
+
+type parsed struct{ *Expression }
+
+func (p *parsed) mustCompile(t *testing.T, opts ...Option) *Evaluator {
+	t.Helper()
+	ev, err := p.Compile(opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ev
+}

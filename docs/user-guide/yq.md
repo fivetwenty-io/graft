@@ -164,11 +164,11 @@ The table lists the flags that matter here, and `--color` and `--no-color` work 
 | `--prune KEY`, `--cherry-pick KEY` | With `-m` or `-E`, trim the result | Available |
 | `--repl` | Open the graft debugger on the files | Available |
 | `-c`, `--yaml-compact-seq-indent` | Compact sequence indentation | Inert |
-| `--string-interpolation` | Interpolation in strings, on by default | Inert |
+| `--string-interpolation` | Interpolation in strings, on by default | Available, and `=false` leaves `\(` in a string as written |
 | `-f`, `--front-matter` | Run the expression over the front matter of the first file, see below | Available |
 | `-s`, `--split-exp`, `--split-exp-file` | Write each output to a file named by an expression, see below | Available |
 
-The inert flags do nothing today. `-c` leaves sequence indentation as it is, and `--string-interpolation` neither adds nor removes interpolation. `--header-preprocess=false` is not inert, and it does change how a leading comment is handled.
+The inert flags do nothing today. `-c` leaves sequence indentation as it is. `--string-interpolation=false` and `--header-preprocess=false` are not inert. The first leaves `\(` in a string as written, and the second changes how a leading comment is handled.
 
 The `-m` and `-E` flags also accept the feature flags `graft merge` reads, which are `--skip-eval`, `--fallback-append`, `--go-patch`, `--multi-doc`, `--skip-vault`, `--skip-aws`, and `--skip-nats`.
 
