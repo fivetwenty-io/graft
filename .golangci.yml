@@ -37,6 +37,7 @@ linters:
 
     # Additional recommended for production libraries
     - bodyclose
+    - depguard
     - dogsled
     - dupl
     - errorlint
@@ -64,6 +65,20 @@ linters:
     - whitespace
 
   settings:
+    depguard:
+      rules:
+        # The query dialects match with graft's own regex engine, whose
+        # syntax and budget they document, never with Go's.
+        own-regex-engine:
+          files:
+            - "**/internal/query/**"
+            - "**/pkg/jq/**"
+            - "**/pkg/yq/**"
+            - "**/pkg/regex/**"
+          deny:
+            - pkg: regexp
+              desc: use github.com/fivetwenty-io/graft/pkg/regex
+
     errcheck:
       check-type-assertions: true
       check-blank: false
