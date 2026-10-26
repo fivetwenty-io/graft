@@ -126,18 +126,23 @@ func (e *emitter) Write(v *value.Value) error {
 // content. A caller passes the leading content only with the result that
 // stands for the whole document, as yq keeps it on the document's root.
 // The "---" goes before a result whose document or file differs from the
-// last one's, unless the leading content opens with one of its own.
+// last one's, unless the leading content opens with one of its own. The
+// first result printed keeps a "---" of its leading content only when it
+// comes from a file's first document, since a later document's "---"
+// parts it from the documents before it.
 func (e *emitter) WriteDocument(d load.Document, v *value.Value) error {
+	separators := !e.o.NoDoc
 	if !e.started {
 		e.prevDoc, e.prevFile = d.DocIndex, d.FileIndex
 		e.started = true
+		separators = separators && d.DocIndex == 0
 	}
 	changed := e.prevDoc != d.DocIndex || e.prevFile != d.FileIndex
 	sep := changed && !strings.HasPrefix(d.LeadingContent, docSeparator) && !e.o.NoDoc
 	e.prevDoc = d.DocIndex
 	e.docs++
 	e.buf.Reset()
-	writeLeadingContent(&e.buf, d.LeadingContent, !e.o.NoDoc)
+	writeLeadingContent(&e.buf, d.LeadingContent, separators)
 	e.encode(e.sorted(v), d.LeadingContent)
 	return e.finish(sep)
 }

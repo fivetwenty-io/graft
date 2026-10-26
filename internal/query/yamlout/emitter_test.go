@@ -136,13 +136,18 @@ func TestRoundTripInline(t *testing.T) {
 }
 
 // The separator logic copies yq's printer: a result from another document
-// gets "---" unless its leading content opens with one, and the file index
-// it compares against is the first result's, whatever came after.
+// gets "---" unless its leading content opens with one, the file index it
+// compares against is the first result's, whatever came after, and the
+// first result keeps a "---" of its leading content only in a file's first
+// document.
 func TestDocumentSeparators(t *testing.T) {
 	src := "# lead\n---\na: 1\n---\n# two\na: 2\n"
 	docs := mustLoad(t, "inline", src, load.LoadOptions{KeepMeta: true})
 	wantEqual(t, emitDocs(t, docs, Options{}), src)
 	wantEqual(t, emitDocs(t, docs, Options{NoDoc: true}), "# lead\na: 1\n# two\na: 2\n")
+	// A later document printed first drops the "---" that parts it from
+	// the documents before it.
+	wantEqual(t, emitDocs(t, docs[1:], Options{}), "# two\na: 2\n")
 
 	at := func(file, doc int, v *value.Value) load.Document {
 		return load.Document{FileIndex: file, DocIndex: doc, Value: v}
