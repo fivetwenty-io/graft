@@ -231,7 +231,7 @@ func TestModuleMetaListsRedefinedNamesOnce(t *testing.T) {
 func TestModuleMetaFoldsLikeJQAtTheEdges(t *testing.T) {
 	opts := modDir(t, map[string]string{"loc.jq": `module {$__loc__, a: 1};`})
 	wantOutputsOpts(t, opts, `"loc" | modulemeta | .__loc__.line, .a`, `null`, `1`, `1`)
-	for _, meta := range []string{`(1, 2)`, `("a\(1)")`} {
+	for _, meta := range []string{`(1, 2)`, `("a\(1)")`, `"\("x")"`, `{"\("x")": 1}`, `["a\("x")b"]`} {
 		o := modDir(t, map[string]string{"bad.jq": `module {a: ` + meta + `};`})
 		wantErrorOpts(t, o, `"bad" | modulemeta`, `null`, `Module metadata must be constant`)
 	}

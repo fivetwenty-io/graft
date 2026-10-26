@@ -495,10 +495,10 @@ func isConstStr(n *ast.Str) bool {
 	return true
 }
 
-// isText reports whether a literal is a run of string text. The parser
-// makes the same node of text and of an interpolated constant, so this
-// refuses an interpolated number or null, and it takes an interpolated
-// string, which jq refuses, as text.
+// isText reports whether a literal is a run of string text. An
+// interpolated number or null parses to a literal too, so this refuses
+// it, and an interpolated string parses to a nested *ast.Str, which
+// isConstStr refuses before it gets here.
 func isText(lit *ast.Literal) bool {
 	_, ok := lit.Value.(string)
 	return ok
