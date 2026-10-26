@@ -734,6 +734,8 @@ port: 4222
 
 A key that holds a dot, is empty, or is all digits prints in brackets, so `["a.b"]` and `a.b` stay distinct. The query follows the session's dialect, which `config dialect jq` and `config dialect yq` change. A bare `config dialect` shows it.
 
+While a selection is set, `step` prints only the changes at or beneath the selected paths, and `unselect` brings back the full list. A breakpoint still fires for a change outside the selection, because we set it on purpose.
+
 ### watch and unwatch
 
 Evaluates a query now and again after every `step` and `continue`, and reports it when the value changed. `unwatch` removes one watch by its expression, or all of them when it has no argument.
@@ -748,14 +750,18 @@ watch (.jobs | length): 2 -> 3
 
 ### Queries as paths
 
-The verbs `break`, `unbreak`, `inspect`, `history`, `tree`, `defer`, and `eval` also accept `jq:EXPR` or `yq:EXPR` where a path goes. The query resolves to zero or more paths, and the verb applies to each one. Any other prefix, such as `xq:`, is refused by name.
+The verbs `break`, `unbreak`, `inspect`, `history`, `tree`, `defer`, and `eval` also accept `jq:EXPR` or `yq:EXPR` where a path goes. The query resolves to zero or more paths, and the verb applies to each one. Only the exact prefixes `jq:` and `yq:` mark a query, so a path such as `ns:x` stays an ordinary path. A key that holds a dot or spells a number works in a query path, and so does the same key written as `["a.b"]` in a plain path.
 
 ```
 graft> break jq:.jobs[] | select(.port != null)
-Breakpoint set on jobs.[0]
+Breakpoint set on jobs.nats
 ```
 
-Breakpoints are matched against the paths `step` reports, and `step` names a list entry by its `name` key, as in `jobs.nats.port`. A breakpoint on a list index such as `jobs.[0].port` therefore sets, but it only fires for changes the step reports under that spelling.
+Breakpoints are matched against the paths `step` reports, and `step` names a list entry by its `name` key, as in `jobs.nats.port`. A query spells each path the same way, so the breakpoint above is set on `jobs.nats`, and a breakpoint made by a query also fires for any path beneath it, which means `jobs.nats` fires when `jobs.nats.port` changes. A plain `break jobs.nats` stays exact and fires only when `jobs.nats` itself changes.
+
+### A document that is not a mapping
+
+`graft jq --repl PROGRAM FILE` also opens the debugger on a file that holds an array, a scalar, or `null`. The session keeps that document as it is, and `jq`, `yq`, `select`, `watch`, and `inspect` work on it. The verbs that need a merged mapping, which are `step`, `continue`, `break`, `unbreak`, `history`, `defer`, `autodefer`, `eval`, `tree`, `output`, `prune-report`, `diff`, and `export`, say that they need a mapping and name what the document is. A document that is not a mapping cannot be combined with other documents, and the command refuses that. Files that all hold mappings merge as `graft debug` merges them, with the same configuration and feature flags.
 
 ### output
 
