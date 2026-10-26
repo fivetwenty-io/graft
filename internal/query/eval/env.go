@@ -29,8 +29,11 @@ type Env struct {
 	val    *value.Value
 	at     value.Path
 	fn     *Closure
-	label  uintptr
-	fns    map[funcKey]*Closure
+	// ref marks a variable bound to a place, which at holds relative to
+	// the input the variable is read against.
+	ref   bool
+	label uintptr
+	fns   map[funcKey]*Closure
 }
 
 type bindingKind uint8
@@ -77,6 +80,23 @@ func (env *Env) Bind(name string, v *value.Value) *Env {
 // reference to $name keeps v's place while the run tracks cursors.
 func (env *Env) BindAt(name string, v *value.Value, at value.Path) *Env {
 	return &Env{parent: env, kind: bindVar, name: name, val: v, at: at}
+}
+
+// BindRef returns env with $name bound to the place at, which is
+// relative to the input $name is read against.
+func (env *Env) BindRef(name string, at value.Path) *Env {
+	return &Env{parent: env, kind: bindVar, name: name, at: at, ref: true}
+}
+
+// LookupRef returns the place $name is bound to, and false when it is
+// bound to a value or not at all.
+func (env *Env) LookupRef(name string) (value.Path, bool) {
+	for e := env; e != nil; e = e.parent {
+		if e.kind == bindVar && e.name == name {
+			return e.at, e.ref
+		}
+	}
+	return nil, false
 }
 
 // Lookup returns the value bound to $name.

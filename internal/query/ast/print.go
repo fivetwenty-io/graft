@@ -122,7 +122,11 @@ func printForm(sb *strings.Builder, n Node) bool {
 	case *FuncDef:
 		printFuncDef(sb, n)
 	case *Bind:
-		sb.WriteString(child(n.Src) + " as " + printPatterns(n.Pats) + " | " + Print(n.Body))
+		word := " as "
+		if n.Ref {
+			word = " ref "
+		}
+		sb.WriteString(child(n.Src) + word + printPatterns(n.Pats) + " | " + Print(n.Body))
 	case *Label:
 		sb.WriteString("label $" + n.Name + " | " + Print(n.Body))
 	case *Break:

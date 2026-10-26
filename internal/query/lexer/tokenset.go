@@ -73,7 +73,7 @@ func JQ() TokenSet {
 func YQ() TokenSet {
 	return TokenSet{
 		Keywords: []string{
-			"and", "or", "as", "if", "then", "elif", "else", "end", "ireduce",
+			"and", "or", "as", "ref", "if", "then", "elif", "else", "end", "ireduce",
 			"def", "reduce", "foreach", "try", "catch", "label",
 		},
 		Operators: []string{

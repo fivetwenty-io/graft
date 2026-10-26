@@ -207,6 +207,9 @@ func (ev evaluator) statePath(state, v0 *value.Value, p0 value.Path) value.Path 
 // the value it destructures. Tracking cursors, a variable bound whole
 // keeps the place of the value it stands for.
 func (ev evaluator) bind(n *ast.Bind, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	if n.Ref {
+		return ev.bindRef(n, env, in, p, emit)
+	}
 	if ev.derives() && len(n.Pats) == 1 && n.Pats[0].Kind == ast.PatVar {
 		name := n.Pats[0].Name
 		return ev.values().eval(n.Src, env, in, p, func(x *value.Value, xp value.Path) error {
@@ -349,4 +352,35 @@ func (ev evaluator) element(v, key *value.Value) (*value.Value, error) {
 		return value.Null(), nil
 	}
 	return x, nil
+}
+
+// bindRef runs "Src ref $x | Body". The variable is bound to each path
+// Src gives, relative to the bind's input, and reads whatever sits at
+// that path in the input it is read against, so it follows changes the
+// body makes to the document and an assignment to it changes the
+// document.
+func (ev evaluator) bindRef(n *ast.Bind, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	name := n.Pats[0].Name
+	pev := ev.pathsFor(runtime.IndexRead)
+	return ev.each(in, p, func(in *value.Value, p value.Path) error {
+		return pev.eval(n.Src, env, in, value.Path{}, func(v *value.Value, vp value.Path) error {
+			if vp == nil {
+				return invalidPathResult(v)
+			}
+			return ev.eval(n.Body, env.BindRef(name, vp), in, p, emit)
+		})
+	})
+}
+
+// refVar reads a variable bound to the place rel in in, with that place's
+// path while paths or cursors are tracked.
+func (ev evaluator) refVar(rel value.Path, in *value.Value, p value.Path, emit runtime.Emit) error {
+	return ev.each(in, p, func(in *value.Value, p value.Path) error {
+		return ev.native("getpath", in, []runtime.Thunk{constThunk{value.Arr(rel...)}}, func(v *value.Value, _ value.Path) error {
+			if ev.paths && p == nil {
+				return emit(v, nil)
+			}
+			return emit(v, ev.place(in, p, rel...))
+		})
+	})
 }

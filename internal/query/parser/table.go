@@ -64,6 +64,9 @@ type KeywordForms struct {
 	// VarBind limits "as" to one plain variable, as yq has no
 	// destructuring.
 	VarBind bool
+	// RefBind enables yq's "term ref $x | body", which binds the place
+	// of the term rather than its value.
+	RefBind bool
 	// Modules enables module, import, and include directives.
 	Modules bool
 }
@@ -154,7 +157,7 @@ func YQ() Grammar {
 			{"%", 42, Right, Binary},
 			{"//", 42, Right, Alt},
 		},
-		Keywords: KeywordForms{If: true, Bind: true, IReduce: true, VarBind: true},
+		Keywords: KeywordForms{If: true, Bind: true, IReduce: true, VarBind: true, RefBind: true},
 		ExprKeys: true,
 	}
 }

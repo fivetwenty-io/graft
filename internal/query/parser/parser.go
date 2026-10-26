@@ -381,7 +381,7 @@ func (p *parser) parsePrefix(c exprContext) (ast.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.bind && kw.Bind && p.isKeyword("as") {
+	if c.bind && kw.Bind && (p.isKeyword("as") || kw.RefBind && p.isKeyword("ref")) {
 		return p.parseBind(operand)
 	}
 	return operand, nil
@@ -409,6 +409,7 @@ func (p *parser) parseOperand() (ast.Node, error) {
 // (init; update)", which is a reduce and leaves what follows to the
 // operator loop.
 func (p *parser) parseBind(src ast.Node) (ast.Node, error) {
+	ref := p.isKeyword("ref")
 	p.next()
 	at := p.peek()
 	pats, err := p.parsePatterns()
@@ -418,7 +419,7 @@ func (p *parser) parseBind(src ast.Node) (ast.Node, error) {
 	if p.g.Keywords.VarBind && (len(pats) > 1 || pats[0].Kind != ast.PatVar) {
 		return nil, p.errAt(at, "RHS of 'as' operator must be a variable name e.g. $foo")
 	}
-	if p.g.Keywords.IReduce && p.isKeyword("ireduce") {
+	if !ref && p.g.Keywords.IReduce && p.isKeyword("ireduce") {
 		return p.parseIReduce(src, pats)
 	}
 	if err := p.expect(lexer.Pipe, "|"); err != nil {
@@ -428,7 +429,7 @@ func (p *parser) parseBind(src ast.Node) (ast.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Bind{Src: src, Pats: pats, Body: body}, nil
+	return &ast.Bind{Src: src, Pats: pats, Body: body, Ref: ref}, nil
 }
 
 func (p *parser) parseTry() (ast.Node, error) {

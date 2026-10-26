@@ -294,6 +294,9 @@ func (ev evaluator) eval(n ast.Node, env *Env, in *value.Value, p value.Path, em
 	case *ast.Call:
 		return ev.call(n, env, in, p, emit)
 	case *ast.Var:
+		if rel, ok := env.LookupRef(n.Name); ok {
+			return ev.refVar(rel, in, p, emit)
+		}
 		v, at, err := ev.variable(n.Name, env)
 		if err != nil || v == nil {
 			return err

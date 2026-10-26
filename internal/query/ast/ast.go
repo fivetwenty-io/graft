@@ -188,6 +188,9 @@ type Bind struct {
 	Src  Node
 	Pats []Pattern
 	Body Node
+	// Ref marks yq's "Src ref $x | Body", whose variable stands for the
+	// place Src names in the body's input rather than for a value.
+	Ref bool
 }
 
 // Label is "label $Name | Body".
