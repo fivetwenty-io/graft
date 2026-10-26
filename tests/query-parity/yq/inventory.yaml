@@ -243,11 +243,11 @@
 - id: fl-front-matter-extract
   area: flag
   phase: Y1
-  cases: [fl-front-matter-extract]
+  cases: [fl-front-matter-extract, f-front-matter-extract]
 - id: fl-front-matter-process
   area: flag
   phase: Y1
-  cases: [fl-front-matter-process]
+  cases: [fl-front-matter-process, f-front-matter-closing-text, f-front-matter-first-file-only, f-front-matter-inplace, f-front-matter-none, f-front-matter-process, f-front-matter-process-json, f-front-matter-process-many, f-front-matter-process-no-match, f-front-matter-split, f-front-matter-unterminated]
 - id: fl-indent-1
   area: flag
   phase: Y1
@@ -379,11 +379,11 @@
 - id: fl-split-exp
   area: flag
   phase: Y1
-  cases: [fl-split-exp]
+  cases: [fl-split-exp, f-split-exp-bad-file, f-split-exp-documents, f-split-exp-file, f-split-exp-first-value, f-split-exp-inplace, f-split-exp-json, f-split-exp-name, f-split-exp-same-name, f-split-exp-text-names]
 - id: fl-split-exp-dirs
   area: flag
   phase: Y1
-  cases: [fl-split-exp-dirs]
+  cases: [fl-split-exp-dirs, f-split-exp-subdirectory]
 - id: fl-split-exp-file
   area: flag
   phase: Y2
