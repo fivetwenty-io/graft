@@ -7,28 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, and `graft install-aliases`, which lets graft answer to the names `jq` and `spruce`. It is the first of three jq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 93 percent overall at the end of phase J1, and the per-area figures are in [the jq guide](docs/user-guide/jq.md).
+This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, and `graft install-aliases`, which lets graft answer to the names `jq` and `spruce`. It brings the first two of three jq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 97 percent overall at the end of phase J2, and the per-area figures are in [the jq guide](docs/user-guide/jq.md).
 
 ### Added
 
 - `graft jq` runs a jq program over JSON or YAML from files or standard input, with jq's flags for input, output, variables, and exit status. It also reads multi-document YAML streams, prints YAML with `-o yaml`, sorts keys with `-S` and `--sort-keys=lexical|spruce|none`, and runs `graft merge` or per-document operator evaluation first with `-m` and `-E`. Errors use graft's diagnostics, and exit codes match jq's.
 
-- The compatibility report for this first phase, J1, puts `graft jq` at 93 percent overall. The figures by area are in the table below. Modules and streaming sit near zero because both arrive in phase J2, and until then `-L`, `--stream`, and `--seq` answer with a usage error and exit code 2.
+- The compatibility report for phase J2, which completes the language, puts `graft jq` at 97 percent overall. The figures by area are in the table below. Modules and streaming now pass in full, so `-L`, `import`, `include`, `--stream`, and `--seq` work as they do in jq. The numbers, dates, and math rows stay below 100 percent because `graft jq` keeps exact decimal arithmetic, its own resource limits, and Go's math library, and each case where that gives a different answer from jq is recorded as a deliberate departure. Most of the math departures are one unit in the last place, because jq on macOS calls Apple's libm where graft uses Go's math on every platform, and `gamma` still returns the log of the gamma function as glibc's does, where jq on macOS returns the gamma function itself.
 
   | Area | Passing | Phase |
   |------|---------|-------|
-  | Grammar | 100% | J1 |
-  | Builtins | 99% | J1 |
-  | Strings | 100% | J1 |
-  | Regular expressions | 90% | J1 |
-  | Exit codes | 91% | J1 |
-  | Flags | 98% | J1 |
-  | CLI | 92% | J1 |
-  | Numbers | 80% | J1 |
-  | Dates | 78% | J1 |
-  | Math | 73% | J1 |
-  | Modules | 100% | J1 |
-  | Streaming | 40% | J1 |
+  | Grammar | 100% | J2 |
+  | Builtins | 100% | J2 |
+  | Strings | 100% | J2 |
+  | Regular expressions | 96% | J2 |
+  | Exit codes | 97% | J2 |
+  | Flags | 100% | J2 |
+  | CLI | 97% | J2 |
+  | Numbers | 80% | J2 |
+  | Dates | 96% | J2 |
+  | Math | 73% | J2 |
+  | Modules | 100% | J2 |
+  | Streaming | 100% | J2 |
+
+- `graft jq` adds jq's `IN`, `INDEX`, and `JOIN` builtins in every arity jq 1.8.2 defines.
+
+- Regular expressions in `graft jq` take `\R` for a line break, `\K` to reset the start of the match, and conditional groups such as `(?(1)yes|no)`, which test whether a group has captured. The PCRE flavor in `pkg/regex` takes them too, as PCRE2 does. The Oniguruma flavor refuses a conditional whose only branch is not empty, such as `(?(1)b)`, because jq's search misses matches that run through one.
 
 - `graft install-aliases` links `jq` and `spruce` to graft, or installs copies on Windows, and `--remove` takes them away again. A link named exactly `jq` runs `graft jq`.
 
@@ -39,6 +43,16 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 ### Changed
 
 - `graft jq` does exact decimal arithmetic, so `0.1 + 0.2` is `0.3` where jq prints `0.30000000000000004`. Passing `--float-numbers` restores jq's arithmetic.
+
+- `graft jq` no longer defines `date`, `dateadd`, and `datesub`, because jq 1.8.2 dropped them, so a program that calls one fails to compile as it does in jq. `todate` and `todateiso8601` give the same output.
+
+- A jq program that is blank, holds only comments, or holds only definitions and module directives now fails with jq's "Top-level program not given" error and exit code 3, where it used to run as the identity.
+
+- `localtime`, `strflocaltime`, and the local-time round trip through `mktime` now read `TZ` at each call, as the C library does, instead of fixing the zone when graft starts.
+
+- `fromjson` reads `nan` as NaN rather than null, and a format such as `@nosuch` on a string with nothing to interpolate no longer fails, because jq applies a format only to the values an interpolation produces.
+
+- Inside a lookbehind, the Oniguruma flavor that `graft jq` uses now refuses a choice whose branches differ in length, with jq's "invalid pattern in look-behind" error.
 
 ### Documentation
 

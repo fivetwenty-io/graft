@@ -1,24 +1,25 @@
 # area total allowlisted passing percent
 grammar 123 0 123 100
-builtin 146 1 145 99
-flag 91 1 90 98
-exit 45 4 41 91
+builtin 146 0 146 100
+flag 91 0 91 100
+exit 45 1 44 97
 number 47 9 38 80
 string 39 0 39 100
-regex 76 0 69 90
-date 32 0 25 78
-math 19 0 14 73
+regex 76 0 73 96
+date 32 1 31 96
+math 19 5 14 73
 module 18 0 18 100
-stream 10 0 4 40
-cli 39 1 36 92
-overall 685 16 642 93
-allow b-fromjson-nan pending J2 nan from fromjson
+stream 10 0 10 100
+cli 39 1 38 97
+overall 685 17 665 97
 allow c-yaml-input-departure pending J3 input parsed as strict JSON
-allow e-compile-bad-format pending J2 unknown format is a compile error
-allow e-compile-empty-program pending J2 empty program is a compile error
-allow e-compile-whitespace-program pending J2 blank program is a compile error
+allow d-gmtime-fractional departure exact decimal
 allow e-invalid-input-literal pending J3 strict literal parsing in input
-allow f-from-file-comment-only pending J2 comment-only program file is a compile error
+allow m-gamma departure platform libm
+allow m-hyperbolic departure go math ulp
+allow m-roots-exp departure go math ulp
+allow m-special-values departure exact decimal
+allow m-trig departure platform libm
 allow n-add-decimal departure exact decimal
 allow n-add-exponent-form departure exact decimal
 allow n-add-large departure exact decimal

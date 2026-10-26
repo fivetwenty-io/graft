@@ -72,8 +72,8 @@ The table lists the flags that matter here, and `--color` and `--no-color` work 
 | `-e`, `--exit-status` | Set the exit code from the last output | Available |
 | `--run-tests [FILE]` | Run jq test cases | Available |
 | `--repl` | Open the graft debugger on the inputs | Available |
-| `-L DIR`, `import`, `include` | Modules | Phase J2 |
-| `--stream`, `--seq` | Streaming forms of input and output | Phase J2 |
+| `-L DIR`, `import`, `include` | Load jq modules | Available |
+| `--stream`, `--seq` | Streaming forms of input and output | Available |
 
 The `-m` and `-E` flags also accept the feature flags `graft merge` reads, which are `--skip-eval`, `--fallback-append`, `--go-patch`, `--multi-doc`, `--skip-vault`, `--skip-aws`, and `--skip-nats`.
 
@@ -167,25 +167,25 @@ These are the places where `graft jq` deliberately differs from jq 1.8.2.
 
 ## Compatibility
 
-We measure compatibility against a coverage inventory of jq behaviors. Each entry passes when every differential case it names matches a golden recorded from the real jq 1.8.2. The percentages below come from `tests/query-parity/jq/report.txt`, and each one was measured at the end of phase J1, which is the release this page describes. The last column says when we expect the figure to rise.
+We measure compatibility against a coverage inventory of jq behaviors. Each entry passes when every differential case it names matches a golden recorded from the real jq 1.8.2. The percentages below come from `tests/query-parity/jq/report.txt`, and each one was measured at the end of phase J2, which is the release this page describes. The last column says when we expect the figure to rise.
 
 | Area | Passing | Phase measured | Expected to rise |
 |------|---------|----------------|------------------|
-| Grammar | 100% | J1 | J2 |
-| Builtins | 99% | J1 | J2 |
-| Flags | 98% | J1 | J2 |
-| Exit codes | 91% | J1 | J2 and J3 |
-| Numbers | 80% | J1 | Stays where it is, because the missing cases are deliberate departures |
-| Strings | 100% | J1 | J3 |
-| Regular expressions | 90% | J1 | J3 |
-| Dates | 78% | J1 | J2 |
-| Math | 73% | J1 | J2 |
-| Modules | 100% | J1 | J2 |
-| Streaming | 40% | J1 | J2 |
-| CLI | 92% | J1 | J2 and J3 |
-| Overall | 93% | J1 | J2 |
+| Grammar | 100% | J2 | Done |
+| Builtins | 100% | J2 | Done |
+| Flags | 100% | J2 | Done |
+| Exit codes | 97% | J2 | J3 |
+| Numbers | 80% | J2 | Stays where it is, because the missing cases are deliberate departures |
+| Strings | 100% | J2 | Done |
+| Regular expressions | 96% | J2 | J3 |
+| Dates | 96% | J2 | Stays where it is, because the missing case is a deliberate departure |
+| Math | 73% | J2 | Stays where it is, because the missing cases are deliberate departures |
+| Modules | 100% | J2 | Done |
+| Streaming | 100% | J2 | Done |
+| CLI | 97% | J2 | J3 |
+| Overall | 97% | J2 | J3 |
 
-Modules and streaming sit near zero because they arrive in phase J2, which completes the language with dates, math, formats, modules, streaming, and lookaround and backreferences in regular expressions. Regular expressions hold at 90 percent through J2. Phase J3 hardens the result with performance work, fuzzing, and the Oniguruma flavor, and it raises regular expressions to 100 percent. Each phase is a plain minor release.
+Phase J2 completes the language with dates, math, formats, modules, streaming, and lookaround and backreferences in regular expressions, so modules and streaming now pass in full. The numbers, dates, and math rows stay below 100 percent because `graft jq` keeps exact decimal arithmetic, its own resource limits, and Go's math library, and each case where that gives a different answer from jq is recorded as a deliberate departure. Phase J3 hardens the result with performance work and fuzzing, reads input literals as strictly as jq does, and adds the last regular expression forms, which are subroutine calls, the absent operator, and grapheme clusters. Each phase is a plain minor release.
 
 ## Related
 
