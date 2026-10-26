@@ -242,11 +242,11 @@
   cases: [fl-from-file-crlf]
 - id: fl-front-matter-extract
   area: flag
-  phase: Y2
+  phase: Y1
   cases: [fl-front-matter-extract]
 - id: fl-front-matter-process
   area: flag
-  phase: Y2
+  phase: Y1
   cases: [fl-front-matter-process]
 - id: fl-indent-1
   area: flag
@@ -378,11 +378,11 @@
   cases: [fl-security-enable-system]
 - id: fl-split-exp
   area: flag
-  phase: Y2
+  phase: Y1
   cases: [fl-split-exp]
 - id: fl-split-exp-dirs
   area: flag
-  phase: Y2
+  phase: Y1
   cases: [fl-split-exp-dirs]
 - id: fl-split-exp-file
   area: flag
