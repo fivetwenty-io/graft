@@ -128,3 +128,12 @@ func TestQueryComposeSharedLoading(t *testing.T) {
 		So(got, ShouldEqual, wantJQ)
 	})
 }
+
+func TestQueryComposeErrorText(t *testing.T) {
+	Convey("an unreadable input is reported on one line, as graft merge reports it", t, func() {
+		_, errText, code := composeQueryInputs(composeContext{}, []string{"testdata/compose"})
+		So(code, ShouldEqual, 2)
+		So(strings.HasSuffix(string(errText), "\n"), ShouldBeTrue)
+		So(strings.HasSuffix(string(errText), "\n\n"), ShouldBeFalse)
+	})
+}

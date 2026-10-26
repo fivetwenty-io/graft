@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
@@ -97,7 +98,7 @@ func composeQueryInputs(cc composeContext, files []string) (merged []byte, errTe
 	for _, file := range files {
 		docs, err := cc.load(file)
 		if err != nil {
-			return nil, []byte(err.Error() + "\n"), 2
+			return nil, composeErrText(err), 2
 		}
 		sources = append(sources, docs)
 	}
@@ -109,7 +110,7 @@ func composeQueryInputs(cc composeContext, files []string) (merged []byte, errTe
 			for _, doc := range docs {
 				text, err := cc.render([]YamlFile{doc}, &opts)
 				if err != nil {
-					return nil, []byte(err.Error() + "\n"), 2
+					return nil, composeErrText(err), 2
 				}
 				out = append(out, text)
 			}
@@ -123,9 +124,15 @@ func composeQueryInputs(cc composeContext, files []string) (merged []byte, errTe
 	}
 	text, err := cc.render(all, &opts)
 	if err != nil {
-		return nil, []byte(err.Error() + "\n"), 2
+		return nil, composeErrText(err), 2
 	}
 	return text, nil, 0
+}
+
+// composeErrText is err as a line of stderr text, ending in one newline
+// whether or not the error carries its own.
+func composeErrText(err error) []byte {
+	return []byte(strings.TrimSuffix(err.Error(), "\n") + "\n")
 }
 
 // render merges docs and writes the result as YAML without a document
