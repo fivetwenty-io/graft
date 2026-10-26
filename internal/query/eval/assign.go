@@ -61,12 +61,22 @@ func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Pat
 			// is a root of its own rather than a value built from nothing.
 			// A root below a document's root changes in place, as yq's
 			// nodes do, so the result sits where its root sat in the
-			// document with the change made.
+			// document with the change made. The change builds on those
+			// that earlier siblings made to the same document, so the
+			// last of them holds every change, as yq's shared nodes do.
+			// An output already emitted keeps the document as it was
+			// then, where yq, printing after it evaluates, shows the
+			// final one.
 			var op value.Path
 			if ev.derives() {
 				op = runtime.Rooted(out, doc, nil)
 				if top, _, rel := runtime.Unroot(rp); top != nil && len(rel) > 0 {
-					if changed, ok := replaceAt(top, rel, out); ok {
+					base := top
+					if latest, ok := ev.changed[top]; ok {
+						base = latest
+					}
+					if changed, ok := replaceAt(base, rel, out); ok {
+						ev.changed[top] = changed
 						op = runtime.Rooted(changed, doc, rel)
 					}
 				}

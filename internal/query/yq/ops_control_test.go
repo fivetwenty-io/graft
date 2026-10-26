@@ -32,3 +32,13 @@ func TestYQErrorGivesText(t *testing.T) {
 	wantYQError(t, `1 + error`, "{}", "'+' expects 2 args but there is 1")
 	wantYQError(t, `.a = error`, "{}", "'=' expects 2 args but there is 1")
 }
+
+func TestYQSiblingAssignmentsShareTheDocument(t *testing.T) {
+	// An assignment below a document's root builds on the changes its
+	// siblings made to that document before it, so the last output holds
+	// them all, as yq's shared nodes do. An earlier output cannot see a
+	// later sibling's change, because graft prints it first.
+	wantYQ(t, `.[] | .x = 1 | parent`, "[{x: 0}, {x: 0}]\n", "[{x: 1}, {x: 0}]\n[{x: 1}, {x: 1}]\n")
+	wantYQ(t, `(.[0] | .x = 1 | parent), (.[1] | .x = 2 | parent)`, "[{x: 0}, {x: 0}]\n", "[{x: 1}, {x: 0}]\n[{x: 1}, {x: 2}]\n")
+	wantYQ(t, `.a | .b = 1 | parent`, "a: {b: 0}\n", "a: {b: 1}\n")
+}
