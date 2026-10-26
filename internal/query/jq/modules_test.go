@@ -479,3 +479,23 @@ func TestModulesRefuseBadNames(t *testing.T) {
 	wantErrorOpts(t, opts, `import "a\u0000b" as x; 1`, `null`, `Module path contains a NUL byte`)
 	wantErrorOpts(t, opts, `"a\\b" | modulemeta`, `null`, `Modules must be named by relative paths`)
 }
+
+func TestModuleDataErrorsNameOnlyPositions(t *testing.T) {
+	opts := modDir(t, map[string]string{
+		"lit.json":  `{"a": nullsecretword}`,
+		"open.json": "[1,\n",
+	})
+	for _, name := range []string{"lit", "open"} {
+		_, err := runOpts(t, opts, `import "`+name+`" as $d; $d`, `null`)
+		if err == nil {
+			t.Fatalf("%s: want an error", name)
+		}
+		got := message(err)
+		if strings.Contains(got, "secretword") {
+			t.Errorf("%s: the error quotes the file: %q", name, got)
+		}
+		if strings.Count(got, name+".json") != 1 || !strings.Contains(got, "error loading data file") || !strings.Contains(got, "at line") {
+			t.Errorf("%s: want one path and a position, got %q", name, got)
+		}
+	}
+}

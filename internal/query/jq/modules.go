@@ -595,13 +595,24 @@ func (lk *linker) loadData(key, path string) (*loaded, error) {
 			break
 		}
 		if err != nil {
-			return nil, &query.CompileError{Msg: "error loading data file " + path + ": " + err.Error()}
+			return nil, &query.CompileError{Msg: "error loading data file " + path + ": " + dataErrorText(err)}
 		}
 		vals = append(vals, v)
 	}
 	m := &loaded{mod: &eval.Module{Path: path, Data: value.Arr(vals...)}}
 	lk.files[key] = m
 	return m, nil
+}
+
+// dataErrorText describes a failure to read a data file by its position
+// alone. The reader's own message can quote the file, and a program that
+// imports a file it should not see must not learn what is in it.
+func dataErrorText(err error) string {
+	var se *load.SyntaxError
+	if errors.As(err, &se) && se.Line > 0 {
+		return fmt.Sprintf("Invalid JSON at line %d, column %d", se.Line, se.Col)
+	}
+	return "Invalid JSON"
 }
 
 // link loads the module that directive n of the main program names.
