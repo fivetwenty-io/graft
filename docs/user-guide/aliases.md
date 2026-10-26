@@ -6,7 +6,7 @@ Graft looks at the name it was run under, and it behaves as a different tool whe
 
 Scripts and tools call `jq` and `spruce` by name. When graft runs under one of those names, those callers get graft without any change to the script. Genesis relies on this for `spruce`, and `jq` now works the same way through `graft jq`.
 
-Only the exact names `jq` and `spruce` dispatch, with an optional `.exe` suffix on Windows. A link named `jq-1.7` runs as plain graft. The [jq page](jq.md) describes what changes under the `jq` name.
+The [jq page](jq.md) describes which names dispatch and what changes under the `jq` name.
 
 ## Linking by hand
 
