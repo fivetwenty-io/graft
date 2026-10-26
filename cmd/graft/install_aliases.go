@@ -92,7 +92,7 @@ var graftExecutablePath = func() (string, error) {
 // defaultAliasNames are the names install-aliases installs when none are
 // given.
 func defaultAliasNames() []string {
-	return []string{"jq", spruceName}
+	return []string{"jq", "yq", spruceName}
 }
 
 // knownAliasName reports whether name is one graft answers to.
@@ -475,7 +475,7 @@ func newInstallAliasesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install-aliases [flags] [NAME...]",
 		Short: "Install jq and spruce names that run graft",
-		Long: "Install links named jq and spruce, or the NAMEs given, that run graft under\n" +
+		Long: "Install links named jq, yq, and spruce, or the NAMEs given, that run graft under\n" +
 			"those names. They go in the directory graft was run from unless --dir says\n" +
 			"otherwise, and they point at the path graft was run by. Where the system\n" +
 			"reports only the resolved path, as Linux does, that path is used. A target that\n" +

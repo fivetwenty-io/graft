@@ -165,17 +165,17 @@ var jqLongFlags = map[string]func(*jqOptions){
 	"monochrome-output": func(o *jqOptions) { o.Monochrome = true },
 	"ascii-output":      func(o *jqOptions) { o.ASCII = true },
 	"unbuffered":        func(o *jqOptions) { o.Unbuffered = true },
-	"sort-keys":         func(o *jqOptions) { o.SortKeys = sortkeys.Lexical },
+	flagSortKeys:        func(o *jqOptions) { o.SortKeys = sortkeys.Lexical },
 	"raw-input":         func(o *jqOptions) { o.RawInput = true },
-	"null-input":        func(o *jqOptions) { o.NullInput = true },
-	"from-file":         func(o *jqOptions) { o.FromFile = true },
+	flagNullInput:       func(o *jqOptions) { o.NullInput = true },
+	flagFromFile:        func(o *jqOptions) { o.FromFile = true },
 	"tab":               func(o *jqOptions) { o.Compact, o.IndentSet, o.Tab = false, false, true },
 	"seq":               func(o *jqOptions) { o.Seq = true },
 	"stream":            func(o *jqOptions) { o.Stream = true },
 	"stream-errors":     func(o *jqOptions) { o.Stream, o.StreamErrs = true, true },
-	"exit-status":       func(o *jqOptions) { o.ExitStatus = true },
+	flagExitStatus:      func(o *jqOptions) { o.ExitStatus = true },
 	jqHelpFlag:          func(o *jqOptions) { o.Help = true },
-	"version":           func(o *jqOptions) { o.Version = true },
+	flagVersion:         func(o *jqOptions) { o.Version = true },
 	"repl":              func(o *jqOptions) { o.Repl = true },
 	"float-numbers":     func(o *jqOptions) { o.FloatNumbers = true },
 	"merge":             func(o *jqOptions) { o.Merge = true },
@@ -199,18 +199,18 @@ var jqLongValueFlags = map[string]func(*jqParser) error{
 		}
 		return err
 	},
-	"indent":       (*jqParser).indent,
-	"arg":          (*jqParser).arg,
-	"argjson":      (*jqParser).argJSON,
-	"slurpfile":    func(p *jqParser) error { return p.argFile("slurpfile") },
-	"rawfile":      func(p *jqParser) error { return p.argFile("rawfile") },
-	"args":         func(p *jqParser) error { p.stringArgs, p.jsonArgs = true, false; return nil },
-	"jsonargs":     func(p *jqParser) error { p.stringArgs, p.jsonArgs = false, true; return nil },
-	"run-tests":    (*jqParser).runTests,
-	"input-format": (*jqParser).inputFormat,
-	"depth-limit":  (*jqParser).depthLimit,
-	"prune":        func(p *jqParser) error { return p.mergeKeys("prune", &p.o.Prune) },
-	"cherry-pick":  func(p *jqParser) error { return p.mergeKeys("cherry-pick", &p.o.CherryPick) },
+	flagIndent:      (*jqParser).indent,
+	"arg":           (*jqParser).arg,
+	"argjson":       (*jqParser).argJSON,
+	"slurpfile":     func(p *jqParser) error { return p.argFile("slurpfile") },
+	"rawfile":       func(p *jqParser) error { return p.argFile("rawfile") },
+	"args":          func(p *jqParser) error { p.stringArgs, p.jsonArgs = true, false; return nil },
+	"jsonargs":      func(p *jqParser) error { p.stringArgs, p.jsonArgs = false, true; return nil },
+	"run-tests":     (*jqParser).runTests,
+	flagInputFormat: (*jqParser).inputFormat,
+	"depth-limit":   (*jqParser).depthLimit,
+	"prune":         func(p *jqParser) error { return p.mergeKeys("prune", &p.o.Prune) },
+	flagCherryPick:  func(p *jqParser) error { return p.mergeKeys(flagCherryPick, &p.o.CherryPick) },
 }
 
 // jqParser is the state of one parseJQArgs run.
@@ -310,7 +310,7 @@ func (p *jqParser) short(group string) error {
 			continue
 		}
 		if c != 'L' && c != 'o' {
-			return &usageError{Phrase: "Unknown option", Msg: "-" + string(rune(c))}
+			return &usageError{Phrase: phraseUnknownOption, Msg: "-" + string(rune(c))}
 		}
 		val := group[k+1:]
 		if val == "" {
@@ -464,25 +464,25 @@ func (p *jqParser) inputFormat() error {
 func (p *jqParser) longWithValue(name string) error {
 	key, val, hasVal := strings.Cut(name, "=")
 	switch {
-	case key == "sort-keys" && hasVal:
+	case key == flagSortKeys && hasVal:
 		mode, err := sortkeys.Parse(val)
 		if err != nil {
 			return &usageError{Phrase: "Invalid --sort-keys value", Msg: err.Error()}
 		}
 		p.o.SortKeys = mode
 		return nil
-	case key == "input-format" && hasVal:
+	case key == flagInputFormat && hasVal:
 		return p.o.setInputFormat(val)
 	case key == "prune" && hasVal:
 		p.o.Prune = append(p.o.Prune, val)
 		return nil
-	case key == "cherry-pick" && hasVal:
+	case key == flagCherryPick && hasVal:
 		p.o.CherryPick = append(p.o.CherryPick, val)
 		return nil
 	}
 	takesValue, isRoot := rootFlagTakesValue[key]
 	if p.persona != personaGraft || !isRoot {
-		return &usageError{Phrase: "Unknown option", Msg: "--" + name}
+		return &usageError{Phrase: phraseUnknownOption, Msg: "--" + name}
 	}
 	if !takesValue || hasVal {
 		p.o.RootArgs = append(p.o.RootArgs, p.args[p.i])

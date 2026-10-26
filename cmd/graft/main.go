@@ -1602,7 +1602,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 		},
 	)
 
-	rootCmd.AddCommand(mergeCmd, fanCmd, jsonCmd, diffCmd, vaultinfoCmd, debugCmd, cacheCmd, newJQCmd(), newInstallAliasesCmd())
+	rootCmd.AddCommand(mergeCmd, fanCmd, jsonCmd, diffCmd, vaultinfoCmd, debugCmd, cacheCmd, newJQCmd(), newYQCmd(), newInstallAliasesCmd())
 
 	return rootCmd, &aborted
 }
@@ -1617,7 +1617,7 @@ func main() {
 
 	var rootCmd *cobra.Command
 	var aborted *bool
-	if isQuery && pers == personaJQ {
+	if isQuery && (pers == personaJQ || pers == personaYQ) {
 		rootCmd, aborted = newPersonaRoot(pers)
 	} else {
 		rootCmd, aborted = newRootCmd()

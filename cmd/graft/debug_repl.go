@@ -1157,7 +1157,7 @@ var debugCommandHelp = []debugHelpEntry{
 // which `help` shows under their own heading.
 var debugQueryHelp = []debugHelpEntry{
 	{"jq", "Run a jq program on the current tree", "jq <program>", "Runs a jq program against the document as of the session's current step and prints each output as YAML. -r and -c are accepted and change nothing, because the output is always YAML with a string bare. With no program it runs the last one again.\n\nExample:\n  jq [.jobs[] | select(.port != null)]", debugArgQuery},
-	{"yq", "Run a yq expression on the current tree", "yq <expression>", "Runs a yq expression against the current document. Comments and styles are not available here, because the merged tree is a plain map, so yq's metadata operators return null. yq is not available until a later release.", debugArgQuery},
+	{"yq", "Run a yq expression on the current tree", "yq <expression>", "Runs a yq expression against the current document. Comments and styles are not available here, because the merged tree is a plain map, so yq's metadata operators return null.", debugArgQuery},
 	{"select", "Select the paths a query names", "select [<expression>]", "Evaluates the expression with the session's dialect and keeps the paths it names. 'inspect', 'history', 'tree', 'break', 'unbreak', 'defer', and 'eval' use the selection when given no argument. With no expression it shows the selection.\n\nExample:\n  select .jobs[] | select(.name == \"nats\")", debugArgQuery},
 	{debugCmdUnselect, "Clear the selection", "unselect", "Clears the selection.", debugArgNone},
 	{"watch", "Report when a query's value changes", "watch [<expression>]", "Evaluates the expression now and again after every 'step' and 'continue', printing 'watch (EXPR): OLD -> NEW' when the value changed. With no expression it lists the watches.\n\nExample:\n  watch .jobs | length", debugArgQuery},
@@ -1452,6 +1452,9 @@ func handleDebugWith(files []string, opts *mergeOpts, in io.Reader, out io.Write
 
 	if init.Root != nil {
 		sess.root, sess.nonMap, sess.loaded = init.Root, true, true
+	}
+	if init.Dialect != "" {
+		sess.dialect = init.Dialect
 	}
 	if init.Query != "" {
 		sess.runStartupQuery(init)

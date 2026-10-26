@@ -88,9 +88,11 @@ func TestDebugQuery(t *testing.T) {
 		So(out, ShouldContainSubstring, "dialect: jq")
 	})
 
-	Convey("yq says it is not available yet", t, func() {
+	Convey("yq evaluates against the current tree", t, func() {
 		out, _ := runDebugSession([]string{a}, "load\nyq .meta.name\nconfig dialect yq\nselect .meta\nquit\n")
-		So(strings.Count(out, "yq is not available until a later release"), ShouldEqual, 2)
+		So(out, ShouldContainSubstring, "web\n")
+		So(out, ShouldContainSubstring, "selected 1 path: meta")
+		So(out, ShouldNotContainSubstring, "not available")
 	})
 
 	Convey("entering the REPL from graft jq and graft debug", t, func() {

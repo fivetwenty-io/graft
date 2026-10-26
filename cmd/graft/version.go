@@ -26,6 +26,9 @@ const unknownVersionField = "unknown"
 // jqCompatVersion is the jq release whose behavior graft jq follows.
 const jqCompatVersion = "1.8.2"
 
+// yqCompatVersion is the yq release whose behavior graft yq follows.
+const yqCompatVersion = "4.54.1"
+
 // shortCommitLen is how many hex characters of a full commit hash the
 // version line shows, matching `git rev-parse --short=7`.
 const shortCommitLen = 7
@@ -133,4 +136,11 @@ func versionOutput(argv0 string) string {
 // caller's version probe expects, and graft's own line follows it.
 func jqVersionOutput() string {
 	return "jq-" + jqCompatVersion + "\n" + graftVersionLine() + "\n"
+}
+
+// yqVersionOutput is what `yq -V`, `yq --version`, and `graft yq -V`
+// write to stdout. The first line is the exact line yq prints, which a
+// caller's version probe expects, and graft's own line follows it.
+func yqVersionOutput() string {
+	return "yq (https://github.com/mikefarah/yq/) version v" + yqCompatVersion + "\n" + graftVersionLine() + "\n"
 }

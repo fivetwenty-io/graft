@@ -79,11 +79,12 @@ func TestInstallAliases(t *testing.T) {
 		// and never an error.
 		So(handleInstallAliases(installAliasesOpts{Dir: dir}, &out, &errOut), ShouldEqual, 0)
 		So(out.String(), ShouldContainSubstring, "linked jq -> "+graft+"\n")
+		So(out.String(), ShouldContainSubstring, "linked yq -> "+graft+"\n")
 		So(out.String(), ShouldContainSubstring, "skipped spruce: "+filepath.Join(dir, "spruce")+" exists and is not a link to graft (use --force to replace it)\n")
-		So(out.String(), ShouldEndWith, "linked 1, already installed 0, skipped 1\n")
+		So(out.String(), ShouldEndWith, "linked 2, already installed 0, skipped 1\n")
 		So(errOut.String(), ShouldBeEmpty)
 		So(string(mustReadFile(t, filepath.Join(dir, "spruce"))), ShouldEqual, "real")
-		So(defaultAliasNames(), ShouldResemble, []string{"jq", "spruce"})
+		So(defaultAliasNames(), ShouldResemble, []string{"jq", "yq", "spruce"})
 	})
 
 	Convey("install-aliases in copy mode", t, func() {

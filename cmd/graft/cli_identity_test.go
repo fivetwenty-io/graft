@@ -31,6 +31,7 @@ type helpEntry struct {
 
 var (
 	jqCommandEntry      = helpEntry{"Available Commands:", "jq", "Run a jq program over JSON and YAML input"}
+	yqCommandEntry      = helpEntry{"Available Commands:", "yq", "Run a yq expression over YAML and JSON input"}
 	installAliasesEntry = helpEntry{"Available Commands:", "install-aliases", "Install jq and spruce names that run graft"}
 	mergeSortKeys       = helpEntry{"Flags:", "      --sort-keys string", "Order of map keys in the output: spruce (default) or lexical (default \"spruce\")"}
 	jsonSortKeys        = helpEntry{"Flags:", "      --sort-keys string", "Order of object keys in the JSON output: lexical (default) or spruce (default \"lexical\")"}
@@ -58,8 +59,8 @@ Queries:
 // moves the description column and nothing else. Every other golden
 // must match byte for byte.
 var knownAdditions = map[string][]helpEntry{
-	"root-help":  {jqCommandEntry, installAliasesEntry},
-	"help":       {jqCommandEntry, installAliasesEntry},
+	"root-help":  {jqCommandEntry, installAliasesEntry, yqCommandEntry},
+	"help":       {jqCommandEntry, installAliasesEntry, yqCommandEntry},
 	"help-merge": {mergeSortKeys},
 	"merge-help": {mergeSortKeys},
 	"json-help":  {jsonSortKeys},

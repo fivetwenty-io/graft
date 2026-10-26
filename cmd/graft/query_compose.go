@@ -5,11 +5,14 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
+	"github.com/fivetwenty-io/graft/pkg/query"
 )
 
 // composedName is the name a composed input goes by in error locations
@@ -43,9 +46,38 @@ type composeContext struct {
 	Eval   bool
 }
 
+// composeFlags are the composition flags graft jq and graft yq share.
+type composeFlags struct {
+	Merge, Eval    bool
+	Prune          []string
+	CherryPick     []string
+	SkipEval       bool
+	FallbackAppend bool
+	GoPatch        bool
+	MultiDoc       bool
+	SkipVault      bool
+	SkipAws        bool
+	SkipNats       bool
+}
+
+// composeSource is a parsed command line that carries composition flags.
+type composeSource interface {
+	composition() composeFlags
+}
+
+// composition returns the composition flags of a graft jq command line.
+func (o jqOptions) composition() composeFlags {
+	return composeFlags{
+		Merge: o.Merge, Eval: o.Eval, Prune: o.Prune, CherryPick: o.CherryPick,
+		SkipEval: o.SkipEval, FallbackAppend: o.FallbackAppend, GoPatch: o.GoPatch,
+		MultiDoc: o.MultiDoc, SkipVault: o.SkipVault, SkipAws: o.SkipAws, SkipNats: o.SkipNats,
+	}
+}
+
 // newComposeContext builds the context a parsed command line asks for,
 // where the merge options come from the command's pass-through flags.
-func newComposeContext(opts jqOptions, stdin io.Reader, engine engineOptions) composeContext {
+func newComposeContext(src composeSource, stdin io.Reader, engine engineOptions) composeContext {
+	opts := src.composition()
 	for _, skip := range []struct {
 		set bool
 		opt graft.EngineOption
@@ -76,7 +108,8 @@ func newComposeContext(opts jqOptions, stdin io.Reader, engine engineOptions) co
 
 // validateComposeFlags refuses the combinations of composition flags that
 // have no meaning.
-func validateComposeFlags(o jqOptions) error {
+func validateComposeFlags(src composeSource) error {
+	o := src.composition()
 	if o.Merge && o.Eval {
 		return &usageError{Msg: "-m and -E cannot be combined"}
 	}
@@ -185,4 +218,74 @@ func (cc composeContext) load(file string) ([]YamlFile, error) {
 		return []YamlFile{{Path: yf.Path, Reader: io.NopCloser(bytes.NewReader(data))}}, nil
 	}
 	return splitYamlBytes(yf.Path, data), nil
+}
+
+// queryCmdSpec is what the jq and yq commands differ in. Both parse their
+// own arguments, hand graft's persistent flags back to the root, and then
+// run the query, so the steps between are shared.
+type queryCmdSpec struct {
+	// asRoot is true when the command is the root itself, where cobra has
+	// already run the hook and there are no graft flags to parse.
+	asRoot bool
+	// parse reads the arguments after the verb and returns the root flags
+	// found among them, what the parse ended on, and whether the options
+	// need the engine for composition.
+	parse      func(args []string) (rootArgs []string, help, version, wantEngine bool, err error)
+	argsStatus func(error) query.Status
+	version    func() string
+	configure  func(theme string, engine engineOptions)
+	run        func() query.Status
+}
+
+// runQueryCmd is the RunE of a jq or yq command.
+func runQueryCmd(cmd *cobra.Command, args []string, spec queryCmdSpec) error {
+	// cobra hands over the flags given before the verb as well, which are
+	// graft's own in every form cobra reads.
+	n := preVerbArgs(cmd, args)
+	applyRoot := func(rootArgs []string) bool {
+		return spec.asRoot || applyJQRootFlags(cmd, rootArgs)
+	}
+	parsed, help, version, wantEngine, err := spec.parse(args[n:])
+	rootArgs := append(slices.Clip(args[:n]), parsed...)
+	if err != nil {
+		// The root's flags given before the bad one still decide whether
+		// the diagnostic is colored.
+		if !applyRoot(rootArgs) {
+			return nil
+		}
+		st := spec.argsStatus(err)
+		log.PrintStdErrf("%s", st.Message)
+		exit(st.Code)
+		return nil
+	}
+	if help {
+		return cmd.Help()
+	}
+	if version {
+		printStdOutf("%s", spec.version())
+		exit(0)
+		return nil
+	}
+	if !applyRoot(rootArgs) {
+		return nil
+	}
+	themeName, _, _ := resolveTheme(cmd, false, themeNameAuto)
+	if theme := cmd.Root().PersistentFlags().Lookup("theme"); theme != nil {
+		themeName, _, _ = resolveTheme(cmd, theme.Changed, theme.Value.String())
+	}
+	var engine engineOptions
+	if wantEngine {
+		if engine, err = composeEngineOpts(cmd); err != nil {
+			log.PrintStdErrf("%s\n", err.Error())
+			exit(1)
+			return nil
+		}
+	}
+	spec.configure(themeName, engine)
+	st := spec.run()
+	if st.Message != "" {
+		log.PrintStdErrf("%s", st.Message)
+	}
+	exit(st.Code)
+	return nil
 }

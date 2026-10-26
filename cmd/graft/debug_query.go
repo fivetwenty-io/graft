@@ -17,6 +17,7 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/jq"
 	"github.com/fivetwenty-io/graft/pkg/query"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
+	"github.com/fivetwenty-io/graft/pkg/yq"
 )
 
 // The two query dialects a session can speak. jq is the default.
@@ -27,10 +28,6 @@ const (
 
 // errDebugNotLoaded is evalQuery's answer before `load` has built a tree.
 var errDebugNotLoaded = errors.New("no documents loaded")
-
-// debugYQUnavailable is what every yq entry point says until the yq
-// dialect is wired in.
-const debugYQUnavailable = "yq is not available until a later release"
 
 // debugWatch is one expression the session re-evaluates after every step,
 // with the rendering it produced the last time.
@@ -109,7 +106,18 @@ func runCompiled(dialect, expr string, root *value.Value) ([]*value.Value, error
 		}
 		return q.RunAll(context.Background(), root)
 	case debugDialectYQ:
-		return nil, errors.New(debugYQUnavailable)
+		ev, err := yq.Compile(expr)
+		if err != nil {
+			return nil, err
+		}
+		var outs []*value.Value
+		for v, err := range ev.Eval(context.Background(), root) {
+			if err != nil {
+				return nil, err
+			}
+			outs = append(outs, v)
+		}
+		return outs, nil
 	}
 	return nil, fmt.Errorf("unknown dialect %q (jq or yq)", dialect)
 }
@@ -320,10 +328,24 @@ func stripQueryFlags(arg string) string {
 // renderQuery encodes outputs as the jq command prints YAML, except that a
 // top-level string prints bare, as 'inspect' prints one.
 func renderQuery(outs []*value.Value) ([][]byte, error) {
+	return renderQueryIn(debugDialectJQ, outs)
+}
+
+// renderQueryIn is renderQuery for the dialect that produced the outputs,
+// which prints YAML the way its command does.
+func renderQueryIn(dialect string, outs []*value.Value) ([][]byte, error) {
 	docs := make([][]byte, 0, len(outs))
 	for _, o := range outs {
 		var buf bytes.Buffer
-		enc := jq.NewEncoder(&buf, jq.EncodeOptions{Format: jq.FormatYAML, Raw: true})
+		var enc interface {
+			Encode(*value.Value) error
+			Flush() error
+		}
+		if dialect == debugDialectYQ {
+			enc = yq.NewEncoder(&buf, yq.EncodeOptions{UnwrapScalar: true, NoDocSeparators: true})
+		} else {
+			enc = jq.NewEncoder(&buf, jq.EncodeOptions{Format: jq.FormatYAML, Raw: true})
+		}
 		if err := enc.Encode(o); err != nil {
 			return nil, err
 		}
@@ -342,7 +364,7 @@ func (s *debugSession) runQuery(dialect, expr string) {
 		s.printQueryError(err)
 		return
 	}
-	docs, err := renderQuery(outs)
+	docs, err := renderQueryIn(dialect, outs)
 	if err != nil {
 		s.printQueryError(err)
 		return
@@ -700,21 +722,26 @@ func traceOutput(v *value.Value) {
 // mappings merge as `graft debug` merges them. A file that holds an array,
 // a scalar, or null opens the debugger on that document as it is.
 func runJQRepl(opts jqOptions, stdin io.Reader, stdout io.Writer) query.Status {
-	if len(opts.Files) == 0 {
-		return query.Status{Code: 1, Message: colored("R", "Missing Input") + ": graft jq --repl requires at least one file (e.g. graft jq --repl .a base.yml)\n"}
-	}
 	init := debugInit{Dialect: debugDialectJQ}
 	if opts.HasProgram {
 		init.Query = opts.Program
 	}
-	if root, ok := nonMappingRoot(opts.Files); ok {
+	return runQueryRepl("graft jq", opts.Files, init, opts.Engine, opts.Theme, stdin, stdout)
+}
+
+// runQueryRepl opens the debugger for a query command's --repl. The
+// command names itself in the message for a missing file.
+func runQueryRepl(command string, files []string, init debugInit, engine engineOptions, theme string, stdin io.Reader, stdout io.Writer) query.Status {
+	if len(files) == 0 {
+		return query.Status{Code: 1, Message: colored("R", "Missing Input") + ": " + command + " --repl requires at least one file (e.g. " + command + " --repl .a base.yml)\n"}
+	}
+	if root, ok := nonMappingRoot(files); ok {
 		if root == nil {
 			return query.Status{Code: 1, Message: colored("R", "Cannot Debug") + ": a document that is not a mapping cannot be combined with other documents\n"}
 		}
 		init.Root = root
 	}
-	engine := &mergeOpts{EngineOpts: opts.Engine}
-	rc := handleDebugWith(opts.Files, engine, stdin, stdout, debugUIOptions{Theme: opts.Theme}, init)
+	rc := handleDebugWith(files, &mergeOpts{EngineOpts: engine}, stdin, stdout, debugUIOptions{Theme: theme}, init)
 	return query.Status{Code: rc}
 }
 

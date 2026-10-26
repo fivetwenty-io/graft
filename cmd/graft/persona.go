@@ -99,18 +99,27 @@ func rootFlagWidth(arg string) (int, bool) {
 // The query command itself is the root, with the alias's usage line and
 // version, and none of graft's persistent flags, which jq and yq
 // scripts have no reason to know and which would collide with their own
-// flags. It returns the same two values as newRootCmd. A persona with no
-// query command yet gets graft's own root.
+// flags. It returns the same two values as newRootCmd. A persona that is not a
+// query tool gets graft's own root.
 func newPersonaRoot(p persona) (*cobra.Command, *bool) {
-	if p != personaJQ {
+	var root *cobra.Command
+	switch p {
+	case personaJQ:
+		root = newJQCmdFor(personaJQ)
+		root.Use = "jq [options] <jq filter> [file...]"
+		root.Short = "jq - commandline JSON processor [graft " + Version + ", jq " + jqCompatVersion + " compatible]"
+		root.Long = root.Short
+		root.Version = "jq-" + jqCompatVersion
+	case personaYQ:
+		root = newYQCmdFor(personaYQ)
+		root.Use = "yq [flags] [expression] [file...]"
+		root.Short = "yq - a YAML and JSON processor [graft " + Version + ", yq " + yqCompatVersion + " compatible]"
+		root.Long = root.Short
+		root.Version = "yq (https://github.com/mikefarah/yq/) version v" + yqCompatVersion
+	default:
 		return newRootCmd()
 	}
 	var aborted bool
-	root := newJQCmdFor(personaJQ)
-	root.Use = "jq [options] <jq filter> [file...]"
-	root.Short = "jq - commandline JSON processor [graft " + Version + ", jq " + jqCompatVersion + " compatible]"
-	root.Long = root.Short
-	root.Version = "jq-" + jqCompatVersion
 	root.SilenceUsage = true
 	root.SilenceErrors = true
 	// The engine options --merge needs come from the same config and

@@ -92,7 +92,7 @@ func queryCommandError(kind errKind, err error) query.Status {
 // where jq was reading and marks an error value that is not a string the
 // way jq does.
 func locatedStatus(phrase string, err error) query.Status {
-	where, msg := "<unknown>", err.Error()
+	where, msg := unknownSource, err.Error()
 	var le *locatedError
 	var ie *jqInputError
 	switch {
@@ -351,7 +351,7 @@ func (in *jqInputs) where() string {
 	case in.lastName != "":
 		return in.lastName + ":" + strconv.Itoa(in.lastLine)
 	}
-	return "<unknown>"
+	return unknownSource
 }
 
 // close closes whatever source is still open.
@@ -783,57 +783,19 @@ func newJQCmdFor(pers persona) *cobra.Command {
 		// parsed out of the jq arguments.
 		PersistentPreRunE: func(*cobra.Command, []string) error { return nil },
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// cobra hands over the flags given before the verb as
-			// well, which are graft's own in every form cobra reads.
-			n := preVerbArgs(cmd, args)
-			// As the root, cobra has already run the hook, and there
-			// are no graft flags to parse.
-			applyRoot := func(rootArgs []string) bool {
-				return pers == personaJQ || applyJQRootFlags(cmd, rootArgs)
-			}
-			opts, err := parseJQArgs(args[n:], pers)
-			opts.RootArgs = append(slices.Clip(args[:n]), opts.RootArgs...)
-			if err != nil {
-				// The root's flags given before the bad one still
-				// decide whether the diagnostic is colored.
-				if !applyRoot(opts.RootArgs) {
-					return nil
-				}
-				st := jqArgsError(err)
-				log.PrintStdErrf("%s", st.Message)
-				exit(st.Code)
-				return nil
-			}
-			if opts.Help {
-				return cmd.Help()
-			}
-			if opts.Version {
-				printStdOutf("%s", jqVersionOutput())
-				exit(0)
-				return nil
-			}
-			if !applyRoot(opts.RootArgs) {
-				return nil
-			}
-			if theme := cmd.Root().PersistentFlags().Lookup("theme"); theme != nil {
-				opts.Theme, _, _ = resolveTheme(cmd, theme.Changed, theme.Value.String())
-			} else {
-				opts.Theme, _, _ = resolveTheme(cmd, false, themeNameAuto)
-			}
-			if opts.Merge || opts.Eval || opts.Repl {
-				var err error
-				if opts.Engine, err = composeEngineOpts(cmd); err != nil {
-					log.PrintStdErrf("%s\n", err.Error())
-					exit(1)
-					return nil
-				}
-			}
-			st := handleJQ(opts, os.Stdin, jqStdout{}, jqStderr{})
-			if st.Message != "" {
-				log.PrintStdErrf("%s", st.Message)
-			}
-			exit(st.Code)
-			return nil
+			var opts jqOptions
+			return runQueryCmd(cmd, args, queryCmdSpec{
+				asRoot: pers == personaJQ,
+				parse: func(a []string) ([]string, bool, bool, bool, error) {
+					var err error
+					opts, err = parseJQArgs(a, pers)
+					return opts.RootArgs, opts.Help, opts.Version, opts.Merge || opts.Eval || opts.Repl, err
+				},
+				argsStatus: jqArgsError,
+				version:    jqVersionOutput,
+				configure:  func(theme string, engine engineOptions) { opts.Theme, opts.Engine = theme, engine },
+				run:        func() query.Status { return handleJQ(opts, os.Stdin, jqStdout{}, jqStderr{}) },
+			})
 		},
 	}
 	cmd.SetHelpFunc(func(c *cobra.Command, a []string) { jqHelp(c, a, pers) })
@@ -915,7 +877,7 @@ func jqHelp(cmd *cobra.Command, _ []string, pers persona) {
 	}
 	global := pflag.NewFlagSet("", pflag.ContinueOnError)
 	cmd.Root().PersistentFlags().VisitAll(func(f *pflag.Flag) {
-		if f.Name == "version" {
+		if f.Name == flagVersion {
 			return
 		}
 		shown := *f
