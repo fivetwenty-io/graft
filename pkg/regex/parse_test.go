@@ -12,6 +12,40 @@ func TestUnsupportedConstructsAreNamedInJ1(t *testing.T) {
 	}
 }
 
+// Outside a class, \ and a number of two or more digits is a backreference
+// only when that many groups have opened before it, as in PCRE2 and jq.
+// Otherwise up to three octal digits name a character and the rest are
+// literal. The expected matches were recorded from pcre2test 10.49 and jq
+// 1.8.2.
+func TestMultiDigitEscapesPastTheGroupCountAreOctal(t *testing.T) {
+	twelve := `(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)(k)(l)`
+	cases := []struct{ pattern, subject string }{
+		{`^\101$`, "A"},
+		{`^\18$`, "\x018"},
+		{`^\11$`, "\t"},
+		{`^\1011$`, "A1"},
+		{`^\12` + twelve + `$`, "\nabcdefghijkl"},
+	}
+	for _, flavor := range []Flavor{PCRE, Oniguruma} {
+		for _, c := range cases {
+			wantMatch(t, MustCompile(c.pattern, WithFlavor(flavor)), c.subject)
+		}
+	}
+	wantMatch(t, MustCompile(`^\400$`), "\u0100")
+
+	for pattern, construct := range map[string]string{
+		`\1`:           `backreference \1`,
+		`\81`:          `backreference \81`,
+		twelve + `\12`: `backreference \12`,
+		`(a)\1`:        `backreference \1`,
+	} {
+		_, err := Compile(pattern)
+		var u *UnsupportedError
+		wantErrAs(t, err, &u)
+		wantEqual(t, u.Construct, construct)
+	}
+}
+
 func TestUnsupportedConstructNames(t *testing.T) {
 	cases := map[string]string{
 		`(?=a)`:          "lookahead (?=...)",

@@ -542,9 +542,28 @@ func (p *parser) escape(start int) (*node, error) {
 		}
 		return nil, unsupported(`backreference \g` + ref)
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		return nil, unsupported(`backreference \` + string(r) + p.digits())
+		return p.numberedEscape(start)
 	}
 	c, err := p.characterEscape(start, r)
+	if err != nil {
+		return nil, err
+	}
+	return p.literal(c), nil
+}
+
+// numberedEscape reads \ and a number outside a class, with the backslash
+// at start. As in PCRE2 and jq, the number is a backreference when it is
+// below 10, starts with 8 or 9, or names a group that has already opened.
+// Otherwise up to three octal digits name a character, and any digits after
+// them are literal.
+func (p *parser) numberedEscape(start int) (*node, error) {
+	p.pos = start + 1
+	digits := p.digits()
+	if n := parseCount(digits); n < 10 || digits[0] >= '8' || n < len(p.names) {
+		return nil, unsupported(`backreference \` + digits)
+	}
+	p.pos = start + 1
+	c, err := p.number(start, 8, 3, 1)
 	if err != nil {
 		return nil, err
 	}
