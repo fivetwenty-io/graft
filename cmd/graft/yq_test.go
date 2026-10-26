@@ -101,6 +101,26 @@ func TestYQEvaluates(t *testing.T) {
 	})
 }
 
+func TestYQEmptyInputIsOneNullDocument(t *testing.T) {
+	Convey("graft yq runs once over a blank null when nothing is read", t, func() {
+		out, _, st := runYQ(t, []string{"."}, "")
+		So(out, ShouldEqual, "\n")
+		So(st.Code, ShouldEqual, 0)
+		out, _, _ = runYQ(t, []string{".a"}, "")
+		So(out, ShouldEqual, "null\n")
+		out, _, _ = runYQ(t, []string{"ea", ".a = 1"}, "")
+		So(out, ShouldEqual, "a: 1\n")
+		_, _, st = runYQ(t, []string{"-e", "."}, "")
+		So(st.Code, ShouldEqual, 1)
+		out, _, _ = runYQ(t, []string{"-n", "."}, "")
+		So(out, ShouldEqual, "\n")
+		empty := writeTempNamed(t, "empty.yaml", "")
+		full := writeTempNamed(t, "full.yaml", "a: 1\n")
+		out, _, _ = runYQ(t, []string{".", empty, full}, "")
+		So(out, ShouldEqual, "a: 1\n") // only a run that read nothing at all falls back
+	})
+}
+
 func TestYQArguments(t *testing.T) {
 	Convey("graft yq argument rules, errors, and exit codes", t, func() {
 		f := writeTemp(t, "a: 1\n")

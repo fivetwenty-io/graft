@@ -353,30 +353,45 @@ func (r *yqRun) emit(seq iter.Seq2[*value.Value, error], out *yqOutput) error {
 	return nil
 }
 
-// evalAll runs the evaluator once with every document as a root.
+// yqBlankNull is the root yq evaluates under -n and when its inputs held
+// no document at all: a null with no text, which prints as an empty line.
+func yqBlankNull() *value.Value {
+	return value.Null().WithMeta(&value.Meta{})
+}
+
+// evalAll runs the evaluator once with every document as a root, or with
+// a blank null when there is none.
 func (s *yqSource) evalAll(ctx context.Context, ev *yq.Evaluator, run *yqRun, out *yqOutput) error {
 	var docs []*value.Value
-	if s.opts.NullInput {
-		docs = []*value.Value{value.Null()}
-	} else if err := s.each(run, func(doc *value.Value) error {
-		docs = append(docs, doc)
-		return nil
-	}); err != nil {
-		return err
+	if !s.opts.NullInput {
+		if err := s.each(run, func(doc *value.Value) error {
+			docs = append(docs, doc)
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if len(docs) == 0 {
+		docs = []*value.Value{yqBlankNull()}
 	}
 	run.where = unknownSource
 	return run.emit(ev.EvalAll(ctx, docs), out)
 }
 
-// evalEach runs the evaluator once per document.
+// evalEach runs the evaluator once per document, and once over a blank
+// null when the inputs held no document at all.
 func (s *yqSource) evalEach(ctx context.Context, ev *yq.Evaluator, run *yqRun, out *yqOutput) error {
-	if s.opts.NullInput {
-		run.where = unknownSource
-		return run.emit(ev.Eval(ctx, value.Null()), out)
+	read := false
+	if !s.opts.NullInput {
+		if err := s.each(run, func(doc *value.Value) error {
+			read = true
+			return run.emit(ev.Eval(ctx, doc), out)
+		}); err != nil || read {
+			return err
+		}
 	}
-	return s.each(run, func(doc *value.Value) error {
-		return run.emit(ev.Eval(ctx, doc), out)
-	})
+	run.where = unknownSource
+	return run.emit(ev.Eval(ctx, yqBlankNull()), out)
 }
 
 // yqFailure is the status for the error that ended a run.
