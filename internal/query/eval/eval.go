@@ -674,6 +674,9 @@ func shape(v *value.Value) value.Kind {
 }
 
 func (ev evaluator) compare(op string, l, r *value.Value) (bool, error) {
+	if oc, ok := ev.ctx.Dialect.(runtime.OperatorComparer); ok {
+		return oc.CompareOp(ev.ctx, op, l, r)
+	}
 	switch op {
 	case "==":
 		return ev.ctx.Equal(l, r), nil

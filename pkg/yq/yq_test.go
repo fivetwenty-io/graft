@@ -183,6 +183,54 @@ func TestAMissingKeyInALaterDocumentPrintsNull(t *testing.T) {
 	wantEqual(t, render(t, `.a`, in, false), "1\n---\nnull\n---\nnull\n")
 }
 
+// compact runs src over the one document in and returns its outputs as
+// JSON on one line each.
+func compact(t *testing.T, src, in string) string {
+	t.Helper()
+	var buf bytes.Buffer
+	enc := NewEncoder(&buf, EncodeOptions{Format: FormatJSON, Indent: -1})
+	out, err := collect(mustCompile(t, src).Eval(t.Context(), decodeOne(t, in)))
+	if err != nil {
+		t.Fatalf("running %s: %v", src, err)
+	}
+	for _, v := range out {
+		if err := enc.Encode(v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := enc.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.String()
+}
+
+func TestEqualityComparesScalarTextWithWildcards(t *testing.T) {
+	in := "- 3\n- 3.0\n- \"3\"\n- cat\n- camel\n- dog\n"
+	wantEqual(t, compact(t, `[.[] | . == 3]`, in), "[true,false,true,false,false,false]\n")
+	wantEqual(t, compact(t, `[.[] | select(. == "ca*")]`, in), "[\"cat\",\"camel\"]\n")
+	wantEqual(t, compact(t, `[.[] | select(. == "*m?l")]`, in), "[\"camel\"]\n")
+	wantEqual(t, compact(t, `[.[] | . != "*a*"]`, in), "[true,true,true,false,false,true]\n")
+	wantEqual(t, compact(t, `[null == null, null == 1, [1] == [1], {} == {}]`, "a: 1\n"), "[true,false,false,false]\n")
+}
+
+func TestOrderingFollowsYQ(t *testing.T) {
+	wantEqual(t, compact(t, `[null > null, null >= null, null < 1, 1 < null, 2 > 1.5, "b" >= "a", 3 <= 3]`, "a: 1\n"),
+		"[false,true,false,false,true,true,true]\n")
+	for src, msg := range map[string]string{
+		`[1] < [2]`:    "arrays not yet supported for comparison",
+		`{} < {}`:      "maps not yet supported for comparison",
+		`true < false`: "!!bool not yet supported for comparison",
+		`"a" < 1`:      "!!str not yet supported for comparison",
+	} {
+		_, err := collect(mustCompile(t, src).Eval(t.Context(), decodeOne(t, "a: 1\n")))
+		if err == nil {
+			t.Errorf("%s compared without an error", src)
+			continue
+		}
+		wantContains(t, err.Error(), msg)
+	}
+}
+
 func TestSortKeysOnEncode(t *testing.T) {
 	var buf bytes.Buffer
 	enc := NewEncoder(&buf, EncodeOptions{SortKeys: sortkeys.Lexical})

@@ -153,3 +153,11 @@ type Dialect interface {
 	Assign(ctx *Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], mode AssignMode) iter.Seq2[*value.Value, error]
 	FormatError(err error) string
 }
+
+// OperatorComparer is a Dialect whose comparison operators, which are ==,
+// !=, <, <=, >, and >=, follow rules of their own rather than the order
+// that Ctx.Compare and Ctx.Equal give. yq's do, and jq's do not, so the
+// jq dialect leaves it unimplemented.
+type OperatorComparer interface {
+	CompareOp(ctx *Ctx, op string, l, r *value.Value) (bool, error)
+}

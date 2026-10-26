@@ -113,11 +113,12 @@ func TestYQIntegerZeroHasNoSign(t *testing.T) {
 }
 
 // A float divided or reduced by zero is an infinity or NaN, as in yq,
-// where the integer remainder alone is an error.
+// where the integer remainder alone is an error. yq's == compares the
+// text a scalar prints as, so a NaN equals a NaN.
 func TestYQFloatZeroDivisor(t *testing.T) {
 	for _, opts := range []Options{testOpts, {Caps: testOpts.Caps, FloatNumbers: true}} {
-		wantYQOpts(t, opts, `[(.a / 0) > 1000, (-.a / 0) < -1000, ((0 / 0) == (0 / 0)), (.a / 0 | tag)]`, "a: 1\n", "- true\n- true\n- false\n- '!!float'\n")
-		wantYQOpts(t, opts, `(.a % 0) == (.a % 0)`, "a: 5.5\n", "false\n")
+		wantYQOpts(t, opts, `[(.a / 0) > 1000, (-.a / 0) < -1000, ((0 / 0) == (0 / 0)), (.a / 0 | tag)]`, "a: 1\n", "- true\n- true\n- true\n- '!!float'\n")
+		wantYQOpts(t, opts, `(.a % 0) == (.a % 0)`, "a: 5.5\n", "true\n")
 	}
 	_, err := runYQ(t, testOpts, `.a % 0`, "a: 5\n", false)
 	wantErrContains(t, err, "cannot modulo by 0")
