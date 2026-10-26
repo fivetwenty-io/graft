@@ -105,7 +105,7 @@ for case_dir in "$HERE/$dialect/cases"/*/; do
   if diff -r "$scratch/want-$name" "$scratch/got-$name" >"$scratch/$name.diff" 2>&1; then
     continue
   fi
-  if [ -f "$case_dir/phase" ] || grep -q "^$name	" "$HERE/$dialect/allowlist.txt" 2>/dev/null; then
+  if [ -f "$case_dir/phase" ] || { cut -f1 "$HERE/$dialect/allowlist.txt" 2>/dev/null | grep -qxF "$name"; }; then
     known=$((known + 1))
     echo "known difference: $name"
     continue

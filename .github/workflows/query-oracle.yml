@@ -37,6 +37,7 @@ jobs:
         run: |
           . tests/query-parity/versions.env
           curl -fsSL -o "$RUNNER_TEMP/jq" "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-amd64"
+          echo "${JQ_SHA256_LINUX_AMD64}  $RUNNER_TEMP/jq" | sha256sum -c -
           chmod +x "$RUNNER_TEMP/jq"
           "$RUNNER_TEMP/jq" --version
           echo "JQ_BIN=$RUNNER_TEMP/jq" >> "$GITHUB_ENV"

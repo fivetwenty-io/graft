@@ -1,0 +1,2 @@
+-n
+(1.50, {"a":[1.50,null]}, true) | stderr | empty

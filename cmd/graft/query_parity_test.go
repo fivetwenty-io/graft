@@ -215,7 +215,7 @@ func copyCase(t *testing.T, src string) string {
 
 // applyParityEnv gives the test the fixed environment the goldens were
 // recorded under, which is HOME and PWD at the copy, TZ=UTC, LANG=C.UTF-8,
-// and PATH, with every other variable cleared, and runs it from the copy.
+// and PATH=/usr/bin:/bin, with every other variable cleared, and runs it from the copy.
 func applyParityEnv(t *testing.T, dir string) {
 	t.Helper()
 	for _, kv := range os.Environ() {
@@ -225,6 +225,9 @@ func applyParityEnv(t *testing.T, dir string) {
 			_ = os.Unsetenv(name)
 		}
 	}
+	// env.sh's PATH, so the replay sees what the goldens were recorded
+	// under. The binary under test is run in process.
+	t.Setenv("PATH", "/usr/bin:/bin")
 	t.Chdir(dir)
 	t.Setenv("HOME", dir)
 	t.Setenv("TZ", "UTC")
