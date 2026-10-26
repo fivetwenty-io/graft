@@ -1,0 +1,3 @@
+--yaml-fix-merge-anchor-to-spec
+.d3[] |= . + 10
+in.yaml

@@ -129,6 +129,16 @@ const (
 	IndexSource
 )
 
+// Placer is a dialect whose children can sit somewhere other than under the
+// container they were read from. Place gets the container, its tracked
+// path at, and the key a lookup or an iteration read from it. It returns
+// the tracked path of that child and true when the child is elsewhere, as
+// a map entry that a merge key lends is in the map it came from. It
+// returns false for a child that sits under the container as usual.
+type Placer interface {
+	Place(ctx *Ctx, container *value.Value, at value.Path, key *value.Value) (value.Path, bool)
+}
+
 // AssignMode tells Dialect.Assign which assignment it runs. AssignSet is
 // =, AssignUpdate is |=, and AssignArith builds the arithmetic forms such
 // as += and //=.

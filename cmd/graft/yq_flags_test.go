@@ -81,3 +81,146 @@ func TestYQMergeKeyReads(t *testing.T) {
 		So(out, ShouldEqual, "- <<\n- y\n")
 	})
 }
+
+const mergeWriteDoc = "b: &b {p: 1, q: 2}\nc: &c {r: 3, p: 9}\nd1: {<<: *b, a: 0}\nd2: {<<: [*b, *c], a: 0, q: 7}\nd3: {a: 0, <<: *b}\n"
+
+// The expected outputs below are what yq 4.54.1 prints for each row. An
+// update through a merged child lands in the map the child comes from.
+func TestYQMergeKeyWrites(t *testing.T) {
+	rows := []struct {
+		expr      string
+		json      bool
+		def, spec string
+	}{
+		{`.d1.p = 5`, false, `b: &b {p: 5, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`, `b: &b {p: 5, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`},
+		{`.d1.p |= . + 1`, false, `b: &b {p: 2, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`, `b: &b {p: 2, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`},
+		{`.d1.zz = 5`, false, `b: &b {p: 1, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0, zz: 5}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`, `b: &b {p: 1, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0, zz: 5}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`},
+		{`.d1[] |= . + 1`, false, `b: &b {p: 2, q: 3}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 1}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`, `b: &b {p: 2, q: 3}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 1}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`},
+		{`.d2[] |= . + 10`, false, `b: &b {p: 1, q: 2}
+c: &c {r: 13, p: 19}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 10, q: 17}
+d3: {a: 0, <<: *b}
+`, `b: &b {p: 11, q: 2}
+c: &c {r: 13, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 10, q: 17}
+d3: {a: 0, <<: *b}
+`},
+		{`.d3[] |= . + 10`, false, `b: &b {p: 11, q: 12}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 10, <<: *b}
+`, `b: &b {p: 11, q: 12}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 10, <<: *b}
+`},
+		{`[.d1[] | path]`, true, `[["b","p"],["b","q"],["d1","a"]]
+`, `[["b","p"],["b","q"],["d1","a"]]
+`},
+		{`[.d2[] | path]`, true, `[["c","p"],["d2","q"],["c","r"],["d2","a"]]
+`, `[["c","r"],["b","p"],["d2","q"],["d2","a"]]
+`},
+		{`.d1.p |= .`, false, `b: &b {p: 1, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`, `b: &b {p: 1, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`},
+		{`del(.d1.p)`, false, `b: &b {q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`, `b: &b {q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 0}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`},
+		{`.d1.a |= . + 1`, false, `b: &b {p: 1, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 1}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`, `b: &b {p: 1, q: 2}
+c: &c {r: 3, p: 9}
+d1: {<<: *b, a: 1}
+d2: {<<: [*b, *c], a: 0, q: 7}
+d3: {a: 0, <<: *b}
+`},
+	}
+	Convey("writes through merge keys land where yq puts them", t, func() {
+		for _, r := range rows {
+			for i, want := range []string{r.def, r.spec} {
+				args := []string{r.expr}
+				if r.json {
+					args = []string{"-o", "json", "-I0", r.expr}
+				}
+				if i == 1 {
+					args = append([]string{"--yaml-fix-merge-anchor-to-spec"}, args...)
+				}
+				out, _, _ := runYQ(t, args, mergeWriteDoc)
+				So(out, ShouldEqual, want)
+			}
+		}
+	})
+
+	Convey("an update that cannot reach the lending map writes nothing", t, func() {
+		// yq changes the anchor here, which lies outside the value the
+		// update runs on. Graft leaves the lent entries alone and never
+		// invents keys with values read from a path that is not there.
+		out, _, _ := runYQ(t, []string{"-o", "json", "-I0", ".d1 | map_values(. + 1)"}, mergeWriteDoc)
+		So(out, ShouldNotContainSubstring, `"p"`)
+		So(out, ShouldNotContainSubstring, `"q"`)
+		So(out, ShouldContainSubstring, `"a":1`)
+	})
+}

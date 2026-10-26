@@ -30,6 +30,20 @@ func (ev evaluator) place(v *value.Value, vp value.Path, keys ...*value.Value) v
 	return extend(vp, keys...)
 }
 
+// placeChild is place for one key of v, except that a dialect with a
+// Placer may put the child somewhere else, such as in the map a merge key
+// takes the entry from.
+func (ev evaluator) placeChild(v *value.Value, vp value.Path, key *value.Value) value.Path {
+	if vp != nil && (ev.paths || ev.track) {
+		if pl, ok := ev.ctx.Dialect.(runtime.Placer); ok {
+			if p, ok := pl.Place(ev.ctx, v, vp, key); ok {
+				return p
+			}
+		}
+	}
+	return ev.place(v, vp, key)
+}
+
 // setCursor points the context's cursor at in, whose tracked path is p.
 // The path carries the root and the document, and a value with no path is
 // a root of its own that belongs to no document.
@@ -127,7 +141,7 @@ func (ev evaluator) lookup(v *value.Value, vp value.Path, key *value.Value, opt 
 			return emit(out, derived(v, vp, out))
 		}
 	}
-	return emit(out, ev.place(v, vp, key))
+	return emit(out, ev.placeChild(v, vp, key))
 }
 
 // iterate runs Target[], with the same rule for opt as lookup and the
@@ -146,7 +160,7 @@ func (ev evaluator) iterate(n *ast.Iterate, env *Env, in *value.Value, p value.P
 				downstream = err
 				return err
 			}
-			if err := emit(e, ev.place(v, vp, k)); err != nil {
+			if err := emit(e, ev.placeChild(v, vp, k)); err != nil {
 				downstream = err
 				return err
 			}

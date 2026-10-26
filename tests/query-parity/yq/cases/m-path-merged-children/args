@@ -1,0 +1,4 @@
+-o=json
+-I=0
+[.d2[] | path]
+in.yaml

@@ -44,6 +44,9 @@ type Dialect struct {
 	anchorMu   sync.Mutex
 	anchorRoot *value.Value
 	anchorSet  map[string]*value.Value
+	// homes locates the maps and sequences of the document homeRoot.
+	homeRoot *value.Value
+	homes    map[*value.Value]value.Path
 	// warned is set once the merge key warning has been written.
 	warned atomic.Bool
 }
@@ -143,15 +146,13 @@ func (d *Dialect) Index(ctx *runtime.Ctx, c, key *value.Value, mode runtime.Inde
 // merge lacks reads as null, and the left side of an assignment works on the
 // map's own keys.
 func (d *Dialect) objectIndex(ctx *runtime.Ctx, c, key *value.Value, mode runtime.IndexMode) (*value.Value, bool, error) {
-	if mode != runtime.IndexUpdate {
-		v, found, merged := d.mergedGet(ctx, c, key)
-		switch {
-		case found:
-			return v, true, nil
-		case merged:
-			return value.Null(), false, nil
-		default:
-		}
+	v, found, merged := d.mergedGet(ctx, c, key)
+	switch {
+	case found:
+		return v, true, nil
+	case merged && mode != runtime.IndexUpdate:
+		return value.Null(), false, nil
+	default:
 	}
 	out, err := d.mapIndex(ctx, c, key)
 	return out, false, err
