@@ -126,8 +126,11 @@ func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, 
 		outs := rhs(root, nil)
 		if ctx.Owner != nil {
 			// The owner may change root in place, so the right side runs
-			// to its end before root changes, and more than one value has
-			// root let go so that each starts from root as it was.
+			// to its end before root changes. An owned reduce's right side
+			// gives at most one value today, because eval's plain check
+			// admits nothing that gives more. Letting root go when there
+			// are more guards against a later widening of that check, so
+			// that each value would still start from root as it was.
 			var vals []*value.Value
 			var rerr error
 			for v, err := range outs {
