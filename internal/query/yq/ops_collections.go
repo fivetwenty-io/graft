@@ -94,9 +94,9 @@ func members(v *value.Value) []*value.Value {
 	return v.Elems()
 }
 
-// keysOf runs f on each member, or takes the member itself when f is nil,
-// and gathers every output as that member's sort key.
-func keysOf(in *value.Value, f runtime.Thunk) ([][]*value.Value, error) {
+// sortKeysOf runs f on each member, or takes the member itself when f is
+// nil, and gathers every output as that member's sort key.
+func sortKeysOf(in *value.Value, f runtime.Thunk) ([][]*value.Value, error) {
 	ms := members(in)
 	keys := make([][]*value.Value, len(ms))
 	for i, m := range ms {
@@ -121,7 +121,7 @@ func sortBy(ctx *runtime.Ctx, in *value.Value, f runtime.Thunk, emit runtime.Emi
 	if in.Kind() != value.KindArray && in.Kind() != value.KindObject {
 		return &query.RuntimeError{Msg: "node at path " + cursorPath(ctx) + " is not an array or map (it's a " + tagOf(in) + ")"}
 	}
-	keys, err := keysOf(in, f)
+	keys, err := sortKeysOf(in, f)
 	if err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func uniqueBy(in *value.Value, f runtime.Thunk, emit runtime.Emit) error {
 	if in.Kind() != value.KindArray {
 		return &query.RuntimeError{Msg: "only arrays are supported for unique, got " + tagOf(in)}
 	}
-	keys, err := keysOf(in, f)
+	keys, err := sortKeysOf(in, f)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func groupBy(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime
 	if in.Kind() != value.KindArray {
 		return &query.RuntimeError{Msg: "only arrays are supported for group by, got " + tagOf(in)}
 	}
-	keys, err := keysOf(in, args[0])
+	keys, err := sortKeysOf(in, args[0])
 	if err != nil {
 		return err
 	}

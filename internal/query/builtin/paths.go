@@ -327,6 +327,10 @@ func deleteKeys(v *value.Value, keys []*value.Value) (*value.Value, error) {
 			b.Append(e)
 		}
 	}
+	// The array keeps its details, as the object's builder keeps them.
+	if m := v.Meta(); m != nil {
+		return b.Seal().WithMeta(m), nil
+	}
 	return b.Seal(), nil
 }
 

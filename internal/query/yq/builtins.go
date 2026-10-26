@@ -36,6 +36,7 @@ func registry() *runtime.Registry {
 		}
 		r.AddPrelude(prog)
 		addOps(r)
+		addEntriesPrelude(r)
 		// The merge wraps the arithmetic addOps tags, so two numbers
 		// multiply as yq's numbers do, merge flags or not.
 		registerMerge(r)
@@ -59,6 +60,7 @@ func registerYQ(r *runtime.Registry) {
 	})
 	registerMeta(r)
 	registerPaths(r)
+	registerEntries(r)
 }
 
 // key emits the key or index of the cursor's node in its parent, and
