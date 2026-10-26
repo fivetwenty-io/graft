@@ -369,9 +369,11 @@ func newJQOutput(opts jqOptions, stdout io.Writer, color bool, colors string) *j
 		RawNUL:       opts.RawOutput0,
 		FloatNumbers: opts.FloatNumbers,
 		SortKeys:     opts.SortKeys,
-		Unbuffered:   opts.Unbuffered,
-		Color:        color,
-		Colors:       colors,
+		// jq's stdout is line-buffered on a terminal, so each output
+		// shows up as it is produced and before any later diagnostic.
+		Unbuffered: opts.Unbuffered || stdoutIsTTY(stdout),
+		Color:      color,
+		Colors:     colors,
 	}
 	if opts.IndentSet {
 		eo.Indent = opts.Indent

@@ -247,6 +247,43 @@ func TestJQColor(t *testing.T) {
 	})
 }
 
+// streamLog records what stdout and stderr receive in the order they
+// receive it, with stdout written as "out:" and stderr as "err:".
+type streamLog struct {
+	writes []string
+}
+
+// streamLogWriter is one stream of a streamLog, a terminal when tty is set.
+type streamLogWriter struct {
+	log  *streamLog
+	name string
+	tty  bool
+}
+
+func (w streamLogWriter) Write(p []byte) (int, error) {
+	w.log.writes = append(w.log.writes, w.name+":"+string(p))
+	return len(p), nil
+}
+
+func (w streamLogWriter) isTerminal() bool { return w.tty }
+
+func TestJQBuffering(t *testing.T) {
+	Convey("graft jq writes each output at once only on a terminal or under --unbuffered", t, func() {
+		run := func(tty bool, args ...string) []string {
+			sl := &streamLog{}
+			opts, err := parseJQArgs(args, personaGraft)
+			So(err, ShouldBeNil)
+			handleJQ(opts, strings.NewReader("{\"a\":1} [2] {\"a\":3}"),
+				streamLogWriter{sl, "out", tty}, streamLogWriter{sl, "err", false})
+			return sl.writes
+		}
+		interleaved := []string{"out:1\n", "err:Runtime error (at <stdin>:1): Cannot index array with string (\"a\")\n", "out:3\n"}
+		So(run(true, "-M", ".a"), ShouldResemble, interleaved)
+		So(run(false, "-M", "--unbuffered", ".a"), ShouldResemble, interleaved)
+		So(run(false, "-M", ".a"), ShouldResemble, []string{interleaved[1], "out:1\n3\n"})
+	})
+}
+
 func TestJQCommand(t *testing.T) {
 	dir, err := filepath.Abs(cliIdentityDir)
 	if err != nil {
