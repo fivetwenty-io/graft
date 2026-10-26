@@ -219,10 +219,16 @@ func decRem(l, r *value.Value) *value.Value {
 }
 
 // floatNumeric is l op r in yq's own model of int64s and float64s, or
-// nil for a zero divisor, which the wrapped native reports.
+// nil for a zero divisor, which the wrapped native reports. A finite
+// number past float64's range fails, as yq fails to parse it.
 func floatNumeric(op byte, ints bool, l, r *value.Value) (*value.Value, error) {
 	if ints {
 		return int64Op(op, l, r)
+	}
+	for _, v := range []*value.Value{l, r} {
+		if inf, _ := v.Dec().IsInf(); !inf && math.IsInf(v.Float(), 0) {
+			return nil, &query.RuntimeError{Msg: "strconv.ParseFloat: parsing " + strconv.Quote(numberText(v)) + ": value out of range"}
+		}
 	}
 	if v, ok := float64Op(op, l.Float(), r.Float()); ok {
 		return asFloat(v), nil

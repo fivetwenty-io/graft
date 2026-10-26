@@ -20,6 +20,9 @@ func TestYQFloatNumbers(t *testing.T) {
 	wantYQOpts(t, opts, `1 / 2`, "null\n", "0.5\n")
 	wantYQOpts(t, opts, `0.1 + 0.2`, "null\n", "0.30000000000000004\n")
 	wantYQErrorOpts(t, opts, `. + 1`, "9223372036854775807\n", "9223372036854775807 + 1 overflows int64")
+	// A float past float64's range fails to parse in yq's model.
+	wantYQErrorOpts(t, opts, `1e1000 + 0`, "null\n", `strconv.ParseFloat: parsing "1e1000": value out of range`)
+	wantYQErrorOpts(t, opts, `2.5 * 1.5e400`, "null\n", `strconv.ParseFloat: parsing "1.5e400": value out of range`)
 }
 
 func TestYQArithmeticRunsLeftFirst(t *testing.T) {
