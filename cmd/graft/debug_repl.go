@@ -81,6 +81,9 @@ type debugSession struct {
 	tree map[string]interface{}
 
 	breakpoints map[string]bool
+	// coverBreaks marks the breakpoints a query set, which also fire for
+	// any path beneath them. A plain `break` stays exact.
+	coverBreaks map[string]bool
 	// deferred is every path the session has chosen not to evaluate,
 	// mapped to why: "" for a manual `defer <path>` (no reason recorded -
 	// a human just said so), or the original operator error for a path
@@ -177,6 +180,7 @@ func newDebugSession(files []string, opts *mergeOpts, out io.Writer, ui debugUIO
 		opts:               opts,
 		totalSteps:         total,
 		breakpoints:        map[string]bool{},
+		coverBreaks:        map[string]bool{},
 		deferred:           map[string]string{},
 		out:                out,
 		styler:             resolveDebugStyler(ui, out),
@@ -305,7 +309,7 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 		s.tree = newTree
 
 		for _, c := range changes {
-			if s.breakpoints[c.Path] {
+			if s.breakpointHit(c.Path) {
 				s.printf("%s %s\n  Current: %s\n",
 					s.style(roleBreak, "Breakpoint hit:"),
 					s.style(rolePath, c.Path),
@@ -346,7 +350,7 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 
 	if cmpErr == nil {
 		for _, c := range changes {
-			if s.breakpoints[c.Path] {
+			if s.breakpointHit(c.Path) {
 				s.printf("%s %s\n  Current: %s\n",
 					s.style(roleBreak, "Breakpoint hit:"),
 					s.style(rolePath, c.Path),
@@ -409,6 +413,7 @@ func (s *debugSession) cmdBreak(path string) {
 		return
 	}
 	s.breakpoints[path] = true
+	delete(s.coverBreaks, path)
 	s.printf("%s\n", s.style(roleSuccess, fmt.Sprintf("Breakpoint set on %s", path)))
 }
 
@@ -422,6 +427,7 @@ func (s *debugSession) cmdUnbreak(path string) {
 		return
 	}
 	delete(s.breakpoints, path)
+	delete(s.coverBreaks, path)
 	s.printf("%s\n", s.style(roleSuccess, "Breakpoint removed"))
 }
 
@@ -719,7 +725,7 @@ func (s *debugSession) cmdEval(path string) {
 
 	evalOpts := *s.opts
 	evalOpts.SkipEval = false
-	evalOpts.CherryPick = []string{path}
+	evalOpts.CherryPick = cherryPickFor(path)
 	evalOpts.Prune = nil
 	result, _, err := mergeAllDocs([]YamlFile{{Path: mergedDocPath, Reader: io.NopCloser(strings.NewReader(mustYAML(s.tree)))}}, &evalOpts)
 	if err != nil {
@@ -1185,7 +1191,8 @@ func lookupDottedPath(tree map[string]interface{}, path string) (interface{}, bo
 
 	var current interface{} = tree
 	for _, seg := range splitDebugPath(path) {
-		if idx, isIdx := parseIndexSegment(seg); isIdx {
+		key, idx, isIdx := decodeSegment(seg)
+		if isIdx {
 			arr, ok := current.([]interface{})
 			if !ok || idx < 0 || idx >= len(arr) {
 				return nil, false
@@ -1197,7 +1204,7 @@ func lookupDottedPath(tree map[string]interface{}, path string) (interface{}, bo
 		if !ok {
 			return nil, false
 		}
-		v, exists := m[seg]
+		v, exists := m[key]
 		if !exists {
 			return nil, false
 		}
@@ -1216,7 +1223,8 @@ func setDottedPath(tree map[string]interface{}, path string, value interface{}) 
 	}
 	var current interface{} = tree
 	for _, seg := range segs[:len(segs)-1] {
-		if idx, isIdx := parseIndexSegment(seg); isIdx {
+		key, idx, isIdx := decodeSegment(seg)
+		if isIdx {
 			arr, ok := current.([]interface{})
 			if !ok || idx < 0 || idx >= len(arr) {
 				return
@@ -1228,10 +1236,10 @@ func setDottedPath(tree map[string]interface{}, path string, value interface{}) 
 		if !ok {
 			return
 		}
-		current = m[seg]
+		current = m[key]
 	}
-	last := segs[len(segs)-1]
-	if idx, isIdx := parseIndexSegment(last); isIdx {
+	last, idx, isIdx := decodeSegment(segs[len(segs)-1])
+	if isIdx {
 		if arr, ok := current.([]interface{}); ok && idx >= 0 && idx < len(arr) {
 			arr[idx] = value
 		}
@@ -1242,15 +1250,60 @@ func setDottedPath(tree map[string]interface{}, path string, value interface{}) 
 	}
 }
 
+// splitDebugPath splits a dotted path into its segments. A key that holds a
+// dot is written ["a.b"], the form dottedPath displays it in, and stays one
+// segment.
 func splitDebugPath(path string) []string {
-	raw := strings.Split(path, ".")
-	segs := make([]string, 0, len(raw))
-	for _, r := range raw {
-		if r != "" {
-			segs = append(segs, r)
+	segs := []string{}
+	for i := 0; i < len(path); {
+		if path[i] == '.' {
+			i++
+			continue
 		}
+		end := quotedSegmentEnd(path, i)
+		if end < 0 {
+			end = strings.IndexByte(path[i:], '.')
+			if end < 0 {
+				end = len(path)
+			} else {
+				end += i
+			}
+		}
+		segs = append(segs, path[i:end])
+		i = end
 	}
 	return segs
+}
+
+// quotedSegmentEnd is the index just past the ["key"] segment that starts
+// at path[start], or -1 when path does not start one there.
+func quotedSegmentEnd(path string, start int) int {
+	if !strings.HasPrefix(path[start:], `["`) {
+		return -1
+	}
+	for j := start + 2; j < len(path); j++ {
+		switch {
+		case path[j] == '\\':
+			j++
+		case path[j] == '"' && j+1 < len(path) && path[j+1] == ']':
+			return j + 2
+		}
+	}
+	return -1
+}
+
+// decodeSegment reads one segment of a dotted path as a map key or, for the
+// [N] form, a list index.
+func decodeSegment(seg string) (key string, idx int, isIdx bool) {
+	if strings.HasPrefix(seg, `["`) && strings.HasSuffix(seg, `"]`) {
+		if k, err := strconv.Unquote(seg[1 : len(seg)-1]); err == nil {
+			return k, 0, false
+		}
+	}
+	if n, ok := parseIndexSegment(seg); ok {
+		return "", n, true
+	}
+	return seg, 0, false
 }
 
 func parseIndexSegment(seg string) (int, bool) {
@@ -1449,18 +1502,20 @@ func debugPromptString(s *debugSession) string {
 // pattern, a filename - so they join their fields back together; only
 // config and tree read their arguments as separate words.
 var debugCommands = map[string]func(sess *debugSession, args []string){
-	"load":              func(sess *debugSession, _ []string) { sess.cmdLoad() },
-	"step":              func(sess *debugSession, _ []string) { sess.cmdStep() },
-	"continue":          func(sess *debugSession, _ []string) { sess.cmdContinue() },
-	"break":             func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdBreak) },
-	"unbreak":           func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdUnbreak) },
-	"breaks":            func(sess *debugSession, _ []string) { sess.cmdBreaks() },
-	"inspect":           func(sess *debugSession, args []string) { sess.cmdInspectArg(strings.Join(args, " ")) },
-	"history":           func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdHistory) },
+	"load":     func(sess *debugSession, _ []string) { sess.cmdLoad() },
+	"step":     func(sess *debugSession, _ []string) { sess.cmdStep() },
+	"continue": func(sess *debugSession, _ []string) { sess.cmdContinue() },
+	"break":    func(sess *debugSession, args []string) { sess.cmdBreakArg(strings.Join(args, " ")) },
+	"unbreak":  func(sess *debugSession, args []string) { sess.cmdUnbreakArg(strings.Join(args, " ")) },
+	"breaks":   func(sess *debugSession, _ []string) { sess.cmdBreaks() },
+	"inspect":  func(sess *debugSession, args []string) { sess.cmdInspectArg(strings.Join(args, " ")) },
+	"history": func(sess *debugSession, args []string) {
+		sess.eachPath(strings.Join(args, " "), sess.trackPath, sess.cmdHistory)
+	},
 	debugCmdTree:        func(sess *debugSession, args []string) { sess.cmdTree(args) },
-	"defer":             func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdDefer) },
+	"defer":             func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), nil, sess.cmdDefer) },
 	debugCmdAutodefer:   func(sess *debugSession, _ []string) { sess.cmdAutodefer() },
-	"eval":              func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), sess.cmdEval) },
+	"eval":              func(sess *debugSession, args []string) { sess.eachPath(strings.Join(args, " "), nil, sess.cmdEval) },
 	"config":            func(sess *debugSession, args []string) { sess.cmdConfig(args) },
 	"output":            func(sess *debugSession, _ []string) { sess.cmdOutput() },
 	debugCmdPruneReport: func(sess *debugSession, _ []string) { sess.cmdPruneReport() },
@@ -1473,4 +1528,26 @@ var debugCommands = map[string]func(sess *debugSession, args []string){
 	debugCmdUnselect:    func(sess *debugSession, _ []string) { sess.cmdUnselect() },
 	"watch":             func(sess *debugSession, args []string) { sess.cmdWatch(strings.Join(args, " ")) },
 	"unwatch":           func(sess *debugSession, args []string) { sess.cmdUnwatch(strings.Join(args, " ")) },
+}
+
+// cherryPickFor is the cherry-pick list that keeps only path. Cherry-pick
+// reads a path by splitting at every dot, so it cannot name a key that
+// holds one, and for such a path it keeps the whole document, from which
+// the caller reads the value by its typed path.
+func cherryPickFor(path string) []string {
+	if !strings.Contains(path, `["`) {
+		return []string{path}
+	}
+	parts := splitDebugPath(path)
+	for i, seg := range parts {
+		key, _, isIdx := decodeSegment(seg)
+		if isIdx {
+			continue
+		}
+		if strings.ContainsAny(key, ".[]") {
+			return nil
+		}
+		parts[i] = key
+	}
+	return []string{strings.Join(parts, ".")}
 }

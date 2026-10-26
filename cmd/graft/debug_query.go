@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/history"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/jq"
@@ -146,11 +147,12 @@ func resolveDebugPaths(s *debugSession, arg string) ([]value.Path, error) {
 	segs := splitDebugPath(arg)
 	p := make(value.Path, len(segs))
 	for i, seg := range segs {
-		if idx, ok := parseIndexSegment(seg); ok {
+		key, idx, isIdx := decodeSegment(seg)
+		if isIdx {
 			p[i] = value.Num(float64(idx))
 			continue
 		}
-		p[i] = value.Str(seg)
+		p[i] = value.Str(key)
 	}
 	return []value.Path{p}, nil
 }
@@ -218,10 +220,11 @@ func (s *debugSession) lookupPath(p value.Path) (interface{}, bool) {
 	return current, true
 }
 
-// eachPath applies fn to each path arg names. A bare dotted path, or no
+// eachPath applies fn to each path arg names, spelled by conv (dottedPath
+// when nil). A bare dotted path, or no
 // argument with no selection, reaches fn untouched, so the verbs behave
 // exactly as they did before queries existed.
-func (s *debugSession) eachPath(arg string, fn func(path string)) {
+func (s *debugSession) eachPath(arg string, conv func(value.Path) string, fn func(path string)) {
 	if arg == "" && len(s.selection) == 0 || arg != "" && !hasQueryPrefix(arg) {
 		fn(arg)
 		return
@@ -235,8 +238,11 @@ func (s *debugSession) eachPath(arg string, fn func(path string)) {
 		s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("No paths matched: %s", arg)))
 		return
 	}
+	if conv == nil {
+		conv = dottedPath
+	}
 	for _, p := range paths {
-		fn(dottedPath(p))
+		fn(conv(p))
 	}
 }
 
@@ -536,4 +542,86 @@ func runJQRepl(opts jqOptions, stdin io.Reader, stdout io.Writer) query.Status {
 	}
 	rc := handleDebugWith(opts.Files, &mergeOpts{}, stdin, stdout, debugUIOptions{Theme: opts.Theme}, init)
 	return query.Status{Code: rc}
+}
+
+// histPath spells a typed path the way the step diff names it, which is
+// with a list entry's name where the entry has one, as merge's history
+// names entries, and [N] where it does not.
+func (s *debugSession) histPath(p value.Path) string {
+	return s.namePath(p, false)
+}
+
+// trackPath is histPath in the form the history tracker keys its paths by,
+// which quotes a key that holds a dot or a bracket.
+func (s *debugSession) trackPath(p value.Path) string {
+	return s.namePath(p, true)
+}
+
+func (s *debugSession) namePath(p value.Path, quote bool) string {
+	var cur interface{} = s.tree
+	parts := make([]string, 0, len(p))
+	for _, c := range p {
+		switch c.Kind() {
+		case value.KindString:
+			seg := c.Str()
+			if quote {
+				seg = history.EscapePathSegment(seg)
+			}
+			parts = append(parts, seg)
+			m, _ := cur.(map[string]interface{})
+			cur = m[c.Str()]
+		case value.KindNumber:
+			seg := "[" + c.Dec().String() + "]"
+			var next interface{}
+			arr, _ := cur.([]interface{})
+			if idx, ok := c.Dec().Int64(); ok && idx >= 0 && idx < int64(len(arr)) {
+				next = arr[idx]
+				if m, isMap := next.(map[string]interface{}); isMap {
+					if name, isStr := m["name"].(string); isStr {
+						seg = name
+					}
+				}
+			}
+			parts = append(parts, seg)
+			cur = next
+		}
+	}
+	return strings.Join(parts, ".")
+}
+
+// cmdBreakArg is `break`: a plain path sets one exact breakpoint, as it
+// always has, and a query sets one on each path it names. A query's
+// breakpoint covers everything beneath the path it names, so one on a job
+// fires when any field of the job changes.
+func (s *debugSession) cmdBreakArg(arg string) {
+	if arg == "" && len(s.selection) == 0 || arg != "" && !hasQueryPrefix(arg) {
+		s.cmdBreak(arg)
+		return
+	}
+	s.eachPath(arg, s.histPath, func(path string) {
+		s.cmdBreak(path)
+		s.coverBreaks[path] = true
+	})
+}
+
+// cmdUnbreakArg is `unbreak`, with the same two forms as `break`.
+func (s *debugSession) cmdUnbreakArg(arg string) {
+	if arg == "" && len(s.selection) == 0 || arg != "" && !hasQueryPrefix(arg) {
+		s.cmdUnbreak(arg)
+		return
+	}
+	s.eachPath(arg, s.histPath, s.cmdUnbreak)
+}
+
+// breakpointHit reports whether a change at path trips a breakpoint.
+func (s *debugSession) breakpointHit(path string) bool {
+	if s.breakpoints[path] {
+		return true
+	}
+	for bp := range s.coverBreaks {
+		if s.breakpoints[bp] && strings.HasPrefix(path, bp+".") {
+			return true
+		}
+	}
+	return false
 }

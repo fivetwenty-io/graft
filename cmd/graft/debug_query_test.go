@@ -81,7 +81,7 @@ func TestDebugQuery(t *testing.T) {
 		// The query names jobs[0], the only job with a port once a.yml is loaded.
 		out, _ := runDebugSession([]string{a, b},
 			"load\nbreak jq:.jobs[] | select(.port != null)\nbreaks\nbreak xq:.a\nquit\n")
-		So(out, ShouldContainSubstring, "  - jobs.[0]\n")
+		So(out, ShouldContainSubstring, "  - jobs.nats\n")
 		So(out, ShouldNotContainSubstring, "jobs.[1]")
 		So(out, ShouldContainSubstring, "unknown query prefix \"xq:\" (jq: or yq:)")
 		out, _ = runDebugSession([]string{a}, "load\ncontinue\ntree jq:.jobs[0]\nconfig dialect\nquit\n")
