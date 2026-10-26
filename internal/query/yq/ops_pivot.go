@@ -13,7 +13,7 @@ func registerPivots(r *runtime.Registry) {
 	r.RegisterSingle("array_to_map", 0, func(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 		switch in.Kind() {
 		case value.KindObject:
-			return emit(in, nil)
+			return emit(value.ObjEntries(in.Entries()...), nil)
 		case value.KindArray:
 		default:
 			return emit(value.ObjEntries(), nil)

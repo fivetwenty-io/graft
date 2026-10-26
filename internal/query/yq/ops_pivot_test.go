@@ -31,3 +31,7 @@ func TestYQArrayToMap(t *testing.T) {
 	wantYQ(t, `array_to_map`, "a: b\n", "a: b\n")
 	wantYQ(t, `array_to_map`, "5\n", "{}\n")
 }
+
+func TestYQArrayToMapGivesAMapInBlockStyle(t *testing.T) {
+	wantYQ(t, `.m | array_to_map`, "m: {x: 1, y: 2}\n", "x: 1\ny: 2\n")
+}
