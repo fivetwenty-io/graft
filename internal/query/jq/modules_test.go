@@ -1,7 +1,6 @@
 package jq_test
 
 import (
-	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -18,19 +17,28 @@ import (
 // runOpts compiles prog with opts and runs it on the JSON text in.
 func runOpts(t testing.TB, opts jq.CompileOptions, prog, in string) ([]string, error) {
 	t.Helper()
+	out, _, err := runOptsStderr(t, opts, prog, in)
+	return out, err
+}
+
+// runOptsStderr is runOpts that also returns what the run wrote to
+// stderr.
+func runOptsStderr(t testing.TB, opts jq.CompileOptions, prog, in string) ([]string, string, error) {
+	t.Helper()
 	p, err := jq.CompileWith(prog, opts)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	ctx := runtime.NewCtx(jq.New(), runtime.NumbersExact)
-	ctx.Stderr = io.Discard
+	var stderr strings.Builder
+	ctx.Stderr = &stderr
 	ctx.Modules = jq.NewModuleResolver(opts)
 	var out []string
 	err = p.Run(ctx, p.Env, []*value.Value{mustJSON(t, in)}, func(v *value.Value, _ value.Path) error {
 		out = append(out, runtime.JSON(v))
 		return nil
 	})
-	return out, err
+	return out, stderr.String(), err
 }
 
 func wantOutputsOpts(t *testing.T, opts jq.CompileOptions, prog, in string, want ...string) {
@@ -233,7 +241,41 @@ func TestModuleMetaFoldsLikeJQAtTheEdges(t *testing.T) {
 	wantOutputsOpts(t, opts, `"loc" | modulemeta | .__loc__.line, .a`, `null`, `1`, `1`)
 	for _, meta := range []string{`(1, 2)`, `("a\(1)")`, `"\("x")"`, `{"\("x")": 1}`, `["a\("x")b"]`} {
 		o := modDir(t, map[string]string{"bad.jq": `module {a: ` + meta + `};`})
-		wantErrorOpts(t, o, `"bad" | modulemeta`, `null`, `Module metadata must be constant`)
+		wantBrokenMeta(t, o, "bad", `Module metadata must be constant`)
+	}
+}
+
+// A module that is found and read but does not compile has jq print the
+// compile error and give null for its metadata, and the run goes on.
+func TestModuleMetaOfABrokenModuleIsNull(t *testing.T) {
+	opts := modDir(t, map[string]string{
+		"syntax.jq": `def f: ;`,
+		"main.jq":   `def f: 1; 5`,
+		"notobj.jq": `module 1;`,
+		"dep.jq":    `import "x" as x {a: (1, 2)};`,
+	})
+	wantBrokenMeta(t, opts, "syntax", `unexpected ';'`)
+	wantBrokenMeta(t, opts, "main", `library should only have function definitions`)
+	wantBrokenMeta(t, opts, "notobj", `Module metadata must be an object`)
+	wantBrokenMeta(t, opts, "dep", `Module metadata must be constant`)
+	wantOutputsOpts(t, opts, `["syntax" | modulemeta], (try ("main" | modulemeta) catch "caught")`, `null`, `[null]`, `null`)
+}
+
+// wantBrokenMeta checks that modulemeta gives null for the module name
+// and prints an error that contains msg.
+func wantBrokenMeta(t *testing.T, opts jq.CompileOptions, name, msg string) {
+	t.Helper()
+	prog := strconv.Quote(name) + ` | modulemeta`
+	out, stderr, err := runOptsStderr(t, opts, prog, `null`)
+	if err != nil {
+		t.Errorf("%s: unexpected error: %v", prog, err)
+		return
+	}
+	if !reflect.DeepEqual(out, []string{`null`}) {
+		t.Errorf("%s: got %q, want null", prog, out)
+	}
+	if !strings.Contains(stderr, msg) {
+		t.Errorf("%s: stderr %q does not contain %q", prog, stderr, msg)
 	}
 }
 
@@ -369,7 +411,7 @@ func TestModuleMetaFoldsConstants(t *testing.T) {
 
 	for _, meta := range []string{`(-1)`, `(true and false)`, `(null // 1)`, `([1] | .[0])`, `((1, 2) + 1)`, `(1 / 0)`, `("x" - "y")`, `(1 + "a")`, `(.a + 1)`, `(length + 1)`} {
 		o := modDir(t, map[string]string{"bad.jq": `module {a: ` + meta + `};`})
-		wantErrorOpts(t, o, `"bad" | modulemeta`, `null`, `Module metadata must be constant`)
+		wantBrokenMeta(t, o, "bad", `Module metadata must be constant`)
 	}
 }
 

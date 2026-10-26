@@ -16,6 +16,8 @@ type ModuleLibrary interface {
 	// JQOrigin is the directory that $ORIGIN stands for.
 	JQOrigin() string
 	// Meta reads the module named name and returns its metadata object
-	// with the deps and defs that describe it.
+	// with the deps and defs that describe it. A *query.CompileError says
+	// that the module was read but does not compile, which modulemeta
+	// reports on stderr before it gives null, as jq does.
 	Meta(name string) (*value.Value, error)
 }

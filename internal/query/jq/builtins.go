@@ -1,6 +1,7 @@
 package jq
 
 import (
+	"errors"
 	"io"
 	"strings"
 
@@ -140,6 +141,15 @@ func registerModules(r *runtime.Registry) {
 			return &query.RuntimeError{Msg: "modulemeta input module name must be a string"}
 		}
 		meta, err := lib(ctx).Meta(in.Str())
+		var ce *query.CompileError
+		if errors.As(err, &ce) {
+			// jq prints the error of a module it read but could not
+			// compile, and its metadata is null.
+			if ctx.Stderr != nil {
+				_, _ = io.WriteString(ctx.Stderr, "Compile error: "+ce.Error()+"\n")
+			}
+			return emit(value.Null(), nil)
+		}
 		if err != nil {
 			return err
 		}

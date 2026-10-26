@@ -272,9 +272,17 @@ func (r *ModuleResolver) Meta(name string) (*value.Value, error) {
 	if err != nil {
 		return nil, &query.RuntimeError{Msg: err.Error()}
 	}
-	lib, err := readLibrary(path)
+	data, err := readFile(path)
 	if err != nil {
-		return nil, &query.RuntimeError{Msg: errMessage(err)}
+		return nil, &query.RuntimeError{Msg: err.Error()}
+	}
+	lib, err := parseLibrary(path, string(data))
+	if err != nil {
+		var ce *query.CompileError
+		if !errors.As(err, &ce) {
+			ce = &query.CompileError{Msg: err.Error()}
+		}
+		return nil, ce
 	}
 	var b *value.ObjBuilder
 	if lib.meta != nil {
@@ -307,15 +315,6 @@ func (r *ModuleResolver) Meta(name string) (*value.Value, error) {
 	b.Set("deps", value.Arr(deps...))
 	b.Set("defs", value.Arr(defs...))
 	return b.Seal(), nil
-}
-
-// errMessage is the text of err without a compile error's position.
-func errMessage(err error) string {
-	var ce *query.CompileError
-	if errors.As(err, &ce) {
-		return ce.Msg
-	}
-	return err.Error()
 }
 
 // directive is one import or include of a library, with its metadata
@@ -365,14 +364,19 @@ func readFile(path string) ([]byte, error) {
 	return data, nil
 }
 
-// readLibrary parses the module file at path and collects its directives
-// and definitions.
+// readLibrary reads the module file at path and parses it as
+// parseLibrary does.
 func readLibrary(path string) (*library, error) {
 	data, err := readFile(path)
 	if err != nil {
 		return nil, &query.CompileError{Msg: err.Error()}
 	}
-	src := string(data)
+	return parseLibrary(path, string(data))
+}
+
+// parseLibrary parses src, the module file at path, and collects its
+// directives and definitions.
+func parseLibrary(path, src string) (*library, error) {
 	root, err := parser.ParseFile(src, path, Grammar())
 	if err != nil {
 		var pe *parser.Error
