@@ -2078,11 +2078,11 @@
   cases: [c-shtest-pipe-exit-status]
 - id: c-shtest-empty-program-file
   area: cli
-  phase: J3
+  phase: J2
   cases: [c-shtest-empty-program-file]
 - id: c-shtest-comment-program-file
   area: cli
-  phase: J3
+  phase: J2
   cases: [c-shtest-comment-program-file]
 - id: c-shtest-args-after-program
   area: cli

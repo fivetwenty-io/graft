@@ -12,8 +12,5 @@ n-overflow-literal-arith departure exact decimal
 n-subtract-bigints departure exact decimal
 b-fromjson-nan pending J2 nan from fromjson
 e-compile-bad-format pending J2 unknown format is a compile error
-e-compile-empty-program pending J2 empty program is a compile error
-e-compile-whitespace-program pending J2 blank program is a compile error
-f-from-file-comment-only pending J2 comment-only program file is a compile error
 e-invalid-input-literal pending J3 strict literal parsing in input
 c-yaml-input-departure pending J3 input parsed as strict JSON

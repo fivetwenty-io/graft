@@ -13,9 +13,14 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
+// noProgram is jq's message for a program with no expression to run.
+const noProgram = `Top-level program not given (try ".")`
+
 // Parse reads a jq program for its syntax alone, without resolving any
 // name, and returns its tree or a *query.CompileError that points at the
-// first problem.
+// first problem. A program needs an expression to run, so one that is
+// blank, only comments, or only directives and definitions fails, as it
+// does in jq. A module may stand without one, but modules are read apart.
 func Parse(src string) (ast.Node, error) {
 	node, err := parser.Parse(src, Grammar())
 	if err != nil {
@@ -26,7 +31,35 @@ func Parse(src string) (ast.Node, error) {
 		}
 		return nil, err
 	}
+	if !hasBody(src, node) {
+		return nil, &query.CompileError{Msg: noProgram}
+	}
 	return node, nil
+}
+
+// hasBody reports whether a parsed program ends in an expression. The
+// parser reads a program with no tokens at all as the identity, and one
+// with only directives and definitions as a chain whose last Rest is nil.
+func hasBody(src string, node ast.Node) bool {
+	for {
+		switch n := node.(type) {
+		case nil:
+			return false
+		case *ast.Module:
+			node = n.Rest
+		case *ast.Import:
+			node = n.Rest
+		case *ast.Include:
+			node = n.Rest
+		case *ast.FuncDef:
+			node = n.Rest
+		case *ast.Identity:
+			toks, err := lexer.Tokenize(src, Grammar().Tokens)
+			return err != nil || len(toks) > 1
+		default:
+			return true
+		}
+	}
 }
 
 // Compile parses a jq program and resolves every label, variable, and
