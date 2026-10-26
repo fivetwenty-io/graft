@@ -203,8 +203,9 @@ func checkInventoryComplete(t *testing.T, dialect string) {
 	entries := loadInventory(t, dialect)
 	cases := caseNames(t, dialect)
 	parityCases := map[string]parityCase{}
-	for _, c := range loadParityCases(t, dialect) {
-		parityCases[c.Name] = c
+	pcs := loadParityCases(t, dialect)
+	for i := range pcs {
+		parityCases[pcs[i].Name] = pcs[i]
 	}
 	areas := map[string]bool{}
 	for _, a := range inventoryAreas[dialect] {
