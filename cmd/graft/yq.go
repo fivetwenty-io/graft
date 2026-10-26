@@ -538,13 +538,13 @@ Flags:
   -C, --colors                color the output
   -M, --no-colors             never color the output
   -c, --yaml-compact-seq-indent
-                              indent sequences compactly
+                              accepted, no effect yet
   -S, --sort-keys[=MODE]      sort object keys, where MODE is lexical, spruce, or none
       --float-numbers         do arithmetic in int64 and doubles, as yq does
       --expression EXPR       take the expression from EXPR, so every argument is a file
       --from-file FILE        read the expression from FILE
-      --header-preprocess     keep a leading comment block apart from the first document (default true)
-      --string-interpolation  read "\(expr)" as interpolation (default true)
+      --header-preprocess     accepted, no effect yet (default true)
+      --string-interpolation  accepted, no effect yet (default true)
       --security-disable-env-ops, --security-disable-file-ops
                               turn off the env or the file operators
       --security-enable-system-operator
