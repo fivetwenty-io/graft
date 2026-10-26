@@ -189,7 +189,7 @@ func loader(r *runtime.Registry, name string, read func([]byte) (*value.Value, e
 		}
 		return args[0].Each(in, func(file *value.Value, _ value.Path) error {
 			name := nodeText(file)
-			b, err := os.ReadFile(filepath.Clean(name))
+			b, err := os.ReadFile(filepath.Clean(name)) // #nosec G703 -- the query names the file to read
 			if err != nil {
 				return &query.RuntimeError{Msg: "failed to load " + name + ": " + err.Error()}
 			}
