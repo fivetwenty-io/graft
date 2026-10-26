@@ -157,6 +157,9 @@ func TestJQRunTests(t *testing.T) {
 		out, _, st = runJQ(t, []string{"--run-tests"}, ".a\n{\"a\":1}\n2\n")
 		So(st.Code, ShouldEqual, 1)
 		So(out, ShouldContainSubstring, "0 of 1 tests passed")
+		_, e, st := runJQ(t, []string{"--run-tests", "/nonexistent"}, "")
+		So(e, ShouldStartWith, "Unable to open file /nonexistent: ")
+		So(st.Code, ShouldEqual, 1) // jq exits 1 when it cannot open the test file
 	})
 }
 
@@ -236,7 +239,7 @@ func TestJQOutputFormat(t *testing.T) {
 			So(e, ShouldStartWith, "Invalid flags: invalid JSON text passed to --jsonargs")
 		}
 		out, _, _ = runJQ(t, []string{"-c", "-n", "$x", "--argjson", "x", "a: 1"}, "")
-		So(out, ShouldEqual, "{\"a\":1}\n") // while --argjson takes YAML too
+		So(out, ShouldEqual, "{\"a\":1}\n")    // while --argjson takes YAML too
 		out, _, _ = runJQ(t, nil, "{\"a\":1}") // no program means . when stdin is not a terminal
 		So(out, ShouldEqual, "{\n  \"a\": 1\n}\n")
 		out, _, _ = runJQ(t, []string{".", "-"}, "7")

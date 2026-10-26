@@ -609,7 +609,11 @@ func runJQTests(opts jqOptions, stdin io.Reader, stdout io.Writer) query.Status 
 	if opts.RunTestsFile != "" {
 		f, err := os.Open(opts.RunTestsFile)
 		if err != nil {
-			return queryCommandError(errOpen, err)
+			// jq exits 1 here rather than its usual 2 for a file it
+			// cannot open.
+			st := queryCommandError(errOpen, err)
+			st.Code = 1
+			return st
 		}
 		defer func() { _ = f.Close() }()
 		r = f
