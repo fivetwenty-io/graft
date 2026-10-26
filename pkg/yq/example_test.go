@@ -356,3 +356,16 @@ func ExampleExitCode() {
 	)
 	// Output: 1 0 1 1
 }
+
+func ExampleSplitFrontMatter() {
+	page := "---\ntitle: Hello\n---\n# The page\n"
+	head, rest, found, err := yq.SplitFrontMatter(strings.NewReader(page))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%q\n%q\n%v\n", head, rest, found)
+	// Output:
+	// "---\ntitle: Hello\n"
+	// "---\n# The page\n"
+	// true
+}
