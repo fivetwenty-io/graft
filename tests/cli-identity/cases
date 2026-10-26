@@ -1,0 +1,28 @@
+# The CLI identity corpus, one invocation per line, read by
+# scripts/record-cli-identity.sh and cmd/graft/cli_identity_test.go.
+#
+#   NAME  STDIN  ARGS...
+#
+# STDIN is a file relative to this directory, or - for an empty stdin.
+# Each invocation runs in fixtures/ with TERM=dumb, NO_COLOR=1, HOME set
+# to fixtures/, and GRAFT_CACHE_L2_PATH=cache. Its stdout, stderr, and
+# exit code are kept as golden/NAME.out, golden/NAME.err, and
+# golden/NAME.rc.
+root-help                -  --help
+help                     -  help
+help-merge               -  help merge
+merge-help               -  merge --help
+fan-help                 -  fan --help
+json-help                -  json --help
+diff-help                -  diff --help
+vaultinfo-help           -  vaultinfo --help
+debug-help               -  debug --help
+cache-help               -  cache --help
+cache-clear-help         -  cache clear --help
+cache-stats-help         -  cache stats --help
+completion-help          -  completion --help
+bogus                    -  bogus
+merge                    -  merge base.yml overlay.yml
+fan                      -  fan base.yml t1.yml t2.yml
+cache-stats              -  cache stats
+debug-session            debug-session.txt  debug base.yml overlay.yml

@@ -1598,7 +1598,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 		},
 	)
 
-	rootCmd.AddCommand(mergeCmd, fanCmd, jsonCmd, diffCmd, vaultinfoCmd, debugCmd, cacheCmd)
+	rootCmd.AddCommand(mergeCmd, fanCmd, jsonCmd, diffCmd, vaultinfoCmd, debugCmd, cacheCmd, newJQCmd())
 
 	return rootCmd, &aborted
 }

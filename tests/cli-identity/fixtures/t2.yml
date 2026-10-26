@@ -1,0 +1,2 @@
+replicas: 2
+label: (( concat meta.name "-x" ))

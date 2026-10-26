@@ -20,6 +20,8 @@
 
 # Output of the go coverage tool
 *.out
+# The CLI identity goldens record each command's stdout as NAME.out
+!tests/cli-identity/golden/*.out
 coverage.html
 
 # Dependency directories

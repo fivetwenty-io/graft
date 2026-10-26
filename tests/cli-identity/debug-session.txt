@@ -1,0 +1,10 @@
+help
+load
+step
+inspect meta
+history meta.size
+continue
+output
+diff
+bogus
+quit

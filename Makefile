@@ -73,7 +73,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 .PHONY: deps deps-update deps-tidy check-prereq ci install-tools
 .PHONY: hooks hooks-install hooks-uninstall hooks-check pre-commit pre-push
 .PHONY: validate-imports validate-imports-example
-.PHONY: oracle-vectors diff-goldens diff-oracle-check
+.PHONY: oracle-vectors diff-goldens diff-oracle-check byte-identity
 
 ##@ General
 
@@ -482,3 +482,14 @@ diff-goldens: ## Regenerate the spruce diff parity goldens under tests/diff-pari
 diff-oracle-check: ## Fail when any oracle vector or diff parity golden is stale
 	@printf "$(GREEN)Checking oracle vectors and diff parity goldens...$(RESET)\n"
 	@cd $(ORACLE_DIR) && TZ=Etc/GMT+4 go run ./cmd/vectors -root ../../.. -check && TZ=Etc/GMT+4 go run ./cmd/gen -check ../cases
+
+# byte-identity builds origin/main in a throwaway worktree and the working tree into a temporary file, then runs scripts/byte-identity.sh over both, so every merge and json invocation in its corpus must print the same bytes and exit the same way as the last release.
+
+byte-identity: ## Fail unless the working tree prints exactly what origin/main prints
+	@printf "$(GREEN)Checking byte identity against origin/main...$(RESET)\n"
+	@set -e; tmp=$$(mktemp -d); \
+	trap 'git worktree remove --force "$$tmp/base-tree" >/dev/null 2>&1 || true; rm -rf "$$tmp"' EXIT; \
+	git worktree add --detach "$$tmp/base-tree" origin/main >/dev/null 2>&1; \
+	(cd "$$tmp/base-tree" && go build -o "$$tmp/graft-base" ./cmd/graft); \
+	go build -o "$$tmp/graft-head" ./cmd/graft; \
+	./scripts/byte-identity.sh "$$tmp/graft-base" "$$tmp/graft-head"

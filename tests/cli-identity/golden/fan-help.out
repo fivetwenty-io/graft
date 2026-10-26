@@ -1,0 +1,25 @@
+Fan out source document across target documents
+
+Usage:
+  graft fan [files...] [flags]
+
+Flags:
+      --cherry-pick stringArray   The opposite of prune, specify keys to cherry-pick from final output (may be specified more than once)
+      --dataflow-order string     Order of operations in dataflow output: alphabetical (default) or insertion
+      --fallback-append           Default merge normally tries to key merge, then inline. This flag says do an append instead of an inline.
+      --go-patch                  Enable the use of go-patch when parsing files to be merged
+  -h, --help                      help for fan
+  -m, --multi-doc                 Treat multi-doc yaml as multiple files.
+  -o, --output-dir string         Write each result to <output-dir>/<target-basename> instead of stdout
+      --prune stringArray         Specify keys to prune from final output (may be specified more than once)
+      --skip-eval                 Do not evaluate graft logic after merging docs
+
+Global Flags:
+      --color string[="on"]       Force colorized output on; bare --color, --color=on. --no-color forces it off and wins if both are given. Default: auto (color only when NO_COLOR is unset, TERM != dumb, and stderr is a terminal) (default "auto")
+      --config string             Path to a YAML configuration file (see internal/config); absent means unchanged default behavior
+  -D, --debug                     Enable debugging
+      --max-loop-iterations int   Maximum (( while )) loop iterations before erroring (default: 1000, or GRAFT_MAX_LOOP_ITERATIONS)
+      --no-color                  Disable colorized output, overriding --color; wins if both are given
+      --theme string              Color theme for colorized output (auto, dark, light, mono). Currently applies to the debugger REPL. Precedence: --theme flag, then GRAFT_THEME, then auto. (default "auto")
+  -T, --trace                     Enable trace mode debugging (very verbose)
+  -v, --version                   Display version information

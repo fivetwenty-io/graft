@@ -25,6 +25,9 @@ var BuildDate = ""
 // the linker flags nor the embedded build info can supply.
 const unknownVersionField = "unknown"
 
+// jqCompatVersion is the jq release whose behavior graft jq follows.
+const jqCompatVersion = "1.8.2"
+
 // shortCommitLen is how many hex characters of a full commit hash the
 // version line shows, matching `git rev-parse --short=7`.
 const shortCommitLen = 7

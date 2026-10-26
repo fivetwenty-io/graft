@@ -1,0 +1,3 @@
+meta:
+  size: 5
+size: (( grab meta.size ))

@@ -1,0 +1,36 @@
+Merge multiple YAML/JSON files
+
+Usage:
+  graft merge [files...] [flags]
+
+Flags:
+      --adaptive                  Alias for --defer-on-error.
+      --changes-only              Print only the paths that changed during merge/evaluation instead of the merged document
+      --cherry-pick stringArray   The opposite of prune, specify keys to cherry-pick from final output (may be specified more than once)
+      --dataflow-order string     Order of operations in dataflow output: alphabetical (default) or insertion
+      --defer-on-error            On an operator failure, defer that expression (and any dependent path a later retry round reveals) and re-merge, instead of failing the whole merge. Exits 3 (not 0) if anything was deferred. See --report-deferred.
+      --fallback-append           Default merge normally tries to key merge, then inline. This flag says do an append instead of an inline.
+      --go-patch                  Enable the use of go-patch when parsing files to be merged
+  -h, --help                      help for merge
+      --history                   Print per-path merge history instead of the merged document
+      --interactive               Launch the interactive debug REPL instead of merging directly (equivalent to 'graft debug')
+  -m, --multi-doc                 Treat multi-doc yaml as multiple files.
+      --no-doc-start              Do not prepend the leading "---" document-start marker to merge output (also via GRAFT_NO_DOC_START=1; an explicit flag wins over the environment). Already the default when the binary is invoked under the spruce name, to match spruce's merge output byte for byte; GRAFT_NO_DOC_START=0 or --no-doc-start=false brings the marker back there
+      --prune stringArray         Specify keys to prune from final output (may be specified more than once)
+      --report-deferred string    Where to report deferred keys (from --defer-on-error/--adaptive or --skip-vault/--skip-aws/--skip-nats) as YAML comments in the output: beginning, inline, end, or none (default "beginning")
+      --show-changes              Print a merge/evaluation change summary instead of the merged document
+      --skip-aws                  Defer (( awsparam ... ))/(( awssecret ... )) calls instead of contacting AWS, leaving the expression intact in the output. REDACT=1 is unaffected.
+      --skip-eval                 Do not evaluate graft logic after merging docs
+      --skip-nats                 Defer (( nats ... )) calls instead of contacting NATS, leaving the expression intact in the output. REDACT=1 is unaffected.
+      --skip-vault                Defer (( vault ... ))/(( vault-try ... )) calls instead of contacting Vault, leaving the expression intact in the output (also covers OpenBao: same API, same operator). REDACT=1 is unaffected and keeps returning "REDACTED" regardless of this flag.
+      --trace-path string         Print detailed history for a single path instead of the merged document
+
+Global Flags:
+      --color string[="on"]       Force colorized output on; bare --color, --color=on. --no-color forces it off and wins if both are given. Default: auto (color only when NO_COLOR is unset, TERM != dumb, and stderr is a terminal) (default "auto")
+      --config string             Path to a YAML configuration file (see internal/config); absent means unchanged default behavior
+  -D, --debug                     Enable debugging
+      --max-loop-iterations int   Maximum (( while )) loop iterations before erroring (default: 1000, or GRAFT_MAX_LOOP_ITERATIONS)
+      --no-color                  Disable colorized output, overriding --color; wins if both are given
+      --theme string              Color theme for colorized output (auto, dark, light, mono). Currently applies to the debugger REPL. Precedence: --theme flag, then GRAFT_THEME, then auto. (default "auto")
+  -T, --trace                     Enable trace mode debugging (very verbose)
+  -v, --version                   Display version information

@@ -217,7 +217,7 @@ jobs:
       GOCACHE: /root/.cache/go-build
     timeout-minutes: 30
     needs: [lint, test]
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -239,18 +239,23 @@ jobs:
       - name: Build head binary
         run: go build -o "$RUNNER_TEMP/graft-head" ./cmd/graft
 
-      # The PR base commit is the reference: every invocation shape in
-      # the corpus must produce byte-identical stdout, stderr, and exit
-      # codes across base and head. Intentional output changes must land
-      # with their own justification and a corpus update.
+      # The base commit is the reference, which is the commit before the
+      # push or the PR's base: every invocation shape in the corpus must
+      # produce byte-identical stdout, stderr, and exit codes across base
+      # and head. Intentional output changes must land with their own
+      # justification and a corpus update.
       #
       # A self-hosted runner reuses its workspace, so a worktree left by
       # an earlier run must be removed before this one can be added.
       - name: Build base binary
+        env:
+          BASE_SHA: ${{ github.event_name == 'push' && github.event.before || github.event.pull_request.base.sha }}
         run: |
+          # A push that creates a branch has no commit before it.
+          case "$BASE_SHA" in ''|0000000000000000000000000000000000000000) BASE_SHA=$(git rev-parse origin/main) ;; esac
           git worktree remove --force "$RUNNER_TEMP/base-tree" 2>/dev/null || true
           rm -rf "$RUNNER_TEMP/base-tree"
-          git worktree add "$RUNNER_TEMP/base-tree" "${{ github.event.pull_request.base.sha }}"
+          git worktree add "$RUNNER_TEMP/base-tree" "$BASE_SHA"
           cd "$RUNNER_TEMP/base-tree" && go build -o "$RUNNER_TEMP/graft-base" ./cmd/graft
 
       - name: Compare outputs

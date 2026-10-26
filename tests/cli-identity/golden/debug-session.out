@@ -1,0 +1,49 @@
+Welcome to the Graft Debugger
+Type 'help' for available commands.
+
+graft> Available commands:
+  load            Load all documents
+  step            Execute next merge step
+  continue        Run to completion
+  break           Set breakpoint on path
+  unbreak         Remove breakpoint
+  breaks          List all breakpoints
+  inspect         Show current value at path
+  history         Show change history for path
+  tree            Show tree of the document at path
+  defer           Mark path for deferred evaluation
+  autodefer       Defer every failing operator and retry
+  eval            Force evaluate operator at path
+  config          View/set configuration
+  output          Show current document state
+  prune-report    Show what --prune/--cherry-pick would remove
+  diff            Show changes from original
+  export          Export current state to file
+  help            Show help
+  quit            Exit the debugger
+graft> Loaded 2 documents:
+  [0] base.yml (2 keys)
+  [1] overlay.yml (2 keys)
+graft> [1/2] Merging overlay.yml...
+  meta.size: 3 → 5
+  size: <none> → (( grab meta.size ))
+graft> name: demo
+size: 5
+graft> meta.size:
+  [0] base.yml       → 3
+  [1] overlay.yml    → 5
+  Final              → 5
+graft> [2/2] Evaluating operators...
+Evaluation complete.
+graft> meta:
+  name: demo
+  size: 5
+name: demo
+size: 5
+graft> Changes from base.yml:
+
+  meta.size: 3 → 5
+  name: (( grab meta.name )) → demo
+  size: <none> → 5
+graft> Unknown command: bogus. Type 'help' for available commands.
+graft> 

@@ -1,0 +1,21 @@
+Interactive debugging REPL for step-through merge analysis
+
+Usage:
+  graft debug [files...] [flags]
+
+Flags:
+      --cherry-pick stringArray   The opposite of --prune: specify keys to cherry-pick from final output (same meaning as merge --cherry-pick; may be specified more than once). Same 'output'/'history' caveat as --prune
+      --fallback-append           Use append semantics instead of inline for the default array-merge fallback (same meaning as merge --fallback-append)
+      --go-patch                  Enable the use of go-patch when parsing files to be merged (same meaning as merge --go-patch)
+  -h, --help                      help for debug
+      --prune stringArray         Specify keys to prune from final output (same meaning as merge --prune; may be specified more than once). 'output'/'export' and 'history' show the pre-prune document while stepping - use 'prune-report' once the session is fully evaluated to see what this would remove
+
+Global Flags:
+      --color string[="on"]       Force colorized output on; bare --color, --color=on. --no-color forces it off and wins if both are given. Default: auto (color only when NO_COLOR is unset, TERM != dumb, and stderr is a terminal) (default "auto")
+      --config string             Path to a YAML configuration file (see internal/config); absent means unchanged default behavior
+  -D, --debug                     Enable debugging
+      --max-loop-iterations int   Maximum (( while )) loop iterations before erroring (default: 1000, or GRAFT_MAX_LOOP_ITERATIONS)
+      --no-color                  Disable colorized output, overriding --color; wins if both are given
+      --theme string              Color theme for colorized output (auto, dark, light, mono). Currently applies to the debugger REPL. Precedence: --theme flag, then GRAFT_THEME, then auto. (default "auto")
+  -T, --trace                     Enable trace mode debugging (very verbose)
+  -v, --version                   Display version information

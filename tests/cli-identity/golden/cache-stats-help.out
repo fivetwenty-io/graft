@@ -1,0 +1,17 @@
+Show cache directory, entry counts, and sizes
+
+Usage:
+  graft cache stats [flags]
+
+Flags:
+  -h, --help   help for stats
+
+Global Flags:
+      --color string[="on"]       Force colorized output on; bare --color, --color=on. --no-color forces it off and wins if both are given. Default: auto (color only when NO_COLOR is unset, TERM != dumb, and stderr is a terminal) (default "auto")
+      --config string             Path to a YAML configuration file (see internal/config); absent means unchanged default behavior
+  -D, --debug                     Enable debugging
+      --max-loop-iterations int   Maximum (( while )) loop iterations before erroring (default: 1000, or GRAFT_MAX_LOOP_ITERATIONS)
+      --no-color                  Disable colorized output, overriding --color; wins if both are given
+      --theme string              Color theme for colorized output (auto, dark, light, mono). Currently applies to the debugger REPL. Precedence: --theme flag, then GRAFT_THEME, then auto. (default "auto")
+  -T, --trace                     Enable trace mode debugging (very verbose)
+  -v, --version                   Display version information

@@ -1,0 +1,15 @@
+---
+meta:
+  name: demo
+  size: 3
+name: demo
+replicas: 1
+
+---
+label: demo-x
+meta:
+  name: demo
+  size: 3
+name: demo
+replicas: 2
+
