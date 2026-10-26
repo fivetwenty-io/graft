@@ -23,6 +23,13 @@ type state struct {
 	tails map[*ast.Call]tailSite
 	used  map[callKey]bool
 
+	// mods, base, and insts carry the modules of a compiled program: the
+	// module each import and include loaded, the environment their
+	// definitions build on, and the definitions built so far.
+	mods  map[ast.Node]*Module
+	base  *Env
+	insts map[*Module][]*Closure
+
 	labels uintptr
 	envVal *value.Value
 	// track is set when the run tracks cursors, so values carry their
@@ -52,6 +59,7 @@ type Program struct {
 	Node  ast.Node
 	Env   *Env
 	tails map[*ast.Call]tailSite
+	mods  map[ast.Node]*Module
 }
 
 // NewProgram returns node ready to run in env, whose prelude is reg's. A
@@ -67,12 +75,19 @@ func NewProgram(node ast.Node, env *Env, reg *runtime.Registry) *Program {
 // Run is the package Run for the compiled program. env is usually p.Env
 // with the caller's variables bound on top.
 func (p *Program) Run(ctx *runtime.Ctx, env *Env, roots []*value.Value, emit runtime.Emit) error {
-	return run(newEvaluator(ctx, roots, p.tails, false), p.Node, env, emit)
+	return run(p.evaluator(ctx, roots, env, false), p.Node, env, emit)
+}
+
+// evaluator returns an evaluator for one run of p.
+func (p *Program) evaluator(ctx *runtime.Ctx, roots []*value.Value, env *Env, paths bool) evaluator {
+	ev := newEvaluator(ctx, roots, p.tails, paths)
+	ev.mods, ev.base = p.mods, env
+	return ev
 }
 
 // RunPaths is the package RunPaths for the compiled program.
 func (p *Program) RunPaths(ctx *runtime.Ctx, env *Env, roots []*value.Value, emit runtime.Emit) error {
-	return runPaths(newEvaluator(ctx, roots, p.tails, true), p.Node, env, emit)
+	return runPaths(p.evaluator(ctx, roots, env, true), p.Node, env, emit)
 }
 
 // Run evaluates prog against roots and passes every output to emit. A
@@ -302,9 +317,15 @@ func (ev evaluator) eval(n ast.Node, env *Env, in *value.Value, p value.Path, em
 		}
 		return ev.eval(n.Rest, env, in, p, emit)
 	case *ast.Import:
-		return RuntimeError("cannot load module \"" + n.Path + "\": modules are not supported")
+		if ev.mods[n] == nil {
+			return RuntimeError("cannot load module \"" + n.Path + "\": modules are not supported")
+		}
+		return ev.linked(n, n.Rest, env, in, p, emit)
 	case *ast.Include:
-		return RuntimeError("cannot include \"" + n.Path + "\": modules are not supported")
+		if ev.mods[n] == nil {
+			return RuntimeError("cannot include \"" + n.Path + "\": modules are not supported")
+		}
+		return ev.linked(n, n.Rest, env, in, p, emit)
 	default:
 		return RuntimeError("unsupported expression")
 	}

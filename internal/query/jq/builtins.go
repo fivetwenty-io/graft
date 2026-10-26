@@ -77,6 +77,7 @@ func registerJQ(r *runtime.Registry) {
 		}
 		return emit(value.Str(ctx.Inputs.Filename()), nil)
 	})
+	registerModules(r)
 	constant := func(name string, v *value.Value) {
 		r.RegisterSingle(name, 0, func(_ *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 			return emit(v, nil)
@@ -120,4 +121,42 @@ func builtinNames(r *runtime.Registry) *value.Value {
 		}
 	}
 	return b.Seal()
+}
+
+// registerModules adds modulemeta and the builtins that report where
+// modules are searched for.
+func registerModules(r *runtime.Registry) {
+	lib := func(ctx *runtime.Ctx) runtime.ModuleLibrary {
+		if ctx.Modules != nil {
+			return ctx.Modules
+		}
+		return NewModuleResolver(CompileOptions{})
+	}
+	r.RegisterSingle("modulemeta", 0, func(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		if in.Kind() != value.KindString {
+			return &query.RuntimeError{Msg: "modulemeta input module name must be a string"}
+		}
+		if err := ctx.Caps.RequireFiles(); err != nil {
+			return err
+		}
+		meta, err := lib(ctx).Meta(in.Str())
+		if err != nil {
+			return err
+		}
+		return emit(meta, nil)
+	})
+	r.RegisterSingle("get_search_list", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		paths := lib(ctx).SearchList()
+		vals := make([]*value.Value, len(paths))
+		for i, p := range paths {
+			vals[i] = value.Str(p)
+		}
+		return emit(value.Arr(vals...), nil)
+	})
+	r.RegisterSingle("get_prog_origin", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		return emit(value.Str(lib(ctx).ProgOrigin()), nil)
+	})
+	r.RegisterSingle("get_jq_origin", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		return emit(value.Str(lib(ctx).JQOrigin()), nil)
+	})
 }

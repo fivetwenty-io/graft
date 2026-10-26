@@ -77,9 +77,12 @@ func WithEnv(env []string) Option {
 }
 
 // WithModulePaths sets the directories that import and include search, as
-// -L does. graft jq does not run import or include yet, so the paths are
-// kept for the release that adds them, and a program that uses either
-// fails when it runs.
+// -L does, and that get_search_list reports. A module name is looked up as
+// NAME.jq, or as NAME/NAME.jq, in each directory in turn, and a data
+// import looks for .json files the same way. An entry may start with ~/
+// or $ORIGIN/, and one that is relative is taken from the directory of
+// the module that imports. Without this option the directories are jq's
+// defaults, which are ~/.jq, $ORIGIN/../lib/jq, and $ORIGIN/../lib.
 func WithModulePaths(paths []string) Option {
 	return func(c *config) error {
 		c.modulePaths = append([]string(nil), paths...)
@@ -89,8 +92,8 @@ func WithModulePaths(paths []string) Option {
 
 // WithProgramOrigin sets the directory that the main program's relative
 // module paths resolve against, which jq takes from the program file given
-// with -f and otherwise from the current directory. Like WithModulePaths,
-// it takes effect once graft jq runs import and include.
+// with -f and otherwise from the current directory. It is also what
+// get_prog_origin reports.
 func WithProgramOrigin(dir string) Option {
 	return func(c *config) error {
 		c.origin = dir

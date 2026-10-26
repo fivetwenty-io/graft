@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/pkg/jq"
@@ -159,9 +160,24 @@ func ExampleWithEnv() {
 }
 
 func ExampleWithModulePaths() {
-	_, err := jq.Compile(`.`, jq.WithModulePaths([]string{"lib", "vendor/jq"}))
-	fmt.Println(err)
-	// Output: <nil>
+	dir, err := os.MkdirTemp("", "jqlib")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	if err := os.WriteFile(filepath.Join(dir, "double.jq"), []byte(`def twice: . * 2;`), 0o600); err != nil {
+		fmt.Println(err)
+		return
+	}
+	q, err := jq.Compile(`import "double" as d; d::twice`, jq.WithModulePaths([]string{dir}))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	out, _ := q.RunAll(context.Background(), value.Num(21))
+	fmt.Println(out[0].Dec())
+	// Output: 42
 }
 
 func ExampleWithProgramOrigin() {

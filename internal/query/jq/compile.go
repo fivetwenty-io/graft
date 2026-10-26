@@ -36,12 +36,20 @@ func Parse(src string) (ast.Node, error) {
 // Env holds the prelude with $ARGS bound to empty arguments, and a caller
 // binds its own variables on top of it with Env.Bind.
 func Compile(src string, vars ...string) (*eval.Program, error) {
+	return CompileWith(src, CompileOptions{}, vars...)
+}
+
+// CompileWith is Compile for a program that may import and include
+// modules, which it finds along opts.SearchPaths. It reads every module
+// the program reaches, so a module that is missing, does not parse, or
+// names something undefined is a compile error.
+func CompileWith(src string, opts CompileOptions, vars ...string) (*eval.Program, error) {
 	r := registry()
 	node, err := Parse(src)
 	if err != nil {
 		return nil, err
 	}
-	res := &resolver{done: map[*ast.FuncDef]bool{}, natives: map[string]bool{}}
+	res := &resolver{done: map[*ast.FuncDef]bool{}, natives: map[string]bool{}, lk: newLinker(opts)}
 	for _, name := range r.Names() {
 		res.natives[name] = true
 	}
@@ -50,16 +58,25 @@ func Compile(src string, vars ...string) (*eval.Program, error) {
 	for _, v := range vars {
 		top = &scope{parent: top, kind: scopeVar, name: v}
 	}
+	res.top = top
 	if err := res.resolve(node, top); err != nil {
 		var ue *undefined
 		if errors.As(err, &ue) {
+			if ue.mod != nil {
+				line, col := locate(ue.mod.lib.src, ue.mod.lib.root, ue)
+				return nil, &query.CompileError{Msg: ue.msg() + " in " + ue.mod.lib.path, Line: line, Col: col}
+			}
 			line, col := locate(src, node, ue)
 			return nil, &query.CompileError{Msg: ue.msg(), Line: line, Col: col}
 		}
 		return nil, err
 	}
 	args := value.Obj(value.Pair{Key: "positional", Value: value.Arr()}, value.Pair{Key: "named", Value: value.Obj()})
-	return eval.NewProgram(node, rootEnv.Bind("ARGS", args), r), nil
+	prog := eval.NewProgram(node, rootEnv.Bind("ARGS", args), r)
+	if len(res.lk.mods) > 0 {
+		prog.WithModules(res.lk.mods)
+	}
+	return prog, nil
 }
 
 type scopeKind uint8
@@ -97,6 +114,9 @@ type undefined struct {
 	node  ast.Node
 	name  string
 	arity int
+	// mod is the module whose source holds node, or nil for the main
+	// program.
+	mod *loaded
 }
 
 func (u *undefined) Error() string { return u.msg() }
@@ -115,6 +135,10 @@ func (u *undefined) msg() string {
 type resolver struct {
 	natives map[string]bool
 	done    map[*ast.FuncDef]bool
+	lk      *linker
+	// top is the scope of the variables every program sees, which a
+	// module's own scope starts from.
+	top *scope
 }
 
 //nolint:gocyclo // one case for each node kind that binds or uses a name
@@ -177,9 +201,23 @@ func (r *resolver) resolve(n ast.Node, s *scope) error {
 			}
 		}
 		return nil
-	case *ast.Import, *ast.Include:
-		// The evaluator reports a module directive when it runs.
-		return nil
+	case *ast.Module:
+		if _, err := constMeta(n.Meta); err != nil {
+			return err
+		}
+		return r.resolve(n.Rest, s)
+	case *ast.Import:
+		m, err := r.lk.link(n, n.Path, n.Data, n.Meta)
+		if err != nil {
+			return err
+		}
+		return r.resolve(n.Rest, r.bindLink(s, eval.Link{Alias: n.Alias, Data: n.Data}, m))
+	case *ast.Include:
+		m, err := r.lk.link(n, n.Path, false, n.Meta)
+		if err != nil {
+			return err
+		}
+		return r.resolve(n.Rest, r.bindLink(s, eval.Link{Include: true}, m))
 	}
 	for _, c := range children(n) {
 		if err := r.resolve(c, s); err != nil {
@@ -204,7 +242,7 @@ func (r *resolver) call(n *ast.Call, s *scope) error {
 			return nil
 		}
 		r.done[fn.def] = true
-		body := &scope{parent: fn.at, kind: scopeFunc, name: fn.name, arity: fn.arity, def: fn.def, at: fn.at}
+		body := &scope{parent: fn.at, kind: scopeFunc, name: fn.def.Name, arity: fn.arity, def: fn.def, at: fn.at}
 		for _, p := range fn.def.Params {
 			if name, ok := strings.CutPrefix(p, "$"); ok {
 				body = &scope{parent: body, kind: scopeVar, name: name}
@@ -212,7 +250,12 @@ func (r *resolver) call(n *ast.Call, s *scope) error {
 			}
 			body = &scope{parent: body, kind: scopeFunc, name: p}
 		}
-		return r.resolve(fn.def.Body, body)
+		err := r.resolve(fn.def.Body, body)
+		var ue *undefined
+		if errors.As(err, &ue) && ue.mod == nil {
+			ue.mod = r.lk.defMod[fn.def]
+		}
+		return err
 	}
 	if n.Name == "path" && len(n.Args) == 1 {
 		return nil

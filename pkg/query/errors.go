@@ -7,7 +7,8 @@ import (
 )
 
 // CompileError is a program that failed to parse or compile. Line and Col
-// are 1-based and point at where the problem starts.
+// are 1-based and point at where the problem starts. A problem with no
+// place in the source, such as a module that cannot be found, has Line 0.
 type CompileError struct {
 	Msg       string
 	Line, Col int
@@ -15,6 +16,9 @@ type CompileError struct {
 
 // Error returns the message with the position it points at.
 func (e *CompileError) Error() string {
+	if e.Line == 0 {
+		return e.Msg
+	}
 	return fmt.Sprintf("%s at line %d, column %d", e.Msg, e.Line, e.Col)
 }
 

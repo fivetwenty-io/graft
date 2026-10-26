@@ -130,7 +130,6 @@ func checkJQOptions(opts jqOptions) error {
 		set  bool
 		flag string
 	}{
-		{len(opts.LibraryPaths) > 0, "-L"},
 		{opts.Seq, "--seq"},
 		{opts.StreamErrs, "--stream-errors"},
 		{opts.Stream, "--stream"},
@@ -555,10 +554,29 @@ func jqCompileOptions(opts jqOptions, in *jqInputs, origin string, stderr io.Wri
 	if origin != "" {
 		jqOpts = append(jqOpts, jq.WithProgramOrigin(origin))
 	}
+	if len(opts.LibraryPaths) > 0 {
+		jqOpts = append(jqOpts, jq.WithModulePaths(jqLibraryPaths(opts.LibraryPaths)))
+	}
 	if opts.FloatNumbers {
 		jqOpts = append(jqOpts, jq.WithFloatNumbers())
 	}
 	return jqOpts
+}
+
+// jqLibraryPaths resolves each -L directory to its real path, the way jq
+// does, and keeps one that does not exist as it was given, which is how an
+// entry such as ~/.jq or $ORIGIN/lib gets through to the search.
+func jqLibraryPaths(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		out[i] = p
+		if abs, err := filepath.Abs(p); err == nil {
+			if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+				out[i] = resolved
+			}
+		}
+	}
+	return out
 }
 
 // jqRun is where jq's main loop stands, in the terms jq.ExitCode takes:

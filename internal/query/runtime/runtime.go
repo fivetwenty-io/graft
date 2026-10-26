@@ -69,6 +69,8 @@ type Ctx struct {
 	// matches, and its zero fields mean pkg/regex's defaults.
 	RegexBudget regex.Budget
 	Cursor      *Cursor
+	// Modules answers modulemeta and the origin builtins. It may be nil.
+	Modules ModuleLibrary
 	// Cursors makes the evaluator track where every value it reads came
 	// from and set Cursor before each native it calls, which yq's parent,
 	// key, and path read.

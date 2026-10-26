@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -354,6 +356,30 @@ func TestModulePathsAndOriginAreAccepted(t *testing.T) {
 	q := mustCompile(t, `.`, WithModulePaths([]string{"lib"}), WithProgramOrigin("prog"))
 	wantEqual(t, q.cfg.modulePaths, []string{"lib"})
 	wantEqual(t, q.cfg.origin, "prog")
+}
+
+func TestModulesRunThroughOptions(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "m.jq"), []byte(`def inc: . + 1;`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	q := mustCompile(t, `import "m" as m; m::inc, get_search_list, get_prog_origin`, WithModulePaths([]string{dir}), WithProgramOrigin(dir))
+	out, err := q.RunAll(t.Context(), value.Num(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, len(out), 3)
+	wantJSON(t, out[0], `2`)
+	wantJSON(t, out[1], `["`+dir+`"]`)
+	wantJSON(t, out[2], `"`+dir+`"`)
+	_, err = Compile(`import "missing" as m; 1`, WithModulePaths([]string{dir}))
+	wantErrContains(t, err, "module not found: missing")
+	meta := mustCompile(t, `"m" | modulemeta | .defs`, WithModulePaths([]string{dir}))
+	out, err = meta.RunAll(t.Context(), value.Null())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantJSON(t, out[0], `["inc/0"]`)
 }
 
 func TestBuiltinsListsNameAndArity(t *testing.T) {

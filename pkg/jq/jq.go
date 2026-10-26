@@ -65,7 +65,7 @@ func Compile(src string, opts ...Option) (*Query, error) {
 		}
 		named.Set(a.name, a.val)
 	}
-	prog, err := jqdialect.Compile(src, names...)
+	prog, err := jqdialect.CompileWith(src, cfg.compileOptions(), names...)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +80,11 @@ func Compile(src string, opts ...Option) (*Query, error) {
 		}
 	}
 	return &Query{prog: prog, env: env, cfg: cfg}, nil
+}
+
+// compileOptions are the module settings the dialect compiles with.
+func (c config) compileOptions() jqdialect.CompileOptions {
+	return jqdialect.CompileOptions{SearchPaths: c.modulePaths, ProgramOrigin: c.origin}
 }
 
 // builtinVariable reports whether name is $ARGS or $ENV, which an argument
@@ -171,6 +176,7 @@ func (q *Query) newCtx(ctx context.Context) *runtime.Ctx {
 	if q.cfg.stderrSet {
 		c.Stderr = q.cfg.stderr
 	}
+	c.Modules = jqdialect.NewModuleResolver(q.cfg.compileOptions())
 	c.DepthLimit = q.cfg.depth
 	c.RegexBudget = q.cfg.budget
 	if q.cfg.inputs != nil || q.cfg.filename != nil {
