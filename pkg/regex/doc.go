@@ -203,13 +203,14 @@ with jq's error "never ending recursion", and a lookbehind accepts a call
 only of a group with one length. PCRE refuses calls, and both flavors
 refuse (?R).
 
-The inline flags n, J, U, and ^, the assertion \G, the escape \X, the absent
-operator, and calls under PCRE, the absent forms that start (?~| and an
-absent operator inside another, written there or run there by a call, (?R),
-and conditions other than a group's number or name are recognized and
-refused with an UnsupportedError that names them. A \K inside a lookaround
-is refused as well, with a SyntaxError under PCRE, as PCRE2 refuses it, and
-an UnsupportedError under Oniguruma.
+Both flavors recognize the inline flags n, J, U, and ^, the assertion \G,
+(?R), and conditions other than a group's number or name, and refuse them
+with an UnsupportedError that names them. Under Oniguruma, the absent forms
+that start (?~| and an absent operator inside another, whether it is written
+there or a call runs it there, are refused the same way. The escape \X, the
+absent operator, and calls are refused the same way under PCRE alone. A \K
+inside a lookaround is refused under both flavors, with a SyntaxError under
+PCRE, as PCRE2 refuses it, and an UnsupportedError under Oniguruma.
 
 # Budgets
 
