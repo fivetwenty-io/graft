@@ -21,7 +21,6 @@ op-eval-update pending Y2 eval as an assignment path
 op-object-splat pending Y2 object key without parentheses
 op-variable-lookup pending Y2 indexing a variable by an expression
 op-variable-ref pending Y2 Y1 behavior deferred to Task 47
-op-wildcard-key pending Y2 Y1 behavior deferred to Task 47
 fmt-base64-output out-of-scope format out of scope
 fmt-csv-decoder out-of-scope format out of scope
 fmt-csv-input out-of-scope format out of scope

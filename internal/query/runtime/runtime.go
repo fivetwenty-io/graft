@@ -179,3 +179,11 @@ type Dialect interface {
 type OperatorComparer interface {
 	CompareOp(ctx *Ctx, op string, l, r *value.Value) (bool, error)
 }
+
+// KeyExpander is a Dialect whose map keys can name several entries, as
+// yq's "*" and "?" in a quoted key do. ExpandKey returns the keys of
+// container that key names, in order, and none when key names no entry,
+// in which case the lookup goes on as for any key.
+type KeyExpander interface {
+	ExpandKey(container, key *value.Value) []*value.Value
+}

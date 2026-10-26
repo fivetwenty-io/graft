@@ -124,6 +124,21 @@ func (ev evaluator) lookup(v *value.Value, vp value.Path, key *value.Value, opt 
 	if opt && mode == runtime.IndexRead {
 		mode = runtime.IndexOptional
 	}
+	if ke, ok := ev.ctx.Dialect.(runtime.KeyExpander); ok {
+		if keys := ke.ExpandKey(v, key); len(keys) > 0 {
+			for _, k := range keys {
+				if err := ev.lookupKey(v, vp, k, opt, mode, emit); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
+	return ev.lookupKey(v, vp, key, opt, mode, emit)
+}
+
+// lookupKey indexes v by the single key through the dialect, in mode.
+func (ev evaluator) lookupKey(v *value.Value, vp value.Path, key *value.Value, opt bool, mode runtime.IndexMode, emit runtime.Emit) error {
 	out, err := ev.ctx.Dialect.Index(ev.ctx, v, key, mode)
 	if err != nil {
 		if opt && catchable(err) {
