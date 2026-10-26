@@ -114,9 +114,35 @@ $ echo '{"b": 2}' | graft yq -o yaml .
 $ graft yq -i '.replicas = 9' config.yml
 ```
 
+## Front matter
+
+Some files, such as Markdown pages, begin with a block of YAML between two lines of `---` and carry other text after it. With `-f extract`, `graft yq` runs the expression over that YAML alone and prints the result. With `-f process`, we get the same result followed by the text that came after the YAML, left exactly as it was, so an edit to the front matter keeps the page intact.
+
+```sh
+$ graft yq -f process '.title = "Hello"' page.md
+---
+title: Hello
+---
+# The page body
+```
+
+The front matter ends at the next line that begins with `---`, and that line starts the text that follows. A file that does not begin with a `---` line has no front matter, so it reads as ordinary YAML. Only the first file is split, the content is printed once after the first output, and nothing is printed when the expression matches nothing. Any value other than `process` extracts, as in yq. Combined with `-i`, the first file is rewritten with the front matter and the text together.
+
+## Splitting the output
+
+With `-s EXPR`, each output is written to its own file instead of to standard output. We evaluate EXPR against the output, and the first value it gives, read as text, names the file, with `.yml` added, or `.json` under `-o json`. A name with a directory in it gets that directory made, and a file that already exists is replaced. A value that is a map or a list gives an empty name, so the file is called `.yml`.
+
+```sh
+$ graft yq -s '.name' '.[]' services.yml
+$ ls
+a.yml  b.yml  services.yml
+```
+
+The `--split-exp-file FILE` flag reads the expression from FILE, and it wins when both flags are given. An expression that does not compile, or that fails on an output, ends the run with exit code 1. The `-i` flag cannot be combined with a split. Using `-f process` together with a split is not supported.
+
 ## Flags
 
-The table lists the flags that matter here, and `--color` and `--no-color` work as they do for the other graft commands. A flag marked "Inert" is accepted so that scripts which pass it keep working, but it has no effect yet. A flag marked "Later release" answers with an error and exit code 1.
+The table lists the flags that matter here, and `--color` and `--no-color` work as they do for the other graft commands. A flag marked "Inert" is accepted so that scripts which pass it keep working, but it has no effect yet.
 
 | Flag | Meaning | Status |
 |------|---------|--------|
@@ -139,8 +165,8 @@ The table lists the flags that matter here, and `--color` and `--no-color` work 
 | `--repl` | Open the graft debugger on the files | Available |
 | `-c`, `--yaml-compact-seq-indent` | Compact sequence indentation | Inert |
 | `--string-interpolation` | Interpolation in strings, on by default | Inert |
-| `-f`, `--front-matter` | Front matter handling | Later release |
-| `-s`, `--split-exp`, `--split-exp-file` | Split the output into files | Later release |
+| `-f`, `--front-matter` | Run the expression over the front matter of the first file, see below | Available |
+| `-s`, `--split-exp`, `--split-exp-file` | Write each output to a file named by an expression, see below | Available |
 
 The inert flags do nothing today. `-c` leaves sequence indentation as it is, and `--string-interpolation` neither adds nor removes interpolation. `--header-preprocess=false` is not inert, and it does change how a leading comment is handled.
 

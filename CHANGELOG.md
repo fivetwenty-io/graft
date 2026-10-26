@@ -40,11 +40,11 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 
 - The Go packages `pkg/jq`, `pkg/query`, `pkg/query/value`, `pkg/regex`, `pkg/decimal`, and `pkg/sortkeys` are new and experimental until `graft jq` is complete, so their exported names may change between minor releases.
 
-- `graft yq` runs a yq 4.54.1 expression over YAML or JSON and keeps the comments, styles, anchors, and tags of the input. It supports `eval` and `eval-all`, `-i`, `-n`, `-e`, `-o`, `-p`, `-I`, `-N`, `-P`, `-r`, `-0`, `-S` and `--sort-keys` with named modes, `-m` and `-E` for merging first, and `--repl`. YAML and JSON are the only formats, and every failure exits 1 as yq does.
+- `graft yq` runs a yq 4.54.1 expression over YAML or JSON and keeps the comments, styles, anchors, and tags of the input. It supports `eval` and `eval-all`, `-i`, `-n`, `-e`, `-o`, `-p`, `-I`, `-N`, `-P`, `-r`, `-0`, `-S` and `--sort-keys` with named modes, `-m` and `-E` for merging first, `--repl`, `-f` for front matter, and `-s` and `--split-exp-file` for writing each output to a file named by an expression. YAML and JSON are the only formats, and every failure exits 1 as yq does.
 
 - A link named exactly `yq` runs `graft yq`.
 
-- The flags `-c`, `--yaml-compact-seq-indent`, and `--string-interpolation` are accepted by `graft yq` but have no effect yet. `-f`, `-s`, and `--split-exp-file` answer that they are not available until a later release.
+- The flags `-c`, `--yaml-compact-seq-indent`, and `--string-interpolation` are accepted by `graft yq` but have no effect yet.
 
 ### Changed
 
