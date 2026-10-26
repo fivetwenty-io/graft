@@ -102,3 +102,19 @@ func TestYQRefusesNamesItsLexerLacks(t *testing.T) {
 		}
 	}
 }
+
+// Every name the yq preludes define in place of jq's is one yq's lexer
+// reads, and so is an internal _yq_ name, which those definitions call.
+func TestYQAdmitsItsPreludeNames(t *testing.T) {
+	names := []string{"_yq_internal"}
+	for _, prog := range registry().Prelude()[1:] {
+		for def, ok := prog.(*ast.FuncDef); ok; def, ok = def.Rest.(*ast.FuncDef) {
+			names = append(names, def.Name)
+		}
+	}
+	for _, name := range names {
+		if _, err := Parse(name); err != nil {
+			t.Fatalf("Parse(%q): %v", name, err)
+		}
+	}
+}

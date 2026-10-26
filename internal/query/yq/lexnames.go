@@ -159,6 +159,11 @@ var nameRules = func() []*regex.Pattern {
 	return rules
 }()
 
+// internalPrefix starts the names of the natives that the yq preludes
+// call. yq has no such names, but they are ours to call, so the lexer's
+// rules pass them.
+const internalPrefix = "_yq_"
+
 // unlexable reports the first name, keyword, or format in expr that yq's
 // lexer refuses, worded as yq words it, with the byte offset it names.
 // Inside an interpolated string, yq lexes each interpolation as an
@@ -183,6 +188,9 @@ func unlexable(expr string, toks []lexer.Token) (string, int, bool) {
 			continue
 		}
 		if tok.Pos < lexed {
+			continue
+		}
+		if tok.Kind == lexer.Ident && strings.HasPrefix(tok.Text, internalPrefix) {
 			continue
 		}
 		base, limit := 0, len(expr)
