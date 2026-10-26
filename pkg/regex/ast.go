@@ -299,7 +299,7 @@ func leadingLoop(n *node) *inst {
 			if n.max != unbounded || !ok {
 				return nil
 			}
-			return &inst{op: opCount, body: one.op, r: one.r, set: one.set, lo: n.min, hi: n.max, greedy: n.greedy}
+			return &inst{op: opCount, body: one.op, r: one.r, set: one.set, lo: n.min, hi: n.max, greedy: n.greedy, peek: -1}
 		default:
 			return nil
 		}

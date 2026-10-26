@@ -50,6 +50,11 @@ type inst struct {
 	// the loop prefers more runes to fewer.
 	body   opcode
 	greedy bool
+
+	// peek is the pc of the opRune or opClass that must match first after
+	// a greedy counting loop, past instructions that only record the
+	// position, or -1 when what follows the loop starts some other way.
+	peek int
 }
 
 // lower rewrites the tree so that case-insensitive literals and classes
@@ -334,10 +339,44 @@ func compile(root *node, groups int, cfg *config) ([]inst, int, error) {
 	c.node(root)
 	c.emit(inst{op: opSave, x: 1})
 	c.emit(inst{op: opMatch})
-	if !c.calls {
-		return c.prog, c.extra, nil
+	marks := c.extra
+	if c.calls {
+		marks = c.subroutines(root)
 	}
-	return c.prog, c.subroutines(root), nil
+	peek(c.prog)
+	return c.prog, marks, nil
+}
+
+// peek points each greedy counting loop in prog at the opRune or opClass
+// that must match first after it, so that the loop gives back only the
+// runes where that one can match. It follows jumps and the instructions
+// that only record the position, and gives up on anything else.
+func peek(prog []inst) {
+	for i := range prog {
+		prog[i].peek = -1
+	}
+	for i := range prog {
+		in := &prog[i]
+		if in.op != opCount || !in.greedy {
+			continue
+		}
+		pc := in.x
+		for range len(prog) {
+			op := prog[pc].op
+			if op == opJmp {
+				pc = prog[pc].x
+				continue
+			}
+			if op == opSave || op == opOpen || op == opCapture || op == opPush || op == opPop {
+				pc++
+				continue
+			}
+			if op == opRune || op == opClass {
+				in.peek = pc
+			}
+			break
+		}
+	}
 }
 
 // subroutines emits the body of each called group after the main program,

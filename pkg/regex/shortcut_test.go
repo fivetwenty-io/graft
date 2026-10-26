@@ -155,6 +155,7 @@ var shortcutPatterns = []string{
 	`a*`, `a*b`, `a*?b`, `a+b`, `a+?b`, `a{2}`, `a{2,4}`, `a{2,4}?b`, `a{0,3}`, `a?b`, `a??b`, `[ab]*c`,
 	`[^\n]*x`, `\w*\d`, `\d+\.\d*`, `x*+x`, `a*+a`, `(?>a*)a`, `a{2,}+b`, `(a*)*b`, `(a|b)*c`, `(?:a{2,3})+b`,
 	`é*e`, `\x{1F600}*\x{1F600}`, `ß*s`, `(?i)ß*s`, `(?i)s*ß`, `[à-ÿ]+x`, `\x{FFFD}*x`, `\x{FFFD}`, `\xff*`,
+	`(a*)(x)`, `(?:a*)+x`, `[ab]*b`, `a{1,3}ab`, `(?<n>a*)x\g<n>`, `(?<n>x(?:a|\g<n>)*b)`, `.*(?:x|y)`,
 	`a*[bc]`, `a*?[bc]`, `(?i)a*b`, `[^b]*?b`, `a{2,}b`, `(a+)b`, `[ab]+?x`, `é+x`,
 	`abc`, `a.c`, `ab(?=c)cd`, `(?<=ab)c`, `a\bb`, `foo|foo`, `foo|bar`, `(ab){2}c`, `(ab){2,}c`, `x(ab)?y`,
 	`(?i)abc`, `(?i:a)bc`, `a(?i)bc`, `(a)\1x`, `(?=x)`, `(?!x).*`, `\Ax*`, `x*\z`, `x*\Z`, `^$`, `$`,
@@ -330,6 +331,32 @@ func TestLeadingDotStarSkipsStarts(t *testing.T) {
 		{`(.*)[xy]`, lines, false},
 		{`.*[xy]`, strings.Repeat("a", 1_000_000), false},
 		{`(?s).*[xy]`, lines, false},
+	} {
+		ok, steps, _ := pinSearch(t, c.pattern, c.subject)
+		if ok != c.want {
+			t.Errorf("%s against %d runes: matched %v, want %v", c.pattern, len(c.subject), ok, c.want)
+		}
+		if steps > defaultSteps/2 {
+			t.Errorf("%s against %d runes took %d steps", c.pattern, len(c.subject), steps)
+		}
+	}
+}
+
+// A greedy loop over one rune gives back only the runes where what follows
+// it can start, so a loop that takes a long run and must give nearly all
+// of it back pays about a step a rune, not one for each rune it takes,
+// each it gives back, and each failed try of what follows.
+func TestGreedyLoopGivesBackWhereTheRestCanStart(t *testing.T) {
+	xas := "x" + strings.Repeat("a", 4_500_000)
+	for _, c := range []struct {
+		pattern, subject string
+		want             bool
+	}{
+		{`.*[xy]`, xas, true},
+		{`(.*)[xy]`, xas, true},
+		{`[^\n]*x`, xas, true},
+		{`(?s).{2,}x`, "ax" + xas, true},
+		{`.*[xy]`, strings.Repeat("a", 4_500_000), false},
 	} {
 		ok, steps, _ := pinSearch(t, c.pattern, c.subject)
 		if ok != c.want {

@@ -237,9 +237,11 @@ refuses, and for any of them inside a capture group, but a pattern that
 holds a backreference or a call is retried at every start, because a later
 start captures different text. A repeat of a
 single rune, such as a*, [^,]+, or .{2,}, counts the runes it takes and
-gives them back one at a time from one stack entry, paying a step for each
-rune it takes or gives back, so it never reaches the backtrack stack's
-bound. A repeat of anything longer, such as (a|b)*, keeps one stack entry
+gives them back from one stack entry, paying a step for each rune it takes
+and for each place it gives back to, so it never reaches the backtrack
+stack's bound. When what follows the repeat must start with one rune or
+class, such as the [xy] in .*[xy], the repeat gives back only to the places
+where that rune or class matches. A repeat of anything longer, such as (a|b)*, keeps one stack entry
 per iteration and stays bounded as before.
 
 # Stability

@@ -532,25 +532,34 @@ func (m *machine) take(in *inst, pos, limit int, free bool) (int, int, error) {
 }
 
 // retake resumes the counting loop in from its frame f, for a step. A
-// greedy loop gives back its last rune and a lazy one takes one more. It
-// returns the position to continue from, or -1 when a lazy loop can take
-// no more, and whether f can be resumed again.
+// greedy loop gives back runes up to the next place what follows it can
+// start, and a lazy one takes one more. It returns the position to
+// continue from, or -1 when the loop has nothing left to try, and whether
+// f can be resumed again. The runes a greedy loop gives back past are not
+// charged, since the loop paid a step for each when it took them.
 func (m *machine) retake(in *inst, f *frame) (int, bool, error) {
 	if err := m.spend(1); err != nil {
 		return 0, false, err
 	}
 	if in.greedy {
-		// Read backward, the subject splits into the runes it splits into
-		// read forward, except where the loop started inside a rune, as a
-		// search from such a start does. The bytes there are continuation
-		// bytes, which the loop took one at a time, so it gives them back
-		// one at a time.
-		_, w := utf8.DecodeLastRuneInString(m.subject[:f.pos])
-		if f.pos-w < f.old {
-			w = 1
+		for {
+			// Read backward, the subject splits into the runes it splits
+			// into read forward, except where the loop started inside a
+			// rune, as a search from such a start does. The bytes there
+			// are continuation bytes, which the loop took one at a time,
+			// so it gives them back one at a time.
+			_, w := utf8.DecodeLastRuneInString(m.subject[:f.pos])
+			if f.pos-w < f.old {
+				w = 1
+			}
+			f.pos -= w
+			if m.canFollow(in, f.pos) {
+				return f.pos, f.pos > f.old, nil
+			}
+			if f.pos <= f.old {
+				return -1, false, nil
+			}
 		}
-		f.pos -= w
-		return f.pos, f.pos > f.old, nil
 	}
 	c, w := decodeAt(m.subject, f.pos)
 	if w == 0 || !in.accepts(c) {
@@ -559,6 +568,20 @@ func (m *machine) retake(in *inst, f *frame) (int, bool, error) {
 	f.pos += w
 	f.old++
 	return f.pos, in.hi == unbounded || f.old < in.hi, nil
+}
+
+// canFollow reports whether what follows the greedy counting loop in can
+// start at pos, as far as the rune it must match first tells.
+func (m *machine) canFollow(in *inst, pos int) bool {
+	if in.peek < 0 {
+		return true
+	}
+	next := &m.p.prog[in.peek]
+	c, w := decodeAt(m.subject, pos)
+	if next.op == opRune {
+		return w > 0 && c == next.r
+	}
+	return w > 0 && next.set.contains(c)
 }
 
 // accepts reports whether the counting loop in takes the rune c. It panics
