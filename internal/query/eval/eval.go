@@ -87,7 +87,7 @@ func RunPaths(ctx *runtime.Ctx, prog ast.Node, env *Env, roots []*value.Value, e
 func run(ev evaluator, prog ast.Node, env *Env, emit runtime.Emit) error {
 	var root value.Path
 	if ev.track && len(ev.roots) == 1 {
-		root = value.Path{}
+		root = runtime.Rooted(ev.roots[0], 0, nil)
 	}
 	return unwrapDownstream(ev.eval(prog, env, ev.input(), root, emit))
 }
@@ -156,10 +156,19 @@ func unwrapDownstream(err error) error {
 }
 
 // values returns the evaluator for subexpressions whose outputs are values
-// rather than paths.
+// rather than paths. The right side of an assignment that reads without
+// creating keeps doing so all the way down.
 func (ev evaluator) values() evaluator {
-	return evaluator{state: ev.state, mode: runtime.IndexRead}
+	mode := runtime.IndexRead
+	if ev.mode == runtime.IndexSource {
+		mode = ev.mode
+	}
+	return evaluator{state: ev.state, mode: mode}
 }
+
+// derives reports whether values carry the places they came from, which
+// is when the run tracks cursors outside path mode.
+func (ev evaluator) derives() bool { return ev.track && !ev.paths }
 
 // pathsFor returns the evaluator that collects the paths an assignment
 // changes.
@@ -168,7 +177,7 @@ func (ev evaluator) pathsFor(mode runtime.IndexMode) evaluator {
 }
 
 // each runs f on in, or on every root in turn when in is the candidate
-// set.
+// set. Tracking cursors, a root's path carries the root and its document.
 func (ev evaluator) each(in *value.Value, p value.Path, f func(in *value.Value, p value.Path) error) error {
 	if in != nil {
 		return f(in, p)
@@ -176,8 +185,11 @@ func (ev evaluator) each(in *value.Value, p value.Path, f func(in *value.Value, 
 	for i, r := range ev.roots {
 		ev.ctx.Cursor = &runtime.Cursor{Root: r, Doc: i}
 		var rp value.Path
-		if ev.paths || ev.track {
+		switch {
+		case ev.paths:
 			rp = value.Path{}
+		case ev.track:
+			rp = runtime.Rooted(r, i, nil)
 		}
 		if err := f(r, rp); err != nil {
 			return err
@@ -190,6 +202,11 @@ func (ev evaluator) each(in *value.Value, p value.Path, f func(in *value.Value, 
 //
 //nolint:gocyclo // switch handles all expression types for evaluation
 func (ev evaluator) eval(n ast.Node, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	if in == nil && len(ev.roots) > 1 && perCandidate(n) {
+		return ev.each(in, p, func(in *value.Value, p value.Path) error {
+			return ev.eval(n, env, in, p, emit)
+		})
+	}
 	switch n := n.(type) {
 	case *ast.Identity:
 		return ev.each(in, p, emit)
@@ -210,9 +227,9 @@ func (ev evaluator) eval(n ast.Node, env *Env, in *value.Value, p value.Path, em
 	case *ast.FormatRef:
 		return ev.each(in, p, func(in *value.Value, _ value.Path) error { return ev.format(n.Name, in, emit) })
 	case *ast.ArrayCons:
-		return ev.array(n, env, in, emit)
+		return ev.array(n, env, in, p, emit)
 	case *ast.ObjectCons:
-		return ev.object(n, env, in, emit)
+		return ev.object(n, env, in, p, emit)
 	case *ast.Pipe:
 		return ev.eval(n.L, env, in, p, func(v *value.Value, vp value.Path) error {
 			return ev.eval(n.R, env, v, vp, emit)
@@ -223,7 +240,7 @@ func (ev evaluator) eval(n ast.Node, env *Env, in *value.Value, p value.Path, em
 		}
 		return ev.eval(n.R, env, in, p, emit)
 	case *ast.Binary:
-		return ev.binary(n, env, in, emit)
+		return ev.binary(n, env, in, p, emit)
 	case *ast.Unary:
 		return ev.values().eval(n.X, env, in, nil, func(v *value.Value, _ value.Path) error {
 			return ev.native("_negate", v, nil, emit)
@@ -252,11 +269,14 @@ func (ev evaluator) eval(n ast.Node, env *Env, in *value.Value, p value.Path, em
 	case *ast.Call:
 		return ev.call(n, env, in, p, emit)
 	case *ast.Var:
-		v, err := ev.variable(n.Name, env)
-		if err != nil {
+		v, at, err := ev.variable(n.Name, env)
+		if err != nil || v == nil {
 			return err
 		}
-		return emit(v, nil)
+		if !ev.derives() {
+			at = nil
+		}
+		return emit(v, at)
 	case *ast.Bind:
 		return ev.bind(n, env, in, p, emit)
 	case *ast.Label:
@@ -312,17 +332,21 @@ func (ev evaluator) literal(n *ast.Literal) *value.Value {
 	return v
 }
 
-// variable returns the value bound to $name. $ENV is read lazily and only
-// when the environment capability is on.
-func (ev evaluator) variable(name string, env *Env) (*value.Value, error) {
-	if v, ok := env.Lookup(name); ok {
-		return v, nil
+// variable returns the value bound to $name and the path it was bound
+// at. $ENV is read lazily and only when the environment capability is on.
+// Under Lax a variable that is not bound, $ENV among them, has no value.
+func (ev evaluator) variable(name string, env *Env) (*value.Value, value.Path, error) {
+	if v, at, ok := env.LookupAt(name); ok {
+		return v, at, nil
+	}
+	if ev.ctx.Lax {
+		return nil, nil, nil
 	}
 	if name != "ENV" {
-		return nil, RuntimeError("$" + name + " is not defined")
+		return nil, nil, RuntimeError("$" + name + " is not defined")
 	}
 	if err := ev.ctx.Caps.RequireEnv(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if ev.envVal == nil {
 		vars := ev.ctx.Env()
@@ -337,7 +361,25 @@ func (ev evaluator) variable(name string, env *Env) (*value.Value, error) {
 		}
 		ev.envVal = b.Seal()
 	}
-	return ev.envVal, nil
+	return ev.envVal, nil, nil
+}
+
+// perCandidate reports whether n, given the candidate set, runs once for
+// every candidate rather than once over all of them. These are the forms
+// that build a value of their own: a literal, a string, an if, a
+// negation, $__loc__, and an object with entries. A form that passes its
+// input on, such as a pipe, a comma, or [...], leaves the set to its
+// parts, a variable stands for its one value, and an empty object is
+// built once.
+func perCandidate(n ast.Node) bool {
+	switch n := n.(type) {
+	case *ast.Literal, *ast.Str, *ast.If, *ast.Unary, *ast.Loc:
+		return true
+	case *ast.ObjectCons:
+		return len(n.Entries) > 0
+	default:
+	}
+	return false
 }
 
 // str builds an interpolated string. The last interpolation varies
@@ -393,26 +435,46 @@ func (ev evaluator) format(name string, in *value.Value, emit runtime.Emit) erro
 	return fn(ev.ctx, in, nil, func(v *value.Value, _ value.Path) error { return emit(v, nil) })
 }
 
-// array collects every output of the body into one array.
-func (ev evaluator) array(n *ast.ArrayCons, env *Env, in *value.Value, emit runtime.Emit) error {
+// array collects every output of the body into one array. Given the
+// candidate set, the body runs on each candidate in turn and the array
+// gathers them all. Tracking cursors, the array takes the place of an
+// input that is not a root.
+func (ev evaluator) array(n *ast.ArrayCons, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	var elems []*value.Value
 	if n.Body != nil {
-		err := ev.values().eval(n.Body, env, in, nil, func(v *value.Value, _ value.Path) error {
-			elems = append(elems, v)
-			return nil
+		vev := ev.values()
+		err := ev.each(in, p, func(in *value.Value, p value.Path) error {
+			if !ev.derives() {
+				p = nil
+			}
+			return vev.eval(n.Body, env, in, p, func(v *value.Value, _ value.Path) error {
+				elems = append(elems, v)
+				return nil
+			})
 		})
 		if err != nil {
 			return err
 		}
 	}
-	return emit(value.Arr(elems...), nil)
+	var ap value.Path
+	if ev.derives() && in != nil {
+		if _, _, rel := runtime.Unroot(p); len(rel) > 0 {
+			ap = p
+		}
+	}
+	return emit(value.Arr(elems...), ap)
 }
 
 // object builds one object for every combination of its entries' outputs.
 // The first entry varies slowest, and within an entry the key varies
-// slower than the value.
-func (ev evaluator) object(n *ast.ObjectCons, env *Env, in *value.Value, emit runtime.Emit) error {
+// slower than the value. Tracking cursors, the object is a root of its
+// own in its input's document.
+func (ev evaluator) object(n *ast.ObjectCons, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	vev := ev.values()
+	var vp value.Path
+	if ev.derives() {
+		vp = p
+	}
 	keys := make([]string, len(n.Entries))
 	vals := make([]*value.Value, len(n.Entries))
 	var build func(i int) error
@@ -422,14 +484,19 @@ func (ev evaluator) object(n *ast.ObjectCons, env *Env, in *value.Value, emit ru
 			for j, k := range keys {
 				b.Set(k, vals[j])
 			}
-			return emit(b.Seal(), nil)
+			out := b.Seal()
+			if !ev.derives() {
+				return emit(out, nil)
+			}
+			_, doc, _ := runtime.Unroot(p)
+			return emit(out, runtime.Rooted(out, doc, nil))
 		}
 		e := n.Entries[i]
-		return vev.eval(e.Key, env, in, nil, func(k *value.Value, _ value.Path) error {
+		return vev.eval(e.Key, env, in, vp, func(k *value.Value, _ value.Path) error {
 			if k.Kind() != value.KindString {
 				return RuntimeError("Cannot use " + typeName(k) + " (" + dump(k) + ") as object key")
 			}
-			return vev.eval(e.Val, env, in, nil, func(v *value.Value, _ value.Path) error {
+			return vev.eval(e.Val, env, in, vp, func(v *value.Value, _ value.Path) error {
 				keys[i], vals[i] = k.Str(), v
 				return build(i + 1)
 			})
@@ -454,7 +521,7 @@ var arithmetic = map[string]string{
 // binary runs an operator. Arithmetic and comparison run the right operand
 // outermost, as jq does. The boolean operators run the left one outermost
 // and skip the right one when the left decides.
-func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, emit runtime.Emit) error {
+func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	vev := ev.values()
 	switch n.Op {
 	case "and", "or":
@@ -468,10 +535,15 @@ func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, emit runtim
 			})
 		})
 	}
+	// Tracking cursors, the result takes the left operand's place.
+	var lp value.Path
+	if ev.derives() {
+		lp = p
+	}
 	if name, ok := arithmetic[n.Op]; ok {
 		return vev.eval(n.R, env, in, nil, func(r *value.Value, _ value.Path) error {
-			return vev.eval(n.L, env, in, nil, func(l *value.Value, _ value.Path) error {
-				return ev.native(name, value.Null(), []runtime.Thunk{constThunk{l}, constThunk{r}}, emit)
+			return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error {
+				return ev.native(name, value.Null(), []runtime.Thunk{constThunk{l}, constThunk{r}}, ev.derive(l, p, emit))
 			})
 		})
 	}
@@ -479,7 +551,7 @@ func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, emit runtim
 		if err := ev.ctx.CheckNumbers(r); err != nil {
 			return err
 		}
-		return vev.eval(n.L, env, in, nil, func(l *value.Value, _ value.Path) error {
+		return vev.eval(n.L, env, in, lp, func(l *value.Value, p value.Path) error {
 			if err := ev.ctx.CheckNumbers(l); err != nil {
 				return err
 			}
@@ -487,9 +559,56 @@ func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, emit runtim
 			if err != nil {
 				return err
 			}
-			return emit(value.Bool(b), nil)
+			out := value.Bool(b)
+			if ev.derives() {
+				return emit(out, derived(l, p, out))
+			}
+			return emit(out, nil)
 		})
 	})
+}
+
+// derive passes on each output of a native that came from in, whose path
+// is p. An output with no path of its own takes the place derived gives
+// it. Outside cursor tracking emit comes back as it is.
+func (ev evaluator) derive(in *value.Value, p value.Path, emit runtime.Emit) runtime.Emit {
+	if !ev.derives() || p == nil {
+		return emit
+	}
+	return func(v *value.Value, vp value.Path) error {
+		if vp == nil {
+			vp = derived(in, p, v)
+		}
+		return emit(v, vp)
+	}
+}
+
+// derived is the place of out, a value computed from in at path p. Like
+// yq's replacement nodes, it takes the place of an input below a root.
+// One computed from a root is a root of its own in the same document when
+// it is the same kind of node, and has no place otherwise.
+func derived(in *value.Value, p value.Path, out *value.Value) value.Path {
+	if p == nil {
+		return nil
+	}
+	_, doc, rel := runtime.Unroot(p)
+	if len(rel) > 0 {
+		return p
+	}
+	if shape(in) != shape(out) {
+		return nil
+	}
+	return runtime.Rooted(out, doc, nil)
+}
+
+// shape sorts a value into a map, a sequence, or a scalar.
+func shape(v *value.Value) value.Kind {
+	switch k := v.Kind(); k {
+	case value.KindObject, value.KindArray:
+		return k
+	default:
+	}
+	return value.KindNull
 }
 
 func (ev evaluator) compare(op string, l, r *value.Value) (bool, error) {

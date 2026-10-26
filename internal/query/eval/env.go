@@ -27,6 +27,7 @@ type Env struct {
 	name   string
 	arity  int
 	val    *value.Value
+	at     value.Path
 	fn     *Closure
 	label  uintptr
 	fns    map[funcKey]*Closure
@@ -69,14 +70,27 @@ func (env *Env) Bind(name string, v *value.Value) *Env {
 	return &Env{parent: env, kind: bindVar, name: name, val: v}
 }
 
+// BindAt returns env with $name bound to v, which sits at path at, so a
+// reference to $name keeps v's place while the run tracks cursors.
+func (env *Env) BindAt(name string, v *value.Value, at value.Path) *Env {
+	return &Env{parent: env, kind: bindVar, name: name, val: v, at: at}
+}
+
 // Lookup returns the value bound to $name.
 func (env *Env) Lookup(name string) (*value.Value, bool) {
+	v, _, ok := env.LookupAt(name)
+	return v, ok
+}
+
+// LookupAt returns the value bound to $name and the path it was bound at,
+// which is nil for a binding made with Bind.
+func (env *Env) LookupAt(name string) (*value.Value, value.Path, bool) {
 	for e := env; e != nil; e = e.parent {
 		if e.kind == bindVar && e.name == name {
-			return e.val, true
+			return e.val, e.at, true
 		}
 	}
-	return nil, false
+	return nil, nil, false
 }
 
 // Def returns env with fn defined as fn.Name/len(fn.Params). When fn.Env is

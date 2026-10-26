@@ -187,8 +187,15 @@ func (ev evaluator) statePath(state, v0 *value.Value, p0 value.Path) value.Path 
 }
 
 // bind runs "Src as Pats | Body". The body reads the bind's own input, not
-// the value it destructures.
+// the value it destructures. Tracking cursors, a variable bound whole
+// keeps the place of the value it stands for.
 func (ev evaluator) bind(n *ast.Bind, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
+	if ev.derives() && len(n.Pats) == 1 && n.Pats[0].Kind == ast.PatVar {
+		name := n.Pats[0].Name
+		return ev.values().eval(n.Src, env, in, p, func(x *value.Value, xp value.Path) error {
+			return ev.eval(n.Body, env.BindAt(name, x, xp), in, p, emit)
+		})
+	}
 	return ev.values().eval(n.Src, env, in, nil, func(x *value.Value, _ value.Path) error {
 		return ev.bindPats(n.Pats, x, env, func(env *Env) error {
 			return ev.eval(n.Body, env, in, p, emit)

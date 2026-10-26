@@ -48,8 +48,9 @@ func registerYQ(r *runtime.Registry) {
 	r.Register("key", 0, key)
 	r.RegisterSingle("path", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 		var p value.Path
-		if ctx.Cursor != nil {
-			p, _ = resolve(ctx.Cursor)
+		if c := ctx.Cursor; c != nil {
+			rel, _ := nodePath(c)
+			p, _ = resolve(c.Root, rel)
 		}
 		return emit(value.Arr(p...), nil)
 	})
@@ -67,10 +68,14 @@ func registerYQ(r *runtime.Registry) {
 // in the input with that null added.
 func parent(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 	c := ctx.Cursor
-	if c == nil || len(c.Path) == 0 {
+	if c == nil {
 		return nil
 	}
-	p, found := resolve(c)
+	rel, _ := nodePath(c)
+	if len(rel) == 0 {
+		return nil
+	}
+	p, found := resolve(c.Root, rel)
 	root := c.Root
 	if !found && in.Kind() == value.KindNull {
 		var err error
@@ -83,32 +88,45 @@ func parent(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.E
 	if err != nil {
 		return err
 	}
-	return emit(v, runtime.Rooted(root, pp))
+	return emit(v, runtime.Rooted(root, c.Doc, pp))
 }
 
 // key emits the key or index of the cursor's node in its parent, and
-// nothing at a root. The key sits at its node's path, as in yq.
+// nothing at a root or for a key, which has no key of its own. The key
+// is a node at its value's path, as in yq.
 func key(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 	c := ctx.Cursor
 	if c == nil || len(c.Path) == 0 {
 		return nil
 	}
-	p, _ := resolve(c)
+	if _, isKey := nodePath(c); isKey {
+		return nil
+	}
+	p, _ := resolve(c.Root, c.Path)
 	k := p[len(p)-1]
 	if orig := c.Path[len(c.Path)-1]; orig.Meta() != nil {
 		k = orig
 	}
-	return emit(k, runtime.Rooted(c.Root, p))
+	return emit(k, runtime.Rooted(c.Root, c.Doc, append(p, runtime.KeyMark)))
 }
 
-// resolve walks the cursor's path from its root. It returns the path with
-// each key stripped of its presentation details and each negative index
-// counted from the end, and reports whether every step names a key or an
-// element the value it meets holds.
-func resolve(c *runtime.Cursor) (value.Path, bool) {
-	p := make(value.Path, len(c.Path))
-	v, found := c.Root, true
-	for i, k := range c.Path {
+// nodePath is the path of the cursor's node, which for a map key is its
+// value's path, and reports whether the node is a key.
+func nodePath(c *runtime.Cursor) (value.Path, bool) {
+	if n := len(c.Path); n > 0 && c.Path[n-1] == runtime.KeyMark {
+		return c.Path[:n-1], true
+	}
+	return c.Path, false
+}
+
+// resolve walks path from root. It returns the path with each key
+// stripped of its presentation details and each negative index counted
+// from the end, and reports whether every step names a key or an element
+// the value it meets holds.
+func resolve(root *value.Value, path value.Path) (value.Path, bool) {
+	p := make(value.Path, len(path))
+	v, found := root, true
+	for i, k := range path {
 		if k.Meta() != nil {
 			k = k.WithMeta(nil)
 		}

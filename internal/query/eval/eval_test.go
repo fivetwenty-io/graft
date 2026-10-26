@@ -115,7 +115,14 @@ func TestCandidateSetRoots(t *testing.T) {
 	// .[] over each object yields its values, and .a? on a number is empty.
 	wantOutputsRoots(t, `[.[] | .a?]`, []string{`{"a":1}`, `{"a":2}`}, `[]`)
 	wantOutputsRoots(t, `[.a + 1]`, []string{`{"a":1}`, `{"a":2}`}, `[2,3]`)
-	wantOutputsRoots(t, `1`, []string{`{"a":1}`, `{"a":2}`}, `1`)
+	// A literal, an object, and a definition run once for each candidate,
+	// and a variable stands for its one value.
+	wantOutputsRoots(t, `1`, []string{`{"a":1}`, `{"a":2}`}, `1`, `1`)
+	wantOutputsRoots(t, `{"b": .a}`, []string{`{"a":1}`, `{"a":2}`}, `{"b":1}`, `{"b":2}`)
+	wantOutputsRoots(t, `{}`, []string{`{"a":1}`, `{"a":2}`}, `{}`)
+	wantOutputsRoots(t, `def f: .a; f`, []string{`{"a":1}`, `{"a":2}`}, `1`, `2`)
+	wantOutputsRoots(t, `def f: [.a]; f`, []string{`{"a":1}`, `{"a":2}`}, `[1]`, `[2]`)
+	wantOutputsRoots(t, `.a as $x | [$x]`, []string{`{"a":1}`, `{"a":2}`}, `[1,1]`, `[2,2]`)
 }
 
 func TestLocAndEnv(t *testing.T) {

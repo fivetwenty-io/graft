@@ -117,13 +117,13 @@ func extend(p value.Path, c *value.Value) value.Path {
 // deletes in one pass at the end every path whose update had no output.
 // All edits to one result go through one builtin.Editor, so a container
 // that many paths share is copied once.
-func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
+func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
 	return func(yield func(*value.Value, error) bool) {
 		if mode.Op() == runtime.AssignUpdate.Op() {
 			yield(update(ctx, root, paths, rhs))
 			return
 		}
-		for v, err := range rhs(root) {
+		for v, err := range rhs(root, nil) {
 			if err != nil {
 				yield(nil, err)
 				return
@@ -156,7 +156,7 @@ func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Va
 	return ed.Value(), nil
 }
 
-func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error]) (*value.Value, error) {
+func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error]) (*value.Value, error) {
 	ed := builtin.NewEditor(ctx, root)
 	var dels []value.Path
 	// One yield serves every path, so taking the first output costs no
@@ -173,7 +173,7 @@ func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cu
 			return nil, err
 		}
 		first, ferr = nil, nil
-		rhs(cur)(take)
+		rhs(cur, p)(take)
 		if ferr != nil {
 			return nil, ferr
 		}

@@ -24,6 +24,13 @@ func (ev evaluator) call(n *ast.Call, env *Env, in *value.Value, p value.Path, e
 		if fn.param {
 			return ev.invokeParam(fn, in, p, emit)
 		}
+		if in == nil && len(ev.roots) > 1 {
+			// A definition runs once for each candidate, as yq's
+			// operators do.
+			return ev.each(in, p, func(in *value.Value, p value.Path) error {
+				return ev.invoke(n, fn, env, in, p, emit)
+			})
+		}
 		return ev.invoke(n, fn, env, in, p, emit)
 	}
 	switch {
@@ -41,10 +48,10 @@ func (ev evaluator) call(n *ast.Call, env *Env, in *value.Value, p value.Path, e
 		for i, a := range n.Args {
 			args[i] = argThunk{ev: ev, node: a, env: env, in: in, p: p}
 		}
-		if ev.track && !ev.paths {
+		if ev.derives() {
 			ev.setCursor(in, p)
 		}
-		return native(ev.ctx, in, args, emit)
+		return native(ev.ctx, in, args, ev.derive(in, p, emit))
 	})
 }
 

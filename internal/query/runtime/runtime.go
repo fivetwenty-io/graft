@@ -73,6 +73,10 @@ type Ctx struct {
 	// from and set Cursor before each native it calls, which yq's parent,
 	// key, and path read.
 	Cursors bool
+	// Lax is yq's leniency. An undefined variable has no value rather than
+	// raising an error, and an assignment skips an output of its left
+	// side that is not a path.
+	Lax     bool
 	Numbers NumberMode
 	// Compare and Equal are the value comparisons for Numbers, which every
 	// comparison in the evaluator and the builtins calls.
@@ -96,10 +100,14 @@ type IndexMode uint8
 
 // The index modes. IndexUpdate is a step on the left of an assignment,
 // where yq creates what is missing, and IndexOptional is a step under ?.
+// IndexSource is a step on the right of "=" or an arithmetic assignment,
+// which yq reads without creating anything, so a key or an element the
+// value lacks gives no output there.
 const (
 	IndexRead IndexMode = iota
 	IndexUpdate
 	IndexOptional
+	IndexSource
 )
 
 // AssignMode tells Dialect.Assign which assignment it runs. AssignSet is
@@ -127,7 +135,8 @@ type Dialect interface {
 	Recurse(v *value.Value, includeKeys bool, emit func(*value.Value, value.Path) error) error
 	// Assign runs an assignment over the paths the left side produced
 	// against root, and yields each resulting root. rhs runs the right
-	// side against a value. ctx is the run's context.
-	Assign(ctx *Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error], mode AssignMode) iter.Seq2[*value.Value, error]
+	// side against cur, the value at path at under root, so the cursor
+	// operators on the right see where cur is. ctx is the run's context.
+	Assign(ctx *Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], mode AssignMode) iter.Seq2[*value.Value, error]
 	FormatError(err error) string
 }

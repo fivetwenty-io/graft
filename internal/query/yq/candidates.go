@@ -25,8 +25,10 @@ func EvalAll(d *Dialect, expr string, docs []load.Document, emit func(load.Docum
 // run evaluates expr over docs as the candidate set. The run tracks
 // cursors, so parent, key, and path can answer for every value without
 // back pointers, and the cursor's document is the one an output belongs
-// to. A value the expression built has no path, and it belongs to the
-// first document, as yq gives it document index 0.
+// to, which the output's path carries. A value the expression built has
+// no path, and it belongs to the first document, as yq gives it document
+// index 0. The run is lax about undefined variables and about left sides
+// that are not paths, as yq is.
 func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document, *value.Value) error) error {
 	node, err := Parse(expr)
 	if err != nil {
@@ -41,6 +43,7 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 	}
 	ctx := runtime.NewCtx(d, numbers)
 	ctx.Cursors = true
+	ctx.Lax = true
 	roots := make([]*value.Value, len(docs))
 	for i, doc := range docs {
 		roots[i] = doc.Value
@@ -49,8 +52,8 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 	prog := eval.NewProgram(node, rootEnv, r)
 	return prog.Run(ctx, prog.Env, roots, func(v *value.Value, p value.Path) error {
 		doc := docs[0]
-		if c := ctx.Cursor; c != nil && c.Doc < len(docs) && p != nil {
-			doc = docs[c.Doc]
+		if _, i, _ := runtime.Unroot(p); i < len(docs) {
+			doc = docs[i]
 		}
 		return emit(doc, v)
 	})

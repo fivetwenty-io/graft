@@ -20,24 +20,30 @@ type Cursor struct {
 // a program builds can be mistaken for it.
 var rootMark = value.Str("")
 
-// Rooted returns rel as a path that carries root ahead of it, for a value
-// whose place is in something other than the run's own root, such as an
-// array the program built or a document an update produced. The
-// evaluator passes such a path along like any other while it tracks
-// cursors, and only Unroot reads it.
-func Rooted(root *value.Value, rel value.Path) value.Path {
-	p := make(value.Path, 0, len(rel)+2)
-	p = append(p, rootMark, root)
+// KeyMark ends the path of a map key that yq's "..." emits as a node of
+// its own. The key sits at its value's path with KeyMark after it, so the
+// cursor operators can tell the key from the value. It is compared by
+// identity.
+var KeyMark = value.Str("")
+
+// Rooted returns rel as a path that carries root and its document index
+// doc ahead of it. The evaluator passes such a path along like any other
+// while it tracks cursors, so a value keeps the place and the document it
+// came from, and only Unroot reads it.
+func Rooted(root *value.Value, doc int, rel value.Path) value.Path {
+	p := make(value.Path, 0, len(rel)+3)
+	p = append(p, rootMark, root, value.Num(float64(doc)))
 	return append(p, rel...)
 }
 
-// Unroot splits a path that Rooted built into its root and the path under
-// it. For any other path it returns a nil root and the path unchanged.
-func Unroot(p value.Path) (*value.Value, value.Path) {
-	if len(p) >= 2 && p[0] == rootMark {
-		return p[1], p[2:]
+// Unroot splits a path that Rooted built into its root, its document
+// index, and the path under the root. For any other path it returns a nil
+// root, document 0, and the path unchanged.
+func Unroot(p value.Path) (*value.Value, int, value.Path) {
+	if len(p) >= 3 && p[0] == rootMark {
+		return p[1], int(p[2].Float()), p[3:]
 	}
-	return nil, p
+	return nil, 0, p
 }
 
 // Child returns the cursor one step further down, at component c. The

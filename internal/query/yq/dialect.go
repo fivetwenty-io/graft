@@ -83,7 +83,10 @@ func (*Dialect) Truthy(v *value.Value) bool {
 
 // Index is yq's .[key]. A key that is missing from a map, or an index
 // past the end of a sequence, gives null, which an assignment then
-// creates unless the dialect is read-only. A scalar has no children, so
+// creates unless the dialect is read-only. The right side of "=" reads
+// a map without creating keys, so a key missing from a map or from null
+// gives no output there, while an index past the end still reads as
+// null. A scalar has no children, so
 // indexing one gives no output. A sequence takes an integer, or a string
 // that spells one, and counts a negative index from the end.
 func (d *Dialect) Index(ctx *runtime.Ctx, c, key *value.Value, mode runtime.IndexMode) (*value.Value, error) {
@@ -105,7 +108,13 @@ func (d *Dialect) Index(ctx *runtime.Ctx, c, key *value.Value, mode runtime.Inde
 	if err != nil {
 		return nil, err
 	}
-	if d.opts.ReadOnly && mode == runtime.IndexUpdate && out.Kind() == value.KindNull && !present(c, key) {
+	if out.Kind() != value.KindNull || present(c, key) {
+		return out, nil
+	}
+	if mode == runtime.IndexSource && (c.Kind() == value.KindObject || c.Kind() == value.KindNull && key.Kind() != value.KindNumber) {
+		return nil, nil
+	}
+	if d.opts.ReadOnly && mode == runtime.IndexUpdate {
 		return nil, nil
 	}
 	return out, nil
@@ -217,7 +226,8 @@ func (d *Dialect) Iterate(v *value.Value, emit func(key, elem *value.Value) erro
 // Recurse is ".." with includeKeys unset, which visits every node before
 // its children without following aliases, since an alias holds only the
 // anchor's name. With includeKeys set it is "...", which also emits each
-// map key, at its value's path, just before the value.
+// map key, at its value's path marked with runtime.KeyMark, just before
+// the value.
 func (*Dialect) Recurse(v *value.Value, includeKeys bool, emit func(*value.Value, value.Path) error) error {
 	var walk func(v *value.Value, p value.Path) error
 	walk = func(v *value.Value, p value.Path) error {
@@ -235,7 +245,7 @@ func (*Dialect) Recurse(v *value.Value, includeKeys bool, emit func(*value.Value
 			for _, e := range v.Entries() {
 				ep := extend(p, e.Key)
 				if includeKeys {
-					if err := emit(e.Key, ep); err != nil {
+					if err := emit(e.Key, extend(ep, runtime.KeyMark)); err != nil {
 						return err
 					}
 				}
@@ -264,14 +274,14 @@ func extend(p value.Path, c ...*value.Value) value.Path {
 // child changes before the parent that holds it, and takes the first
 // output, leaving a path whose update has none as it was. The value that
 // replaces another takes its place's presentation, as place describes.
-func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
+func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
 	return func(yield func(*value.Value, error) bool) {
 		if mode.Op() == runtime.AssignUpdate.Op() {
 			yield(update(ctx, root, paths, rhs))
 			return
 		}
 		var last *value.Value
-		for v, err := range rhs(root) {
+		for v, err := range rhs(root, nil) {
 			if err != nil {
 				yield(nil, err)
 				return
@@ -304,7 +314,7 @@ func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Va
 	return ed.Value(), nil
 }
 
-func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error]) (*value.Value, error) {
+func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error]) (*value.Value, error) {
 	ed := builtin.NewEditor(ctx, root)
 	var first *value.Value
 	var ferr error
@@ -319,7 +329,7 @@ func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cu
 			return nil, err
 		}
 		first, ferr = nil, nil
-		rhs(cur)(take)
+		rhs(cur, p)(take)
 		if ferr != nil {
 			return nil, ferr
 		}

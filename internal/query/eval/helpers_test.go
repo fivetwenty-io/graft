@@ -93,14 +93,14 @@ func (d *testDialect) Recurse(v *value.Value, _ bool, emit func(*value.Value, va
 	return walk(v, value.Path{})
 }
 
-func (d *testDialect) Assign(_ *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
+func (d *testDialect) Assign(_ *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
 	return func(yield func(*value.Value, error) bool) {
 		if mode.Op() == runtime.AssignUpdate.Op() {
 			out, err := updatePaths(root, paths, rhs)
 			yield(out, err)
 			return
 		}
-		for v, err := range rhs(root) {
+		for v, err := range rhs(root, nil) {
 			if err != nil {
 				yield(nil, err)
 				return
@@ -132,7 +132,7 @@ func (d *testDialect) Assign(_ *runtime.Ctx, root *value.Value, paths []value.Pa
 
 // updatePaths is jq's |=. The first output replaces each path's value, and
 // a path whose update is empty is deleted once every path has been seen.
-func updatePaths(root *value.Value, paths []value.Path, rhs func(cur *value.Value) iter.Seq2[*value.Value, error]) (*value.Value, error) {
+func updatePaths(root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error]) (*value.Value, error) {
 	out := root
 	var dels []value.Path
 	for _, p := range paths {
@@ -141,7 +141,7 @@ func updatePaths(root *value.Value, paths []value.Path, rhs func(cur *value.Valu
 			return nil, err
 		}
 		var first *value.Value
-		for v, err := range rhs(cur) {
+		for v, err := range rhs(cur, p) {
 			if err != nil {
 				return nil, err
 			}

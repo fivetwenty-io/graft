@@ -10,20 +10,41 @@ import (
 
 // assign runs an assignment operator. It collects the paths the left side
 // names and hands them to the dialect, which decides how the right side
-// changes the value at each one.
+// changes the value at each one. The right side of "|=" reads as any
+// expression does, and that of "=" and the arithmetic forms reads in
+// IndexSource mode. Tracking cursors, the right side runs at the place of
+// the value it is given.
 func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Path, emit runtime.Emit) error {
 	mode, err := ev.assignMode(n.Op)
 	if err != nil {
 		return err
 	}
 	lhs := ev.pathsFor(runtime.IndexUpdate)
-	rhs := func(cur *value.Value) iter.Seq2[*value.Value, error] {
-		return ev.seq(n.R, env, cur)
+	src := evaluator{state: ev.state, mode: runtime.IndexSource}
+	if n.Op == "|=" {
+		src.mode = runtime.IndexRead
 	}
-	return ev.each(in, p, func(root *value.Value, _ value.Path) error {
+	rhs := func(cur *value.Value, _ value.Path) iter.Seq2[*value.Value, error] {
+		return src.seq(n.R, env, cur, nil)
+	}
+	return ev.each(in, p, func(root *value.Value, rp value.Path) error {
+		f := rhs
+		var doc int
+		if ev.derives() {
+			_, doc, _ = runtime.Unroot(rp)
+			f = func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error] {
+				if rp == nil {
+					return src.seq(n.R, env, cur, runtime.Rooted(root, 0, at))
+				}
+				return src.seq(n.R, env, cur, extend(rp, at...))
+			}
+		}
 		var paths []value.Path
 		err := lhs.eval(n.L, env, root, value.Path{}, func(v *value.Value, vp value.Path) error {
 			if vp == nil {
+				if ev.ctx.Lax {
+					return nil
+				}
 				return invalidPathResult(v)
 			}
 			paths = append(paths, vp)
@@ -32,15 +53,15 @@ func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Pat
 		if err != nil {
 			return err
 		}
-		for out, err := range ev.ctx.Dialect.Assign(ev.ctx, root, paths, rhs, mode) {
+		for out, err := range ev.ctx.Dialect.Assign(ev.ctx, root, paths, f, mode) {
 			if err != nil {
 				return err
 			}
 			// Tracking cursors, the result stands in for its root, so it
 			// is a root of its own rather than a value built from nothing.
 			var op value.Path
-			if ev.track && !ev.paths {
-				op = runtime.Rooted(out, nil)
+			if ev.derives() {
+				op = runtime.Rooted(out, doc, nil)
 			}
 			if err := emit(out, op); err != nil {
 				return err
@@ -86,12 +107,13 @@ type seqStop struct{}
 
 func (*seqStop) Error() string { return "sequence stopped" }
 
-// seq adapts the outputs of n on cur to a sequence that stops evaluating
-// as soon as its consumer stops ranging.
-func (ev evaluator) seq(n ast.Node, env *Env, cur *value.Value) iter.Seq2[*value.Value, error] {
+// seq adapts the outputs of n on cur, whose path is at, to a sequence that
+// stops evaluating as soon as its consumer stops ranging. ev is a values
+// evaluator.
+func (ev evaluator) seq(n ast.Node, env *Env, cur *value.Value, at value.Path) iter.Seq2[*value.Value, error] {
 	return func(yield func(*value.Value, error) bool) {
 		stopped := false
-		err := ev.values().eval(n, env, cur, nil, func(v *value.Value, _ value.Path) error {
+		err := ev.eval(n, env, cur, at, func(v *value.Value, _ value.Path) error {
 			if !yield(v, nil) {
 				stopped = true
 				return &seqStop{}
