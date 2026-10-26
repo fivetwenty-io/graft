@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/csv"
-	"errors"
-	"io"
 	"net/url"
 	"strconv"
 	"strings"
@@ -224,6 +222,3 @@ func scalarRow(v *value.Value) ([]string, error) {
 	}
 	return row, nil
 }
-
-// isEOF reports whether err ends a stream of documents.
-func isEOF(err error) bool { return errors.Is(err, io.EOF) }
