@@ -60,9 +60,22 @@ func addOps(r *runtime.Registry) {
 	r.AddPrelude(prog)
 }
 
-// registerControl adds with's body, eval, split_doc, and the file
-// operators.
+// errorArgMissing is yq's message for error without an argument.
+const errorArgMissing = "'error' expects 1 arg but received none"
+
+// registerControl adds error, with's body, eval, split_doc, and the file
+// operators. yq's error fails with its argument's text, and with no text
+// at all for a collection.
 func registerControl(r *runtime.Registry) {
+	r.RegisterSingle("error", 1, func(_ *runtime.Ctx, in *value.Value, args []runtime.Thunk, _ runtime.Emit) error {
+		return args[0].Each(in, func(v *value.Value, _ value.Path) error {
+			return &query.RuntimeError{Msg: nodeText(v)}
+		})
+	})
+	// Parse already refuses error without an argument, as yq does.
+	r.RegisterSingle("error", 0, func(*runtime.Ctx, *value.Value, []runtime.Thunk, runtime.Emit) error {
+		return &query.RuntimeError{Msg: errorArgMissing}
+	})
 	r.RegisterSingle("_yq_with", 1, with)
 	r.Register("eval", 1, evalOp)
 	r.RegisterSingle("split_doc", 0, func(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {

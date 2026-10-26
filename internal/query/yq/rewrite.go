@@ -16,8 +16,14 @@ import (
 func rewrite(expr string, n ast.Node) (ast.Node, error) {
 	var err error
 	walk(n, func(n ast.Node) {
+		if op, r, ok := infixOperands(n); ok && bareError(r) && err == nil {
+			err = &ParseError{Msg: "'" + op + "' expects 2 args but there is 1"}
+		}
 		switch n := n.(type) {
 		case *ast.Call:
+			if bareError(n) && err == nil {
+				err = &ParseError{Msg: errorArgMissing}
+			}
 			if n.Name == "env" && len(n.Args) == 0 && err == nil {
 				err = bareEnv(expr)
 			}
@@ -60,6 +66,32 @@ func rewriteCall(expr string, n *ast.Call) error {
 	default:
 	}
 	return nil
+}
+
+// bareError reports whether n is error without an argument, which yq
+// reads as an operator missing its operand.
+func bareError(n ast.Node) bool {
+	c, ok := n.(*ast.Call)
+	return ok && c.Name == "error" && len(c.Args) == 0
+}
+
+// infixOperands gives the spelling and right operand of an infix
+// operator.
+func infixOperands(n ast.Node) (string, ast.Node, bool) {
+	switch n := n.(type) {
+	case *ast.Pipe:
+		return "|", n.R, true
+	case *ast.Comma:
+		return ",", n.R, true
+	case *ast.Alt:
+		return "//", n.R, true
+	case *ast.Binary:
+		return n.Op, n.R, true
+	case *ast.Assign:
+		return n.Op, n.R, true
+	default:
+	}
+	return "", nil, false
 }
 
 // bareEnv is yq's lexer error for env without an argument, which yq

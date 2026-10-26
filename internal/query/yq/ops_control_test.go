@@ -20,3 +20,15 @@ func TestYQLoad(t *testing.T) {
 	wantYQ(t, `.a = load("`+f+`") | .c = load_str("`+fs+`")`, "{}", "a:\n  b: 2\nc: text\n")
 	wantYQErrorOpts(t, Options{Caps: runtime.Capabilities{Env: true}}, `load("`+f+`")`, "{}", "file operations have been disabled")
 }
+
+func TestYQErrorGivesText(t *testing.T) {
+	wantYQError(t, `error(5)`, "{}", "5")
+	wantYQError(t, `error(null)`, "{}", "null")
+	wantYQError(t, `error({"a": 1})`, "{}", "")
+	wantYQError(t, `error(1, 2)`, "{}", "1")
+	wantYQError(t, `error`, "{}", "'error' expects 1 arg but received none")
+	wantYQError(t, `error | 1`, "{}", "'error' expects 1 arg but received none")
+	wantYQError(t, `.[] | error`, "[]", "'|' expects 2 args but there is 1")
+	wantYQError(t, `1 + error`, "{}", "'+' expects 2 args but there is 1")
+	wantYQError(t, `.a = error`, "{}", "'=' expects 2 args but there is 1")
+}
