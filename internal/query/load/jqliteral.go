@@ -2,8 +2,10 @@ package load
 
 import (
 	"math"
+	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/pkg/decimal"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
@@ -69,4 +71,19 @@ func canonicalDecimal(body string, neg bool) (string, bool) {
 		text = "-" + text
 	}
 	return text + exp, true
+}
+
+// floatNumber is v as yq's JSON decoder gives it, the float64 nearest the
+// text. A whole value inside the int64 range prints as an integer, and any
+// other is a float64 tagged !!float that keeps the shortest text that
+// reads back, which is how yq spells 1e+20 and 1.23456785e+07.
+func floatNumber(v *value.Value) *value.Value {
+	f := v.Float()
+	if math.IsInf(f, 0) || math.IsNaN(f) {
+		return v
+	}
+	if f == math.Trunc(f) && math.Abs(f) < 1<<63 {
+		return numberLiteral(strconv.FormatInt(int64(f), 10))
+	}
+	return value.Num(f).WithMeta(&value.Meta{Tag: yamlnode.TagFloat, Text: strconv.FormatFloat(f, 'g', -1, 64)})
 }

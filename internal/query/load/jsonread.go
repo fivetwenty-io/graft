@@ -31,6 +31,7 @@ type JSONReader struct {
 	source string
 	limit  int
 	seq    bool
+	floats bool
 	line   int // newlines consumed
 	col    int // bytes consumed on the current line
 	err    error
@@ -52,7 +53,7 @@ func NewJSONReader(br *bufio.Reader, source string, opts LoadOptions) *JSONReade
 	if limit <= 0 {
 		limit = defaultDepthLimit
 	}
-	r := &JSONReader{br: br, source: source, limit: limit, seq: opts.Seq}
+	r := &JSONReader{br: br, source: source, limit: limit, seq: opts.Seq, floats: opts.FloatNumbers}
 	r.stream.explicitLimit = opts.DepthLimit > 0 || opts.Seq && !opts.Stream
 	r.stream.recover = opts.StreamErrors
 	r.stream.seq, r.stream.waiting = opts.Seq, opts.Seq
@@ -383,6 +384,9 @@ func (r *JSONReader) token() (*value.Value, error) {
 		v, ok := jqNumber(s)
 		if !ok {
 			return nil, r.syntaxError(line, col, "invalid literal %q", s)
+		}
+		if r.floats {
+			v = floatNumber(v)
 		}
 		return v, nil
 	}

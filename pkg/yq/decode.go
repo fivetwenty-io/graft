@@ -78,6 +78,7 @@ func NewDecoder(r io.Reader, opts DecodeOptions) *Decoder {
 	lo := load.LoadOptions{Format: load.FormatYAML, KeepMeta: true, NodeComments: opts.NoHeaderPreprocess}
 	if opts.Format == FormatJSON {
 		lo.Format = load.FormatJSON
+		lo.FloatNumbers = true
 	}
 	d.r = load.Open(load.Source{Name: opts.Filename, Reader: r}, opts.FileIndex, lo)
 	return d

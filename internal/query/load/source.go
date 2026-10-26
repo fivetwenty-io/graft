@@ -41,6 +41,9 @@ type LoadOptions struct {
 	// them off as leading content.
 	NodeComments bool
 	StringKeys   bool
+	// FloatNumbers reads each number of a JSON source as the float64
+	// yq's decoder reads, so 1.0 becomes 1 and 1e3 becomes 1000.
+	FloatNumbers bool
 	Seq          bool
 	Stream       bool
 	// StreamErrors reports a parse failure under Stream as a final

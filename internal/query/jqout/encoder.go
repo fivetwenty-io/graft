@@ -141,6 +141,8 @@ func (e *encoder) encode(v *value.Value, depth int) {
 		e.token(p.True, "true")
 	case value.KindNumber:
 		switch {
+		case floatText(v) != "":
+			e.token(p.Number, floatText(v))
 		case e.o.GoFloats && goFloat(v):
 			e.token(p.Number, strconv.FormatFloat(v.Float(), 'g', -1, 64))
 		case e.o.FloatNumbers:
@@ -276,4 +278,17 @@ func goFloat(v *value.Value) bool {
 	}
 	f := v.Float()
 	return !math.IsInf(f, 0) && !math.IsNaN(f)
+}
+
+// floatText is the text a !!float without a literal was read with, when it
+// still spells the value, as the float64 a JSON source gave yq does.
+func floatText(v *value.Value) string {
+	m := v.Meta()
+	if v.Literal() != "" || m == nil || m.Tag != yamlnode.TagFloat || m.Text == "" {
+		return ""
+	}
+	if f, err := strconv.ParseFloat(m.Text, 64); err != nil || f != v.Float() {
+		return ""
+	}
+	return m.Text
 }
