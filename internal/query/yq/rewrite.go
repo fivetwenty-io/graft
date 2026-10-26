@@ -26,27 +26,11 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 				n.R = &ast.Call{Name: "_yq_none"}
 			}
 		case *ast.Call:
-			if bareError(n) && err == nil {
-				err = &ParseError{Msg: errorArgMissing}
-			}
-			if n.Name == "env" && len(n.Args) == 0 && err == nil {
-				err = bareEnv(expr)
-			}
 			if e := rewriteCall(expr, n); e != nil && err == nil {
 				err = e
 			}
 		case *ast.Str:
-			if n.Format != "" {
-				return
-			}
-			for i, p := range n.Parts {
-				if lit, ok := p.(*ast.Literal); ok {
-					if _, ok := lit.Value.(string); ok {
-						continue
-					}
-				}
-				n.Parts[i] = &ast.Pipe{L: p, R: &ast.Call{Name: "tostring"}}
-			}
+			stringify(n)
 		default:
 		}
 	})
@@ -56,9 +40,30 @@ func rewrite(expr string, n ast.Node) (ast.Node, error) {
 	return n, nil
 }
 
-// rewriteCall adjusts a call to env, strenv, envsubst, or with.
+// stringify makes each non-literal part of an interpolated string read
+// as tostring gives it.
+func stringify(n *ast.Str) {
+	if n.Format != "" {
+		return
+	}
+	for i, p := range n.Parts {
+		if lit, ok := p.(*ast.Literal); ok {
+			if _, ok := lit.Value.(string); ok {
+				continue
+			}
+		}
+		n.Parts[i] = &ast.Pipe{L: p, R: &ast.Call{Name: "tostring"}}
+	}
+}
+
+// rewriteCall refuses error without an argument and env without one, and
+// adjusts a call to env, strenv, envsubst, or with.
 func rewriteCall(expr string, n *ast.Call) error {
 	switch {
+	case bareError(n):
+		return &ParseError{Msg: errorArgMissing}
+	case n.Name == "env" && len(n.Args) == 0:
+		return bareEnv(expr)
 	case (n.Name == "env" || n.Name == "strenv") && len(n.Args) == 1:
 		n.Args[0] = &ast.Literal{Value: ast.Print(n.Args[0])}
 	case n.Name == "envsubst" && len(n.Args) == 1:

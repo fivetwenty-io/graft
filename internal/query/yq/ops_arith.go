@@ -13,7 +13,7 @@ import (
 )
 
 // asFloat marks a computed number as a float whatever its text.
-func asFloat(v *value.Value) *value.Value { return v.WithMeta(&value.Meta{Tag: "!!float"}) }
+func asFloat(v *value.Value) *value.Value { return v.WithMeta(&value.Meta{Tag: floatTag}) }
 
 // registerArith wraps the arithmetic natives r already holds so that a
 // result of two numbers takes the tag yq gives it. "+", "-", "*", and "%"
@@ -62,7 +62,7 @@ func add(ctx *runtime.Ctx, base runtime.Native, l *value.Value, lp value.Path, r
 	case l.Kind() == value.KindArray || (l.Kind() == value.KindObject && r.Kind() == value.KindObject):
 	case collection(l) || collection(r):
 		return &query.RuntimeError{Msg: tagOf(r) + " (" + pathText(rp) + ") cannot be added to a " + tagOf(l) + " (" + pathText(lp) + ")"}
-	case tagOf(l) == "!!str" || tagOf(r) == "!!str":
+	case tagOf(l) == strTag || tagOf(r) == strTag:
 		return emit(value.Str(addText(l)+addText(r)), nil)
 	default:
 		return &query.RuntimeError{Msg: tagOf(l) + " cannot be added to " + tagOf(r)}
@@ -87,32 +87,41 @@ func numeric(ctx *runtime.Ctx, base runtime.Native, op byte, l, r *value.Value, 
 	if ints && op == '%' && r.Dec().IsZero() {
 		return &query.RuntimeError{Msg: "cannot modulo by 0"}
 	}
-	if ctx.Numbers == runtime.NumbersFloat {
-		if v, err := floatNumeric(op, ints, l, r); err != nil || v != nil {
-			if err != nil {
-				return err
-			}
-			if ints {
-				v = keepBase(l, v)
-			}
-			return emit(v, nil)
-		}
+	var v *value.Value
+	var err error
+	switch {
+	case ctx.Numbers == runtime.NumbersFloat:
+		v, err = floatNumeric(op, ints, l, r)
+	case op == '%' && !ints:
+		v = decRem(l, r)
+	default:
 	}
-	if op == '%' && !ints {
-		if v := decRem(l, r); v != nil {
-			return emit(v, nil)
-		}
+	if err != nil {
+		return err
+	}
+	if v != nil {
+		return emit(numericResult(ints, l, v), nil)
 	}
 	args := []runtime.Thunk{constant{l}, constant{r}}
 	return base(ctx, nil, args, func(v *value.Value, p value.Path) error {
-		if ints && v.Kind() == value.KindNumber {
-			return emit(keepBase(l, v), p)
-		}
-		if ints || v.Kind() != value.KindNumber {
-			return emit(v, p)
-		}
-		return emit(asFloat(value.NumDec(v.Dec().Reduce())), p)
+		return emit(numericResult(ints, l, v), p)
 	})
+}
+
+// numericResult tags v, the result of an arithmetic operator whose left
+// operand is l, as yq does: an integer keeps l's base and any other
+// number is a float.
+func numericResult(ints bool, l, v *value.Value) *value.Value {
+	switch {
+	case v.Kind() != value.KindNumber:
+		return v
+	case ints:
+		return keepBase(l, v)
+	case v.Meta() != nil && v.Meta().Tag == floatTag:
+		return v
+	default:
+		return asFloat(value.NumDec(v.Dec().Reduce()))
+	}
 }
 
 // keepBase writes an integer result in the base the left operand's text

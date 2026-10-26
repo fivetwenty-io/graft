@@ -160,6 +160,12 @@ func resolve(root *value.Value, path value.Path) (value.Path, bool) {
 	return p, found
 }
 
+// strTag and floatTag are the tags of a plain string and a float.
+const (
+	strTag   = "!!str"
+	floatTag = "!!float"
+)
+
 // tagOf is a node's tag: the one written in the input, the one its kind
 // implies, or none for an alias.
 func tagOf(v *value.Value) string {
@@ -177,12 +183,12 @@ func tagOf(v *value.Value) string {
 	case value.KindArray:
 		return "!!seq"
 	case value.KindString:
-		return "!!str"
+		return strTag
 	case value.KindTrue, value.KindFalse:
 		return "!!bool"
 	case value.KindNumber:
 		if isFloat(v) {
-			return "!!float"
+			return floatTag
 		}
 		return "!!int"
 	default:

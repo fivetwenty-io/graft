@@ -94,7 +94,7 @@ func registerStrings(r *runtime.Registry) {
 
 // isStr reports whether v is a string tagged as one. yq's string
 // operators refuse a string with any other tag.
-func isStr(v *value.Value) bool { return v.Kind() == value.KindString && tagOf(v) == "!!str" }
+func isStr(v *value.Value) bool { return v.Kind() == value.KindString && tagOf(v) == strTag }
 
 // stringOp registers a string-to-string operator that fails on any other
 // node with msg, which names the node's tag.
