@@ -56,6 +56,7 @@ func RunNode(d *Dialect, node ast.Node, docs []load.Document, setup func(*runtim
 	ctx := runtime.NewCtx(d, numbers)
 	ctx.Cursors = true
 	ctx.LeftFirst = true
+	ctx.NodeKeys = true
 	ctx.Lax = true
 	ctx.RegexPCRE = true
 	if setup != nil {

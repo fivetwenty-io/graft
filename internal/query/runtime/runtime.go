@@ -82,6 +82,9 @@ type Ctx struct {
 	// LeftFirst runs arithmetic and comparison over the left operand's
 	// outputs outermost, as yq does, where jq runs the right one's.
 	LeftFirst bool
+	// NodeKeys lets an object construction key an entry by any node, as
+	// yq does, keeping its tag and type, where jq takes only strings.
+	NodeKeys bool
 	// RegexPCRE compiles the regex builtins' patterns under pkg/regex's
 	// PCRE flavor, which is nearer the Go syntax yq takes, where jq's
 	// builtins use Oniguruma.

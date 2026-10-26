@@ -508,12 +508,17 @@ func (ev evaluator) object(n *ast.ObjectCons, env *Env, in *value.Value, p value
 		vp = p
 	}
 	keys := make([]string, len(n.Entries))
+	nodes := make([]*value.Value, len(n.Entries))
 	vals := make([]*value.Value, len(n.Entries))
 	var build func(i int) error
 	build = func(i int) error {
 		if i == len(n.Entries) {
 			b := value.NewObjBuilder(len(keys))
 			for j, k := range keys {
+				if nodes[j] != nil {
+					b.SetEntry(nodes[j], vals[j])
+					continue
+				}
 				b.Set(k, vals[j])
 			}
 			out := b.Seal()
@@ -525,11 +530,18 @@ func (ev evaluator) object(n *ast.ObjectCons, env *Env, in *value.Value, p value
 		}
 		e := n.Entries[i]
 		return vev.eval(e.Key, env, in, vp, func(k *value.Value, _ value.Path) error {
-			if k.Kind() != value.KindString {
+			keyNode := ev.ctx.NodeKeys
+			if k.Kind() != value.KindString && !keyNode {
 				return RuntimeError("Cannot use " + typeName(k) + " (" + dump(k) + ") as object key")
 			}
 			return vev.eval(e.Val, env, in, vp, func(v *value.Value, _ value.Path) error {
-				keys[i], vals[i] = k.Str(), v
+				nodes[i] = nil
+				if keyNode {
+					nodes[i] = k
+				} else {
+					keys[i] = k.Str()
+				}
+				vals[i] = v
 				return build(i + 1)
 			})
 		})

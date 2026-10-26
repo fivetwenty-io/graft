@@ -12,15 +12,9 @@ import (
 )
 
 // registerMisc adds the operators that stand on their own: shuffle, and
-// the _yq_hex and _yq_keytext that rewrite puts in place of a hex literal
-// and around an object key.
+// the _yq_hex that rewrite puts in place of a hex literal.
 func registerMisc(r *runtime.Registry) {
 	r.RegisterSingle("shuffle", 0, shuffle)
-	// An object key is the text of the node it names, which is empty for a
-	// collection and "null" for null.
-	r.RegisterSingle("_yq_keytext", 0, func(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
-		return emit(value.Str(nodeText(in)), nil)
-	})
 	r.RegisterSingle("_yq_hex", 1, hexNumber)
 }
 

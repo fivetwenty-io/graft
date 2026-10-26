@@ -12,10 +12,15 @@ func TestYQObjectExpressionKeys(t *testing.T) {
 	wantYQ(t, `{.name: 1, .tags[0]: 2}`, in, "box: 1\nred: 2\n")
 }
 
-func TestYQObjectKeysAreNodeText(t *testing.T) {
-	in := "n: {m: deep}\nnum: 4\n"
-	wantYQ(t, `{.missing: 1}`, in, "\"null\": 1\n")
-	wantYQ(t, `{.n: 1}`, in, "\"\": 1\n")
-	wantYQ(t, `{.num: 1}`, in, "\"4\": 1\n")
-	wantYQ(t, `{(.missing): 1}`, in, "\"null\": 1\n")
+func TestYQObjectKeysKeepTheirNode(t *testing.T) {
+	// A key is the node itself, with its tag and type, and a collection
+	// stays a complex key.
+	in := "n: {m: deep}\nnum: 4\nl: [1, 2]\ntg: !foo 5\nb: !bar true\n"
+	wantYQ(t, `{.missing: 1}`, in, "null: 1\n")
+	wantYQ(t, `{.num: 1}`, in, "4: 1\n")
+	wantYQ(t, `{(.num): 1}`, in, "4: 1\n")
+	wantYQ(t, `{.tg: 1}`, in, "!foo 5: 1\n")
+	wantYQ(t, `{.b: 1}`, in, "!bar true: 1\n")
+	wantYQ(t, `{.l: 1}`, in, "? [1, 2]\n: 1\n")
+	wantYQ(t, `{.n: 1}`, in, "? {m: deep}\n: 1\n")
 }
