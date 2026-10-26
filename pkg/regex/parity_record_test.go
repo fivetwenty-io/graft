@@ -48,11 +48,20 @@ func TestRecordParityGoldens(t *testing.T) {
 }
 
 // recordJQ returns what jq's match prints for the case, or jq's error
-// when it refuses the pattern.
+// when it refuses the pattern. The subject and the pattern go to jq as
+// JSON, so either may hold a NUL, which no command argument can.
 func recordJQ(ctx context.Context, jq string, c parityCase) ([]byte, error) {
+	subject, err := json.Marshal(c.Subject)
+	if err != nil {
+		return nil, err
+	}
+	pattern, err := json.Marshal(c.Pattern)
+	if err != nil {
+		return nil, err
+	}
 	//nolint:gosec // G702: the recorder runs the jq binary its caller names
-	cmd := exec.CommandContext(ctx, jq, "-nc", "--arg", "s", c.Subject, "--arg", "p", c.Pattern, "--arg", "f", c.Flags,
-		`$s | [match($p; $f)]`)
+	cmd := exec.CommandContext(ctx, jq, "-nc", "--argjson", "s", string(subject), "--argjson", "p", string(pattern),
+		"--arg", "f", c.Flags, `$s | [match($p; $f)]`)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	stdout, err := cmd.Output()

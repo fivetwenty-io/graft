@@ -752,6 +752,16 @@ func (p *parser) escape(start int) (*node, error) {
 	if p.eof() {
 		return nil, p.errorAt(start, `\ at end of pattern`)
 	}
+	if p.rules().byteEscapes {
+		p.pos = start
+		if v, ok, err := p.byteEscape(false); ok || err != nil {
+			if err != nil {
+				return nil, err
+			}
+			return p.byteAtom(start, v)
+		}
+		p.pos = start + 1
+	}
 	r, err := p.next()
 	if err != nil {
 		return nil, err
@@ -1297,7 +1307,7 @@ func (p *parser) classItem(folded []runeRange, kept []runeSet) ([]runeRange, []r
 			return folded, append(kept, set), nil
 		}
 	}
-	lo, set, err := p.classAtom()
+	lo, set, err := p.classEnd()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1311,24 +1321,39 @@ func (p *parser) classItem(folded []runeRange, kept []runeSet) ([]runeRange, []r
 	if err != nil {
 		return nil, nil, err
 	}
-	return append(folded, runeRange{lo, hi}), kept, nil
+	if r, ok := pointRange(lo, hi); ok {
+		folded = append(folded, r)
+	}
+	return folded, kept, nil
+}
+
+// classEnd reads one item inside a class as a range end, or as a set for
+// an escape such as \d.
+func (p *parser) classEnd() (classPoint, runeSet, error) {
+	if p.rules().byteEscapes {
+		if pt, ok, err := p.classBytePoint(); ok || err != nil {
+			return pt, nil, err
+		}
+	}
+	r, set, err := p.classAtom()
+	return classPoint{v: r, multi: r >= utf8.RuneSelf}, set, err
 }
 
 // rangeEnd reads the end of a class range that starts with lo, or returns
 // lo itself when no range follows. itemPos is where the range starts.
-func (p *parser) rangeEnd(itemPos int, lo rune) (rune, error) {
+func (p *parser) rangeEnd(itemPos int, lo classPoint) (classPoint, error) {
 	if !p.lookingAt("-") || p.lookingAt("-]") || p.pos+1 >= len(p.src) {
 		return lo, nil
 	}
 	p.pos++
-	hi, hiSet, err := p.classAtom()
+	hi, hiSet, err := p.classEnd()
 	switch {
 	case err != nil:
-		return 0, err
+		return classPoint{}, err
 	case hiSet != nil:
-		return 0, p.errorAt(itemPos, "invalid range in character class")
-	case hi < lo:
-		return 0, p.errorAt(itemPos, "range out of order in character class")
+		return classPoint{}, p.errorAt(itemPos, "invalid range in character class")
+	case hi.v < lo.v:
+		return classPoint{}, p.errorAt(itemPos, "range out of order in character class")
 	}
 	return hi, nil
 }

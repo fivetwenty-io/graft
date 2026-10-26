@@ -89,6 +89,46 @@ func TestOnigurumaLetterEscapes(t *testing.T) {
 	wantText(t, MustCompile(`x\Ey`), "xy", "xy")
 }
 
+// Oniguruma reads \xhh and octal escapes as UTF-8 bytes, so a run of them
+// spells one character, where PCRE reads each as a code point.
+func TestOnigurumaByteEscapes(t *testing.T) {
+	onig := WithFlavor(Oniguruma)
+	cases := []struct{ pattern, subject, want string }{
+		{`\xc3\xa9`, "café", "é"},
+		{`\303\251`, "café", "é"},
+		{`[\xc3\xa9]`, "café", "é"},
+		{`\xc3\xa9+`, "aééb", "éé"},
+		{`\xf0\x9f\x98\x80`, "a😀", "😀"},
+		{`(?x)\xc3 \xa9`, "é", "é"},
+		{`\xc3(?#c)\xa9`, "é", "é"},
+		{`\400`, "a\x00", "\x00"},
+		{`\500`, "a@", "@"},
+		{`[a-\xff]+`, "azÿ", "az"},
+		{`[\xa0-\xc3\xa9]+`, "a\u00a0é", "\u00a0é"},
+		{`[\xc0\x80-\xc3\xa9]+`, "aé", "é"},
+		{`a|\xff`, "ÿa", "a"},
+	}
+	for _, c := range cases {
+		wantText(t, MustCompile(c.pattern, onig), c.subject, c.want)
+	}
+	wantText(t, MustCompile(`\xc3\x89`, onig, WithFlags(IgnoreCase)), "café", "é")
+	for _, pattern := range []string{`\777`, `\xc0\x80`, `\xed\xa0\x80`, `\xf8`, `[\xa0-\xff]`, `[\xa9]`} {
+		wantNoMatch(t, MustCompile(pattern, onig), "aÿǿ\x00\u00a0©")
+	}
+	wantSyntaxError(t, `a\xe9`, 1, "too short multibyte code string", onig)
+	wantSyntaxError(t, `\xc3\x{a9}`, 0, "too short multibyte code string", onig)
+	wantSyntaxError(t, `[\351]`, 1, "too short multibyte code string", onig)
+	wantSyntaxError(t, `\200`, 0, "invalid code point value", onig)
+	wantSyntaxError(t, `\xc3\x41`, 0, "invalid code point value", onig)
+	wantSyntaxError(t, `[\xc3\x41]`, 1, "invalid code point value", onig)
+	wantSyntaxError(t, `[\500]`, 1, "too big number", onig)
+
+	// PCRE reads each escape as a code point.
+	wantText(t, MustCompile(`\xe9`), "café", "é")
+	wantText(t, MustCompile(`\xc3\xa9`), "Ã©", "Ã©")
+	wantText(t, MustCompile(`[\400]`), "Ā", "Ā")
+}
+
 func TestOnigurumaQuantifierRules(t *testing.T) {
 	onig := WithFlavor(Oniguruma)
 	wantText(t, MustCompile(`a{,2}`, onig), "aa{,2}", "a{,2}")

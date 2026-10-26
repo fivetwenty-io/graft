@@ -1224,6 +1224,340 @@
   flags: ""
   subject: "a"
 
+# These cases pin the Oniguruma flavor's byte escapes, where \xhh and
+# octal escapes are UTF-8 bytes that a run of them spells into one
+# character, and the PCRE flavor's code points for the same escapes.
+
+- id: onig-byte-two-byte
+  flavor: oniguruma
+  pattern: "\\xc3\\xa9"
+  flags: "g"
+  subject: "café é"
+
+- id: onig-byte-class-two-byte
+  flavor: oniguruma
+  pattern: "[\\xc3\\xa9]"
+  flags: "g"
+  subject: "café"
+
+- id: onig-byte-octal-pair
+  flavor: oniguruma
+  pattern: "\\303\\251"
+  flags: ""
+  subject: "café"
+
+- id: onig-byte-hex-then-octal
+  flavor: oniguruma
+  pattern: "\\xc3\\251"
+  flags: ""
+  subject: "café"
+
+- id: onig-byte-lone-lead
+  flavor: oniguruma
+  pattern: "\\xe9"
+  flags: ""
+  subject: "café"
+
+- id: onig-byte-lone-octal-lead
+  flavor: oniguruma
+  pattern: "\\351"
+  flags: ""
+  subject: "café"
+
+- id: onig-byte-class-lone-octal-lead
+  flavor: oniguruma
+  pattern: "[\\351]"
+  flags: ""
+  subject: "café"
+
+- id: onig-byte-continuation-octal
+  flavor: oniguruma
+  pattern: "\\200"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-continuation-hex
+  flavor: oniguruma
+  pattern: "\\xa9"
+  flags: ""
+  subject: "a©"
+
+- id: onig-byte-bad-continuation
+  flavor: oniguruma
+  pattern: "\\xc3\\x41"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-lead-then-letter
+  flavor: oniguruma
+  pattern: "\\xc3a"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-lead-then-braced
+  flavor: oniguruma
+  pattern: "\\xc3\\x{a9}"
+  flags: ""
+  subject: "é"
+
+- id: onig-byte-braced-then-continuation
+  flavor: oniguruma
+  pattern: "\\x{c3}\\xa9"
+  flags: ""
+  subject: "é"
+
+- id: onig-byte-lead-then-quote
+  flavor: oniguruma
+  pattern: "\\xc3\\Q\\xa9\\E"
+  flags: ""
+  subject: "é"
+
+- id: onig-byte-octal-wraps-to-nul
+  flavor: oniguruma
+  pattern: "\\400"
+  flags: "g"
+  subject: "a\u0000b"
+
+- id: onig-byte-octal-wraps-to-at
+  flavor: oniguruma
+  pattern: "\\500"
+  flags: ""
+  subject: "a@"
+
+- id: onig-byte-octal-wraps-to-ff
+  flavor: oniguruma
+  pattern: "\\777"
+  flags: ""
+  subject: "aÿǿ"
+
+- id: onig-byte-hex-nul
+  flavor: oniguruma
+  pattern: "\\x00"
+  flags: ""
+  subject: "a\u0000"
+
+- id: onig-byte-ascii-quantified
+  flavor: oniguruma
+  pattern: "\\x41\\x42+"
+  flags: ""
+  subject: "ABBB"
+
+- id: onig-byte-rune-quantified
+  flavor: oniguruma
+  pattern: "\\xc3\\xa9+"
+  flags: ""
+  subject: "aééb"
+
+- id: onig-byte-rune-counted
+  flavor: oniguruma
+  pattern: "\\xc3\\xa9{2}"
+  flags: ""
+  subject: "éé"
+
+- id: onig-byte-ignorecase
+  flavor: oniguruma
+  pattern: "\\xc3\\x89"
+  flags: "i"
+  subject: "café"
+
+- id: onig-byte-three-byte
+  flavor: oniguruma
+  pattern: "\\xe2\\x82\\xac"
+  flags: ""
+  subject: "5€"
+
+- id: onig-byte-four-byte
+  flavor: oniguruma
+  pattern: "\\xf0\\x9f\\x98\\x80"
+  flags: ""
+  subject: "a😀"
+
+- id: onig-byte-overlong
+  flavor: oniguruma
+  pattern: "a|\\xc0\\x80"
+  flags: "g"
+  subject: "a\u0000"
+
+- id: onig-byte-surrogate
+  flavor: oniguruma
+  pattern: "a|\\xed\\xa0\\x80"
+  flags: "g"
+  subject: "a퟿"
+
+- id: onig-byte-lone-ff
+  flavor: oniguruma
+  pattern: "a|\\xff"
+  flags: "g"
+  subject: "aÿ"
+
+- id: onig-byte-lone-f8
+  flavor: oniguruma
+  pattern: "\\xf8a"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-f5-sequence
+  flavor: oniguruma
+  pattern: "\\xf5\\x80\\x80\\x80"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-comment-between
+  flavor: oniguruma
+  pattern: "\\xc3(?#c)\\xa9"
+  flags: ""
+  subject: "é"
+
+- id: onig-byte-extended-between
+  flavor: oniguruma
+  pattern: "\\xc3 \\xa9"
+  flags: "x"
+  subject: "é"
+
+- id: onig-byte-class-range
+  flavor: oniguruma
+  pattern: "[\\xc3\\xa9-\\xc3\\xaf]"
+  flags: "g"
+  subject: "eéíz"
+
+- id: onig-byte-class-ascii-to-rune
+  flavor: oniguruma
+  pattern: "[a-\\xc3\\xa9]"
+  flags: "g"
+  subject: "Zaé"
+
+- id: onig-byte-class-ascii-to-ff
+  flavor: oniguruma
+  pattern: "[a-\\xff]"
+  flags: "g"
+  subject: "azÿ"
+
+- id: onig-byte-class-raw-to-rune
+  flavor: oniguruma
+  pattern: "[\\xa0-\\xc3\\xa9]"
+  flags: "g"
+  subject: "a é"
+
+- id: onig-byte-class-rune-to-ff
+  flavor: oniguruma
+  pattern: "[\\xc3\\xa9-\\xff]"
+  flags: "g"
+  subject: "aéÿĀ"
+
+- id: onig-byte-class-raw-range
+  flavor: oniguruma
+  pattern: "[\\xa0-\\xff]"
+  flags: "g"
+  subject: "aé"
+
+- id: onig-byte-class-ff-to-rune
+  flavor: oniguruma
+  pattern: "[\\xff-\\xc3\\xa9]"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-class-raw-continuation
+  flavor: oniguruma
+  pattern: "[\\xa9]"
+  flags: ""
+  subject: "a©"
+
+- id: onig-byte-class-raw-and-letter
+  flavor: oniguruma
+  pattern: "[\\xa9a]"
+  flags: "g"
+  subject: "ab©"
+
+- id: onig-byte-class-lone-lead
+  flavor: oniguruma
+  pattern: "[\\xc3]"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-class-lead-then-letter
+  flavor: oniguruma
+  pattern: "[\\xc3a]"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-class-bad-continuation
+  flavor: oniguruma
+  pattern: "[\\xc3\\x41]"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-class-octal-too-big
+  flavor: oniguruma
+  pattern: "[\\500]"
+  flags: ""
+  subject: "a"
+
+- id: onig-byte-class-octal-ff
+  flavor: oniguruma
+  pattern: "[\\377]"
+  flags: ""
+  subject: "ÿ"
+
+- id: onig-byte-class-octal-one
+  flavor: oniguruma
+  pattern: "[\\1]"
+  flags: ""
+  subject: "a\u0001"
+
+- id: onig-byte-class-negated
+  flavor: oniguruma
+  pattern: "[^\\xc3\\xa9]"
+  flags: "g"
+  subject: "aéb"
+
+- id: onig-byte-class-negated-raw
+  flavor: oniguruma
+  pattern: "[^\\xff]"
+  flags: "g"
+  subject: "aé"
+
+- id: onig-byte-class-ignorecase
+  flavor: oniguruma
+  pattern: "[\\xc3\\x89]"
+  flags: "i"
+  subject: "é"
+
+- id: onig-byte-class-overlong-to-rune
+  flavor: oniguruma
+  pattern: "[\\xc0\\x80-\\xc3\\xa9]"
+  flags: "g"
+  subject: "aé"
+
+- id: onig-byte-class-three-byte
+  flavor: oniguruma
+  pattern: "[\\xe2\\x82\\xac]"
+  flags: ""
+  subject: "5€"
+
+- id: pcre-x-lone-e9
+  flavor: pcre
+  pattern: "\\xe9"
+  flags: ""
+  subject: "café"
+
+- id: pcre-x-pair-code-points
+  flavor: pcre
+  pattern: "\\xc3\\xa9"
+  flags: ""
+  subject: "café Ã©"
+
+- id: pcre-x-class-e9
+  flavor: pcre
+  pattern: "[\\xe9]"
+  flags: ""
+  subject: "café"
+
+- id: pcre-octal-351
+  flavor: pcre
+  pattern: "\\351"
+  flags: ""
+  subject: "café"
+
 # An unclosed \k< or \k' starts a reference under the Oniguruma flavor,
 # so it is an error rather than the letters it spells.
 

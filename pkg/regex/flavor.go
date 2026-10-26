@@ -23,6 +23,11 @@ type rules struct {
 	// letter E.
 	letterEscapes bool
 
+	// byteEscapes reads \xhh and the octal escapes as bytes of the
+	// pattern's UTF-8 encoding, as jq's Oniguruma does, so a run of them
+	// spells one character. Without it each names a code point.
+	byteEscapes bool
+
 	// classQuote reads \Q...\E inside a bracket class as a quote. Without it
 	// \Q and \E there are the letters Q and E.
 	classQuote bool
@@ -138,6 +143,7 @@ var flavorRules = [...]rules{
 	Oniguruma: {
 		unicodeClasses:     true,
 		letterEscapes:      true,
+		byteEscapes:        true,
 		asciiExtended:      true,
 		maxRepeat:          100000,
 		stackedQuantifiers: true,
