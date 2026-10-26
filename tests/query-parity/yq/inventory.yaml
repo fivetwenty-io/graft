@@ -1538,11 +1538,11 @@
   cases: [op-eval-update]
 - id: op-filter
   area: operator
-  phase: Y2
+  phase: Y1
   cases: [op-filter]
 - id: op-filter-map
   area: operator
-  phase: Y2
+  phase: Y1
   cases: [op-filter-map]
 - id: op-first-map
   area: operator
@@ -1922,11 +1922,11 @@
   cases: [op-pipe-updates]
 - id: op-pivot-maps
   area: operator
-  phase: Y2
+  phase: Y1
   cases: [op-pivot-maps]
 - id: op-pivot-seqs
   area: operator
-  phase: Y2
+  phase: Y1
   cases: [op-pivot-seqs]
 - id: op-quoted-key
   area: operator
