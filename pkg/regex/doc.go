@@ -46,10 +46,16 @@ start of the subject, $ and \Z only at its end or before a final newline,
 and \z only at its end. \b and \B test for a boundary between a \w rune and
 a rune that is not one, so they follow the flavor's \w.
 
-Lookaround, backreferences, atomic groups, possessive quantifiers, inline
-flag groups, the assertion \G, and the rarer PCRE constructs such as
-recursion and conditionals are recognized and refused with an
-UnsupportedError that names them.
+Inline flag groups such as (?i), (?-s), and (?im:...) turn the flags i, m,
+s, and x on or off up to the end of the group that holds them, the way both
+PCRE2 and jq read them. i is IgnoreCase, s is DotAll, and x is Extended.
+m makes ^ match after every newline that is not the subject's last rune and
+$ match before every newline, which no Flags value does.
+
+Lookaround, backreferences, atomic groups, possessive quantifiers, the
+inline flags n, J, U, and ^, the assertion \G, and the rarer PCRE
+constructs such as recursion and conditionals are recognized and refused
+with an UnsupportedError that names them.
 
 # Budgets
 

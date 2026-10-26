@@ -52,3 +52,43 @@ func TestQuotedSequences(t *testing.T) {
 	wantErrAs(t, err, &se)
 	wantEqual(t, se.Msg, "missing terminating ] for character class")
 }
+
+func TestInlineFlags(t *testing.T) {
+	wantMatch(t, MustCompile(`(?i)A`), "a")
+	wantText(t, MustCompile(`(a(?i)b)c`), "aBc", "aBc")
+	wantNoMatch(t, MustCompile(`(a(?i)b)c`), "aBC") // a flag ends with its group
+	wantMatch(t, MustCompile(`(?i:a)b`), "Ab")
+	wantNoMatch(t, MustCompile(`(?i:a)b`), "AB")
+	wantMatch(t, MustCompile(`a(?i)b|c`), "C") // and carries into later branches
+	wantText(t, MustCompile(`(?x) a b`), "ab", "ab")
+	wantNoMatch(t, MustCompile(`(?i-i)a`), "A")
+	wantNoMatch(t, MustCompile(`(?i)(?-i:a)`), "A")
+	wantMatch(t, MustCompile(`a(?-i)B`, WithFlags(IgnoreCase)), "AB")
+	wantNoMatch(t, MustCompile(`a(?-i)B`, WithFlags(IgnoreCase)), "Ab")
+	wantNoMatch(t, MustCompile(`(?i:[a])[a]`), "AA") // a class is built once per case rule
+	wantMatch(t, MustCompile(`(?i:[a])[a]`), "Aa")
+
+	wantMatch(t, MustCompile(`(?s).`), "\n")
+	wantNoMatch(t, MustCompile(`.`), "\n")
+	wantNoMatch(t, MustCompile(`(?-s).`, WithFlags(DotAll)), "\n")
+
+	wantMatch(t, MustCompile(`(?m)^b`), "a\nb")
+	wantMatch(t, MustCompile(`(?im:^B)`), "a\nb")
+	wantNoMatch(t, MustCompile(`(?m)\Ab`), "a\nb")
+	wantEqual(t, runeStarts(t, MustCompile(`(?m)^`), "a\nb\n", MatchOptions{Global: true}), []int{0, 2})
+	wantEqual(t, runeStarts(t, MustCompile(`(?m)$`), "a\nb\n", MatchOptions{Global: true}), []int{1, 3, 4})
+	wantEqual(t, runeStarts(t, MustCompile(`$`), "a\nb\n", MatchOptions{Global: true}), []int{3, 4})
+	wantEqual(t, MustCompile(`(?m)^a`).anchored, false)
+
+	for pattern, construct := range map[string]string{
+		`(?U)a`:  "inline flag group (?U)",
+		`(?n:a)`: "inline flag group (?n:...)",
+		`(?^i)a`: "inline flag group (?^i)",
+		`(?iJ)a`: "inline flag group (?iJ)",
+	} {
+		_, err := Compile(pattern)
+		var u *UnsupportedError
+		wantErrAs(t, err, &u)
+		wantEqual(t, u.Construct, construct)
+	}
+}

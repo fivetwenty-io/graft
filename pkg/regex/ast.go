@@ -23,6 +23,8 @@ const (
 	assertEndSubject                     // \z, the end of the subject
 	assertWordBoundary                   // \b, between a word rune and a rune that is not one
 	assertNotBoundary                    // \B, anywhere \b does not match
+	assertBeginLine                      // ^ under (?m), the start of the subject or of a line after a newline
+	assertEndLine                        // $ under (?m), the end of the subject or before a newline
 )
 
 // node is one element of a parsed pattern.

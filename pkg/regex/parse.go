@@ -23,21 +23,38 @@ type parser struct {
 	depth int
 	names []string // one per group, group 0 first
 
-	// classes holds the bracket classes built so far by their text, so a
-	// class that repeats is built once and its node shared. classCost
-	// counts the ranges and expansion runes those classes hold, which
-	// draw on the instruction budget.
-	classes   map[string]*node
+	// flags are the flags in force at the current position. They start
+	// as the pattern's flags, and an inline flag group changes them up to
+	// the end of the group that holds it.
+	flags Flags
+
+	// classes holds the bracket classes built so far by their text and
+	// case rule, so a class that repeats is built once and its node
+	// shared. classCost counts the ranges and expansion runes those
+	// classes hold, which draw on the instruction budget.
+	classes   map[classKey]*node
 	classCost int
 
 	// quoting is set between \Q and \E, where every rune is a literal.
 	quoting bool
 }
 
+// classKey identifies a bracket class by its text and whether it folds case.
+type classKey struct {
+	text string
+	fold bool
+}
+
+// multiLine makes ^ and $ match at the start and end of every line. Only
+// the inline flag (?m) sets it, since jq's m flag means DotAll.
+const multiLine Flags = 1 << 15
+
+func (p *parser) has(f Flags) bool { return p.flags&f != 0 }
+
 // parse turns a pattern into a tree and returns the group names, group 0
 // first.
 func parse(src string, cfg *config) (*node, []string, error) {
-	p := &parser{src: src, cfg: cfg, names: []string{""}}
+	p := &parser{src: src, cfg: cfg, names: []string{""}, flags: cfg.flags}
 	n, err := p.alternation()
 	if err != nil {
 		return nil, nil, err
@@ -82,7 +99,7 @@ func (p *parser) lookingAt(s string) bool { return strings.HasPrefix(p.src[p.pos
 
 // skipExtended skips whitespace and comments under the Extended flag.
 func (p *parser) skipExtended() {
-	if !p.cfg.has(Extended) || p.quoting {
+	if !p.has(Extended) || p.quoting {
 		return
 	}
 	for !p.eof() {
@@ -322,10 +339,16 @@ func (p *parser) atom() (*node, error) {
 	case '[':
 		return p.class(start)
 	case '.':
-		return &node{kind: kindAny, dotAll: p.cfg.has(DotAll)}, nil
+		return &node{kind: kindAny, dotAll: p.has(DotAll)}, nil
 	case '^':
+		if p.has(multiLine) {
+			return &node{kind: kindAssert, assert: assertBeginLine}, nil
+		}
 		return &node{kind: kindAssert, assert: assertBeginText}, nil
 	case '$':
+		if p.has(multiLine) {
+			return &node{kind: kindAssert, assert: assertEndLine}, nil
+		}
 		return &node{kind: kindAssert, assert: assertEndText}, nil
 	case '\\':
 		return p.escape(start)
@@ -357,7 +380,7 @@ func (p *parser) quoted() (*node, error) {
 }
 
 func (p *parser) literal(r rune) *node {
-	return &node{kind: kindLiteral, runes: []rune{r}, fold: p.cfg.has(IgnoreCase)}
+	return &node{kind: kindLiteral, runes: []rune{r}, fold: p.has(IgnoreCase)}
 }
 
 // group parses everything after an opening parenthesis at start.
@@ -368,7 +391,7 @@ func (p *parser) group(start int) (*node, error) {
 		return nil, overBudget("group nesting exceeds the budget of %d levels", p.cfg.budget.MaxNesting)
 	}
 
-	capture, name := true, ""
+	capture, name, saved := true, "", p.flags
 	switch {
 	case p.lookingAt("?"):
 		var err error
@@ -396,6 +419,7 @@ func (p *parser) group(start int) (*node, error) {
 		return nil, p.errorAt(start, "missing closing parenthesis")
 	}
 	p.pos++ // ')'
+	p.flags = saved
 	if !capture {
 		return body, nil
 	}
@@ -418,8 +442,8 @@ func alphaName(s string) string {
 }
 
 // groupPrefix reads what follows "(?" and says whether the group captures
-// and under which name. done is true when the group was a comment, which
-// leaves nothing to parse.
+// and under which name. done is true when the group was a comment or an
+// inline flag setting, which leave nothing to parse.
 //
 //nolint:gocyclo // one case per group form, each a line or two
 func (p *parser) groupPrefix(start int) (capture bool, name string, done bool, err error) {
@@ -481,29 +505,59 @@ func (p *parser) groupPrefix(start int) (capture bool, name string, done bool, e
 		name, err = p.groupName('\'')
 		return true, name, false, err
 	}
-	if flags, isFlags := inlineFlags(rest); isFlags {
-		return false, "", true, unsupported("inline flag group (?" + flags + ")")
+	if letters, scoped, isFlags := inlineFlags(rest); isFlags {
+		p.pos += len(letters) + 1
+		return false, "", !scoped, p.setFlags(letters, scoped)
 	}
 	return false, "", true, p.errorAt(at, "unrecognized character after (? or (?-")
 }
 
-// inlineFlags recognizes (?flags) and (?flags:...), returning how the
-// construct is named in an UnsupportedError.
-func inlineFlags(rest string) (string, bool) {
+// inlineFlags recognizes (?flags) and (?flags:...), returning the flag
+// letters and whether a group body follows them.
+func inlineFlags(rest string) (letters string, scoped, ok bool) {
 	i := 0
 	for i < len(rest) && (strings.IndexByte("imnsxJU^-", rest[i]) >= 0) {
 		i++
 	}
-	if i == 0 || i >= len(rest) {
-		return "", false
+	if i == 0 || i >= len(rest) || rest[i] != ')' && rest[i] != ':' {
+		return "", false, false
 	}
-	switch rest[i] {
-	case ')':
-		return rest[:i], true
-	case ':':
-		return rest[:i] + ":...", true
+	return rest[:i], rest[i] == ':', true
+}
+
+// setFlags applies the letters of an inline flag group, where the letters
+// after a hyphen clear their flags. i, m, s, and x mean what they mean in
+// both PCRE2 and jq's Oniguruma, and the letters that only PCRE2 knows are
+// refused.
+func (p *parser) setFlags(letters string, scoped bool) error {
+	on := true
+	for i := range len(letters) {
+		var f Flags
+		switch letters[i] {
+		case '-':
+			on = false
+			continue
+		case 'i':
+			f = IgnoreCase
+		case 'm':
+			f = multiLine
+		case 's':
+			f = DotAll
+		case 'x':
+			f = Extended
+		default:
+			if scoped {
+				return unsupported("inline flag group (?" + letters + ":...)")
+			}
+			return unsupported("inline flag group (?" + letters + ")")
+		}
+		if on {
+			p.flags |= f
+		} else {
+			p.flags &^= f
+		}
 	}
-	return "", false
+	return nil
 }
 
 // upToParen returns s up to its first ), or all of s.
@@ -802,7 +856,7 @@ func (p *parser) property(start int, negated bool) (runeSet, error) {
 	}
 	// Oniguruma leaves a bare property unfolded and folds one in a class
 	// along with the rest of the class.
-	set, ok := propertyClass(strings.TrimSpace(name), p.cfg.has(IgnoreCase) && p.cfg.flavor == PCRE, negated)
+	set, ok := propertyClass(strings.TrimSpace(name), p.has(IgnoreCase) && p.cfg.flavor == PCRE, negated)
 	if !ok {
 		return nil, p.errorAt(start, `unknown property after \P or \p`)
 	}
@@ -909,18 +963,19 @@ func (p *parser) quotedClassItems(folded []runeRange) ([]runeRange, error) {
 // and POSIX names included, and the runes the folded class holds bring their
 // full-folding expansions with them.
 func (p *parser) classNode(text string, folded []runeRange, kept []runeSet, negated bool) (*node, error) {
-	if n, ok := p.classes[text]; ok {
+	key := classKey{text: text, fold: p.has(IgnoreCase)}
+	if n, ok := p.classes[key]; ok {
 		return n, nil
 	}
 	var set runeSet
 	var expansions [][]rune
 	switch {
-	case p.cfg.has(IgnoreCase) && p.cfg.flavor == Oniguruma:
+	case p.has(IgnoreCase) && p.cfg.flavor == Oniguruma:
 		set = union(append(kept, normalize(folded))...).foldClosure()
 		if !negated {
 			expansions = foldExpansions(set)
 		}
-	case p.cfg.has(IgnoreCase):
+	case p.has(IgnoreCase):
 		set = union(append(kept, normalize(folded).foldClosure())...)
 	default:
 		set = union(append(kept, normalize(folded))...)
@@ -937,9 +992,9 @@ func (p *parser) classNode(text string, folded []runeRange, kept []runeSet, nega
 	}
 	n := &node{kind: kindClass, set: set, expansions: expansions}
 	if p.classes == nil {
-		p.classes = map[string]*node{}
+		p.classes = map[classKey]*node{}
 	}
-	p.classes[text] = n
+	p.classes[key] = n
 	return n, nil
 }
 
@@ -958,7 +1013,7 @@ func (p *parser) posix() (runeSet, bool, error) {
 	if name == "" || !allLowerASCII(name) {
 		return nil, false, nil
 	}
-	set, ok := posixClass(name, p.cfg.flavor, p.cfg.has(IgnoreCase), negated)
+	set, ok := posixClass(name, p.cfg.flavor, p.has(IgnoreCase), negated)
 	if !ok {
 		return nil, false, p.errorAt(at, "unknown POSIX class name")
 	}

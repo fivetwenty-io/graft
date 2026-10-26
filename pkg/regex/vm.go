@@ -262,6 +262,10 @@ func (m *machine) assert(in *inst, pos int) bool {
 		return pos == len(s) || (pos == len(s)-1 && s[pos] == '\n')
 	case assertEndSubject:
 		return pos == len(s)
+	case assertBeginLine:
+		return pos == 0 || pos < len(s) && s[pos-1] == '\n'
+	case assertEndLine:
+		return pos == len(s) || s[pos] == '\n'
 	case assertWordBoundary, assertNotBoundary:
 		before, after := false, false
 		if pos > 0 {
