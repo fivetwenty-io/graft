@@ -504,3 +504,12 @@ func TestModuleMetaListsRedefinedNamesOnce(t *testing.T) {
 	opts := modDir(t, map[string]string{"dup.jq": `def a: 1; def b: 2; def a: 3; def c: 4;`})
 	wantOutputsOpts(t, opts, `"dup" | modulemeta | .defs`, `null`, `["a/0","b/0","c/0"]`)
 }
+
+func TestModuleMetaFoldsLikeJQAtTheEdges(t *testing.T) {
+	opts := modDir(t, map[string]string{"loc.jq": `module {$__loc__, a: 1};`})
+	wantOutputsOpts(t, opts, `"loc" | modulemeta | .__loc__.line, .a`, `null`, `1`, `1`)
+	for _, meta := range []string{`(1, 2)`, `("a\(1)")`} {
+		o := modDir(t, map[string]string{"bad.jq": `module {a: ` + meta + `};`})
+		wantErrorOpts(t, o, `"bad" | modulemeta`, `null`, `Module metadata must be constant`)
+	}
+}

@@ -426,11 +426,16 @@ func constMeta(n ast.Node) (*value.Value, error) {
 		return nil, &query.CompileError{Msg: "Module metadata must be constant"}
 	}
 	var out *value.Value
+	count := 0
 	ctx := runtime.NewCtx(New(), runtime.NumbersExact)
 	err := eval.Run(ctx, n, nil, []*value.Value{value.Null()}, func(v *value.Value, _ value.Path) error {
 		out = v
+		count++
 		return nil
 	})
+	if err == nil && count > 1 {
+		err = errors.New("more than one value")
+	}
 	if err != nil {
 		// Folding failed, as in 1 / 0, and jq refuses what it cannot fold.
 		return nil, &query.CompileError{Msg: "Module metadata must be constant"}
@@ -464,7 +469,7 @@ func isConstant(n ast.Node) bool {
 	switch n := n.(type) {
 	case nil:
 		return true
-	case *ast.Literal:
+	case *ast.Literal, *ast.Loc:
 		return true
 	case *ast.Str:
 		return isConstStr(n)
@@ -483,11 +488,20 @@ func isConstant(n ast.Node) bool {
 // isConstStr reports whether a string has no interpolation.
 func isConstStr(n *ast.Str) bool {
 	for _, p := range n.Parts {
-		if _, ok := p.(*ast.Literal); !ok {
+		if lit, ok := p.(*ast.Literal); !ok || !isText(lit) {
 			return false
 		}
 	}
 	return true
+}
+
+// isText reports whether a literal is a run of string text. The parser
+// makes the same node of text and of an interpolated constant, so this
+// refuses an interpolated number or null, and it takes an interpolated
+// string, which jq refuses, as text.
+func isText(lit *ast.Literal) bool {
+	_, ok := lit.Value.(string)
+	return ok
 }
 
 // isConstObject reports whether every entry of an object construction has
