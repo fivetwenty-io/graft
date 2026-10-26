@@ -51,35 +51,53 @@ The other rules the Oniguruma flavor changes follow jq 1.8.2 as well.
     and form feed, where PCRE also skips the other spaces UTF mode names.
   - \8 or \9 at the start of a number above the group count is that digit,
     and \O matches any rune, a newline included.
+  - \xhh and the octal escapes are bytes of the pattern's UTF-8 encoding,
+    so a run of them spells one character, as \xc3\xa9 and [\xc3\xa9] spell
+    é, and a quantifier after the run repeats the whole character. A run
+    that stops before its character is complete, or a byte that cannot
+    start a character outside a class, is a SyntaxError, so \xe9 alone is
+    refused. An octal escape past \377 keeps its low byte, so \400 is NUL,
+    and bytes that UTF-8 gives no rune for, such as \xff, match nothing.
+    Inside a class a lone byte from \x80 up holds no rune, but it ends a
+    range at its own value when the other end is a longer character.
+    \x{...} and \o{...} still name code points, and PCRE reads every one of
+    these escapes as a code point.
   - (?P<name>...) and (?P=name) are refused, as jq refuses them.
 
 The tests/regex-parity directory holds a corpus of patterns with the
 matches pcre2test and jq printed for them, and the tests replay those
-goldens without either program. A few differences remain on purpose. PCRE
-takes \uhhhh, which PCRE2 refuses. A global search moves one rune past an
-empty match, where jq moves one byte. Oniguruma accepts a lookbehind whose
-branches differ in length or that holds a capture, both of which jq
-refuses. The escapes \G, \K, \X, \R, \y, and \Y and subroutine calls
-are refused under both flavors, though jq accepts some of them. Error
-messages follow each engine's wording where the tests pin it, and a golden
-for a pattern jq or PCRE2 refuses checks only that Compile refuses it too.
+goldens without either program. A PCRE golden for a global search is
+recorded one search at a time and steps past an empty match as this package
+does, so it pins that stepping rather than PCRE2's own. A few differences
+remain on purpose. PCRE takes \uhhhh, which PCRE2 refuses. A global search
+moves one rune past an empty match, where jq moves one byte. Oniguruma
+accepts a lookbehind whose branches differ in length or that holds a
+capture, both of which jq refuses. The escapes \G, \K, \X, \R, \y, and \Y
+and subroutine calls are refused under both flavors, though jq accepts some
+of them. The Oniguruma flavor refuses a group name such as n-1 that jq
+accepts, and it reads a \x at the end of the pattern as NUL where jq
+matches nothing. A byte escape that jq would match against part of a
+character, such as a lone \x80 in a negated class, holds no rune here.
+Error messages follow each engine's wording where the tests pin it, and a
+golden for a pattern jq or PCRE2 refuses checks only that Compile refuses
+it too.
 
 # Supported syntax
 
 The engine supports literals and the escapes \a, \e, \f, \n, \r, \t, \0,
 \cX, \xhh, \x{h...}, and \o{o...}, with \uhhhh under PCRE. It supports the
 classes ., \N, \d, \w, and \s, with \h and \v under PCRE, and their
-negations. It supports \p{...} and \P{...} over Unicode categories, scripts,
-and binary properties, and bracket classes with ranges, negation, and POSIX
-names. It also supports the anchors ^ and $, the assertions \A, \z, \Z, \b,
-and \B, quoted sequences \Q...\E, greedy and lazy quantifiers, alternation,
-numbered groups, named groups written (?<name>...) or (?'name'...), with
-(?P<name>...) under PCRE, non-capturing groups, and comments. ^ and \A match only at the
-start of the subject, $ and \Z only at its end or before a final newline,
-and \z only at its end. \b and \B test for a boundary between a \w rune and
-a rune that is not one, so they follow the flavor's \w. PCRE also reads
-\Q...\E as a quote inside a bracket class, while Oniguruma reads \Q and \E
-there as the letters Q and E.
+negations. It supports \p{...} and \P{...} over Unicode categories,
+scripts, and binary properties, and bracket classes with ranges, negation,
+and POSIX names. It also supports the anchors ^ and $, the assertions \A,
+\z, \Z, \b, and \B, quoted sequences \Q...\E, greedy and lazy quantifiers,
+alternation, numbered groups, named groups written (?<name>...) or
+(?'name'...), with (?P<name>...) under PCRE, non-capturing groups, and
+comments. ^ and \A match only at the start of the subject, $ and \Z only at
+its end or before a final newline, and \z only at its end. \b and \B test
+for a boundary between a \w rune and a rune that is not one, so they follow
+the flavor's \w. PCRE also reads \Q...\E as a quote inside a bracket class,
+while Oniguruma reads \Q and \E there as the letters Q and E.
 
 Inline flag groups such as (?i), (?-s), and (?im:...) turn the flags i, m,
 s, and x on or off up to the end of the group that holds them, the way both
@@ -131,10 +149,10 @@ memory before its first step.
 
 This package is experimental. Until the release that completes graft jq,
 its exported names may change between minor releases, and the changelog
-lists every such change. The flavor rules follow the jq and PCRE2
-versions that tests/regex-parity/versions.env pins, so a rule changes only
-when those goldens are recorded again, and the changelog says so. From that release on, the module's v1 promise
-applies, which is that we add exported names and never remove or change
-one.
+lists every such change. The flavor rules follow the jq and PCRE2 versions
+that tests/regex-parity/versions.env pins, so a rule changes only when
+those goldens are recorded again, and the changelog says so. From that
+release on, the module's v1 promise applies, which is that we add exported
+names and never remove or change one.
 */
 package regex

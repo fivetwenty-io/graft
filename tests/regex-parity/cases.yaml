@@ -8,6 +8,9 @@
 # with multibyte runes, because jq moves past an empty match one byte at a
 # time where this package moves one rune. A PCRE case's subject holds
 # neither \x{ nor <unset>, which pcre2test's output would make ambiguous.
+# The recorder runs pcre2test once per search of a global PCRE case and
+# steps past an empty match one rune, as this package does, so those
+# goldens pin this package's stepping rather than PCRE2's own.
 #
 # The corpus leaves out the departures pkg/regex/doc.go lists, such as \uhhhh,
 # which the PCRE flavor reads as a code point where PCRE2 refuses it.
