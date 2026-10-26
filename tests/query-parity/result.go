@@ -56,8 +56,9 @@ type Observed struct {
 }
 
 // AllowEntry is one line of an allowlist. ID names an inventory entry.
-// Kind is "departure" for an authorized permanent exception, or "pending"
-// for work a later phase owes, which names that phase.
+// Kind is "departure" for an authorized permanent exception, "pending"
+// for work a later phase owes, which names that phase, or "out-of-scope"
+// for a behavior that needs a format the design leaves out.
 type AllowEntry struct {
 	ID     string
 	Kind   string
@@ -101,9 +102,9 @@ func Evaluate(exp Expectation, matched bool, currentPhase string) Verdict {
 
 // ReadAllowlist reads an allowlist, which holds one entry per line in the
 // form ID kind [phase] reason..., separated by white space. Kind is
-// "departure" or "pending", and a pending line must name its phase between
-// the kind and the reason. Blank lines and lines starting with # are
-// skipped.
+// "departure", "pending", or "out-of-scope", and a pending line must name
+// its phase between the kind and the reason. Blank lines and lines
+// starting with # are skipped.
 func ReadAllowlist(r io.Reader) (map[string]AllowEntry, error) {
 	entries := map[string]AllowEntry{}
 	sc := bufio.NewScanner(r)
@@ -115,12 +116,12 @@ func ReadAllowlist(r io.Reader) (map[string]AllowEntry, error) {
 		fields := strings.Fields(line)
 		var e AllowEntry
 		switch {
-		case len(fields) >= 3 && fields[1] == "departure":
-			e = AllowEntry{ID: fields[0], Kind: "departure", Reason: strings.Join(fields[2:], " ")}
+		case len(fields) >= 3 && (fields[1] == "departure" || fields[1] == "out-of-scope"):
+			e = AllowEntry{ID: fields[0], Kind: fields[1], Reason: strings.Join(fields[2:], " ")}
 		case len(fields) >= 4 && fields[1] == "pending" && phaseOrder[fields[2]] != 0:
 			e = AllowEntry{ID: fields[0], Kind: "pending", Phase: fields[2], Reason: strings.Join(fields[3:], " ")}
 		default:
-			return nil, fmt.Errorf("allowlist line %d: want ID departure REASON or ID pending PHASE REASON", n)
+			return nil, fmt.Errorf("allowlist line %d: want ID departure REASON, ID out-of-scope REASON, or ID pending PHASE REASON", n)
 		}
 		if _, dup := entries[e.ID]; dup {
 			return nil, fmt.Errorf("allowlist line %d: %s is listed twice", n, e.ID)
@@ -130,24 +131,55 @@ func ReadAllowlist(r io.Reader) (map[string]AllowEntry, error) {
 	return entries, sc.Err()
 }
 
-// Floors is what tests/compat-floors.env holds for jq. Phase is the phase
-// the gate is at, Inventory and Regex are the percentage floors for the
-// whole inventory and for its regex area, DepartureCapPercent caps the
-// departures as a share of the inventory, and Values keeps every numeric
-// setting the file carries by its key.
+// Floors is what tests/compat-floors.env holds. Phase is the phase the jq
+// gate is at, Inventory and Regex are the percentage floors for the whole
+// jq inventory and for its regex area, DepartureCapPercent caps the jq
+// departures as a share of the inventory, Values keeps every numeric
+// setting the file carries by its key, and Phases keeps every phase
+// setting by its key. For gives one dialect's share of them.
 type Floors struct {
 	Phase               string
 	Inventory, Regex    int
 	DepartureCapPercent int
 	Values              map[string]int
+	Phases              map[string]string
+}
+
+// DialectFloors is one dialect's share of the floors: the phase its gate
+// is at, its inventory floor, and its departure cap, both percentages.
+type DialectFloors struct {
+	Phase               string
+	Inventory           int
+	DepartureCapPercent int
+}
+
+// firstPhase is the phase a dialect's gate starts at.
+var firstPhase = map[string]string{"jq": "J1", "yq": "Y1"}
+
+// For returns the floors of a dialect, jq or yq, from its PREFIX_PHASE,
+// PREFIX_INVENTORY_FLOOR, and PREFIX_DEPARTURE_CAP settings, where PREFIX
+// is the dialect's name in capitals. A dialect with no phase setting is
+// at its first phase.
+func (f Floors) For(dialect string) DialectFloors {
+	prefix := strings.ToUpper(dialect) + "_"
+	phase := f.Phases[prefix+"PHASE"]
+	if phase == "" {
+		phase = firstPhase[dialect]
+	}
+	return DialectFloors{
+		Phase:               phase,
+		Inventory:           f.Values[prefix+"INVENTORY_FLOOR"],
+		DepartureCapPercent: f.Values[prefix+"DEPARTURE_CAP"],
+	}
 }
 
 // ReadFloors reads a floors file, which holds KEY=VALUE lines. JQ_PHASE
-// names the phase and defaults to J1, JQ_INVENTORY_FLOOR, JQ_REGEX_FLOOR,
-// and JQ_DEPARTURE_CAP are whole numbers, and every other numeric setting
-// lands in Values. Blank lines and lines starting with # are skipped.
+// names the jq phase and defaults to J1, every other KEY_PHASE setting
+// lands in Phases, JQ_INVENTORY_FLOOR, JQ_REGEX_FLOOR, and
+// JQ_DEPARTURE_CAP are whole numbers, and every numeric setting lands in
+// Values. Blank lines and lines starting with # are skipped.
 func ReadFloors(r io.Reader) (Floors, error) {
-	f := Floors{Phase: "J1", Values: map[string]int{}}
+	f := Floors{Phase: "J1", Values: map[string]int{}, Phases: map[string]string{}}
 	sc := bufio.NewScanner(r)
 	for n := 1; sc.Scan(); n++ {
 		line := strings.TrimSpace(sc.Text())
@@ -163,6 +195,7 @@ func ReadFloors(r io.Reader) (Floors, error) {
 			if phaseOrder[v] == 0 {
 				return Floors{}, fmt.Errorf("floors line %d: %s names an unknown phase %q", n, k, v)
 			}
+			f.Phases[k] = v
 			if k == "JQ_PHASE" {
 				f.Phase = v
 			}

@@ -25,19 +25,21 @@ func TestEvaluateVerdicts(t *testing.T) {
 }
 
 func TestReadAllowlist(t *testing.T) {
-	text := "# comment\n\nfloat-literals departure exact decimal\nseq-raw-string  pending J2   --seq arrives\n"
+	text := "# comment\n\nfloat-literals departure exact decimal\nseq-raw-string  pending J2   --seq arrives\nxml-output out-of-scope format out of scope\n"
 	got, err := ReadAllowlist(strings.NewReader(text))
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantEqual(t, len(got), 2)
+	wantEqual(t, len(got), 3)
 	wantEqual(t, got["float-literals"], AllowEntry{ID: "float-literals", Kind: "departure", Reason: "exact decimal"})
 	wantEqual(t, got["seq-raw-string"], AllowEntry{ID: "seq-raw-string", Kind: "pending", Phase: "J2", Reason: "--seq arrives"})
+	wantEqual(t, got["xml-output"], AllowEntry{ID: "xml-output", Kind: "out-of-scope", Reason: "format out of scope"})
 
 	for _, bad := range []string{
 		"x pending reason\n",
 		"x pending J9 reason\n",
 		"x departure\n",
+		"x out-of-scope\n",
 		"x other J2 reason\n",
 		"x departure a\nx departure b\n",
 	} {
@@ -61,11 +63,18 @@ func TestReadFloors(t *testing.T) {
 	wantEqual(t, f.Regex, 90)
 	wantEqual(t, f.DepartureCapPercent, 3)
 	wantEqual(t, f.Values["YQ_INVENTORY_FLOOR"], 50)
+	wantEqual(t, f.For("jq"), DialectFloors{Phase: "J2", Inventory: 70, DepartureCapPercent: 3})
+	wantEqual(t, f.For("yq"), DialectFloors{Phase: "Y1", Inventory: 50})
+
+	yq, err := ReadFloors(strings.NewReader("YQ_PHASE=Y2\nYQ_DEPARTURE_CAP=2\n"))
+	wantEqual(t, err == nil && yq.Phase == "J1", true)
+	wantEqual(t, yq.For("yq"), DialectFloors{Phase: "Y2", DepartureCapPercent: 2})
 
 	first, err := ReadFloors(strings.NewReader(""))
 	wantEqual(t, err == nil && first.Phase == "J1", true)
+	wantEqual(t, first.For("yq").Phase, "Y1")
 
-	for _, bad := range []string{"JQ_PHASE=J9\n", "JQ_INVENTORY_FLOOR=high\n", "JQ_REGEX_FLOOR=101\n", "nokey\n"} {
+	for _, bad := range []string{"JQ_PHASE=J9\n", "YQ_PHASE=Y9\n", "JQ_INVENTORY_FLOOR=high\n", "JQ_REGEX_FLOOR=101\n", "nokey\n"} {
 		if _, err := ReadFloors(strings.NewReader(bad)); err == nil {
 			t.Errorf("floors %q are accepted", bad)
 		}

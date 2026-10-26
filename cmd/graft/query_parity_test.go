@@ -446,13 +446,10 @@ func allowFor(t *testing.T, dialect, name string) *parity.AllowEntry {
 // currentParityPhase is the phase the compatibility floors are at.
 func currentParityPhase(t *testing.T, dialect string) string {
 	t.Helper()
-	if dialect == "yq" {
-		return "Y1"
-	}
-	if dialect != "jq" {
+	if dialect != "jq" && dialect != "yq" {
 		t.Fatalf("no floors for dialect %s", dialect)
 	}
-	return mustReadFloors(t).Phase
+	return mustReadFloors(t).For(dialect).Phase
 }
 
 // caseMatches replays a case and reports whether stdout, the exit code,
