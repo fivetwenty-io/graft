@@ -1,0 +1,36 @@
+plain: text
+single: 'it''s'
+double: "tab\there"
+literal: |
+  line one
+  line two
+strip: |-
+  no newline
+keep: |+
+  kept
+
+folded: >-
+  folded text continues
+clip: >
+  one line
+
+multi: >-
+  first para
+
+  second para
+folded-list:
+  - >
+    in a list
+
+  - z
+flowseq: [1, 2, three]
+flowmap: {a: 1, b: [x, y]}
+empty-seq: []
+empty-map: {}
+number: 0x10
+under: 1_000
+inf: .inf
+quoted-num: "123"
+null-tilde: ~
+null-empty:
+bool: yes

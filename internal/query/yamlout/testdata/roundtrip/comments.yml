@@ -1,0 +1,21 @@
+# leading comment
+
+# second leading block
+name: app # the name
+# head of nested
+nested:
+  # head of inner
+  inner: 1
+  other: two # trailing
+  # foot of nested
+list:
+  # head of first item
+  - a # line on item
+  - b
+  # foot of list
+seq-of-maps:
+  - x: 1 # x line
+    y: 2
+  - z: 3
+last: true
+# foot of document

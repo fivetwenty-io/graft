@@ -1,0 +1,9 @@
+zeta: 1
+alpha: 2
+10: ten
+2: two
+"quoted key": 3
+'single key': 4
+mid:
+  z: 1
+  a: 2

@@ -8,13 +8,15 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 
 	"github.com/fivetwenty-io/graft/internal/query/jqout"
+	"github.com/fivetwenty-io/graft/internal/query/load"
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
 // Style is how a scalar is written.
 type Style uint8
 
 // The scalar styles. The emitter picks Plain, DoubleQuoted, SingleQuoted,
-// and Literal on its own, and Folded is reserved for scalars that arrive
+// and Literal on its own, and Folded only for a scalar that arrives
 // carrying that style.
 const (
 	StylePlain Style = iota
@@ -361,24 +363,404 @@ func writeHexEscape(b *strings.Builder, r rune) {
 	}
 }
 
-// singleQuoted writes text in single quotes, doubling any it holds.
-func singleQuoted(text string) string {
-	return "'" + strings.ReplaceAll(text, "'", "''") + "'"
+// quoteStyles are the style flags that ask for a scalar style.
+const quoteStyles = value.SingleQuoted | value.DoubleQuoted | value.Literal | value.Folded
+
+// scalar writes a scalar whole: anchor, tag, and text in its style. A
+// block scalar's lines indent one level past the node that holds it.
+func (e *emitter) scalar(v *value.Value, c nodeCtx) {
+	m := v.Meta()
+	text, style, fromMeta := e.scalarStyle(v, c)
+	e.anchor(m)
+	if m != nil {
+		e.tag(scalarTag(v, m))
+	}
+	e.increase(true, c, false)
+	switch style {
+	case StylePlain:
+		e.plain(text)
+	case StyleSingleQuoted:
+		e.single(text)
+	case StyleDoubleQuoted:
+		if !e.ws {
+			e.put(" ")
+		}
+		e.word(doubleQuoted(text))
+	case StyleLiteral:
+		e.block("|", text, fromMeta)
+	case StyleFolded:
+		e.block(">", text, fromMeta)
+	}
+	e.decrease()
 }
 
-// literalHeader returns the block scalar header for text, "|" followed by an
-// indentation hint when the text starts with a space or a break, then the
-// chomping indicator. The hint is the body's indent past its parent.
-func literalHeader(text string, hint int) string {
-	h := "|"
-	if text != "" && (text[0] == ' ' || text[0] == '\n') {
-		h += strconv.Itoa(hint)
+// scalarStyle returns a scalar's text and style, and whether they follow
+// the scalar's Meta. A string read with Meta keeps its style where the
+// spot allows it. One built new takes the rules scalars without Meta
+// have always had, and at the root always takes double quotes.
+func (e *emitter) scalarStyle(v *value.Value, c nodeCtx) (string, Style, bool) {
+	m := v.Meta()
+	flow := e.flow > 0
+	if v.Kind() != value.KindString {
+		text := e.scalarText(v)
+		if m == nil || m.Style&quoteStyles == 0 {
+			return text, StylePlain, false
+		}
+		return text, selectStyle(text, requestedStyle(m, text, v), flow, e.simpleKey), true
 	}
+	s := v.Str()
+	if m == nil || (m.Text != s && m.Style&quoteStyles == 0) {
+		if c == ctxRoot {
+			return s, StyleDoubleQuoted, false
+		}
+		return s, scalarStyle(s, scalarContext{Key: e.simpleKey, Flow: flow}), false
+	}
+	return s, selectStyle(s, requestedStyle(m, s, v), flow, e.simpleKey), true
+}
+
+// requestedStyle is the style scalar v with Meta asks for. Without a
+// style flag, text with a line break asks for a literal block, and an
+// untagged scalar that plain style would read back as something else
+// asks for double quotes.
+func requestedStyle(m *value.Meta, text string, v *value.Value) Style {
 	switch {
-	case !strings.HasSuffix(text, "\n"):
-		h += "-"
-	case strings.HasSuffix(text, "\n\n") || text == "\n":
-		h += "+"
+	case m.Style&value.DoubleQuoted != 0:
+		return StyleDoubleQuoted
+	case m.Style&value.SingleQuoted != 0:
+		return StyleSingleQuoted
+	case m.Style&value.Literal != 0:
+		return StyleLiteral
+	case m.Style&value.Folded != 0:
+		return StyleFolded
+	case strings.Contains(text, "\n"):
+		return StyleLiteral
 	}
-	return h
+	if m.Style&value.Tagged == 0 && !readsAs(text, v) {
+		return StyleDoubleQuoted
+	}
+	return StylePlain
+}
+
+// selectStyle settles a requested style the way libyaml does. A plain
+// scalar the spot cannot hold takes single quotes, single quotes that
+// cannot hold it take double ones, and so does a block scalar outside
+// block context or with breaks a block cannot keep.
+func selectStyle(text string, style Style, flow, simpleKey bool) Style {
+	a := libyamlAnalyze(text)
+	if simpleKey && a.multiline {
+		style = StyleDoubleQuoted
+	}
+	if style == StylePlain && !a.plainFits(text, flow, simpleKey) {
+		style = StyleSingleQuoted
+	}
+	if style == StyleSingleQuoted && !a.single {
+		style = StyleDoubleQuoted
+	}
+	if (style == StyleLiteral || style == StyleFolded) && (!a.block || !a.onlyLF || flow || simpleKey) {
+		style = StyleDoubleQuoted
+	}
+	return style
+}
+
+// plainFits reports whether text can stay plain where it is written.
+func (a libyamlAllowed) plainFits(text string, flow, simpleKey bool) bool {
+	if text == "" && (flow || simpleKey) {
+		return false
+	}
+	if flow {
+		return a.flowPlain
+	}
+	return a.blockPlain
+}
+
+// scalarText is a non-string scalar's text: the text it was read with,
+// while that still reads back as the value, or else the text a scalar
+// without Meta is written with.
+func (e *emitter) scalarText(v *value.Value) string {
+	if m := v.Meta(); m != nil && v.Kind() != value.KindString && readsAs(m.Text, v) {
+		return m.Text
+	}
+	switch v.Kind() {
+	case value.KindNull:
+		return "null"
+	case value.KindTrue:
+		return "true"
+	case value.KindFalse:
+		return "false"
+	case value.KindNumber:
+		return yamlNumber(v, e.o.FloatNumbers)
+	case value.KindString:
+		return v.Str()
+	case value.KindArray, value.KindObject:
+	}
+	return ""
+}
+
+// readsAs reports whether text, read as a plain scalar, is v.
+func readsAs(text string, v *value.Value) bool {
+	got, err := load.FromNode(&yamlnode.Node{Kind: yamlnode.ScalarNode, Value: text}, load.FromNodeOptions{})
+	if err != nil || got.Kind() != v.Kind() {
+		return false
+	}
+	if v.Kind() == value.KindNumber && got.Dec().IsNaN() && v.Dec().IsNaN() {
+		return true
+	}
+	return value.Equal(got, v)
+}
+
+// scalarTag returns the tag a scalar is written with: one marked as
+// written, or one that is not the tag its kind takes anyway.
+func scalarTag(v *value.Value, m *value.Meta) string {
+	if m.Tag == "" || m.Style&value.Tagged != 0 {
+		return m.Tag
+	}
+	own := map[value.Kind][]string{
+		value.KindString: {yamlnode.TagStr},
+		value.KindNumber: {yamlnode.TagInt, yamlnode.TagFloat},
+		value.KindTrue:   {yamlnode.TagBool},
+		value.KindFalse:  {yamlnode.TagBool},
+		value.KindNull:   {yamlnode.TagNull},
+	}[v.Kind()]
+	for _, t := range own {
+		if shortTag(m.Tag) == t {
+			return ""
+		}
+	}
+	return m.Tag
+}
+
+// libyamlAllowed records the styles libyaml's emitter lets a scalar take.
+type libyamlAllowed struct {
+	flowPlain, blockPlain, single, block bool
+	multiline, onlyLF                    bool
+}
+
+// libyamlAnalyze decides the styles open to text by libyaml's rules,
+// which differ from analyze in letting tabs into block scalars and in
+// the indicators that rule out plain style in flow context.
+//
+//nolint:gocyclo // one pass over the characters that tracks every property the styles depend on
+func libyamlAnalyze(text string) libyamlAllowed {
+	if text == "" {
+		return libyamlAllowed{blockPlain: true, single: true, onlyLF: true}
+	}
+	var (
+		flowInd, blockInd, breaks, tabs, special     bool
+		leadSpace, leadBreak, trailSpace, trailBreak bool
+		breakSpace, spaceBreak, prevSpace, prevBreak bool
+		onlyLF                                       = true
+		precededByWS                                 = true
+	)
+	if strings.HasPrefix(text, "---") || strings.HasPrefix(text, "...") {
+		flowInd, blockInd = true, true
+	}
+	if !utf8.ValidString(text) {
+		special = true
+	}
+	rs := []rune(text)
+	for i, r := range rs {
+		followedByWS := i+1 >= len(rs) || isBlankRune(rs[i+1])
+		if i == 0 {
+			switch r {
+			case '#', ',', '[', ']', '{', '}', '&', '*', '!', '|', '>', '\'', '"', '%', '@', '`':
+				flowInd, blockInd = true, true
+			case '?', ':':
+				flowInd = true
+				blockInd = blockInd || followedByWS
+			case '-':
+				if followedByWS {
+					flowInd, blockInd = true, true
+				}
+			}
+		} else {
+			switch r {
+			case ',', '?', '[', ']', '{', '}':
+				flowInd = true
+			case ':':
+				flowInd = true
+				blockInd = blockInd || followedByWS
+			case '#':
+				if precededByWS {
+					flowInd, blockInd = true, true
+				}
+			}
+		}
+		switch {
+		case r == '\t':
+			tabs = true
+		case !isPrintableRune(r):
+			special = true
+		}
+		last := i == len(rs)-1
+		switch {
+		case r == ' ':
+			leadSpace = leadSpace || i == 0
+			trailSpace = trailSpace || last
+			breakSpace = breakSpace || prevBreak
+			prevSpace, prevBreak = true, false
+		case isBreakRune(r):
+			breaks = true
+			onlyLF = onlyLF && r == '\n'
+			leadBreak = leadBreak || i == 0
+			trailBreak = trailBreak || last
+			spaceBreak = spaceBreak || prevSpace
+			prevSpace, prevBreak = false, true
+		default:
+			prevSpace, prevBreak = false, false
+		}
+		precededByWS = isBlankRune(r) || isBreakRune(r) || r == 0
+	}
+	a := libyamlAllowed{flowPlain: true, blockPlain: true, single: true, block: true, multiline: breaks, onlyLF: onlyLF}
+	if leadSpace || leadBreak || trailSpace || trailBreak || breaks {
+		a.flowPlain, a.blockPlain = false, false
+	}
+	if trailSpace {
+		a.block = false
+	}
+	if breakSpace || spaceBreak || tabs || special {
+		a.flowPlain, a.blockPlain, a.single = false, false, false
+	}
+	if spaceBreak || special {
+		a.block = false
+	}
+	if flowInd {
+		a.flowPlain = false
+	}
+	if blockInd {
+		a.blockPlain = false
+	}
+	return a
+}
+
+// plain writes text as it is, after a space unless one comes before it.
+func (e *emitter) plain(text string) {
+	if text != "" && !e.ws {
+		e.put(" ")
+	}
+	breaks := false
+	for _, r := range text {
+		if isBreakRune(r) {
+			if !breaks && r == '\n' {
+				e.newline()
+			}
+			e.lineBreak(r)
+			breaks = true
+			continue
+		}
+		if breaks {
+			e.writeIndent()
+		}
+		e.put(string(r))
+		e.indention = false
+		breaks = false
+	}
+	if text != "" {
+		e.ws = false
+	}
+	e.indention = false
+}
+
+// single writes text in single quotes. A line break inside them takes an
+// empty line, which is how a reader gets the break back.
+func (e *emitter) single(text string) {
+	e.indicator("'", true, false, false)
+	breaks := false
+	for _, r := range text {
+		if isBreakRune(r) {
+			if !breaks && r == '\n' {
+				e.newline()
+			}
+			e.lineBreak(r)
+			breaks = true
+			continue
+		}
+		if breaks {
+			e.writeIndent()
+		}
+		if r == '\'' {
+			e.put("'")
+		}
+		e.put(string(r))
+		e.indention = false
+		breaks = false
+	}
+	e.indicator("'", false, false, false)
+	e.ws = false
+	e.indention = false
+}
+
+// block writes a literal or folded block scalar, its header and then its
+// lines one level in.
+func (e *emitter) block(indicator, text string, fromMeta bool) {
+	e.indicator(indicator, true, false, false)
+	e.blockHints(text, fromMeta)
+	e.processLine(true)
+	e.ws = true
+	if indicator == ">" {
+		e.foldedBody(text)
+		return
+	}
+	breaks := true
+	for _, r := range text {
+		if isBreakRune(r) {
+			e.lineBreak(r)
+			breaks = true
+			continue
+		}
+		if breaks {
+			e.writeIndent()
+		}
+		e.put(string(r))
+		e.indention = false
+		breaks = false
+	}
+}
+
+// blockHints writes the indentation hint a block scalar needs when its
+// first line starts with a space, and its chomping indicator. A scalar
+// built new also takes the hint when it starts with a line break, as
+// it always has; yq leaves the hint off there.
+func (e *emitter) blockHints(text string, fromMeta bool) {
+	if strings.HasPrefix(text, " ") || !fromMeta && strings.HasPrefix(text, "\n") {
+		e.indicator(strconv.Itoa(e.level-e.parentLevel()), false, false, false)
+	}
+	rs := []rune(text)
+	n := len(rs)
+	switch {
+	case n == 0 || !isBreakRune(rs[n-1]):
+		e.indicator("-", false, false, false)
+	case n == 1 || isBreakRune(rs[n-2]):
+		e.indicator("+", false, false, false)
+	}
+}
+
+// foldedBody writes a folded scalar's lines. A break after a line of text
+// takes an extra empty line so that it reads back as a break and not as a
+// space. Like yq, the test for that looks at the start of the whole text
+// and not at the line that follows.
+func (e *emitter) foldedBody(text string) {
+	rs := []rune(text)
+	k := 0
+	for k < len(rs) && isBreakRune(rs[k]) {
+		k++
+	}
+	extraBreak := k < len(rs) && !isBlankRune(rs[k]) && rs[k] != 0
+	breaks, leadingSpaces := true, true
+	for i, r := range rs {
+		if isBreakRune(r) {
+			if !breaks && !leadingSpaces && r == '\n' && extraBreak {
+				e.newline()
+			}
+			e.lineBreak(r)
+			breaks = true
+			continue
+		}
+		if breaks {
+			e.writeIndent()
+			leadingSpaces = isBlankRune(rs[i])
+		}
+		e.put(string(r))
+		e.indention = false
+		breaks = false
+	}
 }

@@ -1,0 +1,15 @@
+base: &base
+  a: 1
+  b: two
+copy: *base
+merged:
+  <<: *base
+  c: 3
+scalar: &s hello
+again: *s
+list: &l
+  - 1
+  - 2
+lists:
+  - *l
+  - *s

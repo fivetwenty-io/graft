@@ -1,0 +1,9 @@
+str: !!str 123
+yes-str: !!str 'yes'
+custom: !thing value
+custom-map: !obj
+  a: 1
+custom-seq: !list
+  - x
+int: !!int 42
+float: !!float 1.5

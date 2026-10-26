@@ -1,0 +1,11 @@
+# first document
+a: 1
+---
+# second document
+b: 2
+---
+# separator comment
+c: 3
+---
+- one
+- two
