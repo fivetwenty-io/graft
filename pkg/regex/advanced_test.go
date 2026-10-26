@@ -346,15 +346,16 @@ func TestConditional(t *testing.T) {
 	wantEqual(t, texts(t, MustCompile(`(x)?(?(1))`, onig), "x w x", all), []string{"x", "x"})
 	wantEqual(t, len(texts(t, MustCompile(`(x)?(?(1))`), "x w", all)), 4)
 
-	// Under PCRE a missing no branch matches the empty string. Oniguruma
-	// refuses a conditional of one branch that is not empty, because jq's
-	// search plans as if the branch matched nothing and misses matches.
+	// Under both flavors a missing no branch matches the empty string.
+	// jq's search plans as if a yes branch with no no branch matched
+	// nothing, so jq finds no match for (a)(?(1)b)c in "abc" and only the
+	// two w's in "xyw w", where this flavor matches as PCRE2 does.
 	wantEqual(t, texts(t, MustCompile(`(x)?(?(1)y)w`), "xyw w", all), []string{"xyw", "w"})
-	for _, yesOnly := range []string{`(x)?(?(1)y)w`, `(x)?(?(1)(?:))`, `(x)?(?(1)y*)`} {
-		var u *UnsupportedError
-		_, err := Compile(yesOnly, onig)
-		wantErrAs(t, err, &u)
-	}
+	wantEqual(t, texts(t, MustCompile(`(x)?(?(1)y)w`, onig), "xyw w", all), []string{"xyw", "w"})
+	wantEqual(t, texts(t, MustCompile(`(a)(?(1)b)c`, onig), "abc", all), []string{"abc"})
+	wantEqual(t, texts(t, MustCompile(`(a)?(?(1)b)c`, onig), "abc", all), []string{"abc"})
+	wantEqual(t, texts(t, MustCompile(`(a)(?(1)b)$`, onig), "ab", all), []string{"ab"})
+	wantEqual(t, texts(t, MustCompile(`(x)?(?(1)(?:))`, onig), "x w", all), []string{"x", "", "", ""})
 
 	// Oniguruma reads a number in brackets as a group number and lets
 	// groups share the name a condition tests, where PCRE2 wants a name.

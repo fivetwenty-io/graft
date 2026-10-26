@@ -32,7 +32,7 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 
 - `graft jq` adds jq's `IN`, `INDEX`, and `JOIN` builtins in every arity jq 1.8.2 defines.
 
-- Regular expressions in `graft jq` take `\R` for a line break, `\K` to reset the start of the match, and conditional groups such as `(?(1)yes|no)`, which test whether a group has captured. The PCRE flavor in `pkg/regex` takes them too, as PCRE2 does. The Oniguruma flavor refuses a conditional whose only branch is not empty, such as `(?(1)b)`, because jq's search misses matches that run through one.
+- Regular expressions in `graft jq` take `\R` for a line break, `\K` to reset the start of the match, and conditional groups such as `(?(1)yes|no)`, which test whether a group has captured. The PCRE flavor in `pkg/regex` takes them too, as PCRE2 does. A conditional whose only branch is not empty, such as `(?(1)b)`, matches the empty string when its group hasn't captured, as in PCRE2. jq's search misses matches through one when something follows it, so `(a)(?(1)b)c` matches `abc` in graft and finds nothing in jq.
 
 - `graft install-aliases` links `jq` and `spruce` to graft, or installs copies on Windows, and `--remove` takes them away again. A link named exactly `jq` runs `graft jq`.
 

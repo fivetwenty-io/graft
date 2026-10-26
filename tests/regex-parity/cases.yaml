@@ -1960,6 +1960,48 @@
   flags: ""
   subject: "a"
 
+- id: onig-conditional-yes-only-unset
+  flavor: oniguruma
+  pattern: "(a)?(?(1)b)c"
+  flags: "g"
+  subject: "c"
+
+- id: onig-conditional-yes-only-at-end
+  flavor: oniguruma
+  pattern: "(a)(?(1)b)"
+  flags: "g"
+  subject: "ab"
+
+- id: onig-conditional-yes-only-longer
+  flavor: oniguruma
+  pattern: "(a)(?(1)bc)"
+  flags: "g"
+  subject: "abc"
+
+- id: onig-conditional-yes-only-optional
+  flavor: oniguruma
+  pattern: "(x)?(?(1)y)"
+  flags: "g"
+  subject: "xy x z"
+
+- id: onig-conditional-yes-only-repeat
+  flavor: oniguruma
+  pattern: "(x)?(?(1)y*)"
+  flags: "g"
+  subject: "xyy z"
+
+- id: onig-conditional-yes-only-empty-group
+  flavor: oniguruma
+  pattern: "(x)?(?(1)(?:))"
+  flags: "g"
+  subject: "x w"
+
+- id: onig-conditional-yes-only-named
+  flavor: oniguruma
+  pattern: "(?<n>a)(?(<n>)b)"
+  flags: "g"
+  subject: "ab a"
+
 - id: onig-conditional-missing-group
   flavor: oniguruma
   pattern: "(a)?(?(2)b|c)"

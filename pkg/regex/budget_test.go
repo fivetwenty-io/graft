@@ -143,7 +143,7 @@ func TestProgramSizeEstimateIsExact(t *testing.T) {
 			}
 		}
 	}
-	for _, shared := range []string{`(?<n>a)(?<n>b)\k<n>`, `(?<n>a)?(?<n>b)?(?(<n>)c|d)`, `(a)?(?(1)b|c|d)`, `(a)?(?(1))`} {
+	for _, shared := range []string{`(?<n>a)(?<n>b)\k<n>`, `(?<n>a)?(?<n>b)?(?(<n>)c|d)`, `(a)?(?(1)b|c|d)`, `(a)?(?(1))`, `(a)?(?(1)b)c`} {
 		cfg := newConfig([]Option{WithFlavor(Oniguruma)})
 		n, _, err := parse(shared, cfg)
 		wantNil(t, err)

@@ -91,9 +91,9 @@ type rules struct {
 
 	// conditionTail makes every branch of a conditional after the first
 	// its no branch, and makes a conditional of one empty branch only test
-	// its group, as Oniguruma does. It refuses a conditional of one branch
-	// that is not empty, which jq's search mishandles. PCRE2 refuses a
-	// third branch, and takes one branch with an empty no branch.
+	// its group, as Oniguruma does. PCRE2 refuses a third branch. Either
+	// way a conditional of one branch that is not empty has an empty no
+	// branch.
 	conditionTail bool
 
 	// posixProperties accepts the POSIX class names, such as Alpha and

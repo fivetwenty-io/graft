@@ -82,15 +82,17 @@ subroutine calls are refused under both flavors, though jq accepts some of
 them, and so is a \K inside a lookaround, which jq accepts too. A condition
 other than a group's number or bracketed name is refused under both
 flavors, though jq and PCRE2 accept some, such as a bare name, (?(R)...),
-and (?(DEFINE)...). The Oniguruma flavor also refuses a conditional whose
-one branch is not empty, such as (?(1)b), because jq's search plans as if
-that branch matched nothing and misses matches through it. That flavor
-refuses a group name such as n-1 that jq accepts as well, and it reads a \x
-at the end of the pattern as NUL where jq matches nothing. A byte escape
-that jq would match against part of a character, such as a lone \x80 in a
-negated class, holds no rune here. Error messages follow each engine's
-wording where the tests pin it, and a golden for a pattern jq or PCRE2
-refuses checks only that Compile refuses it too.
+and (?(DEFINE)...). A conditional whose one branch is not empty, such as
+(?(1)b), has an empty no branch under both flavors, as in PCRE2, but jq's
+search plans as if that branch matched nothing and misses matches through
+it when something follows it, so (a)(?(1)b)c matches "abc" here and nowhere
+in jq. The Oniguruma flavor refuses a group name such as n-1 that jq
+accepts as well, and it reads a \x at the end of the pattern as NUL where
+jq matches nothing. A byte escape that jq would match against part of a
+character, such as a lone \x80 in a negated class, holds no rune here.
+Error messages follow each engine's wording where the tests pin it, and a
+golden for a pattern jq or PCRE2 refuses checks only that Compile refuses
+it too.
 
 # Supported syntax
 
@@ -146,16 +148,15 @@ where it stands. A reference inside the group it names fails under
 Oniguruma, and under PCRE matches the group's last complete capture.
 
 A conditional group (?(cond)yes|no) runs its yes branch when the group its
-condition names has captured and its no branch otherwise, and under PCRE a
-missing no branch matches the empty string. The condition names the group
-by number, which may be signed as a reference's is, or by a name in angle
-brackets or single quotes. A condition reads a capture the way a reference
-does, including inside the group it names. Under Oniguruma every branch
-after the first makes up the no branch, a number in <> names a group by
-number, a name several groups share holds when any of them has captured,
-and a conditional of one empty branch fails when its group has not
-captured. PCRE refuses a third branch and a name that starts with a digit,
-as PCRE2 does.
+condition names has captured and its no branch otherwise, and a missing no
+branch matches the empty string. The condition names the group by number,
+which may be signed as a reference's is, or by a name in angle brackets or
+single quotes. A condition reads a capture the way a reference does,
+including inside the group it names. Under Oniguruma every branch after the
+first makes up the no branch, a number in <> names a group by number, a
+name several groups share holds when any of them has captured, and a
+conditional of one empty branch fails when its group has not captured. PCRE
+refuses a third branch and a name that starts with a digit, as PCRE2 does.
 
 The inline flags n, J, U, and ^, the assertion \G, the escapes \X, \y,
 and \Y, and the rarer constructs such as recursion, subroutine calls, and

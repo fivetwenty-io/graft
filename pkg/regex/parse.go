@@ -514,11 +514,11 @@ func (p *parser) group(start int) (*node, error) {
 // Oniguruma every branch after the first makes up the no branch, and a
 // conditional of one empty branch only tests its group, failing when the
 // group has not captured. Oniguruma's search plans as if a yes branch with
-// no no branch matched nothing, so jq misses matches through one, and the
-// flavor refuses that form. PCRE2 refuses a third branch.
+// no no branch matched nothing, so jq misses matches through one that
+// something follows, while this flavor matches it as PCRE2 does. PCRE2
+// refuses a third branch.
 func (p *parser) conditional(start int) (*node, error) {
 	p.pos += 2 // "?("
-	cond := upToParen(p.src[p.pos:])
 	refs, err := p.condition(start)
 	if err != nil {
 		return nil, err
@@ -552,8 +552,6 @@ func (p *parser) conditional(start int) (*node, error) {
 		no = branches[1]
 	case testOnly && p.rules().conditionTail:
 		no = &node{kind: kindLook, subs: []*node{{kind: kindConcat}}, neg: true}
-	case p.rules().conditionTail:
-		return nil, unsupported("conditional group (?(" + cond + ")...) with no no branch")
 	}
 	return &node{kind: kindCond, subs: []*node{branches[0], no}, refs: refs}, nil
 }
