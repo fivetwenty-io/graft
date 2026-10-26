@@ -169,8 +169,14 @@ func repeat(l, s, n *value.Value, emit runtime.Emit) error {
 		return &query.RuntimeError{Msg: fmt.Sprintf("result of repeating string (%d bytes) by %d would exceed %d bytes", len(text), count, maxRepeat)}
 	}
 	m := attributes(metaOf(l), s, assignPrefs{})
+	out := strings.Repeat(text, count)
 	m.Text = ""
-	return emit(withMeta(value.Str(strings.Repeat(text, count)), m), nil)
+	if sm := s.Meta(); sm != nil && sm.Text == text {
+		// A string written as it reads keeps that, a tag included,
+		// where one computed has no spelling for the emitter to keep.
+		m.Text = out
+	}
+	return emit(withMeta(value.Str(out), m), nil)
 }
 
 // merger walks the right side of a merge from the top down, map keys

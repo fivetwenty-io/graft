@@ -229,3 +229,11 @@ func TestYQMultiplyCustomTaggedNumbers(t *testing.T) {
 	wantYQ(t, ".a *= 3", "a: !foo \"5\"\n", "a: !foo \"15\"\n")
 	wantYQError(t, ".a * 2", "a: !foo .inf\n", "cannot multiply !foo with !!int")
 }
+
+func TestYQRepeatedStringKeepsItsSpelling(t *testing.T) {
+	wantYQ(t, `.c = .a * 3`, "a: !!str 2\n", "a: !!str 2\nc: !!str 222\n")
+	wantYQ(t, `.c = .a * 3`, "a: \"2\"\n", "a: \"2\"\nc: \"222\"\n")
+	wantYQ(t, `.c = .a * .b`, "a: !!str 2\nb: !foo 3\n", "a: !!str 2\nb: !foo 3\nc: !!str 222\n")
+	wantYQ(t, `.c = .b * .a`, "a: !!str 2\nb: 3\n", "a: !!str 2\nb: 3\nc: !!str 222\n")
+	wantYQ(t, `.c = "2" * 3`, "a: 1\n", "a: 1\nc: \"222\"\n")
+}
