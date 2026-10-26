@@ -141,6 +141,16 @@ func yqIndent(opts yqOptions, format yq.Format) int {
 	return opts.Indent
 }
 
+// yqUnwrap reports whether a top-level string prints bare. YAML output
+// unwraps unless -r=false says otherwise, and JSON output keeps the
+// quotes unless -r is given.
+func yqUnwrap(opts yqOptions, format yq.Format) bool {
+	if opts.UnwrapSet || format == yq.FormatYAML {
+		return opts.UnwrapScalar
+	}
+	return false
+}
+
 // yqOutput writes each output value the way yq prints it, coloring YAML
 // through graft's YAML colorizer when color is on, and ending each value
 // with a NUL under -0.
@@ -162,7 +172,7 @@ func newYQOutput(opts yqOptions, format yq.Format, out io.Writer, color bool) *y
 		Format:          format,
 		Indent:          yqIndent(opts, format),
 		Colors:          color && format == yq.FormatJSON,
-		UnwrapScalar:    opts.UnwrapScalar,
+		UnwrapScalar:    yqUnwrap(opts, format),
 		NoDocSeparators: opts.NoDoc,
 		PrettyPrint:     opts.PrettyPrint,
 		SortKeys:        opts.SortKeys,

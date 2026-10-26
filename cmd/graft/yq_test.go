@@ -317,3 +317,23 @@ func TestYQJSONNamedInputDecodesAsJSON(t *testing.T) {
 		So(out, ShouldEqual, doc)
 	})
 }
+
+func TestYQJSONOutputQuotesStringsUnlessToldNotTo(t *testing.T) {
+	const doc = "a: text\n"
+	Convey("JSON output keeps a top-level string's quotes by default", t, func() {
+		out, _, _ := runYQ(t, []string{"-o=json", ".a"}, doc)
+		So(out, ShouldEqual, "\"text\"\n")
+		path := writeTempNamed(t, "in.json", `{"a": "text"}`+"\n")
+		out, _, _ = runYQ(t, []string{".a", path}, "")
+		So(out, ShouldEqual, "\"text\"\n")
+	})
+
+	Convey("-r unwraps it in JSON, and YAML output unwraps by default", t, func() {
+		out, _, _ := runYQ(t, []string{"-o=json", "-r", ".a"}, doc)
+		So(out, ShouldEqual, "text\n")
+		out, _, _ = runYQ(t, []string{".a"}, doc)
+		So(out, ShouldEqual, "text\n")
+		out, _, _ = runYQ(t, []string{"-r=false", ".a"}, doc)
+		So(out, ShouldEqual, "text\n")
+	})
+}

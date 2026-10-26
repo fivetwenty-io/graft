@@ -41,6 +41,7 @@ type yqOptions struct {
 	NoDoc             bool          // -N
 	PrettyPrint       bool          // -P
 	UnwrapScalar      bool          // -r, true unless =false
+	UnwrapSet         bool          // -r was given, in either form
 	NulOutput         bool          // -0
 	Colors            bool          // -C
 	NoColors          bool          // -M
@@ -105,7 +106,7 @@ var yqBoolFlags = map[string]func(*yqOptions, bool){
 	flagNullInput:                     func(o *yqOptions, v bool) { o.NullInput = v },
 	"no-doc":                          func(o *yqOptions, v bool) { o.NoDoc = v },
 	"prettyPrint":                     func(o *yqOptions, v bool) { o.PrettyPrint = v },
-	"unwrapScalar":                    func(o *yqOptions, v bool) { o.UnwrapScalar = v },
+	"unwrapScalar":                    func(o *yqOptions, v bool) { o.UnwrapScalar, o.UnwrapSet = v, true },
 	"nul-output":                      func(o *yqOptions, v bool) { o.NulOutput = v },
 	"yaml-compact-seq-indent":         func(o *yqOptions, v bool) { o.CompactSeqIndent = v },
 	"header-preprocess":               func(o *yqOptions, v bool) { o.HeaderPreprocess = v },
