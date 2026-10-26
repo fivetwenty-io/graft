@@ -28,6 +28,8 @@ type Reader struct {
 	docs     []*yamlnode.Node
 	leading  string
 	next     int
+	evq      []*value.Value // streaming events of a loaded document
+	evLine   int
 	lines    int
 	docIndex int
 	err      error
@@ -158,6 +160,8 @@ func (r *Reader) read() (Document, error) {
 		}
 		r.lines++
 		return Document{Line: r.lines, Value: value.Str(line)}, nil
+	case r.json != nil && r.opts.Stream:
+		return r.nextStreamEvent()
 	case r.json != nil:
 		v, line, err := r.json.Next()
 		if err != nil {
@@ -165,14 +169,41 @@ func (r *Reader) read() (Document, error) {
 		}
 		return Document{Line: line, Value: v}, nil
 	}
+	if r.opts.Stream {
+		return r.nextYAMLEvent()
+	}
 	return r.nextYAML()
+}
+
+// nextStreamEvent reads one event from a JSON source.
+func (r *Reader) nextStreamEvent() (Document, error) {
+	ev, err := r.json.NextEvent()
+	var se *streamError
+	switch {
+	case err == nil:
+		return Document{Line: r.json.Line(), Value: ev}, nil
+	case !errors.As(err, &se):
+		return Document{}, err
+	}
+	return Document{}, &SyntaxError{Source: r.src.Name, Line: se.line, Col: se.col, Msg: se.msg}
+}
+
+// nextYAMLEvent reads one event from a document that has been loaded whole.
+func (r *Reader) nextYAMLEvent() (Document, error) {
+	for len(r.evq) == 0 {
+		d, err := r.nextYAML()
+		if err != nil {
+			return Document{}, err
+		}
+		r.evq, r.evLine = StreamEvents(d.Value), d.Line
+	}
+	ev := r.evq[0]
+	r.evq = r.evq[1:]
+	return Document{Line: r.evLine, Value: ev}, nil
 }
 
 func (r *Reader) start() error {
 	r.started = true
-	if r.opts.Stream {
-		return errors.New("--stream is not supported by the loader yet")
-	}
 	if r.src.Reader == nil {
 		r.src.Reader = bytes.NewReader(nil)
 	}

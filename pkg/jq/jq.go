@@ -179,8 +179,8 @@ func (q *Query) newCtx(ctx context.Context) *runtime.Ctx {
 	c.Modules = jqdialect.NewModuleResolver(q.cfg.compileOptions())
 	c.DepthLimit = q.cfg.depth
 	c.RegexBudget = q.cfg.budget
-	if q.cfg.inputs != nil || q.cfg.filename != nil {
-		c.Inputs = inputSource{next: q.cfg.inputs, name: q.cfg.filename}
+	if q.cfg.inputs != nil || q.cfg.filename != nil || q.cfg.line != nil {
+		c.Inputs = inputSource{next: q.cfg.inputs, name: q.cfg.filename, line: q.cfg.line}
 	}
 	return c
 }
@@ -190,6 +190,7 @@ func (q *Query) newCtx(ctx context.Context) *runtime.Ctx {
 type inputSource struct {
 	next func() (*value.Value, error)
 	name func() string
+	line func() int
 }
 
 func (s inputSource) Next() (*value.Value, string, bool, error) {
@@ -213,9 +214,14 @@ func (s inputSource) Filename() string {
 	return s.name()
 }
 
-// Line reports no line, because a WithInputs function does not say where
-// its values came from.
-func (inputSource) Line() int { return 0 }
+// Line is the line count WithInputLine supplies, and 0 without it, because
+// a WithInputs function does not say where its values came from.
+func (s inputSource) Line() int {
+	if s.line == nil {
+		return 0
+	}
+	return s.line()
+}
 
 // RunTestFile runs a test file in jq's --run-tests format, writes jq's line
 // for each case and each failure to w followed by the summary, and returns

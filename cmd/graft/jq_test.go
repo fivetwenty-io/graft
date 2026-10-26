@@ -96,7 +96,7 @@ func TestJQExitCodes(t *testing.T) {
 		So(e, ShouldNotContainSubstring, "compile error\n")
 		_, e, st = runJQ(t, []string{".a"}, "[1]")
 		So(st.Code, ShouldEqual, 5)
-		So(e, ShouldEqual, "Runtime error (at <stdin>:1): Cannot index array with string (\"a\")\n")
+		So(e, ShouldEqual, "Runtime error (at <stdin>:0): Cannot index array with string (\"a\")\n")
 		_, e, st = runJQ(t, []string{".", "/nonexistent"}, "")
 		So(st.Code, ShouldEqual, 2)
 		So(e, ShouldStartWith, "Unable to open file /nonexistent: ")
@@ -111,15 +111,12 @@ func TestJQExitCodes(t *testing.T) {
 		_, e, st = runJQ(t, []string{`halt_error(7)`}, "\"bye\\n\"")
 		So(st.Code, ShouldEqual, 7)
 		So(e, ShouldEqual, "bye\n")
-		_, e, st = runJQ(t, []string{"--stream", "."}, "1")
-		So(st.Code, ShouldEqual, 2)
-		So(e, ShouldContainSubstring, "--stream is not available until a later release")
 	})
 
 	Convey("graft jq keeps going the way jq does after an error", t, func() {
 		out, e, st := runJQ(t, []string{"-c", ".a"}, "{\"a\":1} [2] {\"a\":3}")
 		So(out, ShouldEqual, "1\n3\n")
-		So(e, ShouldEqual, "Runtime error (at <stdin>:1): Cannot index array with string (\"a\")\n")
+		So(e, ShouldEqual, "Runtime error (at <stdin>:0): Cannot index array with string (\"a\")\n")
 		So(st.Code, ShouldEqual, 0) // the last input decides, as in jq
 		good := writeTemp(t, "1 2")
 		out, e, st = runJQ(t, []string{".", "/nonexistent", good}, "")
@@ -310,7 +307,7 @@ func TestJQBuffering(t *testing.T) {
 				streamLogWriter{sl, "out", tty}, streamLogWriter{sl, "err", false})
 			return sl.writes
 		}
-		interleaved := []string{"out:1\n", "err:Runtime error (at <stdin>:1): Cannot index array with string (\"a\")\n", "out:3\n"}
+		interleaved := []string{"out:1\n", "err:Runtime error (at <stdin>:0): Cannot index array with string (\"a\")\n", "out:3\n"}
 		So(run(true, "-M", ".a"), ShouldResemble, interleaved)
 		So(run(false, "-M", "--unbuffered", ".a"), ShouldResemble, interleaved)
 		So(run(false, "-M", ".a"), ShouldResemble, []string{interleaved[1], "out:1\n3\n"})

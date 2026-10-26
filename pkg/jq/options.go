@@ -26,6 +26,7 @@ type config struct {
 	origin      string
 	inputs      func() (*value.Value, error)
 	filename    func() string
+	line        func() int
 	stderr      io.Writer
 	stderrSet   bool
 	budget      regex.Budget
@@ -142,6 +143,17 @@ func WithInputs(next func() (*value.Value, error)) Option {
 func WithInputFilename(name func() string) Option {
 	return func(c *config) error {
 		c.filename = name
+		return nil
+	}
+}
+
+// WithInputLine supplies the number input_line_number reports, which line
+// returns each time the program asks. It is the count of lines read so far
+// from the source the last input came from, and a Decoder's Line method is
+// such a function. Without it input_line_number is 0.
+func WithInputLine(line func() int) Option {
+	return func(c *config) error {
+		c.line = line
 		return nil
 	}
 }

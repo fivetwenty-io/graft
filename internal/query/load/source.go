@@ -43,6 +43,9 @@ type LoadOptions struct {
 	StringKeys   bool
 	Seq          bool
 	Stream       bool
+	// StreamErrors reports a parse failure under Stream as a final
+	// [message, path] event instead of an error.
+	StreamErrors bool
 	DepthLimit   int
 	AliasBudget  int
 }

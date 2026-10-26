@@ -251,11 +251,37 @@ func ExampleWithInputs() {
 	// Output: 6
 }
 
+func ExampleDecodeOptions_stream() {
+	dec := jq.NewDecoder(strings.NewReader(`{"a":[1,2]}`), jq.DecodeOptions{Stream: true})
+	enc := jq.NewEncoder(os.Stdout, jq.EncodeOptions{Compact: true})
+	for {
+		v, err := dec.Next()
+		if err != nil {
+			break
+		}
+		_ = enc.Encode(v)
+	}
+	_ = enc.Flush()
+	// Output:
+	// [["a",0],1]
+	// [["a",1],2]
+	// [["a",1]]
+	// [["a"]]
+}
+
 func ExampleWithInputFilename() {
 	q, _ := jq.Compile(`input_filename`, jq.WithInputFilename(func() string { return "config.json" }))
 	out, _ := q.RunAll(context.Background(), value.Null())
 	fmt.Println(out[0].Str())
 	// Output: config.json
+}
+
+func ExampleWithInputLine() {
+	dec := jq.NewDecoder(strings.NewReader("1\n2\n"), jq.DecodeOptions{})
+	q, _ := jq.Compile(`[input, input_line_number]`, jq.WithInputs(dec.Next), jq.WithInputLine(dec.Line))
+	out, _ := q.RunAll(context.Background(), value.Null())
+	fmt.Println(out[0].Elems()[1].Dec())
+	// Output: 1
 }
 
 func ExampleWithStderr() {

@@ -208,7 +208,7 @@ func TestCLIFlagsBuildFromThePublicPackage(t *testing.T) {
 		{flags: "input_filename", program: `input_filename`, inputs: []cliInput{{"a.json", "1\n"}, {"b.json", "2\n"}}, encode: jq.EncodeOptions{Raw: true}, want: "a.json\nb.json\n"},
 		{flags: "-L DIR", program: `.`, inputs: stdin(`1`), opts: []jq.Option{jq.WithModulePaths([]string{"lib", "~/.jq"})}, want: "1\n"},
 		{flags: "--seq", program: `.`, inputs: stdin("\x1e1\n\x1e[2]\n"), decode: jq.DecodeOptions{Seq: true}, encode: jq.EncodeOptions{Seq: true, Compact: true}, want: "\x1e1\n\x1e[2]\n"},
-		{flags: "--stream", program: `.`, inputs: stdin(`[1]`), decode: jq.DecodeOptions{Stream: true}, want: "", wantExit: 5},
+		{flags: "--stream", program: `.`, inputs: stdin(`[1]`), decode: jq.DecodeOptions{Stream: true}, encode: jq.EncodeOptions{Compact: true}, want: "[[0],1]\n[[0]]\n"},
 	}
 	for _, c := range cases {
 		got, exit := runCLI(t, c)

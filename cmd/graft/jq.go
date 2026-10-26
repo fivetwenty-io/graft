@@ -119,24 +119,11 @@ func jqArgsError(err error) query.Status {
 	return queryCommandError(errUsage, err)
 }
 
-// checkJQOptions refuses the flags graft jq does not run yet and the
-// layout flags that describe JSON text under -o yaml, before any input is
-// read.
+// checkJQOptions refuses the layout flags that describe JSON text under
+// -o yaml, before any input is read.
 func checkJQOptions(opts jqOptions) error {
 	if err := validateComposeFlags(opts); err != nil {
 		return err
-	}
-	for _, deferred := range []struct {
-		set  bool
-		flag string
-	}{
-		{opts.Seq, "--seq"},
-		{opts.StreamErrs, "--stream-errors"},
-		{opts.Stream, "--stream"},
-	} {
-		if deferred.set {
-			return &usageError{Msg: deferred.flag + " is not available until a later release"}
-		}
 	}
 	if !opts.yamlOutput() {
 		return nil
@@ -219,8 +206,10 @@ func (in *jqInputs) compose(stdin io.Reader) *query.Status {
 // decodeOptions is how every input source decodes.
 func (in *jqInputs) decodeOptions() jq.DecodeOptions {
 	format := jq.FormatAuto
+	stream := jq.DecodeOptions{Seq: in.opts.Seq, Stream: in.opts.Stream, StreamErrors: in.opts.StreamErrs}
 	if in.composed != nil {
-		return jq.DecodeOptions{Format: jq.FormatYAML, Raw: in.opts.RawInput, DepthLimit: in.opts.DepthLimit}
+		stream.Format, stream.Raw, stream.DepthLimit = jq.FormatYAML, in.opts.RawInput, in.opts.DepthLimit
+		return stream
 	}
 	switch in.opts.InputFormat {
 	case jqFormatJSON:
@@ -228,7 +217,8 @@ func (in *jqInputs) decodeOptions() jq.DecodeOptions {
 	case jqFormatYAML:
 		format = jq.FormatYAML
 	}
-	return jq.DecodeOptions{Format: format, Raw: in.opts.RawInput, DepthLimit: in.opts.DepthLimit}
+	stream.Format, stream.Raw, stream.DepthLimit = format, in.opts.RawInput, in.opts.DepthLimit
+	return stream
 }
 
 // open opens the source at the next index, reporting a failure on stderr.
@@ -337,6 +327,15 @@ func (in *jqInputs) filename() string {
 	return in.lastName
 }
 
+// line is what input_line_number reports, which is the lines read so far
+// from the current source, or from the last one once it is closed.
+func (in *jqInputs) line() int {
+	if in.cur != nil {
+		return in.cur.dec.Line()
+	}
+	return in.lastLine
+}
+
 // where is the location jq names in an error, which is the current
 // source's name and the lines read from it so far.
 func (in *jqInputs) where() string {
@@ -393,6 +392,7 @@ func newJQOutput(opts jqOptions, stdout io.Writer, color bool, colors string) *j
 		Raw:          opts.Raw && !opts.Join,
 		Join:         opts.Join && !opts.RawOutput0,
 		RawNUL:       opts.RawOutput0,
+		Seq:          opts.Seq,
 		FloatNumbers: opts.FloatNumbers,
 		SortKeys:     opts.SortKeys,
 		// jq's stdout is line-buffered on a terminal, so each output
@@ -544,6 +544,7 @@ func jqCompileOptions(opts jqOptions, in *jqInputs, origin string, stderr io.Wri
 	jqOpts := []jq.Option{
 		jq.WithInputs(in.Next),
 		jq.WithInputFilename(in.filename),
+		jq.WithInputLine(in.line),
 		jq.WithStderr(stderr),
 		jq.WithPositional(opts.Positional),
 		jq.WithDepthLimit(opts.DepthLimit),

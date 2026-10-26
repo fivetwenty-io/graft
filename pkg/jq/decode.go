@@ -29,10 +29,16 @@ type DecodeOptions struct {
 	Raw bool
 	// Seq reads RS-separated JSON texts, as --seq does.
 	Seq bool
-	// Stream reads the streaming event form, as --stream does. graft jq
-	// does not read it yet, and a Decoder with Stream set fails on its
-	// first Next.
+	// Stream reads the streaming event form, as --stream does: every
+	// value comes out as the [path, leaf] events jq's tostream makes of it,
+	// followed by a closing [path] event for each container. A JSON source
+	// is read as it arrives, so an event comes out as soon as the text
+	// after it shows that it is complete.
 	Stream bool
+	// StreamErrors is Stream with a failure to parse reported as a final
+	// [message, path] event, as --stream-errors does, instead of as an
+	// error from Next.
+	StreamErrors bool
 	// Filename names the source in error messages.
 	Filename string
 	// DepthLimit bounds how deeply a value may nest, and zero means jq's
@@ -61,12 +67,13 @@ type Decoder struct {
 // NewDecoder returns a Decoder that reads r as opts describe.
 func NewDecoder(r io.Reader, opts DecodeOptions) *Decoder {
 	lo := load.LoadOptions{
-		Format:      loadFormat(opts.Format),
-		RawLines:    opts.Raw,
-		Seq:         opts.Seq,
-		Stream:      opts.Stream,
-		DepthLimit:  opts.DepthLimit,
-		AliasBudget: opts.AliasBudget,
+		Format:       loadFormat(opts.Format),
+		RawLines:     opts.Raw,
+		Seq:          opts.Seq,
+		Stream:       opts.Stream || opts.StreamErrors,
+		StreamErrors: opts.StreamErrors,
+		DepthLimit:   opts.DepthLimit,
+		AliasBudget:  opts.AliasBudget,
 	}
 	return &Decoder{r: load.Open(load.Source{Name: opts.Filename, Reader: r}, 0, lo), raw: opts.Raw}
 }

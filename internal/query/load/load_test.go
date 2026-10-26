@@ -18,7 +18,7 @@ func TestJSONConcatenatedValuesWithLines(t *testing.T) {
 	wantEqual(t, d.Value.Float(), 3.0)
 	wantEqual(t, d.Line, 2)
 	d, _ = r.Next()
-	wantEqual(t, r.Line(), 3)
+	wantEqual(t, r.Line(), 2) // the last line has no newline, so jq does not count it
 	wantEqual(t, d.Value.Str(), "s")
 }
 
@@ -100,11 +100,6 @@ func TestYAMLDocumentsCarryPositionsAndOptions(t *testing.T) {
 	r := Open(Source{"f", strings.NewReader("a: 1\n---\nb: [\n")}, 0, LoadOptions{})
 	_, err := r.Next()
 	wantErrContains(t, err, "f: ")
-}
-
-func TestStreamIsNotSupportedYet(t *testing.T) {
-	_, err := Open(Source{"f", strings.NewReader("1")}, 0, LoadOptions{Stream: true}).Next()
-	wantErrContains(t, err, "--stream")
 }
 
 func TestBOMIsDropped(t *testing.T) {

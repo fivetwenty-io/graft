@@ -2,6 +2,7 @@ package load
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,10 @@ import (
 
 // defaultDepthLimit matches jq's parser limit.
 const defaultDepthLimit = 10000
+
+// maxChunk is the most bytes the reader takes at once, which is what jq's
+// input buffer holds, so a very long line is taken in pieces as in jq.
+const maxChunk = 4095
 
 // recordSeparator is the byte --seq puts before each JSON text.
 const recordSeparator = 0x1e
@@ -29,6 +34,14 @@ type JSONReader struct {
 	line   int // newlines consumed
 	col    int // bytes consumed on the current line
 	err    error
+
+	// The reader takes bytes from br a line at a time, as jq does, and
+	// never waits for more than the first byte of a line to arrive.
+	buf []byte
+	pos int
+	fed int // newlines in the lines taken from br so far
+
+	stream streamState
 }
 
 // NewJSONReader reads JSON values from br. The source name goes into
@@ -38,16 +51,39 @@ func NewJSONReader(br *bufio.Reader, source string, opts LoadOptions) *JSONReade
 	if limit <= 0 {
 		limit = defaultDepthLimit
 	}
-	return &JSONReader{br: br, source: source, limit: limit, seq: opts.Seq}
+	r := &JSONReader{br: br, source: source, limit: limit, seq: opts.Seq}
+	r.stream.explicitLimit = opts.DepthLimit > 0
+	r.stream.recover = opts.StreamErrors
+	return r
 }
 
-// Line returns the number of lines consumed so far, counting a partly read
-// line as consumed, which is what input_line_number reports.
-func (r *JSONReader) Line() int {
-	if r.col > 0 {
-		return r.line + 1
+// Line returns the number of newlines in the input taken so far, which is
+// what input_line_number reports. jq takes its input a line at a time, so
+// a value that ends in the middle of a line counts that whole line, and a
+// last line with no newline never counts.
+func (r *JSONReader) Line() int { return r.fed }
+
+// fill takes the next piece of input into buf, which is the rest of the
+// line br has ready, ending at its newline. It returns an error only when
+// br has no more bytes to give.
+func (r *JSONReader) fill(keep bool) error {
+	if _, err := r.br.Peek(1); err != nil {
+		return err
 	}
-	return r.line
+	ready, _ := r.br.Peek(r.br.Buffered())
+	n := min(len(ready), maxChunk)
+	if i := bytes.IndexByte(ready[:n], '\n'); i >= 0 {
+		n = i + 1
+		r.fed++
+	}
+	if keep {
+		r.buf = append(r.buf, ready[:n]...)
+	} else {
+		r.buf = append(r.buf[:0], ready[:n]...)
+		r.pos = 0
+	}
+	_, _ = r.br.Discard(n)
+	return nil
 }
 
 // Next returns the next value and the line it started on, and io.EOF after
@@ -82,11 +118,12 @@ func (r *JSONReader) errHere(format string, args ...any) error {
 
 // peek returns the next byte without consuming it, and io.EOF at the end.
 func (r *JSONReader) peek() (byte, error) {
-	b, err := r.br.Peek(1)
-	if err != nil {
-		return 0, err
+	if r.pos >= len(r.buf) {
+		if err := r.fill(false); err != nil {
+			return 0, err
+		}
 	}
-	return b[0], nil
+	return r.buf[r.pos], nil
 }
 
 // peekIn is peek inside a value, where the end of input is an error.
@@ -100,7 +137,7 @@ func (r *JSONReader) peekIn() (byte, error) {
 
 // advance consumes the byte peek returned.
 func (r *JSONReader) advance(c byte) {
-	_, _ = r.br.ReadByte()
+	r.pos++
 	if c == '\n' {
 		r.line++
 		r.col = 0
@@ -393,8 +430,15 @@ func (r *JSONReader) unicodeEscape(buf []byte) ([]byte, error) {
 
 // pairedLow consumes a following \uXXXX escape when it is a low surrogate.
 func (r *JSONReader) pairedLow() (rune, bool) {
-	b, err := r.br.Peek(6)
-	if err != nil || b[0] != '\\' || b[1] != 'u' {
+	for len(r.buf)-r.pos < 6 {
+		// Only a following escape is worth reading ahead for, and a
+		// newline in the way rules it out without taking the next line.
+		if !mayStartEscape(r.buf[r.pos:]) || r.fill(true) != nil {
+			return 0, false
+		}
+	}
+	b := r.buf[r.pos : r.pos+6]
+	if b[0] != '\\' || b[1] != 'u' {
 		return 0, false
 	}
 	n, ok := parseHex4(b[2:6])
@@ -405,6 +449,18 @@ func (r *JSONReader) pairedLow() (rune, bool) {
 		r.advance(c)
 	}
 	return n, true
+}
+
+// mayStartEscape reports whether rest could be the start of a \uXXXX
+// escape that has not all arrived.
+func mayStartEscape(rest []byte) bool {
+	for i, c := range rest {
+		switch {
+		case i == 0 && c != '\\', i == 1 && c != 'u', c == '\n':
+			return false
+		}
+	}
+	return true
 }
 
 func (r *JSONReader) hex4() (rune, error) {

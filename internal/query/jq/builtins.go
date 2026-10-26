@@ -78,14 +78,17 @@ func registerJQ(r *runtime.Registry) {
 		return emit(value.Str(ctx.Inputs.Filename()), nil)
 	})
 	registerModules(r)
+	r.RegisterSingle("input_line_number", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		if ctx.Inputs == nil {
+			return emit(value.Num(0), nil)
+		}
+		return emit(value.Num(float64(ctx.Inputs.Line())), nil)
+	})
 	constant := func(name string, v *value.Value) {
 		r.RegisterSingle(name, 0, func(_ *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 			return emit(v, nil)
 		})
 	}
-	// The line number waits for the input reader to track lines, and until
-	// then it is 0, which is what jq reports before reading any input.
-	constant("input_line_number", value.Num(0))
 	constant("have_literal_numbers", value.Bool(true))
 	constant("have_decnum", value.Bool(true))
 	r.RegisterSingle("builtins", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
