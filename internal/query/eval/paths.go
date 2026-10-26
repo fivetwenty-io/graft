@@ -141,7 +141,7 @@ func (ev evaluator) iterate(n *ast.Iterate, env *Env, in *value.Value, p value.P
 			return invalidPathIterate(v)
 		}
 		var downstream error
-		err := ev.ctx.Dialect.Iterate(v, func(k, e *value.Value) error {
+		err := ev.ctx.Dialect.Iterate(ev.ctx, v, func(k, e *value.Value) error {
 			if err := ev.ctx.Tick(); err != nil {
 				downstream = err
 				return err

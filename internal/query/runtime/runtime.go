@@ -148,7 +148,9 @@ type Dialect interface {
 	// Index returns container[key] under the run's context, and nil with
 	// no error when there is no output.
 	Index(ctx *Ctx, container, key *value.Value, mode IndexMode) (*value.Value, error)
-	Iterate(v *value.Value, emit func(key, elem *value.Value) error) error
+	// Iterate emits the values of v, and the key each sits under, under the
+	// run's context.
+	Iterate(ctx *Ctx, v *value.Value, emit func(key, elem *value.Value) error) error
 	// Recurse emits v and everything under it, each with its path
 	// relative to v.
 	Recurse(v *value.Value, includeKeys bool, emit func(*value.Value, value.Path) error) error

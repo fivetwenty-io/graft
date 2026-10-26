@@ -5,6 +5,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/fivetwenty-io/graft/internal/query/builtin"
 	"github.com/fivetwenty-io/graft/internal/query/jq"
@@ -36,6 +38,14 @@ type Options struct {
 type Dialect struct {
 	*jq.Dialect
 	opts Options
+
+	// anchorMu guards the anchors of the document last read, which a
+	// merge key or an alias looks its map up in.
+	anchorMu   sync.Mutex
+	anchorRoot *value.Value
+	anchorSet  map[string]*value.Value
+	// warned is set once the merge key warning has been written.
+	warned atomic.Bool
 }
 
 var _ runtime.Dialect = (*Dialect)(nil)
@@ -97,11 +107,15 @@ func (d *Dialect) Index(ctx *runtime.Ctx, c, key *value.Value, mode runtime.Inde
 	if _, _, ok := value.IsSliceComponent(key); ok {
 		return builtin.Index(ctx, c, key)
 	}
+	c = d.deref(ctx, c)
 	var out *value.Value
 	var err error
 	switch c.Kind() {
 	case value.KindObject:
-		out, err = d.mapIndex(ctx, c, key)
+		var found bool
+		if out, found, err = d.objectIndex(ctx, c, key, mode); found {
+			return out, err
+		}
 	case value.KindArray:
 		out, err = seqIndex(ctx, c, key)
 	case value.KindNull:
@@ -122,6 +136,25 @@ func (d *Dialect) Index(ctx *runtime.Ctx, c, key *value.Value, mode runtime.Inde
 		return nil, nil
 	}
 	return out, nil
+}
+
+// objectIndex reads key from the map c. It reports true when the map's merge
+// key gives the key a value, which is the answer as it stands. A key the
+// merge lacks reads as null, and the left side of an assignment works on the
+// map's own keys.
+func (d *Dialect) objectIndex(ctx *runtime.Ctx, c, key *value.Value, mode runtime.IndexMode) (*value.Value, bool, error) {
+	if mode != runtime.IndexUpdate {
+		v, found, merged := d.mergedGet(ctx, c, key)
+		switch {
+		case found:
+			return v, true, nil
+		case merged:
+			return value.Null(), false, nil
+		default:
+		}
+	}
+	out, err := d.mapIndex(ctx, c, key)
+	return out, false, err
 }
 
 // mapIndex finds key in a map. A number finds the entry whose key spells
@@ -218,10 +251,21 @@ func numberText(v *value.Value) string {
 
 // Iterate emits a map's values and a sequence's elements, and nothing for
 // a scalar or null.
-func (d *Dialect) Iterate(v *value.Value, emit func(key, elem *value.Value) error) error {
+func (d *Dialect) Iterate(ctx *runtime.Ctx, v *value.Value, emit func(key, elem *value.Value) error) error {
+	v = d.deref(ctx, v)
 	switch v.Kind() {
-	case value.KindArray, value.KindObject:
-		return d.Dialect.Iterate(v, emit)
+	case value.KindObject:
+		if entries, merged := d.mergedEntries(ctx, v); merged {
+			for _, e := range entries {
+				if err := emit(e.Key, e.Value); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		return d.Dialect.Iterate(ctx, v, emit)
+	case value.KindArray:
+		return d.Dialect.Iterate(ctx, v, emit)
 	default:
 	}
 	return nil

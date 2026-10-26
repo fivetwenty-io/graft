@@ -46,7 +46,7 @@ func (d *testDialect) Index(_ *runtime.Ctx, c, key *value.Value, _ runtime.Index
 	return indexJQ(c, key)
 }
 
-func (d *testDialect) Iterate(v *value.Value, emit func(key, elem *value.Value) error) error {
+func (d *testDialect) Iterate(_ *runtime.Ctx, v *value.Value, emit func(key, elem *value.Value) error) error {
 	switch v.Kind() {
 	case value.KindArray:
 		for i, e := range v.Elems() {

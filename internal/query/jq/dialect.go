@@ -54,7 +54,7 @@ func (*Dialect) Index(ctx *runtime.Ctx, container, key *value.Value, _ runtime.I
 
 // Iterate emits an array's elements with their indices and an object's
 // values with their keys.
-func (*Dialect) Iterate(v *value.Value, emit func(key, elem *value.Value) error) error {
+func (*Dialect) Iterate(_ *runtime.Ctx, v *value.Value, emit func(key, elem *value.Value) error) error {
 	switch v.Kind() {
 	case value.KindArray:
 		for i, e := range v.Elems() {
