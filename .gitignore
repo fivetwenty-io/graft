@@ -22,6 +22,8 @@
 *.out
 # The CLI identity goldens record each command's stdout as NAME.out
 !tests/cli-identity/golden/*.out
+# A parity case records the files its run leaves behind under want/files
+!tests/query-parity/*/cases/*/want/files/**
 coverage.html
 
 # Dependency directories
