@@ -141,6 +141,39 @@ func TestSubexpressionCallErrors(t *testing.T) {
 	}
 }
 
+// jq's Oniguruma lets an absent operator that a call runs inside another
+// change where the outer one stops, as it does for an absent operator
+// written inside another, and its matches then follow neither operator
+// alone. A call made inside an absent operator is refused when the group
+// it runs holds an absent operator, directly or through further calls.
+// jq gives (?<a>b(?~\g<a>)) on "bbb" the match [0,3], for one, and
+// (?<a>c(?~\g<1>?b+?)[ab]). on "cccbb" the match [0,5], where reading
+// each operator alone gives [0,1] and [2,5].
+func TestCallsThatNestAbsentOperatorsAreRefused(t *testing.T) {
+	onig := WithFlavor(Oniguruma)
+	for _, pattern := range []string{
+		`(?<a>b(?~\g<a>))`,
+		`x(?~a\g<0>)`,
+		`(?<a>x(?~a\g<a>)y)`,
+		`(?<a>c(?~\g<1>?b+?)[ab]).`,
+		`(?<a>(?~b\g<0>?\1)(bb)*[ab]).`,
+		`(?<a>(?i:a))(?~\g<0>?a\g<a>?)\g<a>(\g<1>?)`,
+		`(?<n>(?~b))(?~\g<n>)`,
+		`(?<n>a(?~b)c){0}x(?~z\g<n>)`,
+		`(?<n>q){0}(?<m>(?~\g<n>)){0}x(?~\g<m>)`,
+		`(?<n>(?~c)){0}(?<m>\g<n>){0}x(?~(?=\g<m>))`,
+	} {
+		_, err := Compile(pattern, onig)
+		var u *UnsupportedError
+		wantErrAs(t, err, &u)
+		wantEqual(t, u.Construct, "absent operator (?~...) called inside an absent operator")
+	}
+	// A call inside an absent operator of a group with none, and a call
+	// of a group holding one from outside any, both match as in jq.
+	wantEqual(t, spans(t, MustCompile(`(?<n>x){0}(?<m>y\g<n>){0}(?~\g<m>)z`, onig), "abyxz"), []string{"3:xz"})
+	wantEqual(t, spans(t, MustCompile(`(?<n>a(?~b)c)x\g<n>`, onig), "aqcxazcb"), []string{"0:aqcxazc"})
+}
+
 // A recursion that keeps failing deep down draws on the step budget, and
 // the depth limit keeps the call stack small.
 func TestSubexpressionCallIsCharged(t *testing.T) {

@@ -2416,6 +2416,24 @@
   flags: "g"
   subject: "xabxcd"
 
+- id: onig-call-in-absent-through-call
+  flavor: oniguruma
+  pattern: "(?<n>x){0}(?<m>y\\g<n>){0}(?~\\g<m>)z"
+  flags: "g"
+  subject: "abyxz yyxz"
+
+- id: onig-call-absent-group-outside
+  flavor: oniguruma
+  pattern: "(?<n>a(?~b)c)x\\g<n>"
+  flags: "g"
+  subject: "aqcxazcb acxac"
+
+- id: onig-call-never-ending-in-absent
+  flavor: oniguruma
+  pattern: "(?<a>a|(?~\\g<a>))"
+  flags: ""
+  subject: "ab"
+
 - id: onig-call-sets-condition
   flavor: oniguruma
   pattern: "(?<a>a){0}\\g<a>(?(<a>)b|c)"

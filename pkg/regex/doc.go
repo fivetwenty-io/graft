@@ -173,18 +173,19 @@ no quantifier, as jq's other anchors take none. PCRE refuses all three,
 since PCRE2 follows newer rules.
 
 Under Oniguruma, the absent operator (?~absent) takes the runes from the
-position up to the first place at or after it where absent matches, or up
-to the end of the subject when absent matches nowhere, and then gives them
-back one at a time, as a greedy loop does. That is how jq's Oniguruma
-behaves, though the operator is described as matching the longest text
-that does not contain absent, so (?~ab) matches only the first a of "aab",
-because ab matches from the second. The operator keeps none of the groups
-its absent captures, and its absent can read the groups captured before
-it. Its length varies, so a lookbehind accepts it only where the
-lookbehind could match the empty string without testing the text. The
-forms (?~|absent|exp), (?~|absent), and (?~|) are refused, and so is an
-absent operator inside another one, since jq lets the inner one change
-where the outer one stops. PCRE refuses the operator, as PCRE2 does.
+position up to the first place at or after it where absent matches, or up to
+the end of the subject when absent matches nowhere, and then gives them back
+one at a time, as a greedy loop does. That is how jq's Oniguruma behaves,
+though the operator is described as matching the longest text that does not
+contain absent, so (?~ab) matches only the first a of "aab", because ab
+matches from the second. The operator keeps none of the groups its absent
+captures, and its absent can read the groups captured before it. Its length
+varies, so a lookbehind accepts it only where the lookbehind could match the
+empty string without testing the text. The forms (?~|absent|exp),
+(?~|absent), and (?~|) are refused, and so is an absent operator inside
+another one, whether it is written there or a call inside the outer one runs
+it, since jq lets the inner one change where the outer one stops. PCRE
+refuses the operator, as PCRE2 does.
 
 Under Oniguruma, \g<name> and \g'name' call the group of that name, which
 runs the group's pattern again where the call stands, and \g<n>, \g<-n>,
@@ -204,12 +205,12 @@ with jq's error "never ending recursion", and a lookbehind accepts a call
 only of a group with one length. PCRE refuses calls, and both flavors
 refuse (?R).
 
-The inline flags n, J, U, and ^, the assertion \G, the escape \X, the
-absent operator, and calls under PCRE, the absent forms that start (?~|
-and an absent operator inside another, (?R), and conditions other than a
-group's number or name are recognized and refused with an UnsupportedError
-that names them. A \K inside a lookaround is
-refused as well, with a SyntaxError under PCRE, as PCRE2 refuses it, and
+The inline flags n, J, U, and ^, the assertion \G, the escape \X, the absent
+operator, and calls under PCRE, the absent forms that start (?~| and an
+absent operator inside another, written there or run there by a call, (?R),
+and conditions other than a group's number or name are recognized and
+refused with an UnsupportedError that names them. A \K inside a lookaround
+is refused as well, with a SyntaxError under PCRE, as PCRE2 refuses it, and
 an UnsupportedError under Oniguruma.
 
 # Budgets

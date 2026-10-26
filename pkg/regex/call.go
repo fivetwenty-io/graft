@@ -12,11 +12,13 @@ const maxCallDepth = 20
 
 // pendingCall is a call whose group is found once the whole pattern is
 // read, since a call may name a group that comes after it. text is the
-// name or number as written, for the error that names it.
+// name or number as written, for the error that names it, and inAbsent
+// says whether the call stands inside an absent operator.
 type pendingCall struct {
-	n    *node
-	pos  int
-	text string
+	n        *node
+	pos      int
+	text     string
+	inAbsent bool
 }
 
 // pendingBehind is a lookbehind holding a call, whose lengths are known
@@ -104,14 +106,15 @@ func (p *parser) call(start int, text string) (*node, error) {
 	default:
 		n.name = text
 	}
-	p.calls = append(p.calls, pendingCall{n: n, pos: start, text: text})
+	p.calls = append(p.calls, pendingCall{n: n, pos: start, text: text, inAbsent: p.absents > 0})
 	return n, nil
 }
 
 // resolveCalls binds each call to its group once the whole pattern is
-// read, refuses a group that would recurse without end, and checks the
-// lookbehinds that hold calls. It returns the pattern's root, which
-// becomes a called group 0 when a call names the whole pattern.
+// read, refuses a group that would recurse without end or a call that
+// would run an absent operator inside another, and checks the lookbehinds
+// that hold calls. It returns the pattern's root, which becomes a called
+// group 0 when a call names the whole pattern.
 func (p *parser) resolveCalls(root *node) (*node, error) {
 	if len(p.calls) == 0 {
 		return root, nil
@@ -148,12 +151,33 @@ func (p *parser) resolveCalls(root *node) (*node, error) {
 			return nil, p.errorAt(c.pos, "never ending recursion")
 		}
 	}
+	if err := p.callsInAbsents(); err != nil {
+		return nil, err
+	}
 	for _, b := range p.behinds {
 		if err := p.checkLookbehind(b.start, b.body); err != nil {
 			return nil, err
 		}
 	}
 	return root, nil
+}
+
+// callsInAbsents refuses a call inside an absent operator that runs a
+// group holding an absent operator, directly or through further calls.
+// jq's Oniguruma lets the absent operator the call runs change where the
+// one around the call stops, as it does for one written inside another,
+// which the parser refuses too.
+func (p *parser) callsInAbsents() error {
+	// One walk visits each group at most once, since a group an earlier
+	// walk visited reached no absent operator, or the walk would have
+	// ended in the refusal.
+	seen := map[*node]bool{}
+	for _, c := range p.calls {
+		if c.inAbsent && reachesAbsent(c.n.target, seen) {
+			return unsupported("absent operator (?~...) called inside an absent operator")
+		}
+	}
+	return nil
 }
 
 // callName returns the number of the one group the call c names.
@@ -177,6 +201,27 @@ func (p *parser) callName(c pendingCall) (int, error) {
 // hasCall reports whether n holds a call anywhere.
 func hasCall(n *node) bool {
 	return n.kind == kindCall || slices.ContainsFunc(n.subs, hasCall)
+}
+
+// reachesAbsent reports whether running n can run an absent operator, one
+// in n itself or in a group a call in n runs. A group in seen counts as
+// reaching none, and n's groups join it.
+func reachesAbsent(n *node, seen map[*node]bool) bool {
+	switch n.kind {
+	case kindAbsent:
+		return true
+	case kindCall:
+		return reachesAbsent(n.target, seen)
+	case kindGroup:
+		if seen[n] {
+			return false
+		}
+		seen[n] = true
+	case kindLiteral, kindClass, kindAny, kindConcat, kindAlternate, kindRepeat,
+		kindAssert, kindLook, kindAtomic, kindBackref, kindKeep, kindCond:
+		// Only the subs of these can run an absent operator.
+	}
+	return slices.ContainsFunc(n.subs, func(s *node) bool { return reachesAbsent(s, seen) })
 }
 
 // The answers recursion gives, as Oniguruma's check for a never ending
@@ -224,7 +269,11 @@ func recursion(n, g *node, head bool, seen map[*node]bool, work *int) int {
 			r &^= recursionMust
 		}
 		return r
-	case kindLook, kindAtomic, kindAbsent:
+	case kindAbsent:
+		// The absent's body need not match for the absent to, so it never
+		// must call g, but it runs from where the absent starts.
+		return recursion(n.subs[0], g, head, seen, work) &^ recursionMust
+	case kindLook, kindAtomic:
 		return recursion(n.subs[0], g, head, seen, work)
 	case kindCall:
 		return recursion(n.target, g, head, seen, work)
