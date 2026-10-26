@@ -45,3 +45,16 @@ func TestYQAddingOtherNodes(t *testing.T) {
 	wantYQError(t, `.a + 1`, in, "!!int () cannot be added to a !!map (a)")
 	wantYQError(t, `.a.k + .b[1]`, in, "!!seq (b[1]) cannot be added to a !!int (a.k)")
 }
+
+func TestYQIntegersKeepTheLeftBase(t *testing.T) {
+	in := "a: 0x10\no: 0o17\nn: 0x0a\nx: 0X1f\n"
+	wantYQ(t, `.a + 1, (.a * 2), (.a - 1), (.a % 3), (.x + 1)`, in, "0x11\n0x20\n0xF\n0x1\n0x20\n")
+	// yq prints 0x-A, which reads back as a string, so a negative result
+	// stays in decimal.
+	wantYQ(t, `.n - 20`, in, "-10\n")
+	wantYQ(t, `.o * 2, (.o + 1), (.o + .a), (.a + .o)`, in, "0o36\n0o20\n0o37\n0x1F\n")
+	wantYQ(t, `1 + .a, (.a + 1 | tag), (.a + 1 | . + 1)`, in, "17\n!!int\n0x12\n")
+	opts := testOpts
+	opts.FloatNumbers = true
+	wantYQOpts(t, opts, `.a + 1, (.o * 2)`, in, "0x11\n0o36\n")
+}

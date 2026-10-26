@@ -3,6 +3,8 @@ package yq
 import (
 	"math"
 	"math/big"
+	"strconv"
+	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
 	"github.com/fivetwenty-io/graft/pkg/decimal"
@@ -90,6 +92,9 @@ func numeric(ctx *runtime.Ctx, base runtime.Native, op byte, l, r *value.Value, 
 			if err != nil {
 				return err
 			}
+			if ints {
+				v = keepBase(l, v)
+			}
 			return emit(v, nil)
 		}
 	}
@@ -100,11 +105,39 @@ func numeric(ctx *runtime.Ctx, base runtime.Native, op byte, l, r *value.Value, 
 	}
 	args := []runtime.Thunk{constant{l}, constant{r}}
 	return base(ctx, nil, args, func(v *value.Value, p value.Path) error {
+		if ints && v.Kind() == value.KindNumber {
+			return emit(keepBase(l, v), p)
+		}
 		if ints || v.Kind() != value.KindNumber {
 			return emit(v, p)
 		}
 		return emit(asFloat(value.NumDec(v.Dec().Reduce())), p)
 	})
+}
+
+// keepBase writes an integer result in the base the left operand's text
+// is written in, as yq does for 0x and 0o, with hexadecimal digits in
+// upper case. A negative result stays in decimal, since yq's 0x-A does
+// not read back as a number.
+func keepBase(l, v *value.Value) *value.Value {
+	m := l.Meta()
+	if m == nil || len(m.Text) < 2 || m.Text[0] != '0' {
+		return v
+	}
+	var base int
+	switch m.Text[1] {
+	case 'x', 'X':
+		base = 16
+	case 'o':
+		base = 8
+	default:
+		return v
+	}
+	n, ok := v.Dec().Int64()
+	if !ok || n < 0 {
+		return v
+	}
+	return v.WithMeta(&value.Meta{Text: "0" + strings.ToLower(m.Text[1:2]) + strings.ToUpper(strconv.FormatInt(n, base))})
 }
 
 // decRem is the !!float remainder of l and r in exact decimals, or nil
