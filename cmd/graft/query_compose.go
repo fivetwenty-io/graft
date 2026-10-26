@@ -65,14 +65,9 @@ type composeSource interface {
 	composition() composeFlags
 }
 
-// composition returns the composition flags of a graft jq command line.
-func (o jqOptions) composition() composeFlags {
-	return composeFlags{
-		Merge: o.Merge, Eval: o.Eval, Prune: o.Prune, CherryPick: o.CherryPick,
-		SkipEval: o.SkipEval, FallbackAppend: o.FallbackAppend, GoPatch: o.GoPatch,
-		MultiDoc: o.MultiDoc, SkipVault: o.SkipVault, SkipAws: o.SkipAws, SkipNats: o.SkipNats,
-	}
-}
+// composition returns the flags themselves, which graft jq and graft yq
+// carry by embedding composeFlags.
+func (f composeFlags) composition() composeFlags { return f }
 
 // newComposeContext builds the context a parsed command line asks for,
 // where the merge options come from the command's pass-through flags.

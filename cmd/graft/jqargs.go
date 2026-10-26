@@ -62,17 +62,7 @@ type jqOptions struct {
 	// Composition. -m merges every input before the program runs, and -E
 	// resolves each input document on its own. The rest are graft
 	// merge's own flags, which both modes pass through to the merge.
-	Merge          bool     // -m, --merge
-	Eval           bool     // -E, --eval
-	Prune          []string // --prune
-	CherryPick     []string // --cherry-pick
-	SkipEval       bool     // --skip-eval
-	FallbackAppend bool     // --fallback-append
-	GoPatch        bool     // --go-patch
-	MultiDoc       bool     // --multi-doc
-	SkipVault      bool     // --skip-vault
-	SkipAws        bool     // --skip-aws
-	SkipNats       bool     // --skip-nats
+	composeFlags
 
 	// Modes that replace a normal run.
 	ExitStatus bool // -e

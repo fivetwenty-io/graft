@@ -69,17 +69,7 @@ type yqOptions struct {
 	Engine []graft.EngineOption
 
 	// Composition, as graft jq has it.
-	Merge          bool     // -m, --merge
-	Eval           bool     // -E, --eval
-	Prune          []string // --prune
-	CherryPick     []string // --cherry-pick
-	SkipEval       bool     // --skip-eval
-	FallbackAppend bool     // --fallback-append
-	GoPatch        bool     // --go-patch
-	MultiDoc       bool     // --multi-doc
-	SkipVault      bool     // --skip-vault
-	SkipAws        bool     // --skip-aws
-	SkipNats       bool     // --skip-nats
+	composeFlags
 
 	// Modes that replace a normal run.
 	Help    bool // -h
@@ -93,16 +83,6 @@ type yqOptions struct {
 	// Theme is the resolved color theme, which the command fills in from
 	// the root's flags before it runs.
 	Theme string
-}
-
-// composition lets the composition checks read the flags yq shares with
-// jq.
-func (o yqOptions) composition() composeFlags {
-	return composeFlags{
-		Merge: o.Merge, Eval: o.Eval, Prune: o.Prune, CherryPick: o.CherryPick,
-		SkipEval: o.SkipEval, FallbackAppend: o.FallbackAppend, GoPatch: o.GoPatch,
-		MultiDoc: o.MultiDoc, SkipVault: o.SkipVault, SkipAws: o.SkipAws, SkipNats: o.SkipNats,
-	}
 }
 
 // The -o and -p values, once normalized.
