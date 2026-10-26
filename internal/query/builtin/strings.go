@@ -122,7 +122,7 @@ func fromjson(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
 		col := len(s) - strings.LastIndexByte(s, '\n') - 1
 		return parseErr(fmt.Sprintf("Unfinished JSON term at EOF at line %d, column %d", line, col))
 	}
-	rd := load.NewJSONReader(bufio.NewReader(strings.NewReader(nanToNull(s))), "", load.LoadOptions{})
+	rd := load.NewJSONReader(bufio.NewReader(strings.NewReader(s)), "", load.LoadOptions{})
 	v, _, err := rd.Next()
 	var se *load.SyntaxError
 	switch {
@@ -139,44 +139,4 @@ func fromjson(_ *runtime.Ctx, in *value.Value) (*value.Value, error) {
 		return nil, parseErr("Unexpected extra JSON values")
 	}
 	return v, nil
-}
-
-// nanToNull replaces each bare nan outside a string with null.
-func nanToNull(s string) string {
-	if !strings.Contains(s, "nan") {
-		return s
-	}
-	var b strings.Builder
-	inString, escaped := false, false
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case inString:
-			switch {
-			case escaped:
-				escaped = false
-			case c == '\\':
-				escaped = true
-			case c == '"':
-				inString = false
-			}
-		case c == '"':
-			inString = true
-		case strings.HasPrefix(s[i:], "nan") && !wordByte(s, i-1) && !wordByte(s, i+3):
-			b.WriteString("null")
-			i += 2
-			continue
-		}
-		b.WriteByte(c)
-	}
-	return b.String()
-}
-
-// wordByte reports whether s has a letter or digit at i.
-func wordByte(s string, i int) bool {
-	if i < 0 || i >= len(s) {
-		return false
-	}
-	c := s[i]
-	return isDigit(c) || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
