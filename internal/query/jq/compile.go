@@ -13,6 +13,22 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
+// Parse reads a jq program for its syntax alone, without resolving any
+// name, and returns its tree or a *query.CompileError that points at the
+// first problem.
+func Parse(src string) (ast.Node, error) {
+	node, err := parser.Parse(src, Grammar())
+	if err != nil {
+		var pe *parser.Error
+		if errors.As(err, &pe) {
+			line, col := position(src, pe.Pos)
+			return nil, &query.CompileError{Msg: pe.Msg, Line: line, Col: col}
+		}
+		return nil, err
+	}
+	return node, nil
+}
+
 // Compile parses a jq program and resolves every label, variable, and
 // function it can reach, so a name that is not defined is a compile error
 // rather than a runtime one. vars names the variables the caller will bind,
@@ -21,13 +37,8 @@ import (
 // binds its own variables on top of it with Env.Bind.
 func Compile(src string, vars ...string) (*eval.Program, error) {
 	r := registry()
-	node, err := parser.Parse(src, Grammar())
+	node, err := Parse(src)
 	if err != nil {
-		var pe *parser.Error
-		if errors.As(err, &pe) {
-			line, col := position(src, pe.Pos)
-			return nil, &query.CompileError{Msg: pe.Msg, Line: line, Col: col}
-		}
 		return nil, err
 	}
 	res := &resolver{done: map[*ast.FuncDef]bool{}, natives: map[string]bool{}}
