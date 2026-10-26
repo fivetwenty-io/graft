@@ -26,3 +26,11 @@ func TestYQBareEnvIsNotAnOperator(t *testing.T) {
 	wantYQErrorOpts(t, Options{}, `env`, "null\n", `1:1: lexer: invalid input text "env"`)
 	wantYQ(t, `.env, env(YQ_T)`, "env: 1\n", "1\nv\n")
 }
+
+func TestYQEnvOperatorsHonorTheCapability(t *testing.T) {
+	t.Setenv("YQ_T", "v")
+	off := Options{Caps: runtime.Capabilities{Files: true}}
+	for _, expr := range []string{`env(YQ_T)`, `strenv(YQ_T)`, `"${YQ_T}" | envsubst`, `"${YQ_T}" | envsubst(nu)`, `eval("strenv(YQ_T)")`} {
+		wantYQErrorOpts(t, off, expr, "null\n", "env operations have been disabled")
+	}
+}
