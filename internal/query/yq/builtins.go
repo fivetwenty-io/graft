@@ -46,8 +46,9 @@ func registry() *runtime.Registry {
 	return reg
 }
 
-// registerYQ adds the operators that read the cursor, parent, key, and
-// path, and the node operators that read and change a node's details.
+// registerYQ adds the operators that read the cursor, parent, key,
+// path, and whether a node is a key, and the node operators that read
+// and change a node's details.
 func registerYQ(r *runtime.Registry) {
 	r.Register("key", 0, key)
 	r.RegisterSingle("path", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
@@ -57,6 +58,13 @@ func registerYQ(r *runtime.Registry) {
 			p, _ = resolve(c.Root, rel)
 		}
 		return emit(value.Arr(p...), nil)
+	})
+	r.RegisterSingle("is_key", 0, func(ctx *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
+		isKey := false
+		if c := ctx.Cursor; c != nil {
+			_, isKey = nodePath(c)
+		}
+		return emit(value.Bool(isKey), nil)
 	})
 	registerMeta(r)
 	registerPaths(r)

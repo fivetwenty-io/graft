@@ -204,6 +204,12 @@ func compact(t *testing.T, src, in string) string {
 	return buf.String()
 }
 
+func TestIsKeyMarksOnlyMapKeys(t *testing.T) {
+	wantEqual(t, compact(t, `[... | is_key]`, "a: b\n"), "[false,true,false]\n")
+	wantEqual(t, compact(t, `[.[] | is_key]`, "- x\n"), "[false]\n")
+	wantEqual(t, compact(t, `[.a | key | is_key]`, "a: b\n"), "[true]\n")
+}
+
 func TestEqualityComparesScalarTextWithWildcards(t *testing.T) {
 	in := "- 3\n- 3.0\n- \"3\"\n- cat\n- camel\n- dog\n"
 	wantEqual(t, compact(t, `[.[] | . == 3]`, in), "[true,false,true,false,false,false]\n")
