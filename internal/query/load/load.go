@@ -233,6 +233,12 @@ func (r *Reader) start() error {
 		r.json = NewJSONReader(r.br, r.src.Name, r.opts)
 		return nil
 	}
+	return r.startYAML()
+}
+
+// startYAML reads the whole source and parses it as YAML, keeping the
+// leading content yq would when the options ask for metadata.
+func (r *Reader) startYAML() error {
 	data, err := io.ReadAll(r.br)
 	if err != nil {
 		return err
