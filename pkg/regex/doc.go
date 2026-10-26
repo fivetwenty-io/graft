@@ -31,6 +31,39 @@ names a code point. Under Oniguruma, those classes are Unicode-aware, and
 the Oniguruma flavor also applies full case folding, so ss matches ß and ß
 matches ss, where PCRE folds one code point to one.
 
+The other rules the Oniguruma flavor changes follow jq 1.8.2 as well.
+
+  - A backslash before a letter that names nothing is that letter, so \U
+    is U and \q is q, where PCRE refuses the escape. In the same way \k
+    and \g without a reference, \p and \P without a brace, \o without a
+    brace, and a \E that ends no quote are letters.
+  - {,n} is literal text rather than a quantifier, a quantifier may follow
+    another one and repeats the repetition, so a{2}{3} is six a's, and a
+    count may reach 100,000, where PCRE stops at 65,535.
+  - A hyphen after a class escape, a property, or a POSIX name inside a
+    bracket class is a literal hyphen, and [:alpha:] outside a bracket
+    class is the plain class of its runes, where PCRE refuses both.
+  - \p{...} also takes the POSIX names, such as Alpha and XDigit, and the
+    long names of the general categories, such as Lowercase_Letter.
+    [[:punct:]] holds punctuation and symbols together, while \p{Punct}
+    holds only punctuation.
+  - Extended skips only the ASCII space, tab, newline, carriage return,
+    and form feed, where PCRE also skips the other spaces UTF mode names.
+  - \8 or \9 at the start of a number above the group count is that digit,
+    and \O matches any rune, a newline included.
+  - (?P<name>...) and (?P=name) are refused, as jq refuses them.
+
+The tests/regex-parity directory holds a corpus of patterns with the
+matches pcre2test and jq printed for them, and the tests replay those
+goldens without either program. A few differences remain on purpose. PCRE
+takes \uhhhh, which PCRE2 refuses. A global search moves one rune past an
+empty match, where jq moves one byte. Oniguruma accepts a lookbehind whose
+branches differ in length or that holds a capture, both of which jq
+refuses. The escapes \G, \K, \X, \R, \y, and \Y and subroutine calls
+are refused under both flavors, though jq accepts some of them. Error
+messages follow each engine's wording where the tests pin it, and a golden
+for a pattern jq or PCRE2 refuses checks only that Compile refuses it too.
+
 # Supported syntax
 
 The engine supports literals and the escapes \a, \e, \f, \n, \r, \t, \0,
@@ -40,8 +73,8 @@ negations. It supports \p{...} and \P{...} over Unicode categories, scripts,
 and binary properties, and bracket classes with ranges, negation, and POSIX
 names. It also supports the anchors ^ and $, the assertions \A, \z, \Z, \b,
 and \B, quoted sequences \Q...\E, greedy and lazy quantifiers, alternation,
-numbered groups, named groups written (?<name>...), (?'name'...), or
-(?P<name>...), non-capturing groups, and comments. ^ and \A match only at the
+numbered groups, named groups written (?<name>...) or (?'name'...), with
+(?P<name>...) under PCRE, non-capturing groups, and comments. ^ and \A match only at the
 start of the subject, $ and \Z only at its end or before a final newline,
 and \z only at its end. \b and \B test for a boundary between a \w rune and
 a rune that is not one, so they follow the flavor's \w. PCRE also reads
@@ -76,9 +109,10 @@ SyntaxError. A reference compares case by the IgnoreCase setting in force
 where it stands. A reference inside the group it names fails under
 Oniguruma, and under PCRE matches the group's last complete capture.
 
-The inline flags n, J, U, and ^, the assertion \G, \g under Oniguruma, and
-the rarer PCRE constructs such as recursion and conditionals are recognized
-and refused with an UnsupportedError that names them.
+The inline flags n, J, U, and ^, the assertion \G, the escapes \K, \X,
+\R, \y, and \Y, and the rarer constructs such as recursion, subroutine
+calls, and conditionals are recognized and refused with an UnsupportedError
+that names them.
 
 # Budgets
 
@@ -97,7 +131,9 @@ memory before its first step.
 
 This package is experimental. Until the release that completes graft jq,
 its exported names may change between minor releases, and the changelog
-lists every such change. From that release on, the module's v1 promise
+lists every such change. The flavor rules follow the jq and PCRE2
+versions that tests/regex-parity/versions.env pins, so a rule changes only
+when those goldens are recorded again, and the changelog says so. From that release on, the module's v1 promise
 applies, which is that we add exported names and never remove or change
 one.
 */
