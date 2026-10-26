@@ -314,17 +314,8 @@ func (p *parser) quantified(atom *node) (*node, error) {
 	if !ok {
 		return atom, nil
 	}
-	if atom.kind == kindAssert {
-		return nil, p.errorAt(qpos, "quantifier does not follow a repeatable item")
-	}
-	if atom.kind == kindLook && p.cfg.flavor == Oniguruma {
-		return nil, p.errorAt(qpos, "target of repeat operator is invalid")
-	}
-	if lo > maxRepeat || hi > maxRepeat {
-		return nil, p.errorAt(qpos, "number too big in {} quantifier")
-	}
-	if hi != unbounded && hi < lo {
-		return nil, p.errorAt(qpos, "numbers out of order in {} quantifier")
+	if err := p.checkQuantifier(atom, qpos, lo, hi); err != nil {
+		return nil, err
 	}
 	p.pos += width
 	greedy, possessive := true, false
@@ -350,6 +341,22 @@ func (p *parser) quantified(atom *node) (*node, error) {
 		return &node{kind: kindAtomic, subs: []*node{rep}}, nil
 	}
 	return rep, nil
+}
+
+// checkQuantifier refuses a quantifier at qpos that atom cannot take or
+// whose counts lo and hi are out of range.
+func (p *parser) checkQuantifier(atom *node, qpos, lo, hi int) error {
+	switch {
+	case atom.kind == kindAssert:
+		return p.errorAt(qpos, "quantifier does not follow a repeatable item")
+	case atom.kind == kindLook && p.cfg.flavor == Oniguruma:
+		return p.errorAt(qpos, "target of repeat operator is invalid")
+	case lo > maxRepeat || hi > maxRepeat:
+		return p.errorAt(qpos, "number too big in {} quantifier")
+	case hi != unbounded && hi < lo:
+		return p.errorAt(qpos, "numbers out of order in {} quantifier")
+	}
+	return nil
 }
 
 // quantifiedLook applies a quantifier to a lookaround the way PCRE2 does.
@@ -446,10 +453,10 @@ func (p *parser) group(start int) (*node, error) {
 		if err != nil || done {
 			return nil, err
 		}
-	case p.lookingAt("*") && p.pos+1 < len(p.src) && (isUpperASCII(p.src[p.pos+1]) || p.src[p.pos+1] == ':'):
-		return nil, unsupported("backtracking control verb (" + upToParen(p.src[p.pos:]) + ")")
-	case p.lookingAt("*") && alphaName(p.src[p.pos+1:]) != "":
-		return nil, unsupported("alpha assertion (*" + alphaName(p.src[p.pos+1:]) + ":...)")
+	case p.lookingAt("*"):
+		if err := p.starVerb(); err != nil {
+			return nil, err
+		}
 	}
 
 	index := 0
@@ -467,11 +474,32 @@ func (p *parser) group(start int) (*node, error) {
 	}
 	p.pos++ // ')'
 	p.flags = saved
+	return p.closeGroup(start, form, index, name, body)
+}
+
+// starVerb refuses a backtracking control verb or an alpha assertion,
+// which open with (*. A ( followed by any other * is left to fail as a
+// quantifier with nothing to repeat.
+func (p *parser) starVerb() error {
+	switch {
+	case p.pos+1 < len(p.src) && (isUpperASCII(p.src[p.pos+1]) || p.src[p.pos+1] == ':'):
+		return unsupported("backtracking control verb (" + upToParen(p.src[p.pos:]) + ")")
+	case alphaName(p.src[p.pos+1:]) != "":
+		return unsupported("alpha assertion (*" + alphaName(p.src[p.pos+1:]) + ":...)")
+	}
+	return nil
+}
+
+// closeGroup builds the group of the given form around body once its
+// closing parenthesis is read. index and name are a capture's.
+func (p *parser) closeGroup(start int, form groupForm, index int, name string, body *node) (*node, error) {
 	switch form {
 	case formCapture:
 		g := &node{kind: kindGroup, subs: []*node{body}, index: index, name: name, selfRef: p.selfRef[index]}
 		p.closed[index] = g
 		return g, nil
+	case formPlain:
+		return body, nil
 	case formAtomic:
 		return &node{kind: kindAtomic, subs: []*node{body}}, nil
 	case formAhead, formNotAhead:
@@ -1193,22 +1221,30 @@ func (p *parser) classItem(folded []runeRange, kept []runeSet) ([]runeRange, []r
 		}
 		return folded, append(kept, set), nil
 	}
-	hi := lo
-	if p.lookingAt("-") && !p.lookingAt("-]") && p.pos+1 < len(p.src) {
-		p.pos++
-		var hiSet runeSet
-		hi, hiSet, err = p.classAtom()
-		if err != nil {
-			return nil, nil, err
-		}
-		if hiSet != nil {
-			return nil, nil, p.errorAt(itemPos, "invalid range in character class")
-		}
-		if hi < lo {
-			return nil, nil, p.errorAt(itemPos, "range out of order in character class")
-		}
+	hi, err := p.rangeEnd(itemPos, lo)
+	if err != nil {
+		return nil, nil, err
 	}
 	return append(folded, runeRange{lo, hi}), kept, nil
+}
+
+// rangeEnd reads the end of a class range that starts with lo, or returns
+// lo itself when no range follows. itemPos is where the range starts.
+func (p *parser) rangeEnd(itemPos int, lo rune) (rune, error) {
+	if !p.lookingAt("-") || p.lookingAt("-]") || p.pos+1 >= len(p.src) {
+		return lo, nil
+	}
+	p.pos++
+	hi, hiSet, err := p.classAtom()
+	switch {
+	case err != nil:
+		return 0, err
+	case hiSet != nil:
+		return 0, p.errorAt(itemPos, "invalid range in character class")
+	case hi < lo:
+		return 0, p.errorAt(itemPos, "range out of order in character class")
+	}
+	return hi, nil
 }
 
 // quotedClassItems reads the runes between \Q and \E in a class, each a

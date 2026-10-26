@@ -146,28 +146,9 @@ func width(n *node) (lo, hi int) {
 		}
 		return lo, hi
 	case kindAlternate:
-		for i, s := range n.subs {
-			slo, shi := width(s)
-			if i == 0 || slo < lo {
-				lo = slo
-			}
-			if i == 0 || hi != unbounded && (shi == unbounded || shi > hi) {
-				hi = shi
-			}
-		}
-		return lo, hi
+		return alternateWidth(n.subs)
 	case kindRepeat:
-		slo, shi := width(n.subs[0])
-		lo = mulWidth(slo, n.min)
-		switch {
-		case shi == 0 || n.max == 0:
-			hi = 0
-		case shi == unbounded || n.max == unbounded:
-			hi = unbounded
-		default:
-			hi = mulWidth(shi, n.max)
-		}
-		return lo, hi
+		return repeatWidth(n)
 	case kindGroup, kindAtomic:
 		return width(n.subs[0])
 	case kindBackref:
@@ -175,6 +156,35 @@ func width(n *node) (lo, hi int) {
 	default:
 		return 0, 0
 	}
+}
+
+// alternateWidth is width for a choice among subs.
+func alternateWidth(subs []*node) (lo, hi int) {
+	for i, s := range subs {
+		slo, shi := width(s)
+		if i == 0 || slo < lo {
+			lo = slo
+		}
+		if i == 0 || hi != unbounded && (shi == unbounded || shi > hi) {
+			hi = shi
+		}
+	}
+	return lo, hi
+}
+
+// repeatWidth is width for a repeat.
+func repeatWidth(n *node) (lo, hi int) {
+	slo, shi := width(n.subs[0])
+	lo = mulWidth(slo, n.min)
+	switch {
+	case shi == 0 || n.max == 0:
+		hi = 0
+	case shi == unbounded || n.max == unbounded:
+		hi = unbounded
+	default:
+		hi = mulWidth(shi, n.max)
+	}
+	return lo, hi
 }
 
 func addWidth(a, b int) int {

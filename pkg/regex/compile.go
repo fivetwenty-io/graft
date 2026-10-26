@@ -285,17 +285,9 @@ func (c *compiler) node(n *node) {
 	case kindClass:
 		c.emit(inst{op: opClass, set: n.set})
 	case kindAny:
-		if n.dotAll {
-			c.emit(inst{op: opAny})
-		} else {
-			c.emit(inst{op: opAnyNotNL})
-		}
+		c.emit(anyInst(n))
 	case kindAssert:
-		in := inst{op: opAssert, assert: n.assert}
-		if n.assert == assertWordBoundary || n.assert == assertNotBoundary {
-			in.set = escapeClass('w', c.flavor)
-		}
-		c.emit(in)
+		c.emit(c.assertInst(n))
 	case kindConcat:
 		for _, s := range n.subs {
 			c.node(s)
@@ -313,6 +305,24 @@ func (c *compiler) node(n *node) {
 	case kindLook:
 		c.look(n)
 	}
+}
+
+// anyInst matches the any node n, which takes a newline only under dotAll.
+func anyInst(n *node) inst {
+	if n.dotAll {
+		return inst{op: opAny}
+	}
+	return inst{op: opAnyNotNL}
+}
+
+// assertInst tests the assertion n. A word boundary carries the flavor's
+// word class.
+func (c *compiler) assertInst(n *node) inst {
+	in := inst{op: opAssert, assert: n.assert}
+	if n.assert == assertWordBoundary || n.assert == assertNotBoundary {
+		in.set = escapeClass('w', c.flavor)
+	}
+	return in
 }
 
 // body emits in, then a body that in runs, ending in opSucceed, and points
