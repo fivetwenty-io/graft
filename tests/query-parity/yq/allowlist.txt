@@ -3,22 +3,22 @@
 # that owes the work. An out-of-scope entry needs a format other than yaml and
 # json, and counts toward neither the pass ratio nor the departure cap.
 fl-security-enable-system departure no system operator
-fmt-json-special-numbers departure json special numbers
+fmt-json-special-numbers departure yaml special numbers ruling extended to json output
 n-exact-decimal-arithmetic departure exact decimal
 n-exact-integer-widening departure exact decimal
 n-yaml-special-numbers departure yaml special numbers
-op-date-from-unix-out-of-range departure from_unix fails out of range
-op-regex-pcre-syntax departure pcre syntax
-c-multi-doc-comments-stripped pending Y2 recursive descent skips map keys
+op-regex-pcre-syntax departure the yq dialect compiles regex as PCRE by ruling
+c-multi-doc-comments-stripped pending Y2 Y1 behavior deferred to Task 47
 fl-colors-json pending Y2 yq color layout
 fl-colors-yaml pending Y2 yq color layout
 m-alias-splat pending Y2 traversal through an alias
 m-alias-traverse pending Y2 traversal through an alias
-m-comments-strip pending Y2 recursive descent skips map keys
-m-head-comment-entry pending Y2 map keys carry no comments
-m-key-update pending Y2 assignment to a map key
-m-style-double-keys pending Y2 recursive descent skips map keys
+m-comments-strip pending Y2 Y1 behavior deferred to Task 47
+m-head-comment-entry pending Y2 Y1 behavior deferred to Task 47
+m-key-update pending Y2 Y1 behavior deferred to Task 47
+m-style-double-keys pending Y2 Y1 behavior deferred to Task 47
 op-add-custom-tag-number pending Y2 arithmetic on custom tags
+op-date-from-unix-out-of-range pending Y2 graft prints a far-future year in local time where yq saturates to 292278994 in Z
 op-env-dynamic-path pending Y2 eval as an assignment path
 op-eval-update pending Y2 eval as an assignment path
 op-filter pending Y2 Y1 behavior deferred to Task 47
@@ -29,8 +29,8 @@ op-pivot-seqs pending Y2 Y1 behavior deferred to Task 47
 op-string-custom-tag pending Y2 string operators on custom tags
 op-subtract-custom-tag pending Y2 arithmetic on custom tags
 op-variable-lookup pending Y2 indexing a variable by an expression
-op-variable-ref pending Y2 ref bindings
-op-wildcard-key pending Y2 wildcard key traversal
+op-variable-ref pending Y2 Y1 behavior deferred to Task 47
+op-wildcard-key pending Y2 Y1 behavior deferred to Task 47
 fmt-base64-output out-of-scope format out of scope
 fmt-csv-decoder out-of-scope format out of scope
 fmt-csv-input out-of-scope format out of scope

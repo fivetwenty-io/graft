@@ -7,7 +7,7 @@ meta 95 6 83 87
 cli 35 1 34 97
 overall 590 29 543 92
 out-of-scope 25
-allow c-multi-doc-comments-stripped pending Y2 recursive descent skips map keys
+allow c-multi-doc-comments-stripped pending Y2 Y1 behavior deferred to Task 47
 allow fl-colors-json pending Y2 yq color layout
 allow fl-colors-yaml pending Y2 yq color layout
 allow fl-security-enable-system departure no system operator
@@ -17,7 +17,7 @@ allow fmt-csv-input out-of-scope format out of scope
 allow fmt-csv-output out-of-scope format out of scope
 allow fmt-hcl-input out-of-scope format out of scope
 allow fmt-ini-input out-of-scope format out of scope
-allow fmt-json-special-numbers departure json special numbers
+allow fmt-json-special-numbers departure yaml special numbers ruling extended to json output
 allow fmt-kyaml-output out-of-scope format out of scope
 allow fmt-load-props out-of-scope format out of scope
 allow fmt-load-xml out-of-scope format out of scope
@@ -38,16 +38,16 @@ allow fmt-xml-input out-of-scope format out of scope
 allow fmt-xml-input-auto out-of-scope format out of scope
 allow m-alias-splat pending Y2 traversal through an alias
 allow m-alias-traverse pending Y2 traversal through an alias
-allow m-comments-strip pending Y2 recursive descent skips map keys
-allow m-head-comment-entry pending Y2 map keys carry no comments
-allow m-key-update pending Y2 assignment to a map key
-allow m-style-double-keys pending Y2 recursive descent skips map keys
+allow m-comments-strip pending Y2 Y1 behavior deferred to Task 47
+allow m-head-comment-entry pending Y2 Y1 behavior deferred to Task 47
+allow m-key-update pending Y2 Y1 behavior deferred to Task 47
+allow m-style-double-keys pending Y2 Y1 behavior deferred to Task 47
 allow n-exact-decimal-arithmetic departure exact decimal
 allow n-exact-integer-widening departure exact decimal
 allow n-yaml-special-numbers departure yaml special numbers
 allow o-output-xml out-of-scope format out of scope
 allow op-add-custom-tag-number pending Y2 arithmetic on custom tags
-allow op-date-from-unix-out-of-range departure from_unix fails out of range
+allow op-date-from-unix-out-of-range pending Y2 graft prints a far-future year in local time where yq saturates to 292278994 in Z
 allow op-env-dynamic-path pending Y2 eval as an assignment path
 allow op-eval-update pending Y2 eval as an assignment path
 allow op-filter pending Y2 Y1 behavior deferred to Task 47
@@ -55,9 +55,9 @@ allow op-filter-map pending Y2 Y1 behavior deferred to Task 47
 allow op-object-splat pending Y2 object key without parentheses
 allow op-pivot-maps pending Y2 Y1 behavior deferred to Task 47
 allow op-pivot-seqs pending Y2 Y1 behavior deferred to Task 47
-allow op-regex-pcre-syntax departure pcre syntax
+allow op-regex-pcre-syntax departure the yq dialect compiles regex as PCRE by ruling
 allow op-string-custom-tag pending Y2 string operators on custom tags
 allow op-subtract-custom-tag pending Y2 arithmetic on custom tags
 allow op-variable-lookup pending Y2 indexing a variable by an expression
-allow op-variable-ref pending Y2 ref bindings
-allow op-wildcard-key pending Y2 wildcard key traversal
+allow op-variable-ref pending Y2 Y1 behavior deferred to Task 47
+allow op-wildcard-key pending Y2 Y1 behavior deferred to Task 47
