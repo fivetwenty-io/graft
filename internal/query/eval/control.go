@@ -414,7 +414,7 @@ func (ev evaluator) refVar(base value.Path, places []value.Path, in *value.Value
 				if err := emit(v, nil); err != nil {
 					return err
 				}
-			case rooted && !(ev.paths && top == nil):
+			case rooted && (!ev.paths || top != nil):
 				if err := emit(v, runtime.Rooted(root, bdoc, abs)); err != nil {
 					return err
 				}
