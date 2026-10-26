@@ -555,10 +555,34 @@ func jqCompileOptions(opts jqOptions, in *jqInputs, origin string, stderr io.Wri
 		jqOpts = append(jqOpts, jq.WithProgramOrigin(origin))
 	}
 	jqOpts = append(jqOpts, jq.WithModulePaths(jqLibraryPaths(opts.LibraryPaths)))
+	if home := jqHomeLibrary(); home != "" {
+		jqOpts = append(jqOpts, jq.WithAutoInclude(home))
+	}
 	if opts.FloatNumbers {
 		jqOpts = append(jqOpts, jq.WithFloatNumbers())
 	}
 	return jqOpts
+}
+
+// jqHomeLibrary returns the path of ~/.jq when it is a readable regular
+// file, which jq includes in every program, and an empty string when it is
+// missing, is a directory, or cannot be read.
+func jqHomeLibrary() string {
+	home := os.Getenv("HOME")
+	if home == "" {
+		return ""
+	}
+	path := filepath.Join(home, ".jq")
+	info, err := os.Stat(path) //nolint:gosec // the path is the user's own ~/.jq
+	if err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	f, err := os.Open(path) //nolint:gosec // the path is the user's own ~/.jq
+	if err != nil {
+		return ""
+	}
+	_ = f.Close()
+	return path
 }
 
 // jqDefaultLibraryPaths is the search list jq uses when no -L is given.

@@ -186,6 +186,28 @@ func ExampleWithModulePaths_default() {
 	// Output: module not found: double
 }
 
+func ExampleWithAutoInclude() {
+	dir, err := os.MkdirTemp("", "jqprelude")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	path := filepath.Join(dir, "prelude.jq")
+	if err := os.WriteFile(path, []byte(`def hello: "hi";`), 0o600); err != nil {
+		fmt.Println(err)
+		return
+	}
+	q, err := jq.Compile(`hello`, jq.WithAutoInclude(path))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	out, _ := q.RunAll(context.Background(), value.Null())
+	fmt.Println(out[0].Str())
+	// Output: hi
+}
+
 func ExampleWithProgramOrigin() {
 	_, err := jq.Compile(`.`, jq.WithModulePaths([]string{"./lib"}), jq.WithProgramOrigin("/srv/filters"))
 	fmt.Println(err)

@@ -84,7 +84,7 @@ func Compile(src string, opts ...Option) (*Query, error) {
 
 // compileOptions are the module settings the dialect compiles with.
 func (c config) compileOptions() jqdialect.CompileOptions {
-	return jqdialect.CompileOptions{SearchPaths: c.modulePaths, ProgramOrigin: c.origin}
+	return jqdialect.CompileOptions{SearchPaths: c.modulePaths, ProgramOrigin: c.origin, AutoInclude: c.autoInclude}
 }
 
 // builtinVariable reports whether name is $ARGS or $ENV, which an argument

@@ -21,6 +21,7 @@ type config struct {
 	positional  []*value.Value
 	env         map[string]string
 	modulePaths []string
+	autoInclude string
 	origin      string
 	inputs      func() (*value.Value, error)
 	filename    func() string
@@ -72,6 +73,20 @@ func WithEnv(env []string) Option {
 				c.env[k] = v
 			}
 		}
+		return nil
+	}
+}
+
+// WithAutoInclude makes the definitions in the library file at path
+// visible to the query, as if it began with an include of that file. It is
+// what jq does with a .jq file in the home directory, and the caller
+// decides whether to ask for it. The file is read when the query is
+// compiled, and a file that is missing, does not parse, or holds a main
+// expression is a compile error. Any import inside the file is found
+// along WithModulePaths.
+func WithAutoInclude(path string) Option {
+	return func(c *config) error {
+		c.autoInclude = path
 		return nil
 	}
 }

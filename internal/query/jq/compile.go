@@ -59,6 +59,16 @@ func CompileWith(src string, opts CompileOptions, vars ...string) (*eval.Program
 		top = &scope{parent: top, kind: scopeVar, name: v}
 	}
 	res.top = top
+	root := node
+	if opts.AutoInclude != "" {
+		m, err := res.lk.loadPath(opts.AutoInclude, false)
+		if err != nil {
+			return nil, err
+		}
+		root = &ast.Include{Rest: node}
+		res.lk.mods[root] = m.mod
+		top = res.bindLink(top, eval.Link{Include: true}, m)
+	}
 	if err := res.resolve(node, top); err != nil {
 		var ue *undefined
 		if errors.As(err, &ue) {
@@ -72,7 +82,7 @@ func CompileWith(src string, opts CompileOptions, vars ...string) (*eval.Program
 		return nil, err
 	}
 	args := value.Obj(value.Pair{Key: "positional", Value: value.Arr()}, value.Pair{Key: "named", Value: value.Obj()})
-	prog := eval.NewProgram(node, rootEnv.Bind("ARGS", args), r)
+	prog := eval.NewProgram(root, rootEnv.Bind("ARGS", args), r)
 	if len(res.lk.mods) > 0 {
 		prog.WithModules(res.lk.mods)
 	}

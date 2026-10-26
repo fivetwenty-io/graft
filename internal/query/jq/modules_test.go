@@ -274,3 +274,31 @@ func TestModulesNeedSearchPaths(t *testing.T) {
 	wantErrorOpts(t, jq.CompileOptions{}, `import "a" as a {search: "testdata/mods"}; 1`, `null`, `module not found: a`)
 	wantErrorOpts(t, bare, `"a" | modulemeta`, `null`, `module not found: a`)
 }
+
+func TestModulesAutoInclude(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	good := write("good.jq", `def hello: "hi"; def twice(f): f | f;`)
+	opts := jq.CompileOptions{AutoInclude: good}
+	wantOutputsOpts(t, opts, `hello`, `null`, `"hi"`)
+	wantOutputsOpts(t, opts, `1 | twice(. + 1)`, `null`, `3`)
+	wantOutputsOpts(t, opts, `def hello: "mine"; hello`, `null`, `"mine"`)
+	wantOutputsOpts(t, opts, `1`, `null`, `1`)
+	wantErrorOpts(t, jq.CompileOptions{}, `hello`, `null`, `hello/0 is not defined`)
+
+	wantErrorOpts(t, jq.CompileOptions{AutoInclude: write("bad.jq", `def x: ;`)}, `1`, `null`, `bad.jq`)
+	wantErrorOpts(t, jq.CompileOptions{AutoInclude: write("main.jq", `def f: 1; f`)}, `1`, `null`, `library should only have function definitions`)
+	wantErrorOpts(t, jq.CompileOptions{AutoInclude: filepath.Join(dir, "missing.jq")}, `1`, `null`, `missing.jq`)
+
+	write("dep.jq", `def dep: "d";`)
+	withImport := write("imp.jq", `import "dep" as d; def viaDep: d::dep;`)
+	wantOutputsOpts(t, jq.CompileOptions{AutoInclude: withImport, SearchPaths: []string{dir}}, `viaDep`, `null`, `"d"`)
+	wantErrorOpts(t, jq.CompileOptions{AutoInclude: withImport, SearchPaths: []string{dir}}, `d::dep`, `null`, `d::dep/0 is not defined`)
+}

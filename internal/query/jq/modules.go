@@ -37,6 +37,10 @@ type CompileOptions struct {
 	SearchPaths   []string
 	ProgramOrigin string
 	JQOrigin      string
+	// AutoInclude is the path of a library file whose definitions the
+	// program sees as if it began with an include of that file. Empty
+	// means none.
+	AutoInclude string
 }
 
 // ModuleResolver finds module files by jq's rules. It implements
@@ -420,6 +424,12 @@ func (lk *linker) load(rel string, isData bool, meta *value.Value, libOrigin str
 	if err != nil {
 		return nil, &query.CompileError{Msg: err.Error()}
 	}
+	return lk.loadPath(path, isData)
+}
+
+// loadPath reads the module or data file at path, once, and loads what
+// the module imports.
+func (lk *linker) loadPath(path string, isData bool) (*loaded, error) {
 	key := path
 	if abs, err := filepath.Abs(path); err == nil {
 		key = abs

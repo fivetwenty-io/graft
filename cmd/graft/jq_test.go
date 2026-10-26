@@ -16,8 +16,21 @@ import (
 // runJQ runs `graft jq ARGS` with stdin as its input, the way the command
 // does once cobra hands it the arguments, and returns what it wrote to
 // stdout and stderr and the status it ended with.
+// launchHome is the home directory the test binary started with. A jq
+// run would read a .jq file there, so the helpers swap it for an empty
+// directory unless the test has set a home of its own.
+var launchHome = os.Getenv("HOME")
+
+func isolateHome(t *testing.T) {
+	t.Helper()
+	if os.Getenv("HOME") == launchHome {
+		t.Setenv("HOME", t.TempDir())
+	}
+}
+
 func runJQ(t *testing.T, args []string, stdin string) (out, errOut string, st query.Status) {
 	t.Helper()
+	isolateHome(t)
 	var stdout, stderr bytes.Buffer
 	opts, err := parseJQArgs(args, personaGraft)
 	if err != nil {
@@ -288,6 +301,7 @@ func (w streamLogWriter) isTerminal() bool { return w.tty }
 
 func TestJQBuffering(t *testing.T) {
 	Convey("graft jq writes each output at once only on a terminal or under --unbuffered", t, func() {
+		isolateHome(t)
 		run := func(tty bool, args ...string) []string {
 			sl := &streamLog{}
 			opts, err := parseJQArgs(args, personaGraft)

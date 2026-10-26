@@ -399,6 +399,24 @@ func TestModulesNeedModulePaths(t *testing.T) {
 	wantJSON(t, out[0], `[]`)
 }
 
+func TestAutoIncludeFileOption(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "prelude.jq")
+	if err := os.WriteFile(path, []byte(`def hello: "hi";`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	q := mustCompile(t, `hello`, WithAutoInclude(path))
+	out, err := q.RunAll(t.Context(), value.Null())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantJSON(t, out[0], `"hi"`)
+	_, err = Compile(`hello`)
+	wantErrContains(t, err, "hello/0 is not defined")
+	_, err = Compile(`.`, WithAutoInclude(filepath.Join(dir, "missing.jq")))
+	wantErrContains(t, err, "missing.jq")
+}
+
 func TestBuiltinsListsNameAndArity(t *testing.T) {
 	names := mustCompile(t, `.`).Builtins()
 	for _, want := range []string{"map/1", "path/1", "input/0", "halt_error/1"} {
