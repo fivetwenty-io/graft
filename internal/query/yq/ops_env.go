@@ -15,7 +15,8 @@ import (
 var errEnvDisabled = &query.RuntimeError{Msg: "env operations have been disabled"}
 
 // registerEnv adds env, strenv, and envsubst. Each reads the process
-// environment only while the dialect's capabilities allow it.
+// environment only while the dialect's capabilities allow it. env reads
+// a variable that is set but empty as not provided, as yq does.
 func registerEnv(r *runtime.Registry) {
 	// yq has no env without an argument, and Parse already refuses one.
 	// This keeps jq's whole-environment env out of reach all the same.
@@ -25,7 +26,7 @@ func registerEnv(r *runtime.Registry) {
 	r.RegisterSingle("env", 1, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return envName(ctx, in, args[0], func(name string) error {
 			text, ok := os.LookupEnv(name)
-			if !ok {
+			if !ok || text == "" {
 				return &query.RuntimeError{Msg: "value for env variable '" + name + "' not provided in env()"}
 			}
 			v, err := parseYAML(text, false)

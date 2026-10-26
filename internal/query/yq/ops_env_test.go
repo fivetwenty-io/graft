@@ -34,3 +34,9 @@ func TestYQEnvOperatorsHonorTheCapability(t *testing.T) {
 		wantYQErrorOpts(t, off, expr, "null\n", "env operations have been disabled")
 	}
 }
+
+func TestYQEnvOfAnEmptyVariable(t *testing.T) {
+	t.Setenv("YQ_E", "")
+	wantYQError(t, `env(YQ_E)`, "null\n", "value for env variable 'YQ_E' not provided in env()")
+	wantYQ(t, `strenv(YQ_E) | tag`, "null\n", "!!str\n")
+}
