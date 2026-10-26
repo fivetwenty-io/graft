@@ -75,3 +75,14 @@ func TestYQLoadKeepsComments(t *testing.T) {
 	wantYQ(t, `.m = ("# only" | from_yaml) | .n = ("\n" | from_yaml)`, "a: 1\n", "a: 1\nm:\nn:\n")
 	wantYQError(t, `"" | from_yaml`, "a: 1\n", "EOF")
 }
+
+func TestYQSplitDocLayout(t *testing.T) {
+	// A split output starts its own document with no "---" of the input's
+	// and no leading comment, unless it is a document's root, which keeps
+	// its comments.
+	in := "# lead\na: [1, 2]\n---\n# two\nb: 3\n"
+	wantYQ(t, `.a[] | split_doc`, in, "1\n---\n2\n")
+	wantYQ(t, `.[] | split_doc`, in, "[1, 2]\n3\n")
+	wantYQ(t, `split_doc`, in, "# lead\na: [1, 2]\n# two\nb: 3\n")
+	wantYQAll(t, `.[] | split_doc`, in, "[1, 2]\n---\n3\n")
+}
