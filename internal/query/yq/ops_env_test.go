@@ -1,9 +1,12 @@
 package yq
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/fivetwenty-io/graft/internal/query/load"
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
+	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
 func TestYQEnv(t *testing.T) {
@@ -46,4 +49,24 @@ func TestYQEnvsubstFailFast(t *testing.T) {
 	// the first.
 	wantYQError(t, `"${NOPE} ${NOPE2}" | envsubst(nu)`, "null\n", "variable ${NOPE} not set\nvariable ${NOPE2} not set")
 	wantYQError(t, `"${NOPE} ${NOPE2}" | envsubst(nu, ff)`, "null\n", "variable ${NOPE} not set")
+}
+
+func TestYQEnvOperatorsReadTheRunsEnvironment(t *testing.T) {
+	t.Setenv("YQ_T", "process")
+	node, err := Parse(`env(YQ_T), strenv(YQ_T), ("${YQ_T}-${YQ_ONLY}" | envsubst)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	setup := func(c *runtime.Ctx) {
+		c.Env = func() map[string]string { return map[string]string{"YQ_T": "given", "YQ_ONLY": "x"} }
+	}
+	err = RunNode(New(Options{Caps: runtime.Capabilities{Env: true}}), node, mustLoad(t, "a: 1\n"), setup, func(_ load.Document, v *value.Value) error {
+		got = append(got, v.Str())
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, strings.Join(got, ","), "given,given,given-x")
 }

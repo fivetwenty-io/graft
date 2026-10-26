@@ -2,7 +2,6 @@ package yq
 
 import (
 	"errors"
-	"os"
 	"strconv"
 	"strings"
 
@@ -25,7 +24,7 @@ func registerEnv(r *runtime.Registry) {
 	})
 	r.RegisterSingle("env", 1, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return envName(ctx, in, args[0], func(name string) error {
-			text, ok := os.LookupEnv(name)
+			text, ok := lookupEnv(ctx, name)
 			if !ok || text == "" {
 				return &query.RuntimeError{Msg: "value for env variable '" + name + "' not provided in env()"}
 			}
@@ -38,7 +37,7 @@ func registerEnv(r *runtime.Registry) {
 	})
 	r.RegisterSingle("strenv", 1, func(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 		return envName(ctx, in, args[0], func(name string) error {
-			return emit(value.Str(os.Getenv(name)), nil)
+			return emit(value.Str(envValue(ctx, name)), nil)
 		})
 	})
 	r.RegisterSingle("envsubst", 0, func(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
@@ -70,7 +69,7 @@ func envsubst(ctx *runtime.Ctx, in *value.Value, flags string, emit runtime.Emit
 	if !isStr(in) {
 		return &query.RuntimeError{Msg: "cannot substitute with " + tagOf(in) + ", can only substitute strings. " + substituteHint}
 	}
-	s := substituter{noEmpty: strings.Contains(flags, "ne"), noUnset: strings.Contains(flags, "nu"), failFast: strings.Contains(flags, "ff")}
+	s := substituter{getenv: func(name string) (string, bool) { return lookupEnv(ctx, name) }, noEmpty: strings.Contains(flags, "ne"), noUnset: strings.Contains(flags, "nu"), failFast: strings.Contains(flags, "ff")}
 	out, err := s.run(in.Str())
 	if err != nil {
 		return err
@@ -84,7 +83,21 @@ func envsubst(ctx *runtime.Ctx, in *value.Value, flags string, emit runtime.Emit
 // errStop ends a substitution at its first failure under ff.
 var errStop = errors.New("stop")
 
+// lookupEnv reads a variable from the environment the run was given, which
+// is the process environment unless the caller replaced it.
+func lookupEnv(ctx *runtime.Ctx, name string) (string, bool) {
+	v, ok := ctx.Env()[name]
+	return v, ok
+}
+
+// envValue is a variable's value, or the empty string when it is unset.
+func envValue(ctx *runtime.Ctx, name string) string {
+	v, _ := lookupEnv(ctx, name)
+	return v
+}
+
 type substituter struct {
+	getenv                     func(string) (string, bool)
 	noEmpty, noUnset, failFast bool
 	errs                       []string
 }
@@ -159,7 +172,7 @@ func (s *substituter) braced(expr string) (string, error) {
 	if name == "" {
 		return "${" + expr + "}", nil
 	}
-	v, set := os.LookupEnv(name)
+	v, set := s.getenv(name)
 	for _, op := range []string{":-", ":=", ":+", "-", "=", "+"} {
 		arg, ok := strings.CutPrefix(mod, op)
 		if !ok {
@@ -189,7 +202,7 @@ func (s *substituter) braced(expr string) (string, error) {
 // nested substitutes a default, which may itself refer to variables. A
 // default that does not substitute cleanly gives nothing.
 func (s *substituter) nested(text string) (string, error) {
-	inner := substituter{noEmpty: s.noEmpty, noUnset: s.noUnset, failFast: s.failFast}
+	inner := substituter{getenv: s.getenv, noEmpty: s.noEmpty, noUnset: s.noUnset, failFast: s.failFast}
 	out, err := inner.run(text)
 	if err != nil {
 		out, inner.errs = "", nil
@@ -204,7 +217,7 @@ func (s *substituter) nested(text string) (string, error) {
 
 // lookup is a plain reference's value.
 func (s *substituter) lookup(name string) (string, error) {
-	v, set := os.LookupEnv(name)
+	v, set := s.getenv(name)
 	return s.check(name, v, set)
 }
 
