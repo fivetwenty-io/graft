@@ -244,8 +244,10 @@ func FuzzShortcuts(f *testing.F) {
 	for i, c := range fuzzParityCases(f) {
 		f.Add(c.Pattern, c.Subject, uint8(i))
 	}
+	mode := uint8(0)
 	for i, pat := range shortcutPatterns {
-		f.Add(pat, shortcutSubjects[i%len(shortcutSubjects)], uint8(i*37))
+		f.Add(pat, shortcutSubjects[i%len(shortcutSubjects)], mode)
+		mode += 37
 	}
 	f.Fuzz(func(t *testing.T, pat, subj string, mode uint8) {
 		var flags Flags
@@ -345,7 +347,7 @@ func TestShortcutsKeepResultsOnGeneratedSearches(t *testing.T) {
 	heads := []string{``, `.*`, `.*?`, `.+`, `.+?`, `(.*)`, `(?s).*`, `(?s:.*?)`, `\O*`, `.{2,}`, `.*+`, `(?:.*)`, `a*`, `[^a]*?`, `x?`}
 	tails := []string{`x`, `x$`, `(?<=a)x`, `\bx`, `a*x`, `[xb]`, `x|b`, `(?=x)`, `$`, `^x`, `(?m)^x`, `\n`, `é`, `(a|x)+`, `ax`, `(?i)ax`, `x\z`, ``}
 	runes := []string{"a", "b", "x", "\n", "é", "\xff", "X"}
-	rng := rand.New(rand.NewPCG(31, 2))
+	rng := rand.New(rand.NewPCG(31, 2)) //nolint:gosec // G404: a fixed seed keeps the subjects reproducible
 	subjects := []string{""}
 	for range 40 {
 		var b strings.Builder

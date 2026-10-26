@@ -253,6 +253,10 @@ func needOf(n *node) need {
 		return repeatNeed(n)
 	case kindGroup, kindAtomic:
 		return needOf(n.subs[0])
+	case kindAny, kindLook, kindBackref:
+		// Any one rune, a test of text the match may not hold, or text
+		// that only a capture decides holds nothing a subject must
+		// contain.
 	}
 	return need{}
 }
@@ -290,7 +294,7 @@ func literalNeed(n *node) need {
 	return need{best: capRequired(string(best))}
 }
 
-// concatNeed joins the exact texts of neighbouring nodes in a sequence, so
+// concatNeed joins the exact texts of neighboring nodes in a sequence, so
 // a.bcd needs bcd, and keeps the longest text any part needs.
 func concatNeed(subs []*node) need {
 	exact, run, best := true, "", ""

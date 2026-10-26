@@ -149,6 +149,8 @@ func (m *machine) nextStart(s int) (int, bool) {
 	case dotLeadLine:
 		i := strings.IndexByte(m.subject[s:], '\n')
 		return s + i + 1, i >= 0
+	case noDotLead:
+		// Every start may hold a match, so the search tries the next rune.
 	}
 	_, w := utf8.DecodeRuneInString(m.subject[s:])
 	return s + w, true
