@@ -173,7 +173,7 @@ func TestYQArguments(t *testing.T) {
 		out, _, _ := runYQIn(t, dir, []string{"-I", "0", ".", "in.json"})
 		So(out, ShouldEqual, "{\"a\":1}\n")
 		out, _, _ = runYQIn(t, dir, []string{"-o", "y", ".", "in.json"})
-		So(out, ShouldEqual, "{\"a\": 1}\n")
+		So(out, ShouldEqual, "a: 1\n")
 		out, _, _ = runYQ(t, []string{"."}, `{"a":1.0}`)
 		So(out, ShouldEqual, "{\"a\": 1.0}\n") // stdin never selects JSON output
 		out, e, _ := runYQ(t, []string{"-p", "json", "."}, `{"a":1}`)
@@ -279,5 +279,27 @@ func TestYQMergeKeyWarning(t *testing.T) {
 		So(errOut, ShouldEqual, "")
 		_, errOut, _ = runYQ(t, []string{"explode(.)"}, "a: 1\n")
 		So(errOut, ShouldEqual, "")
+	})
+}
+
+func TestYQJSONNamedInputDecodesAsJSON(t *testing.T) {
+	const doc = `{"b": 2, "a": [1, 2]}` + "\n"
+	const block = "b: 2\na:\n  - 1\n  - 2\n"
+	path := writeTempNamed(t, "in.json", doc)
+	Convey("a .json file decodes as JSON, so YAML output has no flow style", t, func() {
+		for _, flag := range []string{"-o=yaml", "-oy"} {
+			out, _, st := runYQ(t, []string{flag, ".", path}, "")
+			So(st.Code, ShouldEqual, 0)
+			So(out, ShouldEqual, block)
+		}
+		out, _, _ := runYQ(t, []string{"-I=4", "-o=yaml", ".", path}, "")
+		So(out, ShouldEqual, "b: 2\na:\n    - 1\n    - 2\n")
+	})
+
+	Convey("-p yaml and stdin keep decoding as YAML", t, func() {
+		out, _, _ := runYQ(t, []string{"-p=yaml", "-o=yaml", ".", path}, "")
+		So(out, ShouldEqual, doc)
+		out, _, _ = runYQ(t, []string{"-o=yaml", "."}, doc)
+		So(out, ShouldEqual, doc)
 	})
 }

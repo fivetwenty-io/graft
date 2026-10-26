@@ -212,10 +212,12 @@ type yqRun struct {
 	err       error
 }
 
-// decodeOptions is how the source at index decodes.
+// decodeOptions is how the source at index decodes. Auto reads a file named
+// *.json as JSON, as -p json does, and anything else as YAML.
 func (s *yqSource) decodeOptions(name string, index int) yq.DecodeOptions {
 	format := yq.FormatYAML
-	if s.opts.InputFormat == yqFormatJSON {
+	if s.opts.InputFormat == yqFormatJSON ||
+		(s.opts.InputFormat == yqFormatAuto && strings.HasSuffix(strings.ToLower(name), ".json")) {
 		format = yq.FormatJSON
 	}
 	return yq.DecodeOptions{Format: format, Filename: name, FileIndex: index, NoHeaderPreprocess: !s.opts.HeaderPreprocess}
