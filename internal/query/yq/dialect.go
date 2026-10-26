@@ -273,7 +273,8 @@ func extend(p value.Path, c ...*value.Value) value.Path {
 // right side on each path's value, from the last path to the first so a
 // child changes before the parent that holds it, and takes the first
 // output, leaving a path whose update has none as it was. The value that
-// replaces another takes its place's presentation, as place describes.
+// replaces another takes its place's details, as updateFrom describes,
+// with the choices prefsFor reads from the operator.
 // An operator a name leads, such as "style=", sets what the name reads,
 // as assignMeta describes.
 func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], mode runtime.AssignMode) iter.Seq2[*value.Value, error] {
@@ -282,8 +283,9 @@ func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, 
 			yield(assignMeta(ctx, root, paths, rhs, name, upd))
 			return
 		}
-		if mode.Op() == runtime.AssignUpdate.Op() {
-			yield(update(ctx, root, paths, rhs))
+		prefs := prefsFor(mode.Op())
+		if strings.TrimRight(mode.Op(), "c") == runtime.AssignUpdate.Op() {
+			yield(update(ctx, root, paths, rhs, prefs))
 			return
 		}
 		var last *value.Value
@@ -298,11 +300,11 @@ func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, 
 			yield(root, nil)
 			return
 		}
-		yield(setAll(ctx, root, paths, last, mode))
+		yield(setAll(ctx, root, paths, last, mode, prefs))
 	}
 }
 
-func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Value, mode runtime.AssignMode) (*value.Value, error) {
+func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Value, mode runtime.AssignMode, prefs assignPrefs) (*value.Value, error) {
 	ed := builtin.NewEditor(ctx, root)
 	for _, p := range paths {
 		cur, err := ed.Get(p)
@@ -313,14 +315,14 @@ func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Va
 		if err != nil {
 			return nil, err
 		}
-		if err := set(ed, p, cur, nv); err != nil {
+		if err := set(ed, p, cur, nv, prefs); err != nil {
 			return nil, err
 		}
 	}
 	return ed.Value(), nil
 }
 
-func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error]) (*value.Value, error) {
+func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], prefs assignPrefs) (*value.Value, error) {
 	ed := builtin.NewEditor(ctx, root)
 	var first *value.Value
 	var ferr error
@@ -342,7 +344,7 @@ func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cu
 		if first == nil {
 			continue
 		}
-		if err := set(ed, p, cur, first); err != nil {
+		if err := set(ed, p, cur, first, prefs); err != nil {
 			return nil, err
 		}
 	}
@@ -353,7 +355,7 @@ func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cu
 // is about to gain content, and yq writes an empty collection in flow
 // style whatever its style, so such a collection loses its flow style
 // here and prints in block style once filled, as it does in yq.
-func set(ed *builtin.Editor, p value.Path, cur, nv *value.Value) error {
+func set(ed *builtin.Editor, p value.Path, cur, nv *value.Value, prefs assignPrefs) error {
 	for i := range p {
 		c, err := ed.Get(p[:i])
 		if err != nil {
@@ -367,58 +369,7 @@ func set(ed *builtin.Editor, p value.Path, cur, nv *value.Value) error {
 			}
 		}
 	}
-	return ed.Set(p, place(cur, nv))
-}
-
-// styles are the style flags that say how a node is written, as against
-// Tagged, which goes with the tag.
-const styles = value.SingleQuoted | value.DoubleQuoted | value.Literal | value.Folded | value.Flow
-
-// place returns nv as it reads in cur's place, with the style placeStyle
-// gives it, and with cur's comments when it has none of its own.
-func place(cur, nv *value.Value) *value.Value {
-	cm := cur.Meta()
-	if cm == nil {
-		return nv
-	}
-	style := placeStyle(cur, nv)
-	comments := hasComments(cm) && !hasComments(nv.Meta())
-	lead := cm.LeadingContent != "" && (nv.Meta() == nil || nv.Meta().LeadingContent == "")
-	if style == 0 && !comments && !lead {
-		return nv
-	}
-	m := value.Meta{}
-	if nm := nv.Meta(); nm != nil {
-		m = *nm
-	}
-	if style != 0 {
-		m.Style = m.Style&^styles | style
-	}
-	if comments {
-		m.HeadComment, m.LineComment, m.FootComment = cm.HeadComment, cm.LineComment, cm.FootComment
-	}
-	if lead {
-		m.LeadingContent = cm.LeadingContent
-	}
-	return nv.WithMeta(&m)
-}
-
-// placeStyle is the style cur was written in when nv keeps it, which a
-// node of the same kind, and for a scalar the same tag, does. It is none
-// when cur has none or is an empty collection, and nv keeps its own.
-func placeStyle(cur, nv *value.Value) value.StyleFlags {
-	if hasFlow(cur) && cur.Len() == 0 || kindOf(cur) != kindOf(nv) {
-		return 0
-	}
-	if kindOf(cur) == kindScalar && tagOf(cur) != tagOf(nv) {
-		return 0
-	}
-	return cur.Meta().Style & styles
-}
-
-// hasComments reports whether m carries any comment.
-func hasComments(m *value.Meta) bool {
-	return m != nil && (m.HeadComment != "" || m.LineComment != "" || m.FootComment != "")
+	return ed.Set(p, updateFrom(cur, nv, prefs))
 }
 
 // hasFlow reports whether v was written in flow style.

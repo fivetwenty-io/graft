@@ -234,15 +234,23 @@ func (l *Lexer) lexOperator(start int) (Token, error) {
 					top.depth--
 				}
 			case "*", "*=":
-				for l.pos < len(l.src) && l.set.MergeFlags != "" && strings.IndexByte(l.set.MergeFlags, l.src[l.pos]) >= 0 {
-					l.pos++
-				}
+				l.flags(l.set.MergeFlags)
+			case "=", "|=":
+				l.flags(l.set.AssignFlags)
 			}
 			return l.tok(operatorKinds[o], start, l.pos), nil
 		}
 	}
 	r, _ := utf8.DecodeRuneInString(l.src[start:])
 	return Token{}, l.errorf(start, "unexpected character '"+string(r)+"'")
+}
+
+// flags consumes the characters of set that follow an operator, which
+// belong to its token.
+func (l *Lexer) flags(set string) {
+	for l.pos < len(l.src) && set != "" && strings.IndexByte(set, l.src[l.pos]) >= 0 {
+		l.pos++
+	}
 }
 
 func (l *Lexer) lexDot() Token {

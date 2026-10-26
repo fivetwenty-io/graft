@@ -18,6 +18,10 @@ type TokenSet struct {
 	// of the same token, which is how yq spells its merge options, such
 	// as "*+" and "*=d".
 	MergeFlags string
+	// AssignFlags are the characters that may follow "=" and "|=" as part
+	// of the same token, which is how yq spells its clobbering
+	// assignments, such as "=c".
+	AssignFlags string
 }
 
 // operatorKinds maps every spelling the lexer knows to its kind. A
@@ -53,7 +57,8 @@ func JQ() TokenSet {
 // YQ returns the token set for the yq dialect. It keeps jq's keywords
 // for the forms yq lacks, so they stay parse errors rather than calls,
 // and adds ireduce. It has no "?//", "/=", "%=", "//=", or "$__loc__",
-// comments never continue, and "*" and "*=" take yq's merge flags.
+// comments never continue, "*" and "*=" take yq's merge flags, and "="
+// and "|=" take its clobber flag.
 func YQ() TokenSet {
 	return TokenSet{
 		Keywords: []string{
@@ -65,7 +70,8 @@ func YQ() TokenSet {
 			"<=", ">", ">=", "+", "-", "*", "/", "%", "?", "(", ")", "[",
 			"]", "{", "}", ":", ";",
 		},
-		TripleDot:  true,
-		MergeFlags: "+?cdn",
+		TripleDot:   true,
+		MergeFlags:  "+?cdn",
+		AssignFlags: "c",
 	}
 }

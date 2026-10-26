@@ -233,14 +233,19 @@ func (p *parser) parseImport() (ast.Node, error) {
 }
 
 // rowFor finds the infix row that a token spells. A "*" or "*=" carrying
-// merge flags finds the row of the bare operator.
+// merge flags, or an "=" or "|=" carrying assignment flags, finds the row
+// of the bare operator.
 func (p *parser) rowFor(tok lexer.Token) (Row, bool) {
 	if tok.Kind < lexer.Dot && tok.Kind != lexer.Keyword {
 		return Row{}, false
 	}
 	spelling := tok.Text
-	if tok.Kind == lexer.Star || tok.Kind == lexer.MulAssign {
+	switch tok.Kind {
+	case lexer.Star, lexer.MulAssign:
 		spelling = strings.TrimRight(spelling, p.g.Tokens.MergeFlags)
+	case lexer.Assign, lexer.UpdateAssign:
+		spelling = strings.TrimRight(spelling, p.g.Tokens.AssignFlags)
+	default:
 	}
 	for _, r := range p.g.Ops {
 		if r.Spelling == spelling {

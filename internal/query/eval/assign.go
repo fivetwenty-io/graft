@@ -23,7 +23,7 @@ func (ev evaluator) assign(n *ast.Assign, env *Env, in *value.Value, p value.Pat
 	}
 	lhs := ev.pathsFor(runtime.IndexUpdate)
 	src := evaluator{state: ev.state, mode: runtime.IndexSource}
-	if strings.HasSuffix(n.Op, "|=") {
+	if strings.HasSuffix(strings.TrimRight(n.Op, "c"), "|=") {
 		src.mode = runtime.IndexRead
 	}
 	return ev.each(in, p, func(root *value.Value, rp value.Path) error {
@@ -177,13 +177,15 @@ func (ev evaluator) assignIn(n *ast.Assign, env *Env, mode runtime.AssignMode, l
 
 // assignMode returns the dialect mode for an assignment operator. The
 // arithmetic forms combine values through the same natives as the binary
-// operators, and "//=" keeps a value that is already truthy.
+// operators, and "//=" keeps a value that is already truthy. Flags after
+// the operator, such as yq's "=c" and "*=+", stay in the mode's Op for
+// the dialect, and "*=" passes its flags on to the merge as "*" does.
 func (ev evaluator) assignMode(op string) (runtime.AssignMode, error) {
-	switch op {
+	switch strings.TrimRight(op, "c") {
 	case "=":
-		return runtime.AssignSet, nil
+		return runtime.AssignSet.As(op), nil
 	case "|=":
-		return runtime.AssignUpdate, nil
+		return runtime.AssignUpdate.As(op), nil
 	case "//=":
 		return runtime.AssignArith(op, func(cur, rhs *value.Value) (*value.Value, error) {
 			if ev.ctx.Dialect.Truthy(cur) {
@@ -192,7 +194,8 @@ func (ev evaluator) assignMode(op string) (runtime.AssignMode, error) {
 			return rhs, nil
 		}), nil
 	}
-	name, ok := arithmetic[op[:len(op)-1]]
+	base, after, _ := strings.Cut(op, "=")
+	name, flags, ok := arithmeticOp(base + after)
 	if !ok && named(op) {
 		return runtime.AssignNamed(op), nil
 	}
@@ -200,7 +203,11 @@ func (ev evaluator) assignMode(op string) (runtime.AssignMode, error) {
 		return runtime.AssignMode{}, RuntimeError("unknown assignment operator " + op)
 	}
 	return runtime.AssignArith(op, func(cur, rhs *value.Value) (*value.Value, error) {
-		out, err := ev.first(name, value.Null(), []runtime.Thunk{constThunk{cur}, constThunk{rhs}})
+		args := []runtime.Thunk{constThunk{cur}, constThunk{rhs}}
+		if flags != "" {
+			args = append(args, constThunk{value.Str(flags)})
+		}
+		out, err := ev.first(name, value.Null(), args)
 		if err == nil && out == nil {
 			out = value.Null()
 		}

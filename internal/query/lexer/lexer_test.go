@@ -133,3 +133,11 @@ func TestLexMergeFlagsOnlyForYQ(t *testing.T) {
 	wantEqual(t, toks[5].Text, "*")
 	wantKinds(t, mustLex(t, `.a *+ .b`, JQ()), Field, Star, Plus, Field, EOF)
 }
+
+func TestLexAssignFlagsOnlyForYQ(t *testing.T) {
+	toks := mustLex(t, `.a =c .b |=c .c == .d`, YQ())
+	wantKinds(t, toks, Field, Assign, Field, UpdateAssign, Field, Eq, Field, EOF)
+	wantEqual(t, toks[1].Text, "=c")
+	wantEqual(t, toks[3].Text, "|=c")
+	wantKinds(t, mustLex(t, `.a =c`, JQ()), Field, Assign, Ident, EOF)
+}

@@ -36,6 +36,9 @@ func registry() *runtime.Registry {
 		}
 		r.AddPrelude(prog)
 		addOps(r)
+		// The merge wraps the arithmetic addOps tags, so two numbers
+		// multiply as yq's numbers do, merge flags or not.
+		registerMerge(r)
 		reg = r
 		rootEnv = eval.NewEnv(r)
 	})

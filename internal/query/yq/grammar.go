@@ -126,8 +126,12 @@ func infix(tok lexer.Token) bool {
 		return false
 	}
 	spelling := tok.Text
-	if tok.Kind == lexer.Star || tok.Kind == lexer.MulAssign {
+	switch tok.Kind {
+	case lexer.Star, lexer.MulAssign:
 		spelling = strings.TrimRight(spelling, Grammar().Tokens.MergeFlags)
+	case lexer.Assign, lexer.UpdateAssign:
+		spelling = strings.TrimRight(spelling, Grammar().Tokens.AssignFlags)
+	default:
 	}
 	for _, r := range Grammar().Ops {
 		if r.Spelling == spelling {

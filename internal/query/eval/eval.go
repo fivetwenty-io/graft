@@ -549,6 +549,19 @@ var arithmetic = map[string]string{
 	"%": "_mod",
 }
 
+// arithmeticOp returns the native for an arithmetic operator and the
+// flags written after it. yq's "*" takes merge flags, as in "*+", which
+// its native reads as a third operand.
+func arithmeticOp(op string) (string, string, bool) {
+	if name, ok := arithmetic[op]; ok {
+		return name, "", true
+	}
+	if len(op) > 1 && op[0] == '*' {
+		return arithmetic["*"], op[1:], true
+	}
+	return "", "", false
+}
+
 // binary runs an operator. Arithmetic and comparison run the right operand
 // outermost, as jq does, or the left one under LeftFirst, as yq does. The
 // boolean operators run the left one outermost and skip the right one
@@ -572,13 +585,18 @@ func (ev evaluator) binary(n *ast.Binary, env *Env, in *value.Value, p value.Pat
 	if ev.derives() {
 		lp = p
 	}
-	if name, ok := arithmetic[n.Op]; ok {
+	if name, flags, ok := arithmeticOp(n.Op); ok {
 		return ev.operands(n, env, in, lp, func(l *value.Value, p value.Path, r *value.Value, rp value.Path) error {
 			args := []runtime.Thunk{constThunk{l}, constThunk{r}}
 			if ev.derives() {
 				// yq names where each operand came from when it cannot
 				// combine them.
 				args = []runtime.Thunk{pathThunk{l, p}, pathThunk{r, rp}}
+			}
+			if flags != "" {
+				// The operator's flags, as in yq's "*+", follow the
+				// operands.
+				args = append(args, constThunk{value.Str(flags)})
 			}
 			return ev.native(name, value.Null(), args, ev.derive(l, p, emit))
 		})

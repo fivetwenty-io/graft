@@ -33,6 +33,8 @@ const (
 const (
 	kindScalar = "scalar"
 	kindAlias  = "alias"
+	kindMap    = "map"
+	kindSeq    = "seq"
 )
 
 // metaNames maps every spelling yq's lexer gives an operator that can
@@ -201,8 +203,10 @@ func nodeText(v *value.Value) string {
 }
 
 // metaOp reads an assignment operator such as "style=" or "tag|=" and
-// returns the name of what it sets and whether it is the "|=" form.
+// returns the name of what it sets and whether it is the "|=" form. The
+// clobber flag, as in "style=c", changes nothing here.
 func metaOp(op string) (string, bool, bool) {
+	op = strings.TrimRight(op, "c")
 	update := strings.HasSuffix(op, "|=")
 	spelling := strings.TrimSuffix(strings.TrimSuffix(op, "="), "|")
 	name, ok := metaNames[spelling]
