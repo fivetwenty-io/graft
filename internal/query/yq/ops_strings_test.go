@@ -51,3 +51,11 @@ func TestYQMatchGivesByteOffsets(t *testing.T) {
 	// yq counts a match's offset in bytes, so é counts twice.
 	wantYQ(t, `[match("a"; "g") | .offset]`, "éa-a\n", "- 2\n- 4\n")
 }
+
+func TestYQStringOperatorsOnCustomTags(t *testing.T) {
+	// A custom tag over text that reads as a string is a string.
+	wantYQ(t, `.a | upcase`, "a: !word hey\n", "HEY\n")
+	wantYQ(t, `.a |= downcase`, "a: !word HEY\n", "a: !word hey\n")
+	wantYQ(t, `.a | split("e")`, "a: !word hey\n", "- h\n- y\n")
+	wantYQError(t, `.a | upcase`, "a: !word 7\n", "cannot change case with !word, can only operate on strings. ")
+}

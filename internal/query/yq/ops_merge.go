@@ -110,17 +110,24 @@ func multiplyCustom(ctx *runtime.Ctx, base runtime.Native, l, r *value.Value, em
 		return unreadable(r, floatTag)
 	}
 	return base(ctx, nil, []runtime.Thunk{fixedThunk{ln}, fixedThunk{rn}}, func(v *value.Value, p value.Path) error {
-		if !customTag(tagOf(l)) || v.Kind() != value.KindNumber {
-			return emit(v, p)
-		}
-		m := metaOf(l)
-		m.Text = numberText(v)
-		out := v
-		if l.Kind() == value.KindString {
-			out = value.Str(m.Text)
-		}
-		return emit(out.WithMeta(&m), p)
+		return emit(retagCustom(l, v), p)
 	})
+}
+
+// retagCustom is v, the result of arithmetic on l, as the left node with
+// v's text when l has a custom tag, so it keeps its tag, style, anchor,
+// and comments, and v itself otherwise.
+func retagCustom(l, v *value.Value) *value.Value {
+	if !customTag(tagOf(l)) || v.Kind() != value.KindNumber {
+		return v
+	}
+	m := metaOf(l)
+	m.Text = numberText(v)
+	out := v
+	if l.Kind() == value.KindString {
+		out = value.Str(m.Text)
+	}
+	return out.WithMeta(&m)
 }
 
 // unreadable is the error for a scalar with a custom tag that "*" takes

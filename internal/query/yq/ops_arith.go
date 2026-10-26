@@ -36,6 +36,8 @@ func registerArith(r *runtime.Registry) {
 					switch {
 					case lv.Kind() == value.KindNumber && rv.Kind() == value.KindNumber:
 						return numeric(ctx, base, op.sym, lv, rv, emit)
+					case op.sym != '*' && customNumbers(lv, rv):
+						return customArith(ctx, base, op.sym, lv, rv, emit)
 					case op.sym == '+' || op.sym == '-':
 						if v, ok, err := dateArith(ctx, lv, rv, op.sym == '-'); ok || err != nil {
 							if err != nil {
@@ -75,7 +77,7 @@ func add(ctx *runtime.Ctx, base runtime.Native, l *value.Value, lp value.Path, r
 	case l.Kind() == value.KindArray || (l.Kind() == value.KindObject && r.Kind() == value.KindObject):
 	case collection(l) || collection(r):
 		return &query.RuntimeError{Msg: tagOf(r) + " (" + pathText(rp) + ") cannot be added to a " + tagOf(l) + " (" + pathText(lp) + ")"}
-	case tagOf(l) == strTag || tagOf(r) == strTag:
+	case guessTag(l) == strTag || guessTag(r) == strTag:
 		return emit(keepAnchor(l, value.Str(addText(l)+addText(r))), nil)
 	default:
 		return &query.RuntimeError{Msg: tagOf(l) + " cannot be added to " + tagOf(r)}
@@ -99,6 +101,30 @@ func addText(v *value.Value) string {
 		return ""
 	}
 	return nodeText(v)
+}
+
+// customNumbers reports whether l and r are scalars, at least one with a
+// custom tag, whose text reads as numbers.
+func customNumbers(l, r *value.Value) bool {
+	if kindOf(l) != kindScalar || kindOf(r) != kindScalar || !customTag(tagOf(l)) && !customTag(tagOf(r)) {
+		return false
+	}
+	if !numericTag(guessTag(l)) || !numericTag(guessTag(r)) {
+		return false
+	}
+	_, lok := asNumber(l)
+	_, rok := asNumber(r)
+	return lok && rok
+}
+
+// customArith computes l op r on the numbers the operands' text reads as,
+// and gives the result the left operand's custom tag, as yq does.
+func customArith(ctx *runtime.Ctx, base runtime.Native, op byte, l, r *value.Value, emit runtime.Emit) error {
+	ln, _ := asNumber(l)
+	rn, _ := asNumber(r)
+	return numeric(ctx, base, op, ln, rn, func(v *value.Value, p value.Path) error {
+		return emit(retagCustom(l, v), p)
+	})
 }
 
 // numeric emits l op r tagged as yq tags it.

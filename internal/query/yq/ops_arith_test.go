@@ -126,3 +126,18 @@ func TestYQFloatZeroDivisor(t *testing.T) {
 	_, err := runYQ(t, testOpts, `.a % 0`, "a: 5\n", false)
 	wantErrContains(t, err, "cannot modulo by 0")
 }
+
+// A scalar with a custom tag over text that reads as a number takes part
+// in arithmetic as that number, and the result keeps the tag when the
+// tagged node is on the left.
+func TestYQCustomTagArithmetic(t *testing.T) {
+	in := "a: !count 41\n"
+	wantYQ(t, `.a + 1`, in, "42\n")
+	wantYQ(t, `.a - 1`, in, "40\n")
+	wantYQ(t, `.b = (.a + 1)`, in, "a: !count 41\nb: !count 42\n")
+	wantYQ(t, `.b = (1 + .a)`, in, "a: !count 41\nb: 42\n")
+	wantYQ(t, `.b = (.a + .a)`, in, "a: !count 41\nb: !count 82\n")
+	wantYQ(t, `.a / 2`, in, "20.5\n")
+	wantYQ(t, `.a % 5`, in, "1\n")
+	wantYQ(t, `.a + 1.5`, in, "42.5\n")
+}
