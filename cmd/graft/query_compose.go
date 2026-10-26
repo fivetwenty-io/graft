@@ -269,10 +269,11 @@ func runQueryCmd(cmd *cobra.Command, args []string, spec queryCmdSpec) error {
 	if !applyRoot(rootArgs) {
 		return nil
 	}
-	themeName, _, _ := resolveTheme(cmd, false, themeNameAuto)
+	themeChanged, themeValue := false, themeNameAuto
 	if theme := cmd.Root().PersistentFlags().Lookup("theme"); theme != nil {
-		themeName, _, _ = resolveTheme(cmd, theme.Changed, theme.Value.String())
+		themeChanged, themeValue = theme.Changed, theme.Value.String()
 	}
+	themeName, _, _ := resolveTheme(cmd, themeChanged, themeValue)
 	var engine engineOptions
 	if wantEngine {
 		if engine, err = composeEngineOpts(cmd); err != nil {
