@@ -75,6 +75,12 @@ func TestBudgetErrorsNameTheirBound(t *testing.T) {
 	_, err = MustCompile(`(a|b)*c`, WithBudget(Budget{MaxStack: 100})).Find(context.Background(), strings.Repeat("a", 1000)+"c", 0)
 	wantErrContains(t, err, "regex: backtrack stack exceeds the budget of 100 frames")
 
+	// Without a c the subject cannot hold a match, so the search ends at
+	// once instead of reaching the frame cap.
+	m, err := MustCompile(`(a|b)*c`, WithBudget(Budget{MaxStack: 100})).Find(context.Background(), strings.Repeat("a", 1000), 0)
+	wantNil(t, err)
+	wantEqual(t, m, nil)
+
 	_, err = MustCompile(`(a+)+$`, WithBudget(Budget{Steps: 1000})).Find(context.Background(), strings.Repeat("a", 30)+"b", 0)
 	wantEqual(t, err, ErrBudget)
 }
