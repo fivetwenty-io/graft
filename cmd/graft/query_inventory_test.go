@@ -378,6 +378,29 @@ func TestYQInventoryReport(t *testing.T) {
 	logInventoryReport(t, "yq")
 }
 
+// TestDepartureCapIgnoresOutOfScope pins that an out-of-scope entry, which
+// is how a spec-deliberate departure is recorded, is neither counted
+// against the departure cap nor in the inventory ratio.
+func TestDepartureCapIgnoresOutOfScope(t *testing.T) {
+	allow := map[string]parity.AllowEntry{
+		"a": {ID: "a", Kind: "departure", Reason: "exact decimal"},
+		"b": {ID: "b", Kind: outOfScope, Reason: "spec-deliberate: YAML input under auto-detection"},
+		"c": {ID: "c", Kind: outOfScope, Reason: "spec-deliberate: YAML input under auto-detection"},
+	}
+	if got := countKind(allow, "departure"); got != 1 {
+		t.Errorf("departure count %d, want 1", got)
+	}
+	entries := []inventoryEntry{{ID: "a", Area: "number"}, {ID: "b", Area: "cli"}, {ID: "c", Area: "cli"}, {ID: "d", Area: "cli"}}
+	verdicts := map[string]parity.Verdict{"a": parity.ExpectedFail, "b": parity.ExpectedFail, "c": parity.ExpectedFail, "d": parity.Pass}
+	stats := inventoryStats(entries, verdicts, allow)
+	if got := stats["overall"].Total; got != 2 {
+		t.Errorf("overall total %d, want 2", got)
+	}
+	if got := stats["cli"].Total; got != 1 {
+		t.Errorf("cli total %d, want 1", got)
+	}
+}
+
 func TestInventoryStats(t *testing.T) {
 	entries := []inventoryEntry{
 		{ID: "a", Area: "grammar"}, {ID: "b", Area: "grammar"}, {ID: "c", Area: "regex"}, {ID: "d", Area: "regex"}, {ID: "e", Area: "regex"},

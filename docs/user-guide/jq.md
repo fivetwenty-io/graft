@@ -167,25 +167,25 @@ These are the places where `graft jq` deliberately differs from jq 1.8.2.
 
 ## Compatibility
 
-We measure compatibility against a coverage inventory of jq behaviors. Each entry passes when every differential case it names matches a golden recorded from the real jq 1.8.2. The percentages below come from `tests/query-parity/jq/report.txt`, and each one was measured at the end of phase J2, which is the release this page describes. The last column says when we expect the figure to rise.
+We measure compatibility against a coverage inventory of jq behaviors. Each entry passes when every differential case it names matches a golden recorded from the real jq 1.8.2. The percentages below come from `tests/query-parity/jq/report.txt`, and each one was measured at the end of phase J3, which is the release this page describes. The last column says whether we expect the figure to change.
 
 | Area | Passing | Phase measured | Expected to rise |
 |------|---------|----------------|------------------|
-| Grammar | 100% | J2 | Done |
-| Builtins | 100% | J2 | Done |
-| Flags | 100% | J2 | Done |
-| Exit codes | 97% | J2 | J3 |
-| Numbers | 80% | J2 | Stays where it is, because the missing cases are deliberate departures |
-| Strings | 100% | J2 | Done |
-| Regular expressions | 96% | J2 | J3 |
-| Dates | 96% | J2 | Stays where it is, because the missing case is a deliberate departure |
-| Math | 73% | J2 | Stays where it is, because the missing cases are deliberate departures |
-| Modules | 100% | J2 | Done |
-| Streaming | 100% | J2 | Done |
-| CLI | 97% | J2 | J3 |
-| Overall | 97% | J2 | J3 |
+| Grammar | 100% | J3 | Done |
+| Builtins | 100% | J3 | Done |
+| Flags | 100% | J3 | Done |
+| Exit codes | 100% | J3 | Done |
+| Numbers | 80% | J3 | Stays where it is, because the missing cases are deliberate departures |
+| Strings | 100% | J3 | Done |
+| Regular expressions | 100% | J3 | Done |
+| Dates | 96% | J3 | Stays where it is, because the missing case is a deliberate departure |
+| Math | 84% | J3 | Stays where it is, because the missing cases are deliberate departures |
+| Modules | 100% | J3 | Done |
+| Streaming | 100% | J3 | Done |
+| CLI | 100% | J3 | Done |
+| Overall | 98% | J3 | Stays where it is, because the missing cases are deliberate departures |
 
-Phase J2 completes the language with dates, math, formats, modules, streaming, and lookaround and backreferences in regular expressions, so modules and streaming now pass in full. The numbers, dates, and math rows stay below 100 percent because `graft jq` keeps exact decimal arithmetic, its own resource limits, and Go's math library, and each case where that gives a different answer from jq is recorded as a deliberate departure. Phase J3 hardens the result with performance work and fuzzing, reads input literals as strictly as jq does, and adds the last regular expression forms, which are subroutine calls, the absent operator, and grapheme clusters. Each phase is a plain minor release.
+Phase J3 finishes the language. Regular expressions now take subroutine calls, the absent operator, and grapheme clusters, input literals are read as strictly as jq reads them, and long regular expression matches and chains of `setpath` run in time that grows in line with the input. The numbers, dates, and math rows stay below 100 percent because `graft jq` keeps exact decimal arithmetic, its own resource limits, and Go's math library, and each case where that gives a different answer from jq is recorded as a deliberate departure. The overall floor for phase J3 is 98 percent, because those exact decimal departures hold the inventory to 98.1 percent at most. Two more cases are left out of the percentages, because `graft jq` reads YAML input where jq reads strict JSON, and that choice is deliberate. The `pkg/regex` package is now stable, so we will keep its public interface compatible from here on. Each phase is a plain minor release.
 
 ## Related
 
