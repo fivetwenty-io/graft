@@ -1,7 +1,7 @@
 package yq
 
 import (
-	"errors"
+	"bytes"
 	"io"
 
 	"github.com/fivetwenty-io/graft/internal/query/load"
@@ -46,9 +46,12 @@ type DecodeOptions struct {
 	// writes a "---" line.
 	FileIndex int
 	// FrontMatter is yq's --front-matter setting, either "extract",
-	// "process", or empty for a source with no front matter. A value
-	// other than empty makes Next fail until the release that completes
-	// graft yq supports it.
+	// "process", or empty for a source with no front matter. Any value
+	// but empty makes the Decoder read only the YAML at the head of
+	// the source, as SplitFrontMatter divides it, and a source with no
+	// front matter reads as it is. The text after the front matter is not
+	// returned, so a caller that wants it, as "process" does, calls
+	// SplitFrontMatter itself.
 	FrontMatter string
 	// NoHeaderPreprocess is yq's --header-preprocess=false. The comments
 	// before the first node stay with the parser instead of being cut off
@@ -72,8 +75,7 @@ type Decoder struct {
 func NewDecoder(r io.Reader, opts DecodeOptions) *Decoder {
 	d := &Decoder{}
 	if opts.FrontMatter != "" {
-		d.err = errors.New("front matter is not supported yet")
-		return d
+		r = &frontMatterReader{src: r}
 	}
 	lo := load.LoadOptions{Format: load.FormatYAML, KeepMeta: true, NodeComments: opts.NoHeaderPreprocess}
 	if opts.Format == FormatJSON {
@@ -82,6 +84,25 @@ func NewDecoder(r io.Reader, opts DecodeOptions) *Decoder {
 	}
 	d.r = load.Open(load.Source{Name: opts.Filename, Reader: r}, opts.FileIndex, lo)
 	return d
+}
+
+// frontMatterReader reads the YAML at the head of src, once the first Read
+// asks for it.
+type frontMatterReader struct {
+	src  io.Reader
+	head io.Reader
+	err  error
+}
+
+func (f *frontMatterReader) Read(p []byte) (int, error) {
+	if f.head == nil && f.err == nil {
+		head, _, _, err := SplitFrontMatter(f.src)
+		f.head, f.err = bytes.NewReader(head), err
+	}
+	if f.err != nil {
+		return 0, f.err
+	}
+	return f.head.Read(p)
 }
 
 // Next returns the next document's root, and io.EOF after the last one. A

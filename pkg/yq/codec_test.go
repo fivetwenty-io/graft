@@ -126,9 +126,22 @@ func TestDecoderErrorSticksAndEOF(t *testing.T) {
 	wantEqual(t, errors.Is(err, io.EOF), true)
 }
 
-func TestDecoderFrontMatterIsNotYetSupported(t *testing.T) {
-	_, err := NewDecoder(strings.NewReader("a: 1\n"), DecodeOptions{FrontMatter: "extract"}).Next()
-	wantContains(t, err.Error(), "front matter")
+func TestDecoderFrontMatterReadsOnlyTheHead(t *testing.T) {
+	for _, mode := range []string{"extract", "process"} {
+		dec := NewDecoder(strings.NewReader("---\ntitle: x\n---\n# body\n"), DecodeOptions{FrontMatter: mode})
+		v, err := dec.Next()
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantEqual(t, v.Keys()[0], "title")
+		_, err = dec.Next()
+		wantEqual(t, errors.Is(err, io.EOF), true)
+	}
+	v, err := NewDecoder(strings.NewReader("a: 1\n"), DecodeOptions{FrontMatter: "extract"}).Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, v.Keys()[0], "a")
 }
 
 func TestExitCodeTable(t *testing.T) {
