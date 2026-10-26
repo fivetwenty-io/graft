@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, and `graft install-aliases`, which lets graft answer to the names `jq` and `spruce`. It brings the first two of three jq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 97 percent overall at the end of phase J2, and the per-area figures are in [the jq guide](docs/user-guide/jq.md).
+This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, `graft yq`, its counterpart for yq expressions, and `graft install-aliases`, which lets graft answer to the names `jq`, `yq`, and `spruce`. It brings the first two of three jq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 97 percent overall at the end of phase J2, and the per-area figures are in [the jq guide](docs/user-guide/jq.md).
 
 ### Added
 
@@ -34,11 +34,17 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 
 - Regular expressions in `graft jq` take `\R` for a line break, `\K` to reset the start of the match, and conditional groups such as `(?(1)yes|no)`, which test whether a group has captured. The PCRE flavor in `pkg/regex` takes them too, as PCRE2 does. A conditional whose only branch is not empty, such as `(?(1)b)`, matches the empty string when its group hasn't captured, as in PCRE2. jq's search misses matches through one when something follows it, so `(a)(?(1)b)c` matches `abc` in graft and finds nothing in jq.
 
-- `graft install-aliases` links `jq` and `spruce` to graft, or installs copies on Windows, and `--remove` takes them away again. A link named exactly `jq` runs `graft jq`.
+- `graft install-aliases` links `jq`, `yq`, and `spruce` to graft, or installs copies on Windows, and `--remove` takes them away again. A link named exactly `jq` runs `graft jq`.
 
-- `graft jq --repl` opens the debugger on the inputs, and `graft debug` gains the `jq`, `select`, and `watch` query verbs and `break jq:` paths. The `yq` verb is present but answers that it is not available until a later release.
+- `graft jq --repl` opens the debugger on the inputs, and `graft debug` gains the `jq`, `select`, and `watch` query verbs and `break jq:` paths. The `yq` verb runs yq expressions in the same session.
 
 - The Go packages `pkg/jq`, `pkg/query`, `pkg/query/value`, `pkg/regex`, `pkg/decimal`, and `pkg/sortkeys` are new and experimental until `graft jq` is complete, so their exported names may change between minor releases.
+
+- `graft yq` runs a yq 4.54.1 expression over YAML or JSON and keeps the comments, styles, anchors, and tags of the input. It supports `eval` and `eval-all`, `-i`, `-n`, `-e`, `-o`, `-p`, `-I`, `-N`, `-P`, `-r`, `-0`, `-S` and `--sort-keys` with named modes, `-m` and `-E` for merging first, and `--repl`. YAML and JSON are the only formats, and every failure exits 1 as yq does.
+
+- A link named exactly `yq` runs `graft yq`.
+
+- The flags `-c`, `--yaml-compact-seq-indent`, and `--string-interpolation` are accepted by `graft yq` but have no effect yet. `-f`, `-s`, and `--split-exp-file` answer that they are not available until a later release.
 
 ### Changed
 
@@ -54,9 +60,11 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 
 - Inside a lookbehind, the Oniguruma flavor that `graft jq` uses now needs one length, as jq does, and refuses anything else with jq's "invalid pattern in look-behind" error. A repeat of one literal, class, or backreference that starts a branch counts at its fewest repetitions first, so `(?<=a+|b)` is accepted while `(?<=xa+)`, `(?<=a|bc)`, and `(?<=bb+|bc)` are refused.
 
+- `graft yq` also does exact decimal arithmetic, and `--float-numbers` restores yq's int64 and double arithmetic. Its regular expression builtins use PCRE syntax. `from_unix` fails on seconds outside the range of int64 where yq saturates, and the `system` operator and XML input and output are not supported.
+
 ### Documentation
 
-- New user guide pages describe [graft jq](docs/user-guide/jq.md) and [aliases](docs/user-guide/aliases.md), and the release notes explain how to use graft as `jq`.
+- New user guide pages describe [graft jq](docs/user-guide/jq.md), [graft yq](docs/user-guide/yq.md), and [aliases](docs/user-guide/aliases.md), and the release notes explain how to use graft as `jq` and `yq`.
 
 ## [1.42.5] - 2026-10-21
 

@@ -92,6 +92,10 @@ Use graft to:
   and a link named `jq` makes graft answer to jq's name
   ([details](docs/user-guide/jq.md))
 
+- **Built-In yq**
+
+  `graft yq` runs yq expressions over YAML and JSON with graft's own engine and keeps comments and styles, and a link named `yq` makes graft answer to yq's name ([details](docs/user-guide/yq.md))
+
 - **Embeddable Go Library**
 
   `pkg/graft` - embed configuration merging in your applications
@@ -208,9 +212,9 @@ Comprehensive documentation is available in the [docs/](docs/) directory:
 
   Installation, quick start tutorial, and Spruce migration guide
 
-- **[jq and aliases](docs/user-guide/jq.md)**
+- **[jq, yq, and aliases](docs/user-guide/jq.md)**
 
-  Running jq programs with `graft jq`, and `graft install-aliases` for the `jq` and `spruce` names
+  Running jq programs with `graft jq` and yq expressions with `graft yq` ([yq guide](docs/user-guide/yq.md)), and `graft install-aliases` for the `jq`, `yq`, and `spruce` names
 
 - **[User Guide](docs/user-guide/)**
 
