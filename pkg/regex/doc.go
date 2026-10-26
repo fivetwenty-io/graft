@@ -145,6 +145,18 @@ error. The budget also bounds the pattern length, group nesting, the size of
 the compiled program, and the backtrack stack, so a pattern cannot exhaust
 memory before its first step.
 
+Three shortcuts let common patterns finish well inside the budget without
+changing any result. A search first checks that the subject holds the text
+every match of the pattern must contain, such as the x in .*x, and reports
+no match at once when it does not. A pattern that begins with .* is retried
+only where the search starts and just after each newline that . refuses,
+since a start in the middle of a line finds nothing the line's first start
+missed. A repeat of a single rune, such as a*, [^,]+, or .{2,}, counts the
+runes it takes and gives them back one at a time from one stack entry,
+paying a step for each rune it takes or gives back, so it never reaches the
+backtrack stack's bound. A repeat of anything longer, such as (a|b)*, keeps
+one stack entry per iteration and stays bounded as before.
+
 # Stability
 
 This package is experimental. Until the release that completes graft jq,
