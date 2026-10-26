@@ -138,6 +138,10 @@ func keepAnchor(l, v *value.Value) *value.Value {
 // numberResult is numericResult without the anchor.
 func numberResult(ints bool, l, v *value.Value) *value.Value {
 	switch {
+	case ints && v.Kind() == value.KindNumber && strings.HasPrefix(numberText(v), "-") && v.Dec().IsZero():
+		// An integer has no negative zero, which a float does.
+		return keepBase(l, value.NumDec(decimal.FromInt64(0)))
+
 	case v.Kind() != value.KindNumber:
 		return v
 	case ints:

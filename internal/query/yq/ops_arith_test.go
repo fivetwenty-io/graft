@@ -102,3 +102,12 @@ func TestYQArithmeticKeepsTheLeftAnchor(t *testing.T) {
 	wantYQ(t, `.a = .a / 2`, "a: &x 3\n", "a: &x 1.5\n")
 	wantYQ(t, `.a = .a % 2`, "a: &x 3\n", "a: &x 1\n")
 }
+
+func TestYQIntegerZeroHasNoSign(t *testing.T) {
+	wantYQ(t, `.a * 0`, "a: -3\n", "0\n")
+	wantYQ(t, `.a * 0`, "a: !foo -3\n", "0\n")
+	wantYQ(t, `.a * -1`, "a: 0\n", "0\n")
+	wantYQ(t, `.a * -1`, "a: !foo 0\n", "0\n")
+	wantYQ(t, `.a + 0`, "a: -0\n", "0\n")
+	wantYQ(t, `.a * -1`, "a: 0.0\n", "-0\n")
+}
