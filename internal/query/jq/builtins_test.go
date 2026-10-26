@@ -289,6 +289,13 @@ func TestJQEnvironmentAndInputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantEqual(t, buf.String(), "[\"DEBUG:\",1]\n[\"DEBUG:\",\"m\"]\n[\"DEBUG:\",2]\n1")
+
+	// A string goes to stderr as its text, and anything else as compact JSON.
+	buf.Reset()
+	if _, err := run(t, `("a\nb", [1]) | stderr | empty`, value.Null(), runtime.NumbersExact, &buf); err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, buf.String(), "a\nb[1]")
 }
 
 func TestJQEnvDisabled(t *testing.T) {

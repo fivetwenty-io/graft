@@ -42,7 +42,11 @@ func registerJQ(r *runtime.Registry) {
 	})
 	r.RegisterSingle("stderr", 0, func(ctx *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 		if ctx.Stderr != nil {
-			_, _ = io.WriteString(ctx.Stderr, runtime.JSON(in))
+			text := runtime.JSON(in)
+			if in.Kind() == value.KindString {
+				text = in.Str()
+			}
+			_, _ = io.WriteString(ctx.Stderr, text)
 		}
 		return emit(in, nil)
 	})
