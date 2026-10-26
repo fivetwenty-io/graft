@@ -16,18 +16,10 @@ m-head-comment-entry pending Y2 Y1 behavior deferred to Task 47
 m-key-update pending Y2 Y1 behavior deferred to Task 47
 m-style-double-keys pending Y2 Y1 behavior deferred to Task 47
 op-add-custom-tag-number pending Y2 Y1 behavior deferred to Task 47
-op-array-to-map pending Y2 Y1 behavior deferred to Task 47
 op-date-from-unix-out-of-range pending Y2 graft prints a far-future year in local time where yq saturates to 292278994 in Z
 op-env-dynamic-path pending Y2 eval as an assignment path
 op-eval-update pending Y2 eval as an assignment path
-op-filter pending Y2 Y1 behavior deferred to Task 47
-op-filter-map pending Y2 Y1 behavior deferred to Task 47
-op-first-map pending Y2 Y1 behavior deferred to Task 47
-op-first-match pending Y2 Y1 behavior deferred to Task 47
-op-first-no-match pending Y2 Y1 behavior deferred to Task 47
 op-object-splat pending Y2 object key without parentheses
-op-pivot-maps pending Y2 Y1 behavior deferred to Task 47
-op-pivot-seqs pending Y2 Y1 behavior deferred to Task 47
 op-string-custom-tag pending Y2 string operators on custom tags
 op-subtract-custom-tag pending Y2 Y1 behavior deferred to Task 47
 op-variable-lookup pending Y2 indexing a variable by an expression

@@ -34,6 +34,8 @@ def capture(re): _yq_capture(re);
 def capture(re; flags): _yq_capture(re; flags);
 def sub(re; repl): _yq_sub(re; repl);
 def with(p; f): _yq_with(p | f);
+def first(f): label $__yqfirst | (.[] | select(any(f; .)) | ., break $__yqfirst);
+def filter(f): map(select(f));
 `
 
 // splitDoc is the document index split_doc gives an output, which run
@@ -55,6 +57,7 @@ func addOps(r *runtime.Registry) {
 	registerEnv(r)
 	registerControl(r)
 	registerArith(r)
+	registerPivots(r)
 	prog, err := parser.ParseFile(opsPrelude, preludeFile, jq.Grammar())
 	if err != nil {
 		panic("yq: operator prelude does not parse: " + err.Error())
