@@ -215,7 +215,9 @@ func (w *walker) root(n ast.Node) {
 	u := unwrap(n)
 	switch {
 	case isFlow(u):
-		w.items = append(w.items, w.scalarItem(u, "", []anc{{col: 0}}))
+		it := w.scalarItem(u, "d0#CL", []anc{{col: 0}})
+		it.head = "d0#CH"
+		w.items = append(w.items, it)
 		w.flow(u, "d0")
 	case isCollection(u):
 		w.node(n, "d0", nil)
@@ -258,10 +260,10 @@ func (w *walker) mapping(values []*ast.MappingValueNode, p string, ancs []anc) {
 		if implicitNull {
 			valueNext = true
 		}
-		w.items = append(w.items, item{kind: 'K', line: kt.Position.Line, col: kt.Position.Column, end: kt.Position.Line, head: kp + "#KH", valueNext: valueNext, ancs: kancs})
+		w.items = append(w.items, item{kind: 'K', line: kt.Position.Line, col: kt.Position.Column, end: kt.Position.Line, head: kp + "#KH", lineSlot: kp + "#KL", valueNext: valueNext, ancs: kancs})
 		switch {
 		case isFlow(v):
-			w.items = append(w.items, w.scalarItem(v, "", kancs))
+			w.items = append(w.items, w.scalarItem(v, kp+"#CL", kancs))
 			w.flow(v, kp)
 		case isCollection(v):
 			w.node(v, kp, kancs)
@@ -295,13 +297,15 @@ func (w *walker) sequence(x *ast.SequenceNode, p string, ancs []anc) {
 		}
 		if scalar {
 			head = ip + "#VH"
+		} else {
+			head = ip + "#CH"
 		}
 		eancs := append(append([]anc{}, ancs...), anc{dash.Position.Column, foot, false, !indentless})
 		w.items = append(w.items, item{kind: 'E', line: dash.Position.Line, col: dash.Position.Column, end: dash.Position.Line, head: head, ancs: eancs})
 		e := len(w.items) - 1
 		switch {
 		case isFlow(uv):
-			w.items = append(w.items, w.scalarItem(uv, "", eancs))
+			w.items = append(w.items, w.scalarItem(uv, ip+"#CL", eancs))
 			w.flow(uv, ip)
 		case !scalar:
 			w.node(uv, ip, eancs)
@@ -547,7 +551,7 @@ func lineComments(w *walker, l lexed, out map[string]string) (own map[int]cmt, d
 		case afterBareDash(w.items, best):
 			own[c.line] = c
 			dashLines[c.line] = true
-		case w.items[best].kind == 'S':
+		case w.items[best].kind == 'S' || w.items[best].kind == 'K':
 			appendSlot(out, w.items[best].lineSlot, c.text)
 		}
 	}
@@ -598,10 +602,7 @@ func afterDecoration(items []item, line int) string {
 		if it.line <= line || it.kind == 'E' {
 			continue
 		}
-		if it.kind == 'S' {
-			return it.lineSlot
-		}
-		return ""
+		return it.lineSlot
 	}
 	return ""
 }
@@ -1011,7 +1012,7 @@ func (s *gapScanner) nodeLineSlot() string {
 	switch {
 	case next == nil:
 		return ""
-	case next.kind == 'S':
+	case next.kind == 'S' || next.kind == 'K':
 		return next.lineSlot
 	case next.kind == 'E' && s.g.after != nil && s.g.after.kind == 'S' && s.g.after.line == next.line:
 		return s.g.after.lineSlot
@@ -1333,16 +1334,14 @@ func splitDocumentHead(t string) (head, rest string) {
 }
 
 // applySlots writes the computed slots onto a built document, walking it
-// with the same path keys the walker used.
+// with the same path keys the walker used. A scalar keeps its comments in
+// the #V slots and a collection in the #C slots, and a mapping key keeps
+// its line comment in #KL.
 func applySlots(n *Node, path string, slots map[string]string) {
 	switch n.Kind {
 	case DocumentNode:
 		for _, c := range n.Content {
-			if c.Kind == ScalarNode {
-				c.HeadComment = slots[path+"#VH"]
-				c.LineComment = slots[path+"#VL"]
-				c.FootComment = slots[path+"#VF"]
-			}
+			applyItemSlots(c, path, slots)
 			applySlots(c, path, slots)
 		}
 	case MappingNode:
@@ -1350,24 +1349,39 @@ func applySlots(n *Node, path string, slots map[string]string) {
 			k, v := n.Content[i], n.Content[i+1]
 			kp := fmt.Sprintf("%s{%d}", path, i/2)
 			k.HeadComment = slots[kp+"#KH"]
+			k.LineComment = slots[kp+"#KL"]
 			k.FootComment = slots[kp+"#KF"]
 			if v.Kind == ScalarNode {
 				v.LineComment = slots[kp+"#VL"]
 				v.FootComment = slots[kp+"#VF"]
+			} else if v.Kind != AliasNode {
+				v.LineComment = slots[kp+"#CL"]
 			}
 			applySlots(v, kp, slots)
 		}
 	case SequenceNode:
 		for i, c := range n.Content {
 			ip := fmt.Sprintf("%s[%d]", path, i)
-			if c.Kind == ScalarNode {
-				c.HeadComment = slots[ip+"#VH"]
-				c.LineComment = slots[ip+"#VL"]
-				c.FootComment = slots[ip+"#VF"]
-			}
+			applyItemSlots(c, ip, slots)
 			applySlots(c, ip, slots)
 		}
 	default:
 		// Scalars and aliases hold no further slots.
+	}
+}
+
+// applyItemSlots writes the slots of a document's root or a sequence
+// item, which hold its head, line, and foot comments.
+func applyItemSlots(c *Node, path string, slots map[string]string) {
+	switch c.Kind {
+	case ScalarNode:
+		c.HeadComment = slots[path+"#VH"]
+		c.LineComment = slots[path+"#VL"]
+		c.FootComment = slots[path+"#VF"]
+	case MappingNode, SequenceNode:
+		c.HeadComment = slots[path+"#CH"]
+		c.LineComment = slots[path+"#CL"]
+	default:
+		// An alias holds no comments of its own here.
 	}
 }

@@ -92,6 +92,55 @@ func TestCommentsMatchYAMLv3PrintedSlots(t *testing.T) {
 	}
 }
 
+// everySlot lists the head, line, and foot comments of every node, keyed
+// by node position and kind, so slots neat never prints are compared too.
+func everySlot(n *yamlgolden.Node, path string, out map[string]string) {
+	put := func(k, v string) {
+		if v != "" {
+			out[k] = v
+		}
+	}
+	put(path+"/"+n.Kind+"#H", n.HeadComment)
+	put(path+"/"+n.Kind+"#L", n.LineComment)
+	put(path+"/"+n.Kind+"#F", n.FootComment)
+	for i, c := range n.Content {
+		everySlot(c, fmt.Sprintf("%s.%d", path, i), out)
+	}
+}
+
+// TestCommentsMatchYAMLv3EverySlot compares every node's comments with
+// yaml.v3's, which is what yq prints from. The two slots named in gaps
+// still differ: a head comment inside a flow mapping value, and the foot
+// comment yaml.v3 hangs on an alias.
+func TestCommentsMatchYAMLv3EverySlot(t *testing.T) {
+	gaps := map[string]bool{
+		"comments-flow-map-value-head-blank d0.0.3.1/scalar#H":             true,
+		"kit-autoscaler-app-autoscaler d0.0.15.2.13.1.7.1.1.1.9.0/alias#F": true,
+	}
+	for _, name := range nodeFixtures(t) {
+		want := commentGolden(t, name)
+		if want.Error != "" {
+			continue
+		}
+		docs := mustParseFile(t, "testdata/nodes/"+name+".yml")
+		for i := range docs {
+			w, g := map[string]string{}, map[string]string{}
+			everySlot(want.Documents[i], fmt.Sprintf("d%d", i), w)
+			everySlot(yamlgolden.FromNode(docs[i]), fmt.Sprintf("d%d", i), g)
+			for k := range g {
+				if _, ok := w[k]; !ok {
+					w[k] = ""
+				}
+			}
+			for k, wv := range w {
+				if g[k] != wv && !gaps[name+" "+k] {
+					t.Errorf("%s %s = %q, want %q", name, k, g[k], wv)
+				}
+			}
+		}
+	}
+}
+
 func TestCommentsInEveryPrintedSlot(t *testing.T) {
 	doc := mustParse(t, "# head of a\na: 1 # line of a\n# foot of a\n\nl:\n  - one # line one\n  # foot of one\n\n  # head of two\n  - two\nb: 2\n")[0].Content[0]
 	a, one, two := doc.Content[0], doc.Content[3].Content[0], doc.Content[3].Content[1]

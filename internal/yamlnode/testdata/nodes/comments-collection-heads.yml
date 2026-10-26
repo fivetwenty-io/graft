@@ -1,0 +1,9 @@
+items:
+  # head of the first mapping
+  - name: a
+    v: 1
+
+  # head of the second mapping
+  - name: b
+  # head of a sequence item
+  - - 1

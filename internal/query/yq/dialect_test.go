@@ -229,3 +229,19 @@ func TestYQErrorShape(t *testing.T) {
 	wantYQError(t, `.a +`, "{}", "'+' expects 2 args but there is 1")
 	wantYQError(t, `.a`, "[1]\n", `cannot index array with 'a' (strconv.ParseInt: parsing "a": invalid syntax)`)
 }
+
+// TestYQKeepsCollectionComments checks that the line comment of a key
+// whose value is a collection, the line comment after a flow collection,
+// and the head comment of a collection in a sequence all survive a round
+// trip, as they do in yq.
+func TestYQKeepsCollectionComments(t *testing.T) {
+	for _, in := range []string{
+		"a: # c\n  b: 1\n",
+		"a: [1, 2] # c\nb: {x: 1} # d\n",
+		"- # h\n  a: 1\n- # s\n  - 1\n",
+		"[1, 2] # root\n",
+		"# h\n- a: 1 # x\n  b: [1] # y\n",
+	} {
+		wantYQ(t, ".", in, in)
+	}
+}

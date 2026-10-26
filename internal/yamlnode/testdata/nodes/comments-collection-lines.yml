@@ -1,0 +1,11 @@
+a: # on key a
+  b: 1
+l: # on key l
+  - 1
+  - 2
+n: # on key n with null
+f: [1, 2] # on the flow sequence
+g: {x: 1} # on the flow map
+s:
+  - [1] # on a flow item
+  - {y: 2} # on a flow map item

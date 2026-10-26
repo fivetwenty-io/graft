@@ -1,0 +1,30 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "sequence",
+          "tag": "!!seq",
+          "line_comment": "# on the root flow",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "1",
+              "line": 1
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!int",
+              "value": "2",
+              "line": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

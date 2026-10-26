@@ -1,0 +1,96 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "items",
+              "line": 1
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 3,
+              "content": [
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "head": "# head of the first mapping",
+                  "line": 3,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 3
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "a",
+                      "line": 3
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "v",
+                      "line": 4
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "1",
+                      "line": 4
+                    }
+                  ]
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "head": "# head of the second mapping",
+                  "line": 7,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "name",
+                      "line": 7
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "b",
+                      "line": 7
+                    }
+                  ]
+                },
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "head": "# head of a sequence item",
+                  "line": 9,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "1",
+                      "line": 9
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

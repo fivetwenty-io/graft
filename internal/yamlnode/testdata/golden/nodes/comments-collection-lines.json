@@ -1,0 +1,180 @@
+{
+  "documents": [
+    {
+      "kind": "document",
+      "line": 1,
+      "content": [
+        {
+          "kind": "mapping",
+          "tag": "!!map",
+          "line": 1,
+          "content": [
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "a",
+              "line_comment": "# on key a",
+              "line": 1
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line": 2,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "b",
+                  "line": 2
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 2
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "l",
+              "line_comment": "# on key l",
+              "line": 3
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 4,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 4
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "2",
+                  "line": 5
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "n",
+              "line_comment": "# on key n with null",
+              "line": 6
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!null",
+              "line": 6
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "f",
+              "line": 7
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line_comment": "# on the flow sequence",
+              "line": 7,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 7
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "2",
+                  "line": 7
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "g",
+              "line": 8
+            },
+            {
+              "kind": "mapping",
+              "tag": "!!map",
+              "line_comment": "# on the flow map",
+              "line": 8,
+              "content": [
+                {
+                  "kind": "scalar",
+                  "tag": "!!str",
+                  "value": "x",
+                  "line": 8
+                },
+                {
+                  "kind": "scalar",
+                  "tag": "!!int",
+                  "value": "1",
+                  "line": 8
+                }
+              ]
+            },
+            {
+              "kind": "scalar",
+              "tag": "!!str",
+              "value": "s",
+              "line": 9
+            },
+            {
+              "kind": "sequence",
+              "tag": "!!seq",
+              "line": 10,
+              "content": [
+                {
+                  "kind": "sequence",
+                  "tag": "!!seq",
+                  "line_comment": "# on a flow item",
+                  "line": 10,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "1",
+                      "line": 10
+                    }
+                  ]
+                },
+                {
+                  "kind": "mapping",
+                  "tag": "!!map",
+                  "line_comment": "# on a flow map item",
+                  "line": 11,
+                  "content": [
+                    {
+                      "kind": "scalar",
+                      "tag": "!!str",
+                      "value": "y",
+                      "line": 11
+                    },
+                    {
+                      "kind": "scalar",
+                      "tag": "!!int",
+                      "value": "2",
+                      "line": 11
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
