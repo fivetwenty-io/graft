@@ -46,6 +46,9 @@ func registerArith(r *runtime.Registry) {
 						if op.sym == '+' {
 							return add(ctx, base, lv, lp, rv, rp, emit)
 						}
+						if lv.Kind() == value.KindArray && rv.Kind() == value.KindArray {
+							return subtract(ctx, base, lv, rv, emit)
+						}
 					default:
 					}
 					return base(ctx, in, []runtime.Thunk{constant{lv}, constant{rv}}, emit)
@@ -77,6 +80,14 @@ func add(ctx *runtime.Ctx, base runtime.Native, l *value.Value, lp value.Path, r
 	default:
 		return &query.RuntimeError{Msg: tagOf(l) + " cannot be added to " + tagOf(r)}
 	}
+	return base(ctx, nil, []runtime.Thunk{constant{l}, constant{r}}, func(v *value.Value, p value.Path) error {
+		return emit(keepAnchor(l, like(l, v)), p)
+	})
+}
+
+// subtract is yq's - for two sequences, which keeps the left side's
+// style and anchor, as add does.
+func subtract(ctx *runtime.Ctx, base runtime.Native, l, r *value.Value, emit runtime.Emit) error {
 	return base(ctx, nil, []runtime.Thunk{constant{l}, constant{r}}, func(v *value.Value, p value.Path) error {
 		return emit(keepAnchor(l, like(l, v)), p)
 	})

@@ -222,6 +222,12 @@ func TestAddingNullToASequenceAddsNothing(t *testing.T) {
 	wantEqual(t, render(t, `.a + 3`, in, false), "[1, 2, 3]\n")
 }
 
+func TestSubtractingSequencesKeepsTheLeftStyle(t *testing.T) {
+	wantEqual(t, render(t, `.a - .b`, "a: [1, 2, 3, 2]\nb: [2]\n", false), "[1, 3]\n")
+	wantEqual(t, render(t, `.a - .b`, "a: [[1], [2]]\nb: [[1]]\n", false), "[[2]]\n")
+	wantEqual(t, render(t, `.a - .b`, "a:\n  - 1\n  - 2\nb: [2]\n", false), "- 1\n")
+}
+
 func TestEqualityComparesScalarTextWithWildcards(t *testing.T) {
 	in := "- 3\n- 3.0\n- \"3\"\n- cat\n- camel\n- dog\n"
 	wantEqual(t, compact(t, `[.[] | . == 3]`, in), "[true,false,true,false,false,false]\n")
