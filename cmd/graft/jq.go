@@ -747,7 +747,7 @@ func newJQCmdFor(pers persona) *cobra.Command {
 			} else {
 				opts.Theme, _, _ = resolveTheme(cmd, false, themeNameAuto)
 			}
-			if opts.Merge || opts.Eval {
+			if opts.Merge || opts.Eval || opts.Repl {
 				var err error
 				if opts.Engine, err = composeEngineOpts(cmd); err != nil {
 					log.PrintStdErrf("%s\n", err.Error())

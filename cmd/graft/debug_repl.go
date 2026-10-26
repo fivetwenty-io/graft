@@ -143,6 +143,9 @@ type debugSession struct {
 	// selection is the set of typed paths `select` chose. The path verbs
 	// use it when they are given no argument.
 	selection []qvalue.Path
+	// nonMap is set when the session holds an array, a scalar, or null as its
+	// document, which is then root and never merged.
+	nonMap bool
 	// selectionNames is the selection spelled as the step diff names paths,
 	// taken when the selection was made.
 	selectionNames []string
@@ -242,6 +245,11 @@ func (s *debugSession) rawMergeOpts() *mergeOpts {
 // where `step` begins by merging the *second* file onto an already-loaded
 // first one.
 func (s *debugSession) cmdLoad() {
+	if s.nonMap {
+		s.printf("%s\n", s.style(roleHeading, "Loaded 1 document:"))
+		s.printf("  %s %s %s\n", s.style(roleCounter, "[0]"), s.style(roleFile, s.cached[0].Path), s.style(roleMuted, "("+documentKind(s.root)+")"))
+		return
+	}
 	s.printf("%s\n", s.style(roleHeading, fmt.Sprintf("Loaded %s:", pluralCount(len(s.cached), "document"))))
 	for i, c := range s.cached {
 		singleOpts := *s.opts
@@ -1437,6 +1445,9 @@ func handleDebugWith(files []string, opts *mergeOpts, in io.Reader, out io.Write
 		return 2
 	}
 
+	if init.Root != nil {
+		sess.root, sess.nonMap, sess.loaded = init.Root, true, true
+	}
 	if init.Query != "" {
 		sess.runStartupQuery(init)
 	}
@@ -1476,6 +1487,9 @@ func handleDebugWith(files []string, opts *mergeOpts, in io.Reader, out io.Write
 			return 0
 		}
 
+		if sess.refuseWithoutMapping(cmd) {
+			continue
+		}
 		run, known := debugCommands[cmd]
 		if !known {
 			sess.printf("%s\n", sess.style(roleWarn, fmt.Sprintf("Unknown command: %s. Type 'help' for available commands.", cmd)))

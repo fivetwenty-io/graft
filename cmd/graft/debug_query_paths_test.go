@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -128,5 +129,55 @@ func TestHistPathNamesEntries(t *testing.T) {
 		So(s.histPath(p("plain", 1)), ShouldEqual, "plain[1]")
 		So(s.histPath(p("a.b", "c")), ShouldEqual, "a.b.c")
 		So(s.trackPath(p("a.b", "c")), ShouldEqual, `"a.b".c`)
+	})
+}
+
+func TestJQReplTakesAnyDocument(t *testing.T) {
+	list, scalar, null := "testdata/debug/list.yml", "testdata/debug/scalar.yml", "testdata/debug/null.yml"
+
+	Convey("an array document enters the debugger and answers queries", t, func() {
+		out, errOut, st := runJQStdinScript(t, []string{"--repl", ".[2].a", list}, "jq length\njq .[1]\ninspect\ninspect jq:.[2]\nquit\n")
+		So(st.Code, ShouldEqual, 0)
+		So(errOut, ShouldEqual, "")
+		So(out, ShouldStartWith, "3\n")
+		So(out, ShouldContainSubstring, "Welcome to the Graft Debugger")
+		So(out, ShouldContainSubstring, "two\n")
+		So(out, ShouldContainSubstring, "- a: 3\n")
+		So(out, ShouldContainSubstring, "[2]:\na: 3\n")
+	})
+
+	Convey("a scalar and null document enter the debugger", t, func() {
+		out, _, st := runJQStdinScript(t, []string{"--repl", ". + 1", scalar}, "jq .\nquit\n")
+		So(st.Code, ShouldEqual, 0)
+		So(out, ShouldStartWith, "43\n")
+		So(out, ShouldContainSubstring, "42\n")
+		out, _, st = runJQStdinScript(t, []string{"--repl", ".", null}, "jq type\nquit\n")
+		So(st.Code, ShouldEqual, 0)
+		So(out, ShouldStartWith, "null\n")
+		So(out, ShouldContainSubstring, "null\n")
+	})
+
+	Convey("the verbs that need a mapping say so", t, func() {
+		out, _, _ := runJQStdinScript(t, []string{"--repl", ".", list},
+			"step\ncontinue\nbreak jq:.[0]\nunbreak x\ndefer x\nhistory x\neval x\nquit\n")
+		So(strings.Count(out, "needs a mapping at the root, and the loaded document is an array"), ShouldEqual, 7)
+		So(out, ShouldContainSubstring, "step needs a mapping")
+		So(out, ShouldContainSubstring, "break needs a mapping")
+		So(out, ShouldContainSubstring, "defer needs a mapping")
+		out, _, _ = runJQStdinScript(t, []string{"--repl", ".", scalar}, "step\nquit\n")
+		So(out, ShouldContainSubstring, "the loaded document is a number")
+	})
+
+	Convey("a non-mapping document cannot join other documents", t, func() {
+		_, errOut, st := runJQStdinScript(t, []string{"--repl", ".", list, "testdata/debug/a.yml"}, "quit\n")
+		So(st.Code, ShouldEqual, 1)
+		So(errOut, ShouldContainSubstring, "cannot be combined")
+	})
+
+	Convey("mappings still merge as graft debug merges them", t, func() {
+		out, _, st := runJQStdinScript(t, []string{"--repl", ".jobs | length", "testdata/debug/a.yml", "testdata/debug/b.yml"}, "load\nstep\nquit\n")
+		So(st.Code, ShouldEqual, 0)
+		So(out, ShouldStartWith, "3\n")
+		So(out, ShouldContainSubstring, "jobs.nats.port")
 	})
 }

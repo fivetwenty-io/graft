@@ -55,8 +55,8 @@ type jqOptions struct {
 	LibraryPaths []string                // -L
 	Files        []string
 
-	// Engine is the engine options for -m and -E, which the command fills
-	// in from the root's config before it runs.
+	// Engine is the engine options for -m, -E, and --repl, which the
+	// command fills in from the root's config before it runs.
 	Engine []graft.EngineOption
 
 	// Composition. -m merges every input before the program runs, and -E
@@ -75,10 +75,11 @@ type jqOptions struct {
 	SkipNats       bool     // --skip-nats
 
 	// Modes that replace a normal run.
-	ExitStatus   bool   // -e
-	Help         bool   // -h
-	Version      bool   // -V
-	Repl         bool   // --repl
+	ExitStatus bool // -e
+	Help       bool // -h
+	Version    bool // -V
+	Repl       bool // --repl
+
 	RunTests     bool   // --run-tests
 	RunTestsFile string // --run-tests FILE, or stdin when empty
 

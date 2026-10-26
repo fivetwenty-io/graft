@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -41,6 +42,9 @@ type debugWatch struct{ Dialect, Expr, Last string }
 type debugInit struct {
 	Dialect string
 	Query   string
+	// Root, when set, is a loaded document that is not a mapping. The session
+	// then holds it as it is, instead of merging the inputs.
+	Root *value.Value
 }
 
 // debugInitFor is the startup query the --jq and --yq flags ask for.
@@ -78,6 +82,9 @@ func (s *debugSession) dialectName() string {
 // returns every output. The tree is converted again only when it has
 // changed since the last call.
 func (s *debugSession) evalQuery(dialect, expr string) ([]*value.Value, error) {
+	if s.nonMap {
+		return runCompiled(dialect, expr, s.root)
+	}
 	if s.tree == nil {
 		return nil, errDebugNotLoaded
 	}
@@ -89,7 +96,11 @@ func (s *debugSession) evalQuery(dialect, expr string) ([]*value.Value, error) {
 		s.root, s.rootGen = root, s.treeGen
 		s.rootBuilds++
 	}
-	root := s.root
+	return runCompiled(dialect, expr, s.root)
+}
+
+// runCompiled compiles expr in dialect and runs it against root.
+func runCompiled(dialect, expr string, root *value.Value) ([]*value.Value, error) {
 	switch dialect {
 	case debugDialectJQ:
 		q, err := jq.Compile(expr)
@@ -257,6 +268,10 @@ func (s *debugSession) eachPath(arg string, conv func(value.Path) string, fn fun
 // cmdInspectArg is `inspect`: the legacy dotted form, or the value at each
 // path a query or the selection names.
 func (s *debugSession) cmdInspectArg(arg string) {
+	if s.nonMap {
+		s.inspectDocument(arg)
+		return
+	}
 	if arg == "" && len(s.selection) == 0 || arg != "" && !hasQueryPrefix(arg) {
 		s.cmdInspect(arg)
 		return
@@ -530,6 +545,12 @@ func (s *debugSession) cmdConfigDialect(args []string) {
 // the query once against the result, the way `graft jq` would run it. The
 // session is left as `load` would find it.
 func (s *debugSession) runStartupQuery(init debugInit) {
+	if s.nonMap {
+		s.dialect, s.query = init.Dialect, init.Query
+		log.DEBUG("debug query: %s", init.Query)
+		s.runQuery(init.Dialect, init.Query)
+		return
+	}
 	evalOpts := *s.opts
 	evalOpts.SkipEval = false
 	evalOpts.Prune = nil
@@ -546,20 +567,6 @@ func (s *debugSession) runStartupQuery(init debugInit) {
 	s.runQuery(init.Dialect, init.Query)
 	s.setTree(prevTree)
 	s.dialect = prevDialect
-}
-
-// runJQRepl is `graft jq --repl PROGRAM FILE...`: the debugger over the
-// files, started with the program already run once.
-func runJQRepl(opts jqOptions, stdin io.Reader, stdout io.Writer) query.Status {
-	if len(opts.Files) == 0 {
-		return query.Status{Code: 1, Message: colored("R", "Missing Input") + ": graft jq --repl requires at least one file (e.g. graft jq --repl .a base.yml)\n"}
-	}
-	init := debugInit{Dialect: debugDialectJQ}
-	if opts.HasProgram {
-		init.Query = opts.Program
-	}
-	rc := handleDebugWith(opts.Files, &mergeOpts{}, stdin, stdout, debugUIOptions{Theme: opts.Theme}, init)
-	return query.Status{Code: rc}
 }
 
 // histPath spells a typed path the way the step diff names it, which is
@@ -684,4 +691,158 @@ func traceOutput(v *value.Value) {
 		return
 	}
 	log.DEBUG("output: %s", strings.TrimSpace(buf.String()))
+}
+
+// runJQRepl is `graft jq --repl PROGRAM FILE...`: the debugger over the
+// files, started with the program already run once. Files that hold
+// mappings merge as `graft debug` merges them. A file that holds an array,
+// a scalar, or null opens the debugger on that document as it is.
+func runJQRepl(opts jqOptions, stdin io.Reader, stdout io.Writer) query.Status {
+	if len(opts.Files) == 0 {
+		return query.Status{Code: 1, Message: colored("R", "Missing Input") + ": graft jq --repl requires at least one file (e.g. graft jq --repl .a base.yml)\n"}
+	}
+	init := debugInit{Dialect: debugDialectJQ}
+	if opts.HasProgram {
+		init.Query = opts.Program
+	}
+	if root, ok := nonMappingRoot(opts.Files); ok {
+		if root == nil {
+			return query.Status{Code: 1, Message: colored("R", "Cannot Debug") + ": a document that is not a mapping cannot be combined with other documents\n"}
+		}
+		init.Root = root
+	}
+	engine := &mergeOpts{EngineOpts: opts.Engine}
+	rc := handleDebugWith(opts.Files, engine, stdin, stdout, debugUIOptions{Theme: opts.Theme}, init)
+	return query.Status{Code: rc}
+}
+
+// nonMappingRoot reads the files as jq would. When every document is a
+// mapping, or a file cannot be read, it reports false and the debugger's
+// own loading deals with the files. When some document is not a mapping it
+// reports true, with that document if it is the only one and nil if it is
+// not.
+func nonMappingRoot(files []string) (*value.Value, bool) {
+	var docs []*value.Value
+	for _, f := range files {
+		file, err := os.Open(f) // #nosec G304 -- the user names the input files
+		if err != nil {
+			return nil, false
+		}
+		dec := jq.NewDecoder(file, jq.DecodeOptions{Format: jq.FormatAuto})
+		for {
+			v, err := dec.Next()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				_ = file.Close()
+				return nil, false
+			}
+			docs = append(docs, v)
+		}
+		_ = file.Close()
+	}
+	for _, d := range docs {
+		if d.Kind() != value.KindObject {
+			if len(docs) == 1 {
+				return docs[0], true
+			}
+			return nil, true
+		}
+	}
+	return nil, false
+}
+
+// debugNeedsMapping lists the verbs that work on a merged mapping, which a
+// session opened on an array, a scalar, or null cannot offer.
+var debugNeedsMapping = map[string]bool{
+	"step": true, "continue": true, "break": true, "unbreak": true,
+	"history": true, "defer": true, debugCmdAutodefer: true, "eval": true,
+	debugCmdTree: true, "output": true, debugCmdPruneReport: true,
+	"diff": true, "export": true,
+}
+
+// documentKind names the root for a message, with its article.
+func documentKind(v *value.Value) string {
+	switch v.Kind() {
+	case value.KindNull:
+		return "null"
+	case value.KindFalse, value.KindTrue:
+		return "a boolean"
+	case value.KindNumber:
+		return "a number"
+	case value.KindString:
+		return "a string"
+	case value.KindArray:
+		return "an array"
+	}
+	return "an object"
+}
+
+// refuseWithoutMapping says why a verb cannot run on a session that holds
+// a document that is not a mapping, and reports whether it did.
+func (s *debugSession) refuseWithoutMapping(cmd string) bool {
+	if !s.nonMap || !debugNeedsMapping[cmd] {
+		return false
+	}
+	s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("%s needs a mapping at the root, and the loaded document is %s", cmd, documentKind(s.root))))
+	return true
+}
+
+// valueAt follows a typed path through a query value.
+func valueAt(v *value.Value, p value.Path) (*value.Value, bool) {
+	for _, c := range p {
+		var ok bool
+		switch c.Kind() {
+		case value.KindString:
+			v, ok = v.Get(c.Str())
+		case value.KindNumber:
+			idx, isInt := c.Dec().Int64()
+			if !isInt || v.Kind() != value.KindArray {
+				return nil, false
+			}
+			v, ok = v.Index(int(idx))
+		}
+		if !ok {
+			return nil, false
+		}
+	}
+	return v, true
+}
+
+// inspectDocument is `inspect` on a session that holds a document that is
+// not a mapping: the whole document, or the value at each path.
+func (s *debugSession) inspectDocument(arg string) {
+	show := func(label string, v *value.Value) {
+		docs, err := renderQuery([]*value.Value{v})
+		if err != nil {
+			s.printQueryError(err)
+			return
+		}
+		if label != "" {
+			s.printf("%s:\n", s.style(rolePath, label))
+		}
+		s.writeYAML(docs[0])
+	}
+	if strings.TrimSpace(arg) == "" && len(s.selection) == 0 {
+		show("", s.root)
+		return
+	}
+	paths, err := resolveDebugPaths(s, arg)
+	if err != nil {
+		s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(err.Error())))
+		return
+	}
+	if len(paths) == 0 {
+		s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("No paths matched: %s", arg)))
+		return
+	}
+	for _, p := range paths {
+		v, ok := valueAt(s.root, p)
+		if !ok {
+			s.printf("%s\n", s.style(roleWarn, fmt.Sprintf("Path not found: %s", dottedPath(p))))
+			continue
+		}
+		show(dottedPath(p), v)
+	}
 }
