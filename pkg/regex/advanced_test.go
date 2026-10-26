@@ -233,6 +233,39 @@ func TestLineBreakEscape(t *testing.T) {
 	}
 }
 
+// \K moves the start of the match to where it stands, so the text before
+// it must match but is left out of the match and out of a replacement.
+func TestMatchReset(t *testing.T) {
+	ctx := context.Background()
+	for _, flavor := range []Flavor{PCRE, Oniguruma} {
+		with := WithFlavor(flavor)
+		wantText(t, MustCompile(`foo\Kbar`, with), "foobar", "bar")
+		wantNoMatch(t, MustCompile(`foo\Kbar`, with), "fobar")
+		wantEqual(t, groups(t, MustCompile(`(a)\K(b)`, with), "ab"), []string{"b", "a", "b"})
+		wantEqual(t, find(t, MustCompile(`a\K`, with), "xab").Start, 2)
+
+		// A branch that fails after \K takes its reset back with it.
+		wantText(t, MustCompile(`x\Ky|xz`, with), "xz", "xz")
+		wantText(t, MustCompile(`(?:a\K)+b`, with), "aab", "b")
+
+		got, err := MustCompile(`foo\Kbar`, with).Replace(ctx, "foobar foobar", true, func(*Match) (string, error) { return "X", nil })
+		wantNil(t, err)
+		wantEqual(t, got, "fooX fooX")
+		wantEqual(t, texts(t, MustCompile(`a\K`, with), "aaa", MatchOptions{Global: true}), []string{"", ""})
+	}
+
+	// A reset inside a lookaround is refused, by PCRE2's rule under PCRE
+	// and by name under Oniguruma.
+	for _, pattern := range []string{`a(?=b\Kc)`, `(?<=a\Kb)c`, `(?!a\K)b`} {
+		var se *SyntaxError
+		_, err := Compile(pattern)
+		wantErrAs(t, err, &se)
+		var u *UnsupportedError
+		_, err = Compile(pattern, WithFlavor(Oniguruma))
+		wantErrAs(t, err, &u)
+	}
+}
+
 // The step budget is one count for a match, the bodies of its assertions
 // and atomic groups, and every start of a search, so nesting cannot
 // multiply it.

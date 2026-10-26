@@ -312,6 +312,8 @@ func (c *compiler) node(n *node) {
 		c.body(inst{op: opAtomic}, n.subs[0])
 	case kindLook:
 		c.look(n)
+	case kindKeep:
+		c.emit(inst{op: opSave, x: 0})
 	}
 }
 

@@ -1581,3 +1581,57 @@
   pattern: "\\k'"
   flags: ""
   subject: "k'"
+
+- id: onig-keep
+  flavor: oniguruma
+  pattern: "foo\\Kbar"
+  flags: "g"
+  subject: "foobar fobar foobar"
+
+- id: onig-keep-captures
+  flavor: oniguruma
+  pattern: "(a)\\K(b)"
+  flags: ""
+  subject: "xab"
+
+- id: onig-keep-in-repeat
+  flavor: oniguruma
+  pattern: "(?:a\\K)+b"
+  flags: ""
+  subject: "aab"
+
+- id: onig-keep-failed-branch
+  flavor: oniguruma
+  pattern: "x\\Ky|xz"
+  flags: "g"
+  subject: "xz xy"
+
+- id: onig-keep-empty-global
+  flavor: oniguruma
+  pattern: "a\\K"
+  flags: "g"
+  subject: "aaa"
+
+- id: pcre-keep
+  flavor: pcre
+  pattern: "foo\\Kbar"
+  flags: "g"
+  subject: "foobar fobar foobar"
+
+- id: pcre-keep-captures
+  flavor: pcre
+  pattern: "(a)\\K(b)"
+  flags: ""
+  subject: "xab"
+
+- id: pcre-keep-failed-branch
+  flavor: pcre
+  pattern: "x\\Ky|xz"
+  flags: "g"
+  subject: "xz xy"
+
+- id: pcre-keep-in-lookahead
+  flavor: pcre
+  pattern: "a(?=b\\Kc)"
+  flags: ""
+  subject: "abc"

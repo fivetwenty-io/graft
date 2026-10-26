@@ -39,7 +39,6 @@ func TestMultiDigitEscapesPastTheGroupCountAreOctal(t *testing.T) {
 func TestUnsupportedConstructNames(t *testing.T) {
 	cases := map[string]string{
 		`\Gx`:                      `assertion \G`,
-		`x\Ky`:                     `match reset \K`,
 		`\X`:                       `extended grapheme cluster \X`,
 		`(?R)`:                     "recursion (?R)",
 		`(a)(?1)`:                  "recursion (?1)",

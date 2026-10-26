@@ -2390,7 +2390,7 @@
   cases: [r-onig-hex-class]
 - id: r-onig-keep
   area: regex
-  phase: J3
+  phase: J2
   cases: [r-onig-keep]
 - id: r-onig-subexp-call
   area: regex

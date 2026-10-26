@@ -39,6 +39,10 @@ type parser struct {
 	// quoting is set between \Q and \E, where every rune is a literal.
 	quoting bool
 
+	// looks counts the lookarounds open at the current position, where a
+	// \K is refused.
+	looks int
+
 	// closed holds each group's node once its ) is read, nil while it is
 	// open. widths holds the lengths of the groups a backreference has
 	// needed, and selfRef the open groups a backreference has named.
@@ -489,7 +493,14 @@ func (p *parser) group(start int) (*node, error) {
 		p.names = append(p.names, name)
 		p.closed = append(p.closed, nil)
 	}
+	look := form == formAhead || form == formNotAhead || form == formBehind || form == formNotBehind
+	if look {
+		p.looks++
+	}
 	body, err := p.alternation()
+	if look {
+		p.looks--
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -803,7 +814,13 @@ func (p *parser) escape(start int) (*node, error) {
 	case 'G':
 		return nil, unsupported(`assertion \G`)
 	case 'K':
-		return nil, unsupported(`match reset \K`)
+		switch {
+		case p.looks == 0:
+			return &node{kind: kindKeep}, nil
+		case p.rules().onigMessages:
+			return nil, unsupported(`match reset \K in a lookaround`)
+		}
+		return nil, p.errorAt(start, `\K is not allowed in lookarounds`)
 	case 'X':
 		return nil, unsupported(`extended grapheme cluster \X`)
 	case 'R':

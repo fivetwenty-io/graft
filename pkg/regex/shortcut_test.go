@@ -421,7 +421,7 @@ func TestRequiredText(t *testing.T) {
 		{`1-2`, []Option{ci}, "1-2"},
 		{`ss`, []Option{onig, ci}, ""},
 		{`(?i)k`, nil, ""},
-		{`a\Kb`, nil, ""},
+		{`a\Kb`, nil, "ab"},
 		{strings.Repeat("a", 300), nil, strings.Repeat("a", maxRequired)},
 		{strings.Repeat("é", 300), nil, strings.Repeat("é", maxRequired/2)},
 		{`(abc){100}`, nil, strings.Repeat("abc", maxRequired/3) + "a"},

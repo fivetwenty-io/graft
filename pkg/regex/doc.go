@@ -72,11 +72,11 @@ does, so it pins that stepping rather than PCRE2's own. A few differences
 remain on purpose. PCRE takes \uhhhh, which PCRE2 refuses. A global search
 moves one rune past an empty match, where jq moves one byte. Oniguruma
 accepts a lookbehind whose branches differ in length or that holds a
-capture, both of which jq refuses. The escapes \G, \K, \X, \y, and \Y
-and subroutine calls are refused under both flavors, though jq accepts some
-of them. The Oniguruma flavor refuses a group name such as n-1 that jq
-accepts, and it reads a \x at the end of the pattern as NUL where jq
-matches nothing. A byte escape that jq would match against part of a
+capture, both of which jq refuses. The escapes \G, \X, \y, and \Y and
+subroutine calls are refused under both flavors, though jq accepts some of
+them, and so is a \K inside a lookaround, which jq accepts too. The
+Oniguruma flavor refuses a group name such as n-1 that jq accepts, and it
+reads a \x at the end of the pattern as NUL where jq matches nothing. A byte escape that jq would match against part of a
 character, such as a lone \x80 in a negated class, holds no rune here.
 Error messages follow each engine's wording where the tests pin it, and a
 golden for a pattern jq or PCRE2 refuses checks only that Compile refuses
@@ -88,7 +88,8 @@ The engine supports literals and the escapes \a, \e, \f, \n, \r, \t, \0,
 \cX, \xhh, \x{h...}, and \o{o...}, with \uhhhh under PCRE. It supports the
 classes ., \N, \d, \w, and \s, with \h and \v under PCRE, and their
 negations. Under both flavors \R matches one line break, which is a CR LF
-pair or any one vertical space. It supports \p{...} and \P{...} over Unicode categories,
+pair or any one vertical space, and \K moves the start of the match to
+where it stands. It supports \p{...} and \P{...} over Unicode categories,
 scripts, and binary properties, and bracket classes with ranges, negation,
 and POSIX names. It also supports the anchors ^ and $, the assertions \A,
 \z, \Z, \b, and \B, quoted sequences \Q...\E, greedy and lazy quantifiers,
@@ -128,10 +129,12 @@ SyntaxError. A reference compares case by the IgnoreCase setting in force
 where it stands. A reference inside the group it names fails under
 Oniguruma, and under PCRE matches the group's last complete capture.
 
-The inline flags n, J, U, and ^, the assertion \G, the escapes \K, \X,
-\y, and \Y, and the rarer constructs such as recursion, subroutine
-calls, and conditionals are recognized and refused with an UnsupportedError
-that names them.
+The inline flags n, J, U, and ^, the assertion \G, the escapes \X, \y,
+and \Y, and the rarer constructs such as recursion, subroutine calls, and
+conditionals are recognized and refused with an UnsupportedError that
+names them. A \K inside a lookaround is refused as well, with a
+SyntaxError under PCRE, as PCRE2 refuses it, and an UnsupportedError under
+Oniguruma.
 
 # Budgets
 

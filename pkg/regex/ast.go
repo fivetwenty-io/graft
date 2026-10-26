@@ -20,6 +20,7 @@ const (
 	kindLook                      // a lookaround: subs[0] must match, or under neg must not, ahead of or behind the position
 	kindAtomic                    // subs[0], keeping only its first way of matching
 	kindBackref                   // the text group index captured, folded under fold
+	kindKeep                      // \K, which moves the start of the match to the position
 )
 
 // assertKind names the zero-width tests.
@@ -243,7 +244,7 @@ func needOf(n *node) need {
 		if c, ok := n.set.single(); ok && len(n.expansions) == 0 && plainRune(c) {
 			return exactly(string(c))
 		}
-	case kindAssert:
+	case kindAssert, kindKeep:
 		return exactly("")
 	case kindConcat:
 		return concatNeed(n.subs)
