@@ -378,6 +378,27 @@ func ExampleExitCode() {
 	// 3
 }
 
+// A run over several inputs hands ExitCode the last output of the last
+// input that ended without an error, and the error, if any, that ended
+// the last input. Here the first input fails and the second ends on
+// true, so -e exits 0, as jq does.
+func ExampleExitCode_inputs() {
+	q, _ := jq.Compile(`.ok`)
+	dec := jq.NewDecoder(strings.NewReader(`[] {"ok":true}`), jq.DecodeOptions{})
+	var last *value.Value
+	var err error
+	for in, derr := dec.Next(); derr == nil; in, derr = dec.Next() {
+		var out []*value.Value
+		out, err = q.RunAll(context.Background(), in)
+		if err == nil && len(out) > 0 {
+			last = out[len(out)-1]
+		}
+	}
+	fmt.Println(jq.ExitCode(last, last != nil, err, true))
+	// Output:
+	// 0
+}
+
 func ExampleRunTestFile() {
 	tests := "# addition\n. + 1\n1\n2\n\n# a failing test\n.a\n{\"a\":1}\n2\n"
 	var report bytes.Buffer

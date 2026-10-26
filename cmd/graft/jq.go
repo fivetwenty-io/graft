@@ -23,14 +23,9 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
-// The results jq 1.8.2's process() reports for one input, which decide the
-// exit code along with the halt code and the runtime error code.
-const (
-	jqNoOutput = -4 // the program produced nothing
-	jqNullKind = -1 // the last output was false or null
-	jqOK       = 0  // the last output was anything else
-	jqFailed   = 5  // an uncaught error ended the run
-)
+// jqFailed is the code an uncaught error or input that does not parse
+// exits with.
+const jqFailed = 5
 
 // errKind is the kind of failure a query command reports, which picks its
 // message and its exit code.
@@ -184,10 +179,13 @@ type jqInputs struct {
 	stderr io.Writer
 	files  []string
 
-	next       int
-	cur        *jqInput
-	read       bool
-	openFailed bool
+	next int
+	cur  *jqInput
+	read bool
+
+	// The first source that could not be opened, which ends the main
+	// loop after the value being read and makes the run exit 2.
+	openErr error
 
 	// The source last closed, which input_filename and error locations
 	// still name until the next one opens.
@@ -219,7 +217,9 @@ func (in *jqInputs) open() (*jqInput, bool) {
 	}
 	f, err := os.Open(path) // #nosec G304 -- the user names the input files
 	if err != nil {
-		in.openFailed = true
+		if in.openErr == nil {
+			in.openErr = err
+		}
 		_, _ = io.WriteString(in.stderr, queryCommandError(errOpen, err).Message)
 		return nil, false
 	}
@@ -468,12 +468,12 @@ func handleJQ(opts jqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 
 	color := !opts.Monochrome && (opts.ColorOutput || (os.Getenv("NO_COLOR") == "" && stdoutIsTTY(stdout)))
 	out := newJQOutput(opts, stdout, color, colors)
-	ret, lastResult := runJQInputs(q, opts, in, out, stderr)
+	run := runJQInputs(q, opts, in, out, stderr)
 	if err := out.flush(); err != nil {
 		_, _ = io.WriteString(stderr, colored("R", "Unable to write output")+": "+err.Error()+"\n")
-		ret = 2
+		run.err = &fs.PathError{Op: "write", Path: "<stdout>", Err: err}
 	}
-	return query.Status{Code: jqExitCode(opts.ExitStatus, ret, lastResult)}
+	return query.Status{Code: jq.ExitCode(run.last, run.produced, run.err, opts.ExitStatus)}
 }
 
 // loadJQProgram returns the program text and, for a program read with -f,
@@ -523,79 +523,64 @@ func jqCompileOptions(opts jqOptions, in *jqInputs, origin string, stderr io.Wri
 	return jqOpts
 }
 
+// jqRun is where jq's main loop stands, in the terms jq.ExitCode takes:
+// the last output of the last input whose program ended without an error
+// and produced something, and the error that ended the last input.
+type jqRun struct {
+	last     *value.Value
+	produced bool
+	err      error
+}
+
+// input records how the program ended on one input and reports whether
+// it halted, which ends the main loop.
+func (r *jqRun) input(last *value.Value, err error) (halted bool) {
+	r.err = err
+	if err == nil && last != nil {
+		r.last, r.produced = last, true
+	}
+	var he *query.HaltError
+	return errors.As(err, &he)
+}
+
 // runJQInputs is jq's main loop. It runs the program once on null under
 // -n, and otherwise once per input until the inputs run out, a halt, input
-// that does not parse, or a file that could not be opened stops it. It
-// returns the last result and, for -e, whether the last input that
-// produced anything ended on a value other than false or null: -1 when
-// none did, 0 when it ended on false or null, and 1 otherwise.
-func runJQInputs(q *jq.Query, opts jqOptions, in *jqInputs, out *jqOutput, stderr io.Writer) (ret, lastResult int) {
-	ret, lastResult = jqNoOutput, -1
+// that does not parse, or a file that could not be opened stops it.
+func runJQInputs(q *jq.Query, opts jqOptions, in *jqInputs, out *jqOutput, stderr io.Writer) jqRun {
+	var run jqRun
 	if opts.NullInput {
-		ret, _ = runJQProgram(q, nil, in, out, stderr)
+		run.input(runJQProgram(q, nil, in, out, stderr))
 	}
-	for !opts.NullInput && !in.openFailed {
+	for !opts.NullInput && in.openErr == nil {
 		v, err := in.Next()
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
 			_, _ = io.WriteString(stderr, queryCommandError(errInput, err).Message)
-			ret = jqFailed
+			run.err = err
 			break
 		}
-		var halted bool
-		ret, halted = runJQProgram(q, v, in, out, stderr)
-		switch ret {
-		case jqNullKind:
-			lastResult = 0
-		case jqOK:
-			lastResult = 1
-		}
-		if halted {
+		if run.input(runJQProgram(q, v, in, out, stderr)) {
 			break
 		}
 	}
-	if in.openFailed {
-		ret = 2
+	if in.openErr != nil {
+		run.err = in.openErr
 	}
-	return ret, lastResult
-}
-
-// jqExitCode is the code jq exits with for a run's last result. Without -e
-// a negative result exits 0. With -e a run that ended with no output exits
-// as its last producing input did, 4 when there was none, and any other
-// result exits as its absolute value.
-func jqExitCode(exitStatus bool, ret, lastResult int) int {
-	if !exitStatus {
-		return max(ret, 0)
-	}
-	if ret == jqNoOutput {
-		switch lastResult {
-		case -1:
-			ret = jqNoOutput
-		case 0:
-			ret = jqNullKind
-		default:
-			ret = jqOK
-		}
-	}
-	if ret < 0 {
-		return -ret
-	}
-	return ret
+	return run
 }
 
 // runJQProgram runs the program on one input the way jq's process() does
-// and returns its result, and whether the program halted.
-func runJQProgram(q *jq.Query, input *value.Value, in *jqInputs, out *jqOutput, stderr io.Writer) (ret int, halted bool) {
-	ret = jqNoOutput
+// and returns its last output, or nil when it produced none, and the halt
+// or uncaught error that ended it, which it has already reported.
+func runJQProgram(q *jq.Query, input *value.Value, in *jqInputs, out *jqOutput, stderr io.Writer) (last *value.Value, err error) {
 	for v, err := range q.Run(context.Background(), input) {
 		if err != nil {
 			var he *query.HaltError
 			if errors.As(err, &he) {
 				writeHalt(stderr, he.Message)
-				return he.Code, true
+				return nil, err
 			}
 			kind := errRuntime
 			var ie *jqInputError
@@ -605,18 +590,16 @@ func runJQProgram(q *jq.Query, input *value.Value, in *jqInputs, out *jqOutput, 
 				err = &locatedError{Where: in.where(), Err: err}
 			}
 			_, _ = io.WriteString(stderr, queryCommandError(kind, err).Message)
-			return jqFailed, false
+			return nil, err
 		}
 		if err := out.write(v); err != nil {
-			_, _ = io.WriteString(stderr, queryCommandError(errRuntime, &locatedError{Where: in.where(), Err: err}).Message)
-			return jqFailed, false
+			err = &locatedError{Where: in.where(), Err: err}
+			_, _ = io.WriteString(stderr, queryCommandError(errRuntime, err).Message)
+			return nil, err
 		}
-		ret = jqOK
-		if v.Kind() == value.KindNull || v.Kind() == value.KindFalse {
-			ret = jqNullKind
-		}
+		last = v
 	}
-	return ret, false
+	return last, nil
 }
 
 // runJQTests runs --run-tests over the named file, or stdin when none is

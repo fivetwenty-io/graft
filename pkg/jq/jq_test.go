@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"slices"
@@ -387,6 +388,15 @@ func TestExitCodeTable(t *testing.T) {
 	wantEqual(t, ExitCode(nil, false, &fs.PathError{Op: "open", Path: "x", Err: fs.ErrNotExist}, false), 2)
 	wantEqual(t, ExitCode(value.Bool(true), true, errors.New("invalid input"), true), 5)
 	wantEqual(t, ExitCode(nil, false, context.Canceled, false), 5)
+	wantEqual(t, ExitCode(nil, false, fmt.Errorf("reading: %w", &fs.PathError{Op: "read", Path: "d", Err: errors.New("is a directory")}), true), 2)
+	// A halt's code exits as it is under -e, and as 0 when negative
+	// without it, while halt_error(-4) under -e reads as no output.
+	wantEqual(t, ExitCode(nil, false, &query.HaltError{Code: -1}, false), 0)
+	wantEqual(t, ExitCode(nil, false, &query.HaltError{Code: -1}, true), 1)
+	wantEqual(t, ExitCode(nil, false, &query.HaltError{Code: -4}, false), 0)
+	wantEqual(t, ExitCode(nil, false, &query.HaltError{Code: -4}, true), 4)
+	wantEqual(t, ExitCode(value.Bool(true), true, &query.HaltError{Code: -4}, true), 0)
+	wantEqual(t, ExitCode(value.Null(), true, &query.HaltError{Code: -4}, true), 1)
 }
 
 func TestRunTestFile(t *testing.T) {

@@ -132,6 +132,15 @@ func TestJQExitCodes(t *testing.T) {
 		So(out, ShouldEqual, "1\n")
 		So(e, ShouldEqual, "")
 		So(st.Code, ShouldEqual, 0)
+		_, _, st = runJQ(t, []string{"-n", `"x" | halt_error(-1)`}, "")
+		So(st.Code, ShouldEqual, 0) // a negative halt code exits 0 without -e
+		_, _, st = runJQ(t, []string{"-e", `if . == null then halt_error(-4) else . end`}, "1 null")
+		So(st.Code, ShouldEqual, 0) // and halt_error(-4) reads as no output under -e
+		_, _, st = runJQ(t, []string{"-e", ".a"}, "[] {\"a\":true}")
+		So(st.Code, ShouldEqual, 0)
+		_, e, st = runJQ(t, []string{".", t.TempDir()}, "")
+		So(e, ShouldStartWith, "Invalid input (at ")
+		So(st.Code, ShouldEqual, 2) // a source that cannot be read exits 2, as in jq
 		out, _, _ = runJQ(t, []string{"input_filename"}, "1")
 		So(out, ShouldEqual, "\"<stdin>\"\n")
 		out, _, _ = runJQ(t, []string{"-n", "input_filename"}, "1")
