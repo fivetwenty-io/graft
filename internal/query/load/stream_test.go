@@ -115,6 +115,12 @@ func TestJSONLineIsTheLinesTakenSoFar(t *testing.T) {
 		{"1\n\n\n2", []int{1, 3}},
 		{"{\n\"a\":\n1}\n", []int{3}},
 		{"{\n\"a\":\n1}", []int{2}},
+		// A long line comes in pieces of 4,091 bytes, as jq takes it, and
+		// the newline counts as soon as its piece is taken.
+		{strings.Repeat(" ", 4088) + "1 \n", []int{1}},
+		{strings.Repeat(" ", 4089) + "1 \n", []int{0}},
+		{strings.Repeat(" ", 8180) + "1 \n", []int{0}},
+		{"2\n" + strings.Repeat(" ", 4089) + "1 \n", []int{1, 1}},
 	} {
 		r := Open(Source{"f", strings.NewReader(c.in)}, 0, LoadOptions{Format: FormatJSON})
 		var got []int

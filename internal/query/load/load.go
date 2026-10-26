@@ -202,12 +202,16 @@ func (r *Reader) nextYAMLEvent() (Document, error) {
 	return Document{Line: r.evLine, Value: ev}, nil
 }
 
+// readBuffer is how much input the reader holds ahead, which is enough for
+// a whole piece of a long line to be in view when the piece is taken.
+const readBuffer = 1 << 16
+
 func (r *Reader) start() error {
 	r.started = true
 	if r.src.Reader == nil {
 		r.src.Reader = bytes.NewReader(nil)
 	}
-	r.br = bufio.NewReader(r.src.Reader)
+	r.br = bufio.NewReaderSize(r.src.Reader, readBuffer)
 	if r.opts.RawLines {
 		r.raw = true
 		return nil

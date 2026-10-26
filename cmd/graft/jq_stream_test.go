@@ -159,6 +159,11 @@ func TestJQInputLineNumber(t *testing.T) {
 		}
 		out, _, _ := runJQ(t, []string{"-c", "--stream", "[., input_line_number]"}, "[1,\n2]\n")
 		So(out, ShouldEqual, "[[[0],1],1]\n[[[1],2],2]\n[[[1]],2]\n")
+		// jq reads a long line in pieces of 4,091 bytes and counts the newline
+		// of a piece when it takes the piece, which is 2,045 events in.
+		long := "[" + strings.Repeat("1,", 2999) + "1]\n"
+		out, _, _ = runJQ(t, []string{"--stream", "input_line_number"}, long)
+		So(out, ShouldEqual, strings.Repeat("0\n", 2045)+strings.Repeat("1\n", 956))
 		out, _, _ = runJQ(t, []string{"-n", "input_line_number"}, "1\n")
 		So(out, ShouldEqual, "0\n")
 		out, _, _ = runJQ(t, []string{"-c", "-n", "[input, input_line_number]"}, "{\n\"a\":1}\n")

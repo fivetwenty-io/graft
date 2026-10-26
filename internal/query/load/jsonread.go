@@ -14,9 +14,10 @@ import (
 // defaultDepthLimit matches jq's parser limit.
 const defaultDepthLimit = 10000
 
-// maxChunk is the most bytes the reader takes at once, which is what jq's
-// input buffer holds, so a very long line is taken in pieces as in jq.
-const maxChunk = 4095
+// maxChunk is the most bytes the reader takes at once, which is what jq
+// reads from a line at a time, so a very long line is taken in pieces as
+// in jq. jq 1.8.2 reads 4,091 bytes of a line at most.
+const maxChunk = 4091
 
 // recordSeparator is the byte --seq puts before each JSON text.
 const recordSeparator = 0x1e
@@ -39,6 +40,7 @@ type JSONReader struct {
 	buf []byte
 	pos int
 	fed int // newlines in the lines taken from br so far
+	off int // bytes taken from br since the last newline
 
 	stream streamState
 }
@@ -72,10 +74,15 @@ func (r *JSONReader) fill() error {
 		return err
 	}
 	ready, _ := r.br.Peek(r.br.Buffered())
-	n := min(len(ready), maxChunk)
+	// Pieces of a line end at multiples of maxChunk from its start, where
+	// jq's pieces do, whatever br happened to have ready.
+	n := min(len(ready), maxChunk-r.off%maxChunk)
 	if i := bytes.IndexByte(ready[:n], '\n'); i >= 0 {
 		n = i + 1
 		r.fed++
+		r.off = 0
+	} else {
+		r.off += n
 	}
 	r.buf = append(r.buf[:0], ready[:n]...)
 	r.pos = 0
