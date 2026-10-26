@@ -148,7 +148,8 @@ func with(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.
 
 // evalOp parses each string its argument gives as a yq expression and
 // runs it on the input with the run's capabilities. Its outputs keep
-// their places, below the input's own.
+// their places, below the input's own, and it fails when the input's
+// place cannot hold a document the expression changed.
 func evalOp(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtime.Emit) error {
 	var c *runtime.Cursor
 	if ctx.Cursor != nil {
@@ -170,7 +171,7 @@ func evalOp(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runtim
 			if root != in {
 				var err error
 				if top, err = builtin.SetPath(ctx, c.Root, c.Path, root); err != nil {
-					return emit(v, nil)
+					return err
 				}
 			}
 			return emit(v, runtime.Rooted(top, c.Doc, extend(c.Path, rel...)))

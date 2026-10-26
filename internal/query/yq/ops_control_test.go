@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
+	"github.com/fivetwenty-io/graft/pkg/query/value"
 )
 
 func TestYQControl(t *testing.T) {
@@ -85,4 +86,17 @@ func TestYQSplitDocLayout(t *testing.T) {
 	wantYQ(t, `.[] | split_doc`, in, "[1, 2]\n3\n")
 	wantYQ(t, `split_doc`, in, "# lead\na: [1, 2]\n# two\nb: 3\n")
 	wantYQAll(t, `.[] | split_doc`, in, "[1, 2]\n---\n3\n")
+}
+
+func TestYQEvalReportsAPlaceItCannotFill(t *testing.T) {
+	// eval puts a changed document back at the cursor, and fails when the
+	// cursor's path cannot hold it rather than dropping the change.
+	ctx := runtime.NewCtx(New(testOpts), runtime.NumbersExact)
+	ctx.Cursors = true
+	ctx.Cursor = &runtime.Cursor{Root: value.Num(1), Path: value.Path{value.Str("a")}}
+	src := []runtime.Thunk{constant{value.Str(".c = 5")}}
+	err := evalOp(ctx, value.Obj(), src, func(*value.Value, value.Path) error { return nil })
+	if err == nil {
+		t.Fatal("eval into a number: no error")
+	}
 }
