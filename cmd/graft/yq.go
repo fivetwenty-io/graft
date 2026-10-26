@@ -62,6 +62,9 @@ func checkYQOptions(opts yqOptions) error {
 	if opts.Inplace && (len(opts.Files) == 0 || opts.Files[0] == "-") {
 		return &usageError{Msg: "-i needs a file to rewrite"}
 	}
+	if opts.NullInput && len(opts.Files) > 0 {
+		return &usageError{Msg: "cannot pass files in when using null-input flag"}
+	}
 	return nil
 }
 

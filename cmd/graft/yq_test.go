@@ -337,3 +337,13 @@ func TestYQJSONOutputQuotesStringsUnlessToldNotTo(t *testing.T) {
 		So(out, ShouldEqual, "text\n")
 	})
 }
+
+func TestYQNullInputRefusesFiles(t *testing.T) {
+	Convey("-n with a file is an error, as in yq, and reads nothing", t, func() {
+		path := writeTempNamed(t, "in.yaml", "a: 1\n")
+		out, errOut, st := runYQ(t, []string{"-n", ".b = 2", path}, "")
+		So(st.Code, ShouldEqual, 1)
+		So(out, ShouldBeEmpty)
+		So(errOut, ShouldContainSubstring, "cannot pass files in when using null-input flag")
+	})
+}
