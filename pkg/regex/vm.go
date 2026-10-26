@@ -2,6 +2,7 @@ package regex
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 )
@@ -429,7 +430,9 @@ func (m *machine) retake(in *inst, f *frame) (int, bool, error) {
 	return f.pos, in.hi == unbounded || f.old < in.hi, nil
 }
 
-// accepts reports whether the counting loop in takes the rune c.
+// accepts reports whether the counting loop in takes the rune c. It panics
+// on a body the compiler never gives a counting loop, so a new single-rune
+// form cannot silently match as some other one.
 func (in *inst) accepts(c rune) bool {
 	switch in.body {
 	case opRune:
@@ -438,8 +441,10 @@ func (in *inst) accepts(c rune) bool {
 		return in.set.contains(c)
 	case opAny:
 		return true
-	default:
+	case opAnyNotNL:
 		return c != '\n'
+	default:
+		panic(fmt.Sprintf("regex: counting loop over opcode %d", in.body))
 	}
 }
 

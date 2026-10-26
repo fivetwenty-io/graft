@@ -438,3 +438,12 @@ func TestRequiredText(t *testing.T) {
 		}
 	}
 }
+
+func TestCountingLoopRefusesUnknownBody(t *testing.T) {
+	defer func() {
+		wantEqual(t, fmt.Sprint(recover()), fmt.Sprintf("regex: counting loop over opcode %d", opMatch))
+	}()
+	in := inst{op: opCount, body: opMatch}
+	in.accepts('a')
+	t.Fatal("accepts returned for a body no counting loop takes")
+}
