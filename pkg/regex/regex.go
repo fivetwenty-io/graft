@@ -153,6 +153,12 @@ type config struct {
 	flavor Flavor
 	flags  Flags
 	budget Budget
+
+	// plain turns off the search shortcuts, which are the check for text
+	// every match must contain, the implicit anchor of a leading .*, and
+	// the counting loops, so the tests can compare a search with them to
+	// the same search without.
+	plain bool
 }
 
 func newConfig(opts []Option) *config {

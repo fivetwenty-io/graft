@@ -72,30 +72,36 @@ func (p *Pattern) Find(ctx context.Context, subject string, start int) (*Match, 
 // from the previous match, so a global search stays linear in the subject.
 func (p *Pattern) FindAll(ctx context.Context, subject string, opts MatchOptions) iter.Seq2[*Match, error] {
 	return func(yield func(*Match, error) bool) {
-		m := newMachine(ctx, p, subject, opts.SkipEmpty)
-		cursor := &runeCursor{s: subject}
-		start := 0
-		for {
-			ok, err := m.search(start)
-			if err != nil {
-				yield(nil, err)
+		p.findAll(newMachine(ctx, p, subject, opts.SkipEmpty), opts.Global, yield)
+	}
+}
+
+// findAll runs FindAll's search on m, which the tests build themselves so
+// they can read the steps a search took.
+func (p *Pattern) findAll(m *machine, global bool, yield func(*Match, error) bool) {
+	subject := m.subject
+	cursor := &runeCursor{s: subject}
+	start := 0
+	for {
+		ok, err := m.search(start)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		if !ok {
+			return
+		}
+		match := p.newMatch(m.caps, cursor)
+		if !yield(match, nil) || !global {
+			return
+		}
+		start = match.End
+		if match.End == match.Start {
+			if start >= len(subject) {
 				return
 			}
-			if !ok {
-				return
-			}
-			match := p.newMatch(m.caps, cursor)
-			if !yield(match, nil) || !opts.Global {
-				return
-			}
-			start = match.End
-			if match.End == match.Start {
-				if start >= len(subject) {
-					return
-				}
-				_, w := utf8.DecodeRuneInString(subject[start:])
-				start += w
-			}
+			_, w := utf8.DecodeRuneInString(subject[start:])
+			start += w
 		}
 	}
 }
