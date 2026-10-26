@@ -129,10 +129,19 @@ func (m *machine) clearCaps() error {
 }
 
 // nextStart returns the start position one rune after s, and false when
-// there is none to try.
+// there is none to try. For a pattern that leads with .* it returns the
+// start after the next newline, or under dotAll none, since the starts in
+// between can only fail where s did.
 func (m *machine) nextStart(s int) (int, bool) {
 	if s >= len(m.subject) || m.p.anchored {
 		return 0, false
+	}
+	switch m.p.lead {
+	case dotLeadAll:
+		return 0, false
+	case dotLeadLine:
+		i := strings.IndexByte(m.subject[s:], '\n')
+		return s + i + 1, i >= 0
 	}
 	_, w := utf8.DecodeRuneInString(m.subject[s:])
 	return s + w, true

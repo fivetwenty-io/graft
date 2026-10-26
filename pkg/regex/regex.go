@@ -199,6 +199,7 @@ type Pattern struct {
 	names    []string // one per group, group 0 first, "" when unnamed
 	nslots   int      // capture slots followed by loop marks
 	anchored bool     // every match starts at the start of the subject
+	lead     dotLead  // where a search may restart, for a pattern that leads with .*
 }
 
 // Compile parses pattern and compiles it into a Pattern.
@@ -220,14 +221,18 @@ func Compile(pattern string, opts ...Option) (*Pattern, error) {
 	if nslots > cfg.budget.MaxStack {
 		return nil, overBudget("capture storage exceeds the budget of %d frames", cfg.budget.MaxStack)
 	}
-	return &Pattern{
+	p := &Pattern{
 		source:   pattern,
 		cfg:      *cfg,
 		prog:     prog,
 		names:    names,
 		nslots:   nslots,
 		anchored: anchoredAtStart(root),
-	}, nil
+	}
+	if !cfg.plain {
+		p.lead = leadingDot(root)
+	}
+	return p, nil
 }
 
 // MustCompile is like Compile but panics when the pattern does not compile.

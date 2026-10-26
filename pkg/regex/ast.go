@@ -141,6 +141,63 @@ func anchoredAtStart(n *node) bool {
 	}
 }
 
+// dotLead says where a search may restart for a pattern that leads with a
+// loop over . that has no upper bound.
+type dotLead uint8
+
+const (
+	noDotLead   dotLead = iota // the pattern leads with no such loop, so a search tries every start
+	dotLeadLine                // the loop stops only at a newline, so a search retries after each one
+	dotLeadAll                 // the loop takes every rune, so a search tries only its first start
+)
+
+// leadingDot reports whether n starts with a loop such as .* or .+ that no
+// backreference can see. When a run from a start p fails, so does a run
+// from any later start up to the next rune . refuses, because the loop
+// from p could take every rune up to where the loop from the later start
+// stopped and then go on the same way. A search for such a pattern need
+// only retry after each rune . refuses, which is a newline unless . takes
+// one too.
+func leadingDot(n *node) dotLead {
+	if hasBackref(n) {
+		return noDotLead
+	}
+	for {
+		switch n.kind {
+		case kindConcat:
+			if len(n.subs) == 0 {
+				return noDotLead
+			}
+			n = n.subs[0]
+		case kindGroup:
+			n = n.subs[0]
+		case kindRepeat:
+			switch {
+			case n.max != unbounded || n.subs[0].kind != kindAny:
+				return noDotLead
+			case n.subs[0].dotAll:
+				return dotLeadAll
+			}
+			return dotLeadLine
+		default:
+			return noDotLead
+		}
+	}
+}
+
+// hasBackref reports whether n holds a backreference anywhere.
+func hasBackref(n *node) bool {
+	if n.kind == kindBackref {
+		return true
+	}
+	for _, s := range n.subs {
+		if hasBackref(s) {
+			return true
+		}
+	}
+	return false
+}
+
 // maxWidth caps the lengths width reports, which is far past any length a
 // lookbehind can use and keeps the products of nested counts in range.
 const maxWidth = 1 << 30

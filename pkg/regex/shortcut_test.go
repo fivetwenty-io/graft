@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"reflect"
 	"slices"
 	"strings"
@@ -309,4 +310,53 @@ func TestGroupLoopsStayBounded(t *testing.T) {
 	wantErrIs(t, err, ErrBudget)
 	_, err = MustCompile(`^(a|b)*$`, WithFlavor(Oniguruma)).Find(context.Background(), strings.Repeat("a", 2_000_000), 0)
 	wantErrIs(t, err, ErrBudget)
+}
+
+// A pattern that leads with .* fails at every start up to the next newline
+// once it fails at the first, so a search tries only the first start and
+// the start of each line after it.
+func TestLeadingDotStarSkipsStarts(t *testing.T) {
+	lines := strings.Repeat(strings.Repeat("a", 99)+"\n", 2000)
+	for _, c := range []struct {
+		pattern, subject string
+		want             bool
+	}{
+		{`.*x`, lines, false},
+		{`.*x`, lines + "x", true},
+		{`.*?x`, lines + "x", true},
+		{`(.*)[xy]`, lines, false},
+		{`.*[xy]`, strings.Repeat("a", 1_000_000), false},
+		{`(?s).*[xy]`, lines, false},
+	} {
+		ok, steps, _ := pinSearch(t, c.pattern, c.subject)
+		if ok != c.want {
+			t.Errorf("%s against %d runes: matched %v, want %v", c.pattern, len(c.subject), ok, c.want)
+		}
+		if steps > defaultSteps/2 {
+			t.Errorf("%s against %d runes took %d steps", c.pattern, len(c.subject), steps)
+		}
+	}
+}
+
+// TestShortcutsKeepResultsOnGeneratedSearches pairs heads and tails that
+// lead with .* or need a literal with subjects drawn from a few runes of
+// different widths, newlines and invalid bytes among them.
+func TestShortcutsKeepResultsOnGeneratedSearches(t *testing.T) {
+	heads := []string{``, `.*`, `.*?`, `.+`, `.+?`, `(.*)`, `(?s).*`, `(?s:.*?)`, `\O*`, `.{2,}`, `.*+`, `(?:.*)`, `a*`, `[^a]*?`, `x?`}
+	tails := []string{`x`, `x$`, `(?<=a)x`, `\bx`, `a*x`, `[xb]`, `x|b`, `(?=x)`, `$`, `^x`, `(?m)^x`, `\n`, `é`, `(a|x)+`, `ax`, `(?i)ax`, `x\z`, ``}
+	runes := []string{"a", "b", "x", "\n", "é", "\xff", "X"}
+	rng := rand.New(rand.NewPCG(31, 2))
+	subjects := []string{""}
+	for range 40 {
+		var b strings.Builder
+		for range rng.IntN(12) {
+			b.WriteString(runes[rng.IntN(len(runes))])
+		}
+		subjects = append(subjects, b.String())
+	}
+	for _, head := range heads {
+		for _, tail := range tails {
+			crossCheck(t, head+tail, subjects)
+		}
+	}
 }
