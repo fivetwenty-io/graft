@@ -7,28 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, and `graft install-aliases`, which lets graft answer to the names `jq` and `spruce`. It is the first of three jq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 87 percent overall at the end of phase J1, and the per-area figures are in [the jq guide](docs/user-guide/jq.md).
+This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, and `graft install-aliases`, which lets graft answer to the names `jq` and `spruce`. It is the first of three jq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 93 percent overall at the end of phase J1, and the per-area figures are in [the jq guide](docs/user-guide/jq.md).
 
 ### Added
 
 - `graft jq` runs a jq program over JSON or YAML from files or standard input, with jq's flags for input, output, variables, and exit status. It also reads multi-document YAML streams, prints YAML with `-o yaml`, sorts keys with `-S` and `--sort-keys=lexical|spruce|none`, and runs `graft merge` or per-document operator evaluation first with `-m` and `-E`. Errors use graft's diagnostics, and exit codes match jq's.
 
-- The compatibility report for this first phase, J1, puts `graft jq` at 87 percent overall. The figures by area are in the table below. Modules and streaming sit near zero because both arrive in phase J2, and until then `-L`, `--stream`, and `--seq` answer with a usage error and exit code 2.
+- The compatibility report for this first phase, J1, puts `graft jq` at 93 percent overall. The figures by area are in the table below. Modules and streaming sit near zero because both arrive in phase J2, and until then `-L`, `--stream`, and `--seq` answer with a usage error and exit code 2.
 
   | Area | Passing | Phase |
   |------|---------|-------|
-  | Grammar | 99% | J1 |
+  | Grammar | 100% | J1 |
   | Builtins | 99% | J1 |
-  | Strings | 97% | J1 |
+  | Strings | 100% | J1 |
   | Regular expressions | 90% | J1 |
-  | Exit codes | 88% | J1 |
-  | Flags | 84% | J1 |
-  | CLI | 84% | J1 |
+  | Exit codes | 91% | J1 |
+  | Flags | 98% | J1 |
+  | CLI | 92% | J1 |
   | Numbers | 80% | J1 |
   | Dates | 78% | J1 |
   | Math | 73% | J1 |
-  | Modules | 5% | J1 |
-  | Streaming | 0% | J1 |
+  | Modules | 100% | J1 |
+  | Streaming | 40% | J1 |
 
 - `graft install-aliases` links `jq` and `spruce` to graft, or installs copies on Windows, and `--remove` takes them away again. A link named exactly `jq` runs `graft jq`.
 

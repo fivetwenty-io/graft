@@ -171,19 +171,19 @@ We measure compatibility against a coverage inventory of jq behaviors. Each entr
 
 | Area | Passing | Phase measured | Expected to rise |
 |------|---------|----------------|------------------|
-| Grammar | 99% | J1 | J2 |
+| Grammar | 100% | J1 | J2 |
 | Builtins | 99% | J1 | J2 |
-| Flags | 84% | J1 | J2 |
-| Exit codes | 88% | J1 | J2 and J3 |
+| Flags | 98% | J1 | J2 |
+| Exit codes | 91% | J1 | J2 and J3 |
 | Numbers | 80% | J1 | Stays where it is, because the missing cases are deliberate departures |
-| Strings | 97% | J1 | J3 |
+| Strings | 100% | J1 | J3 |
 | Regular expressions | 90% | J1 | J3 |
 | Dates | 78% | J1 | J2 |
 | Math | 73% | J1 | J2 |
-| Modules | 5% | J1 | J2 |
-| Streaming | 0% | J1 | J2 |
-| CLI | 84% | J1 | J2 and J3 |
-| Overall | 87% | J1 | J2 |
+| Modules | 100% | J1 | J2 |
+| Streaming | 40% | J1 | J2 |
+| CLI | 92% | J1 | J2 and J3 |
+| Overall | 93% | J1 | J2 |
 
 Modules and streaming sit near zero because they arrive in phase J2, which completes the language with dates, math, formats, modules, streaming, and lookaround and backreferences in regular expressions. Regular expressions hold at 90 percent through J2. Phase J3 hardens the result with performance work, fuzzing, and the Oniguruma flavor, and it raises regular expressions to 100 percent. Each phase is a plain minor release.
 
