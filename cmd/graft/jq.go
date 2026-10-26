@@ -132,7 +132,6 @@ func checkJQOptions(opts jqOptions) error {
 		{opts.Seq, "--seq"},
 		{opts.StreamErrs, "--stream-errors"},
 		{opts.Stream, "--stream"},
-		{opts.Version, "--version"},
 	} {
 		if deferred.set {
 			return &usageError{Msg: deferred.flag + " is not available until a later release"}
@@ -668,7 +667,11 @@ func newJQCmd() *cobra.Command {
 			// cobra hands over the flags given before the verb as
 			// well, which are graft's own in every form cobra reads.
 			n := preVerbArgs(cmd, args)
-			opts, err := parseJQArgs(args[n:], personaGraft)
+			pers := personaGraft
+			if cmd.Parent() == nil {
+				pers = personaJQ // the alias root
+			}
+			opts, err := parseJQArgs(args[n:], pers)
 			opts.RootArgs = append(slices.Clip(args[:n]), opts.RootArgs...)
 			if err != nil {
 				// The root's flags given before the bad one still
@@ -683,6 +686,11 @@ func newJQCmd() *cobra.Command {
 			}
 			if opts.Help {
 				return cmd.Help()
+			}
+			if opts.Version {
+				printStdOutf("%s", jqVersionOutput())
+				exit(0)
+				return nil
 			}
 			if !applyJQRootFlags(cmd, opts.RootArgs) {
 				return nil
@@ -739,6 +747,15 @@ const jqFlagsHelp = `Flags:
 // listed only in the forms graft jq takes after the verb, which leaves
 // out -D, -T, and -v, since -v and --version are jq's there.
 func jqHelp(cmd *cobra.Command, _ []string) {
+	if cmd.Parent() == nil {
+		_, _ = io.WriteString(cmd.OutOrStdout(), cmd.Long+"\n\n"+
+			"Usage:\n"+
+			"  jq [options] <jq filter> [file...]\n"+
+			"  jq [options] --args <jq filter> [strings...]\n"+
+			"  jq [options] --jsonargs <jq filter> [JSON_TEXTS...]\n\n"+
+			jqFlagsHelp)
+		return
+	}
 	global := pflag.NewFlagSet("", pflag.ContinueOnError)
 	cmd.Root().PersistentFlags().VisitAll(func(f *pflag.Flag) {
 		if f.Name == "version" {

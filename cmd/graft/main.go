@@ -1604,9 +1604,17 @@ func newRootCmd() (*cobra.Command, *bool) {
 }
 
 func main() {
-	os.Args = normalizeLegacyColorArgs(os.Args)
+	// A query run's arguments belong to the query, so the legacy color
+	// rewrite, which cannot tell a value from a flag, never sees them.
+	pers, isQuery := queryInvocation(os.Args)
+	if !isQuery {
+		os.Args = normalizeLegacyColorArgs(os.Args)
+	}
 
 	rootCmd, aborted := newRootCmd()
+	if isQuery && pers == personaJQ {
+		rootCmd, aborted = newPersonaRoot(pers)
+	}
 
 	err := rootCmd.Execute()
 

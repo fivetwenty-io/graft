@@ -65,7 +65,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 
 # Phony targets
 .PHONY: help build build-linux build-windows build-release build-spruce-alias package checksums clean install
-.PHONY: test test-unit test-clean test-verbose test-race test-short test-all test-spruce-compat test-spruce-e2e
+.PHONY: test test-unit test-alias-dispatch test-clean test-verbose test-race test-short test-all test-spruce-compat test-spruce-e2e
 .PHONY: fmt vet lint security gosec vuln trivy coverage coverage-text
 .PHONY: staticcheck gocyclo ineffassign errcheck goimports deadcode golangci
 .PHONY: check check-all
@@ -183,11 +183,14 @@ clean: ## Remove build artifacts and binaries
 
 test: test-unit ## Run all unit tests (alias for test-unit)
 
-test-unit: ## Run Go unit tests with coverage
+test-unit: test-alias-dispatch ## Run Go unit tests with coverage
 	@printf "$(GREEN)Running unit tests...$(RESET)\n"
 	@mkdir -p $(COVERAGE_DIR)
 	@go test -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic ./...
 	@printf "$(GREEN)✓ Unit tests complete$(RESET)\n"
+
+test-alias-dispatch: ## Run the jq link dispatch tests against a built binary
+	@go test ./cmd/graft/ -run TestAliasDispatch
 
 test-clean: ## Run tests without linker warnings (CGO disabled)
 	@printf "$(GREEN)Running tests with CGO disabled...$(RESET)\n"

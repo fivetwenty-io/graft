@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	"strings"
 )
 
 // Commit holds the git revision graft was built from, overridden at build
@@ -116,9 +114,7 @@ func spruceVersionLine(argv0 string) string {
 // Windows, and the comparison is case-insensitive for case-preserving
 // filesystems.
 func invokedAsSpruce(argv0 string) bool {
-	base := strings.ToLower(filepath.Base(argv0))
-	base = strings.TrimSuffix(base, ".exe")
-	return base == "spruce"
+	return personaFromArgv0(argv0) == personaSpruce
 }
 
 // versionOutput is everything `-v`/`--version` writes to stdout, trailing
@@ -130,4 +126,11 @@ func versionOutput(argv0 string) string {
 		return spruceVersionLine(argv0) + "\n" + graftVersionLine() + "\n"
 	}
 	return graftVersionLine() + "\n"
+}
+
+// jqVersionOutput is what `jq -V`, `jq --version`, and `graft jq -V`
+// write to stdout. The first line is the exact line jq prints, which a
+// caller's version probe expects, and graft's own line follows it.
+func jqVersionOutput() string {
+	return "jq-" + jqCompatVersion + "\n" + graftVersionLine() + "\n"
 }
