@@ -35,7 +35,7 @@ type Env struct {
 	places []value.Path
 	// turn is the one place a read gives while the body runs for each in
 	// turn, and the rest of them when it is negative.
-	turn int
+	turn  int
 	label uintptr
 	fns   map[funcKey]*Closure
 }
