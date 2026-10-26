@@ -289,6 +289,9 @@ func TestJQFormats(t *testing.T) {
 	wantError(t, `format("foo")`, `null`, `foo is not a valid format`)
 	wantError(t, `@foo`, `null`, `foo is not a valid format`)
 	wantError(t, `@foo "x\(.)"`, `null`, `foo is not a valid format`)
+	// A format applies only to what a string interpolates, so an unknown
+	// one is harmless until a value reaches it.
+	wantOutputs(t, `@foo "x", [@foo "x\(empty)"], @foo ""`, `null`, `"x"`, `[]`, `""`)
 	wantOutputs(t, `@sh "echo \(.)"`, `"a'b"`, `"echo 'a'\\''b'"`)
 }
 

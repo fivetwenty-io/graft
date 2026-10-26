@@ -415,13 +415,9 @@ func perCandidate(n ast.Node) bool {
 
 // str builds an interpolated string. The last interpolation varies
 // slowest, as in jq, and a format renders each interpolated value through
-// its native.
+// its native. The format is looked up only when a value reaches it, so an
+// unknown one fails no sooner than jq fails it.
 func (ev evaluator) str(n *ast.Str, env *Env, in *value.Value, emit runtime.Emit) error {
-	if n.Format != "" {
-		if _, err := ev.reg.Format(n.Format); err != nil {
-			return err
-		}
-	}
 	vev := ev.values()
 	pieces := make([]string, len(n.Parts))
 	var build func(i int) error
