@@ -84,6 +84,48 @@ func (r *Reader) Next() (Document, error) {
 	return d, nil
 }
 
+// RawText returns everything a raw reader has not yet read as one string,
+// newlines included, with each invalid UTF-8 byte replaced as it is in a
+// raw line, and leaves the reader at its end. A chain joins the rest of
+// each of its readers in order. This is how a raw slurp keeps the text
+// exactly, which joining lines cannot, because a line does not say whether
+// a newline ended it.
+func (r *Reader) RawText() (string, error) {
+	if r.chain != nil {
+		var b strings.Builder
+		for ; r.cur < len(r.chain); r.cur++ {
+			text, err := r.chain[r.cur].RawText()
+			if err != nil {
+				return "", err
+			}
+			b.WriteString(text)
+		}
+		if len(r.chain) > 0 {
+			r.cur = len(r.chain) - 1
+		}
+		return b.String(), nil
+	}
+	if r.err != nil {
+		return "", r.err
+	}
+	if !r.started {
+		if err := r.start(); err != nil {
+			r.err = err
+			return "", err
+		}
+	}
+	if !r.raw {
+		return "", errors.New("RawText needs a reader of raw lines")
+	}
+	data, err := io.ReadAll(r.br)
+	if err != nil {
+		r.err = err
+		return "", err
+	}
+	r.lines += bytes.Count(data, []byte{'\n'})
+	return toValidUTF8(data), nil
+}
+
 func (r *Reader) nextChained() (Document, error) {
 	for r.cur < len(r.chain) {
 		d, err := r.chain[r.cur].Next()

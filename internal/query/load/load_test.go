@@ -139,3 +139,38 @@ func TestEmptyChainIsAChain(t *testing.T) {
 	}
 	wantEqual(t, c.Line(), 0)
 }
+
+func TestRawTextKeepsTheSourceExactly(t *testing.T) {
+	r := Open(Source{"f", strings.NewReader("a\nb\xff\n")}, 0, LoadOptions{RawLines: true})
+	text, err := r.RawText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, text, "a\nb�\n") // jq -Rs keeps the final newline that lines would lose
+	wantEqual(t, r.Line(), 2)
+	_, err = r.Next()
+	wantEqual(t, err, io.EOF)
+}
+
+func TestRawTextReadsWhatLinesLeft(t *testing.T) {
+	r := Open(Source{"f", strings.NewReader("a\nb\nc")}, 0, LoadOptions{RawLines: true})
+	d, _ := r.Next()
+	wantEqual(t, d.Value.Str(), "a")
+	text, _ := r.RawText()
+	wantEqual(t, text, "b\nc")
+}
+
+func TestRawTextJoinsAChain(t *testing.T) {
+	a := Open(Source{"a", strings.NewReader("1\n")}, 0, LoadOptions{RawLines: true})
+	b := Open(Source{"b", strings.NewReader("2")}, 1, LoadOptions{RawLines: true})
+	text, err := Chain(a, b).RawText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEqual(t, text, "1\n2")
+}
+
+func TestRawTextRefusesAParsedSource(t *testing.T) {
+	_, err := Open(Source{"f", strings.NewReader("1")}, 0, LoadOptions{}).RawText()
+	wantErrContains(t, err, "raw")
+}
