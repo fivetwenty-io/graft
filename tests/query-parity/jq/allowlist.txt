@@ -27,11 +27,5 @@ d-gmtime-fractional departure exact decimal
 # and 0.5723649429247 in jq.
 m-trig departure platform libm
 m-gamma departure platform libm
-# Go's math is one ulp from the correctly rounded result here. atanh(.5) is
-# 0.5493061443340548 in graft and 0.5493061443340549 in jq, expm1(1) is
-# 1.718281828459045 in graft and 1.7182818284590453 in jq, and exp2(.5) is
-# 1.414213562373095 in graft and 1.4142135623730951 in jq.
-m-hyperbolic departure go math ulp
-m-roots-exp departure go math ulp
 e-invalid-input-literal pending J3 strict literal parsing in input
 c-yaml-input-departure pending J3 input parsed as strict JSON
