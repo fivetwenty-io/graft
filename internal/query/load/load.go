@@ -105,6 +105,9 @@ func (r *Reader) RawText() (string, error) {
 		}
 		return b.String(), nil
 	}
+	if errors.Is(r.err, io.EOF) {
+		return "", nil // a reader with nothing left still has its empty rest
+	}
 	if r.err != nil {
 		return "", r.err
 	}

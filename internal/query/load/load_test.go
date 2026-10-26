@@ -174,3 +174,16 @@ func TestRawTextRefusesAParsedSource(t *testing.T) {
 	_, err := Open(Source{"f", strings.NewReader("1")}, 0, LoadOptions{}).RawText()
 	wantErrContains(t, err, "raw")
 }
+
+func TestRawTextOfAnExhaustedReaderIsEmpty(t *testing.T) {
+	r := Open(Source{Name: "-", Reader: strings.NewReader("a\n")}, 0, LoadOptions{RawLines: true})
+	for {
+		if _, err := r.Next(); errors.Is(err, io.EOF) {
+			break
+		}
+	}
+	text, err := r.RawText()
+	if err != nil || text != "" {
+		t.Errorf("got %q, %v, want an empty string", text, err)
+	}
+}

@@ -166,6 +166,27 @@ func TestSlurpOfASlurpNests(t *testing.T) {
 	wantJSON(t, v, `[[1,2],3]`)
 }
 
+func TestRawSlurpOfAnExhaustedDecoderIsEmpty(t *testing.T) {
+	// printf '' | jq -Rs . prints "", so a raw source with nothing left
+	// still slurps to one empty string.
+	v, err := Slurp(NewDecoder(strings.NewReader(""), DecodeOptions{Raw: true})).Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantJSON(t, v, `""`)
+	d := NewDecoder(strings.NewReader("a\n"), DecodeOptions{Raw: true})
+	for {
+		if _, err := d.Next(); errors.Is(err, io.EOF) {
+			break
+		}
+	}
+	v, err = Slurp(d).Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantJSON(t, v, `""`)
+}
+
 func TestDecoderIsLazy(t *testing.T) {
 	d := NewDecoder(strings.NewReader("1\n{"), DecodeOptions{})
 	v, err := d.Next()
