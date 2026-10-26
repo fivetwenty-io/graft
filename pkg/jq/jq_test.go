@@ -338,6 +338,17 @@ func TestRegexBudgetReachesTheRun(t *testing.T) {
 	wantEqual(t, mustCompile(t, `.`).newCtx(t.Context()).RegexBudget, regex.Budget{})
 }
 
+func TestRegexBudgetBoundsTheRegexBuiltins(t *testing.T) {
+	in := value.Str(strings.Repeat("a", 200))
+	out, err := mustCompile(t, `test("a+b")`).RunAll(t.Context(), in)
+	if err != nil {
+		t.Fatalf("under the default budget: %v", err)
+	}
+	wantJSON(t, out[0], `false`)
+	_, err = mustCompile(t, `test("a+b")`, WithRegexBudget(regex.Budget{Steps: 100})).RunAll(t.Context(), in)
+	wantErrContains(t, err, "regex step budget exhausted for a+b")
+}
+
 func TestModulePathsAndOriginAreAccepted(t *testing.T) {
 	q := mustCompile(t, `.`, WithModulePaths([]string{"lib"}), WithProgramOrigin("prog"))
 	wantEqual(t, q.cfg.modulePaths, []string{"lib"})
