@@ -2740,3 +2740,39 @@
   area: stream
   phase: J1
   cases: [t-tojson-input-line]
+- id: b-bsearch-hit
+  area: builtin
+  phase: J1
+  cases: [b-bsearch-hit]
+- id: b-bsearch-miss
+  area: builtin
+  phase: J1
+  cases: [b-bsearch-miss]
+- id: b-bsearch-duplicates
+  area: builtin
+  phase: J1
+  cases: [b-bsearch-duplicates]
+- id: b-bsearch-short
+  area: builtin
+  phase: J1
+  cases: [b-bsearch-short]
+- id: b-bsearch-mixed-types
+  area: builtin
+  phase: J1
+  cases: [b-bsearch-mixed-types]
+- id: b-bsearch-generator
+  area: builtin
+  phase: J1
+  cases: [b-bsearch-generator]
+- id: b-bsearch-string-error
+  area: builtin
+  phase: J1
+  cases: [b-bsearch-string-error]
+- id: b-bsearch-object-error
+  area: builtin
+  phase: J1
+  cases: [b-bsearch-object-error]
+- id: b-bsearch-null-error
+  area: builtin
+  phase: J1
+  cases: [b-bsearch-null-error]

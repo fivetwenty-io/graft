@@ -1,4 +1,4 @@
-entries 685
+entries 694
 arg-repeated
 arg-string
 argjson-object
@@ -12,6 +12,15 @@ b-any-all
 b-any-all-filter
 b-any-all-shortcircuit
 b-ascii-case
+b-bsearch-duplicates
+b-bsearch-generator
+b-bsearch-hit
+b-bsearch-miss
+b-bsearch-mixed-types
+b-bsearch-null-error
+b-bsearch-object-error
+b-bsearch-short
+b-bsearch-string-error
 b-builtins
 b-combinations
 b-contains

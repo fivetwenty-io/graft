@@ -339,3 +339,20 @@ func TestJQEnvDisabled(t *testing.T) {
 		t.Errorf("got %v", err)
 	}
 }
+
+func TestBsearch(t *testing.T) {
+	wantOutputs(t, `bsearch(2), bsearch(0), bsearch(4), bsearch(1, 3)`, `[1,2,3]`, `1`, `-1`, `-4`, `0`, `2`)
+	wantOutputs(t, `bsearch(3), bsearch(5), bsearch(1)`, `[1,2,4]`, `-3`, `-4`, `0`)
+	wantOutputs(t, `bsearch(1)`, `[]`, `-1`)
+	wantOutputs(t, `bsearch(0), bsearch(1), bsearch(2)`, `[1]`, `-1`, `0`, `-2`)
+	wantOutputs(t, `bsearch(1)`, `[1,1,1]`, `1`)
+	wantOutputs(t, `bsearch(5), bsearch(1)`, `[3,5,5,6]`, `2`, `-1`) // among equals, jq lands on the upper middle
+	wantOutputs(t, `bsearch(1), bsearch(5), bsearch(4)`, `[1,1,1,3,4,5,5,5,5,6]`, `2`, `5`, `4`)
+	wantOutputs(t, `bsearch("a"), bsearch([2]), bsearch({"a":2})`, `[1,2]`, `-3`, `-3`, `-3`) // jq's ordering puts every other type after a number
+	wantOutputs(t, `bsearch([2]), bsearch({"a":2})`, `[[1],[2],{"a":1},{"a":3}]`, `1`, `-4`)
+	wantOutputs(t, `[bsearch(empty)]`, `[1,2,3]`, `[]`)
+	wantError(t, `bsearch(1)`, `"abc"`, `string ("abc") cannot be searched from`)
+	wantError(t, `bsearch(1)`, `{"a":1}`, `object ({"a":1}) cannot be searched from`)
+	wantError(t, `bsearch(1)`, `null`, `null (null) cannot be searched from`)
+	wantError(t, `bsearch(1)`, `1`, `number (1) cannot be searched from`)
+}

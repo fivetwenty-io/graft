@@ -1,0 +1,2 @@
+-c
+bsearch("a"), bsearch([2]), bsearch({"a":2}), bsearch(null)

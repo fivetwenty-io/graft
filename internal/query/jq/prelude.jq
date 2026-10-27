@@ -48,6 +48,7 @@ def inside(xs): . as $x | xs | contains($x);
 def combinations: if length == 0 then [] else .[0][] as $x | (.[1:] | combinations) as $rest | [$x] + $rest end;
 def combinations(n): . as $in | [range(n)] | map($in) | combinations;
 def walk(f): def _walk: if type == "object" then map_values(_walk) elif type == "array" then map(_walk) else . end | f; _walk;
+def bsearch($target): if type == "array" then . as $in | {lo: 0, hi: length - 1} | until(.lo > .hi or .hit != null; (((.lo + .hi) / 2) | ceil) as $mid | if $in[$mid] == $target then .hit = $mid elif $in[$mid] < $target then .lo = $mid + 1 else .hi = $mid - 1 end) | if .hit != null then .hit else -1 - .lo end else error("\(type) (\(tojson)) cannot be searched from") end;
 def transpose: [range(0; map(length) | max // 0) as $j | [.[][$j]]];
 def toarray: if type == "array" then . else [.] end;
 def ascii: if type == "number" and . >= 0 and . <= 127 and . == floor then [.] | implode else error("\(type) (\(tojson)) is not an ASCII code point") end;

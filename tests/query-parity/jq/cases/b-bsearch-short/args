@@ -1,0 +1,2 @@
+-c
+[bsearch(0), bsearch(1), bsearch(2)], ([] | bsearch(1))

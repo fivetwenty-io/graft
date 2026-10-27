@@ -1,6 +1,6 @@
 # area total allowlisted passing percent
 grammar 123 0 123 100
-builtin 146 0 146 100
+builtin 155 0 155 100
 flag 91 0 91 100
 exit 44 0 44 100
 number 47 9 38 80
@@ -11,7 +11,7 @@ math 19 3 16 84
 module 18 0 18 100
 stream 10 0 10 100
 cli 38 0 38 100
-overall 683 13 670 98
+overall 692 13 679 98
 out-of-scope 2
 allow c-yaml-input-departure out-of-scope spec-deliberate: YAML input under auto-detection
 allow d-gmtime-fractional departure exact decimal
