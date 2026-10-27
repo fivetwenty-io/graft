@@ -465,7 +465,16 @@ func explode(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emit runti
 // has passed marks.
 type exploder struct {
 	anchors map[string]*value.Value
-	toSpec  bool
+	// carried finds an anchor an earlier document defined, when the walk
+	// has not passed one of that name in this document.
+	carried func(name string) (*value.Value, bool)
+	// record is the node each alias the walk met named, with nil for one
+	// that named nothing. Once frozen, an alias in it reads its entry, so a
+	// later walk of part of the document finds what the whole walk did
+	// rather than the anchor defined last.
+	record map[*value.Value]*value.Value
+	frozen bool
+	toSpec bool
 	// stderr receives the merge key warning, once per run.
 	stderr io.Writer
 	warned bool
@@ -554,7 +563,7 @@ func (x *exploder) notes(v *value.Value) {
 func (x *exploder) node(v *value.Value) (*value.Value, error) {
 	m := v.Meta()
 	if m != nil && m.AliasOf != "" {
-		target, ok := x.anchors[m.AliasOf]
+		target, ok := x.lookup(v)
 		if !ok {
 			return v, nil
 		}
@@ -804,7 +813,27 @@ func (x *exploder) target(v *value.Value) (*value.Value, bool) {
 	if !isAlias(v) {
 		return nil, false
 	}
-	t, ok := x.anchors[v.Meta().AliasOf]
+	return x.lookup(v)
+}
+
+// lookup is the node the alias v names. It is the one the whole-document
+// walk found for v when there was one, and otherwise the anchor of that
+// name the walk passed last in this document or, failing that, one an
+// earlier document defined.
+func (x *exploder) lookup(v *value.Value) (*value.Value, bool) {
+	if x.frozen {
+		if t, ok := x.record[v]; ok {
+			return t, t != nil
+		}
+	}
+	name := v.Meta().AliasOf
+	t, ok := x.anchors[name]
+	if !ok && x.carried != nil {
+		t, ok = x.carried(name)
+	}
+	if x.record != nil && !x.frozen {
+		x.record[v] = t
+	}
 	return t, ok
 }
 

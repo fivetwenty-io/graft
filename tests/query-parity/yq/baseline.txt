@@ -1,4 +1,4 @@
-entries 634
+entries 635
 a-assign-multiple
 a-update-multiple
 c-comments-only-eval-all
@@ -123,6 +123,7 @@ i-json-file-no-output-flag
 i-json-on-stdin
 i-null-input-construct
 m-alias-arith-keeps-alias
+m-alias-before-redefinition-json
 m-alias-earlier-document-json
 m-alias-get
 m-alias-json-output

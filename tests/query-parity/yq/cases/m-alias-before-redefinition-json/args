@@ -1,0 +1,4 @@
+-o=json
+-I=0
+.b
+in.yaml

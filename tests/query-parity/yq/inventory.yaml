@@ -600,6 +600,10 @@
   area: meta
   phase: Y1
   cases: [m-alias-arith-keeps-alias]
+- id: m-alias-before-redefinition-json
+  area: meta
+  phase: Y1
+  cases: [m-alias-before-redefinition-json]
 - id: m-alias-earlier-document-json
   area: meta
   phase: Y1
