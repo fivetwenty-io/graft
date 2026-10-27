@@ -227,6 +227,14 @@ func TestAliasParityYQ(t *testing.T) {
 // fewer than the case directories on disk, so a case can't drop out
 // silently.
 func runAliasParity(t *testing.T, dialect string) {
+	// The race detector only sees races inside the test process. These cases
+	// spawn the built binary, which go test -race does not instrument, and the
+	// test process only waits on its pipes, so a -race pass finds nothing the
+	// plain run misses and costs a third of a minute or more. make test-unit
+	// still runs every case.
+	if raceEnabled {
+		t.Skip("the cases spawn the built binary, which the race detector cannot instrument, so a -race pass would only repeat the plain run")
+	}
 	graft := buildGraftBinary(t)
 	link := linkAs(t, graft, dialect)
 	cases := loadParityCases(t, dialect)

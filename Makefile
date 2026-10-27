@@ -186,7 +186,10 @@ clean: ## Remove build artifacts and binaries
 
 test: test-unit ## Run all unit tests (alias for test-unit)
 
-test-unit: test-alias-dispatch test-query-parity test-regex-parity ## Run Go unit tests with coverage
+# The full run below already covers everything test-alias-dispatch,
+# test-query-parity, and test-regex-parity run, so those targets are not
+# prerequisites here. They stay as standalone gates for a quick check of one area.
+test-unit: ## Run Go unit tests with coverage
 	@printf "$(GREEN)Running unit tests...$(RESET)\n"
 	@mkdir -p $(COVERAGE_DIR)
 	@go test -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic ./...
