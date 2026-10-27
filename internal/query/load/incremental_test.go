@@ -183,8 +183,11 @@ func TestIncrementalMatchesWholeOnShuffledLines(t *testing.T) {
 func TestIncrementalErrorWithoutLineStaysWithoutOne(t *testing.T) {
 	text := "a: 1\n---\nb: 2\nc: *x\n"
 	whole, inc := readAll(text, false, false), readAll(text, true, false)
-	wantErr := whole[strings.Index(whole, "error: "):]
-	if gotErr := inc[strings.Index(inc, "error: "):]; gotErr != wantErr {
+	_, wantErr, ok := strings.Cut(whole, "error: ")
+	if !ok {
+		t.Fatalf("whole read gave no error: %q", whole)
+	}
+	if _, gotErr, _ := strings.Cut(inc, "error: "); gotErr != wantErr {
 		t.Errorf("incremental error = %q, want %q", gotErr, wantErr)
 	}
 }

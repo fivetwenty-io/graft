@@ -244,7 +244,8 @@ func TestYQWithDtfConcurrentRuns(t *testing.T) {
 }
 
 // zoneFile writes a zone file with one fixed offset and returns its path.
-func zoneFile(t *testing.T, offset int32) string {
+// The offset is in seconds, a negative one written as two's complement.
+func zoneFile(t *testing.T, offset uint32) string {
 	t.Helper()
 	var b []byte
 	b = append(b, "TZif"...)
@@ -254,7 +255,7 @@ func zoneFile(t *testing.T, offset int32) string {
 	for _, n := range []uint32{0, 0, 0, 0, 1, 4} {
 		b = binary.BigEndian.AppendUint32(b, n)
 	}
-	b = binary.BigEndian.AppendUint32(b, uint32(offset))
+	b = binary.BigEndian.AppendUint32(b, offset)
 	b = append(b, 0, 0)
 	b = append(b, "FIX\x00"...)
 	p := filepath.Join(t.TempDir(), "zone")
@@ -267,7 +268,7 @@ func zoneFile(t *testing.T, offset int32) string {
 func TestYQLocalZoneReadsAZoneFilePath(t *testing.T) {
 	t.Setenv("TZ", zoneFile(t, 9*3600))
 	wantYQ(t, `from_unix`, `0`, "1970-01-01T09:00:00+09:00\n")
-	t.Setenv("TZ", zoneFile(t, -3*3600))
+	t.Setenv("TZ", zoneFile(t, ^uint32(3*3600-1)))
 	wantYQ(t, `from_unix`, `0`, "1969-12-31T21:00:00-03:00\n")
 	t.Setenv("TZ", filepath.Join(t.TempDir(), "missing"))
 	wantYQ(t, `from_unix`, `0`, "1970-01-01T00:00:00Z\n")
