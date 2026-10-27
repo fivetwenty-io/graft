@@ -69,3 +69,20 @@ func TestYQPrintsEarlierDocumentsBeforeInputEnds(t *testing.T) {
 		t.Errorf("output = %q, want %q", got, want)
 	}
 }
+
+// TestYQJSONMergeWarningOncePerRun reads two documents that both use a merge
+// key and expects the merge key warning once for the run, not once for each
+// document.
+func TestYQJSONMergeWarningOncePerRun(t *testing.T) {
+	isolateHome(t)
+	opts, err := parseYQArgs([]string{"-o=json", "."}, personaYQ)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := "a: &x {k: 1}\nb:\n  <<: *x\n---\nc: &y {k: 2}\nd:\n  <<: *y\n"
+	var out, errOut strings.Builder
+	handleYQ(opts, strings.NewReader(in), &out, &errOut)
+	if n := strings.Count(errOut.String(), "Warning:"); n != 1 {
+		t.Errorf("merge warning written %d times, want 1\nstderr: %q", n, errOut.String())
+	}
+}

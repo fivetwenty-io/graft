@@ -72,6 +72,13 @@ func (d *Dialect) warnMerge(ctx *runtime.Ctx) {
 	_, _ = io.WriteString(ctx.Stderr, mergeWarning)
 }
 
+// noteWarned records that x has written the merge key warning.
+func (d *Dialect) noteWarned(x *exploder) {
+	if x.warned {
+		d.warned.Store(true)
+	}
+}
+
 // entrySet is an ordered map from key text to entry. Setting a key it
 // holds replaces the value where the key sits. From records the map each
 // entry's value comes from.
@@ -264,7 +271,9 @@ func keyText(key *value.Value) string {
 // marks and every merge key folded into its map. root is the document the
 // output belongs to, whose anchors the aliases name. The function keeps
 // the anchors of the last root it was given, since the outputs of one
-// document all ask for the same ones.
+// document all ask for the same ones. It shares the dialect's warning latch,
+// so the merge key warning is written once for the run, however many
+// outputs and documents fold a merge key.
 func (d *Dialect) Resolver(stderr io.Writer) func(root, v *value.Value) (*value.Value, error) {
 	var (
 		last *value.Value
@@ -286,11 +295,14 @@ func (d *Dialect) Resolver(stderr io.Writer) func(root, v *value.Value) (*value.
 			}
 		}
 		if v == root {
-			y := &exploder{anchors: map[string]*value.Value{}, toSpec: d.opts.MergeAnchorToSpec, stderr: stderr}
-			return y.node(v)
+			y := &exploder{anchors: map[string]*value.Value{}, toSpec: d.opts.MergeAnchorToSpec, stderr: stderr, warned: d.warned.Load()}
+			out, err := y.node(v)
+			d.noteWarned(y)
+			return out, err
 		}
-		x.stderr = stderr
+		x.stderr, x.warned = stderr, d.warned.Load()
 		out, err := x.node(v)
+		d.noteWarned(x)
 		x.stderr = nil
 		return out, err
 	}
