@@ -240,7 +240,9 @@ func (r *Reader) loadChunk() error {
 						shiftLines(d, prev.start-1)
 					}
 					for i, d := range wd[:len(docs)] {
-						d.HeadComment = docs[i].HeadComment
+						// The head comments are as the earlier pairing left
+						// them, with what the predecessor took already gone.
+						copyHeads(d, docs[i])
 					}
 					docs, cur.docs = wd[:len(docs)], wd[len(docs):]
 				}
@@ -331,4 +333,16 @@ func trailsComments(text string) bool {
 		}
 	}
 	return trailing
+}
+
+// copyHeads gives dst the head comments src has along its first children,
+// which is where a comment before a document's content sits.
+func copyHeads(dst, src *yamlnode.Node) {
+	for dst != nil && src != nil {
+		dst.HeadComment = src.HeadComment
+		if len(dst.Content) == 0 || len(src.Content) == 0 {
+			return
+		}
+		dst, src = dst.Content[0], src.Content[0]
+	}
 }

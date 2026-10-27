@@ -77,6 +77,7 @@ var incrementalInputs = []string{
 	"k: !!str 5\n---\nt: !tag v\n",
 	"? a\n: 1\n---\n? b\n: 2\n",
 	"a: 1\n---\n\n\n\n",
+	"'q'\n# comment\n--- \n  # indented\n\nd: |\n  lit\n  # indented\n--- v\n'q'\n",
 }
 
 // same reports whether an incremental read matches the whole one. A source
