@@ -2,6 +2,7 @@ package yq
 
 import (
 	"io"
+	"maps"
 
 	"github.com/fivetwenty-io/graft/internal/query/runtime"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
@@ -70,6 +71,28 @@ func (d *Dialect) warnMerge(ctx *runtime.Ctx) {
 		return
 	}
 	_, _ = io.WriteString(ctx.Stderr, mergeWarning)
+}
+
+// carriedAnchors is the anchors the documents resolved so far defined,
+// which an alias or merge key in a later document of the stream may name.
+func (d *Dialect) carriedAnchors() map[string]*value.Value {
+	d.carryMu.Lock()
+	defer d.carryMu.Unlock()
+	if d.carried == nil {
+		return map[string]*value.Value{}
+	}
+	return maps.Clone(d.carried)
+}
+
+// carryAnchors adds the anchors of a document just resolved to the ones
+// later documents see.
+func (d *Dialect) carryAnchors(anchors map[string]*value.Value) {
+	d.carryMu.Lock()
+	defer d.carryMu.Unlock()
+	if d.carried == nil {
+		d.carried = map[string]*value.Value{}
+	}
+	maps.Copy(d.carried, anchors)
 }
 
 // noteWarned records that x has written the merge key warning.
@@ -276,8 +299,9 @@ func keyText(key *value.Value) string {
 // outputs and documents fold a merge key.
 func (d *Dialect) Resolver(stderr io.Writer) func(root, v *value.Value) (*value.Value, error) {
 	var (
-		last *value.Value
-		x    *exploder
+		last   *value.Value
+		x      *exploder
+		before map[string]*value.Value
 	)
 	return func(root, v *value.Value) (*value.Value, error) {
 		if v == nil {
@@ -286,16 +310,18 @@ func (d *Dialect) Resolver(stderr io.Writer) func(root, v *value.Value) (*value.
 		if root != last || x == nil {
 			// Reading the whole document only learns its anchors, so
 			// it is silent about the merge keys it folds.
-			x = &exploder{anchors: map[string]*value.Value{}, toSpec: d.opts.MergeAnchorToSpec}
+			before = d.carriedAnchors()
+			x = &exploder{anchors: maps.Clone(before), toSpec: d.opts.MergeAnchorToSpec}
 			last = root
 			if root != nil {
 				if _, err := x.node(root); err != nil {
 					return nil, err
 				}
+				d.carryAnchors(x.anchors)
 			}
 		}
 		if v == root {
-			y := &exploder{anchors: map[string]*value.Value{}, toSpec: d.opts.MergeAnchorToSpec, stderr: stderr, warned: d.warned.Load()}
+			y := &exploder{anchors: maps.Clone(before), toSpec: d.opts.MergeAnchorToSpec, stderr: stderr, warned: d.warned.Load()}
 			out, err := y.node(v)
 			d.noteWarned(y)
 			return out, err

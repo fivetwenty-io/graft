@@ -48,6 +48,10 @@ type Dialect struct {
 	// homes locates the maps and sequences of the document homeRoot.
 	homeRoot *value.Value
 	homes    map[*value.Value]value.Path
+	// carried holds the anchors of the documents Resolver has read, so a
+	// later document's alias can name an anchor an earlier one defined.
+	carryMu sync.Mutex
+	carried map[string]*value.Value
 	// warned is set once the merge key warning has been written.
 	warned atomic.Bool
 }
