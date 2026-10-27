@@ -211,11 +211,13 @@ func runBinaryIn(t *testing.T, bin string, lead []string, c parityCase) (stdout,
 // stdout, stderr, the exit code, and the files left behind. TestQueryParity
 // judges `graft jq` against the reference goldens.
 func TestAliasParity(t *testing.T) {
+	t.Parallel()
 	runAliasParity(t, "jq")
 }
 
 // TestAliasParityYQ is TestAliasParity for the yq corpus.
 func TestAliasParityYQ(t *testing.T) {
+	t.Parallel()
 	runAliasParity(t, "yq")
 }
 
