@@ -58,24 +58,8 @@ func (ev evaluator) callNative(n *ast.Call, env *Env, in *value.Value, p value.P
 		if ev.track {
 			ev.setCursor(in, p)
 		}
-		if ev.paths && ev.track {
-			return native(ev.ctx, in, args, ev.plainPaths(in, p, emit))
-		}
 		return native(ev.ctx, in, args, ev.derive(in, p, emit))
 	})
-}
-
-// plainPaths passes on the outputs of a native that ran on in, whose path
-// is p, while paths are collected. A path a native roots at in itself is
-// below in, so it is given as plain keys below p. One rooted elsewhere,
-// as parent's is, stays as it is.
-func (ev evaluator) plainPaths(in *value.Value, p value.Path, emit runtime.Emit) runtime.Emit {
-	return func(v *value.Value, vp value.Path) error {
-		if root, _, rel := runtime.Unroot(vp); root == in {
-			vp = extend(p, rel...)
-		}
-		return emit(v, vp)
-	}
 }
 
 // invoke calls a definition. A call in tail position of the definition's
