@@ -91,8 +91,12 @@ func stringify(n *ast.Str) {
 }
 
 // rewriteCall refuses error without an argument and env without one, and
-// adjusts a call to env, strenv, envsubst, or with.
+// adjusts a call to env, strenv, envsubst, or with, and renames an alias
+// to its operator.
 func rewriteCall(expr string, n *ast.Call) error {
+	if name, ok := aliases[n.Name]; ok {
+		n.Name = name
+	}
 	switch {
 	case bareError(n):
 		return &ParseError{Msg: errorArgMissing}

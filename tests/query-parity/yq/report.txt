@@ -1,11 +1,11 @@
 # area total allowlisted passing percent
-operator 350 4 346 98
+operator 371 4 367 98
 flag 65 1 64 98
 exit 30 0 30 100
 format 17 1 16 94
 meta 113 1 112 99
 cli 35 0 35 100
-overall 610 7 603 98
+overall 631 7 624 98
 out-of-scope 25
 allow fl-security-enable-system departure no system operator
 allow fmt-base64-output out-of-scope format out of scope

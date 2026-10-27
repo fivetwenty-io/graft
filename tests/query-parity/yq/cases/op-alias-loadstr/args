@@ -1,0 +1,2 @@
+loadstr("in.yaml")
+in.yaml

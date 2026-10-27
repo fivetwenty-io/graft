@@ -1,4 +1,4 @@
-entries 635
+entries 656
 a-assign-multiple
 a-update-multiple
 c-comments-only-eval-all
@@ -280,6 +280,27 @@ op-add-null-left
 op-add-prepend
 op-add-relative-append
 op-add-strings
+op-alias-arraytomap
+op-alias-delpaths
+op-alias-documentindex
+op-alias-fileindex
+op-alias-fromentries
+op-alias-fromunix
+op-alias-fromyaml
+op-alias-groupby
+op-alias-iskey
+op-alias-loadstr
+op-alias-mapvalues
+op-alias-setpath
+op-alias-sortby
+op-alias-sortkeys
+op-alias-sortkeys-lower
+op-alias-splitdoc
+op-alias-toentries
+op-alias-tounix
+op-alias-toyaml
+op-alias-uniqueby
+op-alias-withentries
 op-all
 op-all-c
 op-alternative-defined
