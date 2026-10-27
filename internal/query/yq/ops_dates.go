@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	_ "time/tzdata" // zone names resolve on a host with no zoneinfo
 
@@ -300,16 +301,49 @@ func collectUnder(ctx *runtime.Ctx, layout string, in *value.Value, expr runtime
 }
 
 // localZone is the zone now and from_unix print in. TZ is read at each
-// call, as a zone name, rather than once when the process starts the way
-// time.Local is. An unset TZ means time.Local, and an empty one or one that
-// names no zone means UTC.
+// call, as a zone name or the path of a zone file, rather than once when
+// the process starts the way time.Local is. An unset TZ means time.Local,
+// and an empty one or one that names no zone means UTC. The zone for the
+// last TZ it saw is kept, so a run of date operations loads it once.
 func localZone() *time.Location {
 	tz, ok := os.LookupEnv("TZ")
 	if !ok {
 		return time.Local
 	}
-	loc, err := time.LoadLocation(strings.TrimPrefix(tz, ":"))
-	if tz == "" || err != nil {
+	zoneMu.Lock()
+	defer zoneMu.Unlock()
+	if zoneLoc != nil && zoneTZ == tz {
+		return zoneLoc
+	}
+	zoneTZ, zoneLoc = tz, loadZone(tz)
+	return zoneLoc
+}
+
+var (
+	zoneMu  sync.Mutex
+	zoneTZ  string
+	zoneLoc *time.Location
+)
+
+// loadZone is the zone a TZ value names, and UTC when it names none.
+func loadZone(tz string) *time.Location {
+	name := strings.TrimPrefix(tz, ":")
+	if name == "" {
+		return time.UTC
+	}
+	if strings.HasPrefix(name, "/") {
+		data, err := os.ReadFile(name)
+		if err != nil {
+			return time.UTC
+		}
+		loc, err := time.LoadLocationFromTZData(name, data)
+		if err != nil {
+			return time.UTC
+		}
+		return loc
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
 		return time.UTC
 	}
 	return loc
