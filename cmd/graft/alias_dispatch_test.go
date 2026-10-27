@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -243,6 +244,9 @@ func runAliasParity(t *testing.T, dialect string) {
 	want := countCaseDirs(t, dialect)
 	var ran atomic.Int64
 	t.Cleanup(func() {
+		if t.Failed() || casesFiltered() {
+			return
+		}
 		if got := int(ran.Load()); got < want {
 			t.Errorf("%s alias parity ran %d cases, but %d case directories exist", dialect, got, want)
 		}
@@ -268,6 +272,18 @@ func runAliasParity(t *testing.T, dialect string) {
 			}
 		})
 	}
+}
+
+// casesFiltered reports whether -run or -skip narrows which subtests run, in
+// which case fewer cases than case directories is expected and not a dropped
+// case.
+func casesFiltered() bool {
+	for _, name := range []string{"test.run", "test.skip"} {
+		if f := flag.Lookup(name); f != nil && f.Value.String() != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // countCaseDirs counts the case directories of a dialect straight from the
