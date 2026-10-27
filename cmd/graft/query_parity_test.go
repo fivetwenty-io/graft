@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
 
@@ -238,6 +239,11 @@ func applyParityEnv(t *testing.T, dir string) {
 	t.Chdir(dir)
 	t.Setenv("HOME", dir)
 	t.Setenv("TZ", "UTC")
+	// The zone a process reads from TZ is fixed when it starts, so the
+	// replay in this process sets it by hand.
+	local := time.Local
+	time.Local = time.UTC
+	t.Cleanup(func() { time.Local = local })
 	t.Setenv("LANG", "C.UTF-8")
 	t.Setenv("PWD", dir)
 }

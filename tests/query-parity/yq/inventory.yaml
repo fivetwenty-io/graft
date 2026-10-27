@@ -390,11 +390,11 @@
   cases: [fl-split-exp-dirs, f-split-exp-subdirectory]
 - id: fl-split-exp-file
   area: flag
-  phase: Y2
+  phase: Y1
   cases: [fl-split-exp-file]
 - id: fl-split-exp-index
   area: flag
-  phase: Y2
+  phase: Y1
   cases: [fl-split-exp-index]
 - id: fl-string-interpolation-off
   area: flag
@@ -1382,7 +1382,7 @@
   cases: [op-date-format]
 - id: op-date-from-unix
   area: operator
-  phase: Y2
+  phase: Y1
   cases: [op-date-from-unix]
 - id: op-date-from-unix-out-of-range
   area: operator
