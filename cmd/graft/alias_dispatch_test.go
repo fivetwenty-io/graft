@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -209,40 +211,69 @@ func runBinaryIn(t *testing.T, bin string, lead []string, c parityCase) (stdout,
 // stdout, stderr, the exit code, and the files left behind. TestQueryParity
 // judges `graft jq` against the reference goldens.
 func TestAliasParity(t *testing.T) {
-	graft := buildGraftBinary(t)
-	jqLink := linkAs(t, graft, "jq")
-	cases := loadParityCases(t, "jq")
-	for i := range cases {
-		c := cases[i]
-		t.Run(c.Name, func(t *testing.T) {
-			Convey("the jq link and graft jq agree byte for byte", t, func() {
-				wantOut, wantErr, wantCode, wantFiles := runBinaryIn(t, graft, []string{"jq"}, c)
-				out, errOut, code, files := runBinaryIn(t, jqLink, nil, c)
-				So(out, ShouldEqual, wantOut)
-				So(errOut, ShouldEqual, wantErr)
-				So(code, ShouldEqual, wantCode)
-				So(files, ShouldResemble, wantFiles)
-			})
-		})
-	}
+	runAliasParity(t, "jq")
 }
 
 // TestAliasParityYQ is TestAliasParity for the yq corpus.
 func TestAliasParityYQ(t *testing.T) {
+	runAliasParity(t, "yq")
+}
+
+// runAliasParity runs the cases of one dialect as parallel subtests. Each
+// case gets its own copy of its directory from t.TempDir, passes the child
+// process a fixed environment, and sets no working directory of its own, so
+// the cases share no state. A failure is reported on the subtest named for
+// its case. The parent counts the cases that ran and fails when that is
+// fewer than the case directories on disk, so a case can't drop out
+// silently.
+func runAliasParity(t *testing.T, dialect string) {
 	graft := buildGraftBinary(t)
-	yqLink := linkAs(t, graft, "yq")
-	cases := loadParityCases(t, "yq")
+	link := linkAs(t, graft, dialect)
+	cases := loadParityCases(t, dialect)
+	want := countCaseDirs(t, dialect)
+	var ran atomic.Int64
+	t.Cleanup(func() {
+		if got := int(ran.Load()); got < want {
+			t.Errorf("%s alias parity ran %d cases, but %d case directories exist", dialect, got, want)
+		}
+	})
 	for i := range cases {
 		c := cases[i]
 		t.Run(c.Name, func(t *testing.T) {
-			Convey("the yq link and graft yq agree byte for byte", t, func() {
-				wantOut, wantErr, wantCode, wantFiles := runBinaryIn(t, graft, []string{"yq"}, c)
-				out, errOut, code, files := runBinaryIn(t, yqLink, nil, c)
-				So(out, ShouldEqual, wantOut)
-				So(errOut, ShouldEqual, wantErr)
-				So(code, ShouldEqual, wantCode)
-				So(files, ShouldResemble, wantFiles)
-			})
+			t.Parallel()
+			ran.Add(1)
+			wantOut, wantErr, wantCode, wantFiles := runBinaryIn(t, graft, []string{dialect}, c)
+			out, errOut, code, files := runBinaryIn(t, link, nil, c)
+			if out != wantOut {
+				t.Errorf("stdout differs between the %s link and graft %s:\nlink:  %q\ngraft: %q", dialect, dialect, out, wantOut)
+			}
+			if errOut != wantErr {
+				t.Errorf("stderr differs between the %s link and graft %s:\nlink:  %q\ngraft: %q", dialect, dialect, errOut, wantErr)
+			}
+			if code != wantCode {
+				t.Errorf("exit code differs between the %s link and graft %s: link %d, graft %d", dialect, dialect, code, wantCode)
+			}
+			if !reflect.DeepEqual(files, wantFiles) {
+				t.Errorf("files left behind differ between the %s link and graft %s:\nlink:  %v\ngraft: %v", dialect, dialect, files, wantFiles)
+			}
 		})
 	}
+}
+
+// countCaseDirs counts the case directories of a dialect straight from the
+// file system, apart from loadParityCases, so the check on how many cases ran
+// does not share a bug with the loader.
+func countCaseDirs(t *testing.T, dialect string) int {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(parityRoot, dialect, "cases"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			n++
+		}
+	}
+	return n
 }
