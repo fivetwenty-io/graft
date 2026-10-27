@@ -43,6 +43,21 @@ func TestYQSplit(t *testing.T) {
 		So(readSplit(t, filepath.Join(dir, "a.json")), ShouldEqual, "{\n  \"name\": \"a\"\n}\n")
 	})
 
+	Convey("a name that has an extension keeps it", t, func() {
+		dir := t.TempDir()
+		runYQ2(t, dir, []string{"-s", `.name`, ".[]"}, "- name: a.out\n- name: b.\n- name: .c\n")
+		So(readSplit(t, filepath.Join(dir, "a.out")), ShouldEqual, "name: a.out\n")
+		So(readSplit(t, filepath.Join(dir, "b..yml")), ShouldEqual, "name: b.\n")
+		So(readSplit(t, filepath.Join(dir, ".c")), ShouldEqual, "name: .c\n")
+	})
+
+	Convey("$index counts the files written", t, func() {
+		dir := t.TempDir()
+		runYQ2(t, dir, []string{"-s", `"doc_" + $index`, ".[]"}, "[a, b]\n---\n[c]\n")
+		So(readSplit(t, filepath.Join(dir, "doc_0.yml")), ShouldEqual, "a\n")
+		So(readSplit(t, filepath.Join(dir, "doc_2.yml")), ShouldEqual, "---\nc\n")
+	})
+
 	Convey("a later document with the same name replaces the earlier one", t, func() {
 		dir := t.TempDir()
 		runYQ2(t, dir, []string{"-s", ".name", ".[]"}, "- name: a\n  v: 1\n- name: a\n  v: 2\n")

@@ -46,6 +46,12 @@ func run(d *Dialect, expr string, docs []load.Document, emit func(load.Document,
 // is how a caller sets the deadline, the environment, and the other bounds
 // of one run. Eval is RunNode over a single document.
 func RunNode(d *Dialect, node ast.Node, docs []load.Document, setup func(*runtime.Ctx), emit func(load.Document, *value.Value) error) error {
+	return RunNodeVars(d, node, docs, setup, nil, emit)
+}
+
+// RunNodeVars is RunNode with the variables in vars bound for the whole
+// run, as a caller does for the expression that names a split file.
+func RunNodeVars(d *Dialect, node ast.Node, docs []load.Document, setup func(*runtime.Ctx), vars map[string]*value.Value, emit func(load.Document, *value.Value) error) error {
 	if len(docs) == 0 {
 		return nil
 	}
@@ -69,7 +75,11 @@ func RunNode(d *Dialect, node ast.Node, docs []load.Document, setup func(*runtim
 	r := registry()
 	prog := eval.NewProgram(node, rootEnv, r)
 	split := 0
-	return prog.Run(ctx, prog.Env, roots, func(v *value.Value, p value.Path) error {
+	env := prog.Env
+	for name, v := range vars {
+		env = env.Bind(name, v)
+	}
+	return prog.Run(ctx, env, roots, func(v *value.Value, p value.Path) error {
 		doc := docs[0]
 		leading := ""
 		if m := v.Meta(); m != nil {

@@ -44,16 +44,22 @@ func yqSplitExpression(opts yqOptions) (string, error) {
 // splitWriter returns the function that opens the file an output document
 // goes to. ev is the compiled file-name expression expr. It runs against
 // the document, and the first value it yields, as text, names the file, so
-// that an empty result gives ".yml". A name with a directory in it gets
+// that an empty result gives ".yml". The extension is added only to a name
+// that has none. A name with a directory in it gets
 // that directory made. An existing file is truncated.
 func splitWriter(expr string, ev *yq.Evaluator, ext string) func(doc yq.Document, v *value.Value) (io.WriteCloser, error) {
 	log.DEBUG("split expression: %s", expr)
+	index := 0
 	return func(doc yq.Document, v *value.Value) (io.WriteCloser, error) {
-		name, err := splitName(ev, doc.Value)
+		name, err := splitName(ev, doc.Value, index)
 		if err != nil {
 			return nil, err
 		}
-		path := name + ext
+		index++
+		path := name
+		if len(filepath.Ext(name)) < 2 {
+			path += ext
+		}
 		if dir := filepath.Dir(path); dir != "." {
 			if err := os.MkdirAll(dir, 0o750); err != nil {
 				return nil, err
@@ -63,10 +69,12 @@ func splitWriter(expr string, ev *yq.Evaluator, ext string) func(doc yq.Document
 	}
 }
 
-// splitName is the text of the first value ev yields for doc. A map or a
-// list has no text, and a null is "null".
-func splitName(ev *yq.Evaluator, doc *value.Value) (string, error) {
-	for v, err := range ev.Eval(context.Background(), doc) {
+// splitName is the text of the first value ev yields for doc, with $index
+// the count of the files written before it. A map or a list has no text,
+// and a null is "null".
+func splitName(ev *yq.Evaluator, doc *value.Value, index int) (string, error) {
+	vars := map[string]*value.Value{"index": value.Num(float64(index))}
+	for v, err := range ev.EvalWith(context.Background(), doc, vars) {
 		if err != nil {
 			return "", err
 		}

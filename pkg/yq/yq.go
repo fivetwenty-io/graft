@@ -144,10 +144,20 @@ func (e *Evaluator) EvalAll(ctx context.Context, docs []*value.Value) iter.Seq2[
 	return e.run(ctx, loaded)
 }
 
+// EvalWith is Eval with the variables in vars bound for the run, each name
+// without its "$", so that {"index": v} makes $index read v.
+func (e *Evaluator) EvalWith(ctx context.Context, doc *value.Value, vars map[string]*value.Value) iter.Seq2[*value.Value, error] {
+	return e.runWith(ctx, []load.Document{documentOf(doc)}, vars)
+}
+
 func (e *Evaluator) run(ctx context.Context, docs []load.Document) iter.Seq2[*value.Value, error] {
+	return e.runWith(ctx, docs, nil)
+}
+
+func (e *Evaluator) runWith(ctx context.Context, docs []load.Document, vars map[string]*value.Value) iter.Seq2[*value.Value, error] {
 	return func(yield func(*value.Value, error) bool) {
 		stopped := false
-		err := yqdialect.RunNode(e.dialect, e.node, docs, e.setup(ctx), func(d load.Document, v *value.Value) error {
+		err := yqdialect.RunNodeVars(e.dialect, e.node, docs, e.setup(ctx), vars, func(d load.Document, v *value.Value) error {
 			if stopped || !yield(stamp(d, v), nil) {
 				stopped = true
 				return errStopped
