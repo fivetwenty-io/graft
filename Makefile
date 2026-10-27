@@ -75,7 +75,7 @@ CHECKSUM_FILE := $(BINARY_NAME)-$(VERSION)-checksums.sha256
 .PHONY: hooks hooks-install hooks-uninstall hooks-check pre-commit pre-push
 .PHONY: validate-imports validate-imports-example
 .PHONY: oracle-vectors diff-goldens diff-oracle-check byte-identity
-.PHONY: test-query-parity jq-oracle-check jq-oracle-refresh yq-oracle-check yq-oracle-refresh query-oracle-audit
+.PHONY: test-query-parity query-oracle-check jq-oracle-check jq-oracle-refresh yq-oracle-check yq-oracle-refresh query-oracle-audit
 .PHONY: test-regex-parity regex-oracle-check regex-oracle-refresh fuzz-regex
 
 ##@ General
@@ -534,6 +534,9 @@ jq-oracle-check: ## Fail when any checked-in jq golden differs from the pinned j
 
 jq-oracle-refresh: ## Rewrite the jq goldens from the pinned jq for review (needs jq)
 	@./tests/query-parity/gen.sh jq
+
+query-oracle-check: ## Run jq-oracle-check and yq-oracle-check at the same time (needs jq and yq)
+	@$(MAKE) -j2 jq-oracle-check yq-oracle-check
 
 yq-oracle-check: ## Fail when any checked-in yq golden differs from the pinned yq (needs yq)
 	@./tests/query-parity/gen.sh --check yq
