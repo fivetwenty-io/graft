@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.43.0] - 2026-10-27
+
 This release adds `graft jq`, a jq-compatible command that runs jq programs over JSON and YAML with an engine built inside graft, `graft yq`, its counterpart for yq expressions, and `graft install-aliases`, which lets graft answer to the names `jq`, `yq`, and `spruce`. It brings all three jq phases and the first two yq phases. Measured against our coverage inventory of jq 1.8.2 behavior, `graft jq` passes 98 percent overall at the end of phase J3, and it passes 100 percent of the regular expression entries. Measured against our coverage inventory of yq 4.54.1 behavior, `graft yq` passes 98 percent overall at the end of phase Y2. The per-area figures are in [the jq guide](docs/user-guide/jq.md) and [the yq guide](docs/user-guide/yq.md).
 
 ### Added
@@ -1130,6 +1132,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.43.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.43.0
 [1.42.5]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.5
 [1.42.4]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.4
 [1.42.3]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.3
