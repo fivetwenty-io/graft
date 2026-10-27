@@ -66,7 +66,9 @@ func WithPositional(vals []*value.Value) Option {
 
 // WithEnv replaces the process environment that $ENV and env read with
 // env, whose entries are KEY=VALUE as os.Environ returns them. An entry
-// with no = is skipped.
+// with no = is skipped. Without this option a program reads the process
+// environment, so a caller that runs untrusted programs passes it, with an
+// empty list when the programs should see nothing.
 func WithEnv(env []string) Option {
 	return func(c *config) error {
 		c.env = make(map[string]string, len(env))

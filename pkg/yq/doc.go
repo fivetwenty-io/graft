@@ -42,6 +42,15 @@ run ended into the code yq would exit with.
 Errors are the types in pkg/query, so a caller tells an expression that did
 not compile from one that failed while it ran with errors.As.
 
+# Security
+
+The defaults match the yq command line, so the load operators, which read any
+file the process can read, and the env operators, which read the process
+environment, are both on. A program that embeds this package to run
+expressions it does not trust should pass WithFileOps(false) and
+WithEnvOps(false) when it compiles them. It can also pass WithEnv to give the
+expressions an environment of its own choosing.
+
 # Stability
 
 This package is stable. The module's v1 promise applies to it, which is

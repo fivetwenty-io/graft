@@ -39,6 +39,14 @@ run ended into the code jq would exit with.
 Errors are the types in pkg/query, so a caller tells a program that did
 not compile from one that failed while it ran with errors.As.
 
+# Security
+
+A program reads no module unless the caller passes WithModulePaths, and a
+module path that climbs out of those directories is refused. The process
+environment is another matter, because $ENV and env read it by default. A
+program that embeds this package to run jq programs it does not trust should
+pass WithEnv with the entries the programs may see, or with none.
+
 # Stability
 
 This package is stable. The module's v1 promise applies to it, which is
