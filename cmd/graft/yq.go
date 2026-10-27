@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/fivetwenty-io/graft/internal/yqdoc"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/query"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
@@ -184,7 +185,7 @@ type yqOutput struct {
 	out       io.Writer
 	nul       bool
 	eo        yq.EncodeOptions
-	split     func(doc yq.Document, v *value.Value) (io.WriteCloser, error)
+	split     func(doc yqdoc.Document, v *value.Value) (io.WriteCloser, error)
 	sink      *splitSink // where the encoder writes under split
 	last      string     // the split file written last
 	colorJSON bool       // JSON is colored after it is written
@@ -508,7 +509,7 @@ func handleYQ(opts yqOptions, stdin io.Reader, stdout, stderr io.Writer) query.S
 // newYQRunOutput is the output of a run, which writes to the split files
 // when there is a split writer and to the stream or the -i buffer
 // otherwise.
-func newYQRunOutput(opts yqOptions, split func(yq.Format) func(yq.Document, *value.Value) (io.WriteCloser, error), stdout io.Writer, rewritten *bytes.Buffer) *yqOutput {
+func newYQRunOutput(opts yqOptions, split func(yq.Format) func(yqdoc.Document, *value.Value) (io.WriteCloser, error), stdout io.Writer, rewritten *bytes.Buffer) *yqOutput {
 	format := yqOutputFormat(opts)
 	if split == nil {
 		return newYQOutput(opts, format, yqTarget(opts, stdout, rewritten), yqColor(opts, stdout))
@@ -524,7 +525,7 @@ func newYQRunOutput(opts yqOptions, split func(yq.Format) func(yq.Document, *val
 // It returns nil when neither was given, and otherwise a function that
 // builds the split writer for an output format. When the expression
 // cannot be read or compiled it returns the status to end with and false.
-func newYQSplit(opts yqOptions, stderr io.Writer) (func(yq.Format) func(yq.Document, *value.Value) (io.WriteCloser, error), query.Status, bool) {
+func newYQSplit(opts yqOptions, stderr io.Writer) (func(yq.Format) func(yqdoc.Document, *value.Value) (io.WriteCloser, error), query.Status, bool) {
 	expr, err := yqSplitExpression(opts)
 	if err != nil {
 		return nil, yqArgsError(err), false
@@ -536,7 +537,7 @@ func newYQSplit(opts yqOptions, stderr io.Writer) (func(yq.Format) func(yq.Docum
 	if err != nil {
 		return nil, yqStatus(errCompile, fmt.Errorf("bad split document expression: %w", err)), false
 	}
-	return func(format yq.Format) func(yq.Document, *value.Value) (io.WriteCloser, error) {
+	return func(format yq.Format) func(yqdoc.Document, *value.Value) (io.WriteCloser, error) {
 		return splitWriter(expr, ev, yqSplitExtension(format))
 	}, query.Status{}, true
 }

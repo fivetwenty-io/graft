@@ -143,21 +143,13 @@ func ExampleEvaluator_EvalAll() {
 	// - 2
 }
 
-func ExampleConfig() {
-	// An Option receives the Config and changes one setting, so a caller
-	// writes its own the same way the package's do.
-	var calls int
-	_, _ = yq.Compile(`.`,
-		func(*yq.Config) error { calls++; return nil },
-		func(*yq.Config) error { calls += 10; return nil })
-	fmt.Println(calls)
-	// Output: 11
-}
-
 func ExampleOption() {
-	_, err := yq.Compile(`.`, func(*yq.Config) error { return errors.New("no thanks") })
+	// An Option is a function that the package's With functions return.
+	// WithDepthLimit refuses a negative limit, and Compile returns that
+	// error.
+	_, err := yq.Compile(`.`, yq.WithDepthLimit(-1))
 	fmt.Println(err)
-	// Output: no thanks
+	// Output: the depth limit cannot be negative
 }
 
 func ExampleWithEnv() {
@@ -259,16 +251,6 @@ func ExampleFormat() {
 	// a:
 	//   - 1
 	//   - 2
-}
-
-func ExampleDocument() {
-	dec := yq.NewDecoder(strings.NewReader("a: 1\n---\na: 2\n"), yq.DecodeOptions{Filename: "in.yaml", FileIndex: 4})
-	_, _ = dec.Next()
-	second, _ := dec.Next()
-	m := second.Meta()
-	d := yq.Document{Value: second, Index: m.DocIndex, FileIndex: m.FileIndex, Filename: m.Filename}
-	fmt.Println(d.Index, d.FileIndex, d.Filename)
-	// Output: 1 4 in.yaml
 }
 
 func ExampleDecodeOptions() {
@@ -394,4 +376,14 @@ func ExampleSplitFrontMatter() {
 	// "---\ntitle: Hello\n"
 	// "---\n# The page\n"
 	// true
+}
+
+func ExampleWithDepthLimit() {
+	ev, _ := yq.Compile(`map(map(.))`, yq.WithDepthLimit(1))
+	dec := yq.NewDecoder(strings.NewReader("[[1]]\n"), yq.DecodeOptions{})
+	doc, _ := dec.Next()
+	for _, err := range ev.Eval(context.Background(), doc) {
+		fmt.Println(err != nil)
+	}
+	// Output: true
 }

@@ -55,7 +55,7 @@ func compileError(src string, err error) error {
 type Evaluator struct {
 	node    ast.Node
 	dialect *yqdialect.Dialect
-	cfg     Config
+	cfg     config
 }
 
 // Compile parses the yq expression src and applies opts. An expression that
@@ -76,7 +76,7 @@ func Compile(src string, opts ...Option) (*Evaluator, error) {
 // parseWith is Parse for a run that cfg configures. The lexer decides what
 // "\(" in a string means, so interpolation has to be known before the
 // expression is read.
-func parseWith(src string, cfg Config) (*Expression, error) {
+func parseWith(src string, cfg config) (*Expression, error) {
 	node, err := yqdialect.ParseWith(src, yqdialect.ParseOptions{NoInterpolation: !cfg.interpolate})
 	if err != nil {
 		return nil, compileError(src, err)
@@ -85,7 +85,7 @@ func parseWith(src string, cfg Config) (*Expression, error) {
 }
 
 // configure applies opts to the default configuration.
-func configure(opts []Option) (Config, error) {
+func configure(opts []Option) (config, error) {
 	cfg := defaultConfig()
 	for _, opt := range opts {
 		if err := opt(&cfg); err != nil {
@@ -109,7 +109,7 @@ func newEvaluator(x *Expression, opts []Option) (*Evaluator, error) {
 	return evaluatorFor(x, cfg), nil
 }
 
-func evaluatorFor(x *Expression, cfg Config) *Evaluator {
+func evaluatorFor(x *Expression, cfg config) *Evaluator {
 	d := yqdialect.New(yqdialect.Options{
 		Caps:                cfg.caps,
 		MergeAnchorToSpec:   cfg.mergeFix,
@@ -145,7 +145,10 @@ func (e *Evaluator) EvalAll(ctx context.Context, docs []*value.Value) iter.Seq2[
 }
 
 // EvalWith is Eval with the variables in vars bound for the run, each name
-// without its "$", so that {"index": v} makes $index read v.
+// without its "$", so that {"index": v} makes $index read v. It exists for
+// a caller that has values of its own to hand the expression, as graft yq
+// does when it gives a split expression the count of files written so far
+// as $index. Eval is EvalWith with no variables.
 func (e *Evaluator) EvalWith(ctx context.Context, doc *value.Value, vars map[string]*value.Value) iter.Seq2[*value.Value, error] {
 	return e.runWith(ctx, []load.Document{documentOf(doc)}, vars)
 }
@@ -194,6 +197,7 @@ func (e *Evaluator) setup(ctx context.Context) func(*runtime.Ctx) {
 			c.Stderr = e.cfg.stderr
 		}
 		c.RegexBudget = e.cfg.regexBudget
+		c.DepthLimit = e.cfg.depth
 	}
 }
 

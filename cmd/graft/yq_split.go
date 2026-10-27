@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/yqdoc"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
 	"github.com/fivetwenty-io/graft/pkg/yq"
@@ -47,10 +48,10 @@ func yqSplitExpression(opts yqOptions) (string, error) {
 // that an empty result gives ".yml". The extension is added only to a name
 // that has none. A name with a directory in it gets
 // that directory made. An existing file is truncated.
-func splitWriter(expr string, ev *yq.Evaluator, ext string) func(doc yq.Document, v *value.Value) (io.WriteCloser, error) {
+func splitWriter(expr string, ev *yq.Evaluator, ext string) func(doc yqdoc.Document, v *value.Value) (io.WriteCloser, error) {
 	log.DEBUG("split expression: %s", expr)
 	index := 0
-	return func(doc yq.Document, v *value.Value) (io.WriteCloser, error) {
+	return func(doc yqdoc.Document, v *value.Value) (io.WriteCloser, error) {
 		name, err := splitName(ev, doc.Value, index)
 		if err != nil {
 			return nil, err
@@ -101,8 +102,8 @@ func scalarText(v *value.Value) (string, error) {
 
 // documentOf is the public shape of the document an output value belongs
 // to, read from the position its Meta records.
-func documentOf(v *value.Value) yq.Document {
-	d := yq.Document{Value: v}
+func documentOf(v *value.Value) yqdoc.Document {
+	d := yqdoc.Document{Value: v}
 	if m := v.Meta(); m != nil {
 		d.Index, d.FileIndex, d.Filename = m.DocIndex, m.FileIndex, m.Filename
 	}

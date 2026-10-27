@@ -159,7 +159,7 @@ func TestMergeAnchorAndInterpolationOptionsCompile(t *testing.T) {
 }
 
 func TestOptionErrorStopsCompile(t *testing.T) {
-	_, err := Compile(`.`, func(*Config) error { return context.Canceled })
+	_, err := Compile(`.`, func(*config) error { return context.Canceled })
 	wantEqual(t, err, context.Canceled)
 }
 

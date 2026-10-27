@@ -18,22 +18,6 @@ const (
 	FormatJSON
 )
 
-// Document is where one input document came from. A Decoder records the
-// same four facts in the Meta of every value it returns, as DocIndex,
-// FileIndex, and Filename, and the Meta of the root also holds the
-// document's line.
-type Document struct {
-	// Value is the document's root.
-	Value *value.Value
-	// Index is the document's position in its file, counted from zero.
-	Index int
-	// FileIndex is the file's position among the inputs, counted from zero.
-	FileIndex int
-	// Filename names the file in error messages and in the filename
-	// operator.
-	Filename string
-}
-
 // DecodeOptions selects how a Decoder reads its source.
 type DecodeOptions struct {
 	// Format is the input syntax. FormatYAML reads JSON too.
@@ -58,6 +42,9 @@ type DecodeOptions struct {
 	// as leading content, so a "---" ahead of the first node is dropped on
 	// output.
 	NoHeaderPreprocess bool
+	// DepthLimit bounds how deeply a value may nest, and zero means the
+	// limit of 10,000.
+	DepthLimit int
 }
 
 // Decoder reads documents from a source one at a time. Nothing is read
@@ -77,7 +64,7 @@ func NewDecoder(r io.Reader, opts DecodeOptions) *Decoder {
 	if opts.FrontMatter != "" {
 		r = &frontMatterReader{src: r}
 	}
-	lo := load.LoadOptions{Format: load.FormatYAML, KeepMeta: true, NodeComments: opts.NoHeaderPreprocess, Incremental: true}
+	lo := load.LoadOptions{Format: load.FormatYAML, KeepMeta: true, NodeComments: opts.NoHeaderPreprocess, Incremental: true, DepthLimit: opts.DepthLimit}
 	if opts.Format == FormatJSON {
 		lo.Format = load.FormatJSON
 		lo.FloatNumbers = true
