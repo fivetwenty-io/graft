@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -86,7 +87,41 @@ var graftExecutablePath = func() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Abs(exe)
+	exe, err = filepath.Abs(exe)
+	if err != nil {
+		return "", err
+	}
+	return invokedGraftPath(os.Args[0], exe, exec.LookPath), nil
+}
+
+// invokedGraftPath is the path graft was run by, found from arg0 the way
+// the shell found it, when that path leads to the running binary exe.
+// Linux reports only the resolved path as the executable, which for a
+// package manager's install is a versioned directory off PATH, so we
+// prefer the name the user typed. Anything that does not lead to exe
+// falls back to exe.
+func invokedGraftPath(arg0, exe string, lookPath func(string) (string, error)) string {
+	path := arg0
+	if filepath.Base(arg0) == arg0 {
+		found, err := lookPath(arg0)
+		if err != nil {
+			return exe
+		}
+		path = found
+	}
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return exe
+	}
+	pi, err := os.Stat(path) // #nosec G703 -- only compared with the running binary, never opened
+	if err != nil {
+		return exe
+	}
+	ei, err := os.Stat(exe)
+	if err != nil || !os.SameFile(pi, ei) {
+		return exe
+	}
+	return path
 }
 
 // defaultAliasNames are the names install-aliases installs when none are
@@ -477,8 +512,8 @@ func newInstallAliasesCmd() *cobra.Command {
 		Short: "Install jq and spruce names that run graft",
 		Long: "Install links named jq, yq, and spruce, or the NAMEs given, that run graft under\n" +
 			"those names. They go in the directory graft was run from unless --dir says\n" +
-			"otherwise, and they point at the path graft was run by. Where the system\n" +
-			"reports only the resolved path, as Linux does, that path is used. A target that\n" +
+			"otherwise, and they point at the path graft was run by, as the shell found it\n" +
+			"on PATH, and not the versioned directory behind a link. A target that\n" +
 			"is not graft's is skipped among the defaults and refused when named, and\n" +
 			"--force replaces it, except for a directory or the running binary, which are\n" +
 			"never touched. --remove takes away only links to this graft and copies of it,\n" +

@@ -31,7 +31,7 @@ graft install-aliases --dry-run
 graft install-aliases jq
 ```
 
-With no names, it installs `jq`, `yq`, and `spruce`. Name one or more aliases to install only those. The links go in the directory that holds graft unless `--dir` says otherwise. They point at the path we ran graft by, or at the resolved path on systems such as Linux that report only that.
+With no names, it installs `jq`, `yq`, and `spruce`. Name one or more aliases to install only those. The links go in the directory that holds graft unless `--dir` says otherwise. They point at the path we ran graft by, as the shell found it on `PATH`, so on a Homebrew install they land beside the `graft` link in the Homebrew `bin` directory and keep working after an upgrade.
 
 | Flag | Meaning |
 |------|---------|

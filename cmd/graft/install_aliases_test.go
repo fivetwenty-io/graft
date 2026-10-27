@@ -343,3 +343,47 @@ func TestInstallAliasesBinary(t *testing.T) {
 		So(lines[1], ShouldContainSubstring, "graft")
 	})
 }
+
+func TestInvokedGraftPath(t *testing.T) {
+	Convey("the path graft was run by", t, func() {
+		if runtime.GOOS == "windows" {
+			SkipSo("symbolic links need a Unix host")
+			return
+		}
+		// A package manager's layout: the binary in a versioned directory,
+		// and a link to it in the bin directory on PATH. Linux reports only
+		// the versioned path as the executable.
+		root := t.TempDir()
+		cellar := filepath.Join(root, "Caskroom", "graft", "1.43.0")
+		bin := filepath.Join(root, "bin")
+		So(os.MkdirAll(cellar, 0o750), ShouldBeNil)
+		So(os.MkdirAll(bin, 0o750), ShouldBeNil)
+		exe := writeFakeBinary(t, cellar)
+		link := filepath.Join(bin, "graft")
+		So(os.Symlink(exe, link), ShouldBeNil)
+		lookPath := func(name string) (string, error) {
+			if name == "graft" {
+				return link, nil
+			}
+			return "", os.ErrNotExist
+		}
+
+		Convey("follows PATH when graft was run by its bare name", func() {
+			So(invokedGraftPath("graft", exe, lookPath), ShouldEqual, link)
+		})
+		Convey("keeps a path graft was run by", func() {
+			So(invokedGraftPath(link, exe, lookPath), ShouldEqual, link)
+		})
+		Convey("makes a relative path absolute", func() {
+			t.Chdir(bin)
+			So(invokedGraftPath("./graft", exe, lookPath), ShouldEqual, link)
+		})
+		Convey("falls back to the executable when PATH has no graft", func() {
+			So(invokedGraftPath("graft", exe, func(string) (string, error) { return "", os.ErrNotExist }), ShouldEqual, exe)
+		})
+		Convey("falls back to the executable when the name leads to another file", func() {
+			other := writeFakeBinary(t, t.TempDir())
+			So(invokedGraftPath(other, exe, lookPath), ShouldEqual, exe)
+		})
+	})
+}
