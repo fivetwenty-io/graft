@@ -59,7 +59,25 @@ if [ "$got" != "$pinned" ]; then
 fi
 
 scratch="$(mktemp -d)"
-trap 'rm -rf "$scratch"' EXIT
+
+# cleanup runs on every exit, including Ctrl-C. It stops the workers and waits
+# for xargs before it removes the scratch directory, so no worker is still
+# writing into it.
+xpid=""
+# Case copies are made under the scratch directory too, so an interrupted run
+# leaves none of them behind.
+export TMPDIR="$scratch"
+cleanup() {
+  if [ -n "$xpid" ]; then
+    pkill -TERM -P "$xpid" 2>/dev/null || true
+    kill "$xpid" 2>/dev/null || true
+    wait "$xpid" 2>/dev/null || true
+  fi
+  rm -rf "${scratch:?}"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # record reruns one case under the reference binary and writes what it did
 # into OUT_DIR. It scrubs the copy's path to $CASE_DIR in every file it
@@ -115,7 +133,7 @@ do_case() { # do_case CASE_DIR
         head -20 "$scratch/$name.diff"
       } >"$scratch/$name.report" 2>&1
     fi
-    rm -rf "$scratch/$name" "$scratch/$name.diff"
+    rm -rf "${scratch:?}/$name" "${scratch:?}/$name.diff"
   else
     rm -rf "$case_dir/want"
     record "$case_dir" "$case_dir/want"
@@ -127,10 +145,20 @@ export HERE check scratch dialect REF_BIN
 export -f parity_run parity_args parity_copy parity_is_control record do_case
 
 status=0
-if ! printf '%s\0' "$HERE/$dialect/cases"/*/ | xargs -0 -n1 -P "$jobs" bash -c 'set -euo pipefail; do_case "$1"' _; then
-  echo "gen.sh: a worker failed while running the $dialect cases" >&2
+# A failing worker leaves $scratch/NAME.failed naming its case.
+printf '%s\0' "$HERE/$dialect/cases"/*/ |
+  xargs -0 -n1 -P "$jobs" bash -c 'set -euo pipefail; trap "[ \$? -eq 0 ] || echo failed >\"$scratch/\$(basename \"\$1\").failed\"" EXIT; do_case "$1"' _ &
+xpid=$!
+if ! wait "$xpid"; then
   status=1
+  echo "gen.sh: a worker failed while running the $dialect cases" >&2
+  for failed in "$scratch"/*.failed; do
+    [ -e "$failed" ] || continue
+    name="$(basename "$failed" .failed)"
+    echo "gen.sh: case $name failed" >&2
+  done
 fi
+xpid=""
 
 if [ "$check" = 1 ]; then
   for report in "$scratch"/*.report; do
