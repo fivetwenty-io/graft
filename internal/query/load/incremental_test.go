@@ -177,3 +177,14 @@ func TestIncrementalMatchesWholeOnShuffledLines(t *testing.T) {
 		}
 	}
 }
+
+// TestIncrementalErrorWithoutLineStaysWithoutOne checks that an error the
+// parser gives no line for does not gain the line where its chunk began.
+func TestIncrementalErrorWithoutLineStaysWithoutOne(t *testing.T) {
+	text := "a: 1\n---\nb: 2\nc: *x\n"
+	whole, inc := readAll(text, false, false), readAll(text, true, false)
+	wantErr := whole[strings.Index(whole, "error: "):]
+	if gotErr := inc[strings.Index(inc, "error: "):]; gotErr != wantErr {
+		t.Errorf("incremental error = %q, want %q", gotErr, wantErr)
+	}
+}

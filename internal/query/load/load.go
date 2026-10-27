@@ -287,7 +287,11 @@ func (r *Reader) yamlError(err error) error { return r.yamlErrorAt(err, 0) }
 func (r *Reader) yamlErrorAt(err error, by int) error {
 	var pe *yamlnode.ParseError
 	if errors.As(err, &pe) {
-		return &SyntaxError{Source: r.src.Name, Line: pe.Line + by, Msg: pe.Message}
+		line := pe.Line
+		if line > 0 {
+			line += by
+		}
+		return &SyntaxError{Source: r.src.Name, Line: line, Msg: pe.Message}
 	}
 	return err
 }
