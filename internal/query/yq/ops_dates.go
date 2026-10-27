@@ -2,6 +2,7 @@ package yq
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"time"
 	_ "time/tzdata" // zone names resolve on a host with no zoneinfo
@@ -16,8 +17,9 @@ import (
 // timestampTag is the tag of a time the date operators write.
 const timestampTag = "!!timestamp"
 
-// secondsLimit is 2^63, the bound of the int64 seconds time.Unix takes.
-const secondsLimit = 1 << 63
+// millisLimit is 2^63, the bound of the int64 milliseconds a time is read
+// from. A number of seconds past it saturates to the last time there is.
+const millisLimit = 1 << 63
 
 // dateOnly is the layout parseDateTime tries when a time does not read in
 // the layout in force.
@@ -172,7 +174,8 @@ func formatDatetime(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emi
 }
 
 // fromUnix writes the time a number of seconds since the epoch is, in the
-// local zone. Like now, it writes the default layout whatever with_dtf sets.
+// local zone, read as milliseconds as yq reads it, so a number past the
+// last time there is gives that time. Like now, it writes the default layout whatever with_dtf sets.
 func fromUnix(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 	if in.Kind() != value.KindNumber {
 		return &query.RuntimeError{Msg: "from_unix only works on numbers, found " + tagOf(in) + " instead"}
@@ -181,10 +184,14 @@ func fromUnix(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.E
 	if err != nil {
 		return &query.RuntimeError{Msg: err.Error()}
 	}
-	if f < -secondsLimit || f >= secondsLimit {
-		return &query.RuntimeError{Msg: "from_unix: " + nodeText(in) + " is outside the range of int64 seconds"}
+	ms := int64(math.MaxInt64)
+	switch scaled := f * 1000; {
+	case scaled <= -millisLimit:
+		ms = math.MinInt64
+	case scaled < millisLimit:
+		ms = int64(scaled)
 	}
-	return emit(timestamp(time.Unix(int64(f), 0).Format(time.RFC3339)), nil)
+	return emit(timestamp(time.UnixMilli(ms).Format(time.RFC3339)), nil)
 }
 
 // toUnix is a time's seconds since the epoch.

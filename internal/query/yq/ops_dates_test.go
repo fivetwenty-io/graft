@@ -205,9 +205,10 @@ func TestYQTagOfTimestamps(t *testing.T) {
 func TestYQFromUnixRange(t *testing.T) {
 	inLocal(t, "UTC")
 	wantYQ(t, `.a | from_unix`, "a: 253402300800\n", "10000-01-01T00:00:00Z\n")
-	wantYQError(t, `.a | from_unix`, "a: 1e30\n", "from_unix: 1e30 is outside the range of int64 seconds")
-	wantYQError(t, `.a | from_unix`, "a: -1e30\n", "from_unix: -1e30 is outside the range of int64 seconds")
-	wantYQError(t, `.a | from_unix`, "a: 1e19\n", "from_unix: 1e19 is outside the range of int64 seconds")
+	wantYQ(t, `.a | from_unix`, "a: 1e30\n", "292278994-08-17T07:12:55Z\n")
+	wantYQ(t, `.a | from_unix`, "a: -1e30\n", "-292275055-05-16T16:47:04Z\n")
+	wantYQ(t, `.a | from_unix`, "a: 1e19\n", "292278994-08-17T07:12:55Z\n")
+	wantYQ(t, `.a | from_unix`, "a: 100000000000000000\n", "292278994-08-17T07:12:55Z\n")
 	wantYQError(t, `.a | from_unix`, "a: .nan\n", `strconv.ParseFloat: parsing ".nan": invalid syntax`)
 	wantYQError(t, `.a | from_unix`, "a: .inf\n", `strconv.ParseFloat: parsing ".inf": invalid syntax`)
 }
