@@ -172,7 +172,7 @@ For detailed installation instructions, see the [Installation Guide](docs/gettin
 
 ## Go packages
 
-The jq and yq engines are importable too. `pkg/jq` compiles and runs jq programs, `pkg/yq` does the same for yq expressions while keeping the comments, styles, anchors, and tags of the YAML it reads, `pkg/query/value` holds the values they read and produce, and `pkg/query` holds the errors a run can end with. The regular expression engine lives in `pkg/regex`, exact decimal arithmetic in `pkg/decimal`, and key ordering in `pkg/sortkeys`. These packages are experimental until graft jq and graft yq are complete, so their exported names may still change between minor releases, and the changelog lists every such change.
+The jq and yq engines are importable too. `pkg/jq` compiles and runs jq programs, `pkg/yq` does the same for yq expressions while keeping the comments, styles, anchors, and tags of the YAML it reads, `pkg/query/value` holds the values they read and produce, and `pkg/query` holds the errors a run can end with. The regular expression engine lives in `pkg/regex`, exact decimal arithmetic in `pkg/decimal`, and key ordering in `pkg/sortkeys`. These packages are stable, so we keep their exported names compatible from release to release, as the module's v1 promise says.
 
 ```go
 q, _ := jq.Compile(`.items[] | select(.n > $min) | .name`, jq.WithArg("min", value.Num(1)))
