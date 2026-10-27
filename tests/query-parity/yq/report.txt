@@ -1,15 +1,12 @@
 # area total allowlisted passing percent
-operator 350 5 344 98
-flag 65 3 60 92
+operator 350 4 346 98
+flag 65 1 64 98
 exit 30 0 30 100
 format 17 1 16 94
-meta 102 4 98 96
-cli 35 1 34 97
-overall 599 14 582 97
+meta 106 0 106 100
+cli 35 0 35 100
+overall 603 6 597 99
 out-of-scope 25
-allow c-multi-doc-comments-stripped pending Y2 Y1 behavior deferred to Task 47
-allow fl-colors-json pending Y2 yq color layout
-allow fl-colors-yaml pending Y2 yq color layout
 allow fl-security-enable-system departure no system operator
 allow fmt-base64-output out-of-scope format out of scope
 allow fmt-csv-decoder out-of-scope format out of scope
@@ -36,13 +33,8 @@ allow fmt-xml-decoder out-of-scope format out of scope
 allow fmt-xml-encoder out-of-scope format out of scope
 allow fmt-xml-input out-of-scope format out of scope
 allow fmt-xml-input-auto out-of-scope format out of scope
-allow m-comments-strip pending Y2 Y1 behavior deferred to Task 47
-allow m-head-comment-entry pending Y2 Y1 behavior deferred to Task 47
-allow m-key-update pending Y2 Y1 behavior deferred to Task 47
-allow m-style-double-keys pending Y2 Y1 behavior deferred to Task 47
 allow n-exact-decimal-arithmetic departure exact decimal
 allow n-exact-integer-widening departure exact decimal
 allow n-yaml-special-numbers departure yaml special numbers
 allow o-output-xml out-of-scope format out of scope
-allow op-date-from-unix-out-of-range pending Y2 graft prints a far-future year in local time where yq saturates to 292278994 in Z
 allow op-regex-pcre-syntax departure the yq dialect compiles regex as PCRE by ruling
