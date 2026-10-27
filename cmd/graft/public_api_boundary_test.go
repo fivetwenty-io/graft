@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -66,13 +67,26 @@ func TestCLIUsesOnlyPublicPackages(t *testing.T) {
 	}
 }
 
+var (
+	sourceImporterOnce sync.Once
+	sourceImporterMu   sync.Mutex
+	sourceImporter     types.Importer
+)
+
 // typeCheck loads the package at the import path with go/types, from
-// source, so the check needs no compiled export data.
+// source, so the check needs no compiled export data. Every call shares one
+// source importer, which keeps the packages it has already checked, so the
+// standard library and the module's dependencies are parsed and checked once
+// per test run and not once per call. The importer is not safe for concurrent
+// use, so a mutex guards it.
 func typeCheck(t *testing.T, path string) *types.Package {
 	t.Helper()
-	fset := token.NewFileSet()
-	imp := importer.ForCompiler(fset, "source", nil)
-	pkg, err := imp.Import(path)
+	sourceImporterOnce.Do(func() {
+		sourceImporter = importer.ForCompiler(token.NewFileSet(), "source", nil)
+	})
+	sourceImporterMu.Lock()
+	defer sourceImporterMu.Unlock()
+	pkg, err := sourceImporter.Import(path)
 	if err != nil {
 		t.Fatalf("type-checking %s: %v", path, err)
 	}
