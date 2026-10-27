@@ -22,8 +22,13 @@ type EncodeOptions struct {
 	// spaces, and which YAML clamps to its minimum of two.
 	Indent int
 	// Colors writes JSON in color, as -C does. A YAML Encoder does not
-	// color its output yet.
+	// color its output on its own, and takes the painters below.
 	Colors bool
+	// PaintLeading and PaintBody color YAML output, each given the text of
+	// a document's leading comments or of its value and returning it
+	// colored. Neither applies to JSON.
+	PaintLeading func(string) string
+	PaintBody    func(string) string
 	// UnwrapScalar writes a top-level string as its bare text, as -r
 	// does, which is yq's default at the command line.
 	UnwrapScalar bool
@@ -77,6 +82,8 @@ func NewEncoder(w io.Writer, opts EncodeOptions) *Encoder {
 			SortKeys:         opts.SortKeys,
 			GoFloats:         opts.FloatNumbers,
 			CompactSeqIndent: opts.CompactSeqIndent,
+			PaintLeading:     opts.PaintLeading,
+			PaintBody:        opts.PaintBody,
 		}),
 		pretty: opts.PrettyPrint,
 	}

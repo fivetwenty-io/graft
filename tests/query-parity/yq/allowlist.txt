@@ -8,8 +8,6 @@ n-exact-decimal-arithmetic departure exact decimal
 n-exact-integer-widening departure exact decimal
 n-yaml-special-numbers departure yaml special numbers
 op-regex-pcre-syntax departure the yq dialect compiles regex as PCRE by ruling
-fl-colors-json pending Y2 yq color layout
-fl-colors-yaml pending Y2 yq color layout
 op-date-from-unix-out-of-range pending Y2 graft prints a far-future year in local time where yq saturates to 292278994 in Z
 fmt-base64-output out-of-scope format out of scope
 fmt-csv-decoder out-of-scope format out of scope

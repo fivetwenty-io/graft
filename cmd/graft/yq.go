@@ -173,27 +173,24 @@ func yqUnwrap(opts yqOptions, format yq.Format) bool {
 	return false
 }
 
-// yqOutput writes each output value the way yq prints it, coloring YAML
-// through graft's YAML colorizer when color is on, and ending each value
-// with a NUL under -0.
+// yqOutput writes each output value the way yq prints it, coloring it when
+// color is on, and ending each value with a NUL under -0.
 type yqOutput struct {
-	enc    *yq.Encoder
-	buf    *bytes.Buffer // the encoder's target when a value is post-processed
-	out    io.Writer
-	nul    bool
-	eo     yq.EncodeOptions
-	split  func(doc yq.Document, v *value.Value) (io.WriteCloser, error)
-	sink   *splitSink // where the encoder writes under split
-	last   string     // the split file written last
-	styler debugStyler
-	color  bool
+	enc       *yq.Encoder
+	buf       *bytes.Buffer // the encoder's target when a value is post-processed
+	out       io.Writer
+	nul       bool
+	eo        yq.EncodeOptions
+	split     func(doc yq.Document, v *value.Value) (io.WriteCloser, error)
+	sink      *splitSink // where the encoder writes under split
+	last      string     // the split file written last
+	colorJSON bool       // JSON is colored after it is written
 }
 
 func newYQOutput(opts yqOptions, format yq.Format, out io.Writer, color bool) *yqOutput {
 	eo := yq.EncodeOptions{
 		Format:           format,
 		Indent:           yqIndent(opts, format),
-		Colors:           color && format == yq.FormatJSON,
 		UnwrapScalar:     yqUnwrap(opts, format),
 		NoDocSeparators:  opts.NoDoc,
 		PrettyPrint:      opts.PrettyPrint,
@@ -201,14 +198,14 @@ func newYQOutput(opts yqOptions, format yq.Format, out io.Writer, color bool) *y
 		SortKeys:         opts.SortKeys,
 		FloatNumbers:     opts.FloatNumbers,
 	}
-	o := &yqOutput{out: out, nul: opts.NulOutput, eo: eo}
-	if opts.NulOutput || (color && format == yq.FormatYAML) {
+	colorJSON := color && format == yq.FormatJSON
+	if color && format == yq.FormatYAML {
+		eo.PaintLeading, eo.PaintBody = yqColorLeading, yqColorize
+	}
+	o := &yqOutput{out: out, nul: opts.NulOutput, eo: eo, colorJSON: colorJSON}
+	if opts.NulOutput || colorJSON {
 		o.buf = &bytes.Buffer{}
 		o.enc = yq.NewEncoder(o.buf, eo)
-		if color && format == yq.FormatYAML {
-			o.color = true
-			o.styler = debugStyler{theme: resolveDebugTheme(opts.Theme), enabled: true}
-		}
 		return o
 	}
 	o.enc = yq.NewEncoder(out, eo)
@@ -229,8 +226,8 @@ func (o *yqOutput) write(v *value.Value) error {
 		return err
 	}
 	text := o.buf.Bytes()
-	if o.color {
-		text = colorizeYAML(text, o.styler)
+	if o.colorJSON && !(o.eo.UnwrapScalar && isScalarValue(v)) {
+		text = []byte(yqColorize(string(text)))
 	}
 	if o.nul {
 		text = append(bytes.TrimSuffix(slices.Clone(text), []byte("\n")), 0)
@@ -238,6 +235,11 @@ func (o *yqOutput) write(v *value.Value) error {
 	_, err := o.out.Write(text)
 	o.buf.Reset()
 	return err
+}
+
+// isScalarValue reports whether v is neither an array nor an object.
+func isScalarValue(v *value.Value) bool {
+	return v == nil || (v.Kind() != value.KindArray && v.Kind() != value.KindObject)
 }
 
 func (o *yqOutput) flush() error { return o.enc.Flush() }

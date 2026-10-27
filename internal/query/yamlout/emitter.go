@@ -41,6 +41,11 @@ type Options struct {
 	SortKeys         sortkeys.Mode
 	CompactSeqIndent bool // a sequence under a mapping key is not indented
 	NUL              bool // end each document with a NUL in place of its last line break
+	// PaintLeading and PaintBody color a document's leading content and
+	// the text of its value, each as the text of the whole of its part.
+	// A bare scalar is not passed to PaintBody, since yq prints it plain.
+	PaintLeading func(string) string
+	PaintBody    func(string) string
 }
 
 // Encoder writes values as YAML documents. WriteDocument also writes the
@@ -124,6 +129,7 @@ func (e *emitter) Write(v *value.Value) error {
 	e.docs++
 	e.buf.Reset()
 	e.encode(e.sorted(v), "")
+	e.paint(0, v)
 	return e.finish(sep)
 }
 
@@ -148,9 +154,11 @@ func (e *emitter) WriteDocument(d load.Document, v *value.Value) error {
 	e.docs++
 	e.buf.Reset()
 	writeLeadingContent(&e.buf, d.LeadingContent, separators)
+	leadingLen := e.buf.Len()
 	e.laterDoc = d.DocIndex > 0
 	e.encode(e.sorted(v), d.LeadingContent)
 	e.laterDoc = false
+	e.paint(leadingLen, v)
 	return e.finish(sep)
 }
 
@@ -159,6 +167,25 @@ func (e *emitter) sorted(v *value.Value) *value.Value {
 		return sortkeys.Sort(v, e.o.SortKeys)
 	}
 	return v
+}
+
+// paint colors the document in e.buf, whose first leadingLen bytes are
+// its leading content and the rest its value.
+func (e *emitter) paint(leadingLen int, v *value.Value) {
+	if e.o.PaintLeading == nil && e.o.PaintBody == nil {
+		return
+	}
+	text := e.buf.String()
+	leading, body := text[:leadingLen], text[leadingLen:]
+	if e.o.PaintLeading != nil {
+		leading = e.o.PaintLeading(leading)
+	}
+	if e.o.PaintBody != nil && !(e.o.UnwrapScalar && kindOf(v) == scalarNode) {
+		body = e.o.PaintBody(body)
+	}
+	e.buf.Reset()
+	e.buf.WriteString(leading)
+	e.buf.WriteString(body)
 }
 
 // finish writes the document in e.buf, after a separator when sep is set.
