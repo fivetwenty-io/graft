@@ -784,6 +784,10 @@
   area: meta
   phase: Y1
   cases: [m-is-key]
+- id: m-key-assign-array-index
+  area: meta
+  phase: Y1
+  cases: [m-key-assign-array-index]
 - id: m-key-none
   area: meta
   phase: Y1
@@ -800,6 +804,14 @@
   area: meta
   phase: Y1
   cases: [m-key-update]
+- id: m-key-update-array-indices
+  area: meta
+  phase: Y1
+  cases: [m-key-update-array-indices]
+- id: m-key-update-recursive
+  area: meta
+  phase: Y1
+  cases: [m-key-update-recursive]
 - id: m-leading-separator
   area: meta
   phase: Y1

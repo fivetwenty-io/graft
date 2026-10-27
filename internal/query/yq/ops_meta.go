@@ -359,7 +359,8 @@ func sameScalarKind(a, b string) bool {
 }
 
 // nodeAt returns the node at p, which for a path ending in KeyMark is the
-// map key itself.
+// map key itself. An array index has no key node to change, so it is read
+// as itself and setNodeAt leaves it alone.
 func nodeAt(ed *builtin.Editor, p value.Path) (*value.Value, error) {
 	if n := len(p); n > 1 && p[n-1] == runtime.KeyMark {
 		m, err := ed.Get(p[:n-2])
@@ -369,7 +370,7 @@ func nodeAt(ed *builtin.Editor, p value.Path) (*value.Value, error) {
 		if i, ok := entryAt(m, p[n-2]); ok {
 			return m.Entries()[i].Key, nil
 		}
-		return nil, &query.RuntimeError{Msg: "cannot find the key " + nodeText(p[n-2])}
+		return p[n-2], nil
 	}
 	return ed.Get(p)
 }
