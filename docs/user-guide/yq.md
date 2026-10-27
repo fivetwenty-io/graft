@@ -296,7 +296,19 @@ These are the places where `graft yq` deliberately differs from yq 4.54.1.
 
 ## Compatibility
 
-We measure compatibility against a coverage inventory of yq behaviors, where each entry passes when every differential case it names matches a golden recorded from the real yq 4.54.1. The yq report, `tests/query-parity/yq/report.txt`, has not been generated at the commit this page describes, so we publish no percentages for yq yet. The page will carry them, each with the phase it was measured in, once the report exists.
+We measure compatibility against a coverage inventory of yq behaviors. Each entry passes when every differential case it names matches a golden recorded from the real yq 4.54.1. The percentages below come from `tests/query-parity/yq/report.txt`, and each one was measured at the end of phase Y2, which is the release this page describes. The last column says whether we expect the figure to change.
+
+| Area | Passing | Phase measured | Expected to rise |
+|------|---------|----------------|------------------|
+| Operators | 98% | Y2 | Stays where it is, because the missing cases are deliberate departures |
+| Flags | 98% | Y2 | Stays where it is, because the missing case is a deliberate departure |
+| Exit codes | 100% | Y2 | No, it is already complete |
+| Formats | 94% | Y2 | Stays where it is, because the missing case is a deliberate departure |
+| Meta | 99% | Y2 | Stays where it is, because the missing case is a deliberate departure |
+| CLI | 100% | Y2 | No, it is already complete |
+| Overall | 98% | Y2 | Stays where it is, because the missing cases are deliberate departures |
+
+Phase Y2 brings the operators, the YAML loader, the comments and styles, and the merge keys up to yq's behavior. The rows that stay below 100 percent hold the departures described above, namely exact decimal arithmetic, the special number spellings, the PCRE regular expression dialect, the missing `system` operator, and anchors that are names rather than pointers. The 25 entries for formats other than YAML and JSON, such as XML, CSV, and TOML, are out of scope, so they count toward neither the percentages nor the departure cap. The `pkg/yq` package is now stable, so we will keep its public interface compatible from here on.
 
 ## Related
 
