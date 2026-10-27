@@ -29,6 +29,8 @@ $ graft jq -o yaml '.items' config.yml
 
 Every input file may be JSON or YAML, because JSON is a subset of YAML and graft users live in YAML. A file that holds several YAML documents separated by `---` is read as several inputs, so the program runs once for each document, just as it does for a stream of JSON values.
 
+The `graft jq` command reads a whole YAML input stream before it prints its first output, so it does not suit an endless YAML stream on standard input. JSON input is read value by value and does not have this limit, and `graft yq` reads YAML one document at a time.
+
 With `--input-format auto`, which is the default, graft looks at the first token and commits to JSON or to YAML without trying the other. That means a YAML flow mapping such as `{a: 1}` is read as JSON and fails, because its key is not a string. We pin the reading with `--input-format yaml` for that case, and with `--input-format json` when we want strict JSON errors.
 
 ```sh
