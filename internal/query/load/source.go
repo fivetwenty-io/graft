@@ -41,6 +41,10 @@ type LoadOptions struct {
 	// them off as leading content.
 	NodeComments bool
 	StringKeys   bool
+	// Incremental reads a YAML source under KeepMeta a chunk at a time, so
+	// a document is yielded once the next one begins instead of once the
+	// source ends.
+	Incremental bool
 	// FloatNumbers reads each number of a JSON source as the float64
 	// yq's decoder reads, so 1.0 becomes 1 and 1e3 becomes 1000.
 	FloatNumbers bool

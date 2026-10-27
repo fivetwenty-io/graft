@@ -77,7 +77,7 @@ func NewDecoder(r io.Reader, opts DecodeOptions) *Decoder {
 	if opts.FrontMatter != "" {
 		r = &frontMatterReader{src: r}
 	}
-	lo := load.LoadOptions{Format: load.FormatYAML, KeepMeta: true, NodeComments: opts.NoHeaderPreprocess}
+	lo := load.LoadOptions{Format: load.FormatYAML, KeepMeta: true, NodeComments: opts.NoHeaderPreprocess, Incremental: true}
 	if opts.Format == FormatJSON {
 		lo.Format = load.FormatJSON
 		lo.FloatNumbers = true

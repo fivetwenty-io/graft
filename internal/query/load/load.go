@@ -26,6 +26,9 @@ type Reader struct {
 	json    *JSONReader
 	raw     bool
 	docs    []*yamlnode.Node
+	inc     *incremental // set when the source is read a chunk at a time
+	nulled  bool
+	yielded int // how many YAML documents the reader has yielded
 	leading string
 	// leadLines is how many lines the leading content took, which yq
 	// leaves out when it counts a node's line.
@@ -239,6 +242,9 @@ func (r *Reader) start() error {
 // startYAML reads the whole source and parses it as YAML, keeping the
 // leading content yq would when the options ask for metadata.
 func (r *Reader) startYAML() error {
+	if r.opts.Incremental && r.opts.KeepMeta {
+		return r.startIncremental()
+	}
 	data, err := io.ReadAll(r.br)
 	if err != nil {
 		return err
@@ -247,41 +253,61 @@ func (r *Reader) startYAML() error {
 	if len(data) > 0 && data[len(data)-1] != '\n' {
 		r.lines++
 	}
-	var parse yamlnode.ParseOptions
-	if r.opts.KeepMeta {
-		// yq reads every input yaml.v3 does.
-		parse = yamlnode.ParseOptions{CollectionKeys: true, EmptyKeepBlocks: true}
-		if !r.opts.NodeComments {
-			r.leading, data, r.leadLines = splitLeadingContent(data)
-		}
+	if r.opts.KeepMeta && !r.opts.NodeComments {
+		r.leading, data, r.leadLines = splitLeadingContent(data)
 	}
-	r.docs, err = yamlnode.ParseWith(data, parse)
+	r.docs, err = yamlnode.ParseWith(data, r.parseOptions())
 	if err != nil {
 		return r.yamlError(err)
 	}
 	if len(r.docs) == 0 && r.leading != "" {
 		// yq reads a source that holds only leading content as one null
 		// document carrying it.
-		null := &yamlnode.Node{Kind: yamlnode.ScalarNode, Tag: yamlnode.TagNull, Line: 1, Column: 1}
-		r.docs = []*yamlnode.Node{{Kind: yamlnode.DocumentNode, Line: 1, Column: 1, Content: []*yamlnode.Node{null}}}
+		r.docs = []*yamlnode.Node{nullDocument()}
 	}
 	return nil
 }
 
-func (r *Reader) yamlError(err error) error {
+// parseOptions is how the reader's YAML is parsed, which under KeepMeta is
+// the way yq reads every input yaml.v3 does.
+func (r *Reader) parseOptions() yamlnode.ParseOptions {
+	if r.opts.KeepMeta {
+		po := yamlnode.ParseOptions{CollectionKeys: true, EmptyKeepBlocks: true}
+		if r.inc != nil {
+			po.Anchors = r.inc.anchors
+		}
+		return po
+	}
+	return yamlnode.ParseOptions{}
+}
+
+func (r *Reader) yamlError(err error) error { return r.yamlErrorAt(err, 0) }
+
+// yamlErrorAt is yamlError for text that began after the first by lines.
+func (r *Reader) yamlErrorAt(err error, by int) error {
 	var pe *yamlnode.ParseError
 	if errors.As(err, &pe) {
-		return &SyntaxError{Source: r.src.Name, Line: pe.Line, Msg: pe.Message}
+		return &SyntaxError{Source: r.src.Name, Line: pe.Line + by, Msg: pe.Message}
 	}
 	return err
 }
 
 func (r *Reader) nextYAML() (Document, error) {
 	if r.next >= len(r.docs) {
-		return Document{}, io.EOF
+		if r.inc == nil {
+			return Document{}, io.EOF
+		}
+		if err := r.loadChunk(); err != nil {
+			return Document{}, err
+		}
 	}
 	n := r.docs[r.next]
 	r.next++
+	first := r.yielded == 0
+	r.yielded++
+	if r.inc != nil {
+		r.inc.total++
+	}
 	fo := FromNodeOptions{KeepMeta: r.opts.KeepMeta, StringKeys: r.opts.StringKeys, AliasBudget: r.opts.AliasBudget, DepthLimit: r.opts.DepthLimit}
 	v, anchors, err := convertDocument(n, fo, docSite{docIndex: r.docIndex, fileIndex: r.fileIndex, filename: r.src.Name, lineShift: r.leadLines})
 	if err != nil {
@@ -298,7 +324,7 @@ func (r *Reader) nextYAML() (Document, error) {
 	d := Document{Line: line, Value: v, Anchors: anchors}
 	switch {
 	case !r.opts.KeepMeta:
-	case r.next == 1:
+	case first:
 		d.LeadingContent = r.leading
 	default:
 		// Every document after the first starts with a "---".

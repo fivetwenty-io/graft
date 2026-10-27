@@ -222,14 +222,14 @@ func (o *yqOutput) write(v *value.Value) error {
 	if err := o.enc.Encode(v); err != nil {
 		return err
 	}
-	if o.buf == nil {
-		return nil
-	}
 	if err := o.enc.Flush(); err != nil {
 		return err
 	}
+	if o.buf == nil {
+		return nil
+	}
 	text := o.buf.Bytes()
-	if o.colorJSON && !(o.eo.UnwrapScalar && isScalarValue(v)) {
+	if o.colorJSON && (!o.eo.UnwrapScalar || !isScalarValue(v)) {
 		text = []byte(yqColorize(string(text)))
 	}
 	if o.nul {

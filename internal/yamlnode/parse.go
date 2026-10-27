@@ -54,9 +54,15 @@ type ParseOptions struct {
 	// indicator whose lines are all blank, or that has none, before a
 	// less indented line, such as "a: |+" followed by "b: 1".
 	EmptyKeepBlocks bool
+	// Anchors, when set, holds the anchors the parse defines and the ones
+	// it may refer to, so that a stream read in pieces keeps its anchors
+	// across them, as yaml.v3 does across documents.
+	Anchors map[string]*Node
 }
 
 // ParseWith is Parse with opts.
+//
+//nolint:gocyclo // the stages of one parse, in order
 func ParseWith(data []byte, opts ParseOptions) (docs []*Node, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -72,6 +78,9 @@ func ParseWith(data []byte, opts ParseOptions) (docs []*Node, err error) {
 	text, addedNewline := streamText(prepared)
 	b := newBuilder(nulled)
 	b.opts = opts
+	if opts.Anchors != nil {
+		b.anchors = opts.Anchors
+	}
 	b.keepSourceLines(normalized, prepared, text)
 
 	// The probe's text differs from Parse's only where the bare-dash or
