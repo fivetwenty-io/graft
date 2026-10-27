@@ -274,12 +274,18 @@ func runAliasParity(t *testing.T, dialect string) {
 	}
 }
 
-// casesFiltered reports whether -run or -skip narrows which subtests run, in
-// which case fewer cases than case directories is expected and not a dropped
-// case.
+// casesFiltered reports whether -run or -skip names a subtest, in which case
+// fewer cases than case directories is expected and not a dropped case. A
+// pattern that only picks this test, as in -run TestAliasParity, leaves every
+// case in play. The slash separates the levels of the pattern, so any text
+// after the first slash is a subtest pattern.
 func casesFiltered() bool {
 	for _, name := range []string{"test.run", "test.skip"} {
-		if f := flag.Lookup(name); f != nil && f.Value.String() != "" {
+		f := flag.Lookup(name)
+		if f == nil {
+			continue
+		}
+		if _, sub, ok := strings.Cut(f.Value.String(), "/"); ok && sub != "" {
 			return true
 		}
 	}
