@@ -864,6 +864,10 @@
   area: meta
   phase: Y1
   cases: [m-merge-key-list-splat]
+- id: m-merge-key-map-values-json
+  area: meta
+  phase: Y1
+  cases: [m-merge-key-map-values-json]
 - id: m-merge-key-override
   area: meta
   phase: Y1

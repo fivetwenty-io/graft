@@ -1,0 +1,5 @@
+-o
+json
+-I=0
+.d1 | map_values(. + 1)
+in.yaml

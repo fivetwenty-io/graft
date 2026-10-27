@@ -4,6 +4,7 @@
 # json, and counts toward neither the pass ratio nor the departure cap.
 fl-security-enable-system departure no system operator
 fmt-json-special-numbers departure yaml special numbers ruling extended to json output
+m-merge-key-map-values-json departure spec-deliberate: anchors are names, not pointers, so a change through a lent merge entry leaves the anchor alone
 n-exact-decimal-arithmetic departure exact decimal
 n-exact-integer-widening departure exact decimal
 n-yaml-special-numbers departure yaml special numbers
