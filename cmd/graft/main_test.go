@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -2266,20 +2267,32 @@ params:
 				mux.Handle("/assets/",
 					http.StripPrefix("/assets/",
 						http.FileServer(http.Dir("../../assets/"))))
-				srv := &http.Server{Addr: ":31337", Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+				srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 				defer func() {
 					if srv != nil {
 						_ = srv.Shutdown(context.Background())
 					}
 				}()
 
+				lc := net.ListenConfig{}
+				ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+				So(err, ShouldBeNil)
 				go func() {
-					_ = srv.ListenAndServe()
+					_ = srv.Serve(ln)
 				}()
-				time.Sleep(1 * time.Second)
+
+				base := filepath.Join(os.TempDir(), fmt.Sprintf("graft-base-remote-%d.yml", os.Getpid()))
+				defer func() { _ = os.Remove(base) }()
+				So(os.WriteFile(base, []byte(fmt.Sprintf(`---
+yet:
+  another:
+    yaml:
+      structure:
+        load: (( load "http://%s/assets/load/list.yml" ))
+`, ln.Addr())), 0o600), ShouldBeNil)
 
 				Convey("The remote data should be loaded and inserted", func() {
-					os.Args = []string{"graft", "merge", "../../assets/load/base-remote.yml"}
+					os.Args = []string{"graft", "merge", base}
 					stdout = ""
 					stderr = ""
 					main()
