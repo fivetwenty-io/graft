@@ -808,6 +808,10 @@
   area: meta
   phase: Y1
   cases: [m-key-update-array-indices]
+- id: m-key-update-nested
+  area: meta
+  phase: Y1
+  cases: [m-key-update-nested]
 - id: m-key-update-recursive
   area: meta
   phase: Y1

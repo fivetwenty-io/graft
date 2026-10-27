@@ -1,0 +1,2 @@
+((.a.b | key), (.a | key)) |= "x"
+in.yaml

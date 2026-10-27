@@ -389,6 +389,13 @@ func keysLast(paths []value.Path) []value.Path {
 	return append(values, keys...)
 }
 
+// reversed returns paths last to first.
+func reversed(paths []value.Path) []value.Path {
+	out := slices.Clone(paths)
+	slices.Reverse(out)
+	return out
+}
+
 func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], prefs assignPrefs) (*value.Value, error) {
 	ed := builtin.NewEditor(ctx, root)
 	var first *value.Value
@@ -397,8 +404,7 @@ func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cu
 		first, ferr = v, err
 		return false
 	}
-	for i := len(paths) - 1; i >= 0; i-- {
-		p := paths[i]
+	for _, p := range keysLast(reversed(paths)) {
 		cur, err := nodeAt(ed, p)
 		if err != nil {
 			return nil, err
