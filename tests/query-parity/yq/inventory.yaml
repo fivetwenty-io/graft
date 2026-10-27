@@ -596,10 +596,18 @@
   area: flag
   phase: Y1
   cases: [i-null-input-construct]
+- id: m-alias-arith-keeps-alias
+  area: meta
+  phase: Y1
+  cases: [m-alias-arith-keeps-alias]
 - id: m-alias-get
   area: meta
   phase: Y1
   cases: [m-alias-get]
+- id: m-alias-json-output
+  area: meta
+  phase: Y1
+  cases: [m-alias-json-output]
 - id: m-alias-set
   area: meta
   phase: Y1
@@ -844,6 +852,10 @@
   area: meta
   phase: Y1
   cases: [m-line-root]
+- id: m-merge-key-json-output
+  area: meta
+  phase: Y1
+  cases: [m-merge-key-json-output]
 - id: m-merge-key-list
   area: meta
   phase: Y1
@@ -872,6 +884,10 @@
   area: meta
   phase: Y1
   cases: [m-merge-key-traverse]
+- id: m-merge-key-with-entries
+  area: meta
+  phase: Y1
+  cases: [m-merge-key-with-entries]
 - id: m-merge-with-merge-keys
   area: meta
   phase: Y1

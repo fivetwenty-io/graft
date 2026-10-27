@@ -24,6 +24,7 @@ type Config struct {
 	stderr      io.Writer
 	stderrSet   bool
 	regexBudget regex.Budget
+	resolve     bool
 }
 
 // defaultConfig is the configuration of a bare yq run with no flags.
@@ -141,6 +142,16 @@ func WithMergeAnchorFix(enabled bool) Option {
 func WithStderr(w io.Writer) Option {
 	return func(c *Config) error {
 		c.stderr, c.stderrSet = w, true
+		return nil
+	}
+}
+
+// WithResolvedAliases makes every output read as it does in a format with
+// no aliases. Each alias is replaced by the node its anchor marks, and
+// each merge key is folded into its map. It is what JSON output needs.
+func WithResolvedAliases() Option {
+	return func(c *Config) error {
+		c.resolve = true
 		return nil
 	}
 }

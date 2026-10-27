@@ -258,3 +258,40 @@ func keyText(key *value.Value) string {
 	}
 	return key.Str()
 }
+
+// Resolver returns the function that reads an output of a run as a format
+// with no aliases does, with every alias replaced by the node its anchor
+// marks and every merge key folded into its map. root is the document the
+// output belongs to, whose anchors the aliases name. The function keeps
+// the anchors of the last root it was given, since the outputs of one
+// document all ask for the same ones.
+func (d *Dialect) Resolver(stderr io.Writer) func(root, v *value.Value) (*value.Value, error) {
+	var (
+		last *value.Value
+		x    *exploder
+	)
+	return func(root, v *value.Value) (*value.Value, error) {
+		if v == nil {
+			return v, nil
+		}
+		if root != last || x == nil {
+			// Reading the whole document only learns its anchors, so
+			// it is silent about the merge keys it folds.
+			x = &exploder{anchors: map[string]*value.Value{}, toSpec: d.opts.MergeAnchorToSpec}
+			last = root
+			if root != nil {
+				if _, err := x.node(root); err != nil {
+					return nil, err
+				}
+			}
+		}
+		if v == root {
+			y := &exploder{anchors: map[string]*value.Value{}, toSpec: d.opts.MergeAnchorToSpec, stderr: stderr}
+			return y.node(v)
+		}
+		x.stderr = stderr
+		out, err := x.node(v)
+		x.stderr = nil
+		return out, err
+	}
+}

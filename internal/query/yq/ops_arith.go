@@ -38,6 +38,12 @@ func registerArith(r *runtime.Registry) {
 						return numeric(ctx, base, op.sym, lv, rv, emit)
 					case op.sym != '*' && customNumbers(lv, rv):
 						return customArith(ctx, base, op.sym, lv, rv, emit)
+					case (op.sym == '+' || op.sym == '-') && isAlias(lv):
+						// An alias is not a node yq can add to or take
+						// from, so it stays as it is.
+						return emit(lv, lp)
+					case op.sym == '+' && isAlias(rv) && lv.Kind() != value.KindNull:
+						return &query.RuntimeError{Msg: tagOf(rv) + " (" + pathText(rp) + ") cannot be added to a " + tagOf(lv) + " (" + pathText(lp) + ")"}
 					case op.sym == '+' || op.sym == '-':
 						if v, ok, err := dateArith(ctx, lv, rv, op.sym == '-'); ok || err != nil {
 							if err != nil {

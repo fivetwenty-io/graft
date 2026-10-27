@@ -157,7 +157,17 @@ func (e *Evaluator) run(ctx context.Context, docs []load.Document) iter.Seq2[*va
 func (e *Evaluator) runWith(ctx context.Context, docs []load.Document, vars map[string]*value.Value) iter.Seq2[*value.Value, error] {
 	return func(yield func(*value.Value, error) bool) {
 		stopped := false
+		var resolve func(root, v *value.Value) (*value.Value, error)
+		if e.cfg.resolve {
+			resolve = e.dialect.Resolver(e.cfg.stderr)
+		}
 		err := yqdialect.RunNodeVars(e.dialect, e.node, docs, e.setup(ctx), vars, func(d load.Document, v *value.Value) error {
+			if resolve != nil {
+				var err error
+				if v, err = resolve(d.Value, v); err != nil {
+					return err
+				}
+			}
 			if stopped || !yield(stamp(d, v), nil) {
 				stopped = true
 				return errStopped

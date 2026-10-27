@@ -233,11 +233,10 @@ d3: {a: 0, <<: *b}
 
 	Convey("an update that cannot reach the lending map writes nothing", t, func() {
 		// yq changes the anchor here, which lies outside the value the
-		// update runs on. Graft leaves the lent entries alone and never
-		// invents keys with values read from a path that is not there.
+		// update runs on, so its JSON shows the lent entries changed.
+		// Graft leaves the lent entries as they were and never invents
+		// keys with values read from a path that is not there.
 		out, _, _ := runYQ(t, []string{"-o", "json", "-I0", ".d1 | map_values(. + 1)"}, mergeWriteDoc)
-		So(out, ShouldNotContainSubstring, `"p"`)
-		So(out, ShouldNotContainSubstring, `"q"`)
-		So(out, ShouldContainSubstring, `"a":1`)
+		So(out, ShouldEqual, `{"p":1,"q":2,"a":1}`+"\n")
 	})
 }

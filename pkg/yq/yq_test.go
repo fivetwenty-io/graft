@@ -314,3 +314,33 @@ func (p *parsed) mustCompile(t *testing.T, opts ...Option) *Evaluator {
 	}
 	return ev
 }
+
+func TestResolvedAliasesFoldMergeKeysAndAliases(t *testing.T) {
+	const in = "base: &b {x: 1}\nd:\n  <<: *b\n  z: 2\nf: *b\n"
+	dec := NewDecoder(bytes.NewBufferString(in), DecodeOptions{})
+	doc, err := dec.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		opts []Option
+		want string
+	}{
+		{nil, `{"d":{"<<":null,"z":2},"f":null}` + "\n"},
+		{[]Option{WithResolvedAliases()}, `{"d":{"x":1,"z":2},"f":{"x":1}}` + "\n"},
+	} {
+		out, err := collect(mustCompile(t, `{"d": .d, "f": .f}`, tc.opts...).Eval(context.Background(), doc))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var buf bytes.Buffer
+		enc := NewEncoder(&buf, EncodeOptions{Format: FormatJSON, Indent: -1})
+		if err := enc.Encode(out[0]); err != nil {
+			t.Fatal(err)
+		}
+		if err := enc.Flush(); err != nil {
+			t.Fatal(err)
+		}
+		wantEqual(t, buf.String(), tc.want)
+	}
+}

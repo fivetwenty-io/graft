@@ -1,0 +1,2 @@
+.d | with_entries(.value += 1)
+in.yaml

@@ -90,6 +90,9 @@ func yqCompileOptions(opts yqOptions, stderr io.Writer) []yq.Option {
 	if opts.FloatNumbers {
 		yqOpts = append(yqOpts, yq.WithFloatNumbers())
 	}
+	if yqOutputFormat(opts) == yq.FormatJSON {
+		yqOpts = append(yqOpts, yq.WithResolvedAliases())
+	}
 	return yqOpts
 }
 
