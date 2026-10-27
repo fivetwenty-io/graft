@@ -165,12 +165,12 @@ The table lists the flags that matter here, and `--color` and `--no-color` work 
 | `-E`, `--eval` | Resolve each input on its own first | Available |
 | `--prune KEY`, `--cherry-pick KEY` | With `-m` or `-E`, trim the result | Available |
 | `--repl` | Open the graft debugger on the files | Available |
-| `-c`, `--yaml-compact-seq-indent` | Compact sequence indentation | Inert |
+| `-c`, `--yaml-compact-seq-indent` | Compact sequence indentation | Available |
 | `--string-interpolation` | Interpolation in strings, on by default | Available, and `=false` leaves `\(` in a string as written |
 | `-f`, `--front-matter` | Run the expression over the front matter of the first file, see below | Available |
 | `-s`, `--split-exp`, `--split-exp-file` | Write each output to a file named by an expression, see below | Available |
 
-The inert flags do nothing today. `-c` leaves sequence indentation as it is. `--string-interpolation=false` and `--header-preprocess=false` are not inert. The first leaves `\(` in a string as written, and the second changes how a leading comment is handled, including the one `from_yaml` reads.
+Only `--security-enable-system-operator` is inert. The `-c` flag prints a sequence at the same column as its parent key, as yq does. The `--string-interpolation=false` flag leaves `\(` in a string as written, and `--header-preprocess=false` changes how a leading comment is handled, including the one `from_yaml` reads.
 
 The `-m` and `-E` flags also accept the feature flags `graft merge` reads, which are `--skip-eval`, `--fallback-append`, `--go-patch`, `--multi-doc`, `--skip-vault`, `--skip-aws`, and `--skip-nats`.
 
@@ -254,6 +254,9 @@ These are the places where `graft yq` deliberately differs from yq 4.54.1.
   $ graft yq -n '"xyz" | sub("(?<=y)z"; "Q")'
   xyQ
   ```
+
+- Line comment after an alias
+  A line comment after an alias, such as `b: *x # d`, is dropped when graft reads the file, where yq keeps it.
 
 - from_unix range
   `from_unix` fails on a value outside the range of int64 seconds, where yq saturates.

@@ -39,10 +39,8 @@ of double arithmetic.
 
 # Stability
 
-This package is experimental. Until the release that completes graft jq,
-its exported names may change between minor releases, and the changelog
-lists every such change. From that release on, the module's v1 promise
-applies, which is that we add exported names and never remove or change
-one. The package imports nothing outside the standard library.
+This package is stable. The module's v1 promise applies to it, which is
+that we add exported names and never remove or change one. The package
+imports nothing outside the standard library.
 */
 package decimal

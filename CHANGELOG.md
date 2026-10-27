@@ -11,9 +11,9 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 
 ### Added
 
-- The compatibility report for phase Y2 puts `graft yq` at 98 percent overall, with operators and flags at 98 percent, formats at 94 percent, meta at 99 percent, and exit codes and the command line at 100 percent. The seven entries that differ are deliberate departures that cover exact decimal arithmetic, the special number spellings, the PCRE regular expression dialect, the missing `system` operator, and anchors that stay names rather than pointers. The 25 entries for formats other than YAML and JSON are recorded as out of scope, so they count toward neither the percentage nor the departure cap. The `pkg/yq` package is now stable.
+- The compatibility report for phase Y2 puts `graft yq` at 98 percent overall, with operators and flags at 98 percent, formats at 94 percent, meta at 99 percent, and exit codes and the command line at 100 percent. The seven entries that differ are deliberate departures that cover exact decimal arithmetic, the special number spellings, the PCRE regular expression dialect, the missing `system` operator, and anchors that stay names rather than pointers. The 25 entries for formats other than YAML and JSON are recorded as out of scope, so they count toward neither the percentage nor the departure cap.
 
-- The compatibility report for phase J3 puts `graft jq` at 98 percent overall, and every area except numbers, dates, and math passes in full. The floor sits at 98 percent because the exact decimal departures hold the inventory to 98.1 percent at most. Regular expressions now take subroutine calls such as `\g<name>`, the absent operator `(?~...)`, and grapheme clusters with `\X`, and long matches such as `.*[xy]` finish in time that grows in line with the input. Input literals that jq refuses are refused too, and a chain of `setpath` calls no longer copies the object each time. Two entries that read YAML where jq reads strict JSON are recorded as deliberate departures that count toward neither the percentage nor the departure cap. The `pkg/regex` package is now stable.
+- The compatibility report for phase J3 puts `graft jq` at 98 percent overall, and every area except numbers, dates, and math passes in full. The floor sits at 98 percent because the exact decimal departures hold the inventory to 98.1 percent at most. Regular expressions now take subroutine calls such as `\g<name>`, the absent operator `(?~...)`, and grapheme clusters with `\X`, and long matches such as `.*[xy]` finish in time that grows in line with the input. Input literals that jq refuses are refused too, and a chain of `setpath` calls no longer copies the object each time. Two entries that read YAML where jq reads strict JSON are recorded as deliberate departures that count toward neither the percentage nor the departure cap.
 
 - `graft jq` runs a jq program over JSON or YAML from files or standard input, with jq's flags for input, output, variables, and exit status. It also reads multi-document YAML streams, prints YAML with `-o yaml`, sorts keys with `-S` and `--sort-keys=lexical|spruce|none`, and runs `graft merge` or per-document operator evaluation first with `-m` and `-E`. Errors use graft's diagnostics, and exit codes match jq's.
 
@@ -42,29 +42,31 @@ This release adds `graft jq`, a jq-compatible command that runs jq programs over
 
 - `graft jq --repl` opens the debugger on the inputs, and `graft debug` gains the `jq`, `select`, and `watch` query verbs and `break jq:` paths. The `yq` verb runs yq expressions in the same session.
 
-- The Go packages `pkg/jq`, `pkg/query`, `pkg/query/value`, `pkg/regex`, `pkg/decimal`, and `pkg/sortkeys` are new and experimental until `graft jq` is complete, so their exported names may change between minor releases.
+- The Go packages `pkg/jq`, `pkg/query`, `pkg/query/value`, `pkg/regex`, `pkg/decimal`, and `pkg/sortkeys` are new and stable, so we will keep their exported names compatible from this release on, as the module's v1 promise says. The `pkg/yq` package is stable on the same terms.
 
 - `graft yq` runs a yq 4.54.1 expression over YAML or JSON and keeps the comments, styles, anchors, and tags of the input. It supports `eval` and `eval-all`, `-i`, `-n`, `-e`, `-o`, `-p`, `-I`, `-N`, `-P`, `-r`, `-0`, `-S` and `--sort-keys` with named modes, `-m` and `-E` for merging first, `--repl`, `-f` for front matter, and `-s` and `--split-exp-file` for writing each output to a file named by an expression. YAML and JSON are the only formats, and every failure exits 1 as yq does.
 
 - A link named exactly `yq` runs `graft yq`.
 
-- The flags `-c` and `--yaml-compact-seq-indent` are accepted by `graft yq` but have no effect yet.
+- The flags `-c` and `--yaml-compact-seq-indent` make `graft yq` print sequences without indenting them under their parent key, as yq does.
 
 ### Changed
 
-- `graft jq` does exact decimal arithmetic, so `0.1 + 0.2` is `0.3` where jq prints `0.30000000000000004`. Passing `--float-numbers` restores jq's arithmetic.
+- Because `graft jq` and `graft yq` are new in this release, nothing in the section below changes behavior you had in v1.42.5. It is here so you can see what the new commands do differently from jq and yq.
 
-- `graft jq` no longer defines `date`, `dateadd`, and `datesub`, because jq 1.8.2 dropped them, so a program that calls one fails to compile as it does in jq. `todate` and `todateiso8601` give the same output.
+- `graft jq` does exact decimal arithmetic, so `0.1 + 0.2` is `0.3` where jq prints `0.30000000000000004`. Passing `--float-numbers` restores jq's arithmetic. `graft yq` does the same and has the same flag, where yq computes in int64 and doubles.
 
-- A jq program that is blank, holds only comments, or holds only definitions and module directives now fails with jq's "Top-level program not given" error and exit code 3, where it used to run as the identity.
+- `graft jq` does not define `date`, `dateadd`, and `datesub`, because jq 1.8.2 dropped them, so a program that calls one fails to compile as it does in jq. `todate` and `todateiso8601` give the same output.
 
-- `localtime`, `strflocaltime`, and the local-time round trip through `mktime` now read `TZ` at each call instead of fixing the zone when graft starts. `TZ` is read as a zone name such as `Europe/Paris`, and a POSIX string such as `UTC+3` isn't parsed, so graft works in UTC for it where jq applies the offset.
+- `graft jq` fails a program that is blank, holds only comments, or holds only definitions and module directives with jq's "Top-level program not given" error and exit code 3.
 
-- `fromjson` reads `nan` as NaN rather than null, and a format such as `@nosuch` on a string with nothing to interpolate no longer fails, because jq applies a format only to the values an interpolation produces.
+- `localtime`, `strflocaltime`, and the local-time round trip through `mktime` read `TZ` at each call. `TZ` is read as a zone name such as `Europe/Paris`, and a POSIX string such as `UTC+3` isn't parsed, so graft works in UTC for it where jq applies the offset.
 
-- Inside a lookbehind, the Oniguruma flavor that `graft jq` uses now needs one length, as jq does, and refuses anything else with jq's "invalid pattern in look-behind" error. A repeat of one literal, class, or backreference that starts a branch counts at its fewest repetitions first, so `(?<=a+|b)` is accepted while `(?<=xa+)`, `(?<=a|bc)`, and `(?<=bb+|bc)` are refused.
+- `fromjson` reads `nan` as NaN rather than null, and a format such as `@nosuch` on a string with nothing to interpolate does not fail, because jq applies a format only to the values an interpolation produces.
 
-- `graft yq` also does exact decimal arithmetic, and `--float-numbers` restores yq's int64 and double arithmetic. Its regular expression builtins use PCRE syntax. `from_unix` fails on seconds outside the range of int64 where yq saturates, and the `system` operator and XML input and output are not supported.
+- Inside a lookbehind, the Oniguruma flavor that `graft jq` uses needs one length, as jq does, and refuses anything else with jq's "invalid pattern in look-behind" error. A repeat of one literal, class, or backreference that starts a branch counts at its fewest repetitions first, so `(?<=a+|b)` is accepted while `(?<=xa+)`, `(?<=a|bc)`, and `(?<=bb+|bc)` are refused.
+
+- The regular expression builtins of `graft yq` use PCRE syntax. `from_unix` fails on seconds outside the range of int64 where yq saturates, and the `system` operator and XML input and output are not supported.
 
 ### Documentation
 

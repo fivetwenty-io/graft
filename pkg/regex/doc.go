@@ -248,12 +248,10 @@ as (a|b)*, keeps one stack entry per iteration and stays bounded as before.
 
 # Stability
 
-This package is experimental. Until the release that completes graft jq,
-its exported names may change between minor releases, and the changelog
-lists every such change. The flavor rules follow the jq and PCRE2 versions
-that tests/regex-parity/versions.env pins, so a rule changes only when
-those goldens are recorded again, and the changelog says so. From that
-release on, the module's v1 promise applies, which is that we add exported
-names and never remove or change one.
+This package is stable. The module's v1 promise applies to it, which is
+that we add exported names and never remove or change one. The flavor rules
+follow the jq and PCRE2 versions that tests/regex-parity/versions.env pins,
+so a rule changes only when those goldens are recorded again, and the
+changelog says so.
 */
 package regex
