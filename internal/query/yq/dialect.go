@@ -359,9 +359,9 @@ func (*Dialect) Assign(ctx *runtime.Ctx, root *value.Value, paths []value.Path, 
 }
 
 func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Value, mode runtime.AssignMode, prefs assignPrefs) (*value.Value, error) {
-	ed := builtin.NewEditor(ctx, root)
+	ed := newKeyEditor(ctx, root)
 	for _, p := range keysLast(paths) {
-		cur, err := nodeAt(ed, p)
+		cur, err := ed.nodeAt(p)
 		if err != nil {
 			return nil, err
 		}
@@ -373,7 +373,7 @@ func setAll(ctx *runtime.Ctx, root *value.Value, paths []value.Path, v *value.Va
 			return nil, err
 		}
 	}
-	return ed.Value(), nil
+	return ed.Done()
 }
 
 // keysLast orders paths so that those naming map keys come after those
@@ -401,7 +401,7 @@ func reversed(paths []value.Path) []value.Path {
 }
 
 func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cur *value.Value, at value.Path) iter.Seq2[*value.Value, error], prefs assignPrefs) (*value.Value, error) {
-	ed := builtin.NewEditor(ctx, root)
+	ed := newKeyEditor(ctx, root)
 	var first *value.Value
 	var ferr error
 	take := func(v *value.Value, err error) bool {
@@ -409,7 +409,7 @@ func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cu
 		return false
 	}
 	for _, p := range keysLast(reversed(paths)) {
-		cur, err := nodeAt(ed, p)
+		cur, err := ed.nodeAt(p)
 		if err != nil {
 			return nil, err
 		}
@@ -425,16 +425,16 @@ func update(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs func(cu
 			return nil, err
 		}
 	}
-	return ed.Value(), nil
+	return ed.Done()
 }
 
 // set puts nv at p in place of cur. An empty collection on the way to p
 // is about to gain content, and yq writes an empty collection in flow
 // style whatever its style, so such a collection loses its flow style
 // here and prints in block style once filled, as it does in yq.
-func set(ed *builtin.Editor, p value.Path, cur, nv *value.Value, prefs assignPrefs) error {
+func set(ed *keyEditor, p value.Path, cur, nv *value.Value, prefs assignPrefs) error {
 	for i := range p {
-		c, err := ed.Get(p[:i])
+		c, err := ed.Peek(p[:i])
 		if err != nil {
 			break
 		}
@@ -446,7 +446,7 @@ func set(ed *builtin.Editor, p value.Path, cur, nv *value.Value, prefs assignPre
 			}
 		}
 	}
-	return setNodeAt(ed, p, updateFrom(cur, nv, prefs))
+	return ed.setNodeAt(p, updateFrom(cur, nv, prefs))
 }
 
 // hasFlow reports whether v was written in flow style.

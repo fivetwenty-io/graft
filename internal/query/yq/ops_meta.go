@@ -228,9 +228,9 @@ func assignMeta(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs fun
 		}
 		text = t
 	}
-	ed := builtin.NewEditor(ctx, root)
+	ed := newKeyEditor(ctx, root)
 	for _, p := range paths {
-		cur, err := nodeAt(ed, p)
+		cur, err := ed.nodeAt(p)
 		if err != nil {
 			return nil, err
 		}
@@ -247,11 +247,11 @@ func assignMeta(ctx *runtime.Ctx, root *value.Value, paths []value.Path, rhs fun
 		if err != nil {
 			return nil, err
 		}
-		if err := setNodeAt(ed, p, nv); err != nil {
+		if err := ed.setNodeAt(p, nv); err != nil {
 			return nil, err
 		}
 	}
-	return ed.Value(), nil
+	return ed.Done()
 }
 
 // firstText is the text of the first output of seq, and false when it
@@ -356,43 +356,6 @@ func coreScalarTag(tag string) bool {
 func sameScalarKind(a, b string) bool {
 	number := func(t string) bool { return t == yamlnode.TagInt || t == yamlnode.TagFloat }
 	return a == b || number(a) && number(b)
-}
-
-// nodeAt returns the node at p, which for a path ending in KeyMark is the
-// map key itself. An array index has no key node to change, so it is read
-// as itself and setNodeAt leaves it alone.
-func nodeAt(ed *builtin.Editor, p value.Path) (*value.Value, error) {
-	if n := len(p); n > 1 && p[n-1] == runtime.KeyMark {
-		m, err := ed.Get(p[:n-2])
-		if err != nil {
-			return nil, err
-		}
-		if i, ok := entryAt(m, p[n-2]); ok {
-			return m.Entries()[i].Key, nil
-		}
-		return p[n-2], nil
-	}
-	return ed.Get(p)
-}
-
-// setNodeAt puts v at p, replacing the map key itself for a path ending
-// in KeyMark.
-func setNodeAt(ed *builtin.Editor, p value.Path, v *value.Value) error {
-	n := len(p)
-	if n < 2 || p[n-1] != runtime.KeyMark {
-		return ed.Set(p, v)
-	}
-	m, err := ed.Get(p[:n-2])
-	if err != nil {
-		return err
-	}
-	i, ok := entryAt(m, p[n-2])
-	if !ok {
-		return nil
-	}
-	entries := append([]value.Entry(nil), m.Entries()...)
-	entries[i].Key = v
-	return ed.Set(p[:n-2], value.ObjEntries(entries...).WithMeta(m.Meta()))
 }
 
 // entryAt finds the entry of map m whose key is k.
