@@ -77,6 +77,8 @@ var incrementalInputs = []string{
 	"k: !!str 5\n---\nt: !tag v\n",
 	"? a\n: 1\n---\n? b\n: 2\n",
 	"a: 1\n---\n\n\n\n",
+	"a: 1\n... # c\n---\nx: 1\n",
+	"b: 2\n... # c\n--- # tail\n...\n",
 	"'q'\n# comment\n--- \n  # indented\n\nd: |\n  lit\n  # indented\n--- v\n'q'\n",
 }
 

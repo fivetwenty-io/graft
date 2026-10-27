@@ -326,7 +326,7 @@ func trailsComments(text string) bool {
 	trailing := false
 	for _, line := range strings.Split(text, "\n") {
 		switch {
-		case strings.HasPrefix(strings.TrimSpace(line), "#"):
+		case strings.HasPrefix(strings.TrimSpace(line), "#"), isDocEnd(line) && strings.Contains(line, "#"):
 			trailing = true
 		case isContent(line):
 			trailing = false
