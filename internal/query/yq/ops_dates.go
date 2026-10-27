@@ -178,7 +178,8 @@ func formatDatetime(ctx *runtime.Ctx, in *value.Value, args []runtime.Thunk, emi
 
 // fromUnix writes the time a number of seconds since the epoch is, in the
 // local zone, read as milliseconds as yq reads it, so a number past the
-// last time there is gives that time. Like now, it writes the default layout whatever with_dtf sets.
+// last time there is gives that time. Like now, it writes the default
+// layout whatever with_dtf sets.
 func fromUnix(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
 	if in.Kind() != value.KindNumber {
 		return &query.RuntimeError{Msg: "from_unix only works on numbers, found " + tagOf(in) + " instead"}

@@ -96,13 +96,13 @@ func isDocEnd(line string) bool {
 	return strings.HasPrefix(line, "...") && (len(line) == 3 || strings.ContainsRune(" \t\r\n", rune(line[3])))
 }
 
-// nextChunk reads the lines of the next chunk, which ends before the "---"
-// or the line after a "..." that opens the document after one with content. The chunk
-// is cut only once a line with content follows the opening, so that a
-// "---" followed by nothing but comments stays with the document before
-// it, as it does when the whole source is parsed at once. It returns
-// io.EOF when the source has nothing more. startLine is the number of the
-// chunk's first line.
+// nextChunk reads the lines of the next chunk. A chunk ends before the
+// "---", or before the line after a "...", that opens the document after
+// one with content. It is cut only once a line with content follows the
+// opening, so that a "---" followed by nothing but comments stays with
+// the document before it, as it does when the whole source is parsed at
+// once. It returns io.EOF when the source has nothing more. startLine is
+// the number of the chunk's first line.
 //
 //nolint:gocyclo // one pass over the lines that decides where each chunk ends
 func (r *Reader) nextChunk() (text string, startLine int, err error) {
