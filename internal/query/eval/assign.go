@@ -184,6 +184,8 @@ func (ev evaluator) assignIn(n *ast.Assign, env *Env, mode runtime.AssignMode, l
 // renamedPath is rel, the place of the node an assignment ran at, after
 // the assignment renamed any map key on the way to it. A key it renamed
 // stands at the same position in the map as before.
+//
+//nolint:gocyclo // one case for each way a path can sit under a renamed key
 func renamedPath(base, changed *value.Value, rel value.Path, paths []value.Path) value.Path {
 	var keys []value.Path
 	for _, p := range paths {

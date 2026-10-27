@@ -21,6 +21,8 @@ func asFloat(v *value.Value) *value.Value { return v.WithMeta(&value.Meta{Tag: f
 // gives !!float. Exact decimals do the arithmetic, so an integer widens
 // past int64, except under float numbers, where yq's int64 and float64
 // model holds. Anything but two numbers goes to the wrapped native.
+//
+//nolint:gocyclo // registers every arithmetic operator
 func registerArith(r *runtime.Registry) {
 	for _, op := range []struct {
 		name string

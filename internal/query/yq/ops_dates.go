@@ -3,7 +3,9 @@ package yq
 import (
 	"errors"
 	"math"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 	_ "time/tzdata" // zone names resolve on a host with no zoneinfo
 
@@ -44,7 +46,7 @@ func layoutOf(ctx *runtime.Ctx) string {
 // format_datetime, with_dtf, from_unix, and to_unix.
 func registerDates(r *runtime.Registry) {
 	r.RegisterSingle("now", 0, func(_ *runtime.Ctx, _ *value.Value, _ []runtime.Thunk, emit runtime.Emit) error {
-		return emit(timestamp(time.Now().Format(time.RFC3339)), nil)
+		return emit(timestamp(time.Now().In(localZone()).Format(time.RFC3339)), nil)
 	})
 	r.RegisterSingle("tz", 1, tz)
 	r.RegisterSingle("format_datetime", 1, formatDatetime)
@@ -191,7 +193,7 @@ func fromUnix(_ *runtime.Ctx, in *value.Value, _ []runtime.Thunk, emit runtime.E
 	case scaled < millisLimit:
 		ms = int64(scaled)
 	}
-	return emit(timestamp(time.UnixMilli(ms).Format(time.RFC3339)), nil)
+	return emit(timestamp(time.UnixMilli(ms).In(localZone()).Format(time.RFC3339)), nil)
 }
 
 // toUnix is a time's seconds since the epoch.
@@ -295,4 +297,20 @@ func collectUnder(ctx *runtime.Ctx, layout string, in *value.Value, expr runtime
 		return nil
 	})
 	return outs, err
+}
+
+// localZone is the zone now and from_unix print in. TZ is read at each
+// call, as a zone name, rather than once when the process starts the way
+// time.Local is. An unset TZ means time.Local, and an empty one or one that
+// names no zone means UTC.
+func localZone() *time.Location {
+	tz, ok := os.LookupEnv("TZ")
+	if !ok {
+		return time.Local
+	}
+	loc, err := time.LoadLocation(strings.TrimPrefix(tz, ":"))
+	if tz == "" || err != nil {
+		return time.UTC
+	}
+	return loc
 }

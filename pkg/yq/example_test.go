@@ -104,6 +104,18 @@ func ExampleEvaluator_Eval() {
 	// Output: a
 }
 
+func ExampleEvaluator_EvalWith() {
+	ev, _ := yq.Compile(`.n + $index`)
+	vars := map[string]*value.Value{"index": value.Num(3)}
+	for v, err := range ev.EvalWith(context.Background(), decode("n: 4\n"), vars) {
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(v.Float())
+	}
+	// Output: 7
+}
+
 func ExampleEvaluator_EvalAll() {
 	dec := yq.NewDecoder(strings.NewReader("a: 1\n---\na: 2\n"), yq.DecodeOptions{})
 	var docs []*value.Value
@@ -200,6 +212,20 @@ func ExampleWithHeaderPreprocess() {
 	ev, err := yq.Compile(`.`, yq.WithHeaderPreprocess(false))
 	fmt.Println(ev != nil, err)
 	// Output: true <nil>
+}
+
+func ExampleWithResolvedAliases() {
+	ev, _ := yq.Compile(`.b`, yq.WithResolvedAliases())
+	doc := decode("a: &x {k: 1}\nb: *x\n")
+	enc := yq.NewEncoder(os.Stdout, yq.EncodeOptions{Format: yq.FormatJSON, Indent: -1})
+	for v, err := range ev.Eval(context.Background(), doc) {
+		if err != nil {
+			log.Fatal(err)
+		}
+		_ = enc.Encode(v)
+	}
+	_ = enc.Flush()
+	// Output: {"k":1}
 }
 
 func ExampleWithMergeAnchorFix() {

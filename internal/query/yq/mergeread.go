@@ -272,7 +272,7 @@ func (d *Dialect) Resolver(stderr io.Writer) func(root, v *value.Value) (*value.
 	)
 	return func(root, v *value.Value) (*value.Value, error) {
 		if v == nil {
-			return v, nil
+			return nil, nil
 		}
 		if root != last || x == nil {
 			// Reading the whole document only learns its anchors, so

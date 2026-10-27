@@ -180,7 +180,7 @@ func (e *emitter) paint(leadingLen int, v *value.Value) {
 	if e.o.PaintLeading != nil {
 		leading = e.o.PaintLeading(leading)
 	}
-	if e.o.PaintBody != nil && !(e.o.UnwrapScalar && kindOf(v) == scalarNode) {
+	if e.o.PaintBody != nil && (!e.o.UnwrapScalar || kindOf(v) != scalarNode) {
 		body = e.o.PaintBody(body)
 	}
 	e.buf.Reset()
