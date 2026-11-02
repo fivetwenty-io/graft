@@ -17,7 +17,9 @@ const decoderModule = "github.com/goccy/go-yaml"
 // decoderModule or in package reflect. A name has the module's path, or
 // "reflect", followed by a dot or a slash, so a look-alike path such as
 // github.com/goccy/go-yamlx does not match, and only the standard
-// library's reflect has a name with no slash.
+// library's reflect has a name with no slash. panicStartedIn passes over
+// reflect's frames before it calls inDecoder, so the reflect check is a
+// fallback that keeps inDecoder correct on its own.
 func inDecoder(function string) bool {
 	if rest, ok := strings.CutPrefix(function, decoderModule); ok {
 		return strings.HasPrefix(rest, ".") || strings.HasPrefix(rest, "/")

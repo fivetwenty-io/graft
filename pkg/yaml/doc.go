@@ -133,9 +133,11 @@ stays a string.
 
 An !!int tag on text that is not an integer, as in a: !!int word, decodes as 0
 into an any or a Node, and graft merge gives the same result. Decoding it into
-a typed field is an ErrorKindType error that says the value is not a valid
-int, and the message names only types and never quotes the input. yaml.v2 and
-yaml.v3 refuse the document on both routes.
+a typed field is an ErrorKindType error that names only types and never quotes
+the input. For an int or *int field the message says the value is not a valid
+int, and for the other integer types it is the decoder's own message, which
+says it cannot store an int in the field's type. yaml.v2 and yaml.v3 refuse
+the document on both routes.
 
 A tab inside a plain scalar, as in a: x<TAB>y, is dropped, so the value is
 "xy". This is how the decoder reads such a scalar, and graft merge gives the
