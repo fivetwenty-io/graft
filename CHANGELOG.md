@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `graft merge` and `pkg/yaml` now read a scalar with an explicit `!!str`, `!!bool`, `!!int`, `!!float`, `!!null`, or `!!binary` tag the way spruce does. Before, `!!str yes` became `true`, `!!str 1.50` lost its trailing zero, `!!int 0b101` and `!!bool ON` failed, and `!!int word` quietly became `0`. Now `!!str` keeps the text as written, `!!bool`, `!!int`, and `!!float` take the YAML 1.1 forms spruce's YAML library takes, and `!!binary` decodes base64. Files read by `(( load ))` and `--go-patch` ops files read their tags the same way.
 
+- A file read by `(( load ))` and the values in a `--go-patch` ops file now read the YAML 1.1 words `yes`, `no`, `on`, and `off`, in any of their cases, the way a merge input reads them, which is also how spruce reads them. Before, a plain `enabled: yes` in a loaded file stayed the string `yes`, while the same line in a merged file became `true`. A quoted word, a `!!str` word, and a block scalar still stay strings.
+
 - A scalar under a tag spruce doesn't resolve now keeps its text, as it does in spruce. Before, `!foo yes` and `! on` became booleans, and `!!timestamp` on text that isn't a date, such as `!!timestamp word`, quietly became the zero time. A `!!timestamp` date now prints as written, and a `time.Time` field in `pkg/yaml` still reads it.
 
 - A literal or folded block scalar that holds only a YAML 1.1 boolean word, such as `a: |-` followed by `yes`, now stays a string, as it does in spruce. Before, `graft merge` read it as a boolean.

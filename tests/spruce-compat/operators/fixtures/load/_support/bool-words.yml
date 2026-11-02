@@ -1,0 +1,11 @@
+plain_yes: yes
+plain_no: No
+plain_on: ON
+plain_off: off
+quoted: "yes"
+str_tag: !!str on
+block: |-
+  off
+flow: [yes, "no"]
+anchored: &word On
+aliased: *word

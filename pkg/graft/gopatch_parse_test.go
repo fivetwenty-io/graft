@@ -152,3 +152,33 @@ func TestGoPatchRefusesTagsThatCannotHoldTheirText(t *testing.T) {
 		t.Errorf("ParseGoPatch error %q, want one naming !!int without the text", msg)
 	}
 }
+
+// TestGoPatchReadsBoolWordsAsMergeDoes parses go-patch values that hold
+// untagged YAML 1.1 boolean words. They read the way a merge input reads
+// them, so a plain word is a boolean while a quoted word, a !!str word,
+// and a block scalar stay strings. Every expectation is what real
+// spruce v1.35.17 merged, apart from y, which spruce reads as true and
+// graft merge keeps as a word.
+func TestGoPatchReadsBoolWordsAsMergeDoes(t *testing.T) {
+	ops := "- type: replace\n  path: /a\n  value: yes\n" +
+		"- type: replace\n  path: /b?\n  value: \"off\"\n" +
+		"- type: replace\n  path: /c?\n  value: [On, y, \"no\"]\n" +
+		"- type: replace\n  path: /d?\n  value: {e: NO, f: !!str yes}\n" +
+		"- type: replace\n  path: /g?\n  value: |-\n    on\n" +
+		"- type: replace\n  path: /h?\n  value: Off\n"
+	parsed, err := ParseGoPatch([]byte(ops))
+	if err != nil {
+		t.Fatalf("ParseGoPatch: %v", err)
+	}
+	got, err := parsed.Apply(map[any]any{"a": 1})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	want := map[any]any{
+		"a": true, "b": "off", "c": []any{true, "y", "no"},
+		"d": map[any]any{"e": false, "f": "yes"}, "g": "on", "h": false,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("patched = %#v, want %#v", got, want)
+	}
+}

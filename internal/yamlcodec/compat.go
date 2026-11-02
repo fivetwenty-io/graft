@@ -474,14 +474,32 @@ func PrepareBody(body ast.Node, tag bool) (ast.Node, error) {
 // So it fails an alias inside its own anchor's collection, resolves
 // explicit tags as spruce does, and expands aliases, but it applies no
 // YAML 1.1 boolean coercion. v is left as it is when data holds no
-// document. The (( load )) operator and go-patch ops files read their
-// input through it.
+// document. It suits a typed target such as a go-patch op definition,
+// whose fields hold their text. A value that a merge reads goes through
+// DecodeFirstGeneric instead.
 func DecodeFirst(data []byte, v any) error {
 	body, err := ParseFirstBody(data, false)
 	if err != nil || body == nil {
 		return err
 	}
 	return DecodeBody(body, v)
+}
+
+// DecodeFirstGeneric decodes the first document of data into the generic
+// values a merge reads, through the same DecodeGenericBody step that
+// DecodeGeneric takes with the default YAML 1.1 settings. So a plain yes,
+// no, on, or off becomes a boolean, while a quoted word, a !!str word,
+// and a block scalar stay strings, just as they do in a merge input.
+// Unlike DecodeGeneric, it applies no yamlprep rewrites, which leaves
+// them to a caller that wants them. A nil value with a nil error means
+// data holds no document, or a null one. The (( load )) operator and
+// go-patch ops files read their values through it.
+func DecodeFirstGeneric(data []byte) (any, error) {
+	body, err := ParseFirstBody(data, true)
+	if err != nil {
+		return nil, err
+	}
+	return DecodeGenericBody(body, DefaultYAMLCompat(), false)
 }
 
 // DecodeBody decodes body, a node ParseFirstBody returned, into v with

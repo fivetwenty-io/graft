@@ -150,8 +150,8 @@ func isDefiniteNonArrayStart(c byte) bool {
 // classification, kept separate so the fast path can be tested for
 // equivalence against it.
 func detectArrayRootFull(data []byte) error {
-	var raw interface{}
-	if err := yamlcodec.DecodeFirst(QuoteInjectKeys(data), &raw); err != nil {
+	raw, err := yamlcodec.DecodeFirstGeneric(QuoteInjectKeys(data))
+	if err != nil {
 		return fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
@@ -176,10 +176,14 @@ func ParseGoPatch(data []byte) (patch.Ops, error) {
 		return nil, err
 	}
 
-	// The ops' values read their explicit tags the way a merge input
-	// does.
+	// The op definitions keep their fields' text, and their values are
+	// then read the way a merge input reads them (see goPatchValues).
 	opdefs := []patch.OpDefinition{}
-	if err := yamlcodec.DecodeFirst(data, &opdefs); err != nil {
+	err = yamlcodec.DecodeFirst(data, &opdefs)
+	if err == nil {
+		err = goPatchValues(data, opdefs)
+	}
+	if err != nil {
 		// Wording, capitalization, and the trailing newline ("Root of YAML
 		// document is not a hash/map. Tried parsing it as go-patch, but
 		// got: <err>\n") are pinned by cmd/graft/main_test.go's
@@ -212,4 +216,32 @@ func ParseGoPatch(data []byte) (patch.Ops, error) {
 		return nil, fmt.Errorf("@R{Unable to parse go-patch definitions: %w\n", err)
 	}
 	return ops, nil
+}
+
+// goPatchValues replaces the value of each op in opdefs, which
+// DecodeFirst read from data, with the value a merge input would hold.
+// So a plain yes in a value becomes a boolean, while a quoted word, a
+// !!str word, and a block scalar stay strings. An op that has no value
+// keeps none, so NewOpsFromDefinitions still reports it.
+func goPatchValues(data []byte, opdefs []patch.OpDefinition) error {
+	generic, err := yamlcodec.DecodeFirstGeneric(data)
+	if err != nil {
+		return err
+	}
+	items, ok := generic.([]any)
+	if !ok || len(items) != len(opdefs) {
+		return fmt.Errorf("go-patch ops decoded as %T, not a list of %d ops", generic, len(opdefs))
+	}
+	for i := range opdefs {
+		if opdefs[i].Value == nil {
+			continue
+		}
+		op, ok := items[i].(map[string]any)
+		if !ok {
+			return fmt.Errorf("go-patch op %d decoded as %T, not a map", i, items[i])
+		}
+		value := op["value"]
+		opdefs[i].Value = &value
+	}
+	return nil
 }

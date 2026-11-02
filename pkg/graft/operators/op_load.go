@@ -96,9 +96,10 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	// The loaded file reads its explicit tags the way a merge input does.
-	var root any
-	if err := yamlcodec.DecodeFirst(prepared, &root); err != nil {
+	// The loaded file reads its explicit tags and its YAML 1.1 boolean
+	// words the way a merge input does.
+	root, err := yamlcodec.DecodeFirstGeneric(prepared)
+	if err != nil {
 		var tagValue *yamlcodec.TagValueError
 		if errors.As(err, &tagValue) {
 			return nil, fmt.Errorf("failed to parse YAML: %w", err)

@@ -86,3 +86,43 @@ func TestLoadRefusesTagsThatCannotHoldTheirText(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadReadsBoolWordsAsMergeDoes loads a file of untagged YAML 1.1
+// boolean words. A loaded file reads them the way a merge input does, so
+// a plain yes, No, ON, or off is a boolean, while a quoted word, a !!str
+// word, and a block scalar stay strings. Every expectation is what real
+// spruce v1.35.17 printed, apart from y and n, which spruce reads as
+// booleans and graft merge keeps as words, and which a load reads as
+// merge does.
+func TestLoadReadsBoolWordsAsMergeDoes(t *testing.T) {
+	out, err := loadFile(t, "a: yes\nb: No\nc: ON\nd: off\ne: y\nf: n\nh: \"yes\"\ni: !!str on\nj: |-\n  off\nk: [yes, \"no\"]\nl: &x On\nm: *x\nn: true\n")
+	if err != nil {
+		t.Fatalf("load = %v", err)
+	}
+	want := map[string]any{
+		"a": true, "b": false, "c": true, "d": false, "e": "y", "f": "n",
+		"h": "yes", "i": "on", "j": "off", "k": []any{true, "no"}, "l": true, "m": true, "n": true,
+	}
+	for key, w := range want {
+		got, err := out.Get("result." + key)
+		if err != nil {
+			t.Errorf("result.%s: %v", key, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, w) {
+			t.Errorf("result.%s = %#v, want %#v", key, got, w)
+		}
+	}
+
+	out, err = loadFile(t, "- yes\n- \"on\"\n- Off\n")
+	if err != nil {
+		t.Fatalf("load of a list = %v", err)
+	}
+	got, err := out.Get("result")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []any{true, "on", false}; !reflect.DeepEqual(got, want) {
+		t.Errorf("result = %#v, want %#v", got, want)
+	}
+}
