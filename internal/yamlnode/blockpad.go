@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml/ast"
+	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/parser"
 )
 
@@ -26,7 +27,9 @@ import (
 //
 // When data holds a LINE SEPARATOR or PARAGRAPH SEPARATOR, ParseBytes
 // also gives the single-quoted and literal block scalars that hold one
-// the values libyaml reads for them, as fixLineSeparators describes.
+// the values libyaml reads for them, as fixLineSeparators describes, and
+// when data holds a tab, it keeps the tabs inside plain scalars, as
+// keepPlainTabs describes.
 func ParseBytes(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
 	return parseBytes(data, false, mode, opts...)
 }
@@ -50,7 +53,7 @@ func parseBytes(data []byte, keep bool, mode parser.Mode, opts ...parser.Option)
 // and parsing again when goccy fails with an error that
 // padBlockScalarLines works around.
 func parseBlockPadded(data []byte, keep bool, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
-	file, err := parser.ParseBytes(data, mode, opts...)
+	file, err := parseText(data, mode, opts...)
 	if err == nil || !isBlockIndentError(err) {
 		return file, err
 	}
@@ -58,11 +61,22 @@ func parseBlockPadded(data []byte, keep bool, mode parser.Mode, opts ...parser.O
 	if !ok {
 		return file, err
 	}
-	retried, retryErr := parser.ParseBytes(padded, mode, opts...)
+	retried, retryErr := parseText(padded, mode, opts...)
 	if retryErr != nil {
 		return file, err
 	}
 	return retried, nil
+}
+
+// parseText parses data the way parser.ParseBytes does, tokenizing it
+// and parsing the tokens, and works around goccy's scanner between the
+// two steps.
+func parseText(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
+	toks := lexer.Tokenize(string(data))
+	if bytes.IndexByte(data, '\t') >= 0 {
+		keepPlainTabs(toks)
+	}
+	return parser.Parse(toks, mode, opts...)
 }
 
 // isBlockIndentError reports whether err is one of the two goccy errors

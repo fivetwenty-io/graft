@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A tag that can't hold its text, such as `!!int word` or `!!bool 1`, now fails the document as it does in spruce. The error names the tags and the tag's line and column, and unlike spruce's message it never quotes the text. A second tag on one node and a tag on an alias now fail too, where before the tag could turn the value into `0`.
 
+- A tab between two characters of a plain scalar now stays in its value, as it does in spruce. Before, `graft merge` and `pkg/yaml` dropped the tab, so `a: x<TAB>y` read as `xy` and `a: 1<TAB>2` read as the integer `12`. A tab at the end of a line or before a comment is still dropped, as spruce drops it.
+
 ## [1.43.1] - 2026-10-27
 
 This release fixes `graft install-aliases` on Linux, where it put the `jq`, `yq`, and `spruce` links in a directory that isn't on `PATH`.

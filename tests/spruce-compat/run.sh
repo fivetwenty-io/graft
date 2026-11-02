@@ -714,6 +714,13 @@ pattern_aux_block_scalar_bool_words() {
   aux_fixture_merge "aux: merge of block scalars holding boolean words" block-scalar-bool-words pblock
 }
 
+# aux: plain scalars that hold a tab between two characters. spruce
+# keeps the tab, and the value is a string even where it would read as a
+# number or a boolean without it.
+pattern_aux_plain_scalar_tabs() {
+  aux_fixture_merge "aux: merge of plain scalars holding tabs" plain-scalar-tabs pptabs
+}
+
 # aux_fixture_merge NAME FIXTURE PREFIX merges $FIX/FIXTURE.yml with both
 # tools and reports NAME as passed when the exit codes and output match.
 aux_fixture_merge() {
@@ -794,6 +801,7 @@ pattern_aux_base_override_merge
 pattern_aux_explicit_tags
 pattern_aux_explicit_tag_errors
 pattern_aux_block_scalar_bool_words
+pattern_aux_plain_scalar_tabs
 report_secret_not_found_skip
 
 echo

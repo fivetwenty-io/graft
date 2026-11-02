@@ -1,0 +1,17 @@
+# Plain scalars that hold a tab between two characters. spruce keeps
+# each such tab, and drops a tab at the end of a line or before a
+# comment.
+value: x	y
+before_comment: x	y	# c
+trailing: x	
+multi_line: x	y
+  p	q
+flow: [x	y, {k: p	q}]
+x	key: 1
+would_be_int: 1	2
+would_be_bool: true	x
+anchored: &n a	b
+aliased: *n
+tagged: !!str x	y
+literal: |
+  x	y

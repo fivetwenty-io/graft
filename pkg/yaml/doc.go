@@ -175,10 +175,6 @@ decoded float64 is the same either way, and Marshal in this package writes
 A literal or folded block scalar holding only a YAML 1.1 boolean word, as in
 "a: |-\n  yes", reads as that word in both modes, as it does in spruce.
 
-A tab inside a plain scalar, as in a: x<TAB>y, is dropped, so the value is
-"xy". This is how the decoder reads such a scalar, and graft merge gives the
-same result. A quoted scalar keeps its tab.
-
 Unmarshal reads a document that starts with a UTF-16 byte order mark, in
 either byte order, by converting it to UTF-8 first. A UTF-16 document with
 no content, an odd number of bytes, or an unpaired surrogate is a syntax
