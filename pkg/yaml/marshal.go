@@ -28,7 +28,8 @@ import (
 // 2026-01-02, is double-quoted. A key that spruce would write as a
 // "? key" is double-quoted on one line instead, because goccy's parser
 // misreads some of those, and so are strings that goccy's parser misreads
-// in other places. A float that holds a whole number is plain integer
+// in other places. A key whose double-quoted form would be longer than
+// 1024 bytes still takes the "? key" form. A float that holds a whole number is plain integer
 // digits when it fits in an int64, so 3.0 is 3 and 1e6 is 1000000. A
 // whole float outside that range, and any other float, has a "." (1e20
 // is 1.0e+20) so that a YAML 1.1 reader reads it as a float, and NaN and
