@@ -39,11 +39,17 @@ func panicFromDecoder() bool {
 // into an error along with goccy's and reflect's.
 const encoderModule = "github.com/fivetwenty-io/graft/internal/yamlcodec"
 
+// walkModule is this package, whose walk over a caller's value reads it
+// with package reflect.
+const walkModule = "github.com/fivetwenty-io/graft/pkg/yaml"
+
 // inEncoder reports whether function is in the packages an encode runs
 // on a caller's value, which are inDecoder's and graft's own encoder.
 func inEncoder(function string) bool {
-	if rest, ok := strings.CutPrefix(function, encoderModule); ok {
-		return strings.HasPrefix(rest, ".")
+	for _, module := range []string{encoderModule, walkModule} {
+		if rest, ok := strings.CutPrefix(function, module); ok && strings.HasPrefix(rest, ".") {
+			return true
+		}
 	}
 	return inDecoder(function)
 }

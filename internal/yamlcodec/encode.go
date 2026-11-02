@@ -67,27 +67,36 @@ func MarshalYAMLWithCommentsWith(v interface{}, comments []YAMLHeadComment, less
 	return marshalYAML(v, comments, less, false)
 }
 
-// MarshalYAMLTyped serializes v like MarshalYAMLWith, with two additions
-// for a consumer that reads the output as YAML 1.1. A float that holds a
-// whole number is written as an integer, so 3.0 becomes 3, while NaN, the
-// infinities, a float with a fraction, and one too large to print without
-// an exponent keep their float form. A string that a YAML 1.1 reader
-// resolves as a timestamp is double-quoted. graft merge does not use it,
-// and its output is unchanged.
+// PlainScalar is a scalar MarshalYAMLTyped writes exactly as given, with
+// no quoting, as a value, as a map key, or inside a FlowValue. The caller
+// vouches that a YAML 1.1 reader resolves the text as the type it means,
+// such as 42, true, 1.5, or .nan.
+type PlainScalar string
+
+// FlowValue is a mapping or sequence MarshalYAMLTyped writes in flow
+// style on one line, such as [a, b] or {k: v}. V is a yaml.MapSlice, a
+// []interface{}, or a scalar. A string inside it is written plain only
+// when that is safe in flow context, and double-quoted otherwise.
+type FlowValue struct {
+	V interface{}
+}
+
+// MarshalYAMLTyped serializes v like MarshalYAMLWith, for a v that a
+// caller has already put in generic form. A yaml.MapSlice keeps its
+// order, with string or PlainScalar keys, a PlainScalar and a FlowValue
+// are written as described, and a string that a YAML 1.1 reader
+// resolves as a timestamp is double-quoted. graft merge does not use
+// it, and its output is unchanged.
 func MarshalYAMLTyped(v interface{}, less func(a, b string) bool) ([]byte, error) {
 	return marshalYAML(v, nil, less, true)
 }
 
 // marshalYAML is the encoder behind the exported functions. typed turns
-// on the whole-number floats and the quoted timestamps that
-// MarshalYAMLTyped describes.
+// on the quoted timestamps that MarshalYAMLTyped describes.
 func marshalYAML(v interface{}, comments []YAMLHeadComment, less func(a, b string) bool, typed bool) ([]byte, error) {
 	enc, prepared := newScalarEncoder(v, comments, less, typed)
 
 	opts := []yaml.EncodeOption{yaml.Indent(2)}
-	if typed {
-		opts = append(opts, yaml.AutoInt())
-	}
 	if len(comments) > 0 {
 		cm := yaml.CommentMap{}
 		for _, c := range comments {
@@ -189,6 +198,8 @@ const (
 	// "? key" form, which spruce uses for a multi-line key and for one
 	// longer than 128 bytes.
 	complexKeySlot
+	// rawSlot is text written exactly as it stands, as a value or a key.
+	rawSlot
 )
 
 // scalarSlot records one string that substitute writes in spruce's
@@ -314,26 +325,20 @@ func (e *scalarEncoder) prepare(v interface{}, pos nodePosition) (interface{}, b
 	case string:
 		return e.prepareValue(val, pos)
 	case map[string]interface{}:
-		keys := make([]string, 0, len(val))
-		for k := range val {
-			keys = append(keys, k)
+		return e.prepareStringMap(val, pos)
+	case PlainScalar:
+		if strings.Contains(string(val), e.prefix) {
+			return nil, false
 		}
-		sort.Slice(keys, func(i, j int) bool {
-			return e.less(keys[i], keys[j])
-		})
-		out := make(yaml.MapSlice, 0, len(keys))
-		for _, k := range keys {
-			key, valuePos, ok := e.prepareKey(k, pos.mapColumn, val[k])
-			if !ok {
-				return nil, false
-			}
-			item, ok := e.prepare(val[k], valuePos)
-			if !ok {
-				return nil, false
-			}
-			out = append(out, yaml.MapItem{Key: key, Value: item})
+		return e.placeholder(scalarSlot{s: string(val), kind: rawSlot}), true
+	case FlowValue:
+		text, ok := e.flowText(val.V)
+		if !ok {
+			return nil, false
 		}
-		return out, true
+		return e.placeholder(scalarSlot{s: text, kind: rawSlot}), true
+	case yaml.MapSlice:
+		return e.prepareMapSlice(val, pos)
 	case map[interface{}]interface{}:
 		// Stringify keys before building MapItems: goccy's MapSlice
 		// encoder type-asserts each key .(string) unchecked and would
@@ -344,19 +349,66 @@ func (e *scalarEncoder) prepare(v interface{}, pos nodePosition) (interface{}, b
 		}
 		return e.prepare(converted, pos)
 	case []interface{}:
-		out := make([]interface{}, len(val))
-		itemPos := seqItemPosition(pos.seqColumn)
-		for i, item := range val {
-			prepared, ok := e.prepare(item, itemPos)
-			if !ok {
-				return nil, false
-			}
-			out[i] = prepared
-		}
-		return out, true
+		return e.prepareList(val, pos)
 	default:
 		return v, true
 	}
+}
+
+// prepareStringMap is prepare for a map[string]interface{}, whose keys it
+// orders with e.less.
+func (e *scalarEncoder) prepareStringMap(val map[string]interface{}, pos nodePosition) (interface{}, bool) {
+	keys := make([]string, 0, len(val))
+	for k := range val {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return e.less(keys[i], keys[j])
+	})
+	out := make(yaml.MapSlice, 0, len(keys))
+	for _, k := range keys {
+		key, valuePos, ok := e.prepareKey(k, pos.mapColumn, val[k])
+		if !ok {
+			return nil, false
+		}
+		item, ok := e.prepare(val[k], valuePos)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, yaml.MapItem{Key: key, Value: item})
+	}
+	return out, true
+}
+
+// prepareMapSlice is prepare for a yaml.MapSlice, whose order it keeps.
+func (e *scalarEncoder) prepareMapSlice(val yaml.MapSlice, pos nodePosition) (interface{}, bool) {
+	out := make(yaml.MapSlice, 0, len(val))
+	for _, item := range val {
+		key, valuePos, ok := e.prepareItemKey(item.Key, pos.mapColumn, item.Value)
+		if !ok {
+			return nil, false
+		}
+		prepared, ok := e.prepare(item.Value, valuePos)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, yaml.MapItem{Key: key, Value: prepared})
+	}
+	return out, true
+}
+
+// prepareList is prepare for a []interface{}.
+func (e *scalarEncoder) prepareList(val []interface{}, pos nodePosition) (interface{}, bool) {
+	out := make([]interface{}, len(val))
+	itemPos := seqItemPosition(pos.seqColumn)
+	for i, item := range val {
+		prepared, ok := e.prepare(item, itemPos)
+		if !ok {
+			return nil, false
+		}
+		out[i] = prepared
+	}
+	return out, true
 }
 
 // prepareValue returns s, or a placeholder when goccy would write s
@@ -376,6 +428,23 @@ func (e *scalarEncoder) prepareValue(s string, pos nodePosition) (interface{}, b
 	return e.placeholder(scalarSlot{s: s, kind: valueSlot, indent: pos.scalarIndent, indention: pos.indention, style: style}), true
 }
 
+// prepareItemKey prepares the key of a yaml.MapSlice item, which is a
+// string or a PlainScalar.
+func (e *scalarEncoder) prepareItemKey(key interface{}, m int, value interface{}) (interface{}, nodePosition, bool) {
+	switch k := key.(type) {
+	case string:
+		return e.prepareKey(k, m, value)
+	case PlainScalar:
+		if strings.Contains(string(k), e.prefix) {
+			return nil, nodePosition{}, false
+		}
+		pos := mapValuePosition(m, utf8.RuneCountInString(string(k)))
+		return e.placeholder(scalarSlot{s: string(k), kind: rawSlot}), pos, true
+	default:
+		return e.prepareKey(fmt.Sprintf("%v", key), m, value)
+	}
+}
+
 // prepareKey returns key k, or a placeholder for it, and the position
 // of its value in a mapping whose keys sit at column m.
 func (e *scalarEncoder) prepareKey(k string, m int, value interface{}) (interface{}, nodePosition, bool) {
@@ -387,6 +456,13 @@ func (e *scalarEncoder) prepareKey(k string, m int, value interface{}) (interfac
 	}
 	style := timestampStyle(k, e.quoteTimestamps)
 	text, simple := renderSimpleKeyAs(k, style, m)
+	if !simple && e.quoteTimestamps && fitsQuotedKey(k) {
+		// goccy's parser misreads some explicit "? key" forms, such as a
+		// double-quoted key before a block scalar, and two literal keys
+		// with blank lines, so the key is written on one line instead.
+		quoted := strconv.Quote(k)
+		return e.placeholder(scalarSlot{s: quoted, kind: rawSlot}), mapValuePosition(m, utf8.RuneCountInString(quoted)), true
+	}
 	if !simple {
 		slot := scalarSlot{s: k, kind: complexKeySlot, indent: m, style: style}
 		slot.mapValue, slot.seqValue = blockCollectionKind(value)
@@ -601,6 +677,8 @@ func (st *substitution) writeSlot(slot scalarSlot, i int) (int, bool) {
 	switch slot.kind {
 	case valueSlot:
 		text = renderValueScalarAs(slot.s, slot.style, st.column, slot.indent, slot.indention)
+	case rawSlot:
+		text = slot.s
 	case simpleKeySlot:
 		text, _ = renderSimpleKeyAs(slot.s, slot.style, st.column)
 	case complexKeySlot:

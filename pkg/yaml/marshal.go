@@ -11,20 +11,43 @@ import (
 // Marshal encodes v as YAML, with every map's keys in spruce's order and
 // two spaces of indentation, as graft merge writes a document.
 //
-// A struct is encoded by goccy/go-yaml, which honors the yaml tag options
-// ,omitempty, ,inline, and ,flow. A string is written in the style spruce
-// picks for it, so one that would read back as another type is quoted and
-// a multi-line one is a literal block. A float64 that holds a whole
-// number is written as an integer, so 3.0 becomes 3, while NaN, the
-// infinities, a float with a fraction, and a float too large to print
-// without an exponent keep their float form. A string that a YAML 1.1
-// reader resolves as a timestamp, such as 2026-01-02, is double-quoted.
+// Marshal first walks v into plain maps, lists, and scalars, and graft's
+// own encoder writes those, so a struct, a typed map, and a typed slice
+// come out in the same style as a map[string]any does. The walk follows
+// the yaml tag options a field names, which are a rename, "-",
+// ,omitempty, ,inline, and ,flow, and a field with no yaml tag takes its
+// key from its json tag and then from its name in lower case. Struct
+// fields keep their declared order, and a type's own MarshalYAML method
+// or MarshalText method supplies its value. A ,flow field is written on
+// one line, with a string plain only when that is safe there and in
+// double quotes otherwise.
 //
-// Marshal refuses a v that holds a Node, because writing a Node tree
-// back is not supported, and a v that holds a cycle. Its errors name a
-// Go type and never quote a value from v. A value the encoder cannot
-// write, such as a channel, is an error and not a panic, but a panic from
-// a type's own MarshalYAML method is not recovered.
+// A string is written in the style spruce picks for it, so one that would
+// read back as another type is quoted and a multi-line one is a literal
+// block. A string that a YAML 1.1 reader resolves as a timestamp, such as
+// 2026-01-02, is double-quoted. A key that spruce would write as a
+// "? key" is double-quoted on one line instead, because goccy's parser
+// misreads some of those, and so are strings that goccy's parser misreads
+// in other places. A float that holds a whole number is plain integer
+// digits at any size, so 3.0 is 3 and 1e6 is 1000000. Any other float
+// has a "." so that a YAML 1.1 reader reads it as a float, and NaN and
+// the infinities are .nan, .inf, and -.inf. A map key that is an integer,
+// a bool, or a float is written as that scalar without quotes, and keys
+// are ordered by the key order applied to their text, so 9 comes before
+// 10 in spruce order.
+//
+// Unmarshal reads this output back to an equal value. The one limit is a
+// whole float past 64 bits, such as 1e20, which Unmarshal into any reads
+// as a string of its digits, as it reads any integer it cannot hold, while
+// a float64 target reads it as the float.
+//
+// Marshal refuses a v that holds a Node anywhere, including as a map key,
+// because writing a Node tree back is not supported, a v that holds a
+// cycle, a map key that is a collection, and a type whose MarshalYAML
+// method returns YAML text. Its errors name a Go type and a field path
+// and never quote a value from v. A value the encoder cannot write, such
+// as a channel, is an error and not a panic, but a panic from a type's
+// own MarshalYAML method is not recovered.
 func Marshal(v any) ([]byte, error) {
 	return MarshalWith(v, EncodeOptions{})
 }
@@ -41,9 +64,6 @@ func MarshalWith(v any, opts EncodeOptions) (out []byte, err error) {
 	default:
 		return nil, &encodeError{msg: fmt.Sprintf("MarshalWith does not support key order %q; use the zero value, sortkeys.Spruce, or sortkeys.Lexical", string(mode))}
 	}
-	if err := checkValue(v); err != nil {
-		return nil, err
-	}
 
 	defer func() {
 		r := recover()
@@ -55,7 +75,16 @@ func MarshalWith(v any, opts EncodeOptions) (out []byte, err error) {
 		}
 		out, err = nil, encoderPanicError(v)
 	}()
-	out, err = yamlcodec.MarshalYAMLTyped(v, sortkeys.Less(mode))
+	less := sortkeys.Less(mode)
+	var generic any
+	if v != nil {
+		var werr error
+		generic, werr = newNormalizer(less).value(reflect.ValueOf(v), reflect.TypeOf(v).String())
+		if werr != nil {
+			return nil, werr
+		}
+	}
+	out, err = yamlcodec.MarshalYAMLTyped(generic, less)
 	if err != nil {
 		return nil, &encodeError{msg: "cannot encode Go value of type " + typeName(v)}
 	}
@@ -85,151 +114,3 @@ func typeName(v any) string {
 
 // nodeType is Node, which Marshal refuses wherever it finds one.
 var nodeType = reflect.TypeFor[Node]()
-
-// checkValue refuses a v that holds a Node or a cycle, before anything
-// encodes. It walks the value as Marshal's encoder would reach it, which
-// is through pointers, interfaces, slice and array elements, map values,
-// and exported or embedded struct fields.
-func checkValue(v any) error {
-	if v == nil {
-		return nil
-	}
-	w := valueWalk{onPath: make(map[walkID]bool), done: make(map[walkID]bool)}
-	rv := reflect.ValueOf(v)
-	if where, why := w.find(rv, rv.Type().String()); why != "" {
-		return &encodeError{msg: fmt.Sprintf("Marshal does not support %s, which %s holds at %s", why, rv.Type(), where)}
-	}
-	return nil
-}
-
-// walkID identifies a pointer, map, or slice the walk entered.
-type walkID struct {
-	ptr uintptr
-	typ reflect.Type
-	len int
-}
-
-// valueWalk searches a value for a Node and for a cycle. onPath holds
-// what the walk is inside of, so reaching one again is a cycle, and done
-// holds what it has finished, so a value shared by many parents is walked
-// once.
-type valueWalk struct {
-	onPath map[walkID]bool
-	done   map[walkID]bool
-}
-
-// find returns where in v a Node or a cycle sits, as a path that starts
-// at path, and which of the two it is. why is empty when there is none. A
-// map's value adds "{value}" to the path, and an element adds "[]".
-func (w valueWalk) find(v reflect.Value, path string) (where, why string) {
-	switch v.Kind() {
-	case reflect.Interface:
-		if v.IsNil() {
-			return "", ""
-		}
-		return w.find(v.Elem(), path)
-	case reflect.Pointer:
-		if v.IsNil() {
-			return "", ""
-		}
-		if v.Type().Elem() == nodeType {
-			return path, "yaml.Node"
-		}
-		return w.enter(walkID{ptr: v.Pointer(), typ: v.Type()}, path, func() (string, string) {
-			return w.find(v.Elem(), path)
-		})
-	case reflect.Map:
-		if v.IsNil() {
-			return "", ""
-		}
-		return w.enter(walkID{ptr: v.Pointer(), typ: v.Type()}, path, func() (string, string) {
-			return w.mapValues(v, path)
-		})
-	case reflect.Slice:
-		if v.IsNil() || v.Len() == 0 {
-			return "", ""
-		}
-		return w.enter(walkID{ptr: v.Pointer(), typ: v.Type(), len: v.Len()}, path, func() (string, string) {
-			return w.elements(v, path)
-		})
-	case reflect.Array:
-		return w.elements(v, path)
-	case reflect.Struct:
-		if v.Type() == nodeType {
-			return path, "yaml.Node"
-		}
-		return w.fields(v, path)
-	default:
-	}
-	return "", ""
-}
-
-// mapValues searches the values of a map v. Its keys are not searched,
-// because the encoder writes a key as text.
-func (w valueWalk) mapValues(v reflect.Value, path string) (where, why string) {
-	iter := v.MapRange()
-	for iter.Next() {
-		if where, why := w.find(iter.Value(), path+"{value}"); why != "" {
-			return where, why
-		}
-	}
-	return "", ""
-}
-
-// fields searches the exported and embedded fields of a struct v.
-func (w valueWalk) fields(v reflect.Value, path string) (where, why string) {
-	t := v.Type()
-	for i := range t.NumField() {
-		f := t.Field(i)
-		if !f.IsExported() && !f.Anonymous {
-			continue
-		}
-		if where, why := w.find(v.Field(i), path+"."+f.Name); why != "" {
-			return where, why
-		}
-	}
-	return "", ""
-}
-
-// elements searches the items of a slice or array v.
-func (w valueWalk) elements(v reflect.Value, path string) (where, why string) {
-	if !canHold(v.Type().Elem()) {
-		return "", ""
-	}
-	for i := range v.Len() {
-		if where, why := w.find(v.Index(i), path+"[]"); why != "" {
-			return where, why
-		}
-	}
-	return "", ""
-}
-
-// canHold reports whether a value of type t can hold something find
-// looks into, so a slice of numbers or strings is not walked item by item.
-func canHold(t reflect.Type) bool {
-	switch t.Kind() {
-	case reflect.Interface, reflect.Pointer, reflect.Map, reflect.Slice, reflect.Array, reflect.Struct:
-		return true
-	default:
-		return false
-	}
-}
-
-// enter runs search for the pointer, map, or slice at id, reporting a
-// cycle when the walk is already inside it, and skipping it when it has
-// been searched.
-func (w valueWalk) enter(id walkID, path string, search func() (string, string)) (where, why string) {
-	if w.onPath[id] {
-		return path, "a cycle"
-	}
-	if w.done[id] {
-		return "", ""
-	}
-	w.onPath[id] = true
-	where, why = search()
-	delete(w.onPath, id)
-	if why == "" {
-		w.done[id] = true
-	}
-	return where, why
-}

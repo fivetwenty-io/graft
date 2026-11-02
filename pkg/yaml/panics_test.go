@@ -29,6 +29,7 @@ func TestInDecoder(t *testing.T) {
 func TestInEncoder(t *testing.T) {
 	cases := map[string]bool{
 		"github.com/fivetwenty-io/graft/internal/yamlcodec.(*scalarEncoder).prepare": true,
+		"github.com/fivetwenty-io/graft/pkg/yaml.(*normalizer).value":                true,
 		"github.com/fivetwenty-io/graft/internal/yamlcodec.MarshalYAMLTyped":         true,
 		"github.com/goccy/go-yaml.(*Encoder).encodeValue":                            true,
 		"reflect.Value.Field": true,

@@ -781,12 +781,39 @@ func readsAsTimestamp(s string) bool {
 	return yaml11Timestamp.MatchString(s)
 }
 
-// timestampStyle is the style requested for s when quoteTimestamps is
-// set: double quotes for a string that reads as a timestamp, and the
-// fork's own choice otherwise.
-func timestampStyle(s string, quoteTimestamps bool) scalarStyle {
-	if quoteTimestamps && readsAsTimestamp(s) {
+// timestampStyle is the style requested for s when typed is set, which
+// asks for double quotes in four cases. One is a string a YAML 1.1
+// reader resolves as a timestamp. Another is a string that holds "<<",
+// which goccy's parser reads as a merge key when it ends a key. A string
+// with a line break and leading whitespace is the third, since spruce
+// writes it as a literal block with an indentation indicator that goccy's
+// parser refuses. The last is a string that starts with "-", "?", or ":",
+// which goccy's parser misreads as an indicator in some places. Otherwise the style is the fork's own choice.
+func timestampStyle(s string, typed bool) scalarStyle {
+	if typed && (readsAsTimestamp(s) || strings.Contains(s, "<<") || leadsWithSpaceBeforeBreak(s) || startsWithIndicator(s)) {
 		return doubleQuotedScalarStyle
 	}
 	return requestedScalarStyle(s)
+}
+
+// startsWithIndicator reports whether s starts with "-", "?", or ":"
+// and a character other than a space, which libyaml writes plain.
+func startsWithIndicator(s string) bool {
+	return len(s) > 1 && strings.ContainsRune("-?:", rune(s[0])) && s[1] != ' '
+}
+
+// leadsWithSpaceBeforeBreak reports whether s holds a line break and
+// starts with a space, a tab, or a line break.
+func leadsWithSpaceBeforeBreak(s string) bool {
+	return strings.ContainsAny(s, "\r\n") && strings.ContainsAny(s[:1], " \t\r\n")
+}
+
+// maxQuotedKeyLength is the longest key YAML lets a double-quoted
+// implicit key be.
+const maxQuotedKeyLength = 1024
+
+// fitsQuotedKey reports whether k written double-quoted fits on one line
+// as an implicit key.
+func fitsQuotedKey(k string) bool {
+	return len(strconv.Quote(k)) <= maxQuotedKeyLength
 }
