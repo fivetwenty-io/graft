@@ -116,6 +116,11 @@ func translate(err error) *DecodeError {
 	if strings.HasPrefix(msg, unknownAliasPrefix) {
 		return &DecodeError{Kind: ErrorKindSyntax, Msg: unknownAliasMessage}
 	}
+	// goccy refuses an unexported embedded ,inline struct with a plain
+	// error that names only the Go type.
+	if strings.HasPrefix(msg, unexportedEmbeddedPrefix) {
+		return &DecodeError{Kind: ErrorKindType, Msg: scrub(msg)}
+	}
 
 	// The rest are plain errors that quote nothing from the input.
 	return &DecodeError{Kind: ErrorKindSyntax, Msg: scrub(msg)}
@@ -127,6 +132,7 @@ const (
 	selfContainingAnchorMessage = "anchor value contains itself"
 	unknownAliasMessage         = "cannot find the anchor an alias names"
 	unknownAliasPrefix          = "cannot find anchor by alias name"
+	unexportedEmbeddedPrefix    = "cannot set embedded type as unexported field"
 )
 
 // limitError builds the ErrorKindLimit error for err, a depth or

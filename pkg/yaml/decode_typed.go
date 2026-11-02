@@ -51,7 +51,7 @@ func decodeTyped(data []byte, v any, opts DecodeOptions) error {
 	}
 
 	body, own := asWritten(body, target.Elem())
-	err = yamlcodec.DecodeBody(body, v, decodeOptions(opts)...)
+	err = decodeBody(body, v, opts)
 	if generic {
 		// goccy fills v in part before it fails, so the fixer runs on
 		// the error path too, and no caller sees a raw value or a marker.
@@ -67,6 +67,21 @@ func decodeTyped(data []byte, v any, opts DecodeOptions) error {
 		return translate(own.locate(locate(err, body, target)))
 	}
 	return own.badTime()
+}
+
+// decodeBody decodes body into v with goccy, and returns a decoder panic
+// as an error, so the caller still runs the fixer on what goccy filled.
+// A panic from a caller's own method goes on unrecovered.
+func decodeBody(body ast.Node, v any, opts DecodeOptions) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if !panicFromDecoder() {
+				panic(r)
+			}
+			err = decoderPanicError(reflect.TypeOf(v))
+		}
+	}()
+	return yamlcodec.DecodeBody(body, v, decodeOptions(opts)...)
 }
 
 // decodeOptions returns the goccy options for a typed decode. The parser

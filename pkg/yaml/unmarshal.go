@@ -1,6 +1,8 @@
 // Package yaml decodes YAML the way graft's merge engine reads it.
 package yaml
 
+import "reflect"
+
 // Unmarshal decodes the first YAML document in data into v, reading
 // yes, no, on, and off as booleans the way graft's merge engine does.
 //
@@ -42,6 +44,9 @@ package yaml
 //   - In a << merge key's list of maps, a later map wins over an earlier
 //     one, as on the generic route, where yaml.v2 and yaml.v3 let the
 //     earlier map win.
+//   - A time.Time accepts any string goccy's timestamp layouts parse, so
+//     a quoted "2001-12-14" decodes, where yaml.v2 and yaml.v3 refuse a
+//     quoted date that is not RFC 3339.
 //   - A value of interface type that v already held is converted as a
 //     decoded generic value is, even where the document sets nothing.
 func Unmarshal(data []byte, v any) error {
@@ -49,10 +54,20 @@ func Unmarshal(data []byte, v any) error {
 }
 
 // UnmarshalWith decodes the first YAML document in data into v with opts.
-func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
+func UnmarshalWith(data []byte, v any, opts DecodeOptions) (err error) {
 	if err := checkTarget(v); err != nil {
 		return err
 	}
+	// The typed route recovers a decoder panic itself, so the fixer still
+	// runs on what goccy filled. This catches one anywhere else.
+	defer func() {
+		if r := recover(); r != nil {
+			if !panicFromDecoder() {
+				panic(r)
+			}
+			err = decoderPanicError(reflect.TypeOf(v))
+		}
+	}()
 	switch p := v.(type) {
 	case *any:
 		return decodeInto(data, opts, func(got any) error {
