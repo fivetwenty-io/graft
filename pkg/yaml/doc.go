@@ -48,6 +48,17 @@ as YAML 1.2 does.
 A string target holds a scalar as written, so 1.10 stays "1.10" and 0x1F
 stays "0x1F", as in yaml.v2 and yaml.v3.
 
+# Repeated keys
+
+Unmarshal refuses a mapping that repeats a key, with an ErrorKindSyntax error
+that names the line and column of both occurrences and never quotes the key.
+UnmarshalWith with a DecodeOptions.OnDuplicateKey callback accepts a repeated
+key in any mapping at any depth instead, keeps the last value, as yaml.v2
+does, and calls the callback once for each later occurrence. Each report holds
+a DuplicateKey with the path of the key and the positions of both occurrences.
+Merge keys are never reported. Unmarshal itself, and graft's merge, stay
+strict.
+
 # Differences from yaml.v2 and yaml.v3
 
 A program moving from yaml.v2 or yaml.v3 meets these differences.

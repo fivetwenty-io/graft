@@ -558,10 +558,10 @@ func ParseMergeBody(doc []byte, tag bool) (ast.Node, error) {
 // parse. body is what ParseFirstBody or PrepareBody returned with tag
 // set, and nil for a document that holds nothing. It decodes body and
 // converts the result as DecodeGeneric does.
-func DecodeGenericBody(body ast.Node, c *YAMLCompat, intsAlways bool) (any, error) {
+func DecodeGenericBody(body ast.Node, c *YAMLCompat, intsAlways bool, opts ...yaml.DecodeOption) (any, error) {
 	var v any
 	if body != nil {
-		if err := DecodeBody(body, &v); err != nil {
+		if err := DecodeBody(body, &v, opts...); err != nil {
 			return nil, err
 		}
 	}

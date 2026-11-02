@@ -65,6 +65,9 @@ func Unmarshal(data []byte, v any) error {
 }
 
 // UnmarshalWith decodes the first YAML document in data into v with opts.
+// A mapping that repeats a key is an error, as it is for Unmarshal, unless
+// opts.OnDuplicateKey is set, in which case the last value wins and the
+// callback receives each later occurrence.
 func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
 	data, err := toUTF8(data)
 	if err != nil {
@@ -79,7 +82,7 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
 	if err := checkTarget(v); err != nil {
 		return err
 	}
-	return decodeFrom(textSource(data), v, opts)
+	return decodeFrom(textSource(data, opts), v, opts)
 }
 
 // source hands the decode routes the root of the document they decode,
@@ -92,14 +95,22 @@ type source func(tag bool) (ast.Node, error)
 
 // textSource returns the source for data, which parses the first
 // document of data the way a merge does. Each call parses data again, so
-// each route gets a tree of its own.
-func textSource(data []byte) source {
+// each route gets a tree of its own. With opts.OnDuplicateKey set, the
+// parse accepts a repeated key and reports each one as it parses.
+func textSource(data []byte, opts DecodeOptions) source {
 	return func(tag bool) (ast.Node, error) {
 		doc, err := yamlcodec.FirstMergeDocument(data)
 		if err != nil {
 			return nil, translate(err)
 		}
-		body, err := yamlcodec.ParseMergeBody(doc, tag)
+		var body ast.Node
+		if opts.OnDuplicateKey != nil {
+			body, err = yamlcodec.ParseMergeBodyDuplicates(doc, tag, func(d yamlcodec.DuplicateKey) {
+				opts.OnDuplicateKey(DuplicateKey(d))
+			})
+		} else {
+			body, err = yamlcodec.ParseMergeBody(doc, tag)
+		}
 		if err != nil {
 			return nil, translate(err)
 		}

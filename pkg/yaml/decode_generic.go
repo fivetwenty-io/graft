@@ -1,6 +1,10 @@
 package yaml
 
-import "github.com/fivetwenty-io/graft/internal/yamlcodec"
+import (
+	goyaml "github.com/goccy/go-yaml"
+
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
+)
 
 // decodeGeneric decodes the document src returns into the values graft
 // merge reads it as, which are map[string]any, []any, int, float64,
@@ -19,7 +23,11 @@ func decodeGeneric(src source, opts DecodeOptions) (any, error) {
 		return nil, err
 	}
 	compat := &yamlcodec.YAMLCompat{ConvertYAML11Booleans: !opts.YAML12}
-	v, err := yamlcodec.DecodeGenericBody(body, compat, true)
+	var dec []goyaml.DecodeOption
+	if opts.OnDuplicateKey != nil {
+		dec = append(dec, goyaml.AllowDuplicateMapKey())
+	}
+	v, err := yamlcodec.DecodeGenericBody(body, compat, true, dec...)
 	if err != nil {
 		return nil, translate(err)
 	}

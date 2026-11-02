@@ -119,6 +119,9 @@ func decodeNode(data []byte, out *Node, opts DecodeOptions) error {
 	c := &converter{seen: make(map[*yamlnode.Node]*Node), opts: opts, lines: lines, text: &readText{doc: doc}}
 	var root Node
 	c.fill(&root, docs[0])
+	if opts.OnDuplicateKey != nil {
+		collapseDuplicates(&root, opts.OnDuplicateKey)
+	}
 	if line := documentLine(data); line > 0 {
 		root.Line, root.Column = line, 1
 	}
