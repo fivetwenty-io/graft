@@ -18,7 +18,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/features"
 	"github.com/fivetwenty-io/graft/internal/metrics"
 	"github.com/fivetwenty-io/graft/internal/parallel"
-	"github.com/fivetwenty-io/graft/internal/yamlprep"
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 
@@ -402,18 +402,11 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		data = expanded
 	}
 
-	// Apply graft's goccy input workarounds in one place: the bare "-"
-	// terminator rewrite, <<<: inject-key quoting, and quoting of
-	// {{...}} template placeholders so they read as strings rather than
-	// as flow mappings used as keys (see internal/yamlprep).
-	data, _ = yamlprep.Prepare(data)
-
-	// First parse as generic interface to check document type. Quoted
-	// YAML 1.1 boolean-lookalike scalars ("yes", 'On', "OFF", ...) are
-	// tagged during this parse so the compat conversion below skips
-	// them, matching spruce (quoting is an explicit request to keep the
-	// value a string).
-	genericResult, err := ParseYAML11CompatAware(data)
+	// Prepare and parse the document, then apply the YAML 1.1 boolean
+	// conversions (yes/no/on/off -> bool) and strip the quoted-bool
+	// protection markers in one walk. pkg/yaml decodes through the same
+	// helper, so both read a document alike.
+	genericResult, err := yamlcodec.DecodeGeneric(data, e.yamlCompat(), false)
 	if err != nil {
 		// Fold goccy's own error text (it carries line/column detail, the
 		// same information spruce's underlying library reports) into the
@@ -430,9 +423,7 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 	// map[string]interface{}, even when its keys are not strings.
 	switch result := genericResult.(type) {
 	case map[string]interface{}:
-		// Apply YAML 1.1 boolean compatibility conversions (yes/no/on/off → bool)
-		// and strip quoted-bool protection markers in one walk.
-		return NewDocument(e.yamlCompat().ConvertAndUnprotect(result)), nil
+		return NewDocument(result), nil
 	case map[interface{}]interface{}:
 		// goccy does not produce this itself, but a value that came from
 		// another decoder can carry it, so its keys are stringified here.
@@ -440,7 +431,7 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		for k, v := range result {
 			converted[fmt.Sprintf("%v", k)] = v
 		}
-		return NewDocument(e.yamlCompat().ConvertAndUnprotect(converted)), nil
+		return NewDocument(converted), nil
 	default:
 		// The wording is spruce's, which prints the failed type assertion
 		// from its own decoder for every root that is not a mapping.

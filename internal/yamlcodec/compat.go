@@ -164,6 +164,13 @@ func (c *YAMLCompat) ConvertAndUnprotect(data map[string]interface{}) map[string
 }
 
 func (c *YAMLCompat) convertAndUnprotectAny(v interface{}) interface{} {
+	return c.convertAndUnprotectWith(v, c.ConvertYAML11Booleans)
+}
+
+// convertAndUnprotectWith is convertAndUnprotectAny with the numeric
+// normalizations applied when ints is set. c applies them on its own
+// only when it converts YAML 1.1 booleans.
+func (c *YAMLCompat) convertAndUnprotectWith(v interface{}, ints bool) interface{} {
 	switch val := v.(type) {
 	case string:
 		if strings.HasPrefix(val, yaml11QuotedBoolMarker) {
@@ -174,20 +181,23 @@ func (c *YAMLCompat) convertAndUnprotectAny(v interface{}) interface{} {
 		}
 		return val
 	case uint64, int64, float32:
-		return c.convertAndUnprotectNumber(val)
+		if !ints {
+			return val
+		}
+		return normalizeNumber(val)
 	case map[string]interface{}:
 		for k, item := range val {
-			val[k] = c.convertAndUnprotectAny(item)
+			val[k] = c.convertAndUnprotectWith(item, ints)
 		}
 		return val
 	case map[interface{}]interface{}:
 		for k, item := range val {
-			val[k] = c.convertAndUnprotectAny(item)
+			val[k] = c.convertAndUnprotectWith(item, ints)
 		}
 		return val
 	case []interface{}:
 		for i, item := range val {
-			val[i] = c.convertAndUnprotectAny(item)
+			val[i] = c.convertAndUnprotectWith(item, ints)
 		}
 		return val
 	default:
@@ -195,13 +205,10 @@ func (c *YAMLCompat) convertAndUnprotectAny(v interface{}) interface{} {
 	}
 }
 
-// convertAndUnprotectNumber applies the compat pass's numeric
-// normalizations: int-sized integers become int, float32 widens to
-// float64, and an integer too large for int stays uint64 untouched.
-func (c *YAMLCompat) convertAndUnprotectNumber(v interface{}) interface{} {
-	if !c.ConvertYAML11Booleans {
-		return v
-	}
+// normalizeNumber applies the compat pass's numeric normalizations:
+// int-sized integers become int, float32 widens to float64, and an
+// integer too large for int stays uint64 untouched.
+func normalizeNumber(v interface{}) interface{} {
 	switch val := v.(type) {
 	case uint64:
 		if val > uint64(^uint(0)>>1) {
@@ -323,6 +330,36 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+// DecodeGeneric decodes doc into the generic values a merge reads, which
+// are map[string]any for a mapping, []any for a sequence, and Go scalars
+// for the rest. doc is a first document that FirstMergeDocument returned,
+// and the caller may rewrite it in between, as the engine's control-flow
+// expander does.
+//
+// It applies yamlprep.Prepare, parses with ParseYAML11CompatAware, and
+// then converts the result and strips the quoted-boolean markers with c.
+// c turns int-sized integers into int only when it converts YAML 1.1
+// booleans, and intsAlways turns them into int either way. A nil value
+// with a nil error means doc holds no document, or a null one. Errors
+// come back as ParseYAML11CompatAware returns them.
+func DecodeGeneric(doc []byte, c *YAMLCompat, intsAlways bool) (any, error) {
+	// Apply graft's goccy input workarounds in one place: the bare "-"
+	// terminator rewrite, <<<: inject-key quoting, and quoting of
+	// {{...}} template placeholders so they read as strings rather than
+	// as flow mappings used as keys (see internal/yamlprep).
+	doc, _ = yamlprep.Prepare(doc)
+
+	// Quoted YAML 1.1 boolean-lookalike scalars ("yes", 'On', "OFF",
+	// ...) are tagged during this parse so the conversion below skips
+	// them, matching spruce (quoting is an explicit request to keep the
+	// value a string).
+	v, err := ParseYAML11CompatAware(doc)
+	if err != nil {
+		return nil, err
+	}
+	return c.convertAndUnprotectWith(v, intsAlways || c.ConvertYAML11Booleans), nil
 }
 
 // maxExpandedNodes caps the nodes a document holds once every alias in
@@ -629,10 +666,4 @@ func UnprotectYAML11QuotedBools(v interface{}) interface{} {
 	default:
 		return v
 	}
-}
-
-// ConvertAndUnprotectAny exposes convertAndUnprotectAny to the packages
-// that alias YAMLCompat, so the alias gains no method.
-func ConvertAndUnprotectAny(c *YAMLCompat, v any) any {
-	return c.convertAndUnprotectAny(v)
 }
