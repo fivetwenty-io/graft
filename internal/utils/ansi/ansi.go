@@ -321,6 +321,13 @@ func SprintfColor(enabled bool, format string, args ...interface{}) string {
 	return processColorCodes(enabled, result)
 }
 
+// SprintfTemplate processes color markup in format only, then formats args
+// into the result, so the args appear verbatim and are never read as markup.
+// The color flag is explicit, and the package-wide toggle is not consulted.
+func SprintfTemplate(enabled bool, format string, args ...interface{}) string {
+	return fmt.Sprintf(processColorCodes(enabled, format), args...)
+}
+
 // Errorf creates a formatted error with color codes.
 func Errorf(format string, args ...interface{}) error {
 	msg := Sprintf(format, args...)

@@ -126,3 +126,102 @@ func TestPlainStringConcurrentWithString(t *testing.T) {
 	}()
 	wg.Wait()
 }
+
+// wrappedDiffMap embeds a graft Diffable and overrides String, so it
+// inherits the unexported render method and must still use its own String.
+type wrappedDiffMap struct{ DiffMap }
+
+func (w wrappedDiffMap) String(key string) string { return "WRAPPED:" + w.DiffMap.String(key) }
+
+func TestPlainStringEmbeddingType(t *testing.T) {
+	withColor(t, true)
+	inner, ok := plainTestDiff(t).(DiffMap)
+	if !ok {
+		t.Fatal("expected a DiffMap")
+	}
+	w := wrappedDiffMap{inner}
+	got := PlainString(w, "$")
+	if want := ansi.StripEscapes(w.String("$")); got != want {
+		t.Errorf("embedder\n got: %q\nwant: %q", got, want)
+	}
+	if !strings.HasPrefix(got, "WRAPPED:") {
+		t.Errorf("override skipped: %q", got)
+	}
+
+	// An embedder nested inside a graft diff is reached through String too.
+	outer := DiffMap{Common: map[string]Diffable{"w": w}}
+	if got := PlainString(outer, "$"); !strings.Contains(got, "WRAPPED:") || strings.Contains(got, "\x1b") {
+		t.Errorf("nested embedder: %q", got)
+	}
+}
+
+func TestPlainStringKeepsUserTextVerbatim(t *testing.T) {
+	for _, on := range []bool{true, false} {
+		withColor(t, on)
+		// Built with the toggle in the state under test, so nothing may be
+		// baked into the diff at construction.
+		d, err := Diff(
+			map[string]interface{}{"@R{k}": "old @R{x}", "n": map[string]interface{}{"@G{z}": 1}},
+			map[string]interface{}{"@R{k}": "new @G{y}", "n": map[string]interface{}{"@G{z}": 2}, "@B{add}": "@R{v}"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := PlainString(d, "@R{root}")
+		for _, want := range []string{
+			"@R{root}.@R{k} changed value",
+			"old @R{x}", "new @G{y}",
+			"@R{root}.n.@G{z} changed value",
+			"@R{root}.@B{add} added",
+			"@R{v}",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("toggle=%v: missing %q in\n%s", on, want, got)
+			}
+		}
+		if strings.Contains(got, "\x1b") {
+			t.Errorf("toggle=%v: escape in %q", on, got)
+		}
+		if ansi.IsColorEnabled() != on {
+			t.Errorf("toggle changed")
+		}
+	}
+}
+
+func TestPlainStringConcurrentWithToggleFlips(t *testing.T) {
+	withColor(t, true)
+	d := plainTestDiff(t)
+
+	stop := make(chan struct{})
+	var flipper sync.WaitGroup
+	flipper.Add(1)
+	go func() {
+		defer flipper.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				ansi.Color(true)
+				ansi.Color(false)
+			}
+		}
+	}()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				if got := PlainString(d, "@R{$}"); strings.Contains(got, "\x1b") || got == "" {
+					t.Errorf("bad PlainString under toggle flips: %q", got)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(stop)
+	flipper.Wait()
+}

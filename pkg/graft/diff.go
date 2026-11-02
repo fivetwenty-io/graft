@@ -1,6 +1,7 @@
 package graft
 
 import (
+	stdfmt "fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -17,24 +18,71 @@ func indent(pad, s string) string {
 	return re.ReplaceAllString(s, pad)
 }
 
-func yamlstring(color bool, f string, x Diffable) string {
+// style says how a diff is rendered. Color is applied only here, at render
+// time, because Diff stores raw values and keys.
+//
+// Without verbatim, rendering is what String has always done: user text goes
+// through the ansi markup rules and the color flag decides whether markup
+// becomes escapes or is stripped. With verbatim, only graft's own template
+// text is markup, and keys and values appear exactly as written.
+type style struct {
+	color    bool
+	verbatim bool
+}
+
+var plainStyle = style{verbatim: true}
+
+func toggleStyle() style {
+	return style{color: fmt.IsColorEnabled()}
+}
+
+// text prepares a stored key or value for display.
+func (st style) text(x string) string {
+	if st.verbatim {
+		return x
+	}
+	return fmt.SprintfColor(st.color, "%s", x)
+}
+
+// format expands a template whose markup is graft's own.
+func (st style) format(template string, args ...interface{}) string {
+	if st.verbatim {
+		return fmt.SprintfTemplate(false, template, args...)
+	}
+	return fmt.SprintfColor(st.color, template, args...)
+}
+
+// childKey builds the key a nested diff renders under.
+func (st style) childKey(format, key, k string) string {
+	if st.verbatim {
+		return stdfmt.Sprintf(format, key, k)
+	}
+	return fmt.SprintfColor(st.color, format, key, st.text(k))
+}
+
+func (st style) yamlstring(f string, x Diffable) string {
 	const defaultPad = "    "
 	s, _ := MarshalYAML(x.Value())
-	return fmt.SprintfColor(color, f, indent(defaultPad, strings.TrimSuffix(string(s), "\n")))
+	return st.format(f, indent(defaultPad, strings.TrimSuffix(string(s), "\n")))
 }
 
-func yamlmarshal(x interface{}) string {
-	s, _ := MarshalYAML(x)
-	return fmt.Sprintf("%s", s)
-}
-
-func sortkeys(m map[string]Diffable) []string {
+// sorted orders keys as they display.
+func (st style) sorted(m map[string]Diffable) []string {
 	kk := make([]string, 0, len(m))
 	for k := range m {
 		kk = append(kk, k)
 	}
-	sort.Strings(kk)
+	sort.Slice(kk, func(i, j int) bool { return st.text(kk[i]) < st.text(kk[j]) })
 	return kk
+}
+
+func yamlmarshal(x interface{}) string {
+	s, _ := MarshalYAML(x)
+	return string(s)
+}
+
+func sortkeys(m map[string]Diffable) []string {
+	return plainStyle.sorted(m)
 }
 
 // Type represents the type category of a YAML value.
@@ -92,7 +140,7 @@ func mapify(l []interface{}, key string) map[string]interface{} {
 		if !ok {
 			return nil
 		}
-		ks := fmt.Sprintf("%v", kv)
+		ks := stdfmt.Sprintf("%v", kv)
 		m[ks] = v
 	}
 
@@ -139,31 +187,69 @@ type Diffable interface {
 	Value() interface{}
 }
 
-// renderer is implemented by graft's own Diffable types. It renders with an
-// explicit color flag instead of the package-wide toggle in internal/utils/ansi.
-type renderer interface {
-	render(key string, color bool) string
+// derefOwn returns the value a non-nil pointer to one of graft's own Diffable
+// types points at, and any other Diffable unchanged.
+func derefOwn(d Diffable) Diffable {
+	switch v := d.(type) {
+	case *DiffNone:
+		if v != nil {
+			return *v
+		}
+	case *DiffType:
+		if v != nil {
+			return *v
+		}
+	case *DiffScalar:
+		if v != nil {
+			return *v
+		}
+	case *DiffMap:
+		if v != nil {
+			return *v
+		}
+	case *DiffList:
+		if v != nil {
+			return *v
+		}
+	}
+	return d
 }
 
-// renderDiffable renders d with the given color flag. Diffable values from
-// outside this package have no color flag to honor, so they render through
-// String, and without color their escape sequences are stripped.
-func renderDiffable(d Diffable, key string, color bool) string {
-	if r, ok := d.(renderer); ok {
-		return r.render(key, color)
+// renderDiffable renders d in the given style. Only graft's own Diffable
+// types, matched by exact dynamic type, take the style; any other type,
+// including one that embeds a graft type and overrides String, renders
+// through its own String method. Under a verbatim style that output has its
+// escape sequences stripped.
+func renderDiffable(d Diffable, key string, st style) string {
+	d = derefOwn(d)
+	switch v := d.(type) {
+	case DiffNone:
+		return v.render(key, st)
+	case DiffType:
+		return v.render(key, st)
+	case DiffScalar:
+		return v.render(key, st)
+	case DiffMap:
+		return v.render(key, st)
+	case DiffList:
+		return v.render(key, st)
 	}
 	out := d.String(key)
-	if !color {
+	if st.verbatim {
 		out = fmt.StripEscapes(out)
 	}
 	return out
 }
 
-// PlainString renders d exactly as d.String(key) does, but without ANSI
-// color escapes. It neither reads nor changes the package-wide color
-// setting, so concurrent callers can use it safely.
+// PlainString renders d as d.String(key) does, but without ANSI color
+// escapes. For graft's own Diffable types it reads no package-wide color
+// setting, so concurrent callers can use it safely, and the key and the
+// diffed values appear exactly as written, never read as color markup. A
+// Diffable from outside graft renders through its own String method with
+// escape sequences stripped, and that method may still read the package-wide
+// color setting.
 func PlainString(d Diffable, key string) string {
-	return renderDiffable(d, key, false)
+	return renderDiffable(d, key, plainStyle)
 }
 
 // DiffNone represents an unchanged value.
@@ -178,10 +264,10 @@ func (d DiffNone) Changed() bool {
 
 // String returns an empty string for unchanged values.
 func (d DiffNone) String(key string) string {
-	return d.render(key, fmt.IsColorEnabled())
+	return d.render(key, toggleStyle())
 }
 
-func (d DiffNone) render(string, bool) string {
+func (d DiffNone) render(string, style) string {
 	return ""
 }
 
@@ -203,11 +289,11 @@ func (d DiffType) Changed() bool {
 
 // String returns a formatted description of the type change.
 func (d DiffType) String(key string) string {
-	return d.render(key, fmt.IsColorEnabled())
+	return d.render(key, toggleStyle())
 }
 
-func (d DiffType) render(key string, color bool) string {
-	return fmt.SprintfColor(color, "  @C{%s} changed type\n    from @R{%s}\n      to @G{%s}\n\n",
+func (d DiffType) render(key string, st style) string {
+	return st.format("  @C{%s} changed type\n    from @R{%s}\n      to @G{%s}\n\n",
 		key, typeof(d.Old), typeof(d.New))
 }
 
@@ -229,12 +315,12 @@ func (d DiffScalar) Changed() bool {
 
 // String returns a formatted description of the scalar change.
 func (d DiffScalar) String(key string) string {
-	return d.render(key, fmt.IsColorEnabled())
+	return d.render(key, toggleStyle())
 }
 
-func (d DiffScalar) render(key string, color bool) string {
-	return fmt.SprintfColor(color, "  @C{%s} changed value\n    from @R{%s}\n      to @G{%s}\n\n",
-		key, pad1("         ", d.Old), pad1("         ", d.New))
+func (d DiffScalar) render(key string, st style) string {
+	return st.format("  @C{%s} changed value\n    from @R{%s}\n      to @G{%s}\n\n",
+		key, pad1("         ", st.text(d.Old)), pad1("         ", st.text(d.New)))
 }
 
 // Value returns nil for scalar changes.
@@ -265,27 +351,27 @@ func (d DiffMap) Changed() bool {
 
 // String returns a formatted description of the map changes.
 func (d DiffMap) String(key string) string {
-	return d.render(key, fmt.IsColorEnabled())
+	return d.render(key, toggleStyle())
 }
 
-func (d DiffMap) render(key string, color bool) string {
+func (d DiffMap) render(key string, st style) string {
 	s := ""
 
-	for _, k := range sortkeys(d.Added) {
+	for _, k := range st.sorted(d.Added) {
 		v := d.Added[k]
-		s += fmt.SprintfColor(color, "  @C{%s.%s} added\n", key, k)
-		s += yamlstring(color, "@G{%s}\n\n", v)
+		s += st.format("  @C{%s.%s} added\n", key, k)
+		s += st.yamlstring("@G{%s}\n\n", v)
 	}
-	for _, k := range sortkeys(d.Removed) {
+	for _, k := range st.sorted(d.Removed) {
 		v := d.Removed[k]
-		s += fmt.SprintfColor(color, "  @C{%s.%s} removed\n", key, k)
-		s += yamlstring(color, "@R{%s}\n\n", v)
+		s += st.format("  @C{%s.%s} removed\n", key, k)
+		s += st.yamlstring("@R{%s}\n\n", v)
 	}
 
-	for _, k := range sortkeys(d.Common) {
+	for _, k := range st.sorted(d.Common) {
 		v := d.Common[k]
 		if v.Changed() {
-			s += renderDiffable(v, fmt.Sprintf("%s.%v", key, k), color)
+			s += renderDiffable(v, st.childKey("%s.%s", key, k), st)
 		}
 	}
 	return s
@@ -318,26 +404,26 @@ func (d DiffList) Changed() bool {
 
 // String returns a formatted description of the list changes.
 func (d DiffList) String(key string) string {
-	return d.render(key, fmt.IsColorEnabled())
+	return d.render(key, toggleStyle())
 }
 
-func (d DiffList) render(key string, color bool) string {
+func (d DiffList) render(key string, st style) string {
 	s := ""
 
-	for _, k := range sortkeys(d.Added) {
+	for _, k := range st.sorted(d.Added) {
 		v := d.Added[k]
-		s += fmt.SprintfColor(color, "  @C{%s[%s]} added\n", key, k)
-		s += yamlstring(color, "@G{%s}\n\n", v)
+		s += st.format("  @C{%s[%s]} added\n", key, k)
+		s += st.yamlstring("@G{%s}\n\n", v)
 	}
-	for _, k := range sortkeys(d.Removed) {
+	for _, k := range st.sorted(d.Removed) {
 		v := d.Removed[k]
-		s += fmt.SprintfColor(color, "  @C{%s[%s]} removed\n", key, k)
-		s += yamlstring(color, "@R{%s}\n\n", v)
+		s += st.format("  @C{%s[%s]} removed\n", key, k)
+		s += st.yamlstring("@R{%s}\n\n", v)
 	}
-	for _, k := range sortkeys(d.Common) {
+	for _, k := range st.sorted(d.Common) {
 		v := d.Common[k]
 		if v.Changed() {
-			s += renderDiffable(v, fmt.Sprintf("%s[%s]", key, k), color)
+			s += renderDiffable(v, st.childKey("%s[%s]", key, k), st)
 		}
 	}
 	return s
@@ -361,25 +447,25 @@ func Diff(a, b interface{}) (Diffable, error) {
 		aMap, aOk := a.(map[string]interface{})
 		bMap, bOk := b.(map[string]interface{})
 		if !aOk || !bOk {
-			return DiffScalar{}, fmt.Errorf("expected map types")
+			return DiffScalar{}, stdfmt.Errorf("expected map types")
 		}
 		return diffMaps(aMap, bMap)
 	case SimpleList:
 		aList, aOk := a.([]interface{})
 		bList, bOk := b.([]interface{})
 		if !aOk || !bOk {
-			return DiffScalar{}, fmt.Errorf("expected list types")
+			return DiffScalar{}, stdfmt.Errorf("expected list types")
 		}
 		return diffSimpleLists(aList, bList)
 	case KeyedList:
 		aList, aOk := a.([]interface{})
 		bList, bOk := b.([]interface{})
 		if !aOk || !bOk {
-			return DiffScalar{}, fmt.Errorf("expected list types")
+			return DiffScalar{}, stdfmt.Errorf("expected list types")
 		}
 		return diffKeyedLists(aList, bList)
 	default:
-		return DiffScalar{}, fmt.Errorf("diff not implemented for this type")
+		return DiffScalar{}, stdfmt.Errorf("diff not implemented for this type")
 	}
 }
 
@@ -392,7 +478,7 @@ func diffMaps(ma, mb map[string]interface{}) (DiffMap, error) {
 	}
 
 	for k, v1 := range ma {
-		key := fmt.Sprintf("%v", k)
+		key := k
 		if v2, ok := mb[k]; ok {
 			d, err := Diff(v1, v2)
 			if err != nil {
@@ -406,7 +492,7 @@ func diffMaps(ma, mb map[string]interface{}) (DiffMap, error) {
 
 	for k, v2 := range mb {
 		if _, ok := ma[k]; !ok {
-			x.Added[fmt.Sprintf("%v", k)] = DiffNone{v2}
+			x.Added[k] = DiffNone{v2}
 		}
 	}
 	return x, nil
@@ -421,7 +507,7 @@ func diffSimpleLists(la, lb []interface{}) (DiffList, error) {
 	}
 
 	for i, v1 := range la {
-		key := fmt.Sprintf("%d", i)
+		key := stdfmt.Sprintf("%d", i)
 		if i < len(lb) {
 			d, err := Diff(v1, lb[i])
 			if err != nil {
@@ -434,7 +520,7 @@ func diffSimpleLists(la, lb []interface{}) (DiffList, error) {
 	}
 
 	for i := len(la); i < len(lb); i++ {
-		x.Added[fmt.Sprintf("%d", i)] = DiffNone{lb[i]}
+		x.Added[stdfmt.Sprintf("%d", i)] = DiffNone{lb[i]}
 	}
 	return x, nil
 }
@@ -490,7 +576,7 @@ func diffKeyedLists(la, lb []interface{}) (DiffList, error) {
 	}
 
 	for k, v1 := range ma {
-		keyStr := fmt.Sprintf("%v", k)
+		keyStr := k
 		if v2, ok := mb[k]; ok {
 			d, err := Diff(v1, v2)
 			if err != nil {
@@ -504,7 +590,7 @@ func diffKeyedLists(la, lb []interface{}) (DiffList, error) {
 
 	for k, v2 := range mb {
 		if _, ok := ma[k]; !ok {
-			x.Added[fmt.Sprintf("%v", k)] = DiffNone{v2}
+			x.Added[k] = DiffNone{v2}
 		}
 	}
 	return x, nil
