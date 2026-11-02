@@ -3,7 +3,6 @@ package yaml
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -89,7 +88,6 @@ func translate(err error) *DecodeError {
 			out.Msg = fmt.Sprintf("cannot unmarshal a number into Go value of type %s (overflow)", overflow.DstType)
 		case isGoccyTypeError(err):
 			out.Kind = ErrorKindType
-			out.Msg = explainSameType(out.Msg)
 		}
 		if tk := ge.GetToken(); tk != nil && tk.Position != nil {
 			out.Line, out.Column = tk.Position.Line, tk.Position.Column
@@ -107,6 +105,12 @@ func translate(err error) *DecodeError {
 	var pe *yamlnode.ParseError
 	if errors.As(err, &pe) {
 		return &DecodeError{Kind: ErrorKindSyntax, Line: pe.SourceLine, Column: pe.SourceColumn, Msg: parseMessage(pe.Message)}
+	}
+
+	// A tag that cannot hold its scalar's text names only the tags.
+	var tagValue *yamlcodec.TagValueError
+	if errors.As(err, &tagValue) {
+		return &DecodeError{Kind: ErrorKindSyntax, Line: tagValue.Line, Column: tagValue.Column, Msg: tagValue.Message()}
 	}
 
 	// The anchor check's message names the anchor, so only its position
@@ -130,22 +134,6 @@ func translate(err error) *DecodeError {
 
 	// The rest are plain errors that quote nothing from the input.
 	return &DecodeError{Kind: ErrorKindSyntax, Msg: scrub(msg)}
-}
-
-// sameTypeMessage matches goccy's type error when the YAML type it names
-// is the Go type's name, as a !!int tag on text that is no integer
-// produces.
-var sameTypeMessage = regexp.MustCompile(`^cannot unmarshal (\w+) into Go struct field (\S*) of type (\w+)$`)
-
-// explainSameType rewrites a type error that says a value of one type
-// cannot be unmarshaled into the same type, which a tag on text of
-// another shape causes, to say what is wrong. Any other message stays.
-func explainSameType(msg string) string {
-	m := sameTypeMessage.FindStringSubmatch(msg)
-	if len(m) != 4 || m[1] != m[3] {
-		return msg
-	}
-	return fmt.Sprintf("cannot unmarshal a !!%s value that is not a valid %s into Go struct field %s of type %s", m[1], m[1], m[2], m[3])
 }
 
 // parseMessage is the DecodeError message for the tree reader's message

@@ -127,17 +127,22 @@ that names a Go type and a field path, and it never quotes a value.
 
 These behaviors follow from the decoder that graft shares with its merge.
 
-An explicitly tagged !!str yes decodes as true in the default mode, because
-the merge engine reads the word before it looks at the tag. A quoted "yes"
-stays a string.
+A scalar with an explicit !!str, !!bool, !!int, !!float, !!null, or !!binary
+tag reads as spruce reads it, in both modes, and graft merge gives the same
+result. So !!str yes stays the word yes, !!int 0x1f is 31, and !!binary
+decodes base64 to the text of its bytes. When the tag cannot hold its text,
+as in a: !!int word, the document fails with an ErrorKindSyntax error that
+names the tags and the tag's position and never quotes the text. A second
+tag on one node and a tag on an alias are syntax errors too, as they are in
+spruce.
 
-An !!int tag on text that is not an integer, as in a: !!int word, decodes as 0
-into an any or a Node, and graft merge gives the same result. Decoding it into
-a typed field is an ErrorKindType error that names only types and never quotes
-the input. For an int or *int field the message says the value is not a valid
-int, and for the other integer types it is the decoder's own message, which
-says it cannot store an int in the field's type. yaml.v2 and yaml.v3 refuse
-the document on both routes.
+The decoder refuses a few tagged documents that spruce reads. A !!str or
+other scalar tag on a flow or block collection is a syntax error, where
+spruce ignores the tag. So is a tag with no value before the next line of a
+mapping or sequence, as in "a: !!str\nb: 1", where spruce reads the empty
+string. A tag that is not a core tag, such as !foo yes, leaves the scalar as
+it would be with no tag, so yes reads as true in the default mode, where
+spruce keeps the string.
 
 A tab inside a plain scalar, as in a: x<TAB>y, is dropped, so the value is
 "xy". This is how the decoder reads such a scalar, and graft merge gives the
@@ -152,12 +157,12 @@ Node.Decode matches Unmarshal on a tree that Unmarshal returned, with a few
 exceptions. They arise because the tree reader follows yaml.v3 while
 Unmarshal follows goccy.
 
-The two disagree on a node with two tags, as in a: !!str !!int 1, where
-Unmarshal gives the string "1" and Decode gives the integer. They disagree
-on a tag written on an alias, as in b: !!str *x, which gives "1" from
-Unmarshal and 1 from Decode. They also disagree on a tag with nothing after
-it at the end of the document, as in a: !!str, which Unmarshal reads as null
-and Decode reads as the empty string.
+The two disagree on a node with two tags, as in a: !!str !!int 1, which
+Unmarshal refuses and Decode reads as the integer. They disagree on a tag
+written on an alias, as in b: !!str *x, which Unmarshal refuses and Decode
+reads as the value the alias names. They also disagree on a tag with nothing
+after it at the end of the document, as in a: !!str, which Unmarshal reads
+as null and Decode reads as the empty string.
 
 The last disagreement is a block scalar in a document with no final line
 break. There Unmarshal drops the last line break, and it also fails to fold

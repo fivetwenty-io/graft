@@ -207,9 +207,11 @@ func TestNodeDecodeHandBuiltNodes(t *testing.T) {
 	}{
 		{scalar("", "123"), 123},
 		{scalar("!!str", "123"), "123"},
-		// The text !!str yes decodes as true in Unmarshal, so a
-		// hand-built one does too.
-		{scalar("!!str", "yes"), true},
+		// An explicit !!str keeps a YAML 1.1 boolean word a string, in
+		// Unmarshal and in a hand-built node alike.
+		{scalar("!!str", "yes"), "yes"},
+		{scalar("!!bool", "on"), true},
+		{scalar("!!int", "0x1F"), 31},
 		{scalar("", "yes"), true},
 		{scalar("", ""), nil},
 		{scalar("!!str", ""), ""},
@@ -220,8 +222,8 @@ func TestNodeDecodeHandBuiltNodes(t *testing.T) {
 		{scalar("", "\x01bell"), "\x01bell"},
 		{&yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{scalar("", "a"), scalar("", "1"), scalar("", "b"), {Kind: yaml.SequenceNode}}},
 			map[string]any{"a": 1, "b": []any{}}},
-		{&yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{{Kind: yaml.MappingNode}, scalar("!!float", "2")}},
-			[]any{map[string]any{}, 2.0}},
+		{&yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{{Kind: yaml.MappingNode}, scalar("!!float", "2.5")}},
+			[]any{map[string]any{}, 2.5}},
 	} {
 		var v any
 		if err := c.n.Decode(&v); err != nil {
@@ -649,7 +651,7 @@ func TestNodeDecodeClampsNegativeColumn(t *testing.T) {
 	var v struct {
 		A bool `yaml:"a"`
 	}
-	de := wantDecodeError(t, n.Decode(&v), yaml.ErrorKindType, 2)
+	de := wantDecodeError(t, n.Decode(&v), yaml.ErrorKindSyntax, 2)
 	if de.Column != 0 {
 		t.Errorf("Column %d, want 0", de.Column)
 	}

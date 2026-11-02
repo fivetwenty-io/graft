@@ -1,0 +1,69 @@
+# Scalars with an explicit core tag, which spruce resolves by its YAML
+# library's YAML 1.1 rules. graft merge must read every one alike. Each
+# float has a fraction, since graft prints a whole float as 1000.0 where
+# spruce prints 1000, which is a separate encoder difference.
+str:
+  bool_word: !!str yes
+  bool_upper: !!str ON
+  tilde: !!str ~
+  null_word: !!str null
+  float_text: !!str 1.50
+  octal_text: !!str 012
+  hex_text: !!str 0x1F
+  empty: !!str ""
+  quoted: !!str 'On'
+  literal: !!str |-
+    yes
+  verbatim: !<tag:yaml.org,2002:str> off
+bool:
+  upper_on: !!bool ON
+  lower_off: !!bool off
+  lower_y: !!bool y
+  big_n: !!bool N
+  quoted_yes: !!bool "yes"
+  quoted_off: !!bool 'off'
+int:
+  hex: !!int 0x1f
+  quoted_hex: !!int "0x1f"
+  octal_o: !!int 0o17
+  octal_zero: !!int 012
+  binary: !!int 0b101
+  upper_binary: !!int 0B101
+  negative_binary: !!int -0b101
+  underscores: !!int 1_000
+  hex_underscore: !!int 0x_1F
+  max_uint: !!int 18446744073709551615
+  literal: !!int |-
+    12
+float:
+  plain: !!float 1.50
+  exponent: !!float -1.5e-3
+  quoted: !!float "2.5"
+  leading_zero: !!float 09.5
+  hex: !!float 0x1.4p0
+  inf: !!float -.inf
+nulls:
+  tilde: !!null ~
+  word: !!null NULL
+  quoted_empty: !!null ""
+  quoted_tilde: !!null "~"
+binary:
+  plain: !!binary aGk=
+  quoted: !!binary "aGk="
+  block: !!binary |
+    aGVsbG8g
+    d29ybGQ=
+nested:
+  flow_map: {a: !!str yes, b: !!int 7}
+  flow_seq: [!!str yes, !!bool y]
+  block_seq:
+  - !!str on
+  - !!int 0x10
+anchors:
+  tag_first: !!str &tagged yes
+  anchor_first: &anchored !!str no
+  tag_first_alias: *tagged
+  anchor_first_alias: *anchored
+keys:
+  !!str 1: one
+  !!str yes: yes word

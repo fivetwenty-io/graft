@@ -1,0 +1,4 @@
+# spruce refuses an !!int tag on text that is not an integer. The word
+# below must never appear in graft's error message.
+ok: 1
+bad: !!int S3KRIT

@@ -433,11 +433,22 @@ func ParseFirstBody(data []byte, tag bool) (ast.Node, error) {
 // takes body, the root node of a document, which may come from goccy's
 // parser or be built by hand, and returns it ready for DecodeBody. It
 // fails a body with an alias inside the collection its anchor names, or
-// with an invalid tag, marks the quoted YAML 1.1 boolean-lookalike
-// scalars when tag is set, and expands every alias. It rewrites body in
-// place, so a caller passes a body that nothing else holds.
+// with an invalid tag, resolves every scalar with an explicit core tag as
+// spruce does (see ResolveTags), marks the quoted YAML 1.1
+// boolean-lookalike scalars when tag is set, and expands every alias. It
+// rewrites body in place, so a caller passes a body that nothing else
+// holds.
 func PrepareBody(body ast.Node, tag bool) (ast.Node, error) {
 	if err := CheckAnchors(body); err != nil {
+		return nil, err
+	}
+
+	// Tags resolve before the tagger runs, so a scalar !!str or !!binary
+	// makes reads as a quoted string, which no coercion turns into a
+	// boolean, and before expansion, so an alias copies the resolved
+	// scalar.
+	body, err := ResolveTags(body)
+	if err != nil {
 		return nil, err
 	}
 

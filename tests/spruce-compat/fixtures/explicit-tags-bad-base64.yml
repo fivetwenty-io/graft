@@ -1,0 +1,3 @@
+# spruce refuses a !!binary scalar that is not base64. The text below
+# must never appear in graft's error message.
+bad: !!binary S3KRIT

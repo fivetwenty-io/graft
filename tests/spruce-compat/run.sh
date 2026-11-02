@@ -701,6 +701,49 @@ pattern_aux_base_override_merge() {
   fi
 }
 
+# aux: explicit core tags. spruce resolves a scalar tagged !!str, !!bool,
+# !!int, !!float, !!null, or !!binary by its YAML library's YAML 1.1
+# rules, so !!str yes stays a string and !!int 0x1f is 31.
+pattern_aux_explicit_tags() {
+  local name="aux: merge of scalars with explicit core tags"
+  run_tool "$SPRUCE_BIN" "$TMP/ptags.s.out" "$TMP/ptags.s.err" NONE -- merge "$FIX/explicit-tags.yml"
+  local s_rc=$RC
+  run_tool "$GRAFT_BIN" "$TMP/ptags.g.out" "$TMP/ptags.g.err" NONE -- merge "$FIX/explicit-tags.yml"
+  local g_rc=$RC
+  if ! assert_exit_parity "$s_rc" "$g_rc"; then
+    report_fail "$name" "exit code mismatch: spruce=$s_rc graft=$g_rc"
+    return
+  fi
+  if assert_stdout_parity yaml "$TMP/ptags.s.out" "$TMP/ptags.g.out"; then
+    report_pass "$name" "exit=$s_rc; $DETAIL_OUT"
+  else
+    report_fail "$name" "exit=$s_rc (matched); $DETAIL_OUT"
+  fi
+}
+
+# aux: a tag on text it cannot hold. Both tools refuse the document, and
+# graft's message names the tag and its position without quoting the
+# text, which spruce's message does quote.
+pattern_aux_explicit_tag_errors() {
+  local fixture
+  for fixture in explicit-tags-int-word explicit-tags-bad-base64; do
+    local name="aux: $fixture refused without quoting the scalar"
+    run_tool "$SPRUCE_BIN" "$TMP/ptagerr.s.out" "$TMP/ptagerr.s.err" NONE -- merge "$FIX/$fixture.yml"
+    local s_rc=$RC
+    run_tool "$GRAFT_BIN" "$TMP/ptagerr.g.out" "$TMP/ptagerr.g.err" NONE -- merge "$FIX/$fixture.yml"
+    local g_rc=$RC
+    if ! assert_exit_parity "$s_rc" "$g_rc"; then
+      report_fail "$name" "exit code mismatch: spruce=$s_rc graft=$g_rc"
+    elif [ "$g_rc" -eq 0 ]; then
+      report_fail "$name" "both tools accepted the document"
+    elif grep -q 'S3KRIT' "$TMP/ptagerr.g.err" "$TMP/ptagerr.g.out"; then
+      report_fail "$name" "graft quoted the scalar in its output"
+    else
+      report_pass "$name" "exit=$s_rc"
+    fi
+  done
+}
+
 # ========================================================================
 # Documented, explicit skip: genesis's "secret X not found" stderr
 # contract (vault_paths()'s /^secret (.*) not found/ match)
@@ -736,6 +779,8 @@ pattern_14_echo_stdin_prune
 pattern_15_threeway_multidoc_json_lines
 pattern_16_hook_merge
 pattern_aux_base_override_merge
+pattern_aux_explicit_tags
+pattern_aux_explicit_tag_errors
 report_secret_not_found_skip
 
 echo

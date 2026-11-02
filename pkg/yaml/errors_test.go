@@ -69,7 +69,7 @@ func TestUnmarshalDecodeErrors(t *testing.T) {
 		{"unclosed flow sequence", "a: 1\nb: [supersecret\nc: 3\n", yaml.ErrorKindSyntax, 3, 1, []string{"supersecret"}},
 		{"unclosed quote", "a: 1\npassword: \"supersecret\n", yaml.ErrorKindSyntax, 2, 11, []string{"supersecret"}},
 		{"duplicate key", "a: 1\npassword: supersecret\npassword: other\n", yaml.ErrorKindSyntax, 3, 1, []string{"supersecret", "other", "password"}},
-		{"bool tag on a word", "a: !!bool supersecret\n", yaml.ErrorKindSyntax, 1, 10, []string{"supersecret"}},
+		{"bool tag on a word", "a: !!bool supersecret\n", yaml.ErrorKindSyntax, 1, 4, []string{"supersecret"}},
 		{"unknown escape", "a: \"sup\\qersecret\"\n", yaml.ErrorKindSyntax, 1, 9, []string{"supersecret", "ersecret", "'q'"}},
 		{"self-containing anchor", "a: &x\n  b: *x\n  pw: supersecret\n", yaml.ErrorKindSyntax, 2, 6, []string{"supersecret"}},
 		{"self-containing anchor on line 1", "c: &x [*x, supersecret]\n", yaml.ErrorKindSyntax, 1, 8, []string{"supersecret"}},
@@ -283,27 +283,30 @@ func lineOf(doc string) int {
 	return strings.Count(strings.TrimSuffix(doc, "\n"), "\n") + 1
 }
 
-// TestTaggedIntWithoutDigits checks the two routes' answers for an !!int
-// tag on text that is not an integer. The generic route decodes it to 0,
-// as graft merge does, and the typed route reports an error that names
-// the mismatch once and quotes nothing from the input.
+// TestTaggedIntWithoutDigits checks that an !!int tag on text that is
+// not an integer fails on both routes, as it does in spruce, with an
+// error that names the tags and the tag's position and quotes nothing
+// from the input.
 func TestTaggedIntWithoutDigits(t *testing.T) {
 	t.Parallel()
 	const doc = "a: !!int S3KRIT\n"
+	const want = "cannot decode a !!str scalar as !!int"
 
 	var generic map[string]any
-	if err := yaml.Unmarshal([]byte(doc), &generic); err != nil || generic["a"] != 0 {
-		t.Errorf("generic route gave %v, %v, want a: 0 and no error", generic, err)
+	err := yaml.Unmarshal([]byte(doc), &generic)
+	de := wantDecodeError(t, err, yaml.ErrorKindSyntax, 1)
+	wantNoLeak(t, err, "S3KRIT")
+	if de.Column != 4 || de.Msg != want {
+		t.Errorf("generic route gave column %d, Msg %q, want 4, %q", de.Column, de.Msg, want)
 	}
 
 	var typed struct {
 		A int `yaml:"a"`
 	}
-	err := yaml.Unmarshal([]byte(doc), &typed)
-	de := wantDecodeError(t, err, yaml.ErrorKindType, 1)
+	err = yaml.Unmarshal([]byte(doc), &typed)
+	de = wantDecodeError(t, err, yaml.ErrorKindSyntax, 1)
 	wantNoLeak(t, err, "S3KRIT")
-	const want = "cannot unmarshal a !!int value that is not a valid int into Go struct field .A of type int"
-	if de.Msg != want {
-		t.Errorf("Msg = %q, want %q", de.Msg, want)
+	if de.Column != 4 || de.Msg != want {
+		t.Errorf("typed route gave column %d, Msg %q, want 4, %q", de.Column, de.Msg, want)
 	}
 }

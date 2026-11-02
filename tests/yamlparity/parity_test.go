@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -21,6 +22,13 @@ const fixtureGlob = "../spruce-compat/fixtures/*"
 // through both routes.
 var notComparable = map[string]string{
 	"gopatch-ops.yml": "the root is a sequence, which the engine refuses and Unmarshal refuses for a map target",
+}
+
+// refusedByBoth names the fixtures that both routes must refuse, as
+// spruce does, each with the text the error must never quote.
+var refusedByBoth = map[string]string{
+	"explicit-tags-int-word.yml":   "S3KRIT",
+	"explicit-tags-bad-base64.yml": "S3KRIT",
 }
 
 func TestUnmarshalMatchesEngineParseYAML(t *testing.T) {
@@ -45,6 +53,10 @@ func TestUnmarshalMatchesEngineParseYAML(t *testing.T) {
 				assertAgreedOutcome(t, engine, data, reason)
 				return
 			}
+			if secret, ok := refusedByBoth[name]; ok {
+				assertBothRefuse(t, engine, data, secret)
+				return
+			}
 			doc, err := engine.ParseYAML(data)
 			if err != nil {
 				t.Fatalf("engine.ParseYAML: %v", err)
@@ -61,6 +73,23 @@ func TestUnmarshalMatchesEngineParseYAML(t *testing.T) {
 				t.Fatalf("Unmarshal and ParseYAML disagree\nUnmarshal: %#v\nParseYAML: %#v", got, want)
 			}
 		})
+	}
+}
+
+// assertBothRefuse checks that the engine and Unmarshal both refuse
+// data, and that neither error quotes secret.
+func assertBothRefuse(t *testing.T, engine graft.Engine, data []byte, secret string) {
+	t.Helper()
+	_, engineErr := engine.ParseYAML(data)
+	var got any
+	unmarshalErr := yaml.Unmarshal(data, &got)
+	for route, err := range map[string]error{"engine.ParseYAML": engineErr, "yaml.Unmarshal": unmarshalErr} {
+		switch {
+		case err == nil:
+			t.Errorf("%s read the document", route)
+		case strings.Contains(err.Error(), secret):
+			t.Errorf("%s error %q quotes the scalar", route, err)
+		}
 	}
 }
 
@@ -111,7 +140,7 @@ var yaml11Documents = map[string]string{
 	"merge keys":      "base: &b {x: 1, y: 2}\nuse:\n  <<: *b\n  y: 3\nlate:\n  y: 4\n  <<: *b\n",
 	"merge list":      "a: &a {n: a, p: 1}\nb: &b {n: b, p: 2}\nx:\n  <<: [*a, *b]\n",
 	"anchors":         "list: &l [1, 2]\ncopy: *l\nstr: &s hello\nagain: *s\n",
-	"tagged scalars":  "a: !!str 123\nb: !!int '42'\nc: !!float 1\nd: !!null ''\n",
+	"tagged scalars":  "a: !!str 123\nb: !!int '42'\nc: !!float 1.0\nd: !!null ''\ne: !!str yes\nf: !!bool on\ng: !!int 0x1F\nh: !!binary aGk=\n",
 	"block scalars":   "lit: |\n  one\n  two\nfold: >-\n  one\n  two\n",
 	"quoted escapes":  "a: \"tab\\there\"\nb: 'it''s'\nc: \"\\u00e9\"\n",
 	"non-string keys": "1: one\ntrue: yes\n~: nil\n1.5: float\n",

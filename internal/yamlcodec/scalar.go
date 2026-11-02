@@ -235,9 +235,8 @@ func analyzeScalar(value []byte) scalarAnalysis {
 	return a
 }
 
-// yamlV2ResolveTable and yamlV2ResolveMap port the fork's resolve.go
-// tables. Only the resolved tag matters here, so the map records
-// whether a word resolves to something other than a string.
+// yamlV2ResolveTable ports the fork's resolve.go table, which reads a
+// scalar's first byte as a hint of what the scalar can be.
 var yamlV2ResolveTable = func() [256]byte {
 	var t [256]byte
 	t['+'], t['-'] = 'S', 'S'
@@ -251,74 +250,13 @@ var yamlV2ResolveTable = func() [256]byte {
 	return t
 }()
 
-var yamlV2ResolveMap = func() map[string]bool {
-	m := map[string]bool{}
-	for _, words := range [][]string{
-		{"y", "Y", "yes", "Yes", "YES"},
-		{"true", "True", "TRUE"},
-		{"on", "On", "ON"},
-		{"n", "N", "no", "No", "NO"},
-		{"false", "False", "FALSE"},
-		{"off", "Off", "OFF"},
-		{"", "~", "null", "Null", "NULL"},
-		{".nan", ".NaN", ".NAN"},
-		{".inf", ".Inf", ".INF"},
-		{"+.inf", "+.Inf", "+.INF"},
-		{"-.inf", "-.Inf", "-.INF"},
-		{"<<"},
-	} {
-		for _, w := range words {
-			m[w] = true
-		}
-	}
-	return m
-}()
-
 // yamlV2ResolvesToString reports whether the fork's resolve("", s)
 // returns the !!str tag for valid UTF-8 s: false when s would read back
-// as a bool, null, int, float or merge key. It calls the same strconv
-// functions in the same order, so it accepts exactly what spruce does.
+// as a bool, null, int, or float. It is resolvePlain, which follows the
+// fork's resolve step by step, so it accepts exactly what spruce does.
 func yamlV2ResolvesToString(s string) bool {
-	hint := byte('N')
-	if s != "" {
-		hint = yamlV2ResolveTable[s[0]]
-	}
-	if hint == 0 {
-		return true
-	}
-	if yamlV2ResolveMap[s] {
-		return false
-	}
-	switch hint {
-	case '.':
-		if _, err := strconv.ParseFloat(s, 64); err == nil {
-			return false
-		}
-	case 'D', 'S':
-		plain := strings.ReplaceAll(s, "_", "")
-		if _, err := strconv.ParseInt(plain, 0, 64); err == nil {
-			return false
-		}
-		if _, err := strconv.ParseUint(plain, 0, 64); err == nil {
-			return false
-		}
-		if _, err := strconv.ParseFloat(plain, 64); err == nil {
-			return false
-		}
-		if strings.HasPrefix(plain, "0b") {
-			if _, err := strconv.ParseInt(plain[2:], 2, 64); err == nil {
-				return false
-			}
-			if _, err := strconv.ParseUint(plain[2:], 2, 64); err == nil {
-				return false
-			}
-		} else if strings.HasPrefix(plain, "-0b") {
-			if _, err := strconv.ParseInt(plain[3:], 2, 64); err == nil {
-				return false
-			}
-		}
-	}
-	return true
+	tag, _ := resolvePlain(s)
+	return tag == strTag || tag == binaryTag
 }
 
 // yamlV2Base60Float is the fork's base60float expression; such strings

@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The Vault reader no longer races when several runs initialize it at the same time.
 
+- `graft merge` and `pkg/yaml` now read a scalar with an explicit `!!str`, `!!bool`, `!!int`, `!!float`, `!!null`, or `!!binary` tag the way spruce does. Before, `!!str yes` became `true`, `!!str 1.50` lost its trailing zero, `!!int 0b101` and `!!bool ON` failed, and `!!int word` quietly became `0`. Now `!!str` keeps the text as written, `!!bool`, `!!int`, and `!!float` take the YAML 1.1 forms spruce's YAML library takes, and `!!binary` decodes base64.
+
+- A tag that can't hold its text, such as `!!int word` or `!!bool 1`, now fails the document as it does in spruce. The error names the tags and the tag's line and column, and unlike spruce's message it never quotes the text. A second tag on one node and a tag on an alias now fail too, where before the tag could turn the value into `0`.
+
 ## [1.43.1] - 2026-10-27
 
 This release fixes `graft install-aliases` on Linux, where it put the `jq`, `yq`, and `spruce` links in a directory that isn't on `PATH`.
