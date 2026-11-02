@@ -1,7 +1,14 @@
 // Package yaml decodes YAML the way graft's merge engine reads it.
 package yaml
 
-import "reflect"
+import (
+	"reflect"
+
+	"github.com/goccy/go-yaml/ast"
+
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
+)
 
 // Unmarshal decodes the first YAML document in data into v, reading
 // yes, no, on, and off as booleans the way graft's merge engine does.
@@ -58,7 +65,7 @@ func Unmarshal(data []byte, v any) error {
 }
 
 // UnmarshalWith decodes the first YAML document in data into v with opts.
-func UnmarshalWith(data []byte, v any, opts DecodeOptions) (err error) {
+func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
 	if n, ok := v.(*Node); ok {
 		if n == nil {
 			return typeError("Unmarshal(nil %T)", n)
@@ -68,6 +75,38 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) (err error) {
 	if err := checkTarget(v); err != nil {
 		return err
 	}
+	return decodeFrom(textSource(data), v, opts)
+}
+
+// source hands the decode routes the root of the document they decode,
+// ready for goccy's decoder, or nil when there is no document. tag says
+// whether each quoted YAML 1.1 boolean-lookalike scalar must carry the
+// marker that keeps it a string, as yamlcodec.ParseFirstBody describes.
+// Every error it returns is a *DecodeError. Unmarshal's source parses
+// text, and Node.Decode's builds the tree from a Node.
+type source func(tag bool) (ast.Node, error)
+
+// textSource returns the source for data, which parses the first
+// document of data the way a merge does. Each call parses data again, so
+// each route gets a tree of its own.
+func textSource(data []byte) source {
+	return func(tag bool) (ast.Node, error) {
+		doc, err := yamlcodec.FirstMergeDocument(data)
+		if err != nil {
+			return nil, translate(err)
+		}
+		doc, _ = yamlprep.Prepare(doc)
+		body, err := yamlcodec.ParseFirstBody(doc, tag)
+		if err != nil {
+			return nil, translate(err)
+		}
+		return body, nil
+	}
+}
+
+// decodeFrom decodes the document src returns into v, a non-nil pointer
+// that checkTarget accepted, by the route v's type takes.
+func decodeFrom(src source, v any, opts DecodeOptions) (err error) {
 	// The typed route recovers a decoder panic itself, so the fixer still
 	// runs on what goccy filled. This catches one anywhere else.
 	defer func() {
@@ -80,12 +119,12 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) (err error) {
 	}()
 	switch p := v.(type) {
 	case *any:
-		return decodeInto(data, opts, func(got any) error {
+		return decodeInto(src, opts, func(got any) error {
 			*p = got
 			return nil
 		})
 	case *map[string]any:
-		return decodeInto(data, opts, func(got any) error {
+		return decodeInto(src, opts, func(got any) error {
 			m, ok := got.(map[string]any)
 			if !ok {
 				return mismatch(got, *p)
@@ -94,7 +133,7 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) (err error) {
 			return nil
 		})
 	case *[]any:
-		return decodeInto(data, opts, func(got any) error {
+		return decodeInto(src, opts, func(got any) error {
 			s, ok := got.([]any)
 			if !ok {
 				return mismatch(got, *p)
@@ -103,14 +142,14 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) (err error) {
 			return nil
 		})
 	default:
-		return decodeTyped(data, v, opts)
+		return decodeTyped(src, v, opts)
 	}
 }
 
 // decodeInto runs the generic route and hands a non-nil result to set,
 // so a document that holds nothing leaves the target unchanged.
-func decodeInto(data []byte, opts DecodeOptions, set func(any) error) error {
-	got, err := decodeGeneric(data, opts)
+func decodeInto(src source, opts DecodeOptions, set func(any) error) error {
+	got, err := decodeGeneric(src, opts)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,10 @@
 package yaml
 
 import (
+	"bytes"
+	"strings"
+	"unicode/utf8"
+
 	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
@@ -41,12 +45,31 @@ type Node struct {
 	// Column is the node's 1-based column in the input.
 	Column int
 
-	// style is how the scalar was written, which decides how Decode
-	// writes it again, and it is zero for a Node a caller built.
+	// style is how the node was written, such as quoted, as a block, or
+	// with an explicit tag, which Decode keeps, and it is zero for a Node
+	// a caller built.
 	style yamlnode.Style
 	// read is set on a Node that Unmarshal read, so Decode can tell a
 	// plain scalar, whose tag follows YAML 1.2, from one a caller built.
 	read bool
+	// readTag is the Tag Unmarshal read, so Decode can tell a tag the
+	// input wrote, or resolved, from one the caller set since.
+	readTag string
+	// tokenLine and tokenColumn are where the parser's own token for the
+	// node sat, which is where Unmarshal reports an error about it, and
+	// Decode reports its errors there too.
+	tokenLine, tokenColumn int
+	// readValue is the Value Unmarshal read, so Decode can tell whether
+	// the caller has changed it since.
+	readValue string
+	// text is the document the node was read from, shared by the whole
+	// tree, which Decode parses again when it needs to know how
+	// Unmarshal's own parser read a scalar.
+	text *readText
+	// bareTag is set on a node Unmarshal read with the non-specific tag
+	// "!", which Tag does not show, but which makes a plain scalar a
+	// string.
+	bareTag bool
 	// opts are the options the tree was read with, which Decode uses.
 	opts DecodeOptions
 }
@@ -92,11 +115,104 @@ func decodeNode(data []byte, out *Node, opts DecodeOptions) error {
 	if len(docs) == 0 {
 		return nil
 	}
-	c := &converter{seen: make(map[*yamlnode.Node]*Node), opts: opts}
+	lines := bytes.Split(doc, []byte("\n"))
+	c := &converter{seen: make(map[*yamlnode.Node]*Node), opts: opts, lines: lines, text: &readText{doc: doc}}
 	var root Node
 	c.fill(&root, docs[0])
+	if line := documentLine(data); line > 0 {
+		root.Line, root.Column = line, 1
+	}
 	*out = root
 	return nil
+}
+
+// documentLine returns the line of the first document's "---" marker or
+// first directive in data, where yaml.v3 places a document that has one,
+// and 0 for a document that starts with its content. It reads data
+// itself, since the document Unmarshal parses has its directives blanked.
+func documentLine(data []byte) int {
+	data = bytes.ReplaceAll(yamlnode.TrimBOM(data), []byte("\r\n"), []byte("\n"))
+	data = bytes.ReplaceAll(data, []byte("\r"), []byte("\n"))
+	for i, line := range bytes.Split(data, []byte("\n")) {
+		text := bytes.TrimLeft(line, " \t")
+		switch {
+		case len(text) == 0 || text[0] == '#':
+			continue
+		case line[0] == '%':
+			return i + 1
+		case bytes.HasPrefix(line, []byte("---")) && (len(line) == 3 || line[3] == ' ' || line[3] == '\t'):
+			return i + 1
+		}
+		return 0
+	}
+	return 0
+}
+
+// v3Column returns the column yaml.v3 gives the character at column col
+// of line, as goccy's scanner counts it. goccy skips a tab between tokens
+// without counting it, where yaml.v3 counts it as one column, so the two
+// differ by the tabs before col that sit outside quotes and comments.
+func v3Column(line []byte, col int) int {
+	g, c := 1, 1
+	var s quoteScan
+	for i := 0; i < len(line); {
+		r, size := utf8.DecodeRune(line[i:])
+		i += size
+		if s.quote == 0 && r == '\t' {
+			c++
+			s.prev = r
+			continue
+		}
+		if g == col {
+			return c
+		}
+		if s.comment(r) {
+			return col + c - g
+		}
+		if skip := s.step(r, line[i:]); skip > 0 {
+			i += skip
+			g++
+			c++
+		}
+		g++
+		c++
+		s.prev = r
+	}
+	return col + c - g
+}
+
+// quoteScan follows a scan of one line through its quoted scalars.
+// quote is the quote the scan is inside, or 0, and prev is the character
+// before the current one, or 0 at the start of the line.
+type quoteScan struct {
+	quote, prev rune
+}
+
+// comment reports whether r, outside quotes, starts a comment.
+func (s *quoteScan) comment(r rune) bool {
+	return s.quote == 0 && r == '#' && (s.prev == 0 || s.prev == ' ' || s.prev == '\t')
+}
+
+// step moves the scan past r, which rest follows. It returns the number
+// of bytes of rest that go with r as one more character, which is the
+// character after a backslash in double quotes, or the second quote of
+// a doubled single quote, and 0 otherwise.
+func (s *quoteScan) step(r rune, rest []byte) int {
+	switch {
+	case s.quote == 0 && (r == '"' || r == '\'') && strings.ContainsRune("\x00 \t[{,", s.prev):
+		s.quote = r
+	case s.quote == '"' && r == '\\' && len(rest) > 0:
+		_, size := utf8.DecodeRune(rest)
+		return size
+	case s.quote == '"' && r == '"':
+		s.quote = 0
+	case s.quote == '\'' && r == '\'':
+		if len(rest) > 0 && rest[0] == '\'' {
+			return 1
+		}
+		s.quote = 0
+	}
+	return 0
 }
 
 // converter copies an internal tree into public Nodes. seen maps each
@@ -105,8 +221,10 @@ func decodeNode(data []byte, out *Node, opts DecodeOptions) error {
 // Each node enters seen before its children are copied, so the copy ends
 // on any finite tree, even one with a cycle.
 type converter struct {
-	seen map[*yamlnode.Node]*Node
-	opts DecodeOptions
+	seen  map[*yamlnode.Node]*Node
+	opts  DecodeOptions
+	lines [][]byte
+	text  *readText
 }
 
 // node returns the copy of in, making it on first sight.
@@ -125,9 +243,14 @@ func (c *converter) node(in *yamlnode.Node) *Node {
 // fill makes out the copy of in.
 func (c *converter) fill(out *Node, in *yamlnode.Node) {
 	c.seen[in] = out
-	out.Tag, out.Value = in.Tag, in.Value
+	out.Tag, out.Value, out.readTag = in.Tag, in.Value, in.Tag
 	out.Line, out.Column = in.Line, in.Column
-	out.style, out.read, out.opts = in.Style, true, c.opts
+	if in.Line > 0 && in.Line <= len(c.lines) && in.Column > 0 {
+		out.Column = v3Column(c.lines[in.Line-1], in.Column)
+	}
+	out.tokenLine, out.tokenColumn = in.TokenLine, in.TokenColumn
+	out.style, out.read, out.opts, out.bareTag = in.Style, true, c.opts, in.BareTag
+	out.readValue, out.text = in.Value, c.text
 	if int(in.Kind) < len(publicKinds) {
 		out.Kind = publicKinds[in.Kind]
 	}
@@ -147,38 +270,41 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 // with the options it was read with, and any other Node decodes with the
 // default ones, so it reads YAML 1.1 booleans.
 //
-// Decode reads the tree as it is now, so a Node the caller changed after
-// Unmarshal, or built by hand, decodes what it holds. A scalar Unmarshal
-// read keeps the form it was written in, so a plain one stays plain and
-// a yes in it is still a boolean, even after its Value changes. A scalar
-// a caller built is read by its Tag, so a !!str is always a string, and
-// one with no Tag reads as the same text written plainly would. An alias resolves
-// wherever its anchor sits, inside n or outside it, and a node that
-// appears in two places decodes in both. A DocumentNode decodes its
-// root, and one with no root leaves v unchanged.
+// A tree Unmarshal returned decodes to the value Unmarshal gives for the
+// same text. Decode reads the tree as it is now, so a Node the caller
+// changed after Unmarshal, or built by hand, decodes what it now holds,
+// resolved the way that text would be in Unmarshal. A scalar keeps the
+// style it was read in, which is plain for one a caller built, so a plain
+// yes is true even after a caller sets it. A tag Unmarshal read counts
+// only where the input wrote it, and a Tag the caller set counts as that
+// tag written before the value, unless it is the tag the value has
+// anyway. An empty plain scalar is null, with a tag or without one, and
+// so is the zero Node. An alias resolves wherever its anchor sits, inside
+// n or outside it, and a node that appears in two places decodes in both.
+// A DocumentNode decodes its root, and one with no root leaves v
+// unchanged, as a null does.
 //
 // An error's Line and Column are those of the node it is about, so they
 // point at the input the tree was read from, and at the anchor's own
-// lines for a value reached through an alias. Column is 0 when the error
-// falls inside a node's text rather than at its start, and both are 0
-// where the failure has no node. A Node built by hand gives the Line and
-// Column the caller set, which are 0 unless set.
+// lines for a value reached through an alias. Both are 0 where the
+// failure has no node. A Node built by hand gives the Line and Column the
+// caller set, with a negative Column counted as 0, and a Line below 1
+// gives no place at all.
 //
-// Decode works by writing n out as YAML text, keeping each scalar quoted,
-// plain, or a block as it was written, and decoding that text with
-// UnmarshalWith. A type with its own UnmarshalYAML method therefore
-// receives that text, which keeps every value but not the layout or the
-// comments of the input. A tree that nests more than 32 levels below n is
-// written in flow style from there down, where a block scalar has to be
-// written quoted, so a block scalar that holds only yes reads as a string
-// that deep where it would otherwise read as true.
+// Decode builds from n the syntax tree the parser would build from its
+// text, and decodes that tree as Unmarshal does once it has parsed. A
+// type with its own UnmarshalYAML method receives the tree written out
+// as flow-style text, which keeps every value but not the layout or the
+// comments of the input.
 //
-// Decode into a *Node copies n into it. A malformed tree, such as one
-// with an alias that points at nothing, a mapping with an odd number of
-// children, a mapping key that is a sequence or mapping, or a node inside
-// itself, is an ErrorKindSyntax error, and a tree nested more than 10,000
-// levels deep is an ErrorKindLimit error, as is one whose aliases expand
-// past the limit Unmarshal sets.
+// Decode into a *Node copies n into it. A malformed tree is an
+// ErrorKindSyntax error, such as one with an alias that points at
+// nothing, a mapping with an odd number of children, a mapping key that
+// is a sequence or mapping, a key that appears twice in one mapping, or a
+// node inside itself. A tree nested more than 10,000 levels deep is an
+// ErrorKindLimit error, as is one whose aliases expand past the limit
+// Unmarshal sets.
+//
 // Decode never changes n, so several goroutines may decode one tree at
 // once while none of them changes it.
 func (n *Node) Decode(v any) error {
@@ -195,9 +321,5 @@ func (n *Node) Decode(v any) error {
 	if err := checkTargetFor("Decode", v); err != nil {
 		return err
 	}
-	text, places, err := writeNode(n)
-	if err != nil || text == nil {
-		return err
-	}
-	return places.relocate(UnmarshalWith(text, v, n.opts))
+	return decodeFrom(n.source(), v, n.opts)
 }

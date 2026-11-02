@@ -426,6 +426,17 @@ func ParseFirstBody(data []byte, tag bool) (ast.Node, error) {
 	if body == nil {
 		return nil, nil
 	}
+	return PrepareBody(body, tag)
+}
+
+// PrepareBody is the part of ParseFirstBody that follows the parse. It
+// takes body, the root node of a document, which may come from goccy's
+// parser or be built by hand, and returns it ready for DecodeBody. It
+// fails a body with an alias inside the collection its anchor names, or
+// with an invalid tag, marks the quoted YAML 1.1 boolean-lookalike
+// scalars when tag is set, and expands every alias. It rewrites body in
+// place, so a caller passes a body that nothing else holds.
+func PrepareBody(body ast.Node, tag bool) (ast.Node, error) {
 	if err := CheckAnchors(body); err != nil {
 		return nil, err
 	}
@@ -459,12 +470,13 @@ func DecodeBody(body ast.Node, v any, opts ...yaml.DecodeOption) error {
 // and the caller may rewrite it in between, as the engine's control-flow
 // expander does.
 //
-// It applies yamlprep.Prepare, parses with ParseYAML11CompatAware, and
-// then converts the result and strips the quoted-boolean markers with c.
-// c turns int-sized integers into int only when it converts YAML 1.1
-// booleans, and intsAlways turns them into int either way. A nil value
-// with a nil error means doc holds no document, or a null one. Errors
-// come back as ParseYAML11CompatAware returns them.
+// It applies yamlprep.Prepare, parses and decodes the way
+// ParseYAML11CompatAware does, and then converts the result and strips
+// the quoted-boolean markers with c. c turns int-sized integers into int
+// only when it converts YAML 1.1 booleans, and intsAlways turns them
+// into int either way. A nil value with a nil error means doc holds no
+// document, or a null one. Errors come back as ParseYAML11CompatAware
+// returns them.
 func DecodeGeneric(doc []byte, c *YAMLCompat, intsAlways bool) (any, error) {
 	// Apply graft's goccy input workarounds in one place: the bare "-"
 	// terminator rewrite, <<<: inject-key quoting, and quoting of
@@ -476,9 +488,23 @@ func DecodeGeneric(doc []byte, c *YAMLCompat, intsAlways bool) (any, error) {
 	// ...) are tagged during this parse so the conversion below skips
 	// them, matching spruce (quoting is an explicit request to keep the
 	// value a string).
-	v, err := ParseYAML11CompatAware(doc)
+	body, err := ParseFirstBody(doc, true)
 	if err != nil {
 		return nil, err
+	}
+	return DecodeGenericBody(body, c, intsAlways)
+}
+
+// DecodeGenericBody is the part of DecodeGeneric that follows the
+// parse. body is what ParseFirstBody or PrepareBody returned with tag
+// set, and nil for a document that holds nothing. It decodes body and
+// converts the result as DecodeGeneric does.
+func DecodeGenericBody(body ast.Node, c *YAMLCompat, intsAlways bool) (any, error) {
+	var v any
+	if body != nil {
+		if err := DecodeBody(body, &v); err != nil {
+			return nil, err
+		}
 	}
 	return c.convertAndUnprotectWith(v, intsAlways || c.ConvertYAML11Booleans), nil
 }

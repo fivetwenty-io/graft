@@ -9,40 +9,33 @@ import (
 	"github.com/goccy/go-yaml/ast"
 
 	"github.com/fivetwenty-io/graft/internal/yamlcodec"
-	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // boolType is the Go type the bool hook decodes into.
 var boolType = reflect.TypeFor[bool]()
 
-// decodeTyped decodes the first document in data into v, a non-nil
+// decodeTyped decodes the document src returns into v, a non-nil
 // pointer that checkTarget accepted, with goccy's own decoder. Every
 // error it returns is a *DecodeError.
 //
-// It parses the document the way a merge does, with every alias
-// expanded, and lets goccy decode it into v natively. In YAML 1.1 mode a
-// hook reads plain yes, no, on, and off into bool fields. Afterwards, a
+// The document comes with every alias expanded, as a merge parses it,
+// and goccy decodes it into v natively. In YAML 1.1 mode a hook reads
+// plain yes, no, on, and off into bool fields. Afterwards, a
 // genericFixer converts every generic value in v, which is a value of
 // interface type, with the conversion the generic route applies, so a
 // map[string]any field holds what a top-level decode of the same text
 // gives. Generic values come from goccy rather than from a hook, because
 // a hook receives the node's source text, and an expanded alias keeps
 // the indentation of the place its anchor was defined.
-func decodeTyped(data []byte, v any, opts DecodeOptions) error {
-	doc, err := yamlcodec.FirstMergeDocument(data)
-	if err != nil {
-		return translate(err)
-	}
-	doc, _ = yamlprep.Prepare(doc)
-
+func decodeTyped(src source, v any, opts DecodeOptions) error {
 	target := reflect.TypeOf(v)
 	generic := reachesType(target, isInterface)
 	// Quoted YAML 1.1 words need the marker only where the conversion
 	// below reads them, which is in generic values and only in 1.1 mode.
 	tag := generic && !opts.YAML12
-	body, err := yamlcodec.ParseFirstBody(doc, tag)
+	body, err := src(tag)
 	if err != nil {
-		return translate(err)
+		return err
 	}
 	if body == nil || body.Type() == ast.NullType {
 		// An empty or null document leaves v unchanged, as it does on

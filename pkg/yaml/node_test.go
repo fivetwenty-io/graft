@@ -583,3 +583,40 @@ func TestNodeWalkModeledOnCertInventory(t *testing.T) {
 		t.Errorf("facts =\n%#v\nwant\n%#v", w.facts, want)
 	}
 }
+
+func TestUnmarshalNodeDocumentAndTabPositions(t *testing.T) {
+	// Positions from yaml.v3 v3.0.1 for the same documents. yaml.v3 puts
+	// a document at its "---" or its first directive when it has one, and
+	// counts a tab as one column.
+	for _, c := range []struct {
+		doc          string
+		path         []int
+		line, column int
+	}{
+		{"---\na: b\n", nil, 1, 1},
+		{"# c\n\n---\na: b\n", nil, 3, 1},
+		{"%YAML 1.1\n---\na: 1\n", nil, 1, 1},
+		{"--- # c\n\n  a: b\n", nil, 1, 1},
+		{"# head\n\na: b\n", nil, 3, 1},
+		{"b:\ttabbed\n", []int{0, 1}, 1, 4},
+		{"b: \ttabbed\n", []int{0, 1}, 1, 5},
+		{"b:\t\ttabbed\n", []int{0, 1}, 1, 5},
+		{"a:\n  b:\tc\n", []int{0, 1, 1}, 2, 6},
+		{"{a:\tb}\n", []int{0, 1}, 1, 5},
+		{"- [a,\t{b:\tc}]\n", []int{0, 0, 1}, 1, 7},
+		{"- [a,\t{b:\tc}]\n", []int{0, 0, 1, 0}, 1, 8},
+		{"- [a,\t{b:\tc}]\n", []int{0, 0, 1, 1}, 1, 11},
+		{"k:\t|\n  x\ne:\tf\n", []int{0, 1}, 1, 4},
+		{"k:\t|\n  x\ne:\tf\n", []int{0, 3}, 3, 4},
+		{"c: ['\t',\td]\n", []int{0, 1, 0}, 1, 5},
+		{"c: ['\t',\td]\n", []int{0, 1, 1}, 1, 10},
+	} {
+		n := parseNode(t, c.doc)
+		for _, i := range c.path {
+			n = n.Content[i]
+		}
+		if n.Line != c.line || n.Column != c.column {
+			t.Errorf("%q at %v: %d:%d, want %d:%d", c.doc, c.path, n.Line, n.Column, c.line, c.column)
+		}
+	}
+}

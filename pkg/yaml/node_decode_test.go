@@ -128,6 +128,21 @@ func TestNodeDecodeAliasAnchoredOutsideSubtree(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantDeepEqual(t, got, map[string]any{"name": map[string]any{"x": 1}, "other": map[string]any{"x": 1}})
+
+	// The parser never takes an alias key for a duplicate, so an alias
+	// key and the text it names may share a mapping, as in Unmarshal.
+	root = parseNode(t, "k: &k name\nsub:\n  name: 2\n  *k : 1\n").Content[0]
+	var whole struct {
+		Sub map[string]any `yaml:"sub"`
+	}
+	if err := yaml.Unmarshal([]byte("k: &k name\nsub:\n  name: 2\n  *k : 1\n"), &whole); err != nil {
+		t.Fatal(err)
+	}
+	got = nil
+	if err := lookup(root, "sub").Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	wantDeepEqual(t, got, whole.Sub)
 }
 
 // errorFields is what a test compares between two DecodeErrors.
@@ -192,7 +207,9 @@ func TestNodeDecodeHandBuiltNodes(t *testing.T) {
 	}{
 		{scalar("", "123"), 123},
 		{scalar("!!str", "123"), "123"},
-		{scalar("!!str", "yes"), "yes"},
+		// The text !!str yes decodes as true in Unmarshal, so a
+		// hand-built one does too.
+		{scalar("!!str", "yes"), true},
 		{scalar("", "yes"), true},
 		{scalar("", ""), nil},
 		{scalar("!!str", ""), ""},
@@ -234,7 +251,6 @@ func TestNodeDecodeHandBuiltNodes(t *testing.T) {
 	selfAlias.Alias = selfAlias
 	for name, n := range map[string]*yaml.Node{
 		"nil receiver":       nil,
-		"zero kind":          {},
 		"unknown kind":       {Kind: 3},
 		"odd mapping":        {Kind: yaml.MappingNode, Content: []*yaml.Node{scalar("", "a")}},
 		"nil child":          {Kind: yaml.SequenceNode, Content: []*yaml.Node{nil}},
@@ -397,6 +413,38 @@ var decodeCorpus = []string{
 	"long_key_with_value_on_next_line:\n  value\n",
 	"? " + strings.Repeat("k", 1500) + "\n: v\nshort: [{" + strings.Repeat("j", 1500) + ": w}]\n",
 	deepBlock(40),
+	"a: !foo\n",
+	"b: !!str\n",
+	"c: !foo ''\n",
+	"{0,0}\n",
+	"x: &x [1]\nd: {*x}\n",
+	"0: &b\n<<:\t*b\n",
+	"...:\t \"\"\n",
+	"!000\n",
+	"0: ! \n",
+	"0: ---\n",
+	"a: |-\n 0  \nb: 1\n",
+	">\n 0 \n",
+	"|+1\n",
+	"x: !!str\n",
+	"n\to\n",
+	"c:\t---\n",
+	" ---\n ...\n",
+	"? |\n? |1\n",
+	"? |\n\n#\n",
+	"? !!0000 00 ",
+	"!<tag:yaml.org,2002:str>\n",
+	"a: !<tag:yaml.org,2002:str>\nb: !<tag:yaml.org,2002:int> '5'\n",
+	"s: !<tag:yaml.org,2002:str> [1, 2]\nm: !<tag:yaml.org,2002:str> {x: 1}\nq: !<tag:yaml.org,2002:str>\n- 1\n",
+	"? !0 0\n",
+	"? !0 0",
+	"! \t0\n",
+	"a: !!str \tyes\n",
+	" !00\n ---\n",
+	"? !0 >\n",
+	"m:\n ? ~\n : 1\nn:\n ? !!null ~\n : x\n",
+	"? &k ~\n: 1\n",
+	"{0\t0,0\t0}\n",
 }
 
 // deepBlock returns a block mapping nested depth levels deep, deeper than
@@ -481,6 +529,10 @@ func TestNodeDecodeMatchesUnmarshal(t *testing.T) {
 		"[]any":          func() any { return new([]any) },
 		"struct":         func() any { return new(corpusStruct) },
 		"string":         func() any { return new(string) },
+		"bool":           func() any { return new(bool) },
+		"map[string]bool": func() any {
+			return new(map[string]bool)
+		},
 		"map[string]string": func() any {
 			return new(map[string]string)
 		},
@@ -511,5 +563,94 @@ func TestNodeDecodeMatchesUnmarshal(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestNodeDecodeTaggedEmptyScalarIsNull(t *testing.T) {
+	for doc, want := range map[string]any{
+		"a: !foo\n":  map[string]any{"a": nil},
+		"b: !!str\n": map[string]any{"b": ""},
+	} {
+		var direct, viaNode any
+		if err := yaml.Unmarshal([]byte(doc), &direct); err != nil {
+			t.Fatal(err)
+		}
+		if err := parseNode(t, doc).Decode(&viaNode); err != nil {
+			t.Fatal(err)
+		}
+		wantDeepEqual(t, viaNode, want)
+		wantDeepEqual(t, viaNode, direct)
+	}
+
+	v := any("keep")
+	if err := (&yaml.Node{Kind: yaml.ScalarNode, Tag: "!foo"}).Decode(&v); err != nil || v != "keep" {
+		t.Errorf("hand-built tagged empty scalar = %#v, %v; want v unchanged", v, err)
+	}
+}
+
+func TestNodeDecodeChangedScalarReadsAsItsText(t *testing.T) {
+	for _, c := range []struct {
+		doc, value, tag string
+		opts            yaml.DecodeOptions
+		want            any
+	}{
+		{"x: foo\n", "true", "", yaml.DecodeOptions{}, true},
+		{"x: foo\n", "123", "", yaml.DecodeOptions{}, 123},
+		{"x: foo\n", "yes", "", yaml.DecodeOptions{}, true},
+		{"x: foo\n", "yes", "", yaml.DecodeOptions{YAML12: true}, "yes"},
+		{"x: foo\n", "", "", yaml.DecodeOptions{}, nil},
+		{"x: 'foo'\n", "true", "", yaml.DecodeOptions{}, "true"},
+		{"x: 'foo'\n", "yes", "", yaml.DecodeOptions{}, "yes"},
+		{"x: 5\n", "5", "!!str", yaml.DecodeOptions{}, "5"},
+		{"x: true\n", "false", "", yaml.DecodeOptions{}, false},
+		{"x: |\n  foo\n", "123", "", yaml.DecodeOptions{}, "123"},
+	} {
+		var n yaml.Node
+		if err := yaml.UnmarshalWith([]byte(c.doc), &n, c.opts); err != nil {
+			t.Fatal(err)
+		}
+		x := n.Content[0].Content[1]
+		x.Value = c.value
+		if c.tag != "" {
+			x.Tag = c.tag
+		}
+		var got any
+		if err := n.Content[0].Decode(&got); err != nil {
+			t.Errorf("%q with Value %q and Tag %q: %v", c.doc, c.value, c.tag, err)
+			continue
+		}
+		if want := map[string]any{"x": c.want}; !reflect.DeepEqual(got, want) {
+			t.Errorf("%q with Value %q and Tag %q (YAML12 %v) = %#v, want %#v", c.doc, c.value, c.tag, c.opts.YAML12, got, want)
+		}
+	}
+}
+
+func TestNodeDecodeZeroNodeIsNull(t *testing.T) {
+	// yaml.v3 v3.0.1 decodes a zero Node as null, leaving v unchanged.
+	v := any("keep")
+	if err := (&yaml.Node{}).Decode(&v); err != nil || v != "keep" {
+		t.Errorf("zero Node = %#v, %v; want v unchanged", v, err)
+	}
+	var n yaml.Node
+	if err := yaml.Unmarshal([]byte(""), &n); err != nil {
+		t.Fatal(err)
+	}
+	m := map[string]int{"keep": 1}
+	if err := n.Decode(&m); err != nil || !reflect.DeepEqual(m, map[string]int{"keep": 1}) {
+		t.Errorf("Unmarshal(\"\") tree = %#v, %v; want m unchanged", m, err)
+	}
+}
+
+func TestNodeDecodeClampsNegativeColumn(t *testing.T) {
+	n := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
+		{Kind: yaml.ScalarNode, Value: "a"},
+		{Kind: yaml.ScalarNode, Tag: "!!int", Value: "x", Line: 2, Column: -1},
+	}}
+	var v struct {
+		A bool `yaml:"a"`
+	}
+	de := wantDecodeError(t, n.Decode(&v), yaml.ErrorKindType, 2)
+	if de.Column != 0 {
+		t.Errorf("Column %d, want 0", de.Column)
 	}
 }

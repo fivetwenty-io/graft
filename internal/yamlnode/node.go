@@ -50,6 +50,16 @@ type Node struct {
 	FootComment string
 
 	Line, Column int // 1-based source position; 0 for synthesized nodes
+
+	// TokenLine and TokenColumn are where goccy's own token for the node
+	// sits, which is where goccy's decoder reports an error about it.
+	// They differ from Line and Column after a tag or an anchor, and for
+	// a block mapping, whose token is its first ":".
+	TokenLine, TokenColumn int
+	// BareTag is set on a node written with the non-specific tag "!",
+	// which yaml.v3 does not report, but which makes goccy read a plain
+	// scalar as a string.
+	BareTag bool
 }
 
 // FollowAlias returns the node an alias chain ends at, or n itself when

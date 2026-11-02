@@ -91,35 +91,57 @@ func (b *builder) readDirective(dir *ast.DirectiveNode) {
 	b.tagHandles[dir.Values[0].GetToken().Value] = dir.Values[1].GetToken().Value
 }
 
-// build converts one goccy node. Tags and anchors wrap the node they
-// apply to, so we peel them off first.
-func (b *builder) build(n ast.Node) (*Node, error) {
-	explicitTag, anchor := "", ""
-	var props *token.Token
+// nodeProps is a node with its tag and anchor peeled off. tag is the
+// tag it resolves to, bare says it had the non-specific tag "!", and
+// start is the first token of its properties, or nil when it has none.
+type nodeProps struct {
+	node        ast.Node
+	tag, anchor string
+	bare        bool
+	start       *token.Token
+}
+
+// peel takes the tags and anchors off n, which wrap the node they apply
+// to, and checks their names.
+func (b *builder) peel(n ast.Node) (nodeProps, error) {
+	var p nodeProps
 	for {
 		switch x := n.(type) {
 		case *ast.TagNode:
-			props = cmp.Or(props, x.Start)
+			p.start = cmp.Or(p.start, x.Start)
 			t, err := b.tag(x.Start)
 			if err != nil {
-				return nil, err
+				return p, err
 			}
 			if t != "" {
-				explicitTag = t
+				p.tag = t
+			} else {
+				p.bare = true
 			}
 			n = x.Value
 			continue
 		case *ast.AnchorNode:
-			props = cmp.Or(props, x.Start)
+			p.start = cmp.Or(p.start, x.Start)
 			if err := PropertyNameError(x.Start, x.Name.GetToken(), b.lineOffset, b.scannerLine); err != nil {
-				return nil, err
+				return p, err
 			}
-			anchor = x.Name.GetToken().Value
+			p.anchor = x.Name.GetToken().Value
 			n = x.Value
 			continue
 		}
-		break
+		p.node = n
+		return p, nil
 	}
+}
+
+// build converts one goccy node. Tags and anchors wrap the node they
+// apply to, so we peel them off first.
+func (b *builder) build(n ast.Node) (*Node, error) {
+	p, err := b.peel(n)
+	if err != nil {
+		return nil, err
+	}
+	n, explicitTag, anchor, bare, props := p.node, p.tag, p.anchor, p.bare, p.start
 
 	if alias, ok := n.(*ast.AliasNode); ok {
 		if err := PropertyNameError(alias.Start, alias.Value.GetToken(), b.lineOffset, b.scannerLine); err != nil {
@@ -153,6 +175,7 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 		out.Tag = explicitTag
 		out.Style |= StyleTagged
 	}
+	out.BareTag = bare && explicitTag == ""
 	if anchor != "" && out.Anchor == "" {
 		out.Anchor = anchor
 		b.anchors[anchor] = out
@@ -355,10 +378,12 @@ func (b *builder) startAt(out *Node, props *token.Token) {
 	}
 }
 
-// at records the source position of n on out.
+// at records the source position of n on out, as both its position and
+// its token's.
 func (b *builder) at(out *Node, n ast.Node) {
 	if tk := n.GetToken(); tk != nil {
 		out.Line, out.Column = tk.Position.Line+b.lineOffset, tk.Position.Column
+		out.TokenLine, out.TokenColumn = out.Line, out.Column
 	}
 }
 
