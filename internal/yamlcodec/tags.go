@@ -217,8 +217,9 @@ func tagName(t *ast.TagNode) string {
 // scalar becomes the string !!str makes, which a time.Time field still
 // parses. Under any other tag goccy already reads the text as written,
 // apart from a YAML 1.1 boolean word, which the compat coercion would
-// turn into a boolean. That word becomes a quoted string under the same
-// tag, and any other scalar stays as it is.
+// turn into a boolean, and no text at all, which goccy reads as null and
+// spruce as the empty string. That word, or the empty string, becomes a
+// quoted string under the same tag, and any other scalar stays as it is.
 func keepTaggedText(t *ast.TagNode, scalar ast.ScalarNode, anchor *ast.AnchorNode) ast.Node {
 	in, first, last := scalarSource(scalar)
 	if tagName(t) == yamlnode.TagTimestamp {
@@ -230,7 +231,7 @@ func keepTaggedText(t *ast.TagNode, scalar ast.ScalarNode, anchor *ast.AnchorNod
 		}
 		return out
 	}
-	if !Yaml11BoolLookalikeWords[in] {
+	if !Yaml11BoolLookalikeWords[in] && !isImplicitNull(scalar) {
 		return t
 	}
 	if s, ok := scalar.(*ast.StringNode); ok && s.Token != nil && IsQuotedScalarToken(s.Token.Type) {
@@ -280,6 +281,13 @@ func taggedScalar(n ast.Node) (ast.ScalarNode, *ast.AnchorNode) {
 	return nil, nil
 }
 
+// isImplicitNull reports whether s is the null the parser gives a node
+// with no text at all.
+func isImplicitNull(s ast.ScalarNode) bool {
+	n, ok := s.(*ast.NullNode)
+	return ok && (n.Token == nil || n.Token.Type == token.ImplicitNullType)
+}
+
 // scalarSource returns the text of s as the input wrote it, after any
 // quotes and escapes, and the first and last of its tokens.
 func scalarSource(s ast.ScalarNode) (string, *token.Token, *token.Token) {
@@ -294,7 +302,7 @@ func scalarSource(s ast.ScalarNode) (string, *token.Token, *token.Token) {
 		}
 		return "", x.Start, x.Start
 	case *ast.NullNode:
-		if x.Token == nil || x.Token.Type == token.ImplicitNullType {
+		if isImplicitNull(x) {
 			return "", x.Token, x.Token
 		}
 	}

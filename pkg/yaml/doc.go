@@ -153,9 +153,9 @@ string. That holds when a comment or an anchor follows the tag on its line,
 after a space or a tab, as in "a: !!str # c\nb: 1" and "a: !!str &n\nb: 1".
 A !!set, !!omap, or !!pairs tag on a scalar, as in a: !!set yes, is a
 syntax error as well, where spruce reads the text. And a tag with nothing
-after it at the end of the document, as in a: !!str, reads as null,
-because the parser drops the tag before the decoder sees it, where spruce
-reads the empty string.
+after it on the last line of a document that ends with no line break, as
+in a: !!str or a: !foo, reads as null, because the parser drops the tag
+before the decoder sees it, where spruce reads the empty string.
 
 A !!map or !!seq tag on a scalar, as in a: !!map x or a: !!seq yes, is a
 syntax error too, where spruce ignores the tag and reads the scalar. A
@@ -216,8 +216,9 @@ The two disagree on a node with two tags, as in a: !!str !!int 1, which
 Unmarshal refuses and Decode reads as the integer. They disagree on a tag
 written on an alias, as in b: !!str *x, which Unmarshal refuses and Decode
 reads as the value the alias names. They also disagree on a tag with nothing
-after it at the end of the document, as in a: !!str, which Unmarshal reads
-as null and Decode reads as the empty string. And they disagree on a core
+after it at the end of a document that ends with no line break, as in
+a: !!str, which Unmarshal reads as null and Decode reads as the empty
+string. And they disagree on a core
 tag over a node of another kind, as in a: !!str {k: v} or a: !!map x,
 which Unmarshal refuses. Unmarshal into a Node keeps that tag on the node,
 and Decode reads the node under it as spruce does.

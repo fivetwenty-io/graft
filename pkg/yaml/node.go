@@ -316,7 +316,7 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 // same text, with a few known exceptions. The tree reader follows yaml.v3
 // and Unmarshal follows goccy, so the two can differ on a node with two
 // tags, on a tag written on an alias, and on a tag with nothing after it
-// at the end of the document.
+// at the end of a document that ends with no line break.
 //
 // Decode reads the tree as it is now. A Node that the caller changed after
 // Unmarshal, or built by hand, decodes what it holds at that moment, and the
@@ -325,8 +325,10 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 // plain yes is true even after a caller sets it. A tag that Unmarshal read
 // counts only where the input wrote it. A Tag that the caller set counts as
 // that tag written before the value, unless it is the tag the value has
-// anyway. An empty plain scalar is null, with a tag or without one, and so
-// is the zero Node. An alias resolves wherever its anchor sits, inside n or
+// anyway. An empty plain scalar with no tag is null, and so is the zero
+// Node. Under a tag, an empty scalar is null under !!null, an error under
+// !!int, !!float, and !!bool, and the empty string under any other tag,
+// as in spruce. An alias resolves wherever its anchor sits, inside n or
 // outside it, and a node that appears in two places decodes in both.
 // A DocumentNode decodes its root, and one with no root leaves v unchanged,
 // as a null does.

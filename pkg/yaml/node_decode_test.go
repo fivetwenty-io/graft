@@ -568,9 +568,12 @@ func TestNodeDecodeMatchesUnmarshal(t *testing.T) {
 	}
 }
 
-func TestNodeDecodeTaggedEmptyScalarIsNull(t *testing.T) {
+// TestNodeDecodeTaggedEmptyScalar checks that a tagged scalar with no
+// text decodes as the empty string, as it does in Unmarshal and in
+// spruce, from a tree that Unmarshal returned and from one built by hand.
+func TestNodeDecodeTaggedEmptyScalar(t *testing.T) {
 	for doc, want := range map[string]any{
-		"a: !foo\n":  map[string]any{"a": nil},
+		"a: !foo\n":  map[string]any{"a": ""},
 		"b: !!str\n": map[string]any{"b": ""},
 	} {
 		var direct, viaNode any
@@ -585,8 +588,12 @@ func TestNodeDecodeTaggedEmptyScalarIsNull(t *testing.T) {
 	}
 
 	v := any("keep")
-	if err := (&yaml.Node{Kind: yaml.ScalarNode, Tag: "!foo"}).Decode(&v); err != nil || v != "keep" {
-		t.Errorf("hand-built tagged empty scalar = %#v, %v; want v unchanged", v, err)
+	if err := (&yaml.Node{Kind: yaml.ScalarNode, Tag: "!foo"}).Decode(&v); err != nil || v != "" {
+		t.Errorf("hand-built tagged empty scalar = %#v, %v; want \"\"", v, err)
+	}
+	v = "keep"
+	if err := (&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null"}).Decode(&v); err != nil || v != "keep" {
+		t.Errorf("hand-built empty !!null scalar = %#v, %v; want v unchanged", v, err)
 	}
 }
 

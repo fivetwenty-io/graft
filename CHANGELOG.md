@@ -53,6 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A scalar tag such as `!!str` followed by an anchor now reads as the anchor followed by the tag does. Before, when the anchor's value didn't start on the anchor's line, the parser skipped the token after the value, so a key went missing with no error. `a: !!str &n {k: v}` followed by `b: 1` merged to `a: {k: v}` without `b`, and `a: !!str &n` with its scalar on the next line lost the key after it in the same way. A scalar on the next line now reads as it does in spruce. A collection under the scalar tag now fails the document, as it already did with no anchor or with the anchor first, and so does a tag and an anchor with no value before the next key.
 
+- A tag with nothing after it on the last line of a file, such as `a: !foo` followed by a line break, now reads as the empty string, as it does in spruce. Before, `graft merge` and `pkg/yaml` read null under a custom tag, a verbatim tag, the bare `!`, and a `!!set`, `!!map`, or `!!seq` tag there, and so did `Node.Decode` on a tagged scalar with no text that a caller built.
+
 ## [1.43.1] - 2026-10-27
 
 This release fixes `graft install-aliases` on Linux, where it put the `jq`, `yq`, and `spruce` links in a directory that isn't on `PATH`.
