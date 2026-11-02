@@ -310,8 +310,15 @@ func scanStringTerminated(s string, start int, allowBEL bool) (int, bool) {
 
 // Sprintf formats with color codes like @R{red text} @c{cyan text}.
 func Sprintf(format string, args ...interface{}) string {
+	return SprintfColor(colorEnabled, format, args...)
+}
+
+// SprintfColor behaves like Sprintf but takes the color flag explicitly
+// instead of reading the package-wide toggle, so callers can render with or
+// without color without touching shared state.
+func SprintfColor(enabled bool, format string, args ...interface{}) string {
 	result := fmt.Sprintf(format, args...)
-	return processColorCodes(result)
+	return processColorCodes(enabled, result)
 }
 
 // Errorf creates a formatted error with color codes.
@@ -321,8 +328,8 @@ func Errorf(format string, args ...interface{}) error {
 }
 
 // processColorCodes replaces @X{text} patterns with ANSI codes.
-func processColorCodes(s string) string {
-	if !colorEnabled {
+func processColorCodes(enabled bool, s string) string {
+	if !enabled {
 		// Strip color codes when disabled
 		return stripColorCodes(s)
 	}

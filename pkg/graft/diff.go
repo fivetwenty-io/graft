@@ -17,10 +17,10 @@ func indent(pad, s string) string {
 	return re.ReplaceAllString(s, pad)
 }
 
-func yamlstring(f string, x Diffable) string {
+func yamlstring(color bool, f string, x Diffable) string {
 	const defaultPad = "    "
 	s, _ := MarshalYAML(x.Value())
-	return fmt.Sprintf(f, indent(defaultPad, strings.TrimSuffix(string(s), "\n")))
+	return fmt.SprintfColor(color, f, indent(defaultPad, strings.TrimSuffix(string(s), "\n")))
 }
 
 func yamlmarshal(x interface{}) string {
@@ -139,6 +139,33 @@ type Diffable interface {
 	Value() interface{}
 }
 
+// renderer is implemented by graft's own Diffable types. It renders with an
+// explicit color flag instead of the package-wide toggle in internal/utils/ansi.
+type renderer interface {
+	render(key string, color bool) string
+}
+
+// renderDiffable renders d with the given color flag. Diffable values from
+// outside this package have no color flag to honor, so they render through
+// String, and without color their escape sequences are stripped.
+func renderDiffable(d Diffable, key string, color bool) string {
+	if r, ok := d.(renderer); ok {
+		return r.render(key, color)
+	}
+	out := d.String(key)
+	if !color {
+		out = fmt.StripEscapes(out)
+	}
+	return out
+}
+
+// PlainString renders d exactly as d.String(key) does, but without ANSI
+// color escapes. It neither reads nor changes the package-wide color
+// setting, so concurrent callers can use it safely.
+func PlainString(d Diffable, key string) string {
+	return renderDiffable(d, key, false)
+}
+
 // DiffNone represents an unchanged value.
 type DiffNone struct {
 	Orig interface{}
@@ -151,6 +178,10 @@ func (d DiffNone) Changed() bool {
 
 // String returns an empty string for unchanged values.
 func (d DiffNone) String(key string) string {
+	return d.render(key, fmt.IsColorEnabled())
+}
+
+func (d DiffNone) render(string, bool) string {
 	return ""
 }
 
@@ -172,7 +203,11 @@ func (d DiffType) Changed() bool {
 
 // String returns a formatted description of the type change.
 func (d DiffType) String(key string) string {
-	return fmt.Sprintf("  @C{%s} changed type\n    from @R{%s}\n      to @G{%s}\n\n",
+	return d.render(key, fmt.IsColorEnabled())
+}
+
+func (d DiffType) render(key string, color bool) string {
+	return fmt.SprintfColor(color, "  @C{%s} changed type\n    from @R{%s}\n      to @G{%s}\n\n",
 		key, typeof(d.Old), typeof(d.New))
 }
 
@@ -194,7 +229,11 @@ func (d DiffScalar) Changed() bool {
 
 // String returns a formatted description of the scalar change.
 func (d DiffScalar) String(key string) string {
-	return fmt.Sprintf("  @C{%s} changed value\n    from @R{%s}\n      to @G{%s}\n\n",
+	return d.render(key, fmt.IsColorEnabled())
+}
+
+func (d DiffScalar) render(key string, color bool) string {
+	return fmt.SprintfColor(color, "  @C{%s} changed value\n    from @R{%s}\n      to @G{%s}\n\n",
 		key, pad1("         ", d.Old), pad1("         ", d.New))
 }
 
@@ -226,23 +265,27 @@ func (d DiffMap) Changed() bool {
 
 // String returns a formatted description of the map changes.
 func (d DiffMap) String(key string) string {
+	return d.render(key, fmt.IsColorEnabled())
+}
+
+func (d DiffMap) render(key string, color bool) string {
 	s := ""
 
 	for _, k := range sortkeys(d.Added) {
 		v := d.Added[k]
-		s += fmt.Sprintf("  @C{%s.%s} added\n", key, k)
-		s += yamlstring("@G{%s}\n\n", v)
+		s += fmt.SprintfColor(color, "  @C{%s.%s} added\n", key, k)
+		s += yamlstring(color, "@G{%s}\n\n", v)
 	}
 	for _, k := range sortkeys(d.Removed) {
 		v := d.Removed[k]
-		s += fmt.Sprintf("  @C{%s.%s} removed\n", key, k)
-		s += yamlstring("@R{%s}\n\n", v)
+		s += fmt.SprintfColor(color, "  @C{%s.%s} removed\n", key, k)
+		s += yamlstring(color, "@R{%s}\n\n", v)
 	}
 
 	for _, k := range sortkeys(d.Common) {
 		v := d.Common[k]
 		if v.Changed() {
-			s += v.String(fmt.Sprintf("%s.%v", key, k))
+			s += renderDiffable(v, fmt.Sprintf("%s.%v", key, k), color)
 		}
 	}
 	return s
@@ -275,22 +318,26 @@ func (d DiffList) Changed() bool {
 
 // String returns a formatted description of the list changes.
 func (d DiffList) String(key string) string {
+	return d.render(key, fmt.IsColorEnabled())
+}
+
+func (d DiffList) render(key string, color bool) string {
 	s := ""
 
 	for _, k := range sortkeys(d.Added) {
 		v := d.Added[k]
-		s += fmt.Sprintf("  @C{%s[%s]} added\n", key, k)
-		s += yamlstring("@G{%s}\n\n", v)
+		s += fmt.SprintfColor(color, "  @C{%s[%s]} added\n", key, k)
+		s += yamlstring(color, "@G{%s}\n\n", v)
 	}
 	for _, k := range sortkeys(d.Removed) {
 		v := d.Removed[k]
-		s += fmt.Sprintf("  @C{%s[%s]} removed\n", key, k)
-		s += yamlstring("@R{%s}\n\n", v)
+		s += fmt.SprintfColor(color, "  @C{%s[%s]} removed\n", key, k)
+		s += yamlstring(color, "@R{%s}\n\n", v)
 	}
 	for _, k := range sortkeys(d.Common) {
 		v := d.Common[k]
 		if v.Changed() {
-			s += v.String(fmt.Sprintf("%s[%s]", key, k))
+			s += renderDiffable(v, fmt.Sprintf("%s[%s]", key, k), color)
 		}
 	}
 	return s
