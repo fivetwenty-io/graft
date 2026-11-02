@@ -19,10 +19,30 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
-// GlobalReader is the module-level vault reader, initialized lazily from
-// environment before evaluation starts and only read (never reassigned)
-// during evaluation, so concurrent RunOp calls reading it are safe.
+// GlobalReader is the module-level vault reader, initialized lazily from the
+// environment. Evaluation code reaches it through DefaultReader, which
+// serializes the first initialization; tests may swap it directly while no
+// evaluation is running.
 var GlobalReader Reader
+
+// globalReaderMu guards the lazy initialization of GlobalReader.
+var globalReaderMu sync.Mutex
+
+// DefaultReader returns GlobalReader, initializing it from the environment
+// on first use. Concurrent callers share one initialization, and a failed
+// initialization is retried by the next call.
+func DefaultReader() (Reader, error) {
+	globalReaderMu.Lock()
+	defer globalReaderMu.Unlock()
+
+	if GlobalReader == nil {
+		if err := InitializeClient(); err != nil {
+			return nil, err
+		}
+	}
+
+	return GlobalReader, nil
+}
 
 // ClientPool manages vault readers for different targets. clients/configs
 // are read and lazily populated from concurrent operator evaluation (see

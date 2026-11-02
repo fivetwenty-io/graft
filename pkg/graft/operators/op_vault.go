@@ -687,13 +687,12 @@ func (o VaultOperator) resolveReader(engine graft.Engine, target string) (vault.
 		return reader, nil
 	}
 
-	if vault.GlobalReader == nil {
-		if initErr := vault.InitializeClient(); initErr != nil {
-			return nil, fmt.Errorf("Error during Vault client initialization: %w", initErr)
-		}
+	reader, err := vault.DefaultReader()
+	if err != nil {
+		return nil, fmt.Errorf("Error during Vault client initialization: %w", err)
 	}
 	DEBUG("vault: using default client")
-	return vault.GlobalReader, nil
+	return reader, nil
 }
 
 // VaultTryOperator is a deprecated alias for VaultOperator
