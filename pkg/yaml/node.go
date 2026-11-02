@@ -207,7 +207,7 @@ func (s *quoteScan) step(r rune, rest []byte) int {
 	delim := s.delim
 	s.delim = false
 	switch {
-	case s.quote == 0 && (r == '"' || r == '\'') && (delim || strings.ContainsRune("\x00 \t[{,", s.prev)):
+	case s.quote == 0 && s.opens(r, delim):
 		s.quote = r
 	case s.quote == '"' && r == '\\' && len(rest) > 0:
 		_, size := utf8.DecodeRune(rest)
@@ -223,6 +223,12 @@ func (s *quoteScan) step(r rune, rest []byte) int {
 		s.delim = s.flow(r, len(rest) > 0 && rest[0] == '/')
 	}
 	return 0
+}
+
+// opens reports whether r, outside quotes, opens a quoted scalar. delim
+// reports that the character before r is a ":" that ends a key.
+func (s *quoteScan) opens(r rune, delim bool) bool {
+	return (r == '"' || r == '\'') && (delim || strings.ContainsRune("\x00 \t[{,", s.prev))
 }
 
 // flow follows goccy's scanner over r, outside quotes, through the flow

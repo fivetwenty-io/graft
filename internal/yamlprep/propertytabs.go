@@ -215,7 +215,7 @@ func (q *lineQuotes) step(r rune, rest string) int {
 	delim := q.delim
 	q.delim = false
 	switch {
-	case q.quote == 0 && (r == '"' || r == '\'') && (delim || strings.ContainsRune("\x00 \t[{,", q.prev)):
+	case q.quote == 0 && q.opens(r, delim):
 		q.quote = r
 	case q.quote == '"' && r == '\\' && rest != "":
 		_, size := utf8.DecodeRuneInString(rest)
@@ -231,6 +231,12 @@ func (q *lineQuotes) step(r rune, rest string) int {
 		q.delim = q.flow(r, strings.HasPrefix(rest, "/"))
 	}
 	return 0
+}
+
+// opens reports whether r, outside quotes, opens a quoted scalar. delim
+// reports that the character before r is a ":" that ends a key.
+func (q *lineQuotes) opens(r rune, delim bool) bool {
+	return (r == '"' || r == '\'') && (delim || strings.ContainsRune("\x00 \t[{,", q.prev))
 }
 
 // flow follows goccy's scanner over r, outside quotes, through the flow
