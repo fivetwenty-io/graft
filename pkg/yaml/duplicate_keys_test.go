@@ -355,3 +355,73 @@ func TestOnDuplicateKeyExplicitKeyPlace(t *testing.T) {
 		t.Fatalf("reports = %+v, want %+v", got, want)
 	}
 }
+
+// TestOnDuplicateKeyRepeatedMergeKeys pins two merge keys in one mapping,
+// which every target reads as one merge of both sources in their order,
+// so a key in the later source wins, as it does in spruce. The Node
+// target holds one merge key whose value is a sequence of the sources.
+func TestOnDuplicateKeyRepeatedMergeKeys(t *testing.T) {
+	const anchors = "b1: &b1\n  p: 1\n  q: 1\nb2: &b2\n  q: 2\n  r: 2\nb3: &b3\n  r: 3\n  w: 3\n"
+	cases := []struct {
+		doc     string
+		want    map[string]int
+		sources int
+	}{
+		{anchors + "m:\n  <<: *b1\n  <<: *b2\n", map[string]int{"p": 1, "q": 2, "r": 2}, 2},
+		{anchors + "m:\n  <<: [*b1, *b2]\n  <<: *b3\n  p: 9\n", map[string]int{"p": 9, "q": 2, "r": 3, "w": 3}, 3},
+		{anchors + "m:\n  <<: *b1\n  <<: {q: 2, s: 2}\n", map[string]int{"p": 1, "q": 2, "s": 2}, 2},
+		{anchors + "m:\n  <<: *b1\n  x: 0\n  <<: *b2\n  <<: *b3\n", map[string]int{"p": 1, "q": 2, "r": 3, "w": 3, "x": 0}, 3},
+	}
+	for _, c := range cases {
+		t.Run(c.doc[len(anchors):], func(t *testing.T) {
+			var got []yaml.DuplicateKey
+			opts := collect(&got)
+
+			var a struct {
+				M map[string]int `yaml:"m"`
+			}
+			if err := yaml.UnmarshalWith([]byte(c.doc), &a, opts); err != nil || !reflect.DeepEqual(a.M, c.want) {
+				t.Errorf("struct m = %v, %v, want %v", a.M, err, c.want)
+			}
+			var m map[string]any
+			if err := yaml.UnmarshalWith([]byte(c.doc), &m, opts); err != nil {
+				t.Fatalf("any: %v", err)
+			}
+			want := make(map[string]any, len(c.want))
+			for k, v := range c.want {
+				want[k] = v
+			}
+			if !reflect.DeepEqual(m["m"], want) {
+				t.Errorf("any m = %v, want %v", m["m"], want)
+			}
+
+			var n yaml.Node
+			if err := yaml.UnmarshalWith([]byte(c.doc), &n, opts); err != nil {
+				t.Fatalf("Node: %v", err)
+			}
+			var back struct {
+				M map[string]int `yaml:"m"`
+			}
+			if err := n.Decode(&back); err != nil || !reflect.DeepEqual(back.M, c.want) {
+				t.Errorf("Node m = %v, %v, want %v", back.M, err, c.want)
+			}
+			root := n.Content[0]
+			mapping := root.Content[len(root.Content)-1]
+			merges := 0
+			for i := 0; i < len(mapping.Content); i += 2 {
+				if mapping.Content[i].Value == "<<" {
+					merges++
+					if v := mapping.Content[i+1]; v.Kind != yaml.SequenceNode || len(v.Content) != c.sources {
+						t.Errorf("merge value = kind %v with %d items, want a sequence of %d", v.Kind, len(v.Content), c.sources)
+					}
+				}
+			}
+			if merges != 1 {
+				t.Errorf("Node m holds %d merge keys, want 1", merges)
+			}
+			if len(got) != 0 {
+				t.Errorf("reports = %+v, want none", got)
+			}
+		})
+	}
+}
