@@ -783,14 +783,14 @@ func readsAsTimestamp(s string) bool {
 
 // timestampStyle is the style requested for s when typed is set, which
 // asks for double quotes in four cases. One is a string a YAML 1.1
-// reader resolves as a timestamp. Another is a string that holds "<<",
-// which goccy's parser reads as a merge key when it ends a key. A string
+// reader resolves as a timestamp. Another is a string that ends in "<<",
+// which goccy's parser reads as a merge key when it ends a key. A string with "<<" elsewhere, such as "cat <<EOF", stays plain. A string
 // with a line break and leading whitespace is the third, since spruce
 // writes it as a literal block with an indentation indicator that goccy's
 // parser refuses. The last is a string that starts with "-", "?", or ":",
 // which goccy's parser misreads as an indicator in some places. Otherwise the style is the fork's own choice.
 func timestampStyle(s string, typed bool) scalarStyle {
-	if typed && (readsAsTimestamp(s) || strings.Contains(s, "<<") || leadsWithSpaceBeforeBreak(s) || startsWithIndicator(s)) {
+	if typed && (readsAsTimestamp(s) || strings.HasSuffix(s, "<<") || leadsWithSpaceBeforeBreak(s) || startsWithIndicator(s)) {
 		return doubleQuotedScalarStyle
 	}
 	return requestedScalarStyle(s)

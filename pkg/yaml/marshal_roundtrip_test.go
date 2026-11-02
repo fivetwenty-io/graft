@@ -3,6 +3,7 @@ package yaml_test
 import (
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -37,6 +38,7 @@ var bigFloats = []float64{
 	0.5, -2.25, 1e-7, 123456.789, 3.0, 4e9, 1e20, -1e20, 1e300,
 	9223372036854774784, 9223372036854775808, -9223372036854775808, -9223372036854777856,
 	float64(math.MaxInt64), 4611686018427387904, 1e15, 1e19,
+	math.NaN(), math.Inf(1), math.Inf(-1),
 }
 
 func genString(r *prng) string {
@@ -66,6 +68,20 @@ func genValue(r *prng, depth int) any {
 	case 5:
 		return nil
 	case 6, 7:
+		switch r.Intn(6) {
+		case 0:
+			m := map[int]any{}
+			for range r.Intn(4) {
+				m[r.Intn(40)-10] = genValue(r, depth-1)
+			}
+			return m
+		case 1:
+			m := map[bool]any{}
+			for range r.Intn(3) {
+				m[r.Intn(2) == 0] = genValue(r, depth-1)
+			}
+			return m
+		}
 		m := map[string]any{}
 		for range r.Intn(4) {
 			m[genString(r)] = genValue(r, depth-1)
@@ -96,6 +112,18 @@ func want(v any) any {
 			m[k] = want(e)
 		}
 		return m
+	case map[int]any:
+		m := map[string]any{}
+		for k, e := range x {
+			m[strconv.Itoa(k)] = want(e)
+		}
+		return m
+	case map[bool]any:
+		m := map[string]any{}
+		for k, e := range x {
+			m[strconv.FormatBool(k)] = want(e)
+		}
+		return m
 	case []any:
 		l := make([]any, len(x))
 		for i, e := range x {
@@ -107,6 +135,40 @@ func want(v any) any {
 	}
 }
 
+// sameValue is reflect.DeepEqual except that NaN equals NaN.
+func sameValue(a, b any) bool {
+	switch x := a.(type) {
+	case float64:
+		y, ok := b.(float64)
+		return ok && (x == y || math.IsNaN(x) && math.IsNaN(y))
+	case map[string]any:
+		y, ok := b.(map[string]any)
+		if !ok || len(x) != len(y) {
+			return false
+		}
+		for k, e := range x {
+			f, ok := y[k]
+			if !ok || !sameValue(e, f) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		y, ok := b.([]any)
+		if !ok || len(x) != len(y) {
+			return false
+		}
+		for i := range x {
+			if !sameValue(x[i], y[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return reflect.DeepEqual(a, b)
+	}
+}
+
 func TestMarshalRoundTripsGenericValues(t *testing.T) {
 	t.Parallel()
 	r := newPRNG(1)
@@ -115,13 +177,13 @@ func TestMarshalRoundTripsGenericValues(t *testing.T) {
 		for _, order := range []yaml.EncodeOptions{{}, {KeyOrder: "lexical"}} {
 			out, err := yaml.MarshalWith(v, order)
 			if err != nil {
-				continue // an error is allowed, corruption is not
+				t.Fatalf("case %d: MarshalWith(%#v, %+v): %v", i, v, order, err)
 			}
 			var got any
 			if err := yaml.Unmarshal(out, &got); err != nil {
 				t.Fatalf("case %d: Unmarshal(%q): %v", i, out, err)
 			}
-			if !reflect.DeepEqual(got, want(v)) {
+			if !sameValue(got, want(v)) {
 				t.Fatalf("case %d: %#v\nwrote %q\nread  %#v", i, v, out, got)
 			}
 		}
@@ -149,7 +211,7 @@ func TestMarshalRoundTripsTypedTargets(t *testing.T) {
 		}
 		out, err := yaml.Marshal(in)
 		if err != nil {
-			continue
+			t.Fatalf("case %d: Marshal(%#v): %v", i, in, err)
 		}
 		var got roundTripStruct
 		if err := yaml.Unmarshal(out, &got); err != nil {
@@ -181,7 +243,7 @@ func TestMarshalRoundTripsTypedMapsAndSlices(t *testing.T) {
 		for _, in := range []any{m, l} {
 			out, err := yaml.Marshal(in)
 			if err != nil {
-				continue
+				t.Fatalf("case %d: Marshal(%#v): %v", i, in, err)
 			}
 			got := reflect.New(reflect.TypeOf(in))
 			if err := yaml.Unmarshal(out, got.Interface()); err != nil {
@@ -202,13 +264,13 @@ func TestMarshalFloatsRoundTrip(t *testing.T) {
 		if err := yaml.Unmarshal([]byte(out), &got); err != nil {
 			t.Fatalf("%v: %v", f, err)
 		}
-		if !reflect.DeepEqual(got["v"], want(f)) {
+		if !sameValue(got["v"], want(f)) {
 			t.Errorf("%v wrote %q read %#v", f, out, got["v"])
 		}
 		var typed struct {
 			V float64 `yaml:"v"`
 		}
-		if err := yaml.Unmarshal([]byte(out), &typed); err != nil || typed.V != f {
+		if err := yaml.Unmarshal([]byte(out), &typed); err != nil || !sameValue(typed.V, f) {
 			t.Errorf("%v wrote %q read %v, %v", f, out, typed.V, err)
 		}
 	}
