@@ -64,7 +64,7 @@ func decodeTyped(data []byte, v any, opts DecodeOptions) error {
 		f.fix(reflect.ValueOf(v))
 	}
 	if err != nil {
-		return translate(own.locate(locate(err, body, target)))
+		return translate(own.locate(locate(err, body, target), target.Elem()))
 	}
 	return own.badTime()
 }

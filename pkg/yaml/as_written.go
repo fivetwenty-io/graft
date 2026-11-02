@@ -387,24 +387,36 @@ func hasOption(opts, want string) bool {
 }
 
 // scalarText returns n as a string node that holds its source text when
-// goccy would read n as a number or a boolean, and n otherwise. A !!str
-// tag over such a scalar keeps the tag, with the scalar replaced.
+// goccy would read n as a number or a boolean, and n otherwise. A core
+// scalar tag over a scalar is dropped, since goccy converts the scalar
+// the tag names, as it converts !!float 1e3 to "1000", where yaml.v2 and
+// yaml.v3 put an explicitly tagged scalar's source text into a string.
 func scalarText(n ast.Node) ast.Node {
 	switch v := n.(type) {
 	case *ast.IntegerNode, *ast.FloatNode, *ast.InfinityNode, *ast.NanNode, *ast.BoolNode:
 		return sourceText(n)
 	case *ast.TagNode:
-		if v.Start == nil || v.Start.Value != "!!str" {
+		if !coreScalarTag(v) || !isScalarNode(v.Value) {
 			return n
 		}
-		if inner := scalarText(v.Value); inner != v.Value {
-			c := *v
-			c.Value = inner
-			return &c
-		}
+		return scalarText(v.Value)
 	default:
 	}
 	return n
+}
+
+// coreScalarTag reports whether n's tag is one of the core schema's
+// scalar tags, which yaml.v2 and yaml.v3 ignore when they read the
+// scalar into a string.
+func coreScalarTag(n *ast.TagNode) bool {
+	if n.Start == nil {
+		return false
+	}
+	switch n.Start.Value {
+	case "!!str", "!!int", "!!float", "!!bool", "!!null":
+		return true
+	}
+	return false
 }
 
 // sourceText returns a string node that holds the source text of n, a
@@ -431,8 +443,10 @@ func genericKeyText(k ast.MapKeyNode) ast.MapKeyNode {
 	return k
 }
 
-// rewriteKey turns k, or the key inside an explicit ? key, into a string
-// node. A null key becomes null.
+// rewriteKey turns k, or the key inside an explicit ? key or under a
+// core scalar tag, into a string node. A null key becomes null. A core
+// tag is dropped, since goccy would read a tagged number as the number
+// and refuse a tagged key for a struct field.
 func rewriteKey(k ast.MapKeyNode, null string) ast.MapKeyNode {
 	switch v := k.(type) {
 	case *ast.IntegerNode, *ast.FloatNode, *ast.InfinityNode, *ast.NanNode, *ast.BoolNode:
@@ -448,6 +462,10 @@ func rewriteKey(k ast.MapKeyNode, null string) ast.MapKeyNode {
 			c := *v
 			c.Value = got
 			return &c
+		}
+	case *ast.TagNode:
+		if inner, ok := v.Value.(ast.MapKeyNode); ok && coreScalarTag(v) {
+			return rewriteKey(inner, null)
 		}
 	default:
 	}

@@ -135,6 +135,24 @@ const (
 	unexportedEmbeddedPrefix    = "cannot set embedded type as unexported field"
 )
 
+// codecMessages start the plain errors goccy's decoder builds itself,
+// rather than a method it runs, which translate handles.
+var codecMessages = []string{
+	unknownAliasPrefix,
+	unexportedEmbeddedPrefix,
+	"duplicated struct field name",
+}
+
+// codecMessage reports whether msg is one of goccy's own plain errors.
+func codecMessage(msg string) bool {
+	for _, prefix := range codecMessages {
+		if strings.HasPrefix(msg, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // limitError builds the ErrorKindLimit error for err, a depth or
 // expansion failure, with the line and message of the depth check when
 // it has them. tooDeep is the codec's recursion error inside err, or nil

@@ -62,16 +62,17 @@ func parsesAsTime(text string) bool {
 	return false
 }
 
-// locate returns err as a type error on the line of the scalar it
-// concerns when err is a time.Duration's or an UnmarshalText method's
-// refusal, which carries no position, and err otherwise. It finds the
-// scalar by reading each candidate again on its own and keeping the one
-// whose refusal err holds. When candidates on different lines match,
-// the error has Line 0.
-func (s ownScalars) locate(err error) error {
-	var ge goyaml.Error
-	var de *DecodeError
-	if errors.As(err, &ge) || errors.As(err, &de) {
+// locate returns err as a type error that names only a Go type when err
+// is a plain error from a method or a parse that goccy ran on a value,
+// and err otherwise. Such an error can repeat the input, as net.IP's
+// does, so its text is never kept. When err is a time.Duration's or an
+// UnmarshalText method's refusal, the error is on the line of the scalar
+// it concerns, which locate finds by reading each candidate again on its
+// own and keeping the one whose refusal err holds. When candidates on
+// different lines match, or none does, the error has Line 0 and names
+// the candidates' type, or target when they differ or there are none.
+func (s ownScalars) locate(err error, target reflect.Type) error {
+	if !methodError(err) {
 		return err
 	}
 	var found *ownScalar
@@ -80,21 +81,46 @@ func (s ownScalars) locate(err error) error {
 		if refusal == nil || !strings.Contains(err.Error(), refusal.Error()) {
 			continue
 		}
-		if found != nil && !samePosition(found, &s[i]) {
-			return &DecodeError{Kind: ErrorKindType, Msg: ownMessage(found.typ, err)}
+		if found == nil {
+			found = &s[i]
+			continue
 		}
-		found = &s[i]
+		if !samePosition(found, &s[i]) {
+			if found.typ != s[i].typ {
+				return unplaced(target)
+			}
+			return unplaced(found.typ)
+		}
 	}
 	if found == nil {
-		return err
+		return unplaced(target)
 	}
-	return found.typeError(ownMessage(found.typ, err))
+	return found.typeError(ownMessage(found.typ))
 }
 
-// ownMessage describes err, a refusal by a value of type t, without what
-// it quotes from the input.
-func ownMessage(t reflect.Type, err error) string {
-	return fmt.Sprintf("cannot unmarshal into Go value of type %s: %s", t, scrub(err.Error()))
+// methodError reports whether err is a plain error rather than one goccy
+// or the codec builds, whose messages translate already keeps free of
+// the input.
+func methodError(err error) bool {
+	var ge goyaml.Error
+	var de *DecodeError
+	var tooDeep *yamlcodec.MaxRecursionError
+	if errors.As(err, &ge) || errors.As(err, &de) || errors.As(err, &tooDeep) ||
+		errors.Is(err, goyaml.ErrExceededMaxDepth) {
+		return false
+	}
+	return !codecMessage(err.Error())
+}
+
+// unplaced returns a type error with no position for a value of type t.
+func unplaced(t reflect.Type) *DecodeError {
+	return &DecodeError{Kind: ErrorKindType, Msg: ownMessage(t)}
+}
+
+// ownMessage is the message for a refusal by a value of type t. It names
+// only the type, since the refusal's own text can quote the input.
+func ownMessage(t reflect.Type) string {
+	return fmt.Sprintf("cannot unmarshal into Go value of type %s", t)
 }
 
 // refusal returns the error goccy gets when it decodes the scalar into a

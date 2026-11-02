@@ -7,14 +7,26 @@ import (
 	"strings"
 )
 
-// decoderPackages are the packages whose panics a decode turns into an
+// decoderModule is the module whose panics a decode turns into an
 // error. goccy panics on some target shapes, such as an unexported
 // embedded struct whose key the document holds, either itself or
 // through package reflect.
-var decoderPackages = []string{"github.com/goccy/go-yaml", "reflect."}
+const decoderModule = "github.com/goccy/go-yaml"
+
+// inDecoder reports whether function, a frame's function name, is in
+// decoderModule or in package reflect. A name has the module's path, or
+// "reflect", followed by a dot or a slash, so a look-alike path such as
+// github.com/goccy/go-yamlx does not match, and only the standard
+// library's reflect has a name with no slash.
+func inDecoder(function string) bool {
+	if rest, ok := strings.CutPrefix(function, decoderModule); ok {
+		return strings.HasPrefix(rest, ".") || strings.HasPrefix(rest, "/")
+	}
+	return strings.HasPrefix(function, "reflect.") && !strings.Contains(function, "/")
+}
 
 // panicFromDecoder reports whether the panic being recovered started in
-// one of decoderPackages, rather than in a caller's own method that the
+// goccy or in package reflect, rather than in a caller's own method that the
 // decoder ran. It must be called from the deferred function that
 // recovers, while the panicking frames are still on the stack. It finds
 // the first frame below runtime.gopanic that is not in the runtime,
@@ -29,12 +41,7 @@ func panicFromDecoder() bool {
 		case frame.Function == "runtime.gopanic":
 			panicking = true
 		case panicking && !strings.HasPrefix(frame.Function, "runtime."):
-			for _, pkg := range decoderPackages {
-				if strings.HasPrefix(frame.Function, pkg) {
-					return true
-				}
-			}
-			return false
+			return inDecoder(frame.Function)
 		}
 		if !more {
 			return false

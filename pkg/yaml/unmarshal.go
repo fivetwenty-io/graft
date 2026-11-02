@@ -40,7 +40,9 @@ import "reflect"
 //     quoted yes, no, on, or off can reach that method with an internal
 //     marker character in front of it.
 //   - An ,inline map receives every key of its mapping, including keys
-//     that name another field of the struct.
+//     that name another field of the struct. When the inline map's values
+//     are not strings, a string field beside it keeps goccy's formatted
+//     text, so name: 012 gives "10".
 //   - In a << merge key's list of maps, a later map wins over an earlier
 //     one, as on the generic route, where yaml.v2 and yaml.v3 let the
 //     earlier map win.

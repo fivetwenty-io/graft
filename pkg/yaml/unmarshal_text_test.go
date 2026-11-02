@@ -1,6 +1,8 @@
 package yaml_test
 
 import (
+	"errors"
+	"net"
 	"net/netip"
 	"reflect"
 	"testing"
@@ -381,6 +383,116 @@ func TestUnmarshalCyclicHeldValue(t *testing.T) {
 		}
 		if got.Y != 1 {
 			t.Errorf("Y = %d, want 1", got.Y)
+		}
+	}
+}
+
+// TestUnmarshalTaggedScalarsKeepSourceText checks explicitly tagged
+// scalars in string places and in keys. yaml.v2 and yaml.v3 both give
+// every value below.
+func TestUnmarshalTaggedScalarsKeepSourceText(t *testing.T) {
+	values := []struct{ in, want string }{
+		{"!!int 0x1F", "0x1F"},
+		{"!!int 012", "012"},
+		{"!!float 1.10", "1.10"},
+		{"!!float 1e3", "1e3"},
+		{"!!bool True", "True"},
+		{"!!null ~", ""},
+		{"!!str 0x1F", "0x1F"},
+	}
+	type named struct{ Name string }
+	for _, m := range modes {
+		for _, tc := range values {
+			t.Run(m.name+"/value "+tc.in, func(t *testing.T) {
+				var got struct{ V []string }
+				doc := "v: [" + tc.in + "]\n"
+				if err := yaml.UnmarshalWith([]byte(doc), &got, m.opts); err != nil {
+					t.Fatalf("UnmarshalWith: %v", err)
+				}
+				wantDeepEqual(t, got.V, []string{tc.want})
+			})
+		}
+		for _, key := range []string{"!!int 80", "!!float 1.5", "!!bool true", "!!null ~", "!!str 80"} {
+			t.Run(m.name+"/struct key "+key, func(t *testing.T) {
+				var got named
+				if err := yaml.UnmarshalWith([]byte(key+": x\nname: y\n"), &got, m.opts); err != nil {
+					t.Fatalf("UnmarshalWith: %v", err)
+				}
+				if got.Name != "y" {
+					t.Errorf("Name = %q, want %q", got.Name, "y")
+				}
+			})
+		}
+		t.Run(m.name+"/map keys", func(t *testing.T) {
+			var got map[string]string
+			doc := "{!!str 1.10: a, 1.1: b, !!int 0x10: c, 16: d}\n"
+			if err := yaml.UnmarshalWith([]byte(doc), &got, m.opts); err != nil {
+				t.Fatalf("UnmarshalWith: %v", err)
+			}
+			wantDeepEqual(t, got, map[string]string{"1.10": "a", "1.1": "b", "0x10": "c", "16": "d"})
+		})
+	}
+}
+
+// echoText is a TextUnmarshaler whose refusal repeats its input without
+// quotes.
+type echoText struct{}
+
+func (*echoText) UnmarshalText(b []byte) error { return errors.New("bad value " + string(b)) }
+
+// TestUnmarshalOwnRefusalsQuoteNothing checks that the refusal of a type
+// that decodes itself names only the type, located or not, even when
+// the type's own error repeats the input.
+func TestUnmarshalOwnRefusalsQuoteNothing(t *testing.T) {
+	cases := []struct {
+		name string
+		doc  string
+		v    func() any
+		line int
+	}{
+		{"net.IP", "x: 1\nip: ipS3KRITa\n", func() any {
+			return &struct {
+				X  int
+				IP net.IP
+			}{}
+		}, 2},
+		{"netip.Addr", "x: 1\nip: addrS3KRITb\n", func() any {
+			return &struct {
+				X  int
+				IP netip.Addr
+			}{}
+		}, 2},
+		{"time.Duration", "x: 1\nd: durS3KRITc\n", func() any {
+			return &struct {
+				X int
+				D time.Duration
+			}{}
+		}, 2},
+		{"time.Time", "x: 1\nt: timeS3KRITd\n", func() any {
+			return &struct {
+				X int
+				T time.Time
+			}{}
+		}, 2},
+		{"echoing UnmarshalText", "x: 1\ne: echoS3KRITe\n", func() any {
+			return &struct {
+				X int
+				E echoText
+			}{}
+		}, 2},
+		// The same refusal on two lines cannot be placed.
+		{"two lines", "a: twoS3KRITf\nb: twoS3KRITf\n", func() any { return &struct{ A, B echoText }{} }, 0},
+		// A sequence never reaches UnmarshalText as a scalar, so no
+		// candidate matches.
+		{"echo of a sequence", "e: [seqS3KRITg]\n", func() any { return &struct{ E echoText }{} }, 0},
+	}
+	for _, m := range modes {
+		for _, tc := range cases {
+			t.Run(m.name+"/"+tc.name, func(t *testing.T) {
+				err := yaml.UnmarshalWith([]byte(tc.doc), tc.v(), m.opts)
+				wantDecodeError(t, err, yaml.ErrorKindType, tc.line)
+				wantNoLeak(t, err, "S3KRIT")
+			})
 		}
 	}
 }
