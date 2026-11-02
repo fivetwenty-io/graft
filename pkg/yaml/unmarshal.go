@@ -17,7 +17,9 @@ import (
 // as Unmarshal decodes text. A *any, *map[string]any, or *[]any
 // receives maps as map[string]any, sequences as []any, integers as int,
 // and floats as float64. Empty input, or input that holds only comments
-// or a null, leaves v unchanged. Every error is a *DecodeError.
+// or a null, leaves v unchanged. Input that starts with a UTF-16
+// byte order mark, in either byte order, is converted to UTF-8 first. Every
+// error is a *DecodeError.
 //
 // Any other v, such as a pointer to a struct, a typed map, or a typed
 // slice, is decoded by goccy/go-yaml, which honors the yaml tag options
@@ -65,6 +67,10 @@ func Unmarshal(data []byte, v any) error {
 
 // UnmarshalWith decodes the first YAML document in data into v with opts.
 func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
+	data, err := toUTF8(data)
+	if err != nil {
+		return err
+	}
 	if n, ok := v.(*Node); ok {
 		if n == nil {
 			return typeError("Unmarshal(nil %T)", n)
