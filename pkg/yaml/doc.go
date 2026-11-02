@@ -157,6 +157,27 @@ after it at the end of the document, as in a: !!str, reads as null,
 because the parser drops the tag before the decoder sees it, where spruce
 reads the empty string.
 
+A !!map or !!seq tag on a scalar, as in a: !!map x or a: !!seq yes, is a
+syntax error too, where spruce ignores the tag and reads the scalar. A
+tab after the tag fails the same way, and so does a tab followed by a
+space, as in "a: !!map\t x". A tag or an anchor followed by a space and
+then a tab on a mapping key, as in "!!str \tk: v" or "&n \tk: v", is a
+syntax error as well, where spruce reads the key. With only spaces or
+only tabs after the tag or the anchor, the key reads as spruce reads it.
+
+A tag with nothing after it in a flow collection can read differently
+from spruce, with no error. A !!seq tag before a comma, as in
+a: {k: !!seq , w: z}, reads as an empty sequence, where spruce reads the
+empty string. A !!int or !!bool tag there, as in a: [!!int , z], reads as
+0 or false, where spruce fails. A tab in place of the space reads the
+same way.
+
+A block scalar whose last line ends the document with no line break,
+and holds a tab inside the indentation, as in "a: |\n    x\n  \t", reads
+as if that line were empty, where spruce fails. Node.Decode fails on it
+as spruce does, and with a line break after that line, Unmarshal fails
+too.
+
 A tagged mapping key reads as a string key, because a decoded map's keys are
 strings. So "!!bool yes: a" gives the key "true", and graft merge prints it
 quoted, as "true": a, where spruce prints true: a. Untagged keys such as true
@@ -196,7 +217,10 @@ Unmarshal refuses and Decode reads as the integer. They disagree on a tag
 written on an alias, as in b: !!str *x, which Unmarshal refuses and Decode
 reads as the value the alias names. They also disagree on a tag with nothing
 after it at the end of the document, as in a: !!str, which Unmarshal reads
-as null and Decode reads as the empty string.
+as null and Decode reads as the empty string. And they disagree on a core
+tag over a node of another kind, as in a: !!str {k: v} or a: !!map x,
+which Unmarshal refuses. Unmarshal into a Node keeps that tag on the node,
+and Decode reads the node under it as spruce does.
 
 A Node that Unmarshal returned keeps its whole input document, and the first
 Decode on that tree parses it one more time. The cost is one extra parse and
