@@ -5,6 +5,7 @@ package yamlcodec
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -173,8 +174,65 @@ func (c *YAMLCompat) convertAndUnprotectAny(v interface{}) interface{} {
 // yes, no, on, and off as booleans when c converts YAML 1.1 booleans,
 // turns int-sized integers into int, and widens float32 to float64. It
 // changes maps and slices in place and returns the converted value.
+//
+// v can be a value a caller's target held before the decode, which can
+// hold itself, so the walk enters each map and slice once.
 func (c *YAMLCompat) ConvertGeneric(v any) any {
-	return c.convertAndUnprotectWith(v, true)
+	w := genericWalk{c: c, seen: make(map[genericRef]bool)}
+	return w.convert(v)
+}
+
+// genericRef identifies a map or a slice by where its data lives, with a
+// slice's length, since two slices of one array can differ in length.
+type genericRef struct {
+	ptr uintptr
+	n   int
+}
+
+// genericWalk is ConvertGeneric's walk. seen holds every map and slice
+// it has entered.
+type genericWalk struct {
+	c    *YAMLCompat
+	seen map[genericRef]bool
+}
+
+// enter reports whether the walk has not yet entered the map or slice v,
+// and records it.
+func (w *genericWalk) enter(v any, n int) bool {
+	ref := genericRef{ptr: reflect.ValueOf(v).Pointer(), n: n}
+	if w.seen[ref] {
+		return false
+	}
+	w.seen[ref] = true
+	return true
+}
+
+func (w *genericWalk) convert(v any) any {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		if w.enter(val, 0) {
+			for k, item := range val {
+				val[k] = w.convert(item)
+			}
+		}
+		return val
+	case map[interface{}]interface{}:
+		if w.enter(val, 0) {
+			for k, item := range val {
+				val[k] = w.convert(item)
+			}
+		}
+		return val
+	case []interface{}:
+		if len(val) > 0 && w.enter(val, len(val)) {
+			for i, item := range val {
+				val[i] = w.convert(item)
+			}
+		}
+		return val
+	default:
+		return w.c.convertAndUnprotectWith(v, true)
+	}
 }
 
 // convertAndUnprotectWith is convertAndUnprotectAny with the numeric

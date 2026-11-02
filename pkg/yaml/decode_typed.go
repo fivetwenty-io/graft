@@ -50,17 +50,11 @@ func decodeTyped(data []byte, v any, opts DecodeOptions) error {
 		return nil
 	}
 
-	// The parser has already refused duplicate keys, so the decoder's own
-	// check only ever fires on a key that a << merge key also supplies,
-	// which YAML allows. The later key wins, as on the generic route.
-	decodeOpts := []goyaml.DecodeOption{goyaml.AllowDuplicateMapKey()}
-	if !opts.YAML12 {
-		decodeOpts = append(decodeOpts, goyaml.CustomUnmarshaler(yaml11Bool))
-	}
-	if err := yamlcodec.DecodeBody(body, v, decodeOpts...); err != nil {
-		return translate(locate(err, body, target))
-	}
+	body, own := asWritten(body, target.Elem())
+	err = yamlcodec.DecodeBody(body, v, decodeOptions(opts)...)
 	if generic {
+		// goccy fills v in part before it fails, so the fixer runs on
+		// the error path too, and no caller sees a raw value or a marker.
 		f := &genericFixer{
 			compat:  &yamlcodec.YAMLCompat{ConvertYAML11Booleans: !opts.YAML12},
 			strip:   tag,
@@ -69,7 +63,22 @@ func decodeTyped(data []byte, v any, opts DecodeOptions) error {
 		}
 		f.fix(reflect.ValueOf(v))
 	}
-	return nil
+	if err != nil {
+		return translate(own.locate(locate(err, body, target)))
+	}
+	return own.badTime()
+}
+
+// decodeOptions returns the goccy options for a typed decode. The parser
+// has already refused duplicate keys, so the decoder's own check only
+// ever fires on a key that a << merge key also supplies, which YAML
+// allows. The later key wins, as on the generic route.
+func decodeOptions(opts DecodeOptions) []goyaml.DecodeOption {
+	out := []goyaml.DecodeOption{goyaml.AllowDuplicateMapKey()}
+	if !opts.YAML12 {
+		out = append(out, goyaml.CustomUnmarshaler(yaml11Bool))
+	}
+	return out
 }
 
 // yaml11Bool is the CustomUnmarshaler for bool in YAML 1.1 mode. raw is
