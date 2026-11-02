@@ -65,6 +65,7 @@ func emptyTagValues(text string, toks token.Tokens) (token.Tokens, []*token.Toke
 			if ok {
 				runs = append(runs, r)
 			}
+		default:
 		}
 	}
 	if len(runs) == 0 {
@@ -127,22 +128,32 @@ func tagProperties(toks token.Tokens, i int) (tagRun, bool) {
 		return tagRun{}, false
 	}
 	r := tagRun{tag: i, start: i, end: i}
-	if i >= 2 && toks[i-2].Type == token.AnchorType && sameLine(toks[i-2], tag) && sameLine(toks[i-1], tag) {
-		r.start = i - 2
-	}
-	if i+2 < len(toks) && toks[i+1].Type == token.AnchorType && sameLine(toks[i+1], tag) && sameLine(toks[i+2], tag) {
-		if r.start != i {
-			return tagRun{}, false
-		}
-		r.end = i + 2
-	}
-	if r.start > 0 && toks[r.start-1].Type == token.TagType && sameLine(toks[r.start-1], tag) {
+	before, after := anchorAt(toks, i-2, tag), anchorAt(toks, i+1, tag)
+	if before && after {
 		return tagRun{}, false
 	}
-	if r.end+1 < len(toks) && toks[r.end+1].Type == token.TagType && sameLine(toks[r.end+1], tag) {
+	if before {
+		r.start = i - 2
+	}
+	if after {
+		r.end = i + 2
+	}
+	if tagAt(toks, r.start-1, tag) || tagAt(toks, r.end+1, tag) {
 		return tagRun{}, false
 	}
 	return r, true
+}
+
+// anchorAt reports whether toks[j] and toks[j+1] are an anchor and its
+// name, both on the line of tag.
+func anchorAt(toks token.Tokens, j int, tag *token.Token) bool {
+	return j >= 0 && j+1 < len(toks) && toks[j].Type == token.AnchorType &&
+		sameLine(toks[j], tag) && sameLine(toks[j+1], tag)
+}
+
+// tagAt reports whether toks[j] is a tag on the line of tag.
+func tagAt(toks token.Tokens, j int, tag *token.Token) bool {
+	return j >= 0 && j < len(toks) && toks[j].Type == token.TagType && sameLine(toks[j], tag)
 }
 
 // emptyInBlock reports whether the tag and anchor r, outside any flow
@@ -192,8 +203,9 @@ func emptyInFlow(toks token.Tokens, r tagRun, abuts bool) bool {
 	switch toks[next].Type {
 	case token.CollectEntryType, token.MappingEndType, token.SequenceEndType:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 // tagAbuts reports whether a character other than a blank follows tag
@@ -242,6 +254,7 @@ func parentColumn(lines *lineIndex, toks token.Tokens, p int) (int, bool) {
 	switch toks[k].Type {
 	case token.MappingEndType, token.SequenceEndType, token.CommentType:
 		return 0, false
+	default:
 	}
 	for k > 0 && sameLine(toks[k-1], tk) {
 		if t := toks[k-1].Type; t == token.TagType || t == token.AliasType {
@@ -277,8 +290,11 @@ func implicitNullAfter(run token.Tokens) *token.Token {
 // isTagDirective reports whether the directive at toks[i] is a %TAG
 // directive for the "!!" handle.
 func isTagDirective(toks token.Tokens, i int) bool {
-	return i+2 < len(toks) && toks[i+1].Value == "TAG" && toks[i+2].Value == "!!"
+	return i+2 < len(toks) && toks[i+1].Value == tagDirectiveName && toks[i+2].Value == "!!"
 }
+
+// tagDirectiveName is the name of the %TAG directive.
+const tagDirectiveName = "TAG"
 
 // prevNonCommentAt returns the index of the last token in toks at or
 // before from that is not a comment, or -1 when there is none.
