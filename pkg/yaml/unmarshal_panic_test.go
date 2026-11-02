@@ -1,6 +1,7 @@
 package yaml_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/yaml"
@@ -78,4 +79,28 @@ func TestUnmarshalUserPanicPropagates(t *testing.T) {
 	var got struct{ P panicky }
 	_ = yaml.Unmarshal([]byte("p: x\n"), &got)
 	t.Error("Unmarshal returned")
+}
+
+// reflectMisuse panics inside package reflect, from its own
+// UnmarshalYAML method.
+type reflectMisuse struct{}
+
+func (*reflectMisuse) UnmarshalYAML([]byte) error {
+	n := 1
+	reflect.ValueOf(&n).Elem().SetString("x")
+	return nil
+}
+
+// TestUnmarshalUserReflectPanicPropagates checks that a panic a
+// caller's own method raises inside package reflect is not turned into
+// an error, since the method's frame lies between it and the decoder.
+func TestUnmarshalUserReflectPanicPropagates(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("the method's own reflect panic was recovered")
+		}
+	}()
+	var got struct{ P reflectMisuse }
+	err := yaml.Unmarshal([]byte("p: x\n"), &got)
+	t.Errorf("Unmarshal returned %v", err)
 }

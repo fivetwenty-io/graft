@@ -22,15 +22,15 @@ func inDecoder(function string) bool {
 	if rest, ok := strings.CutPrefix(function, decoderModule); ok {
 		return strings.HasPrefix(rest, ".") || strings.HasPrefix(rest, "/")
 	}
-	return strings.HasPrefix(function, "reflect.") && !strings.Contains(function, "/")
+	return isReflect(function)
 }
 
 // panicFromDecoder reports whether the panic being recovered started in
 // goccy or in package reflect, rather than in a caller's own method that the
 // decoder ran. It must be called from the deferred function that
 // recovers, while the panicking frames are still on the stack. It finds
-// the first frame below runtime.gopanic that is not in the runtime,
-// which is where the panic started.
+// the first frame below runtime.gopanic that is in neither the runtime
+// nor package reflect, which is the code that caused the panic.
 func panicFromDecoder() bool {
 	return panicStartedIn(inDecoder)
 }
@@ -60,22 +60,37 @@ func panicFromEncoder() bool {
 	return panicStartedIn(inEncoder)
 }
 
-// panicStartedIn reports whether the frame where the panic being
-// recovered started is one that in accepts.
+// isReflect reports whether function is in the standard library's
+// package reflect.
+func isReflect(function string) bool {
+	return strings.HasPrefix(function, "reflect.") && !strings.Contains(function, "/")
+}
+
+// panicStartedIn reports whether the panic being recovered started in a
+// frame that in accepts. Frames in the runtime and in package reflect
+// are passed over, because reflect raises its panics for whoever called
+// it, and the frame that called it decides. So a panic that reflect
+// raises for a caller's own method, which lies between reflect and the
+// decoder, belongs to that method, and one that reflect raises for the
+// decoder itself belongs to the decoder.
 func panicStartedIn(in func(function string) bool) bool {
-	pcs := make([]uintptr, 64)
+	pcs := make([]uintptr, 128)
 	frames := runtime.CallersFrames(pcs[:runtime.Callers(1, pcs)])
-	panicking := false
+	panicking, sawReflect := false, false
 	for {
 		frame, more := frames.Next()
 		switch {
 		case frame.Function == "runtime.gopanic":
 			panicking = true
+		case panicking && isReflect(frame.Function):
+			sawReflect = true
 		case panicking && !strings.HasPrefix(frame.Function, "runtime."):
 			return in(frame.Function)
 		}
 		if !more {
-			return false
+			// The stack ended inside reflect, so no caller's frame was
+			// found and the decoder is the likelier source.
+			return sawReflect
 		}
 	}
 }

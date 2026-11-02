@@ -2,6 +2,7 @@ package yaml_test
 
 import (
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -488,4 +489,27 @@ func TestMarshalRefusesCollectionKeys(t *testing.T) {
 	if out, err := yaml.Marshal(map[[2]int]int{{1, 2}: 1}); err == nil {
 		t.Errorf("Marshal = %q, want an error", out)
 	}
+}
+
+// marshalReflectMisuse panics inside package reflect, from its own
+// MarshalYAML method.
+type marshalReflectMisuse struct{}
+
+func (marshalReflectMisuse) MarshalYAML() (any, error) {
+	n := 1
+	reflect.ValueOf(&n).Elem().SetString("x")
+	return nil, nil
+}
+
+// TestMarshalUserReflectPanicPropagates checks that a panic a caller's
+// own method raises inside package reflect is not turned into an error.
+func TestMarshalUserReflectPanicPropagates(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("the method's own reflect panic was recovered")
+		}
+	}()
+	out, err := yaml.Marshal(map[string]marshalReflectMisuse{"a": {}})
+	t.Errorf("Marshal returned %q, %v", out, err)
 }

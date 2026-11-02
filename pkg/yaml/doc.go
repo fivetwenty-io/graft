@@ -95,7 +95,8 @@ time.Time.
 A panic that the decoder raises on a target shape it cannot fill is
 recovered and returned as an ErrorKindType DecodeError with Line 0. A panic
 raised by a type's own UnmarshalYAML or MarshalYAML method is not the
-decoder's, and it is not recovered.
+decoder's, and it is not recovered, even when the method misuses package
+reflect and the panic starts inside it.
 
 A type with an UnmarshalText method receives the formatted text of a scalar,
 not the source text, so 1.10 arrives as "1.1". A type with an UnmarshalYAML
