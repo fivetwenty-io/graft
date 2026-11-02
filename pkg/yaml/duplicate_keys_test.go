@@ -249,3 +249,96 @@ func TestOnDuplicateKeyErrorsNeverQuoteKeys(t *testing.T) {
 		t.Fatalf("strict error = %v", err)
 	}
 }
+
+// nodeReports decodes doc into a Node and returns what the callback saw.
+func nodeReports(t *testing.T, doc string) []yaml.DuplicateKey {
+	t.Helper()
+	var got []yaml.DuplicateKey
+	var n yaml.Node
+	if err := yaml.UnmarshalWith([]byte(doc), &n, collect(&got)); err != nil {
+		t.Fatalf("Node UnmarshalWith: %v", err)
+	}
+	return got
+}
+
+// textReports decodes doc into a map and returns what the callback saw.
+func textReports(t *testing.T, doc string) []yaml.DuplicateKey {
+	t.Helper()
+	var got []yaml.DuplicateKey
+	var m any
+	if err := yaml.UnmarshalWith([]byte(doc), &m, collect(&got)); err != nil {
+		t.Fatalf("text UnmarshalWith: %v", err)
+	}
+	return got
+}
+
+func TestOnDuplicateKeyAnchoredMappingAndAlias(t *testing.T) {
+	doc := "base: &b\n  x: 1\n  x: 2\nuse1: *b\nuse2: *b\nplain:\n  <<: *b\n  y: 1\n  y: 2\n"
+	want := []yaml.DuplicateKey{
+		{Path: "base.x", Line: 3, Column: 3, FirstLine: 2, FirstColumn: 3},
+		{Path: "plain.y", Line: 9, Column: 3, FirstLine: 8, FirstColumn: 3},
+	}
+	if got := textReports(t, doc); !reflect.DeepEqual(got, want) {
+		t.Fatalf("text reports = %+v, want %+v", got, want)
+	}
+	if got := nodeReports(t, doc); !reflect.DeepEqual(got, want) {
+		t.Fatalf("node reports = %+v, want %+v", got, want)
+	}
+	var m map[string]map[string]int
+	if err := yaml.UnmarshalWith([]byte(doc), &m, yaml.DecodeOptions{OnDuplicateKey: func(yaml.DuplicateKey) {}}); err != nil {
+		t.Fatal(err)
+	}
+	if m["use1"]["x"] != 2 || m["use2"]["x"] != 2 || m["plain"]["x"] != 2 || m["plain"]["y"] != 2 {
+		t.Fatalf("decoded = %v, want last values through the alias", m)
+	}
+}
+
+// A Node counts a tab as one column, as yaml.v3 does, and the text route
+// reads the parser's own count, which skips it, so the two columns differ
+// by one on a continuation line of a multi-line flow mapping that holds a
+// tab. Line, path, count, and the first key's position still agree.
+func TestOnDuplicateKeyTabInFlowContinuation(t *testing.T) {
+	cases := []struct {
+		doc        string
+		text, node yaml.DuplicateKey
+	}{
+		{
+			"x: {a: 1,\n\ta: 2}\n",
+			yaml.DuplicateKey{Path: "x.a", Line: 2, Column: 2, FirstLine: 1, FirstColumn: 5},
+			yaml.DuplicateKey{Path: "x.a", Line: 2, Column: 3, FirstLine: 1, FirstColumn: 5},
+		},
+		{
+			"x: {a: 1,\n \t a: 2}\n",
+			yaml.DuplicateKey{Path: "x.a", Line: 2, Column: 4, FirstLine: 1, FirstColumn: 5},
+			yaml.DuplicateKey{Path: "x.a", Line: 2, Column: 5, FirstLine: 1, FirstColumn: 5},
+		},
+	}
+	for _, c := range cases {
+		text, node := textReports(t, c.doc), nodeReports(t, c.doc)
+		if !reflect.DeepEqual(text, []yaml.DuplicateKey{c.text}) {
+			t.Errorf("doc %q: text = %+v, want %+v", c.doc, text, c.text)
+		}
+		if !reflect.DeepEqual(node, []yaml.DuplicateKey{c.node}) {
+			t.Errorf("doc %q: node = %+v, want %+v", c.doc, node, c.node)
+		}
+	}
+}
+
+func TestOnDuplicateKeyRoutesAgreeOnPositions(t *testing.T) {
+	docs := []string{
+		"a: 1\na: 2\n",
+		"\"a\": 1\n'a': 2\n",
+		"&k a: 1\n&j a: 2\n",
+		"!!str a: 1\n!!str a: 2\n",
+		"l:\n  - {a: 1, a: 2}\n  - a: 1\n    a: 2\n",
+		"x: {\n  a: 1,\n  a: 2}\n",
+		"é: 1\né: 2\n",
+		"o: {é: 1, é: 2}\n",
+	}
+	for _, doc := range docs {
+		text, node := textReports(t, doc), nodeReports(t, doc)
+		if len(text) == 0 || !reflect.DeepEqual(text, node) {
+			t.Errorf("doc %q: text = %+v, node = %+v", doc, text, node)
+		}
+	}
+}
