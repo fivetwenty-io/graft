@@ -146,7 +146,30 @@ The decoder refuses a few tagged documents that spruce reads. A !!str or
 other scalar tag on a flow or block collection is a syntax error, where
 spruce ignores the tag. So is a tag with no value before the next line of a
 mapping or sequence, as in "a: !!str\nb: 1", where spruce reads the empty
-string.
+string. A !!set, !!omap, or !!pairs tag on a scalar, as in a: !!set yes, is a
+syntax error as well, where spruce reads the text. And a tag with nothing
+after it at the end of the document, as in a: !!str, reads as null, because
+the parser drops the tag before the decoder sees it, where spruce reads the
+empty string.
+
+A tagged mapping key reads as a string key, because a decoded map's keys are
+strings. So "!!bool yes: a" gives the key "true", and graft merge prints it
+quoted, as "true": a, where spruce prints true: a. Untagged keys such as true
+and 1 print quoted in the same way.
+
+An anchored mapping key that is quoted or tagged !!str loses that quoting
+when an alias uses it as a value. So in "&k !!str yes: 1\nb: *k", b reads as
+true in the default mode, where spruce reads the word yes.
+
+A !!binary scalar whose bytes aren't valid UTF-8, as in a: !!binary /w==,
+decodes to a string that holds those bytes. Marshal and graft merge write
+that string out as raw bytes, so the output isn't valid UTF-8, where spruce
+writes it back as !!binary with its base64 text.
+
+graft merge prints a whole float with a decimal point, so !!float 1e3 and an
+untagged 1.0 print as 1000.0 and 1.0, where spruce prints 1000 and 1. The
+decoded float64 is the same either way, and Marshal in this package writes
+1000.
 
 A literal or folded block scalar holding only a YAML 1.1 boolean word, as in
 "a: |-\n  yes", reads as that word in both modes, as it does in spruce.
