@@ -78,6 +78,16 @@ func TestUnmarshalFoldsBlockAtEnd(t *testing.T) {
 		{"keep with a last line of more spaces", "a: |+\n  x\n     ", map[string]any{"a": "x\n   "}},
 		{"clip with a last line of more spaces", "a: |\n  x\n     ", map[string]any{"a": "x\n   "}},
 		{"final line break", "a: >\n  x\n  y\n", map[string]any{"a": "x y\n"}},
+		{"keep with a last line of a tab", "a: |+\n  x\n  \t", map[string]any{"a": "x\n\t"}},
+		{"clip with a last line of a tab", "a: |\n  x\n  \t", map[string]any{"a": "x\n\t"}},
+		{"strip with a last line of a tab", "a: |-\n  x\n  \t", map[string]any{"a": "x\n\t"}},
+		{"folded keep with a last line of a tab", "a: >+\n  x\n  \t", map[string]any{"a": "x\n\t"}},
+		{"folded with a last line of a tab", "a: >\n  x\n  y\n  \t", map[string]any{"a": "x y\n\t"}},
+		{"last line of two tabs", "a: |+\n  x\n  \t\t", map[string]any{"a": "x\n\t\t"}},
+		{"last line of tabs and a space", "a: |+\n  x\n  \t \t", map[string]any{"a": "x\n\t \t"}},
+		{"last line of a space and a tab", "a: |\n  x\n   \t", map[string]any{"a": "x\n \t"}},
+		{"empty line and a last line of a tab", "a: |+\n  x\n\n  \t", map[string]any{"a": "x\n\n\t"}},
+		{"sequence item with a last line of a tab", "l:\n- |\n  x\n  \t", map[string]any{"l": []any{"x\n\t"}}},
 	})
 }
 

@@ -41,9 +41,10 @@ func foldBlockAtEnd(text string, toks token.Tokens) {
 // endsInBlockScalar reports whether the last token of toks, the tokens
 // of text, is the content of a block scalar, and the last line of text,
 // which ends it, has no line break after it and holds a character other
-// than a space or a tab. A block scalar whose last line holds only
-// blanks reads the same either way, and a line break added after it
-// would change the value of a clip block.
+// than a space. A tab there is content past the indentation, which
+// goccy drops at the end of the input. A block scalar whose last line
+// holds only spaces reads the same either way, and a line break added
+// after it would change the value of a keep block.
 func endsInBlockScalar(text string, toks token.Tokens) bool {
 	if len(toks) == 0 || toks[len(toks)-1].Type != token.StringType || !lastLineHasText(text) {
 		return false
@@ -76,10 +77,10 @@ func lastBlockScalarHeader(toks token.Tokens) (*token.Token, bool) {
 }
 
 // lastLineHasText reports whether text ends in a line with no line break
-// after it that holds a character other than a space or a tab.
+// after it that holds a character other than a space.
 func lastLineHasText(text string) bool {
 	if text == "" || strings.ContainsAny(text[len(text)-1:], "\n\r") {
 		return false
 	}
-	return strings.Trim(text[strings.LastIndexByte(text, '\n')+1:], " \t") != ""
+	return strings.Trim(text[strings.LastIndexByte(text, '\n')+1:], " ") != ""
 }
