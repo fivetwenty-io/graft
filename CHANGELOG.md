@@ -31,7 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The Vault reader no longer races when several runs initialize it at the same time.
 
-- `graft merge` and `pkg/yaml` now read a scalar with an explicit `!!str`, `!!bool`, `!!int`, `!!float`, `!!null`, or `!!binary` tag the way spruce does. Before, `!!str yes` became `true`, `!!str 1.50` lost its trailing zero, `!!int 0b101` and `!!bool ON` failed, and `!!int word` quietly became `0`. Now `!!str` keeps the text as written, `!!bool`, `!!int`, and `!!float` take the YAML 1.1 forms spruce's YAML library takes, and `!!binary` decodes base64.
+- `graft merge` and `pkg/yaml` now read a scalar with an explicit `!!str`, `!!bool`, `!!int`, `!!float`, `!!null`, or `!!binary` tag the way spruce does. Before, `!!str yes` became `true`, `!!str 1.50` lost its trailing zero, `!!int 0b101` and `!!bool ON` failed, and `!!int word` quietly became `0`. Now `!!str` keeps the text as written, `!!bool`, `!!int`, and `!!float` take the YAML 1.1 forms spruce's YAML library takes, and `!!binary` decodes base64. Files read by `(( load ))` and `--go-patch` ops files read their tags the same way.
+
+- A scalar under a tag spruce doesn't resolve now keeps its text, as it does in spruce. Before, `!foo yes` and `! on` became booleans, and `!!timestamp` on text that isn't a date, such as `!!timestamp word`, quietly became the zero time. A `!!timestamp` date now prints as written, and a `time.Time` field in `pkg/yaml` still reads it.
 
 - A tag that can't hold its text, such as `!!int word` or `!!bool 1`, now fails the document as it does in spruce. The error names the tags and the tag's line and column, and unlike spruce's message it never quotes the text. A second tag on one node and a tag on an alias now fail too, where before the tag could turn the value into `0`.
 

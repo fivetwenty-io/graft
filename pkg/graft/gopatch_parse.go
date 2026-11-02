@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/cppforlife/go-patch/patch"
-	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
@@ -151,7 +151,7 @@ func isDefiniteNonArrayStart(c byte) bool {
 // equivalence against it.
 func detectArrayRootFull(data []byte) error {
 	var raw interface{}
-	if err := yaml.Unmarshal(QuoteInjectKeys(data), &raw); err != nil {
+	if err := yamlcodec.DecodeFirst(QuoteInjectKeys(data), &raw); err != nil {
 		return fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
@@ -176,8 +176,10 @@ func ParseGoPatch(data []byte) (patch.Ops, error) {
 		return nil, err
 	}
 
+	// The ops' values read their explicit tags the way a merge input
+	// does.
 	opdefs := []patch.OpDefinition{}
-	if err := yaml.Unmarshal(data, &opdefs); err != nil {
+	if err := yamlcodec.DecodeFirst(data, &opdefs); err != nil {
 		// Wording, capitalization, and the trailing newline ("Root of YAML
 		// document is not a hash/map. Tried parsing it as go-patch, but
 		// got: <err>\n") are pinned by cmd/graft/main_test.go's

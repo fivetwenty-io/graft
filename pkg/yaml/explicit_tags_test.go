@@ -4,6 +4,7 @@ import (
 	"math"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/fivetwenty-io/graft/pkg/yaml"
 )
@@ -43,6 +44,13 @@ var explicitTagDocs = []struct {
 	{"a: !!null \"\"\n", nil},
 	{"a: !!binary aGk=\n", "hi"},
 	{"a: !!binary |\n  aGVsbG8g\n  d29ybGQ=\n", "hello world"},
+	{"a: !!timestamp word\n", "word"},
+	{"a: !!timestamp 1\n", "1"},
+	{"a: !!timestamp 2001-12-14\n", "2001-12-14"},
+	{"a: !foo yes\n", "yes"},
+	{"a: ! on\n", "on"},
+	{"a: !foo >-\n  Off\n", "Off"},
+	{"a: !foo 12\n", "12"},
 }
 
 // TestExplicitTagsMatchSpruce checks Unmarshal, in both modes, against
@@ -91,6 +99,30 @@ func TestExplicitTagsTypedFields(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !reflect.DeepEqual(got, want) {
+				t.Errorf("got %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+// TestTimestampTagTypedFields checks that a !!timestamp scalar still
+// fills a time.Time field, while a string field takes its text.
+func TestTimestampTagTypedFields(t *testing.T) {
+	t.Parallel()
+	type target struct {
+		T time.Time `yaml:"t"`
+		S string    `yaml:"s"`
+	}
+	const doc = "t: !!timestamp 2001-12-14\ns: !!timestamp 2001-12-14t21:59:43.10-05:00\n"
+	want := target{T: time.Date(2001, 12, 14, 0, 0, 0, 0, time.UTC), S: "2001-12-14t21:59:43.10-05:00"}
+	for _, m := range modes {
+		t.Run(m.name, func(t *testing.T) {
+			t.Parallel()
+			var got target
+			if err := yaml.UnmarshalWith([]byte(doc), &got, m.opts); err != nil {
+				t.Fatal(err)
+			}
+			if !got.T.Equal(want.T) || got.S != want.S {
 				t.Errorf("got %+v, want %+v", got, want)
 			}
 		})

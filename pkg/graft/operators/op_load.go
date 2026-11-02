@@ -2,15 +2,15 @@ package operators
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 
-	"github.com/goccy/go-yaml"
-
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -96,26 +96,33 @@ func (LoadOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	// Try to unmarshal as a map first
-	var maproot map[string]interface{}
-	if err := yaml.Unmarshal(prepared, &maproot); err == nil && maproot != nil {
+	// The loaded file reads its explicit tags the way a merge input does.
+	var root any
+	if err := yamlcodec.DecodeFirst(prepared, &root); err != nil {
+		var tagValue *yamlcodec.TagValueError
+		if errors.As(err, &tagValue) {
+			return nil, fmt.Errorf("failed to parse YAML: %w", err)
+		}
+		return nil, errUnsupportedLoadRoot
+	}
+	switch v := root.(type) {
+	case map[string]interface{}:
 		return &Response{
 			Type:  Replace,
-			Value: graft.NormalizeMap(maproot),
+			Value: graft.NormalizeMap(v),
 		}, nil
-	}
-
-	// Try to unmarshal as a list
-	var listroot []interface{}
-	if err := yaml.Unmarshal(prepared, &listroot); err == nil && listroot != nil {
+	case []interface{}:
 		return &Response{
 			Type:  Replace,
-			Value: listroot,
+			Value: v,
 		}, nil
 	}
-
-	return nil, fmt.Errorf("unsupported root type in loaded content, only map or list roots are supported")
+	return nil, errUnsupportedLoadRoot
 }
+
+// errUnsupportedLoadRoot is the load operator's error for a file whose
+// first document is neither a map nor a list, or that does not parse.
+var errUnsupportedLoadRoot = errors.New("unsupported root type in loaded content, only map or list roots are supported")
 
 func getBytesFromLocation(location string) ([]byte, error) {
 	// Handle location as a URI if it looks like one and has a scheme

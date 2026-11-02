@@ -1,6 +1,9 @@
 package graft
 
 import (
+	"math"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -100,5 +103,52 @@ func TestDetectArrayRootFastPathEquivalence(t *testing.T) {
 		if fast != slow {
 			t.Errorf("DetectArrayRoot(%q) classified %q, full parse says %q", in, fast, slow)
 		}
+	}
+}
+
+// TestGoPatchResolvesExplicitTags parses a go-patch ops file whose
+// values carry explicit tags. The values read the way a merge input
+// reads them, and every expectation is what real spruce v1.35.17 merged.
+func TestGoPatchResolvesExplicitTags(t *testing.T) {
+	ops := "- type: replace\n  path: /a\n  value: !!int 0x1f\n" +
+		"- type: replace\n  path: /b?\n  value: !!binary aGk=\n" +
+		"- type: replace\n  path: /c?\n  value: !!timestamp word\n" +
+		"- type: replace\n  path: /d?\n  value: !foo on\n" +
+		"- type: replace\n  path: /e?\n  value: !!str 1.50\n" +
+		"- type: replace\n  path: /f?\n  value: !!bool on\n"
+	if !IsArrayError(DetectArrayRoot([]byte(ops))) {
+		t.Fatalf("DetectArrayRoot = %v, want the array root a go-patch file has", DetectArrayRoot([]byte(ops)))
+	}
+	parsed, err := ParseGoPatch([]byte(ops))
+	if err != nil {
+		t.Fatalf("ParseGoPatch: %v", err)
+	}
+	got, err := parsed.Apply(map[any]any{"a": 1})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	want := map[any]any{"a": 31, "b": "hi", "c": "word", "d": "on", "e": "1.50", "f": true}
+	m, ok := got.(map[any]any)
+	if !ok {
+		t.Fatalf("Apply gave %T", got)
+	}
+	// The integer's Go type is goccy's choice, so only its value counts.
+	if a, ok := m["a"].(uint64); ok && a <= math.MaxInt32 {
+		m["a"] = int(a)
+	}
+	if !reflect.DeepEqual(m, want) {
+		t.Errorf("patched = %#v, want %#v", m, want)
+	}
+}
+
+// TestGoPatchRefusesTagsThatCannotHoldTheirText parses an ops file that
+// spruce refuses. The error names the tag but never quotes the text.
+func TestGoPatchRefusesTagsThatCannotHoldTheirText(t *testing.T) {
+	_, err := ParseGoPatch([]byte("- type: replace\n  path: /a\n  value: !!int S3KRIT\n"))
+	if err == nil {
+		t.Fatal("ParseGoPatch succeeded, want an error")
+	}
+	if msg := err.Error(); !strings.Contains(msg, "!!int") || strings.Contains(msg, "S3KRIT") {
+		t.Errorf("ParseGoPatch error %q, want one naming !!int without the text", msg)
 	}
 }

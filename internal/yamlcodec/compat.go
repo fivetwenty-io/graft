@@ -461,6 +461,21 @@ func PrepareBody(body ast.Node, tag bool) (ast.Node, error) {
 	return ExpandAliases(body)
 }
 
+// DecodeFirst decodes the first document of data into v the way goccy's
+// Unmarshal does, after the steps ParseFirstBody applies with tag unset.
+// So it fails an alias inside its own anchor's collection, resolves
+// explicit tags as spruce does, and expands aliases, but it applies no
+// YAML 1.1 boolean coercion. v is left as it is when data holds no
+// document. The (( load )) operator and go-patch ops files read their
+// input through it.
+func DecodeFirst(data []byte, v any) error {
+	body, err := ParseFirstBody(data, false)
+	if err != nil || body == nil {
+		return err
+	}
+	return DecodeBody(body, v)
+}
+
 // DecodeBody decodes body, a node ParseFirstBody returned, into v with
 // goccy's NodeToValue and opts.
 func DecodeBody(body ast.Node, v any, opts ...yaml.DecodeOption) error {

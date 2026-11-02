@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
 // This file ports the scalar half of spruce's YAML emitter so merge
@@ -256,7 +258,7 @@ var yamlV2ResolveTable = func() [256]byte {
 // fork's resolve step by step, so it accepts exactly what spruce does.
 func yamlV2ResolvesToString(s string) bool {
 	tag, _ := resolvePlain(s)
-	return tag == strTag || tag == binaryTag
+	return tag == yamlnode.TagStr || tag == yamlnode.TagBinary
 }
 
 // yamlV2Base60Float is the fork's base60float expression; such strings

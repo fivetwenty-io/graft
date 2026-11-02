@@ -14,17 +14,6 @@ import (
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
-// The core tags ResolveTags resolves, in the short form spruce's YAML
-// library names them.
-const (
-	strTag    = "!!str"
-	boolTag   = "!!bool"
-	intTag    = "!!int"
-	floatTag  = "!!float"
-	nullTag   = "!!null"
-	binaryTag = "!!binary"
-)
-
 // longTagPrefix starts the verbatim form of a core tag, as in
 // !<tag:yaml.org,2002:str>.
 const longTagPrefix = "tag:yaml.org,2002:"
@@ -158,6 +147,9 @@ func resolveTagNode(t *ast.TagNode) (ast.Node, error) {
 	}
 	tag := coreTag(t)
 	scalar, anchor := taggedScalar(t.Value)
+	if tag == "" && scalar != nil {
+		return keepTaggedText(t, scalar, anchor), nil
+	}
 	if tag == "" || scalar == nil {
 		v, err := resolveTagsIn(t.Value)
 		if err != nil {
@@ -194,21 +186,74 @@ func resolveTagNode(t *ast.TagNode) (ast.Node, error) {
 // coreTag returns t's tag in its short form when it is one of the tags
 // ResolveTags resolves, or "".
 func coreTag(t *ast.TagNode) string {
+	switch name := tagName(t); name {
+	case yamlnode.TagStr, yamlnode.TagBool, yamlnode.TagInt, yamlnode.TagFloat, yamlnode.TagNull, yamlnode.TagBinary:
+		return name
+	}
+	return ""
+}
+
+// tagName returns t's tag as written, with the verbatim form of a core
+// tag, such as !<tag:yaml.org,2002:str>, in its short form, or "" when t
+// has no token.
+func tagName(t *ast.TagNode) string {
 	if t.Start == nil {
 		return ""
 	}
 	name := t.Start.Value
-	switch {
-	case strings.HasPrefix(name, "!<"+longTagPrefix) && strings.HasSuffix(name, ">"):
-		name = "!!" + name[len("!<"+longTagPrefix):len(name)-1]
-	case !strings.HasPrefix(name, "!!"):
-		return ""
+	if strings.HasPrefix(name, "!<"+longTagPrefix) && strings.HasSuffix(name, ">") {
+		return "!!" + name[len("!<"+longTagPrefix):len(name)-1]
 	}
-	switch name {
-	case strTag, boolTag, intTag, floatTag, nullTag, binaryTag:
-		return name
+	return name
+}
+
+// keepTaggedText handles scalar, which sits under t, a tag that spruce's
+// YAML library does not resolve, such as !!timestamp, a custom tag like
+// !foo, or the bare !. That library keeps the scalar's text as a string,
+// so !!timestamp word stays the word, and !foo yes stays the word yes.
+//
+// goccy reads a !!timestamp scalar as a time whatever its text, and the
+// zero time when the text isn't a date, so that tag comes off and the
+// scalar becomes the string !!str makes, which a time.Time field still
+// parses. Under any other tag goccy already reads the text as written,
+// apart from a YAML 1.1 boolean word, which the compat coercion would
+// turn into a boolean. That word becomes a quoted string under the same
+// tag, and any other scalar stays as it is.
+func keepTaggedText(t *ast.TagNode, scalar ast.ScalarNode, anchor *ast.AnchorNode) ast.Node {
+	in, first, last := scalarSource(scalar)
+	if tagName(t) == yamlnode.TagTimestamp {
+		out := replacementNode(yamlnode.TagStr, in, in, scalar, t)
+		spliceTokens(t.Start, first, last, out.GetToken())
+		if anchor != nil {
+			anchor.Value = out
+			return anchor
+		}
+		return out
 	}
-	return ""
+	if !Yaml11BoolLookalikeWords[in] {
+		return t
+	}
+	if s, ok := scalar.(*ast.StringNode); ok && s.Token != nil && IsQuotedScalarToken(s.Token.Type) {
+		return t
+	}
+	out := replacementNode(yamlnode.TagStr, in, in, scalar, t)
+	tk := out.GetToken()
+	lead, trail := " ", ""
+	if first != nil && first.Position != nil {
+		pos := *first.Position
+		tk.Position = &pos
+	}
+	if linked(first) {
+		lead, trail = leadingSpace(first.Origin), trailingSpace(last.Origin)
+		replaceRun(first, last, tk)
+	}
+	tk.Origin = lead + tk.Origin + trail
+	if anchor != nil {
+		anchor.Value = out
+	} else {
+		t.Value = out
+	}
+	return t
 }
 
 // propertyError is the parse error for a tag that sits where the token
@@ -266,9 +311,9 @@ func scalarSource(s ast.ScalarNode) (string, *token.Token, *token.Token) {
 // text, or the error spruce's library raises, without the text.
 func resolveScalar(tag, in string) (any, *TagValueError) {
 	switch tag {
-	case strTag:
+	case yamlnode.TagStr:
 		return in, nil
-	case binaryTag:
+	case yamlnode.TagBinary:
 		data, err := base64.StdEncoding.DecodeString(in)
 		if err != nil {
 			return nil, &TagValueError{Tag: tag}
@@ -297,12 +342,12 @@ var resolveWords = func() map[string]resolveWord {
 		tag   string
 		words []string
 	}{
-		{true, boolTag, []string{"y", "Y", "yes", "Yes", "YES", "true", "True", "TRUE", "on", "On", "ON"}},
-		{false, boolTag, []string{"n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF"}},
-		{nil, nullTag, []string{"", "~", "null", "Null", "NULL"}},
-		{math.NaN(), floatTag, []string{".nan", ".NaN", ".NAN"}},
-		{math.Inf(1), floatTag, []string{".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF"}},
-		{math.Inf(-1), floatTag, []string{"-.inf", "-.Inf", "-.INF"}},
+		{true, yamlnode.TagBool, []string{"y", "Y", "yes", "Yes", "YES", "true", "True", "TRUE", "on", "On", "ON"}},
+		{false, yamlnode.TagBool, []string{"n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF"}},
+		{nil, yamlnode.TagNull, []string{"", "~", "null", "Null", "NULL"}},
+		{math.NaN(), yamlnode.TagFloat, []string{".nan", ".NaN", ".NAN"}},
+		{math.Inf(1), yamlnode.TagFloat, []string{".inf", ".Inf", ".INF", "+.inf", "+.Inf", "+.INF"}},
+		{math.Inf(-1), yamlnode.TagFloat, []string{"-.inf", "-.Inf", "-.INF"}},
 	} {
 		for _, w := range item.words {
 			m[w] = resolveWord{item.tag, item.value}
@@ -326,7 +371,7 @@ func resolvePlain(in string) (string, any) {
 		switch hint {
 		case '.':
 			if f, err := strconv.ParseFloat(in, 64); err == nil {
-				return floatTag, f
+				return yamlnode.TagFloat, f
 			}
 		case 'D', 'S':
 			if tag, v, ok := resolveNumber(strings.ReplaceAll(in, "_", "")); ok {
@@ -335,34 +380,34 @@ func resolvePlain(in string) (string, any) {
 		}
 	}
 	if utf8.ValidString(in) {
-		return strTag, in
+		return yamlnode.TagStr, in
 	}
-	return binaryTag, in
+	return yamlnode.TagBinary, in
 }
 
 // resolveNumber is the integer and float half of yaml.v2's resolve, for
 // plain, the text with its underscores removed.
 func resolveNumber(plain string) (string, any, bool) {
 	if i, err := strconv.ParseInt(plain, 0, 64); err == nil {
-		return intTag, i, true
+		return yamlnode.TagInt, i, true
 	}
 	if u, err := strconv.ParseUint(plain, 0, 64); err == nil {
-		return intTag, u, true
+		return yamlnode.TagInt, u, true
 	}
 	if f, err := strconv.ParseFloat(plain, 64); err == nil {
-		return floatTag, f, true
+		return yamlnode.TagFloat, f, true
 	}
 	switch {
 	case strings.HasPrefix(plain, "0b"):
 		if i, err := strconv.ParseInt(plain[2:], 2, 64); err == nil {
-			return intTag, i, true
+			return yamlnode.TagInt, i, true
 		}
 		if u, err := strconv.ParseUint(plain[2:], 2, 64); err == nil {
-			return intTag, u, true
+			return yamlnode.TagInt, u, true
 		}
 	case strings.HasPrefix(plain, "-0b"):
 		if i, err := strconv.ParseInt(plain[3:], 2, 64); err == nil {
-			return intTag, -i, true
+			return yamlnode.TagInt, -i, true
 		}
 	}
 	return "", nil, false
@@ -398,7 +443,7 @@ func replacementNode(tag, in string, value any, s ast.ScalarNode, t *ast.TagNode
 	switch v := value.(type) {
 	case string:
 		// !!str and !!binary.
-		if tag == binaryTag {
+		if tag == yamlnode.TagBinary {
 			tk.Value = v
 		}
 		tk.Type, tk.CharacterType = token.DoubleQuoteType, token.CharacterTypeMiscellaneous

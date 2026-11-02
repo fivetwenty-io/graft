@@ -238,3 +238,54 @@ func TestMergeExplicitTagErrors(t *testing.T) {
 		})
 	}
 }
+
+// TestMergeTagsSpruceKeepsAsText pins the tags spruce's YAML library
+// does not resolve, which are !!timestamp, a custom tag, and the bare !
+// tag. spruce keeps the scalar's text as a string under each of them,
+// so a YAML 1.1 boolean word stays a word and text that isn't a date
+// stays as written. Every expectation is what real spruce v1.35.17
+// printed.
+func TestMergeTagsSpruceKeepsAsText(t *testing.T) {
+	cases := []struct {
+		in   string
+		path string
+		want string
+	}{
+		{"a: !!timestamp word", "a", "str:word"},
+		{"a: !!timestamp 1", "a", "str:1"},
+		{"a: !!timestamp yes", "a", "str:yes"},
+		{"a: !!timestamp \"\"", "a", "str:"},
+		{"a: !!timestamp ~", "a", "str:~"},
+		{"a: !!timestamp 2001-12-14", "a", "str:2001-12-14"},
+		{"a: !!timestamp 2001-12-14t21:59:43.10-05:00", "a", "str:2001-12-14t21:59:43.10-05:00"},
+		{"a: !<tag:yaml.org,2002:timestamp> word", "a", "str:word"},
+		{"a: !!timestamp &x word\nb: *x", "a", "str:word"},
+		{"a: !!timestamp &x word\nb: *x", "b", "str:word"},
+		{"a: !foo yes", "a", "str:yes"},
+		{"a: !foo No", "a", "str:No"},
+		{"a: ! on", "a", "str:on"},
+		{"a: !!foo on", "a", "str:on"},
+		{"a: !<tag:example.com,2000:x> on", "a", "str:on"},
+		{"a: !foo >-\n  Off", "a", "str:Off"},
+		{"a: !foo |-\n  yes", "a", "str:yes"},
+		{"a: [!foo yes, !foo off]", "a.[0]", "str:yes"},
+		{"a: [!foo yes, !foo off]", "a.[1]", "str:off"},
+		{"a: !foo &x yes\nb: *x", "a", "str:yes"},
+		{"a: !foo &x yes\nb: *x", "b", "str:yes"},
+		{"a: !foo true", "a", "str:true"},
+		{"a: !foo 12", "a", "str:12"},
+		{"a: !foo 1.50", "a", "str:1.50"},
+		{"a: !foo ~", "a", "str:~"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.in+"/"+tc.path, func(t *testing.T) {
+			doc, err := NewDefaultEngine().ParseYAML([]byte(tc.in))
+			if err != nil {
+				t.Fatalf("ParseYAML: %v", err)
+			}
+			if got := scalarClass(mustGet(t, doc, tc.path)); got != tc.want {
+				t.Errorf("%s = %s, want %s", tc.path, got, tc.want)
+			}
+		})
+	}
+}

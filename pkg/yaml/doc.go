@@ -136,13 +136,17 @@ names the tags and the tag's position and never quotes the text. A second
 tag on one node and a tag on an alias are syntax errors too, as they are in
 spruce.
 
+A scalar under a tag that spruce doesn't resolve reads as its text when it
+decodes into a string or a generic value, as it does in spruce. That covers
+!!timestamp, a custom tag such as !foo, and the bare ! tag. So !foo yes stays the word yes, and !!timestamp word stays
+the word rather than becoming the zero time. A time.Time field still reads a
+date written under !!timestamp.
+
 The decoder refuses a few tagged documents that spruce reads. A !!str or
 other scalar tag on a flow or block collection is a syntax error, where
 spruce ignores the tag. So is a tag with no value before the next line of a
 mapping or sequence, as in "a: !!str\nb: 1", where spruce reads the empty
-string. A tag that is not a core tag, such as !foo yes, leaves the scalar as
-it would be with no tag, so yes reads as true in the default mode, where
-spruce keeps the string.
+string.
 
 A tab inside a plain scalar, as in a: x<TAB>y, is dropped, so the value is
 "xy". This is how the decoder reads such a scalar, and graft merge gives the
