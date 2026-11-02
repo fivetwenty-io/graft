@@ -84,6 +84,8 @@ func parseText(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File,
 		keepPlainTabs(toks)
 	}
 	anchorBeforeScalarTag(toks)
+	toks, collections := emptyTagValues(text, toks)
+	defer hideCollectionTags(collections)()
 	return parser.Parse(toks, mode, opts...)
 }
 

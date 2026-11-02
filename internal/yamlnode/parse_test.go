@@ -547,7 +547,6 @@ func TestParseAcceptanceDivergences(t *testing.T) {
 		goccyErr string // the error Parse returns, or "" when it accepts the input
 	}{
 		{"%YAML 1.2\n---\na: 1\n", "yaml: found incompatible YAML document", ""},
-		{"a: !!str\nb: 1\n", `accepted: a is !!str "", b is !!int 1`, "yaml: line 2: "},
 		{"a: !!merge <<\n", `accepted: a is !!merge "<<"`, "yaml: line 1: "},
 		{"%TAG !! tag:example.com,2000:\n---\na: !!foo 1\n", "accepted: a is tag:example.com,2000:foo", "yaml: line 3: "},
 	} {
@@ -617,15 +616,24 @@ func TestParseIndentIndicatorOnDocumentScalar(t *testing.T) {
 	}
 }
 
-// TestParseEmptyTaggedSequenceItemsFail pins an accepted divergence from
-// spruce. An empty value carrying a tag, as in "- !!str" then "- !!int",
-// is a parse error in graft, the same divergence as "a: !!str" before
-// another key. spruce accepts it, reading empty items of those types.
-func TestParseEmptyTaggedSequenceItemsFail(t *testing.T) {
-	_, err := yamlnode.Parse([]byte("- !!str\n- !!int\n"))
-	if err == nil || !strings.HasPrefix(err.Error(), "yaml: line 2: ") {
-		t.Fatalf("Parse = %v, want a parse error on line 2 (spruce accepts the input)", err)
-	}
+// TestParseReadsEmptyTaggedNodes checks a tag with no value before the
+// next key or item at its own level, which the parser used to read as
+// holding that key or item, or fail. Each tag stays on an empty scalar at
+// the tag's place, and the next node keeps its own. The expected outlines
+// come from yaml.v3 v3.0.5.
+func TestParseReadsEmptyTaggedNodes(t *testing.T) {
+	checkOutlines(t, []struct {
+		in   string
+		want []string
+	}{
+		{"a: !!str\nb: 1\n", []string{`{!!str "a"@1: !!str "", !!str "b"@2: !!int "1"}`}},
+		{"- !!str\n- !!int\n", []string{`[!!str "", !!int ""]`}},
+		{"- !!map\n- a\n", []string{`[!!map "", !!str "a"]`}},
+		{"k: # c\n  !!str\nj: 1\n", []string{`{!!str "k"@1: !!str "", !!str "j"@3: !!int "1"}`}},
+		{"a: !foo &n\nb: 1\n", []string{`{!!str "a"@1: !foo "", !!str "b"@2: !!int "1"}`}},
+		{"l:\n- !foo\n- 2\n", []string{`{!!str "l"@1: [!foo "", !!int "2"]}`}},
+		{"a: !foo\n  x: 1\nb: 2\n", []string{`{!!str "a"@1: {!!str "x"@2: !!int "1"}, !!str "b"@3: !!int "2"}`}},
+	})
 }
 
 // TestParseAcceptsInputsSpruceRejects pins inputs where spruce exits 2
@@ -812,9 +820,7 @@ func TestParseReadsATagOverAnotherKind(t *testing.T) {
 // TestParseKeepsOtherErrorsNearTags checks that Parse fails, with the
 // error it always gave, on an input whose only fault is not a core tag
 // over another kind, and on one where such a tag sits beside a second
-// fault that still fails once the tag is read as yaml.v3 reads it. A
-// tag whose node is empty, because the next line starts a sibling, is
-// not over another kind either.
+// fault that still fails once the tag is read as yaml.v3 reads it.
 func TestParseKeepsOtherErrorsNearTags(t *testing.T) {
 	for in, want := range map[string]string{
 		"a: b: c\n":                  "yaml: line 1: mapping value is not allowed in this context",
@@ -824,8 +830,6 @@ func TestParseKeepsOtherErrorsNearTags(t *testing.T) {
 		"k: !!str\n  !!map\n  - x\n": "yaml: line 3: could not find map",
 		"k: !!map\n  - a\nj: b: c\n": "yaml: line 2: could not find map",
 		"a: 1\n---\nk: !!map\n  ]\n": "yaml: line 4: could not find map",
-		"- !!map\n- a\n":             "yaml: line 2: could not find map",
-		"k: # c\n  !!str\nj: 1\n":    "yaml: line 3: unexpected scalar value",
 	} {
 		if _, err := yamlnode.Parse([]byte(in)); err == nil || err.Error() != want {
 			t.Errorf("Parse(%q) = %v, want %q", in, err, want)

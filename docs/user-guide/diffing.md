@@ -400,13 +400,9 @@ graft accepts these inputs, and spruce rejects them:
 graft rejects these inputs, and spruce accepts them:
 
 - Complex mapping keys.
-- An empty tagged value followed by another key, such as `a: !!str` and
-  then `b: 1`.
 - `!!merge <<` used as a value.
 - A `%TAG !!` directive that redefines the secondary handle, when a tag
   then uses `!!`, such as `a: !!foo 1`.
-- Empty tagged sequence items, such as `- !!str` then `- !!int`, which
-  is the same difference as `a: !!str` before another key.
 - An anchor with no value as the last thing in a document that ends at
   a `---` line or at the end of the file, such as `b: &x` as the last
   entry of a mapping or `- &x` as the last item of a list. graft fails
@@ -415,7 +411,7 @@ graft rejects these inputs, and spruce accepts them:
   `...` parses.
 - Two directives before the `---` line, such as `%YAML 1.1` and then `%TAG !e! x`. graft diff fails with exit code 2 and `unexpected directive value. document not started`, while spruce diff compares the document. `graft merge` accepts such a file, as spruce merge does, and `graft json` fails on it with exit code 2, as spruce json does.
 
-`TestParseAcceptanceDivergences` pins the `%YAML`, empty tagged value, `!!merge`, and `%TAG !!` cases. `TestParseAcceptsInputsYamlV3Rejects` pins the `\/` escape and raw control characters. `TestParseAcceptsInputsSpruceRejects` pins the tab, leading `...`, long key, and U+2028 cases. `TestParseEmptyTaggedSequenceItemsFail` and `TestParseRejectsAnchorWithoutValue` pin the tagged sequence items and the anchor with no value. The `...`-only stream and complex mapping key cases are pinned in `internal/yamlnode`'s split and decode tests. Content that follows `...` without a new `---` line is no longer a difference. `graft diff`, `graft merge`, and `graft json` all fail it with exit code 2 and spruce's message, `yaml: line N: did not find expected <document start>`.
+`TestParseAcceptanceDivergences` pins the `%YAML`, `!!merge`, and `%TAG !!` cases. `TestParseAcceptsInputsYamlV3Rejects` pins the `\/` escape and raw control characters. `TestParseAcceptsInputsSpruceRejects` pins the tab, leading `...`, long key, and U+2028 cases. `TestParseRejectsAnchorWithoutValue` pins the anchor with no value. A tag with no value before the next key or item, such as `a: !!str` then `b: 1`, or `- !!str` then `- !!int`, is no longer a difference, because graft reads it as spruce does. The `...`-only stream and complex mapping key cases are pinned in `internal/yamlnode`'s split and decode tests. Content that follows `...` without a new `---` line is no longer a difference. `graft diff`, `graft merge`, and `graft json` all fail it with exit code 2 and spruce's message, `yaml: line N: did not find expected <document start>`.
 
 `graft merge` and `graft json` also reject a `...` line before the first content and a `%YAML 1.2` directive, as spruce does, so those two differences apply to `graft diff` alone.
 

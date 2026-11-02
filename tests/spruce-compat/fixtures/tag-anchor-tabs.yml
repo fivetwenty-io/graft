@@ -58,3 +58,27 @@ int_tag_anchor_next: !!int	&i
   12
 alias_int_next: *i
 after: 1
+empty_custom: !custom
+empty_custom_anchor: !custom &e1
+empty_anchor_custom: &e2 !custom
+alias_empty: *e1
+empty_verbatim: !<tag:x.y,2020:z> &e3
+empty_bare: !
+empty_set: !!set
+empty_str_anchor: !!str &e4
+empty_comment: !custom # c
+
+empty_tab_anchor: !custom	&e5	
+empty_nested:
+  a: !custom &e6
+  b: 1
+empty_items:
+- !custom
+- !custom &e7 # c
+- !!str
+- 3
+tagged_value: !custom
+  x: 1
+tagged_list: !custom
+- 1
+after_empty: 2

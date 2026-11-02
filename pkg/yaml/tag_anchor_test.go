@@ -97,20 +97,13 @@ func TestTagThenAnchorOnCollectionFails(t *testing.T) {
 	}
 }
 
-// TestTagThenAnchorWithNoValueFails checks a scalar core tag and an anchor
-// with nothing after them before the next key, which is a syntax error as
-// a tag alone is there, where the parser used to move the next key under
-// the tagged one.
-func TestTagThenAnchorWithNoValueFails(t *testing.T) {
-	for _, doc := range []string{
-		"a: !!str &n\nb: 1\n",
-		"a: !!str\t&n\t# c\nb: 1\n",
-	} {
-		var v any
-		err := yaml.Unmarshal([]byte(doc), &v)
-		de := wantDecodeError(t, err, yaml.ErrorKindSyntax, 2)
-		if de.Column != 1 {
-			t.Errorf("Unmarshal(%q): column %d, want 1 (%v)", doc, de.Column, de)
-		}
-	}
+// TestTagThenAnchorWithNoValueReadsEmpty checks a scalar core tag and an
+// anchor with nothing after them before the next key, which reads as the
+// empty string, as it does in spruce, where the parser used to move the
+// next key under the tagged one.
+func TestTagThenAnchorWithNoValueReadsEmpty(t *testing.T) {
+	checkScannerCases(t, []scannerCase{
+		{"space", "a: !!str &n\nb: 1\n", map[string]any{"a": "", "b": 1}},
+		{"tabs and a comment", "a: !!str\t&n\t# c\nb: 1\n", map[string]any{"a": "", "b": 1}},
+	})
 }

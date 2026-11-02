@@ -1,0 +1,101 @@
+package yamlnode
+
+import (
+	"testing"
+
+	"github.com/goccy/go-yaml/token"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
+)
+
+// TestEmptyTagValues checks which tags get an implicit null, which tags
+// it reports as collection tags, and that the tokens already there keep
+// their places and their links in the text.
+func TestEmptyTagValues(t *testing.T) {
+	for _, c := range []struct {
+		in, want    string
+		collections int
+	}{
+		// A tag with no value before a sibling key or item.
+		{"a: !custom\nb: 1\n", "a MappingValue !custom ImplicitNull b MappingValue Integer", 0},
+		{"a: !custom &n # c\nb: 1\n", "a MappingValue !custom Anchor n ImplicitNull Comment b MappingValue Integer", 0},
+		{"a: &n !custom\n\nb: 1\n", "a MappingValue Anchor n !custom ImplicitNull b MappingValue Integer", 0},
+		{"a: !!map &n\nb: 1\n", "a MappingValue !!map Anchor n ImplicitNull b MappingValue Integer", 1},
+		{"l:\n- !custom\n- 2\n", "l MappingValue SequenceEntry !custom ImplicitNull SequenceEntry Integer", 0},
+		{"k: # c\n  !!str\nj: 1\n", "k MappingValue Comment !!str ImplicitNull j MappingValue Integer", 0},
+		{"&k a: !custom\nb: 1\n", "Anchor k a MappingValue !custom ImplicitNull b MappingValue Integer", 0},
+		{"a: !custom &n\n", "a MappingValue !custom Anchor n ImplicitNull", 0},
+		// A node indented under the tag's parent is the tag's value.
+		{"a: !custom\n  x: 1\n", "a MappingValue !custom x MappingValue Integer", 0},
+		{"a: !custom\n- 1\n", "a MappingValue !custom SequenceEntry Integer", 0},
+		{"l:\n- !custom\n  x: 1\n", "l MappingValue SequenceEntry !custom x MappingValue Integer", 0},
+		{"a:\n  !custom\n  b: 1\n", "a MappingValue !custom b MappingValue Integer", 0},
+		// A value on the tag's line, a root tag, two tags, a !!merge
+		// tag, and a %TAG directive are left alone.
+		{"a: !custom x\nb: 1\n", "a MappingValue !custom x b MappingValue Integer", 0},
+		{"!custom\nb: 1\n", "!custom b MappingValue Integer", 0},
+		{"a: !x !y\nb: 1\n", "a MappingValue !x !y b MappingValue Integer", 0},
+		{"a: !custom &n &m\nb: 1\n", "a MappingValue !custom Anchor n Anchor m b MappingValue Integer", 0},
+		{"a: !!merge\nb: 1\n", "a MappingValue !!merge b MappingValue Integer", 0},
+		{"%TAG !! tag:x.y,2020:\n---\na: !!str\nb: 1\n", "Directive TAG !! tag:x.y,2020: DocumentHeader a MappingValue !!str b MappingValue Integer", 0},
+	} {
+		text := c.in
+		toks := yamlprep.Tokenize(text)
+		before := make(map[*token.Token][3]any, len(toks))
+		for _, tk := range toks {
+			before[tk] = [3]any{*tk.Position, tk.Prev, tk.Next}
+		}
+		got, collections := emptyTagValues(text, toks)
+		if s := tokenTypes(got); s != c.want {
+			t.Errorf("%q: tokens %s, want %s", c.in, s, c.want)
+		}
+		if len(collections) != c.collections {
+			t.Errorf("%q: %d collection tags, want %d", c.in, len(collections), c.collections)
+		}
+		for _, tk := range toks {
+			if was := before[tk]; was != [3]any{*tk.Position, tk.Prev, tk.Next} {
+				t.Errorf("%q: token %q moved from %v to %v:%v", c.in, tk.Value, was[0], tk.Position.Line, tk.Position.Column)
+			}
+		}
+		for _, tk := range got {
+			if tk.Type == token.ImplicitNullType && (tk.Prev != nil || tk.Next != nil) {
+				t.Errorf("%q: the added null is linked into the text", c.in)
+			}
+		}
+	}
+}
+
+// TestImplicitNullAfterPlace checks that the added null sits one column
+// after the last of the tag and its anchor, on their line.
+func TestImplicitNullAfterPlace(t *testing.T) {
+	for _, c := range []struct {
+		in           string
+		line, column int
+	}{
+		{"a: !custom\nb: 1\n", 1, 5},
+		{"a: !custom &n\nb: 1\n", 1, 13},
+		{"a: &n !custom\nb: 1\n", 1, 8},
+		{"l:\n- !custom\n- 2\n", 2, 4},
+	} {
+		toks, _ := emptyTagValues(c.in, yamlprep.Tokenize(c.in))
+		for _, tk := range toks {
+			if tk.Type == token.ImplicitNullType && (tk.Position.Line != c.line || tk.Position.Column != c.column) {
+				t.Errorf("%q: null at %d:%d, want %d:%d", c.in, tk.Position.Line, tk.Position.Column, c.line, c.column)
+			}
+		}
+	}
+}
+
+// TestHideCollectionTags checks that a collection tag reads as "!" until
+// the returned function puts it back.
+func TestHideCollectionTags(t *testing.T) {
+	tag := &token.Token{Type: token.TagType, Value: "!!map"}
+	restore := hideCollectionTags([]*token.Token{tag})
+	if tag.Value != "!" {
+		t.Errorf("hidden tag = %q, want \"!\"", tag.Value)
+	}
+	restore()
+	if tag.Value != "!!map" {
+		t.Errorf("restored tag = %q, want \"!!map\"", tag.Value)
+	}
+}

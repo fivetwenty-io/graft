@@ -147,15 +147,23 @@ The decoder refuses a few tagged documents that spruce reads. A !!str or
 other scalar tag on a flow or block collection is a syntax error, where
 spruce ignores the tag. That holds with an anchor between the tag and the
 collection, in either order and after a space or a tab, as in
-a: !!str &n {k: v}. So is a tag with no value before the next line of a
-mapping or sequence, as in "a: !!str\nb: 1", where spruce reads the empty
-string. That holds when a comment or an anchor follows the tag on its line,
-after a space or a tab, as in "a: !!str # c\nb: 1" and "a: !!str &n\nb: 1".
-A !!set, !!omap, or !!pairs tag on a scalar, as in a: !!set yes, is a
+a: !!str &n {k: v}. A !!set, !!omap, or !!pairs tag on a scalar, as in a: !!set yes, is a
 syntax error as well, where spruce reads the text. And a tag with nothing
 after it on the last line of a document that ends with no line break, as
 in a: !!str or a: !foo, reads as null, because the parser drops the tag
 before the decoder sees it, where spruce reads the empty string.
+
+A tag with no value before the next key or item at its own level, as in
+"a: !foo\nb: 1" or "- !!str\n- 2", reads as spruce reads it. That holds
+for every tag, with an anchor before or after the tag, and with a space,
+a tab, a comment, or blank lines after them. The value is the empty
+string under most tags and null under !!null. Under !!int, !!float, or
+!!bool it is a syntax error that gives the tag's line and column, as it
+is in spruce, and so are two tags or two anchors on the node, as in
+"a: !x !y\nb: 1". A node on the next line that is indented under the
+key or the item stays the tag's value, as in "a: !foo\n  x: 1". An
+anchor with nothing after it at the very end of a document, as in a: &n,
+is a syntax error, where spruce reads null.
 
 A !!map or !!seq tag on a scalar, as in a: !!map x or a: !!seq yes, is a
 syntax error too, where spruce ignores the tag and reads the scalar. A

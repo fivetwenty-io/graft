@@ -77,8 +77,7 @@ func TestUnmarshalReadsAnchorTabs(t *testing.T) {
 // TestPropertyTabsReadAsSpaces checks that a document with a tab after a
 // tag or an anchor reads as the same document with a space there, node
 // for node and place for place, and that one the parser refuses with a
-// space fails at the same place with a tab, where spruce reads a tag with
-// a comment after it as the empty string.
+// space fails at the same place with a tab.
 func TestPropertyTabsReadAsSpaces(t *testing.T) {
 	for _, doc := range []string{
 		"a: !!str\tx\nb: 1\n",
@@ -98,6 +97,8 @@ func TestPropertyTabsReadAsSpaces(t *testing.T) {
 		"a: [\"p\\\"\tq\", !!str\tz]\n",
 		"a: ['it''s\tx', !!str\tz]\n",
 		"a: [x\ty, !!str\tz]\n",
+		"a: !!str\t# c\nb: 1\n",
+		"a: !!str\t&n\t# c\nb: 1\n",
 	} {
 		spaced := strings.ReplaceAll(doc, "\t", " ")
 		var got, want yaml.Node
@@ -120,8 +121,6 @@ func TestPropertyTabsReadAsSpaces(t *testing.T) {
 			t.Errorf("Unmarshal(%q) = %v, want %v", doc, err, wantErr)
 		}
 	}
-	var v any
-	sameError("a: !!str\t# c\nb: 1\n", &v)
 	var one struct{ A, B int }
 	sameError("a: 1\nb: !!str\tz\n", &one)
 

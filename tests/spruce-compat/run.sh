@@ -740,7 +740,7 @@ pattern_aux_quoted_scalar_tabs() {
 # aliases and a merge key name. spruce reads the tab as it reads a space
 # there, so each value stays under its own key.
 pattern_aux_tag_anchor_tabs() {
-  aux_fixture_merge "aux: merge of tags and anchors followed by tabs" tag-anchor-tabs tatabs
+  aux_fixture_merge "aux: merge of tags and anchors followed by tabs or by nothing" tag-anchor-tabs tatabs
 }
 
 # aux_fixture_merge NAME FIXTURE PREFIX merges $FIX/FIXTURE.yml with both

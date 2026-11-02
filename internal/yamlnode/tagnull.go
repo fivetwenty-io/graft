@@ -1,0 +1,268 @@
+package yamlnode
+
+import (
+	"strings"
+
+	"github.com/goccy/go-yaml/token"
+)
+
+// goccy's parser reads the node after a tag wherever it starts, and does
+// not check that the node is indented under the tag's parent. So when a
+// tag, alone or with an anchor, ends a line and the next line holds a
+// sibling key or item, the tag takes that key or item, and everything
+// after it at that level, as its value. "a: !custom\nb: 1" reads as
+// a: {b: 1}, and "- !custom\n- 2" as [[2]], where spruce reads the empty
+// string under the tag. Only an anchor alone is read right, through a
+// special case in the parser.
+//
+// emptyTagValues gives each such tag the implicit null the parser gives
+// a tag at the end of the document, so the next line keeps its place. A
+// node on the next line that is indented under the tag's parent is still
+// the tag's value, as in "a: !custom\n  x: 1", and so is a sequence at
+// the indentation of a mapping key, as in "a: !custom\n- x".
+
+// emptyTagValues returns toks with an implicit null after each tag that
+// ends its line with no value of its own, together with an anchor, if
+// one sits next to it. It also returns the tags among them that the
+// parser reads a collection under. text is the document toks come from. The added
+// tokens are not linked to the tokens around them, as the parser's own
+// implicit nulls are not, so a walk of the token chain still gives the
+// text as written.
+func emptyTagValues(text string, toks token.Tokens) (token.Tokens, []*token.Token) {
+	var runs []tagRun
+	lines := lineIndex{text: text}
+	depth := 0
+	for i, tk := range toks {
+		switch tk.Type {
+		case token.MappingStartType, token.SequenceStartType:
+			depth++
+		case token.MappingEndType, token.SequenceEndType:
+			depth--
+		case token.DirectiveType:
+			if isTagDirective(toks, i) {
+				// The parser reads the token after every tag as a
+				// string once a %TAG directive names "!!".
+				return toks, nil
+			}
+		case token.TagType:
+			if depth > 0 {
+				continue
+			}
+			if r, ok := tagProperties(toks, i); ok && emptyInBlock(&lines, toks, r) {
+				runs = append(runs, r)
+			}
+		}
+	}
+	if len(runs) == 0 {
+		return toks, nil
+	}
+	out := make(token.Tokens, 0, len(toks)+len(runs))
+	var collections []*token.Token
+	prev := 0
+	for _, r := range runs {
+		out = append(out, toks[prev:r.end+1]...)
+		out = append(out, implicitNullAfter(toks[r.start:r.end+1]))
+		prev = r.end + 1
+		if tag := toks[r.tag]; collectionTags[token.ReservedTagKeyword(tag.Value)] {
+			collections = append(collections, tag)
+		}
+	}
+	return append(out, toks[prev:]...), collections
+}
+
+// tagRun is a tag and the anchor next to it, if there is one, as indexes
+// into a token slice: the tag, and the first and last of the tokens.
+type tagRun struct {
+	tag, start, end int
+}
+
+// collectionTags holds the tags the parser reads a collection under, and
+// fails or reads wrongly over an implicit null.
+var collectionTags = map[token.ReservedTagKeyword]bool{
+	token.MappingTag:    true,
+	token.SetTag:        true,
+	token.SequenceTag:   true,
+	token.OrderedMapTag: true,
+}
+
+// hideCollectionTags gives each tag in tags, which tags an implicit null
+// that emptyTagValues added, the non-specific tag "!" while the parser
+// reads it, so the parser reads the null under it as it does under any
+// other tag. It returns the function that puts each tag back, which the
+// caller runs once the parse ends. The tag node keeps the token itself,
+// so the parsed tree holds the tag as written.
+func hideCollectionTags(tags []*token.Token) func() {
+	values := make([]string, len(tags))
+	for i, tk := range tags {
+		values[i], tk.Value = tk.Value, "!"
+	}
+	return func() {
+		for i, tk := range tags {
+			tk.Value = values[i]
+		}
+	}
+}
+
+// tagProperties returns the tag at toks[i] and the anchor on its line
+// right before or after it, if there is one. It reports false for a tag
+// that sits next to a second tag or between two anchors, which the
+// parser fails anyway, and for a !!merge tag.
+func tagProperties(toks token.Tokens, i int) (tagRun, bool) {
+	tag := toks[i]
+	if tag.Position == nil || tag.Value == string(token.MergeTag) {
+		return tagRun{}, false
+	}
+	r := tagRun{tag: i, start: i, end: i}
+	if i >= 2 && toks[i-2].Type == token.AnchorType && sameLine(toks[i-2], tag) && sameLine(toks[i-1], tag) {
+		r.start = i - 2
+	}
+	if i+2 < len(toks) && toks[i+1].Type == token.AnchorType && sameLine(toks[i+1], tag) && sameLine(toks[i+2], tag) {
+		if r.start != i {
+			return tagRun{}, false
+		}
+		r.end = i + 2
+	}
+	if r.start > 0 && toks[r.start-1].Type == token.TagType && sameLine(toks[r.start-1], tag) {
+		return tagRun{}, false
+	}
+	if r.end+1 < len(toks) && toks[r.end+1].Type == token.TagType && sameLine(toks[r.end+1], tag) {
+		return tagRun{}, false
+	}
+	return r, true
+}
+
+// emptyInBlock reports whether the tag and anchor r, outside any flow
+// collection, end their line with no value, before a node that is not
+// indented under their parent.
+func emptyInBlock(lines *lineIndex, toks token.Tokens, r tagRun) bool {
+	tag := toks[r.tag]
+	next := nextNonCommentAt(toks, r.end+1)
+	if next >= 0 && (toks[next].Position == nil || toks[next].Position.Line <= tag.Position.Line) {
+		return false
+	}
+	p := prevNonCommentAt(toks, r.start-1)
+	if p < 0 {
+		return false
+	}
+	col, ok := parentColumn(lines, toks, p)
+	if !ok {
+		return false
+	}
+	if next < 0 {
+		return true
+	}
+	n := toks[next]
+	if lines.tabBefore(n) || n.Position.Column > col {
+		return false
+	}
+	// A block sequence may sit at its key's indentation.
+	return toks[p].Type != token.MappingValueType || n.Type != token.SequenceEntryType || n.Position.Column != col
+}
+
+// parentColumn returns the column a node must be indented past to be
+// the value of the "-" or ":" at toks[p]: the column of the "-", or the
+// column the key before the ":" starts at, with its properties. It
+// reports false for any other token, and for a key it cannot place.
+func parentColumn(lines *lineIndex, toks token.Tokens, p int) (int, bool) {
+	tk := toks[p]
+	if tk.Position == nil || lines.tabBefore(tk) {
+		return 0, false
+	}
+	switch tk.Type {
+	case token.SequenceEntryType:
+		return tk.Position.Column, true
+	case token.MappingValueType:
+	default:
+		return 0, false
+	}
+	k := p - 1
+	if k < 0 || !sameLine(toks[k], tk) {
+		// A ":" that starts its line follows an explicit key.
+		return tk.Position.Column, true
+	}
+	switch toks[k].Type {
+	case token.MappingEndType, token.SequenceEndType, token.CommentType:
+		return 0, false
+	}
+	for k > 0 && sameLine(toks[k-1], tk) {
+		if t := toks[k-1].Type; t == token.TagType || t == token.AliasType {
+			k--
+			continue
+		}
+		if k >= 2 && toks[k-2].Type == token.AnchorType && sameLine(toks[k-2], tk) {
+			k -= 2
+			continue
+		}
+		break
+	}
+	return toks[k].Position.Column, true
+}
+
+// implicitNullAfter returns an implicit null placed one column after the
+// last of run, a tag and the anchor next to it, as the parser places the
+// null it gives a tag at the end of the document.
+func implicitNullAfter(run token.Tokens) *token.Token {
+	last := run[0]
+	for _, tk := range run[1:] {
+		if tk.Position.Column > last.Position.Column {
+			last = tk
+		}
+	}
+	pos := *last.Position
+	pos.Column++
+	tk := token.New("null", " null", &pos)
+	tk.Type = token.ImplicitNullType
+	return tk
+}
+
+// isTagDirective reports whether the directive at toks[i] is a %TAG
+// directive for the "!!" handle.
+func isTagDirective(toks token.Tokens, i int) bool {
+	return i+2 < len(toks) && toks[i+1].Value == "TAG" && toks[i+2].Value == "!!"
+}
+
+// prevNonCommentAt returns the index of the last token in toks at or
+// before from that is not a comment, or -1 when there is none.
+func prevNonCommentAt(toks token.Tokens, from int) int {
+	for i := from; i >= 0; i-- {
+		if toks[i].Type != token.CommentType {
+			return i
+		}
+	}
+	return -1
+}
+
+// sameLine reports whether a and b start on the same line.
+func sameLine(a, b *token.Token) bool {
+	return a.Position != nil && b.Position != nil && a.Position.Line == b.Position.Line
+}
+
+// lineIndex finds the lines of text, splitting it the first time a line
+// is asked for.
+type lineIndex struct {
+	text  string
+	lines []string
+}
+
+// tabBefore reports whether a tab sits on tk's line before tk, where the
+// parser's columns stop matching the indentation the text shows.
+func (x *lineIndex) tabBefore(tk *token.Token) bool {
+	r := []rune(x.line(tk.Position.Line))
+	end := tk.Position.Column - 1
+	if end > len(r) {
+		end = len(r)
+	}
+	return end > 0 && strings.ContainsRune(string(r[:end]), '\t')
+}
+
+// line returns line n of the text, counted from 1, or "" when there is
+// no such line.
+func (x *lineIndex) line(n int) string {
+	if x.lines == nil {
+		x.lines = strings.Split(x.text, "\n")
+	}
+	if n < 1 || n > len(x.lines) {
+		return ""
+	}
+	return x.lines[n-1]
+}
