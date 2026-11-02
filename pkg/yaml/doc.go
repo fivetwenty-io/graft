@@ -138,9 +138,10 @@ spruce.
 
 A scalar under a tag that spruce doesn't resolve reads as its text when it
 decodes into a string or a generic value, as it does in spruce. That covers
-!!timestamp, a custom tag such as !foo, and the bare ! tag. So !foo yes stays the word yes, and !!timestamp word stays
-the word rather than becoming the zero time. A time.Time field still reads a
-date written under !!timestamp.
+!!timestamp, a custom tag such as !foo, and the bare ! tag. So !foo yes
+stays the word yes, and !!timestamp word stays the word rather than becoming
+the zero time. A time.Time field still reads a date written under
+!!timestamp.
 
 The decoder refuses a few tagged documents that spruce reads. A !!str or
 other scalar tag on a flow or block collection is a syntax error, where
@@ -207,8 +208,8 @@ the memory of one document for each tree that is read.
 A type that decodes through its own UnmarshalYAML method, or that keeps what
 it decodes in an unexported field, receives goccy's raw values. In the
 default mode, a quoted or block scalar holding yes, no, on, or off can reach
-that method with an internal marker character in front of it when the target also holds a value
-of interface type.
+that method with an internal marker character in front of it when the
+target also holds a value of interface type.
 
 # Stability
 
