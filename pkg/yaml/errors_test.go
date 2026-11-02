@@ -52,9 +52,11 @@ f: &f [*e,*e,*e,*e,*e,*e,*e,*e,*e]
 g: &g [*f,*f,*f,*f,*f,*f,*f,*f,*f]
 `
 
-// TestUnmarshalDecodeErrors records the kind and line graft's own parse
-// path gives for each input, and checks that the error text quotes no
-// scalar from it.
+// TestUnmarshalDecodeErrors records the kind and position graft's own
+// parse path gives for each input, and checks that the error text quotes
+// no scalar from it. Line is the input's line, counted from 1, so a pair
+// of cases on line 1 and line 3 pins each kind of error the reader
+// numbers itself.
 func TestUnmarshalDecodeErrors(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -69,10 +71,22 @@ func TestUnmarshalDecodeErrors(t *testing.T) {
 		{"duplicate key", "a: 1\npassword: supersecret\npassword: other\n", yaml.ErrorKindSyntax, 3, 1, []string{"supersecret", "other", "password"}},
 		{"bool tag on a word", "a: !!bool supersecret\n", yaml.ErrorKindSyntax, 1, 10, []string{"supersecret"}},
 		{"unknown escape", "a: \"sup\\qersecret\"\n", yaml.ErrorKindSyntax, 1, 9, []string{"supersecret", "ersecret", "'q'"}},
-		{"self-containing anchor", "a: &x\n  b: *x\n  pw: supersecret\n", yaml.ErrorKindSyntax, 0, 0, []string{"supersecret"}},
+		{"self-containing anchor", "a: &x\n  b: *x\n  pw: supersecret\n", yaml.ErrorKindSyntax, 2, 6, []string{"supersecret"}},
+		{"self-containing anchor on line 1", "c: &x [*x, supersecret]\n", yaml.ErrorKindSyntax, 1, 8, []string{"supersecret"}},
+		{"self-containing anchor on line 3", "a: 1\npw: supersecret\nc: &x [*x]\n", yaml.ErrorKindSyntax, 3, 8, []string{"supersecret"}},
+		{"unknown merge alias", "pw: supersecret\n<<: *S3KRITzq9\n", yaml.ErrorKindSyntax, 0, 0, []string{"supersecret", "S3KRITzq9"}},
+		{"bad anchor name on line 1", "a: &x[1] supersecret\n", yaml.ErrorKindSyntax, 1, 0, []string{"supersecret"}},
+		{"bad anchor name on line 3", "a: 1\npw: supersecret\nc: &x[1] y\n", yaml.ErrorKindSyntax, 3, 0, []string{"supersecret"}},
+		{"bad tag on line 1", "c: !x^y supersecret\n", yaml.ErrorKindSyntax, 1, 0, []string{"supersecret"}},
+		{"bad tag on line 3", "a: 1\npw: supersecret\nc: !x^y z\n", yaml.ErrorKindSyntax, 3, 0, []string{"supersecret"}},
+		{"bad directive on line 1", "%FOO supersecret\n---\na: 1\n", yaml.ErrorKindSyntax, 1, 0, []string{"supersecret"}},
+		{"bad directive on line 3", "# c\n# d\n%FOO supersecret\n---\na: 1\n", yaml.ErrorKindSyntax, 3, 0, []string{"supersecret"}},
+		{"bad block header", "a: |supersecret\n  y\n", yaml.ErrorKindSyntax, 1, 4, []string{"supersecret"}},
 		{"billion laughs", billionLaughs, yaml.ErrorKindLimit, 0, 0, []string{"lol"}},
+		{"nesting depth on line 1", "x: " + strings.Repeat("[", 10001) + "\n", yaml.ErrorKindLimit, 1, 0, nil},
 		{"nesting depth", "pw: supersecret\nx: " + strings.Repeat("[", 10001) + "\n", yaml.ErrorKindLimit, 2, 0, []string{"supersecret"}},
-		{"content after end marker", "pw: supersecret\n...\nb: 2\n", yaml.ErrorKindSyntax, 2, 0, []string{"supersecret"}},
+		{"nesting depth on line 3", "a: 1\npw: supersecret\nx: " + strings.Repeat("[", 10001) + "\n", yaml.ErrorKindLimit, 3, 0, []string{"supersecret"}},
+		{"content after end marker", "pw: supersecret\n...\nb: 2\n", yaml.ErrorKindSyntax, 3, 0, []string{"supersecret"}},
 	}
 	for _, tc := range cases {
 		for _, m := range modes {
@@ -84,6 +98,9 @@ func TestUnmarshalDecodeErrors(t *testing.T) {
 					t.Errorf("Column = %d, want %d", de.Column, tc.column)
 				}
 				wantNoLeak(t, err, tc.secrets...)
+				if strings.HasSuffix(de.Msg, ":") || strings.HasSuffix(de.Msg, " ") {
+					t.Errorf("Msg %q ends where a dropped span was", de.Msg)
+				}
 				if strings.Contains(err.Error(), "\n") {
 					t.Errorf("Error() %q spans lines, so it may carry source text", err.Error())
 				}
@@ -107,6 +124,9 @@ func TestUnmarshalRefusesInterfaceKeyedMaps(t *testing.T) {
 		Plans []*plan `yaml:"plans"`
 	}
 	type named map[interface{}]interface{}
+	type key struct {
+		Extra map[interface{}]interface{}
+	}
 	var (
 		top      map[interface{}]interface{}
 		field    plan
@@ -115,6 +135,7 @@ func TestUnmarshalRefusesInterfaceKeyedMaps(t *testing.T) {
 		mapValue map[string]map[interface{}]interface{}
 		alias    named
 		pointer  *map[interface{}]interface{}
+		mapKey   map[*key]string
 	)
 	cases := []struct {
 		name   string
@@ -128,6 +149,7 @@ func TestUnmarshalRefusesInterfaceKeyedMaps(t *testing.T) {
 		{"map value", &mapValue, "[]"},
 		{"named type", &alias, "named"},
 		{"pointer to map", &pointer, "map[interface {}]interface {}"},
+		{"map key", &mapKey, "{key}.Extra"},
 	}
 	// The input is broken, so a check that ran after parsing would
 	// report a syntax error instead.

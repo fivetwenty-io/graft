@@ -10,7 +10,7 @@ var interfaceMapType = reflect.TypeFor[map[interface{}]interface{}]()
 // anything parses. That is a nil v, a v that is not a pointer, a nil
 // pointer, and a type that holds map[interface{}]interface{} anywhere a
 // decoder can reach, which is through pointers, slice and array elements,
-// map values, and exported or embedded struct fields.
+// map keys and values, and exported or embedded struct fields.
 func checkTarget(v any) *DecodeError {
 	if v == nil {
 		return typeError("Unmarshal(nil)")
@@ -38,7 +38,8 @@ type targetWalk struct {
 }
 
 // find reports whether t holds map[interface{}]interface{}, and where,
-// as a path that starts at path, the name of t.
+// as a path that starts at path, the name of t. A map's key adds "{key}"
+// to the path, and an element or a map's value adds "[]".
 func (w targetWalk) find(t reflect.Type, path string) (string, bool) {
 	if w.seen[t] {
 		return "", false
@@ -50,7 +51,12 @@ func (w targetWalk) find(t reflect.Type, path string) (string, bool) {
 	switch t.Kind() {
 	case reflect.Pointer:
 		return w.find(t.Elem(), path)
-	case reflect.Slice, reflect.Array, reflect.Map:
+	case reflect.Map:
+		if where, found := w.find(t.Key(), path+"{key}"); found {
+			return where, true
+		}
+		return w.find(t.Elem(), path+"[]")
+	case reflect.Slice, reflect.Array:
 		return w.find(t.Elem(), path+"[]")
 	case reflect.Struct:
 		for i := range t.NumField() {

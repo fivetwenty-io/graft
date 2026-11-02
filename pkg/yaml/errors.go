@@ -95,29 +95,55 @@ func translate(err error) *DecodeError {
 		return out
 	}
 
+	// The reader's own errors carry the line spruce's YAML library
+	// reports, which often counts from 0, and the line of the input,
+	// counted from 1, which is the one kept.
 	var pe *yamlnode.ParseError
 	if errors.As(err, &pe) {
-		return &DecodeError{Kind: ErrorKindSyntax, Line: pe.Line, Msg: scrub(pe.Message)}
+		return &DecodeError{Kind: ErrorKindSyntax, Line: pe.SourceLine, Msg: scrub(pe.Message)}
 	}
 
-	// The rest are graft's own messages, such as the self-containing
-	// anchor check's, which name an anchor and quote no scalar.
-	return &DecodeError{Kind: ErrorKindSyntax, Msg: scrub(err.Error())}
+	// The anchor check's message names the anchor, so only its position
+	// is kept.
+	var cycle *yamlcodec.SelfContainingAnchorError
+	if errors.As(err, &cycle) {
+		return &DecodeError{Kind: ErrorKindSyntax, Line: cycle.Line, Column: cycle.Column, Msg: selfContainingAnchorMessage}
+	}
+
+	// goccy's decoder names a merge key's alias it cannot find without
+	// quoting it, so scrub would keep the name, and the name is dropped.
+	msg := err.Error()
+	if strings.HasPrefix(msg, unknownAliasPrefix) {
+		return &DecodeError{Kind: ErrorKindSyntax, Msg: unknownAliasMessage}
+	}
+
+	// The rest are plain errors that quote nothing from the input.
+	return &DecodeError{Kind: ErrorKindSyntax, Msg: scrub(msg)}
 }
+
+// The messages that stand in for codec messages that name an anchor,
+// and the start of goccy's message for a merge key's unknown alias.
+const (
+	selfContainingAnchorMessage = "anchor value contains itself"
+	unknownAliasMessage         = "cannot find the anchor an alias names"
+	unknownAliasPrefix          = "cannot find anchor by alias name"
+)
 
 // limitError builds the ErrorKindLimit error for err, a depth or
 // expansion failure, with the line and message of the depth check when
-// it has them. tooDeep is the codec's recursion error inside err, or nil.
+// it has them. tooDeep is the codec's recursion error inside err, or nil
+// when err is goccy's depth error. Every recursion error the codec
+// builds wraps its cause, so the last case always has one, and for the
+// expansion cap it says how many nodes the cap allows.
 func limitError(err error, tooDeep *yamlcodec.MaxRecursionError) *DecodeError {
-	out := &DecodeError{Kind: ErrorKindLimit, Msg: yamlcodec.MaxRecursionMessage}
+	out := &DecodeError{Kind: ErrorKindLimit}
 	var pe *yamlnode.ParseError
 	switch {
 	case errors.As(err, &pe):
-		out.Line, out.Msg = pe.Line, scrub(pe.Message)
+		out.Line, out.Msg = pe.SourceLine, scrub(pe.Message)
 	case errors.Is(err, goyaml.ErrExceededMaxDepth):
 		out.Msg = goyaml.ErrExceededMaxDepth.Error()
-	case tooDeep != nil && tooDeep.Unwrap() != nil:
-		// The expansion cap says how many nodes it allows.
+	default:
 		out.Msg = scrub(tooDeep.Unwrap().Error())
 	}
 	return out
@@ -156,8 +182,9 @@ func scrub(msg string) string {
 		}
 		b.WriteByte(c)
 	}
-	// Dropping a span leaves the spaces on either side of it.
-	return strings.Join(strings.Fields(b.String()), " ")
+	// Dropping a span leaves the spaces on either side of it, and a span
+	// that ended the message leaves the colon that introduced it.
+	return strings.TrimRight(strings.Join(strings.Fields(b.String()), " "), ": ")
 }
 
 // quoteOpens reports whether the quote at msg[i] can open a span, which

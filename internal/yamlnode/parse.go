@@ -20,9 +20,17 @@ import (
 // ParseError is a YAML syntax error in yaml.v3's "yaml: line N: message"
 // form. Message is goccy's text, so only the prefix and the line number
 // match what spruce prints.
+//
+// Line is the line spruce's YAML library reports, which for many errors
+// is libyaml's count from 0, and Error prints it. SourceLine is the line
+// of the input the error lies on, counted from 1, with 0 when the error
+// has no position. Error never prints SourceLine, so callers that show
+// spruce's text keep it, and callers that point at the input read
+// SourceLine.
 type ParseError struct {
-	Line    int
-	Message string
+	Line       int
+	SourceLine int
+	Message    string
 }
 
 func (e *ParseError) Error() string {
@@ -403,7 +411,7 @@ func toParseError(err error, lineOffset int) error {
 		if line > 0 {
 			line += lineOffset
 		}
-		return &ParseError{Line: line, Message: se.Message}
+		return &ParseError{Line: line, SourceLine: line, Message: se.Message}
 	}
 	return &ParseError{Message: err.Error()}
 }

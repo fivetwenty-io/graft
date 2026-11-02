@@ -102,7 +102,7 @@ func startRun(src []byte, n int, first bool) (*directiveRun, error) {
 		case len(run.lines) > 0:
 			return nil, documentStartError(n + 1)
 		case isMarkerLine(line) && first:
-			return nil, &ParseError{Line: n, Message: "did not find expected node content"}
+			return nil, &ParseError{Line: n, SourceLine: n + 1, Message: "did not find expected node content"}
 		case isMarkerLine(line) && isBlankOrComment(line[3:]):
 		case first:
 			return run, nil

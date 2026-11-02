@@ -111,7 +111,7 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 			continue
 		case *ast.AnchorNode:
 			props = cmp.Or(props, x.Start)
-			if err := PropertyNameError(x.Start, x.Name.GetToken(), b.scannerLine); err != nil {
+			if err := PropertyNameError(x.Start, x.Name.GetToken(), b.lineOffset, b.scannerLine); err != nil {
 				return nil, err
 			}
 			anchor = x.Name.GetToken().Value
@@ -122,20 +122,21 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 	}
 
 	if alias, ok := n.(*ast.AliasNode); ok {
-		if err := PropertyNameError(alias.Start, alias.Value.GetToken(), b.scannerLine); err != nil {
+		if err := PropertyNameError(alias.Start, alias.Value.GetToken(), b.lineOffset, b.scannerLine); err != nil {
 			return nil, err
 		}
 		name := alias.Value.GetToken().Value
 		target := b.anchors[name]
+		line := alias.Start.Position.Line + b.lineOffset
 		if target == nil {
-			return nil, &ParseError{Message: "unknown anchor '" + name + "' referenced"}
+			return nil, &ParseError{SourceLine: line, Message: "unknown anchor '" + name + "' referenced"}
 		}
 		if b.open[target] {
 			// The alias sits inside the collection it names, so the tree
 			// would contain itself. yaml.v3 builds that tree and fails
 			// only when it decodes it, but nothing in graft may walk a
 			// cycle, so the load fails here with the decoder's message.
-			return nil, &ParseError{Message: containsItself(name)}
+			return nil, &ParseError{SourceLine: line, Message: containsItself(name)}
 		}
 		out := &Node{Kind: AliasNode, Value: name, Alias: target}
 		b.at(out, alias)
@@ -189,7 +190,8 @@ func (b *builder) buildValue(n ast.Node, anchor string) (*Node, error) {
 	case ast.ScalarNode:
 		return b.buildScalar(x), nil
 	default:
-		return nil, &ParseError{Line: n.GetToken().Position.Line + b.lineOffset, Message: "unsupported YAML node " + n.Type().String()}
+		line := n.GetToken().Position.Line + b.lineOffset
+		return nil, &ParseError{Line: line, SourceLine: line, Message: "unsupported YAML node " + n.Type().String()}
 	}
 }
 
@@ -369,7 +371,7 @@ func (b *builder) tag(tk *token.Token) (string, error) {
 			tk.Value, tk.Origin = original, strings.Replace(tk.Origin, tk.Value, original, 1)
 		}
 	}
-	if err := TagError(tk, b.scannerLine, DiffTags); err != nil {
+	if err := TagError(tk, b.lineOffset, b.scannerLine, DiffTags); err != nil {
 		return "", err
 	}
 	return b.expandTag(tk)
@@ -414,7 +416,8 @@ func (b *builder) expandTag(tk *token.Token) (string, error) {
 	handle := tag[:end+2]
 	prefix, ok := b.tagHandles[handle]
 	if !ok {
-		return "", &ParseError{Line: tk.Position.Line + b.lineOffset - 1, Message: "found undefined tag handle"}
+		line := tk.Position.Line + b.lineOffset
+		return "", &ParseError{Line: line - 1, SourceLine: line, Message: "found undefined tag handle"}
 	}
 	return ShortTag(prefix + tag[end+2:]), nil
 }

@@ -13,7 +13,9 @@ const propertyNameMessage = "did not find expected alphabetic or numeric charact
 // PropertyNameError returns libyaml's error for the anchor or alias that
 // the "&" or "*" token mark starts and the token name names, or nil when
 // libyaml reads the name as goccy does. line turns the line of the
-// mark, numbered from 1, into the line the caller's reader reports.
+// mark, numbered from 1, into the line the caller's reader reports, and
+// offset is the number of input lines before the text goccy read, which
+// gives the error's SourceLine.
 //
 // libyaml reads a name as a run of letters, digits, "_", and "-" right
 // after the indicator, and fails the scan when the run is empty or when
@@ -22,7 +24,7 @@ const propertyNameMessage = "did not find expected alphabetic or numeric charact
 // blank as the name, so it takes "&a[1]" for the anchor "a[1]", where
 // spruce fails the file. A run that one of those indicators ends is a
 // name libyaml reads as shorter than goccy does, and that is left alone.
-func PropertyNameError(mark, name *token.Token, line func(int) int) error {
+func PropertyNameError(mark, name *token.Token, offset int, line func(int) int) error {
 	if mark == nil || name == nil {
 		return nil
 	}
@@ -30,7 +32,7 @@ func PropertyNameError(mark, name *token.Token, line func(int) int) error {
 	if adjacent && validPropertyName(name.Value) {
 		return nil
 	}
-	return &ParseError{Line: line(mark.Position.Line), Message: propertyNameMessage}
+	return &ParseError{Line: line(mark.Position.Line), SourceLine: mark.Position.Line + offset, Message: propertyNameMessage}
 }
 
 // validPropertyName reports whether libyaml scans name, the text goccy
@@ -69,7 +71,9 @@ const uriOctetMessage = "did not find URI escaped octet"
 
 // TagError returns the error reader gives for the tag token tag, or nil
 // when it scans the whole tag that goccy read. line turns the tag's
-// line, numbered from 1, into the line the caller's reader reports.
+// line, numbered from 1, into the line the caller's reader reports, and
+// offset is the number of input lines before the text goccy read, which
+// gives the error's SourceLine.
 //
 // libyaml reads a tag as "!<", a URI, and ">", or as a handle and then
 // URI characters, and fails the scan when something other than a blank,
@@ -77,12 +81,12 @@ const uriOctetMessage = "did not find URI escaped octet"
 // a run of letters, digits, "_", and "-", with a closing "!" or without
 // one. goccy reads every character up to a blank as the tag, so it took
 // "!a^b" for a tag, where spruce fails the file.
-func TagError(tag *token.Token, line func(int) int, reader TagReader) error {
+func TagError(tag *token.Token, offset int, line func(int) int, reader TagReader) error {
 	if tag == nil {
 		return nil
 	}
 	if msg := scanTag([]byte(tag.Value), reader); msg != "" {
-		return &ParseError{Line: line(tag.Position.Line), Message: msg}
+		return &ParseError{Line: line(tag.Position.Line), SourceLine: tag.Position.Line + offset, Message: msg}
 	}
 	return nil
 }

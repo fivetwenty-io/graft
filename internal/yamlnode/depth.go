@@ -326,10 +326,11 @@ var depthMessage = fmt.Sprintf("exceeded max depth of %d", maxDepth)
 // depthError is yaml.v3's depth error. libyaml numbers lines from 0 and
 // gives a line only when it is not the first.
 func depthError(line int) error {
-	if line <= 1 {
-		line = 0
+	reported := line
+	if reported <= 1 {
+		reported = 0
 	}
-	return &ParseError{Line: line, Message: depthMessage}
+	return &ParseError{Line: reported, SourceLine: line, Message: depthMessage}
 }
 
 // IsDepthError reports whether err is the error for nesting deeper than

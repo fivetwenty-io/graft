@@ -581,7 +581,7 @@ func (w *anchorWalk) walk(n ast.Node) error {
 	case *ast.AliasNode:
 		return w.alias(x)
 	case *ast.TagNode:
-		if err := yamlnode.TagError(x.Start, libyamlLine, yamlnode.MergeTags); err != nil {
+		if err := yamlnode.TagError(x.Start, 0, libyamlLine, yamlnode.MergeTags); err != nil {
 			return err
 		}
 		return w.walk(x.Value)
@@ -609,7 +609,7 @@ func (w *anchorWalk) walk(n ast.Node) error {
 }
 
 func (w *anchorWalk) anchor(a *ast.AnchorNode) error {
-	if err := yamlnode.PropertyNameError(a.Start, a.Name.GetToken(), libyamlLine); err != nil {
+	if err := yamlnode.PropertyNameError(a.Start, a.Name.GetToken(), 0, libyamlLine); err != nil {
 		return err
 	}
 	w.bound[a.Name.GetToken().Value] = a
@@ -620,14 +620,28 @@ func (w *anchorWalk) anchor(a *ast.AnchorNode) error {
 }
 
 func (w *anchorWalk) alias(a *ast.AliasNode) error {
-	if err := yamlnode.PropertyNameError(a.Start, a.Value.GetToken(), libyamlLine); err != nil {
+	if err := yamlnode.PropertyNameError(a.Start, a.Value.GetToken(), 0, libyamlLine); err != nil {
 		return err
 	}
 	name := a.Value.GetToken().Value
 	if w.open[w.bound[name]] {
-		return fmt.Errorf("anchor '%s' value contains itself", name)
+		return &SelfContainingAnchorError{Name: name, Line: a.Start.Position.Line, Column: a.Start.Position.Column}
 	}
 	return nil
+}
+
+// SelfContainingAnchorError reports an alias that sits inside the
+// collection its anchor names. It reads as spruce's message, which names
+// the anchor, and it carries the alias's position, with Line and Column
+// counted from 1, for callers that point at the input.
+type SelfContainingAnchorError struct {
+	Name   string
+	Line   int
+	Column int
+}
+
+func (e *SelfContainingAnchorError) Error() string {
+	return fmt.Sprintf("anchor '%s' value contains itself", e.Name)
 }
 
 // libyamlLine is the line spruce's YAML library reports for an error on

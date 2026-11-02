@@ -275,5 +275,5 @@ func (w *endWatch) token(t *token.Token) {
 // a "..." with no "---" before it. libyaml marks it on the line before
 // the content.
 func documentStartError(line int) error {
-	return &ParseError{Line: line - 1, Message: "did not find expected <document start>"}
+	return &ParseError{Line: line - 1, SourceLine: line, Message: "did not find expected <document start>"}
 }

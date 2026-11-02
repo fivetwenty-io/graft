@@ -68,7 +68,7 @@ func falseEndError(src []byte, line int) error {
 	off := lineStart(src, line)
 	text, rest, broke := cutLine(src[off:])
 	if _, colon := yamlprep.PlainScalarEnd(string(text)); colon >= 0 {
-		return &ParseError{Line: line, Message: falseEndMessage}
+		return &ParseError{Line: line, SourceLine: line, Message: falseEndMessage}
 	}
 	if yamlprep.StartsDocument(string(normalizeLineBreaks(src[:off]))) {
 		return rootFalseEnd(text, rest, line)
@@ -101,7 +101,7 @@ func blockFalseEnd(text, rest []byte, broke bool, line int) error {
 		case len(l) == 0:
 			continue
 		case l[0] == '\t':
-			return &ParseError{Line: n - 1, Message: "found a tab character that violate indentation"}
+			return &ParseError{Line: n - 1, SourceLine: n, Message: "found a tab character that violate indentation"}
 		case len(bytes.Trim(l, " \t")) == 0:
 			continue
 		case l[0] != ' ':
@@ -139,7 +139,7 @@ func rootFalseEnd(text, rest []byte, line int) error {
 		case len(body) == 0:
 			continue
 		case isMarkerLine(l):
-			return &ParseError{Line: line, Message: falseEndMessage}
+			return &ParseError{Line: line, SourceLine: line, Message: falseEndMessage}
 		case body[0] == '#':
 			comment = true
 			continue
@@ -148,18 +148,18 @@ func rootFalseEnd(text, rest []byte, line int) error {
 		}
 		colon, c := lineMarks(body, 0)
 		if colon {
-			return &ParseError{Line: n - 1, Message: "mapping values are not allowed in this context"}
+			return &ParseError{Line: n - 1, SourceLine: n, Message: "mapping values are not allowed in this context"}
 		}
 		comment = c
 	}
-	return &ParseError{Line: line, Message: falseEndMessage}
+	return &ParseError{Line: line, SourceLine: line, Message: falseEndMessage}
 }
 
 // expectedColonError is libyaml's error for a plain scalar where a key
 // has to start, reported where whatever ends the scalar starts, on line
 // numbered from 1.
 func expectedColonError(line int) error {
-	return &ParseError{Line: line - 1, Message: "could not find expected ':'"}
+	return &ParseError{Line: line - 1, SourceLine: line, Message: "could not find expected ':'"}
 }
 
 // lineMarks scans b from index from for the first ":" that a blank or

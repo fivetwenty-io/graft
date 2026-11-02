@@ -27,7 +27,7 @@ func (r *directiveRun) check(line []byte, n int) error {
 		msg = r.declare(d)
 	}
 	if msg != "" {
-		return &ParseError{Line: n, Message: msg}
+		return &ParseError{Line: n, SourceLine: n + 1, Message: msg}
 	}
 	r.lines = append(r.lines, n)
 	return nil

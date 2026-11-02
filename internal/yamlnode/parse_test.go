@@ -417,6 +417,39 @@ func TestParseErrorKeepsTheLibyamlLine(t *testing.T) {
 	}
 }
 
+// TestParseErrorSourceLine checks that each kind of error the reader
+// numbers itself carries the input's line, counted from 1, next to the
+// line spruce reports, which Error prints and which often counts from 0.
+func TestParseErrorSourceLine(t *testing.T) {
+	cases := []struct {
+		in         string
+		line       int
+		sourceLine int
+	}{
+		{"a: 1\nb: 2\nc: &x[1] y\n", 3, 3},
+		{"a: 1\n---\nb: 2\nc: &x[1] y\n", 4, 4},
+		{"a: 1\n---\nb: &x [*x]\n", 0, 3},
+		{"a: 1\n---\nb: *nope\n", 0, 3},
+		{"a: 1\nb: 2\nc: !x^y z\n", 3, 3},
+		{"a: 1\n---\nc: !e!x z\n", 2, 3},
+		{"a: 1\n...\nb: 2\n", 2, 3},
+		{"a:\n  b: 1\n...\n\tq\n", 3, 4},
+		{"a: 1\nb: 2\nx: " + strings.Repeat("[", 10001) + "\n", 3, 3},
+		{"x: " + strings.Repeat("[", 10001) + "\n", 0, 1},
+	}
+	for _, tc := range cases {
+		_, err := yamlnode.Parse([]byte(tc.in))
+		var pe *yamlnode.ParseError
+		if !errors.As(err, &pe) {
+			t.Errorf("Parse(%.30q) = %v, want a ParseError", tc.in, err)
+			continue
+		}
+		if pe.Line != tc.line || pe.SourceLine != tc.sourceLine {
+			t.Errorf("Parse(%.30q): Line %d, SourceLine %d, want %d and %d", tc.in, pe.Line, pe.SourceLine, tc.line, tc.sourceLine)
+		}
+	}
+}
+
 // TestParseErrorLineDivergences pins the lines goccy reports where libyaml
 // reports a different line or none. D6 accepts goccy's line on these
 // inputs, and docs/spruce/genesis-compat-contract.md lists them.
