@@ -743,6 +743,10 @@ pattern_aux_tag_anchor_tabs() {
   aux_fixture_merge "aux: merge of tags and anchors followed by tabs or by nothing" tag-anchor-tabs tatabs
 }
 
+pattern_aux_merge_key_tabs() {
+  aux_fixture_merge "aux: merge of << keys with a tab by their colon" merge-key-tabs mktabs
+}
+
 # aux_fixture_merge NAME FIXTURE PREFIX merges $FIX/FIXTURE.yml with both
 # tools and reports NAME as passed when the exit codes and output match.
 aux_fixture_merge() {
@@ -827,6 +831,7 @@ pattern_aux_plain_scalar_tabs
 pattern_aux_folded_scalar_at_end
 pattern_aux_quoted_scalar_tabs
 pattern_aux_tag_anchor_tabs
+pattern_aux_merge_key_tabs
 report_secret_not_found_skip
 
 echo

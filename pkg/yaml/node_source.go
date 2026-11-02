@@ -13,8 +13,7 @@ import (
 
 // readText is the document a tree was read from. Unmarshal's own parser
 // reads some scalars differently from the tree, which follows yaml.v3,
-// such as a "<<" key with a tab after its colon, which it reads as a
-// plain key, or the trailing spaces of a block scalar, which it drops.
+// such as the trailing spaces of a block scalar, which it drops.
 // So Decode parses the document again, once for the whole tree, to learn
 // how Unmarshal read each scalar.
 type readText struct {

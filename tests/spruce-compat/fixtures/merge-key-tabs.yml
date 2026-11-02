@@ -1,0 +1,19 @@
+base: &base {k: v}
+link: &link {q: 1}
+top:
+  <<:	{t: 1}
+  own: 1
+spaced:
+  <<	: *base
+  own: 2
+aliased:
+  <<:	*base
+  own: 3
+flow: {<<:	*base, own: 4}
+block:
+  <<:	
+    b: 1
+  own: 5
+sources:
+  <<:	[*base, *link]
+  own: 6
