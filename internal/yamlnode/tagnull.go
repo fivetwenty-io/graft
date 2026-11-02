@@ -71,6 +71,12 @@ func emptyTagValues(text string, toks token.Tokens) (token.Tokens, []*token.Toke
 	if len(runs) == 0 {
 		return toks, nil
 	}
+	return withImplicitNulls(toks, runs)
+}
+
+// withImplicitNulls returns toks with an implicit null after each of
+// runs, and the tags among them that the parser reads a collection under.
+func withImplicitNulls(toks token.Tokens, runs []tagRun) (token.Tokens, []*token.Token) {
 	out := make(token.Tokens, 0, len(toks)+len(runs))
 	var collections []*token.Token
 	prev := 0
@@ -78,6 +84,9 @@ func emptyTagValues(text string, toks token.Tokens) (token.Tokens, []*token.Toke
 		out = append(out, toks[prev:r.end+1]...)
 		out = append(out, implicitNullAfter(toks[r.start:r.end+1]))
 		prev = r.end + 1
+		if r.end == r.tag && prev < len(toks) {
+			retypeAfterTag(toks[r.tag], toks[prev])
+		}
 		if tag := toks[r.tag]; collectionTags[token.ReservedTagKeyword(tag.Value)] {
 			collections = append(collections, tag)
 		}
@@ -285,6 +294,25 @@ func implicitNullAfter(run token.Tokens) *token.Token {
 	tk := token.New("null", " null", &pos)
 	tk.Type = token.ImplicitNullType
 	return tk
+}
+
+// retypeAfterTag gives tk, the token right after tag, the type its text
+// has when tag is not one of goccy's reserved tags. goccy's scanner gives
+// a plain scalar right after such a tag the string type, so that the tag
+// owns the text, wherever the scalar sits. Once emptyTagValues gives the
+// tag a null of its own, the scalar on a later line is no longer the
+// tag's, and without its own type a null key such as ~ or Null kept its
+// spelling as a string key. A quoted scalar keeps its own type in the
+// scanner, so only a plain one, which holds no blank, changes here.
+func retypeAfterTag(tag, tk *token.Token) {
+	if _, reserved := token.ReservedTagKeywordMap[token.ReservedTagKeyword(tag.Value)]; reserved {
+		return
+	}
+	if tk.Type != token.StringType || strings.ContainsAny(tk.Value, " \t\r\n") {
+		return
+	}
+	plain := token.New(tk.Value, tk.Origin, tk.Position)
+	tk.Type, tk.CharacterType, tk.Indicator = plain.Type, plain.CharacterType, plain.Indicator
 }
 
 // isTagDirective reports whether the directive at toks[i] is a %TAG

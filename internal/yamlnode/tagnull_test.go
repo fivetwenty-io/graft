@@ -26,6 +26,14 @@ func TestEmptyTagValues(t *testing.T) {
 		{"k: # c\n  !!str\nj: 1\n", "k MappingValue Comment !!str ImplicitNull j MappingValue Integer", 0},
 		{"&k a: !custom\nb: 1\n", "Anchor k a MappingValue !custom ImplicitNull b MappingValue Integer", 0},
 		{"a: !custom &n\n", "a MappingValue !custom Anchor n ImplicitNull", 0},
+		// The scanner reads the token after a tag that isn't a core one as
+		// a string, so the key on the next line gets back its own type.
+		{"a: !custom\n~: 1\n", "a MappingValue !custom ImplicitNull Null MappingValue Integer", 0},
+		{"a: &n !custom\nNull: 1\n", "a MappingValue Anchor n !custom ImplicitNull Null MappingValue Integer", 0},
+		{"a: !\n0x1F: 1\n", "a MappingValue ! ImplicitNull HexInteger MappingValue Integer", 0},
+		{"a: !custom\ntrue: 1\n", "a MappingValue !custom ImplicitNull Bool MappingValue Integer", 0},
+		{"a: !custom\n\"~\": 1\n", "a MappingValue !custom ImplicitNull DoubleQuote MappingValue Integer", 0},
+		{"a: !custom &n\n~: 1\n", "a MappingValue !custom Anchor n ImplicitNull Null MappingValue Integer", 0},
 		// A node indented under the tag's parent is the tag's value.
 		{"a: !custom\n  x: 1\n", "a MappingValue !custom x MappingValue Integer", 0},
 		{"a: !custom\n- 1\n", "a MappingValue !custom SequenceEntry Integer", 0},

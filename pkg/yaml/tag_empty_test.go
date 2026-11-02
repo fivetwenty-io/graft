@@ -84,6 +84,30 @@ func TestUnmarshalReadsEmptyTagBeforeSibling(t *testing.T) {
 	})
 }
 
+// TestUnmarshalReadsKeyAfterEmptyTag checks the key on the line after a
+// tag with no value. The scanner read that key as a string whenever the
+// tag wasn't a core one, so a null key kept its spelling, as "~" or
+// "Null", and a number kept its text. Each value is the one spruce
+// v1.35.17 gives, with its null key as "null" and its number keys as
+// their decimal text, which is how a decoded map holds them.
+func TestUnmarshalReadsKeyAfterEmptyTag(t *testing.T) {
+	checkScannerCases(t, []scannerCase{
+		{"tilde", "a: !foo\n~: 1\n", map[string]any{"a": "", "null": 1}},
+		{"Null", "a: !foo\nNull: 1\n", map[string]any{"a": "", "null": 1}},
+		{"NULL", "a: !foo\nNULL: 1\n", map[string]any{"a": "", "null": 1}},
+		{"two null keys", "a: !foo\n~: 1\nnull: 2\n", map[string]any{"a": "", "null": 2}},
+		{"anchor first", "a: &n !foo\n~: 1\n", map[string]any{"a": "", "null": 1}},
+		{"bare", "a: !\n~: 1\n", map[string]any{"a": "", "null": 1}},
+		{"verbatim", "a: !<tag:x.y,2020:z>\n~: 1\n", map[string]any{"a": "", "null": 1}},
+		{"trailing tab", "a: !foo\t\n~: 1\n", map[string]any{"a": "", "null": 1}},
+		{"blank line", "a: !foo\n\n~: 1\n", map[string]any{"a": "", "null": 1}},
+		{"nested", "m:\n  a: !foo\n  ~: 1\n", map[string]any{"m": map[string]any{"a": "", "null": 1}}},
+		{"hex", "a: !foo\n0x1F: 1\n", map[string]any{"a": "", "31": 1}},
+		{"float", "a: !foo\n1.0: 1\n", map[string]any{"a": "", "1": 1}},
+		{"quoted", "a: !foo\n\"~\": 1\n", map[string]any{"a": "", "~": 1}},
+	})
+}
+
 // TestUnmarshalReadsEmptyTaggedItem checks a tagged list item with no
 // value before the next item, or before a key that ends the list, which
 // the parser read as holding the rest of the list or that key. Each value
