@@ -145,14 +145,17 @@ the zero time. A time.Time field still reads a date written under
 
 The decoder refuses a few tagged documents that spruce reads. A !!str or
 other scalar tag on a flow or block collection is a syntax error, where
-spruce ignores the tag. So is a tag with no value before the next line of a
+spruce ignores the tag. That holds with an anchor between the tag and the
+collection, in either order and after a space or a tab, as in
+a: !!str &n {k: v}. So is a tag with no value before the next line of a
 mapping or sequence, as in "a: !!str\nb: 1", where spruce reads the empty
-string. That holds when a comment follows the tag on its line, after a
-space or a tab, as in "a: !!str # c\nb: 1". A !!set, !!omap, or !!pairs tag
-on a scalar, as in a: !!set yes, is a syntax error as well, where spruce
-reads the text. And a tag with nothing after it at the end of the
-document, as in a: !!str, reads as null, because the parser drops the tag
-before the decoder sees it, where spruce reads the empty string.
+string. That holds when a comment or an anchor follows the tag on its line,
+after a space or a tab, as in "a: !!str # c\nb: 1" and "a: !!str &n\nb: 1".
+A !!set, !!omap, or !!pairs tag on a scalar, as in a: !!set yes, is a
+syntax error as well, where spruce reads the text. And a tag with nothing
+after it at the end of the document, as in a: !!str, reads as null,
+because the parser drops the tag before the decoder sees it, where spruce
+reads the empty string.
 
 A tagged mapping key reads as a string key, because a decoded map's keys are
 strings. So "!!bool yes: a" gives the key "true", and graft merge prints it

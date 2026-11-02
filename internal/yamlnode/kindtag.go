@@ -75,8 +75,9 @@ func neutralizeKindTags(text string, err error) (string, map[[2]int]string, bool
 }
 
 // mismatchedTags returns every core tag in text over a node of another
-// kind. It reports false unless the node under one of them starts at
-// at, the token goccy blamed, or when one tag directly follows another.
+// kind. It reports false unless the node under one of them, or an
+// anchor between the tag and that node, starts at at, the token goccy
+// blamed, or when one tag directly follows another.
 func mismatchedTags(text string, at *token.Position) ([]*token.Token, bool) {
 	var mismatched []*token.Token
 	explains := false
@@ -97,11 +98,18 @@ func mismatchedTags(text string, at *token.Position) ([]*token.Token, bool) {
 			continue
 		}
 		mismatched = append(mismatched, tk)
-		if next.Position.Line == at.Line && next.Position.Column == at.Column {
+		if blamed(next, at) || blamed(pastAnchor(next), at) {
 			explains = true
 		}
 	}
 	return mismatched, explains
+}
+
+// blamed reports whether tk, which may be nil, sits at at. goccy blames
+// the anchor between a tag and its node for some mismatches, as in
+// "!!map &a\n- x", and the node itself for others, as in "!!str &n {k: v}".
+func blamed(tk *token.Token, at *token.Position) bool {
+	return tk != nil && tk.Position.Line == at.Line && tk.Position.Column == at.Column
 }
 
 // blankTags replaces each tag in tags with a local tag of the same
@@ -118,14 +126,48 @@ func blankTags(text string, tags []*token.Token) (string, map[[2]int]string, boo
 		}
 		runes := []rune(lines[line-1])
 		width := len([]rune(tk.Value))
-		if col-1+width > len(runes) || string(runes[col-1:col-1+width]) != tk.Value {
+		start, ok := tagStart(runes, col, tk.Value)
+		if !ok {
 			return "", nil, false
 		}
 		placeholder := "!" + strings.Repeat("x", width-1)
-		lines[line-1] = string(runes[:col-1]) + placeholder + string(runes[col-1+width:])
+		lines[line-1] = string(runes[:start]) + placeholder + string(runes[start+width:])
 		original[[2]int{line, col}] = tk.Value
 	}
 	return strings.Join(lines, ""), original, true
+}
+
+// tagStart returns the index in line of the tag whose text is tag and
+// whose token goccy gives column col. The tag starts at that column
+// unless tabs before it on its line, which goccy counts as no column
+// between tokens, put it further right. It reports false when the tag
+// is in neither place.
+func tagStart(line []rune, col int, tag string) (int, bool) {
+	width := len([]rune(tag))
+	at := func(i int) bool { return i >= 0 && i+width <= len(line) && string(line[i:i+width]) == tag }
+	if at(col - 1) {
+		return col - 1, true
+	}
+	for i := col; i+width <= len(line); i++ {
+		if at(i) && yamlprep.GoccyColumn(string(line[:i])) == col {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// pastAnchor returns next, the first token after a tag, or when next is
+// an anchor, the first token after the anchor's name that is not a
+// comment, which starts the node the tag and the anchor share. It
+// returns nil when there is none.
+func pastAnchor(next *token.Token) *token.Token {
+	if next.Type != token.AnchorType {
+		return next
+	}
+	if next = next.Next; next == nil {
+		return nil
+	}
+	return nextNonComment(next)
 }
 
 // nextNonComment returns the first token after tk that is not a comment.
@@ -146,13 +188,8 @@ func nextNonComment(tk *token.Token) *token.Token {
 // is the first key of a block mapping when it sits below the tag. On the
 // tag's line the tag belongs to that key, as it does in libyaml.
 func valueKind(tk, next *token.Token) (Kind, bool, bool) {
-	if next.Type == token.AnchorType {
-		if next = next.Next; next != nil {
-			next = nextNonComment(next)
-		}
-		if next == nil {
-			return 0, false, false
-		}
+	if next = pastAnchor(next); next == nil {
+		return 0, false, false
 	}
 	if next.Position.Line > tk.Position.Line && !nestedUnder(tk, next) {
 		return 0, false, false

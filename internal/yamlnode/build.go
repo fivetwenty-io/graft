@@ -2,7 +2,6 @@ package yamlnode
 
 import (
 	"bytes"
-	"cmp"
 	"strings"
 
 	"github.com/goccy/go-yaml/ast"
@@ -108,7 +107,7 @@ func (b *builder) peel(n ast.Node) (nodeProps, error) {
 	for {
 		switch x := n.(type) {
 		case *ast.TagNode:
-			p.start = cmp.Or(p.start, x.Start)
+			p.start = firstToken(p.start, x.Start)
 			t, err := b.tag(x.Start)
 			if err != nil {
 				return p, err
@@ -121,7 +120,7 @@ func (b *builder) peel(n ast.Node) (nodeProps, error) {
 			n = x.Value
 			continue
 		case *ast.AnchorNode:
-			p.start = cmp.Or(p.start, x.Start)
+			p.start = firstToken(p.start, x.Start)
 			if err := PropertyNameError(x.Start, x.Name.GetToken(), b.lineOffset, b.scannerLine); err != nil {
 				return p, err
 			}
@@ -132,6 +131,24 @@ func (b *builder) peel(n ast.Node) (nodeProps, error) {
 		p.node = n
 		return p, nil
 	}
+}
+
+// firstToken returns whichever of a and b comes first in the text, or
+// the other when one is nil. A tag and an anchor usually wrap their node
+// in the order they are written, but an anchor that the parser read
+// before a scalar tag, as anchorBeforeScalarTag arranges, wraps the tag
+// though it follows it.
+func firstToken(a, b *token.Token) *token.Token {
+	switch {
+	case a == nil || a.Position == nil:
+		return b
+	case b == nil || b.Position == nil:
+		return a
+	case b.Position.Line < a.Position.Line ||
+		b.Position.Line == a.Position.Line && b.Position.Column < a.Position.Column:
+		return b
+	}
+	return a
 }
 
 // build converts one goccy node. Tags and anchors wrap the node they

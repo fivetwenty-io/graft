@@ -73,7 +73,9 @@ func parseBlockPadded(data []byte, keep bool, mode parser.Mode, opts ...parser.O
 
 // parseText parses data the way parser.ParseBytes does, tokenizing it
 // and parsing the tokens, and works around goccy's scanner between the
-// two steps.
+// two steps. It also puts an anchor that follows a scalar core tag
+// before the tag, as anchorBeforeScalarTag describes, so the parser
+// reads the pair as it reads them in that order.
 func parseText(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
 	text := string(data)
 	toks := yamlprep.Tokenize(text)
@@ -81,6 +83,7 @@ func parseText(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File,
 	if bytes.IndexByte(data, '\t') >= 0 {
 		keepPlainTabs(toks)
 	}
+	anchorBeforeScalarTag(toks)
 	return parser.Parse(toks, mode, opts...)
 }
 

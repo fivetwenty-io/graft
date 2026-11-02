@@ -165,6 +165,13 @@ func uncountTabs(toks token.Tokens, uncounted map[int][]int) {
 	}
 }
 
+// GoccyColumn returns the column goccy gives a token that starts right
+// after prefix, the start of its line. It counts a tab outside a quoted
+// scalar as no column, as goccy counts none between two tokens.
+func GoccyColumn(prefix string) int {
+	return goccyColumn(prefix)
+}
+
 // goccyColumn returns the column goccy gives the character after prefix,
 // the start of its line. goccy counts each character but a tab outside
 // a quoted scalar.

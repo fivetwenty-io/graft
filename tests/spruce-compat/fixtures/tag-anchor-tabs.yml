@@ -48,4 +48,13 @@ merge_base: &base	{k: v}
 merged:
   <<: *base
   m: 1
+tag_anchor_next: !!str &v
+  yes
+alias_next: *v
+tag_tab_anchor_next: !!str	&x	# c
+  yes
+alias_tab_next: *x
+int_tag_anchor_next: !!int	&i
+  12
+alias_int_next: *i
 after: 1
