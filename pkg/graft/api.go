@@ -730,7 +730,9 @@ func WithMemoryPools(enabled bool) EngineOption {
 // WithYAMLCompat sets YAML 1.1 backward-compatibility behavior (see
 // YAMLCompat) used when parsing YAML with ParseYAML. A nil compat is
 // ignored, leaving the engine's default (DefaultYAMLCompat(), which
-// converts yes/no/on/off-style scalars to booleans) in effect.
+// converts yes/no/on/off-style scalars to booleans) in effect. Files
+// read by (( load )) and --go-patch ops files ignore it and always read
+// YAML with the default compat.
 func WithYAMLCompat(compat *YAMLCompat) EngineOption {
 	return func(opts *EngineOptions) {
 		if compat != nil {

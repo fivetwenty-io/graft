@@ -41,6 +41,8 @@ Unmarshal reads YAML 1.1 booleans by default, because graft's merge does. A
 plain yes, Yes, YES, no, No, NO, on, On, ON, off, Off, or OFF decodes as a
 boolean, and a quoted one stays a string. Other spellings of those words,
 such as oFF, stay strings, and so do the single letters y and n.
+yaml.v2 and spruce read y and n as booleans, as a value and as a key, and
+graft deliberately doesn't.
 
 UnmarshalWith with DecodeOptions{YAML12: true} reads those words as strings,
 as YAML 1.2 does.
@@ -105,14 +107,16 @@ yaml.v3 refuse a quoted date that is not RFC 3339.
 A named bool type, such as type Flag bool, reads YAML 1.2 booleans only, so
 a plain yes is a type error for it. An unnamed bool field reads yes as true.
 
-A !!str ~ or a !!str null decodes as the empty string, not as the text. When
-a mapping holds both !!str null and ~ as keys, a map[string]T target
-collapses them into one key, the empty string. A generic map keeps them
-apart, with !!str null as the key "" and ~ as the key "null".
+A !!str ~ or a !!str null keeps its text, so it decodes as "~" or "null",
+as it does in spruce. A null key, such as ~ or null, decodes as the key ""
+in a map[string]T target and as the key "null" in an any. A mapping that
+holds a null key beside a string key whose text is null, such as "null" or
+!!str null, is refused as a repeated key, as the section on repeated keys
+describes.
 
-A !!timestamp tag on a value that decodes into a string target is refused
-with an ErrorKindType error. The same value decoded into an any gives a
-time.Time.
+A !!timestamp value keeps its text when it decodes into a string target or
+an any, so a: !!timestamp 2001-12-14 gives the string "2001-12-14". A
+time.Time target still parses it as a date.
 
 A panic that the decoder raises on a target shape it cannot fill is
 recovered and returned as an ErrorKindType DecodeError with Line 0. A panic
@@ -194,6 +198,10 @@ space, as in "a: !!map\t x". A tag or an anchor followed by a space and
 then a tab on a mapping key, as in "!!str \tk: v" or "&n \tk: v", is a
 syntax error as well, where spruce reads the key. With only spaces or
 only tabs after the tag or the anchor, the key reads as spruce reads it.
+
+An explicit key whose tag is alone on the "?" line, with the key's text on
+the next line, as in "? !x\n  y\n: v", is a syntax error, where spruce
+reads the key y with the value v.
 
 A tag with nothing after it in a flow collection can read differently
 from spruce, with no error. A !!seq tag before a comma, as in

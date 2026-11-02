@@ -43,9 +43,11 @@ type DecodeOptions struct {
 // DuplicateKey describes a later occurrence of a mapping key, which
 // DecodeOptions.OnDuplicateKey receives. It never holds a key or a value
 // from the input except through Path, which names the keys on the way to
-// the repeated one. On a continuation line of a multi-line flow mapping
-// that holds a tab, the Column of a Node target can differ by one from
-// the Column of any other target.
+// the repeated one. On a line that holds a tab after a tag or an anchor,
+// and on a continuation line of a multi-line flow mapping that holds a
+// tab, the Column of a target other than a Node counts each such tab as
+// no column, so it can be less than the Column of a Node target, which
+// counts the tab as the space it stands for.
 type DuplicateKey struct {
 	// Path locates the repeated key. It joins map keys with a dot and
 	// writes a list item as [i], with i counting from 0, and it has no
