@@ -274,10 +274,7 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 // same text, with a few known exceptions. The tree reader follows yaml.v3
 // and Unmarshal follows goccy, so the two can differ on a node with two
 // tags, on a tag written on an alias, and on a tag with nothing after it
-// at the end of the document. They also differ on a block scalar in a
-// document with no final line break, where Unmarshal drops the last line
-// break and does not fold a > scalar. For the text "a: >\n  x\n  y",
-// Unmarshal gives "x\ny" and Decode gives "x y\n".
+// at the end of the document.
 //
 // Decode reads the tree as it is now. A Node that the caller changed after
 // Unmarshal, or built by hand, decodes what it holds at that moment, and the

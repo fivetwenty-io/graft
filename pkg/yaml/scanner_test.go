@@ -54,3 +54,22 @@ func TestUnmarshalKeepsPlainScalarTabs(t *testing.T) {
 		{"would be a boolean", "a: true\tx\n", map[string]any{"a": "true\tx"}},
 	})
 }
+
+// TestUnmarshalFoldsBlockAtEnd checks block scalars whose last line ends
+// the document with no line break after it.
+func TestUnmarshalFoldsBlockAtEnd(t *testing.T) {
+	checkScannerCases(t, []scannerCase{
+		{"folded", "a: >\n  x\n  y", map[string]any{"a": "x y"}},
+		{"strip", "a: >-\n  x\n  y", map[string]any{"a": "x y"}},
+		{"keep", "a: >+\n  x\n  y", map[string]any{"a": "x y"}},
+		{"longer lines", "a: >\n  aa\n  bb\n  c", map[string]any{"a": "aa bb c"}},
+		{"last line of two characters", "a: >\n  x\n  yy", map[string]any{"a": "x yy"}},
+		{"nested", "m:\n  a: >\n    x\n    y", map[string]any{"m": map[string]any{"a": "x y"}}},
+		{"sequence item", "a:\n- >\n  x\n  y", map[string]any{"a": []any{"x y"}}},
+		{"empty line", "a: >\n  x\n  y\n\n  z", map[string]any{"a": "x y\nz"}},
+		{"trailing space", "a: >\n  x\n  y ", map[string]any{"a": "x y "}},
+		{"literal with a trailing space", "a: |\n  x\n  y ", map[string]any{"a": "x\ny "}},
+		{"last line of spaces", "a: >\n  x\n  ", map[string]any{"a": "x\n"}},
+		{"final line break", "a: >\n  x\n  y\n", map[string]any{"a": "x y\n"}},
+	})
+}

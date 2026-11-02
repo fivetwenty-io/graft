@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A tab between two characters of a plain scalar now stays in its value, as it does in spruce. Before, `graft merge` and `pkg/yaml` dropped the tab, so `a: x<TAB>y` read as `xy` and `a: 1<TAB>2` read as the integer `12`. A tab at the end of a line or before a comment is still dropped, as spruce drops it.
 
+- A block scalar whose last line ends the file, with no line break after it, now reads as it does in spruce. Before, a folded scalar there didn't fold when its last line was one character, so `a: >\n  x\n  y` read as `x\ny` instead of `x y`. The spaces and tabs at the end of that last line were dropped too, from literal and folded scalars alike, and `Node.Decode` in `pkg/yaml` kept a line break that the document doesn't have.
+
 ## [1.43.1] - 2026-10-27
 
 This release fixes `graft install-aliases` on Linux, where it put the `jq`, `yq`, and `spruce` links in a directory that isn't on `PATH`.

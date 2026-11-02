@@ -2,6 +2,7 @@ package yaml
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 
 	"github.com/goccy/go-yaml/ast"
@@ -83,17 +84,25 @@ func (r *readText) scalar(line, col int, value string, block, collection bool) *
 // goccy's parser can read the last line of a document differently
 // without one, placing a token elsewhere, or reading a lone tag as no
 // document at all. So a document with no final line break is parsed with
-// one, and the tree decodes as that text does. A document the parser
-// refuses records nothing, so Decode falls back on the tree.
+// one, and the tree decodes as that text does. The one exception is a
+// block scalar that the document's last line ends, which Unmarshal reads
+// with no final line break, so the line break is taken off its value. A
+// document the parser refuses records nothing, so Decode falls back on
+// the tree.
 func (r *readText) parse() {
 	r.scalars = make(map[[2]int][]*parsedScalar)
 	prepared, _ := yamlprep.Prepare(r.doc)
+	blockAtEnd := false
 	if !bytes.HasSuffix(prepared, []byte("\n")) {
+		blockAtEnd = yamlnode.EndsInBlockScalar(prepared)
 		prepared = append(prepared[:len(prepared):len(prepared)], '\n')
 	}
 	read, ok := scalarsOf(prepared)
 	if !ok {
 		return
+	}
+	if last := len(read) - 1; blockAtEnd && last >= 0 && read[last].scalar.block {
+		read[last].scalar.value = strings.TrimSuffix(read[last].scalar.value, "\n")
 	}
 	for _, s := range read {
 		r.scalars[s.pos] = append(r.scalars[s.pos], s.scalar)

@@ -191,11 +191,8 @@ reads as the value the alias names. They also disagree on a tag with nothing
 after it at the end of the document, as in a: !!str, which Unmarshal reads
 as null and Decode reads as the empty string.
 
-The last disagreement is a block scalar in a document with no final line
-break. There Unmarshal drops the last line break, and it also fails to fold
-a > scalar. For the document "a: >\n  x\n  y", Unmarshal gives "x\ny" and
-Decode gives "x y\n". Finally, the column of a continuation line in a
-multi-line quoted scalar is approximate when the input uses tabs.
+Finally, the column of a continuation line in a multi-line quoted scalar is
+approximate when the input uses tabs.
 
 A Node that Unmarshal returned keeps its whole input document, and the first
 Decode on that tree parses it one more time. The cost is one extra parse and

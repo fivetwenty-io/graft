@@ -721,6 +721,10 @@ pattern_aux_plain_scalar_tabs() {
   aux_fixture_merge "aux: merge of plain scalars holding tabs" plain-scalar-tabs pptabs
 }
 
+pattern_aux_folded_scalar_at_end() {
+  aux_fixture_merge "aux: merge of a folded scalar that ends the file" folded-scalar-at-end foldend
+}
+
 # aux_fixture_merge NAME FIXTURE PREFIX merges $FIX/FIXTURE.yml with both
 # tools and reports NAME as passed when the exit codes and output match.
 aux_fixture_merge() {
@@ -802,6 +806,7 @@ pattern_aux_explicit_tags
 pattern_aux_explicit_tag_errors
 pattern_aux_block_scalar_bool_words
 pattern_aux_plain_scalar_tabs
+pattern_aux_folded_scalar_at_end
 report_secret_not_found_skip
 
 echo

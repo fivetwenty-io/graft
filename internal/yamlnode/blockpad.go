@@ -29,7 +29,9 @@ import (
 // also gives the single-quoted and literal block scalars that hold one
 // the values libyaml reads for them, as fixLineSeparators describes, and
 // when data holds a tab, it keeps the tabs inside plain scalars, as
-// keepPlainTabs describes.
+// keepPlainTabs describes. A block scalar whose last line ends data,
+// with no line break after it, reads as it would with one, less that
+// line break, as foldBlockAtEnd describes.
 func ParseBytes(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
 	return parseBytes(data, false, mode, opts...)
 }
@@ -72,7 +74,9 @@ func parseBlockPadded(data []byte, keep bool, mode parser.Mode, opts ...parser.O
 // and parsing the tokens, and works around goccy's scanner between the
 // two steps.
 func parseText(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
-	toks := lexer.Tokenize(string(data))
+	text := string(data)
+	toks := lexer.Tokenize(text)
+	foldBlockAtEnd(text, toks)
 	if bytes.IndexByte(data, '\t') >= 0 {
 		keepPlainTabs(toks)
 	}

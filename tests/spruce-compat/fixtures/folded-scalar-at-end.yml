@@ -1,0 +1,12 @@
+name: fold-at-end
+earlier: >
+  a
+  b
+config:
+  notes:
+  - >
+    first
+    x
+  - >
+    second
+    y
