@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `pkg/yaml` is a public YAML package that reads and writes YAML the way the merge engine does. `Unmarshal` and `UnmarshalWith` decode into structs, typed maps, typed slices, and `any`, with YAML 1.1 booleans by default and `DecodeOptions{YAML12: true}` to opt out. `Marshal` and `MarshalWith` write spruce's key order by default and codepoint order with `EncodeOptions{KeyOrder: sortkeys.Lexical}`. `Node` exposes the parsed tree and decodes any part of it, and every decode failure is a `*DecodeError` whose text never quotes the input. A program can drop yaml.v2, yaml.v3, and simpleyaml and use this package in their place. The package documentation lists the differences from yaml.v2 and yaml.v3 and the known limitations.
+
+- `graft.PlainString(d, key)` renders a `Diffable` without color escapes. For graft's own `Diffable` types it reads no package-wide color setting, so concurrent callers can use it safely.
+
+### Changed
+
+- One `Engine` is now safe to share across goroutines that parse, merge, evaluate, and diff at the same time. Each `Merge().Execute()` and `Evaluate` call keeps its working state to itself, so concurrent calls give the results they would give on separate engines. `Configure` and `UpdateOptions` must still not run while another call is in progress, and a `Document` belongs to one call at a time.
+
+- During a run, `graft.GetEngine(ev)` returns a wrapper around the shared engine instead of the engine itself, so an operator must not type-assert it to `*DefaultEngine`. The wrapper answers `GetOperatorState` with the run's own state.
+
+- The operator state an engine holds after a run is the published output of finished runs. The vault references, deferred paths, and vault placeholders it reports accumulate across every run that has finished, and `GetLastEvaluatedPrunedPaths` reports the run that finished last. A caller that needs the outputs of exactly one run uses an engine of its own.
+
+- `graft.Diff` now stores keys and values as written and applies color only when it renders. Values that differ only by color markup now compare as changed.
+
+### Fixed
+
+- Concurrent merges and evaluations on one shared `Engine` no longer give wrong results. They used to see and clear one another's static IP claims, queued prunes, and queued sorts.
+
+- Concurrent runs with `REDACT` set no longer race on the engine's skip and redact settings.
+
+- The Vault reader no longer races when several runs initialize it at the same time.
+
 ## [1.43.1] - 2026-10-27
 
 This release fixes `graft install-aliases` on Linux, where it put the `jq`, `yq`, and `spruce` links in a directory that isn't on `PATH`.
