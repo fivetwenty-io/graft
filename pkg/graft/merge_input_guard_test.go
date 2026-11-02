@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 )
 
 // nested returns a document whose key a holds n balanced flow lists.
@@ -163,8 +165,8 @@ func TestParseYAMLRejectsAliasBomb(t *testing.T) {
 		runtime.ReadMemStats(&before)
 		_, err = engine.ParseYAML(src)
 		runtime.ReadMemStats(&after)
-		if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) {
-			t.Errorf("ParseYAML of a %d-level alias bomb = %v, want the error %q", levels, err, maxRecursionMessage)
+		if err == nil || !strings.Contains(err.Error(), yamlcodec.MaxRecursionMessage) {
+			t.Errorf("ParseYAML of a %d-level alias bomb = %v, want the error %q", levels, err, yamlcodec.MaxRecursionMessage)
 		}
 		if grew := after.TotalAlloc - before.TotalAlloc; grew >= limit {
 			t.Errorf("ParseYAML of a %d-level alias bomb allocated %d MB, want under %d MB", levels, grew>>20, limit>>20)
@@ -190,8 +192,8 @@ func TestParseYAMLAliasCapBoundary(t *testing.T) {
 	if _, err := engine.ParseYAML(doc(991)); err != nil {
 		t.Errorf("ParseYAML of 400,000 expanded nodes = %v, want success", err)
 	}
-	if _, err := engine.ParseYAML(doc(992)); err == nil || !strings.Contains(err.Error(), maxRecursionMessage) {
-		t.Errorf("ParseYAML of 400,001 expanded nodes = %v, want the error %q", err, maxRecursionMessage)
+	if _, err := engine.ParseYAML(doc(992)); err == nil || !strings.Contains(err.Error(), yamlcodec.MaxRecursionMessage) {
+		t.Errorf("ParseYAML of 400,001 expanded nodes = %v, want the error %q", err, yamlcodec.MaxRecursionMessage)
 	}
 }
 
@@ -210,8 +212,8 @@ func TestParseYAMLRejectsAliasesNestedTooDeep(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = engine.ParseYAML([]byte(src))
-	if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) || strings.Contains(err.Error(), "exceeded max depth") {
-		t.Errorf("ParseYAML = %v, want the error %q", err, maxRecursionMessage)
+	if err == nil || !strings.Contains(err.Error(), yamlcodec.MaxRecursionMessage) || strings.Contains(err.Error(), "exceeded max depth") {
+		t.Errorf("ParseYAML = %v, want the error %q", err, yamlcodec.MaxRecursionMessage)
 	}
 }
 
@@ -226,8 +228,8 @@ func TestMergeDepthBoundaries(t *testing.T) {
 	}
 	for _, n := range []int{4096, 9997, 10001} {
 		_, err := guardedMerge(t, nested(n))
-		if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) || strings.Contains(err.Error(), "exceeded max depth") {
-			t.Errorf("merge of %d levels = %v, want the error %q", n, err, maxRecursionMessage)
+		if err == nil || !strings.Contains(err.Error(), yamlcodec.MaxRecursionMessage) || strings.Contains(err.Error(), "exceeded max depth") {
+			t.Errorf("merge of %d levels = %v, want the error %q", n, err, yamlcodec.MaxRecursionMessage)
 		}
 	}
 }
@@ -249,8 +251,8 @@ func TestParseYAMLRejectsUnclosedBracketsCheaply(t *testing.T) {
 	runtime.ReadMemStats(&before)
 	_, err = engine.ParseYAML(src)
 	runtime.ReadMemStats(&after)
-	if err == nil || !strings.Contains(err.Error(), maxRecursionMessage) {
-		t.Errorf("ParseYAML = %v, want the error %q", err, maxRecursionMessage)
+	if err == nil || !strings.Contains(err.Error(), yamlcodec.MaxRecursionMessage) {
+		t.Errorf("ParseYAML = %v, want the error %q", err, yamlcodec.MaxRecursionMessage)
 	}
 	if grew := after.TotalAlloc - before.TotalAlloc; grew >= limit {
 		t.Errorf("ParseYAML allocated %d MB, want under %d MB", grew>>20, limit>>20)
@@ -270,8 +272,8 @@ func TestParseYAMLRejectsUnclosedBracketsCheaply(t *testing.T) {
 func TestMergeRejectsDeepNestingInAStreamItCannotCut(t *testing.T) {
 	unclosed := strings.Repeat("[", 10001) + "\n"
 	for _, c := range []struct{ name, in, want string }{
-		{"open flow", "a: [1,\n---\n" + unclosed, maxRecursionMessage},
-		{"open flow before an end marker", "a: [1,\n...\n" + unclosed, maxRecursionMessage},
+		{"open flow", "a: [1,\n---\n" + unclosed, yamlcodec.MaxRecursionMessage},
+		{"open flow before an end marker", "a: [1,\n...\n" + unclosed, yamlcodec.MaxRecursionMessage},
 		{"scalar read as an end marker", "a: 1\n...#c\n" + unclosed, "yaml: line 2: could not find expected ':'"},
 		{"scalar read as an end marker before a header", "a: 1\n...#c\n---\n" + unclosed, "yaml: line 2: could not find expected ':'"},
 	} {
@@ -857,8 +859,8 @@ func TestGoPatchParsersRejectDeepNesting(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			err := c.parse(src)
-			if err == nil || IsArrayError(err) || !strings.Contains(err.Error(), maxRecursionMessage) {
-				t.Errorf("%s = %v, want the error %q", c.name, err, maxRecursionMessage)
+			if err == nil || IsArrayError(err) || !strings.Contains(err.Error(), yamlcodec.MaxRecursionMessage) {
+				t.Errorf("%s = %v, want the error %q", c.name, err, yamlcodec.MaxRecursionMessage)
 			}
 		})
 	}

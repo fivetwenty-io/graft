@@ -1,4 +1,6 @@
-package graft
+// Package yamlcodec holds the YAML encoding and decoding helpers that
+// pkg/graft and pkg/yaml share.
+package yamlcodec
 
 import (
 	"errors"
@@ -32,24 +34,26 @@ func NormalizeMap(data map[string]interface{}) map[string]interface{} {
 		return nil
 	}
 	for k, v := range data {
-		data[k] = normalizeValue(v)
+		data[k] = NormalizeValue(v)
 	}
 	return data
 }
 
-func normalizeValue(v interface{}) interface{} {
+// NormalizeValue converts nested map[interface{}]interface{} values in v
+// to map[string]interface{}.
+func NormalizeValue(v interface{}) interface{} {
 	switch val := v.(type) {
 	case map[interface{}]interface{}:
 		converted := make(map[string]interface{}, len(val))
 		for k, v := range val {
-			converted[fmt.Sprintf("%v", k)] = normalizeValue(v)
+			converted[fmt.Sprintf("%v", k)] = NormalizeValue(v)
 		}
 		return converted
 	case map[string]interface{}:
 		return NormalizeMap(val)
 	case []interface{}:
 		for i, item := range val {
-			val[i] = normalizeValue(item)
+			val[i] = NormalizeValue(item)
 		}
 		return val
 	case uint64:
@@ -222,12 +226,12 @@ func (c *YAMLCompat) convertAndUnprotectNumber(v interface{}) interface{} {
 // hand-authored deployment YAML.
 const yaml11QuotedBoolMarker = "\uE0DA"
 
-// yaml11BoolLookalikeWords are the exact-cased tokens ConvertValue
+// Yaml11BoolLookalikeWords are the exact-cased tokens ConvertValue
 // coerces to a boolean. Quoting one of them (single or double) is an
 // author's explicit request, honored by both spruce and YAML 1.1, to
 // keep the value a string -- that request must survive the compat
 // coercion pass below.
-var yaml11BoolLookalikeWords = map[string]bool{
+var Yaml11BoolLookalikeWords = map[string]bool{
 	"yes": true, "Yes": true, "YES": true,
 	"no": true, "No": true, "NO": true,
 	"on": true, "On": true, "ON": true,
@@ -253,14 +257,16 @@ func (quotedBoolTagger) Visit(n ast.Node) ast.Visitor {
 		return nil
 	}
 	if sn, ok := n.(*ast.StringNode); ok {
-		if sn.Token != nil && isQuotedScalarToken(sn.Token.Type) && yaml11BoolLookalikeWords[sn.Value] {
+		if sn.Token != nil && IsQuotedScalarToken(sn.Token.Type) && Yaml11BoolLookalikeWords[sn.Value] {
 			sn.Value = yaml11QuotedBoolMarker + sn.Value
 		}
 	}
 	return quotedBoolTagger{}
 }
 
-func isQuotedScalarToken(t token.Type) bool {
+// IsQuotedScalarToken reports whether t is a single- or double-quoted
+// scalar token.
+func IsQuotedScalarToken(t token.Type) bool {
 	return t == token.SingleQuoteType || t == token.DoubleQuoteType
 }
 
@@ -294,7 +300,7 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 	if body == nil {
 		return nil, nil
 	}
-	if err := checkAnchors(body); err != nil {
+	if err := CheckAnchors(body); err != nil {
 		return nil, err
 	}
 
@@ -302,7 +308,7 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 
 	// The tagger runs first, since expansion shares one subtree among
 	// every alias to it, and the tagger must mark each scalar only once.
-	body, err = expandAliases(body)
+	body, err = ExpandAliases(body)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +318,7 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 		if errors.Is(err, yaml.ErrExceededMaxDepth) {
 			// Expansion can nest an aliased value deeper than the
 			// document's own text, past what FirstMergeDocument checks.
-			return nil, &maxRecursionError{cause: err}
+			return nil, &MaxRecursionError{cause: err}
 		}
 		return nil, err
 	}
@@ -331,7 +337,7 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 // such a document, and it decodes one of five million nodes.
 const maxExpandedNodes = 400_000
 
-// expandAliases returns body with every alias replaced by the node its
+// ExpandAliases returns body with every alias replaced by the node its
 // anchor names and every anchor replaced by the node it wraps, so
 // yaml.NodeToValue never resolves an alias itself. goccy registers
 // anchor names in a map that every nested value shares, and it decodes
@@ -343,9 +349,9 @@ const maxExpandedNodes = 400_000
 // copy. That is safe because nothing changes the tree after expansion,
 // and goccy decodes a fresh value each time it meets a node. It fails a
 // document that expands past maxExpandedNodes with the recursion text.
-// checkAnchors must pass first, since an alias inside its own anchor's
+// CheckAnchors must pass first, since an alias inside its own anchor's
 // value is left in place.
-func expandAliases(body ast.Node) (ast.Node, error) {
+func ExpandAliases(body ast.Node) (ast.Node, error) {
 	x := &aliasExpander{bound: make(map[string]*expandedAnchor)}
 	n, _, err := x.expand(body)
 	return n, err
@@ -402,7 +408,7 @@ func (c *expandCount) add(child ast.Node) (ast.Node, error) {
 		return nil, err
 	}
 	if c.size += size; c.size > maxExpandedNodes {
-		return nil, &maxRecursionError{cause: fmt.Errorf("aliases expand to more than %d nodes", maxExpandedNodes)}
+		return nil, &MaxRecursionError{cause: fmt.Errorf("aliases expand to more than %d nodes", maxExpandedNodes)}
 	}
 	return n, nil
 }
@@ -450,20 +456,20 @@ func asMapKey(key ast.Node, was ast.MapKeyNode) ast.MapKeyNode {
 	return &ast.MappingKeyNode{BaseNode: &ast.BaseNode{}, Start: was.GetToken(), Value: key}
 }
 
-// maxRecursionMessage is the text CheckForCycles gives for a merged tree
+// MaxRecursionMessage is the text CheckForCycles gives for a merged tree
 // nested past its limit. spruce gives the same text for any merge input
 // nested past 4,096 levels.
-const maxRecursionMessage = "Hit max recursion depth. You seem to have a self-referencing dataset"
+const MaxRecursionMessage = "Hit max recursion depth. You seem to have a self-referencing dataset"
 
-// maxRecursionError reports merge input nested too deep to parse. It
-// reads as maxRecursionMessage and wraps the depth error underneath.
-type maxRecursionError struct {
+// MaxRecursionError reports merge input nested too deep to parse. It
+// reads as MaxRecursionMessage and wraps the depth error underneath.
+type MaxRecursionError struct {
 	cause error
 }
 
-func (e *maxRecursionError) Error() string { return maxRecursionMessage }
+func (e *MaxRecursionError) Error() string { return MaxRecursionMessage }
 
-func (e *maxRecursionError) Unwrap() error { return e.cause }
+func (e *MaxRecursionError) Unwrap() error { return e.cause }
 
 // FirstMergeDocument returns the first document of data, raw YAML bytes
 // about to be merged, since the merge reads no other, as spruce's does.
@@ -489,9 +495,9 @@ func FirstMergeDocument(data []byte) ([]byte, error) {
 	first, err := yamlnode.FirstDocument(yamlnode.TrimBOM(data))
 	switch {
 	case yamlnode.IsDepthError(err):
-		return nil, &maxRecursionError{cause: err}
+		return nil, &MaxRecursionError{cause: err}
 	case err != nil:
-		return nil, NewParseError(err.Error(), err)
+		return nil, err
 	}
 	return first, nil
 }
@@ -506,15 +512,15 @@ func FirstMergeDocument(data []byte) ([]byte, error) {
 func CheckSelfContainingAnchors(data []byte) error {
 	if file, err := yamlnode.ParseBytes(data, 0); err == nil {
 		if body := yamlnode.FirstBody(file); body != nil {
-			return checkAnchors(body)
+			return CheckAnchors(body)
 		}
 	}
 	return nil
 }
 
-// checkAnchors walks body, a document's root node, for an alias that
+// CheckAnchors walks body, a document's root node, for an alias that
 // sits inside the collection its anchor names.
-func checkAnchors(body ast.Node) error {
+func CheckAnchors(body ast.Node) error {
 	w := &anchorWalk{
 		bound: make(map[string]*ast.AnchorNode),
 		open:  make(map[*ast.AnchorNode]bool),
@@ -623,4 +629,10 @@ func UnprotectYAML11QuotedBools(v interface{}) interface{} {
 	default:
 		return v
 	}
+}
+
+// ConvertAndUnprotectAny exposes convertAndUnprotectAny to the packages
+// that alias YAMLCompat, so the alias gains no method.
+func ConvertAndUnprotectAny(c *YAMLCompat, v any) any {
+	return c.convertAndUnprotectAny(v)
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/goccy/go-yaml/ast"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
@@ -44,7 +45,7 @@ func jsonifyDataWith(data []byte, strict bool, less func(a, b string) bool) (str
 	// placeholder reads as a string here as it does in merge and diff.
 	data, _ = yamlprep.Prepare(data)
 	root, err := ParseYAML11CompatAware(data)
-	var tooDeep *maxRecursionError
+	var tooDeep *yamlcodec.MaxRecursionError
 	if errors.As(err, &tooDeep) {
 		// The document is a map whose aliases expand too far, so the
 		// root-type prefix would misdescribe it.
@@ -169,7 +170,7 @@ func hasNonStringKey(data []byte) (bool, error) {
 	if body == nil {
 		return false, nil
 	}
-	if body, err = expandAliases(body); err != nil {
+	if body, err = yamlcodec.ExpandAliases(body); err != nil {
 		return false, err
 	}
 	finder := &nonStringKeyFinder{}
@@ -214,10 +215,10 @@ func isNonStringKey(key ast.Node) bool {
 	case *ast.IntegerNode, *ast.FloatNode, *ast.BoolNode, *ast.NullNode, *ast.InfinityNode, *ast.NanNode:
 		return true
 	case *ast.StringNode:
-		if k.Token == nil || isQuotedScalarToken(k.Token.Type) {
+		if k.Token == nil || yamlcodec.IsQuotedScalarToken(k.Token.Type) {
 			return false
 		}
-		if yaml11BoolLookalikeWords[k.Value] {
+		if yamlcodec.Yaml11BoolLookalikeWords[k.Value] {
 			return true
 		}
 		switch yamlnode.ResolvePlainTag(k.Value) {

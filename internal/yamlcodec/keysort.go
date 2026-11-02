@@ -1,4 +1,4 @@
-package graft
+package yamlcodec
 
 import sk "github.com/fivetwenty-io/graft/pkg/sortkeys"
 

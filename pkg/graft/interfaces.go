@@ -8,6 +8,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -532,7 +533,7 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 		}
 		var unmarshaled interface{}
 		if err := yaml.Unmarshal([]byte(val), &unmarshaled); err == nil {
-			unmarshaled = normalizeValue(unmarshaled)
+			unmarshaled = yamlcodec.NormalizeValue(unmarshaled)
 			if _, isString := unmarshaled.(string); !isString {
 				return unmarshaled, nil
 			}

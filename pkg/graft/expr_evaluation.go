@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/goccy/go-yaml"
+
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 )
 
 // Literal value constants for YAML parsing.
@@ -53,7 +55,7 @@ func EvaluateExpr(e *Expr, ev *Evaluator) (*Response, error) {
 			(val != "" && (val[0] == '{' || val[0] == '[' || val[0] == '-'))) {
 			var unmarshalled interface{}
 			if err := yaml.Unmarshal([]byte(val), &unmarshalled); err == nil {
-				unmarshalled = normalizeValue(unmarshalled)
+				unmarshalled = yamlcodec.NormalizeValue(unmarshalled)
 				// Only use unmarshalled value if it's not a string
 				// (to avoid changing multiline strings)
 				if _, isString := unmarshalled.(string); !isString {
