@@ -49,7 +49,7 @@ func TestImportsStayInsideTheAllowList(t *testing.T) {
 			return
 		}
 		seen[path] = true
-		if why, banned := bannedImports[path]; banned {
+		if why, banned := bannedReason(path); banned {
 			t.Errorf("%s imports %s, which is banned: %s", from, path, why)
 			return
 		}
@@ -72,4 +72,15 @@ func TestImportsStayInsideTheAllowList(t *testing.T) {
 	for _, path := range roots {
 		walk(path, "pkg/yaml")
 	}
+}
+
+// bannedReason says why path is banned, matching a banned entry exactly or
+// as a path prefix.
+func bannedReason(path string) (string, bool) {
+	for banned, why := range bannedImports {
+		if path == banned || strings.HasPrefix(path, banned+"/") {
+			return why, true
+		}
+	}
+	return "", false
 }

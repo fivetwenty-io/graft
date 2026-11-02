@@ -272,11 +272,12 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 //
 // A tree Unmarshal returned decodes to the value Unmarshal gives for the
 // same text, with a few known exceptions. The tree reader follows yaml.v3
-// and Unmarshal follows goccy, so the two can differ on a document with a
-// UTF-16 byte order mark, on a node with two tags or two anchors, on a tag
-// or an anchor written on an alias, on a tag that ends its line or the
-// document, on a bool target beside a comment or a document marker in YAML
-// 1.1 mode, and on a document with no final line break. Decode reads the tree as it is now, so a Node the caller
+// and Unmarshal follows goccy, so the two can differ on a node with two
+// tags, on a tag written on an alias, on a tag with nothing after it at
+// the end of the document, and on a block scalar in a document with no
+// final line break.
+//
+// Decode reads the tree as it is now, so a Node the caller
 // changed after Unmarshal, or built by hand, decodes what it now holds,
 // resolved the way that text would be in Unmarshal. A scalar keeps the
 // style it was read in, which is plain for one a caller built, so a plain

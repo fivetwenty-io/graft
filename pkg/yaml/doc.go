@@ -57,8 +57,8 @@ type, and the error says to use map[string]any. Every nested map in a
 generic value is a map[string]any, so a caller never type-asserts a map
 twice.
 
-Every error is a *DecodeError with a Line, a Column, a Kind, and a Msg.
-The text of a DecodeError never quotes the input, so it is safe to log when
+Every error that Unmarshal and Node.Decode return is a *DecodeError with
+a Line, a Column, a Kind, and a Msg. The text of a DecodeError never quotes the input, so it is safe to log when
 the input holds credentials. For that reason the messages are shorter than
 the ones yaml.v2 and yaml.v3 give, which often print the offending scalar.
 
@@ -69,9 +69,12 @@ sortkeys.Lexical} writes keys in codepoint order instead.
 Merge keys follow graft's engine. When a mapping holds a << key, the merged
 values win over a key written before the << in the same mapping, and a key
 written after the << wins over the merged values. When the value of << is a
-list of maps, a later map wins over an earlier one. In yaml.v2 and yaml.v3,
-a key written in the mapping always wins over a merged value, wherever the
-<< sits, and an earlier map in the list wins.
+list of maps, a later map wins over an earlier one. yaml.v3 differs in two
+ways, because a key written in the mapping always wins over a merged value
+there, wherever the << sits, and an earlier map in the list wins. yaml.v2
+matches graft for a key written before the <<, where the merged value wins,
+and for a key written after it, but it also lets an earlier map in the list
+win.
 
 A time.Time target accepts a quoted date such as "2001-12-14", where yaml.v2
 and yaml.v3 refuse a quoted date that is not RFC 3339.
@@ -108,8 +111,11 @@ outputs differ from yaml.v2 for values at or above 1e6, which it writes as
 Marshal chooses quotes by spruce's rules plus a few more of its own. It
 double-quotes a string that ends in <<, a string that starts with -#, and
 a multi-line string whose first line starts with whitespace. Inside a field
-tagged ,flow, a string that needs quotes is always double-quoted. A quoted
-key longer than 1024 bytes is written in the "? key" form.
+tagged ,flow, a string in a list or map is double-quoted when it needs
+quotes, and a string field that is itself tagged ,flow is single-quoted. A
+key is written in the "? key" form when its double-quoted form would be
+longer than 1024 bytes, which means a plain key of 1023 bytes already takes
+it.
 
 Marshal refuses a value that holds a Node, because writing a Node tree back
 out is not supported. It also refuses a cycle and a key order other than the
@@ -128,16 +134,22 @@ A tab inside a plain scalar, as in a: x<TAB>y, is dropped, so the value is
 "xy". This is how the decoder reads such a scalar, and graft merge gives
 the same result. A quoted scalar keeps its tab.
 
+Unmarshal reads a document that starts with a UTF-16 byte order mark, in
+either byte order, by converting it to UTF-8 first. A UTF-16 document with
+no content, an odd number of bytes, or an unpaired surrogate is a syntax
+error.
+
 Node.Decode matches Unmarshal on a tree that Unmarshal returned, with a few
 exceptions that come from the tree reader following yaml.v3 and Unmarshal
-following goccy. The two can disagree on a document that starts with a
-UTF-16 byte order mark, on a node with two tags or two anchors, on a tag or
-an anchor written on an alias, and on a tag that ends its line or ends the
-document. They can also disagree on a bool target next to a comment or a
---- or ... line in the default mode, and on a document with no final line
-break, where Decode reads the text as if the break were there. The column of
-a continuation line in a multi-line quoted scalar is approximate when the
-input uses tabs.
+following goccy. The two disagree on a node with two tags, as in a: !!str
+!!int 1, where Unmarshal gives the string "1" and Decode gives the integer.
+They disagree on a tag written on an alias, as in b: !!str *x, which gives
+"1" from Unmarshal and 1 from Decode. They disagree on a tag with nothing
+after it at the end of the document, as in a: !!str, which Unmarshal reads
+as null and Decode reads as the empty string. They also disagree on a block
+scalar in a document with no final line break, where Unmarshal drops the
+last line break and Decode keeps it. The column of a continuation line in a
+multi-line quoted scalar is approximate when the input uses tabs.
 
 A Node that Unmarshal returned keeps its whole input document, and the
 first Decode on that tree parses it one more time. The cost is one extra
