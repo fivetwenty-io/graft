@@ -743,3 +743,57 @@ func TestSharedEngineOperatorStateAssertion(t *testing.T) {
 		t.Errorf("the operator's prune marker reached the engine's own state: %v", keys)
 	}
 }
+
+// TestSharedEngineSettersDuringRuns toggles the engine's warning and
+// skip settings from one goroutine while eight others merge on the same
+// engine. Each run copies those settings when it starts, so an unguarded
+// setter is a data race the race detector reports. NATS is skipped only
+// in the settings, and the documents use no nats call, so every merge
+// result stays the same whichever way the toggle falls.
+func TestSharedEngineSettersDuringRuns(t *testing.T) {
+	shared := newSharedTestEngine(t)
+	state := shared.GetOperatorState()
+
+	stop := make(chan struct{})
+	toggled := make(chan struct{})
+	go func() {
+		defer close(toggled)
+		for on := false; ; on = !on {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			state.SetSuppressWarnings(on)
+			state.SetSkipNats(on)
+			_ = state.SuppressWarnings()
+			_ = state.IsNATSSkipped()
+		}
+	}()
+
+	const mergers = 8
+	var wg sync.WaitGroup
+	results := make([]map[string]string, mergers)
+	for g := 0; g < mergers; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			results[g] = make(map[string]string)
+			for i := 0; i < sharedCallsPerGoroutine; i++ {
+				id := fmt.Sprintf("g%di%d", g, i)
+				results[g][id] = sharedMergeText(shared, sharedMergeBase, id)
+			}
+		}(g)
+	}
+	wg.Wait()
+	close(stop)
+	<-toggled
+
+	for g, byID := range results {
+		for id, out := range byID {
+			if err := checkSharedMerge(id, out); err != nil {
+				t.Errorf("merger %d, %s: %v\n%s", g, id, err, out)
+			}
+		}
+	}
+}

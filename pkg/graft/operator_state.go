@@ -12,7 +12,10 @@ type operatorState struct {
 	// Vault state (refs tracking only; client and cache live in internal/backends/vault)
 	vaultRefs  map[string][]string
 	vaultMutex sync.RWMutex
-	skipVault  bool
+	// skipVault, skipAws, skipNats, redactMode, and suppressWarnings are
+	// settings, guarded by vaultMutex like the vault state. forRun reads
+	// them under it, so a setter called while a run starts is safe.
+	skipVault bool
 
 	// vaultPlaceholders maps a tree path (Cursor.String()) to the vault
 	// key a skip-vault sentinel written there stands in for, guarded by
@@ -83,6 +86,8 @@ func (e *operatorState) AddVaultRef(path string, keys []string) {
 
 // IsVaultSkipped returns true if Vault operations should be skipped.
 func (e *operatorState) IsVaultSkipped() bool {
+	e.vaultMutex.RLock()
+	defer e.vaultMutex.RUnlock()
 	return e.skipVault
 }
 
@@ -90,12 +95,16 @@ func (e *operatorState) IsVaultSkipped() bool {
 // skipNats) returns the flat "REDACTED" sentinel (true) or defers itself
 // (false). See the redactMode field's doc comment.
 func (e *operatorState) SetRedactMode(v bool) {
+	e.vaultMutex.Lock()
+	defer e.vaultMutex.Unlock()
 	e.redactMode = v
 }
 
 // IsRedactMode returns true if a skipped backend should return the flat
 // "REDACTED" sentinel rather than defer itself.
 func (e *operatorState) IsRedactMode() bool {
+	e.vaultMutex.RLock()
+	defer e.vaultMutex.RUnlock()
 	return e.redactMode
 }
 
@@ -126,6 +135,8 @@ func (e *operatorState) ResetDeferredPaths() {
 
 // IsAWSSkipped returns true if AWS operations should be skipped.
 func (e *operatorState) IsAWSSkipped() bool {
+	e.vaultMutex.RLock()
+	defer e.vaultMutex.RUnlock()
 	return e.skipAws
 }
 
@@ -251,21 +262,29 @@ func (e *operatorState) ResetVaultRefs() {
 
 // SetSkipVault sets whether vault operations should be skipped.
 func (e *operatorState) SetSkipVault(v bool) {
+	e.vaultMutex.Lock()
+	defer e.vaultMutex.Unlock()
 	e.skipVault = v
 }
 
 // SetSkipAws sets whether AWS operations should be skipped.
 func (e *operatorState) SetSkipAws(v bool) {
+	e.vaultMutex.Lock()
+	defer e.vaultMutex.Unlock()
 	e.skipAws = v
 }
 
 // SetSkipNats sets whether NATS operations should be skipped.
 func (e *operatorState) SetSkipNats(v bool) {
+	e.vaultMutex.Lock()
+	defer e.vaultMutex.Unlock()
 	e.skipNats = v
 }
 
 // IsNATSSkipped returns true if NATS operations should be skipped.
 func (e *operatorState) IsNATSSkipped() bool {
+	e.vaultMutex.RLock()
+	defer e.vaultMutex.RUnlock()
 	return e.skipNats
 }
 
@@ -326,10 +345,14 @@ func (e *operatorState) resetPerRunState() {
 
 // SuppressWarnings returns whether warnings should be suppressed.
 func (e *operatorState) SuppressWarnings() bool {
+	e.vaultMutex.RLock()
+	defer e.vaultMutex.RUnlock()
 	return e.suppressWarnings
 }
 
 // SetSuppressWarnings sets whether warnings should be suppressed.
 func (e *operatorState) SetSuppressWarnings(v bool) {
+	e.vaultMutex.Lock()
+	defer e.vaultMutex.Unlock()
 	e.suppressWarnings = v
 }
