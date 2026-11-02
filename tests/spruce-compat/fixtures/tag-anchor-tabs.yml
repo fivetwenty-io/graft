@@ -1,0 +1,51 @@
+str: !!str	x
+after_str: 1
+str_yes: !!str	yes
+int: !!int	12
+int_as_str: !!str	12
+bool: !!bool	yes
+custom: !custom	bar
+verbatim: !<tag:yaml.org,2002:str>	x
+bare: !	x
+two_tabs: !!str		x
+tab_space: !!str	 x
+value_comment: !!str	x # c
+tagged_quoted: !!str	"p q"
+tagged_block: !!str	|
+  x
+  y
+tagged_map: !!map	{k: v}
+nested:
+  a: !!str	x
+  b: 2
+seq:
+- !!str	x
+- z
+flow_seq: [!!str	x, !!int	3, z]
+flow_map: {k: !!str	x, m: z}
+!!str	tagged_key: v
+flow_key: {!!str	k: v}
+anchor: &a	x
+alias: *a
+anchor_map: &m	{k: v}
+alias_map: *m
+anchor_seq:
+- &s	x
+- *s
+anchor_flow: [&f	x, *f]
+anchor_flow_map: {k: &g	x, m: *g}
+&k	anchored_key: v
+anchor_tag: &t	!!str	yes
+alias_tag: *t
+tag_anchor: !!str	&u	yes
+alias_tag_anchor: *u
+anchor_two_tabs: &w		x
+alias_two_tabs: *w
+anchor_block: &b	|
+  x
+alias_block: *b
+merge_base: &base	{k: v}
+merged:
+  <<: *base
+  m: 1
+after: 1

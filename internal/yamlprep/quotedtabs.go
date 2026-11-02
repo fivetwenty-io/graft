@@ -17,45 +17,6 @@ import (
 // reads the rest of the line wrong, at the wrong columns. libyaml reads
 // "a: \"p<TAB>q\"" as the string "p<TAB>q".
 
-// Tokenize returns the tokens goccy's lexer gives src, with every
-// double-quoted scalar that holds a tab between two characters read as
-// libyaml reads it, at the positions goccy gives it when it reads it
-// right. Before tokenizing, each such tab becomes a character that src
-// does not hold, which the scanner counts once and keeps in the value as
-// it keeps the tab, and afterwards the tokens get the tab back in their
-// value and source text. A tab that starts a continuation line, or ends
-// one, stays as it is, since goccy reads those right. When the marked
-// text gives a marker to any token other than a double-quoted scalar,
-// Tokenize returns the tokens of src as goccy reads them.
-func Tokenize(src string) token.Tokens {
-	if !mayHoldQuotedTab(src) {
-		return lexer.Tokenize(src)
-	}
-	tabs := doubledQuotedTabs(src)
-	if len(tabs) == 0 {
-		return lexer.Tokenize(src)
-	}
-	marker, ok := unusedRune(src)
-	if !ok {
-		return lexer.Tokenize(src)
-	}
-	toks := lexer.Tokenize(markAt(src, tabs, marker))
-	for _, tk := range toks {
-		if tk.Type != token.DoubleQuoteType &&
-			(strings.ContainsRune(tk.Value, marker) || strings.ContainsRune(tk.Origin, marker)) {
-			return lexer.Tokenize(src)
-		}
-	}
-	m := string(marker)
-	for _, tk := range toks {
-		if tk.Type == token.DoubleQuoteType {
-			tk.Value = strings.ReplaceAll(tk.Value, m, "\t")
-			tk.Origin = strings.ReplaceAll(tk.Origin, m, "\t")
-		}
-	}
-	return toks
-}
-
 // mayHoldQuotedTab reports whether src has a tab after a double quote,
 // which every double-quoted scalar holding a tab needs.
 func mayHoldQuotedTab(src string) bool {
@@ -75,17 +36,15 @@ func unusedRune(src string) (rune, bool) {
 }
 
 // doubledQuotedTabs returns the offsets in src, in order, of each tab
-// inside a double-quoted scalar that goccy counts twice. It finds the
-// scalars by tokenizing src with each tab made a space, which goccy reads
-// right and which leaves every byte where it is, and walks each scalar
-// in src from its opening quote to its closing one. A scalar with no
-// closing quote keeps its tabs, and a token whose place holds no opening
-// quote in src marks nothing.
-func doubledQuotedTabs(src string) []int {
-	neutral := strings.ReplaceAll(src, "\t", " ")
-	idx := newByteIndex(neutral)
+// inside a double-quoted scalar that goccy counts twice. scan holds the
+// tokens goccy gives src with each tab made a space, which it reads
+// right, and idx indexes that text. Each double-quoted scalar of scan is
+// walked in src from its opening quote to its closing one. A scalar with
+// no closing quote keeps its tabs, and a token whose place holds no
+// opening quote in src marks nothing.
+func doubledQuotedTabs(src string, scan token.Tokens, idx byteIndex) []int {
 	var tabs []int
-	for _, tk := range lexer.Tokenize(neutral) {
+	for _, tk := range scan {
 		if tk.Type != token.DoubleQuoteType || tk.Position == nil {
 			continue
 		}
@@ -103,6 +62,35 @@ func doubledQuotedTabs(src string) []int {
 	}
 	slices.Sort(tabs)
 	return slices.Compact(tabs)
+}
+
+// tokenizeQuotedTabs returns the tokens goccy gives text with a marker
+// in place of each tab at an offset in tabs, which are in order, and
+// each double-quoted scalar given its tabs back in its value and source
+// text. The marker is a character text does not hold, which the scanner
+// counts once and keeps in the value as it keeps the tab. It reports
+// false when no such character is left, or when the marker reaches a
+// token other than a double-quoted scalar.
+func tokenizeQuotedTabs(text string, tabs []int) (token.Tokens, bool) {
+	marker, ok := unusedRune(text)
+	if !ok {
+		return nil, false
+	}
+	toks := lexer.Tokenize(markAt(text, tabs, marker))
+	for _, tk := range toks {
+		if tk.Type != token.DoubleQuoteType &&
+			(strings.ContainsRune(tk.Value, marker) || strings.ContainsRune(tk.Origin, marker)) {
+			return nil, false
+		}
+	}
+	m := string(marker)
+	for _, tk := range toks {
+		if tk.Type == token.DoubleQuoteType {
+			tk.Value = strings.ReplaceAll(tk.Value, m, "\t")
+			tk.Origin = strings.ReplaceAll(tk.Origin, m, "\t")
+		}
+	}
+	return toks, true
 }
 
 // markAt returns src with marker in place of the byte at each offset in

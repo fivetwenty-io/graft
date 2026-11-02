@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A tab inside a double-quoted scalar, as in `a: "p<TAB>q"`, no longer breaks the document. Before, the parser lost its place after the tab and skipped the character after the closing quote, so `graft merge` and `pkg/yaml` failed the document or read the rest of the line wrong, in a block mapping and in a flow collection alike. The value now keeps its tab, as it does in spruce, and the nodes after it keep their lines and columns. Single-quoted scalars were never affected.
 
+- A tab after a tag or an anchor, as in `a: !!str<TAB>x` or `a: &n<TAB>x`, now reads as a space does there, as it does in spruce. Before, the tab and the text after it on its line became part of the tag or the anchor's name. A tagged value then went missing, so the next key moved under the tagged one and `a: !!str<TAB>x` followed by `b: 1` merged to `a: {b: 1}`, and a comment after the tab could become the value. An anchor named that way failed the document. Every tag form, anchors, block and flow collections, and keys are covered, and the nodes after the tab keep the places they have when the tab is a space. A tag with only a comment after it on its line, as in `a: !!str<TAB># c`, now fails the document as it does with a space there, where spruce reads the empty string.
+
 ## [1.43.1] - 2026-10-27
 
 This release fixes `graft install-aliases` on Linux, where it put the `jq`, `yq`, and `spruce` links in a directory that isn't on `PATH`.

@@ -735,6 +735,14 @@ pattern_aux_quoted_scalar_tabs() {
   aux_fixture_merge "aux: merge of quoted scalars holding tabs" quoted-scalar-tabs qtabs
 }
 
+# aux: a tab after a tag or an anchor, in every tag form, on values,
+# keys, and collections, in block and flow context, and on anchors that
+# aliases and a merge key name. spruce reads the tab as it reads a space
+# there, so each value stays under its own key.
+pattern_aux_tag_anchor_tabs() {
+  aux_fixture_merge "aux: merge of tags and anchors followed by tabs" tag-anchor-tabs tatabs
+}
+
 # aux_fixture_merge NAME FIXTURE PREFIX merges $FIX/FIXTURE.yml with both
 # tools and reports NAME as passed when the exit codes and output match.
 aux_fixture_merge() {
@@ -818,6 +826,7 @@ pattern_aux_block_scalar_bool_words
 pattern_aux_plain_scalar_tabs
 pattern_aux_folded_scalar_at_end
 pattern_aux_quoted_scalar_tabs
+pattern_aux_tag_anchor_tabs
 report_secret_not_found_skip
 
 echo
