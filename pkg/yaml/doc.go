@@ -56,8 +56,10 @@ UnmarshalWith with a DecodeOptions.OnDuplicateKey callback accepts a repeated
 key in any mapping at any depth instead, keeps the last value, as yaml.v2
 does, and calls the callback once for each later occurrence. Each report holds
 a DuplicateKey with the path of the key and the positions of both occurrences.
-Merge keys are never reported. Unmarshal itself, and graft's merge, stay
-strict.
+Merge keys are never reported. A mapping's keys and merge keys take effect
+in the order written, on every target, so the value written last wins, as in
+spruce, even when a key or a merge key repeats. Unmarshal itself, and
+graft's merge, stay strict.
 
 Keys compare by their text under any tag or anchor, with one exception each
 way. A null key, such as ~ or null, and a string key whose text is null, such

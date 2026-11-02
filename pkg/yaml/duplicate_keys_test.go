@@ -425,3 +425,69 @@ func TestOnDuplicateKeyRepeatedMergeKeys(t *testing.T) {
 		})
 	}
 }
+
+// TestOnDuplicateKeyMergeOrder pins a mapping whose merge keys and
+// written keys interleave, which every target reads as the pairs in
+// turn, each writing over the ones before it. spruce v1.35.17 prints
+// the same values for each document.
+func TestOnDuplicateKeyMergeOrder(t *testing.T) {
+	const anchors = "b1: &b1\n  p: 1\n  q: 1\nb2: &b2\n  q: 2\n  r: 2\nb4: &b4\n  <<: *b2\n  z: 4\na: &a\n  k: 5\n"
+	cases := []struct {
+		doc     string
+		want    map[string]int
+		reports int
+	}{
+		{"m:\n  <<: *b1\n  q: 0\n  <<: *b2\n", map[string]int{"p": 1, "q": 2, "r": 2}, 0},
+		{"m:\n  k: 1\n  <<: *a\n  k: 2\n", map[string]int{"k": 2}, 1},
+		{"m:\n  q: 0\n  <<: *b1\n  <<: *b2\n", map[string]int{"p": 1, "q": 2, "r": 2}, 0},
+		{"m:\n  <<: *b1\n  <<: *b2\n  q: 0\n", map[string]int{"p": 1, "q": 0, "r": 2}, 0},
+		{"m:\n  <<: *b1\n  q: 0\n  <<: *b2\n  q: 7\n", map[string]int{"p": 1, "q": 7, "r": 2}, 1},
+		{"m:\n  q: 0\n  <<: *b1\n  q: 5\n  <<: *b2\n", map[string]int{"p": 1, "q": 2, "r": 2}, 1},
+		{"m:\n  <<: *b1\n  r: 0\n  <<: *b4\n", map[string]int{"p": 1, "q": 2, "r": 2, "z": 4}, 0},
+		{"m:\n  k: 1\n  <<: *a\n  k: 2\n  <<: *b1\n", map[string]int{"k": 2, "p": 1, "q": 1}, 1},
+		{"m:\n  q: 0\n  <<: *b1\n  r: 9\n", map[string]int{"p": 1, "q": 1, "r": 9}, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.doc, func(t *testing.T) {
+			doc := []byte(anchors + c.doc)
+			var anyReports, nodeReports []yaml.DuplicateKey
+			var m struct {
+				M map[string]int `yaml:"m"`
+			}
+			if err := yaml.UnmarshalWith(doc, &m, collect(&anyReports)); err != nil || !reflect.DeepEqual(m.M, c.want) {
+				t.Errorf("struct m = %v, %v, want %v", m.M, err, c.want)
+			}
+			var n yaml.Node
+			if err := yaml.UnmarshalWith(doc, &n, collect(&nodeReports)); err != nil {
+				t.Fatalf("Node: %v", err)
+			}
+			var back struct {
+				M map[string]int `yaml:"m"`
+			}
+			if err := n.Decode(&back); err != nil || !reflect.DeepEqual(back.M, c.want) {
+				t.Errorf("Node m = %v, %v, want %v", back.M, err, c.want)
+			}
+			if len(anyReports) != c.reports || len(nodeReports) != c.reports {
+				t.Errorf("reports = %+v and %+v, want %d each", anyReports, nodeReports, c.reports)
+			}
+		})
+	}
+}
+
+// TestOnDuplicateKeyMergeKeepsOrder pins that a mapping with one merge
+// key and no repeated key keeps its pairs in the order written.
+func TestOnDuplicateKeyMergeKeepsOrder(t *testing.T) {
+	doc := "b: &b\n  q: 1\nm:\n  q: 0\n  x: 1\n  <<: *b\n  y: 2\n"
+	var n yaml.Node
+	if err := yaml.UnmarshalWith([]byte(doc), &n, collect(new([]yaml.DuplicateKey))); err != nil {
+		t.Fatalf("Node: %v", err)
+	}
+	m := n.Content[0].Content[3]
+	var keys []string
+	for i := 0; i < len(m.Content); i += 2 {
+		keys = append(keys, m.Content[i].Value)
+	}
+	if want := []string{"q", "x", "<<", "y"}; !reflect.DeepEqual(keys, want) {
+		t.Errorf("keys = %v, want %v", keys, want)
+	}
+}

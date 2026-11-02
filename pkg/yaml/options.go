@@ -27,7 +27,13 @@ type DecodeOptions struct {
 	// through a merge never counts as a duplicate of an explicit key.
 	// Two merge keys in one mapping merge both sources in order, so a
 	// key in the later source wins, and a Node target holds them as one
-	// merge key whose value is a sequence of the sources.
+	// merge key whose value is a sequence of the sources. Every target
+	// reads a mapping's pairs and merge keys in turn, each writing over
+	// the ones before it, so a key written after a merge key that also
+	// supplies it wins, and the merged value wins over a key written
+	// before. A Node target keeps that outcome by moving a pair whose
+	// key a merge supplies to the side of the merge key that gives it,
+	// and leaves every other pair at the place of its first key.
 	// A nil OnDuplicateKey keeps the strict refusal of a repeated key
 	// that Unmarshal applies, except that a Node target keeps every pair
 	// of a repeated key, as it always has.
