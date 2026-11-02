@@ -188,7 +188,7 @@ func TestMarshalFloats(t *testing.T) {
 		{"nan", map[string]any{"v": math.NaN()}, "v: .nan\n"},
 		{"positive infinity", map[string]any{"v": math.Inf(1)}, "v: .inf\n"},
 		{"negative infinity", map[string]any{"v": math.Inf(-1)}, "v: -.inf\n"},
-		{"large whole", map[string]any{"v": 1e20}, "v: 100000000000000000000\n"},
+		{"large whole past int64", map[string]any{"v": 1e20}, "v: 1.0e+20\n"},
 		{"million", map[string]any{"v": 1e6}, "v: 1000000\n"},
 		{"seconds since epoch", map[string]any{"v": 1700000000.0}, "v: 1700000000\n"},
 		{"negative zero", map[string]any{"v": math.Copysign(0, -1)}, "v: 0\n"},

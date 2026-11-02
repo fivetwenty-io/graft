@@ -411,10 +411,12 @@ func zeroer(v reflect.Value) (zero, ok bool) {
 }
 
 // formatFloat writes f as a YAML 1.1 scalar that reads back as a number.
-// A whole number is plain integer digits at any size. Any other number
-// has a "." and, when it is too small to print without an exponent, an
-// exponent with a sign, since the YAML 1.1 float expression wants both.
-// NaN and the infinities are .nan, .inf, and -.inf.
+// A whole number that fits in an int64 is plain integer digits, so 3.0 is
+// 3 and 1e6 is 1000000. Any other float has a "." so that a reader takes
+// it for a float: a whole number past the int64 range, such as 1e20,
+// becomes 1.0e+20, and a fraction too small to print without an exponent
+// gets a signed exponent as the YAML 1.1 float expression wants. NaN and
+// the infinities are .nan, .inf, and -.inf.
 func formatFloat(f float64, bitSize int) string {
 	switch {
 	case math.IsNaN(f):
@@ -425,10 +427,9 @@ func formatFloat(f float64, bitSize int) string {
 		return "-.inf"
 	case f == 0:
 		return "0"
-	case f == math.Trunc(f):
-		return strconv.FormatFloat(f, 'f', -1, bitSize)
-	}
-	if math.Abs(f) >= 1e-4 {
+	case f == math.Trunc(f) && f >= -(1<<63) && f < 1<<63:
+		return strconv.FormatInt(int64(f), 10)
+	case f != math.Trunc(f) && math.Abs(f) >= 1e-4:
 		return strconv.FormatFloat(f, 'f', -1, bitSize)
 	}
 	s := strconv.FormatFloat(f, 'e', -1, bitSize)

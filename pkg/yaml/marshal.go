@@ -29,17 +29,16 @@ import (
 // "? key" is double-quoted on one line instead, because goccy's parser
 // misreads some of those, and so are strings that goccy's parser misreads
 // in other places. A float that holds a whole number is plain integer
-// digits at any size, so 3.0 is 3 and 1e6 is 1000000. Any other float
-// has a "." so that a YAML 1.1 reader reads it as a float, and NaN and
+// digits when it fits in an int64, so 3.0 is 3 and 1e6 is 1000000. A
+// whole float outside that range, and any other float, has a "." (1e20
+// is 1.0e+20) so that a YAML 1.1 reader reads it as a float, and NaN and
 // the infinities are .nan, .inf, and -.inf. A map key that is an integer,
 // a bool, or a float is written as that scalar without quotes, and keys
 // are ordered by the key order applied to their text, so 9 comes before
 // 10 in spruce order.
 //
-// Unmarshal reads this output back to an equal value. The one limit is a
-// whole float past 64 bits, such as 1e20, which Unmarshal into any reads
-// as a string of its digits, as it reads any integer it cannot hold, while
-// a float64 target reads it as the float.
+// Unmarshal reads this output back to an equal value, with a whole float
+// inside the int64 range coming back as an int when the target is any.
 //
 // Marshal refuses a v that holds a Node anywhere, including as a map key,
 // because writing a Node tree back is not supported, a v that holds a
