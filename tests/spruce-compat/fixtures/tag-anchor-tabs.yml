@@ -82,3 +82,8 @@ tagged_value: !custom
 tagged_list: !custom
 - 1
 after_empty: 2
+flow_empty: {k: !custom &f1, w: z}
+flow_empty_items: [!custom , ! , z]
+flow_empty_alias: {k: !custom &f2 , w: *f2}
+flow_empty_end: [!custom &f3]
+after_flow: 3

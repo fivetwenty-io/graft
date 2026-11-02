@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A tag with no value before the next key or list item no longer moves that key or item under it. Before, `a: !foo` followed by `b: 1` merged to `a: {b: 1}`, and `- !foo` followed by `- 2` and `- 3` merged to `[[2, 3]]`, so keys and items sat a level too deep and an anchor on the tagged node changed what its aliases named. That held for a custom tag, a verbatim tag, the bare `!`, and `!!set`, with an anchor before or after the tag, and with a space, a tab, a comment, or blank lines after them. `graft merge`, `graft json`, `graft diff`, and `pkg/yaml` now read the empty string there, as spruce does. A core tag in the same place, such as `a: !!str` or `- !!str &n` before the next key or item, used to fail the document and now reads as it does in spruce too, which is the empty string under most tags, null under `!!null`, and an error that gives the tag's line and column under `!!int`, `!!float`, and `!!bool`. A node on the next line that is indented under the tagged key or item is still its value.
 
+- A custom, verbatim, or bare `!` tag with no value before a comma or the end of a flow collection, as in `a: {k: !foo &n, w: z}` or `a: [!foo , z]`, now reads as the empty string, as it does in spruce. Before, it failed the document. A tag with the comma or the bracket right after it, as in `a: [!, z]`, still fails, because spruce reads that character as part of the tag's name.
+
 ## [1.43.1] - 2026-10-27
 
 This release fixes `graft install-aliases` on Linux, where it put the `jq`, `yq`, and `spruce` links in a directory that isn't on `PATH`.

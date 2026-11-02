@@ -180,6 +180,18 @@ empty string. A !!int or !!bool tag there, as in a: [!!int , z], reads as
 0 or false, where spruce fails. A tab in place of the space reads the
 same way.
 
+A custom, verbatim, or bare tag with nothing after it in a flow
+collection reads as the empty string, as it does in spruce, when a
+blank, an anchor, or a line break comes between the tag and the comma or
+the collection's end, as in a: {k: !foo &n, w: z}. A few of those shapes
+are syntax errors that give a line and a column, where spruce reads
+them. One is a tag with a comma or a bracket right after it, as in
+a: [!, z] or a: {k: !foo,w: z}, which spruce reads as part of the tag's
+name, so that it drops the item or reads the next value as the tag's.
+Another is a verbatim tag that holds a comma, as in
+a: [!<tag:x.y,2020:z> , z], and the last is a !!set tag, as in
+a: {k: !!set &n, w: z}.
+
 A block scalar whose last line ends the document with no line break,
 and holds a tab inside the indentation, as in "a: |\n    x\n  \t", reads
 as if that line were empty, where spruce fails. Node.Decode fails on it

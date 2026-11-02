@@ -20,17 +20,25 @@ import (
 // node on the next line that is indented under the tag's parent is still
 // the tag's value, as in "a: !custom\n  x: 1", and so is a sequence at
 // the indentation of a mapping key, as in "a: !custom\n- x".
+//
+// In a flow collection the parser fails a custom tag, the bare tag "!",
+// or a verbatim tag that has no value before a comma or the collection's
+// end, as in "{k: !custom &n, w: z}". emptyTagValues gives those tags an
+// implicit null too, which spruce reads as the empty string. It leaves
+// the core tags in a flow collection alone, since the parser has its own
+// reading of each of them there, and a tag with no blank before the
+// comma or bracket, which spruce reads as part of the tag.
 
 // emptyTagValues returns toks with an implicit null after each tag that
-// ends its line with no value of its own, together with an anchor, if
-// one sits next to it. It also returns the tags among them that the
-// parser reads a collection under. text is the document toks come from. The added
+// has no value of its own, as the comment above sets out, together with
+// an anchor, if one sits next to it. It also returns the tags among them
+// that the parser reads a collection under. text is the document toks come from. The added
 // tokens are not linked to the tokens around them, as the parser's own
 // implicit nulls are not, so a walk of the token chain still gives the
 // text as written.
 func emptyTagValues(text string, toks token.Tokens) (token.Tokens, []*token.Token) {
 	var runs []tagRun
-	lines := lineIndex{text: text}
+	lines := lineIndex{text: text, after: map[int]int{}}
 	depth := 0
 	for i, tk := range toks {
 		switch tk.Type {
@@ -45,10 +53,16 @@ func emptyTagValues(text string, toks token.Tokens) (token.Tokens, []*token.Toke
 				return toks, nil
 			}
 		case token.TagType:
-			if depth > 0 {
-				continue
+			// Every tag is found in the text, in order, so that each
+			// search on a line starts after the tag before it.
+			abuts := lines.tagAbuts(tk)
+			r, ok := tagProperties(toks, i)
+			if depth == 0 {
+				ok = ok && emptyInBlock(&lines, toks, r)
+			} else {
+				ok = ok && emptyInFlow(toks, r, abuts)
 			}
-			if r, ok := tagProperties(toks, i); ok && emptyInBlock(&lines, toks, r) {
+			if ok {
 				runs = append(runs, r)
 			}
 		}
@@ -159,6 +173,51 @@ func emptyInBlock(lines *lineIndex, toks token.Tokens, r tagRun) bool {
 	return toks[p].Type != token.MappingValueType || n.Type != token.SequenceEntryType || n.Position.Column != col
 }
 
+// emptyInFlow reports whether the tag and anchor r, inside a flow
+// collection, come right before a comma or the collection's end, and
+// the tag is one that the parser has no reading of its own for. abuts
+// reports whether the tag has a character other than a blank right
+// after it.
+func emptyInFlow(toks token.Tokens, r tagRun, abuts bool) bool {
+	tag := toks[r.tag].Value
+	if strings.HasPrefix(tag, "!!") && (scalarCoreTags[tag] || collectionTags[token.ReservedTagKeyword(tag)]) {
+		return false
+	}
+	next := nextNonCommentAt(toks, r.end+1)
+	if next < 0 || r.end == r.tag && abuts {
+		// spruce reads a comma or a bracket right after a tag as part of
+		// the tag's name.
+		return false
+	}
+	switch toks[next].Type {
+	case token.CollectEntryType, token.MappingEndType, token.SequenceEndType:
+		return true
+	}
+	return false
+}
+
+// tagAbuts reports whether a character other than a blank follows tag
+// on its line, as a comma or a bracket that the scanner split off does.
+// The parser places the tokens after a tag on a line one column earlier
+// than the text has them, one more column for each tag, so this reads
+// the text for the first place the tag's text starts a token, from the
+// tag's column or the end of the tag found before it on the line,
+// whichever is later. It reports true when there is no such place. The
+// caller asks about the tags in the order they come.
+func (x *lineIndex) tagAbuts(tag *token.Token) bool {
+	r := []rune(x.line(tag.Position.Line))
+	v := []rune(tag.Value)
+	for i := max(tag.Position.Column-1, x.after[tag.Position.Line]); i+len(v) <= len(r); i++ {
+		if string(r[i:i+len(v)]) != tag.Value || i > 0 && !strings.ContainsRune(" \t[{,", r[i-1]) {
+			continue
+		}
+		j := i + len(v)
+		x.after[tag.Position.Line] = j
+		return j < len(r) && r[j] != ' ' && r[j] != '\t'
+	}
+	return true
+}
+
 // parentColumn returns the column a node must be indented past to be
 // the value of the "-" or ":" at toks[p]: the column of the "-", or the
 // column the key before the ":" starts at, with its properties. It
@@ -238,10 +297,12 @@ func sameLine(a, b *token.Token) bool {
 }
 
 // lineIndex finds the lines of text, splitting it the first time a line
-// is asked for.
+// is asked for. after holds, for each line, the index of the rune after
+// the last tag that tagAbuts found on it.
 type lineIndex struct {
 	text  string
 	lines []string
+	after map[int]int
 }
 
 // tabBefore reports whether a tab sits on tk's line before tk, where the

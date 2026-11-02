@@ -183,3 +183,67 @@ func TestEmptyTagNodePlace(t *testing.T) {
 		}
 	}
 }
+
+// TestUnmarshalReadsEmptyTagInFlow checks a custom, verbatim, or bare tag
+// with no value before a comma or the end of a flow collection, with a
+// blank, an anchor, or a line break after it, which the parser failed.
+// Each value is the one spruce v1.35.17 gives.
+func TestUnmarshalReadsEmptyTagInFlow(t *testing.T) {
+	kw := map[string]any{"a": map[string]any{"k": "", "w": "z"}}
+	item := map[string]any{"a": []any{"", "z"}}
+	checkScannerCases(t, []scannerCase{
+		{"mapping value", "a: {k: !custom , w: z}\n", kw},
+		{"anchor after", "a: {k: !custom &n, w: z}\n", kw},
+		{"anchor and blank", "a: {k: !custom &n , w: z}\n", kw},
+		{"anchor before", "a: {k: &n !custom , w: z}\n", kw},
+		{"tab and anchor", "a: {k: !custom\t&n, w: z}\n", kw},
+		{"line break", "a: {k: !custom &n\n  , w: z}\n", kw},
+		{"alias", "a: {k: !custom &n, w: *n}\n", map[string]any{"a": map[string]any{"k": "", "w": ""}}},
+		{"mapping end", "a: {k: !custom &n}\n", map[string]any{"a": map[string]any{"k": ""}}},
+		{"blank and mapping end", "a: {k: !custom }\n", map[string]any{"a": map[string]any{"k": ""}}},
+		{"root mapping", "{a: !custom &n, b: 1}\n", map[string]any{"a": "", "b": 1}},
+		{"item", "a: [!custom , z]\n", item},
+		{"item and anchor", "a: [!custom &n, z]\n", item},
+		{"item, anchor, and blank", "a: [!custom &n , z]\n", item},
+		{"item and tab", "a: [!custom\t, z]\n", item},
+		{"item and line break", "a: [!custom\n, z]\n", item},
+		{"bare item", "a: [! , z]\n", item},
+		{"sequence end", "a: [!custom &n]\n", map[string]any{"a": []any{""}}},
+		{"blank and sequence end", "a: [!custom ]\n", map[string]any{"a": []any{""}}},
+		{"core tag", "a: {k: !!str &n, w: z}\n", kw},
+		{"two on a line", "a: [!custom , ! , z]\n", map[string]any{"a": []any{"", "", "z"}}},
+		{"two with tabs", "a: [!a\t,\t!a\t, z]\n", map[string]any{"a": []any{"", "", "z"}}},
+		{"five on a line", "a: [! , ! , ! , ! , ! , z]\n", map[string]any{"a": []any{"", "", "", "", "", "z"}}},
+		{"block tag first", "a: !x [!y , z]\n", map[string]any{"a": []any{"", "z"}}},
+	})
+}
+
+// TestEmptyTagInFlowFails checks the empty tags in a flow collection that
+// still fail the document: a tag with a comma or a bracket right after it,
+// which spruce reads as part of the tag's name, a verbatim tag, which the
+// scanner splits at its comma, and a !!set tag. Each error gives a line
+// and a column and quotes nothing from the input.
+func TestEmptyTagInFlowFails(t *testing.T) {
+	for _, c := range []struct {
+		doc          string
+		line, column int
+	}{
+		{"secret: [&n !custom, hidden]\n", 1, 19},
+		{"secret: [!, hidden]\n", 1, 10},
+		{"secret: {k: !custom,w: hidden}\n", 1, 19},
+		{"secret: [!custom]\n", 1, 9},
+		{"secret: [!<tag:x.y,2020:z> , hidden]\n", 1, 18},
+		{"secret: {k: !!set &n, w: hidden}\n", 1, 18},
+		{"secret: [!a , !a, hidden]\n", 1, 15},
+	} {
+		var v any
+		err := yaml.Unmarshal([]byte(c.doc), &v)
+		de := wantDecodeError(t, err, yaml.ErrorKindSyntax, c.line)
+		if de.Column != c.column {
+			t.Errorf("Unmarshal(%q): column %d, want %d (%v)", c.doc, de.Column, c.column, de)
+		}
+		if strings.Contains(de.Error(), "secret") || strings.Contains(de.Error(), "hidden") {
+			t.Errorf("Unmarshal(%q): error %q quotes the input", c.doc, de.Error())
+		}
+	}
+}
