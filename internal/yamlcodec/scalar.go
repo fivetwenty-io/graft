@@ -722,38 +722,44 @@ func (w *scalarWriter) writeScalar(value []byte, style scalarStyle, simpleKey bo
 // indicators precede it on its line, as after "- ". The result never
 // includes the separating space.
 func renderValueScalar(s string, column, indent int, indention bool) string {
+	return renderValueScalarAs(s, requestedScalarStyle(s), column, indent, indention)
+}
+
+// renderValueScalarAs is renderValueScalar with the requested style
+// given, for a caller that quotes a string the fork would write plain.
+func renderValueScalarAs(s string, requested scalarStyle, column, indent int, indention bool) string {
 	value := []byte(s)
 	a := analyzeScalar(value)
-	style := selectScalarStyle(value, requestedScalarStyle(s), a, false)
+	style := selectScalarStyle(value, requested, a, false)
 	w := scalarWriter{column: column, indent: indent, whitespace: true, indention: indention}
 	w.writeScalar(value, style, false)
 	return string(w.buf)
 }
 
-// renderSimpleKey returns spruce's text for string s written as a
+// renderSimpleKeyAs returns spruce's text for string s written as a
 // simple mapping key, or ok=false when spruce writes s in the explicit
 // "? key" form instead.
-func renderSimpleKey(s string, column int) (text string, ok bool) {
+func renderSimpleKeyAs(s string, requested scalarStyle, column int) (text string, ok bool) {
 	value := []byte(s)
 	a := analyzeScalar(value)
 	if !isSimpleKey(value, a) {
 		return "", false
 	}
-	style := selectScalarStyle(value, requestedScalarStyle(s), a, true)
+	style := selectScalarStyle(value, requested, a, true)
 	w := scalarWriter{column: column, indent: column + scalarBestIndent, whitespace: true, indention: true}
 	w.writeScalar(value, style, true)
 	return string(w.buf), true
 }
 
-// renderComplexKey returns spruce's text for string s written as an
+// renderComplexKeyAs returns spruce's text for string s written as an
 // explicit key in a block mapping whose keys sit at column keyColumn:
 // the "? " indicator, the key scalar, a line break where libyaml writes
 // one, and the ":" that introduces the value. The value follows the
 // colon, separated by a single space.
-func renderComplexKey(s string, keyColumn int) string {
+func renderComplexKeyAs(s string, requested scalarStyle, keyColumn int) string {
 	value := []byte(s)
 	a := analyzeScalar(value)
-	style := selectScalarStyle(value, requestedScalarStyle(s), a, false)
+	style := selectScalarStyle(value, requested, a, false)
 	w := scalarWriter{column: keyColumn, indent: keyColumn, whitespace: true, indention: true}
 	w.writeIndicator("?", true, true)
 	w.indent = keyColumn + scalarBestIndent
@@ -762,4 +768,25 @@ func renderComplexKey(s string, keyColumn int) string {
 	w.writeIndent()
 	w.writeIndicator(":", true, true)
 	return string(w.buf)
+}
+
+// yaml11Timestamp is the timestamp expression of the YAML 1.1 type
+// repository, which Psych and other 1.1 readers resolve a plain scalar
+// against.
+var yaml11Timestamp = regexp.MustCompile(`^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[Tt]|[ \t]+)[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?(?:[ \t]*(?:Z|[-+][0-9]{1,2}(?::[0-9]{2})?))?)$`)
+
+// readsAsTimestamp reports whether a YAML 1.1 reader resolves the plain
+// scalar s as a timestamp.
+func readsAsTimestamp(s string) bool {
+	return yaml11Timestamp.MatchString(s)
+}
+
+// timestampStyle is the style requested for s when quoteTimestamps is
+// set: double quotes for a string that reads as a timestamp, and the
+// fork's own choice otherwise.
+func timestampStyle(s string, quoteTimestamps bool) scalarStyle {
+	if quoteTimestamps && readsAsTimestamp(s) {
+		return doubleQuotedScalarStyle
+	}
+	return requestedScalarStyle(s)
 }

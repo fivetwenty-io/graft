@@ -64,9 +64,30 @@ func MarshalYAMLWithComments(v interface{}, comments []YAMLHeadComment) ([]byte,
 // MarshalYAMLWithComments, but orders every map's keys with less. A nil
 // less keeps spruce's order.
 func MarshalYAMLWithCommentsWith(v interface{}, comments []YAMLHeadComment, less func(a, b string) bool) ([]byte, error) {
-	enc, prepared := newScalarEncoder(v, comments, less)
+	return marshalYAML(v, comments, less, false)
+}
+
+// MarshalYAMLTyped serializes v like MarshalYAMLWith, with two additions
+// for a consumer that reads the output as YAML 1.1. A float that holds a
+// whole number is written as an integer, so 3.0 becomes 3, while NaN, the
+// infinities, a float with a fraction, and one too large to print without
+// an exponent keep their float form. A string that a YAML 1.1 reader
+// resolves as a timestamp is double-quoted. graft merge does not use it,
+// and its output is unchanged.
+func MarshalYAMLTyped(v interface{}, less func(a, b string) bool) ([]byte, error) {
+	return marshalYAML(v, nil, less, true)
+}
+
+// marshalYAML is the encoder behind the exported functions. typed turns
+// on the whole-number floats and the quoted timestamps that
+// MarshalYAMLTyped describes.
+func marshalYAML(v interface{}, comments []YAMLHeadComment, less func(a, b string) bool, typed bool) ([]byte, error) {
+	enc, prepared := newScalarEncoder(v, comments, less, typed)
 
 	opts := []yaml.EncodeOption{yaml.Indent(2)}
+	if typed {
+		opts = append(opts, yaml.AutoInt())
+	}
 	if len(comments) > 0 {
 		cm := yaml.CommentMap{}
 		for _, c := range comments {
@@ -185,6 +206,8 @@ type scalarSlot struct {
 	// non-empty block mapping or sequence. libyaml starts that value on
 	// the ":" line, where goccy starts it on the next line.
 	mapValue, seqValue bool
+	// style is the style the string is requested in.
+	style scalarStyle
 }
 
 // nodePosition is where libyaml writes a node: the column a scalar
@@ -248,17 +271,20 @@ type scalarEncoder struct {
 	prefix string
 	slots  []scalarSlot
 	less   func(a, b string) bool
+	// quoteTimestamps double-quotes a string a YAML 1.1 reader would
+	// resolve as a timestamp.
+	quoteTimestamps bool
 }
 
 // newScalarEncoder prepares v for goccy and returns the encoder that
 // fills its placeholders back in.
-func newScalarEncoder(v interface{}, comments []YAMLHeadComment, less func(a, b string) bool) (*scalarEncoder, interface{}) {
+func newScalarEncoder(v interface{}, comments []YAMLHeadComment, less func(a, b string) bool, quoteTimestamps bool) (*scalarEncoder, interface{}) {
 	if less == nil {
 		less = spruceKeyLess
 	}
 	prefix := scalarPlaceholderPrefix
 	for {
-		e := &scalarEncoder{prefix: prefix, less: less}
+		e := &scalarEncoder{prefix: prefix, less: less, quoteTimestamps: quoteTimestamps}
 		prepared, ok := e.prepare(v, rootPosition)
 		if ok && !commentsContain(comments, prefix) {
 			return e, prepared
@@ -343,10 +369,11 @@ func (e *scalarEncoder) prepareValue(s string, pos nodePosition) (interface{}, b
 		// goccy keeps these; spruce cannot read such a string anyway.
 		return s, true
 	}
-	if renderValueScalar(s, pos.scalarColumn, pos.scalarIndent, pos.indention) == s && goccyWritesVerbatim(s) {
+	style := timestampStyle(s, e.quoteTimestamps)
+	if renderValueScalarAs(s, style, pos.scalarColumn, pos.scalarIndent, pos.indention) == s && goccyWritesVerbatim(s) {
 		return s, true
 	}
-	return e.placeholder(scalarSlot{s: s, kind: valueSlot, indent: pos.scalarIndent, indention: pos.indention}), true
+	return e.placeholder(scalarSlot{s: s, kind: valueSlot, indent: pos.scalarIndent, indention: pos.indention, style: style}), true
 }
 
 // prepareKey returns key k, or a placeholder for it, and the position
@@ -358,9 +385,10 @@ func (e *scalarEncoder) prepareKey(k string, m int, value interface{}) (interfac
 	if !utf8.ValidString(k) {
 		return k, mapValuePosition(m, len(k)), true
 	}
-	text, simple := renderSimpleKey(k, m)
+	style := timestampStyle(k, e.quoteTimestamps)
+	text, simple := renderSimpleKeyAs(k, style, m)
 	if !simple {
-		slot := scalarSlot{s: k, kind: complexKeySlot, indent: m}
+		slot := scalarSlot{s: k, kind: complexKeySlot, indent: m, style: style}
 		slot.mapValue, slot.seqValue = blockCollectionKind(value)
 		return e.placeholder(slot), complexValuePosition(m), true
 	}
@@ -368,7 +396,7 @@ func (e *scalarEncoder) prepareKey(k string, m int, value interface{}) (interfac
 	if text == k && goccyWritesVerbatim(k) {
 		return k, pos, true
 	}
-	return e.placeholder(scalarSlot{s: k, kind: simpleKeySlot}), pos, true
+	return e.placeholder(scalarSlot{s: k, kind: simpleKeySlot, style: style}), pos, true
 }
 
 // goccyWritesVerbatim reports whether goccy writes s, a string spruce
@@ -572,14 +600,14 @@ func (st *substitution) writeSlot(slot scalarSlot, i int) (int, bool) {
 	var text string
 	switch slot.kind {
 	case valueSlot:
-		text = renderValueScalar(slot.s, st.column, slot.indent, slot.indention)
+		text = renderValueScalarAs(slot.s, slot.style, st.column, slot.indent, slot.indention)
 	case simpleKeySlot:
-		text, _ = renderSimpleKey(slot.s, st.column)
+		text, _ = renderSimpleKeyAs(slot.s, slot.style, st.column)
 	case complexKeySlot:
 		if i < len(st.in) && st.in[i] == ':' {
 			i++
 		}
-		text = renderComplexKey(slot.s, slot.indent)
+		text = renderComplexKeyAs(slot.s, slot.style, slot.indent)
 	}
 	st.out = append(st.out, text...)
 	st.column = advanceColumn(st.column, text)

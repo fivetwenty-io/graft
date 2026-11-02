@@ -32,6 +32,31 @@ func inDecoder(function string) bool {
 // the first frame below runtime.gopanic that is not in the runtime,
 // which is where the panic started.
 func panicFromDecoder() bool {
+	return panicStartedIn(inDecoder)
+}
+
+// encoderModule is graft's own encoder, whose panics an encode turns
+// into an error along with goccy's and reflect's.
+const encoderModule = "github.com/fivetwenty-io/graft/internal/yamlcodec"
+
+// inEncoder reports whether function is in the packages an encode runs
+// on a caller's value, which are inDecoder's and graft's own encoder.
+func inEncoder(function string) bool {
+	if rest, ok := strings.CutPrefix(function, encoderModule); ok {
+		return strings.HasPrefix(rest, ".")
+	}
+	return inDecoder(function)
+}
+
+// panicFromEncoder is panicFromDecoder for an encode, and the same
+// rules for where it is called apply.
+func panicFromEncoder() bool {
+	return panicStartedIn(inEncoder)
+}
+
+// panicStartedIn reports whether the frame where the panic being
+// recovered started is one that in accepts.
+func panicStartedIn(in func(function string) bool) bool {
 	pcs := make([]uintptr, 64)
 	frames := runtime.CallersFrames(pcs[:runtime.Callers(1, pcs)])
 	panicking := false
@@ -41,7 +66,7 @@ func panicFromDecoder() bool {
 		case frame.Function == "runtime.gopanic":
 			panicking = true
 		case panicking && !strings.HasPrefix(frame.Function, "runtime."):
-			return inDecoder(frame.Function)
+			return in(frame.Function)
 		}
 		if !more {
 			return false
