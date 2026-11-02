@@ -478,21 +478,28 @@ func DecodeBody(body ast.Node, v any, opts ...yaml.DecodeOption) error {
 // document, or a null one. Errors come back as ParseYAML11CompatAware
 // returns them.
 func DecodeGeneric(doc []byte, c *YAMLCompat, intsAlways bool) (any, error) {
-	// Apply graft's goccy input workarounds in one place: the bare "-"
-	// terminator rewrite, <<<: inject-key quoting, and quoting of
-	// {{...}} template placeholders so they read as strings rather than
-	// as flow mappings used as keys (see internal/yamlprep).
-	doc, _ = yamlprep.Prepare(doc)
-
-	// Quoted YAML 1.1 boolean-lookalike scalars ("yes", 'On', "OFF",
-	// ...) are tagged during this parse so the conversion below skips
-	// them, matching spruce (quoting is an explicit request to keep the
-	// value a string).
-	body, err := ParseFirstBody(doc, true)
+	body, err := ParseMergeBody(doc, true)
 	if err != nil {
 		return nil, err
 	}
 	return DecodeGenericBody(body, c, intsAlways)
+}
+
+// ParseMergeBody parses doc, a first document that FirstMergeDocument
+// returned, into the body ParseFirstBody describes, with tag as it says.
+// It is the one place that applies graft's goccy input workarounds before
+// a parse, which are the bare "-" terminator rewrite, quoting of the
+// <<<: inject key, and quoting of {{...}} template placeholders so they
+// read as strings rather than as flow mappings used as keys (see
+// internal/yamlprep). Every decode route parses through it.
+//
+// When tag is set, quoted YAML 1.1 boolean-lookalike scalars ("yes",
+// 'On', "OFF", ...) are tagged during the parse so a later conversion
+// skips them, matching spruce, where quoting is an explicit request to
+// keep the value a string.
+func ParseMergeBody(doc []byte, tag bool) (ast.Node, error) {
+	doc, _ = yamlprep.Prepare(doc)
+	return ParseFirstBody(doc, tag)
 }
 
 // DecodeGenericBody is the part of DecodeGeneric that follows the

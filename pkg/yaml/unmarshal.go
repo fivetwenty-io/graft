@@ -6,7 +6,6 @@ import (
 	"github.com/goccy/go-yaml/ast"
 
 	"github.com/fivetwenty-io/graft/internal/yamlcodec"
-	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // Unmarshal decodes the first YAML document in data into v, reading
@@ -100,8 +99,7 @@ func textSource(data []byte) source {
 		if err != nil {
 			return nil, translate(err)
 		}
-		doc, _ = yamlprep.Prepare(doc)
-		body, err := yamlcodec.ParseFirstBody(doc, tag)
+		body, err := yamlcodec.ParseMergeBody(doc, tag)
 		if err != nil {
 			return nil, translate(err)
 		}
