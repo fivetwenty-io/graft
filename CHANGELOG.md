@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `Diffable.String` now prints a key or a value that holds color markup, such as `@R{x}`, exactly as written, whether color is on or off. Before, it read that text as markup, so the braces disappeared and the text took a color of its own. Graft's own colors still apply, and the `graft diff` command was already correct.
+
 - Concurrent merges and evaluations on one shared `Engine` no longer give wrong results. They used to see and clear one another's static IP claims, queued prunes, and queued sorts.
 
 - Concurrent runs with `REDACT` set no longer race on the engine's skip and redact settings.

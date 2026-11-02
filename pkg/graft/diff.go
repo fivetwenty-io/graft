@@ -21,10 +21,10 @@ func indent(pad, s string) string {
 // style says how a diff is rendered. Color is applied only here, at render
 // time, because Diff stores raw values and keys.
 //
-// Without verbatim, rendering is what String has always done: user text goes
-// through the ansi markup rules and the color flag decides whether markup
-// becomes escapes or is stripped. With verbatim, only graft's own template
-// text is markup, and keys and values appear exactly as written.
+// Only graft's own template text is markup, and the color flag decides
+// whether that markup becomes escapes or is stripped. Keys and values appear
+// exactly as written. The verbatim flag marks the plain rendering, which
+// also strips escapes from a Diffable that graft doesn't own.
 type style struct {
 	color    bool
 	verbatim bool
@@ -36,28 +36,21 @@ func toggleStyle() style {
 	return style{color: fmt.IsColorEnabled()}
 }
 
-// text prepares a stored key or value for display.
+// text prepares a stored key or value for display. User text is never read
+// as markup, so it comes back unchanged.
 func (st style) text(x string) string {
-	if st.verbatim {
-		return x
-	}
-	return fmt.SprintfColor(st.color, "%s", x)
+	return x
 }
 
-// format expands a template whose markup is graft's own.
+// format expands a template whose markup is graft's own. The arguments are
+// formatted in after the markup is processed, so they stay literal.
 func (st style) format(template string, args ...interface{}) string {
-	if st.verbatim {
-		return fmt.SprintfTemplate(false, template, args...)
-	}
-	return fmt.SprintfColor(st.color, template, args...)
+	return fmt.SprintfTemplate(st.color, template, args...)
 }
 
 // childKey builds the key a nested diff renders under.
 func (st style) childKey(format, key, k string) string {
-	if st.verbatim {
-		return stdfmt.Sprintf(format, key, k)
-	}
-	return fmt.SprintfColor(st.color, format, key, st.text(k))
+	return stdfmt.Sprintf(format, key, k)
 }
 
 func (st style) yamlstring(f string, x Diffable) string {
