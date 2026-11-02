@@ -1,4 +1,3 @@
-// Package yaml decodes YAML the way graft's merge engine reads it.
 package yaml
 
 import (
