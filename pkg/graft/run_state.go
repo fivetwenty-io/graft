@@ -2,19 +2,40 @@ package graft
 
 import "context"
 
-// runEngine is the Engine an evaluator sees during one run. Every
-// method goes to the shared *DefaultEngine except GetOperatorState,
-// which returns the run's own state, so operators that reach their
-// state through GetEngine(ev).GetOperatorState() read and write only
-// this run's markers while several runs share one engine.
+// runEngine is the Engine an evaluator sees during one run. It embeds
+// both the shared *DefaultEngine and the run's own *operatorState. The
+// run state's methods sit one level shallower than the ones the engine
+// promotes from its own state, so they win: GetEngine(ev).GetOperatorState()
+// and an assertion of GetEngine(ev) to OperatorState both reach this
+// run's markers, while every other Engine method goes to the shared
+// engine. Several runs can therefore share one engine without reading
+// or clearing one another's markers.
 type runEngine struct {
 	*DefaultEngine
-	state *operatorState
+	*operatorState
+}
+
+// startRun begins a run on e. The run works on state, or on a fresh
+// state from forRun when state is nil, and the returned runEngine is what
+// the run's operators see. The caller must call finish exactly once when
+// the run ends, on every exit path: finish publishes the run's outputs to
+// e through absorb, passing publishPrunes along, and then clears the
+// run's own prune, sort, and static IP markers.
+func (e *DefaultEngine) startRun(state *operatorState) (run *runEngine, finish func(publishPrunes bool)) {
+	if state == nil {
+		state = e.forRun()
+	}
+	run = &runEngine{DefaultEngine: e, operatorState: state}
+	finish = func(publishPrunes bool) {
+		e.absorb(state, publishPrunes)
+		state.resetPerRunState()
+	}
+	return run, finish
 }
 
 // GetOperatorState returns the run's own operator state.
 func (r *runEngine) GetOperatorState() OperatorState {
-	return r.state
+	return r.operatorState
 }
 
 // runStateKey is the context key a merge carries its run state under,
@@ -71,12 +92,7 @@ func (e *operatorState) forRun() *operatorState {
 // prune step passes false and leaves the previous run's paths in place.
 func (e *operatorState) absorb(run *operatorState, publishPrunes bool) {
 	refs := run.GetVaultRefs()
-	run.vaultMutex.RLock()
-	placeholders := make(map[string]string, len(run.vaultPlaceholders))
-	for path, key := range run.vaultPlaceholders {
-		placeholders[path] = key
-	}
-	run.vaultMutex.RUnlock()
+	placeholders := run.snapshotVaultPlaceholders()
 
 	e.vaultMutex.Lock()
 	if e.vaultRefs == nil {
@@ -111,11 +127,11 @@ func (e *operatorState) absorb(run *operatorState, publishPrunes bool) {
 }
 
 // opState returns the operator state this merge's post-processing reads
-// and writes: the run state applyPostProcessing put in m.ctx, or the
+// and writes: the run state applyPostProcessing set in m.runState, or the
 // engine's own state for an engine that is not a *DefaultEngine.
 func (m *mergeBuilderImpl) opState() OperatorState {
-	if state := runStateFrom(m.ctx); state != nil {
-		return state
+	if m.runState != nil {
+		return m.runState
 	}
 	return m.engine.GetOperatorState()
 }

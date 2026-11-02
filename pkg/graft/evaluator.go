@@ -97,6 +97,13 @@ type Evaluator struct {
 }
 
 // SetEngine sets the engine for the evaluator.
+//
+// An Evaluator serves one call. Run reads and writes the operator state
+// of the engine set here, so do not hand it an engine that other
+// goroutines are using: concurrent calls would see and clear one
+// another's prune, sort, and static IP markers. To share one engine
+// across goroutines, call Engine.Evaluate, which gives every run its
+// own state.
 func (ev *Evaluator) SetEngine(engine Engine) {
 	ev.engine = engine
 }
@@ -1143,6 +1150,12 @@ func (ev *Evaluator) RunPhase(p OperatorPhase) error {
 }
 
 // Run executes all evaluation phases with optional pruning and cherry-picking.
+//
+// Run works on the operator state of the engine the evaluator holds (see
+// SetEngine), not on a state of its own, so it is not safe on an engine
+// shared with concurrent calls. Under a non-empty REDACT it also turns on
+// that engine's skip and redact settings for good. An Evaluator is meant
+// for one call; to evaluate on a shared engine, use Engine.Evaluate.
 func (ev *Evaluator) Run(prune, picks []string) error {
 	errors := MultiError{Errors: []error{}}
 	paramErrs := MultiError{Errors: []error{}}

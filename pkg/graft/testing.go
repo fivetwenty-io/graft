@@ -42,10 +42,14 @@ func NewTestHelperWithOptions(t *testing.T, opts ...EngineOption) *TestHelper {
 }
 
 // NewTestEvaluator parses yamlStr and returns a real *Evaluator over its
-// root document, wired to a fresh default-configured engine exactly as
-// Engine.Evaluate would build one internally. It is the constructor to use
-// when unit-testing a custom Operator's Run method directly, in place of
-// the fictional EvalContext/NewMockEvalContext scheme once documented here:
+// root document, wired directly to a fresh default-configured engine.
+// Engine.Evaluate instead hands its evaluator a wrapper whose operator
+// state belongs to that run alone. Each call here builds its own engine,
+// so no other run shares the state this evaluator sees.
+//
+// It is the constructor to use when unit-testing a custom Operator's Run
+// method directly, in place of the fictional EvalContext/NewMockEvalContext
+// scheme once documented here:
 // Operator.Run receives (ev *Evaluator, args []*Expr), not an EvalContext,
 // and args arrive unevaluated — call EvaluateOperatorArgs(ev, args) inside
 // the operator under test if it needs resolved values.

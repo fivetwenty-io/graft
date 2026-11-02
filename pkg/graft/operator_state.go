@@ -198,6 +198,20 @@ func (e *operatorState) GetVaultRefs() map[string][]string {
 	return result
 }
 
+// snapshotVaultPlaceholders returns a copy of the vault placeholders
+// recorded so far, keyed by tree path, taken under vaultMutex like
+// GetVaultRefs.
+func (e *operatorState) snapshotVaultPlaceholders() map[string]string {
+	e.vaultMutex.RLock()
+	defer e.vaultMutex.RUnlock()
+
+	result := make(map[string]string, len(e.vaultPlaceholders))
+	for path, key := range e.vaultPlaceholders {
+		result[path] = key
+	}
+	return result
+}
+
 // RecordVaultPlaceholder remembers that treePath received the
 // skip-vault sentinel for vaultKey, so a later vault-path-building
 // reference to treePath can render a symbolic "<vaultKey>" form (see

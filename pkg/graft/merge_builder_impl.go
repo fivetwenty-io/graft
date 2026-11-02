@@ -55,6 +55,13 @@ type mergeBuilderImpl struct {
 	// WithPriorCalcValues. nil for the overwhelming majority of merges that
 	// never write this expression shape — no cost for any other document.
 	priorCalcValues map[string]interface{}
+
+	// runState is the operator state of the post-processing run in
+	// progress: set by applyPostProcessing for a *DefaultEngine and
+	// cleared when it returns. It reaches the engine only through the
+	// context applyEvaluation hands to Evaluate, never through m.ctx, so
+	// no context a post-processor receives carries a finished run's state.
+	runState *operatorState
 }
 
 // Base sets the base document for the merge - position 0 in the builder's
@@ -1146,15 +1153,16 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 	// sequence, by mergeDocuments; nothing left to do for them here.
 
 	// This run's operator markers live in a run state of its own, which
-	// m.ctx carries into the engine's Evaluate so the evaluation continues
-	// this run rather than starting another. A fresh state per call keeps
-	// a second Execute on the same builder from republishing the first
-	// call's outputs, and restoring m.ctx afterward drops the state once
-	// Evaluate has absorbed it into the engine.
+	// applyEvaluation passes to the engine's Evaluate so the evaluation
+	// continues this run rather than starting another. A fresh state per
+	// call keeps a second Execute on the same builder from republishing
+	// the first call's outputs. The state stays out of m.ctx: Evaluate
+	// absorbs it into the engine before the post-processors run, and a
+	// post-processor that calls Evaluate with the context it was given
+	// must start a run of its own rather than continue this finished one.
 	if de, ok := m.engine.(*DefaultEngine); ok {
-		outer := m.ctx
-		m.ctx = withRunState(outer, de.forRun())
-		defer func() { m.ctx = outer }()
+		m.runState = de.forRun()
+		defer func() { m.runState = nil }()
 	}
 
 	sortPaths := m.seedEngineState()
@@ -1586,6 +1594,11 @@ func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 	// Use the engine's evaluate method if available
 	if m.engine != nil {
 		evalCtx := m.ctx
+		// Continue this merge's run (see applyPostProcessing). Only this
+		// context, which never leaves Evaluate, carries the run state.
+		if m.runState != nil {
+			evalCtx = withRunState(evalCtx, m.runState)
+		}
 		// If we have cherry-pick keys, pass them to the engine for evaluation
 		if len(m.cherryPickKeys) > 0 {
 			evalCtx = WithCherryPickPaths(evalCtx, m.cherryPickKeys)

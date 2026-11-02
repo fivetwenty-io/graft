@@ -12,6 +12,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	_ "github.com/fivetwenty-io/graft/pkg/graft/operators"
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
 // These tests share one Engine across goroutines and require every
@@ -281,6 +282,20 @@ func TestSharedEngineEvaluateMatchesSerial(t *testing.T) {
 	requireSameResults(t, "evaluate", want, got)
 }
 
+// checkSharedDiff requires a serial diff to be a real one: JSON that
+// reports the values that differ between the "x" document and id's.
+func checkSharedDiff(id, out string) error {
+	if !strings.HasPrefix(strings.TrimSpace(out), "{") && !strings.HasPrefix(strings.TrimSpace(out), "[") {
+		return fmt.Errorf("not a JSON diff")
+	}
+	for _, want := range []string{"vm-x", "vm-" + id} {
+		if !strings.Contains(out, want) {
+			return fmt.Errorf("missing %q", want)
+		}
+	}
+	return nil
+}
+
 func TestSharedEngineDiffMatchesSerial(t *testing.T) {
 	var mu sync.Mutex
 	var mutated []string
@@ -293,14 +308,20 @@ func TestSharedEngineDiffMatchesSerial(t *testing.T) {
 		if err != nil {
 			return "parse b: " + err.Error()
 		}
-		aBefore, _ := a.ToYAML()
-		bBefore, _ := b.ToYAML()
+		aBefore, errA := a.ToYAML()
+		bBefore, errB := b.ToYAML()
+		if errA != nil || errB != nil {
+			return fmt.Sprintf("render before: %v, %v", errA, errB)
+		}
 		out, err := e.Diff(a, b).ToJSON()
 		if err != nil {
 			return "diff: " + err.Error()
 		}
-		aAfter, _ := a.ToYAML()
-		bAfter, _ := b.ToYAML()
+		aAfter, errA := a.ToYAML()
+		bAfter, errB := b.ToYAML()
+		if errA != nil || errB != nil {
+			return fmt.Sprintf("render after: %v, %v", errA, errB)
+		}
 		if !bytes.Equal(aBefore, aAfter) || !bytes.Equal(bBefore, bAfter) {
 			mu.Lock()
 			mutated = append(mutated, id)
@@ -309,7 +330,7 @@ func TestSharedEngineDiffMatchesSerial(t *testing.T) {
 		return string(out)
 	}
 	newEngine := func() graft.Engine { return newSharedTestEngine(t) }
-	want := serialResults(t, newEngine, call, nil)
+	want := serialResults(t, newEngine, call, checkSharedDiff)
 	got := runOnSharedEngine(newEngine(), call)
 	requireSameResults(t, "diff", want, got)
 	if len(mutated) > 0 {
@@ -488,5 +509,237 @@ func TestSharedEngineOutputsPublished(t *testing.T) {
 				t.Errorf("engine reports last pruned paths %v, want [meta.secret]", got.pruned)
 			}
 		})
+	}
+}
+
+// TestSharedEngineVaultPlaceholdersPerRun keeps the vault calls at the
+// same tree paths, creds.password and creds.derived, in every run and
+// varies only the vault path. creds.derived builds its path from the
+// placeholder creds.password recorded, so a run that read another run's
+// placeholder would record a vault reference no serial run records.
+func TestSharedEngineVaultPlaceholdersPerRun(t *testing.T) {
+	opts := []graft.EngineOption{graft.WithSkipVault(true), graft.WithRedact(true)}
+	call := func(e graft.Engine, id string) string { return sharedMergeText(e, sharedVaultBase, id) }
+
+	union := map[string][]string{}
+	for _, id := range sharedIDs() {
+		e := newSharedTestEngine(t, opts...)
+		if err := checkSharedMerge(id, call(e, id)); err != nil {
+			t.Fatalf("serial merge %s is wrong: %v", id, err)
+		}
+		for path, keys := range e.GetOperatorState().GetVaultRefs() {
+			union[path] = append(union[path], keys...)
+		}
+	}
+	derived := 0
+	for path := range union {
+		sort.Strings(union[path])
+		if strings.Contains(path, "/sub:key") {
+			derived++
+		}
+	}
+	if derived != len(sharedIDs()) {
+		t.Fatalf("serial runs recorded %d derived vault paths, want one per run (%d)", derived, len(sharedIDs()))
+	}
+
+	shared := newSharedTestEngine(t, opts...)
+	runOnSharedEngine(shared, call)
+	got := shared.GetOperatorState().GetVaultRefs()
+
+	var extra []string
+	for path := range got {
+		if _, ok := union[path]; !ok {
+			extra = append(extra, path)
+		}
+	}
+	sort.Strings(extra)
+	if len(extra) > 0 {
+		t.Errorf("shared engine recorded %d vault paths no serial run recorded, first %q", len(extra), extra[0])
+	}
+	for path, keys := range union {
+		sort.Strings(got[path])
+		if !slices.Equal(got[path], keys) {
+			t.Errorf("vault reference %q: shared engine holds %v, serial runs recorded %v", path, got[path], keys)
+		}
+	}
+}
+
+// evaluatingPostProcessor calls Evaluate on its engine with the context
+// the merge hands it, once per document, all at once.
+type evaluatingPostProcessor struct {
+	engine graft.Engine
+	docs   []string
+	mu     *sync.Mutex
+	got    map[string]string
+}
+
+func (p *evaluatingPostProcessor) Name() string                  { return "evaluating" }
+func (p *evaluatingPostProcessor) Phase() graft.PostProcessPhase { return graft.PhaseNormal }
+
+func (p *evaluatingPostProcessor) Process(ctx context.Context, doc graft.Document, _ *graft.ProcessMetadata) (graft.Document, error) {
+	var wg sync.WaitGroup
+	for _, id := range p.docs {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			out := "parse: "
+			nested, err := p.engine.ParseYAML([]byte(fmt.Sprintf(sharedEvalDoc, id)))
+			if err == nil {
+				out = "evaluate: "
+				var res graft.Document
+				if res, err = p.engine.Evaluate(ctx, nested); err == nil {
+					out = "render: "
+					var text []byte
+					if text, err = res.ToYAML(); err == nil {
+						out = string(text)
+					}
+				}
+			}
+			if err != nil {
+				out += err.Error()
+			}
+			p.mu.Lock()
+			p.got[id] = out
+			p.mu.Unlock()
+		}(id)
+	}
+	wg.Wait()
+	return doc, nil
+}
+
+// TestSharedEnginePostProcessorEvaluate covers a post-processor that
+// calls Evaluate with the context it was given. That Evaluate is a run
+// of its own: it must not continue the merge's finished run, publish
+// that run's outputs a second time, or share its state with the other
+// Evaluate calls the post-processors make at the same time.
+func TestSharedEnginePostProcessorEvaluate(t *testing.T) {
+	t.Run("deferred paths published once", func(t *testing.T) {
+		e := newSharedTestEngine(t, graft.WithSkipVault(true))
+		base, err := e.ParseYAML([]byte("creds:\n  password: (( vault \"secret/a:password\" ))\n"))
+		if err != nil {
+			t.Fatalf("parse base: %v", err)
+		}
+		pp := &evaluatingPostProcessor{engine: e, docs: []string{"nested"}, mu: &sync.Mutex{}, got: map[string]string{}}
+		if _, err := e.Merge(context.Background(), base).WithPostProcessors(pp).Execute(); err != nil {
+			t.Fatalf("merge: %v", err)
+		}
+		if err := checkSharedEval("nested", pp.got["nested"]); err != nil {
+			t.Errorf("nested Evaluate is wrong: %v\n%s", err, pp.got["nested"])
+		}
+		var paths []string
+		for _, d := range e.GetOperatorState().GetDeferredPaths() {
+			paths = append(paths, d.Path)
+		}
+		if !slices.Equal(paths, []string{"creds.password"}) {
+			t.Errorf("engine holds deferred paths %v, want [creds.password] once", paths)
+		}
+	})
+
+	t.Run("concurrent nested runs", func(t *testing.T) {
+		const merges, perMerge = 8, 4
+		e := newSharedTestEngine(t)
+		var mu sync.Mutex
+		got := map[string]string{}
+		var wg sync.WaitGroup
+		for m := 0; m < merges; m++ {
+			docs := make([]string, perMerge)
+			for i := range docs {
+				docs[i] = fmt.Sprintf("m%dn%d", m, i)
+			}
+			wg.Add(1)
+			go func(m int) {
+				defer wg.Done()
+				base, err := e.ParseYAML([]byte(sharedMergeBase))
+				if err != nil {
+					t.Errorf("parse base: %v", err)
+					return
+				}
+				id := fmt.Sprintf("m%d", m)
+				overlay, err := e.ParseYAML([]byte(sharedMergeOverlay(id)))
+				if err != nil {
+					t.Errorf("parse overlay: %v", err)
+					return
+				}
+				pp := &evaluatingPostProcessor{engine: e, docs: docs, mu: &mu, got: got}
+				res, err := e.Merge(context.Background(), base, overlay).WithPostProcessors(pp).Execute()
+				if err != nil {
+					t.Errorf("merge %s: %v", id, err)
+					return
+				}
+				out, err := res.ToYAML()
+				if err != nil {
+					t.Errorf("render %s: %v", id, err)
+					return
+				}
+				if err := checkSharedMerge(id, string(out)); err != nil {
+					t.Errorf("merge %s is wrong: %v\n%s", id, err, out)
+				}
+			}(m)
+		}
+		wg.Wait()
+		if len(got) != merges*perMerge {
+			t.Fatalf("post-processors made %d nested Evaluate calls, want %d", len(got), merges*perMerge)
+		}
+		bad := 0
+		for id, out := range got {
+			if err := checkSharedEval(id, out); err != nil {
+				if bad == 0 {
+					t.Errorf("nested Evaluate %s is wrong: %v\n%s", id, err, out)
+				}
+				bad++
+			}
+		}
+		if bad > 0 {
+			t.Errorf("%d of %d nested Evaluate calls were wrong", bad, len(got))
+		}
+	})
+}
+
+// stateAssertingPrune queues its own path for pruning through an
+// assertion of GetEngine(ev) to graft.OperatorState, the way a
+// third-party operator written against the Engine it is handed might.
+type stateAssertingPrune struct{}
+
+func (stateAssertingPrune) Setup() error               { return nil }
+func (stateAssertingPrune) Phase() graft.OperatorPhase { return graft.EvalPhase }
+func (stateAssertingPrune) Dependencies(_ *graft.Evaluator, _ []*graft.Expr, _, auto []*tree.Cursor) []*tree.Cursor {
+	return auto
+}
+
+func (stateAssertingPrune) Run(ev *graft.Evaluator, _ []*graft.Expr) (*graft.Response, error) {
+	state, ok := graft.GetEngine(ev).(graft.OperatorState)
+	if !ok {
+		return nil, fmt.Errorf("engine %T is not an OperatorState", graft.GetEngine(ev))
+	}
+	state.AddKeyToPrune(ev.Here.Quoted())
+	return &graft.Response{Type: graft.Replace, Value: "unpruned"}, nil
+}
+
+// TestSharedEngineOperatorStateAssertion requires an operator that
+// asserts its engine to graft.OperatorState to reach the run's state:
+// the key it queues is pruned from that run's result and leaves no
+// marker on the engine.
+func TestSharedEngineOperatorStateAssertion(t *testing.T) {
+	e := newSharedTestEngine(t)
+	if err := e.RegisterOperator("assert_prune", stateAssertingPrune{}); err != nil {
+		t.Fatalf("RegisterOperator: %v", err)
+	}
+	doc, err := e.ParseYAML([]byte("gone: (( assert_prune ))\nkept: 1\n"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	res, err := e.Evaluate(context.Background(), doc)
+	if err != nil {
+		t.Fatalf("evaluate: %v", err)
+	}
+	out, err := res.ToYAML()
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if strings.Contains(string(out), "gone:") || !strings.Contains(string(out), "kept: 1") {
+		t.Errorf("the key the operator queued was not pruned from the run's result:\n%s", out)
+	}
+	if keys := e.GetOperatorState().GetKeysToPrune(); len(keys) > 0 {
+		t.Errorf("the operator's prune marker reached the engine's own state: %v", keys)
 	}
 }

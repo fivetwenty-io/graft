@@ -199,24 +199,22 @@ func (e *DefaultEngine) GetMemoryTracker() interfaces.MemoryTracker {
 func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParallel bool) error {
 	// Every run works on its own operator state, so runs sharing this
 	// engine never see or clear one another's prune, sort, and static IP
-	// markers. A merge passes the state it already seeded through ctx
-	// (see mergeBuilderImpl.applyPostProcessing); a direct Evaluate call
-	// gets a fresh one here. The deferred absorb publishes the run's
-	// vault references, vault placeholders, deferred paths, and pruned
-	// paths to the engine on every exit path, including a panic, and the
-	// deferred reset clears the run's own markers so a merge reading them
-	// back after this returns finds them consumed, as before.
-	rs := runStateFrom(ctx)
-	if rs == nil {
-		rs = e.forRun()
-	}
+	// markers. A merge passes the state it already seeded through the
+	// context it hands this call alone (see mergeBuilderImpl's
+	// applyEvaluation); any other Evaluate call gets a fresh one here.
+	// The deferred finish runs on every exit path, including a panic. It
+	// publishes the run's vault references, vault placeholders, deferred
+	// paths, and pruned paths to the engine, and then clears the run's own
+	// markers so a merge reading them back after this returns finds them
+	// consumed, as before.
+	run, finish := e.startRun(runStateFrom(ctx))
+	rs := run.operatorState
 	prunesRecorded := false
-	defer rs.resetPerRunState()
-	defer func() { e.absorb(rs, prunesRecorded) }()
+	defer func() { finish(prunesRecorded) }()
 
-	// Operators reach their state through GetEngine(ev).GetOperatorState(),
-	// so the evaluator sees a wrapper that answers with the run's state.
-	ev.engine = &runEngine{DefaultEngine: e, state: rs}
+	// Operators reach their state through GetEngine(ev), so the evaluator
+	// sees a wrapper that answers with the run's state.
+	ev.engine = run
 
 	// Check context cancellation
 	select {
@@ -455,9 +453,9 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 // the engine's shared state, and publishes what they record through
 // absorb. The caller checks that ControlFlowExpander is set.
 func (e *DefaultEngine) expandControlFlow(data []byte) ([]byte, error) {
-	rs := e.forRun()
-	defer e.absorb(rs, false)
-	return ControlFlowExpander(&runEngine{DefaultEngine: e, state: rs}, data)
+	run, finish := e.startRun(nil)
+	defer finish(false)
+	return ControlFlowExpander(run, data)
 }
 
 // yamlCompat returns the YAML 1.1 compatibility settings ParseYAML applies:
