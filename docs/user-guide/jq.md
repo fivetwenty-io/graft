@@ -2,6 +2,8 @@
 
 Run jq programs over JSON and YAML, with graft's own engine, so no jq binary is needed.
 
+For a walkthrough of what jq can do inside graft, such as querying values that exist only after a merge, see the tutorial, [Querying Config with graft jq](../examples/jq-tutorial.md).
+
 ## Usage
 
 ```sh

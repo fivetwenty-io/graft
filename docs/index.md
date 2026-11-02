@@ -163,6 +163,14 @@ Practical examples for common use cases.
 
   Embedding Graft in a web service
 
+- [Querying Config with graft jq](examples/jq-tutorial.md)
+
+  Querying merged manifests with `graft jq`
+
+- [Editing Config with graft yq](examples/yq-tutorial.md)
+
+  Editing templates and merged manifests with `graft yq`
+
 ### [Reference](reference/)
 
 Quick lookups and detailed specifications.

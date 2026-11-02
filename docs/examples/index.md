@@ -76,6 +76,26 @@ Embedding Graft as a Go library in web services.
 - Custom operator registration
 - Testing with mocks
 
+### [Querying Config with graft jq](jq-tutorial.md)
+
+What `graft jq` can do because jq runs inside graft, shown on a deployment manifest whose addresses come from Terraform output and graft's operators.
+
+- Querying values that exist only after the merge, such as static IPs and computed names
+- An inventory of every environment in one YAML document
+- A cost estimate with exact decimal totals
+- A CI gate with distinct exit codes for a broken rule and a missing parameter
+- An overlay written by jq, merged by graft, and reviewed with `graft diff`
+
+### [Editing Config with graft yq](yq-tutorial.md)
+
+What `graft yq` can do because yq runs inside graft, shown on a BOSH-style template whose addresses graft computes.
+
+- Querying the addresses the merge allocates, where stock yq sees only operator text
+- Growing the template in place while its operators and comments survive
+- Onboarding an environment from a cloud inventory's JSON
+- Gating every environment in CI
+- Reviewing a scale-up with `graft diff` before it ships
+
 ## Running the Examples
 
 All examples in this section are designed to be runnable. To follow along:

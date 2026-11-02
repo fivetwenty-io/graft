@@ -1,0 +1,5 @@
+# prod gets more web nodes
+meta:
+  env: prod
+  cidr: 10.20.0.0/24
+  web_instances: 4

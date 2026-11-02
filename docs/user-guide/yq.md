@@ -2,6 +2,8 @@
 
 Run yq expressions over YAML and JSON with graft's own engine, so we need no yq binary.
 
+For a walkthrough of what yq can do inside graft, such as querying values that exist only after a merge, see the tutorial, [Editing Config with graft yq](../examples/yq-tutorial.md).
+
 ## Usage
 
 ```sh

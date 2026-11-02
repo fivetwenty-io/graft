@@ -1,0 +1,9 @@
+{
+  "vpc": "vpc-7f3e21",
+  "subnets": [
+    {"id": "subnet-0a11", "cidr": "10.10.0.0/24", "tags": {"app": "checkout", "env": "staging"}},
+    {"id": "subnet-0b22", "cidr": "10.20.0.0/24", "tags": {"app": "checkout", "env": "prod"}},
+    {"id": "subnet-0c33", "cidr": "10.40.0.0/24", "tags": {"app": "checkout", "env": "eu-prod"}},
+    {"id": "subnet-0d44", "cidr": "10.90.0.0/24", "tags": {"app": "search", "env": "prod"}}
+  ]
+}

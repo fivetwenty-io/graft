@@ -1,0 +1,50 @@
+# The orders service, deployed with BOSH. An environment overlay such as
+# staging.yml or prod.yml sets meta.env, and everything else follows from it.
+name: (( concat "orders-" meta.env ))
+
+meta:
+  env: (( param "Merge an environment overlay, such as staging.yml or prod.yml" ))
+  domain: (( concat meta.env ".example.com" ))
+  terraform: (( load (concat "terraform-" meta.env ".json") ))
+  subnets: (( grab meta.terraform.subnets.value ))
+
+instance_groups:
+- name: api
+  instances: 2
+  azs: [z1, z2]
+  vm_type: small
+  networks:
+  - name: orders-net
+    static_ips: (( static_ips "z1:0" "z2:0" "z1:1" "z2:1" "z1:2" "z2:2" ))
+  jobs:
+  - name: orders-api
+    release: orders
+    properties:
+      external_url: (( concat "https://orders." meta.domain ))
+
+- name: worker
+  instances: 1
+  azs: [z1, z2]
+  vm_type: small
+  networks:
+  - name: orders-net
+    static_ips: (( static_ips "z1:3" "z2:3" "z1:4" "z2:4" ))
+  jobs:
+  - name: orders-worker
+    release: orders
+    properties:
+      api_servers: (( grab instance_groups.api.networks.orders-net.static_ips ))
+
+networks:
+- name: orders-net
+  subnets:
+  - az: z1
+    range: (( grab meta.subnets.z1.cidr ))
+    gateway: (( ips meta.subnets.z1.cidr 1 ))
+    static: (( ips meta.subnets.z1.cidr 10 8 ))
+    cloud_properties: { subnet: (( grab meta.subnets.z1.id )) }
+  - az: z2
+    range: (( grab meta.subnets.z2.cidr ))
+    gateway: (( ips meta.subnets.z2.cidr 1 ))
+    static: (( ips meta.subnets.z2.cidr 10 8 ))
+    cloud_properties: { subnet: (( grab meta.subnets.z2.id )) }

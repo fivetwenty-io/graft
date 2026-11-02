@@ -1,0 +1,11 @@
+{
+  "vpc_id": { "sensitive": false, "type": "string", "value": "vpc-07f2b1d6" },
+  "subnets": {
+    "sensitive": false,
+    "type": ["map", ["object", { "cidr": "string", "id": "string" }]],
+    "value": {
+      "z1": { "cidr": "10.40.1.0/24", "id": "subnet-0e91f5" },
+      "z2": { "cidr": "10.40.2.0/24", "id": "subnet-0fa2e6" }
+    }
+  }
+}

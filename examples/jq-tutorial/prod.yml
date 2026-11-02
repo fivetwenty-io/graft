@@ -1,0 +1,10 @@
+meta:
+  env: prod
+
+instance_groups:
+- name: api
+  instances: 3
+  vm_type: large
+- name: worker
+  instances: 2
+  vm_type: medium

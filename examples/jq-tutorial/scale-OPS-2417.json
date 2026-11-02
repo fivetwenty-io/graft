@@ -1,0 +1,6 @@
+{
+  "ticket": "OPS-2417",
+  "env": "prod",
+  "reason": "Holiday traffic forecast",
+  "scale": { "api": 5, "worker": 3 }
+}

@@ -1,0 +1,4 @@
+# staging runs the template defaults
+meta:
+  env: staging
+  cidr: 10.10.0.0/24

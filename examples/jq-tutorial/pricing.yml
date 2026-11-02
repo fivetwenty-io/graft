@@ -1,0 +1,7 @@
+# On-demand list prices in US dollars per VM-hour.
+pricing:
+  hours_per_month: 730
+  hourly:
+    small: 0.0416
+    medium: 0.085
+    large: 0.192

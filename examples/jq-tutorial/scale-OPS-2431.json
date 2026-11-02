@@ -1,0 +1,6 @@
+{
+  "ticket": "OPS-2431",
+  "env": "prod",
+  "reason": "Load test at twice the holiday forecast",
+  "scale": { "api": 8, "worker": 4 }
+}

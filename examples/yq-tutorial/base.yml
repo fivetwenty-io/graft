@@ -1,0 +1,27 @@
+# the shape every checkout environment shares
+meta:
+  env: (( param "name the environment in meta.env" ))
+  cidr: (( param "copy the subnet CIDR from the cloud inventory" ))
+  domain: shop.example.com
+  web_instances: 2
+name: (( concat "checkout-" meta.env ))
+instance_groups:
+  - name: web
+    instances: (( grab meta.web_instances ))
+    networks:
+      - name: default
+        static_ips: (( static_ips 0 1 2 3 4 5 )) # room for six web nodes
+    properties:
+      url: (( concat "https://" meta.env "." meta.domain ))
+      db_host: (( grab instance_groups.db.networks.default.static_ips.0 ))
+  - name: db
+    instances: 1
+    networks:
+      - name: default
+        static_ips: (( static_ips 10 ))
+networks:
+  - name: default
+    subnets:
+      - range: (( grab meta.cidr ))
+        gateway: (( ips meta.cidr 1 ))
+        static: (( ips meta.cidr 10 20 )) # .10 through .29 belong to us
