@@ -12,20 +12,26 @@ var interfaceMapType = reflect.TypeFor[map[interface{}]interface{}]()
 // decoder can reach, which is through pointers, slice and array elements,
 // map keys and values, and exported or embedded struct fields.
 func checkTarget(v any) *DecodeError {
+	return checkTargetFor("Unmarshal", v)
+}
+
+// checkTargetFor is checkTarget for the function named fn, which its
+// messages name.
+func checkTargetFor(fn string, v any) *DecodeError {
 	if v == nil {
-		return typeError("Unmarshal(nil)")
+		return typeError("%s(nil)", fn)
 	}
 	rv := reflect.ValueOf(v)
 	t := rv.Type()
 	if t.Kind() != reflect.Pointer {
-		return typeError("Unmarshal(non-pointer %s)", t)
+		return typeError("%s(non-pointer %s)", fn, t)
 	}
 	if rv.IsNil() {
-		return typeError("Unmarshal(nil %s)", t)
+		return typeError("%s(nil %s)", fn, t)
 	}
 	w := targetWalk{seen: make(map[reflect.Type]bool)}
 	if where, found := w.find(t.Elem(), t.Elem().String()); found {
-		return typeError("Unmarshal does not support map[interface {}]interface {}, which %s holds at %s; use map[string]any instead", t, where)
+		return typeError("%s does not support map[interface {}]interface {}, which %s holds at %s; use map[string]any instead", fn, t, where)
 	}
 	return nil
 }

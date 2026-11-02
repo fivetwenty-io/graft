@@ -98,9 +98,13 @@ func translate(err error) *DecodeError {
 	// The reader's own errors carry the line spruce's YAML library
 	// reports, which often counts from 0, and the line of the input,
 	// counted from 1, which is the one kept.
+	//
+	// The tree reader's anchor messages quote the anchor's name, which
+	// scrub would keep when it is one punctuation character, so those
+	// are replaced whole.
 	var pe *yamlnode.ParseError
 	if errors.As(err, &pe) {
-		return &DecodeError{Kind: ErrorKindSyntax, Line: pe.SourceLine, Msg: scrub(pe.Message)}
+		return &DecodeError{Kind: ErrorKindSyntax, Line: pe.SourceLine, Msg: parseMessage(pe.Message)}
 	}
 
 	// The anchor check's message names the anchor, so only its position
@@ -124,6 +128,18 @@ func translate(err error) *DecodeError {
 
 	// The rest are plain errors that quote nothing from the input.
 	return &DecodeError{Kind: ErrorKindSyntax, Msg: scrub(msg)}
+}
+
+// parseMessage is the DecodeError message for the tree reader's message
+// msg.
+func parseMessage(msg string) string {
+	switch {
+	case strings.HasPrefix(msg, "anchor '") && strings.HasSuffix(msg, "' value contains itself"):
+		return selfContainingAnchorMessage
+	case strings.HasPrefix(msg, "unknown anchor '") && strings.HasSuffix(msg, "' referenced"):
+		return unknownAliasMessage
+	}
+	return scrub(msg)
 }
 
 // The messages that stand in for codec messages that name an anchor,

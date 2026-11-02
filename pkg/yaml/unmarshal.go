@@ -6,7 +6,9 @@ import "reflect"
 // Unmarshal decodes the first YAML document in data into v, reading
 // yes, no, on, and off as booleans the way graft's merge engine does.
 //
-// v must be a non-nil pointer. A *any, *map[string]any, or *[]any
+// v must be a non-nil pointer. A *Node receives the document's tree, as
+// the Node type describes, and its Decode method decodes any part of it
+// as Unmarshal decodes text. A *any, *map[string]any, or *[]any
 // receives maps as map[string]any, sequences as []any, integers as int,
 // and floats as float64. Empty input, or input that holds only comments
 // or a null, leaves v unchanged. Every error is a *DecodeError.
@@ -57,6 +59,12 @@ func Unmarshal(data []byte, v any) error {
 
 // UnmarshalWith decodes the first YAML document in data into v with opts.
 func UnmarshalWith(data []byte, v any, opts DecodeOptions) (err error) {
+	if n, ok := v.(*Node); ok {
+		if n == nil {
+			return typeError("Unmarshal(nil %T)", n)
+		}
+		return decodeNode(data, n, opts)
+	}
 	if err := checkTarget(v); err != nil {
 		return err
 	}
