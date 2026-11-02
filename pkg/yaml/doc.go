@@ -131,6 +131,12 @@ An explicitly tagged !!str yes decodes as true in the default mode, because
 the merge engine reads the word before it looks at the tag. A quoted "yes"
 stays a string.
 
+An !!int tag on text that is not an integer, as in a: !!int word, decodes as 0
+into an any or a Node, and graft merge gives the same result. Decoding it into
+a typed field is an ErrorKindType error that says the value is not a valid
+int, and the message names only types and never quotes the input. yaml.v2 and
+yaml.v3 refuse the document on both routes.
+
 A tab inside a plain scalar, as in a: x<TAB>y, is dropped, so the value is
 "xy". This is how the decoder reads such a scalar, and graft merge gives the
 same result. A quoted scalar keeps its tab.

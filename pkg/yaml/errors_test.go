@@ -282,3 +282,28 @@ func TestNodeRouteErrorsMatchOtherRoutes(t *testing.T) {
 func lineOf(doc string) int {
 	return strings.Count(strings.TrimSuffix(doc, "\n"), "\n") + 1
 }
+
+// TestTaggedIntWithoutDigits checks the two routes' answers for an !!int
+// tag on text that is not an integer. The generic route decodes it to 0,
+// as graft merge does, and the typed route reports an error that names
+// the mismatch once and quotes nothing from the input.
+func TestTaggedIntWithoutDigits(t *testing.T) {
+	t.Parallel()
+	const doc = "a: !!int S3KRIT\n"
+
+	var generic map[string]any
+	if err := yaml.Unmarshal([]byte(doc), &generic); err != nil || generic["a"] != 0 {
+		t.Errorf("generic route gave %v, %v, want a: 0 and no error", generic, err)
+	}
+
+	var typed struct {
+		A int `yaml:"a"`
+	}
+	err := yaml.Unmarshal([]byte(doc), &typed)
+	de := wantDecodeError(t, err, yaml.ErrorKindType, 1)
+	wantNoLeak(t, err, "S3KRIT")
+	const want = "cannot unmarshal a !!int value that is not a valid int into Go struct field .A of type int"
+	if de.Msg != want {
+		t.Errorf("Msg = %q, want %q", de.Msg, want)
+	}
+}
