@@ -36,63 +36,8 @@ type DefaultEngine struct {
 	localOperators map[string]bool // tracks operators registered on this engine (not inherited)
 	opMutex        sync.RWMutex
 
-	// Vault state (refs tracking only; client and cache live in internal/backends/vault)
-	vaultRefs  map[string][]string
-	vaultMutex sync.RWMutex
-	skipVault  bool
-
-	// vaultPlaceholders maps a tree path (Cursor.String()) to the vault
-	// key a skip-vault sentinel written there stands in for, guarded by
-	// vaultMutex alongside vaultRefs. See RecordVaultPlaceholder.
-	vaultPlaceholders map[string]string
-
-	// redactMode selects, for skipVault/skipAws/skipNats above, whether a
-	// skipped backend returns the flat "REDACTED" sentinel (true) or
-	// defers itself, leaving its own "(( ... ))" expression intact
-	// (false, the default). Set at construction by WithRedact, and
-	// unconditionally forced true by REDACT=1 (see evaluate) regardless
-	// of construction options - unguarded, like skipVault/skipAws/
-	// skipNats themselves (see their own fields' comments for why that
-	// is safe in practice).
-	redactMode bool
-
-	// deferredPaths lists every tree path deferred so far, from either
-	// source: a --skip-vault/--skip-aws/--skip-nats flag (redactMode
-	// false - see op_skip_defer.go), or graft merge --defer-on-error/
-	// --adaptive's own retry loop (cmd/graft). Guarded by deferMutex. Read
-	// back by cmd/graft's --report-deferred comment rendering.
-	deferredPaths []DeferredPath
-	deferMutex    sync.RWMutex
-
-	// AWS state (client and cache live in internal/backends/aws)
-	skipAws bool
-
-	// NATS state
-	skipNats bool
-
-	// Static IPs state
-	usedIPs map[string]string
-	ipMutex sync.RWMutex
-
-	// Prune state
-	keysToPrune []string
-	pruneMutex  sync.RWMutex
-
-	// lastEvaluatedPrunedPaths is a snapshot of the operator-queued
-	// (( prune )) paths (dotted, no "$." prefix) actually removed by the
-	// most recent Evaluate() call on this engine, captured just before
-	// evaluate()'s deferred resetPerRunState clears keysToPrune - see
-	// evaluate()'s "Post-processing: apply operator-level pruning" step
-	// and GetLastEvaluatedPrunedPaths. Guarded by pruneMutex alongside
-	// keysToPrune, the state it is derived from.
-	lastEvaluatedPrunedPaths []string
-
-	// Sort state
-	pathsToSort map[string]string
-	sortMutex   sync.RWMutex
-
-	// Warning suppression
-	suppressWarnings bool
+	// Operator state, accessed through the OperatorState interface
+	operatorState
 
 	// Metrics and monitoring
 	metrics *EngineMetrics
@@ -207,254 +152,6 @@ func (e *DefaultEngine) GetOperator(name string) (Operator, bool) {
 	defer e.opMutex.RUnlock()
 
 	return e.registry.GetImplementation(name)
-}
-
-// EngineContext interface methods for internal operator access
-
-// AddVaultRef records a Vault reference for tracking.
-func (e *DefaultEngine) AddVaultRef(path string, keys []string) {
-	e.vaultMutex.Lock()
-	defer e.vaultMutex.Unlock()
-
-	if e.vaultRefs[path] == nil {
-		e.vaultRefs[path] = []string{}
-	}
-	e.vaultRefs[path] = append(e.vaultRefs[path], keys...)
-}
-
-// IsVaultSkipped returns true if Vault operations should be skipped.
-func (e *DefaultEngine) IsVaultSkipped() bool {
-	return e.skipVault
-}
-
-// SetRedactMode sets whether a skipped backend (skipVault/skipAws/
-// skipNats) returns the flat "REDACTED" sentinel (true) or defers itself
-// (false). See the redactMode field's doc comment.
-func (e *DefaultEngine) SetRedactMode(v bool) {
-	e.redactMode = v
-}
-
-// IsRedactMode returns true if a skipped backend should return the flat
-// "REDACTED" sentinel rather than defer itself.
-func (e *DefaultEngine) IsRedactMode() bool {
-	return e.redactMode
-}
-
-// AddDeferredPath records that path (Cursor.String()) deferred instead
-// of evaluating, and why. See the deferredPaths field's doc comment.
-func (e *DefaultEngine) AddDeferredPath(path, reason string) {
-	e.deferMutex.Lock()
-	defer e.deferMutex.Unlock()
-	e.deferredPaths = append(e.deferredPaths, DeferredPath{Path: path, Reason: reason})
-}
-
-// GetDeferredPaths returns a copy of the paths deferred so far.
-func (e *DefaultEngine) GetDeferredPaths() []DeferredPath {
-	e.deferMutex.RLock()
-	defer e.deferMutex.RUnlock()
-
-	paths := make([]DeferredPath, len(e.deferredPaths))
-	copy(paths, e.deferredPaths)
-	return paths
-}
-
-// ResetDeferredPaths clears the deferred-path list.
-func (e *DefaultEngine) ResetDeferredPaths() {
-	e.deferMutex.Lock()
-	defer e.deferMutex.Unlock()
-	e.deferredPaths = nil
-}
-
-// IsAWSSkipped returns true if AWS operations should be skipped.
-func (e *DefaultEngine) IsAWSSkipped() bool {
-	return e.skipAws
-}
-
-// GetUsedIPs returns a copy of the used IP addresses map.
-func (e *DefaultEngine) GetUsedIPs() map[string]string {
-	e.ipMutex.RLock()
-	defer e.ipMutex.RUnlock()
-
-	ips := make(map[string]string)
-	for k, v := range e.usedIPs {
-		ips[k] = v
-	}
-	return ips
-}
-
-// SetUsedIP records a used IP address.
-func (e *DefaultEngine) SetUsedIP(key, ip string) {
-	e.ipMutex.Lock()
-	defer e.ipMutex.Unlock()
-	e.usedIPs[key] = ip
-}
-
-// AddKeyToPrune adds a key to the list of keys to prune.
-func (e *DefaultEngine) AddKeyToPrune(key string) {
-	e.pruneMutex.Lock()
-	defer e.pruneMutex.Unlock()
-	e.keysToPrune = append(e.keysToPrune, key)
-}
-
-// GetKeysToPrune returns a copy of the keys to prune.
-func (e *DefaultEngine) GetKeysToPrune() []string {
-	e.pruneMutex.RLock()
-	defer e.pruneMutex.RUnlock()
-
-	keys := make([]string, len(e.keysToPrune))
-	copy(keys, e.keysToPrune)
-	return keys
-}
-
-// AddPathToSort adds a path to sort with the specified order.
-func (e *DefaultEngine) AddPathToSort(path, order string) {
-	e.sortMutex.Lock()
-	defer e.sortMutex.Unlock()
-	e.pathsToSort[path] = order
-}
-
-// GetPathsToSort returns a copy of the paths to sort.
-func (e *DefaultEngine) GetPathsToSort() map[string]string {
-	e.sortMutex.RLock()
-	defer e.sortMutex.RUnlock()
-
-	paths := make(map[string]string)
-	for k, v := range e.pathsToSort {
-		paths[k] = v
-	}
-	return paths
-}
-
-// GetVaultRefs returns a copy of the vault references map.
-func (e *DefaultEngine) GetVaultRefs() map[string][]string {
-	e.vaultMutex.RLock()
-	defer e.vaultMutex.RUnlock()
-
-	result := make(map[string][]string)
-	for k, v := range e.vaultRefs {
-		refs := make([]string, len(v))
-		copy(refs, v)
-		result[k] = refs
-	}
-	return result
-}
-
-// RecordVaultPlaceholder remembers that treePath received the
-// skip-vault sentinel for vaultKey, so a later vault-path-building
-// reference to treePath can render a symbolic "<vaultKey>" form (see
-// VaultPlaceholderFor and op_vault.go's vaultArgProcessor) instead of
-// the literal "REDACTED" text.
-func (e *DefaultEngine) RecordVaultPlaceholder(treePath, vaultKey string) {
-	e.vaultMutex.Lock()
-	defer e.vaultMutex.Unlock()
-	if e.vaultPlaceholders == nil {
-		e.vaultPlaceholders = make(map[string]string)
-	}
-	e.vaultPlaceholders[treePath] = vaultKey
-}
-
-// VaultPlaceholderFor reports the vault key a skip-vault sentinel
-// written at treePath stands in for, if any.
-func (e *DefaultEngine) VaultPlaceholderFor(treePath string) (string, bool) {
-	e.vaultMutex.RLock()
-	defer e.vaultMutex.RUnlock()
-	key, ok := e.vaultPlaceholders[treePath]
-	return key, ok
-}
-
-// ResetVaultPlaceholders clears the vault placeholder tracking map.
-func (e *DefaultEngine) ResetVaultPlaceholders() {
-	e.vaultMutex.Lock()
-	defer e.vaultMutex.Unlock()
-	e.vaultPlaceholders = make(map[string]string)
-}
-
-// ResetVaultRefs clears the vault references map.
-func (e *DefaultEngine) ResetVaultRefs() {
-	e.vaultMutex.Lock()
-	defer e.vaultMutex.Unlock()
-	e.vaultRefs = make(map[string][]string)
-}
-
-// SetSkipVault sets whether vault operations should be skipped.
-func (e *DefaultEngine) SetSkipVault(v bool) {
-	e.skipVault = v
-}
-
-// SetSkipAws sets whether AWS operations should be skipped.
-func (e *DefaultEngine) SetSkipAws(v bool) {
-	e.skipAws = v
-}
-
-// SetSkipNats sets whether NATS operations should be skipped.
-func (e *DefaultEngine) SetSkipNats(v bool) {
-	e.skipNats = v
-}
-
-// IsNATSSkipped returns true if NATS operations should be skipped.
-func (e *DefaultEngine) IsNATSSkipped() bool {
-	return e.skipNats
-}
-
-// GetLastEvaluatedPrunedPaths returns a copy of the operator-queued
-// (( prune )) paths this engine's most recent Evaluate() call actually
-// removed. Unlike GetKeysToPrune, this survives past Evaluate() returning
-// (resetPerRunState's defer clears keysToPrune, not this field), so a
-// caller inspecting the engine after a merge - cmd/graft/merge_history.go's
-// buildMergeHistorySteps, distinguishing a path an operator pruned away
-// from one that merely evaluated to an explicit YAML null - can still see
-// what was pruned. Returns nil if Evaluate() has not run on this engine
-// yet, or its most recent run queued no prunes.
-func (e *DefaultEngine) GetLastEvaluatedPrunedPaths() []string {
-	e.pruneMutex.RLock()
-	defer e.pruneMutex.RUnlock()
-	if len(e.lastEvaluatedPrunedPaths) == 0 {
-		return nil
-	}
-	paths := make([]string, len(e.lastEvaluatedPrunedPaths))
-	copy(paths, e.lastEvaluatedPrunedPaths)
-	return paths
-}
-
-// ResetKeysToPrune clears the keys to prune list.
-func (e *DefaultEngine) ResetKeysToPrune() {
-	e.pruneMutex.Lock()
-	defer e.pruneMutex.Unlock()
-	e.keysToPrune = nil
-}
-
-// ResetPathsToSort clears the paths to sort map.
-func (e *DefaultEngine) ResetPathsToSort() {
-	e.sortMutex.Lock()
-	defer e.sortMutex.Unlock()
-	e.pathsToSort = make(map[string]string)
-}
-
-// ResetUsedIPs clears the used IPs map.
-func (e *DefaultEngine) ResetUsedIPs() {
-	e.ipMutex.Lock()
-	defer e.ipMutex.Unlock()
-	e.usedIPs = make(map[string]string)
-}
-
-// resetPerRunState clears the prune/sort/used-IP markers that accumulate
-// during a single evaluate() run. Called via defer at the top of evaluate
-// so it fires exactly once per run, after this run's own post-processing
-// has already read the markers it needs.
-func (e *DefaultEngine) resetPerRunState() {
-	e.ResetKeysToPrune()
-	e.ResetPathsToSort()
-	e.ResetUsedIPs()
-}
-
-// SuppressWarnings returns whether warnings should be suppressed.
-func (e *DefaultEngine) SuppressWarnings() bool {
-	return e.suppressWarnings
-}
-
-// SetSuppressWarnings sets whether warnings should be suppressed.
-func (e *DefaultEngine) SetSuppressWarnings(v bool) {
-	e.suppressWarnings = v
 }
 
 // Internal methods
@@ -1536,18 +1233,20 @@ func (e *DefaultEngine) SetWorkerPool(pool *parallel.WorkerPool) {
 // createEngineFromOptions instead.
 func newEngineFromOptions(opts *EngineOptions) *DefaultEngine {
 	e := &DefaultEngine{
-		opts:              *opts,
-		registry:          DefaultRegistry.Clone(),
-		localOperators:    make(map[string]bool),
-		vaultRefs:         make(map[string][]string),
-		vaultPlaceholders: make(map[string]string),
-		usedIPs:           make(map[string]string),
-		pathsToSort:       make(map[string]string),
-		skipVault:         opts.SkipVault,
-		skipAws:           opts.SkipAws,
-		skipNats:          opts.SkipNats,
-		redactMode:        opts.Redact,
-		backends:          make(map[string]Backend),
+		opts:           *opts,
+		registry:       DefaultRegistry.Clone(),
+		localOperators: make(map[string]bool),
+		operatorState: operatorState{
+			vaultRefs:         make(map[string][]string),
+			vaultPlaceholders: make(map[string]string),
+			usedIPs:           make(map[string]string),
+			pathsToSort:       make(map[string]string),
+			skipVault:         opts.SkipVault,
+			skipAws:           opts.SkipAws,
+			skipNats:          opts.SkipNats,
+			redactMode:        opts.Redact,
+		},
+		backends: make(map[string]Backend),
 		metrics: &EngineMetrics{
 			OperatorCalls: make(map[string]int64),
 		},
