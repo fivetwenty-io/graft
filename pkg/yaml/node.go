@@ -183,9 +183,13 @@ func v3Column(line []byte, col int) int {
 
 // quoteScan follows a scan of one line through its quoted scalars.
 // quote is the quote the scan is inside, or 0, and prev is the character
-// before the current one, or 0 at the start of the line.
+// before the current one, or 0 at the start of the line. flowMaps counts
+// the flow mappings open on the line, keyed reports that a ":" has ended
+// a key since the last token, and delim reports that prev is such a ":".
 type quoteScan struct {
-	quote, prev rune
+	quote, prev  rune
+	flowMaps     int
+	keyed, delim bool
 }
 
 // comment reports whether r, outside quotes, starts a comment.
@@ -196,23 +200,55 @@ func (s *quoteScan) comment(r rune) bool {
 // step moves the scan past r, which rest follows. It returns the number
 // of bytes of rest that go with r as one more character, which is the
 // character after a backslash in double quotes, or the second quote of
-// a doubled single quote, and 0 otherwise.
+// a doubled single quote, and 0 otherwise. A quote opens a quoted scalar
+// after a blank, the start of the line, "[", "{", ",", or a ":" that
+// ends a key.
 func (s *quoteScan) step(r rune, rest []byte) int {
+	delim := s.delim
+	s.delim = false
 	switch {
-	case s.quote == 0 && (r == '"' || r == '\'') && strings.ContainsRune("\x00 \t[{,", s.prev):
+	case s.quote == 0 && (r == '"' || r == '\'') && (delim || strings.ContainsRune("\x00 \t[{,", s.prev)):
 		s.quote = r
 	case s.quote == '"' && r == '\\' && len(rest) > 0:
 		_, size := utf8.DecodeRune(rest)
 		return size
 	case s.quote == '"' && r == '"':
-		s.quote = 0
+		s.quote, s.keyed = 0, false
 	case s.quote == '\'' && r == '\'':
 		if len(rest) > 0 && rest[0] == '\'' {
 			return 1
 		}
-		s.quote = 0
+		s.quote, s.keyed = 0, false
+	case s.quote == 0:
+		s.delim = s.flow(r, len(rest) > 0 && rest[0] == '/')
 	}
 	return 0
+}
+
+// flow follows goccy's scanner over r, outside quotes, through the flow
+// mappings of the line, and reports whether r is a ":" that ends a key
+// with no blank after it. In a flow mapping, or anything inside one,
+// goccy reads a ":" as ending a key unless one has ended since the last
+// token or a "/" follows it, as slash does. A quote right after it then
+// opens a quoted scalar, as in {"k":"v"} and {k:"v"}. Outside a flow
+// mapping a ":" ends a key only before a blank, which opens a quote too.
+func (s *quoteScan) flow(r rune, slash bool) bool {
+	switch r {
+	case '{':
+		s.flowMaps++
+		s.keyed = false
+	case '}':
+		s.flowMaps = max(s.flowMaps-1, 0)
+		s.keyed = false
+	case '[', ']', ',':
+		s.keyed = false
+	case ':':
+		if s.flowMaps > 0 && !s.keyed && !slash {
+			s.keyed = true
+			return true
+		}
+	}
+	return false
 }
 
 // converter copies an internal tree into public Nodes. seen maps each

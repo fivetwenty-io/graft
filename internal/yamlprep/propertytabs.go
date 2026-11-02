@@ -197,31 +197,66 @@ func goccyColumn(prefix string) int {
 
 // lineQuotes follows a walk along a line through its quoted scalars.
 // quote is the quote the walk is inside, or 0, and prev is the character
-// before the current one, or 0 at the start of the line.
+// before the current one, or 0 at the start of the line. flowMaps counts
+// the flow mappings open on the line, keyed reports that a ":" has ended
+// a key since the last token, and delim reports that prev is such a ":".
 type lineQuotes struct {
-	quote, prev rune
+	quote, prev  rune
+	flowMaps     int
+	keyed, delim bool
 }
 
 // step moves the walk over r, which rest follows on the line, and
 // returns the length of the character after r when r and that character
 // stand for one character of a quoted scalar, an escape or a doubled
-// single quote, or 0.
+// single quote, or 0. A quote opens a quoted scalar after a blank, the
+// start of the line, "[", "{", ",", or a ":" that ends a key.
 func (q *lineQuotes) step(r rune, rest string) int {
+	delim := q.delim
+	q.delim = false
 	switch {
-	case q.quote == 0 && (r == '"' || r == '\'') && strings.ContainsRune("\x00 \t[{,", q.prev):
+	case q.quote == 0 && (r == '"' || r == '\'') && (delim || strings.ContainsRune("\x00 \t[{,", q.prev)):
 		q.quote = r
 	case q.quote == '"' && r == '\\' && rest != "":
 		_, size := utf8.DecodeRuneInString(rest)
 		return size
 	case q.quote == '"' && r == '"':
-		q.quote = 0
+		q.quote, q.keyed = 0, false
 	case q.quote == '\'' && r == '\'':
 		if strings.HasPrefix(rest, "'") {
 			return 1
 		}
-		q.quote = 0
+		q.quote, q.keyed = 0, false
+	case q.quote == 0:
+		q.delim = q.flow(r, strings.HasPrefix(rest, "/"))
 	}
 	return 0
+}
+
+// flow follows goccy's scanner over r, outside quotes, through the flow
+// mappings of the line, and reports whether r is a ":" that ends a key
+// with no blank after it. In a flow mapping, or anything inside one,
+// goccy reads a ":" as ending a key unless one has ended since the last
+// token or a "/" follows it, as slash does. A quote right after it then
+// opens a quoted scalar, as in {"k":"v"} and {k:"v"}. Outside a flow
+// mapping a ":" ends a key only before a blank, which opens a quote too.
+func (q *lineQuotes) flow(r rune, slash bool) bool {
+	switch r {
+	case '{':
+		q.flowMaps++
+		q.keyed = false
+	case '}':
+		q.flowMaps = max(q.flowMaps-1, 0)
+		q.keyed = false
+	case '[', ']', ',':
+		q.keyed = false
+	case ':':
+		if q.flowMaps > 0 && !q.keyed && !slash {
+			q.keyed = true
+			return true
+		}
+	}
+	return false
 }
 
 // overBlanks writes the start of blanks over the spaces of origin from

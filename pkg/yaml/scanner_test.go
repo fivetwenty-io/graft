@@ -123,6 +123,13 @@ func TestQuotedTabPositions(t *testing.T) {
 		{"\"p\tq\": 1\nb: 2\n", []int{0, 1}, 1, 8},
 		{"\"p\tq\": 1\nb: 2\n", []int{0, 2}, 2, 1},
 		{"- [\"p\tq\", x]\n", []int{0, 0, 1}, 1, 11},
+		// A quoted value right after the ":" of a flow mapping.
+		{"a: {\"k\":\"p\tq\", m: x}\n", []int{0, 1, 1}, 1, 9},
+		{"a: {\"k\":\"p\tq\", m: x}\n", []int{0, 1, 2}, 1, 16},
+		{"a: {\"k\":\"p\tq\", m: x}\n", []int{0, 1, 3}, 1, 19},
+		{"a: {k:'p\tq', m: x}\n", []int{0, 1, 2}, 1, 14},
+		{"a: {k:'p\tq', m: x}\n", []int{0, 1, 3}, 1, 17},
+		{"a: {b: [x:\"p\tq\", y]}\n", []int{0, 1, 1, 1}, 1, 18},
 	} {
 		var n yaml.Node
 		if err := yaml.Unmarshal([]byte(c.doc), &n); err != nil {

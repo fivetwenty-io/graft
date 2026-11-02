@@ -158,24 +158,43 @@ func TestMayHoldPropertyTab(t *testing.T) {
 // TestGoccyColumn checks goccyColumn against the column Tokenize gives
 // a scalar that follows the prefix on its line.
 func TestGoccyColumn(t *testing.T) {
-	for _, prefix := range []string{
-		"a: [",
-		"a: [x,\t",
-		"a: ['p\tq', ",
-		"a: ['it''s\tq', ",
-		"a: [\"p\tq\", ",
-		"a: [\"p\\\"\tq\", ",
-		"a: [\"p\\\\\", \t",
-		"a: [x'y,\t",
+	for _, c := range []struct{ prefix, close string }{
+		{"a: [", "]"},
+		{"a: [x,\t", "]"},
+		{"a: ['p\tq', ", "]"},
+		{"a: ['it''s\tq', ", "]"},
+		{"a: [\"p\tq\", ", "]"},
+		{"a: [\"p\\\"\tq\", ", "]"},
+		{"a: [\"p\\\\\", \t", "]"},
+		{"a: [x'y,\t", "]"},
+		// A quote right after a ":" that ends a key in a flow mapping
+		// opens a quoted scalar, and one after any other ":" does not.
+		{"a: {\"k\":\"p\tq\", m: ", "}"},
+		{"a: {'k':'p\tq', m: ", "}"},
+		{"a: {\"k\" :\"p\tq\", m: ", "}"},
+		{"a: {k:\"p\tq\", m: ", "}"},
+		{"a: {? k:\"p\tq\", m: ", "}"},
+		{"a: {\"k\":\"p\\\"\tq\", m: ", "}"},
+		{"a: {b: [x:\"p\tq\", ", "]}"},
+		{"a: [{k:\"p\tq\", m: ", "}]"},
+		{"a: {b: {k:\"p\tq\"}, m: ", "}"},
+		{"a: {k: [x], m:\"p\tq\", n: ", "}"},
+		{"a: {k: [\"x\":\"p\tq\"], m: ", "}"},
+		{"a: [k:\"p\tq\", ", "]"},
+		{"a: [\"k\":\"p\tq\", ", "]"},
+		{"a: [[x], k:\"p\tq\", ", "]"},
+		{"a: {k: x:\"p\tq\", m: ", "}"},
+		{"a: {k::\"p\tq\", m: ", "}"},
+		{"a: {k:x\"p\tq\", m: ", "}"},
 	} {
-		toks := Tokenize(prefix + "zz]\n")
+		toks := Tokenize(c.prefix + "zz" + c.close + "\n")
 		var col int
 		for _, tk := range toks {
 			if tk.Value == "zz" {
 				col = tk.Position.Column
 			}
 		}
-		line := prefix[strings.LastIndexByte(prefix, '\n')+1:]
+		line := c.prefix[strings.LastIndexByte(c.prefix, '\n')+1:]
 		if got := goccyColumn(line); got != col {
 			t.Errorf("goccyColumn(%q) = %d, want %d", line, got, col)
 		}
