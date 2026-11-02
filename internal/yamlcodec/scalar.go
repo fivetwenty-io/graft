@@ -714,19 +714,13 @@ func (w *scalarWriter) writeScalar(value []byte, style scalarStyle, simpleKey bo
 	}
 }
 
-// renderValueScalar returns spruce's text for string s written as a
-// block value or sequence item. column is where the scalar starts,
-// just after the "key: " or "- " that introduces it; indent is the
-// block indent its continuation lines use (two past the enclosing
-// mapping or sequence); indention says whether only indentation and
-// indicators precede it on its line, as after "- ". The result never
-// includes the separating space.
-func renderValueScalar(s string, column, indent int, indention bool) string {
-	return renderValueScalarAs(s, requestedScalarStyle(s), column, indent, indention)
-}
-
-// renderValueScalarAs is renderValueScalar with the requested style
-// given, for a caller that quotes a string the fork would write plain.
+// renderValueScalarAs returns spruce's text for string s written as a
+// block value or sequence item, in the requested style. column is where
+// the scalar starts, just after the "key: " or "- " that introduces it;
+// indent is the block indent its continuation lines use (two past the
+// enclosing mapping or sequence); indention says whether only
+// indentation and indicators precede it on its line, as after "- ". The
+// result never includes the separating space.
 func renderValueScalarAs(s string, requested scalarStyle, column, indent int, indention bool) string {
 	value := []byte(s)
 	a := analyzeScalar(value)
@@ -784,11 +778,13 @@ func readsAsTimestamp(s string) bool {
 // timestampStyle is the style requested for s when typed is set, which
 // asks for double quotes in four cases. One is a string a YAML 1.1
 // reader resolves as a timestamp. Another is a string that ends in "<<",
-// which goccy's parser reads as a merge key when it ends a key. A string with "<<" elsewhere, such as "cat <<EOF", stays plain. A string
-// with a line break and leading whitespace is the third, since spruce
-// writes it as a literal block with an indentation indicator that goccy's
-// parser refuses. The last is a string that starts with "-", "?", or ":",
-// which goccy's parser misreads as an indicator in some places. Otherwise the style is the fork's own choice.
+// which goccy's parser reads as a merge key when it ends a key. A string
+// with "<<" elsewhere, such as "cat <<EOF", stays plain. A string with a
+// line break and leading whitespace is the third, since spruce writes it
+// as a literal block with an indentation indicator that goccy's parser
+// refuses. The last is a string that starts with "-", "?", or ":", which
+// goccy's parser misreads as an indicator in some places. Otherwise the
+// style is the fork's own choice.
 func timestampStyle(s string, typed bool) scalarStyle {
 	if typed && (readsAsTimestamp(s) || strings.HasSuffix(s, "<<") || leadsWithSpaceBeforeBreak(s) || startsWithIndicator(s)) {
 		return doubleQuotedScalarStyle

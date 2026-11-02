@@ -223,7 +223,7 @@ func TestGoccyWritesVerbatimMatchesGoccy(t *testing.T) {
 		}
 	}
 	for _, s := range strs {
-		if renderValueScalar(s, 3, 2, false) != s {
+		if renderValueScalarAs(s, requestedScalarStyle(s), 3, 2, false) != s {
 			continue
 		}
 		want := !token.IsNeedQuoted(s)
