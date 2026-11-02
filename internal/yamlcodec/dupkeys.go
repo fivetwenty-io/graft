@@ -4,7 +4,6 @@ import (
 	"strconv"
 
 	"github.com/goccy/go-yaml/ast"
-	"github.com/goccy/go-yaml/parser"
 
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
@@ -27,7 +26,7 @@ type DuplicateKey struct {
 // and it then keeps the last value of each key.
 func ParseMergeBodyDuplicates(doc []byte, tag bool, report func(DuplicateKey)) (ast.Node, error) {
 	doc, _ = yamlprep.Prepare(doc)
-	file, err := yamlnode.ParseBytes(doc, 0, parser.AllowDuplicateMapKey())
+	file, err := yamlnode.ParseBytesWithDuplicates(doc, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -73,23 +72,22 @@ func (w dupWalker) node(n ast.Node, path string) {
 }
 
 // mapping walks the pairs of one mapping in order. It reports a pair
-// whose key repeats an earlier one before it walks the pair's value.
+// whose key repeats an earlier one, as yamlnode.KeyID describes, before
+// it walks the pair's value.
 func (w dupWalker) mapping(pairs []*ast.MappingValueNode, path string) {
-	first := make(map[string]keyPos, len(pairs))
+	var keys yamlnode.KeySet[keyPos]
 	for _, pair := range pairs {
 		if pair == nil {
 			continue
 		}
 		child := path
-		if text, pos, ok := scalarKey(pair.Key); ok {
+		if id, pos, ok := scalarKey(pair.Key); ok {
 			if child != "" {
 				child += "."
 			}
-			child += text
-			if at, seen := first[text]; seen {
+			child += id.Text
+			if at, repeat := keys.Add(id, pos); repeat {
 				w.report(DuplicateKey{Path: child, Line: pos.line, Column: pos.col, FirstLine: at.line, FirstColumn: at.col})
-			} else {
-				first[text] = pos
 			}
 		}
 		w.node(pair.Value, child)
@@ -98,30 +96,13 @@ func (w dupWalker) mapping(pairs []*ast.MappingValueNode, path string) {
 
 type keyPos struct{ line, col int }
 
-// scalarKey returns the text and position of key when it is a scalar
+// scalarKey returns the KeyID and position of key when it is a scalar
 // that can repeat, and false for a merge key, an alias, or a collection.
-func scalarKey(key ast.MapKeyNode) (string, keyPos, bool) {
+func scalarKey(key ast.MapKeyNode) (yamlnode.KeyID, keyPos, bool) {
 	var pos keyPos
 	if tk := key.GetToken(); tk != nil && tk.Position != nil {
 		pos = keyPos{tk.Position.Line, tk.Position.Column}
 	}
-	var n ast.Node = key
-	for {
-		switch x := n.(type) {
-		case *ast.MappingKeyNode:
-			n = x.Value
-		case *ast.TagNode:
-			n = x.Value
-		case *ast.AnchorNode:
-			n = x.Value
-		case *ast.MergeKeyNode, *ast.AliasNode, *ast.MappingNode, *ast.MappingValueNode, *ast.SequenceNode, nil:
-			return "", pos, false
-		default:
-			tk := n.GetToken()
-			if tk == nil {
-				return "", pos, false
-			}
-			return tk.Value, pos, true
-		}
-	}
+	id, ok := yamlnode.KeyIDOf(key)
+	return id, pos, ok
 }

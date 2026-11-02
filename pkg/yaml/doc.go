@@ -59,6 +59,15 @@ a DuplicateKey with the path of the key and the positions of both occurrences.
 Merge keys are never reported. Unmarshal itself, and graft's merge, stay
 strict.
 
+Keys compare by their text under any tag or anchor, with one exception each
+way. A null key, such as ~ or null, and a string key whose text is null, such
+as "null" or !!str null, repeat each other, because both are the key "null" in
+a map[string]any, which holds only one of them. A null key and a string key
+whose text is ~, such as "~" or !!str ~, don't repeat each other, and they
+decode as the keys "null" and "~", as spruce reads them. Two null keys spelled
+differently, such as null and ~, are never reported, and the later value wins,
+as it does in spruce.
+
 # Differences from yaml.v2 and yaml.v3
 
 A program moving from yaml.v2 or yaml.v3 meets these differences.

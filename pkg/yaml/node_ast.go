@@ -511,7 +511,7 @@ func (b *astBuilder) sequence(t *Node) ast.Node {
 func (b *astBuilder) mapping(t *Node) ast.Node {
 	pos := tokenPosition(t)
 	n := ast.Mapping(b.tok(token.MappingStart(" {", pos)), true)
-	keys := make(map[string]*token.Position)
+	var keys yamlnode.KeySet[*token.Position]
 	for i := 0; i < len(t.Content); i += 2 {
 		var entry *token.Token
 		if i > 0 {
@@ -519,7 +519,7 @@ func (b *astBuilder) mapping(t *Node) ast.Node {
 		}
 		key := mapKey(b.value(t.Content[i], true), explicitKey(t.Content[i]))
 		if !bareKey(t, i) {
-			b.checkKey(keys, key, t.Content[i].Kind == AliasNode)
+			b.checkKey(&keys, key, t.Content[i].Kind == AliasNode)
 		}
 		colon := b.tok(token.MappingValue(position(t.Content[i])))
 		pair := ast.MappingValue(colon, key, b.value(t.Content[i+1], false))
@@ -566,22 +566,18 @@ func bareKey(t *Node, i int) bool {
 }
 
 // checkKey records key among keys, the keys of one mapping so far, and
-// keeps the first duplicate it finds as b.err. Keys compare by the text
-// goccy's parser compares them by, which is the token of the scalar
-// under any tag or anchor, and "" for an alias. alias says the key is an
-// AliasNode, which compares as "" even where the alias's anchor lies
-// outside the tree and key holds the value written in its place.
-func (b *astBuilder) checkKey(keys map[string]*token.Position, key ast.MapKeyNode, alias bool) {
-	text := dupKeyText(key)
+// keeps the first repeated key it finds as b.err. Keys compare as the
+// text route compares them, which yamlnode.KeyID describes. alias says the key is an AliasNode, which compares as the
+// empty text, as goccy's parser compares an alias, even where the
+// alias's anchor lies outside the tree and key holds the value written
+// in its place.
+func (b *astBuilder) checkKey(keys *yamlnode.KeySet[*token.Position], key ast.MapKeyNode, alias bool) {
+	id, _ := yamlnode.KeyIDOf(key)
 	if alias {
-		text = ""
+		id = yamlnode.KeyID{}
 	}
-	first, seen := keys[text]
-	if !seen {
-		keys[text] = key.GetToken().Position
-		return
-	}
-	if b.err != nil {
+	first, repeat := keys.Add(id, key.GetToken().Position)
+	if !repeat || b.err != nil {
 		return
 	}
 	at := key.GetToken().Position
@@ -590,21 +586,6 @@ func (b *astBuilder) checkKey(keys map[string]*token.Position, key ast.MapKeyNod
 		msg += " at [" + strconv.Itoa(first.Line) + ":" + strconv.Itoa(first.Column) + "]"
 	}
 	b.err = &DecodeError{Kind: ErrorKindSyntax, Line: at.Line, Column: at.Column, Msg: msg}
-}
-
-// dupKeyText is the text goccy's parser compares a mapping key by.
-func dupKeyText(n ast.Node) string {
-	switch x := n.(type) {
-	case *ast.MappingKeyNode:
-		return dupKeyText(x.Value)
-	case *ast.TagNode:
-		return dupKeyText(x.Value)
-	case *ast.AnchorNode:
-		return dupKeyText(x.Value)
-	case *ast.AliasNode:
-		return ""
-	}
-	return n.GetToken().Value
 }
 
 // tagText writes tag in its short form when it has one, and in the

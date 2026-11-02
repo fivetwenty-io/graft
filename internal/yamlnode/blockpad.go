@@ -33,8 +33,31 @@ import (
 // keepPlainTabs describes. A block scalar whose last line ends data,
 // with no line break after it, reads as it would with one, less that
 // line break, as foldBlockAtEnd describes.
-func ParseBytes(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
-	return parseBytes(data, false, mode, opts...)
+//
+// ParseBytes refuses a key that repeats an earlier key of its mapping,
+// as goccy's parser does, but it tells keys apart as KeyID describes,
+// where goccy compares their text alone. So a null key and a string key
+// whose text is null are refused, though their text differs, and a null
+// key and a string key whose text is ~ are two keys, though their text
+// is the same. goccy's own check stops the parse at the first repeat,
+// and ParseBytes runs its check once the parse is done, so in a
+// document that also fails to parse, the parse error is the one
+// returned.
+func ParseBytes(data []byte, mode parser.Mode) (*ast.File, error) {
+	file, err := parseBytes(data, false, mode, parser.AllowDuplicateMapKey())
+	if err != nil {
+		return nil, err
+	}
+	if err := checkDuplicateKeys(file); err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
+// ParseBytesWithDuplicates is ParseBytes for a caller that accepts a
+// key that repeats an earlier key of its mapping.
+func ParseBytesWithDuplicates(data []byte, mode parser.Mode) (*ast.File, error) {
+	return parseBytes(data, false, mode, parser.AllowDuplicateMapKey())
 }
 
 // parseBytes is ParseBytes, and with keep it also works around goccy's

@@ -1,6 +1,10 @@
 package yaml
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/fivetwenty-io/graft/internal/yamlnode"
+)
 
 // collapseDuplicates walks the tree under root in document order. For
 // each later occurrence of a scalar key in a mapping it calls report,
@@ -40,26 +44,30 @@ func (w nodeDupWalker) walk(n *Node, path string) {
 }
 
 // mapping walks the pairs of one mapping node, and rebuilds its Content
-// without the later pairs of a repeated key.
+// without the later pairs of a repeated key. A key repeats an earlier
+// one as yamlnode.KeyID describes, and a later pair's value moves into
+// the last pair kept whose key reads as the same key in a map, so that
+// a decode of the mapping keeps that value.
 func (w nodeDupWalker) mapping(n *Node, path string) {
-	firstAt := make(map[string]int, len(n.Content)/2)
+	var keys yamlnode.KeySet[*Node]
+	lastAt := make(map[string]int, len(n.Content)/2)
 	kept := make([]*Node, 0, len(n.Content))
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		key, val := n.Content[i], n.Content[i+1]
 		child := path
-		if key != nil && key.Kind == ScalarNode && key.Tag != "!!merge" {
+		if key != nil && key.Kind == ScalarNode && key.Tag != yamlnode.TagMerge {
 			if child != "" {
 				child += "."
 			}
 			child += key.Value
-			if at, seen := firstAt[key.Value]; seen {
-				first := kept[at]
+			id := yamlnode.KeyID{Text: key.Value, Null: yamlnode.ShortTag(key.Tag) == yamlnode.TagNull}
+			if first, repeat := keys.Add(id, key); repeat {
 				w.report(DuplicateKey{Path: child, Line: key.Line, Column: key.Column, FirstLine: first.Line, FirstColumn: first.Column})
 				w.walk(val, child)
-				kept[at+1] = val
+				kept[lastAt[id.Slot()]+1] = val
 				continue
 			}
-			firstAt[key.Value] = len(kept)
+			lastAt[id.Slot()] = len(kept)
 		}
 		w.walk(val, child)
 		kept = append(kept, key, val)
