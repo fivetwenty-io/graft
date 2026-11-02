@@ -110,7 +110,8 @@ becomes 1.0e+20, and any other float keeps its decimal point. These outputs
 differ from yaml.v2 for values at or above 1e6, which it writes as 1e+06.
 
 Marshal chooses quotes by spruce's rules plus a few more of its own. It
-double-quotes a string that ends in <<, a string that starts with -#, and a
+double-quotes a string that ends in <<, a string that starts with -, ?, or :
+followed by any character other than a space, such as -foo, ?x, or -#, and a
 multi-line string whose first line starts with whitespace. Inside a field
 tagged ,flow, a string in a list or map is double-quoted when it needs
 quotes, and a string field that is itself tagged ,flow is single-quoted. A
