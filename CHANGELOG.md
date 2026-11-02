@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A scalar under a tag spruce doesn't resolve now keeps its text, as it does in spruce. Before, `!foo yes` and `! on` became booleans, and `!!timestamp` on text that isn't a date, such as `!!timestamp word`, quietly became the zero time. A `!!timestamp` date now prints as written, and a `time.Time` field in `pkg/yaml` still reads it.
 
+- A literal or folded block scalar that holds only a YAML 1.1 boolean word, such as `a: |-` followed by `yes`, now stays a string, as it does in spruce. Before, `graft merge` read it as a boolean.
+
 - A tag that can't hold its text, such as `!!int word` or `!!bool 1`, now fails the document as it does in spruce. The error names the tags and the tag's line and column, and unlike spruce's message it never quotes the text. A second tag on one node and a tag on an alias now fail too, where before the tag could turn the value into `0`.
 
 ## [1.43.1] - 2026-10-27

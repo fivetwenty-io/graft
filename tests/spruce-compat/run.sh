@@ -705,16 +705,28 @@ pattern_aux_base_override_merge() {
 # !!int, !!float, !!null, or !!binary by its YAML library's YAML 1.1
 # rules, so !!str yes stays a string and !!int 0x1f is 31.
 pattern_aux_explicit_tags() {
-  local name="aux: merge of scalars with explicit core tags"
-  run_tool "$SPRUCE_BIN" "$TMP/ptags.s.out" "$TMP/ptags.s.err" NONE -- merge "$FIX/explicit-tags.yml"
+  aux_fixture_merge "aux: merge of scalars with explicit core tags" explicit-tags ptags
+}
+
+# aux: block scalars that hold a YAML 1.1 boolean word. spruce never
+# resolves a block scalar, so each one stays a string.
+pattern_aux_block_scalar_bool_words() {
+  aux_fixture_merge "aux: merge of block scalars holding boolean words" block-scalar-bool-words pblock
+}
+
+# aux_fixture_merge NAME FIXTURE PREFIX merges $FIX/FIXTURE.yml with both
+# tools and reports NAME as passed when the exit codes and output match.
+aux_fixture_merge() {
+  local name="$1" fixture="$2" out="$TMP/$3"
+  run_tool "$SPRUCE_BIN" "$out.s.out" "$out.s.err" NONE -- merge "$FIX/$fixture.yml"
   local s_rc=$RC
-  run_tool "$GRAFT_BIN" "$TMP/ptags.g.out" "$TMP/ptags.g.err" NONE -- merge "$FIX/explicit-tags.yml"
+  run_tool "$GRAFT_BIN" "$out.g.out" "$out.g.err" NONE -- merge "$FIX/$fixture.yml"
   local g_rc=$RC
   if ! assert_exit_parity "$s_rc" "$g_rc"; then
     report_fail "$name" "exit code mismatch: spruce=$s_rc graft=$g_rc"
     return
   fi
-  if assert_stdout_parity yaml "$TMP/ptags.s.out" "$TMP/ptags.g.out"; then
+  if assert_stdout_parity yaml "$out.s.out" "$out.g.out"; then
     report_pass "$name" "exit=$s_rc; $DETAIL_OUT"
   else
     report_fail "$name" "exit=$s_rc (matched); $DETAIL_OUT"
@@ -781,6 +793,7 @@ pattern_16_hook_merge
 pattern_aux_base_override_merge
 pattern_aux_explicit_tags
 pattern_aux_explicit_tag_errors
+pattern_aux_block_scalar_bool_words
 report_secret_not_found_skip
 
 echo

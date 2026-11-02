@@ -148,6 +148,9 @@ spruce ignores the tag. So is a tag with no value before the next line of a
 mapping or sequence, as in "a: !!str\nb: 1", where spruce reads the empty
 string.
 
+A literal or folded block scalar holding only a YAML 1.1 boolean word, as in
+"a: |-\n  yes", reads as that word in both modes, as it does in spruce.
+
 A tab inside a plain scalar, as in a: x<TAB>y, is dropped, so the value is
 "xy". This is how the decoder reads such a scalar, and graft merge gives the
 same result. A quoted scalar keeps its tab.
@@ -180,8 +183,8 @@ the memory of one document for each tree that is read.
 
 A type that decodes through its own UnmarshalYAML method, or that keeps what
 it decodes in an unexported field, receives goccy's raw values. In the
-default mode, a quoted yes, no, on, or off can reach that method with an
-internal marker character in front of it when the target also holds a value
+default mode, a quoted or block scalar holding yes, no, on, or off can reach
+that method with an internal marker character in front of it when the target also holds a value
 of interface type.
 
 # Stability

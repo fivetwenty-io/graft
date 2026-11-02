@@ -289,3 +289,36 @@ func TestMergeTagsSpruceKeepsAsText(t *testing.T) {
 		})
 	}
 }
+
+// TestMergeBlockScalarBoolWords pins block scalars that hold a YAML 1.1
+// boolean word. spruce never resolves a block scalar, so each stays a
+// string. Every expectation is what real spruce v1.35.17 printed.
+func TestMergeBlockScalarBoolWords(t *testing.T) {
+	cases := []struct {
+		in   string
+		path string
+		want string
+	}{
+		{"a: |-\n  yes\nz: 1", "a", "str:yes"},
+		{"a: >-\n  off\nz: 1", "a", "str:off"},
+		{"a:\n- |-\n  No\nz: 1", "a.[0]", "str:No"},
+		{"a: |\n  yes\nz: 1", "a", "str:yes\n"},
+		{"a: >\n  On\nz: 1", "a", "str:On\n"},
+		{"a: &x |-\n  yes\nb: *x", "a", "str:yes"},
+		{"a: &x |-\n  yes\nb: *x", "b", "str:yes"},
+		{"a: |-\n  true\nz: 1", "a", "str:true"},
+		{"a: >-\n  yes\n  no\nz: 1", "a", "str:yes no"},
+		{"a: yes\nz: 1", "a", "bool:true"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.in+"/"+tc.path, func(t *testing.T) {
+			doc, err := NewDefaultEngine().ParseYAML([]byte(tc.in))
+			if err != nil {
+				t.Fatalf("ParseYAML: %v", err)
+			}
+			if got := scalarClass(mustGet(t, doc, tc.path)); got != tc.want {
+				t.Errorf("%s = %s, want %s", tc.path, got, tc.want)
+			}
+		})
+	}
+}

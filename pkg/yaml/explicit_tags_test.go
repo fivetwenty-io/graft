@@ -241,3 +241,35 @@ func TestExplicitTagSyntaxErrors(t *testing.T) {
 		})
 	}
 }
+
+// TestBlockScalarBoolWordsStayStrings checks that a block scalar holding
+// a YAML 1.1 boolean word decodes as that word in both modes, as spruce
+// reads it, while a plain yes is still true in the default mode.
+func TestBlockScalarBoolWordsStayStrings(t *testing.T) {
+	t.Parallel()
+	const doc = "a: |-\n  yes\nb: >-\n  Off\nc:\n- |-\n  NO\nd: &x |-\n  on\ne: *x\n"
+	want := map[string]any{"a": "yes", "b": "Off", "c": []any{"NO"}, "d": "on", "e": "on"}
+	for _, m := range modes {
+		t.Run(m.name, func(t *testing.T) {
+			t.Parallel()
+			var got map[string]any
+			if err := yaml.UnmarshalWith([]byte(doc), &got, m.opts); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("got %#v, want %#v", got, want)
+			}
+			var n yaml.Node
+			if err := yaml.UnmarshalWith([]byte(doc), &n, m.opts); err != nil {
+				t.Fatal(err)
+			}
+			var viaNode map[string]any
+			if err := n.Decode(&viaNode); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(viaNode, want) {
+				t.Errorf("Node.Decode gave %#v, want %#v", viaNode, want)
+			}
+		})
+	}
+}

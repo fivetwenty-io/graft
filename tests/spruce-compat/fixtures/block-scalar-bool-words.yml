@@ -1,0 +1,24 @@
+# Block scalars that hold a YAML 1.1 boolean word. spruce never resolves
+# a block scalar, so each one stays a string, while the plain words at
+# the end still read as booleans.
+literal_strip: |-
+  yes
+folded_strip: >-
+  off
+list:
+- |-
+  No
+- >-
+  ON
+literal_keep: |
+  yes
+folded_keep: >
+  Off
+anchored: &word |-
+  on
+aliased: *word
+two_words: >-
+  yes
+  no
+plain_yes: yes
+plain_off: off

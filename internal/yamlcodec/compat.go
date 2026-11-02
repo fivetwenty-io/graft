@@ -314,12 +314,12 @@ var Yaml11BoolLookalikeWords = map[string]bool{
 }
 
 // quotedBoolTagger is an ast.Visitor that mutates the Value of every
-// explicitly-quoted (single- or double-quoted) *ast.StringNode whose
-// content is a YAML 1.1 boolean-lookalike word, prefixing it with
-// yaml11QuotedBoolMarker. Plain (unquoted) scalars, and quoted scalars
-// embedded inside literal/folded block content (which the parser
-// represents as a different node shape, never a quoted StringNode), are
-// left untouched. So are mapping keys, which the compat pass never
+// explicitly-quoted (single- or double-quoted) *ast.StringNode, and of
+// every literal or folded block scalar, whose content is a YAML 1.1
+// boolean-lookalike word, prefixing it with yaml11QuotedBoolMarker.
+// spruce's YAML library never resolves a quoted or block scalar, so a
+// block scalar holding only yes stays the word. Plain (unquoted) scalars
+// are left untouched. So are mapping keys, which the compat pass never
 // coerces, so a marker on a key would never come off.
 type quotedBoolTagger struct{}
 
@@ -331,10 +331,18 @@ func (quotedBoolTagger) Visit(n ast.Node) ast.Visitor {
 		ast.Walk(quotedBoolTagger{}, mv.Value)
 		return nil
 	}
-	if sn, ok := n.(*ast.StringNode); ok {
+	switch sn := n.(type) {
+	case *ast.StringNode:
 		if sn.Token != nil && IsQuotedScalarToken(sn.Token.Type) && Yaml11BoolLookalikeWords[sn.Value] {
 			sn.Value = yaml11QuotedBoolMarker + sn.Value
 		}
+	case *ast.LiteralNode:
+		if sn.Value != nil && Yaml11BoolLookalikeWords[sn.Value.Value] {
+			sn.Value.Value = yaml11QuotedBoolMarker + sn.Value.Value
+		}
+		// Its content is the node marked above, which the walk must not
+		// reach again.
+		return nil
 	}
 	return quotedBoolTagger{}
 }
