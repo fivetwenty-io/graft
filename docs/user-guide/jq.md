@@ -157,6 +157,9 @@ These are the places where `graft jq` deliberately differs from jq 1.8.2.
 - Diagnostics
   Errors use graft's phrases in place of `jq: error:`, and graft does not print jq's compile-error count or caret display. Exit codes are unchanged, so a script that tests `$?` keeps working, while a script that searches standard error for `jq: error` does not.
 
+- Closed standard input
+  When a script closes standard input with `<&-`, jq exits 2 with a bad file descriptor error, and `graft jq` reads it as empty input and exits 0. The Go runtime reopens a closed standard input as `/dev/null` before graft starts, and graft has no reliable way to tell that apart from the `/dev/null` that Python's `subprocess.DEVNULL` and systemd hand to a program on purpose.
+
 - Extra flags
   `-o yaml`, `-S` with named modes, `-m`, `-E`, and `--repl` are graft's own. None of them collides with a jq flag.
 
