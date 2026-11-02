@@ -721,10 +721,16 @@ pattern_aux_plain_scalar_tabs() {
   aux_fixture_merge "aux: merge of plain scalars holding tabs" plain-scalar-tabs pptabs
 }
 
+# aux: folded block scalars whose last line ends the file with no line
+# break after it. spruce folds that line into the value as it folds the
+# others, and keeps the spaces and tabs that end it.
 pattern_aux_folded_scalar_at_end() {
   aux_fixture_merge "aux: merge of a folded scalar that ends the file" folded-scalar-at-end foldend
 }
 
+# aux: double-quoted scalars that hold a literal tab, as a value, in a
+# flow collection, and as a key. spruce keeps the tab and reads the rest
+# of the line as usual.
 pattern_aux_quoted_scalar_tabs() {
   aux_fixture_merge "aux: merge of quoted scalars holding tabs" quoted-scalar-tabs qtabs
 }

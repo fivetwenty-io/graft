@@ -180,6 +180,9 @@ either byte order, by converting it to UTF-8 first. A UTF-16 document with
 no content, an odd number of bytes, or an unpaired surrogate is a syntax
 error.
 
+The column a Node or a DecodeError gives for a place on a continuation line
+of a multi-line quoted scalar is approximate when the input uses tabs.
+
 Node.Decode matches Unmarshal on a tree that Unmarshal returned, with a few
 exceptions. They arise because the tree reader follows yaml.v3 while
 Unmarshal follows goccy.
@@ -190,9 +193,6 @@ written on an alias, as in b: !!str *x, which Unmarshal refuses and Decode
 reads as the value the alias names. They also disagree on a tag with nothing
 after it at the end of the document, as in a: !!str, which Unmarshal reads
 as null and Decode reads as the empty string.
-
-Finally, the column of a continuation line in a multi-line quoted scalar is
-approximate when the input uses tabs.
 
 A Node that Unmarshal returned keeps its whole input document, and the first
 Decode on that tree parses it one more time. The cost is one extra parse and

@@ -38,15 +38,6 @@ func foldBlockAtEnd(text string, toks token.Tokens) {
 	tk.Value = strings.TrimSuffix(pt.Value, "\n")
 }
 
-// EndsInBlockScalar reports whether text ends in a block scalar whose
-// last line has no line break after it and holds a character other than
-// a space or a tab, which is the block ParseBytes reads as it would with
-// a line break after it, less that line break.
-func EndsInBlockScalar(text []byte) bool {
-	s := string(text)
-	return lastLineHasText(s) && endsInBlockScalar(s, yamlprep.Tokenize(s))
-}
-
 // endsInBlockScalar reports whether the last token of toks, the tokens
 // of text, is the content of a block scalar, and the last line of text,
 // which ends it, has no line break after it and holds a character other
@@ -54,20 +45,34 @@ func EndsInBlockScalar(text []byte) bool {
 // blanks reads the same either way, and a line break added after it
 // would change the value of a clip block.
 func endsInBlockScalar(text string, toks token.Tokens) bool {
-	if len(toks) < 2 || toks[len(toks)-1].Type != token.StringType || !lastLineHasText(text) {
+	if len(toks) == 0 || toks[len(toks)-1].Type != token.StringType || !lastLineHasText(text) {
 		return false
 	}
-	for k := len(toks) - 2; k >= 0; k-- {
+	_, ok := lastBlockScalarHeader(toks)
+	return ok
+}
+
+// lastBlockScalarHeader reports whether the last token of toks is the
+// content of a literal or folded block scalar, so the text ends inside
+// it, and returns that scalar's header token, such as "|2-". Comments
+// between the two are skipped. goccy's lexer marks the content Invalid
+// when it is about to reject it, so both types count.
+func lastBlockScalarHeader(toks token.Tokens) (*token.Token, bool) {
+	n := len(toks)
+	if n < 2 || (toks[n-1].Type != token.StringType && toks[n-1].Type != token.InvalidType) {
+		return nil, false
+	}
+	for k := n - 2; k >= 0; k-- {
 		switch toks[k].Type {
 		case token.CommentType:
 			continue
 		case token.LiteralType, token.FoldedType:
-			return true
+			return toks[k], true
 		default:
-			return false
+			return nil, false
 		}
 	}
-	return false
+	return nil, false
 }
 
 // lastLineHasText reports whether text ends in a line with no line break

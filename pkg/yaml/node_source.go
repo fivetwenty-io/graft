@@ -2,7 +2,6 @@ package yaml
 
 import (
 	"bytes"
-	"strings"
 	"sync"
 
 	"github.com/goccy/go-yaml/ast"
@@ -85,27 +84,47 @@ func (r *readText) scalar(line, col int, value string, block, collection bool) *
 // without one, placing a token elsewhere, or reading a lone tag as no
 // document at all. So a document with no final line break is parsed with
 // one, and the tree decodes as that text does. The one exception is a
-// block scalar that the document's last line ends, which Unmarshal reads
-// with no final line break, so the line break is taken off its value. A
-// document the parser refuses records nothing, so Decode falls back on
-// the tree.
+// block scalar that the document's last line ends, whose value the added
+// line break can change, so it takes the value Unmarshal reads for it
+// from the document as it is. A document the parser refuses records
+// nothing, so Decode falls back on the tree.
 func (r *readText) parse() {
 	r.scalars = make(map[[2]int][]*parsedScalar)
 	prepared, _ := yamlprep.Prepare(r.doc)
-	blockAtEnd := false
+	text := prepared
 	if !bytes.HasSuffix(prepared, []byte("\n")) {
-		blockAtEnd = yamlnode.EndsInBlockScalar(prepared)
-		prepared = append(prepared[:len(prepared):len(prepared)], '\n')
+		text = append(prepared[:len(prepared):len(prepared)], '\n')
 	}
-	read, ok := scalarsOf(prepared)
+	read, ok := scalarsOf(text)
 	if !ok {
 		return
 	}
-	if last := len(read) - 1; blockAtEnd && last >= 0 && read[last].scalar.block {
-		read[last].scalar.value = strings.TrimSuffix(read[last].scalar.value, "\n")
+	if len(text) != len(prepared) {
+		readLastBlockAsIs(read, prepared)
 	}
 	for _, s := range read {
 		r.scalars[s.pos] = append(r.scalars[s.pos], s.scalar)
+	}
+}
+
+// readLastBlockAsIs gives the last scalar of read, the scalars of doc
+// with a line break added, when it is a block scalar, the value the
+// parser reads for it from doc itself. A line break after the last line
+// of a block changes its value when the block keeps its final line
+// breaks, or when that line holds only blanks but more of them than the
+// block's indentation. The value stays when the parser refuses doc or
+// places its last block scalar elsewhere.
+func readLastBlockAsIs(read []placedScalar, doc []byte) {
+	last := len(read) - 1
+	if last < 0 || !read[last].scalar.block {
+		return
+	}
+	asIs, ok := scalarsOf(doc)
+	if !ok || len(asIs) == 0 {
+		return
+	}
+	if s := asIs[len(asIs)-1]; s.pos == read[last].pos && s.scalar.block {
+		read[last].scalar.value = s.scalar.value
 	}
 }
 

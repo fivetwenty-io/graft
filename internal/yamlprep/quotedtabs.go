@@ -31,15 +31,15 @@ func Tokenize(src string) token.Tokens {
 	if !mayHoldQuotedTab(src) {
 		return lexer.Tokenize(src)
 	}
+	tabs := doubledQuotedTabs(src)
+	if len(tabs) == 0 {
+		return lexer.Tokenize(src)
+	}
 	marker, ok := unusedRune(src)
 	if !ok {
 		return lexer.Tokenize(src)
 	}
-	marked, ok := markQuotedTabs(src, marker)
-	if !ok {
-		return lexer.Tokenize(src)
-	}
-	toks := lexer.Tokenize(marked)
+	toks := lexer.Tokenize(markAt(src, tabs, marker))
 	for _, tk := range toks {
 		if tk.Type != token.DoubleQuoteType &&
 			(strings.ContainsRune(tk.Value, marker) || strings.ContainsRune(tk.Origin, marker)) {
@@ -74,17 +74,17 @@ func unusedRune(src string) (rune, bool) {
 	return 0, false
 }
 
-// markQuotedTabs returns src with marker in place of each tab inside a
-// double-quoted scalar that goccy counts twice, and false when there is
-// none. It finds the scalars by tokenizing src with each tab made a
-// space, which goccy reads right and which leaves every byte where it
-// is, and walks each scalar in src from its opening quote to its closing
-// one. A scalar with no closing quote keeps its tabs, and a token whose
-// place holds no opening quote in src marks nothing.
-func markQuotedTabs(src string, marker rune) (string, bool) {
+// doubledQuotedTabs returns the offsets in src, in order, of each tab
+// inside a double-quoted scalar that goccy counts twice. It finds the
+// scalars by tokenizing src with each tab made a space, which goccy reads
+// right and which leaves every byte where it is, and walks each scalar
+// in src from its opening quote to its closing one. A scalar with no
+// closing quote keeps its tabs, and a token whose place holds no opening
+// quote in src marks nothing.
+func doubledQuotedTabs(src string) []int {
 	neutral := strings.ReplaceAll(src, "\t", " ")
 	idx := newByteIndex(neutral)
-	var marks []int
+	var tabs []int
 	for _, tk := range lexer.Tokenize(neutral) {
 		if tk.Type != token.DoubleQuoteType || tk.Position == nil {
 			continue
@@ -99,23 +99,25 @@ func markQuotedTabs(src string, marker rune) (string, bool) {
 		if !ok || start >= len(src) || src[start] != '"' {
 			continue
 		}
-		marks = append(marks, quotedTabs(src, start)...)
+		tabs = append(tabs, quotedTabs(src, start)...)
 	}
-	if len(marks) == 0 {
-		return src, false
-	}
-	slices.Sort(marks)
-	marks = slices.Compact(marks)
+	slices.Sort(tabs)
+	return slices.Compact(tabs)
+}
+
+// markAt returns src with marker in place of the byte at each offset in
+// at, which are in order and each hold a tab.
+func markAt(src string, at []int, marker rune) string {
 	var b strings.Builder
-	b.Grow(len(src) + 2*len(marks))
+	b.Grow(len(src) + 2*len(at))
 	last := 0
-	for _, at := range marks {
-		b.WriteString(src[last:at])
+	for _, i := range at {
+		b.WriteString(src[last:i])
 		b.WriteRune(marker)
-		last = at + 1
+		last = i + 1
 	}
 	b.WriteString(src[last:])
-	return b.String(), true
+	return b.String()
 }
 
 // quotedTabs returns the offsets of the tabs goccy counts twice in the

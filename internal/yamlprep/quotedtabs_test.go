@@ -1,6 +1,7 @@
 package yamlprep
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -128,20 +129,8 @@ func TestQuotedTabs(t *testing.T) {
 	}
 	for _, c := range cases {
 		got := quotedTabs(c.src, 0)
-		if !slicesEqual(got, c.want) {
+		if !slices.Equal(got, c.want) {
 			t.Errorf("quotedTabs(%q) = %v, want %v", c.src, got, c.want)
 		}
 	}
-}
-
-func slicesEqual(a, b []int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

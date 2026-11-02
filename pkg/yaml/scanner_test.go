@@ -71,6 +71,12 @@ func TestUnmarshalFoldsBlockAtEnd(t *testing.T) {
 		{"trailing space", "a: >\n  x\n  y ", map[string]any{"a": "x y "}},
 		{"literal with a trailing space", "a: |\n  x\n  y ", map[string]any{"a": "x\ny "}},
 		{"last line of spaces", "a: >\n  x\n  ", map[string]any{"a": "x\n"}},
+		{"keep with a last line of spaces", "a: >+\n  x\n  ", map[string]any{"a": "x\n"}},
+		{"literal keep with a last line of spaces", "a: |+\n  x\n  ", map[string]any{"a": "x\n"}},
+		{"nested keep with a last line of spaces", "m:\n  a: |+\n    x\n    ", map[string]any{"m": map[string]any{"a": "x\n"}}},
+		{"keep with an empty line and a last line of spaces", "a: |+\n  x\n\n  ", map[string]any{"a": "x\n\n"}},
+		{"keep with a last line of more spaces", "a: |+\n  x\n     ", map[string]any{"a": "x\n   "}},
+		{"clip with a last line of more spaces", "a: |\n  x\n     ", map[string]any{"a": "x\n   "}},
 		{"final line break", "a: >\n  x\n  y\n", map[string]any{"a": "x y\n"}},
 	})
 }

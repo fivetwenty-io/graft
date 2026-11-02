@@ -11,7 +11,6 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/parser"
-	"github.com/goccy/go-yaml/token"
 
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
@@ -198,35 +197,11 @@ func (b *builder) parseBytes(text string) (*ast.File, error) {
 // drops trailing spaces and stops folding, which is why Parse adds it.
 // normalizeChunkEnd reports whether the chunk ends inside a block scalar.
 func normalizeChunkEnd(text string, addedNewline bool) (string, bool) {
-	header, endsInBlock := finalBlockScalarHeader(text)
+	header, endsInBlock := lastBlockScalarHeader(yamlprep.Tokenize(text))
 	if endsInBlock && !addedNewline && indentIndicator(header.Value) > 0 && !strings.Contains(header.Value, "+") {
 		text = dropTrailingBlankLines(text, blockIndent(header, nil))
 	}
 	return text, endsInBlock
-}
-
-// finalBlockScalarHeader reports whether the last token of src is the
-// body of a literal or folded block scalar, so the stream ends inside it,
-// and returns that scalar's header token, such as "|2-". goccy's lexer
-// marks the body Invalid when it is about to reject it, so both types
-// count.
-func finalBlockScalarHeader(src string) (*token.Token, bool) {
-	toks := yamlprep.Tokenize(src)
-	n := len(toks)
-	if n < 2 || (toks[n-1].Type != token.StringType && toks[n-1].Type != token.InvalidType) {
-		return nil, false
-	}
-	for k := n - 2; k >= 0; k-- {
-		switch toks[k].Type {
-		case token.CommentType:
-			continue
-		case token.LiteralType, token.FoldedType:
-			return toks[k], true
-		default:
-			return nil, false
-		}
-	}
-	return nil, false
 }
 
 // dropTrailingBlankLines removes the lines at the end of src that hold
