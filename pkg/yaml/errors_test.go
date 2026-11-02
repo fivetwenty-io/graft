@@ -256,3 +256,29 @@ func TestErrorKindValues(t *testing.T) {
 		t.Errorf("kinds are %d, %d, %d, want 1, 2, 3", yaml.ErrorKindSyntax, yaml.ErrorKindType, yaml.ErrorKindLimit)
 	}
 }
+
+// TestNodeRouteErrorsMatchOtherRoutes checks that a syntax error read
+// into a Node carries the column and the wording the generic and typed
+// routes give the same input.
+func TestNodeRouteErrorsMatchOtherRoutes(t *testing.T) {
+	t.Parallel()
+	for _, doc := range []string{"a: [1, 2", "a: {b: 1", "a: *nope", "a:\n  - x\n *y"} {
+		var node yaml.Node
+		nodeErr := wantDecodeError(t, yaml.Unmarshal([]byte(doc), &node), yaml.ErrorKindSyntax, lineOf(doc))
+		var generic any
+		genericErr := wantDecodeError(t, yaml.Unmarshal([]byte(doc), &generic), yaml.ErrorKindSyntax, lineOf(doc))
+		if nodeErr.Column == 0 {
+			t.Errorf("%q: Node route Column = 0, want the column %d the other routes report", doc, genericErr.Column)
+		}
+		if *nodeErr != *genericErr {
+			t.Errorf("%q: Node route error %+v, other routes %+v", doc, *nodeErr, *genericErr)
+		}
+		wantNoLeak(t, nodeErr, "nope")
+	}
+}
+
+// lineOf returns the line of the last line break's successor in doc,
+// which is the line the errors above lie on.
+func lineOf(doc string) int {
+	return strings.Count(strings.TrimSuffix(doc, "\n"), "\n") + 1
+}

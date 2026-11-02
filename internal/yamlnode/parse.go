@@ -24,13 +24,16 @@ import (
 // Line is the line spruce's YAML library reports, which for many errors
 // is libyaml's count from 0, and Error prints it. SourceLine is the line
 // of the input the error lies on, counted from 1, with 0 when the error
-// has no position. Error never prints SourceLine, so callers that show
+// has no position. SourceColumn is the column of the input the error
+// lies at, counted from 1, with 0 when it is not known. Error never
+// prints SourceLine or SourceColumn, so callers that show
 // spruce's text keep it, and callers that point at the input read
 // SourceLine.
 type ParseError struct {
-	Line       int
-	SourceLine int
-	Message    string
+	Line         int
+	SourceLine   int
+	SourceColumn int
+	Message      string
 }
 
 func (e *ParseError) Error() string {
@@ -411,7 +414,7 @@ func toParseError(err error, lineOffset int) error {
 		if line > 0 {
 			line += lineOffset
 		}
-		return &ParseError{Line: line, SourceLine: line, Message: se.Message}
+		return &ParseError{Line: line, SourceLine: line, SourceColumn: se.Token.Position.Column, Message: se.Message}
 	}
 	return &ParseError{Message: err.Error()}
 }

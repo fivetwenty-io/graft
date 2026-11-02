@@ -104,7 +104,7 @@ func translate(err error) *DecodeError {
 	// are replaced whole.
 	var pe *yamlnode.ParseError
 	if errors.As(err, &pe) {
-		return &DecodeError{Kind: ErrorKindSyntax, Line: pe.SourceLine, Msg: parseMessage(pe.Message)}
+		return &DecodeError{Kind: ErrorKindSyntax, Line: pe.SourceLine, Column: pe.SourceColumn, Msg: parseMessage(pe.Message)}
 	}
 
 	// The anchor check's message names the anchor, so only its position
@@ -146,7 +146,7 @@ func parseMessage(msg string) string {
 // and the start of goccy's message for a merge key's unknown alias.
 const (
 	selfContainingAnchorMessage = "anchor value contains itself"
-	unknownAliasMessage         = "cannot find the anchor an alias names"
+	unknownAliasMessage         = "could not find alias"
 	unknownAliasPrefix          = "cannot find anchor by alias name"
 	unexportedEmbeddedPrefix    = "cannot set embedded type as unexported field"
 )

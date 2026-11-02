@@ -151,7 +151,7 @@ func (b *builder) build(n ast.Node) (*Node, error) {
 		target := b.anchors[name]
 		line := alias.Start.Position.Line + b.lineOffset
 		if target == nil {
-			return nil, &ParseError{SourceLine: line, Message: "unknown anchor '" + name + "' referenced"}
+			return nil, &ParseError{SourceLine: line, SourceColumn: alias.Value.GetToken().Position.Column, Message: "unknown anchor '" + name + "' referenced"}
 		}
 		if b.open[target] {
 			// The alias sits inside the collection it names, so the tree
