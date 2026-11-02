@@ -1,0 +1,46 @@
+tabcomment: v
+  - x #	c
+tabend: v
+  - x	
+tabhash: v
+  - x	#c
+comment: v
+  - x #c
+  # d
+nodash: v
+  -x	
+inner: v
+  - x	z	
+fold: v
+  - x	
+  w
+deeper: v
+  - x
+    w
+blank: v
+  - x
+
+  w
+two: v
+  - x	
+  - w	
+later: v
+  w
+  - x	
+nested:
+  a: v
+    - x	#c
+  b: 1
+list:
+- v
+  - x #c
+- w
+anchored: &n v
+  - x	
+alias: *n
+tagged: !!str v
+  - x #c
+number: 1
+  - 2
+colon: v
+  - x:z

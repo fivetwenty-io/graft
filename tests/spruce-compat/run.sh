@@ -747,6 +747,10 @@ pattern_aux_merge_key_tabs() {
   aux_fixture_merge "aux: merge of << keys with a tab by their colon" merge-key-tabs mktabs
 }
 
+pattern_aux_dash_continuation() {
+  aux_fixture_merge "aux: merge of plain scalars continued on a line that starts with -" dash-continuation dashcont
+}
+
 # aux_fixture_merge NAME FIXTURE PREFIX merges $FIX/FIXTURE.yml with both
 # tools and reports NAME as passed when the exit codes and output match.
 aux_fixture_merge() {
@@ -832,6 +836,7 @@ pattern_aux_folded_scalar_at_end
 pattern_aux_quoted_scalar_tabs
 pattern_aux_tag_anchor_tabs
 pattern_aux_merge_key_tabs
+pattern_aux_dash_continuation
 report_secret_not_found_skip
 
 echo
