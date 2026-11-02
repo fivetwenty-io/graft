@@ -194,9 +194,9 @@ a: {k: !!set &n, w: z}.
 
 A block scalar whose last line ends the document with no line break,
 and holds a tab inside the indentation, as in "a: |\n    x\n  \t", reads
-as if that line were empty, where spruce fails. Node.Decode fails on it
-as spruce does, and with a line break after that line, Unmarshal fails
-too.
+as if that line were empty, where spruce fails. Unmarshal into a Node
+fails on it as spruce does, and with a line break after that line,
+Unmarshal fails too.
 
 A tagged mapping key reads as a string key, because a decoded map's keys are
 strings. So "!!bool yes: a" gives the key "true", and graft merge prints it
