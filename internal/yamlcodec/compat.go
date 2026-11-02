@@ -167,6 +167,16 @@ func (c *YAMLCompat) convertAndUnprotectAny(v interface{}) interface{} {
 	return c.convertAndUnprotectWith(v, c.ConvertYAML11Booleans)
 }
 
+// ConvertGeneric applies to v, a generic value goccy decoded from a
+// body that ParseFirstBody tagged, the conversion DecodeGeneric applies
+// when its intsAlways is set. It strips the quoted-boolean markers, reads
+// yes, no, on, and off as booleans when c converts YAML 1.1 booleans,
+// turns int-sized integers into int, and widens float32 to float64. It
+// changes maps and slices in place and returns the converted value.
+func (c *YAMLCompat) ConvertGeneric(v any) any {
+	return c.convertAndUnprotectWith(v, true)
+}
+
 // convertAndUnprotectWith is convertAndUnprotectAny with the numeric
 // normalizations applied when ints is set. c applies them on its own
 // only when it converts YAML 1.1 booleans.
@@ -271,6 +281,36 @@ func (quotedBoolTagger) Visit(n ast.Node) ast.Visitor {
 	return quotedBoolTagger{}
 }
 
+// PlainBoolsAsBoolNodes returns n, a body ParseFirstBody returned, with
+// every plain scalar that YAMLCompat reads as a YAML 1.1 boolean, such as
+// yes or Off, replaced by a boolean node that keeps the scalar's token.
+// It rewrites n in place, and mapping keys stay as they are. goccy then
+// decodes those scalars into a bool without a hook, and so reports any
+// other scalar a bool cannot hold with that scalar's position.
+func PlainBoolsAsBoolNodes(n ast.Node) ast.Node {
+	switch v := n.(type) {
+	case *ast.StringNode:
+		if v.Token != nil && !IsQuotedScalarToken(v.Token.Type) {
+			if b, ok := DefaultYAMLCompat().ConvertValue(v.Value).(bool); ok {
+				return &ast.BoolNode{BaseNode: &ast.BaseNode{}, Token: v.Token, Value: b}
+			}
+		}
+	case *ast.TagNode:
+		v.Value = PlainBoolsAsBoolNodes(v.Value)
+	case *ast.MappingValueNode:
+		v.Value = PlainBoolsAsBoolNodes(v.Value)
+	case *ast.MappingNode:
+		for _, item := range v.Values {
+			PlainBoolsAsBoolNodes(item)
+		}
+	case *ast.SequenceNode:
+		for i, item := range v.Values {
+			v.Values[i] = PlainBoolsAsBoolNodes(item)
+		}
+	}
+	return n
+}
+
 // IsQuotedScalarToken reports whether t is a single- or double-quoted
 // scalar token.
 func IsQuotedScalarToken(t token.Type) bool {
@@ -299,6 +339,27 @@ func IsQuotedScalarToken(t token.Type) bool {
 // Library callers pass raw input through FirstMergeDocument first, since
 // goccy's parser stalls on nesting that function fails cheaply.
 func ParseYAML11CompatAware(data []byte) (interface{}, error) {
+	body, err := ParseFirstBody(data, true)
+	if err != nil || body == nil {
+		return nil, err
+	}
+	var result interface{}
+	if err := DecodeBody(body, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ParseFirstBody parses data and returns the root node of its first
+// document with every alias expanded, or nil when data holds no
+// document. It fails a document with an alias inside the collection its
+// anchor names, and one that expands past maxExpandedNodes. When tag is
+// set, every quoted YAML 1.1 boolean-lookalike scalar carries
+// yaml11QuotedBoolMarker, so a later YAMLCompat pass leaves it a string,
+// and a caller that sets tag must strip the marker from every string it
+// decodes. ParseYAML11CompatAware tags, and so does pkg/yaml's typed
+// route when its target can hold a generic value.
+func ParseFirstBody(data []byte, tag bool) (ast.Node, error) {
 	file, err := yamlnode.ParseBytes(data, 0)
 	if err != nil {
 		return nil, err
@@ -311,25 +372,27 @@ func ParseYAML11CompatAware(data []byte) (interface{}, error) {
 		return nil, err
 	}
 
-	ast.Walk(quotedBoolTagger{}, body)
+	if tag {
+		ast.Walk(quotedBoolTagger{}, body)
+	}
 
 	// The tagger runs first, since expansion shares one subtree among
 	// every alias to it, and the tagger must mark each scalar only once.
-	body, err = ExpandAliases(body)
-	if err != nil {
-		return nil, err
-	}
+	return ExpandAliases(body)
+}
 
-	var result interface{}
-	if err := yaml.NodeToValue(body, &result); err != nil {
+// DecodeBody decodes body, a node ParseFirstBody returned, into v with
+// goccy's NodeToValue and opts.
+func DecodeBody(body ast.Node, v any, opts ...yaml.DecodeOption) error {
+	if err := yaml.NodeToValue(body, v, opts...); err != nil {
 		if errors.Is(err, yaml.ErrExceededMaxDepth) {
 			// Expansion can nest an aliased value deeper than the
 			// document's own text, past what FirstMergeDocument checks.
-			return nil, &MaxRecursionError{cause: err}
+			return &MaxRecursionError{cause: err}
 		}
-		return nil, err
+		return err
 	}
-	return result, nil
+	return nil
 }
 
 // DecodeGeneric decodes doc into the generic values a merge reads, which
@@ -658,10 +721,8 @@ func libyamlLine(line int) int {
 func UnprotectYAML11QuotedBools(v interface{}) interface{} {
 	switch val := v.(type) {
 	case string:
-		if strings.HasPrefix(val, yaml11QuotedBoolMarker) {
-			return strings.TrimPrefix(val, yaml11QuotedBoolMarker)
-		}
-		return val
+		s, _ := UnprotectString(val)
+		return s
 	case map[string]interface{}:
 		for k, item := range val {
 			val[k] = UnprotectYAML11QuotedBools(item)
@@ -680,4 +741,14 @@ func UnprotectYAML11QuotedBools(v interface{}) interface{} {
 	default:
 		return v
 	}
+}
+
+// UnprotectString returns s without the yaml11QuotedBoolMarker that
+// ParseFirstBody puts on a quoted YAML 1.1 boolean-lookalike scalar, and
+// reports whether s carried it.
+func UnprotectString(s string) (string, bool) {
+	if strings.HasPrefix(s, yaml11QuotedBoolMarker) {
+		return strings.TrimPrefix(s, yaml11QuotedBoolMarker), true
+	}
+	return s, false
 }

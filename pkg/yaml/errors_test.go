@@ -229,21 +229,6 @@ func TestUnmarshalGenericTypeMismatch(t *testing.T) {
 	}
 }
 
-// TestUnmarshalTypedTargetNotYetSupported pins the typed route's
-// placeholder, which names the target type.
-func TestUnmarshalTypedTargetNotYetSupported(t *testing.T) {
-	type config struct {
-		Password string `yaml:"password"`
-	}
-	var c config
-	err := yaml.Unmarshal([]byte("password: supersecret\n"), &c)
-	de := wantDecodeError(t, err, yaml.ErrorKindType, 0)
-	if !strings.Contains(de.Msg, "yaml_test.config") {
-		t.Errorf("Msg %q does not name the target type", de.Msg)
-	}
-	wantNoLeak(t, err, "supersecret")
-}
-
 // TestDecodeErrorFormat pins the Error() format the spec gives.
 func TestDecodeErrorFormat(t *testing.T) {
 	cases := []struct {

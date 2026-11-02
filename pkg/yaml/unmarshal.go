@@ -6,8 +6,29 @@ package yaml
 //
 // v must be a non-nil pointer. A *any, *map[string]any, or *[]any
 // receives maps as map[string]any, sequences as []any, integers as int,
-// and floats as float64. Empty input, or input that holds only comments,
-// leaves v unchanged. Every error is a *DecodeError.
+// and floats as float64. Empty input, or input that holds only comments
+// or a null, leaves v unchanged. Every error is a *DecodeError.
+//
+// Any other v, such as a pointer to a struct, a typed map, or a typed
+// slice, is decoded by goccy/go-yaml, which honors the yaml tag options
+// ,omitempty, ,inline, and ,flow. A struct field with no yaml tag takes
+// its key from its json tag, and then from its name in lower case. A
+// plain yes, no, on, or off decodes into a bool or *bool field as a
+// boolean, while a quoted one is refused with an ErrorKindType error, as
+// yaml.v2 refuses it. A string field holds such a word as written. A
+// value of type any, map[string]any, or []any anywhere inside v holds
+// exactly what a top-level decode of the same text gives.
+//
+// Two limits apply to that route:
+//
+//   - A named bool type, such as type Flag bool, follows goccy's YAML 1.2
+//     rule, so only true and false decode into it and a plain yes is a
+//     type error.
+//   - A type's own UnmarshalYAML method that keeps what it decodes in an
+//     unexported field, or in a local variable, gets goccy's raw values.
+//     In YAML 1.1 mode, when v also holds a value of interface type, a
+//     quoted yes, no, on, or off can reach that method with an internal
+//     marker character in front of it.
 func Unmarshal(data []byte, v any) error {
 	return UnmarshalWith(data, v, DecodeOptions{})
 }
@@ -42,7 +63,7 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
 			return nil
 		})
 	default:
-		return typeError("cannot unmarshal into Go value of type %T", v)
+		return decodeTyped(data, v, opts)
 	}
 }
 
