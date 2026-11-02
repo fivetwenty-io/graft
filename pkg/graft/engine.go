@@ -197,26 +197,26 @@ func (e *DefaultEngine) GetMemoryTracker() interfaces.MemoryTracker {
 //
 //nolint:gocyclo // evaluation pipeline with multiple phases and post-processing is inherently complex
 func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParallel bool) error {
-	// Reset per-run prune/sort/used-IP markers on every exit path (success,
-	// any phase error, context cancellation) so a reused engine never leaks
-	// one Merge().Execute() run's state into the next. The legacy
-	// Evaluator.Run() does the equivalent reset for prune/sort (evaluator.go
-	// ResetKeysToPrune/ResetPathsToSort) right after capturing them for
-	// post-processing; this live path consumes GetKeysToPrune below but
-	// never resets, so a later unrelated Execute() call on the same engine
-	// would silently inherit and re-apply this run's prune markers. (Sort
-	// markers are captured and cleared by applyPostProcessing before this
-	// function runs, but resetting them here too keeps direct Evaluate()
-	// callers leak-free.) Deferring the reset (rather than resetting inline
-	// after each Get) guarantees it fires exactly once per run regardless
-	// of which return statement is hit, while leaving this run's own
-	// post-processing below - which reads the markers before the deferred
-	// reset runs - unaffected. usedIPs gets the same treatment: spruce's
-	// StaticIPOperator.Setup() clears its package-level UsedIPs map on
-	// every phase run (op_static_ips.go), but graft's Setup() is a no-op -
-	// ResetUsedIPs is otherwise never called anywhere - so static_ips
-	// claims leak across engine reuse the same way prune/sort markers do.
-	defer e.resetPerRunState()
+	// Every run works on its own operator state, so runs sharing this
+	// engine never see or clear one another's prune, sort, and static IP
+	// markers. A merge passes the state it already seeded through ctx
+	// (see mergeBuilderImpl.applyPostProcessing); a direct Evaluate call
+	// gets a fresh one here. The deferred absorb publishes the run's
+	// vault references, vault placeholders, deferred paths, and pruned
+	// paths to the engine on every exit path, including a panic, and the
+	// deferred reset clears the run's own markers so a merge reading them
+	// back after this returns finds them consumed, as before.
+	rs := runStateFrom(ctx)
+	if rs == nil {
+		rs = e.forRun()
+	}
+	prunesRecorded := false
+	defer rs.resetPerRunState()
+	defer func() { e.absorb(rs, prunesRecorded) }()
+
+	// Operators reach their state through GetEngine(ev).GetOperatorState(),
+	// so the evaluator sees a wrapper that answers with the run's state.
+	ev.engine = &runEngine{DefaultEngine: e, state: rs}
 
 	// Check context cancellation
 	select {
@@ -224,9 +224,6 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 		return ctx.Err()
 	default:
 	}
-
-	// Set the engine on the evaluator
-	ev.engine = Engine(e)
 
 	// A non-empty REDACT environment variable forces vault, AWS, and NATS
 	// operators to return the literal string "REDACTED" instead of making a
@@ -239,13 +236,13 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 	// already did before redact mode existed - this is what keeps
 	// REDACT=1 byte-for-byte regardless of any --skip-<backend> flag also
 	// given (those flags alone leave redactMode false, deferring instead;
-	// see op_skip_defer.go).
+	// see op_skip_defer.go). Only this run's copy of the settings
+	// changes; the engine's own settings stay as constructed.
 	if os.Getenv("REDACT") != "" {
-		state := e.GetOperatorState()
-		state.SetSkipVault(true)
-		state.SetSkipAws(true)
-		state.SetSkipNats(true)
-		state.SetRedactMode(true)
+		rs.SetSkipVault(true)
+		rs.SetSkipAws(true)
+		rs.SetSkipNats(true)
+		rs.SetRedactMode(true)
 	}
 
 	// Record evaluation start time if metrics are enabled
@@ -318,7 +315,7 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 	}
 
 	// Post-processing: apply operator-level pruning
-	prunePaths := e.GetKeysToPrune()
+	prunePaths := rs.GetKeysToPrune()
 	log.DEBUG("Engine: Found %d prune paths to process: %v", len(prunePaths), prunePaths)
 	if len(prunePaths) > 0 {
 		// Convert tree paths to Document paths and remove them
@@ -342,18 +339,20 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 		// path an operator (( prune )) removed from a path that merely
 		// evaluated to an explicit YAML null - both otherwise leave the
 		// evaluated tree with that key simply absent or nil respectively.
-		// GetKeysToPrune's own state is cleared by resetPerRunState's
-		// defer before this function returns, so this snapshot is the
-		// only way a caller after Evaluate() returns can see it. See
+		// The run's prune markers are cleared by resetPerRunState's
+		// defer before this function returns, so this snapshot, which
+		// absorb publishes to the engine, is the only way a caller
+		// after Evaluate() returns can see it. See
 		// GetLastEvaluatedPrunedPaths.
-		e.pruneMutex.Lock()
-		e.lastEvaluatedPrunedPaths = cleanedPaths
-		e.pruneMutex.Unlock()
+		rs.pruneMutex.Lock()
+		rs.lastEvaluatedPrunedPaths = cleanedPaths
+		rs.pruneMutex.Unlock()
 	} else {
-		e.pruneMutex.Lock()
-		e.lastEvaluatedPrunedPaths = nil
-		e.pruneMutex.Unlock()
+		rs.pruneMutex.Lock()
+		rs.lastEvaluatedPrunedPaths = nil
+		rs.pruneMutex.Unlock()
 	}
+	prunesRecorded = true
 
 	// Queued (( sort by X )) markers are NOT applied here: spruce sorts
 	// after ALL pruning (operator markers and --prune flags alike) and
@@ -394,8 +393,11 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 	// the expander, so this is a no-op for the overwhelming majority of
 	// callers. See pkg/graft/controlflow_hook.go for why this is a
 	// function-pointer hook rather than a direct import.
+	// The expander evaluates operators best-effort while it expands, so
+	// it gets its own run state like any other run, and absorb publishes
+	// what those operators record once it finishes.
 	if ControlFlowExpander != nil {
-		expanded, cfErr := ControlFlowExpander(e, data)
+		expanded, cfErr := e.expandControlFlow(data)
 		if cfErr != nil {
 			return nil, NewParseError(fmt.Sprintf("control flow expansion failed: %s", cfErr.Error()), cfErr)
 		}
@@ -446,6 +448,16 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		// from its own decoder for every root that is not a mapping.
 		return nil, fmt.Errorf("Root of YAML document is not a hash/map: type assertion to map[interface]interface{} failed") //nolint:staticcheck // ST1005: spruce's capitalised wording
 	}
+}
+
+// expandControlFlow runs ControlFlowExpander over data on its own run
+// state, so the operators it evaluates neither read nor leave markers on
+// the engine's shared state, and publishes what they record through
+// absorb. The caller checks that ControlFlowExpander is set.
+func (e *DefaultEngine) expandControlFlow(data []byte) ([]byte, error) {
+	rs := e.forRun()
+	defer e.absorb(rs, false)
+	return ControlFlowExpander(&runEngine{DefaultEngine: e, state: rs}, data)
 }
 
 // yamlCompat returns the YAML 1.1 compatibility settings ParseYAML applies:
@@ -589,7 +601,12 @@ func (e *DefaultEngine) logDebugf(format string, args ...interface{}) {
 	}
 }
 
-// Evaluate processes operators in a document.
+// Evaluate processes operators in a document. It resolves them in doc
+// itself, so doc must not be used by another call while Evaluate runs.
+// Each call works on an operator state of its own, so concurrent calls on
+// one engine do not disturb one another, and when the call finishes its
+// vault references, vault placeholders, deferred paths, and pruned paths
+// are published to the engine's own state.
 func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -771,9 +788,9 @@ func (e *DefaultEngine) WithAWSConfig(_ AWSConfig) Engine {
 // engine's current configuration.
 func (e *DefaultEngine) UpdateOptions(opts EngineOptions) {
 	e.opts = opts
-	e.skipVault = opts.SkipVault
-	e.skipAws = opts.SkipAws
-	e.skipNats = opts.SkipNats
+	e.SetSkipVault(opts.SkipVault)
+	e.SetSkipAws(opts.SkipAws)
+	e.SetSkipNats(opts.SkipNats)
 }
 
 // Configure applies opts as an incremental change over the engine's
@@ -809,6 +826,10 @@ func (e *DefaultEngine) UpdateOptions(opts EngineOptions) {
 // always succeed; if it somehow does not (its error is still returned),
 // the rest of the configuration applied by this call has already taken
 // effect - registration is the one step Configure cannot roll back.
+//
+// Configure rewrites configuration that every merge and evaluation reads,
+// so it must not run while another call on this engine is in progress.
+// Configure the engine before sharing it across goroutines.
 func (e *DefaultEngine) Configure(opts ...Option) error {
 	// Captured *before* the option loop runs (F14): some options (e.g.
 	// WithCaching) mutate their *features.FeatureFlags in place via Set,
@@ -871,9 +892,9 @@ func (e *DefaultEngine) Configure(opts ...Option) error {
 	cacheAffectingChanged := e.cacheConfigChanged(&newOpts, wasCachingEnabled)
 
 	e.opts = newOpts
-	e.skipVault = newOpts.SkipVault
-	e.skipAws = newOpts.SkipAws
-	e.skipNats = newOpts.SkipNats
+	e.SetSkipVault(newOpts.SkipVault)
+	e.SetSkipAws(newOpts.SkipAws)
+	e.SetSkipNats(newOpts.SkipNats)
 
 	if newOpts.FeatureFlags != nil {
 		e.Features = newOpts.FeatureFlags
@@ -1075,7 +1096,12 @@ func closeOutgoingCache(outgoing, replacement cache.Cache) {
 	}
 }
 
-// GetOperatorState returns the operator state interface.
+// GetOperatorState returns the engine's own operator state. A run never
+// writes its working markers here: it works on a state of its own and,
+// when it finishes, publishes its vault references, vault placeholders,
+// deferred paths, and pruned paths here, so this state holds the outputs
+// of every finished run. During evaluation an operator's
+// GetEngine(ev).GetOperatorState() returns the run's state instead.
 func (e *DefaultEngine) GetOperatorState() OperatorState {
 	// The engine itself implements OperatorState
 	return e

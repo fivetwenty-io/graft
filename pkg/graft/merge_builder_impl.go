@@ -1145,6 +1145,18 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 	// go-patch operations are applied inline, at their position in the file
 	// sequence, by mergeDocuments; nothing left to do for them here.
 
+	// This run's operator markers live in a run state of its own, which
+	// m.ctx carries into the engine's Evaluate so the evaluation continues
+	// this run rather than starting another. A fresh state per call keeps
+	// a second Execute on the same builder from republishing the first
+	// call's outputs, and restoring m.ctx afterward drops the state once
+	// Evaluate has absorbed it into the engine.
+	if de, ok := m.engine.(*DefaultEngine); ok {
+		outer := m.ctx
+		m.ctx = withRunState(outer, de.forRun())
+		defer func() { m.ctx = outer }()
+	}
+
 	sortPaths := m.seedEngineState()
 
 	// Apply evaluation if not skipped
@@ -1218,18 +1230,16 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 }
 
 // seedEngineState hands the merge metadata's prune and sort paths to the
-// engine's operator state and returns the queued (( sort by X )) paths.
-// Those paths are captured and cleared here, before evaluation, because
+// run's operator state (see opState) and returns the queued (( sort by X ))
+// paths. Those paths are captured and cleared here, before evaluation, because
 // evaluation's deferred per-run state reset would wipe them before the
-// post-prune sort runs; clearing now rather than after applying also
-// keeps a reused engine from leaking this run's markers into the next
-// when this run errors out first.
+// post-prune sort runs.
 func (m *mergeBuilderImpl) seedEngineState() map[string]string {
 	if m.engine == nil {
 		return nil
 	}
 
-	state := m.engine.GetOperatorState()
+	state := m.opState()
 
 	if m.mergeMetadata != nil {
 		for _, path := range m.mergeMetadata.PrunePaths {
@@ -1267,7 +1277,7 @@ func (m *mergeBuilderImpl) collectPruneKeys(result Document) []string {
 	copy(keys, m.pruneKeys)
 
 	if m.engine != nil {
-		keys = append(keys, m.engine.GetOperatorState().GetKeysToPrune()...)
+		keys = append(keys, m.opState().GetKeysToPrune()...)
 	}
 
 	if m.skipEvaluation {

@@ -4,7 +4,10 @@ import "sync"
 
 // operatorState holds the state operators read and write through the
 // OperatorState interface. DefaultEngine embeds it, so its methods
-// promote onto *DefaultEngine.
+// promote onto *DefaultEngine. Each run works on its own operatorState,
+// built by forRun, and absorb publishes the run's outputs into the
+// engine's embedded one when the run ends (see run_state.go). It holds
+// mutexes, so it must never be copied by value.
 type operatorState struct {
 	// Vault state (refs tracking only; client and cache live in internal/backends/vault)
 	vaultRefs  map[string][]string
@@ -19,11 +22,10 @@ type operatorState struct {
 	// redactMode selects, for skipVault/skipAws/skipNats above, whether a
 	// skipped backend returns the flat "REDACTED" sentinel (true) or
 	// defers itself, leaving its own "(( ... ))" expression intact
-	// (false, the default). Set at construction by WithRedact, and
-	// unconditionally forced true by REDACT=1 (see evaluate) regardless
-	// of construction options - unguarded, like skipVault/skipAws/
-	// skipNats themselves (see their own fields' comments for why that
-	// is safe in practice).
+	// (false, the default). Set at construction by WithRedact. REDACT=1
+	// forces it true (see evaluate) regardless of construction options,
+	// but only on the run's own copy of the settings, never on the
+	// engine's.
 	redactMode bool
 
 	// deferredPaths lists every tree path deferred so far, from either
@@ -49,9 +51,10 @@ type operatorState struct {
 	pruneMutex  sync.RWMutex
 
 	// lastEvaluatedPrunedPaths is a snapshot of the operator-queued
-	// (( prune )) paths (dotted, no "$." prefix) actually removed by the
-	// most recent Evaluate() call on this engine, captured just before
-	// evaluate()'s deferred resetPerRunState clears keysToPrune - see
+	// (( prune )) paths (dotted, no "$." prefix) actually removed by a
+	// run, captured on the run's state just before evaluate()'s deferred
+	// resetPerRunState clears keysToPrune, and published to the engine's
+	// state by absorb as the most recently finished run's - see
 	// evaluate()'s "Post-processing: apply operator-level pruning" step
 	// and GetLastEvaluatedPrunedPaths. Guarded by pruneMutex alongside
 	// keysToPrune, the state it is derived from.
@@ -253,14 +256,17 @@ func (e *operatorState) IsNATSSkipped() bool {
 }
 
 // GetLastEvaluatedPrunedPaths returns a copy of the operator-queued
-// (( prune )) paths this engine's most recent Evaluate() call actually
-// removed. Unlike GetKeysToPrune, this survives past Evaluate() returning
-// (resetPerRunState's defer clears keysToPrune, not this field), so a
-// caller inspecting the engine after a merge - cmd/graft/merge_history.go's
+// (( prune )) paths the most recently finished Evaluate() call on this
+// engine actually removed. Unlike GetKeysToPrune, this survives past
+// Evaluate() returning (absorb publishes it to the engine, and
+// resetPerRunState clears only the run's keysToPrune), so a caller
+// inspecting the engine after a merge - cmd/graft/merge_history.go's
 // buildMergeHistorySteps, distinguishing a path an operator pruned away
 // from one that merely evaluated to an explicit YAML null - can still see
-// what was pruned. Returns nil if Evaluate() has not run on this engine
-// yet, or its most recent run queued no prunes.
+// what was pruned. On an engine shared by concurrent calls, the most
+// recently finished call may be another caller's. Returns nil if
+// Evaluate() has not run on this engine yet, or its most recent run
+// queued no prunes.
 func (e *operatorState) GetLastEvaluatedPrunedPaths() []string {
 	e.pruneMutex.RLock()
 	defer e.pruneMutex.RUnlock()
@@ -294,9 +300,10 @@ func (e *operatorState) ResetUsedIPs() {
 }
 
 // resetPerRunState clears the prune/sort/used-IP markers that accumulate
-// during a single evaluate() run. Called via defer at the top of evaluate
-// so it fires exactly once per run, after this run's own post-processing
-// has already read the markers it needs.
+// during a single evaluate() run. evaluate defers it on the run's own
+// state, so it fires exactly once per run, after this run's own
+// post-processing has already read the markers it needs, and never
+// touches another run's markers.
 func (e *operatorState) resetPerRunState() {
 	e.ResetKeysToPrune()
 	e.ResetPathsToSort()

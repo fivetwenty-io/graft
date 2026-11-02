@@ -118,6 +118,26 @@ type Document interface {
 // Engine is not intended to be implemented outside this package. NewEngine
 // only ever returns *DefaultEngine; new methods may be added to this
 // interface in minor releases.
+//
+// One Engine may be shared by any number of goroutines that parse, merge,
+// evaluate, and diff at the same time. Each Merge().Execute() and Evaluate
+// call keeps its working state - static IP claims, queued prunes and
+// sorts, and the skip and redact settings REDACT=1 forces - to itself, so
+// concurrent calls produce the same results they would on separate
+// engines. Three rules go with that. First, Configure and UpdateOptions
+// rewrite the engine's configuration, so they must not run while another
+// call on the engine is in progress. Second, a Document belongs to one
+// call at a time, because Evaluate resolves operators in the Document it
+// is given. Third, the engine's own operator state holds the outputs of
+// finished runs. The vault references, deferred paths, and vault
+// placeholders it reports accumulate across every run that has finished,
+// and GetLastEvaluatedPrunedPaths reports the run that finished last, so
+// a caller that needs exactly one run's outputs uses an engine of its own.
+//
+// During evaluation, operators see an Engine that wraps the shared one and
+// answers GetOperatorState with the run's own state. Every Engine method
+// works on that wrapper, but it is not a *DefaultEngine, so an operator
+// must not type-assert GetEngine(ev) to *DefaultEngine.
 type Engine interface {
 	// Document operations
 	ParseYAML(data []byte) (Document, error)
@@ -130,7 +150,10 @@ type Engine interface {
 	MergeFiles(ctx context.Context, paths ...string) MergeBuilder
 	MergeReaders(ctx context.Context, readers ...io.Reader) MergeBuilder
 
-	// Evaluate processes operators in a document
+	// Evaluate processes operators in a document. It resolves them in
+	// doc itself, so doc must not be used by another call while Evaluate
+	// runs. Concurrent Evaluate calls on one engine are safe; each keeps
+	// its own operator state (see the Engine doc comment).
 	Evaluate(ctx context.Context, doc Document) (Document, error)
 
 	// Diff computes the differences between a and b using
@@ -262,9 +285,10 @@ type OperatorState interface {
 	GetKeysToPrune() []string
 	ResetKeysToPrune()
 	// GetLastEvaluatedPrunedPaths returns the operator-queued (( prune ))
-	// paths the most recent Evaluate() call actually removed, surviving
-	// past that call's own reset of GetKeysToPrune - see DefaultEngine's
-	// doc comment.
+	// paths the most recently finished Evaluate() call actually removed,
+	// surviving past that call's own reset of GetKeysToPrune. On an
+	// engine shared by concurrent calls, that is whichever call finished
+	// last, not necessarily the caller's own.
 	GetLastEvaluatedPrunedPaths() []string
 
 	// Sort operations
@@ -374,7 +398,10 @@ type MergeBuilder interface {
 	// History() reflects every change DocumentMemory recorded on that
 	// engine, which is scoped to the whole engine rather than to this
 	// one merge if history tracking is also active for other merges on
-	// it - see the History interface's doc comment (history.go).
+	// it - see the History interface's doc comment (history.go). On an
+	// engine shared by concurrent merges, the recorded history therefore
+	// mixes the changes of every merge running at the same time, so a
+	// caller that needs one merge's history uses an engine of its own.
 	TrackHistory() MergeBuilder
 
 	// Execute performs the merge operation
@@ -874,6 +901,10 @@ type AWSConfig struct {
 // set (1000-entry cache, 10 max workers); that drift is gone as of this
 // version - NewEngine and NewDefaultEngine now start from the same
 // defaults.
+//
+// The returned engine may be built once and shared by concurrent
+// goroutines; see the Engine doc comment for the rules that go with
+// sharing it.
 func NewEngine(options ...EngineOption) (Engine, error) {
 	opts := defaultEngineOpts()
 

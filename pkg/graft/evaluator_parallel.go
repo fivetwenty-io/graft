@@ -432,17 +432,17 @@ func isOrderSensitiveOp(op *Opcall) bool {
 
 // getWorkerPool extracts the WorkerPool from the evaluator's engine.
 func getWorkerPool(ev *Evaluator) *parallel.WorkerPool {
-	eng := GetEngine(ev)
-	if eng == nil {
+	// During a run the evaluator holds a runEngine wrapping the shared
+	// engine (see DefaultEngine.evaluate), and the pool belongs to the
+	// engine it wraps.
+	switch eng := GetEngine(ev).(type) {
+	case *runEngine:
+		return eng.GetWorkerPool()
+	case *DefaultEngine:
+		return eng.GetWorkerPool()
+	default:
 		return nil
 	}
-
-	de, ok := eng.(*DefaultEngine)
-	if !ok {
-		return nil
-	}
-
-	return de.GetWorkerPool()
 }
 
 // ParallelExecutionStats returns statistics about parallel execution.
