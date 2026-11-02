@@ -3,8 +3,9 @@ package yamlnode
 import (
 	"strings"
 
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // goccy's scanner reads a block scalar whose last line ends the input,
@@ -26,7 +27,7 @@ func foldBlockAtEnd(text string, toks token.Tokens) {
 		return
 	}
 	i := len(toks) - 1
-	padded := lexer.Tokenize(text + "\n")
+	padded := yamlprep.Tokenize(text + "\n")
 	if len(padded) != len(toks) {
 		return
 	}
@@ -43,7 +44,7 @@ func foldBlockAtEnd(text string, toks token.Tokens) {
 // a line break after it, less that line break.
 func EndsInBlockScalar(text []byte) bool {
 	s := string(text)
-	return lastLineHasText(s) && endsInBlockScalar(s, lexer.Tokenize(s))
+	return lastLineHasText(s) && endsInBlockScalar(s, yamlprep.Tokenize(s))
 }
 
 // endsInBlockScalar reports whether the last token of toks, the tokens

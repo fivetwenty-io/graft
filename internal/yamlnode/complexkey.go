@@ -3,8 +3,9 @@ package yamlnode
 import (
 	"strings"
 
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // complexKey is a mapping key that is a collection, which goccy cannot
@@ -36,7 +37,7 @@ func (b *builder) placeComplexKeys(text string) (string, []complexKey, bool) {
 	if !b.opts.CollectionKeys {
 		return "", nil, false
 	}
-	regions := complexKeyRegions(lexer.Tokenize(text))
+	regions := complexKeyRegions(yamlprep.Tokenize(text))
 	if len(regions) == 0 {
 		return "", nil, false
 	}

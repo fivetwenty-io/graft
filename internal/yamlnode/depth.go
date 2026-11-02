@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
 
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
@@ -132,7 +131,7 @@ func probeDepth(src []byte) (probeResult, error) {
 		}
 		whole := cut == len(src)
 		text := probeText(src[:cut], whole)
-		toks := lexer.Tokenize(text)
+		toks := yamlprep.Tokenize(text)
 		at, err := scanDepth(toks, false)
 		if at >= 0 && (whole || sameToken(prev, toks, at)) {
 			return probeResult{}, err

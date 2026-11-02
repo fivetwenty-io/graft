@@ -5,8 +5,9 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // coreTagKinds maps each core tag goccy checks against its node to the
@@ -79,7 +80,7 @@ func neutralizeKindTags(text string, err error) (string, map[[2]int]string, bool
 func mismatchedTags(text string, at *token.Position) ([]*token.Token, bool) {
 	var mismatched []*token.Token
 	explains := false
-	for _, tk := range lexer.Tokenize(text) {
+	for _, tk := range yamlprep.Tokenize(text) {
 		if tk.Type != token.TagType {
 			continue
 		}

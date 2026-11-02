@@ -10,7 +10,6 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/parser"
 	"github.com/goccy/go-yaml/token"
 
@@ -98,7 +97,7 @@ func ParseWith(data []byte, opts ParseOptions) (docs []*Node, err error) {
 	// placeholder rewrite changed something, and then it tokenizes again.
 	toks := probed.toks
 	if toks == nil || probed.text != text {
-		toks = lexer.Tokenize(text)
+		toks = yamlprep.Tokenize(text)
 	}
 	if err := checkDepth(toks); err != nil {
 		return nil, err
@@ -212,7 +211,7 @@ func normalizeChunkEnd(text string, addedNewline bool) (string, bool) {
 // marks the body Invalid when it is about to reject it, so both types
 // count.
 func finalBlockScalarHeader(src string) (*token.Token, bool) {
-	toks := lexer.Tokenize(src)
+	toks := yamlprep.Tokenize(src)
 	n := len(toks)
 	if n < 2 || (toks[n-1].Type != token.StringType && toks[n-1].Type != token.InvalidType) {
 		return nil, false

@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"unicode/utf8"
 
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // yamlWhitespaceCutset is the set of bytes colorizeYAML treats as
@@ -59,7 +59,7 @@ func colorizeYAML(raw []byte, st debugStyler) []byte {
 		return raw
 	}
 
-	tokens := lexer.Tokenize(string(raw))
+	tokens := yamlprep.Tokenize(string(raw))
 	starts, ok := yamlTokenStarts(raw, tokens)
 	if !ok {
 		return raw

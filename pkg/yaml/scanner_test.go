@@ -1,6 +1,7 @@
 package yaml_test
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -72,4 +73,63 @@ func TestUnmarshalFoldsBlockAtEnd(t *testing.T) {
 		{"last line of spaces", "a: >\n  x\n  ", map[string]any{"a": "x\n"}},
 		{"final line break", "a: >\n  x\n  y\n", map[string]any{"a": "x y\n"}},
 	})
+}
+
+// TestUnmarshalReadsQuotedTabs checks quoted scalars holding a literal
+// tab, which goccy's scanner failed on in a double-quoted scalar.
+func TestUnmarshalReadsQuotedTabs(t *testing.T) {
+	checkScannerCases(t, []scannerCase{
+		{"value", "a: \"p\tq\"\nb: 1\n", map[string]any{"a": "p\tq", "b": 1}},
+		{"flow sequence", "a: [\"p\tq\", x]\n", map[string]any{"a": []any{"p\tq", "x"}}},
+		{"flow mapping", "a: {k: \"p\tq\", m: x}\nb: 1\n", map[string]any{"a": map[string]any{"k": "p\tq", "m": "x"}, "b": 1}},
+		{"key", "\"p\tq\": 1\nb: 2\n", map[string]any{"p\tq": 1, "b": 2}},
+		{"two tabs", "a: \"p\tq\tr\"\nb: 1\n", map[string]any{"a": "p\tq\tr", "b": 1}},
+		{"multi-line", "a: \"p\tq\n  r\ts\"\nb: 1\n", map[string]any{"a": "p\tq r\ts", "b": 1}},
+		{"tagged", "a: !!str \"p\tq\"\nb: 1\n", map[string]any{"a": "p\tq", "b": 1}},
+		{"end of the input", "a: \"p\tq\"", map[string]any{"a": "p\tq"}},
+		{"single-quoted", "a: 'p\tq'\nb: 1\n", map[string]any{"a": "p\tq", "b": 1}},
+		{"single-quoted in a flow mapping", "a: {k: 'p\tq'}\nb: 1\n", map[string]any{"a": map[string]any{"k": "p\tq"}, "b": 1}},
+	})
+}
+
+// TestQuotedTabPositions checks the places of the nodes after a
+// double-quoted scalar holding a tab, and of an error there. A tab counts
+// as one column, as yaml.v3 counts it.
+func TestQuotedTabPositions(t *testing.T) {
+	for _, c := range []struct {
+		doc          string
+		path         []int
+		line, column int
+	}{
+		{"a: {k: \"p\tq\", m: x}\n", []int{0, 1, 1}, 1, 8},
+		{"a: {k: \"p\tq\", m: x}\n", []int{0, 1, 2}, 1, 15},
+		{"a: {k: \"p\tq\", m: x}\n", []int{0, 1, 3}, 1, 18},
+		{"\"p\tq\": 1\nb: 2\n", []int{0, 1}, 1, 8},
+		{"\"p\tq\": 1\nb: 2\n", []int{0, 2}, 2, 1},
+		{"- [\"p\tq\", x]\n", []int{0, 0, 1}, 1, 11},
+	} {
+		var n yaml.Node
+		if err := yaml.Unmarshal([]byte(c.doc), &n); err != nil {
+			t.Fatalf("Unmarshal(%q): %v", c.doc, err)
+		}
+		at := &n
+		for _, i := range c.path {
+			at = at.Content[i]
+		}
+		if at.Line != c.line || at.Column != c.column {
+			t.Errorf("%q at %v: %d:%d, want %d:%d", c.doc, c.path, at.Line, at.Column, c.line, c.column)
+		}
+	}
+
+	var v struct {
+		A struct {
+			K string
+			M int
+		}
+	}
+	err := yaml.Unmarshal([]byte("a: {k: \"p\tq\", m: x}\n"), &v)
+	var de *yaml.DecodeError
+	if !errors.As(err, &de) || de.Line != 1 || de.Column != 18 {
+		t.Errorf("Unmarshal error = %#v, want one at 1:18", err)
+	}
 }

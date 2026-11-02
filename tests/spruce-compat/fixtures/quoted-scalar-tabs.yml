@@ -1,0 +1,15 @@
+value: "p	q"
+before_comment: "p	q" # c
+two_tabs: "p	q	r"
+"key	with tab": 1
+flow_seq: ["p	q", "r		s", x]
+flow_map: {k: "p	q", m: x}
+multi_line: "p	q
+  r	s"
+tagged: !!str "p	q"
+anchored: &t "p	q"
+aliased: *t
+escaped: "p\tq"
+single: 'p	q'
+single_flow: ['p	q', {k: 'r	s'}]
+after: 1

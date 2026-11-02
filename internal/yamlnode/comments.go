@@ -47,8 +47,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/goccy/go-yaml/ast"
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // The comment placer reproduces where yaml.v3 attaches comments, for the
@@ -451,7 +452,7 @@ func lex(text string) lexed {
 	l := lexed{contentCol: map[int]int{}, headerLine: map[int]bool{}}
 	var prev *token.Token
 	depth := 0
-	for _, t := range lexer.Tokenize(text) {
+	for _, t := range yamlprep.Tokenize(text) {
 		switch t.Type {
 		case token.CommentType:
 			l.cmts = append(l.cmts, cmt{t.Position.Line, t.Position.Column, "#" + t.Value, prev, depth > 0})

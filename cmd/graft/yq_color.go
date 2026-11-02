@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/printer"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // The SGR codes yq colors its output with.
@@ -41,7 +42,7 @@ func yqColorize(text string) string {
 		String:  yqProperty(yqGreen),
 		Comment: yqProperty(yqHiBlack),
 	}
-	return p.PrintTokens(lexer.Tokenize(text)) + "\n"
+	return p.PrintTokens(yamlprep.Tokenize(text)) + "\n"
 }
 
 // yqColorLeading colors a document's leading comments as yq does, one

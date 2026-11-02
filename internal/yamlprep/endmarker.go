@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
 )
 
@@ -102,7 +101,7 @@ func endMarkerSpans(src string) []endSpan {
 	idx := newByteIndex(src)
 	var spans []endSpan
 	flow := 0
-	for _, tk := range lexer.Tokenize(src) {
+	for _, tk := range Tokenize(src) {
 		switch tk.Type {
 		case token.SequenceStartType, token.MappingStartType:
 			flow++

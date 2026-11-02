@@ -6,8 +6,9 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml/ast"
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/parser"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // ParseBytes parses data with goccy, as parser.ParseBytes does, and
@@ -75,7 +76,7 @@ func parseBlockPadded(data []byte, keep bool, mode parser.Mode, opts ...parser.O
 // two steps.
 func parseText(data []byte, mode parser.Mode, opts ...parser.Option) (*ast.File, error) {
 	text := string(data)
-	toks := lexer.Tokenize(text)
+	toks := yamlprep.Tokenize(text)
 	foldBlockAtEnd(text, toks)
 	if bytes.IndexByte(data, '\t') >= 0 {
 		keepPlainTabs(toks)

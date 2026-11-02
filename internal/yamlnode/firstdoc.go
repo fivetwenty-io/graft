@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"unicode/utf8"
 
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // FirstDocument returns the first document of src, raw YAML bytes, for
@@ -159,7 +160,7 @@ func cutFirstDocument(src []byte) ([]byte, error) {
 			cut++
 		}
 		whole := cut == len(src)
-		toks := lexer.Tokenize(probeText(src[:cut], whole))
+		toks := yamlprep.Tokenize(probeText(src[:cut], whole))
 		if out, done, err := cutPrefix(src, prev, toks, whole); done {
 			return out, err
 		}

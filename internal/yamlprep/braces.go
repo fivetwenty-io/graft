@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
 )
 
@@ -63,7 +62,7 @@ type span struct{ start, end int }
 
 // placeholderSpans returns the byte spans of src to quote, in order.
 func placeholderSpans(src string) []span {
-	toks := lexer.Tokenize(src)
+	toks := Tokenize(src)
 	idx := newByteIndex(src)
 	var spans []span
 	for i := 0; i < len(toks); i++ {

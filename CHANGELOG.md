@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A block scalar whose last line ends the file, with no line break after it, now reads as it does in spruce. Before, a folded scalar there didn't fold when its last line was one character, so `a: >\n  x\n  y` read as `x\ny` instead of `x y`. The spaces and tabs at the end of that last line were dropped too, from literal and folded scalars alike, and `Node.Decode` in `pkg/yaml` kept a line break that the document doesn't have.
 
+- A tab inside a double-quoted scalar, as in `a: "p<TAB>q"`, no longer breaks the document. Before, the parser lost its place after the tab and skipped the character after the closing quote, so `graft merge` and `pkg/yaml` failed the document or read the rest of the line wrong, in a block mapping and in a flow collection alike. The value now keeps its tab, as it does in spruce, and the nodes after it keep their lines and columns. Single-quoted scalars were never affected.
+
 ## [1.43.1] - 2026-10-27
 
 This release fixes `graft install-aliases` on Linux, where it put the `jq`, `yq`, and `spruce` links in a directory that isn't on `PATH`.

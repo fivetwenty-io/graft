@@ -3,8 +3,9 @@ package yamlnode
 import (
 	"strings"
 
-	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
+
+	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
 
 // chunk is one YAML document's slice of the source. goccy numbers the
@@ -53,7 +54,7 @@ type chunk struct {
 // document's first node. Comments after the last document's "..." come
 // back as a tail chunk.
 func splitDocuments(src string) []chunk {
-	return splitTokens(src, lexer.Tokenize(src))
+	return splitTokens(src, yamlprep.Tokenize(src))
 }
 
 // splitTokens is splitDocuments for a stream the caller has already
