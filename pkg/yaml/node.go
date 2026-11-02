@@ -273,22 +273,24 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 // A tree Unmarshal returned decodes to the value Unmarshal gives for the
 // same text, with a few known exceptions. The tree reader follows yaml.v3
 // and Unmarshal follows goccy, so the two can differ on a node with two
-// tags, on a tag written on an alias, on a tag with nothing after it at
-// the end of the document, and on a block scalar in a document with no
-// final line break.
+// tags, on a tag written on an alias, and on a tag with nothing after it
+// at the end of the document. They also differ on a block scalar in a
+// document with no final line break, where Unmarshal drops the last line
+// break and does not fold a > scalar. For the text "a: >\n  x\n  y",
+// Unmarshal gives "x\ny" and Decode gives "x y\n".
 //
-// Decode reads the tree as it is now, so a Node the caller
-// changed after Unmarshal, or built by hand, decodes what it now holds,
-// resolved the way that text would be in Unmarshal. A scalar keeps the
-// style it was read in, which is plain for one a caller built, so a plain
-// yes is true even after a caller sets it. A tag Unmarshal read counts
-// only where the input wrote it, and a Tag the caller set counts as that
-// tag written before the value, unless it is the tag the value has
-// anyway. An empty plain scalar is null, with a tag or without one, and
-// so is the zero Node. An alias resolves wherever its anchor sits, inside
-// n or outside it, and a node that appears in two places decodes in both.
-// A DocumentNode decodes its root, and one with no root leaves v
-// unchanged, as a null does.
+// Decode reads the tree as it is now. A Node that the caller changed after
+// Unmarshal, or built by hand, decodes what it holds at that moment, and the
+// value is resolved as the same text would be in Unmarshal. A scalar keeps
+// the style it was read in, which is plain for one a caller built, so a
+// plain yes is true even after a caller sets it. A tag that Unmarshal read
+// counts only where the input wrote it. A Tag that the caller set counts as
+// that tag written before the value, unless it is the tag the value has
+// anyway. An empty plain scalar is null, with a tag or without one, and so
+// is the zero Node. An alias resolves wherever its anchor sits, inside n or
+// outside it, and a node that appears in two places decodes in both.
+// A DocumentNode decodes its root, and one with no root leaves v unchanged,
+// as a null does.
 //
 // An error's Line and Column are those of the node it is about, so they
 // point at the input the tree was read from, and at the anchor's own
@@ -297,10 +299,10 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 // caller set, with a negative Column counted as 0, and a Line below 1
 // gives no place at all.
 //
-// Decode builds from n the syntax tree the parser would build from its
-// text, and decodes that tree as Unmarshal does once it has parsed. A
-// type with its own UnmarshalYAML method receives the tree written out
-// as flow-style text, which keeps every value but not the layout or the
+// Decode builds from n the syntax tree that the parser would build from its
+// text, and it decodes that tree as Unmarshal does once it has parsed. A
+// type with its own UnmarshalYAML method receives the tree written out as
+// flow-style text, which keeps every value but not the layout or the
 // comments of the input.
 //
 // Decode into a *Node copies n into it. A malformed tree is an
@@ -311,8 +313,8 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 // ErrorKindLimit error, as is one whose aliases expand past the limit
 // Unmarshal sets.
 //
-// Decode never changes n, so several goroutines may decode one tree at
-// once while none of them changes it.
+// Decode never changes n, so several goroutines may decode one tree at the
+// same time, as long as none of them changes it.
 func (n *Node) Decode(v any) error {
 	if n == nil {
 		return typeError("Decode on a nil *yaml.Node")

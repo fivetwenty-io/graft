@@ -17,8 +17,8 @@ import (
 // as Unmarshal decodes text. A *any, *map[string]any, or *[]any
 // receives maps as map[string]any, sequences as []any, integers as int,
 // and floats as float64. Empty input, or input that holds only comments
-// or a null, leaves v unchanged. Input that starts with a UTF-16
-// byte order mark, in either byte order, is converted to UTF-8 first. Every
+// or a null, leaves v unchanged. Input that starts with a UTF-16 byte
+// order mark, in either byte order, is converted to UTF-8 first. Every
 // error is a *DecodeError.
 //
 // Any other v, such as a pointer to a struct, a typed map, or a typed
