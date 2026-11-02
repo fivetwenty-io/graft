@@ -334,11 +334,24 @@ func TestOnDuplicateKeyRoutesAgreeOnPositions(t *testing.T) {
 		"x: {\n  a: 1,\n  a: 2}\n",
 		"é: 1\né: 2\n",
 		"o: {é: 1, é: 2}\n",
+		"? a\n: 1\na: 2\n",
+		"? &k a\n: 1\na: 2\n",
+		"? !!str a\n: 1\na: 2\n",
+		"a: 1\n? a\n: 2\n",
 	}
 	for _, doc := range docs {
 		text, node := textReports(t, doc), nodeReports(t, doc)
 		if len(text) == 0 || !reflect.DeepEqual(text, node) {
 			t.Errorf("doc %q: text = %+v, node = %+v", doc, text, node)
 		}
+	}
+}
+
+// TestOnDuplicateKeyExplicitKeyPlace pins the place of a key written
+// after "?", which is the key's own place and not the indicator's.
+func TestOnDuplicateKeyExplicitKeyPlace(t *testing.T) {
+	want := []yaml.DuplicateKey{{Path: "a", Line: 3, Column: 1, FirstLine: 1, FirstColumn: 3}}
+	if got := textReports(t, "? a\n: 1\na: 2\n"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("reports = %+v, want %+v", got, want)
 	}
 }

@@ -44,7 +44,9 @@ type DuplicateKey struct {
 	// and "list[2].name". A key that holds a dot or a bracket is written
 	// as it is, with no escaping. The format of Path may change.
 	Path string
-	// Line and Column are the 1-based position of the later key.
+	// Line and Column are the 1-based position of the later key. A key
+	// written after "?" is placed at the key, or at its tag or anchor,
+	// and not at the "?".
 	Line   int
 	Column int
 	// FirstLine and FirstColumn are the position of the first occurrence.

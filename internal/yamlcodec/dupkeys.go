@@ -98,9 +98,15 @@ type keyPos struct{ line, col int }
 
 // scalarKey returns the KeyID and position of key when it is a scalar
 // that can repeat, and false for a merge key, an alias, or a collection.
+// A key written after "?" is placed at the key, or at its first tag or
+// anchor, as the Node route places it, and not at the "?".
 func scalarKey(key ast.MapKeyNode) (yamlnode.KeyID, keyPos, bool) {
 	var pos keyPos
-	if tk := key.GetToken(); tk != nil && tk.Position != nil {
+	var placed ast.Node = key
+	if explicit, ok := key.(*ast.MappingKeyNode); ok && explicit.Value != nil {
+		placed = explicit.Value
+	}
+	if tk := placed.GetToken(); tk != nil && tk.Position != nil {
 		pos = keyPos{tk.Position.Line, tk.Position.Column}
 	}
 	id, ok := yamlnode.KeyIDOf(key)
