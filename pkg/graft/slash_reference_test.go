@@ -337,3 +337,64 @@ m:
 		}
 	}
 }
+
+// TestSlashDirectlyAfterDot pins that a '/' right after a '.' starts a
+// segment whose key begins with '/', as spruce reads it. defer writes a
+// bracket index followed by a slash segment in that dotted form, so
+// graft must be able to read its own deferred output back.
+func TestSlashDirectlyAfterDot(t *testing.T) {
+	const doc = `
+m:
+  "/x": m-slash-x
+arr:
+  - "/x": slash-x
+`
+	cases := []struct {
+		name string
+		expr string
+		want string
+	}{
+		{"slash after a dot", "(( grab m./x ))", "m-slash-x"},
+		{"slash after a dotted index", "(( grab arr.0./x ))", "slash-x"},
+		{"defer writes the dotted form", "(( defer grab arr[0]/x ))", "(( grab arr.0./x ))"},
+	}
+	for _, mode := range slashModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				d, err := evalSlashDoc(t, mode.opts, doc+"result: "+tc.expr+"\n")
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				got, err := d.Get("result")
+				if err != nil {
+					t.Fatalf("failed to read result: %v", err)
+				}
+				if fmt.Sprint(got) != tc.want {
+					t.Fatalf("result = %v (%T), want %q", got, got, tc.want)
+				}
+			})
+		}
+
+		t.Run(mode.name+"/deferred output reads back", func(t *testing.T) {
+			first, err := evalSlashDoc(t, mode.opts, doc+"result: (( defer grab arr[0]/x ))\n")
+			if err != nil {
+				t.Fatalf("unexpected error on the first pass: %v", err)
+			}
+			deferred, err := first.GetString("result")
+			if err != nil {
+				t.Fatalf("failed to read the deferred text: %v", err)
+			}
+			second, err := evalSlashDoc(t, mode.opts, doc+"result: "+deferred+"\n")
+			if err != nil {
+				t.Fatalf("unexpected error reading %q back: %v", deferred, err)
+			}
+			got, err := second.Get("result")
+			if err != nil {
+				t.Fatalf("failed to read result: %v", err)
+			}
+			if fmt.Sprint(got) != "slash-x" {
+				t.Fatalf("result = %v (%T), want %q", got, got, "slash-x")
+			}
+		})
+	}
+}

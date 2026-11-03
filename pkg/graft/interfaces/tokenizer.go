@@ -253,6 +253,13 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 			case runes[pos] == '[':
 				// Continue with bracket parsing (handled in next iteration)
 				continue
+			case runes[pos] == '/':
+				// A '/' right after a '.' starts a segment whose key
+				// begins with '/', as spruce reads "m./x". defer writes
+				// "arr[0]/x" back out as "arr.0./x", so this keeps
+				// graft able to read its own deferred output. The
+				// outer loop's '/' case consumes the segment.
+				continue
 			case runes[pos] == '$':
 				// An embedded environment-variable segment, e.g.
 				// "X.$ENV.field" - spruce substitutes $VAR anywhere in a
