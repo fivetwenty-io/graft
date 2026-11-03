@@ -322,3 +322,35 @@ grabbed:
 		}
 	}
 }
+
+// TestExpand_ForLoop_VariableNameInsideAPath pins that a key that holds
+// the loop variable's name after a '/' or a '-' still reads the document
+// key, rather than having the name rewritten to the loop variable.
+func TestExpand_ForLoop_VariableNameInsideAPath(t *testing.T) {
+	src := `names: [api]
+jobs:
+  web/svc:
+    ip: 10.0.0.1
+  web-svc:
+    ip: 10.0.0.2
+
+out:
+(( for svc in names ))
+  - name: (( grab svc ))
+    slash: (( grab jobs.web/svc.ip ))
+    dash: (( grab jobs.web-svc.ip ))
+(( done ))
+`
+	data := runMergeYAML(t, src)
+	out, ok := data["out"].([]interface{})
+	if !ok || len(out) != 1 {
+		t.Fatalf("out = %#v, want a 1-element list", data["out"])
+	}
+	entry := out[0].(map[string]interface{})
+	want := map[string]string{"name": "api", "slash": "10.0.0.1", "dash": "10.0.0.2"}
+	for k, v := range want {
+		if entry[k] != v {
+			t.Errorf("out[0].%s = %#v, want %q", k, entry[k], v)
+		}
+	}
+}

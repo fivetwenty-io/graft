@@ -72,13 +72,42 @@ func findOpcallSpans(line string) []opcallSpan {
 	return spans
 }
 
-// identPathRe matches an identifier optionally followed by dotted
-// continuations (identifiers or bare integers), e.g. "svc", "svc.name",
-// "svc.ports.0".
-var identPathRe = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*(?:\.(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+))*`)
+// pathSegmentsPattern matches the continuations of a reference path the
+// way the expression lexer (interfaces.ArrayReferencePattern) reads them:
+// a dotted name, which may glue "+name" parts as genesis vaultified keys
+// do, or a dotted run of digits; and a '/' segment, which may follow a
+// '.' directly and holds either a "$name" or a run of name characters
+// with "+name" parts glued on. A name may hold '-', as in "web-svc".
+const pathSegmentsPattern = `(?:` +
+	`\.(?:[A-Za-z_][A-Za-z0-9_-]*(?:\+[A-Za-z_][A-Za-z0-9_-]*)*|[0-9]+)` +
+	`|\.?/(?:\$[A-Za-z_][A-Za-z0-9_-]*|[A-Za-z0-9_-]*(?:\+[A-Za-z_][A-Za-z0-9_-]*)*)` +
+	`)`
+
+// identPathRe matches a whole reference path that starts with a name,
+// e.g. "svc", "svc.name", "svc.ports.0", "jobs.web/svc.ip", or
+// "jobs.web-svc.ip".
+var identPathRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*` + pathSegmentsPattern + `*`)
+
+// pathContinuationRe matches the '.' and '/' segments that continue a
+// path after a closing bracket or a leading run of digits, as in
+// "arr[0]/svc" or "0/svc".
+var pathContinuationRe = regexp.MustCompile(`^` + pathSegmentsPattern + `+`)
 
 func isIdentStart(c byte) bool {
 	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+// continuesPath reports whether a '.' or '/' at inner[i] joins the text
+// before it, which is the case when it directly follows a name
+// character, a digit, or a closing bracket. A '/' after whitespace, a
+// closing paren, or a quote is division, and the name after it may be a
+// loop variable.
+func continuesPath(inner string, i int) bool {
+	if i == 0 || (inner[i] != '.' && inner[i] != '/') {
+		return false
+	}
+	p := inner[i-1]
+	return isIdentStart(p) || (p >= '0' && p <= '9') || p == '-' || p == ']'
 }
 
 // rewriteVarRefs rewrites every identifier-path token in inner whose first
@@ -87,7 +116,12 @@ func isIdentStart(c byte) bool {
 // untouched: "svc" -> "__graft_loop.l1.0.svc", "svc.name" ->
 // "__graft_loop.l1.0.svc.name". Content inside quoted strings is left
 // verbatim so a literal string that happens to contain the variable name
-// (a URL, a hostname) is never touched.
+// (a URL, a hostname) is never touched. A name that continues a path,
+// after a '/', a '-', or a '.' that joins it to the text before, is part
+// of a document key rather than a variable, so "jobs.web/svc.ip",
+// "jobs.web-svc.ip", and "arr[0].svc" are never touched either. The first
+// segment is compared whole, so "svc/0" and "svc-name" are keys of their
+// own, as the expression lexer reads them.
 func rewriteVarRefs(inner string, targets map[string]string) string {
 	if len(targets) == 0 {
 		return inner
@@ -106,6 +140,13 @@ func rewriteVarRefs(inner string, targets map[string]string) string {
 			out.WriteString(inner[i:j])
 			i = j
 			continue
+		}
+		if continuesPath(inner, i) {
+			if tok := pathContinuationRe.FindString(inner[i:]); tok != "" {
+				out.WriteString(tok)
+				i += len(tok)
+				continue
+			}
 		}
 		if isIdentStart(c) {
 			tok := identPathRe.FindString(inner[i:])
