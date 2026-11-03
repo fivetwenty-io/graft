@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `pkg/yaml` `Marshal` now writes a multi-line string that starts with `-`, `?`, or `:`, such as a PEM certificate, as a literal `|` block, the way `graft merge` and spruce write it. Before, it double-quoted the string with `\n` escapes. A single-line string that starts that way is still double-quoted, and so is a multi-line string a block cannot hold, such as one with trailing spaces on a line. Every such string reads back equal through `Unmarshal`.
+- `pkg/yaml` `Marshal` now writes a multi-line string value that starts with `-`, `?`, or `:`, such as a PEM certificate, as a literal `|` block, the way `graft merge` and spruce write it. Before, it double-quoted the string with `\n` escapes. A multi-line key that starts that way keeps its double quotes. A single-line string that starts with one of those characters and a character other than a space, such as `-a`, is still double-quoted, and one with a space or nothing after it, such as `- a` or `-`, is still single-quoted. A multi-line string that a block cannot hold, such as one with trailing spaces on a line or a U+2028 or U+2029 at the start of a line, is double-quoted, and it reads back equal through `Unmarshal`.
 
 ### Changed
 

@@ -180,3 +180,22 @@ func TestMarshalMultilineLineSeparator(t *testing.T) {
 		}
 	}
 }
+
+// TestMarshalSingleLineIndicatorQuoting pins the quotes a single-line
+// string that starts with an indicator gets. One with a character other
+// than a space after the indicator is double-quoted, and one with a space
+// or nothing after it is single-quoted.
+func TestMarshalSingleLineIndicatorQuoting(t *testing.T) {
+	for s, want := range map[string]string{
+		"-a": `a: "-a"`, "?a": `a: "?a"`, ":a": `a: ":a"`,
+		"- a": `a: '- a'`, "-": `a: '-'`, "? a": `a: '? a'`, ": a": `a: ': a'`,
+	} {
+		out, err := yaml.Marshal(map[string]any{"a": s})
+		if err != nil {
+			t.Fatalf("Marshal(%q): %v", s, err)
+		}
+		if got := strings.TrimSpace(string(out)); got != want {
+			t.Errorf("Marshal(%q) = %s, want %s", s, got, want)
+		}
+	}
+}
