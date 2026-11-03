@@ -3,6 +3,7 @@ package graft
 import (
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -106,9 +107,11 @@ func (ev *Evaluator) pathReadsLiteral(c *tree.Cursor) bool {
 // ordinary messages to tell anything about the literal.
 const minWithheldText = 3
 
-// withheldError stands in for an error whose message quotes text from a
-// literal. Unwrap still returns the original, so errors.Is and errors.As
-// keep working, but the message itself names no content.
+// withheldError stands in for an error whose Error() text quotes text
+// from a literal. Operator messages quote no values, so the text gets
+// there only through a path the operator names, such as one built from
+// the literal's content. Unwrap still returns the original, so errors.Is
+// and errors.As keep working, and the detailed text is the original's.
 type withheldError struct {
 	cause error
 }
@@ -117,12 +120,17 @@ func (e *withheldError) Error() string {
 	return "the operator failed on a value from a literal; the message is withheld because it quotes that value"
 }
 
+// DetailedError returns the withheld error's detailed text.
+func (e *withheldError) DetailedError() string {
+	return errtext.Detail(e.cause)
+}
+
 func (e *withheldError) Unwrap() error {
 	return e.cause
 }
 
 // scrubLiteralError returns err, or a withheldError in its place when
-// its message holds text from a literal in the tree. The path of a
+// its Error() text holds text from a literal in the tree. The path of a
 // PathError is kept, so the message still says where the error is.
 func (ev *Evaluator) scrubLiteralError(err error) error {
 	if err == nil || !ev.holdsLiteral {

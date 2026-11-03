@@ -31,6 +31,7 @@ func TestLiteralOperatorErrorsDoNotQuoteContent(t *testing.T) {
 		{name: "load", plan: "out: (( load params.s ))\n"},
 		{name: "file", plan: "out: (( file params.s ))\n"},
 		{name: "grab through a scalar", plan: "out: (( grab params.s.deeper ))\n"},
+		{name: "grab of a path built from the literal", plan: "out: (( grab (concat \"meta.\" params.s) ))\n"},
 		{name: "static_ips azs not strings", plan: `
 networks:
   - name: net1
@@ -82,5 +83,35 @@ instance_groups:
 				}
 			})
 		}
+	}
+}
+
+// TestWithheldLiteralErrorKeepsItsDetail checks that withholding an
+// error's message from Error() leaves the detailed text alone, so a
+// caller that asks graft.DetailedError for it still gets the message
+// the operator wrote.
+func TestWithheldLiteralErrorKeepsItsDetail(t *testing.T) {
+	const secret = "s3cr3t-do-not-print"
+	params := map[string]interface{}{"s": secret}
+	for _, mode := range leakModes {
+		t.Run(mode.name, func(t *testing.T) {
+			eng, _ := leakEngine(t, mode.parallel)
+			planDoc, err := eng.ParseYAML([]byte("out: (( grab (concat \"meta.\" params.s) ))\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			user := graft.NewDocument(map[string]interface{}{"params": graft.NewLiteral(params)})
+			_, err = eng.Merge(context.Background(), planDoc, user).Execute()
+			if err == nil {
+				t.Fatal("Execute succeeded on input that must fail")
+			}
+			if strings.Contains(err.Error(), secret) {
+				t.Fatalf("Error() quotes literal content: %v", err)
+			}
+			detail := graft.DetailedError(err)
+			if !strings.Contains(detail, "unable to resolve `meta."+secret+"`") {
+				t.Fatalf("DetailedError lost the operator's message: %q", detail)
+			}
+		})
 	}
 }
