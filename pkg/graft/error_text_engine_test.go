@@ -14,6 +14,24 @@ import (
 // TestCycleErrorTextHoldsNoExpression closes a cycle through an operator
 // whose expression holds the probe. The CLI prints each operator's
 // expression on the cycle, and Error() names only the paths.
+func TestCycleErrorTextHoldsNoExpression(t *testing.T) {
+	withColorOn(t)
+	for _, mode := range leakModes {
+		t.Run(mode.name, func(t *testing.T) {
+			eng, _ := leakEngine(t, mode.parallel)
+			doc, err := eng.ParseYAML([]byte("a: (( concat \"PROBEzq81x\" b ))\nb: (( grab a ))\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = eng.Merge(context.Background(), doc).Execute()
+			assertErrorText(t, err, errProbe, true)
+			if !errors.Is(err, graft.ErrDependencyCycle) {
+				t.Fatalf("the cycle sentinel is gone: %v", err)
+			}
+		})
+	}
+}
+
 // probeVault stands in for a Vault server. A path holding the probe
 // answers 500, secret/num holds a number, and every other path is
 // missing.

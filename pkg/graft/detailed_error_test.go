@@ -92,3 +92,27 @@ func TestGraftErrorDetailWalksTheCauseChain(t *testing.T) {
 		t.Fatalf("DetailedError = %q, want %q", got, want)
 	}
 }
+
+func TestCycleErrorTextOmitsTheExpressions(t *testing.T) {
+	err := &CycleError{
+		Inputs: []string{"a.yml"},
+		Nodes: []CycleNode{
+			{Path: "a", Expr: `(( concat "probe-7" b ))`},
+			{Path: "b", Expr: "(( grab a ))"},
+		},
+	}
+	plain := err.Error()
+	if strings.Contains(plain, "probe-7") || strings.Contains(plain, "concat") {
+		t.Fatalf("Error() quotes an expression:\n%s", plain)
+	}
+	if !strings.Contains(plain, "<unknown>  a\n") || !strings.HasSuffix(plain, "<unknown>  b") {
+		t.Fatalf("Error() lost the node lines:\n%s", plain)
+	}
+	detail := DetailedError(err)
+	if !strings.Contains(detail, `<unknown>  a: (( concat "probe-7" b ))`) {
+		t.Fatalf("DetailedError dropped the expression:\n%s", detail)
+	}
+	if !errors.Is(err, ErrDependencyCycle) {
+		t.Fatal("the cycle sentinel is gone")
+	}
+}

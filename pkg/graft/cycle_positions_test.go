@@ -252,7 +252,7 @@ func TestMergeCycleReportsFilesAndLines(t *testing.T) {
 		t.Errorf("errors.Is(err, ErrDependencyCycle) = false, want true")
 	}
 
-	out := err.Error()
+	out := DetailedError(err)
 	for _, want := range []string{
 		"cycle detected in operator data-flow graph",
 		"[1] a.yml",
@@ -327,7 +327,7 @@ func TestMergeCycleAlongsideOtherErrors(t *testing.T) {
 		t.Fatalf("Execute() succeeded; want errors")
 	}
 
-	out := err.Error()
+	out := DetailedError(err)
 	var me MultiError
 	if !errors.As(err, &me) {
 		t.Fatalf("errors.As(MultiError) = false; got %T: %v", err, err)
@@ -412,7 +412,7 @@ func mergeCycleErrorOutput(t *testing.T, refs []SourceRef) string {
 	if !errors.As(err, &ce) {
 		t.Fatalf("errors.As(*CycleError) = false; got %T: %v", err, err)
 	}
-	return err.Error()
+	return DetailedError(err)
 }
 
 func TestMergeCycleThroughANameKeyedListCitesTheRightFile(t *testing.T) {

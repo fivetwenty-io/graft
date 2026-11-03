@@ -191,8 +191,8 @@ func TestCycleErrorRendersTwoNodeBlock(t *testing.T) {
 		"     a.yml:3  meta.foo: (( grab meta.bar ))",
 	}, "\n")
 
-	if got := err.Error(); got != want {
-		t.Errorf("Error() =\n%s\n\nwant\n%s", got, want)
+	if got := DetailedError(err); got != want {
+		t.Errorf("DetailedError =\n%s\n\nwant\n%s", got, want)
 	}
 }
 
@@ -205,7 +205,7 @@ func TestCycleErrorThreeNodeWrapsToClosingEdge(t *testing.T) {
 		},
 	}
 
-	lines := strings.Split(err.Error(), "\n")
+	lines := strings.Split(DetailedError(err), "\n")
 
 	if lines[1] != "   cycle (3 nodes): meta.a -> meta.b -> meta.c -> meta.a" {
 		t.Errorf("chain line = %q", lines[1])
@@ -228,10 +228,10 @@ func TestCycleErrorSelfCycleHasNoWrapDuplicate(t *testing.T) {
 		},
 	}
 
-	lines := strings.Split(err.Error(), "\n")
+	lines := strings.Split(DetailedError(err), "\n")
 
 	if len(lines) != 3 {
-		t.Fatalf("got %d lines, want 3 (header, chain, one detail):\n%s", len(lines), err.Error())
+		t.Fatalf("got %d lines, want 3 (header, chain, one detail):\n%s", len(lines), DetailedError(err))
 	}
 	if lines[1] != "   cycle (1 node): meta.a -> meta.a" {
 		t.Errorf("chain line = %q", lines[1])
@@ -258,7 +258,7 @@ func TestCycleErrorDegradesWithoutInventingALine(t *testing.T) {
 		},
 	}
 
-	got := err.Error()
+	got := DetailedError(err)
 
 	if !strings.Contains(got, "     only.yml  meta.a: (( grab meta.b ))") {
 		t.Errorf("Error() = %q; a file without a line must render as the bare filename", got)
@@ -305,7 +305,7 @@ func TestCycleErrorDetailLinesNeverStartWithGenesisPrefix(t *testing.T) {
 	ansi.Color(false)
 	defer ansi.Color(previousColor)
 
-	out := MultiError{Errors: []error{err}}.Error()
+	out := DetailedError(MultiError{Errors: []error{err}})
 
 	var prefixed int
 	for _, line := range strings.Split(out, "\n") {
@@ -406,7 +406,7 @@ func TestCycleErrorShortensLongFilenamesFromTheLeft(t *testing.T) {
 		}},
 	}
 
-	out := e.Error()
+	out := DetailedError(e)
 
 	if !strings.Contains(out, "[1] ...") || !strings.Contains(out, "root/self.yml\n") {
 		t.Errorf("the inputs list does not keep the path's tail:\n%s", out)
