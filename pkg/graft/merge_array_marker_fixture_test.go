@@ -510,7 +510,7 @@ jobs:
 				So(err, ShouldBeNil)
 				_, err = mergeYAML(ctx, t, engine, base, c.overlay)
 				So(err, ShouldNotBeNil)
-				So(err.Error(), ShouldContainSubstring, c.contains)
+				So(DetailedError(err), ShouldContainSubstring, c.contains)
 				So(err.Error(), ShouldNotContainSubstring, "failed to merge documents")
 			})
 		}

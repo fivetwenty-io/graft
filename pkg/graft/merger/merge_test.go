@@ -10,6 +10,7 @@ import (
 
 	yamlv3 "github.com/goccy/go-yaml"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -1418,7 +1419,7 @@ func TestMergeArray(t *testing.T) {
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
-				So(err.Error(), ShouldContainSubstring, "unable to modify the list, because specified index 7 is out of bounds")
+				So(errtext.Detail(err), ShouldContainSubstring, "unable to modify the list, because specified index 7 is out of bounds")
 			})
 
 			Convey("After '<default>: first' put the new entry", func() {
@@ -1901,7 +1902,7 @@ func TestMergeArray(t *testing.T) {
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
-				So(err.Error(), ShouldContainSubstring, "because new list entry 'name: second' is detected multiple times")
+				So(errtext.Detail(err), ShouldContainSubstring, "because new list entry 'name: second' is detected multiple times")
 			})
 		})
 
@@ -1939,7 +1940,7 @@ func TestMergeArray(t *testing.T) {
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
-				So(err.Error(), ShouldContainSubstring, "unable to modify the list, because specified index 6 is out of bounds")
+				So(errtext.Detail(err), ShouldContainSubstring, "unable to modify the list, because specified index 6 is out of bounds")
 			})
 			Convey("throw an error if delete point is negative", func() {
 				orig := []interface{}{"first", "second", "third", "fourth", "fifth", "sixth"}
@@ -1950,7 +1951,7 @@ func TestMergeArray(t *testing.T) {
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
-				So(err.Error(), ShouldContainSubstring, "unable to modify the list, because specified index -2 is out of bounds")
+				So(errtext.Detail(err), ShouldContainSubstring, "unable to modify the list, because specified index -2 is out of bounds")
 			})
 
 			Convey("Delete '<default>: first'", func() {
@@ -2247,7 +2248,7 @@ func TestMergeArray(t *testing.T) {
 				err := m.Error()
 				So(a, ShouldBeNil)
 				So(err, ShouldNotBeNil)
-				So(err.Error(), ShouldContainSubstring, "unable to modify the list, because specified index 42 is out of bounds")
+				So(errtext.Detail(err), ShouldContainSubstring, "unable to modify the list, because specified index 42 is out of bounds")
 			})
 
 			Convey("throw an error when key cannot be found in original list", func() {

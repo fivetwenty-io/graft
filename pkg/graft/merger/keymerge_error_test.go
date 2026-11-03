@@ -4,11 +4,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
 
-// TestCanKeyMergeArrayMessageParity pins every failure case's rendered
-// message to the historical text, in both color modes.
+// TestCanKeyMergeArrayMessageParity pins every failure case's detailed
+// text to the historical message in both color modes, and its Error()
+// text to the uncolored message in both.
 func TestCanKeyMergeArrayMessageParity(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -55,8 +57,11 @@ func TestCanKeyMergeArrayMessageParity(t *testing.T) {
 				t.Errorf("color=%v %s: expected an error", colorOn, tc.name)
 				continue
 			}
-			if !colorOn && err.Error() != tc.want {
-				t.Errorf("%s: got %q, want %q", tc.name, err.Error(), tc.want)
+			if err.Error() != tc.want {
+				t.Errorf("color=%v %s: Error() = %q, want %q", colorOn, tc.name, err.Error(), tc.want)
+			}
+			if !colorOn && errtext.Detail(err) != tc.want {
+				t.Errorf("%s: got %q, want %q", tc.name, errtext.Detail(err), tc.want)
 			}
 			// Color mode: exact bytes must match what the eager
 			// ansi.Errorf formatting produced.
@@ -75,8 +80,8 @@ func TestCanKeyMergeArrayMessageParity(t *testing.T) {
 			case "second element missing key":
 				refErr = ansi.Errorf("@m{%s.%d}: @R{%s object does not contain the key} @c{'%s'}@R{ - cannot merge by key}", "jobs", 1, "original", "name")
 			}
-			if err.Error() != refErr.Error() {
-				t.Errorf("color=%v %s: got %q, want %q", colorOn, tc.name, err.Error(), refErr.Error())
+			if errtext.Detail(err) != refErr.Error() {
+				t.Errorf("color=%v %s: got %q, want %q", colorOn, tc.name, errtext.Detail(err), refErr.Error())
 			}
 		}
 	}

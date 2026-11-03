@@ -5,6 +5,7 @@ import (
 
 	. "github.com/smartystreets/goconvey/convey"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
 
@@ -108,7 +109,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			err := m.Error()
 			So(a, ShouldBeNil)
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "unable to find specified modification point with 'missing'")
+			So(errtext.Detail(err), ShouldContainSubstring, "unable to find specified modification point with 'missing'")
 		})
 
 		Convey("throw the same targeted error on an empty original list", func() {
@@ -119,7 +120,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			err := m.Error()
 			So(a, ShouldBeNil)
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "unable to find specified modification point with 'missing'")
+			So(errtext.Detail(err), ShouldContainSubstring, "unable to find specified modification point with 'missing'")
 		})
 
 		Convey("throw an error when the insertion point is keyed", func() {
@@ -144,7 +145,7 @@ func TestMergeArrayNamedInsertOnSimpleList(t *testing.T) {
 			err := m.Error()
 			So(a, ShouldBeNil)
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "unable to find specified modification point with '2'")
+			So(errtext.Detail(err), ShouldContainSubstring, "unable to find specified modification point with '2'")
 		})
 
 		Convey("index-form insert on a simple list is unchanged", func() {
@@ -202,7 +203,7 @@ func TestMergeArrayNamedInsertOnMapListRegressions(t *testing.T) {
 			err := m.Error()
 			So(a, ShouldBeNil)
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "unable to insert, because new list entry 'name: alpha' is detected multiple times")
+			So(errtext.Detail(err), ShouldContainSubstring, "unable to insert, because new list entry 'name: alpha' is detected multiple times")
 		})
 	})
 }
