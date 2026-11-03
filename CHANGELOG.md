@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.45.1] - 2026-11-03
+
+This release makes graft read a `/` attached to a reference as part of the path, the way spruce does, so BOSH's `name/index` instance notation works in expressions such as `(( grab jobs.postgresql/0.ips[0] ))`. It also changes how unspaced division behaves, because `a/b` is now a path and division needs a space before the `/`. Before you upgrade, search your templates for a `/` with no space between two operands.
+
 ### Fixed
 
 - A `/` attached to a reference is now part of the path, the way spruce reads it, so BOSH's `name/index` instance notation works. Before, `(( grab jobs.postgresql/0.ips[0] ))` failed to parse, and `(( grab jobs.count/2 ))` quietly divided `jobs.count` by 2 even when the document had a key named `count/2`. Division now needs a space before the `/`, as in `(( a / b ))` or `(( a /b ))`. A number followed directly by a `/`, such as `8/2`, is a path too, as it is in spruce. Inside `calc`, nothing changes. A `+name` or a `$name` after the `/` stays in the path, as it does after a `.`. A `/` right after a `.` stays in the path as well, so graft can read back the `(( grab arr.0./x ))` text that `defer` writes. Loops take slash paths too, as a bare subject, as in `(( for ip in jobs.postgresql/0.ips ))`, and in the loop body, where a name after a `/` or a `-` inside a path is never mistaken for the loop variable.
@@ -1236,6 +1240,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.45.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.1
 [1.45.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.0
 [1.44.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.44.1
 [1.44.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.44.0
