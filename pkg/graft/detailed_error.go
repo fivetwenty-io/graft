@@ -4,12 +4,19 @@ import "github.com/fivetwenty-io/graft/internal/errtext"
 
 // DetailedError returns the full text of err, as the graft CLI prints it.
 //
-// The Error() text of every error graft returns is plain: it holds no
+// The Error() text of every error graft returns is plain. It holds no
 // ANSI escape codes and quotes no value from a document, so a library
 // caller can log it or show it in an API without leaking a credential.
 // It may name document paths, operator names, YAML tags, Go types, and
-// line and column numbers. DetailedError adds back what Error() leaves
-// out: the values an error quoted, the source text of the operator that
+// line and column numbers. A path that the document builds from values,
+// such as the path in a grab of a concat, names those values, so the
+// Error() text of an error at that path can carry them. When the values
+// come from a literal, graft withholds that error's message instead.
+//
+// The same holds for every error a caller can reach from the returned
+// one through errors.Unwrap or errors.As, so DetailedError is the only
+// way to the full text. It adds back what Error() leaves out, which is
+// the values an error quoted, the source text of the operator that
 // failed, and, when the CLI has turned color on, the escape codes.
 // Callers that relied on values or color in Error() before 1.45.0 call
 // DetailedError instead, and only where its text is safe to show.
