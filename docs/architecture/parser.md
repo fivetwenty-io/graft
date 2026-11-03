@@ -294,9 +294,13 @@ primary        = literal | reference | "(" expression ")" | operator_call ;
 operator_call  = OPERATOR [ "@" IDENTIFIER ] arguments? ;
 arguments      = expression ( expression )* ;
 literal        = STRING | NUMBER | BOOLEAN | NULL ;
-reference      = IDENTIFIER ( "." segment | "[" segment "]" )* ;
-segment        = IDENTIFIER | NUMBER | IDENTIFIER "=" value ;
+reference      = head ( "." segment | "."? "/" slash_segment | "[" segment "]" )* ;
+head           = IDENTIFIER | "$" IDENTIFIER | DIGITS ;
+segment        = IDENTIFIER | NUMBER | IDENTIFIER "=" value | "$" IDENTIFIER ;
+slash_segment  = "$" IDENTIFIER | NAME_CHAR* ( "+" IDENTIFIER )* ;
 ```
+
+A `/` that directly follows a reference character continues the reference, which is how BOSH's `name/index` instance notation reads, as in `jobs.postgresql/0.ips`, and how spruce reads a path. A `/` with whitespace before it is the division operator in `multiplicative`, so `a / b` and `a /b` divide. A reference can start with `DIGITS` only when a `/` follows them, so `8/2` is the path `8/2`, while `8` and `1.5` on their own stay numbers.
 
 Arguments are separated by whitespace, not commas. `@` after an operator name
 names a backend target: `(( vault@production "secret/db:password" ))`. A

@@ -273,7 +273,7 @@ workers:
 
 ### Reference
 
-A path expression that retrieves a value from the document. References use dot notation — `path.to.value` — with numeric indexes or `field=value` predicates for list entries.
+A path expression that retrieves a value from the document. References use dot notation — `path.to.value` — with numeric indexes or `field=value` predicates for list entries. A `/` with no space before it continues a reference, as in BOSH's `jobs.postgresql/0.ips`, and a reference can start with digits when a `/` follows them, as in `8/2`.
 
 ### Registry
 
