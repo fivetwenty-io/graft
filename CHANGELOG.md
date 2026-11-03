@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.44.1] - 2026-11-03
+
+This release fixes two things in `pkg/yaml` that came up as callers moved to it. `Marshal` now writes a multi-line string that starts with `-`, such as a PEM certificate, as a literal block instead of one double-quoted line, and a `!!float` tag over integer text, such as `!!float 3`, now reads as a float in `graft merge` and `pkg/yaml` alike, where before it failed the document.
+
 ### Fixed
 
 - `pkg/yaml` `Marshal` now writes a multi-line string value that starts with `-`, `?`, or `:`, such as a PEM certificate, as a literal `|` block, the way `graft merge` and spruce write it. Before, it double-quoted the string with `\n` escapes. A multi-line key that starts that way keeps its double quotes. A single-line string that starts with one of those characters and a character other than a space, such as `-a`, is still double-quoted, and one with a space or nothing after it, such as `- a` or `-`, is still single-quoted. A multi-line string that a block cannot hold, such as one with trailing spaces on a line or a U+2028 or U+2029 at the start of a line, is double-quoted, and such a string reads back equal through `Unmarshal`.
@@ -1212,6 +1216,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.44.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.44.1
 [1.44.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.44.0
 [1.43.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.43.1
 [1.43.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.43.0
