@@ -80,7 +80,7 @@ func TestMarshalMultilineIndicatorLiteral(t *testing.T) {
 // hard to read, and checks that each reads back equal wherever it sits.
 func TestMarshalMultilineIndicatorRoundTrip(t *testing.T) {
 	starts := []string{"-", "- ", "--", "---", "-----BEGIN X-----", "?", "? ", "?x", ":", ": ", ":x", "...", "-\t", "-5", "-.5", "-.inf", "-1e3", "-0x1F", "-12:30"}
-	pieces := []string{"\n", "\n\n", "a", " ", "  ", "\t", "- ", "-", ": ", ":", "#", " #", "\r", "\r\n", "é", "\u0085", "---", "...", "? ", "'", "\"", "|", "x"}
+	pieces := []string{"\n", "\n\n", "a", " ", "  ", "\t", "- ", "-", ": ", ":", "#", " #", "\r", "\r\n", "é", "\u0085", "\u2028", "\u2029", "---", "...", "? ", "'", "\"", "|", "x"}
 	p := newPRNG(7)
 	for i := 0; i < 20000; i++ {
 		var b strings.Builder
@@ -148,6 +148,34 @@ func TestMarshalMultilineIndicatorKey(t *testing.T) {
 			}
 			if !reflect.DeepEqual(back, want) {
 				t.Errorf("key of %d bytes with %s value reads back changed:\n%.80s", len(k), name, out)
+			}
+		}
+	}
+}
+
+// TestMarshalMultilineLineSeparator pins that a multi-line string with a
+// U+2028 or U+2029 reads back equal, wherever the separator sits.
+func TestMarshalMultilineLineSeparator(t *testing.T) {
+	for _, s := range []string{
+		"-a\n ", "-a\n ", "-a\n b", "-a\n b", "a\n ", "a\n b\n",
+		"-a\nb c", "a\nb c\n", " a\nb", "-a \nb", "-a\n\n ",
+	} {
+		for name, v := range map[string]any{
+			"map":  map[string]any{"a": s},
+			"list": []any{s},
+			"root": s,
+		} {
+			out, err := yaml.Marshal(v)
+			if err != nil {
+				t.Fatalf("%s %q: Marshal: %v", name, s, err)
+			}
+			var back any
+			if err := yaml.Unmarshal(out, &back); err != nil {
+				t.Errorf("%s %q written as\n%s\nis refused: %v", name, s, out, err)
+				continue
+			}
+			if !reflect.DeepEqual(back, v) {
+				t.Errorf("%s %q written as\n%s\nreads back as %#v", name, s, out, back)
 			}
 		}
 	}

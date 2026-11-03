@@ -726,10 +726,12 @@ func readsAsTimestamp(s string) bool {
 // goccy's parser misreads as an indicator in some places. A multi-line
 // value that starts that way is a literal block, as it is in spruce, and
 // goccy reads the block back, but a multi-line key keeps its quotes
-// because goccy misreads some explicit literal keys. Otherwise the style
-// is the fork's own choice.
+// because goccy misreads some explicit literal keys. A multi-line value
+// with U+2028 or U+2029 at the start of a line is double-quoted too,
+// since goccy refuses the block that holds it. Otherwise the style is
+// the fork's own choice.
 func timestampStyle(s string, typed, isKey bool) scalarStyle {
-	if typed && (readsAsTimestamp(s) || strings.HasSuffix(s, "<<") || leadsWithSpaceBeforeBreak(s) || startsWithIndicator(s, isKey)) {
+	if typed && (readsAsTimestamp(s) || strings.HasSuffix(s, "<<") || leadsWithSpaceBeforeBreak(s) || startsWithIndicator(s, isKey) || (!isKey && linesStartWithSeparator(s))) {
 		return doubleQuotedScalarStyle
 	}
 	return requestedScalarStyle(s)
@@ -740,6 +742,21 @@ func timestampStyle(s string, typed, isKey bool) scalarStyle {
 // multi-line value is exempt, because it is written as a block.
 func startsWithIndicator(s string, isKey bool) bool {
 	return len(s) > 1 && (isKey || !strings.Contains(s, "\n")) && strings.ContainsRune("-?:", rune(s[0])) && s[1] != ' '
+}
+
+// linesStartWithSeparator reports whether the multi-line s has U+2028 or
+// U+2029 where a line starts, which is at its start or after a line
+// feed or another separator.
+func linesStartWithSeparator(s string) bool {
+	if !strings.Contains(s, "\n") {
+		return false
+	}
+	for i, r := range s {
+		if (r == '\u2028' || r == '\u2029') && (i == 0 || s[i-1] == '\n' || strings.HasSuffix(s[:i], "\u2028") || strings.HasSuffix(s[:i], "\u2029")) {
+			return true
+		}
+	}
+	return false
 }
 
 // leadsWithSpaceBeforeBreak reports whether s holds a line break and
