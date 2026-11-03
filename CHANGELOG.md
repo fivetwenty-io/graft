@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `graft.NewLiteral` wraps a value as a `graft.LiteralValue`, which graft keeps whole. A merge replaces a wrapped value as a single unit and never merges into it, by key, by `name`, or through `(( append ))` and the other merge markers. The evaluator never looks inside it, so a `(( ... ))` string in it stays text, even when it is malformed. Paths still read through the wrapper, so `(( grab ))`, `||`, `(( keys ))`, `(( concat ))`, `(( join ))`, and `(( inject ))` work on the data inside, and a value that `(( grab ))` or `(( inject ))` copies out stays wrapped. Every output, including `RawData`, the getters, `ToYAML`, `ToJSON`, `pkg/yaml` `Marshal`, and `encoding/json`, writes the plain value with every wrapper removed. The constructor is `NewLiteral` rather than `Literal` because `graft.Literal` already names an expression type.
+
 ## [1.44.1] - 2026-11-03
 
 This release fixes two things in `pkg/yaml` that came up as callers moved to it. `Marshal` now writes a multi-line string that starts with `-`, such as a PEM certificate, as a literal block instead of one double-quoted line, and a `!!float` tag over integer text, such as `!!float 3`, now reads as a float in `graft merge` and `pkg/yaml` alike, where before it failed the document.

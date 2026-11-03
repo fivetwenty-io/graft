@@ -673,6 +673,8 @@ jsonBytes, _ := json.Marshal(doc.RawData())
 
 **Warning:** Modifying the raw data directly can lead to inconsistent state; prefer `Set`/`Delete`.
 
+`RawData` never returns a `LiteralValue`. It replaces each one with the value it wraps, at any depth, and leaves the document itself unchanged. See [Literal Values](#literal-values).
+
 ### SortKeys
 
 Returns a new document built by a fresh recursive rebuild of every nested map and list.
@@ -914,6 +916,65 @@ essential := doc.CherryPick("database", "server", "auth")
 // Combine with other operations
 minimal := doc.CherryPick("app", "database").Prune("secrets")
 ```
+
+## Literal Values
+
+A `LiteralValue` marks a value that graft must keep whole. We use one when a document holds data that came from outside the plan, such as the parameters a user sends with a service request, and graft must neither merge into that data nor evaluate it.
+
+```go
+func NewLiteral(v any) LiteralValue
+
+func (l LiteralValue) Value() any
+```
+
+`NewLiteral` wraps any value, including `nil`. Wrapping a `LiteralValue` again returns it unchanged, so there is never a wrapper inside a wrapper at the same spot. `NewLiteral` does not copy the value, so we should not change the value after we wrap it.
+
+**How a merge treats it:**
+
+- A wrapped value replaces whatever it meets as a whole unit, the way a scalar does. A wrapped map does not merge key by key into the map below it, and a wrapped list of named maps does not merge by `name` into the list below it.
+
+- A value merged over a wrapped value replaces it whole in the same way.
+
+- `(( append ))`, `(( replace ))`, and every other merge marker inside a wrapped value is plain text.
+
+**How evaluation treats it:**
+
+- The evaluator never looks inside a wrapped value, on the sequential path or the parallel one. A `(( vault ... ))` string inside it is never read from Vault, and a malformed `((` string inside it is not an error.
+
+- A path can still read into a wrapped value. `(( grab params.size ))`, `(( keys params ))`, `(( concat params.name "-svc" ))`, `(( join "," params.tags ))`, and a `||` fallback all see through the wrapper.
+
+- A value that `(( grab ))` copies out of a wrapped value stays wrapped at its new place, and so does each value that `(( inject ))` copies out of one. A second evaluation of the result still leaves them alone. A value that another operator computes from wrapped data, such as the string `(( concat ))` builds, is a new plain value.
+
+**How output treats it:**
+
+- `RawData`, `GetData`, `ToMap`, `Get` and the other getters, `Paths`, `ToYAML`, `ToJSON`, `ToJSONIndent`, `graft.MarshalYAML`, `pkg/yaml` `Marshal`, and `encoding/json` all write the plain value with every wrapper removed.
+
+- `Clone` and the engine's own copies keep the wrapper and copy the value inside it.
+
+**Example:**
+
+```go
+plan, _ := engine.ParseYAML([]byte(`
+params:
+  size: small
+  tags: [a, b]
+meta:
+  size: (( grab params.size ))
+`))
+
+user := graft.NewDocument(map[string]interface{}{
+    "params": graft.NewLiteral(map[string]interface{}{
+        "size": "large",
+        "note": `(( vault "secret/never:read" ))`,
+    }),
+})
+
+result, err := engine.Merge(ctx, plan, user).Execute()
+// params is now {size: large, note: (( vault "secret/never:read" ))}.
+// tags is gone, note is plain text, and meta.size is large.
+```
+
+`WithPrune` and `WithCherryPick` can name a wrapped value itself but not a path inside it, because those steps treat the wrapper as a single leaf.
 
 ## Error Types
 
