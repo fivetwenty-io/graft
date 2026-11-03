@@ -927,7 +927,9 @@ func NewLiteral(v any) LiteralValue
 func (l LiteralValue) Value() any
 ```
 
-`NewLiteral` wraps any value, including `nil`. Wrapping a `LiteralValue` again returns it unchanged, so there is never a wrapper inside a wrapper at the same spot. `NewLiteral` wraps a deep copy of the value, so a change we make to the value after we wrap it does not reach the document. On the way it turns each `map[interface{}]interface{}` into a `map[string]interface{}`, so a path can read into a map that a YAML library built with untyped keys.
+`NewLiteral` wraps any value, including `nil`. Wrapping a `LiteralValue` again returns it unchanged, so there is never a wrapper inside a wrapper at the same spot. `NewLiteral` wraps a deep copy of the value, so a change we make to the value after we wrap it does not reach the document. On the way it turns each `map[interface{}]interface{}` into a `map[string]interface{}`, so a path can read into a map that a YAML library built with untyped keys. The copy covers `map[string]interface{}`, `map[interface{}]interface{}`, and `[]interface{}`. A typed container, such as a `[]string` or a `map[string]string`, stays as it is and is not copied, so a change to it after the call does reach the document, and a path cannot read into it, just as it cannot when the value is not wrapped.
+
+`NewLiteral` panics when a map or list in the value contains itself, because graft cannot hold cyclic data. It finds the cycle in a single pass, and the panic message quotes nothing from the value. A map or list that appears in more than one place is not a cycle, and each place gets its own copy.
 
 **How a merge treats it:**
 
@@ -943,13 +945,15 @@ func (l LiteralValue) Value() any
 
 - A path can still read into a wrapped value. `(( grab params.size ))`, `(( keys params ))`, `(( concat params.name "-svc" ))`, `(( join "," params.tags ))`, and a `||` fallback all see through the wrapper.
 
-- A value that `(( grab ))` copies out of a wrapped value stays wrapped at its new place, and so does each value that `(( inject ))` copies out of one, whether it reaches the wrapped map through a reference, a `||` fallback, or a nested call. A second evaluation of the result still leaves them alone.
+- A value that `(( grab ))` or a bare `(( a || b ))` copies out of a wrapped value stays wrapped at its new place, and so does each value that `(( inject ))` copies out of one, whether it reaches the wrapped map through a reference, a `||` fallback, or a nested call. A second evaluation of the result still leaves them alone.
 
 - A value that another operator computes from wrapped data, such as the string `(( concat ))` builds or the list `(( keys ))` returns, is a new plain value. Any string in it that holds `((` stays text, though, because the evaluator wraps that string again before it lands in the tree. A later phase or a second evaluation never runs it, and a Vault path inside it is never read.
 
 - This has one known limit. Once a document holds a wrapped value anywhere, a plain `((` string that an operator reaches through a computed argument also stays text, even when it never came from a wrapper. Say `meta.d` is `(( defer concat "a" "b" ))` and another key is `(( concat (grab meta.d) "" ))`. The second key holds the text `(( concat "a" "b" ))` after the merge, and a second evaluation turns it into `ab` only when the document holds no wrapped value. With a wrapped value in the document, it stays text, while a direct `(( grab meta.d ))` still becomes `ab`. The limit fails safe, because graft never evaluates text from a wrapped value. It can only leave a plain string unevaluated.
 
-- When an operator fails on a value it read from a wrapped value and its error message would quote any text from inside a wrapper, the evaluator withholds the message. The error still names the path where the operator ran. `errors.Is` still finds a sentinel in the original error, and `errors.As` still finds graft's own error types in it when their text quotes nothing from a wrapper. `graft.DetailedError` returns the original message.
+- When an operator that read from a wrapped value fails, and the `Error()` text of its error holds a key or a scalar of 3 or more characters from inside any wrapper in the document, the evaluator withholds the message. The error still names the path where the operator ran. A shorter text, such as `80` or `on`, is not withheld, because it turns up in too many ordinary messages, and an operator that read no wrapped value keeps its message even when it happens to hold the same text. `errors.Is` still finds a sentinel in the original error, and `errors.As` still finds graft's own error types in it when their text quotes nothing from a wrapper.
+
+- `graft.DetailedError` is not scrubbed. It returns the original message, with any wrapped text it quoted, so we show it only where the wrapped content may be seen and never log it as a matter of course.
 
 - `CheckForCycles` and the evaluator's own cycle check look inside a wrapped value, so a wrapped value that refers to itself is reported as a cycle.
 

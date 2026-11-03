@@ -10,8 +10,11 @@ import "github.com/fivetwenty-io/graft/internal/errtext"
 // It may name document paths, operator names, YAML tags, Go types, and
 // line and column numbers. A path that the document builds from values,
 // such as the path in a grab of a concat, names those values, so the
-// Error() text of an error at that path can carry them. When the values
-// come from a literal, graft withholds that error's message instead.
+// Error() text of an error at that path can carry them. When an
+// operator read from a literal and its message holds a literal key or
+// scalar of 3 or more characters, graft withholds that message instead.
+// A shorter literal text can still appear in Error(), and DetailedError
+// always quotes the literal text the original message held.
 //
 // The same holds for every error a caller can reach from the returned
 // one through errors.Unwrap or errors.As, so DetailedError is the only
