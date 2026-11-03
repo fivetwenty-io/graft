@@ -29,14 +29,12 @@ type PooledConnection struct {
 type ConnectionPool struct {
 	mu          sync.RWMutex
 	connections map[string]*PooledConnection
-	stopCleanup chan struct{}
 }
 
 // NewConnectionPool creates a new connection pool.
 func NewConnectionPool() *ConnectionPool {
 	return &ConnectionPool{
 		connections: make(map[string]*PooledConnection),
-		stopCleanup: make(chan struct{}),
 	}
 }
 
@@ -49,8 +47,8 @@ var (
 // ConnPool is the global NATS connection pool.
 var ConnPool = NewConnectionPool()
 
-// CleanupLoop periodically removes idle connections.
-func (p *ConnectionPool) CleanupLoop() {
+// CleanupLoop periodically removes idle connections until stop is closed.
+func (p *ConnectionPool) CleanupLoop(stop <-chan struct{}) {
 	ticker := time.NewTicker(PoolCleanupInterval)
 	defer ticker.Stop()
 
@@ -58,7 +56,7 @@ func (p *ConnectionPool) CleanupLoop() {
 		select {
 		case <-ticker.C:
 			p.Cleanup()
-		case <-p.stopCleanup:
+		case <-stop:
 			return
 		}
 	}
@@ -81,6 +79,8 @@ func (p *ConnectionPool) Cleanup() {
 
 // GetConnection retrieves or creates a pooled connection.
 func (p *ConnectionPool) GetConnection(config *Config) (*PooledConnection, error) {
+	ensureBackground()
+
 	key := config.URL
 
 	p.mu.Lock()
@@ -135,11 +135,6 @@ func (p *ConnectionPool) ConnectionCount() int {
 	return len(p.connections)
 }
 
-// StopCleanup signals the cleanup goroutine to stop.
-func (p *ConnectionPool) StopCleanup() {
-	close(p.stopCleanup)
-}
-
 // CloseAll closes all connections in the pool.
 func (p *ConnectionPool) CloseAll() {
 	p.mu.Lock()
@@ -172,6 +167,8 @@ var DefaultPool = &ClientPool{
 // guarantees the map itself is not concurrently written, not that other
 // RLock holders cannot race on values reached through it.
 func (ncp *ClientPool) GetConnection(targetName string) (*PooledConnection, error) {
+	ensureBackground()
+
 	ncp.mu.Lock()
 	if conn, exists := ncp.connections[targetName]; exists {
 		conn.RefCount++
@@ -823,9 +820,9 @@ func StreamLargeObject(obj jetstream.ObjectStore, objectName string, maxSize int
 
 // Shutdown gracefully shuts down NATS connections and goroutines.
 func Shutdown() {
-	// Stop cleanup goroutines
-	ConnPool.StopCleanup()
-	close(CacheStopCleanup)
+	// Stop cleanup goroutines, if they ever started. A later use starts
+	// them again.
+	stopBackground()
 
 	// Close all pooled connections
 	ConnPool.CloseAll()

@@ -399,25 +399,12 @@ func parseFloatOrDefault(value string, defaultValue float64) float64 {
 	return natsbackend.ParseFloatOrDefault(value, defaultValue)
 }
 
-//nolint:gochecknoinits // Operator registration and background cleanup must start at package load time
+//nolint:gochecknoinits // Operator registration must happen at package load time
 func init() {
 	// Wire up debug logging for the backend
 	natsbackend.DebugFunc = func(format string, args ...interface{}) {
 		DEBUG(format, args...)
 	}
 
-	go natsbackend.ConnPool.CleanupLoop()
-	go func() {
-		ticker := time.NewTicker(natsbackend.CacheCleanupInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				natsbackend.Cache.Cleanup()
-			case <-natsbackend.CacheStopCleanup:
-				return
-			}
-		}
-	}()
 	RegisterOp("nats", NatsOperator{})
 }

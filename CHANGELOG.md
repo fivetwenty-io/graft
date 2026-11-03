@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Importing `pkg/graft/operators` no longer starts the two background goroutines that clean up idle NATS connections and expired cache entries. Before, every program that imported the package paid for them, even one that never used `(( nats ))`. They now start the first time a NATS operator needs a connection or the cache, and `ShutdownNatsOperator` stops them. It is safe to call whether or not they ever started, and safe to call twice. A NATS operator that runs after a shutdown starts them again.
+
 ### Added
 
 - `graft.NewLiteral` wraps a value as a `graft.LiteralValue`, which graft keeps whole. A merge replaces a wrapped value as a single unit and never merges into it, by key, by `name`, or through `(( append ))` and the other merge markers. The evaluator never looks inside it, so a `(( ... ))` string in it stays text, even when it is malformed. Paths still read through the wrapper, so `(( grab ))`, `||`, `(( keys ))`, `(( concat ))`, `(( join ))`, and `(( inject ))` work on the data inside, and a value that `(( grab ))` or `(( inject ))` copies out stays wrapped. Every output, including `RawData`, the getters, `ToYAML`, `ToJSON`, `pkg/yaml` `Marshal`, and `encoding/json`, writes the plain value with every wrapper removed. The constructor is `NewLiteral` rather than `Literal` because `graft.Literal` already names an expression type.
