@@ -72,7 +72,7 @@ Once a `/` joins a path, the name after it belongs to the path too, and the path
 | `m.x/b+c` | The key `x/b+c` inside `m`. A `+` followed by a name stays in the path, as it does after a `.`, while `m.x/b+1` adds 1 to the value at `x/b`. |
 | `a/$X` | The key `a/$X`. The environment variable is not substituted, because the key doesn't start with `$`. |
 
-A whole expression that is only a reference, such as `(( jobs.count/2 ))`, stays in the output as written, the same as `(( jobs.count ))` and the same as in spruce, because BOSH uses that shape for its own variables. Wrap it in `grab` to read the value. Inside `calc`, the quoted expression does its own arithmetic, so `(( calc "8/2" ))` is still 4.
+A whole expression that is only a reference, such as `(( jobs.count/2 ))`, stays in the output as written, just as `(( jobs.count ))` does and as it does in spruce, because BOSH uses that shape for its own variables. Wrap it in `grab` to read the value. Inside `calc`, the quoted expression does its own arithmetic, so `(( calc "8/2" ))` is still 4.
 
 If you are upgrading from 1.45.0 or earlier, an unspaced `/` used to divide, so search your templates for a `/` with no space between two operands and add the space. Two shapes change. A whole expression that divides with no space, such as `(( total/parts ))` or `(( 8/2 ))`, now reads as a reference, so graft leaves it in the output unevaluated and reports no error. An unspaced `/` in the middle of a larger expression, such as `(( a * c/b ))`, now reads `c/b` as a path, so the merge fails with a "could not be found" error unless the document has a key named `c/b`.
 
