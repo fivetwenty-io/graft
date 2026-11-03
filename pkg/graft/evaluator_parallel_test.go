@@ -609,7 +609,7 @@ func TestPhaseGating_ParamShortCircuit_Sequential(t *testing.T) {
 		t.Fatal("expected an error, got nil")
 	}
 
-	msg := err.Error()
+	msg := DetailedError(err)
 	if !strings.Contains(msg, "meta.name is required") {
 		t.Errorf("expected param error in output, got: %s", msg)
 	}
@@ -638,7 +638,7 @@ func TestPhaseGating_ParamShortCircuit_Parallel(t *testing.T) {
 		t.Fatal("expected an error, got nil")
 	}
 
-	msg := err.Error()
+	msg := DetailedError(err)
 	if !strings.Contains(msg, "meta.name is required") {
 		t.Errorf("expected param error in output, got: %s", msg)
 	}
@@ -756,7 +756,7 @@ func TestPhaseGating_ParamErrorDropsMergeErrors_Sequential(t *testing.T) {
 		t.Fatal("expected an error, got nil")
 	}
 
-	msg := err.Error()
+	msg := DetailedError(err)
 	if !strings.Contains(msg, "meta.name is required") {
 		t.Errorf("expected param error in output, got: %s", msg)
 	}

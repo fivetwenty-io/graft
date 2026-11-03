@@ -3,8 +3,8 @@ package operators
 import (
 	"fmt"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
-	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -136,9 +136,9 @@ func (InjectOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		if !ok {
 			DEBUG("     [%d]: resolved to something that is not a map.  that is unacceptable.", i)
 			if arg.Type == Reference {
-				return nil, ansi.Errorf("@c{%s} @R{is not a map}", arg.Reference)
+				return nil, errtext.Colorf("@c{%s} @R{is not a map}", arg.Reference)
 			}
-			return nil, ansi.Errorf("@R{inject operator argument must resolve to a map}")
+			return nil, errtext.Colorf("@R{inject operator argument must resolve to a map}")
 		}
 
 		DEBUG("     [%d]: resolved to a map; appending to the list of maps to merge/inject", i)
@@ -156,7 +156,7 @@ func (InjectOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	switch len(vals) {
 	case 0:
 		DEBUG("  no arguments supplied to (( inject ... )) operation.  oops.")
-		return nil, ansi.Errorf("no arguments specified to @c{(( inject ... ))}")
+		return nil, errtext.Colorf("no arguments specified to @c{(( inject ... ))}")
 
 	default:
 		DEBUG("  merging found maps into a single map to be injected")

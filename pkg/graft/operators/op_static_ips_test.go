@@ -327,8 +327,8 @@ networks:
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := evalYAMLErr(t, tc.yaml)
-			if !strings.Contains(err.Error(), tc.want) {
-				t.Fatalf("error %q does not contain expected spruce wording %q", err.Error(), tc.want)
+			if !strings.Contains(graft.DetailedError(err), tc.want) {
+				t.Fatalf("error %q does not contain expected spruce wording %q", graft.DetailedError(err), tc.want)
 			}
 		})
 	}
@@ -525,8 +525,8 @@ instance_groups:
 			t.Fatal("expected an error for an instance in an empty pool")
 		}
 		want := "request for static_ip(0) in a pool of only 0 (zero-indexed) static addresses"
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error %q does not contain %q", err, want)
+		if !strings.Contains(graft.DetailedError(err), want) {
+			t.Errorf("error %q does not contain %q", graft.DetailedError(err), want)
 		}
 	})
 
@@ -549,8 +549,8 @@ instance_groups:
 			t.Fatal("expected an error for a group whose only az has no static pool")
 		}
 		want := "request for static_ip(0) in a pool of only 0 (zero-indexed) static addresses"
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error %q does not contain %q", err, want)
+		if !strings.Contains(graft.DetailedError(err), want) {
+			t.Errorf("error %q does not contain %q", graft.DetailedError(err), want)
 		}
 	})
 

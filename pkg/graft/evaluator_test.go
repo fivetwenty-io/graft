@@ -1720,7 +1720,7 @@ value: (( grab meta.key ))
 			err := ev.RunPhase(ParamPhase)
 			So(err, ShouldNotBeNil)
 			So(err.Error(), ShouldContainSubstring, "1 error(s) detected")
-			So(err.Error(), ShouldContainSubstring, "you must specify this")
+			So(DetailedError(err), ShouldContainSubstring, "you must specify this")
 
 			err = ev.RunPhase(EvalPhase)
 			So(err, ShouldBeNil)
@@ -1739,7 +1739,7 @@ value: (( concat "key=" meta.key ))
 			err := ev.RunPhase(ParamPhase)
 			So(err, ShouldNotBeNil)
 			So(err.Error(), ShouldContainSubstring, "1 error(s) detected")
-			So(err.Error(), ShouldContainSubstring, "you must specify this")
+			So(DetailedError(err), ShouldContainSubstring, "you must specify this")
 
 			err = ev.RunPhase(EvalPhase)
 			So(err, ShouldBeNil)
@@ -1952,7 +1952,7 @@ properties:
 
 			err = ev.Run([]string{}, []string{})
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "missing-param")
+			So(DetailedError(err), ShouldContainSubstring, "missing-param")
 		})
 
 		Convey("should skip evaluation when SkipEval is true", func() {

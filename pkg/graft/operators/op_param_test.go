@@ -31,7 +31,7 @@ foo: (( param "why u no set this?" ))
 
 		_, err = engine.Evaluate(context.TODO(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldContainSubstring, " - $.foo: why u no set this?\n")
+		So(graft.DetailedError(err), ShouldContainSubstring, " - $.foo: why u no set this?\n")
 	})
 
 	Convey("param message text is not wrapped in quotes or other decoration", t, func() {
@@ -45,8 +45,8 @@ bar: (( param "set bar explicitly" ))
 
 		_, err = engine.Evaluate(context.TODO(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldNotContainSubstring, `"set bar explicitly"`)
-		So(err.Error(), ShouldContainSubstring, "set bar explicitly")
+		So(graft.DetailedError(err), ShouldNotContainSubstring, `"set bar explicitly"`)
+		So(graft.DetailedError(err), ShouldContainSubstring, "set bar explicitly")
 	})
 
 	Convey("param overridden by a later document produces no error", t, func() {

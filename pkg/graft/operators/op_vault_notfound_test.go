@@ -105,7 +105,9 @@ func extractOperatorErrorMessage(err error) string {
 		err = multi.Errors[0]
 	}
 
-	msg := err.Error()
+	// The contract pins the text the CLI prints, which is the detailed
+	// text; Error() leaves the vault path out.
+	msg := graft.DetailedError(err)
 
 	// Strip a leading "$.path: " or " - $.path: " annotation if present, so
 	// the assertion only covers the operator's own message text.

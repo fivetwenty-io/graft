@@ -3,8 +3,8 @@ package operators
 import (
 	"fmt"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
-	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -191,7 +191,7 @@ func (GrabOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	switch len(args) {
 	case 0:
 		DEBUG("  no arguments supplied to (( grab ... )) operation.  oops.")
-		return nil, ansi.Errorf("no arguments specified to @c{(( grab ... ))}")
+		return nil, errtext.Colorf("no arguments specified to @c{(( grab ... ))}")
 
 	case 1:
 		DEBUG("  called with only one argument; returning value as-is")

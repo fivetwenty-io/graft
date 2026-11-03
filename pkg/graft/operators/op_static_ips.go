@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
-	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -39,7 +39,7 @@ func claimStaticIP(state graft.OperatorState, ip, owner string) (string, error) 
 	defer staticIPClaimMu.Unlock()
 
 	if thief, taken := state.GetUsedIPs()[ip]; taken {
-		return thief, ansi.Errorf("@R{tried to use IP '}@c{%s}@R{', but that address is already allocated to} @c{%s}", ip, thief)
+		return thief, errtext.WithPlain(errtext.Colorf("@R{tried to use IP '}@c{%s}@R{', but that address is already allocated to} @c{%s}", ip, thief), "tried to use an IP address that is already allocated to "+thief)
 	}
 
 	state.SetUsedIP(ip, owner)
@@ -141,10 +141,10 @@ func instances(ev *Evaluator, job *tree.Cursor) (int, error) {
 
 	i, err := strconv.ParseInt(inst, 10, 0)
 	if err != nil {
-		return 0, ansi.Errorf("@R{the `}@c{instances:}@R{` for the current job is not numeric}")
+		return 0, errtext.Colorf("@R{the `}@c{instances:}@R{` for the current job is not numeric}")
 	}
 	if i < 0 {
-		return 0, ansi.Errorf("@R{negative number found in `}@c{instances:}@R{` for the current job}")
+		return 0, errtext.Colorf("@R{negative number found in `}@c{instances:}@R{` for the current job}")
 	}
 	return int(i), nil
 }
@@ -244,7 +244,7 @@ func statics(ev *Evaluator) (map[string][]string, []string, error) {
 
 			rStr, ok := r.(string)
 			if !ok {
-				return addrs, azs, ansi.Errorf("@c{%s} @R{is not a well-formed BOSH network}", name)
+				return addrs, azs, errtext.Colorf("@c{%s} @R{is not a well-formed BOSH network}", name)
 			}
 
 			segments := strings.Split(rStr, "-")
@@ -254,7 +254,7 @@ func statics(ev *Evaluator) (map[string][]string, []string, error) {
 
 			start := net.ParseIP(segments[0])
 			if start == nil {
-				return nil, azs, ansi.Errorf("@c{%s}@R{: not a valid IP address}", segments[0])
+				return nil, azs, errtext.WithPlain(errtext.Colorf("@c{%s}@R{: not a valid IP address}", segments[0]), "a static range holds an address that is not a valid IP address")
 			}
 
 			for _, az := range subnet_zones {
@@ -267,11 +267,11 @@ func statics(ev *Evaluator) (map[string][]string, []string, error) {
 			if len(segments) == 2 {
 				end := net.ParseIP(segments[1])
 				if end == nil {
-					return nil, azs, ansi.Errorf("@c{%s}@R{: not a valid IP address}", segments[1])
+					return nil, azs, errtext.WithPlain(errtext.Colorf("@c{%s}@R{: not a valid IP address}", segments[1]), "a static range holds an address that is not a valid IP address")
 				}
 
 				if binary.BigEndian.Uint32(start.To4()) > binary.BigEndian.Uint32(end.To4()) {
-					return nil, azs, ansi.Errorf("@R{Static IP pool }@c{[%s - %s]} @R{ends before it starts}", start, end)
+					return nil, azs, errtext.WithPlain(errtext.Colorf("@R{Static IP pool }@c{[%s - %s]} @R{ends before it starts}", start, end), "a static IP pool ends before it starts")
 				}
 
 				for !start.Equal(end) {
@@ -364,13 +364,13 @@ func (s StaticIPOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 				zStr, ok := z.(string)
 				if !ok {
 					DEBUG("  azs %v: '%v' is not a string literal\n", zs, z)
-					return nil, ansi.Errorf("@R{azs} @c{%#v} @R{must be a list of strings}", zs)
+					return nil, errtext.WithPlain(errtext.Colorf("@R{azs} @c{%#v} @R{must be a list of strings}", zs), fmt.Sprintf("azs must be a list of strings (got %T)", zs))
 				}
 				azs = append(azs, zStr)
 			}
 		} else {
 			DEBUG("  azs must be a list of strings\n")
-			return nil, ansi.Errorf("@R{azs} @c{%#v} @R{must be a list of strings}", zs)
+			return nil, errtext.WithPlain(errtext.Colorf("@R{azs} @c{%#v} @R{must be a list of strings}", zs), fmt.Sprintf("azs must be a list of strings (got %T)", zs))
 		}
 	}
 	job.Pop()
@@ -396,7 +396,7 @@ func (s StaticIPOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("  checking to see if the caller asked for enough static_ips to provision all job instances (need at least %d)", inst)
 	if len(args) < inst {
 		DEBUG("  oops.  you asked for %d IPs for a job with %d instances\n", len(args), inst)
-		return nil, ansi.Errorf("@R{not enough static IPs requested for} @c{job of %d instances} @R{(only asked for} @c{%d}@R{)}", inst, len(args))
+		return nil, errtext.WithPlain(errtext.Colorf("@R{not enough static IPs requested for} @c{job of %d instances} @R{(only asked for} @c{%d}@R{)}", inst, len(args)), fmt.Sprintf("not enough static IPs requested for the job's instances (only asked for %d)", len(args)))
 	}
 	DEBUG("  looks good.  asking for %d IPs for a job with %d instances\n", len(args), inst)
 
@@ -419,7 +419,7 @@ func (s StaticIPOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	for _, az := range azs {
 		if _, ok := pools[az]; !ok {
 			DEBUG("  could not find AZ %s in network AZS: %v\n", az, azs)
-			return nil, ansi.Errorf("@R{could not find AZ} @c{%s} (@R{in network AZS} @c{%v})", az, azs)
+			return nil, errtext.WithPlain(errtext.Colorf("@R{could not find AZ} @c{%s} (@R{in network AZS} @c{%v})", az, azs), "could not find an AZ of the job in the network AZS")
 		}
 	}
 
@@ -504,14 +504,14 @@ func (s StaticIPOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			}
 			if !found {
 				DEBUG("  specified az %s is not in instance_groups azs %v\n", az, azs)
-				return nil, ansi.Errorf("@R{could not find AZ} @c{%s} @R{in instance_groups AZS} @c{%v}", az, azs)
+				return nil, errtext.WithPlain(errtext.Colorf("@R{could not find AZ} @c{%s} @R{in instance_groups AZS} @c{%v}", az, azs), "could not find the requested AZ in instance_groups AZS")
 			}
 
 			var ok bool
 			pool, ok = pools[az]
 			if !ok {
 				DEBUG("  could not find pool: %s\n", az)
-				return nil, ansi.Errorf("@R{could not find AZ} @c{%s} @R{in IP pool}", az)
+				return nil, errtext.WithPlain(errtext.Colorf("@R{could not find AZ} @c{%s} @R{in IP pool}", az), "could not find the requested AZ in IP pool")
 			}
 		}
 
@@ -523,7 +523,7 @@ func (s StaticIPOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		DEBUG("  arg[%d]: asking for the %d%s IP from the static address pool", i, offset, ord(offset))
 		if offset >= int64(len(pool)) {
 			DEBUG("     [%d]: pool only has %d addresses; offset %d is out of bounds\n", i, len(pool), offset)
-			return nil, ansi.Errorf("@R{request for} @c{static_ip(%d)} @R{in a pool of only} @c{%d (zero-indexed)} @R{static addresses}", offset, len(pool))
+			return nil, errtext.WithPlain(errtext.Colorf("@R{request for} @c{static_ip(%d)} @R{in a pool of only} @c{%d (zero-indexed)} @R{static addresses}", offset, len(pool)), fmt.Sprintf("request for a static_ip beyond a pool of only %d (zero-indexed) static addresses", len(pool)))
 		}
 
 		// check to see if the address is already claimed, and claim it

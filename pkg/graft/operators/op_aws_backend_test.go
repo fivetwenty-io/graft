@@ -185,7 +185,7 @@ func TestAwsParamOperatorTargetUnsupportedByCustomBackend(t *testing.T) {
 	if evalErr == nil {
 		t.Fatalf("expected an error for @target against a non-TargetedBackend")
 	}
-	if !strings.Contains(evalErr.Error(), "does not support @target selection") {
-		t.Fatalf("error = %q, want it to mention unsupported @target selection", evalErr.Error())
+	if !strings.Contains(graft.DetailedError(evalErr), "does not support @target selection") {
+		t.Fatalf("error = %q, want it to mention unsupported @target selection", graft.DetailedError(evalErr))
 	}
 }

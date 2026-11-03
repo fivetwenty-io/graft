@@ -175,9 +175,13 @@ func TestEvaluateInfix_ArithmeticCoercion(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected error")
 		}
-		want := "left operand: cannot use string 'abc' in arithmetic operation"
+		want := "left operand: cannot use a string in arithmetic operation"
 		if err.Error() != want {
 			t.Fatalf("expected %q, got %q", want, err.Error())
+		}
+		detail := "left operand: cannot use string 'abc' in arithmetic operation"
+		if got := graft.DetailedError(err); got != detail {
+			t.Fatalf("expected detailed text %q, got %q", detail, got)
 		}
 	})
 
@@ -186,9 +190,13 @@ func TestEvaluateInfix_ArithmeticCoercion(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected error")
 		}
-		want := "right operand: cannot use string 'abc' in arithmetic operation"
+		want := "right operand: cannot use a string in arithmetic operation"
 		if err.Error() != want {
 			t.Fatalf("expected %q, got %q", want, err.Error())
+		}
+		detail := "right operand: cannot use string 'abc' in arithmetic operation"
+		if got := graft.DetailedError(err); got != detail {
+			t.Fatalf("expected detailed text %q, got %q", detail, got)
 		}
 	})
 
@@ -197,9 +205,13 @@ func TestEvaluateInfix_ArithmeticCoercion(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected error")
 		}
-		want := "left operand: cannot use boolean 'true' in arithmetic operation"
+		want := "left operand: cannot use a boolean in arithmetic operation"
 		if err.Error() != want {
 			t.Fatalf("expected %q, got %q", want, err.Error())
+		}
+		detail := "left operand: cannot use boolean 'true' in arithmetic operation"
+		if got := graft.DetailedError(err); got != detail {
+			t.Fatalf("expected detailed text %q, got %q", detail, got)
 		}
 	})
 }

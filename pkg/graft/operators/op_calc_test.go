@@ -223,7 +223,7 @@ func TestCalcExpressionSemantics(t *testing.T) {
 
 		_, err = engine.Evaluate(context.Background(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldContainSubstring, "Undefined function abs")
+		So(graft.DetailedError(err), ShouldContainSubstring, "Undefined function abs")
 	})
 }
 
@@ -242,7 +242,7 @@ func TestCalcParseErrorsUseForkWording(t *testing.T) {
 
 		_, err = engine.Evaluate(context.Background(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldContainSubstring, "unbalanced parenthesis")
+		So(graft.DetailedError(err), ShouldContainSubstring, "unbalanced parenthesis")
 	})
 
 	Convey("an unexpected end of expression reports the fork's lowercase wording", t, func() {
@@ -254,7 +254,7 @@ func TestCalcParseErrorsUseForkWording(t *testing.T) {
 
 		_, err = engine.Evaluate(context.Background(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldContainSubstring, "unexpected end of expression")
+		So(graft.DetailedError(err), ShouldContainSubstring, "unexpected end of expression")
 	})
 
 	Convey("an unclosed string literal reports the fork's lowercase wording", t, func() {
@@ -266,7 +266,7 @@ func TestCalcParseErrorsUseForkWording(t *testing.T) {
 
 		_, err = engine.Evaluate(context.Background(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldContainSubstring, "unclosed string literal")
+		So(graft.DetailedError(err), ShouldContainSubstring, "unclosed string literal")
 	})
 
 	Convey("an unclosed parameter bracket reports the fork's lowercase wording", t, func() {
@@ -278,7 +278,7 @@ func TestCalcParseErrorsUseForkWording(t *testing.T) {
 
 		_, err = engine.Evaluate(context.Background(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldContainSubstring, "unclosed parameter bracket")
+		So(graft.DetailedError(err), ShouldContainSubstring, "unclosed parameter bracket")
 	})
 
 	Convey("hex literals parse under the fork", t, func() {
@@ -364,7 +364,7 @@ nested:
 
 		_, err = engine.Evaluate(context.Background(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldContainSubstring, "calc operator does not support named variables in expression: q")
+		So(graft.DetailedError(err), ShouldContainSubstring, "calc operator does not support named variables in expression: q")
 	})
 
 	Convey("only the still-unresolved names are listed, not the resolved ones", t, func() {
@@ -376,8 +376,8 @@ nested:
 
 		_, err = engine.Evaluate(context.Background(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldContainSubstring, "calc operator does not support named variables in expression: q")
-		So(err.Error(), ShouldNotContainSubstring, "expression: a")
+		So(graft.DetailedError(err), ShouldContainSubstring, "calc operator does not support named variables in expression: q")
+		So(graft.DetailedError(err), ShouldNotContainSubstring, "expression: a")
 	})
 
 	Convey("a resolved but non-numeric name errors immediately with its type", t, func() {

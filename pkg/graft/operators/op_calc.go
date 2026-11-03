@@ -10,6 +10,7 @@ import (
 
 	"github.com/casbin/govaluate"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -140,7 +141,7 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 	DEBUG("  processed expression: %s", processed)
 	expression, expressionError := govaluate.NewEvaluableExpressionWithFunctions(processed, supportedCalcFunctions())
 	if expressionError != nil {
-		return nil, expressionError
+		return nil, calcError(expressionError)
 	}
 
 	// Named variables in the expression: resolve each
@@ -170,7 +171,7 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 	}
 
 	if len(unresolvedVars) > 0 {
-		return nil, fmt.Errorf("calc operator does not support named variables in expression: %s", strings.Join(unresolvedVars, ", "))
+		return nil, errtext.WithPlain(fmt.Errorf("calc operator does not support named variables in expression: %s", strings.Join(unresolvedVars, ", ")), "calc operator does not support named variables in expression")
 	}
 
 	// An expression with no variables after substitution takes a
@@ -184,7 +185,7 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 		result, evaluateError = expression.Evaluate(nil)
 	}
 	if evaluateError != nil {
-		return nil, evaluateError
+		return nil, calcError(evaluateError)
 	}
 
 	// Convert float results to int if they have no fractional part
@@ -396,6 +397,13 @@ func replaceCalcReferences(ev *graft.Evaluator, input string) (string, error) {
 	}
 
 	return input, nil
+}
+
+// calcError keeps the expression evaluator's message for the detailed
+// text and gives a plain text without it, since the evaluator quotes the
+// tokens and values of the expression it rejected.
+func calcError(err error) error {
+	return errtext.WithPlain(err, "calc operator could not evaluate the expression")
 }
 
 // supportedCalcFunctions returns the built-in functions available in calc expressions.

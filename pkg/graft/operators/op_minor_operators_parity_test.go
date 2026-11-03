@@ -482,7 +482,7 @@ result: (( file "missing-file-for-parity-test.txt" ))
 
 		_, err = engine.Evaluate(context.TODO(), doc)
 		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldContainSubstring, "tried to read file missing-file-for-parity-test.txt: could not be read - open missing-file-for-parity-test.txt: no such file or directory")
+		So(graft.DetailedError(err), ShouldContainSubstring, "tried to read file missing-file-for-parity-test.txt: could not be read - open missing-file-for-parity-test.txt: no such file or directory")
 	})
 
 	Convey("file: reference resolving to a map argument errors with spruce's exact wording", t, func() {

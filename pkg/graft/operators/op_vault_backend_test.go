@@ -172,8 +172,8 @@ func TestVaultOperatorCustomBackendNotFoundMatchesContractShape(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected an error for a not-found custom backend lookup")
 	}
-	if !strings.Contains(err.Error(), "secret secret/x:key not found") {
-		t.Fatalf("error = %q, want it to contain the contract-pinned \"secret secret/x:key not found\" shape", err.Error())
+	if !strings.Contains(graft.DetailedError(err), "secret secret/x:key not found") {
+		t.Fatalf("error = %q, want it to contain the contract-pinned \"secret secret/x:key not found\" shape", graft.DetailedError(err))
 	}
 }
 
