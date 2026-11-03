@@ -74,7 +74,7 @@ func (p *ConnectionPool) Cleanup() {
 		if pc.RefCount == 0 && now.Sub(pc.LastUsed) > PoolMaxIdleTime {
 			pc.Conn.Close()
 			delete(p.connections, key)
-			debugLogf("closed idle NATS connection to %s", key)
+			debugLogf("closed idle NATS connection to %s", redactURL(key))
 		}
 	}
 }
@@ -113,7 +113,7 @@ func (p *ConnectionPool) GetConnection(config *Config) (*PooledConnection, error
 	}
 
 	p.connections[key] = pc
-	debugLogf("created new NATS connection to %s", key)
+	debugLogf("created new NATS connection to %s", redactURL(key))
 
 	return pc, nil
 }
@@ -354,7 +354,7 @@ func (ncp *ClientPool) CloseAll() {
 func CreateConnectionWithRetry(config *Config) (*nats.Conn, jetstream.JetStream, error) {
 	opts, err := BuildConnectionOptions(config)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid NATS connection configuration: %w", err)
+		return nil, nil, configError(err)
 	}
 
 	var conn *nats.Conn
@@ -379,11 +379,11 @@ func CreateConnectionWithRetry(config *Config) (*nats.Conn, jetstream.JetStream,
 			break
 		}
 
-		debugLogf("failed to connect to NATS: %v", err)
+		debugLogf("failed to connect to NATS: %v", redactCause(err))
 	}
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to connect to NATS after %d attempts: %w", config.Retries+1, err)
+		return nil, nil, connectError(config.Retries+1, err)
 	}
 
 	// Create JetStream context
@@ -400,7 +400,7 @@ func CreateConnectionWithRetry(config *Config) (*nats.Conn, jetstream.JetStream,
 func CreateConnectionFromConfig(config *Config) (*nats.Conn, error) {
 	opts, err := BuildConnectionOptions(config)
 	if err != nil {
-		return nil, fmt.Errorf("invalid NATS connection configuration: %w", err)
+		return nil, configError(err)
 	}
 
 	var conn *nats.Conn
@@ -425,11 +425,11 @@ func CreateConnectionFromConfig(config *Config) (*nats.Conn, error) {
 			break
 		}
 
-		debugLogf("failed to connect to NATS: %v", err)
+		debugLogf("failed to connect to NATS: %v", redactCause(err))
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS after %d attempts: %w", config.Retries+1, err)
+		return nil, connectError(config.Retries+1, err)
 	}
 
 	return conn, nil
@@ -452,7 +452,7 @@ func BuildConnectionOptions(config *Config) ([]nats.Option, error) {
 			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			debugLogf("NATS reconnected to %s", nc.ConnectedUrl())
+			debugLogf("NATS reconnected to %s", redactURL(nc.ConnectedUrl()))
 		}),
 		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
 			debugLogf("NATS error: %v", err)
