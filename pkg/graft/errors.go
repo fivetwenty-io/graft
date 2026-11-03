@@ -108,6 +108,7 @@ func (e *MultiError) Append(err error) {
 // the error fits the context the error was caught in.
 type WarningError struct {
 	warning string
+	plain   string
 	context ErrorContext
 }
 
@@ -128,9 +129,12 @@ var dontPrintWarning atomic.Bool
 
 // NewWarningError returns a new WarningError object that has the given warning
 // message and context(s) assigned. Assigning no context should mean that all
-// contexts are active. Ansi library enabled.
+// contexts are active. Ansi library enabled. Error() gives the warning
+// without color, whatever the ansi toggle says, and DetailedError gives
+// it as Warn prints it.
 func NewWarningError(context ErrorContext, warning string, args ...interface{}) (err WarningError) {
 	err.warning = ansi.Sprintf(warning, args...)
+	err.plain = ansi.SprintfTemplate(false, warning, args...)
 	err.context = context
 	return
 }
@@ -142,8 +146,14 @@ func SilenceWarnings(should bool) {
 	dontPrintWarning.Store(should)
 }
 
-// Error will return the configured warning message as a string.
+// Error returns the warning message, without color.
 func (e WarningError) Error() string {
+	return e.plain
+}
+
+// DetailedError returns the warning message as Warn prints it, colored
+// when the ansi toggle was on as the warning was built.
+func (e WarningError) DetailedError() string {
 	return e.warning
 }
 

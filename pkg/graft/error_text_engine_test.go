@@ -123,6 +123,47 @@ func TestVaultBackendGetErrorTextHoldsNoPath(t *testing.T) {
 // a grab whose siblings hold the probe. The aggregated error names the
 // failing paths, and the path the grab asked for, and quotes nothing
 // else: no sibling value, no source snippet, and no context line.
+func TestPartialEvaluationErrorHoldsNoSiblingValue(t *testing.T) {
+	withColorOn(t)
+	doc := `meta:
+  s: PROBEzq81x
+creds:
+  user: PROBEzq81x
+  pass: (( vault "secret/creds:pass" ))
+  note: PROBEzq81x
+refs:
+  before: PROBEzq81x
+  missing: (( grab meta.nope ))
+  after: PROBEzq81x
+`
+	for _, mode := range leakModes {
+		t.Run(mode.name, func(t *testing.T) {
+			eng, _ := leakEngine(t, mode.parallel)
+			parsed, err := eng.ParseYAML([]byte(doc))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = eng.Merge(context.Background(), parsed).Execute()
+			var partial *graft.PartialEvaluationError
+			if !errors.As(err, &partial) {
+				t.Fatalf("want a PartialEvaluationError, got %T: %v", err, err)
+			}
+			assertErrorText(t, err, errProbe, false)
+			plain := err.Error()
+			for _, want := range []string{"$.creds.pass", "$.refs.missing"} {
+				if !strings.Contains(plain, want) {
+					t.Errorf("Error() does not name %s:\n%s", want, plain)
+				}
+			}
+			for _, snippet := range []string{"secret/creds", "^", "(("} {
+				if strings.Contains(plain, snippet) {
+					t.Errorf("Error() quotes source text %q:\n%s", snippet, plain)
+				}
+			}
+		})
+	}
+}
+
 // parseErrorCases are documents the parser refuses. Where the CLI has
 // always printed the source lines around the failure, the probe is in
 // them, and Error() must leave them out.
@@ -170,3 +211,19 @@ func TestParseErrorTextHoldsNoSource(t *testing.T) {
 
 // TestEvaluatorErrorTextHoldsNoValueOrColor fails the evaluator's own
 // checks with the ansi toggle on.
+func TestEvaluatorErrorTextHoldsNoValueOrColor(t *testing.T) {
+	withColorOn(t)
+	eng, err := graft.NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("duplicate entry name", func(t *testing.T) {
+		doc, err := eng.ParseYAML([]byte("meta: {v: x}\njobs:\n  - name: PROBEzq81x\n    cmd: (( grab meta.v ))\n  - name: PROBEzq81x\n    cmd: (( grab meta.v ))\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = eng.Merge(context.Background(), doc).Execute()
+		assertErrorText(t, err, errProbe, true)
+	})
+}

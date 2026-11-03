@@ -118,6 +118,17 @@ func TestCycleErrorTextOmitsTheExpressions(t *testing.T) {
 	}
 }
 
+func TestWarningErrorTextIsPlain(t *testing.T) {
+	withAnsiColor(t, true)
+	w := NewWarningError(eContextAll, "@Y{Duplicate key detected: %s}", "probe-7")
+	if got, want := w.Error(), "Duplicate key detected: probe-7"; got != want {
+		t.Fatalf("Error() = %q, want %q", got, want)
+	}
+	if got, want := DetailedError(w), ansi.Sprintf("@Y{Duplicate key detected: %s}", "probe-7"); got != want {
+		t.Fatalf("DetailedError = %q, want %q", got, want)
+	}
+}
+
 func TestCheckForCyclesErrorHasNoColor(t *testing.T) {
 	withAnsiColor(t, true)
 	m := map[string]interface{}{}

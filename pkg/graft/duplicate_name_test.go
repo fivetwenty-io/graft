@@ -56,7 +56,10 @@ jobs:
 		t.Fatalf("Execute() succeeded; want an ambiguous-name error")
 	}
 
-	got := err.Error()
+	if strings.Contains(err.Error(), "alpha") {
+		t.Errorf("Error() quotes the entry name:\n%s", err.Error())
+	}
+	got := DetailedError(err)
 	for _, want := range []string{
 		"$.jobs:",
 		`duplicate name "alpha"`,
@@ -201,7 +204,7 @@ jobs:
 	}
 	if _, err := engine.Merge(context.Background(), doc).Execute(); err == nil {
 		t.Fatalf("Execute() succeeded under parallel evaluation; want an error")
-	} else if !strings.Contains(err.Error(), `duplicate name "alpha"`) {
+	} else if !strings.Contains(DetailedError(err), `duplicate name "alpha"`) {
 		t.Errorf("unexpected error under parallel evaluation: %v", err)
 	}
 }
