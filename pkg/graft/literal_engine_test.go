@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+
+	"github.com/fivetwenty-io/graft/internal/literal"
 )
 
 // literalEngineModes are the evaluation paths every literal test runs
@@ -383,6 +385,9 @@ func TestLiteralCopiesKeepWrapper(t *testing.T) {
 	}
 }
 
+// TestLiteralCycleIsAnError puts a wrapper around a value that contains
+// itself straight into a document, past NewLiteral, which refuses one,
+// and checks that the engine reports the cycle.
 func TestLiteralCycleIsAnError(t *testing.T) {
 	cyclic := map[string]interface{}{}
 	cyclic["self"] = cyclic
@@ -390,7 +395,8 @@ func TestLiteralCycleIsAnError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = eng.Merge(context.Background(), userDoc(cyclic)).Execute()
+	doc := NewDocument(map[string]interface{}{"params": literal.Wrap(cyclic)})
+	_, err = eng.Merge(context.Background(), doc).Execute()
 	if err == nil {
 		t.Fatal("Execute accepted a literal that contains itself")
 	}
