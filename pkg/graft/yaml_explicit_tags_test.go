@@ -100,6 +100,11 @@ func TestMergeExplicitTags(t *testing.T) {
 		{"a: !!float .5", "float:0.5"},
 		{"a: !!float -1.5e-3", "float:-0.0015"},
 		{"a: !!float 0x1p3", "float:8"},
+		// Integer text under !!float is a float, which spruce refuses.
+		{"a: !!float 3", "float:3"},
+		{"a: !!float -7", "float:-7"},
+		{"a: !!float 0x1F", "float:31"},
+		{"a: !!float \"3\"", "float:3"},
 		// !!null takes the null words and empty text.
 		{"a: !!null ~", "null"},
 		{"a: !!null null", "null"},
@@ -210,7 +215,6 @@ func TestMergeExplicitTagErrors(t *testing.T) {
 		{"a: !<tag:yaml.org,2002:int> word", "word", "!!int"},
 		{"a: !!float word", "word", "!!float"},
 		{"a: !!float yes", "yes", "!!float"},
-		{"a: !!float 1", "", "!!float"},
 		{"a: !!float ~", "~", "!!float"},
 		{"a: !!float .", ".", "!!float"},
 		{"a: !!null yes", "yes", "!!null"},

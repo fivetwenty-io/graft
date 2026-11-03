@@ -132,18 +132,19 @@ func TestEveryFixtureIsAccountedFor(t *testing.T) {
 // yaml11Documents hold the YAML 1.1 spellings that the spruce-compat
 // fixtures barely use. Each must decode alike through both routes.
 var yaml11Documents = map[string]string{
-	"booleans":        "a: yes\nb: No\nc: ON\nd: off\ne: 'yes'\nf: \"on\"\ng: y\nh: oFF\ni: true\n",
-	"nulls":           "a: ~\nb: null\nc: Null\nd:\ne: ''\n",
-	"integers":        "octal: 0755\nhex: 0x1F\nunderscore: 1_000\nplain: 42\nneg: -7\nbig: 9223372036854775807\n",
-	"floats":          "a: 1.5\nb: 1e3\nc: 1.10\nd: .inf\ne: 3.0\n",
-	"timestamps":      "a: 2001-12-14\nb: 2001-12-14T21:59:43.10-05:00\nc: 2001-12-14 21:59:43.10 -5\nd: '2001-12-14'\n",
-	"merge keys":      "base: &b {x: 1, y: 2}\nuse:\n  <<: *b\n  y: 3\nlate:\n  y: 4\n  <<: *b\n",
-	"merge list":      "a: &a {n: a, p: 1}\nb: &b {n: b, p: 2}\nx:\n  <<: [*a, *b]\n",
-	"anchors":         "list: &l [1, 2]\ncopy: *l\nstr: &s hello\nagain: *s\n",
-	"tagged scalars":  "a: !!str 123\nb: !!int '42'\nc: !!float 1.0\nd: !!null ''\ne: !!str yes\nf: !!bool on\ng: !!int 0x1F\nh: !!binary aGk=\n",
-	"block scalars":   "lit: |\n  one\n  two\nfold: >-\n  one\n  two\n",
-	"quoted escapes":  "a: \"tab\\there\"\nb: 'it''s'\nc: \"\\u00e9\"\n",
-	"non-string keys": "1: one\ntrue: yes\n~: nil\n1.5: float\n",
+	"booleans":                    "a: yes\nb: No\nc: ON\nd: off\ne: 'yes'\nf: \"on\"\ng: y\nh: oFF\ni: true\n",
+	"nulls":                       "a: ~\nb: null\nc: Null\nd:\ne: ''\n",
+	"integers":                    "octal: 0755\nhex: 0x1F\nunderscore: 1_000\nplain: 42\nneg: -7\nbig: 9223372036854775807\n",
+	"floats":                      "a: 1.5\nb: 1e3\nc: 1.10\nd: .inf\ne: 3.0\n",
+	"timestamps":                  "a: 2001-12-14\nb: 2001-12-14T21:59:43.10-05:00\nc: 2001-12-14 21:59:43.10 -5\nd: '2001-12-14'\n",
+	"merge keys":                  "base: &b {x: 1, y: 2}\nuse:\n  <<: *b\n  y: 3\nlate:\n  y: 4\n  <<: *b\n",
+	"merge list":                  "a: &a {n: a, p: 1}\nb: &b {n: b, p: 2}\nx:\n  <<: [*a, *b]\n",
+	"anchors":                     "list: &l [1, 2]\ncopy: *l\nstr: &s hello\nagain: *s\n",
+	"tagged scalars":              "a: !!str 123\nb: !!int '42'\nc: !!float 1.0\nd: !!null ''\ne: !!str yes\nf: !!bool on\ng: !!int 0x1F\nh: !!binary aGk=\n",
+	"float tag over integer text": "a: !!float 3\nb: !!float -7\nc: !!float 0x1F\nd: !!float '3'\ne: !!float 1_000\n",
+	"block scalars":               "lit: |\n  one\n  two\nfold: >-\n  one\n  two\n",
+	"quoted escapes":              "a: \"tab\\there\"\nb: 'it''s'\nc: \"\\u00e9\"\n",
+	"non-string keys":             "1: one\ntrue: yes\n~: nil\n1.5: float\n",
 }
 
 func TestUnmarshalMatchesEngineOnYAML11Spellings(t *testing.T) {

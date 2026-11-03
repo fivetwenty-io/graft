@@ -37,6 +37,18 @@ var explicitTagDocs = []struct {
 	{"a: !!int 1_000\n", 1000},
 	{"a: !!int 18446744073709551615\n", uint64(math.MaxUint64)},
 	{"a: !!float 1e3\n", 1000.0},
+	// graft reads integer text under !!float as a float. spruce
+	// refuses it, so the cases down to the quoted ones are deliberate
+	// divergences.
+	{"a: !!float 3\n", 3.0},
+	{"a: !!float -7\n", -7.0},
+	{"a: !!float +7\n", 7.0},
+	{"a: !!float 0x1F\n", 31.0},
+	{"a: !!float 0o17\n", 15.0},
+	{"a: !!float 0b101\n", 5.0},
+	{"a: !!float 1_000\n", 1000.0},
+	{"a: !!float \"3\"\n", 3.0},
+	{"a: !!float '-7'\n", -7.0},
 	{"a: !!float 09\n", 9.0},
 	{"a: !!float 0x1p3\n", 8.0},
 	{"a: !!float -.inf\n", math.Inf(-1)},
@@ -191,7 +203,6 @@ func TestExplicitTagErrors(t *testing.T) {
 		{"a: !!int 1.5\n", "cannot decode a !!float scalar as !!int", 4},
 		{"a: !!int yes\n", "cannot decode a !!bool scalar as !!int", 4},
 		{"a: !!int ~\n", "cannot decode a !!null scalar as !!int", 4},
-		{"a: !!float 1\n", "cannot decode a !!int scalar as !!float", 4},
 		{"a: !!bool tRue\n", "cannot decode a !!str scalar as !!bool", 4},
 		{"a: !!bool 1\n", "cannot decode a !!int scalar as !!bool", 4},
 		{"a: !!null S3KRIT\n", "cannot decode a !!str scalar as !!null", 4},

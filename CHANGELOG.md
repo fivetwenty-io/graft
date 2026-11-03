@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `graft merge` and `pkg/yaml` now read a scalar tagged `!!float` over integer text as the float of that integer. Before, `a: !!float 3` failed with `cannot decode a !!int scalar as !!float`. Now it reads as `3.0`, and `!!float -7`, `!!float 0x1F`, and `!!float "3"` read as `-7.0`, `31.0`, and `3.0`. spruce refuses this shape, so this is a deliberate difference, and the Blacksmith broker needed it. `!!int` over float text, such as `!!int 3.0`, is still refused.
+
 ## [1.44.0] - 2026-11-02
 
 This release adds `pkg/yaml`, a public package that reads and writes YAML the way the merge engine does, along with an opt-in way to read a document that repeats a mapping key. It also makes one `Engine` safe to share across goroutines. And `graft merge` and `pkg/yaml` now read explicit tags, tabs, block scalars that end the file, and several other shapes the way spruce does, where they used to read them differently.

@@ -298,6 +298,8 @@ Accepted divergences, beyond the tables above:
 
 - Both tools stop at 10,000 levels of nesting with `yaml: exceeded max depth of 10000` and exit `2`, and both exit `2` on an anchor whose value contains an alias to itself, such as `a: &x [*x]`. graft prints `yaml: anchor 'x' value contains itself`, where spruce overflows its stack. When a file has both a syntax error and nesting deeper than 10,000 levels, graft reports the depth error even if the syntax error comes first, and spruce reports the error it reaches first. graft emulates libyaml's rules for the line number in a depth error, so it can differ from spruce's. `TestParseDepthLimit`, `TestParseDepthErrorBeatsSyntaxError`, and `TestDiffRejectsSelfReferencingAnchor` pin them.
 
+- graft reads a scalar tagged `!!float` over integer text as the float of that integer, and spruce refuses it. So `a: !!float 3` reads as `3.0`, `!!float -7` as `-7.0`, `!!float 0x1F` as `31.0`, and `!!float "3"` as `3.0`, and the same holds for `0o`, `0b`, and `_` spellings. `graft merge` prints `3.0`, as it prints any whole float. The reverse, `!!int 3.0`, is refused by both tools. `TestExplicitTagsMatchSpruce` and the `float tag over integer text` case in `tests/yamlparity` pin it.
+
 - graft keeps a comment block between a key and its block collection in a different place when a later line of the block starts left of the key. `TestCommentsDedentedBlockDivergence` pins that placement.
 
 - graft reads a CRLF file exactly as it reads the same file with LF line endings, so the extra blank line spruce prints above a commented key in a CRLF file does not appear. The same goes for the extra blank line spruce keeps after a head comment on a `---` line in a CRLF file.
