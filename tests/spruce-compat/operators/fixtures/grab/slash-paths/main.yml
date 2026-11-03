@@ -1,0 +1,25 @@
+# A '/' with no whitespace before it is part of the path, as in BOSH's
+# name/index instance notation. count and count/2 sit side by side, so
+# reading count/2 as division would give 4 instead of the path's value.
+jobs:
+  count: 8
+  count/2: path-value
+  postgresql/0:
+    ips: [10.0.0.5]
+meta:
+  a/b/c: abc
+postgresql/0:
+  ips: [10.0.0.9]
+"8/2": eight-slash-two
+"a/": a-trailing
+b: 2
+
+instance_ip: (( grab jobs.postgresql/0.ips[0] ))
+slash_not_division: (( grab jobs.count/2 ))
+many_slashes: (( grab meta.a/b/c ))
+first_segment: (( grab postgresql/0.ips[0] ))
+numeric_segment: (( grab 8/2 ))
+trailing_slash: (( grab a/ ))
+slash_then_space: (( grab a/ b ))
+fallback_right: (( grab nope || jobs.count/2 ))
+fallback_left: (( grab jobs.postgresql/0.ips[0] || "unused" ))

@@ -1,0 +1,4 @@
+jobs:
+  count: 8
+
+result: (( grab jobs.count/3 ))

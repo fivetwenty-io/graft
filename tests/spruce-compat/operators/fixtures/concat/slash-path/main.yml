@@ -1,0 +1,5 @@
+jobs:
+  postgresql/0:
+    ips: [10.0.0.5]
+
+url: (( concat "postgres://" jobs.postgresql/0.ips[0] ":5432" ))
