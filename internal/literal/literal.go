@@ -6,7 +6,10 @@
 // without importing each other.
 package literal
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // maxDepth bounds the recursion in Strip and Copy. A document deeper
 // than this is far past anything graft can merge, and the bound keeps a
@@ -213,5 +216,64 @@ func deepCopy(v any, depth int) any {
 		return out
 	default:
 		return v
+	}
+}
+
+// GuardText returns v with every string that holds "((" wrapped as a
+// Value, so the evaluator never runs it as an operator. It copies only
+// the maps and lists on the way to a string it wraps, leaves a Value
+// that is already in v as it is, and reports whether anything changed.
+func GuardText(v any) (any, bool) {
+	return guardText(v, 0)
+}
+
+func guardText(v any, depth int) (any, bool) {
+	if depth > maxDepth {
+		return v, false
+	}
+	switch t := v.(type) {
+	case string:
+		if strings.Contains(t, "((") {
+			return Wrap(t), true
+		}
+		return v, false
+	case map[string]any:
+		var out map[string]any
+		for k, e := range t {
+			g, changed := guardText(e, depth+1)
+			if !changed {
+				continue
+			}
+			if out == nil {
+				out = make(map[string]any, len(t))
+				for k2, e2 := range t {
+					out[k2] = e2
+				}
+			}
+			out[k] = g
+		}
+		if out == nil {
+			return v, false
+		}
+		return out, true
+	case []any:
+		var out []any
+		for i, e := range t {
+			g, changed := guardText(e, depth+1)
+			if !changed {
+				continue
+			}
+			if out == nil {
+				out = make([]any, len(t))
+				copy(out, t)
+			}
+			out[i] = g
+		}
+		if out == nil {
+			return v, false
+		}
+		return out, true
+	default:
+		return v, false
 	}
 }

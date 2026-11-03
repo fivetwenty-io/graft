@@ -72,8 +72,16 @@ func resolveGrabArgValue(ev *Evaluator, arg *Expr) (interface{}, error) {
 		}
 	}
 
-	// Use ResolveOperatorArgument to handle nested expressions.
-	val, err := ResolveOperatorArgument(ev, arg)
+	// Use ResolveOperatorArgument to handle nested expressions. A nested
+	// call is run directly instead, so that a literal it returns, such as
+	// the result of a nested (( grab )), stays a literal here.
+	var val interface{}
+	var err error
+	if arg.Type == OperatorCall {
+		val, err = evaluateNestedOperator(ev, arg)
+	} else {
+		val, err = ResolveOperatorArgument(ev, arg)
+	}
 	if err != nil {
 		return nil, err
 	}

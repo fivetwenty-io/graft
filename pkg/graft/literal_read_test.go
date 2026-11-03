@@ -102,8 +102,15 @@ meta:
   items: (( grab params.list params.list ))
 injected:
   <<<: (( inject params.tmpl ))
+injectedOr:
+  <<<: (( inject params.missing || params.tmpl ))
+injectedNested:
+  <<<: (( inject (grab params.tmpl) ))
 `
-	wantLiteral := []string{"meta.whole", "meta.inner", "meta.op", "meta.first", "meta.computed", "meta.items.0", "meta.items.3", "injected.t2"}
+	wantLiteral := []string{
+		"meta.whole", "meta.inner", "meta.op", "meta.first", "meta.computed", "meta.items.0", "meta.items.3",
+		"injected.t2", "injectedOr.t1", "injectedOr.t2", "injectedNested.t1", "injectedNested.t2",
+	}
 	for _, mode := range literalEngineModes(t) {
 		t.Run(mode.name, func(t *testing.T) {
 			got, err := mode.eng.Merge(context.Background(), mustParse(t, mode.eng, plan), userDoc(readParams())).Execute()

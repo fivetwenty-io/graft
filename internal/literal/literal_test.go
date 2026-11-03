@@ -129,3 +129,40 @@ func TestDeepValuesStopAtTheBound(t *testing.T) {
 	_ = literal.Copy(cyclic)
 	_ = literal.Contains(cyclic)
 }
+
+func TestGuardText(t *testing.T) {
+	plain := map[string]any{"a": "x", "l": []any{1, "y"}}
+	if out, changed := literal.GuardText(plain); changed || !reflect.DeepEqual(out, plain) {
+		t.Fatalf("GuardText changed data with no operator text: %#v", out)
+	}
+	kept := literal.Wrap("(( grab a ))")
+	in := map[string]any{
+		"op":   "(( grab a ))",
+		"mid":  "x (( y",
+		"keep": "plain",
+		"lit":  kept,
+		"list": []any{"((", 1},
+	}
+	out, changed := literal.GuardText(in)
+	if !changed {
+		t.Fatal("GuardText reported no change")
+	}
+	m := out.(map[string]any)
+	for _, k := range []string{"op", "mid"} {
+		if !literal.Is(m[k]) {
+			t.Fatalf("%s is not wrapped: %#v", k, m[k])
+		}
+	}
+	if m["keep"] != "plain" || m["lit"] != kept {
+		t.Fatalf("GuardText touched a value it must leave: %#v", m)
+	}
+	if !literal.Is(m["list"].([]any)[0]) {
+		t.Fatal("a list item is not wrapped")
+	}
+	if _, isString := in["op"].(string); !isString || !reflect.DeepEqual(in["list"], []any{"((", 1}) {
+		t.Fatal("GuardText changed its input")
+	}
+	if g, changed := literal.GuardText("(("); !changed || !literal.Is(g) {
+		t.Fatal("a bare string is not wrapped")
+	}
+}

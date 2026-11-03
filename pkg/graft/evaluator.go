@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 
@@ -49,6 +50,10 @@ type Evaluator struct {
 	// already in flight. A plain int32 (not atomic.Int32) so the
 	// deliberate shallow copy in computeOp stays vet-clean.
 	depComputing int32
+
+	// holdsLiteral is set when DataFlow finds a literal wrapper in Tree.
+	// computeOp then checks each result for text read from inside one.
+	holdsLiteral bool
 
 	// Reference to the engine (for accessing registries and state)
 	engine Engine
@@ -270,6 +275,10 @@ func (ctx *dataFlowContext) registerOpcall(op *Opcall) {
 // scanValue recursively scans a value for operators.
 func (ctx *dataFlowContext) scanValue(o interface{}) {
 	switch v := o.(type) {
+	case literal.Value:
+		// The scan never looks inside a literal, but the evaluator must
+		// know the tree holds one.
+		ctx.ev.holdsLiteral = true
 	case map[string]interface{}:
 		ctx.scanStringMap(v)
 	case []interface{}:
@@ -1005,6 +1014,9 @@ func (ev *Evaluator) computeOp(op *Opcall) (resp *Response, oldValue interface{}
 	// copy is safe for the read-only access computeOp performs.
 	evCopy := *ev
 	resp, err = op.Run(&evCopy)
+	if err == nil {
+		ev.guardLiteralResponse(op, resp)
+	}
 	return resp, oldValue, err
 }
 
