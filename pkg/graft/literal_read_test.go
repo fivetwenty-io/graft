@@ -237,3 +237,54 @@ func TestLiteralCursorResolve(t *testing.T) {
 		t.Fatalf("Glob found %d paths inside the literal, want 2", len(globbed))
 	}
 }
+
+// TestLiteralBareFallbackStaysLiteral checks that a bare || expression,
+// with no operator in front of it, keeps the wrapper on a value it reads
+// from a literal, the way (( grab x || y )) does, so a later merge
+// replaces that value whole.
+func TestLiteralBareFallbackStaysLiteral(t *testing.T) {
+	plan := `
+meta:
+  bare: (( params.nested || "d" ))
+  second: (( params.missing || params.tmpl ))
+  plain: (( params.missing || "d" ))
+`
+	for _, mode := range literalEngineModes(t) {
+		t.Run(mode.name, func(t *testing.T) {
+			got, err := mode.eng.Merge(context.Background(), mustParse(t, mode.eng, plan), userDoc(readParams())).Execute()
+			if err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			root := treeOf(got)
+			for _, path := range []string{"meta.bare", "meta.second"} {
+				c, err := tree.ParseCursor(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				v, err := c.Resolve(root)
+				if err != nil {
+					t.Fatalf("%s: %v", path, err)
+				}
+				if _, ok := v.(LiteralValue); !ok {
+					t.Errorf("%s is %T, want a LiteralValue", path, v)
+				}
+			}
+			if s, _ := got.GetString("meta.plain"); s != "d" {
+				t.Errorf("meta.plain = %q, want the plain fallback", s)
+			}
+
+			overlay := NewDocument(map[string]interface{}{"meta": map[string]interface{}{"bare": map[string]interface{}{"extra": 1}}})
+			merged, err := mode.eng.Merge(context.Background(), got, overlay).Execute()
+			if err != nil {
+				t.Fatalf("Execute of the later merge: %v", err)
+			}
+			bare, err := merged.Get("meta.bare")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(bare, map[string]interface{}{"extra": 1}) {
+				t.Errorf("a later merge merged into the fallback's value: %#v", bare)
+			}
+		})
+	}
+}
