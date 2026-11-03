@@ -295,3 +295,30 @@ second_out:
 		t.Errorf("second_out = %#v, want [gamma delta epsilon]", secondOut)
 	}
 }
+
+// TestExpand_ForLoop_BareSlashPathSubject pins that a bare loop subject
+// may hold a '/' path, as in BOSH's name/index instance notation, and
+// iterates the same list as the grab form (spec decision C-1).
+func TestExpand_ForLoop_BareSlashPathSubject(t *testing.T) {
+	src := `jobs:
+  postgresql/0:
+    ips: [10.0.0.5, 10.0.0.6]
+
+bare:
+(( for ip in jobs.postgresql/0.ips ))
+  - (( grab ip ))
+(( done ))
+
+grabbed:
+(( for ip in grab jobs.postgresql/0.ips ))
+  - (( grab ip ))
+(( done ))
+`
+	data := runMergeYAML(t, src)
+	for _, key := range []string{"bare", "grabbed"} {
+		list, ok := data[key].([]interface{})
+		if !ok || len(list) != 2 || list[0] != "10.0.0.5" || list[1] != "10.0.0.6" {
+			t.Errorf("%s = %#v, want [10.0.0.5 10.0.0.6]", key, data[key])
+		}
+	}
+}

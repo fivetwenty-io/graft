@@ -162,3 +162,19 @@ func TestBuildPrescanScope_UnresolvableOperatorLeavesKeyAbsent(t *testing.T) {
 		t.Errorf("scope[b] = %#v, want 2", scope["b"])
 	}
 }
+
+func TestEvalExpr_BareSlashPathResolvesAsReference(t *testing.T) {
+	e := newEnv(map[string]interface{}{
+		"jobs": map[string]interface{}{
+			"postgresql/0": map[string]interface{}{"ips": []interface{}{"10.0.0.5"}},
+		},
+	}, nil)
+	val, err := evalExpr("jobs.postgresql/0.ips", e, "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	list, ok := val.([]interface{})
+	if !ok || len(list) != 1 || list[0] != "10.0.0.5" {
+		t.Fatalf("got %#v, want [10.0.0.5]", val)
+	}
+}
