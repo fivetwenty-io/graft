@@ -116,3 +116,37 @@ func TestWithheldLiteralErrorKeepsItsDetail(t *testing.T) {
 		})
 	}
 }
+
+// TestUnrelatedErrorIsNotWithheld checks that an operator which never
+// read a literal keeps its message, even when that message happens to
+// hold text that also appears inside a literal elsewhere in the
+// document.
+func TestUnrelatedErrorIsNotWithheld(t *testing.T) {
+	const plan = `
+meta:
+  plan:
+    name: small
+out: (( grab meta.plan.version ))
+`
+	params := map[string]interface{}{"version": "1.2.3"}
+	for _, mode := range leakModes {
+		t.Run(mode.name, func(t *testing.T) {
+			eng, _ := leakEngine(t, mode.parallel)
+			planDoc, err := eng.ParseYAML([]byte(plan))
+			if err != nil {
+				t.Fatal(err)
+			}
+			user := graft.NewDocument(map[string]interface{}{"params": graft.NewLiteral(params)})
+			_, err = eng.Merge(context.Background(), planDoc, user).Execute()
+			if err == nil {
+				t.Fatal("Execute succeeded on input that must fail")
+			}
+			if strings.Contains(err.Error(), "withheld") {
+				t.Fatalf("an error that never read a literal was withheld: %v", err)
+			}
+			if !strings.Contains(err.Error(), "meta.plan.version") {
+				t.Fatalf("the error lost the path it failed on: %v", err)
+			}
+		})
+	}
+}

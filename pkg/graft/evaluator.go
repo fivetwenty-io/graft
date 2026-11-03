@@ -992,7 +992,7 @@ func (ev *Evaluator) RunOp(op *Opcall) error {
 	if err != nil {
 		return err
 	}
-	return ev.scrubLiteralError(ev.applyResponse(op, resp, oldValue))
+	return ev.scrubLiteralError(op, ev.applyResponse(op, resp, oldValue))
 }
 
 // computeOp runs the operator itself (op.Run), which may perform Vault,
@@ -1022,7 +1022,7 @@ func (ev *Evaluator) computeOp(op *Opcall) (resp *Response, oldValue interface{}
 	evCopy := *ev
 	resp, err = op.Run(&evCopy)
 	if err != nil {
-		return resp, oldValue, ev.scrubLiteralError(err)
+		return resp, oldValue, ev.scrubLiteralError(op, err)
 	}
 	ev.guardLiteralResponse(op, resp)
 	return resp, oldValue, nil

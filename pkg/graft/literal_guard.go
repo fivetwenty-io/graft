@@ -151,11 +151,17 @@ func quotedLiteral(msg string, texts []string) string {
 	return ""
 }
 
-// scrubLiteralError returns err, or a withheldError in its place when
-// its Error() text holds text from a literal in the tree. The path of a
-// PathError is kept, so the message still says where the error is.
-func (ev *Evaluator) scrubLiteralError(err error) error {
+// scrubLiteralError returns err, or a withheldError in its place when op
+// read from a literal and the error's Error() text holds text from a
+// literal in the tree. An operator that read no literal keeps its
+// message, even when that message happens to hold the same text as a
+// literal elsewhere. The path of a PathError is kept, so the message
+// still says where the error is.
+func (ev *Evaluator) scrubLiteralError(op *Opcall, err error) error {
 	if err == nil || !ev.holdsLiteral {
+		return err
+	}
+	if op == nil || !ev.argsReadLiteral(op.args) {
 		return err
 	}
 	texts := literal.Texts(ev.Tree)
