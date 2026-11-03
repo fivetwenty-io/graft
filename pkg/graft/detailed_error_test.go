@@ -60,3 +60,35 @@ func TestMultiErrorDetailSortsByDetailedText(t *testing.T) {
 		t.Fatalf("DetailedError = %q, want %q", got, want)
 	}
 }
+
+func TestBackendErrorTextOmitsThePath(t *testing.T) {
+	cause := errtext.WithPlain(fmt.Errorf("vault: reading %q: boom", "secret/probe-7"), "vault: reading the secret failed")
+	be := &BackendError{Backend: "vault", Target: "prod", Path: "secret/probe-7:k", Message: cause.Error(), Cause: cause}
+
+	if got, want := be.Error(), `backend "vault"@prod: vault: reading the secret failed`; got != want {
+		t.Fatalf("Error() = %q, want %q", got, want)
+	}
+	want := `backend "vault"@prod path "secret/probe-7:k": vault: reading "secret/probe-7": boom`
+	if got := DetailedError(be); got != want {
+		t.Fatalf("DetailedError = %q, want %q", got, want)
+	}
+
+	own := &BackendError{Backend: "aws", Path: "probe-7", Message: "throttled"}
+	if got := DetailedError(own); got != `backend "aws" path "probe-7": throttled` {
+		t.Fatalf("DetailedError without a cause = %q", got)
+	}
+}
+
+func TestGraftErrorDetailWalksTheCauseChain(t *testing.T) {
+	cause := errtext.WithPlain(fmt.Errorf("vault: reading %q: boom", "secret/probe-7"), "vault: reading the secret failed")
+	be := &BackendError{Backend: "vault", Path: "secret/probe-7:k", Message: cause.Error(), Cause: cause}
+	err := NewExternalError("vault", cause.Error(), be)
+
+	if strings.Contains(err.Error(), "probe-7") {
+		t.Fatalf("Error() quotes the path: %q", err.Error())
+	}
+	want := `external_error: vault: vault: reading "secret/probe-7": boom`
+	if got := DetailedError(err); got != want {
+		t.Fatalf("DetailedError = %q, want %q", got, want)
+	}
+}

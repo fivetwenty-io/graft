@@ -184,6 +184,25 @@ func (e *GraftError) Unwrap() error {
 	return e.Cause
 }
 
+// DetailedError returns Error() with the detailed text of the nearest
+// error on the Cause chain whose plain text Message quotes put in place
+// of that plain text. Constructors such as NewExternalError copy a
+// cause's Error() into Message, and this restores the cause's values.
+func (e *GraftError) DetailedError() string {
+	s := e.Error()
+	for c := e.Cause; c != nil; c = errors.Unwrap(c) {
+		plain := c.Error()
+		detail := errtext.Detail(c)
+		if plain == detail {
+			continue
+		}
+		if i := strings.LastIndex(s, plain); i >= 0 {
+			return s[:i] + detail + s[i+len(plain):]
+		}
+	}
+	return s
+}
+
 // ErrorType represents different categories of errors.
 type ErrorType string
 
@@ -656,7 +675,8 @@ func ClassifyError(err error) ErrorCode {
 		return CodePermissionDenied
 	}
 
-	msg := err.Error()
+	// The detailed text is the text these checks have always read.
+	msg := errtext.Detail(err)
 	switch {
 	case strings.HasPrefix(msg, "unknown operator: "):
 		return CodeUnknownOperator

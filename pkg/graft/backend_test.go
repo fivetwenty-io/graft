@@ -491,7 +491,10 @@ func TestBackendErrorErrorAndUnwrap(t *testing.T) {
 		Backend: "vault", Target: "prod", Path: "secret/x", Message: cause.Error(), Cause: cause,
 	}
 
-	msg := be.Error()
+	if strings.Contains(be.Error(), "secret/x") {
+		t.Fatalf("BackendError.Error() = %q quotes the path", be.Error())
+	}
+	msg := DetailedError(be)
 	for _, want := range []string{"vault", "prod", "secret/x", "dial tcp: timeout"} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("BackendError.Error() = %q, missing %q", msg, want)

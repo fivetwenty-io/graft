@@ -353,7 +353,8 @@ func isVaultNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
-	errMsg := err.Error()
+	// The detailed text is the text this check has always read.
+	errMsg := errtext.Detail(err)
 	return strings.Contains(errMsg, "not found") ||
 		strings.Contains(errMsg, "404") ||
 		strings.Contains(errMsg, "secret not found")
@@ -642,6 +643,10 @@ func (o VaultOperator) performVaultLookup(ev *graft.Evaluator, engine graft.Engi
 			var notFoundErr *vault.ErrNotFound
 			if errors.As(secretErr, &notFoundErr) {
 				secretErr = graft.WithCode(secretNotFound(key), graft.CodeSecretNotFound)
+			} else {
+				// The Vault client's errors quote the request URL,
+				// which holds the secret path.
+				secretErr = errtext.WithPlain(secretErr, "unable to read the secret from vault")
 			}
 			return nil, secretErr
 		}
