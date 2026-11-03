@@ -125,6 +125,8 @@ var operatorErrorCases = []errorTextCase{
 	{name: "vault argument", out: `(( vault "PROBEzq81x" ))`, detailed: true},
 	{name: "vault map", out: "(( vault meta.m ))"},
 	{name: "awsparam map", out: "(( awsparam meta.m ))"},
+	{name: "nats map", out: "(( nats meta.m ))"},
+	{name: "nats store type", out: `(( nats "probezq81x:a/b" ))`, probe: "probezq81x", detailed: true},
 	{name: "inject scalar", out: "\n  <<<: (( inject meta.s ))"},
 	{name: "parse error", out: `(( concat "PROBEzq81x ))`},
 	{name: "env missing", out: "(( grab $PROBE_ZQ_ENV ))"},

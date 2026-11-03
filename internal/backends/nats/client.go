@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -643,7 +644,9 @@ func FetchFromKV(js jetstream.JetStream, storePath string, config *Config) (inte
 
 	duration := time.Since(startTime)
 	GlobalMetrics.RecordOperation(operationType, duration, true, false)
-	return nil, fmt.Errorf("failed to get key '%s' from store '%s' after %d attempts: %w", key, storeName, config.Retries+1, err)
+	return nil, errtext.WithPlain(
+		fmt.Errorf("failed to get key '%s' from store '%s' after %d attempts: %w", key, storeName, config.Retries+1, err),
+		fmt.Sprintf("failed to get the key from the KV store after %d attempts%s", config.Retries+1, knownReason(err)))
 }
 
 // FetchFromObject retrieves a value from a NATS Object store with retry logic.
@@ -719,7 +722,9 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 			var yamlResult interface{}
 			err = unmarshalGuarded(data, &yamlResult)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse YAML from object '%s': %w", objectName, err)
+				return nil, errtext.WithPlain(
+					fmt.Errorf("failed to parse YAML from object '%s': %w", objectName, err),
+					"failed to parse YAML from the object")
 			}
 			// Normalize result from goccy/go-yaml (uint64 → int normalization)
 			result = normalizeYAMLValue(yamlResult)
@@ -727,7 +732,9 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 			// Parse as JSON (YAML parser handles JSON too)
 			err = unmarshalGuarded(data, &result)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse JSON from object '%s': %w", objectName, err)
+				return nil, errtext.WithPlain(
+					fmt.Errorf("failed to parse JSON from object '%s': %w", objectName, err),
+					"failed to parse JSON from the object")
 			}
 			result = normalizeYAMLValue(result)
 		case "text/plain", "":
@@ -769,7 +776,30 @@ func FetchFromObject(js jetstream.JetStream, storePath string, config *Config) (
 
 	duration := time.Since(startTime)
 	GlobalMetrics.RecordOperation(operationType, duration, true, false)
-	return nil, fmt.Errorf("failed to get object '%s' from bucket '%s' after %d attempts: %w", objectName, bucketName, config.Retries+1, err)
+	return nil, errtext.WithPlain(
+		fmt.Errorf("failed to get object '%s' from bucket '%s' after %d attempts: %w", objectName, bucketName, config.Retries+1, err),
+		fmt.Sprintf("failed to get the object from the bucket after %d attempts%s", config.Retries+1, knownReason(err)))
+}
+
+// knownReasons are the JetStream errors whose text a fetch failure's
+// plain text may repeat, since their text is fixed and names nothing.
+var knownReasons = []error{
+	jetstream.ErrKeyNotFound,
+	jetstream.ErrKeyDeleted,
+	jetstream.ErrBucketNotFound,
+	jetstream.ErrObjectNotFound,
+}
+
+// knownReason returns ": " and the text of the first of knownReasons that
+// err is, or "" when it is none of them. Any other error's text can
+// name a store, key, bucket, or object, so it stays in the detailed text.
+func knownReason(err error) string {
+	for _, known := range knownReasons {
+		if errors.Is(err, known) {
+			return ": " + known.Error()
+		}
+	}
+	return ""
 }
 
 // StreamLargeObject handles streaming of large objects to reduce memory usage.

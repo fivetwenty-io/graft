@@ -124,6 +124,7 @@ func TestErrorChainHoldsNoValue(t *testing.T) {
 	cases := []struct {
 		name  string
 		doc   string
+		probe string
 		parse bool
 	}{
 		{name: "parse", doc: "a: [PROBEzq81x\n", parse: true},
@@ -131,6 +132,7 @@ func TestErrorChainHoldsNoValue(t *testing.T) {
 		{name: "grab through a scalar", doc: errProbeMeta + "out: (( grab meta.s.deeper ))\n"},
 		{name: "arithmetic on a string", doc: errProbeMeta + "out: (( meta.s * -3 ))\n"},
 		{name: "vault path", doc: errProbeMeta + "out: (( vault meta.s \":\" meta.s ))\n"},
+		{name: "nats store type", doc: errProbeMeta + "out: (( nats \"probezq81x:a/b\" ))\n", probe: "probezq81x"},
 		{name: "siblings", doc: `meta:
   s: PROBEzq81x
 creds:
@@ -160,8 +162,12 @@ refs:
 						t.Fatal("the merge must fail")
 					}
 				}
-				assertChainPlain(t, err, errProbe)
-				if !strings.Contains(graft.DetailedError(err), errProbe) {
+				probe := errProbe
+				if tc.probe != "" {
+					probe = tc.probe
+				}
+				assertChainPlain(t, err, probe)
+				if !strings.Contains(graft.DetailedError(err), probe) {
 					t.Errorf("DetailedError lost the value:\n%s", graft.DetailedError(err))
 				}
 			})
@@ -186,4 +192,32 @@ func TestGetterErrorChainHoldsNoValue(t *testing.T) {
 	if !strings.Contains(graft.DetailedError(err), errProbe) {
 		t.Errorf("DetailedError lost the value:\n%s", graft.DetailedError(err))
 	}
+}
+
+// natsBackend is a custom backend registered under the name nats.
+type natsBackend struct{ countingVault }
+
+func (b *natsBackend) Name() string { return "nats" }
+
+// TestNatsCustomBackendConfigErrorIsPlain passes the nats operator a
+// config argument while a custom nats backend is registered, with the
+// ansi toggle on, and checks the error a caller can reach.
+func TestNatsCustomBackendConfigErrorIsPlain(t *testing.T) {
+	withColorOn(t)
+	eng, err := graft.NewEngine(graft.WithBackend(&natsBackend{}), graft.WithBackendRegistry(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := eng.ParseYAML([]byte("out: (( nats \"kv:a/b\" \"nats://PROBEzq81x:4222\" ))\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = eng.Merge(context.Background(), doc).Execute()
+	if err == nil {
+		t.Fatal("the merge must fail")
+	}
+	if !strings.Contains(err.Error(), "config argument is not supported") {
+		t.Fatalf("the custom backend path did not run:\n%s", err)
+	}
+	assertChainPlain(t, err, errProbe)
 }
