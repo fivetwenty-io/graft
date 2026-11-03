@@ -468,7 +468,9 @@ func BuildConnectionOptions(config *Config) ([]nats.Option, error) {
 		if config.CertFile != "" && config.KeyFile != "" {
 			cert, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
 			if err != nil {
-				return nil, fmt.Errorf("failed to load NATS client certificate/key pair (%s, %s): %w", config.CertFile, config.KeyFile, err)
+				return nil, errtext.WithPlain(
+					fmt.Errorf("failed to load NATS client certificate/key pair (%s, %s): %w", config.CertFile, config.KeyFile, err),
+					"failed to load NATS client certificate/key pair: "+fileErrorReason(err))
 			}
 			tlsConfig.Certificates = []tls.Certificate{cert}
 		}
@@ -506,7 +508,9 @@ func buildAuthOption(config *Config) (nats.Option, error) {
 	case config.NkeySeedFile != "":
 		opt, err := nats.NkeyOptionFromSeed(config.NkeySeedFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load NATS nkey seed file %s: %w", config.NkeySeedFile, err)
+			return nil, errtext.WithPlain(
+				fmt.Errorf("failed to load NATS nkey seed file %s: %w", config.NkeySeedFile, err),
+				"failed to load NATS nkey seed file: "+fileErrorReason(err))
 		}
 		return opt, nil
 	case config.Token != "":

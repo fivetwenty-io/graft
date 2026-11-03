@@ -2,6 +2,8 @@ package natsbackend
 
 import (
 	"errors"
+	"io/fs"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -84,5 +86,39 @@ func TestRedactURL(t *testing.T) {
 		if got := redactURL(tc.in); got != tc.want {
 			t.Errorf("redactURL(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+// TestCredentialFileErrorIsPlain fails to load each credential file the
+// connection options read. Error() names no file, and the detailed text
+// keeps the name.
+func TestCredentialFileErrorIsPlain(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), errProbe)
+	tests := []struct {
+		name   string
+		config *Config
+		want   string
+	}{
+		{
+			name:   "certificate and key",
+			config: &Config{TLS: true, CertFile: filepath.Join(dir, "c.pem"), KeyFile: filepath.Join(dir, "k.pem")},
+			want:   "failed to load NATS client certificate/key pair: open: no such file or directory",
+		},
+		{
+			name:   "nkey seed",
+			config: &Config{NkeySeedFile: filepath.Join(dir, "seed.nk")},
+			want:   "failed to load NATS nkey seed file: open: no such file or directory",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := BuildConnectionOptions(tc.config)
+			assertPlainText(t, err, tc.want)
+			if !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("errors.Is(fs.ErrNotExist) is false for %v", err)
+			}
+			_, err = CreateConnectionFromConfig(tc.config)
+			assertPlainText(t, err, "invalid NATS connection configuration: "+tc.want)
+		})
 	}
 }

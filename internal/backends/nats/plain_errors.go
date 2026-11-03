@@ -3,6 +3,7 @@ package natsbackend
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"strings"
 
@@ -100,4 +101,16 @@ func configError(err error) error {
 		plain += ": " + err.Error()
 	}
 	return errtext.WithPlain(fmt.Errorf("invalid NATS connection configuration: %w", err), plain)
+}
+
+// fileErrorReason is the text of err, an error from loading a file the
+// configuration names, without the file name: the failed operation and
+// the system's reason for a *fs.PathError, and a generic phrase for
+// anything else, whose text may quote the name or the file's content.
+func fileErrorReason(err error) string {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return pathErr.Op + ": " + pathErr.Err.Error()
+	}
+	return "the file could not be read"
 }
