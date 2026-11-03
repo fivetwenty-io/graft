@@ -150,6 +150,8 @@ quotient: (( 20 / 4 ))     # 5.0 — division always yields a float
 remainder: (( 17 % 5 ))    # 2
 ```
 
+Division needs a space before the `/`. A `/` attached to a reference is part of the path, as in BOSH's `name/index`, so `(( grab jobs.postgresql/0.ips[0] ))` reads the key `postgresql/0`. See [Division Needs a Space Before the Slash](../user-guide/operators/arithmetic.md#division-needs-a-space-before-the-slash).
+
 ### calc
 
 Complex math with functions.

@@ -38,6 +38,39 @@ integer operands integral. Division by zero is an error:
  - $.value: division by zero
 ```
 
+## Division Needs a Space Before the Slash
+
+A `/` attached to the end of a reference is part of the path, not division. This is how BOSH names an instance, as in `postgresql/0`, and it is how spruce reads a path. Division needs a space before the `/`.
+
+```yaml
+jobs:
+  count: 8
+  count/2: half
+  postgresql/0:
+    ips: [10.0.0.5]
+
+db_ip: (( grab jobs.postgresql/0.ips[0] ))   # 10.0.0.5
+named: (( grab jobs.count/2 ))               # half
+halved: (( jobs.count / 2 ))                 # 4.0
+also_halved: (( jobs.count /2 ))             # 4.0
+```
+
+Once a `/` joins a path, the name after it belongs to the path too, and the path carries on through any `.`, `[`, or further `/` that follows. Here is how each placement of the `/` reads:
+
+| Expression | Reads as |
+|---|---|
+| `jobs.count/2`, `meta.a/b/c` | One path. The last key is `count/2` or `a/b/c`. |
+| `postgresql/0.ips[0]` | One path whose first key is `postgresql/0`. |
+| `8/2` | The path `8/2`. A number followed directly by a `/` is a path, as it is in spruce. |
+| `a / b` and `a /b` | `a` divided by `b`, because a space comes before the `/`. |
+| `a/ b` | Two references, `a/` and `b`. The space ends the path `a/`. |
+| `a/` | The path `a/`, so the trailing slash is part of the key. |
+| `/b` | An error. A leading `/` is the division operator, and nothing comes before it. Spruce reads it as the key `/b`. |
+| `arr/[0]` | The key `arr/`, then index 0 of it. |
+| `arr[0]/x` | Index 0 of `arr`, then the key `/x` inside it. |
+
+A whole expression that is only a reference, such as `(( jobs.count/2 ))`, stays in the output as written, the same as `(( jobs.count ))` and the same as in spruce, because BOSH uses that shape for its own variables. Wrap it in `grab` to read the value. Inside `calc`, the quoted expression does its own arithmetic, so `(( calc "8/2" ))` is still 4.
+
 ## Using with References
 
 Operators work with `grab`, and with bare references:

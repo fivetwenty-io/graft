@@ -75,7 +75,7 @@ Mathematical operations.
 | `%` | Modulo | `(( 10 % 3 ))` |
 | `calc` | Expression evaluation, with functions in the quoted form | `(( calc "sqrt(pow(a, 2) + pow(b, 2))" ))` |
 
-`(( 10 / 2 ))` evaluates to `5.0`, not `5`. Inside a quoted `calc` expression,
+`(( 10 / 2 ))` evaluates to `5.0`, not `5`. Division needs a space before the `/`, because a `/` attached to a reference is part of the path, as in BOSH's `name/index`. So `(( grab jobs.postgresql/0.ips[0] ))` reads a path, and `(( count / 2 ))` divides. Inside a quoted `calc` expression,
 `**` is exponentiation and `^` is bitwise XOR; neither tokenizes unquoted.
 
 ### [Comparison & Logic](comparison-logic.md)

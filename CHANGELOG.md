@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A `/` attached to a reference is now part of the path, the way spruce reads it, so BOSH's `name/index` instance notation works. `(( grab jobs.postgresql/0.ips[0] ))` failed to parse before, and `(( grab jobs.count/2 ))` quietly divided `jobs.count` by 2 even when the document had a key named `count/2`. Division now needs a space before the `/`, as in `(( a / b ))` or `(( a /b ))`. A number followed directly by a `/`, such as `8/2`, is a path too, as it is in spruce. Inside `calc`, nothing changes.
+
 ## [1.45.0] - 2026-11-03
 
 This release adds `graft.NewLiteral`, which marks a value that graft keeps whole and never evaluates, so a program can merge user input into a document without graft running any operator that input holds. It also makes the `Error()` text of every library error plain and free of document values, and `graft.DetailedError` returns the full text that the CLI prints. Finally, importing the operators package no longer starts background goroutines.
