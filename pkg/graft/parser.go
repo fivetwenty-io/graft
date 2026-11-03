@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -501,7 +502,7 @@ func (p *Parser) parseInteger() (*Expr, error) {
 				Literal: floatVal,
 			}, nil
 		}
-		return nil, fmt.Errorf("invalid integer: %s", tok.Literal)
+		return nil, errtext.WithPlain(fmt.Errorf("invalid integer: %s", tok.Literal), "invalid integer")
 	}
 
 	return &Expr{
@@ -517,7 +518,7 @@ func (p *Parser) parseFloat() (*Expr, error) {
 
 	val, err := strconv.ParseFloat(tok.Literal, 64)
 	if err != nil {
-		return nil, fmt.Errorf("invalid float: %s", tok.Literal)
+		return nil, errtext.WithPlain(fmt.Errorf("invalid float: %s", tok.Literal), "invalid float")
 	}
 
 	return &Expr{
@@ -1179,7 +1180,7 @@ func (p *Parser) parseUnaryMinus() (*Expr, error) {
 		p.advance()
 		val, err := strconv.ParseInt("-"+tok.Literal, 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("invalid integer: -%s", tok.Literal)
+			return nil, errtext.WithPlain(fmt.Errorf("invalid integer: -%s", tok.Literal), "invalid integer")
 		}
 		return &Expr{
 			Type:    Literal,
@@ -1192,7 +1193,7 @@ func (p *Parser) parseUnaryMinus() (*Expr, error) {
 		p.advance()
 		val, err := strconv.ParseFloat("-"+tok.Literal, 64)
 		if err != nil {
-			return nil, fmt.Errorf("invalid float: -%s", tok.Literal)
+			return nil, errtext.WithPlain(fmt.Errorf("invalid float: -%s", tok.Literal), "invalid float")
 		}
 		return &Expr{
 			Type:    Literal,

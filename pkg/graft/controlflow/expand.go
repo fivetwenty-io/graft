@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
@@ -281,7 +282,8 @@ func parseCasePattern(tok string, loc string) (interface{}, error) {
 	if f, err := strconv.ParseFloat(tok, 64); err == nil {
 		return f, nil
 	}
-	return nil, fmt.Errorf("$.%s: (( when )) pattern must be a quoted string, a number, or true/false, got %q", loc, tok)
+	return nil, errtext.WithPlain(fmt.Errorf("$.%s: (( when )) pattern must be a quoted string, a number, or true/false, got %q", loc, tok),
+		fmt.Sprintf("$.%s: (( when )) pattern must be a quoted string, a number, or true/false", loc))
 }
 
 // unquoteCasePattern strips tok's surrounding quotes. Single-quoted content
@@ -454,7 +456,8 @@ func evalRangeInt(tok string, which string, e *env, loc string) (int64, error) {
 		if n == math.Trunc(n) {
 			return int64(n), nil
 		}
-		return 0, fmt.Errorf("$.%s: range %s must be an integer, got %v", loc, which, val)
+		return 0, errtext.WithPlain(fmt.Errorf("$.%s: range %s must be an integer, got %v", loc, which, val),
+			fmt.Sprintf("$.%s: range %s must be an integer, got a fractional number", loc, which))
 	default:
 		return 0, fmt.Errorf("$.%s: range %s must be an integer, got %T", loc, which, val)
 	}

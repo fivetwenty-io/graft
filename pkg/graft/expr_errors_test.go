@@ -4,9 +4,12 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/fivetwenty-io/graft/internal/errtext"
+	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 )
 
-// TestExprError_Error tests error message formatting.
+// TestExprError_Error tests the detailed message formatting.
 func TestExprError_Error(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -81,7 +84,7 @@ func TestExprError_Error(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errMsg := tt.err.Error()
+			errMsg := DetailedError(tt.err)
 
 			for _, want := range tt.wantContain {
 				if !strings.Contains(errMsg, want) {
@@ -159,7 +162,7 @@ key4: value4`
 		Source: source,
 	}
 
-	errMsg := err.Error()
+	errMsg := DetailedError(err)
 
 	// Should contain the error line
 	if !strings.Contains(errMsg, "key2: (( grab missing.path ))") {
@@ -329,7 +332,7 @@ func TestExprError_RealWorldScenarios(t *testing.T) {
 			Source: source,
 		}
 
-		errMsg := err.Error()
+		errMsg := DetailedError(err)
 		if !strings.Contains(errMsg, "deployment.yml:3:14") {
 			t.Error("should contain file position")
 		}
@@ -369,5 +372,58 @@ func BenchmarkExprError_SimpleError(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = err.Error()
+	}
+}
+
+// TestExprErrorTextIsPlainAndValueFree checks that Error() drops the
+// color, the source lines, and the context line, which can quote
+// document text, and that DetailedError keeps the old rendering.
+func TestExprErrorTextIsPlainAndValueFree(t *testing.T) {
+	withAnsiColor(t, true)
+	src := "a: 1\nb: (( grab PROBEzq81x ))\nc: 3"
+	e := NewSyntaxError("bad reference", Position{Line: 2, Column: 4, File: "f.yml"}).
+		WithSource(src).
+		WithContext("near PROBEzq81x").
+		WithNested(errtext.WithPlain(errors.New("cause PROBEzq81x"), "cause"))
+
+	want := "Syntax Error: f.yml:2:4: bad reference\n  caused by: cause"
+	if got := e.Error(); got != want {
+		t.Fatalf("Error() = %q, want %q", got, want)
+	}
+	detail := DetailedError(e)
+	for _, part := range []string{
+		ansi.Sprintf("@*R{%s}", "Syntax Error"),
+		ansi.Sprintf("@Y{%s}", "f.yml:2:4"),
+		"b: (( grab PROBEzq81x ))",
+		ansi.Sprintf(" @R{%s}", "near PROBEzq81x"),
+		"caused by: cause PROBEzq81x",
+	} {
+		if !strings.Contains(detail, part) {
+			t.Errorf("DetailedError lacks %q:\n%q", part, detail)
+		}
+	}
+
+	list := &ExprErrorList{}
+	list.Add(e)
+	list.Add(NewTypeError("bad type", Position{}))
+	if got := list.Error(); strings.Contains(got, "PROBEzq81x") || strings.Contains(got, "\x1b[") {
+		t.Fatalf("ExprErrorList.Error() quotes a value or holds color:\n%q", got)
+	}
+	if got := DetailedError(list); !strings.Contains(got, "b: (( grab PROBEzq81x ))") {
+		t.Fatalf("ExprErrorList detail lacks the source line:\n%q", got)
+	}
+}
+
+// TestWrapErrorKeepsTheCauseDetail checks that wrapping an error whose
+// detail quotes a value keeps the value out of Error() and in the
+// detailed text.
+func TestWrapErrorKeepsTheCauseDetail(t *testing.T) {
+	cause := errtext.WithPlain(errors.New("bad PROBEzq81x"), "bad value")
+	e := WrapError(cause, ReferenceError, Position{})
+	if got := e.Error(); strings.Contains(got, "PROBEzq81x") {
+		t.Fatalf("Error() quotes the value: %q", got)
+	}
+	if got := DetailedError(e); !strings.Contains(got, "bad PROBEzq81x") {
+		t.Fatalf("DetailedError lacks the value: %q", got)
 	}
 }

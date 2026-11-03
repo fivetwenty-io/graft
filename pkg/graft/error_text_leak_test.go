@@ -82,6 +82,9 @@ instance_groups:
 }
 
 var operatorErrorCases = []errorTextCase{
+	{name: "parse float", out: `(( concat 1e999 "x" ))`, probe: "1e999", detailed: true},
+	{name: "parse negative float", out: `(( concat -1e999 "x" ))`, probe: "1e999", detailed: true},
+	{name: "parse negative integer", out: `(( concat -99999999999999999999 "x" ))`, probe: "99999999999999999999", detailed: true},
 	{name: "grab through a scalar", out: "(( grab meta.s.sub ))", detailed: true},
 	{name: "grab missing", out: "(( grab meta.nope ))"},
 	{name: "concat map", out: `(( concat meta.m "x" ))`},

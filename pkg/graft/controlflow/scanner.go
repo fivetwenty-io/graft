@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/fivetwenty-io/graft/internal/errtext"
 )
 
 // maxBlockNestingDepth bounds control-flow block nesting, matching the
@@ -475,7 +477,8 @@ func (p *blockParser) parseFor() (item, error) {
 
 	m := forHeaderRe.FindStringSubmatch(start.remainder)
 	if m == nil {
-		return item{}, fmt.Errorf("invalid (( for )) header at line %d: expected \"for VAR [, VAR] in ITERABLE\", got %q", start.index+1, start.remainder)
+		return item{}, errtext.WithPlain(fmt.Errorf("invalid (( for )) header at line %d: expected \"for VAR [, VAR] in ITERABLE\", got %q", start.index+1, start.remainder),
+			fmt.Sprintf("invalid (( for )) header at line %d: expected \"for VAR [, VAR] in ITERABLE\"", start.index+1))
 	}
 	vars := []string{m[1]}
 	if m[2] != "" {

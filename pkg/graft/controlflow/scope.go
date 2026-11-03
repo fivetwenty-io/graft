@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -202,10 +203,11 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 
 	op, err := graft.ParseOpcallWithParserForEngine(e.engine, graft.EvalPhase, "(( "+raw+" ))")
 	if err != nil {
-		return nil, fmt.Errorf("$.%s: invalid expression %q: %w", location, raw, err)
+		return nil, errtext.WithPlain(fmt.Errorf("$.%s: invalid expression %q: %w", location, raw, err),
+			fmt.Sprintf("$.%s: invalid expression: %s", location, err))
 	}
 	if op == nil {
-		return nil, fmt.Errorf("$.%s: invalid expression %q", location, raw)
+		return nil, errtext.WithPlain(fmt.Errorf("$.%s: invalid expression %q", location, raw), fmt.Sprintf("$.%s: invalid expression", location))
 	}
 	if cursor, cerr := tree.ParseCursor(location); cerr == nil {
 		op.SetWhere(cursor)
@@ -233,7 +235,8 @@ func evalTruthy(raw string, e *env, location string) (bool, error) {
 	}
 	b, ok := val.(bool)
 	if !ok {
-		return false, fmt.Errorf("$.%s: condition %q did not evaluate to a boolean (got %T)", location, raw, val)
+		return false, errtext.WithPlain(fmt.Errorf("$.%s: condition %q did not evaluate to a boolean (got %T)", location, raw, val),
+			fmt.Sprintf("$.%s: condition did not evaluate to a boolean (got %T)", location, val))
 	}
 	return b, nil
 }
