@@ -37,22 +37,6 @@ var explicitTagDocs = []struct {
 	{"a: !!int 1_000\n", 1000},
 	{"a: !!int 18446744073709551615\n", uint64(math.MaxUint64)},
 	{"a: !!float 1e3\n", 1000.0},
-	// graft reads integer text under !!float as a float. spruce
-	// refuses it, so the cases down to the quoted ones are deliberate
-	// divergences.
-	{"a: !!float 3\n", 3.0},
-	{"a: !!float -7\n", -7.0},
-	{"a: !!float +7\n", 7.0},
-	{"a: !!float 0x1F\n", 31.0},
-	{"a: !!float 0o17\n", 15.0},
-	{"a: !!float 0b101\n", 5.0},
-	{"a: !!float 1_000\n", 1000.0},
-	{"a: !!float \"3\"\n", 3.0},
-	{"a: !!float '-7'\n", -7.0},
-	{"a: !!float 09\n", 9.0},
-	{"a: !!float 9223372036854775807\n", float64(math.MaxInt64)},
-	{"a: !!float -9223372036854775808\n", float64(math.MinInt64)},
-	{"a: !!float 18446744073709551615\n", float64(math.MaxUint64)},
 	{"a: !!float 0x1p3\n", 8.0},
 	{"a: !!float -.inf\n", math.Inf(-1)},
 	{"a: !!null \"~\"\n", nil},
@@ -68,12 +52,56 @@ var explicitTagDocs = []struct {
 	{"a: !foo 12\n", "12"},
 }
 
+// explicitTagDivergenceDocs are documents that graft reads and spruce
+// refuses on purpose. Integer text under !!float is the float of that
+// integer here, and spruce reports a !!int scalar it cannot read as
+// !!float.
+var explicitTagDivergenceDocs = []struct {
+	doc  string
+	want any
+}{
+	{"a: !!float 3\n", 3.0},
+	{"a: !!float -7\n", -7.0},
+	{"a: !!float +7\n", 7.0},
+	{"a: !!float 0x1F\n", 31.0},
+	{"a: !!float 0o17\n", 15.0},
+	{"a: !!float 0b101\n", 5.0},
+	{"a: !!float 1_000\n", 1000.0},
+	{"a: !!float \"3\"\n", 3.0},
+	{"a: !!float '-7'\n", -7.0},
+	{"a: !!float 09\n", 9.0},
+	{"a: !!float 9223372036854775807\n", float64(math.MaxInt64)},
+	{"a: !!float -9223372036854775808\n", float64(math.MinInt64)},
+	{"a: !!float 18446744073709551615\n", float64(math.MaxUint64)},
+}
+
 // TestExplicitTagsMatchSpruce checks Unmarshal, in both modes, against
 // spruce's value. graft merge reads the same documents through the same
 // pass, which pkg/graft's tests and tests/yamlparity check.
 func TestExplicitTagsMatchSpruce(t *testing.T) {
 	t.Parallel()
 	for _, tc := range explicitTagDocs {
+		for _, m := range modes {
+			t.Run(m.name+"/"+tc.doc, func(t *testing.T) {
+				t.Parallel()
+				var got map[string]any
+				if err := yaml.UnmarshalWith([]byte(tc.doc), &got, m.opts); err != nil {
+					t.Fatalf("UnmarshalWith: %v", err)
+				}
+				if !reflect.DeepEqual(got["a"], tc.want) {
+					t.Errorf("a = %#v, want %#v", got["a"], tc.want)
+				}
+			})
+		}
+	}
+}
+
+// TestExplicitTagsDivergeFromSpruce pins the documents where graft
+// deliberately differs from spruce, which refuses them. Unmarshal reads
+// them in both modes.
+func TestExplicitTagsDivergeFromSpruce(t *testing.T) {
+	t.Parallel()
+	for _, tc := range explicitTagDivergenceDocs {
 		for _, m := range modes {
 			t.Run(m.name+"/"+tc.doc, func(t *testing.T) {
 				t.Parallel()
@@ -148,7 +176,7 @@ func TestTimestampTagTypedFields(t *testing.T) {
 // Unmarshal read and on a hand-built tree, gives what Unmarshal gives.
 func TestExplicitTagsNodeDecode(t *testing.T) {
 	t.Parallel()
-	for _, tc := range explicitTagDocs {
+	for _, tc := range append(append(explicitTagDocs[:0:0], explicitTagDocs...), explicitTagDivergenceDocs...) {
 		for _, m := range modes {
 			t.Run(m.name+"/"+tc.doc, func(t *testing.T) {
 				t.Parallel()
