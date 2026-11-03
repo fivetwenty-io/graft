@@ -320,3 +320,44 @@ func collectTexts(v any, inside bool, depth int, out *[]string) {
 		}
 	}
 }
+
+// New wraps a deep copy of v, so a later change to v does not reach the
+// Value. On the way it turns every map[any]any into a map[string]any,
+// with each key printed by fmt, which is the shape a path read expects.
+// A v that is already a Value is returned unchanged.
+func New(v any) Value {
+	if l, ok := v.(Value); ok {
+		return l
+	}
+	return Value{b: &box{v: normalize(v, 0)}}
+}
+
+func normalize(v any, depth int) any {
+	if depth > maxDepth {
+		return v
+	}
+	switch t := v.(type) {
+	case Value:
+		return Value{b: &box{v: normalize(t.Value(), depth+1)}}
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, e := range t {
+			out[k] = normalize(e, depth+1)
+		}
+		return out
+	case map[any]any:
+		out := make(map[string]any, len(t))
+		for k, e := range t {
+			out[fmt.Sprint(k)] = normalize(e, depth+1)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, e := range t {
+			out[i] = normalize(e, depth+1)
+		}
+		return out
+	default:
+		return v
+	}
+}

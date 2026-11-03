@@ -24,16 +24,20 @@ import "github.com/fivetwenty-io/graft/internal/literal"
 // == only when one is a copy of the other.
 type LiteralValue = literal.Value
 
-// NewLiteral wraps v so that graft keeps it whole. A v that is already a
-// LiteralValue is returned unchanged, and v may be nil. NewLiteral does
-// not copy v, so the caller should not change v after wrapping it.
+// NewLiteral wraps a deep copy of v so that graft keeps it whole. A v
+// that is already a LiteralValue is returned unchanged, and v may be nil.
+// Because NewLiteral copies every map and list in v, a later change to v
+// does not reach the document, and nothing graft does to the document
+// reaches v.
 //
+// On the way NewLiteral turns each map[interface{}]interface{} in v into
+// a map[string]interface{}, with every key printed by fmt, so a path into
+// the result always sees maps of type map[string]interface{} and lists of
+// type []interface{}, the shapes that ParseYAML and encoding/json produce.
 // Put the result anywhere in a document tree, as a map value or a list
-// item. A path into it sees maps of type map[string]interface{} and lists
-// of type []interface{}, the shapes that ParseYAML and encoding/json
-// produce.
+// item.
 func NewLiteral(v any) LiteralValue {
-	return literal.Wrap(v)
+	return literal.New(v)
 }
 
 // plainValue returns v with every LiteralValue at any depth replaced by

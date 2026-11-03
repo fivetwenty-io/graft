@@ -229,7 +229,10 @@ func (d *document) ToJSON() ([]byte, error) {
 
 // RawData returns the underlying data structure, with every LiteralValue
 // replaced by the value it wraps. The containers on the way to a wrapper
-// are copies, and every other container is the document's own.
+// are copies, and every other container is the document's own, so the
+// result is the document's own map only when the document holds no
+// wrapper. A caller that changes the result may therefore be changing a
+// copy; see the Document interface.
 func (d *document) RawData() interface{} {
 	return plainMap(d.data)
 }

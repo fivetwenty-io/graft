@@ -186,3 +186,19 @@ func TestTexts(t *testing.T) {
 		}
 	}
 }
+
+func TestNew(t *testing.T) {
+	inner := map[string]any{"a": []any{1}}
+	w := literal.New(map[any]any{"m": inner, 2: literal.Wrap(map[any]any{"x": "y"})})
+	inner["a"].([]any)[0] = "changed"
+	want := map[string]any{"m": map[string]any{"a": []any{1}}, "2": map[string]any{"x": "y"}}
+	if got := literal.Strip(w); !reflect.DeepEqual(got, want) {
+		t.Fatalf("New = %#v", got)
+	}
+	if !literal.Is(w.Value().(map[string]any)["2"]) {
+		t.Fatal("New dropped a nested Value")
+	}
+	if literal.New(w) != w {
+		t.Fatal("New of a Value is not the same Value")
+	}
+}

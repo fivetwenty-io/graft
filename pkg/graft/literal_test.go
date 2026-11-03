@@ -2,6 +2,7 @@ package graft
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -47,6 +48,45 @@ func TestNewLiteral(t *testing.T) {
 	var zero LiteralValue
 	if zero.Value() != nil {
 		t.Fatal("the zero LiteralValue does not wrap nil")
+	}
+}
+
+// TestNewLiteralCopies checks that NewLiteral keeps its own copy, so a
+// later change to the value passed in does not reach the document, and
+// that it turns map[interface{}]interface{} into the string-keyed shape
+// a path read needs.
+func TestNewLiteralCopies(t *testing.T) {
+	list := []interface{}{"a"}
+	in := map[string]interface{}{"list": list, "m": map[string]interface{}{"k": "v"}, "w": NewLiteral(map[string]interface{}{"x": 1})}
+	w := NewLiteral(in)
+	in["added"] = true
+	list[0] = "changed"
+	in["m"].(map[string]interface{})["k"] = "changed"
+	want := map[string]interface{}{"list": []interface{}{"a"}, "m": map[string]interface{}{"k": "v"}, "w": map[string]interface{}{"x": 1}}
+	if got := literal.Strip(w); !reflect.DeepEqual(got, want) {
+		t.Fatalf("NewLiteral shares containers with its argument: %#v", got)
+	}
+
+	odd := NewLiteral(map[interface{}]interface{}{"k": "v", 7: []interface{}{map[interface{}]interface{}{true: "t"}}})
+	wantOdd := map[string]interface{}{"k": "v", "7": []interface{}{map[string]interface{}{"true": "t"}}}
+	if !reflect.DeepEqual(odd.Value(), wantOdd) {
+		t.Fatalf("NewLiteral did not normalize map keys: %#v", odd.Value())
+	}
+
+	for _, mode := range literalEngineModes(t) {
+		t.Run(mode.name, func(t *testing.T) {
+			doc := NewDocument(map[string]interface{}{
+				"w":   NewLiteral(map[interface{}]interface{}{"k": "v"}),
+				"out": "(( grab w.k ))",
+			})
+			got, err := mode.eng.Evaluate(context.Background(), doc)
+			if err != nil {
+				t.Fatalf("Evaluate: %v", err)
+			}
+			if v, _ := got.Get("out"); v != "v" {
+				t.Fatalf("out = %#v, want the value read through the wrapper", v)
+			}
+		})
 	}
 }
 
