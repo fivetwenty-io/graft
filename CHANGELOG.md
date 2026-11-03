@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The `Error()` text of every error that `pkg/graft`, `pkg/graft/operators`, and `pkg/yaml` return is now plain. It holds no ANSI color codes, whatever the ansi toggle says, and it quotes no value from a document. That covers wrapped and joined errors, `PartialEvaluationError`, and `MultiError` too. A message still names paths, operators, tags, Go types, and line and column numbers, but it no longer quotes scalar values, key values, secret paths, operator expressions, or the source lines around a parse error, so a library caller can log it or return it from an API. The new `graft.DetailedError(err)` returns the text the graft CLI has always printed, with the values, and with color when the toggle is on, and the CLI now prints that text, so its output is unchanged. Callers who relied on values or color in `Error()` now call `graft.DetailedError`. Error types, sentinels, `errors.Is`, and `errors.As` behave as before.
+
 - Importing `pkg/graft/operators` no longer starts the two background goroutines that clean up idle NATS connections and expired cache entries. Before, every program that imported the package paid for them, even one that never used `(( nats ))`. They now start the first time a NATS operator needs a connection or the cache, and `ShutdownNatsOperator` stops them. It is safe to call whether or not they ever started, and safe to call twice. A NATS operator that runs after a shutdown starts them again.
 
 ### Added
