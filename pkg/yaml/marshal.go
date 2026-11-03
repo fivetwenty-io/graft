@@ -24,7 +24,11 @@ import (
 //
 // A string is written in the style spruce picks for it, so one that would
 // read back as another type is quoted and a multi-line one is a literal
-// block. A string that a YAML 1.1 reader resolves as a timestamp, such as
+// block, even when it starts with an indicator such as "-", as a PEM
+// certificate does. A multi-line string that a block cannot hold, such as
+// one with a space at the end of a line, is double-quoted instead, and so
+// is a single-line string that starts with "-", "?", or ":". A string
+// that a YAML 1.1 reader resolves as a timestamp, such as
 // 2026-01-02, is double-quoted. A key that spruce would write as a
 // "? key" is double-quoted on one line instead, because goccy's parser
 // misreads some of those, and so are strings that goccy's parser misreads

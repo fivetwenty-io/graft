@@ -722,9 +722,11 @@ func readsAsTimestamp(s string) bool {
 // with "<<" elsewhere, such as "cat <<EOF", stays plain. A string with a
 // line break and leading whitespace is the third, since spruce writes it
 // as a literal block with an indentation indicator that goccy's parser
-// refuses. The last is a string that starts with "-", "?", or ":", which
-// goccy's parser misreads as an indicator in some places. Otherwise the
-// style is the fork's own choice.
+// refuses. The last is a single-line string that starts with "-", "?",
+// or ":", which goccy's parser misreads as an indicator in some places.
+// A multi-line string that starts that way is a literal block, as it is
+// in spruce, and goccy reads the block back. Otherwise the style is the
+// fork's own choice.
 func timestampStyle(s string, typed bool) scalarStyle {
 	if typed && (readsAsTimestamp(s) || strings.HasSuffix(s, "<<") || leadsWithSpaceBeforeBreak(s) || startsWithIndicator(s)) {
 		return doubleQuotedScalarStyle
@@ -732,10 +734,11 @@ func timestampStyle(s string, typed bool) scalarStyle {
 	return requestedScalarStyle(s)
 }
 
-// startsWithIndicator reports whether s starts with "-", "?", or ":"
-// and a character other than a space, which libyaml writes plain.
+// startsWithIndicator reports whether the single-line s starts with "-",
+// "?", or ":" and a character other than a space, which libyaml writes
+// plain.
 func startsWithIndicator(s string) bool {
-	return len(s) > 1 && strings.ContainsRune("-?:", rune(s[0])) && s[1] != ' '
+	return len(s) > 1 && !strings.Contains(s, "\n") && strings.ContainsRune("-?:", rune(s[0])) && s[1] != ' '
 }
 
 // leadsWithSpaceBeforeBreak reports whether s holds a line break and

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `pkg/yaml` `Marshal` now writes a multi-line string that starts with `-`, `?`, or `:`, such as a PEM certificate, as a literal `|` block, the way `graft merge` and spruce write it. Before, it double-quoted the string with `\n` escapes. A single-line string that starts that way is still double-quoted, and so is a multi-line string a block cannot hold, such as one with trailing spaces on a line. Every such string reads back equal through `Unmarshal`.
+
 ### Changed
 
 - `graft merge` and `pkg/yaml` now read a scalar tagged `!!float` over integer text as the float of that integer. Before, `a: !!float 3` failed with `cannot decode a !!int scalar as !!float`. Now it reads as `3.0`, and `!!float -7`, `!!float 0x1F`, and `!!float "3"` read as `-7.0`, `31.0`, and `3.0`. spruce refuses this shape, so this is a deliberate difference, and the Blacksmith broker needed it. `!!int` over float text, such as `!!int 3.0`, is still refused.
