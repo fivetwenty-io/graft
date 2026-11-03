@@ -1129,6 +1129,10 @@ func deepSetRecursive(data interface{}, segments []PathSegment, idx int, value i
 		return nil
 	}
 
+	if literal.Is(data) {
+		return literal.ErrPathInside
+	}
+
 	seg := segments[idx]
 	isLast := idx == len(segments)-1
 
@@ -1229,6 +1233,9 @@ func DeepDelete(data interface{}, path string) error {
 	if len(segments) == 1 {
 		seg := segments[0]
 		if seg.Type == PathSegmentField {
+			if literal.Is(data) {
+				return literal.ErrPathInside
+			}
 			m, mapErr := ToMap(data)
 			if mapErr != nil {
 				return fmt.Errorf("cannot delete from non-map type %T", data)
@@ -1249,6 +1256,9 @@ func DeepDelete(data interface{}, path string) error {
 
 	switch lastSeg.Type {
 	case PathSegmentField:
+		if literal.Is(parent) {
+			return literal.ErrPathInside
+		}
 		m, err := ToMap(parent)
 		if err != nil {
 			return fmt.Errorf("cannot delete from non-map type %T", parent)

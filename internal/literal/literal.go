@@ -8,9 +8,15 @@ package literal
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// ErrPathInside is the error a Set or Delete returns when its path runs
+// into a literal. Callers know the type as graft.LiteralValue, so the
+// message names it that way and not by this package's type name.
+var ErrPathInside = errors.New("the path runs into a literal value (graft.LiteralValue), which is replaced whole and cannot be changed inside")
 
 // maxDepth bounds the recursion in Strip and Copy. A document deeper
 // than this is far past anything graft can merge, and the bound keeps a
