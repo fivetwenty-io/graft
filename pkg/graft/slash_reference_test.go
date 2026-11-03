@@ -257,3 +257,42 @@ jobs:
 		}
 	}
 }
+
+// TestSlashSegmentGluesPlusName pins that a '+' followed by a name
+// continues a segment after a '/', the same way it does after a '.',
+// for genesis vaultified keys such as "haproxy_ssl+certificate". A '+'
+// before a digit still adds.
+func TestSlashSegmentGluesPlusName(t *testing.T) {
+	const doc = `
+m:
+  x: 10
+  x/b: 6
+  x/b+c: plus-key
+c: 1
+`
+	cases := []struct {
+		name string
+		expr string
+		want string
+	}{
+		{"plus name joins the slash segment", "(( grab m.x/b+c ))", "plus-key"},
+		{"plus digit after a slash segment adds", "(( m.x/b+1 ))", "7"},
+	}
+	for _, mode := range slashModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				d, err := evalSlashDoc(t, mode.opts, doc+"result: "+tc.expr+"\n")
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				got, err := d.Get("result")
+				if err != nil {
+					t.Fatalf("failed to read result: %v", err)
+				}
+				if fmt.Sprint(got) != tc.want {
+					t.Fatalf("result = %v (%T), want %q", got, got, tc.want)
+				}
+			})
+		}
+	}
+}

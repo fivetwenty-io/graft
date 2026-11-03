@@ -197,12 +197,12 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 			// the reference, so the '/' always qualifies here. A '/' with
 			// whitespace before it never reaches this point, because the
 			// match stops at the whitespace, so "a / b" and "a /b" stay
-			// division.
+			// division. A '+' followed by a name continues the segment,
+			// as it does after a '.', so "x/b+c" is one key while "x/b+1"
+			// still adds.
 			sawSlash = true
 			pos++ // consume '/'
-			for pos < len(runes) && isIdentifierContinue(runes[pos]) {
-				pos++
-			}
+			pos = consumeSegmentIdentifier(runes, pos)
 		case '[':
 			// Array/map index - need to find matching ]
 			bracketDepth := 1
