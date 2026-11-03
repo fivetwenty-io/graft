@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
+
 	"github.com/fivetwenty-io/graft/internal/literal"
 )
 
@@ -396,7 +398,9 @@ type Number float64
 func (n Number) Int64() (int64, error) {
 	i := int64(n)
 	if Number(i) != n {
-		return 0, fmt.Errorf("%f does not represent an integer, cannot auto-convert", float64(n))
+		return 0, errtext.WithPlain(
+			fmt.Errorf("%f does not represent an integer, cannot auto-convert", float64(n)),
+			"the number does not represent an integer, cannot auto-convert")
 	}
 	return i, nil
 }

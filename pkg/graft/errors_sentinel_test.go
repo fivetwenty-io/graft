@@ -139,11 +139,8 @@ func TestDocumentGetterErrorsIsSentinels(t *testing.T) {
 // this package's error wrapping cannot silently alter Document's error
 // text.
 func TestDocumentGetterErrorStringsUnchanged(t *testing.T) {
-	// NotFoundError.Error() goes through ansi.Sprintf, which consults the
-	// package-level ansi.colorEnabled flag (defaults to true, but other
-	// tests in this binary toggle it via ansi.Color and some do not
-	// restore it). Pin our own value so this test's expectations do not
-	// depend on what ran before it in the same process.
+	// Error() must be plain even with the ansi toggle on, so the test
+	// turns it on.
 	prevColor := ansi.IsColorEnabled()
 	ansi.Color(true)
 	t.Cleanup(func() { ansi.Color(prevColor) })
@@ -169,12 +166,11 @@ func TestDocumentGetterErrorStringsUnchanged(t *testing.T) {
 		{
 			// tree.Cursor.Resolve stops at the first missing segment, so
 			// NotFoundError.Path is ["does"], not the full requested
-			// path; and its Error() carries ansi color codes
-			// unconditionally (ansi.Sprintf, not ansi.PSprintf), both
-			// pre-existing behavior this change does not alter.
+			// path. Its Error() is plain whatever the ansi toggle says;
+			// the colored text is DetailedError's.
 			name: "Get not found",
 			fn:   func() error { _, err := doc.Get("does.not.exist"); return err },
-			want: "evaluation_error at does.not.exist: path not found: \x1b[31m`\x1b[0m\x1b[36m$.does\x1b[0m\x1b[31m` could not be found in the datastructure\x1b[0m",
+			want: "evaluation_error at does.not.exist: path not found: `$.does` could not be found in the datastructure",
 		},
 		{
 			name: "GetString wrong type",
