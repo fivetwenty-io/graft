@@ -64,7 +64,11 @@ type Document interface {
 	// holds one, the maps and lists on the way to each wrapper are
 	// copies, so a change made through the result may or may not reach
 	// the document. Use Set and Delete to change a document, and Clone
-	// for a copy that is safe to change.
+	// for a copy that is safe to change. In particular, put a
+	// LiteralValue into a document with Set or NewDocument. The document
+	// remembers whether it holds one, so that RawData and the other
+	// output calls can skip the walk when it does not, and it does not
+	// notice a wrapper written straight into this map.
 	RawData() interface{}
 
 	// Clone creates a deep copy of the document

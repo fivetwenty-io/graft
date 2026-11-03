@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
@@ -26,6 +27,47 @@ type document struct {
 	// emptyHistory{} when it is nil, so callers never see a nil History
 	// interface.
 	history *historyImpl
+
+	// literals caches whether data holds a LiteralValue, so the output
+	// calls hand out data itself, without a walk, when it holds none.
+	// It starts unknown and is settled by the first output call; see
+	// plainData.
+	literals atomic.Int32
+}
+
+// The states of document.literals.
+const (
+	literalsUnknown int32 = iota
+	literalsNone
+	literalsSome
+)
+
+// holdsNoLiteral reports whether d.data holds no LiteralValue. The first
+// call walks the tree once, without allocating, and caches the answer.
+// Set keeps the cache current. A LiteralValue written straight into a
+// map that RawData handed out is not seen.
+func (d *document) holdsNoLiteral() bool {
+	switch d.literals.Load() {
+	case literalsNone:
+		return true
+	case literalsSome:
+		return false
+	}
+	if literal.Contains(d.data) {
+		d.literals.Store(literalsSome)
+		return false
+	}
+	d.literals.Store(literalsNone)
+	return true
+}
+
+// plainData is d.data with every LiteralValue replaced by its content.
+// It is d.data itself when the document holds no wrapper.
+func (d *document) plainData() map[string]interface{} {
+	if d.holdsNoLiteral() {
+		return d.data
+	}
+	return plainMap(d.data)
 }
 
 // NewDocument creates a new document from a map.
@@ -51,7 +93,7 @@ func NewDocumentFromInterface(data interface{}) (Document, error) {
 // Get retrieves a value at the given path.
 func (d *document) Get(path string) (interface{}, error) {
 	if path == "" || path == "$" {
-		return plainMap(d.data), nil
+		return d.plainData(), nil
 	}
 
 	cursor, err := tree.ParseCursor(path)
@@ -64,6 +106,9 @@ func (d *document) Get(path string) (interface{}, error) {
 		return nil, NewEvaluationError(path, fmt.Sprintf("path not found: %v", err), err)
 	}
 
+	if d.holdsNoLiteral() {
+		return value, nil
+	}
 	return plainValue(value), nil
 }
 
@@ -72,6 +117,7 @@ func (d *document) Set(path string, value interface{}) error {
 	if path == "" || path == "$" {
 		if mapValue, ok := value.(map[string]interface{}); ok {
 			d.data = mapValue
+			d.literals.Store(literalsUnknown)
 			return nil
 		}
 		return NewValidationError("cannot set root to non-map value")
@@ -82,7 +128,13 @@ func (d *document) Set(path string, value interface{}) error {
 		return NewValidationErrorWithCause(fmt.Sprintf("invalid path '%s': %v", path, err), err)
 	}
 
-	return cursor.Set(d.data, value)
+	if err := cursor.Set(d.data, value); err != nil {
+		return err
+	}
+	if literal.Contains(value) {
+		d.literals.Store(literalsSome)
+	}
+	return nil
 }
 
 // Delete removes a value at the given path.
@@ -190,7 +242,7 @@ func (d *document) Keys() []string {
 // ToMap returns the underlying map representation, with every
 // LiteralValue replaced by the value it wraps.
 func (d *document) ToMap() map[string]interface{} {
-	return plainMap(d.data)
+	return d.plainData()
 }
 
 // convertToJSONCompatible ensures all nested maps are map[string]interface{}.
@@ -217,13 +269,13 @@ func convertToJSONCompatible(v interface{}) interface{} {
 // MarshalYAML so library output carries the same spruce-compatible key
 // ordering and special-float quoting as CLI output.
 func (d *document) ToYAML() ([]byte, error) {
-	return MarshalYAML(plainMap(d.data))
+	return MarshalYAML(d.plainData())
 }
 
 // ToJSON converts the document to JSON bytes.
 func (d *document) ToJSON() ([]byte, error) {
 	// Convert to JSON-compatible format first
-	jsonData := convertToJSONCompatible(plainMap(d.data))
+	jsonData := convertToJSONCompatible(d.plainData())
 	return json.Marshal(jsonData)
 }
 
@@ -234,7 +286,7 @@ func (d *document) ToJSON() ([]byte, error) {
 // wrapper. A caller that changes the result may therefore be changing a
 // copy; see the Document interface.
 func (d *document) RawData() interface{} {
-	return plainMap(d.data)
+	return d.plainData()
 }
 
 // Clone creates a deep copy of the document.
@@ -568,7 +620,7 @@ func (d *document) addSortedListItems(picked map[string]interface{}, listItems [
 // GetData returns the underlying data (for backward compatibility), with
 // every LiteralValue replaced by the value it wraps, as RawData does.
 func (d *document) GetData() interface{} {
-	return plainMap(d.data)
+	return d.plainData()
 }
 
 // GetInt64 retrieves an int64 value at the given path.
@@ -780,7 +832,7 @@ func (d *document) Has(path string) bool {
 // path round-trips through Get.
 func (d *document) Paths() []string {
 	var paths []string
-	collectPaths(plainMap(d.data), "", &paths)
+	collectPaths(d.plainData(), "", &paths)
 	sort.Strings(paths)
 	return paths
 }
@@ -853,7 +905,7 @@ func sortKeysRecursive(v interface{}) interface{} {
 // Document-level convenience; Engine.ToJSONIndent(doc, indent) remains
 // the engine-level equivalent.
 func (d *document) ToJSONIndent(indent string) ([]byte, error) {
-	jsonData := convertToJSONCompatible(plainMap(d.data))
+	jsonData := convertToJSONCompatible(d.plainData())
 	return json.MarshalIndent(jsonData, "", indent)
 }
 
