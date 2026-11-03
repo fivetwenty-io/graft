@@ -13,9 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+
+	"github.com/fivetwenty-io/graft/internal/errtext"
 )
 
 // PooledConnection represents a pooled NATS connection with metadata.
