@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.45.0] - 2026-11-03
+
+This release adds `graft.NewLiteral`, which marks a value that graft keeps whole and never evaluates, so a program can merge user input into a document without graft running any operator that input holds. It also makes the `Error()` text of every library error plain and free of document values, and `graft.DetailedError` returns the full text that the CLI prints. Finally, importing the operators package no longer starts background goroutines.
+
 ### Changed
 
 - The `Error()` text of every error that `pkg/graft`, `pkg/graft/operators`, and `pkg/yaml` return is now plain. It holds no ANSI color codes, whatever the ansi toggle says, and it quotes no value from a document. That covers wrapped and joined errors, `PartialEvaluationError`, and `MultiError` too. A message still names paths, operators, tags, Go types, and line and column numbers, but it no longer quotes scalar values, key values, secret paths, operator expressions, or the source lines around a parse error, so a library caller can log it or return it from an API. The new `graft.DetailedError(err)` returns the text the graft CLI has always printed, with the values, and with color when the toggle is on, and the CLI now prints that text, so its output is unchanged. Callers who relied on values or color in `Error()` now call `graft.DetailedError`. No error that a caller reaches from the returned one through `errors.Unwrap` or `errors.As` quotes a value either, so `graft.DetailedError` is the only way to the full text. `errors.Is` still finds every sentinel it found before, such as `fs.ErrNotExist`, and `errors.As` still finds graft's own error types. It no longer finds an error from another package, such as a `*fs.PathError` or a YAML parser error, when graft keeps that error's text out of `Error()`.
@@ -1226,6 +1230,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.45.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.0
 [1.44.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.44.1
 [1.44.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.44.0
 [1.43.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.43.1
