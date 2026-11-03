@@ -13,7 +13,12 @@ import "github.com/fivetwenty-io/graft/internal/literal"
 // text, even when it is malformed. A path that reads into it, such as
 // (( grab params.size )), (( keys params )), or a || fallback, sees
 // through the wrapper, and a value that (( grab )) or (( inject )) copies
-// out of it stays a LiteralValue at its new place.
+// out of it stays a LiteralValue at its new place. When any other
+// operator builds a result from data inside one, every string in that
+// result that holds "((" is wrapped again, so a later phase or a later
+// Evaluate never runs it, and an operator error whose message would
+// quote text from inside one is replaced by a message that names only
+// the path.
 //
 // Every output is plain data. RawData, GetData, ToMap, Get and the other
 // getters, ToYAML, ToJSON, ToJSONIndent, MarshalYAML, pkg/yaml Marshal,

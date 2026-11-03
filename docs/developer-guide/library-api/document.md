@@ -673,7 +673,7 @@ jsonBytes, _ := json.Marshal(doc.RawData())
 
 **Warning:** Modifying the raw data directly can lead to inconsistent state; prefer `Set`/`Delete`.
 
-`RawData` never returns a `LiteralValue`. It replaces each one with the value it wraps, at any depth, and leaves the document itself unchanged. See [Literal Values](#literal-values).
+`RawData` never returns a `LiteralValue`. It replaces each one with the value it wraps, at any depth, and leaves the document itself unchanged. To do that it copies the maps and lists on the way to each wrapper, so the result is the document's own map only when the document holds no wrapper. A change made through `RawData` may therefore change a copy, which is one more reason to use `Set` and `Delete`. See [Literal Values](#literal-values).
 
 ### SortKeys
 
@@ -927,7 +927,7 @@ func NewLiteral(v any) LiteralValue
 func (l LiteralValue) Value() any
 ```
 
-`NewLiteral` wraps any value, including `nil`. Wrapping a `LiteralValue` again returns it unchanged, so there is never a wrapper inside a wrapper at the same spot. `NewLiteral` does not copy the value, so we should not change the value after we wrap it.
+`NewLiteral` wraps any value, including `nil`. Wrapping a `LiteralValue` again returns it unchanged, so there is never a wrapper inside a wrapper at the same spot. `NewLiteral` wraps a deep copy of the value, so a change we make to the value after we wrap it does not reach the document. On the way it turns each `map[interface{}]interface{}` into a `map[string]interface{}`, so a path can read into a map that a YAML library built with untyped keys.
 
 **How a merge treats it:**
 
@@ -943,13 +943,29 @@ func (l LiteralValue) Value() any
 
 - A path can still read into a wrapped value. `(( grab params.size ))`, `(( keys params ))`, `(( concat params.name "-svc" ))`, `(( join "," params.tags ))`, and a `||` fallback all see through the wrapper.
 
-- A value that `(( grab ))` copies out of a wrapped value stays wrapped at its new place, and so does each value that `(( inject ))` copies out of one. A second evaluation of the result still leaves them alone. A value that another operator computes from wrapped data, such as the string `(( concat ))` builds, is a new plain value.
+- A value that `(( grab ))` copies out of a wrapped value stays wrapped at its new place, and so does each value that `(( inject ))` copies out of one, whether it reaches the wrapped map through a reference, a `||` fallback, or a nested call. A second evaluation of the result still leaves them alone.
+
+- A value that another operator computes from wrapped data, such as the string `(( concat ))` builds or the list `(( keys ))` returns, is a new plain value. Any string in it that holds `((` stays text, though, because the evaluator wraps that string again before it lands in the tree. A later phase or a second evaluation never runs it, and a Vault path inside it is never read.
+
+- When an operator fails on a value it read from a wrapped value and its error message would quote any text from inside a wrapper, the evaluator withholds the message. The error still names the path where the operator ran, and `errors.Unwrap` still returns the original error for code that checks it with `errors.Is` or `errors.As`.
+
+- `CheckForCycles` and the evaluator's own cycle check look inside a wrapped value, so a wrapped value that refers to itself is reported as a cycle.
 
 **How output treats it:**
 
 - `RawData`, `GetData`, `ToMap`, `Get` and the other getters, `Paths`, `ToYAML`, `ToJSON`, `ToJSONIndent`, `graft.MarshalYAML`, `pkg/yaml` `Marshal`, and `encoding/json` all write the plain value with every wrapper removed.
 
 - `Clone` and the engine's own copies keep the wrapper and copy the value inside it.
+
+- `Get`, `GetMap`, and `GetSlice` return the document's own maps and lists from inside a wrapped value, just as they do for plain data, so a change to what they return changes the document. `Set` and `Delete` cannot reach inside a wrapped value and return an error when a path goes through one.
+
+**How post-processors treat it:**
+
+- `Execute` passes each post-processor the document with its wrappers in place, so the document it returns still holds them. The built-in prune and inject processors in `postprocess` leave a `(( prune ))` string or a `<<` key inside a wrapped value alone.
+
+- `NewPruner` and `NewCherryPicker` can name a path inside a wrapped value. The pruner removes it from a copy of the wrapped value, and the cherry picker keeps what it picks wrapped. `NewSecurityRedactor` masks a matching key inside a wrapped value and keeps the wrapper.
+
+- A custom processor should change the `Document` it receives through `Set` and `Delete` and return it. A processor that builds a new document from `RawData` drops every wrapper, and a later evaluation of that result treats what was inside them as plain data.
 
 **Example:**
 
@@ -974,7 +990,7 @@ result, err := engine.Merge(ctx, plan, user).Execute()
 // tags is gone, note is plain text, and meta.size is large.
 ```
 
-`WithPrune` and `WithCherryPick` can name a wrapped value itself but not a path inside it, because those steps treat the wrapper as a single leaf.
+`WithPrune` and `WithCherryPick` can name a wrapped value itself but not a path inside it, because those steps treat the wrapper as a single leaf. A path inside a wrapped value that either one names is left as it is, with no error.
 
 ## Error Types
 
