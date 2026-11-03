@@ -161,7 +161,7 @@ arr: [x0, x1]
 		wantErr string
 	}{
 		{"slash before a bracket", "(( grab arr/[0] ))", "`$.arr/` could not be found"},
-		{"leading slash", "(( grab /b ))", "grab"},
+		{"leading slash", "(( grab /b ))", "no arguments specified"},
 	}
 	for _, mode := range slashModes {
 		for _, tc := range cases {
