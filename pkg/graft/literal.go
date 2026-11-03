@@ -41,6 +41,12 @@ type LiteralValue = literal.Value
 // type []interface{}, the shapes that ParseYAML and encoding/json produce.
 // Put the result anywhere in a document tree, as a map value or a list
 // item.
+//
+// NewLiteral panics when a map or list in v contains itself at any
+// depth, because graft cannot hold cyclic data. It finds the cycle the
+// first time round, and the panic message quotes nothing from v. A map
+// or list that appears in more than one place in v is not a cycle, and
+// each place gets its own copy.
 func NewLiteral(v any) LiteralValue {
 	return literal.New(v)
 }

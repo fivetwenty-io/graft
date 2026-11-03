@@ -126,8 +126,14 @@ func TestDeepValuesStopAtTheBound(t *testing.T) {
 	cyclic["self"] = literal.Wrap(cyclic)
 	// Neither call may overflow the stack.
 	_ = literal.Strip(cyclic)
-	_ = literal.Copy(cyclic)
 	_ = literal.Contains(cyclic)
+	// Copy meets the cycle the first time round and says so.
+	defer func() {
+		if r := recover(); r != literal.CycleMessage {
+			t.Fatalf("Copy of a cyclic value: recovered %v", r)
+		}
+	}()
+	_ = literal.Copy(cyclic)
 }
 
 func TestGuardText(t *testing.T) {

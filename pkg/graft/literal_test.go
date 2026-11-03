@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/fivetwenty-io/graft/internal/literal"
 	pyaml "github.com/fivetwenty-io/graft/pkg/yaml"
@@ -238,5 +240,27 @@ func TestLiteralPathsAreLeafPathsOfPlainData(t *testing.T) {
 	want := NewDocument(literalFixturePlain()).Paths()
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Paths() = %v, want %v", got, want)
+	}
+}
+
+// TestNewLiteralPanicsOnACycle checks that NewLiteral refuses a value
+// that contains itself, quickly and with a message that quotes nothing
+// from the value.
+func TestNewLiteralPanicsOnACycle(t *testing.T) {
+	m := map[string]interface{}{"secret": "cyc-probe"}
+	m["a"], m["b"] = m, m
+	done := make(chan interface{}, 1)
+	go func() {
+		defer func() { done <- recover() }()
+		NewLiteral(m)
+	}()
+	select {
+	case r := <-done:
+		text, _ := r.(string)
+		if text == "" || !strings.Contains(text, "contains itself") || strings.Contains(text, "cyc-probe") {
+			t.Fatalf("NewLiteral on a cyclic value: recovered %v", r)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("NewLiteral did not finish within a second")
 	}
 }

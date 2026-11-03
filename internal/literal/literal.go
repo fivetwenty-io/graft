@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -191,38 +192,89 @@ func contains(v any, depth int) bool {
 
 // Copy returns a deep copy of v's maps and lists. A Value stays a Value
 // and gets a copy of its content, so the copy shares no container with
-// v. Any other value is returned as it is.
+// v. Any other value is returned as it is. Copy panics with
+// CycleMessage when v contains itself.
 func Copy(v any) any {
-	return deepCopy(v, 0)
+	var w walk
+	return w.deepCopy(v, 0)
 }
 
-func deepCopy(v any, depth int) any {
+func (w *walk) deepCopy(v any, depth int) any {
 	if depth > maxDepth {
 		return v
 	}
 	switch t := v.(type) {
 	case Value:
-		return Value{b: &box{v: deepCopy(t.Value(), depth+1)}}
+		return Value{b: &box{v: w.deepCopy(t.Value(), depth+1)}}
 	case map[string]any:
+		defer w.leave(w.enter(t, -1))
 		out := make(map[string]any, len(t))
 		for k, e := range t {
-			out[k] = deepCopy(e, depth+1)
+			out[k] = w.deepCopy(e, depth+1)
 		}
 		return out
 	case map[any]any:
+		defer w.leave(w.enter(t, -1))
 		out := make(map[any]any, len(t))
 		for k, e := range t {
-			out[k] = deepCopy(e, depth+1)
+			out[k] = w.deepCopy(e, depth+1)
 		}
 		return out
 	case []any:
+		defer w.leave(w.enter(t, len(t)))
 		out := make([]any, len(t))
 		for i, e := range t {
-			out[i] = deepCopy(e, depth+1)
+			out[i] = w.deepCopy(e, depth+1)
 		}
 		return out
 	default:
 		return v
+	}
+}
+
+// CycleMessage is the text of the panic New and Copy raise when a value
+// contains itself. It quotes nothing from the value.
+const CycleMessage = "graft: the value contains itself, and a literal cannot hold cyclic data"
+
+// walk tracks the maps and lists a copy is inside, so that it meets a
+// cycle the first time round instead of following it until maxDepth,
+// which takes exponential time when a container refers to itself more
+// than once.
+type walk struct {
+	stack map[containerID]struct{}
+}
+
+// containerID names a map or a list by the address of its storage. A
+// list also needs its length, since a shorter list over the same array
+// is a different list and not a cycle. A map's length is -1.
+type containerID struct {
+	addr uintptr
+	n    int
+}
+
+// enter records that the walk is inside c, and panics with CycleMessage
+// when it already was. An empty container holds nothing to recurse
+// into, so it is not recorded.
+func (w *walk) enter(c any, n int) containerID {
+	rv := reflect.ValueOf(c)
+	if rv.Len() == 0 {
+		return containerID{}
+	}
+	id := containerID{addr: rv.Pointer(), n: n}
+	if w.stack == nil {
+		w.stack = make(map[containerID]struct{})
+	}
+	if _, inside := w.stack[id]; inside {
+		panic(CycleMessage)
+	}
+	w.stack[id] = struct{}{}
+	return id
+}
+
+// leave records that the walk has left the container enter named.
+func (w *walk) leave(id containerID) {
+	if id.addr != 0 {
+		delete(w.stack, id)
 	}
 }
 
@@ -330,37 +382,42 @@ func collectTexts(v any, inside bool, depth int, out *[]string) {
 // New wraps a deep copy of v, so a later change to v does not reach the
 // Value. On the way it turns every map[any]any into a map[string]any,
 // with each key printed by fmt, which is the shape a path read expects.
-// A v that is already a Value is returned unchanged.
+// A v that is already a Value is returned unchanged. New panics with
+// CycleMessage when v contains itself.
 func New(v any) Value {
 	if l, ok := v.(Value); ok {
 		return l
 	}
-	return Value{b: &box{v: normalize(v, 0)}}
+	var w walk
+	return Value{b: &box{v: w.normalize(v, 0)}}
 }
 
-func normalize(v any, depth int) any {
+func (w *walk) normalize(v any, depth int) any {
 	if depth > maxDepth {
 		return v
 	}
 	switch t := v.(type) {
 	case Value:
-		return Value{b: &box{v: normalize(t.Value(), depth+1)}}
+		return Value{b: &box{v: w.normalize(t.Value(), depth+1)}}
 	case map[string]any:
+		defer w.leave(w.enter(t, -1))
 		out := make(map[string]any, len(t))
 		for k, e := range t {
-			out[k] = normalize(e, depth+1)
+			out[k] = w.normalize(e, depth+1)
 		}
 		return out
 	case map[any]any:
+		defer w.leave(w.enter(t, -1))
 		out := make(map[string]any, len(t))
 		for k, e := range t {
-			out[fmt.Sprint(k)] = normalize(e, depth+1)
+			out[fmt.Sprint(k)] = w.normalize(e, depth+1)
 		}
 		return out
 	case []any:
+		defer w.leave(w.enter(t, len(t)))
 		out := make([]any, len(t))
 		for i, e := range t {
-			out[i] = normalize(e, depth+1)
+			out[i] = w.normalize(e, depth+1)
 		}
 		return out
 	default:
