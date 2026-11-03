@@ -15,9 +15,10 @@ import (
 // FileOperator handles nested operator calls.
 type FileOperator struct{}
 
-// fileReadError renders spruce's exact read-failure wording while
-// preserving the underlying error chain, which ClassifyError needs to
-// map missing files and permission failures to E901/E902.
+// fileReadError renders spruce's exact read-failure wording as its
+// detailed text. Its cause names the file, so it stays off the Unwrap
+// chain, but errors.Is still sees it, which ClassifyError needs to map
+// missing files and permission failures to E901/E902.
 type fileReadError struct {
 	msg   string
 	plain string
@@ -26,7 +27,8 @@ type fileReadError struct {
 
 func (e *fileReadError) Error() string         { return e.plain }
 func (e *fileReadError) DetailedError() string { return e.msg }
-func (e *fileReadError) Unwrap() error         { return e.cause }
+func (e *fileReadError) Is(target error) bool  { return errors.Is(e.cause, target) }
+func (e *fileReadError) As(target any) bool    { return errtext.AsHidden(e.cause, target) }
 
 // notAStringScalar is the file and load operators' error for an
 // argument that resolved to a map or a list. Error() names the argument

@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
@@ -110,10 +111,13 @@ const minWithheldText = 3
 // withheldError stands in for an error whose Error() text quotes text
 // from a literal. Operator messages quote no values, so the text gets
 // there only through a path the operator names, such as one built from
-// the literal's content. Unwrap still returns the original, so errors.Is
-// and errors.As keep working, and the detailed text is the original's.
+// the literal's content. The original stays off the Unwrap chain, since
+// its text is what is withheld. errors.Is still sees every error in it,
+// errors.As sees the ones whose text quotes none of the literal texts,
+// and the detailed text is the original's.
 type withheldError struct {
 	cause error
+	texts []string
 }
 
 func (e *withheldError) Error() string {
@@ -125,8 +129,26 @@ func (e *withheldError) DetailedError() string {
 	return errtext.Detail(e.cause)
 }
 
-func (e *withheldError) Unwrap() error {
-	return e.cause
+func (e *withheldError) Is(target error) bool {
+	return errors.Is(e.cause, target)
+}
+
+func (e *withheldError) As(target any) bool {
+	return errtext.AsHiddenWhere(e.cause, target, func(err error) bool {
+		return errtext.Exposable(err) && quotedLiteral(err.Error(), e.texts) == ""
+	})
+}
+
+// quotedLiteral returns the first of texts that msg holds, or "" when it
+// holds none. Texts shorter than minWithheldText are skipped, since they
+// match too much ordinary message text.
+func quotedLiteral(msg string, texts []string) string {
+	for _, text := range texts {
+		if len(text) >= minWithheldText && strings.Contains(msg, text) {
+			return text
+		}
+	}
+	return ""
 }
 
 // scrubLiteralError returns err, or a withheldError in its place when
@@ -136,19 +158,12 @@ func (ev *Evaluator) scrubLiteralError(err error) error {
 	if err == nil || !ev.holdsLiteral {
 		return err
 	}
-	msg := err.Error()
-	quoted := false
-	for _, text := range literal.Texts(ev.Tree) {
-		if len(text) >= minWithheldText && strings.Contains(msg, text) {
-			quoted = true
-			break
-		}
-	}
-	if !quoted {
+	texts := literal.Texts(ev.Tree)
+	if quotedLiteral(err.Error(), texts) == "" {
 		return err
 	}
 	if pathErr, ok := err.(*PathError); ok { //nolint:errorlint // only the outer PathError's path is kept
-		return &PathError{Path: pathErr.Path, Cause: &withheldError{cause: pathErr.Cause}}
+		return &PathError{Path: pathErr.Path, Cause: &withheldError{cause: pathErr.Cause, texts: texts}}
 	}
-	return &withheldError{cause: err}
+	return &withheldError{cause: err, texts: texts}
 }

@@ -128,7 +128,9 @@ var errUnsupportedLoadRoot = errors.New("unsupported root type in loaded content
 
 // loadLocationError is a load failure whose message names the location.
 // Its Error() text leaves the location out, and its detailed text keeps
-// it.
+// it. The error it describes names the location too, so it stays off
+// the Unwrap chain, and errors.Is and errors.As look into it the way
+// errtext.WithPlain's errors do.
 type loadLocationError struct {
 	err   error
 	plain string
@@ -136,7 +138,8 @@ type loadLocationError struct {
 
 func (e *loadLocationError) Error() string         { return e.plain }
 func (e *loadLocationError) DetailedError() string { return errtext.Detail(e.err) }
-func (e *loadLocationError) Unwrap() error         { return e.err }
+func (e *loadLocationError) Is(target error) bool  { return errors.Is(e.err, target) }
+func (e *loadLocationError) As(target any) bool    { return errtext.AsHidden(e.err, target) }
 
 // loadErrorPlain is the plain text of a failure to read a location. The
 // errors the load operator builds already have one. A request or read

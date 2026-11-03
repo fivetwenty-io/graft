@@ -651,9 +651,9 @@ func (d *document) GetMapStringString(path string) (map[string]string, error) {
 	for k, v := range rawMap {
 		value, ok := v.(string)
 		if !ok {
-			return nil, errtext.WithPlain(
-				withHiddenCause(fmt.Sprintf("map at path %s contains non-string value for key %s: %v", path, k, v), ErrTypeMismatch),
-				fmt.Sprintf("map at path %s contains non-string value for key %s (got %T)", path, k, v))
+			return nil, errtext.Wrap(ErrTypeMismatch,
+				fmt.Sprintf("map at path %s contains non-string value for key %s (got %T)", path, k, v),
+				fmt.Sprintf("map at path %s contains non-string value for key %s: %v", path, k, v))
 		}
 		result[k] = value
 	}

@@ -174,6 +174,7 @@ func assertErrorText(t *testing.T, err error, probe string, detailed bool) {
 	if strings.Contains(plain, "\x1b[") {
 		t.Errorf("Error() holds an escape code:\n%q", plain)
 	}
+	assertChainPlain(t, err, probe)
 	detail := graft.DetailedError(err)
 	if detailed && !strings.Contains(detail, probe) {
 		t.Errorf("DetailedError dropped the value it has always shown:\n%s", detail)

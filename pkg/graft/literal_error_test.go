@@ -108,6 +108,7 @@ func TestWithheldLiteralErrorKeepsItsDetail(t *testing.T) {
 			if strings.Contains(err.Error(), secret) {
 				t.Fatalf("Error() quotes literal content: %v", err)
 			}
+			assertChainPlain(t, err, secret)
 			detail := graft.DetailedError(err)
 			if !strings.Contains(detail, "unable to resolve `meta."+secret+"`") {
 				t.Fatalf("DetailedError lost the operator's message: %q", detail)

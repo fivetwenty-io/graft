@@ -13,6 +13,7 @@ package errtext
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
@@ -167,10 +168,14 @@ func Wrap(cause error, plain, detail string) error {
 }
 
 // WithPlain returns detail with its Error() text replaced by plain. The
-// detailed text is Detail(detail), and Unwrap returns detail, so
-// errors.Is and errors.As see the same chain they saw before. Callers
-// pass the error they built before, which quotes values, as detail, and
-// the same message without the values as plain.
+// detailed text is Detail(detail). Callers pass the error they built
+// before, which quotes values, as detail, and the same message without
+// the values as plain.
+//
+// detail is kept off the Unwrap chain, since its text and the text of
+// the errors it wraps quote values. errors.Is still sees every error in
+// it, and errors.As sees the ones Exposable allows, so the sentinels and
+// graft's own error types match as they did before.
 func WithPlain(detail error, plain string) error {
 	if detail == nil {
 		return nil
@@ -197,7 +202,85 @@ type plainError struct {
 
 func (e *plainError) Error() string         { return e.plain }
 func (e *plainError) DetailedError() string { return Detail(e.detail) }
-func (e *plainError) Unwrap() error         { return e.detail }
+
+// Is reports whether any error in detail matches target.
+func (e *plainError) Is(target error) bool { return errors.Is(e.detail, target) }
+
+// As finds the first error in detail that Exposable allows and that
+// matches target.
+func (e *plainError) As(target any) bool { return AsHidden(e.detail, target) }
+
+// graftModule is the import path every graft package starts with.
+const graftModule = "github.com/fivetwenty-io/graft"
+
+// Exposable reports whether errors.As may hand err to a caller from
+// inside an error that keeps it off the Unwrap chain. Only graft's own
+// error types qualify, because their Error() text is plain and quotes no
+// value. The types this package builds detailed text with, and every
+// type from another module, do not: their text is what the wrapper
+// hides.
+func Exposable(err error) bool {
+	switch err.(type) { //nolint:errorlint // the type of this one error, not its chain
+	case *textError, *detailedOne, *detailedMulti:
+		return false
+	}
+	t := reflect.TypeOf(err)
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	path := t.PkgPath()
+	return path == graftModule || strings.HasPrefix(path, graftModule+"/")
+}
+
+// AsHidden is errors.As over hidden, an error kept off the Unwrap chain,
+// with only the errors Exposable allows eligible to match. It walks
+// hidden's whole tree, including the errors inside a type it does not
+// allow, in the order errors.As would.
+func AsHidden(hidden error, target any) bool {
+	return AsHiddenWhere(hidden, target, Exposable)
+}
+
+// AsHiddenWhere is AsHidden with allow in place of Exposable. An error
+// that allow rejects is never handed to the caller, either directly or
+// through an As method of an error it does allow.
+func AsHiddenWhere(hidden error, target any, allow func(error) bool) bool {
+	val := reflect.ValueOf(target)
+	if !val.IsValid() || val.Kind() != reflect.Pointer || val.IsNil() {
+		return false
+	}
+	return asHidden(hidden, target, val, val.Type().Elem(), allow)
+}
+
+func asHidden(err error, target any, val reflect.Value, want reflect.Type, allow func(error) bool) bool {
+	for err != nil {
+		if allow(err) {
+			if reflect.TypeOf(err).AssignableTo(want) {
+				val.Elem().Set(reflect.ValueOf(err))
+				return true
+			}
+			if x, ok := err.(interface{ As(any) bool }); ok && x.As(target) {
+				if found, isErr := val.Elem().Interface().(error); !isErr || found == nil || allow(found) {
+					return true
+				}
+				val.Elem().Set(reflect.Zero(want))
+			}
+		}
+		switch u := err.(type) { //nolint:errorlint // the tree is walked one level at a time
+		case interface{ Unwrap() error }:
+			err = u.Unwrap()
+		case interface{ Unwrap() []error }:
+			for _, child := range u.Unwrap() {
+				if asHidden(child, target, val, want, allow) {
+					return true
+				}
+			}
+			return false
+		default:
+			return false
+		}
+	}
+	return false
+}
 
 // withDetail pairs base, an error from fmt.Errorf, with its detailed
 // text, keeping base's text and the shape of its Unwrap chain.
