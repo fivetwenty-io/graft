@@ -668,6 +668,10 @@ func CheckForCycles(root interface{}, maxDepth int) error {
 		}
 
 		switch v := o.(type) {
+		case literal.Value:
+			// A wrapped value can refer to itself as well.
+			return check(v.Value(), depth-1)
+
 		case map[string]interface{}:
 			ptr := reflect.ValueOf(v).Pointer()
 			if visited[ptr] {

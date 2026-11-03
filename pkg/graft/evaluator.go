@@ -946,6 +946,10 @@ func (ev *Evaluator) CheckForCycles(maxDepth int) error {
 		}
 
 		switch val := o.(type) {
+		case literal.Value:
+			// A wrapped value can refer to itself as well.
+			return check(val.Value(), depth-1)
+
 		case []interface{}:
 			for _, v := range val {
 				if err := check(v, depth-1); err != nil {
