@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
 )
 
@@ -604,12 +605,12 @@ func ToInt(v interface{}) (int, error) {
 		return int(val), nil
 	case int64:
 		if val > math.MaxInt || val < math.MinInt {
-			return 0, fmt.Errorf("int64 value %d overflows int", val)
+			return 0, errtext.WithPlain(fmt.Errorf("int64 value %d overflows int", val), "int64 value overflows int")
 		}
 		return int(val), nil
 	case uint:
 		if uint64(val) > uint64(math.MaxInt) {
-			return 0, fmt.Errorf("uint value %d overflows int", val)
+			return 0, errtext.WithPlain(fmt.Errorf("uint value %d overflows int", val), "uint value overflows int")
 		}
 		return int(val), nil // #nosec G115 - bounds checked above
 	case uint8:
@@ -620,7 +621,7 @@ func ToInt(v interface{}) (int, error) {
 		return int(val), nil
 	case uint64:
 		if val > uint64(math.MaxInt) {
-			return 0, fmt.Errorf("uint64 value %d overflows int", val)
+			return 0, errtext.WithPlain(fmt.Errorf("uint64 value %d overflows int", val), "uint64 value overflows int")
 		}
 		return int(val), nil
 	case float32:
@@ -636,7 +637,7 @@ func ToInt(v interface{}) (int, error) {
 		if f, err := strconv.ParseFloat(val, 64); err == nil {
 			return int(f), nil
 		}
-		return 0, fmt.Errorf("cannot convert string %q to int", val)
+		return 0, errtext.WithPlain(fmt.Errorf("cannot convert string %q to int", val), "cannot convert the string to int")
 	case bool:
 		if val {
 			return 1, nil
@@ -674,7 +675,7 @@ func ToInt64(v interface{}) (int64, error) {
 		return val, nil
 	case uint:
 		if uint64(val) > uint64(math.MaxInt64) {
-			return 0, fmt.Errorf("uint value %d overflows int64", val)
+			return 0, errtext.WithPlain(fmt.Errorf("uint value %d overflows int64", val), "uint value overflows int64")
 		}
 		return int64(val), nil // #nosec G115 - bounds checked above
 	case uint8:
@@ -685,7 +686,7 @@ func ToInt64(v interface{}) (int64, error) {
 		return int64(val), nil
 	case uint64:
 		if val > uint64(math.MaxInt64) {
-			return 0, fmt.Errorf("uint64 value %d overflows int64", val)
+			return 0, errtext.WithPlain(fmt.Errorf("uint64 value %d overflows int64", val), "uint64 value overflows int64")
 		}
 		return int64(val), nil
 	case float32:
@@ -701,7 +702,7 @@ func ToInt64(v interface{}) (int64, error) {
 		if f, err := strconv.ParseFloat(val, 64); err == nil {
 			return int64(f), nil
 		}
-		return 0, fmt.Errorf("cannot convert string %q to int64", val)
+		return 0, errtext.WithPlain(fmt.Errorf("cannot convert string %q to int64", val), "cannot convert the string to int64")
 	case bool:
 		if val {
 			return 1, nil
@@ -780,7 +781,7 @@ func ToBool(v interface{}) (bool, error) {
 		case "false", "no", "0", "off", "f", "n", "":
 			return false, nil
 		default:
-			return false, fmt.Errorf("cannot convert string %q to bool", val)
+			return false, errtext.WithPlain(fmt.Errorf("cannot convert string %q to bool", val), "cannot convert the string to bool")
 		}
 	case int, int8, int16, int32, int64:
 		i, _ := ToInt64(val)

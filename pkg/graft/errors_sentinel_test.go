@@ -131,8 +131,9 @@ func TestDocumentGetterErrorsIsSentinels(t *testing.T) {
 	})
 }
 
-// TestDocumentGetterErrorStringsUnchanged pins the exact Error() output of
-// every touched getter/setter constructor verbatim. The genesis
+// TestDocumentGetterErrorStringsUnchanged pins the exact detailed text of
+// every touched getter/setter constructor verbatim, and the Error() text
+// where it leaves a document value out. The genesis
 // compatibility contract requires these strings never change; this table
 // exists independently of cmd/graft/genesis_contract_pin_test.go (which
 // covers CLI stderr, not the library Document API) so a future edit to
@@ -154,9 +155,10 @@ func TestDocumentGetterErrorStringsUnchanged(t *testing.T) {
 	})
 
 	cases := []struct {
-		name string
-		fn   func() error
-		want string
+		name  string
+		fn    func() error
+		want  string
+		plain string
 	}{
 		{
 			name: "Get invalid path",
@@ -183,9 +185,10 @@ func TestDocumentGetterErrorStringsUnchanged(t *testing.T) {
 			want: "validation_error: value at path 'string' is not a number (got string)",
 		},
 		{
-			name: "GetInt non-whole float",
-			fn:   func() error { _, err := doc.GetInt("float"); return err },
-			want: "validation_error: value at path 'float' is not a whole number (got 3.140000)",
+			name:  "GetInt non-whole float",
+			fn:    func() error { _, err := doc.GetInt("float"); return err },
+			want:  "validation_error: value at path 'float' is not a whole number (got 3.140000)",
+			plain: "validation_error: value at path 'float' is not a whole number",
 		},
 		{
 			name: "GetBool wrong type",
@@ -233,9 +236,10 @@ func TestDocumentGetterErrorStringsUnchanged(t *testing.T) {
 			want: "value at path string is not a map (got string)",
 		},
 		{
-			name: "GetMapStringString mixed values",
-			fn:   func() error { _, err := doc.GetMapStringString("map"); return err },
-			want: "map at path map contains non-string value for key n: 1",
+			name:  "GetMapStringString mixed values",
+			fn:    func() error { _, err := doc.GetMapStringString("map"); return err },
+			want:  "map at path map contains non-string value for key n: 1",
+			plain: "map at path map contains non-string value for key n (got int)",
 		},
 		{
 			name: "Set root non-map",
@@ -255,8 +259,15 @@ func TestDocumentGetterErrorStringsUnchanged(t *testing.T) {
 			if err == nil {
 				t.Fatalf("%s: expected an error", c.name)
 			}
-			if got := err.Error(); got != c.want {
-				t.Errorf("%s: Error() = %q, want %q", c.name, got, c.want)
+			plain := c.plain
+			if plain == "" {
+				plain = c.want
+			}
+			if got := err.Error(); got != plain {
+				t.Errorf("%s: Error() = %q, want %q", c.name, got, plain)
+			}
+			if got := DetailedError(err); c.plain != "" && got != c.want {
+				t.Errorf("%s: DetailedError = %q, want %q", c.name, got, c.want)
 			}
 		})
 	}

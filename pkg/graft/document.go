@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
-	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -128,12 +128,12 @@ func (d *document) GetInt(path string) (int, error) {
 		if v == float64(int(v)) {
 			return int(v), nil
 		}
-		return 0, NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a whole number (got %f)", path, v), ErrTypeMismatch)
+		return 0, notWholeNumber(path, v)
 	case float32:
 		if v == float32(int(v)) {
 			return int(v), nil
 		}
-		return 0, NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a whole number (got %f)", path, v), ErrTypeMismatch)
+		return 0, notWholeNumber(path, v)
 	default:
 		return 0, NewValidationErrorWithCause(fmt.Sprintf("value at path '%s' is not a number (got %T)", path, val), ErrTypeMismatch)
 	}
@@ -651,7 +651,9 @@ func (d *document) GetMapStringString(path string) (map[string]string, error) {
 	for k, v := range rawMap {
 		value, ok := v.(string)
 		if !ok {
-			return nil, withHiddenCause(fmt.Sprintf("map at path %s contains non-string value for key %s: %v", path, k, v), ErrTypeMismatch)
+			return nil, errtext.WithPlain(
+				withHiddenCause(fmt.Sprintf("map at path %s contains non-string value for key %s: %v", path, k, v), ErrTypeMismatch),
+				fmt.Sprintf("map at path %s contains non-string value for key %s (got %T)", path, k, v))
 		}
 		result[k] = value
 	}
@@ -667,7 +669,7 @@ func CheckForCycles(root interface{}, maxDepth int) error {
 	var check func(o interface{}, depth int) error
 	check = func(o interface{}, depth int) error {
 		if depth == 0 {
-			return ansi.Errorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
+			return errtext.Colorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
 		}
 
 		switch v := o.(type) {
@@ -678,7 +680,7 @@ func CheckForCycles(root interface{}, maxDepth int) error {
 		case map[string]interface{}:
 			ptr := reflect.ValueOf(v).Pointer()
 			if visited[ptr] {
-				return ansi.Errorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
+				return errtext.Colorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
 			}
 			visited[ptr] = true
 			for _, val := range v {
@@ -691,7 +693,7 @@ func CheckForCycles(root interface{}, maxDepth int) error {
 		case []interface{}:
 			ptr := reflect.ValueOf(v).Pointer()
 			if visited[ptr] {
-				return ansi.Errorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
+				return errtext.Colorf("@*{Hit max recursion depth. You seem to have a self-referencing dataset}")
 			}
 			visited[ptr] = true
 			for _, val := range v {
@@ -870,4 +872,12 @@ func (d *document) History() History {
 		return emptyHistory{}
 	}
 	return d.history
+}
+
+// notWholeNumber reports a fractional number where a getter wants an
+// integer. Error() leaves the number out, and DetailedError quotes it.
+func notWholeNumber(path string, v interface{}) *GraftError {
+	plain := fmt.Sprintf("value at path '%s' is not a whole number", path)
+	detail := fmt.Sprintf("value at path '%s' is not a whole number (got %f)", path, v)
+	return NewValidationErrorWithCause(plain, errtext.Wrap(ErrTypeMismatch, plain, detail))
 }
