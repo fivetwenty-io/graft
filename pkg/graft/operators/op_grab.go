@@ -3,6 +3,7 @@ package operators
 import (
 	"fmt"
 
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -78,8 +79,9 @@ func resolveGrabArgValue(ev *Evaluator, arg *Expr) (interface{}, error) {
 	}
 
 	if arg.Type == Reference {
-		// Direct reference, resolve it normally.
-		resolved, err := arg.Reference.Resolve(ev.Tree)
+		// Direct reference, resolve it normally. ResolveLiteral keeps a
+		// value that sits inside a literal opaque at its new place.
+		resolved, err := arg.Reference.ResolveLiteral(ev.Tree)
 		if err != nil {
 			return nil, fmt.Errorf("unable to resolve `%s`: %w", arg.Reference, err)
 		}
@@ -147,7 +149,7 @@ func resolveComputedPath(ev *Evaluator, pathStr string) (interface{}, error) {
 		return pathStr, nil //nolint:nilerr // a non-path string is a legitimate grab result
 	}
 
-	resolved, err := cursor.Resolve(ev.Tree)
+	resolved, err := cursor.ResolveLiteral(ev.Tree)
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve `%s`: %w", pathStr, err)
 	}
@@ -199,6 +201,18 @@ func (GrabOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			case []interface{}:
 				DEBUG("    [%d]: value is a list; flattening it out", i)
 				flat = append(flat, v...)
+			case literal.Value:
+				// A literal list flattens like any other list, and each
+				// item it gives up stays a literal.
+				items, ok := v.Value().([]interface{})
+				if !ok {
+					flat = append(flat, lst)
+					continue
+				}
+				DEBUG("    [%d]: value is a literal list; flattening it out", i)
+				for _, item := range items {
+					flat = append(flat, literal.Wrap(item))
+				}
 			default:
 				DEBUG("    [%d]: value is not a list; appending it as-is", i)
 				flat = append(flat, lst)

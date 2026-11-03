@@ -327,7 +327,7 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 			cleanedPaths = append(cleanedPaths, cleanPath)
 		}
 		// Update the evaluator tree with the pruned document
-		if pruned, ok := doc.RawData().(map[string]interface{}); ok {
+		if pruned, ok := treeOf(doc).(map[string]interface{}); ok {
 			ev.Tree = pruned
 		}
 
@@ -604,7 +604,7 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 	e.logDebugf("Evaluate: starting evaluation")
 
 	// Get the raw data
-	data, ok := doc.RawData().(map[string]interface{})
+	data, ok := treeOf(doc).(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("document data is not a map")
 	}

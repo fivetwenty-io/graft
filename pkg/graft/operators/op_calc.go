@@ -10,6 +10,7 @@ import (
 
 	"github.com/casbin/govaluate"
 
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -230,6 +231,7 @@ func resolveCalcVariable(ev *graft.Evaluator, name string) (value float64, found
 		if resolveErr != nil {
 			continue
 		}
+		resolved = literal.Strip(resolved)
 		// An explicitly null value resolves without error but has no
 		// reflect.Type, so it gets replaceCalcReferences's own nil message
 		// rather than the type-mismatch one, which would dereference a nil
@@ -373,6 +375,7 @@ func replaceCalcReferences(ev *graft.Evaluator, input string) (string, error) {
 		if resolveError != nil {
 			return "", resolveError
 		}
+		value = literal.Strip(value)
 
 		path := cursor.String()
 		DEBUG("    path/value: %s=%v", path, value)

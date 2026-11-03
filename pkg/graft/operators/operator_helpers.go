@@ -6,6 +6,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
@@ -47,7 +48,9 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 			// Format the error message to match the expected format
 			return nil, fmt.Errorf("unable to resolve `%s`: %w", arg.Reference.String(), err)
 		}
-		return val, nil
+		// An operator works on plain data, so a value read from inside a
+		// literal comes back without the wrapper.
+		return literal.Strip(val), nil
 
 	case EnvVar:
 		// Get environment variable value

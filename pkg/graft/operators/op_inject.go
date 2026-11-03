@@ -3,6 +3,7 @@ package operators
 import (
 	"fmt"
 
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -84,10 +85,18 @@ func (InjectOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			}
 			// Direct reference - resolve it directly
 			DEBUG("  arg[%d]: trying to resolve reference $.%s", i, arg.Reference)
-			s, err := arg.Reference.Resolve(ev.Tree)
+			s, err := arg.Reference.ResolveLiteral(ev.Tree)
 			if err != nil {
 				DEBUG("     [%d]: resolution failed\n    error: %s", i, err)
 				return nil, err
+			}
+
+			// A map that is, or sits inside, a literal injects each of
+			// its values as a literal, so the evaluator still never looks
+			// inside them once they land here.
+			wrapped := false
+			if l, isLiteral := s.(literal.Value); isLiteral {
+				s, wrapped = l.Value(), true
 			}
 
 			m, ok := s.(map[string]interface{})
@@ -98,7 +107,13 @@ func (InjectOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 			DEBUG("     [%d]: resolved to a map; appending to the list of maps to merge/inject", i)
 			// Deep copy the map to avoid modifying the original
-			vals = append(vals, DeepCopyMap(m))
+			m = DeepCopyMap(m)
+			if wrapped {
+				for k, v := range m {
+					m[k] = literal.Wrap(v)
+				}
+			}
+			vals = append(vals, m)
 		} else {
 			// Use ResolveOperatorArgument for all other expressions (including nested operators)
 			val, err := ResolveOperatorArgument(ev, arg)

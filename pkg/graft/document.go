@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -50,7 +51,7 @@ func NewDocumentFromInterface(data interface{}) (Document, error) {
 // Get retrieves a value at the given path.
 func (d *document) Get(path string) (interface{}, error) {
 	if path == "" || path == "$" {
-		return d.data, nil
+		return plainMap(d.data), nil
 	}
 
 	cursor, err := tree.ParseCursor(path)
@@ -63,7 +64,7 @@ func (d *document) Get(path string) (interface{}, error) {
 		return nil, NewEvaluationError(path, fmt.Sprintf("path not found: %v", err), err)
 	}
 
-	return value, nil
+	return plainValue(value), nil
 }
 
 // Set sets a value at the given path.
@@ -186,9 +187,10 @@ func (d *document) Keys() []string {
 	return keys
 }
 
-// ToMap returns the underlying map representation.
+// ToMap returns the underlying map representation, with every
+// LiteralValue replaced by the value it wraps.
 func (d *document) ToMap() map[string]interface{} {
-	return d.data
+	return plainMap(d.data)
 }
 
 // convertToJSONCompatible ensures all nested maps are map[string]interface{}.
@@ -215,19 +217,21 @@ func convertToJSONCompatible(v interface{}) interface{} {
 // MarshalYAML so library output carries the same spruce-compatible key
 // ordering and special-float quoting as CLI output.
 func (d *document) ToYAML() ([]byte, error) {
-	return MarshalYAML(d.data)
+	return MarshalYAML(plainMap(d.data))
 }
 
 // ToJSON converts the document to JSON bytes.
 func (d *document) ToJSON() ([]byte, error) {
 	// Convert to JSON-compatible format first
-	jsonData := convertToJSONCompatible(d.data)
+	jsonData := convertToJSONCompatible(plainMap(d.data))
 	return json.Marshal(jsonData)
 }
 
-// RawData returns the underlying data structure.
+// RawData returns the underlying data structure, with every LiteralValue
+// replaced by the value it wraps. The containers on the way to a wrapper
+// are copies, and every other container is the document's own.
 func (d *document) RawData() interface{} {
-	return d.data
+	return plainMap(d.data)
 }
 
 // Clone creates a deep copy of the document.
@@ -256,6 +260,9 @@ func deepCopy(src interface{}) interface{} {
 			dst[i] = deepCopy(value)
 		}
 		return dst
+
+	case literal.Value:
+		return literal.Copy(v)
 
 	default:
 		// For primitive types and other types, return as-is
@@ -555,9 +562,10 @@ func (d *document) addSortedListItems(picked map[string]interface{}, listItems [
 	}
 }
 
-// GetData returns the underlying data (for backward compatibility).
+// GetData returns the underlying data (for backward compatibility), with
+// every LiteralValue replaced by the value it wraps, as RawData does.
 func (d *document) GetData() interface{} {
-	return d.data
+	return plainMap(d.data)
 }
 
 // GetInt64 retrieves an int64 value at the given path.
@@ -763,7 +771,7 @@ func (d *document) Has(path string) bool {
 // path round-trips through Get.
 func (d *document) Paths() []string {
 	var paths []string
-	collectPaths(d.data, "", &paths)
+	collectPaths(plainMap(d.data), "", &paths)
 	sort.Strings(paths)
 	return paths
 }
@@ -836,7 +844,7 @@ func sortKeysRecursive(v interface{}) interface{} {
 // Document-level convenience; Engine.ToJSONIndent(doc, indent) remains
 // the engine-level equivalent.
 func (d *document) ToJSONIndent(indent string) ([]byte, error) {
-	jsonData := convertToJSONCompatible(d.data)
+	jsonData := convertToJSONCompatible(plainMap(d.data))
 	return json.MarshalIndent(jsonData, "", indent)
 }
 

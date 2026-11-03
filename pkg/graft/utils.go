@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/fivetwenty-io/graft/internal/literal"
 )
 
 // PathSegmentType represents the type of a path segment.
@@ -1283,6 +1285,9 @@ func DeepCopy(v interface{}) interface{} {
 			result[i] = DeepCopy(v)
 		}
 		return result
+
+	case literal.Value:
+		return literal.Copy(val)
 
 	case []string:
 		result := make([]string, len(val))

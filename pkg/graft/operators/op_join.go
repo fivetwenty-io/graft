@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -39,6 +40,7 @@ func (JoinOperator) Dependencies(ev *Evaluator, args []*Expr, _ []*tree.Cursor, 
 		if arg.Type == Reference && arg.Reference != nil {
 			// Try to resolve to see if it's a list
 			val, err := arg.Reference.Resolve(ev.Tree)
+			val = literal.Strip(val)
 			if err == nil && val != nil {
 				switch v := val.(type) {
 				case []interface{}:

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
@@ -282,6 +283,9 @@ func deepCopy(orig interface{}) interface{} {
 			x[i] = deepCopy(val)
 		}
 		return x
+
+	case literal.Value:
+		return literal.Copy(v)
 
 	default:
 		return orig

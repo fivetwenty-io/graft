@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -194,6 +195,7 @@ func statics(ev *Evaluator) (map[string][]string, []string, error) {
 		c = r.Copy()
 		c.Push("azs")
 		os, err := c.Resolve(ev.Tree)
+		os = literal.Strip(os)
 		if err == nil {
 			if zs, ok := os.([]interface{}); ok {
 				for _, o := range zs {
@@ -238,6 +240,7 @@ func statics(ev *Evaluator) (map[string][]string, []string, error) {
 			if err != nil {
 				return addrs, azs, err
 			}
+			r = literal.Strip(r)
 
 			rStr, ok := r.(string)
 			if !ok {
@@ -341,6 +344,7 @@ func (s StaticIPOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	job.Push("name")
 	DEBUG("  extracting job name from $.%s", job)
 	jobname, err := job.Resolve(ev.Tree)
+	jobname = literal.Strip(jobname)
 	if err != nil {
 		DEBUG("  job has no name.  this could be problematic.\n")
 		return nil, err
@@ -352,7 +356,7 @@ func (s StaticIPOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("  extracting azs from $.%s", job)
 	var azs []string
 	if zs, azsErr := job.Resolve(ev.Tree); azsErr == nil {
-		if zsList, ok := zs.([]interface{}); ok {
+		if zsList, ok := literal.Strip(zs).([]interface{}); ok {
 			for _, z := range zsList {
 				zStr, ok := z.(string)
 				if !ok {

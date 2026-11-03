@@ -16,6 +16,7 @@ var allowedImports = map[string]bool{
 	"github.com/fivetwenty-io/graft/pkg/decimal":        true, // sortkeys compares numbers with it
 	"github.com/fivetwenty-io/graft/pkg/query/value":    true, // sortkeys orders these values
 	"github.com/fivetwenty-io/graft/internal/keyorder":  true, // sortkeys' key comparator
+	"github.com/fivetwenty-io/graft/internal/literal":   true, // yamlcodec strips literal wrappers before encoding
 	"github.com/fivetwenty-io/graft/internal/yamlcodec": true,
 	"github.com/fivetwenty-io/graft/internal/yamlnode":  true,
 	"github.com/fivetwenty-io/graft/internal/yamlprep":  true,
