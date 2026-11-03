@@ -398,3 +398,51 @@ arr:
 		})
 	}
 }
+
+// TestSlashPathDependencyOrdering pins that the dependency graph orders
+// an operator behind the operator its slash path reads. a1 sorts before
+// z, and z.pg/0.ips is itself a grab of another grab, so a1 resolves to
+// the address only when the graph sees the slash path as one reference.
+// The parallel scheduler gets several runs because ordering mistakes
+// there show up only some of the time.
+func TestSlashPathDependencyOrdering(t *testing.T) {
+	const doc = `
+a1: (( grab z.pg/0.ips[0] ))
+a2: (( concat "ip=" z.pg/0.ips[1] ))
+a3: (( grab z.pg/0+meta.name ))
+base:
+  ips: [10.0.0.7, 10.0.0.8]
+  name: pg
+meta:
+  ips: (( grab base.ips ))
+z:
+  pg/0:
+    ips: (( grab meta.ips ))
+  pg/0+meta:
+    name: (( grab base.name ))
+`
+	want := map[string]string{"a1": "10.0.0.7", "a2": "ip=10.0.0.8", "a3": "pg"}
+	for _, mode := range slashModes {
+		runs := 1
+		if mode.name == "parallel" {
+			runs = 20
+		}
+		t.Run(mode.name, func(t *testing.T) {
+			for run := 0; run < runs; run++ {
+				d, err := evalSlashDoc(t, mode.opts, doc)
+				if err != nil {
+					t.Fatalf("run %d: unexpected error: %v", run, err)
+				}
+				for key, w := range want {
+					got, err := d.Get(key)
+					if err != nil {
+						t.Fatalf("run %d: failed to read %s: %v", run, key, err)
+					}
+					if fmt.Sprint(got) != w {
+						t.Fatalf("run %d: %s = %v (%T), want %q", run, key, got, got, w)
+					}
+				}
+			}
+		})
+	}
+}
