@@ -8,6 +8,7 @@ package literal
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -275,5 +276,47 @@ func guardText(v any, depth int) (any, bool) {
 		return out, true
 	default:
 		return v, false
+	}
+}
+
+// Texts returns the text of every Value in v at any depth: each string
+// it holds, each map key, and each other scalar as fmt prints it. The
+// engine uses it to keep that text out of an error message.
+func Texts(v any) []string {
+	var out []string
+	collectTexts(v, false, 0, &out)
+	return out
+}
+
+func collectTexts(v any, inside bool, depth int, out *[]string) {
+	if depth > maxDepth {
+		return
+	}
+	switch t := v.(type) {
+	case Value:
+		collectTexts(t.Value(), true, depth+1, out)
+	case map[string]any:
+		for k, e := range t {
+			if inside {
+				*out = append(*out, k)
+			}
+			collectTexts(e, inside, depth+1, out)
+		}
+	case map[any]any:
+		for k, e := range t {
+			if inside {
+				*out = append(*out, fmt.Sprint(k))
+			}
+			collectTexts(e, inside, depth+1, out)
+		}
+	case []any:
+		for _, e := range t {
+			collectTexts(e, inside, depth+1, out)
+		}
+	case nil:
+	default:
+		if inside {
+			*out = append(*out, fmt.Sprint(t))
+		}
 	}
 }

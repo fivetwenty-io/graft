@@ -100,3 +100,47 @@ func (ev *Evaluator) pathReadsLiteral(c *tree.Cursor) bool {
 	}
 	return literal.Contains(v)
 }
+
+// minWithheldText is the shortest literal text that withholds an error
+// message. A shorter one, such as "a" or "80", turns up in too many
+// ordinary messages to tell anything about the literal.
+const minWithheldText = 3
+
+// withheldError stands in for an error whose message quotes text from a
+// literal. Unwrap still returns the original, so errors.Is and errors.As
+// keep working, but the message itself names no content.
+type withheldError struct {
+	cause error
+}
+
+func (e *withheldError) Error() string {
+	return "the operator failed on a value from a literal; the message is withheld because it quotes that value"
+}
+
+func (e *withheldError) Unwrap() error {
+	return e.cause
+}
+
+// scrubLiteralError returns err, or a withheldError in its place when
+// its message holds text from a literal in the tree. The path of a
+// PathError is kept, so the message still says where the error is.
+func (ev *Evaluator) scrubLiteralError(err error) error {
+	if err == nil || !ev.holdsLiteral {
+		return err
+	}
+	msg := err.Error()
+	quoted := false
+	for _, text := range literal.Texts(ev.Tree) {
+		if len(text) >= minWithheldText && strings.Contains(msg, text) {
+			quoted = true
+			break
+		}
+	}
+	if !quoted {
+		return err
+	}
+	if pathErr, ok := err.(*PathError); ok { //nolint:errorlint // only the outer PathError's path is kept
+		return &PathError{Path: pathErr.Path, Cause: &withheldError{cause: pathErr.Cause}}
+	}
+	return &withheldError{cause: err}
+}

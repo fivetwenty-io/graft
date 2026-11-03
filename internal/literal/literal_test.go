@@ -166,3 +166,23 @@ func TestGuardText(t *testing.T) {
 		t.Fatal("a bare string is not wrapped")
 	}
 }
+
+func TestTexts(t *testing.T) {
+	v := map[string]any{
+		"outside": "not this",
+		"in": literal.Wrap(map[string]any{
+			"key": []any{"leaf", 42, nil, literal.Wrap("deeper")},
+			"odd": map[any]any{7: "seven"},
+		}),
+	}
+	got := literal.Texts(v)
+	want := map[string]bool{"key": true, "leaf": true, "42": true, "deeper": true, "odd": true, "7": true, "seven": true}
+	if len(got) != len(want) {
+		t.Fatalf("Texts = %q", got)
+	}
+	for _, s := range got {
+		if !want[s] {
+			t.Fatalf("Texts returned %q, which is not inside a literal: %q", s, got)
+		}
+	}
+}

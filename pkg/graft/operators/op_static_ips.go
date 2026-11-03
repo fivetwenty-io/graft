@@ -356,7 +356,10 @@ func (s StaticIPOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("  extracting azs from $.%s", job)
 	var azs []string
 	if zs, azsErr := job.Resolve(ev.Tree); azsErr == nil {
-		if zsList, ok := literal.Strip(zs).([]interface{}); ok {
+		// Strip before anything formats zs, so an error shows the plain
+		// list rather than the wrapper's internals.
+		zs = literal.Strip(zs)
+		if zsList, ok := zs.([]interface{}); ok {
 			for _, z := range zsList {
 				zStr, ok := z.(string)
 				if !ok {
