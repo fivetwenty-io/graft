@@ -132,7 +132,7 @@ func runAdaptiveMerge(ctx context.Context, engine graft.Engine, docs []graft.Doc
 			// prefix itself for beginning/end placement, and omits it
 			// for inline (the comment's position already conveys the
 			// path).
-			engine.GetOperatorState().AddDeferredPath(pe.Path, pe.Cause.Error())
+			engine.GetOperatorState().AddDeferredPath(pe.Path, graft.DetailedError(pe.Cause))
 		}
 
 		partialTree, ok := partial.Tree.RawData().(map[string]interface{})

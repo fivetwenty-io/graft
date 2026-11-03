@@ -9,6 +9,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/history"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
+	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 // handleMergeHistory implements `merge --history`/`--trace-path`/
@@ -19,13 +20,13 @@ import (
 func handleMergeHistory(opts *mergeOpts) int {
 	steps, docCount, err := buildMergeHistorySteps(opts, nil, -1)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
 	all, err := history.Track(steps)
 	if err != nil {
-		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error tracking merge history}: %s", err.Error()))
+		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error tracking merge history}: %s", graft.DetailedError(err)))
 		return 2
 	}
 

@@ -163,7 +163,7 @@ func sortKeysLess(value, cmd string, def sortkeys.Mode) (func(a, b string) bool,
 	}
 	mode, err := sortkeys.Parse(value)
 	if err != nil {
-		return nil, errors.New(ansi.Sprintf("@R{Invalid --sort-keys value}: %s", err.Error()))
+		return nil, errors.New(ansi.Sprintf("@R{Invalid --sort-keys value}: %s", graft.DetailedError(err)))
 	}
 	if mode == sortkeys.None {
 		return nil, errors.New(ansi.Sprintf("@R{Invalid --sort-keys value}: none is not available on %s (lexical or spruce)", cmd))
@@ -499,11 +499,11 @@ func resolveThemeTier(flagChanged bool, flagValue, envValue, fileValue, fileWarn
 // the plain pre-report rendering it replaced.
 func handleMerge(opts *mergeOpts) int {
 	if _, err := sortKeysLess(opts.SortKeys, "merge", sortkeys.Spruce); err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 1
 	}
 	if err := opts.validateHistoryFlags(); err != nil {
-		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{%s}", err.Error()))
+		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{%s}", graft.DetailedError(err)))
 		return 1
 	}
 	if opts.DeferOnError && opts.hasHistoryFlag() {
@@ -516,7 +516,7 @@ func handleMerge(opts *mergeOpts) int {
 
 	placement, err := parseReportPlacement(opts.ReportDeferred)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 1
 	}
 
@@ -530,7 +530,7 @@ func handleMerge(opts *mergeOpts) int {
 
 	tree, engine, err := cmdMergeEval(opts)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
@@ -565,13 +565,13 @@ func handleMerge(opts *mergeOpts) int {
 func handleAdaptiveMerge(opts *mergeOpts, placement reportPlacement) int {
 	files, err := resolveMergeInputFiles(opts)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
 	engine, docs, refs, err := buildEngineAndDocs(files, opts)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
@@ -581,7 +581,7 @@ func handleAdaptiveMerge(opts *mergeOpts, placement reportPlacement) int {
 		Prune:          opts.Prune,
 	})
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
@@ -599,7 +599,7 @@ func handleAdaptiveMerge(opts *mergeOpts, placement reportPlacement) int {
 func handleFan(opts *mergeOpts) int {
 	results, err := cmdFanEval(opts)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
@@ -612,13 +612,13 @@ func handleFan(opts *mergeOpts) int {
 		log.TRACE("%#v", result.Tree)
 
 		if err := graft.CheckForCycles(result.Tree, 4096); err != nil {
-			log.PrintStdErrf("%s\n", err.Error())
+			log.PrintStdErrf("%s\n", graft.DetailedError(err))
 			return 2
 		}
 
 		merged, err := graft.MarshalYAML(result.Tree)
 		if err != nil {
-			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), result.Tree)
+			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", graft.DetailedError(err), result.Tree)
 			return 2
 		}
 
@@ -634,19 +634,19 @@ func handleFan(opts *mergeOpts) int {
 // parents) if it does not already exist.
 func writeFanResultsToDir(results []fanResult, outputDir string) int {
 	if err := os.MkdirAll(outputDir, 0o750); err != nil {
-		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Unable to create output directory} @m{%s}: %s", outputDir, err.Error()))
+		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Unable to create output directory} @m{%s}: %s", outputDir, graft.DetailedError(err)))
 		return 2
 	}
 
 	for _, result := range results {
 		if err := graft.CheckForCycles(result.Tree, 4096); err != nil {
-			log.PrintStdErrf("%s\n", err.Error())
+			log.PrintStdErrf("%s\n", graft.DetailedError(err))
 			return 2
 		}
 
 		merged, err := graft.MarshalYAML(result.Tree)
 		if err != nil {
-			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), result.Tree)
+			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", graft.DetailedError(err), result.Tree)
 			return 2
 		}
 
@@ -659,7 +659,7 @@ func writeFanResultsToDir(results []fanResult, outputDir string) int {
 		content := append([]byte("---\n"), merged...)
 		// #nosec G306 - fan output is meant to be readable configuration data, matching the permissions of merge/json's stdout-redirected output
 		if err := os.WriteFile(outPath, content, 0o644); err != nil {
-			log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Unable to write output file} @m{%s}: %s", outPath, err.Error()))
+			log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Unable to write output file} @m{%s}: %s", outPath, graft.DetailedError(err)))
 			return 2
 		}
 	}
@@ -726,7 +726,7 @@ func expandFanTargets(paths []string) ([]string, error) {
 
 		entries, readErr := os.ReadDir(p)
 		if readErr != nil {
-			return nil, ansi.Errorf("@R{Error reading directory} @m{%s}: %s", p, readErr.Error())
+			return nil, ansi.Errorf("@R{Error reading directory} @m{%s}: %s", p, graft.DetailedError(readErr))
 		}
 
 		names := make([]string, 0, len(entries))
@@ -910,7 +910,7 @@ func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config
 	}
 	_, engine, err := cmdMergeEval(opts)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
@@ -923,7 +923,7 @@ func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config
 
 	output, err := formatVaultInfoExtended(buildVaultRefs(engine), jsonOutput, pathsOnly)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 	printStdOutf("%s\n", output)
@@ -932,13 +932,13 @@ func handleVaultInfo(vaultFiles []string, enableGoPatch bool, cfg *config.Config
 
 func handleJSON(opts jsonOpts) int {
 	if _, err := sortKeysLess(opts.SortKeys, "json", sortkeys.Lexical); err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 1
 	}
 	if opts.Reverse {
 		yamls, err := cmdJSONReverseEval(opts)
 		if err != nil {
-			log.PrintStdErrf("%s\n", err)
+			log.PrintStdErrf("%s\n", graft.DetailedError(err))
 			return 2
 		}
 		if len(yamls) == 1 {
@@ -953,14 +953,14 @@ func handleJSON(opts jsonOpts) int {
 
 	jsons, err := cmdJSONEval(opts)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err)
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
 	if opts.MultiDoc {
 		combined, combineErr := graft.CombineJSONLines(jsons)
 		if combineErr != nil {
-			log.PrintStdErrf("%s\n", combineErr)
+			log.PrintStdErrf("%s\n", graft.DetailedError(combineErr))
 			return 2
 		}
 		printStdOutf("%s\n", combined)
@@ -1045,13 +1045,13 @@ func handleDiff(files []string, colorOverride *bool, opts diffOpts) int {
 func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
 	fromLabel, fromDocs, toLabel, toDocs, err := loadDiffDocuments(files)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err)
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
 	documents, err := histdiff.CompareDocumentPairs(fromLabel, fromDocs, toLabel, toDocs)
 	if err != nil {
-		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error comparing} @m{%s} @R{and} @m{%s}: %s", fromLabel, toLabel, err.Error()))
+		log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error comparing} @m{%s} @R{and} @m{%s}: %s", fromLabel, toLabel, graft.DetailedError(err)))
 		return 2
 	}
 	changes := histdiff.AllChanges(documents)
@@ -1080,7 +1080,7 @@ func handleDiffRender(files []string, colorOverride *bool, opts diffOpts) int {
 	}
 	ansi.Color(stderrColor)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
@@ -1139,11 +1139,11 @@ func loadDiffDocuments(paths []string) (fromLabel string, fromDocs []interface{}
 
 	fromVals, err := decodeInputFileDocuments(from)
 	if err != nil {
-		return "", nil, "", nil, ansi.Errorf("@m{%s}: @R{%s}", paths[0], err.Error())
+		return "", nil, "", nil, ansi.Errorf("@m{%s}: @R{%s}", paths[0], graft.DetailedError(err))
 	}
 	toVals, err := decodeInputFileDocuments(to)
 	if err != nil {
-		return "", nil, "", nil, ansi.Errorf("@m{%s}: @R{%s}", paths[1], err.Error())
+		return "", nil, "", nil, ansi.Errorf("@m{%s}: @R{%s}", paths[1], graft.DetailedError(err))
 	}
 
 	return paths[0], fromVals, paths[1], toVals, nil
@@ -1327,7 +1327,7 @@ func newRootCmd() (*cobra.Command, *bool) {
 			cfg, err := resolveStartupConfig(configPath)
 			if err != nil {
 				aborted = true
-				log.PrintStdErrf("%s\n", err.Error())
+				log.PrintStdErrf("%s\n", graft.DetailedError(err))
 				exit(1)
 				return err
 			}
@@ -1647,7 +1647,7 @@ func parseYAML(data []byte) (map[string]interface{}, error) {
 	// First, unmarshal into a generic interface to detect root type
 	var raw interface{}
 	if err := yaml.Unmarshal(graft.QuoteInjectKeys(data), &raw); err != nil {
-		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err.Error())
+		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", graft.DetailedError(err))
 	}
 
 	switch v := raw.(type) {
@@ -1674,7 +1674,7 @@ func loadYamlFile(file string) (YamlFile, error) {
 		// #nosec G304 - File path is from user-provided command line arguments which is expected behavior for the CLI tool
 		f, err := os.Open(file)
 		if err != nil {
-			return YamlFile{}, ansi.Errorf("@R{Error reading file} @m{%s}: %s", file, err.Error())
+			return YamlFile{}, ansi.Errorf("@R{Error reading file} @m{%s}: %s", file, graft.DetailedError(err))
 		}
 		target = YamlFile{Path: file, Reader: f}
 	}
@@ -1727,7 +1727,7 @@ func resolveMergeInputFiles(options *mergeOpts) ([]YamlFile, error) {
 	if len(options.Files) < 1 {
 		stdinInfo, err := os.Stdin.Stat()
 		if err != nil {
-			return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
+			return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", graft.DetailedError(err))
 		}
 
 		if stdinInfo.Mode()&os.ModeCharDevice != 0 {
@@ -1799,7 +1799,7 @@ func cmdFanEval(options *mergeOpts) ([]fanResult, error) {
 	if len(options.Files) < 2 {
 		stdinInfo, err := os.Stdin.Stat()
 		if err != nil {
-			return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
+			return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", graft.DetailedError(err))
 		}
 		if stdinInfo.Mode()&os.ModeCharDevice == 0 {
 			options.Files = append(options.Files, "-")
@@ -1885,7 +1885,7 @@ func resolveStdinDefaultFiles(files []string) ([]string, error) {
 	}
 	stdinInfo, err := os.Stdin.Stat()
 	if err != nil {
-		return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", err.Error())
+		return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", graft.DetailedError(err))
 	}
 	if stdinInfo.Mode()&os.ModeCharDevice == 0 {
 		return append(files, "-"), nil
@@ -1983,7 +1983,7 @@ func formatVaultInfoExtended(refs yamlVaultRefs, jsonOutput, pathsOnly bool) (st
 		if jsonOutput {
 			b, err := json.MarshalIndent(paths, "", "  ")
 			if err != nil {
-				return "", ansi.Errorf("@R{Could not marshal JSON for vault paths}: %s", err.Error())
+				return "", ansi.Errorf("@R{Could not marshal JSON for vault paths}: %s", graft.DetailedError(err))
 			}
 			return string(b), nil
 		}
@@ -1992,7 +1992,7 @@ func formatVaultInfoExtended(refs yamlVaultRefs, jsonOutput, pathsOnly bool) (st
 
 	b, err := json.MarshalIndent(refs, "", "  ")
 	if err != nil {
-		return "", ansi.Errorf("@R{Could not marshal JSON for vault references}: %s", err.Error())
+		return "", ansi.Errorf("@R{Could not marshal JSON for vault references}: %s", graft.DetailedError(err))
 	}
 	return string(b), nil
 }
@@ -2013,20 +2013,20 @@ func readFileFrom(file *YamlFile, stdin io.Reader) ([]byte, error) {
 		if f, ok := stdin.(*os.File); ok {
 			stat, statErr := f.Stat()
 			if statErr != nil {
-				return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", statErr.Error())
+				return nil, ansi.Errorf("@R{Error statting STDIN} - Bailing out: %s\n", graft.DetailedError(statErr))
 			}
 			isDevice = stat.Mode()&os.ModeCharDevice != 0
 		}
 		if !isDevice {
 			data, err = io.ReadAll(stdin)
 			if err != nil {
-				return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s\n", file.Path, err.Error())
+				return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s\n", file.Path, graft.DetailedError(err))
 			}
 		}
 	} else {
 		data, err = io.ReadAll(file.Reader)
 		if err != nil {
-			return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s\n", file.Path, err.Error())
+			return nil, ansi.Errorf("@R{Error reading file} @m{%s}: %s\n", file.Path, graft.DetailedError(err))
 		}
 	}
 	if len(data) == 0 && file.Path == stdinPath {
@@ -2071,7 +2071,7 @@ func buildEngineAndDocs(files []YamlFile, options *mergeOpts) (graft.Engine, []g
 
 	engine, err := graft.NewEngine(engineOpts...)
 	if err != nil {
-		return nil, nil, nil, ansi.Errorf("@R{Failed to create graft engine}: %s", err.Error())
+		return nil, nil, nil, ansi.Errorf("@R{Failed to create graft engine}: %s", graft.DetailedError(err))
 	}
 
 	// Read and parse every file concurrently: reading bytes off disk (or
@@ -2206,7 +2206,7 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, pa
 			log.DEBUG("Detected root of document as an array. Attempting go-patch parsing")
 			ops, patchErr := graft.ParseGoPatch(data)
 			if patchErr != nil {
-				return fileParseResult{err: ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, patchErr.Error())}
+				return fileParseResult{err: ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, graft.DetailedError(patchErr))}
 			}
 			// A go-patch input contributes no YAML positions and cannot
 			// be ruled out as a node's origin.
@@ -2238,7 +2238,7 @@ func parseOneYamlFile(engine graft.Engine, file YamlFile, options *mergeOpts, pa
 	// Parse as YAML
 	doc, parseDocErr := engine.ParseYAML(data)
 	if parseDocErr != nil {
-		return fileParseResult{err: ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, parseDocErr.Error())}
+		return fileParseResult{err: ansi.Errorf("@m{%s}: @R{%s}\n", file.Path, graft.DetailedError(parseDocErr))}
 	}
 	if doc == nil {
 		// engine.ParseYAML returns (nil, nil) for blank, comment-only,
@@ -2269,7 +2269,7 @@ func firstFileDocument(path string, data []byte) ([]byte, error) {
 	first, err := graft.FirstMergeDocument(data)
 	var parseErr *graft.GraftError
 	if errors.As(err, &parseErr) {
-		return nil, ansi.Errorf("@m{%s}: @R{%s}\n", path, err.Error())
+		return nil, ansi.Errorf("@m{%s}: @R{%s}\n", path, graft.DetailedError(err))
 	}
 	return first, err
 }
@@ -2307,10 +2307,10 @@ func mergeAllDocs(files []YamlFile, options *mergeOpts) (map[string]interface{},
 	merged, err := mergeBuilder.Execute()
 	if err != nil {
 		// Check if this is a MultiError from the merger (Issue #172)
-		if strings.Contains(err.Error(), "error(s) detected:") {
+		if strings.Contains(graft.DetailedError(err), "error(s) detected:") {
 			return nil, nil, err
 		}
-		return nil, nil, ansi.Errorf("@R{Merge failed}: %s", err.Error())
+		return nil, nil, ansi.Errorf("@R{Merge failed}: %s", graft.DetailedError(err))
 	}
 
 	// Get the raw data for backward compatibility

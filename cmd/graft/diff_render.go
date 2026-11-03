@@ -125,7 +125,7 @@ func yamlValueLines(value interface{}) []string {
 	}
 	raw, err := graft.MarshalYAML(value)
 	if err != nil {
-		return []string{fmt.Sprintf("<error rendering value: %s>", err.Error())}
+		return []string{fmt.Sprintf("<error rendering value: %s>", graft.DetailedError(err))}
 	}
 	text := strings.TrimRight(string(raw), "\n")
 	if text == "" {

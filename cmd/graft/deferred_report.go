@@ -81,7 +81,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 	log.TRACE("%#v", tree)
 
 	if cycleErr := graft.CheckForCycles(tree, 4096); cycleErr != nil {
-		log.PrintStdErrf("%s\n", cycleErr.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(cycleErr))
 		return nil, 2
 	}
 
@@ -100,7 +100,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 		}
 		merged, err := graft.MarshalYAMLWithCommentsWith(tree, comments, less)
 		if err != nil {
-			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
+			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", graft.DetailedError(err), tree)
 			return nil, 2
 		}
 		return finishMergedDocument(merged, "", noDocStart), 0
@@ -108,7 +108,7 @@ func renderMergedTreeWithReport(tree map[string]interface{}, deferred []graft.De
 	case reportPlacementEnd:
 		merged, err := graft.MarshalYAMLWith(tree, less)
 		if err != nil {
-			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
+			log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", graft.DetailedError(err), tree)
 			return nil, 2
 		}
 		return finishMergedDocument(merged, deferredReportBlock(deferred), noDocStart), 0
@@ -135,7 +135,7 @@ func docStartMarker(noDocStart bool) []byte {
 func marshalMergedDocument(tree map[string]interface{}, leadingBlock string, noDocStart bool, less func(a, b string) bool) ([]byte, int) {
 	merged, err := graft.MarshalYAMLWith(tree, less)
 	if err != nil {
-		log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", err.Error(), tree)
+		log.PrintStdErrf("Unable to convert merged result back to YAML: %s\nData:\n%#v", graft.DetailedError(err), tree)
 		return nil, 2
 	}
 	out := append(docStartMarker(noDocStart), []byte(leadingBlock)...)

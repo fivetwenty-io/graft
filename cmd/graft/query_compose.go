@@ -177,7 +177,7 @@ func composeQueryInputs(cc composeContext, files []string) (merged []byte, errTe
 // composeErrText is err as a line of stderr text, ending in one newline
 // whether or not the error carries its own.
 func composeErrText(err error) []byte {
-	return []byte(strings.TrimSuffix(err.Error(), "\n") + "\n")
+	return []byte(strings.TrimSuffix(graft.DetailedError(err), "\n") + "\n")
 }
 
 // render merges docs and writes the result as YAML without a document
@@ -272,7 +272,7 @@ func runQueryCmd(cmd *cobra.Command, args []string, spec queryCmdSpec) error {
 	var engine engineOptions
 	if wantEngine {
 		if engine, err = composeEngineOpts(cmd); err != nil {
-			log.PrintStdErrf("%s\n", err.Error())
+			log.PrintStdErrf("%s\n", graft.DetailedError(err))
 			exit(1)
 			return nil
 		}

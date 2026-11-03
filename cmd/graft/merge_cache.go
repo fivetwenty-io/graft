@@ -110,7 +110,7 @@ func decodeCachedOutput(data []byte) (cachedMergeOutput, bool) {
 func handleMergeCached(opts *mergeOpts, store *cache.FileStore, placement reportPlacement) int {
 	files, err := resolveMergeInputFiles(opts)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
@@ -124,7 +124,7 @@ func handleMergeCached(opts *mergeOpts, store *cache.FileStore, placement report
 			// earlier file's parse error could win the race). A read
 			// failing after a successful open is rare enough to accept
 			// that.
-			log.PrintStdErrf("%s\n", readErr.Error())
+			log.PrintStdErrf("%s\n", graft.DetailedError(readErr))
 			return 2
 		}
 		inputs[i] = data
@@ -155,7 +155,7 @@ func handleMergeCached(opts *mergeOpts, store *cache.FileStore, placement report
 
 	tree, engine, err := mergeAllDocs(files, opts)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 

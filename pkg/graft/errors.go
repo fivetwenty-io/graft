@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -19,21 +20,36 @@ type MultiError struct {
 	Errors []error
 }
 
-// Error returns a formatted string containing all aggregated errors.
+// Error returns a formatted string containing all aggregated errors, in
+// plain text: no color, and each error's own plain text. DetailedError
+// gives the text the graft CLI prints.
 //
-// Default output (GRAFT_ERROR_CODES unset) is byte-identical to spruce's
-// "N error(s) detected:\n - $.path: msg\n" format; genesis parses this with
-// the regex ^\s*-\s*\$\.(\S+?):, so any change here is a compatibility
-// break. When GRAFT_ERROR_CODES is enabled, entries that resolve to a
-// *PathError with a known ErrorCode gain a "[Ecode] " prefix on the message
-// segment, after the "$.path: " prefix that regex depends on, so opted-in
-// output still matches it. See docs/reference/error-codes.md.
+// The format is spruce's "N error(s) detected:\n - $.path: msg\n";
+// genesis parses the CLI's copy of it with the regex ^\s*-\s*\$\.(\S+?):,
+// so any change to the shape is a compatibility break. When
+// GRAFT_ERROR_CODES is enabled, entries that resolve to a *PathError
+// with a known ErrorCode gain a "[Ecode] " prefix on the message
+// segment, after the "$.path: " prefix that regex depends on, so
+// opted-in output still matches it. See docs/reference/error-codes.md.
+func (e MultiError) Error() string {
+	return e.render(func(err error) string { return err.Error() }, fmt.Sprintf("%d", len(e.Errors)))
+}
+
+// DetailedError returns the text the graft CLI prints: Error()'s format,
+// with the count in red when the ansi toggle is on, and each aggregated
+// error's detailed text, sorted by that text.
 //
 // The aggregated messages themselves are emitted verbatim: only the
 // leading count is color-processed, so a message quoting document
 // content cannot have an "@X{...}" sequence in it silently stripped or
 // turned into live ANSI.
-func (e MultiError) Error() string {
+func (e MultiError) DetailedError() string {
+	return e.render(errtext.Detail, ansi.Sprintf("@r{%d}", len(e.Errors)))
+}
+
+// render builds the MultiError text with text giving each error's
+// message and count already formatted.
+func (e MultiError) render(text func(error) string, count string) string {
 	codesEnabled := errorCodesEnabled()
 	s := []string{}
 	for _, err := range e.Errors {
@@ -41,24 +57,20 @@ func (e MultiError) Error() string {
 			var pe *PathError
 			if errors.As(err, &pe) {
 				if code := pe.Code(); code != "" {
-					s = append(s, fmt.Sprintf(" - $.%s: [%s] %s\n", pe.Path, code, pe.Cause.Error()))
+					s = append(s, fmt.Sprintf(" - $.%s: [%s] %s\n", pe.Path, code, text(pe.Cause)))
 					continue
 				}
 			}
 		}
-		s = append(s, fmt.Sprintf(" - %s\n", err))
+		s = append(s, fmt.Sprintf(" - %s\n", text(err)))
 	}
 
 	sort.Strings(s)
-	// Colorize only the count. ansi.Sprintf formats first and then
-	// processes @X{...} directives over the whole result, so wrapping the
-	// joined body would reinterpret every byte of every aggregated
-	// message: an "@r{...}" sequence quoted from a user's document is
-	// deleted when color is off and injected as live ANSI when it is on.
-	// Each error already resolved its own directives when it was built
-	// with ansi.Errorf, so the outer pass was double-processing.
-	return ansi.Sprintf("@r{%d}", len(e.Errors)) +
-		fmt.Sprintf(" error(s) detected:\n%s\n", strings.Join(s, ""))
+	// Each error resolved its own color directives when it was built,
+	// so the joined body is never color-processed again: an "@r{...}"
+	// sequence quoted from a user's document would otherwise be deleted
+	// when color is off and injected as live ANSI when it is on.
+	return count + fmt.Sprintf(" error(s) detected:\n%s\n", strings.Join(s, ""))
 }
 
 // Count returns the number of errors in this MultiError.
@@ -501,9 +513,10 @@ type codedError struct {
 	code ErrorCode
 }
 
-func (e *codedError) Error() string   { return e.err.Error() }
-func (e *codedError) Unwrap() error   { return e.err }
-func (e *codedError) Code() ErrorCode { return e.code }
+func (e *codedError) Error() string         { return e.err.Error() }
+func (e *codedError) DetailedError() string { return errtext.Detail(e.err) }
+func (e *codedError) Unwrap() error         { return e.err }
+func (e *codedError) Code() ErrorCode       { return e.code }
 
 // WithCode tags err with code, preserving err's Error() string and Unwrap
 // chain exactly. Returns nil if err is nil (mirrors fmt.Errorf/errors.New
@@ -536,6 +549,11 @@ type PathError struct {
 // exactly.
 func (e *PathError) Error() string {
 	return fmt.Sprintf("$.%s: %s", e.Path, e.Cause.Error())
+}
+
+// DetailedError returns "$.<path>: " and Cause's detailed text.
+func (e *PathError) DetailedError() string {
+	return fmt.Sprintf("$.%s: %s", e.Path, errtext.Detail(e.Cause))
 }
 
 // Unwrap returns Cause, so errors.Is/errors.As see through PathError to
@@ -582,6 +600,11 @@ type PartialEvaluationError struct {
 // Error returns Err's message verbatim.
 func (e *PartialEvaluationError) Error() string {
 	return e.Err.Error()
+}
+
+// DetailedError returns Err's detailed text verbatim.
+func (e *PartialEvaluationError) DetailedError() string {
+	return errtext.Detail(e.Err)
 }
 
 // Unwrap exposes Err for errors.Is/errors.As.

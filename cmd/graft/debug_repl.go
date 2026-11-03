@@ -272,7 +272,7 @@ func (s *debugSession) cmdLoad() {
 		s.printf("%s %s: %s\n",
 			s.style(roleError, "Error loading"),
 			s.style(roleFile, s.cached[0].Path),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 	s.setTree(base)
@@ -306,7 +306,7 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 		if err != nil {
 			s.printf("%s: %s\n",
 				s.style(roleError, "Merge failed"),
-				ansi.StripEscapes(err.Error()))
+				ansi.StripEscapes(graft.DetailedError(err)))
 			s.step--
 			return false, true
 		}
@@ -358,7 +358,7 @@ func (s *debugSession) stepOnce() (hitBreakpoint, failed bool) {
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Evaluation failed"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		s.step--
 		return false, true
 	}
@@ -494,7 +494,7 @@ func (s *debugSession) writeValue(v interface{}) bool {
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error rendering value"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return false
 	}
 	s.writeYAML(raw)
@@ -563,14 +563,14 @@ func (s *debugSession) cmdHistory(path string) {
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error computing history"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 	all, err := history.Track(steps)
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error computing history"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 	ph, found := findPathHistory(all, path)
@@ -697,7 +697,7 @@ func (s *debugSession) cmdAutodefer() {
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error preparing autodefer"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 
@@ -707,7 +707,7 @@ func (s *debugSession) cmdAutodefer() {
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Autodefer failed"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 
@@ -749,7 +749,7 @@ func (s *debugSession) cmdEval(path string) {
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Evaluation failed"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 	resolved, ok := lookupDottedPath(result, path)
@@ -938,7 +938,7 @@ func (s *debugSession) cmdPruneReport() {
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error computing prune report"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 
@@ -946,7 +946,7 @@ func (s *debugSession) cmdPruneReport() {
 	if cmpErr != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error computing prune report"),
-			ansi.StripEscapes(cmpErr.Error()))
+			ansi.StripEscapes(graft.DetailedError(cmpErr)))
 		return
 	}
 
@@ -976,7 +976,7 @@ func (s *debugSession) cmdOutput() {
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error rendering document"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 	s.writeYAML(raw)
@@ -993,14 +993,14 @@ func (s *debugSession) cmdDiff() {
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error computing diff"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 	changes, err := histdiff.Compare(s.cached[0].Path, base, "<current>", s.tree)
 	if err != nil {
 		s.printf("%s: %s\n",
 			s.style(roleError, "Error computing diff"),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 	s.printf("%s %s:\n\n", s.style(roleHeading, "Changes from"), s.style(roleFile, s.cached[0].Path))
@@ -1031,7 +1031,7 @@ func (s *debugSession) cmdExport(path string) {
 		if jsonErr != nil {
 			s.printf("%s: %s\n",
 				s.style(roleError, "Error encoding JSON"),
-				ansi.StripEscapes(jsonErr.Error()))
+				ansi.StripEscapes(graft.DetailedError(jsonErr)))
 			return
 		}
 		out = jsonBytes
@@ -1040,7 +1040,7 @@ func (s *debugSession) cmdExport(path string) {
 		if err != nil {
 			s.printf("%s: %s\n",
 				s.style(roleError, "Error rendering document"),
-				ansi.StripEscapes(err.Error()))
+				ansi.StripEscapes(graft.DetailedError(err)))
 			return
 		}
 		out = raw
@@ -1051,7 +1051,7 @@ func (s *debugSession) cmdExport(path string) {
 		s.printf("%s %s: %s\n",
 			s.style(roleError, "Error writing"),
 			s.style(roleFile, path),
-			ansi.StripEscapes(err.Error()))
+			ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 	s.printf("%s %s\n", s.style(roleSuccess, "Exported to"), s.style(roleFile, path))
@@ -1446,7 +1446,7 @@ func handleDebugWith(files []string, opts *mergeOpts, in io.Reader, out io.Write
 
 	sess, err := newDebugSession(files, opts, out, ui)
 	if err != nil {
-		log.PrintStdErrf("%s\n", err.Error())
+		log.PrintStdErrf("%s\n", graft.DetailedError(err))
 		return 2
 	}
 
@@ -1478,7 +1478,7 @@ func handleDebugWith(files []string, opts *mergeOpts, in io.Reader, out io.Write
 			if errors.Is(err, io.EOF) {
 				return 0
 			}
-			log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error reading debugger input}: %s", err.Error()))
+			log.PrintStdErrf("%s\n", ansi.Sprintf("@R{Error reading debugger input}: %s", graft.DetailedError(err)))
 			return 2
 		}
 		line := strings.TrimSpace(raw)

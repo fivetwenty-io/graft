@@ -14,6 +14,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/history"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
+	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/jq"
 	"github.com/fivetwenty-io/graft/pkg/query"
 	"github.com/fivetwenty-io/graft/pkg/query/value"
@@ -258,7 +259,7 @@ func (s *debugSession) eachPath(arg string, conv func(value.Path) string, fn fun
 	}
 	paths, err := resolveDebugPaths(s, arg)
 	if err != nil {
-		s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(err.Error())))
+		s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(graft.DetailedError(err))))
 		return
 	}
 	if len(paths) == 0 {
@@ -290,7 +291,7 @@ func (s *debugSession) cmdInspectArg(arg string) {
 	}
 	paths, err := resolveDebugPaths(s, arg)
 	if err != nil {
-		s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(err.Error())))
+		s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(graft.DetailedError(err))))
 		return
 	}
 	if len(paths) == 0 {
@@ -385,7 +386,7 @@ func (s *debugSession) printQueryError(err error) {
 		s.printf("%s\n", s.style(roleWarn, "No documents loaded. Run 'load' first."))
 		return
 	}
-	msg := ansi.StripEscapes(err.Error())
+	msg := ansi.StripEscapes(graft.DetailedError(err))
 	var ce *query.CompileError
 	phrase := "Query failed"
 	if errors.As(err, &ce) {
@@ -467,7 +468,7 @@ func (s *debugSession) cmdUnselect() {
 func (s *debugSession) watchRender(dialect, expr string) string {
 	outs, err := s.evalQuery(dialect, expr)
 	if err != nil {
-		return "error: " + ansi.StripEscapes(err.Error())
+		return "error: " + ansi.StripEscapes(graft.DetailedError(err))
 	}
 	parts := make([]string, len(outs))
 	for i, o := range outs {
@@ -579,7 +580,7 @@ func (s *debugSession) runStartupQuery(init debugInit) {
 	evalOpts.CherryPick = nil
 	merged, _, err := mergeAllDocs(s.freshFiles(len(s.cached)), &evalOpts)
 	if err != nil {
-		s.printf("%s: %s\n", s.style(roleError, "Merge failed"), ansi.StripEscapes(err.Error()))
+		s.printf("%s: %s\n", s.style(roleError, "Merge failed"), ansi.StripEscapes(graft.DetailedError(err)))
 		return
 	}
 	prevTree, prevDialect := s.tree, s.dialect
@@ -862,7 +863,7 @@ func (s *debugSession) inspectDocument(arg string) {
 	}
 	paths, err := resolveDebugPaths(s, arg)
 	if err != nil {
-		s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(err.Error())))
+		s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(graft.DetailedError(err))))
 		return
 	}
 	if len(paths) == 0 {

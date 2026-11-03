@@ -8,6 +8,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/history"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
 // treeUsage is the one-line usage string cmdTree prints after a flag
@@ -292,7 +293,7 @@ func (s *debugSession) cmdTree(args []string) {
 	// before load; only rendering requires a loaded session.
 	opts, err := parseTreeArgs(args)
 	if err != nil {
-		s.printf("%s\nUsage: %s\n", err.Error(), treeUsage)
+		s.printf("%s\nUsage: %s\n", graft.DetailedError(err), treeUsage)
 		return
 	}
 	if opts.help {
@@ -306,7 +307,7 @@ func (s *debugSession) cmdTree(args []string) {
 	if hasQueryPrefix(opts.path) || opts.path == "" && len(s.selection) > 0 {
 		paths, err := resolveDebugPaths(s, opts.path)
 		if err != nil {
-			s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(err.Error())))
+			s.printf("%s\n", s.style(roleWarn, ansi.StripEscapes(graft.DetailedError(err))))
 			return
 		}
 		if len(paths) == 0 {
@@ -376,7 +377,7 @@ func (s *debugSession) treeHistoryData(opts treeOptions) (phs []history.PathHist
 	var histErr error
 	phs, histErr = s.subtreeHistories(opts.path)
 	if histErr != nil {
-		return nil, nil, ansi.StripEscapes(histErr.Error())
+		return nil, nil, ansi.StripEscapes(graft.DetailedError(histErr))
 	}
 	if opts.annotate {
 		ann = make(map[string][]history.Entry, len(phs))
