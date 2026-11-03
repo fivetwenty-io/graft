@@ -143,3 +143,11 @@ func TestNewAndWrap(t *testing.T) {
 		t.Fatalf("New: %q / %q", n.Error(), Detail(n))
 	}
 }
+
+func TestColorfPlainTextKeepsArgumentsVerbatim(t *testing.T) {
+	withColor(t, true)
+	err := Colorf("@R{bad key} @c{%s}", "a@R{b}")
+	if got := err.Error(); got != "bad key a@R{b}" {
+		t.Fatalf("Error() = %q, want the argument as written", got)
+	}
+}

@@ -141,10 +141,11 @@ func Errorf(format string, args ...any) error {
 // Colorf replaces ansi.Errorf. Its detailed text is what ansi.Errorf
 // gives, with "@X{...}" color markup rendered when the ansi toggle is on
 // as the error is built, and with each error argument's detailed text.
-// Its Error() text renders the same markup with color off. Like
+// Its Error() text drops the markup in format and writes the arguments
+// verbatim, so markup inside a path or name stays as written. Like
 // ansi.Errorf, it wraps nothing.
 func Colorf(format string, args ...any) error {
-	plain := ansi.SprintfColor(false, format, args...)
+	plain := ansi.SprintfTemplate(false, format, args...)
 	dargs, changed := detailArgs(args)
 	if !changed {
 		dargs = args
