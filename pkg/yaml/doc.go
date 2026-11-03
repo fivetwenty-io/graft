@@ -63,8 +63,7 @@ in the order written, on every target, so the value written last wins, as in
 spruce, even when a key or a merge key repeats. Unmarshal itself, and
 graft's merge, stay strict.
 
-Keys compare by their text under any tag or anchor, with one exception each
-way. A null key, such as ~ or null, and a string key whose text is null, such
+Keys compare by their text under any tag or anchor, with two exceptions. A null key, such as ~ or null, and a string key whose text is null, such
 as "null" or !!str null, repeat each other, because both are the key "null" in
 a map[string]any, which holds only one of them. A null key and a string key
 whose text is ~, such as "~" or !!str ~, don't repeat each other, and they
@@ -173,11 +172,12 @@ The decoder refuses a few tagged documents that spruce reads. A !!str or
 other scalar tag on a flow or block collection is a syntax error, where
 spruce ignores the tag. That holds with an anchor between the tag and the
 collection, in either order and after a space or a tab, as in
-a: !!str &n {k: v}. A !!set, !!omap, or !!pairs tag on a scalar, as in a: !!set yes, is a
-syntax error as well, where spruce reads the text. And a tag with nothing
-after it on the last line of a document that ends with no line break, as
-in a: !!str or a: !foo, reads as null, because the parser drops the tag
-before the decoder sees it, where spruce reads the empty string.
+a: !!str &n {k: v}. A !!set, !!omap, or !!pairs tag on a scalar, as in
+a: !!set yes, is a syntax error as well, where spruce reads the text. And
+a tag with nothing after it on the last line of a document that ends with
+no line break, as in a: !!str or a: !foo, reads as null, because the
+parser drops the tag before the decoder sees it, where spruce reads the
+empty string.
 
 A tag with no value before the next key or item at its own level, as in
 "a: !foo\nb: 1" or "- !!str\n- 2", reads as spruce reads it. That holds
@@ -216,9 +216,9 @@ blank, an anchor, or a line break comes between the tag and the comma or
 the collection's end, as in a: {k: !foo &n, w: z}. A few of those shapes
 are syntax errors that give a line and a column, where spruce reads
 them. One is a tag with a comma or a bracket right after it, as in
-a: [!, z] or a: {k: !foo,w: z}, which spruce reads as part of the tag's
-name, so that it drops the item or reads the next value as the tag's.
-Another is a verbatim tag that holds a comma, as in
+a: [!, z] or a: {k: !foo,w: z}. Spruce reads that character as part of
+the tag's name, so it drops the item or reads the next value as the
+tag's. Another is a verbatim tag that holds a comma, as in
 a: [!<tag:x.y,2020:z> , z], and the last is a !!set tag, as in
 a: {k: !!set &n, w: z}.
 
@@ -268,10 +268,10 @@ written on an alias, as in b: !!str *x, which Unmarshal refuses and Decode
 reads as the value the alias names. They also disagree on a tag with nothing
 after it at the end of a document that ends with no line break, as in
 a: !!str, which Unmarshal reads as null and Decode reads as the empty
-string. And they disagree on a core
-tag over a node of another kind, as in a: !!str {k: v} or a: !!map x,
-which Unmarshal refuses. Unmarshal into a Node keeps that tag on the node,
-and Decode reads the node under it as spruce does.
+string. And they disagree on a core tag over a node of another kind, as
+in a: !!str {k: v} or a: !!map x, which Unmarshal refuses. Unmarshal into
+a Node keeps that tag on the node, and Decode reads the node under it as
+spruce does.
 
 A Node that Unmarshal returned keeps its whole input document, and the first
 Decode on that tree parses it one more time. The cost is one extra parse and

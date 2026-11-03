@@ -121,8 +121,8 @@ type Document interface {
 //
 // One Engine may be shared by any number of goroutines that parse, merge,
 // evaluate, and diff at the same time. Each Merge().Execute() and Evaluate
-// call keeps its working state - static IP claims, queued prunes and
-// sorts, and the skip and redact settings REDACT=1 forces - to itself, so
+// call keeps its working state to itself (static IP claims, queued prunes
+// and sorts, and the skip and redact settings REDACT=1 forces), so
 // concurrent calls produce the same results they would on separate
 // engines. Three rules go with that. First, Configure and UpdateOptions
 // rewrite the engine's configuration, so they must not run while another

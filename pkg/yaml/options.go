@@ -34,6 +34,7 @@ type DecodeOptions struct {
 	// before. A Node target keeps that outcome by moving a pair whose
 	// key a merge supplies to the side of the merge key that gives it,
 	// and leaves every other pair at the place of its first key.
+	//
 	// A nil OnDuplicateKey keeps the strict refusal of a repeated key
 	// that Unmarshal applies, except that a Node target keeps every pair
 	// of a repeated key, as it always has.
@@ -43,11 +44,14 @@ type DecodeOptions struct {
 // DuplicateKey describes a later occurrence of a mapping key, which
 // DecodeOptions.OnDuplicateKey receives. It never holds a key or a value
 // from the input except through Path, which names the keys on the way to
-// the repeated one. On a line that holds a tab after a tag or an anchor,
-// and on a continuation line of a multi-line flow mapping that holds a
-// tab, the Column of a target other than a Node counts each such tab as
-// no column, so it can be less than the Column of a Node target, which
-// counts the tab as the space it stands for.
+// the repeated one.
+//
+// The Column can differ between targets on two kinds of line. One is a
+// line that holds a tab after a tag or an anchor, and the other is a
+// continuation line of a multi-line flow mapping that holds a tab. On
+// either, a target other than a Node counts each such tab as no column,
+// so its Column can be less than that of a Node target, which counts the
+// tab as the space it stands for.
 type DuplicateKey struct {
 	// Path locates the repeated key. It joins map keys with a dot and
 	// writes a list item as [i], with i counting from 0, and it has no
