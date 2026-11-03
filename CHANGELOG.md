@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.44.0] - 2026-11-02
+
+This release adds `pkg/yaml`, a public package that reads and writes YAML the way the merge engine does, along with an opt-in way to read a document that repeats a mapping key. It also makes one `Engine` safe to share across goroutines. And `graft merge` and `pkg/yaml` now read explicit tags, tabs, block scalars that end the file, and several other shapes the way spruce does, where they used to read them differently.
+
 ### Added
 
 - `pkg/yaml` has an opt-in way to read a document that repeats a mapping key. When we set `DecodeOptions.OnDuplicateKey`, `UnmarshalWith` accepts a repeated key at any depth, keeps the last value for structs, maps, `any`, and `Node` targets, and calls our function once for each later occurrence with a `DuplicateKey` that holds the key's path and the positions of both occurrences. Merge keys are never reported. Two merge keys in one mapping merge both sources in order on every target, so a key in the later source wins, and a `Node` target holds them as one `<<` whose value is a sequence of the sources. Every target reads the keys and merge keys of a mapping in turn, as spruce does, so a key written after a merge key that supplies it wins and a merged value wins over a key written before, even when the key or the merge key repeats. `Unmarshal` and graft's merge stay strict.
@@ -1200,6 +1204,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.44.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.44.0
 [1.43.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.43.1
 [1.43.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.43.0
 [1.42.5]: https://github.com/fivetwenty-io/graft/releases/tag/v1.42.5
