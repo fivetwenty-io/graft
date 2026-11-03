@@ -53,6 +53,8 @@ func TestTokenizerSlashContinuesReference(t *testing.T) {
 		{"slash before a bracket", "arr/[0]", []string{ref("arr/[0]")}},
 		{"slash after a bracket", "arr[0]/x", []string{ref("arr[0]/x")}},
 		{"environment variable followed by a slash", "$X/2", []string{ref("$X/2")}},
+		{"environment variable after a slash continues the path", "a/$X", []string{ref("a/$X")}},
+		{"environment variable after a slash mid-path", "m.x/$X.y", []string{ref("m.x/$X.y")}},
 		{"plus name after a slash joins the segment", "m.x/b+c", []string{ref("m.x/b+c")}},
 		{"plus digit after a slash adds", "m.x/b+1", []string{ref("m.x/b"), TokenPlus.String() + "(+)", TokenInteger.String() + "(1)"}},
 		{"spaced slash divides", "a / b", []string{ident("a"), slash, ident("b")}},

@@ -296,3 +296,44 @@ c: 1
 		}
 	}
 }
+
+// TestSlashSegmentKeepsDollarName pins that a '$' name after a '/' is
+// part of the path, as it is after a '.'. The segment "a/$X" does not
+// start with '$', so it is a literal key, as spruce reads it, and the
+// environment variable is not substituted into it.
+func TestSlashSegmentKeepsDollarName(t *testing.T) {
+	t.Setenv("GRAFT_SLASH_VAR", "zzz")
+	const doc = `
+"a/": [trailing]
+"a/$GRAFT_SLASH_VAR": dollar
+"a/zzz": substituted
+m:
+  "x/$GRAFT_SLASH_VAR":
+    y: nested-dollar
+`
+	cases := []struct {
+		name string
+		expr string
+		want string
+	}{
+		{"dollar name after a slash is one key", "(( grab a/$GRAFT_SLASH_VAR ))", "dollar"},
+		{"dollar name after a slash mid-path", "(( grab m.x/$GRAFT_SLASH_VAR.y ))", "nested-dollar"},
+	}
+	for _, mode := range slashModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				d, err := evalSlashDoc(t, mode.opts, doc+"result: "+tc.expr+"\n")
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				got, err := d.Get("result")
+				if err != nil {
+					t.Fatalf("failed to read result: %v", err)
+				}
+				if fmt.Sprint(got) != tc.want {
+					t.Fatalf("result = %v (%T), want %q", got, got, tc.want)
+				}
+			})
+		}
+	}
+}

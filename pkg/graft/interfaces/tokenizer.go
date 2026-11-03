@@ -199,10 +199,17 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 			// match stops at the whitespace, so "a / b" and "a /b" stay
 			// division. A '+' followed by a name continues the segment,
 			// as it does after a '.', so "x/b+c" is one key while "x/b+1"
-			// still adds.
+			// still adds. A '$' name after the '/' stays in the path too,
+			// as it does after a '.', so "a/$X" is the one key "a/$X".
+			// That segment does not start with '$', so ResolveEnv leaves
+			// it literal, which is how spruce reads it.
 			sawSlash = true
 			pos++ // consume '/'
-			pos = consumeSegmentIdentifier(runes, pos)
+			if pos+1 < len(runes) && runes[pos] == '$' && isIdentifierStart(runes[pos+1]) {
+				pos = consumeIdentifierRun(runes, pos+1)
+			} else {
+				pos = consumeSegmentIdentifier(runes, pos)
+			}
 		case '[':
 			// Array/map index - need to find matching ]
 			bracketDepth := 1
