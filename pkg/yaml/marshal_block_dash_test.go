@@ -109,3 +109,46 @@ func TestMarshalMultilineIndicatorRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// TestMarshalMultilineIndicatorKey pins that a multi-line map key that
+// starts with an indicator keeps its double-quoted form and reads back
+// equal, below and above the 1024 bytes a quoted key may take on one
+// line.
+func TestMarshalMultilineIndicatorKey(t *testing.T) {
+	long := strings.Repeat("k", 1030)
+	keys := []string{
+		"-----BEGIN X-----\nabc\n",
+		"- a\nb",
+		"-\n#x",
+		"?x\ny",
+		":x\ny",
+		"-\n#" + long,
+		"-#\nx: y" + long,
+		"-\nx: y" + long,
+		"-a\n- #\"" + long,
+	}
+	for _, k := range keys {
+		for name, v := range map[string]any{
+			"scalar": 1,
+			"map":    map[string]any{"z": 1},
+			"list":   []any{"p"},
+			"block":  "p\nq",
+		} {
+			want := map[string]any{k: v}
+			out, err := yaml.Marshal(want)
+			if err != nil {
+				t.Fatalf("Marshal(%d bytes, %s value): %v", len(k), name, err)
+			}
+			if len(k) <= 1024 && strings.Contains(string(out), "? |") {
+				t.Errorf("key of %d bytes with %s value is a literal key:\n%s", len(k), name, out)
+			}
+			var back map[string]any
+			if err := yaml.Unmarshal(out, &back); err != nil {
+				continue
+			}
+			if !reflect.DeepEqual(back, want) {
+				t.Errorf("key of %d bytes with %s value reads back changed:\n%.80s", len(k), name, out)
+			}
+		}
+	}
+}
