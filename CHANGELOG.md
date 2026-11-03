@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `graft merge` and `pkg/yaml` now read a scalar tagged `!!float` over integer text as the float of that integer. Before, `a: !!float 3` failed with `cannot decode a !!int scalar as !!float`. Now it reads as `3.0`, and `!!float -7`, `!!float 0x1F`, and `!!float "3"` read as `-7.0`, `31.0`, and `3.0`. spruce refuses this shape, so this is a deliberate difference, and the Blacksmith broker needed it. `!!int` over float text, such as `!!int 3.0`, is still refused.
+- `graft merge` and `pkg/yaml` now read a scalar tagged `!!float` over integer text as the float of that integer. Before, `a: !!float 3` failed with `cannot decode a !!int scalar as !!float`. Now it reads as `3.0`, and `!!float -7`, `!!float 0x1F`, and `!!float "3"` read as `-7.0`, `31.0`, and `3.0`. spruce refuses this shape, so this is a deliberate difference. `!!int` over float text, such as `!!int 3.0`, is still refused.
 
 ## [1.44.0] - 2026-11-02
 
