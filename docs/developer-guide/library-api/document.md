@@ -947,7 +947,9 @@ func (l LiteralValue) Value() any
 
 - A value that another operator computes from wrapped data, such as the string `(( concat ))` builds or the list `(( keys ))` returns, is a new plain value. Any string in it that holds `((` stays text, though, because the evaluator wraps that string again before it lands in the tree. A later phase or a second evaluation never runs it, and a Vault path inside it is never read.
 
-- When an operator fails on a value it read from a wrapped value and its error message would quote any text from inside a wrapper, the evaluator withholds the message. The error still names the path where the operator ran, and `errors.Unwrap` still returns the original error for code that checks it with `errors.Is` or `errors.As`.
+- This has one known limit. Once a document holds a wrapped value anywhere, a plain `((` string that an operator reaches through a computed argument also stays text, even when it never came from a wrapper. Say `meta.d` is `(( defer concat "a" "b" ))` and another key is `(( concat (grab meta.d) "" ))`. The second key holds the text `(( concat "a" "b" ))` after the merge, and a second evaluation turns it into `ab` only when the document holds no wrapped value. With a wrapped value in the document, it stays text, while a direct `(( grab meta.d ))` still becomes `ab`. The limit fails safe, because graft never evaluates text from a wrapped value. It can only leave a plain string unevaluated.
+
+- When an operator fails on a value it read from a wrapped value and its error message would quote any text from inside a wrapper, the evaluator withholds the message. The error still names the path where the operator ran. `errors.Is` still finds a sentinel in the original error, and `errors.As` still finds graft's own error types in it when their text quotes nothing from a wrapper. `graft.DetailedError` returns the original message.
 
 - `CheckForCycles` and the evaluator's own cycle check look inside a wrapped value, so a wrapped value that refers to itself is reported as a cycle.
 
