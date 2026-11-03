@@ -702,21 +702,21 @@ func TestGoPatchParseLiteralIsUnaffectedByMultiError(t *testing.T) {
 	}
 
 	const literal = "@R{Unable to parse go-patch definitions: "
-	if !strings.HasPrefix(err.Error(), literal) {
-		t.Fatalf("ParseGoPatch() error = %q, want the pinned literal prefix %q", err.Error(), literal)
+	if !strings.HasPrefix(graft.DetailedError(err), literal) {
+		t.Fatalf("ParseGoPatch() detail = %q, want the pinned literal prefix %q", graft.DetailedError(err), literal)
 	}
-	want := " - " + err.Error() + "\n"
+	want := " - " + graft.DetailedError(err) + "\n"
 
 	for _, colorOff := range []bool{true, false} {
 		run := func() {
-			got := graft.MultiError{Errors: []error{err}}.Error()
+			got := graft.DetailedError(graft.MultiError{Errors: []error{err}})
 			if !strings.Contains(got, want) {
-				t.Errorf("color disabled = %v: MultiError.Error() = %q, want it to carry %q byte for byte",
+				t.Errorf("color disabled = %v: DetailedError = %q, want it to carry %q byte for byte",
 					colorOff, got, want)
 			}
 			at := strings.Index(got, "error(s) detected")
 			if at < 0 {
-				t.Fatalf("color disabled = %v: MultiError.Error() = %q; missing the count header", colorOff, got)
+				t.Fatalf("color disabled = %v: DetailedError = %q; missing the count header", colorOff, got)
 			}
 			body := got[at:]
 			if strings.Contains(body, "\033") {

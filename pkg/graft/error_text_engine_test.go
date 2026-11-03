@@ -123,7 +123,50 @@ func TestVaultBackendGetErrorTextHoldsNoPath(t *testing.T) {
 // a grab whose siblings hold the probe. The aggregated error names the
 // failing paths, and the path the grab asked for, and quotes nothing
 // else: no sibling value, no source snippet, and no context line.
+// parseErrorCases are documents the parser refuses. Where the CLI has
+// always printed the source lines around the failure, the probe is in
+// them, and Error() must leave them out.
+var parseErrorCases = []errorTextCase{
+	{name: "unclosed flow sequence", doc: "a: [PROBEzq81x\n", detailed: true},
+	{name: "unclosed quote", doc: "a: \"PROBEzq81x\n", detailed: true},
+	{name: "tab indent", doc: "a: b\n\tc: PROBEzq81x\n", detailed: true},
+	{name: "mapping in a scalar", doc: "a: PROBEzq81x\n  b: c\n", detailed: true},
+	{name: "unknown alias", doc: "a: *PROBEzq81x\n", detailed: true},
+	{name: "merge of a scalar", doc: "a: &x PROBEzq81x\nb: {<<: *x}\n", detailed: true},
+	{name: "duplicate key", doc: "a: 1\na: PROBEzq81x\n", detailed: true},
+	{name: "line before the failure", doc: "a: |\n PROBEzq81x\n  x\n- y\n", detailed: true},
+	{name: "tag mismatch", doc: "x: 1\na: !!int PROBEzq81x\n"},
+	{name: "list root", doc: "- PROBEzq81x\n"},
+	{name: "two documents after an end marker", doc: "a: PROBEzq81x\n...\nb: [\n"},
+}
+
 // TestParseErrorTextHoldsNoSource fails ParseYAML and ParseGoPatch with
 // the ansi toggle on, and checks the error's two texts.
+func TestParseErrorTextHoldsNoSource(t *testing.T) {
+	withColorOn(t)
+	eng, err := graft.NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range parseErrorCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := eng.ParseYAML([]byte(tc.document()))
+			assertErrorText(t, err, tc.value(), tc.detailed)
+		})
+	}
+
+	goPatch := []errorTextCase{
+		{name: "go-patch syntax", doc: "- type: replace\n  path: /a\n  value: [PROBEzq81x\n", detailed: true},
+		{name: "go-patch unknown op", doc: "- type: PROBEzq81x\n  path: /a\n", detailed: true},
+		{name: "go-patch bad value", doc: "- type: replace\n  path: /PROBEzq81x\n", detailed: true},
+	}
+	for _, tc := range goPatch {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := graft.ParseGoPatch([]byte(tc.document()))
+			assertErrorText(t, err, tc.value(), tc.detailed)
+		})
+	}
+}
+
 // TestEvaluatorErrorTextHoldsNoValueOrColor fails the evaluator's own
 // checks with the ansi toggle on.

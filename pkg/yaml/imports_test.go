@@ -18,6 +18,7 @@ var allowedImports = map[string]bool{
 	"github.com/fivetwenty-io/graft/internal/keyorder":  true, // sortkeys' key comparator
 	"github.com/fivetwenty-io/graft/internal/literal":   true, // yamlcodec strips literal wrappers before encoding
 	"github.com/fivetwenty-io/graft/internal/yamlcodec": true,
+	"github.com/fivetwenty-io/graft/internal/yamlerr":   true, // gives pkg/graft the plain text of a decoding error
 	"github.com/fivetwenty-io/graft/internal/yamlnode":  true,
 	"github.com/fivetwenty-io/graft/internal/yamlprep":  true,
 }

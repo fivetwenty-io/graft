@@ -412,7 +412,10 @@ func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
 		// same information spruce's underlying library reports) into the
 		// message instead of dropping it, so a human debugging kit YAML
 		// gets a usable location, not just "failed to parse YAML".
-		return nil, NewParseError(fmt.Sprintf("failed to parse YAML: %s", err.Error()), err)
+		// The message's plain text describes the failure without
+		// goccy's source lines, and its detailed text keeps them.
+		cause := plainYAMLError(err)
+		return nil, NewParseError(fmt.Sprintf("failed to parse YAML: %s", cause.Error()), cause)
 	}
 
 	if genericResult == nil {
