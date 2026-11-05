@@ -59,6 +59,8 @@ func TestRewriteVarRefs_PathContinuations(t *testing.T) {
 		{"root path with a tail", "grab $.svc.name", "grab $.svc.name"},
 		{"root path beside the variable", `concat $.svc.name "-" svc.name`, `concat $.svc.name "-" ` + target + ".name"},
 		{"root path whose later segment is the name", "grab $.a.svc", "grab $.a.svc"},
+		{"exponent slash path beside the variable", `concat 1e+5/2 "-" svc`, `concat 1e+5/2 "-" ` + target},
+		{"decimal exponent slash path beside the variable", `concat 1.5e3/2 "-" svc`, `concat 1.5e3/2 "-" ` + target},
 		{"plus name after the variable stays an addition", "svc+x", target + " +x"},
 		{"equals after the variable stays outside the path", "svc==x", target + " ==x"},
 	}
@@ -93,5 +95,31 @@ func TestRewriteVarRefs_LiteralNames(t *testing.T) {
 		if got := rewriteVarRefs(in, targets, nil); got != in {
 			t.Fatalf("rewriteVarRefs(%q)\n got  %q\n want it unchanged", in, got)
 		}
+	}
+}
+
+// TestRewriteVarRefs_ExponentSlashPaths pins that a loop variable named
+// "e" is not found inside a number in exponent form followed by a '/',
+// because the lexer reads "1e+5/2" and "1.5e3/2" as paths whose first
+// segments start with a digit, so the "e" is not a name of its own.
+func TestRewriteVarRefs_ExponentSlashPaths(t *testing.T) {
+	const target = "__graft_loop.l1.0.e"
+	targets := map[string]string{"e": target}
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"exponent with a sign", "grab 1e+5/2", "grab 1e+5/2"},
+		{"exponent after a decimal point", "grab 1.5e3/2", "grab 1.5e3/2"},
+		{"exponent path beside the variable", `concat 1e+5/2 "-" e.k`, `concat 1e+5/2 "-" ` + target + ".k"},
+		{"decimal exponent path beside the variable", `concat 1.5e3/2 "-" e.k`, `concat 1.5e3/2 "-" ` + target + ".k"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rewriteVarRefs(tc.in, targets, nil); got != tc.want {
+				t.Fatalf("rewriteVarRefs(%q)\n got  %q\n want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
