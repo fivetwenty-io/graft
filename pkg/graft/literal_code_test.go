@@ -192,6 +192,23 @@ func TestLiteralNeverNamesASecret(t *testing.T) {
 	})
 }
 
+// TestLiteralNeverNamesAnAWSValue checks that a literal never chooses
+// which parameter or secret (( awsparam )) or (( awssecret )) reads.
+func TestLiteralNeverNamesAnAWSValue(t *testing.T) {
+	runCodeCases(t, []codeCase{
+		{name: "awsparam key", out: "(( awsparam params.aws ))"},
+		{name: "awsparam key piece", out: `(( awsparam "/" params.aws ))`},
+		{name: "awsparam through concat", out: `(( awsparam (concat "/" params.aws) ))`},
+		{name: "awsparam through the tree", extra: "t: (( concat params.aws \"\" ))\n", out: "(( awsparam t ))"},
+		{name: "awssecret key", out: "(( awssecret params.aws ))"},
+		{name: "awssecret subkey", out: `(( awssecret "plain/secret?key=" params.key ))`},
+		{name: "awssecret through join", out: `(( awssecret (join "" params.l) ))`},
+		{name: "awssecret refusal is not a fallback", out: `(( awssecret (concat params.aws "") || "default" ))`},
+		{name: "plain awsparam unchanged", out: `(( awsparam "/plain/param" ))`, want: "BACKENDREAD"},
+		{name: "plain awssecret unchanged", out: `(( awssecret "plain/secret" ))`, want: "BACKENDREAD"},
+	})
+}
+
 func runCodeCases(t *testing.T, cases []codeCase) {
 	t.Helper()
 	for _, mode := range leakModes {

@@ -141,6 +141,23 @@ func readsLiteral(ev *Evaluator, before int) bool {
 	return literal.Reads(ev) > before
 }
 
+// resolveRefusingLiteral resolves arg like ResolveOperatorArgument, for an
+// operator that reads the value as code, as a path, or as the name of
+// something outside to read. When resolving it read a literal anywhere,
+// even when it then failed, the call is refused with an error that names
+// operator and role and quotes nothing from the value.
+func resolveRefusingLiteral(ev *Evaluator, arg *Expr, operator, role string) (interface{}, error) {
+	before := literal.Reads(ev)
+	val, err := ResolveOperatorArgument(ev, arg)
+	if isRefusal(err) {
+		return nil, err
+	}
+	if readsLiteral(ev, before) {
+		return nil, literal.Refuse(operator, role)
+	}
+	return val, err
+}
+
 // evaluateNestedOperator evaluates a nested operator call expression. The
 // result is what the nested operator returned, so it may be or hold a
 // literal; ResolveOperatorArgument strips it, and (( grab )) and
