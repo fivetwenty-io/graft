@@ -168,6 +168,30 @@ func TestLiteralIsNeverCode(t *testing.T) {
 	})
 }
 
+// TestLiteralNeverNamesASecret checks that a literal never chooses which
+// secret (( vault )) or (( vault-try )) reads, and that the backend is
+// not asked for anything when the call is refused.
+func TestLiteralNeverNamesASecret(t *testing.T) {
+	runCodeCases(t, []codeCase{
+		{name: "vault path", out: "(( vault params.v ))"},
+		{name: "vault path pieces", out: `(( vault params.vp ":key" ))`},
+		{name: "vault key segment", out: `(( vault "secret/" params.key ":key" ))`},
+		{name: "vault through concat", out: `(( vault (concat params.vp ":key") ))`},
+		{name: "vault through join", out: `(( vault (join "" params.l) ))`},
+		{name: "vault through the tree", extra: "t: (( concat params.vp \":key\" ))\n", out: "(( vault t ))"},
+		{name: "vault grabbed map", extra: "t: (( grab params.m ))\n", out: `(( vault t.p ":key" ))`},
+		{name: "vault refusal is not a fallback", out: `(( vault params.v || "default" ))`},
+		{name: "vault semicolon paths", out: `(( vault "secret/plain:key; " params.v ))`},
+		{name: "vault-try path", out: `(( vault-try params.v "default" ))`},
+		{name: "vault-try refusal is not skipped", out: `(( vault-try params.v "secret/plain:key" "default" ))`},
+		{name: "vault-try through concat", out: `(( vault-try (concat params.vp ":key") "default" ))`},
+		{name: "vault default is data", out: `(( vault nope.x || params.v ))`, want: "secret/zq7:key"},
+		{name: "vault-try default is data", out: "(( vault-try nope.x params.v ))", want: "secret/zq7:key"},
+		{name: "plain vault unchanged", out: `(( vault "secret/plain:key" ))`, want: "BACKENDREAD"},
+		{name: "plain vault-try unchanged", out: `(( vault-try "secret/plain:key" "default" ))`, want: "BACKENDREAD"},
+	})
+}
+
 func runCodeCases(t *testing.T, cases []codeCase) {
 	t.Helper()
 	for _, mode := range leakModes {
