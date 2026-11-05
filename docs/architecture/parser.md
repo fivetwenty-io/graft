@@ -106,6 +106,8 @@ its source line instead:
 loop.yml: parse_error: control flow expansion failed: $.controlflow.for.L2: unable to resolve `svcs`: `$.svcs` could not be found in the datastructure
 ```
 
+A loop variable is bound by rewriting its name in the loop body to the path of its binding under `__graft_loop`. The rewrite finds the name with the expression lexer itself, using the same tokenizer options as the parser, which both take from `internal/exprlex`. A name is rewritten only where the lexer reads a bare identifier, the first segment of a reference, or the first segment of a path inside a bracket index, so the rewrite can never read an expression differently from the parser. The first segment after `$.` is never rewritten, because a `$.` path names the document root. A header nested inside a loop resolves against the prescan scope with the bindings laid over it, so a `$.` path there whose first segment names a binding is pointed at the scope as it was before the overlay.
+
 See [Control Flow](../user-guide/operators/control-flow.md) for the
 user-facing rules, including loop-variable binding and the `while` iteration
 cap.

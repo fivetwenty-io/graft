@@ -604,6 +604,10 @@ nest and both would otherwise end in `(( done ))`:
   element, even if the document has a key of the same name. Inner loops shadow
   outer ones, and the binding does not escape the body.
 
+  The name is the loop variable exactly where the expression lexer reads a reference from the top of the document. That covers a bare name such as `svc`, the first segment of a path such as `svc.ip` or `svc[0]`, and the first segment of a path inside a bracket index, as in `lookup[svc.name]`. Everywhere else the name keeps the meaning it has outside a loop. So `$svc` is still an environment variable, `grab /svc` still reads the key `/svc`, `svc-1` and `svc/0` are still keys of their own, and the `svc` in a selector such as `jobs.name=svc.ip` is still the value to match.
+
+  A path that starts with `$.` always names the document root, even when its first segment is the loop variable's name. Inside a loop over `svc`, `(( grab $.svc.name ))` reads the top-level `svc`, while `(( grab svc.name ))` reads the current element. The same holds in a header nested inside the loop, so `(( for y in $.svc.list ))`, `(( if $.svc.flag ))`, and `(( case $.svc.kind ))` read the top-level `svc` as well.
+
 - **Loop variables are not visible inside quoted strings**
 
   The binding works by rewriting the name where it appears as a reference, and
