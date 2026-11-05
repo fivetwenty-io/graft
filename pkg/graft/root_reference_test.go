@@ -198,3 +198,45 @@ func TestRootReferenceHasTheSameDependencies(t *testing.T) {
 		})
 	}
 }
+
+// TestRootReferenceInTheDependencyGraph pins that the dataflow graph
+// gives a "$." reader the same edges as a reader of the plain path, so
+// the dataflow output and the parallel evaluator's waves agree with the
+// sequential order.
+func TestRootReferenceInTheDependencyGraph(t *testing.T) {
+	const doc = `
+rooted: (( grab $.z_source.value ))
+rooted_subtree: (( concat $.z_source.value $[key_name].value ))
+plain: (( grab z_source.value ))
+key_name: z_source
+meta:
+  base: hi
+z_source:
+  value: (( grab meta.base ))
+`
+	engine, err := graft.NewEngine()
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	de, ok := engine.(*graft.DefaultEngine)
+	if !ok {
+		t.Fatalf("engine is %T, not *graft.DefaultEngine", engine)
+	}
+	parsed, err := engine.ParseYAML([]byte(doc))
+	if err != nil {
+		t.Fatalf("ParseYAML: %v", err)
+	}
+	g, err := de.BuildDependencyGraph(parsed, graft.EvalPhase)
+	if err != nil {
+		t.Fatalf("BuildDependencyGraph: %v", err)
+	}
+	want := fmt.Sprint(g.Dependencies("plain"))
+	if want != "[z_source.value]" {
+		t.Fatalf("plain depends on %s, want [z_source.value]", want)
+	}
+	for _, path := range []string{"rooted", "rooted_subtree"} {
+		if got := fmt.Sprint(g.Dependencies(path)); got != want {
+			t.Errorf("%s depends on %s, want %s", path, got, want)
+		}
+	}
+}
