@@ -2,11 +2,11 @@ package controlflow
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/pkg/graft"
+	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -268,9 +268,11 @@ func evaluateBestEffort(data map[string]interface{}, engine graft.Engine) {
 	}
 }
 
-// bareIdentifierRe matches a condition/iterable/subject that is nothing but
-// a single unqualified identifier or dotted reference path, e.g.
-// "services", "cloud_provider", "deployment.type".
+// isOneReference reports whether raw, a condition, iterable, or case
+// subject, lexes with the expression parser's own rules to exactly one
+// identifier or reference token and nothing else, such as "services",
+// "deployment.type", "jobs.postgresql/0.ips", "$.meta.list", "/list",
+// "$[key]", "lists[0]", or "1e+5/2".
 //
 // This needs special handling because of how graft's own parser treats a
 // whole-expression bare word or reference inside "(( ... ))" (spec §3 (A6),
@@ -283,16 +285,24 @@ func evaluateBestEffort(data map[string]interface{}, engine graft.Engine) {
 // condition/iterable/subject, which the docs consistently write as a bare
 // document key (`for svc in services`, `(( case cloud_provider ))`) and
 // which must always resolve to that key's value (spec decision C-1: "both
-// [bare and `grab`] work, shown producing the same output"). So a bare
-// identifier or dotted path here is evaluated as an explicit
-// "(( grab <name> ))", sidestepping the literal-passthrough and
-// operator-name-collision cases entirely. A '/' may appear in any
-// segment, as in BOSH's name/index instance notation
-// ("jobs.postgresql/0.ips"), because the expression grammar reads a '/'
-// that follows a reference character as part of the path. A path may
-// start with "$.", which names the document root as spruce reads it, so
-// "for v in $.meta.list" reads the same list as "for v in meta.list".
-var bareIdentifierRe = regexp.MustCompile(`^(\$\.)?[A-Za-z_][A-Za-z0-9_/-]*(\.[A-Za-z0-9_/-]+)*$`)
+// [bare and `grab`] work, shown producing the same output"). So a subject
+// that is one reference is evaluated as an explicit "(( grab <ref> ))",
+// sidestepping the literal-passthrough and operator-name-collision cases
+// entirely. Asking the lexer, and not a pattern of its own, keeps this
+// check in step with how the same text reads anywhere else in a
+// document. Anything else, such as a number, a boolean, a string, or an
+// expression with an operator in it, is parsed as written.
+func isOneReference(raw string, engine graft.Engine) bool {
+	tz := newExprLexer(raw, engine)
+	tok := tz.NextToken()
+	if tok.Type != interfaces.TokenIdentifier && tok.Type != interfaces.TokenReference {
+		return false
+	}
+	if tok.Pos.Offset != 0 || len(tok.Literal) != len(raw) {
+		return false
+	}
+	return tz.NextToken().Type == interfaces.TokenEOF
+}
 
 // evalExpr evaluates raw graft expression text (no surrounding "(( ))")
 // against env's current tree and returns its Go value. location is used
@@ -304,7 +314,7 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 	if raw == "" {
 		return nil, fmt.Errorf("$.%s: empty expression", location)
 	}
-	if bareIdentifierRe.MatchString(raw) {
+	if isOneReference(raw, e.engine) {
 		raw = "grab " + raw
 	}
 	v := e.viewFor(raw)

@@ -90,6 +90,17 @@ type nameSpan struct {
 	bare bool
 }
 
+// newExprLexer returns a tokenizer over expr with the options the
+// expression parser uses. engine resolves operator names, which decide
+// whether a '/' right after a name begins a reference. A nil engine uses
+// the default registry.
+func newExprLexer(expr string, engine graft.Engine) *interfaces.AdvancedTokenizer {
+	return interfaces.NewAdvancedTokenizer(expr, exprlex.Options(func(name string) bool {
+		_, isNull := graft.OperatorForEngine(engine, name).(graft.NullOperator)
+		return !isNull
+	}))
+}
+
 // pathNameSpans lexes expr with the tokenizer and the options the
 // expression parser uses, and returns every name in it that the
 // evaluator resolves from the top of the document, in order. That is
@@ -102,10 +113,7 @@ type nameSpan struct {
 // right after a name begins a reference. A nil engine uses the default
 // registry.
 func pathNameSpans(expr string, engine graft.Engine) []nameSpan {
-	tz := interfaces.NewAdvancedTokenizer(expr, exprlex.Options(func(name string) bool {
-		_, isNull := graft.OperatorForEngine(engine, name).(graft.NullOperator)
-		return !isNull
-	}))
+	tz := newExprLexer(expr, engine)
 	var spans []nameSpan
 	for tz.HasMore() {
 		before := tz.Position()
