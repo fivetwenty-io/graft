@@ -67,21 +67,24 @@ type view struct {
 // scope with the current bindings laid over its top level, so a bound
 // name shadows the document key of the same name.
 //
-// A "$." path always names the document root, so a bound name that raw
-// reads only through "$." paths is left out of the overlay, and those
-// paths read the document key as written. The overlay is per expression,
-// so a path without the "$." elsewhere in the same header keeps the
-// binding only when raw does not also read that name through "$.".
+// pathNameSpans finds the names that raw reads with the expression
+// lexer, so a name inside a quoted string is never counted.
+//
+// A "$." path always names the document root. When raw reads a bound
+// name only through "$." paths, that binding is left out of the tree,
+// and those paths read the document key as written. viewFor builds the
+// tree for raw alone, so whether a binding stays in it depends only on
+// how raw itself reads the name.
 //
 // When raw reads one bound name both ways, as in "$.x.kind == x.kind",
 // one tree cannot serve both. The name stays bound, and each "$." path
 // that starts with it reads the scope through an alias, a top-level key
-// that no document key or binding holds. evalExpr takes the alias back
-// out of any error, so a message still names the path as written, and
-// the alias is never a key that raw mentions, so no path the user wrote
-// can reach it.
-// pathNameSpans finds the paths with the expression lexer, so a name
-// inside a string is never counted.
+// that no document key or binding holds. The view records each path it
+// sent through the alias, and evalExpr takes the alias back out of an
+// error only where it starts one of those paths. A message then names
+// the path as written, while a path that an operator built from a
+// document value keeps the text it was built with. The alias is never a
+// key that raw mentions, so no path the user wrote can reach it.
 func (e *env) viewFor(raw string) view {
 	if len(e.bindings) == 0 {
 		return view{text: raw, tree: e.scope}
