@@ -245,11 +245,30 @@ func assertRefused(t *testing.T, err error) {
 		}
 	}
 	assertChainPlain(t, err, codeProbe)
-	if !strings.Contains(err.Error(), "value from a literal") {
+	if !strings.Contains(err.Error(), "cannot use a value from a literal as") {
 		t.Fatalf("the error is not the literal refusal: %v", err)
 	}
 	var pathErr *graft.PathError
 	if !errors.As(err, &pathErr) && !strings.Contains(err.Error(), "$.") {
 		t.Fatalf("the error does not name a path: %v", err)
+	}
+}
+
+// TestRefusalIsNeverWithheld checks that a refusal keeps its message
+// when a literal happens to hold a word the message uses, here the
+// operator's own name, since the refusal quotes nothing from the value.
+func TestRefusalIsNeverWithheld(t *testing.T) {
+	params := map[string]interface{}{"calc": "zq7", "literal": "zq7", "e": "meta.zq7secret * 2"}
+	for _, mode := range leakModes {
+		t.Run(mode.name, func(t *testing.T) {
+			eng, _ := codeEngine(t, mode.parallel)
+			planDoc, err := eng.ParseYAML([]byte(codePlan + "out: (( calc params.e ))\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			user := graft.NewDocument(map[string]interface{}{"params": graft.NewLiteral(params)})
+			_, err = eng.Merge(context.Background(), planDoc, user).Execute()
+			assertRefused(t, err)
+		})
 	}
 }

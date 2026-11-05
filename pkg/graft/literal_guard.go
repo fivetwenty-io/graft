@@ -196,6 +196,19 @@ func quotedLiteral(msg string, texts []string) string {
 	return ""
 }
 
+// withoutRefusal returns err's Error() text with the text of any refusal
+// of a literal in it taken out. A refusal quotes nothing from the value,
+// so its own words, such as the operator's name, never count as quoting
+// a literal, even when a literal happens to hold the same word.
+func withoutRefusal(err error) string {
+	msg := err.Error()
+	var refused *literal.RefusedError
+	if errors.As(err, &refused) {
+		msg = strings.ReplaceAll(msg, refused.Error(), "")
+	}
+	return msg
+}
+
 // scrubLiteralError returns err, or a withheldError in its place when op
 // read from a literal and the error's Error() text holds text from a
 // literal in the tree. An operator that read no literal keeps its
@@ -210,7 +223,7 @@ func (ev *Evaluator) scrubLiteralError(op *Opcall, err error) error {
 		return err
 	}
 	texts := literal.Texts(ev.Tree)
-	if quotedLiteral(err.Error(), texts) == "" {
+	if quotedLiteral(withoutRefusal(err), texts) == "" {
 		return err
 	}
 	if pathErr, ok := err.(*PathError); ok { //nolint:errorlint // only the outer PathError's path is kept
