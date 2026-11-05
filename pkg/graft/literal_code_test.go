@@ -99,6 +99,7 @@ func codeParams(t *testing.T) map[string]interface{} {
 		"aws":  "zq7/param",
 		"nats": "kv:zq7/key",
 		"url":  "nats://127.0.0.1:1/zq7",
+		"cfg":  map[string]interface{}{"url": "nats://127.0.0.1:1/zq7"},
 		"file": file,
 		"dir":  dir,
 		"key":  "zq7secret",
@@ -207,6 +208,45 @@ func TestLiteralNeverNamesAnAWSValue(t *testing.T) {
 		{name: "plain awsparam unchanged", out: `(( awsparam "/plain/param" ))`, want: "BACKENDREAD"},
 		{name: "plain awssecret unchanged", out: `(( awssecret "plain/secret" ))`, want: "BACKENDREAD"},
 	})
+}
+
+// TestLiteralNeverNamesANATSValue checks that a literal never chooses
+// which store or key (( nats )) reads, nor which server it asks.
+func TestLiteralNeverNamesANATSValue(t *testing.T) {
+	runCodeCases(t, []codeCase{
+		{name: "nats path", out: "(( nats params.nats ))"},
+		{name: "nats through concat", out: `(( nats (concat "kv:" params.vp) ))`},
+		{name: "nats through the tree", extra: "t: (( concat params.nats \"\" ))\n", out: "(( nats t ))"},
+		{name: "nats refusal is not a fallback", out: `(( nats params.nats || "default" ))`},
+		{name: "nats server", out: `(( nats "kv:plain/key" params.url ))`},
+		{name: "nats settings", out: `(( nats "kv:plain/key" params.cfg ))`},
+		{name: "nats grabbed settings", extra: "t: (( grab params.cfg ))\n", out: `(( nats "kv:plain/key" t ))`},
+		{name: "plain nats unchanged", out: `(( nats "kv:plain/key" ))`, want: "BACKENDREAD"},
+	})
+}
+
+// TestLiteralNeverPicksANATSServer checks the built-in NATS client, with
+// no backend registered, refuses a server from a literal before it dials.
+func TestLiteralNeverPicksANATSServer(t *testing.T) {
+	for _, mode := range leakModes {
+		t.Run(mode.name, func(t *testing.T) {
+			opts := []graft.EngineOption{}
+			if mode.parallel {
+				opts = append(opts, graft.WithParallel(true))
+			}
+			eng, err := graft.NewEngine(opts...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			planDoc, err := eng.ParseYAML([]byte(codePlan + "out: (( nats \"kv:plain/key\" params.url ))\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			user := graft.NewDocument(map[string]interface{}{"params": graft.NewLiteral(codeParams(t))})
+			_, err = eng.Merge(context.Background(), planDoc, user).Execute()
+			assertRefused(t, err)
+		})
+	}
 }
 
 func runCodeCases(t *testing.T, cases []codeCase) {
