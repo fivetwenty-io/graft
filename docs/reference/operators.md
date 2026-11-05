@@ -70,9 +70,12 @@ top-level list results into a single combined list — this is how
 `(( grab list_a list_b ))` produces one list from two array references. Called with zero arguments, it errors with "no arguments
 specified to `(( grab ... ))`".
 
+A path may start with `$.`, which names the document root the way spruce reads it, so `(( grab $.meta.a ))` is the same as `(( grab meta.a ))`. The `$.` form works anywhere a reference does, including inside `||`, as an argument to any operator, in a ternary branch, and as the subject of a `for` loop or a `case`. `--prune` and `--cherry-pick` accept it too. A bare `$.` with no path after it is a parse error.
+
 ```yaml
 value: (( grab path.to.value ))
 combined: (( grab list_a list_b ))
+rooted: (( grab $.path.to.value ))
 ```
 
 ### String operators

@@ -21,6 +21,8 @@ Reference a value from elsewhere in the document.
 value: (( grab path.to.value ))
 ```
 
+A path may start with `$.` to name the document root, as spruce allows, so `(( grab $.path.to.value ))` reads the same value. A `$` followed by a name, as in `$HOME`, is still an environment variable.
+
 **Examples:**
 
 ```yaml

@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A `+` name after a `$` name in a slash segment now stays in the path, so `(( grab a/$X+y ))` reads the key `a/$X+y`, as spruce does. Before, graft read `a/$X` plus `y`.
 
+- A reference that starts with `$.` or `$[` now names a path from the document root, the way spruce reads it, so `(( grab $.meta.a ))` is the same as `(( grab meta.a ))`. Before, graft read the `$` as the start of an environment variable, and every such expression failed with "invalid environment variable syntax". The `$.` form works in every place a reference does, including both sides of `||`, operator arguments, ternary branches, slash paths, and bracket indexes. It also works as the subject of a `for` loop or a `case`. Dependency ordering treats a `$.` path the same as the plain path in both evaluator modes. A `$` followed by a name, such as `$HOME`, is still an environment variable. A `$.` with no path after it is now a parse error that says a path must follow the `$`, where spruce overflows its recursion limit.
+
+- `--prune` and `--cherry-pick` now accept a path that starts with `$.`, as spruce does. Before, `--prune '$.meta'` silently removed nothing, and `--cherry-pick '$.meta'` failed with "key not found".
+
 ## [1.45.1] - 2026-11-03
 
 This release makes graft read a `/` attached to a reference as part of the path, the way spruce does, so BOSH's `name/index` instance notation works in expressions such as `(( grab jobs.postgresql/0.ips[0] ))`. It also changes how unspaced division behaves, because `a/b` is now a path and division needs a space before the `/`. Before you upgrade, search your templates for a `/` with no space between two operands.

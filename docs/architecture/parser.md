@@ -294,13 +294,16 @@ primary        = literal | reference | "(" expression ")" | operator_call ;
 operator_call  = OPERATOR [ "@" IDENTIFIER ] arguments? ;
 arguments      = expression ( expression )* ;
 literal        = STRING | NUMBER | BOOLEAN | NULL ;
-reference      = ( head | "/" slash_segment ) ( "." segment | "."? "/" slash_segment | "[" segment "]" )* ;
+reference      = ( head | "/" slash_segment | root ) ( "." segment | "."? "/" slash_segment | "[" segment "]" )* ;
+root           = "$" ( "." segment | "." "/" slash_segment | "[" segment "]" ) ;
 head           = IDENTIFIER | "$" IDENTIFIER | DIGITS [ EXPONENT ] ;
 segment        = IDENTIFIER | NUMBER | IDENTIFIER "=" value | "$" IDENTIFIER ;
 slash_segment  = ( "$" IDENTIFIER | NAME_CHAR* [ EXPONENT ] ) ( "+" IDENTIFIER )* ;
 ```
 
 A `/` that directly follows a reference character continues the reference, which is how BOSH's `name/index` instance notation reads, as in `jobs.postgresql/0.ips`, and how spruce reads a path. A `/` with whitespace before it is the division operator in `multiplicative`, so `a / b` and `a /b` divide. A `/` that has no left operand before it begins a reference, so `(( grab /b ))` reads the key `/b`, as spruce does. That covers the start of an expression, the position right after an operator name, and the position after `(`, `,`, `||`, `?`, `:`, or a binary operator. A reference can start with `DIGITS` only when a `/` follows them, so `8/2` is the path `8/2`, while `8` and `1.5` on their own stay numbers. The digits may carry an exponent, as in `1e+5/2` or `1.5e3/2`, and then the whole run is still a path.
+
+A `$` followed by a `.` or a `[` is the document root, as spruce reads it, so `$.meta.a` names the same node as `meta.a`, and `$.list[0]` names the same node as `list[0]`. A `[` may follow the `$` directly, as in `$[key_name].a`, which reads the top-level key that `key_name` holds. The lexer reads the whole path as one reference token, and the cursor drops the leading `$`, so dependency scans and both evaluator modes treat the two spellings as the same path. A `$` followed by a name is still an environment variable, so `$HOME` and `$HOME/x` keep their meaning. A `$.` with no path after it would name the whole document, so the parser rejects it with an error that says a path must follow the `$`.
 
 Arguments are separated by whitespace, not commas. `@` after an operator name
 names a backend target: `(( vault@production "secret/db:password" ))`. A

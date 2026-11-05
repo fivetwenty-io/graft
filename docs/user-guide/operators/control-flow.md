@@ -289,6 +289,8 @@ env_vars:
 Any expression that yields a list or a map may be the iterable, including an
 operator call — `(( for k in keys database ))` iterates a map's key names.
 
+A bare iterable may start with `$.` to name the document root, so `(( for svc in $.service_list ))` reads the same list as `(( for svc in service_list ))`. The same holds for the subject of a `case` and for a condition.
+
 An empty list or map is not an error; the loop emits nothing, which
 leaves the surrounding key null.
 
