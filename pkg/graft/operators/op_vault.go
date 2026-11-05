@@ -129,7 +129,7 @@ func (p *vaultArgProcessor) resolveToString(ev *Evaluator, expr *Expr) (string, 
 
 	before := literal.Reads(ev)
 	part, err := p.resolvePart(ev, expr)
-	if isRefusal(err) {
+	if literal.IsRefusal(err) {
 		return "", err
 	}
 	if readsLiteral(ev, before) {
@@ -489,7 +489,7 @@ func (o VaultOperator) runClassic(ev *Evaluator, args []*Expr, engine graft.Engi
 	if err != nil {
 		// Failed to build paths, check if we have a default. A refused
 		// literal is never a reason to fall back to it.
-		if processor.hasDefault && !isRefusal(err) {
+		if processor.hasDefault && !literal.IsRefusal(err) {
 			DEBUG("vault: failed to build paths (%s), evaluating default value", err)
 			defaultValue, evalErr := processor.evaluateDefault(ev)
 			if evalErr != nil {
@@ -516,7 +516,7 @@ func (o VaultOperator) runWithSubOperators(ev *Evaluator, args []*Expr, engine g
 	if err != nil {
 		// Failed to build paths, check if we have a default. A refused
 		// literal is never a reason to fall back to it.
-		if processor.hasDefault && !isRefusal(err) {
+		if processor.hasDefault && !literal.IsRefusal(err) {
 			DEBUG("vault: failed to build paths (%s), evaluating default value", err)
 			defaultValue, evalErr := processor.evaluateDefault(ev)
 			if evalErr != nil {
@@ -821,7 +821,7 @@ func (o VaultTryOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 func resolveVaultTryPath(ev *Evaluator, pathExpr *Expr, i int) (path string, usable bool, err error) {
 	before := literal.Reads(ev)
 	val, err := ResolveOperatorArgument(ev, pathExpr)
-	if isRefusal(err) {
+	if literal.IsRefusal(err) {
 		return "", false, err
 	}
 	if readsLiteral(ev, before) {

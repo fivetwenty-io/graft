@@ -1,7 +1,6 @@
 package operators
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -95,7 +94,7 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 			DEBUG("LogicalOr: left side succeeded with value %v (type %T), stopping here", left, left)
 			return left, nil
 		}
-		if isRefusal(err) {
+		if literal.IsRefusal(err) {
 			// A refused literal is never a reason to fall back.
 			return nil, err
 		}
@@ -128,13 +127,6 @@ func stripNotingRead(ev *Evaluator, val interface{}) interface{} {
 	return plain
 }
 
-// isRefusal reports whether err is an operator's refusal of a value from
-// a literal. A || never falls back past one, so the refusal is not
-// hidden by the other side.
-func isRefusal(err error) bool {
-	return errors.Is(err, literal.ErrNotCode)
-}
-
 // readsLiteral reports whether ev has noted a read of a literal since
 // Reads returned before.
 func readsLiteral(ev *Evaluator, before int) bool {
@@ -149,7 +141,7 @@ func readsLiteral(ev *Evaluator, before int) bool {
 func resolveRefusingLiteral(ev *Evaluator, arg *Expr, operator, role string) (interface{}, error) {
 	before := literal.Reads(ev)
 	val, err := ResolveOperatorArgument(ev, arg)
-	if isRefusal(err) {
+	if literal.IsRefusal(err) {
 		return nil, err
 	}
 	if readsLiteral(ev, before) {

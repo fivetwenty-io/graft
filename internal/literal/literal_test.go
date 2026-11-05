@@ -2,6 +2,8 @@ package literal_test
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -206,5 +208,28 @@ func TestNew(t *testing.T) {
 	}
 	if literal.New(w) != w {
 		t.Fatal("New of a Value is not the same Value")
+	}
+}
+
+// TestIsRefusal checks the one check every || fallback, vault default,
+// and vault-try list makes before it tries another side.
+func TestIsRefusal(t *testing.T) {
+	refused := literal.Refuse("calc", "an expression")
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"refusal", refused, true},
+		{"wrapped refusal", fmt.Errorf("$.out: %w", refused), true},
+		{"joined refusal", errors.Join(errors.New("other"), refused), true},
+		{"the sentinel", literal.ErrNotCode, true},
+		{"other error", errors.New("unable to resolve"), false},
+		{"nil", nil, false},
+	}
+	for _, tc := range cases {
+		if got := literal.IsRefusal(tc.err); got != tc.want {
+			t.Errorf("%s: IsRefusal is %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

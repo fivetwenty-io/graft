@@ -2,7 +2,6 @@
 package graft
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -1481,7 +1480,7 @@ func evaluateKeepingLiteral(e *Expr, treeData interface{}) (interface{}, error) 
 			if err == nil {
 				return left, nil
 			}
-			if errors.Is(err, literal.ErrNotCode) {
+			if literal.IsRefusal(err) {
 				return nil, err
 			}
 		}

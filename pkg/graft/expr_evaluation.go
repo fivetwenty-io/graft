@@ -1,7 +1,6 @@
 package graft
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -87,7 +86,7 @@ func EvaluateExpr(e *Expr, ev *Evaluator) (*Response, error) {
 			// Left side succeeded, use its value
 			return left, nil
 		}
-		if errors.Is(err, literal.ErrNotCode) {
+		if literal.IsRefusal(err) {
 			// A refused literal is never a reason to fall back.
 			return nil, err
 		}

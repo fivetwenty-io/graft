@@ -2,7 +2,6 @@ package graft
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -575,7 +574,7 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 				// Return the value even if it's nil
 				return left, nil
 			}
-			if errors.Is(err, literal.ErrNotCode) {
+			if literal.IsRefusal(err) {
 				return nil, err
 			}
 		}

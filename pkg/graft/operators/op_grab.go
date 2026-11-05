@@ -60,7 +60,7 @@ func resolveGrabArgValue(ev *Evaluator, arg *Expr) (interface{}, error) {
 		if err == nil {
 			return val, nil
 		}
-		if isRefusal(err) {
+		if literal.IsRefusal(err) {
 			// A refused literal is never a reason to fall back.
 			return nil, err
 		}

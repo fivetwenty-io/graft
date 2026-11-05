@@ -10,6 +10,7 @@ import (
 
 	natsbackend "github.com/fivetwenty-io/graft/internal/backends/nats"
 	"github.com/fivetwenty-io/graft/internal/errtext"
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -338,7 +339,7 @@ func resolveNatsPath(ev *graft.Evaluator, args []*graft.Expr) (string, error) {
 		return "", err
 	}
 	if len(args) > 1 {
-		if _, cfgErr := resolveRefusingLiteral(ev, args[1], "nats", "a server or its settings"); isRefusal(cfgErr) {
+		if _, cfgErr := resolveRefusingLiteral(ev, args[1], "nats", "a server or its settings"); literal.IsRefusal(cfgErr) {
 			return "", cfgErr
 		}
 	}

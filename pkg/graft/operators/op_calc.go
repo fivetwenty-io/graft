@@ -69,7 +69,7 @@ func (CalcOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respons
 	// or refused.
 	before := literal.Reads(ev)
 	val, err := ResolveOperatorArgument(ev, args[0])
-	if isRefusal(err) {
+	if literal.IsRefusal(err) {
 		return nil, err
 	}
 	if readsLiteral(ev, before) {

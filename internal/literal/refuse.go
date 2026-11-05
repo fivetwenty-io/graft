@@ -30,6 +30,14 @@ func (e *RefusedError) Error() string {
 	return fmt.Sprintf("(( %s )) cannot use a value from a literal as %s, because a literal is always data", e.Operator, e.Role)
 }
 
+// IsRefusal reports whether err is, or wraps, an operator's refusal of
+// a value from a literal. Every || fallback, vault default, and
+// vault-try list asks it before trying another side, so a refusal is
+// never hidden by what the other side would give.
+func IsRefusal(err error) bool {
+	return errors.Is(err, ErrNotCode)
+}
+
 // Is reports whether target is ErrNotCode.
 func (e *RefusedError) Is(target error) bool {
 	return target == ErrNotCode

@@ -81,7 +81,7 @@ func resolveInjectArg(ev *Evaluator, arg *Expr, viaOr bool) (interface{}, error)
 		if err == nil {
 			return val, nil
 		}
-		if isRefusal(err) {
+		if literal.IsRefusal(err) {
 			// A refused literal is never a reason to fall back.
 			return nil, err
 		}
