@@ -23,6 +23,9 @@ jobs:
   postgresql/0:
     ips: [10.0.0.5]
 "/x": slash-x
+"$HOME/x": home-slash-x
+"$GRAFT_ROOT_TEST_TOP/x": top-slash-x
+"meta/x": substituted
 `
 
 // TestRootReferenceReadsFromTheDocumentRoot pins that a reference
@@ -61,6 +64,12 @@ func TestRootReferenceReadsFromTheDocumentRoot(t *testing.T) {
 		{"bare arithmetic", "(( $.meta.b.0 == meta.b.0 ))", "result", "true"},
 		{"environment variable segment", "(( grab $.meta.$GRAFT_ROOT_TEST_KEY ))", "result", "hello"},
 		{"environment variable first segment", "(( grab $.$GRAFT_ROOT_TEST_TOP.a ))", "result", "hello"},
+		// A '$' name followed by a '/' is one reference whose first key
+		// is the text as written, so the variable is not substituted
+		// and meta/x is never read.
+		{"environment variable before a slash", "(( grab $HOME/x ))", "result", "home-slash-x"},
+		{"environment variable before a slash is not substituted", "(( grab $GRAFT_ROOT_TEST_TOP/x ))", "result", "top-slash-x"},
+		{"environment variable before a slash inside concat", `(( concat "v=" $HOME/x ))`, "result", "v=home-slash-x"},
 		{"dynamic bracket at the root", "(( grab $[key_name].a ))", "result", "hello"},
 		{"bare reference stays in the output", "(( $.meta.a ))", "result", "(( $.meta.a ))"},
 		{"defer writes the path without the root", "(( defer grab $.meta.a ))", "result", "(( grab meta.a ))"},

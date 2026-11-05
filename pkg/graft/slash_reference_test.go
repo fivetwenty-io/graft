@@ -463,6 +463,7 @@ c: cee
 "/b": slash-b
 "/b/c": slash-b-c
 "/8": slash-eight
+"/n": 4
 "1e+5/2": exp-plus
 "1E5/2": exp-upper
 "1":
@@ -518,6 +519,9 @@ func TestSlashCornerShapesArePaths(t *testing.T) {
 		// The path comes first, because a string before a leading '/'
 		// is a left operand, and the '/' would divide it.
 		{"concat", func(p string) string { return "(( concat " + p + ` "=v" ))` }, func(w string) string { return w + "=v" }},
+		// A comma ends the string's argument, so the path can come
+		// after it.
+		{"concat after a comma", func(p string) string { return `(( concat "v=", ` + p + " ))" }, func(w string) string { return "v=" + w }},
 		{"left of ||", func(p string) string { return `(( grab ` + p + ` || "fallback" ))` }, func(w string) string { return w }},
 		{"right of ||", func(p string) string { return "(( grab missing.key || " + p + " ))" }, func(w string) string { return w }},
 	}
@@ -561,6 +565,35 @@ func TestLeadingSlashPositions(t *testing.T) {
 	for _, mode := range slashModes {
 		for _, tc := range cases {
 			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				if got := evalCornerResult(t, mode.opts, tc.expr); got != tc.want {
+					t.Fatalf("result = %q, want %q", got, tc.want)
+				}
+			})
+		}
+	}
+}
+
+// TestLeadingSlashAfterBinaryOperator pins that a '/' right after a
+// binary operator begins a reference, because the operator leaves no
+// left operand for it to divide. "/n" holds 4 and a holds 8.
+func TestLeadingSlashAfterBinaryOperator(t *testing.T) {
+	cases := []struct {
+		expr string
+		want string
+	}{
+		{"(( 1 + /n ))", "5"},
+		{"(( a - /n ))", "4"},
+		{"(( a * /n ))", "32"},
+		{"(( a / /n ))", "2"},
+		{"(( a % /n ))", "0"},
+		{"(( a / /n / /n ))", "0.5"},
+		{"(( /n + 1 ))", "5"},
+		{"(( a == /n ))", "false"},
+		{`(( concat "v=" (1 + /n) ))`, "v=5"},
+	}
+	for _, mode := range slashModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.expr, func(t *testing.T) {
 				if got := evalCornerResult(t, mode.opts, tc.expr); got != tc.want {
 					t.Fatalf("result = %q, want %q", got, tc.want)
 				}
