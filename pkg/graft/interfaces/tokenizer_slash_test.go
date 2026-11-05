@@ -62,7 +62,7 @@ func TestTokenizerSlashContinuesReference(t *testing.T) {
 		{"spaced slash divides", "a / b", []string{ident("a"), slash, ident("b")}},
 		{"slash with a space before it divides", "a /b", []string{ident("a"), slash, ident("b")}},
 		{"spaced slash after a dotted path divides", "jobs.n / 2", []string{ref("jobs.n"), slash, TokenInteger.String() + "(2)"}},
-		{"leading slash stays an operator", "/b", []string{slash, ident("b")}},
+		{"leading slash begins a reference", "/b", []string{ref("/b")}},
 		{"slash after a closing paren divides", "(a)/2", []string{
 			TokenLeftParen.String() + "(()", ident("a"), TokenRightParen.String() + "())", slash, TokenInteger.String() + "(2)",
 		}},
@@ -74,6 +74,91 @@ func TestTokenizerSlashContinuesReference(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := slashTokens(t, tc.src)
+			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
+				t.Fatalf("tokens for %q:\n got  %v\n want %v", tc.src, got, tc.want)
+			}
+		})
+	}
+}
+
+// slashTokensWithOperators tokenizes src as slashTokens does, but with
+// grab and concat registered as operator names, the way the expression
+// parser sets the tokenizer up.
+func slashTokensWithOperators(t *testing.T, src string) []string {
+	t.Helper()
+	tz := NewAdvancedTokenizer(src, TokenizerOptions{
+		RecognizeReferencePaths: true,
+		AllowEnvironmentVars:    true,
+		TrackPositions:          true,
+		AllowUnicode:            true,
+		OperatorName: func(name string) bool {
+			return name == "grab" || name == "concat"
+		},
+	})
+	var out []string
+	for i := 0; i < 64; i++ {
+		tok := tz.NextToken()
+		if tok.Type == TokenEOF {
+			return out
+		}
+		out = append(out, tok.Type.String()+"("+tok.Literal+")")
+	}
+	t.Fatalf("tokenizer did not reach EOF for %q", src)
+	return nil
+}
+
+// TestTokenizerLeadingSlashBeginsReference pins that a '/' begins a
+// reference when no left operand comes before it, as spruce reads a
+// leading '/', and that a '/' after an operand still divides, with or
+// without whitespace between them.
+func TestTokenizerLeadingSlashBeginsReference(t *testing.T) {
+	ref := func(s string) string { return TokenReference.String() + "(" + s + ")" }
+	ident := func(s string) string { return TokenIdentifier.String() + "(" + s + ")" }
+	integer := func(s string) string { return TokenInteger.String() + "(" + s + ")" }
+	slash := TokenSlash.String() + "(/)"
+	tk := func(tt TokenType, lit string) string { return tt.String() + "(" + lit + ")" }
+	start := tk(TokenOperatorStart, "((")
+	end := tk(TokenOperatorEnd, "))")
+	or := tk(TokenOr, "||")
+
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{"at the start of the expression", "(( /b ))", []string{start, ref("/b"), end}},
+		{"after an operator name", "(( grab /b ))", []string{start, ident("grab"), ref("/b"), end}},
+		{"several slashes after an operator name", "(( grab /b/c ))", []string{start, ident("grab"), ref("/b/c"), end}},
+		{"digit name after a leading slash", "(( grab /8 ))", []string{start, ident("grab"), ref("/8"), end}},
+		{"dotted path after a leading slash", "(( grab /b.c[0] ))", []string{start, ident("grab"), ref("/b.c[0]"), end}},
+		{"left of ||", "(( grab /b || c ))", []string{start, ident("grab"), ref("/b"), or, ident("c"), end}},
+		{"right of ||", "(( grab c || /b ))", []string{start, ident("grab"), ident("c"), or, ref("/b"), end}},
+		{"after an open paren", "(/b)", []string{TokenLeftParen.String() + "(()", ref("/b"), TokenRightParen.String() + "())"}},
+		{"after a comma", "a, /b", []string{ident("a"), TokenComma.String() + "(,)", ref("/b")}},
+		{"after a question mark", "t ? /b : /c", []string{
+			ident("t"), TokenQuestion.String() + "(?)", ref("/b"), TokenColon.String() + "(:)", ref("/c"),
+		}},
+		{"after a binary operator", "1 + /b", []string{integer("1"), TokenPlus.String() + "(+)", ref("/b")}},
+		{"after a division", "a / /b", []string{ident("a"), slash, ref("/b")}},
+		{"after an operator name in argument position", "(( concat a, grab /b ))", []string{
+			start, ident("concat"), ident("a"), TokenComma.String() + "(,)", ident("grab"), ref("/b"), end,
+		}},
+		{"after an operand with a space divides", "(( a /b ))", []string{start, ident("a"), slash, ident("b"), end}},
+		{"after an argument with a space divides", "(( concat a /b ))", []string{start, ident("concat"), ident("a"), slash, ident("b"), end}},
+		{"after a string divides", `(( concat "a" /b ))`, []string{
+			start, ident("concat"), TokenString.String() + `("a")`, slash, ident("b"), end,
+		}},
+		{"after a closing paren divides", "(a) /b", []string{
+			TokenLeftParen.String() + "(()", ident("a"), TokenRightParen.String() + "())", slash, ident("b"),
+		}},
+		{"spaced division", "(( a / b ))", []string{start, ident("a"), slash, ident("b"), end}},
+		{"spaced division of numbers", "(( 10 / 4 ))", []string{start, integer("10"), slash, integer("4"), end}},
+		{"a slash with a space after it stays an operator", "(( grab / b ))", []string{start, ident("grab"), slash, ident("b"), end}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := slashTokensWithOperators(t, tc.src)
 			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
 				t.Fatalf("tokens for %q:\n got  %v\n want %v", tc.src, got, tc.want)
 			}
@@ -137,6 +222,7 @@ func TestTokenizerDollarSegmentGluesPlusName(t *testing.T) {
 		{"plus digit after a dollar segment adds", "a/$X+1", []string{
 			ref("a/$X"), TokenPlus.String() + "(+)", TokenInteger.String() + "(1)",
 		}},
+		{"dollar segment after a leading slash", "/$X+y", []string{ref("/$X+y")}},
 	}
 
 	for _, tc := range cases {

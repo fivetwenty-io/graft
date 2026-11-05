@@ -1,0 +1,8 @@
+"/b": slash-b
+"1e+5/2": exp-plus
+"a/$CORNER_VAR+y": dollar-plus
+
+leading_first: (( concat /b "=v" ))
+leading_after_comma: (( concat "v=", /b ))
+exponent: (( concat "v=" 1e+5/2 ))
+dollar_plus: (( concat "v=" a/$CORNER_VAR+y ))

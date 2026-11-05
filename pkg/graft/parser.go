@@ -90,11 +90,24 @@ func NewParser(input string, phase OperatorPhase) *Parser {
 		TrackPositions:          true,
 		AllowUnicode:            true,
 	}
-	return &Parser{
-		tokenizer: interfaces.NewAdvancedTokenizer(input, opts),
-		input:     input,
-		phase:     phase,
+	p := &Parser{
+		input: input,
+		phase: phase,
 	}
+	// The tokenizer asks whether an identifier names an operator, so that
+	// a '/' after an operator name, as in "(( grab /b ))", begins a
+	// reference. It asks through the same lookup the parser uses, so an
+	// engine set after construction is honored.
+	opts.OperatorName = p.namesOperator
+	p.tokenizer = interfaces.NewAdvancedTokenizer(input, opts)
+	return p
+}
+
+// namesOperator reports whether name resolves to a registered operator
+// through this parser's engine or the default registry.
+func (p *Parser) namesOperator(name string) bool {
+	_, isNull := p.operatorFor(name).(NullOperator)
+	return !isNull
 }
 
 // NewParserForEngine creates a new Parser whose operator-name lookups

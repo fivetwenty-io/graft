@@ -1,6 +1,10 @@
-# A number in exponent form followed directly by a '/' is a path, as
-# 8/2 is. A '+' name after a '$' name in a slash segment stays in the
-# segment, and "a/zzz+y" sits beside it to show no substitution.
+# A '/' with no left operand before it begins a reference, so /b is the
+# key "/b". A number in exponent form followed directly by a '/' is a
+# path, as 8/2 is. A '+' name after a '$' name in a slash segment stays
+# in the segment, and "a/zzz+y" sits beside it to show no substitution.
+"/b": slash-b
+"/b/c": slash-b-c
+"/8": slash-eight
 "1e+5/2": exp-plus
 "1E5/2": exp-upper
 "x/1e+5": slash-exp
@@ -9,7 +13,13 @@
 m:
   "x/$CORNER_VAR+y":
     k: nested-dollar-plus
+c: cee
 
+leading: (( grab /b ))
+leading_many: (( grab /b/c ))
+leading_digit: (( grab /8 ))
+leading_left_of_or: (( grab /b || c ))
+leading_right_of_or: (( grab missing || /b ))
 exponent_plus: (( grab 1e+5/2 ))
 exponent_upper: (( grab 1E5/2 ))
 exponent_after_slash: (( grab x/1e+5 ))

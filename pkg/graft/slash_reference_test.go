@@ -98,8 +98,7 @@ func TestSlashInReferenceIsPartOfThePath(t *testing.T) {
 
 // TestSlashEdgeCases pins the edge cases of the slash rule. Each
 // matches what spruce v1.35.17 does with the same input, except the
-// spaced forms, which divide, and the leading slash, which stays an
-// operator token and so fails to parse.
+// spaced forms, which divide.
 func TestSlashEdgeCases(t *testing.T) {
 	const doc = `
 a: 8
@@ -149,11 +148,10 @@ arr:
 
 // TestSlashEdgeCaseErrors pins the slash shapes that fail. A slash
 // before a bracket keeps the slash in the segment before the bracket,
-// as spruce does, and a leading slash is still an operator token.
+// as spruce does.
 func TestSlashEdgeCaseErrors(t *testing.T) {
 	const doc = `
 arr: [x0, x1]
-"/b": slash-b
 `
 	cases := []struct {
 		name    string
@@ -161,7 +159,6 @@ arr: [x0, x1]
 		wantErr string
 	}{
 		{"slash before a bracket", "(( grab arr/[0] ))", "`$.arr/` could not be found"},
-		{"leading slash", "(( grab /b ))", "no arguments specified"},
 	}
 	for _, mode := range slashModes {
 		for _, tc := range cases {
@@ -186,12 +183,21 @@ func TestUnresolvedSlashPathError(t *testing.T) {
 jobs:
   count: 8675309
 `
+	assertUnresolvedPathError(t, doc, "jobs.count/3", []string{
+		"(( grab jobs.count/3 ))",
+		`(( concat "v=" jobs.count/3 ))`,
+		`(( grab missing.key || jobs.count/3 ))`,
+	})
+}
+
+// assertUnresolvedPathError evaluates each expression against doc in
+// both modes and checks that it fails with a "could not be found" error
+// that names path, in both the plain and the detailed text, and that
+// neither text quotes the planted value 8675309.
+func assertUnresolvedPathError(t *testing.T, doc, path string, exprs []string) {
+	t.Helper()
 	for _, mode := range slashModes {
-		for _, expr := range []string{
-			"(( grab jobs.count/3 ))",
-			`(( concat "v=" jobs.count/3 ))`,
-			`(( grab missing.key || jobs.count/3 ))`,
-		} {
+		for _, expr := range exprs {
 			t.Run(mode.name+"/"+expr, func(t *testing.T) {
 				_, err := evalSlashDoc(t, mode.opts, doc+"result: "+expr+"\n")
 				if err == nil {
@@ -204,8 +210,8 @@ jobs:
 					if !strings.Contains(text, "could not be found") {
 						t.Errorf("%s %q does not say the path could not be found", label, text)
 					}
-					if !strings.Contains(text, "jobs.count/3") {
-						t.Errorf("%s %q does not name the path jobs.count/3", label, text)
+					if !strings.Contains(text, path) {
+						t.Errorf("%s %q does not name the path %s", label, text, path)
 					}
 					if strings.Contains(text, "8675309") {
 						t.Errorf("%s %q quotes a document value", label, text)
@@ -447,9 +453,16 @@ z:
 	}
 }
 
-// cornerDoc holds keys for the slash corner shapes. "a/zzz+y" sits beside "a/$GRAFT_CORNER_VAR+y", so substituting
+// cornerDoc holds keys for the leading-slash, exponent, and "$name+name"
+// shapes. "a/zzz+y" sits beside "a/$GRAFT_CORNER_VAR+y", so substituting
 // the environment variable into the segment would give the wrong value.
 const cornerDoc = `
+a: 8
+b: 2
+c: cee
+"/b": slash-b
+"/b/c": slash-b-c
+"/8": slash-eight
 "1e+5/2": exp-plus
 "1E5/2": exp-upper
 "1":
@@ -475,8 +488,9 @@ func evalCornerResult(t *testing.T, opts []graft.EngineOption, expr string) stri
 	return fmt.Sprint(got)
 }
 
-// TestSlashCornerShapesArePaths pins corner shapes that read as one
-// path, the way spruce v1.35.17 reads them. A number in exponent form followed
+// TestSlashCornerShapesArePaths pins three shapes that read as one
+// path, the way spruce v1.35.17 reads them. A '/' with no left operand
+// before it begins a reference. A number in exponent form followed
 // directly by a '/' is a path, as "8/2" is. A '+' followed by a name
 // continues a "$name" segment after a '/', as it does after a name.
 func TestSlashCornerShapesArePaths(t *testing.T) {
@@ -485,6 +499,9 @@ func TestSlashCornerShapesArePaths(t *testing.T) {
 		path string
 		want string
 	}{
+		{"/b", "slash-b"},
+		{"/b/c", "slash-b-c"},
+		{"/8", "slash-eight"},
 		{"1e+5/2", "exp-plus"},
 		{"1E5/2", "exp-upper"},
 		{"1.5e3/2", "exp-frac"},
@@ -498,6 +515,8 @@ func TestSlashCornerShapesArePaths(t *testing.T) {
 		result func(want string) string
 	}{
 		{"grab", func(p string) string { return "(( grab " + p + " ))" }, func(w string) string { return w }},
+		// The path comes first, because a string before a leading '/'
+		// is a left operand, and the '/' would divide it.
 		{"concat", func(p string) string { return "(( concat " + p + ` "=v" ))` }, func(w string) string { return w + "=v" }},
 		{"left of ||", func(p string) string { return `(( grab ` + p + ` || "fallback" ))` }, func(w string) string { return w }},
 		{"right of ||", func(p string) string { return "(( grab missing.key || " + p + " ))" }, func(w string) string { return w }},
@@ -514,4 +533,72 @@ func TestSlashCornerShapesArePaths(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestLeadingSlashPositions pins the leading-slash rule in each place
+// that has no left operand, and pins that a '/' after an operand still
+// divides, with or without whitespace between them.
+func TestLeadingSlashPositions(t *testing.T) {
+	cases := []struct {
+		name string
+		expr string
+		want string
+	}{
+		{"first argument of concat", `(( concat /b "-x" ))`, "slash-b-x"},
+		{"after a comma", `(( concat "v=", /b ))`, "v=slash-b"},
+		{"bare expression left of ||", "(( /b || c ))", "slash-b"},
+		{"bare expression right of ||", "(( missing.key || /b ))", "slash-b"},
+		{"nested call", `(( concat "v=" (grab /b) ))`, "v=slash-b"},
+		{"ternary branch", "'(( true ? /b : c ))'", "slash-b"},
+		{"operand with a space before the slash divides", "(( a /b ))", "4"},
+		{"spaced slash divides", "(( a / b ))", "4"},
+		{"spaced slash between numbers divides", "(( 10 / 4 ))", "2.5"},
+		{"grouped operand with a space before the slash divides", `(( concat "v=" (a /b) ))`, "v=4"},
+		{"grab operand with a space before the slash divides", "(( grab a /b ))", "4"},
+		{"spaced exponent divides", "(( 1e+5 / b ))", "50000"},
+	}
+
+	for _, mode := range slashModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				if got := evalCornerResult(t, mode.opts, tc.expr); got != tc.want {
+					t.Fatalf("result = %q, want %q", got, tc.want)
+				}
+			})
+		}
+	}
+}
+
+// TestLeadingSlashAfterStringDivides pins the documented difference
+// from spruce. Spruce reads (( concat "v=" /b )) as two arguments, but
+// graft has infix arithmetic, so the string is a left operand and the
+// '/' divides. The division takes the whole call as its left side, so
+// concat gets one argument and fails, as (( concat a /b )) always has.
+func TestLeadingSlashAfterStringDivides(t *testing.T) {
+	for _, mode := range slashModes {
+		t.Run(mode.name, func(t *testing.T) {
+			_, err := evalSlashDoc(t, mode.opts, cornerDoc+`result: (( concat "v=" /b ))`+"\n")
+			if err == nil {
+				t.Fatalf("expected an error")
+			}
+			if !strings.Contains(err.Error(), "concat operator requires at least two arguments") {
+				t.Fatalf("error %q does not say concat got one argument", err.Error())
+			}
+		})
+	}
+}
+
+// TestUnresolvedLeadingSlashPathError pins that a leading-slash path
+// that does not exist fails with a "could not be found" error naming
+// the whole path, and that neither the plain nor the detailed text
+// quotes a value.
+func TestUnresolvedLeadingSlashPathError(t *testing.T) {
+	const doc = `
+"/count": 8675309
+`
+	assertUnresolvedPathError(t, doc, "/count/3", []string{
+		"(( grab /count/3 ))",
+		`(( concat /count/3 "=v" ))`,
+		`(( grab missing.key || /count/3 ))`,
+	})
 }

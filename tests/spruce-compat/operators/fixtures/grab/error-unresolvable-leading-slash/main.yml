@@ -1,0 +1,3 @@
+"/count": 8
+
+result: (( grab /count/3 ))
