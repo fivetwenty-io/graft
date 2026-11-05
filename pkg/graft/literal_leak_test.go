@@ -156,8 +156,6 @@ func TestLiteralNeverLeaksThroughOperators(t *testing.T) {
 		{name: "base64", out: "(( base64 params.s ))"},
 		{name: "base64-decode", out: "(( base64-decode params.b64 ))", contains: leakConcat},
 		{name: "base64-decode or", out: "(( base64-decode nope.x || params.b64 ))", contains: leakConcat},
-		{name: "load", out: "(( load params.load ))", contains: leakConcat},
-		{name: "file", out: "(( file params.file ))", contains: leakConcat},
 		{name: "defer", out: "(( defer grab params.s ))"},
 		{name: "calc", out: `(( calc "params.n + 1" ))`},
 		{name: "ips", out: "(( ips params.ip 1 ))"},

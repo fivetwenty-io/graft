@@ -82,6 +82,9 @@ func codeParams(t *testing.T) map[string]interface{} {
 	if err := os.WriteFile(file, []byte("FILEREAD"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "load.yml"), []byte("x: FILEREAD\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	return map[string]interface{}{
 		"e":    "meta.zq7secret * 2",
 		"p":    "meta.zq7secret",
@@ -101,6 +104,7 @@ func codeParams(t *testing.T) map[string]interface{} {
 		"url":  "nats://127.0.0.1:1/zq7",
 		"cfg":  map[string]interface{}{"url": "nats://127.0.0.1:1/zq7"},
 		"file": file,
+		"yml":  filepath.Join(dir, "load.yml"),
 		"dir":  dir,
 		"key":  "zq7secret",
 	}
@@ -247,6 +251,23 @@ func TestLiteralNeverPicksANATSServer(t *testing.T) {
 			assertRefused(t, err)
 		})
 	}
+}
+
+// TestLiteralNeverNamesAFile checks that a literal never chooses which
+// file (( file )) reads or which file or URL (( load )) reads.
+func TestLiteralNeverNamesAFile(t *testing.T) {
+	runCodeCases(t, []codeCase{
+		{name: "file path", out: "(( file params.file ))"},
+		{name: "file through concat", out: `(( file (concat params.dir "/file.txt") ))`},
+		{name: "file through the tree", extra: "t: (( concat params.file \"\" ))\n", out: "(( file t ))"},
+		{name: "file directory", out: `(( file params.dir "file.txt" ))`},
+		{name: "file name", out: `(( file "/" params.file ))`},
+		{name: "file refusal is not a fallback", out: `(( file params.file || "default" ))`},
+		{name: "load path", out: "(( load params.yml ))"},
+		{name: "load through concat", out: `(( load (concat params.dir "/load.yml") ))`},
+		{name: "load refusal is not a fallback", out: `(( load params.yml || "default" ))`},
+		{name: "load URL", out: "(( load params.url ))"},
+	})
 }
 
 func runCodeCases(t *testing.T, cases []codeCase) {
