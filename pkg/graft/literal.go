@@ -30,7 +30,8 @@ import "github.com/fivetwenty-io/graft/internal/literal"
 // (( static_ips )) as a network name. Each refuses before it asks a
 // backend, opens a file, or dials a server, and the error names the path
 // and the operator and quotes nothing from the value. A || fallback, a
-// vault default, or a vault-try list never hides a refusal.
+// vault default, or a vault-try list never hides a refusal. Every such
+// error matches ErrLiteralRefused with errors.Is.
 //
 // When an operator that read from a literal fails, and the Error() text
 // of its error holds a key or a scalar of 3 or more characters from
@@ -71,6 +72,12 @@ type LiteralValue = literal.Value
 // first time round, and the panic message quotes nothing from v. A map
 // or list that appears in more than one place in v is not a cycle, and
 // each place gets its own copy.
+//
+// The protection a LiteralValue gets comes from graft's own operators
+// and resolvers. A custom operator that reads ev.Tree directly, without
+// going through them, gets none of it. It sees the wrapper itself, it
+// does not refuse the value as code or as a path, and its result is not
+// kept as a literal on that account.
 func NewLiteral(v any) LiteralValue {
 	return literal.New(v)
 }
