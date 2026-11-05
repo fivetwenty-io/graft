@@ -49,63 +49,122 @@ func (e *env) withBinding(name string, value interface{}) *env {
 	return &env{scope: e.scope, bindings: next, engine: e.engine}
 }
 
-// tree returns the flattened map an expression should be evaluated against:
-// the prescan scope with current bindings overlaid. With root set, the map
-// also holds the prescan scope itself under rootScopeKey, for the "$."
-// paths that rootBoundPaths points there.
-func (e *env) tree(root bool) map[string]interface{} {
+// view is what one header expression is parsed from and evaluated
+// against. text is the expression to parse, tree is the evaluator's
+// tree, and alias, when not empty, is the extra top-level key that text
+// reads the prescan scope through.
+type view struct {
+	text  string
+	tree  map[string]interface{}
+	alias string
+}
+
+// viewFor returns the view raw is evaluated in. The tree is the prescan
+// scope with the current bindings laid over its top level, so a bound
+// name shadows the document key of the same name.
+//
+// A "$." path always names the document root, so a bound name that raw
+// reads only through "$." paths is left out of the overlay, and those
+// paths read the document key as written. The overlay is per expression,
+// so a path without the "$." elsewhere in the same header keeps the
+// binding only when raw does not also read that name through "$.".
+//
+// When raw reads one bound name both ways, as in "$.x.kind == x.kind",
+// one tree cannot serve both. The name stays bound, and each "$." path
+// that starts with it reads the scope through an alias, a top-level key
+// that no document key or binding holds. evalExpr takes the alias back
+// out of any error, so a message still names the path as written, and
+// the alias is never a key that raw mentions, so no path the user wrote
+// can reach it.
+// pathNameSpans finds the paths with the expression lexer, so a name
+// inside a string is never counted.
+func (e *env) viewFor(raw string) view {
 	if len(e.bindings) == 0 {
-		return e.scope
+		return view{text: raw, tree: e.scope}
 	}
+	spans := pathNameSpans(raw, e.engine)
+	rooted, plain := e.boundReads(raw, spans)
 	merged := make(map[string]interface{}, len(e.scope)+len(e.bindings)+1)
 	for k, v := range e.scope {
 		merged[k] = v
 	}
+	both := false
 	for k, v := range e.bindings {
-		merged[k] = v
-	}
-	if root {
-		merged[rootScopeKey] = e.scope
-	}
-	return merged
-}
-
-// rootScopeKey is the reserved top-level key under which an expression
-// that rootBoundPaths rewrote finds the prescan scope as it was before
-// any loop binding was overlaid on it.
-const rootScopeKey = "__graft_root"
-
-// rootBoundPaths makes each "$." path in raw read the document root even
-// when its first segment names a bound loop variable. tree overlays every
-// binding on the top level, so without this "$.x.list" inside a loop over
-// x would read the bound x, because tree.ParseCursor drops the "$". Each
-// such path gets rootScopeKey put in front of its first segment, as in
-// "$.__graft_root.x.list", and the second result reports whether any
-// did. pathNameSpans finds the paths with the expression lexer, so a
-// "$." inside a string or a bracket index is never touched. A path
-// without the "$." still reads the binding.
-func (e *env) rootBoundPaths(raw string) (string, bool) {
-	if len(e.bindings) == 0 {
-		return raw, false
-	}
-	var out strings.Builder
-	last, changed := 0, false
-	for _, sp := range pathNameSpans(raw, e.engine) {
-		if !sp.rooted {
+		if rooted[k] && plain[k] {
+			both = true
+		}
+		if rooted[k] && !plain[k] {
 			continue
 		}
-		if _, bound := e.bindings[raw[sp.start:sp.end]]; !bound {
+		merged[k] = v
+	}
+	if !both {
+		return view{text: raw, tree: merged}
+	}
+	alias := unusedKey(merged, raw, "__graft_root")
+	merged[alias] = e.scope
+	var out strings.Builder
+	last := 0
+	for _, sp := range spans {
+		if !sp.rooted || !plain[raw[sp.start:sp.end]] {
 			continue
 		}
 		out.WriteString(raw[last:sp.start])
-		out.WriteString(rootScopeKey + ".")
-		last, changed = sp.start, true
-	}
-	if !changed {
-		return raw, false
+		out.WriteString(alias + ".")
+		last = sp.start
 	}
 	out.WriteString(raw[last:])
-	return out.String(), true
+	return view{text: out.String(), tree: merged, alias: alias}
+}
+
+// boundReads reports which bound names raw reads through a "$." path
+// and which it reads without one.
+func (e *env) boundReads(raw string, spans []nameSpan) (rooted, plain map[string]bool) {
+	rooted, plain = map[string]bool{}, map[string]bool{}
+	for _, sp := range spans {
+		name := raw[sp.start:sp.end]
+		if _, bound := e.bindings[name]; !bound {
+			continue
+		}
+		if sp.rooted {
+			rooted[name] = true
+		} else {
+			plain[name] = true
+		}
+	}
+	return rooted, plain
+}
+
+// unusedKey returns base, or base with the lowest numeric suffix that
+// makes it a key m does not hold and text never mentions. The first
+// keeps an alias from shadowing a document key or a binding. The second
+// keeps a path the user wrote from reaching the alias, so a key the
+// document lacks still fails to resolve.
+func unusedKey(m map[string]interface{}, text, base string) string {
+	key := base
+	for i := 1; ; i++ {
+		if _, taken := m[key]; !taken && !strings.Contains(text, key) {
+			return key
+		}
+		key = fmt.Sprintf("%s_%d", base, i)
+	}
+}
+
+// withoutAlias returns err with every mention of the alias path prefix
+// taken out of its plain and its detailed text, so the message names
+// the "$." path the user wrote. The alias is a key that no document
+// holds and the expression never mentions, so the prefix cannot match
+// anything else in the text.
+func withoutAlias(err error, alias string) error {
+	if err == nil || alias == "" {
+		return err
+	}
+	prefix := alias + "."
+	plain, detail := err.Error(), errtext.Detail(err)
+	if !strings.Contains(plain, prefix) && !strings.Contains(detail, prefix) {
+		return err
+	}
+	return errtext.Wrap(err, strings.ReplaceAll(plain, prefix, ""), strings.ReplaceAll(detail, prefix, ""))
 }
 
 // buildPrescanScope implements spec §8.3 step 2: strip every top-level
@@ -248,12 +307,12 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 	if bareIdentifierRe.MatchString(raw) {
 		raw = "grab " + raw
 	}
-	parsed, root := e.rootBoundPaths(raw)
+	v := e.viewFor(raw)
 
-	op, err := graft.ParseOpcallWithParserForEngine(e.engine, graft.EvalPhase, "(( "+parsed+" ))")
+	op, err := graft.ParseOpcallWithParserForEngine(e.engine, graft.EvalPhase, "(( "+v.text+" ))")
 	if err != nil {
-		return nil, errtext.WithPlain(fmt.Errorf("$.%s: invalid expression %q: %w", location, raw, err),
-			fmt.Sprintf("$.%s: invalid expression: %s", location, err))
+		return nil, withoutAlias(errtext.WithPlain(fmt.Errorf("$.%s: invalid expression %q: %w", location, raw, err),
+			fmt.Sprintf("$.%s: invalid expression: %s", location, err)), v.alias)
 	}
 	if op == nil {
 		return nil, errtext.WithPlain(fmt.Errorf("$.%s: invalid expression %q", location, raw), fmt.Sprintf("$.%s: invalid expression", location))
@@ -262,11 +321,11 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 		op.SetWhere(cursor)
 	}
 
-	ev := &graft.Evaluator{Tree: e.tree(root)}
+	ev := &graft.Evaluator{Tree: v.tree}
 	ev.SetEngine(e.engine)
 	resp, err := op.Run(ev)
 	if err != nil {
-		return nil, err // already "$.<location>: msg" via Opcall.Run
+		return nil, withoutAlias(err, v.alias) // already "$.<location>: msg" via Opcall.Run
 	}
 	return resp.Value, nil
 }
