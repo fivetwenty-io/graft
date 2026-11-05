@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.45.2] - 2026-11-05
+
+This release closes the reference-path corner cases that 1.45.1 left open, so `$.` root paths, a leading `/`, and an exponent number before a `/` now read the way spruce reads them. Loop bodies find the loop variable with the expression lexer itself, so a reference inside a loop reads the same way it does anywhere else in the document. Every operator now treats a value from `graft.NewLiteral` as data and never as code, a path, or the name of a secret, file, or server, which closes a hole where `(( calc ))` could read any number in the merged tree. Library callers who pass literals should read the Security section before they upgrade, and anyone whose templates hold a bare `(( /b || c ))` should check its output.
+
 ### Security
 
 - A value from a literal, or a value that an operator builds from one, is now always data. It is never code, a path, or the name of something graft reads. In 1.45.1 a string inside a `LiteralValue` could reach code through an operator. `(( calc params.e ))` evaluated the literal text as an expression, and `(( grab (concat params.p "") ))` read whatever path the text named. A literal could also choose the Vault secret that `(( vault ))` and `(( vault-try ))` read, the parameter or secret that `(( awsparam ))` and `(( awssecret ))` read, the store, key, and server that `(( nats ))` used, the local file that `(( file ))` read, the file or URL that `(( load ))` opened or fetched, and the network that `(( static_ips ))` allocated from. Each of these operators now refuses such a value, before it asks any backend, opens any file, or dials any server. The error names the path and the operator and quotes nothing from the value. A `||` fallback, a `(( vault ))` default, or a `(( vault-try ))` list no longer hides the failure. `(( calc ))` still accepts a literal number, or a literal string that reads wholly as one number, as that number. Wrapping a literal in `(( concat ))`, `(( join ))`, `(( split ))`, `(( base64 ))`, `(( base64-decode ))`, `(( stringify ))`, `(( keys ))`, or any other operator keeps it a literal, so no chain of operators turns it back into code or a name. Every refusal matches `graft.ErrLiteralRefused` with `errors.Is`, through the errors that `Merge(...).Execute()` and `Evaluate` return. A document that holds no literal behaves as it did, and the output of `graft merge` does not change.
@@ -1264,6 +1268,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.45.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.2
 [1.45.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.1
 [1.45.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.0
 [1.44.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.44.1
