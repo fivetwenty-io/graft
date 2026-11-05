@@ -294,13 +294,13 @@ primary        = literal | reference | "(" expression ")" | operator_call ;
 operator_call  = OPERATOR [ "@" IDENTIFIER ] arguments? ;
 arguments      = expression ( expression )* ;
 literal        = STRING | NUMBER | BOOLEAN | NULL ;
-reference      = head ( "." segment | "."? "/" slash_segment | "[" segment "]" )* ;
-head           = IDENTIFIER | "$" IDENTIFIER | DIGITS ;
+reference      = ( head | "/" slash_segment ) ( "." segment | "."? "/" slash_segment | "[" segment "]" )* ;
+head           = IDENTIFIER | "$" IDENTIFIER | DIGITS [ EXPONENT ] ;
 segment        = IDENTIFIER | NUMBER | IDENTIFIER "=" value | "$" IDENTIFIER ;
-slash_segment  = "$" IDENTIFIER | NAME_CHAR* ( "+" IDENTIFIER )* ;
+slash_segment  = ( "$" IDENTIFIER | NAME_CHAR* [ EXPONENT ] ) ( "+" IDENTIFIER )* ;
 ```
 
-A `/` that directly follows a reference character continues the reference, which is how BOSH's `name/index` instance notation reads, as in `jobs.postgresql/0.ips`, and how spruce reads a path. A `/` with whitespace before it is the division operator in `multiplicative`, so `a / b` and `a /b` divide. A reference can start with `DIGITS` only when a `/` follows them, so `8/2` is the path `8/2`, while `8` and `1.5` on their own stay numbers.
+A `/` that directly follows a reference character continues the reference, which is how BOSH's `name/index` instance notation reads, as in `jobs.postgresql/0.ips`, and how spruce reads a path. A `/` with whitespace before it is the division operator in `multiplicative`, so `a / b` and `a /b` divide. A `/` that has no left operand before it begins a reference, so `(( grab /b ))` reads the key `/b`, as spruce does. That covers the start of an expression, the position right after an operator name, and the position after `(`, `,`, `||`, `?`, `:`, or a binary operator. A reference can start with `DIGITS` only when a `/` follows them, so `8/2` is the path `8/2`, while `8` and `1.5` on their own stay numbers. The digits may carry an exponent, as in `1e+5/2` or `1.5e3/2`, and then the whole run is still a path.
 
 Arguments are separated by whitespace, not commas. `@` after an operator name
 names a backend target: `(( vault@production "secret/db:password" ))`. A

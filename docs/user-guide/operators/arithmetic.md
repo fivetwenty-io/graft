@@ -65,12 +65,14 @@ Once a `/` joins a path, the name after it belongs to the path too, and the path
 | `a / b` and `a /b` | `a` divided by `b`, because a space comes before the `/`. |
 | `a/ b` | Two references, `a/` and `b`. The space ends the path `a/`. |
 | `a/` | The path `a/`, so the trailing slash is part of the key. |
-| `/b` | An error. A leading `/` is the division operator, and nothing comes before it. Spruce reads it as the key `/b`. |
+| `/b` | The key `/b`, wherever no left operand comes before the `/`, as in `(( grab /b ))`, `(( grab c \|\| /b ))`, or `(( concat /b "x" ))`. Spruce reads it the same way. |
+| `concat "v=" /b` | Division, because the string is a left operand. Spruce has no arithmetic and reads two arguments, so put the `/b` first or after a comma, as in `(( concat "v=", /b ))`. |
+| `1e+5/2`, `1E5/2`, `1.5e3/2` | A path, the same way `8/2` is, as it is in spruce. `1.5e3/2` is the key `5e3/2` inside `1`. With a space, as in `1e+5 / 2`, it divides. |
 | `arr/[0]` | The key `arr/`, then index 0 of it. |
 | `arr[0]/x` | Index 0 of `arr`, then the key `/x` inside it. |
 | `m./x` | The key `/x` inside `m`. This is how `defer` writes `arr[0]/x` back out, as `arr.0./x`. |
 | `m.x/b+c` | The key `x/b+c` inside `m`. A `+` followed by a name stays in the path, as it does after a `.`, while `m.x/b+1` adds 1 to the value at `x/b`. |
-| `a/$X` | The key `a/$X`. The environment variable is not substituted, because the key doesn't start with `$`. |
+| `a/$X`, `a/$X+y` | The key `a/$X` or `a/$X+y`. The environment variable is not substituted, because the key doesn't start with `$`, and a `+` name after it stays in the key. |
 
 A whole expression that is only a reference, such as `(( jobs.count/2 ))`, stays in the output as written, just as `(( jobs.count ))` does and as it does in spruce, because BOSH uses that shape for its own variables. Wrap it in `grab` to read the value. Inside `calc`, the quoted expression does its own arithmetic, so `(( calc "8/2" ))` is still 4.
 

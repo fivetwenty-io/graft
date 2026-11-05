@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A `/` with no left operand before it now begins a reference, the way spruce reads it, so `(( grab /b ))` reads the key `/b`. That covers the start of an expression, the position right after an operator name, and the position after `(`, `,`, `||`, `?`, `:`, or a binary operator. Before, a leading `/` was the division operator, and the expression failed to parse. A `/` after an operand still divides, with or without a space between them, so `(( a /b ))` and `(( a / b ))` are unchanged. Spruce reads `(( concat "v=" /b ))` as two arguments, but in graft the string is a left operand, so the `/` divides.
+
+- A number in exponent form followed directly by a `/`, such as `1e+5/2` or `1.5e3/2`, is now a path, the same way `8/2` is, as it is in spruce. Before, `(( grab 1e+5/2 ))` divided and returned 50000, and `(( grab 1.5e3/2 ))` returned 750, even when the document had the key. `1E5/2` and `1e-5/2` were already paths. A whole expression of that shape, such as `(( 1e+5/2 ))`, now reads as a single reference, so graft leaves it in the output unevaluated, as it does `(( 8/2 ))`. With a space, as in `1e+5 / 2`, the expression still divides.
+
+- A `+` name after a `$` name in a slash segment now stays in the path, so `(( grab a/$X+y ))` reads the key `a/$X+y`, as spruce does. Before, graft read `a/$X` plus `y`.
+
 ## [1.45.1] - 2026-11-03
 
 This release makes graft read a `/` attached to a reference as part of the path, the way spruce does, so BOSH's `name/index` instance notation works in expressions such as `(( grab jobs.postgresql/0.ips[0] ))`. It also changes how unspaced division behaves, because `a/b` is now a path and division needs a space before the `/`. Before you upgrade, search your templates for a `/` with no space between two operands.
