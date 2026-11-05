@@ -1093,6 +1093,13 @@ func (p *Parser) parseReference() (*Expr, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid reference: %s", tok.Literal)
 	}
+	// A reference rooted at "$" with nothing after the root names the
+	// whole document, which can never resolve because the document holds
+	// the operator that reads it. spruce reports that as a recursion
+	// overflow, so graft refuses it here instead.
+	if strings.HasPrefix(tok.Literal, "$") && len(cursor.Nodes) == 0 {
+		return nil, fmt.Errorf("a reference that starts with $ needs a path after it")
+	}
 
 	return &Expr{
 		Type:           Reference,

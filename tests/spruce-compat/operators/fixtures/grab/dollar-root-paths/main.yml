@@ -1,0 +1,25 @@
+key_name: meta
+meta:
+  a: hello
+  b: [x, z]
+  m:
+    k1: v1
+  num: (( grab meta.base ))
+  base: 3
+list: [one, two]
+"/x": slash-x
+
+grabbed: (( grab $.meta.a ))
+several: (( grab $.meta.b $.list ))
+bracket_index: (( grab $.list[1] ))
+dotted_index: (( grab $.list.0 ))
+slash_key: (( grab $./x ))
+fallback_left: (( grab $.meta.a || "fallback" ))
+fallback_right: (( grab meta.missing || $.meta.a ))
+concatenated: (( concat $.meta.a "-x" ))
+joined: (( join "," $.meta.b ))
+key_list: (( keys $.meta.m ))
+dynamic_root: (( grab $[key_name].a ))
+reads_an_operator: (( grab $.meta.num ))
+deferred: (( defer grab $.meta.a ))
+bare: (( $.meta.a ))

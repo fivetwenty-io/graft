@@ -231,6 +231,16 @@ func matchReferencePath(runes []rune, leadingSlash bool) (bool, int) {
 	case unicode.IsDigit(runes[pos]):
 		numericStart = true
 		pos = consumeNumericSegment(runes, pos)
+	case runes[pos] == '$' && len(runes) > 1 && (runes[1] == '.' || runes[1] == '['):
+		// A '$' followed by a '.' or a '[' names the document root, as
+		// spruce reads "$.meta.a" and "$[0]". Only the '$' is consumed
+		// here, and the loop's '.' and '[' cases read the rest of the
+		// path. tree.ParseCursor drops the leading "$" node, so the
+		// reference names the same node as the path without it. A "$."
+		// with no path after it still matches as "$.", so the parser
+		// can refuse it by name instead of reading it as a bad
+		// environment variable.
+		pos++
 	case runes[pos] == '$':
 		pos++
 		if pos >= len(runes) || !isIdentifierStart(runes[pos]) {

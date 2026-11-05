@@ -1,0 +1,3 @@
+list: [one]
+
+result: (( grab $.[0] ))
