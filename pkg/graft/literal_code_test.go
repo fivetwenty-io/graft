@@ -416,6 +416,9 @@ func assertRefused(t *testing.T, err error) {
 		}
 	}
 	assertChainPlain(t, err, codeProbe)
+	if !errors.Is(err, graft.ErrLiteralRefused) {
+		t.Fatalf("errors.Is(err, graft.ErrLiteralRefused) is false for %v", err)
+	}
 	if !strings.Contains(err.Error(), "cannot use a value from a literal as") {
 		t.Fatalf("the error is not the literal refusal: %v", err)
 	}
@@ -439,6 +442,55 @@ func TestRefusalIsNeverWithheld(t *testing.T) {
 			}
 			user := graft.NewDocument(map[string]interface{}{"params": graft.NewLiteral(params)})
 			_, err = eng.Merge(context.Background(), planDoc, user).Execute()
+			assertRefused(t, err)
+		})
+	}
+}
+
+// TestErrLiteralRefusedThroughWrappers checks that errors.Is finds
+// graft.ErrLiteralRefused through every wrapper an engine puts around a
+// refusal: the error list a merge with several failures returns, and the
+// partial-evaluation error that Evaluate returns.
+func TestErrLiteralRefusedThroughWrappers(t *testing.T) {
+	const plan = codePlan + "out: (( calc params.e ))\nalso: (( vault params.v ))\n"
+	for _, mode := range leakModes {
+		t.Run(mode.name+"/merge", func(t *testing.T) {
+			eng, _ := codeEngine(t, mode.parallel)
+			planDoc, err := eng.ParseYAML([]byte(plan))
+			if err != nil {
+				t.Fatal(err)
+			}
+			user := graft.NewDocument(map[string]interface{}{"params": graft.NewLiteral(codeParams(t))})
+			_, err = eng.Merge(context.Background(), planDoc, user).Execute()
+			var multi graft.MultiError
+			if !errors.As(err, &multi) {
+				t.Fatalf("the error holds no graft.MultiError: %T %v", err, err)
+			}
+			if multi.Count() != 2 {
+				t.Fatalf("the error lists %d failures, want 2: %v", multi.Count(), err)
+			}
+			for _, each := range multi.Errors {
+				if !errors.Is(each, graft.ErrLiteralRefused) {
+					t.Fatalf("errors.Is(each, graft.ErrLiteralRefused) is false for %v", each)
+				}
+			}
+			assertRefused(t, err)
+		})
+		t.Run(mode.name+"/evaluate", func(t *testing.T) {
+			eng, _ := codeEngine(t, mode.parallel)
+			doc := graft.NewDocument(map[string]interface{}{
+				"params": graft.NewLiteral(codeParams(t)),
+				"meta":   map[string]interface{}{"zq7secret": 21},
+				"out":    "(( calc params.e ))",
+			})
+			_, err := eng.Evaluate(context.Background(), doc)
+			var partial *graft.PartialEvaluationError
+			if !errors.As(err, &partial) {
+				t.Fatalf("the error is not a *graft.PartialEvaluationError: %T %v", err, err)
+			}
+			if !errors.Is(err, graft.ErrLiteralRefused) {
+				t.Fatalf("errors.Is(err, graft.ErrLiteralRefused) is false for %v", err)
+			}
 			assertRefused(t, err)
 		})
 	}

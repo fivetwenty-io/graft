@@ -2,6 +2,7 @@ package graft_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -55,4 +56,40 @@ meta:
 	// params:
 	//   note: (( vault "secret/never:read" ))
 	//   size: large
+}
+
+// ExampleErrLiteralRefused tells a refusal of a caller's literal apart
+// from every other merge failure. Here the parameter that a user supplied
+// reaches (( calc )) as an expression, which graft never runs.
+func ExampleErrLiteralRefused() {
+	engine, err := graft.NewEngine()
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	plan, err := engine.ParseYAML([]byte(`
+meta:
+  secret: 21
+size: (( calc params.size ))
+`))
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	user := graft.NewDocument(map[string]interface{}{
+		"params": graft.NewLiteral(map[string]interface{}{
+			"size": "meta.secret * 2",
+		}),
+	})
+
+	_, err = engine.Merge(context.Background(), plan, user).Execute()
+	if errors.Is(err, graft.ErrLiteralRefused) {
+		fmt.Println("refused: a parameter was used as code")
+		return
+	}
+	fmt.Println("merged:", err)
+	// Output:
+	// refused: a parameter was used as code
 }

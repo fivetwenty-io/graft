@@ -75,6 +75,16 @@ func NewLiteral(v any) LiteralValue {
 	return literal.New(v)
 }
 
+// ErrLiteralRefused is the error that every refusal of a value from a
+// literal matches with errors.Is. An operator refuses when it would read
+// such a value as code, as a path, or as the name of something outside
+// the document to read, as NewLiteral describes. The match holds for
+// every operator that refuses, through the errors that Merge(...).Execute
+// and Evaluate return, through the error list a merge with several
+// failures returns, and through a PartialEvaluationError, so a caller
+// can tell a refused literal apart from every other failure.
+var ErrLiteralRefused = literal.ErrNotCode
+
 // plainValue returns v with every LiteralValue at any depth replaced by
 // its content. It copies only the containers on the way to a wrapper.
 func plainValue(v interface{}) interface{} {
