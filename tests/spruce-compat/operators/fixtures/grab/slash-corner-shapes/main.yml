@@ -1,0 +1,11 @@
+# A '+' name after a '$' name in a slash segment stays in the segment,
+# and "a/zzz+y" sits beside it to show no substitution.
+"a/$CORNER_VAR+y": dollar-plus
+"a/zzz+y": substituted
+m:
+  "x/$CORNER_VAR+y":
+    k: nested-dollar-plus
+
+dollar_plus: (( grab a/$CORNER_VAR+y ))
+dollar_plus_mid_path: (( grab m.x/$CORNER_VAR+y.k ))
+dollar_plus_right_of_or: (( grab missing || a/$CORNER_VAR+y ))

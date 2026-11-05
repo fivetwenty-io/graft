@@ -80,3 +80,31 @@ func TestTokenizerSlashContinuesReference(t *testing.T) {
 		})
 	}
 }
+
+// TestTokenizerDollarSegmentGluesPlusName pins that a '+' followed by a
+// name continues a "$name" segment after a '/', the same way it does
+// after a plain name, so "a/$X+y" is one reference, as spruce reads it.
+func TestTokenizerDollarSegmentGluesPlusName(t *testing.T) {
+	ref := func(s string) string { return TokenReference.String() + "(" + s + ")" }
+
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{"plus name after a dollar segment", "a/$X+y", []string{ref("a/$X+y")}},
+		{"plus name after a dollar segment mid-path", "m.x/$X+y.k", []string{ref("m.x/$X+y.k")}},
+		{"plus digit after a dollar segment adds", "a/$X+1", []string{
+			ref("a/$X"), TokenPlus.String() + "(+)", TokenInteger.String() + "(1)",
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := slashTokens(t, tc.src)
+			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
+				t.Fatalf("tokens for %q:\n got  %v\n want %v", tc.src, got, tc.want)
+			}
+		})
+	}
+}

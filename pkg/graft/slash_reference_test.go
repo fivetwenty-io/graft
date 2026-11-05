@@ -446,3 +446,62 @@ z:
 		})
 	}
 }
+
+// cornerDoc holds keys for the slash corner shapes. "a/zzz+y" sits beside "a/$GRAFT_CORNER_VAR+y", so substituting
+// the environment variable into the segment would give the wrong value.
+const cornerDoc = `
+"a/$GRAFT_CORNER_VAR+y": dollar-plus
+"a/zzz+y": substituted
+m:
+  "x/$GRAFT_CORNER_VAR+y":
+    k: nested-dollar-plus
+`
+
+func evalCornerResult(t *testing.T, opts []graft.EngineOption, expr string) string {
+	t.Helper()
+	d, err := evalSlashDoc(t, opts, cornerDoc+"result: "+expr+"\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, err := d.Get("result")
+	if err != nil {
+		t.Fatalf("failed to read result: %v", err)
+	}
+	return fmt.Sprint(got)
+}
+
+// TestSlashCornerShapesArePaths pins corner shapes that read as one
+// path, the way spruce v1.35.17 reads them. A '+' followed by a name
+// continues a "$name" segment after a '/', as it does after a name.
+func TestSlashCornerShapesArePaths(t *testing.T) {
+	t.Setenv("GRAFT_CORNER_VAR", "zzz")
+	paths := []struct {
+		path string
+		want string
+	}{
+		{"a/$GRAFT_CORNER_VAR+y", "dollar-plus"},
+		{"m.x/$GRAFT_CORNER_VAR+y.k", "nested-dollar-plus"},
+	}
+	shapes := []struct {
+		name   string
+		expr   func(path string) string
+		result func(want string) string
+	}{
+		{"grab", func(p string) string { return "(( grab " + p + " ))" }, func(w string) string { return w }},
+		{"concat", func(p string) string { return "(( concat " + p + ` "=v" ))` }, func(w string) string { return w + "=v" }},
+		{"left of ||", func(p string) string { return `(( grab ` + p + ` || "fallback" ))` }, func(w string) string { return w }},
+		{"right of ||", func(p string) string { return "(( grab missing.key || " + p + " ))" }, func(w string) string { return w }},
+	}
+
+	for _, mode := range slashModes {
+		for _, sh := range shapes {
+			for _, p := range paths {
+				t.Run(mode.name+"/"+sh.name+"/"+p.path, func(t *testing.T) {
+					if got := evalCornerResult(t, mode.opts, sh.expr(p.path)); got != sh.result(p.want) {
+						t.Fatalf("result = %q, want %q", got, sh.result(p.want))
+					}
+				})
+			}
+		}
+	}
+}

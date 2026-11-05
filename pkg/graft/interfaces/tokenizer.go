@@ -202,11 +202,13 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 			// still adds. A '$' name after the '/' stays in the path too,
 			// as it does after a '.', so "a/$X" is the one key "a/$X".
 			// That segment does not start with '$', so ResolveEnv leaves
-			// it literal, which is how spruce reads it.
+			// it literal, which is how spruce reads it. A '+' name after
+			// the '$' name continues the segment the same way, so
+			// "a/$X+y" is one key.
 			sawSlash = true
 			pos++ // consume '/'
 			if pos+1 < len(runes) && runes[pos] == '$' && isIdentifierStart(runes[pos+1]) {
-				pos = consumeIdentifierRun(runes, pos+1)
+				pos = consumeSegmentIdentifier(runes, pos+1)
 			} else {
 				pos = consumeSegmentIdentifier(runes, pos)
 			}
