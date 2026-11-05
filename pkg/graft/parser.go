@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
+	"github.com/fivetwenty-io/graft/internal/exprlex"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -84,12 +85,6 @@ func (p *Parser) tokenAt(idx int) interfaces.Token {
 
 // NewParser creates a new parser for the given input.
 func NewParser(input string, phase OperatorPhase) *Parser {
-	opts := interfaces.TokenizerOptions{
-		RecognizeReferencePaths: true,
-		AllowEnvironmentVars:    true,
-		TrackPositions:          true,
-		AllowUnicode:            true,
-	}
 	p := &Parser{
 		input: input,
 		phase: phase,
@@ -97,9 +92,9 @@ func NewParser(input string, phase OperatorPhase) *Parser {
 	// The tokenizer asks whether an identifier names an operator, so that
 	// a '/' after an operator name, as in "(( grab /b ))", begins a
 	// reference. It asks through the same lookup the parser uses, so an
-	// engine set after construction is honored.
-	opts.OperatorName = p.namesOperator
-	p.tokenizer = interfaces.NewAdvancedTokenizer(input, opts)
+	// engine set after construction is honored. The options come from
+	// exprlex, which the control-flow loop rewrite lexes with too.
+	p.tokenizer = interfaces.NewAdvancedTokenizer(input, exprlex.Options(p.namesOperator))
 	return p
 }
 

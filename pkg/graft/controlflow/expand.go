@@ -400,7 +400,7 @@ func (x *expander) expandForRange(it *item, e *env, uid, loc, argsRaw string) ([
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, rewriteLoopRefs(body, varTargets(uid, i, name))...)
+		out = append(out, rewriteLoopRefs(body, varTargets(uid, i, name), e.engine)...)
 	}
 	return out, nil
 }
@@ -486,7 +486,7 @@ func (x *expander) expandForList(it *item, e *env, uid string, coll []interface{
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, rewriteLoopRefs(body, targets)...)
+		out = append(out, rewriteLoopRefs(body, targets, e.engine)...)
 	}
 	return out, nil
 }
@@ -518,7 +518,7 @@ func (x *expander) expandForMap(it *item, e *env, uid string, coll map[string]in
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, rewriteLoopRefs(body, targets)...)
+		out = append(out, rewriteLoopRefs(body, targets, e.engine)...)
 	}
 	return out, nil
 }
