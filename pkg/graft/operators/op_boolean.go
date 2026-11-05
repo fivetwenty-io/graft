@@ -51,6 +51,10 @@ func (OrElseOperator) Run(ev *graft.Evaluator, args []*graft.Expr) (*graft.Respo
 
 	// Evaluate left first, but allow for missing values
 	leftResp, err := graft.EvaluateExpr(args[0], ev)
+	if isRefusal(err) {
+		// A refused literal is never a reason to fall back.
+		return nil, err
+	}
 	if err != nil {
 		// If left evaluation fails (e.g., missing key), try right
 		log.DEBUG("  left evaluation failed: %v, trying right", err)

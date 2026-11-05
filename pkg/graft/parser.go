@@ -2,6 +2,7 @@
 package graft
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/exprlex"
+	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -1475,8 +1477,12 @@ func evaluateKeepingLiteral(e *Expr, treeData interface{}) (interface{}, error) 
 			if e.evaluator != nil && e.Left.evaluator == nil {
 				e.Left.SetEvaluator(e.evaluator)
 			}
-			if left, err := evaluateKeepingLiteral(e.Left, treeData); err == nil {
+			left, err := evaluateKeepingLiteral(e.Left, treeData)
+			if err == nil {
 				return left, nil
+			}
+			if errors.Is(err, literal.ErrNotCode) {
+				return nil, err
 			}
 		}
 		if e.Right != nil {

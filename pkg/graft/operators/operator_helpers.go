@@ -1,6 +1,7 @@
 package operators
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -42,15 +43,15 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 		// Expand environment variables in the reference path
 		arg.Reference.Nodes = ResolveEnv(arg.Reference.Nodes)
 		DEBUG("ResolveOperatorArgument: after env expansion: %s", arg.Reference.String())
-		val, err := arg.Reference.Resolve(ev.Tree)
+		val, err := arg.Reference.ResolveLiteral(ev.Tree)
 		DEBUG("ResolveOperatorArgument: reference %s resolved to %v (type %T)", arg.Reference.String(), val, val)
 		if err != nil {
 			// Format the error message to match the expected format
 			return nil, fmt.Errorf("unable to resolve `%s`: %w", arg.Reference.String(), err)
 		}
 		// An operator works on plain data, so a value read from inside a
-		// literal comes back without the wrapper.
-		return literal.Strip(val), nil
+		// literal comes back without the wrapper, and the read is noted.
+		return stripNotingRead(ev, val), nil
 
 	case EnvVar:
 		// Get environment variable value
@@ -83,7 +84,7 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		return literal.Strip(val), nil
+		return stripNotingRead(ev, val), nil
 
 	case LogicalOr:
 		// Handle || as an or-else operator - if left fails, try right
@@ -93,6 +94,10 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 			// Left succeeded (even if nil), return its value
 			DEBUG("LogicalOr: left side succeeded with value %v (type %T), stopping here", left, left)
 			return left, nil
+		}
+		if isRefusal(err) {
+			// A refused literal is never a reason to fall back.
+			return nil, err
 		}
 		// Left failed, try right
 		DEBUG("LogicalOr: left side failed with error %v, trying right side", err)
@@ -110,6 +115,30 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 		return nil, fmt.Errorf("unsupported expression type: %v", arg.Type)
 	}
 	return nil, fmt.Errorf("unknown expression type: %v", arg.Type)
+}
+
+// stripNotingRead returns val without any literal wrapper in it, and
+// notes on ev that the operator read a literal when val was one, sat
+// inside one, or held one.
+func stripNotingRead(ev *Evaluator, val interface{}) interface{} {
+	plain, read := literal.StripReport(val)
+	if read {
+		literal.NoteRead(ev)
+	}
+	return plain
+}
+
+// isRefusal reports whether err is an operator's refusal of a value from
+// a literal. A || never falls back past one, so the refusal is not
+// hidden by the other side.
+func isRefusal(err error) bool {
+	return errors.Is(err, literal.ErrNotCode)
+}
+
+// readsLiteral reports whether ev has noted a read of a literal since
+// Reads returned before.
+func readsLiteral(ev *Evaluator, before int) bool {
+	return literal.Reads(ev) > before
 }
 
 // evaluateNestedOperator evaluates a nested operator call expression. The

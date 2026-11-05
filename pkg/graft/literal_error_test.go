@@ -92,11 +92,25 @@ instance_groups:
 // the operator wrote.
 func TestWithheldLiteralErrorKeepsItsDetail(t *testing.T) {
 	const secret = "s3cr3t-do-not-print"
-	params := map[string]interface{}{"s": secret}
+	const plan = `
+networks:
+  - name: net1
+    subnets:
+      - static: [10.0.0.1 - 10.0.0.5]
+        azs: [z1]
+instance_groups:
+  - name: web
+    instances: 1
+    azs: (( grab params.zones ))
+    networks:
+      - name: net1
+        static_ips: (( static_ips 0 ))
+`
+	params := map[string]interface{}{"zones": []interface{}{secret}}
 	for _, mode := range leakModes {
 		t.Run(mode.name, func(t *testing.T) {
 			eng, _ := leakEngine(t, mode.parallel)
-			planDoc, err := eng.ParseYAML([]byte("out: (( grab (concat \"meta.\" params.s) ))\n"))
+			planDoc, err := eng.ParseYAML([]byte(plan))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -110,7 +124,7 @@ func TestWithheldLiteralErrorKeepsItsDetail(t *testing.T) {
 			}
 			assertChainPlain(t, err, secret)
 			detail := graft.DetailedError(err)
-			if !strings.Contains(detail, "unable to resolve `meta."+secret+"`") {
+			if !strings.Contains(detail, "could not find AZ") || !strings.Contains(detail, secret) {
 				t.Fatalf("DetailedError lost the operator's message: %q", detail)
 			}
 		})
