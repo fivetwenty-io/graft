@@ -81,6 +81,46 @@ func TestTokenizerSlashContinuesReference(t *testing.T) {
 	}
 }
 
+// TestTokenizerExponentNumberBeforeSlash pins that a number in exponent
+// form followed directly by a '/' is a path, the way "8/2" is, as spruce
+// reads it, while the same number with no '/' stays a number.
+func TestTokenizerExponentNumberBeforeSlash(t *testing.T) {
+	ref := func(s string) string { return TokenReference.String() + "(" + s + ")" }
+	float := func(s string) string { return TokenFloat.String() + "(" + s + ")" }
+
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{"exponent with a plus sign", "1e+5/2", []string{ref("1e+5/2")}},
+		{"upper-case exponent", "1E5/2", []string{ref("1E5/2")}},
+		{"upper-case exponent with a plus sign", "1E+5/2", []string{ref("1E+5/2")}},
+		{"exponent with a minus sign", "1e-5/2", []string{ref("1e-5/2")}},
+		{"fraction with an exponent", "1.5e3/2", []string{ref("1.5e3/2")}},
+		{"fraction with a signed exponent", "1.5e+3/2", []string{ref("1.5e+3/2")}},
+		{"exponent after a slash", "x/1e+5", []string{ref("x/1e+5")}},
+		{"plus name after a digit segment", "z.pg/0+meta.name", []string{ref("z.pg/0+meta.name")}},
+		{"exponent alone is a number", "1e+5", []string{float("1e+5")}},
+		{"fraction with an exponent alone is a number", "1.5e+3", []string{float("1.5e+3")}},
+		{"spaced division of an exponent", "1e+5 / 2", []string{
+			float("1e+5"), TokenSlash.String() + "(/)", TokenInteger.String() + "(2)",
+		}},
+		{"exponent then a plus digit adds", "2e+3+1", []string{
+			float("2e+3"), TokenPlus.String() + "(+)", TokenInteger.String() + "(1)",
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := slashTokens(t, tc.src)
+			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
+				t.Fatalf("tokens for %q:\n got  %v\n want %v", tc.src, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestTokenizerDollarSegmentGluesPlusName pins that a '+' followed by a
 // name continues a "$name" segment after a '/', the same way it does
 // after a plain name, so "a/$X+y" is one reference, as spruce reads it.

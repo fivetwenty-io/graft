@@ -113,6 +113,42 @@ func consumeDigitRun(runes []rune, pos int) int {
 	return pos
 }
 
+// consumeNumericSegment returns the index one past the segment that
+// starts with a digit at pos. It takes the name characters that follow,
+// as any segment does, and it also takes the '+' of an exponent, as in
+// "1e+5", so a number in exponent form followed by a '/' reads as one
+// path, the way spruce reads "1e+5/2". The '+' joins only when the run
+// before it is digits and a single 'e' or 'E', and a digit comes after
+// it, so "2e+3+1" still adds 1. A '-' exponent needs no help, because
+// '-' is a name character.
+func consumeNumericSegment(runes []rune, pos int) int {
+	start := pos
+	pos = consumeIdentifierRun(runes, pos)
+	if pos+1 < len(runes) && runes[pos] == '+' && unicode.IsDigit(runes[pos+1]) &&
+		isExponentMantissa(runes[start:pos]) {
+		pos = consumeIdentifierRun(runes, pos+1)
+	}
+	return pos
+}
+
+// isExponentMantissa reports whether run is one or more digits followed
+// by a single 'e' or 'E', the part of "1e+5" before the sign.
+func isExponentMantissa(run []rune) bool {
+	if len(run) < 2 {
+		return false
+	}
+	last := run[len(run)-1]
+	if last != 'e' && last != 'E' {
+		return false
+	}
+	for _, r := range run[:len(run)-1] {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
+
 // consumeSegmentIdentifier consumes an identifier appearing after a dot,
 // where a '+' followed by an identifier character continues the same
 // segment: genesis's vaultified manifests use map keys like
@@ -120,7 +156,12 @@ func consumeDigitRun(runes []rune, pos int) int {
 // token as one reference. A '+' before a digit is left alone so "count+1"
 // stays arithmetic. The leading segment of a path gets no such treatment.
 func consumeSegmentIdentifier(runes []rune, pos int) int {
-	pos = consumeIdentifierRun(runes, pos)
+	return consumePlusNames(runes, consumeIdentifierRun(runes, pos))
+}
+
+// consumePlusNames continues a segment that ends at pos through each
+// '+' followed by a name, as consumeSegmentIdentifier describes.
+func consumePlusNames(runes []rune, pos int) int {
 	for pos+1 < len(runes) && runes[pos] == '+' && isIdentifierStart(runes[pos+1]) {
 		pos++ // consume '+'
 		pos = consumeIdentifierRun(runes, pos)
@@ -164,9 +205,7 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 	switch {
 	case unicode.IsDigit(runes[pos]):
 		numericStart = true
-		for pos < len(runes) && isIdentifierContinue(runes[pos]) {
-			pos++
-		}
+		pos = consumeNumericSegment(runes, pos)
 	case runes[pos] == '$':
 		pos++
 		if pos >= len(runes) || !isIdentifierStart(runes[pos]) {
@@ -204,12 +243,17 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 			// That segment does not start with '$', so ResolveEnv leaves
 			// it literal, which is how spruce reads it. A '+' name after
 			// the '$' name continues the segment the same way, so
-			// "a/$X+y" is one key.
+			// "a/$X+y" is one key. A segment that starts with a digit
+			// keeps an exponent's '+', so "x/1e+5" is one key, and a '+'
+			// name after it, as before, so "pg/0+meta" is one key.
 			sawSlash = true
 			pos++ // consume '/'
-			if pos+1 < len(runes) && runes[pos] == '$' && isIdentifierStart(runes[pos+1]) {
+			switch {
+			case pos+1 < len(runes) && runes[pos] == '$' && isIdentifierStart(runes[pos+1]):
 				pos = consumeSegmentIdentifier(runes, pos+1)
-			} else {
+			case pos < len(runes) && unicode.IsDigit(runes[pos]):
+				pos = consumePlusNames(runes, consumeNumericSegment(runes, pos))
+			default:
 				pos = consumeSegmentIdentifier(runes, pos)
 			}
 		case '[':
@@ -282,6 +326,13 @@ func (p *ArrayReferencePattern) Match(input string, offset int) (bool, int) {
 						pos++
 					}
 				}
+			case unicode.IsDigit(runes[pos]) && numericStart:
+				// In a path that starts with a digit, the segment after
+				// the '.' may be the rest of a number in exponent form,
+				// as in "1.5e+3/2", which spruce reads as the key "5e+3/2"
+				// inside "1". Without a '/' later in the path, finish
+				// rejects the match and the scanner reads the number.
+				pos = consumeNumericSegment(runes, pos)
 			case unicode.IsDigit(runes[pos]):
 				// Consume numeric index
 				for pos < len(runes) && unicode.IsDigit(runes[pos]) {

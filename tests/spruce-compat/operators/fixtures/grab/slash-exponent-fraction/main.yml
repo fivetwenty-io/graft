@@ -1,0 +1,6 @@
+# A fraction in exponent form followed directly by a '/' is a path, so
+# 1.5e3/2 is the key "5e3/2" inside "1", as spruce reads it.
+"1":
+  "5e3/2": exp-frac
+
+result: (( grab 1.5e3/2 ))

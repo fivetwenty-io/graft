@@ -1,11 +1,19 @@
-# A '+' name after a '$' name in a slash segment stays in the segment,
-# and "a/zzz+y" sits beside it to show no substitution.
+# A number in exponent form followed directly by a '/' is a path, as
+# 8/2 is. A '+' name after a '$' name in a slash segment stays in the
+# segment, and "a/zzz+y" sits beside it to show no substitution.
+"1e+5/2": exp-plus
+"1E5/2": exp-upper
+"x/1e+5": slash-exp
 "a/$CORNER_VAR+y": dollar-plus
 "a/zzz+y": substituted
 m:
   "x/$CORNER_VAR+y":
     k: nested-dollar-plus
 
+exponent_plus: (( grab 1e+5/2 ))
+exponent_upper: (( grab 1E5/2 ))
+exponent_after_slash: (( grab x/1e+5 ))
+exponent_right_of_or: (( grab missing || 1e+5/2 ))
 dollar_plus: (( grab a/$CORNER_VAR+y ))
 dollar_plus_mid_path: (( grab m.x/$CORNER_VAR+y.k ))
 dollar_plus_right_of_or: (( grab missing || a/$CORNER_VAR+y ))

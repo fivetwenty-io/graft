@@ -450,6 +450,11 @@ z:
 // cornerDoc holds keys for the slash corner shapes. "a/zzz+y" sits beside "a/$GRAFT_CORNER_VAR+y", so substituting
 // the environment variable into the segment would give the wrong value.
 const cornerDoc = `
+"1e+5/2": exp-plus
+"1E5/2": exp-upper
+"1":
+  "5e3/2": exp-frac
+"x/1e+5": slash-exp
 "a/$GRAFT_CORNER_VAR+y": dollar-plus
 "a/zzz+y": substituted
 m:
@@ -471,7 +476,8 @@ func evalCornerResult(t *testing.T, opts []graft.EngineOption, expr string) stri
 }
 
 // TestSlashCornerShapesArePaths pins corner shapes that read as one
-// path, the way spruce v1.35.17 reads them. A '+' followed by a name
+// path, the way spruce v1.35.17 reads them. A number in exponent form followed
+// directly by a '/' is a path, as "8/2" is. A '+' followed by a name
 // continues a "$name" segment after a '/', as it does after a name.
 func TestSlashCornerShapesArePaths(t *testing.T) {
 	t.Setenv("GRAFT_CORNER_VAR", "zzz")
@@ -479,6 +485,10 @@ func TestSlashCornerShapesArePaths(t *testing.T) {
 		path string
 		want string
 	}{
+		{"1e+5/2", "exp-plus"},
+		{"1E5/2", "exp-upper"},
+		{"1.5e3/2", "exp-frac"},
+		{"x/1e+5", "slash-exp"},
 		{"a/$GRAFT_CORNER_VAR+y", "dollar-plus"},
 		{"m.x/$GRAFT_CORNER_VAR+y.k", "nested-dollar-plus"},
 	}
