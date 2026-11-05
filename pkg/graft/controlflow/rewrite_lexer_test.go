@@ -177,11 +177,45 @@ func expectedRewrite(tok lexedToken, name, target string) (string, bool) {
 	return "", false
 }
 
-var loopNameRe = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+// loopNameRe matches the names a for header accepts as a loop variable,
+// and lexerNameRe matches every identifier the lexer reads, which may
+// hold a '-' and any letter or digit. The agreement test binds the names
+// of both shapes, so the rewrite is checked on "svc-1" as one name as
+// well as on "svc" and "1".
+var (
+	loopNameRe  = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+	lexerNameRe = regexp.MustCompile(`[\p{L}_][\p{L}\p{N}_-]*`)
+)
+
+// hyphenInputs adds inputs with hyphenated names to the lexer's own,
+// which hold almost none, so the agreement test binds a name such as
+// "my-var" in every position the lexer can read one.
+var hyphenInputs = []string{
+	"grab my-var",
+	"grab my-var.ip",
+	"grab svc-1",
+	"svc - 1",
+	"my-var-2 - my-var",
+	`concat my-var "/" my-var`,
+	"x || my-var",
+	"my-var || x",
+	"grab list[my-var]",
+	"grab list[my-var.name]",
+	"grab jobs.name=my-var.ip",
+	"grab jobs[name=my-var].ip",
+	"grab $.my-var.k",
+	"grab $my-var",
+	"grab a/my-var",
+	"grab /my-var",
+	"my-var+x",
+	"my-var ? a-b : b-a",
+	"1e+5/2 - my-var",
+}
 
 // TestRewriteAgreesWithLexer runs every lexer test input through the
 // lexer and through rewriteVarRefs, once for each name in the input,
-// bound as a loop variable. The two must agree on which spans name the
+// bound as a loop variable. A name is any run that a for header accepts
+// or that the lexer reads as one identifier, hyphens included. The two must agree on which spans name the
 // variable. The rewritten text must also lex into the same tokens, with
 // each rewritten identifier now a reference, so the rewrite never
 // changes how the rest of the expression reads. That second check skips
@@ -193,11 +227,13 @@ func TestRewriteAgreesWithLexer(t *testing.T) {
 	if len(inputs) < 100 {
 		t.Fatalf("found only %d lexer test inputs; the harvest from the tokenizer tests is broken", len(inputs))
 	}
-	for _, src := range inputs {
+	for _, src := range append(inputs, hyphenInputs...) {
 		toks := lexForAgreement(src)
 		names := map[string]bool{}
-		for _, nm := range loopNameRe.FindAllString(src, -1) {
-			names[nm] = true
+		for _, re := range []*regexp.Regexp{loopNameRe, lexerNameRe} {
+			for _, nm := range re.FindAllString(src, -1) {
+				names[nm] = true
+			}
 		}
 		for name := range names {
 			target := "__graft_loop.lT.0." + name
