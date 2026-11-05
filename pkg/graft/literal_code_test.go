@@ -270,6 +270,66 @@ func TestLiteralNeverNamesAFile(t *testing.T) {
 	})
 }
 
+// staticsPlan gives (( static_ips )) one network to allocate from. The
+// network name under the instance group is filled in by each case.
+const staticsPlan = `networks:
+- name: net1
+  subnets:
+  - static: [10.0.0.10 - 10.0.0.20]
+    az: z1
+instance_groups:
+- name: ig
+  instances: 1
+  azs: [z1]
+  networks:
+  - name: %s
+    static_ips: (( static_ips 0 ))
+`
+
+// TestLiteralNeverNamesANetwork checks that a literal never chooses
+// which network (( static_ips )) allocates addresses from, while a plain
+// network name allocates as before.
+func TestLiteralNeverNamesANetwork(t *testing.T) {
+	cases := []struct {
+		name, network string
+		refused       bool
+	}{
+		{name: "plain name", network: "net1"},
+		{name: "plain name through grab", network: "(( grab meta.net ))"},
+		{name: "literal name", network: "(( grab params.net ))", refused: true},
+		{name: "literal name through concat", network: `(( concat params.net "" ))`, refused: true},
+	}
+	for _, mode := range leakModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				eng, _ := codeEngine(t, mode.parallel)
+				plan := fmt.Sprintf(staticsPlan, tc.network) + "meta:\n  net: net1\n"
+				planDoc, err := eng.ParseYAML([]byte(plan))
+				if err != nil {
+					t.Fatal(err)
+				}
+				params := map[string]interface{}{"net": "net1"}
+				user := graft.NewDocument(map[string]interface{}{"params": graft.NewLiteral(params)})
+				got, err := eng.Merge(context.Background(), planDoc, user).Execute()
+				if tc.refused {
+					assertRefused(t, err)
+					return
+				}
+				if err != nil {
+					t.Fatalf("Execute: %v", err)
+				}
+				ips, err := got.Get("instance_groups.ig.networks.0.static_ips")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if s := fmt.Sprint(ips); s != "[10.0.0.10]" {
+					t.Fatalf("static_ips is %s, want [10.0.0.10]", s)
+				}
+			})
+		}
+	}
+}
+
 func runCodeCases(t *testing.T, cases []codeCase) {
 	t.Helper()
 	for _, mode := range leakModes {
