@@ -50,19 +50,62 @@ func (e *env) withBinding(name string, value interface{}) *env {
 }
 
 // tree returns the flattened map an expression should be evaluated against:
-// the prescan scope with current bindings overlaid.
-func (e *env) tree() map[string]interface{} {
+// the prescan scope with current bindings overlaid. With root set, the map
+// also holds the prescan scope itself under rootScopeKey, for the "$."
+// paths that rootBoundPaths points there.
+func (e *env) tree(root bool) map[string]interface{} {
 	if len(e.bindings) == 0 {
 		return e.scope
 	}
-	merged := make(map[string]interface{}, len(e.scope)+len(e.bindings))
+	merged := make(map[string]interface{}, len(e.scope)+len(e.bindings)+1)
 	for k, v := range e.scope {
 		merged[k] = v
 	}
 	for k, v := range e.bindings {
 		merged[k] = v
 	}
+	if root {
+		merged[rootScopeKey] = e.scope
+	}
 	return merged
+}
+
+// rootScopeKey is the reserved top-level key under which an expression
+// that rootBoundPaths rewrote finds the prescan scope as it was before
+// any loop binding was overlaid on it.
+const rootScopeKey = "__graft_root"
+
+// rootBoundPaths makes each "$." path in raw read the document root even
+// when its first segment names a bound loop variable. tree overlays every
+// binding on the top level, so without this "$.x.list" inside a loop over
+// x would read the bound x, because tree.ParseCursor drops the "$". Each
+// such path gets rootScopeKey put in front of its first segment, as in
+// "$.__graft_root.x.list", and the second result reports whether any
+// did. pathNameSpans finds the paths with the expression lexer, so a
+// "$." inside a string or a bracket index is never touched. A path
+// without the "$." still reads the binding.
+func (e *env) rootBoundPaths(raw string) (string, bool) {
+	if len(e.bindings) == 0 {
+		return raw, false
+	}
+	var out strings.Builder
+	last, changed := 0, false
+	for _, sp := range pathNameSpans(raw, e.engine) {
+		if !sp.rooted {
+			continue
+		}
+		if _, bound := e.bindings[raw[sp.start:sp.end]]; !bound {
+			continue
+		}
+		out.WriteString(raw[last:sp.start])
+		out.WriteString(rootScopeKey + ".")
+		last, changed = sp.start, true
+	}
+	if !changed {
+		return raw, false
+	}
+	out.WriteString(raw[last:])
+	return out.String(), true
 }
 
 // buildPrescanScope implements spec §8.3 step 2: strip every top-level
@@ -205,8 +248,9 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 	if bareIdentifierRe.MatchString(raw) {
 		raw = "grab " + raw
 	}
+	parsed, root := e.rootBoundPaths(raw)
 
-	op, err := graft.ParseOpcallWithParserForEngine(e.engine, graft.EvalPhase, "(( "+raw+" ))")
+	op, err := graft.ParseOpcallWithParserForEngine(e.engine, graft.EvalPhase, "(( "+parsed+" ))")
 	if err != nil {
 		return nil, errtext.WithPlain(fmt.Errorf("$.%s: invalid expression %q: %w", location, raw, err),
 			fmt.Sprintf("$.%s: invalid expression: %s", location, err))
@@ -218,7 +262,7 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 		op.SetWhere(cursor)
 	}
 
-	ev := &graft.Evaluator{Tree: e.tree()}
+	ev := &graft.Evaluator{Tree: e.tree(root)}
 	ev.SetEngine(e.engine)
 	resp, err := op.Run(ev)
 	if err != nil {

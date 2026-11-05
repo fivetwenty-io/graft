@@ -109,3 +109,76 @@ out: small-branch
 		}
 	}
 }
+
+// TestRootReferenceInNestedHeaders pins that a "$." path in a header
+// nested inside a loop over x reads the top-level x, while the same path
+// without the "$." reads the loop variable.
+func TestRootReferenceInNestedHeaders(t *testing.T) {
+	const doc = `x:
+  list: [t1, t2]
+  flag: false
+  kind: top
+  num: 2
+items:
+- list: [e1]
+  flag: true
+  kind: elem
+  num: 1
+`
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"for over a root path", `(( for y in $.x.list ))
+- (( grab y ))
+(( done ))
+`, "[t1 t2]"},
+		{"for over the bound path", `(( for y in x.list ))
+- (( grab y ))
+(( done ))
+`, "[e1]"},
+		{"for with grab over a root path", `(( for y in grab $.x.list ))
+- (( grab y ))
+(( done ))
+`, "[t1 t2]"},
+		{"if on a root path", `(( if $.x.flag ))
+- root-true
+(( else ))
+- root-false
+(( fi ))
+`, "[root-false]"},
+		{"if on the bound path", `(( if x.flag ))
+- bound-true
+(( else ))
+- bound-false
+(( fi ))
+`, "[bound-true]"},
+		{"if comparing both", `(( if $.x.kind == "top" && x.kind == "elem" ))
+- both
+(( fi ))
+`, "[both]"},
+		{"case on a root path", `(( case $.x.kind ))
+(( when "top" ))
+- top-branch
+(( when "elem" ))
+- elem-branch
+(( esac ))
+`, "[top-branch]"},
+		{"range to a root path", `(( for i in range 1 $.x.num ))
+- (( grab i ))
+(( done ))
+`, "[1 2]"},
+	}
+	for _, mode := range rootRefModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				src := doc + "out:\n(( for x in items ))\n" + tc.body + "(( done ))\n"
+				data := runRootRefMerge(t, mode.opts, src)
+				if got := fmt.Sprint(data["out"]); got != tc.want {
+					t.Fatalf("out = %v, want %s", got, tc.want)
+				}
+			})
+		}
+	}
+}
