@@ -107,6 +107,10 @@ func codeParams(t *testing.T) map[string]interface{} {
 		"yml":  filepath.Join(dir, "load.yml"),
 		"dir":  dir,
 		"key":  "zq7secret",
+		"pl":   []interface{}{"meta.zq7secret"},
+		"km":   map[string]interface{}{"meta.zq7secret": 1},
+		"b64":  "bWV0YS56cTdzZWNyZXQgKiAy",
+		"ip":   "10.0.0.1",
 	}
 }
 
@@ -170,6 +174,35 @@ func TestLiteralIsNeverCode(t *testing.T) {
 		{name: "grab bracket key inside a literal map", out: "(( grab meta[params.m.p] ))"},
 		{name: "plain grab bracket key unchanged", extra: "k: zq7secret\n", out: "(( grab meta[k] ))", want: "21"},
 		{name: "plain grab computed unchanged", out: `(( grab (concat "meta." "zq7secret") ))`, want: "21"},
+	})
+}
+
+// TestLiteralStaysLiteralThroughBuilders checks that every operator that
+// builds a value from a literal's text gives back a value that is still
+// a literal, so no chain of them turns the text into code or a name. Each
+// builder is tried under an operator that would read its result as code
+// or as a name, and once as plain data to show it still builds the value.
+func TestLiteralStaysLiteralThroughBuilders(t *testing.T) {
+	runCodeCases(t, []codeCase{
+		{name: "split", out: `(( grab (join "." (split "." params.p)) ))`},
+		{name: "flatten", out: `(( calc (join "" (flatten params.l)) ))`},
+		{name: "uniq", out: `(( calc (join "" (uniq params.l)) ))`},
+		{name: "shuffle", out: `(( grab (join "" (shuffle params.pl)) ))`},
+		{name: "cartesian-product", out: `(( grab (join "" (cartesian-product params.pl)) ))`},
+		{name: "keys", out: `(( grab (join "" (keys params.km)) ))`},
+		{name: "base64-decode", out: "(( calc (base64-decode params.b64) ))"},
+		{name: "stringify", out: "(( vault (stringify params.v) ))"},
+		{name: "ips", out: `(( vault (concat "secret/" (ips params.ip 1) ":key") ))`},
+		{name: "inject", extra: "t:\n  <<<: (( inject params.m ))\n", out: "(( calc t.e ))"},
+		{name: "raw_env default", out: "(( calc (raw_env $GRAFT_C4_UNSET || params.e) ))"},
+		{name: "or in the tree", extra: "t: (( nope.x || params.e ))\n", out: "(( calc t ))"},
+		{name: "ternary in the tree", extra: "t: '(( params.f ? \"1\" : params.e ))'\n", out: "(( calc t ))"},
+		{name: "concat into awsparam", out: `(( awsparam (concat "/" params.aws) ))`},
+		{name: "join into nats", out: `(( nats (join "" params.pl) ))`},
+		{name: "split is still data", out: `(( join "," (split "." params.p) ))`, want: "meta,zq7secret"},
+		{name: "keys is still data", out: "(( join \"\" (keys params.km) ))", want: "meta.zq7secret"},
+		{name: "base64-decode is still data", out: "(( base64-decode params.b64 ))", want: "meta.zq7secret * 2"},
+		{name: "ips is still data", out: "(( ips params.ip 1 ))", want: "10.0.0.2"},
 	})
 }
 
