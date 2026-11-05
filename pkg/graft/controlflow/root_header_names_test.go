@@ -140,3 +140,50 @@ func TestRootReferenceHeaderAliasIsNotReadable(t *testing.T) {
 		})
 	}
 }
+
+// TestRootReferenceHeaderErrorKeepsEchoedText pins that taking the root
+// alias out of an error touches only the paths the engine rewrote. Here
+// a document value holds the alias's name, and grab echoes the path it
+// built from that value, which must reach the message as built.
+func TestRootReferenceHeaderErrorKeepsEchoedText(t *testing.T) {
+	for _, mode := range rootRefModes {
+		t.Run(mode.name, func(t *testing.T) {
+			src := nestedHeaderDoc + "note: __graft_root.x\nout:\n(( for x in items ))\n(( if $.x.kind != x.kind && (grab (concat note \".zz\")) ))\n- a\n(( fi ))\n(( done ))\n"
+			err := runRootRefMergeErr(t, mode.opts, src)
+			if err == nil {
+				t.Fatal("merge succeeded, want the built path to fail")
+			}
+			if !strings.Contains(err.Error(), "`__graft_root.x.zz`") {
+				t.Fatalf("error does not name the path grab built:\n%s", err)
+			}
+		})
+	}
+}
+
+// TestWithoutAliasStripsOnlyRewrittenPaths pins the rule withoutAlias
+// follows. It takes the alias out of a path in backticks that starts
+// with the alias and goes on as a "$." path the engine rewrote, or as a
+// leading part of one, and leaves every other mention alone.
+func TestWithoutAliasStripsOnlyRewrittenPaths(t *testing.T) {
+	v := view{alias: "__graft_root", rewritten: []string{"x.nope.deep", "x.kind"}}
+	cases := []struct{ in, want string }{
+		{"unable to resolve `__graft_root.x.nope.deep`: `$.__graft_root.x.nope` could not be found",
+			"unable to resolve `x.nope.deep`: `$.x.nope` could not be found"},
+		{"`$.__graft_root.x.kind` is not a number", "`$.x.kind` is not a number"},
+		{"unable to resolve `__graft_root.x.zz`: `$.__graft_root.x.zz` could not be found",
+			"unable to resolve `__graft_root.x.zz`: `$.__graft_root.x.zz` could not be found"},
+		{"the value __graft_root.x.kind came from the data", "the value __graft_root.x.kind came from the data"},
+		{"`__graft_root.x.kinder`", "`__graft_root.x.kinder`"},
+		{"\x1b[31m`\x1b[0m\x1b[36m$.__graft_root.x.nope\x1b[0m\x1b[31m` could not be found",
+			"\x1b[31m`\x1b[0m\x1b[36m$.x.nope\x1b[0m\x1b[31m` could not be found"},
+	}
+	for _, tc := range cases {
+		got := withoutAlias(errtext.WithPlain(fmt.Errorf("%s", tc.in), tc.in), v)
+		if got.Error() != tc.want {
+			t.Errorf("withoutAlias(%q)\n got %q\nwant %q", tc.in, got.Error(), tc.want)
+		}
+		if d := errtext.Detail(got); d != tc.want {
+			t.Errorf("detail of withoutAlias(%q)\n got %q\nwant %q", tc.in, d, tc.want)
+		}
+	}
+}

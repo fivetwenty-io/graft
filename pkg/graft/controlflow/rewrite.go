@@ -88,6 +88,11 @@ type nameSpan struct {
 
 	// bare marks a name the lexer read as a whole identifier token.
 	bare bool
+
+	// tokenEnd is the byte offset where the reference token that holds
+	// a rooted name ends, so the name and the rest of its path are
+	// expr[start:tokenEnd].
+	tokenEnd int
 }
 
 // newExprLexer returns a tokenizer over expr with the options the
@@ -160,7 +165,7 @@ func referenceNameSpans(lit string, base int) []nameSpan {
 			end = first + i
 		}
 		if end > first {
-			spans = append(spans, nameSpan{start: base + first, end: base + end, rooted: rooted})
+			spans = append(spans, nameSpan{start: base + first, end: base + end, rooted: rooted, tokenEnd: base + len(lit)})
 		}
 	}
 	for i := 0; i < len(lit); i++ {

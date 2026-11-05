@@ -2,6 +2,7 @@ package controlflow
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
@@ -52,11 +53,14 @@ func (e *env) withBinding(name string, value interface{}) *env {
 // view is what one header expression is parsed from and evaluated
 // against. text is the expression to parse, tree is the evaluator's
 // tree, and alias, when not empty, is the extra top-level key that text
-// reads the prescan scope through.
+// reads the prescan scope through. rewritten holds, for each "$." path
+// that viewFor sent through the alias, the path as written after the
+// "$.", which is what withoutAlias looks for.
 type view struct {
-	text  string
-	tree  map[string]interface{}
-	alias string
+	text      string
+	tree      map[string]interface{}
+	alias     string
+	rewritten []string
 }
 
 // viewFor returns the view raw is evaluated in. The tree is the prescan
@@ -104,6 +108,7 @@ func (e *env) viewFor(raw string) view {
 	alias := unusedKey(merged, raw, "__graft_root")
 	merged[alias] = e.scope
 	var out strings.Builder
+	var rewritten []string
 	last := 0
 	for _, sp := range spans {
 		if !sp.rooted || !plain[raw[sp.start:sp.end]] {
@@ -111,10 +116,11 @@ func (e *env) viewFor(raw string) view {
 		}
 		out.WriteString(raw[last:sp.start])
 		out.WriteString(alias + ".")
+		rewritten = append(rewritten, raw[sp.start:sp.tokenEnd])
 		last = sp.start
 	}
 	out.WriteString(raw[last:])
-	return view{text: out.String(), tree: merged, alias: alias}
+	return view{text: out.String(), tree: merged, alias: alias, rewritten: rewritten}
 }
 
 // boundReads reports which bound names raw reads through a "$." path
@@ -150,21 +156,73 @@ func unusedKey(m map[string]interface{}, text, base string) string {
 	}
 }
 
-// withoutAlias returns err with every mention of the alias path prefix
-// taken out of its plain and its detailed text, so the message names
-// the "$." path the user wrote. The alias is a key that no document
-// holds and the expression never mentions, so the prefix cannot match
-// anything else in the text.
-func withoutAlias(err error, alias string) error {
-	if err == nil || alias == "" {
+// withoutAlias returns err with the alias taken back out of each path
+// that viewFor rewrote, in both its plain and its detailed text, so the
+// message names the "$." path the user wrote. Only a path in backticks
+// that starts with the alias, after a "`" or a "`$.", and goes on as one
+// of v.rewritten or a leading part of one is changed. Text that holds
+// the alias's name for any other reason, such as a path built from a
+// document value, is left as it is.
+func withoutAlias(err error, v view) error {
+	if err == nil || v.alias == "" {
 		return err
 	}
-	prefix := alias + "."
 	plain, detail := err.Error(), errtext.Detail(err)
-	if !strings.Contains(plain, prefix) && !strings.Contains(detail, prefix) {
+	newPlain, newDetail := v.stripAlias(plain), v.stripAlias(detail)
+	if newPlain == plain && newDetail == detail {
 		return err
 	}
-	return errtext.Wrap(err, strings.ReplaceAll(plain, prefix, ""), strings.ReplaceAll(detail, prefix, ""))
+	return errtext.Wrap(err, newPlain, newDetail)
+}
+
+// stripAlias is withoutAlias for one text.
+func (v view) stripAlias(text string) string {
+	prefix := v.alias + "."
+	var out strings.Builder
+	rest := text
+	for {
+		i := strings.Index(rest, prefix)
+		if i < 0 {
+			out.WriteString(rest)
+			return out.String()
+		}
+		head, after := rest[:i], rest[i+len(prefix):]
+		out.WriteString(head)
+		if !v.wrotePath(head, after) {
+			out.WriteString(prefix)
+		}
+		rest = after
+	}
+}
+
+// trailingColor matches the terminal color codes at the end of a text,
+// which a colored message puts between a backtick and the path in it.
+var trailingColor = regexp.MustCompile(`(\x1b\[[0-9;]*m)+$`)
+
+// wrotePath reports whether the alias that sits between head and after
+// starts a path that viewFor wrote. head must end with "`" or "`$.",
+// with any color codes around the "$." set aside, and the path, which
+// runs from the alias to the next "`" or color code, must be one of
+// v.rewritten or a leading part of one that ends where a node does.
+func (v view) wrotePath(head, after string) bool {
+	head = trailingColor.ReplaceAllString(head, "")
+	if rest, ok := strings.CutSuffix(head, "$."); ok {
+		head = trailingColor.ReplaceAllString(rest, "")
+	}
+	if !strings.HasSuffix(head, "`") {
+		return false
+	}
+	end := strings.IndexAny(after, "`\x1b")
+	if end < 0 {
+		return false
+	}
+	path := after[:end]
+	for _, r := range v.rewritten {
+		if r == path || strings.HasPrefix(r, path+".") || strings.HasPrefix(r, path+"[") {
+			return true
+		}
+	}
+	return false
 }
 
 // buildPrescanScope implements spec §8.3 step 2: strip every top-level
@@ -322,7 +380,7 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 	op, err := graft.ParseOpcallWithParserForEngine(e.engine, graft.EvalPhase, "(( "+v.text+" ))")
 	if err != nil {
 		return nil, withoutAlias(errtext.WithPlain(fmt.Errorf("$.%s: invalid expression %q: %w", location, raw, err),
-			fmt.Sprintf("$.%s: invalid expression: %s", location, err)), v.alias)
+			fmt.Sprintf("$.%s: invalid expression: %s", location, err)), v)
 	}
 	if op == nil {
 		return nil, errtext.WithPlain(fmt.Errorf("$.%s: invalid expression %q", location, raw), fmt.Sprintf("$.%s: invalid expression", location))
@@ -335,7 +393,7 @@ func evalExpr(raw string, e *env, location string) (interface{}, error) {
 	ev.SetEngine(e.engine)
 	resp, err := op.Run(ev)
 	if err != nil {
-		return nil, withoutAlias(err, v.alias) // already "$.<location>: msg" via Opcall.Run
+		return nil, withoutAlias(err, v) // already "$.<location>: msg" via Opcall.Run
 	}
 	return resp.Value, nil
 }
