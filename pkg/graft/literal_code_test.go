@@ -161,6 +161,9 @@ func TestLiteralIsNeverCode(t *testing.T) {
 		{name: "grab of grab is data", out: "(( grab (grab params.p) ))", want: "meta.zq7secret"},
 		{name: "grab of grabbed map is data", out: "(( grab meta.m.p ))", want: "meta.zq7secret"},
 		{name: "grab of the tree is data", extra: "t: (( concat params.p \"\" ))\n", out: "(( grab t ))", want: "meta.zq7secret"},
+		{name: "grab bracket key", out: "(( grab meta[params.key] ))"},
+		{name: "grab bracket key inside a literal map", out: "(( grab meta[params.m.p] ))"},
+		{name: "plain grab bracket key unchanged", extra: "k: zq7secret\n", out: "(( grab meta[k] ))", want: "21"},
 		{name: "plain grab computed unchanged", out: `(( grab (concat "meta." "zq7secret") ))`, want: "21"},
 	})
 }
