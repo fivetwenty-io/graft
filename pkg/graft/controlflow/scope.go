@@ -187,8 +187,10 @@ func evaluateBestEffort(data map[string]interface{}, engine graft.Engine) {
 // operator-name-collision cases entirely. A '/' may appear in any
 // segment, as in BOSH's name/index instance notation
 // ("jobs.postgresql/0.ips"), because the expression grammar reads a '/'
-// that follows a reference character as part of the path.
-var bareIdentifierRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_/-]*(\.[A-Za-z0-9_/-]+)*$`)
+// that follows a reference character as part of the path. A path may
+// start with "$.", which names the document root as spruce reads it, so
+// "for v in $.meta.list" reads the same list as "for v in meta.list".
+var bareIdentifierRe = regexp.MustCompile(`^(\$\.)?[A-Za-z_][A-Za-z0-9_/-]*(\.[A-Za-z0-9_/-]+)*$`)
 
 // evalExpr evaluates raw graft expression text (no surrounding "(( ))")
 // against env's current tree and returns its Go value. location is used
