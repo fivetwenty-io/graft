@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/fivetwenty-io/graft/internal/logfilter"
 )
 
 // DebugOn enables debug level logging when set to true.
@@ -33,13 +35,6 @@ func init() {
 	}
 }
 
-// Filter sees each DEBUG and TRACE message when it is non-nil, all of its
-// lines together, before it is written. It returns the message to write
-// in its place, and false to leave the whole message out. pkg/graft sets
-// it so that the trace of a control-flow loop never names the loop's
-// internal bindings.
-var Filter func(message string) (string, bool)
-
 // DEBUG - Prints out a debug message.
 //
 //nolint:goprintffuncname // DEBUG is an established name used throughout the codebase
@@ -59,11 +54,11 @@ func TRACE(format string, args ...interface{}) {
 }
 
 // emit writes each line of content behind prefix, after passing the
-// whole of content through Filter when it is set.
+// whole of content through logfilter.Hook when it is set.
 func emit(prefix, content string) {
-	if Filter != nil {
+	if logfilter.Hook != nil {
 		var keep bool
-		if content, keep = Filter(content); !keep {
+		if content, keep = logfilter.Hook(content); !keep {
 			return
 		}
 	}

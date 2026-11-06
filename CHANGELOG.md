@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `graft.ErrNotEvaluated` matches, with `errors.Is`, the error a grab returns when its value holds an operator that hasn't run yet, so library code can tell that failure apart from every other without an internal import.
 
+- `graft.OperatorCalls` and `graft.OperatorCallNames` report each operator call that the parser finds in an expression, along with its name and where it ends, as `graft.CallSpan` values. The loop rewrite uses them to leave operator names and `defer` arguments alone.
+
 ### Fixed
 
 - A grab through a bracket now waits for the key and for the path the key names, in both evaluator modes. With `k: x`, the line `(( grab tgt[k] ))` runs after `k` and after any operator at `tgt.x`, and `(( grab $[k] ))` does the same at the root. When an operator computes the key, the grab also runs after the operators under the path before the bracket, unless that would close a cycle, so sibling grabs that point into the same map still evaluate. Before, the grab could run first and fail with "unable to resolve", or return the target's operator text as its value.

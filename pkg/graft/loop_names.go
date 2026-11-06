@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
+	"github.com/fivetwenty-io/graft/internal/logfilter"
 	"github.com/fivetwenty-io/graft/internal/loopbind"
-	"github.com/fivetwenty-io/graft/log"
 )
 
 // loopBindingKey is the reserved top-level key that control-flow
@@ -17,7 +17,7 @@ const loopBindingKey = loopbind.Key
 
 //nolint:gochecknoinits // the trace filter must be in place before any merge logs a line
 func init() {
-	log.Filter = traceWithoutLoopNames
+	logfilter.Hook = traceWithoutLoopNames
 }
 
 // bindingTreePath matches a trace line's mention of the binding tree
@@ -28,7 +28,7 @@ var (
 	bindingKeyInList = regexp.MustCompile(`(\[| )` + loopBindingKey + `( |\])`)
 )
 
-// traceWithoutLoopNames is the log package's Filter. A trace message
+// traceWithoutLoopNames is the hook the log package consults. A trace message
 // about the binding tree itself, such as the merge that adds it, is
 // left out, since the merged output never holds it. A list of keys
 // leaves out the binding key, and an expression in a loop body has the

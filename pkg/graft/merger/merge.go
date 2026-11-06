@@ -390,7 +390,7 @@ func (m *Merger) mergeMap(orig, n map[string]interface{}, at mergePath) {
 	node := at.shown
 	// Guarded: getMapKeys builds a fresh key slice per call, per node.
 	if log.DebugOn {
-		// One message, so a log.Filter that leaves out the node also
+		// One message, so a trace filter that leaves out the node also
 		// leaves out its keys.
 		log.DEBUG("mergeMap: merging at node %s\nmergeMap: orig keys = %v\nmergeMap: new keys = %v",
 			node, getMapKeys(orig), getMapKeys(n))

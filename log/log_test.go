@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/fivetwenty-io/graft/internal/logfilter"
+
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -39,9 +41,9 @@ func TestFilter(t *testing.T) {
 	PrintStdErrf = func(format string, args ...interface{}) {
 		stderr += fmt.Sprintf(format, args...)
 	}
-	defer func() { Filter = nil }()
+	defer func() { logfilter.Hook = nil }()
 	Convey("filter", t, func() {
-		Filter = func(message string) (string, bool) {
+		logfilter.Hook = func(message string) (string, bool) {
 			if message == "drop" {
 				return "", false
 			}
