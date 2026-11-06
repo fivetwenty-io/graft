@@ -22,3 +22,18 @@ func TestFindPathHistoryAcceptsRootAnchor(t *testing.T) {
 		}
 	}
 }
+
+// TestFindPathHistoryPrefersExactPath pins that a real key named "$"
+// is still reachable as "$.x", because the exact path is tried before
+// the root anchor is stripped.
+func TestFindPathHistoryPrefersExactPath(t *testing.T) {
+	all := []history.PathHistory{{Path: "$.x"}, {Path: "x"}}
+	ph, found := findPathHistory(all, "$.x")
+	if !found || ph.Path != "$.x" {
+		t.Fatalf("got %q, %v; want the exact $.x history", ph.Path, found)
+	}
+	ph, found = findPathHistory([]history.PathHistory{{Path: "x"}}, "$.x")
+	if !found || ph.Path != "x" {
+		t.Fatalf("fallback got %q, %v; want x", ph.Path, found)
+	}
+}

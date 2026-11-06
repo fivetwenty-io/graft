@@ -217,10 +217,18 @@ func historyStepPlan(limit, fileCount int, opts *mergeOpts) (fileSteps int, incl
 }
 
 // findPathHistory returns the PathHistory for path, if any.
-// The path may carry the "$." root anchor and bracket indexes, which are
-// read like the dotted spelling history paths use.
+// The exact path is tried first, so a real key named "$" stays
+// reachable. If that finds nothing, the path is read again without a
+// leading "$." root anchor and with bracket indexes as dotted nodes,
+// the spelling history paths use.
 func findPathHistory(all []history.PathHistory, path string) (history.PathHistory, bool) {
-	path = tree.NormalizeBrackets(strings.TrimPrefix(path, "$."))
+	if ph, ok := lookupPathHistory(all, path); ok {
+		return ph, true
+	}
+	return lookupPathHistory(all, tree.NormalizeBrackets(strings.TrimPrefix(path, "$.")))
+}
+
+func lookupPathHistory(all []history.PathHistory, path string) (history.PathHistory, bool) {
 	for _, ph := range all {
 		if ph.Path == path {
 			return ph, true
