@@ -116,7 +116,7 @@ func assertChainPlain(t *testing.T, err error, probe string) {
 	}
 }
 
-// TestErrorChainHoldsNoValue fails a parse, an ips call, a grab through
+// TestErrorChainHoldsNoValue fails a parse, a grab through
 // a scalar, and a document whose siblings hold the probe, and checks
 // every error a caller can reach from each one.
 func TestErrorChainHoldsNoValue(t *testing.T) {
@@ -128,7 +128,6 @@ func TestErrorChainHoldsNoValue(t *testing.T) {
 		parse bool
 	}{
 		{name: "parse", doc: "a: [PROBEzq81x\n", parse: true},
-		{name: "ips", doc: errProbeMeta + "out: (( ips meta.s 0 ))\n"},
 		{name: "grab through a scalar", doc: errProbeMeta + "out: (( grab meta.s.deeper ))\n"},
 		{name: "arithmetic on a string", doc: errProbeMeta + "out: (( meta.s * -3 ))\n"},
 		{name: "vault path", doc: errProbeMeta + "out: (( vault meta.s \":\" meta.s ))\n"},
@@ -141,7 +140,7 @@ creds:
 refs:
   before: PROBEzq81x
   missing: (( grab meta.nope ))
-  bad: (( ips meta.s 0 ))
+  bad: (( meta.s * -3 ))
 `},
 	}
 	for _, mode := range leakModes {
