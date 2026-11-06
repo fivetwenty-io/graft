@@ -1555,17 +1555,24 @@ func (ev *Evaluator) queuePrunePathsFrom(mrg *merger.Merger) {
 
 // RunPhase executes all operators belonging to the specified phase.
 func (ev *Evaluator) RunPhase(p OperatorPhase) error {
+	return ev.runPhase(p, ev.RunOps)
+}
+
+// runPhase sets up the operators of phase p, orders them by data flow,
+// and runs them with run. RunPhase passes the sequential RunOps, and
+// RunPhaseParallel the parallel scheduler. The error of every phase in
+// both modes leaves through here, so this is where loop binding names
+// are taken out of it (see withoutLoopNames).
+func (ev *Evaluator) runPhase(p OperatorPhase, run func([]*Opcall) error) error {
 	err := SetupOperators(p)
-	if err != nil {
-		return err
+	if err == nil {
+		var ops []*Opcall
+		ops, err = ev.DataFlow(p)
+		if err == nil {
+			err = run(ops)
+		}
 	}
-
-	op, err := ev.DataFlow(p)
-	if err != nil {
-		return err
-	}
-
-	return ev.RunOps(op)
+	return ev.withoutLoopNames(err)
 }
 
 // Run executes all evaluation phases with optional pruning and cherry-picking.

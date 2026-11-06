@@ -49,28 +49,7 @@ func resetParallelStats() {
 // If no WorkerPool is available on the engine, execution falls back to
 // the sequential RunOps path.
 func (ev *Evaluator) RunPhaseParallel(p OperatorPhase) error {
-	err := SetupOperators(p)
-	if err != nil {
-		return err
-	}
-
-	ops, err := ev.DataFlow(p)
-	if err != nil {
-		return err
-	}
-
-	if len(ops) == 0 {
-		return nil
-	}
-
-	// Retrieve the worker pool from the engine
-	pool := getWorkerPool(ev)
-	if pool == nil {
-		log.DEBUG("parallel: no worker pool, falling back to sequential")
-		return ev.RunOps(ops)
-	}
-
-	return ev.runOpsWithScheduler(context.Background(), pool, ops)
+	return ev.runPhase(p, ev.RunOpsParallel)
 }
 
 // RunOpsParallel executes a pre-sorted list of operations using the
