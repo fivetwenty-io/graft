@@ -916,7 +916,7 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 				// here (no "@target", no explicit "(") open its own
 				// call under the same two-token rule parseOperand
 				// applies elsewhere — see its doc comment.
-				right, err := p.withOpcallEligibility(p.parsePrimary)
+				right, err := p.withOpcallEligibility(p.parseArgument)
 				if err != nil {
 					return nil, err
 				}
@@ -940,7 +940,7 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 			break
 		}
 
-		arg, err := p.parsePrimary()
+		arg, err := p.parseArgument()
 		if err != nil {
 			return nil, err
 		}
@@ -969,6 +969,65 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 		expr.SetModifier("nocache")
 	}
 	return expr, nil
+}
+
+// parseArgument parses one space-separated operator argument, or one
+// side of an argument's ||. A number in exponent form that stands as a
+// whole argument is a reference there, the way spruce reads it, so
+// "(( grab 1e5 ))" reads the key "1e5" and "(( grab 1.5e3 ))" reads the
+// key "5e3" inside "1". A '-' glued in front of it is part of the name,
+// so "-1e5" is one key. Everything else goes to parsePrimary unchanged.
+func (p *Parser) parseArgument() (*Expr, error) {
+	tok := p.current()
+	idx := p.pos
+	if tok.Type == interfaces.TokenMinus {
+		next := p.tokenAt(p.pos + 1)
+		if next.Pos.Offset != tok.End.Offset {
+			return p.parsePrimary()
+		}
+		idx++
+	}
+	if !p.exponentArgumentAt(idx) {
+		return p.parsePrimary()
+	}
+	path := p.tokenAt(idx).Literal
+	if idx > p.pos {
+		path = "-" + path
+	}
+	cursor, err := tree.ParseCursor(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid reference path in an operator argument")
+	}
+	for p.pos <= idx {
+		p.advance()
+	}
+	return &Expr{
+		Type:           Reference,
+		Reference:      cursor,
+		BracketedNodes: tree.BracketsOf(path),
+	}, nil
+}
+
+// exponentArgumentAt reports whether the token at idx is a number in
+// exponent form that is a whole argument. It is one unless an infix
+// operator follows it, which makes it the left operand of an expression,
+// as in "(( grab 1e5 + 1 ))". The test is the one the argument loop uses
+// to end the list, so || and a '-' before a number, which both continue
+// the list, leave the number a whole argument.
+func (p *Parser) exponentArgumentAt(idx int) bool {
+	tok := p.tokenAt(idx)
+	if tok.Type != interfaces.TokenFloat || !strings.ContainsAny(tok.Literal, "eE") {
+		return false
+	}
+	next := p.tokenAt(idx + 1)
+	if next.Type == interfaces.TokenOr || !p.isBinaryOperator(next.Type) {
+		return true
+	}
+	if next.Type == interfaces.TokenMinus {
+		after := p.tokenAt(idx + 2)
+		return after.Type == interfaces.TokenInteger || after.Type == interfaces.TokenFloat
+	}
+	return false
 }
 
 // modifierFollowsAt reports whether the token at nameIdx (an operator

@@ -262,6 +262,14 @@ random by design and differs run to run on either binary.
 
 **Impact.** The value half of this is a separate open gap, described in [y-n-boolean-values-not-coerced](#y-n-boolean-values-not-coerced), where graft already agrees with spruce on `yes`, `no`, `on`, and `off`. For keys, spruce's rewrite loses data, since the file `y: 1` followed by `true: 2` merges to the single key `true: 2`, and a `grab y` of a key spelled `y` fails there with "could not be found". graft keeps both keys and resolves the path. Matching spruce would make graft turn a key such as GitHub Actions' `on:` into `true:`, so we keep keys untouched, and `graft json` agrees with `graft merge` on every key. This is also why the [mixed-key-type](#mixed-key-type-map-encoding-order) entry says typed keys can't be told apart from quoted ones. The exception is `graft json --strict`, which does look at key types. It refuses a `yes`, `no`, `on`, or `off` key, as spruce does, and it accepts a bare `y` or `n` key.
 
+### numbers-in-arithmetic-stay-numbers
+
+**Graft behavior.** graft has arithmetic, so a number that is an operand stays a number even when spruce would read the same text as a key. `(( 1e5 * 2 ))` gives 200000, `(( grab 1e5 + 1 ))` is `(grab 1e5) + 1` and gives 100001, and `(( concat "a" (1e5 * 2) ))` gives `a200000`. A `-` right after a number subtracts, so `(( 3-1 ))` gives 2 and `(( 2e5-1 ))` gives 199999. As an operator argument, `2e5-1` is the argument `2e5` followed by the argument `-1`, because a `-` before a number starts the next argument. A number in exponent form that stands as a whole argument is a reference, as it is in spruce, so `(( grab 1e5 ))` reads the key `1e5`.
+
+**Spruce behavior.** spruce has no arithmetic. It leaves `(( 1e5 * 2 ))`, `(( 1e5 + 1 ))`, and `(( 1e5 || "d" ))` in the output as text, fails `(( grab 1e5 + 1 ))` because it can't resolve `+`, and fails `(( concat "a" (1e5 * 2) ))` because it can't resolve `(1e5`. It reads `3-1` and `2e5-1` as single keys, since only a plain integer or decimal is a literal there.
+
+**Impact.** We keep arithmetic working on purpose, because that is what graft's expression language is for. Every shape here either fails in spruce or stays as text, so a template that works in spruce reads the same in graft, with one exception. A template that names a key such as `3-1` or `2e5-1` by its bare spelling gets arithmetic in graft rather than the key, and a quoted `"3-1"` is a string in both tools, so such a key needs a name that doesn't start with a number followed by `-`.
+
 ## Resolved
 
 Items that were tracked as open gaps and have since been closed. Kept

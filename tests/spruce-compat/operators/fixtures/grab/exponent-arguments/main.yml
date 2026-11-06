@@ -1,0 +1,24 @@
+# A number in exponent form that stands as a whole operator argument is
+# a reference, so each one below reads the key spelled the same way. A
+# fraction with an exponent splits at its dot, so 1.5e3 is the key 5e3
+# inside 1, and a '-' glued in front is part of the key.
+"1e5": k1e5
+"1E5": k1E5
+"1e+5": k1e+5
+"1e-5": k1e-5
+"-1e5": km1e5
+"1":
+  "5e3": k1.5e3
+
+plain: (( grab 1e5 ))
+upper: (( grab 1E5 ))
+signed: (( grab 1e+5 ))
+negative_exponent: (( grab 1e-5 ))
+negative: (( grab -1e5 ))
+fraction: (( grab 1.5e3 ))
+concat_middle: (( concat "a" 1e5 "b" ))
+concat_last: (( concat "a" 1e5 ))
+concat_negative: (( concat "a" -1e5 ))
+left_of_or: (( grab 1e5 || "d" ))
+right_of_or: (( grab missing || 1e5 ))
+right_of_or_fraction: (( grab missing || 1.5e3 ))
