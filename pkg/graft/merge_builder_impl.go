@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1194,6 +1195,7 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 	}
 
 	allPruneKeys := m.collectPruneKeys(result)
+	loopBound := !m.skipEvaluation && slices.Contains(allPruneKeys, loopBindingKey)
 
 	// Apply pruning AFTER evaluation so that grab operators can reference values before they're pruned
 	if len(allPruneKeys) > 0 {
@@ -1206,6 +1208,13 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 		if pruneErr != nil {
 			return nil, pruneErr
 		}
+	}
+
+	// With the loop bindings pruned, a loop body's text that evaluation
+	// passed through as a string reads as the user wrote it. The
+	// evaluated tree is this run's own, so the walk changes it in place.
+	if loopBound {
+		withoutLoopText(treeOf(result))
 	}
 
 	// Apply queued (( sort by X )) list ordering AFTER all pruning and
@@ -1310,8 +1319,8 @@ func (m *mergeBuilderImpl) collectPruneKeys(result Document) []string {
 	if !ok {
 		return keys
 	}
-	if _, present := resultData["__graft_loop"]; present {
-		keys = append(keys, "__graft_loop")
+	if _, present := resultData[loopBindingKey]; present {
+		keys = append(keys, loopBindingKey)
 	}
 	return keys
 }

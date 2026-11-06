@@ -262,3 +262,68 @@ out:
 		})
 	}
 }
+
+// TestLoopBodyPassThroughTextReadsAsWritten writes loop body text that
+// evaluation passes through as a string, such as a lone name in
+// (( )), an operator embedded in other text, and an expression the
+// parser cannot read. The output holds the text the user wrote, in
+// both evaluator modes and inside nested loops.
+func TestLoopBodyPassThroughTextReadsAsWritten(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"a lone loop variable", `list: [a, b]
+out:
+(( for svc in list ))
+  - (( svc ))
+(( done ))
+`, "[(( svc )) (( svc ))]"},
+		{"a lone operator-named variable", `list: [a]
+out:
+(( for join in list ))
+  - (( join ))
+(( done ))
+`, "[(( join ))]"},
+		{"an operator embedded in text", `list: [1, 2]
+out:
+(( for i in list ))
+  - big-(( grab i ))
+(( done ))
+`, "[big-(( grab i )) big-(( grab i ))]"},
+		{"an expression the parser cannot read", `list: [a]
+out:
+(( for svc in list ))
+  - (( svc.n ? svc.n ))
+(( done ))
+`, "[(( svc.n ? svc.n ))]"},
+		{"a map key", `list: [a]
+out:
+(( for svc in list ))
+  - (( svc )): 1
+(( done ))
+`, "[map[(( svc )):1]]"},
+		{"nested loops", `outer: [a]
+inner: [1, 2]
+out:
+(( for svc in outer ))
+(( for i in inner ))
+  - (( svc ))
+  - big-(( grab i ))
+  - (( svc.n ? i ))
+(( done ))
+(( done ))
+`, "[(( svc )) big-(( grab i )) (( svc.n ? i )) (( svc )) big-(( grab i )) (( svc.n ? i ))]"},
+	}
+	for _, mode := range rootRefModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				data := runLoopMergeYAML(t, mode.opts, tc.src)
+				if got := fmt.Sprint(data["out"]); got != tc.want {
+					t.Errorf("out = %s, want %s", got, tc.want)
+				}
+			})
+		}
+	}
+}

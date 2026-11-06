@@ -193,3 +193,38 @@ func (e *loopNamesError) As(target any) bool {
 	}
 	return false
 }
+
+// withoutLoopText takes the loop binding prefix out of every string in
+// data, map keys included, in place. Evaluation leaves a loop body's
+// text as written when it is not an operator to run, such as a lone
+// "(( svc ))", an operator embedded in other text, or an expression the
+// parser cannot read, and that text still holds the rewrite's prefix.
+// It runs once the bindings are pruned, so the output reads as the user
+// wrote it. A literal.Value is left whole, since its content is data.
+func withoutLoopText(data interface{}) interface{} {
+	switch v := data.(type) {
+	case string:
+		return withoutLoopPrefix(v)
+	case map[string]interface{}:
+		for key, item := range v {
+			plain := withoutLoopPrefix(key)
+			if plain == key {
+				v[key] = withoutLoopText(item)
+				continue
+			}
+			if _, taken := v[plain]; taken {
+				v[key] = withoutLoopText(item)
+				continue
+			}
+			delete(v, key)
+			v[plain] = withoutLoopText(item)
+		}
+		return v
+	case []interface{}:
+		for i, item := range v {
+			v[i] = withoutLoopText(item)
+		}
+		return v
+	}
+	return data
+}
