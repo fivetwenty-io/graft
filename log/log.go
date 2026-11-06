@@ -33,7 +33,7 @@ func init() {
 	}
 }
 
-// Filter, when non-nil, sees each DEBUG and TRACE message, all of its
+// Filter sees each DEBUG and TRACE message when it is non-nil, all of its
 // lines together, before it is written. It returns the message to write
 // in its place, and false to leave the whole message out. pkg/graft sets
 // it so that the trace of a control-flow loop never names the loop's
