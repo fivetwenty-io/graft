@@ -95,12 +95,21 @@ func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			separator = fmt.Sprintf("%v", arg.Literal)
 		} else { // argument #1..n: list, literal, or expression
 			// Use ResolveOperatorArgument to handle nested expressions
-			val, err := ResolveOperatorArgument(ev, arg)
+			val, fromEnv, err := resolveNotingEnv(ev, arg)
 			if err != nil {
 				DEBUG("     [%d]: resolution failed\n    error: %s", i, err)
 				// ResolveOperatorArgument already formats reference resolution
 				// failures as "unable to resolve `<ref>`: <err>"; do not re-wrap.
 				return nil, err
+			}
+
+			// An environment variable's decoded value is printed whole, the
+			// way spruce prints it, so a list reads [a b], a map map[a:b],
+			// and a null <nil>.
+			if fromEnv {
+				DEBUG("     [%d]: resolved to an environment value", i)
+				*list = append(*list, fmt.Sprintf("%v", val))
+				continue
 			}
 
 			if val == nil {

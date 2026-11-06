@@ -58,7 +58,7 @@ func (ConcatOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 	for i, arg := range args {
 		// Use the helper to resolve arguments, including nested operators
-		v, err := ResolveOperatorArgument(ev, arg)
+		v, fromEnv, err := resolveNotingEnv(ev, arg)
 		if err != nil {
 			DEBUG("  arg[%d]: failed to resolve expression to a concrete value", i)
 			DEBUG("     [%d]: error was: %s", i, err)
@@ -85,7 +85,7 @@ func (ConcatOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		case string:
 			stringVal = val
 		case []interface{}:
-			if arg.Type == EnvVar {
+			if fromEnv {
 				stringVal = fmt.Sprintf("%v", val)
 				break
 			}

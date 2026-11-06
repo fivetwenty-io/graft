@@ -96,6 +96,30 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 	return nil, fmt.Errorf("unknown expression type: %v", arg.Type)
 }
 
+// resolveNotingEnv resolves arg like ResolveOperatorArgument and also
+// reports whether the value came from an environment variable, either as
+// the argument itself or as the leaf of a || chain that gave the value.
+// spruce prints such a value whole, the way Go's %v prints it, where it
+// would walk a list or map reached through a reference, so join and
+// concat need to know which one they hold.
+func resolveNotingEnv(ev *Evaluator, arg *Expr) (interface{}, bool, error) {
+	if arg != nil && arg.Type == LogicalOr {
+		left, fromEnv, err := resolveNotingEnv(ev, arg.Left)
+		if err == nil {
+			return left, fromEnv, nil
+		}
+		if pending.StopsFallback(err) {
+			return nil, false, err
+		}
+		return resolveNotingEnv(ev, arg.Right)
+	}
+	val, err := ResolveOperatorArgument(ev, arg)
+	if err != nil {
+		return nil, false, err
+	}
+	return val, arg != nil && arg.Type == EnvVar, nil
+}
+
 // stripNotingRead returns val without any literal wrapper in it, and
 // notes on ev that the operator read a literal when val was one, sat
 // inside one, or held one.
