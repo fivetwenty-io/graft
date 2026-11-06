@@ -115,10 +115,15 @@ func newExprLexer(expr string, engine graft.Engine) *interfaces.AdvancedTokenize
 // inside a quoted string, an environment variable, a key that continues
 // a path, or the value side of a "field=value" selector is never
 // returned, and neither is the modifier or target name of an operator
-// head, such as "prod" in "vault@prod". engine resolves operator names, which decide whether a '/'
-// right after a name begins a reference. A nil engine uses the default
-// registry.
-func pathNameSpans(expr string, engine graft.Engine) []nameSpan {
+// head, such as "prod" in "vault@prod". engine resolves operator names,
+// which decide whether a '/' right after a name begins a reference. A
+// nil engine uses the default registry.
+//
+// calls, when non-nil, maps the offset of each identifier the parser
+// reads as the name of an operator call to that name, as
+// graft.OperatorCallNames returns it. Such an identifier names no key,
+// so it is left out.
+func pathNameSpans(expr string, engine graft.Engine, calls map[int]string) []nameSpan {
 	tz := newExprLexer(expr, engine)
 	var spans []nameSpan
 	for tz.HasMore() {
@@ -132,6 +137,9 @@ func pathNameSpans(expr string, engine graft.Engine) []nameSpan {
 			if tz.HeadName() {
 				// The modifier or target of an operator head, as
 				// "prod" in "vault@prod", names no key.
+				continue
+			}
+			if _, ok := calls[tok.Pos.Offset]; ok {
 				continue
 			}
 			spans = append(spans, nameSpan{start: tok.Pos.Offset, end: tok.Pos.Offset + len(tok.Literal), bare: true})
@@ -212,9 +220,10 @@ func rewriteVarRefs(inner string, targets map[string]string, engine graft.Engine
 	if !mentionsAny(inner, targets) {
 		return inner
 	}
+	calls := graft.OperatorCallNames(engine, inner)
 	var out strings.Builder
 	last := 0
-	for _, sp := range pathNameSpans(inner, engine) {
+	for _, sp := range pathNameSpans(inner, engine, calls) {
 		if sp.rooted {
 			continue
 		}

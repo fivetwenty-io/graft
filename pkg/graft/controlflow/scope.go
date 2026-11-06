@@ -89,7 +89,7 @@ func (e *env) viewFor(raw string) view {
 	if len(e.bindings) == 0 {
 		return view{text: raw, tree: e.scope}
 	}
-	spans := pathNameSpans(raw, e.engine)
+	spans := pathNameSpans(raw, e.engine, nil)
 	rooted, plain := e.boundReads(raw, spans)
 	merged := make(map[string]interface{}, len(e.scope)+len(e.bindings)+1)
 	for k, v := range e.scope {

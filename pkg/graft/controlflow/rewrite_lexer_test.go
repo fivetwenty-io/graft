@@ -260,8 +260,11 @@ func TestRewriteAgreesWithLexer(t *testing.T) {
 // expectedText rebuilds src with every token that expectedRewrite
 // rewrites replaced. A rewritten identifier directly followed by '+' or
 // '=' gets a space after it, because a dotted path would glue "+name" or
-// "=value" onto its last segment.
+// "=value" onto its last segment. An identifier the parser reads as the
+// name of an operator call it opens stays as written, because it names
+// the operator and not the loop variable.
 func expectedText(src string, toks []lexedToken, name, target string) string {
+	calls := graft.OperatorCallNames(nil, src)
 	var b strings.Builder
 	if len(toks) > 0 {
 		b.WriteString(src[:toks[0].start])
@@ -272,6 +275,9 @@ func expectedText(src string, toks []lexedToken, name, target string) string {
 			next = toks[i+1].start
 		}
 		lit, ok := expectedRewrite(tok, name, target)
+		if _, isCall := calls[tok.start]; isCall && tok.typ == interfaces.TokenIdentifier {
+			ok = false
+		}
 		if !ok {
 			b.WriteString(src[tok.start:next])
 			continue

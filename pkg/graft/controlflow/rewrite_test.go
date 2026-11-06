@@ -123,3 +123,28 @@ func TestRewriteVarRefs_ExponentSlashPaths(t *testing.T) {
 		})
 	}
 }
+
+// TestRewriteVarRefs_OperatorNames pins which names the rewrite leaves
+// alone because they name an operator.
+func TestRewriteVarRefs_OperatorNames(t *testing.T) {
+	const join = "__graft_loop.l1.0.join"
+	targets := map[string]string{"join": join}
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"operator name and argument", ` join ", " join `, ` join ", " ` + join + ` `},
+		{"operator name in a group", `concat (join "," join) "x"`, `concat (join "," ` + join + `) "x"`},
+		{"operator name as a lone operand", ` join `, ` ` + join + ` `},
+		{"operator name before ||", ` join || "z" `, ` ` + join + ` || "z" `},
+		{"operator name as a reference", `grab join.x`, `grab ` + join + `.x`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rewriteVarRefs(tc.in, targets, nil); got != tc.want {
+				t.Fatalf("rewriteVarRefs(%q)\n got  %q\n want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
