@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	_ "github.com/fivetwenty-io/graft/pkg/graft/operators"
@@ -199,4 +200,201 @@ func bracketGraph(t *testing.T, doc string) *graft.DependencyGraph {
 		t.Fatal(err)
 	}
 	return g
+}
+
+// TestGrabBracketWaitsForComputedTarget checks that a bracket grab whose
+// key an operator computes still runs after the operator that computes
+// the value its path reaches. The target is unknown until the key runs,
+// so the grab waits on the operators under the path before the key.
+func TestGrabBracketWaitsForComputedTarget(t *testing.T) {
+	runBracketCases(t, []bracketCase{
+		{"computed key and a target that waits", `aa: (( grab tgt[z] ))
+src:
+  v: (( concat "chained" "-value" ))
+tgt:
+  x: (( grab src.v ))
+z: (( concat "x" "" ))
+`, "aa", "chained-value"},
+		{"computed key at the root and a target that waits", `aa: (( grab $[k] ))
+k: (( concat "t" "gt" ))
+src: (( concat "root" "-value" ))
+tgt: (( grab src ))
+`, "aa", "root-value"},
+		{"computed key and target", `aa: (( grab tgt[z] ))
+tgt:
+  x: (( concat "computed" "-value" ))
+z: (( concat "x" "" ))
+`, "aa", "computed-value"},
+		{"computed key and target past the key", `k: (( concat "x" "" ))
+a:
+  b:
+    c: (( grab a.b[k].v ))
+    x:
+      v: (( concat "v" "1" ))
+`, "a.b.c", "v1"},
+		{"computed key and target at the root", `aa: (( grab $[k] ))
+k: (( concat "t" "gt" ))
+tgt: (( concat "computed" "-value" ))
+`, "aa", "computed-value"},
+		{"computed key at the root over data", `aa: (( grab $[w] ))
+ab: 7
+w: (( concat "a" "b" ))
+`, "aa", "7"},
+		{"a sibling reads the grab", `key: (( concat "a" "" ))
+meta:
+  a: 1
+  pick1: (( grab meta[key] ))
+  use: (( concat "got=" meta.pick1 ))
+`, "meta.use", "got=1"},
+		{"key computed under the same parent", `meta:
+  k: (( concat "a" "b" ))
+  ab: 1
+  pick: (( grab meta[meta.k] ))
+`, "meta.pick", "1"},
+		{"a sibling grab sorted first", `k: (( concat "x" "" ))
+k2: (( concat "p" "1" ))
+meta:
+  x: (( concat "v" "1" ))
+  p1: (( grab meta[k] ))
+  p2: (( grab meta[k2] ))
+`, "meta.p2", "v1"},
+	})
+}
+
+// TestGrabBracketSiblingsNeverCycle checks that grabs under one parent,
+// each waiting on the others because each key is computed, still
+// evaluate as they did before those waits were added. A wait that would
+// close a cycle is dropped.
+func TestGrabBracketSiblingsNeverCycle(t *testing.T) {
+	cases := []bracketCase{
+		{"two siblings with one key", `key: (( concat "a" "" ))
+meta:
+  a: 1
+  pick1: (( grab meta[key] ))
+  pick2: (( grab meta[key] ))
+`, "meta.pick2", "1"},
+		{"list entries with one index", `idx: (( calc "0 + 1" ))
+items:
+- (( grab items[idx] ))
+- two
+- (( grab items[idx] ))
+`, "items.2", "two"},
+		{"a fallback beside a plain grab", `sel: (( concat "a" "" ))
+cfg:
+  a: 1
+out: (( grab cfg[sel] ))
+other2: (( grab cfg[sel] || "n" ))
+`, "other2", "1"},
+	}
+
+	var mesh strings.Builder
+	mesh.WriteString("meta:\n")
+	for i := 0; i < 10; i++ {
+		fmt.Fprintf(&mesh, "  d%d: (( concat \"value-\" \"%d\" ))\n", i, i)
+	}
+	for i := 0; i < 20; i++ {
+		fmt.Fprintf(&mesh, "  g%02d: (( grab meta[k%02d] ))\n", i, i)
+		fmt.Fprintf(&mesh, "k%02d: (( concat \"d\" \"%d\" ))\n", i, i%10)
+	}
+	cases = append(cases, bracketCase{"a mesh of siblings", meshDoc(mesh.String()), "meta.g13", "value-3"})
+
+	var chain strings.Builder
+	chain.WriteString("meta:\n  d: (( concat \"chain\" \"-end\" ))\n  g00: (( grab meta[k00] ))\nk00: (( concat \"d\" \"\" ))\n")
+	for i := 1; i < 15; i++ {
+		fmt.Fprintf(&chain, "meta:\n  g%02d: (( grab meta[k%02d] ))\n", i, i)
+		fmt.Fprintf(&chain, "k%02d: (( concat \"g\" \"%02d\" ))\n", i, i-1)
+	}
+	cases = append(cases, bracketCase{"a chain of siblings", meshDoc(chain.String()), "meta.g14", "chain-end"})
+
+	runBracketCases(t, cases)
+}
+
+// meshDoc folds the repeated top-level "meta:" headers a generated
+// document writes into one map, so each line can name its parent.
+func meshDoc(doc string) string {
+	var meta, top strings.Builder
+	meta.WriteString("meta:\n")
+	for _, line := range strings.Split(strings.TrimSuffix(doc, "\n"), "\n") {
+		switch {
+		case line == "meta:":
+		case strings.HasPrefix(line, "  "):
+			meta.WriteString(line + "\n")
+		default:
+			top.WriteString(line + "\n")
+		}
+	}
+	return meta.String() + top.String()
+}
+
+// TestGrabBracketSoftDependencies checks the edges a bracket grab with a
+// computed key reports in the dependency graph: its key, and each other
+// operator under the path before the key, unless that operator already
+// waits on the grab.
+func TestGrabBracketSoftDependencies(t *testing.T) {
+	g := bracketGraph(t, `aa: (( grab tgt[z] ))
+tgt:
+  x: (( concat "computed" "-value" ))
+  y: plain
+z: (( concat "x" "" ))
+`)
+	if got := strings.Join(g.Dependencies("aa"), ","); got != "tgt.x,z" {
+		t.Fatalf("aa depends on %s, want tgt.x,z", got)
+	}
+
+	g = bracketGraph(t, `key: (( concat "a" "" ))
+meta:
+  a: 1
+  pick1: (( grab meta[key] ))
+  pick2: (( grab meta[key] ))
+`)
+	if got := strings.Join(g.Dependencies("meta.pick1"), ","); got != "key" {
+		t.Fatalf("meta.pick1 depends on %s, want key", got)
+	}
+	if got := strings.Join(g.Dependencies("meta.pick2"), ","); got != "key,meta.pick1" {
+		t.Fatalf("meta.pick2 depends on %s, want key,meta.pick1", got)
+	}
+	if cycles := g.DetectCycles(); len(cycles) != 0 {
+		t.Fatalf("graph has cycles %v", cycles)
+	}
+}
+
+// TestGrabBracketLargeDocument checks that a document with many bracket
+// grabs at the root, each of which waits on every other operator in the
+// document, still evaluates quickly in both modes.
+func TestGrabBracketLargeDocument(t *testing.T) {
+	var doc strings.Builder
+	doc.WriteString("k: (( concat \"v\" \"0\" ))\n")
+	for i := 0; i < 1500; i++ {
+		fmt.Fprintf(&doc, "v%d: (( concat \"x\" \"%d\" ))\n", i, i)
+	}
+	for i := 0; i < 40; i++ {
+		fmt.Fprintf(&doc, "g%d: (( grab $[k] ))\n", i)
+	}
+
+	// The race detector slows evaluation several times over, so the bound
+	// under it only catches a return to quadratic behavior.
+	limit := time.Second
+	if raceEnabled {
+		limit = 20 * time.Second
+	}
+	for _, mode := range leakModes {
+		t.Run(mode.name, func(t *testing.T) {
+			start := time.Now()
+			got, err := mergeBracketDoc(t, mode.parallel, doc.String())
+			elapsed := time.Since(start)
+			if err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			v, err := got.Get("g39")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v != "x0" {
+				t.Fatalf("g39 is %v, want x0", v)
+			}
+			if elapsed > limit {
+				t.Fatalf("evaluation took %v, want under %v", elapsed, limit)
+			}
+		})
+	}
 }

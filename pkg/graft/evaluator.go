@@ -422,8 +422,75 @@ func (ctx *dataFlowContext) buildDependencyGraph() [][]*Opcall {
 			}
 		}
 	}
+	g = ctx.addSoftEdges(g)
 	ctx.ev.Here = savedHere
 	return g
+}
+
+// addSoftEdges adds an edge from each soft dependency of an operator to
+// the operator, unless the dependency already waits on it, directly or
+// through others. Such an edge would close a cycle, so it is dropped,
+// and a soft dependency can never turn a graph without cycles into one
+// with them.
+//
+// The operators are visited in reverse evaluation order. When two
+// operators each list the other, the one that sorts later gets its edge
+// first and so waits on the one that sorts earlier. That keeps the order
+// the sorted waves gave them before soft edges existed.
+//
+// An edge into an operator never changes which operators wait on it, so
+// the operators that wait on each one are found once, before its own
+// edges are added.
+func (ctx *dataFlowContext) addSoftEdges(g [][]*Opcall) [][]*Opcall {
+	keys := ctx.ev.getSortedKeys(ctx.all, ctx.insertionOrder)
+	var dependents map[*Opcall][]*Opcall
+	for i := len(keys) - 1; i >= 0; i-- {
+		a, ok := ctx.all[keys[i]]
+		if !ok {
+			continue
+		}
+		ctx.ev.Here = a.where
+		soft := a.SoftDependencies(ctx.ev, ctx.locs)
+		if len(soft) == 0 {
+			continue
+		}
+		if dependents == nil {
+			dependents = make(map[*Opcall][]*Opcall, len(g))
+			for _, e := range g {
+				dependents[e[0]] = append(dependents[e[0]], e[1])
+			}
+		}
+		waiting := waitingOn(dependents, a)
+		seen := map[*Opcall]bool{}
+		for _, path := range soft {
+			b := ctx.findDependency(path)
+			if b == nil || b == a || waiting[b] || seen[b] {
+				continue
+			}
+			seen[b] = true
+			g = append(g, []*Opcall{b, a})
+			dependents[b] = append(dependents[b], a)
+		}
+	}
+	return g
+}
+
+// waitingOn returns every operator that waits on start, directly or
+// through others, given each operator's direct dependents.
+func waitingOn(dependents map[*Opcall][]*Opcall, start *Opcall) map[*Opcall]bool {
+	out := map[*Opcall]bool{}
+	queue := []*Opcall{start}
+	for len(queue) > 0 {
+		n := queue[0]
+		queue = queue[1:]
+		for _, d := range dependents[n] {
+			if !out[d] {
+				out[d] = true
+				queue = append(queue, d)
+			}
+		}
+	}
+	return out
 }
 
 // findDependency finds the dependency for a path in the operators map.
@@ -646,32 +713,76 @@ func (ev *Evaluator) getSortedKeys(all map[string]*Opcall, insertionOrder []stri
 	return keys
 }
 
-// kahnSort performs Kahn's topological sort algorithm.
+// kahnSort performs Kahn's topological sort algorithm in waves. Each
+// wave holds every operator left in all that no edge from an operator
+// still unsorted points to, in sortedKeys order, and the wave's edges
+// are released only once the whole wave is placed. An edge from an
+// operator that never sorts, such as a self-edge, is never released, so
+// the operators behind it stall and report a cycle.
+//
+// Edges are counted per target and indexed per source, so a wave costs
+// time in proportion to the operators and edges it touches rather than
+// to the whole graph.
 func (ev *Evaluator) kahnSort(g [][]*Opcall, all map[string]*Opcall, sortedKeys []string) ([]*Opcall, error) {
 	ops := []*Opcall{}
 	wave := 0
 
+	blockers := make(map[*Opcall]int, len(all))
+	edgesFrom := make(map[*Opcall][]*Opcall, len(all))
+	for _, pair := range g {
+		blockers[pair[1]]++
+		edgesFrom[pair[0]] = append(edgesFrom[pair[0]], pair[1])
+	}
+	sorted := make(map[*Opcall]bool, len(all))
+
 	for len(all) > 0 {
 		wave++
-		free := ev.findFreeNodes(g, all, sortedKeys)
+		free := []*Opcall{}
+		for _, k := range sortedKeys {
+			if node, ok := all[k]; ok && blockers[node] == 0 {
+				delete(all, k)
+				free = append(free, node)
+			}
+		}
 		if len(free) == 0 {
-			return nil, ev.newCycleError(g, all)
+			return nil, ev.newCycleError(unsortedEdges(g, sorted), all)
 		}
 
 		for _, node := range free {
 			log.TRACE("data flow: [%d] wave %d, op %s: %s", len(ops), wave, node.where, node.src)
 			ops = append(ops, node)
-			g = ev.removeNodeFromGraph(g, node)
+		}
+		for _, node := range free {
+			if sorted[node] {
+				continue
+			}
+			sorted[node] = true
+			for _, next := range edgesFrom[node] {
+				blockers[next]--
+			}
 		}
 	}
 	return ops, nil
 }
 
+// unsortedEdges returns the edges of g whose source has not been sorted,
+// which are the edges still blocking the operators left when kahnSort
+// stalls.
+func unsortedEdges(g [][]*Opcall, sorted map[*Opcall]bool) [][]*Opcall {
+	l := make([][]*Opcall, 0, len(g))
+	for _, pair := range g {
+		if !sorted[pair[0]] {
+			l = append(l, pair)
+		}
+	}
+	return l
+}
+
 // newCycleError builds the error reported when kahnSort stalls.
 //
-// At the stall, findFreeNodes has already deleted every scheduled node
-// from all, and removeNodeFromGraph has dropped their edges from g, so
-// both hold exactly the blocked remainder. That remainder is not the
+// At the stall, kahnSort has already deleted every scheduled node from
+// all, and unsortedEdges has dropped their edges from g, so both hold
+// exactly the blocked remainder. That remainder is not the
 // cycle: any node whose dependency chain leads into a cycle stays
 // blocked forever without being on it. extractCycle reports only the
 // gray-stack slice, so those bystanders are never named.
@@ -686,43 +797,6 @@ func (ev *Evaluator) newCycleError(g [][]*Opcall, all map[string]*Opcall) error 
 		return errtext.Colorf("@*{cycle detected in operator data-flow graph}")
 	}
 	return buildCycleError(ev.Sources, paths, all)
-}
-
-// findFreeNodes finds all nodes with no incoming dependencies.
-func (ev *Evaluator) findFreeNodes(g [][]*Opcall, all map[string]*Opcall, sortedKeys []string) []*Opcall {
-	freeNodeMap := make(map[string]*Opcall)
-	for k, node := range all {
-		called := false
-		for _, pair := range g {
-			if pair[1] == node {
-				called = true
-				break
-			}
-		}
-		if !called {
-			freeNodeMap[k] = node
-		}
-	}
-
-	l := []*Opcall{}
-	for _, k := range sortedKeys {
-		if node, isFree := freeNodeMap[k]; isFree {
-			delete(all, k)
-			l = append(l, node)
-		}
-	}
-	return l
-}
-
-// removeNodeFromGraph removes all dependencies on a node.
-func (ev *Evaluator) removeNodeFromGraph(old [][]*Opcall, n *Opcall) [][]*Opcall {
-	l := make([][]*Opcall, 0, len(old))
-	for _, pair := range old {
-		if pair[0] != n {
-			l = append(l, pair)
-		}
-	}
-	return l
 }
 
 // RunOps executes a list of operators in order, collecting any errors.

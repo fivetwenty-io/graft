@@ -237,6 +237,16 @@ func (ev *Evaluator) addSchedulerTasks(scheduler *parallel.Scheduler, ops []*Opc
 	savedHere := ev.Here
 	defer func() { ev.Here = savedHere }()
 
+	// ops arrive in DataFlow's order, which already honors every soft
+	// edge the sequential graph kept. pos lets softDependencyIDs keep
+	// exactly those.
+	pos := make(map[string]int, len(ops))
+	for i, op := range ops {
+		if op.Where() != nil {
+			pos[op.Where().String()] = i
+		}
+	}
+
 	for _, op := range ops {
 		taskOp := op // capture for closure
 		taskID := taskOp.Where().String()
@@ -251,9 +261,10 @@ func (ev *Evaluator) addSchedulerTasks(scheduler *parallel.Scheduler, ops []*Opc
 		// sibling edge is silently never added.
 		ev.Here = taskOp.Where()
 
+		deps := ev.dependencyIDs(taskOp, taskID, allLocs, opIDMap)
 		task := &parallel.Task{
 			ID:           taskID,
-			Dependencies: ev.dependencyIDs(taskOp, taskID, allLocs, opIDMap),
+			Dependencies: ev.softDependencyIDs(taskOp, taskID, allLocs, opIDMap, deps, pos),
 		}
 
 		if err := scheduler.AddTask(task); err != nil {
@@ -280,6 +291,44 @@ func (ev *Evaluator) dependencyIDs(op *Opcall, taskID string, allLocs []*tree.Cu
 		}
 	}
 	return depIDs
+}
+
+// softDependencyIDs adds to deps the task IDs of op's soft dependencies
+// that come before op in DataFlow's order, which pos gives. Those are
+// the soft edges the sequential graph kept, because DataFlow's order
+// honors each of them, and a soft dependency that sorts after op is one
+// the sequential graph dropped to avoid a cycle. The scheduler's graph
+// therefore stays free of cycles and orders a bracket grab the same way
+// the sequential evaluator does. ev.Here must already be set to op's own
+// path.
+func (ev *Evaluator) softDependencyIDs(op *Opcall, taskID string, allLocs []*tree.Cursor, opIDMap map[string]string, deps []string, pos map[string]int) []string {
+	if op.op == nil {
+		return deps
+	}
+	soft := op.SoftDependencies(ev, allLocs)
+	if len(soft) == 0 {
+		return deps
+	}
+	seen := make(map[string]bool, len(deps))
+	for _, id := range deps {
+		seen[id] = true
+	}
+	self, ok := pos[taskID]
+	if !ok {
+		return deps
+	}
+	for _, c := range soft {
+		id, ok := resolveOpIDForDependency(ev, opIDMap, c)
+		if !ok || id == taskID || seen[id] {
+			continue
+		}
+		if at, ok := pos[id]; !ok || at >= self {
+			continue
+		}
+		deps = append(deps, id)
+		seen[id] = true
+	}
+	return deps
 }
 
 // partitionWave splits an already-sorted wave into the operators that

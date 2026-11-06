@@ -302,7 +302,7 @@ func (depAwareOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 //
 // document_key is named "a_consumer" (alphabetically before "zzz_producer")
 // specifically so that a missing dependency edge is observable: with no
-// edge between the two ops, evaluator.go's kahnSort/findFreeNodes treats
+// edge between the two ops, evaluator.go's kahnSort treats
 // both as free in the same wave and breaks the tie alphabetically —
 // "a_consumer" would run first, reading zzz_producer's still-unevaluated
 // source text "(( grab source ))" instead of waiting for it to resolve to

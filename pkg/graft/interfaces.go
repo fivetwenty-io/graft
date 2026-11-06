@@ -171,6 +171,21 @@ type Operator interface {
 	Phase() OperatorPhase
 }
 
+// SoftDependent is implemented by operators that should run after some
+// other operators when the dependency graph allows it, without making
+// those operators hard dependencies. The evaluator adds an edge for each
+// soft dependency unless the dependency already waits on the operator,
+// directly or through others, so a soft dependency never closes a
+// cycle. (( grab )) uses it for a path whose bracket key is computed,
+// where the operator that computes the target is not known until the
+// key is.
+type SoftDependent interface {
+	// SoftDependencies returns the paths of the operators this call
+	// should run after, given its arguments and every operator path in
+	// the phase.
+	SoftDependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor) []*tree.Cursor
+}
+
 // TargetAware is implemented by operators that support selecting a backend
 // instance via "@target" call syntax (e.g. "(( vault@prod "path:key" ))").
 // Opcall.Run consults it before running any operator whose call carried a
@@ -268,6 +283,37 @@ func (op *Opcall) Dependencies(ev *Evaluator, locs []*tree.Cursor) []*tree.Curso
 		}
 	}
 	return op.op.Dependencies(ev, op.args, locs, l)
+}
+
+// SoftDependencies returns the soft dependencies of this operator call:
+// those its operator reports, if it is SoftDependent, and those of every
+// operator call nested in its arguments.
+func (op *Opcall) SoftDependencies(ev *Evaluator, locs []*tree.Cursor) []*tree.Cursor {
+	var l []*tree.Cursor
+	if op.op == nil {
+		return nil
+	}
+	if sd, ok := op.op.(SoftDependent); ok {
+		l = append(l, sd.SoftDependencies(ev, op.args, locs)...)
+	}
+	for _, arg := range op.args {
+		l = append(l, arg.softDependencies(ev, locs)...)
+	}
+	return l
+}
+
+// softDependencies returns the soft dependencies of every operator call
+// nested in e.
+func (e *Expr) softDependencies(ev *Evaluator, locs []*tree.Cursor) []*tree.Cursor {
+	if e == nil {
+		return nil
+	}
+	var l []*tree.Cursor
+	if e.Type == OperatorCall && e.Call != nil {
+		l = append(l, e.Call.SoftDependencies(ev, locs)...)
+	}
+	l = append(l, e.Left.softDependencies(ev, locs)...)
+	return append(l, e.Right.softDependencies(ev, locs)...)
 }
 
 // Run executes this operator call.

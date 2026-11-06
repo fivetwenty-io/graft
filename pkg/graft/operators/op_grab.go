@@ -33,7 +33,8 @@ func (GrabOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Curso
 		if arg != nil {
 			argDeps := arg.Dependencies(ev, locs)
 			deps = append(deps, argDeps...)
-			deps = append(deps, bracketDependencies(ev, arg, locs)...)
+			hard, _ := bracketDependencies(ev, arg, locs)
+			deps = append(deps, hard...)
 		}
 	}
 
@@ -263,4 +264,18 @@ func (GrabOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 //nolint:gochecknoinits // Operator registration must happen at package load time
 func init() {
 	RegisterOp("grab", GrabOperator{})
+}
+
+// SoftDependencies returns, for each argument whose path has a dynamic
+// bracket key that an operator still has to compute, the operators
+// under the path before that key. The grab runs after each of them
+// unless that would close a cycle, so it reads the value its key picks
+// out once that value is computed.
+func (GrabOperator) SoftDependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor) []*tree.Cursor {
+	var out []*tree.Cursor
+	for _, arg := range args {
+		_, soft := bracketDependencies(ev, arg, locs)
+		out = append(out, soft...)
+	}
+	return out
 }

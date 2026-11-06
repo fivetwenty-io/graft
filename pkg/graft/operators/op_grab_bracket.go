@@ -68,31 +68,39 @@ func resolveGrabDynamicBrackets(arg *Expr, ev *Evaluator) error {
 // bracketDependencies returns the paths that a grab argument with a
 // dynamic bracket key, such as "tgt[k]", depends on beyond the path as
 // written, which reads each key's name as a literal node. Each bracket
-// key's own path is one, so the grab runs after whatever computes the
-// key. When every key already holds its value, the path with those
-// values in place is another, so the grab also runs after whatever
-// computes the value it reaches. A LogicalOr argument contributes the
-// dependencies of both sides, because grab may try either.
-func bracketDependencies(ev *Evaluator, arg *Expr, locs []*tree.Cursor) []*tree.Cursor {
+// key's own path is a hard dependency, so the grab runs after whatever
+// computes the key. When every key already holds its value, the path
+// with those values in place is another hard dependency, so the grab
+// also runs after whatever computes the value it reaches.
+//
+// When an operator still has to compute a key, the target cannot be
+// known yet. Every operator under the path before that key, other than
+// the grab itself, is then a soft dependency: the evaluator orders the
+// grab after it unless that would close a cycle. A path that starts
+// with such a key, as "$[k]" does, has the whole document before it. A
+// LogicalOr argument contributes the dependencies of both sides,
+// because grab may try either.
+func bracketDependencies(ev *Evaluator, arg *Expr, locs []*tree.Cursor) (hard, soft []*tree.Cursor) {
 	if arg == nil {
-		return nil
+		return nil, nil
 	}
 	if arg.Type == LogicalOr {
-		return append(bracketDependencies(ev, arg.Left, locs), bracketDependencies(ev, arg.Right, locs)...)
+		h1, s1 := bracketDependencies(ev, arg.Left, locs)
+		h2, s2 := bracketDependencies(ev, arg.Right, locs)
+		return append(h1, h2...), append(s1, s2...)
 	}
 	if arg.Type != Reference || arg.Reference == nil || !hasDynamicBracket(arg.Reference.Nodes, arg.BracketedNodes) {
-		return nil
+		return nil, nil
 	}
 	return referenceBracketDependencies(ev, arg.Reference.Nodes, arg.BracketedNodes, locs)
 }
 
 // referenceBracketDependencies is bracketDependencies for one reference,
 // given as its nodes and the flags that mark which of them were written
-// in brackets. A key that an operator still has to compute, that cannot
-// be read, or that comes from a literal leaves the target unknown, so
-// only the keys' own paths are returned.
-func referenceBracketDependencies(ev *Evaluator, nodes []string, bracketed []bool, locs []*tree.Cursor) []*tree.Cursor {
-	var deps []*tree.Cursor
+// in brackets. A key that cannot be read, or that comes from a literal,
+// leaves the target unknown and adds no soft dependencies, because the
+// grab fails on that key when it runs.
+func referenceBracketDependencies(ev *Evaluator, nodes []string, bracketed []bool, locs []*tree.Cursor) (hard, soft []*tree.Cursor) {
 	target := make([]string, 0, len(nodes))
 	known := true
 	for i, node := range nodes {
@@ -102,23 +110,27 @@ func referenceBracketDependencies(ev *Evaluator, nodes []string, bracketed []boo
 		}
 		key, err := tree.ParseCursor(node)
 		if err != nil {
-			return deps
+			return hard, soft
 		}
-		deps = append(deps, key)
+		hard = append(hard, key)
 		if !known {
 			continue
 		}
 		name, state := bracketKeyNow(ev, node, key, locs)
-		if state != keyHeld {
+		switch state {
+		case keyHeld:
+			target = append(target, name)
+		case keyComputed:
+			soft = operatorsUnder(ev, target, locs)
 			known = false
-			continue
+		case keyUnusable:
+			known = false
 		}
-		target = append(target, name)
 	}
 	if known {
-		deps = append(deps, &tree.Cursor{Nodes: target})
+		hard = append(hard, &tree.Cursor{Nodes: target})
 	}
-	return deps
+	return hard, soft
 }
 
 // bracketKeyState says what a bracket key's path holds while the
@@ -159,6 +171,28 @@ func bracketKeyNow(ev *Evaluator, node string, key *tree.Cursor, locs []*tree.Cu
 		return "", keyUnusable
 	}
 	return name, keyHeld
+}
+
+// operatorsUnder returns every path in locs at or under prefix, except
+// the path of the operator whose dependencies are being built, which is
+// ev.Here. An empty prefix stands for the whole document.
+func operatorsUnder(ev *Evaluator, prefix []string, locs []*tree.Cursor) []*tree.Cursor {
+	base := canonicalPath(ev, &tree.Cursor{Nodes: append([]string(nil), prefix...)})
+	var self string
+	if ev.Here != nil {
+		self = canonicalPath(ev, ev.Here).String()
+	}
+	var out []*tree.Cursor
+	for _, loc := range locs {
+		canon := canonicalPath(ev, loc)
+		if canon.String() == self {
+			continue
+		}
+		if len(prefix) == 0 || base.Contains(canon) {
+			out = append(out, loc)
+		}
+	}
+	return out
 }
 
 // canonicalPath returns c with list entries named by index, the form
