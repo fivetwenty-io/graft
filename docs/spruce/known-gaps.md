@@ -51,6 +51,16 @@ by the time graft encodes. Three consequences:
   strings. graft's coerced `"0x10"`, `"true"`, and `"null"` sort as
   words in the string tier.
 
+The quoted-key differences we have measured are these, with the keys listed in the order each tool prints them. A map whose keys are `b`, `"1"`, and `a`, or `"1"`, `"10"`, `"2"`, and `a`, prints in the same order in both tools, so a quoted integer key among letter keys already agrees. The order differs only when the map also holds a key that starts with something other than a letter, such as `""`, `_x`, `"-1"`, `"0x1"`, or `"01"`, a bare number key, or a quoted negative or exponent number.
+
+| Keys in the file | graft prints | spruce prints |
+|------------------|--------------|---------------|
+| `"1"`, `"-1"`, `_x`, `""`, `a` | `"-1" "1" "" _x a` | `"" "-1" _x "1" a` |
+| `"1"`, `"0x1"`, `"1a"`, `"1.5"`, `"01"`, `"+1"` | `"+1" "1" "01" "1.5" "0x1" 1a` | `"+1" "0x1" "1" "1.5" 1a "01"` |
+| `"1"`, `2`, `a`, `3` | `"1" "2" "3" a` | `2 3 "1" a` |
+| `"b"`, `"1"`, `"a"`, `2` | `"1" "2" a b` | `2 "1" a b` |
+| `"10"`, `"9"`, `"-5"`, `"-10"`, `".5"`, `"1e3"`, `"999"` | `"-10" "-5" ".5" "9" "10" "999" "1e3"` | `"-5" "-10" ".5" "1e3" "9" "10" "999"` |
+
 **Mitigation:** for a byte-identical result across both tools, quote
 *all* keys of the affected map. That moves every key into spruce's
 string tier and equalizes the decoded key types downstream as well.
@@ -144,6 +154,14 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 **Expected behavior.** spruce reads the `?` as an explicit key, so `[? a]` is a list holding the map `a: null`, and `[a, ? b: 1]` is a list holding `a` and the map `b: 1`.
 
 **Impact.** The spelling is very rare. A tab after the `?` behaves the same as a space there.
+
+### syntax-errors-print-source-lines
+
+**Current behavior.** When goccy's parser refuses a document, `graft merge` and `graft json` print the error with the source lines around the failure and a caret under the place it stopped, as in `[2:5] could not find end character of double-quoted text` followed by the line `>  2 | pw: "s3kr1t`. Those lines show the document's text, so they can show a value from the file, such as a credential. The errors that graft's own checks give, such as a merge key with a value that isn't a map, a node with two tags, or a document nested too deep, print one line with the line number and no source. A library caller's `Error()` text never holds the source lines, because only `graft.DetailedError` adds them.
+
+**Expected behavior.** spruce prints one line for every syntax error, with libyaml's message and line number and no source, as in `yaml: line 2: found unexpected end of stream`.
+
+**Impact.** The exit code and the failure are the same in both tools, and only the text on stderr differs. A script that matches spruce's error text won't match graft's, and a log that keeps stderr can hold the lines the snippet quotes. Dropping the snippet would make graft's errors harder to read, so we have not changed it yet.
 
 ### memory-use-on-very-large-single-line-inputs
 
