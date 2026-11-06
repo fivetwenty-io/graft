@@ -176,8 +176,8 @@ func TestMergeKeysStayBounded(t *testing.T) {
 	}
 
 	_, err = decodeMerge(t, bomb.String())
-	var max *yamlcodec.MaxRecursionError
-	if !errors.As(err, &max) {
+	var limit *yamlcodec.MaxRecursionError
+	if !errors.As(err, &limit) {
 		t.Fatalf("bomb error = %v, want a MaxRecursionError", err)
 	}
 	if elapsed := time.Since(start); elapsed > 10*time.Second {

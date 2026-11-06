@@ -153,6 +153,13 @@ func (x *mergeExpander) mapping(n ast.Node, pairs []*ast.MappingValueNode) (ast.
 	if !merged {
 		return n, nil
 	}
+	return x.fold(n, pairs)
+}
+
+// fold writes the pairs of n, a mapping whose keys and values are
+// folded and which holds a merge key, into one list in the order
+// mapping describes, and returns the node to put in n's slot.
+func (x *mergeExpander) fold(n ast.Node, pairs []*ast.MappingValueNode) (ast.Node, error) {
 	var out mergedPairs
 	for _, pair := range pairs {
 		if pair == nil {
@@ -192,7 +199,8 @@ func (x *mergeExpander) mapping(n ast.Node, pairs []*ast.MappingValueNode) (ast.
 // pairs than a document's aliases may expand to, so a chain of merges
 // that each name the last stays within the limit ExpandAliases keeps.
 func (x *mergeExpander) put(out *mergedPairs, pair *ast.MappingValueNode) error {
-	if x.writes++; x.writes > maxExpandedNodes {
+	x.writes++
+	if x.writes > maxExpandedNodes {
 		return &MaxRecursionError{cause: fmt.Errorf("merge keys expand to more than %d pairs", maxExpandedNodes)}
 	}
 	out.put(pair)

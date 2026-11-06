@@ -179,7 +179,7 @@ func (w *textWalk) structMapping(n ast.Node, t reflect.Type) ast.Node {
 	// pairs stays nil until a pair changes, and then holds every pair.
 	var pairs []*ast.MappingValueNode
 	for i, mv := range m.Values {
-		got := w.pair(mv, t, keyText, keys.valueType)
+		got := w.pair(mv, keyText, keys.valueType)
 		if pairs == nil && got != mv {
 			pairs = append(make([]*ast.MappingValueNode, 0, len(m.Values)), m.Values[:i]...)
 		}
@@ -214,7 +214,7 @@ func (w *textWalk) typedMapping(n ast.Node, t reflect.Type) ast.Node {
 	elem := func(string) (reflect.Type, bool) { return t.Elem(), true }
 	var out *ast.MappingNode
 	for i, mv := range m.Values {
-		got := w.pair(mv, t, key, elem)
+		got := w.pair(mv, key, elem)
 		if got == mv {
 			continue
 		}
@@ -231,10 +231,10 @@ func (w *textWalk) typedMapping(n ast.Node, t reflect.Type) ast.Node {
 	return out
 }
 
-// pair returns mv prepared to sit in a mapping that fills a value of
-// type t. key rewrites the key, and value gives the type the value
-// under a key fills, or false when the walk must leave the value alone.
-func (w *textWalk) pair(mv *ast.MappingValueNode, t reflect.Type, key func(ast.MapKeyNode) ast.MapKeyNode, value func(string) (reflect.Type, bool)) *ast.MappingValueNode {
+// pair returns mv prepared to sit in a mapping. key rewrites the key,
+// and value gives the type the value under a key fills, or false when
+// the walk must leave the value alone.
+func (w *textWalk) pair(mv *ast.MappingValueNode, key func(ast.MapKeyNode) ast.MapKeyNode, value func(string) (reflect.Type, bool)) *ast.MappingValueNode {
 	k, v := key(mv.Key), mv.Value
 	if ft, ok := value(keyString(k)); ok {
 		v = w.node(v, ft)
