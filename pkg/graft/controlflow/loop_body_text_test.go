@@ -10,9 +10,9 @@ import (
 )
 
 // runLoopMergeYAML merges src on an engine built with opts and returns
-// the merged document as YAML text, so a test can both compare a value
-// and check that no text in the output names the loop binding tree.
-func runLoopMergeYAML(t *testing.T, opts []graft.EngineOption, src string) (map[string]interface{}, string) {
+// the merged document. It fails the test when the document, written out
+// as YAML, names the loop binding tree anywhere.
+func runLoopMergeYAML(t *testing.T, opts []graft.EngineOption, src string) map[string]interface{} {
 	t.Helper()
 	engine, err := graft.NewEngine(opts...)
 	if err != nil {
@@ -38,7 +38,7 @@ func runLoopMergeYAML(t *testing.T, opts []graft.EngineOption, src string) (map[
 	if !ok {
 		t.Fatalf("result is not a map: %#v", result.RawData())
 	}
-	return data, string(text)
+	return data
 }
 
 // TestLoopVariableNamedLikeAnOperator names a loop variable after an
@@ -118,9 +118,122 @@ out:
 	for _, mode := range rootRefModes {
 		for _, tc := range cases {
 			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
-				data, _ := runLoopMergeYAML(t, mode.opts, tc.src)
+				data := runLoopMergeYAML(t, mode.opts, tc.src)
 				if got := fmt.Sprint(data["out"]); got != tc.want {
 					t.Errorf("out = %s, want %s", got, tc.want)
+				}
+			})
+		}
+	}
+}
+
+// TestLoopBodyCalcReadsTheLoopVariable checks that a loop variable
+// inside the quoted expression of a calc in a loop body reads the loop
+// binding, and never a document key of the same name.
+func TestLoopBodyCalcReadsTheLoopVariable(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"bare name", `out:
+(( for i in range 1 3 ))
+  - (( calc "i + 100" ))
+(( done ))
+`, "[101 102 103]"},
+		{"bare name beside a document key", `i: 7
+out:
+(( for i in range 1 3 ))
+  - (( calc "i + 100" ))
+(( done ))
+`, "[101 102 103]"},
+		{"function argument", `n: 2
+out:
+(( for i in range 1 3 ))
+  - (( calc "pow(2, i)" ))
+(( done ))
+`, "[2 4 8]"},
+		{"subtraction with no spaces", `out:
+(( for i in range 1 3 ))
+  - (( calc "i-1" ))
+(( done ))
+`, "[0 1 2]"},
+		{"single quotes", `out:
+(( for i in range 1 3 ))
+  - (( calc 'i * 2' ))
+(( done ))
+`, "[2 4 6]"},
+		{"dotted path beside a document key", `svc: {n: 100}
+items: [{n: 3}, {n: 4}]
+out:
+(( for svc in items ))
+  - (( calc "svc.n * 2" ))
+(( done ))
+`, "[6 8]"},
+		{"nested in a list", `out:
+(( for i in range 1 2 ))
+  - (( concat "v" (calc "i * 10") ))
+(( done ))
+`, "[v10 v20]"},
+		{"two loop variables", `items: [{n: 3}]
+out:
+(( for k, svc in items ))
+  - (( calc "svc.n + k" ))
+(( done ))
+`, "[3]"},
+		{"outer and inner loop variables", `out:
+(( for i in range 1 2 ))
+(( for j in range 1 2 ))
+  - (( calc "i * 10 + j" ))
+(( done ))
+(( done ))
+`, "[11 12 21 22]"},
+	}
+	for _, mode := range rootRefModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				data := runLoopMergeYAML(t, mode.opts, tc.src)
+				if got := fmt.Sprint(data["out"]); got != tc.want {
+					t.Errorf("out = %s, want %s", got, tc.want)
+				}
+			})
+		}
+	}
+}
+
+// TestLoopHeaderCalcReadsTheLoopVariable pins that a loop variable in
+// the quoted expression of a calc in a loop header, whether an if
+// condition or a nested loop's subject, reads the loop binding and not
+// a document key of the same name.
+func TestLoopHeaderCalcReadsTheLoopVariable(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		key  string
+		want string
+	}{
+		{"if condition beside a document key", `i: 7
+hdr:
+(( for i in range 1 3 ))
+(( if calc "i > 1" ))
+  - (( grab i ))
+(( fi ))
+(( done ))
+`, "hdr", "[2 3]"},
+		{"nested loop subject", `out:
+(( for i in range 1 2 ))
+(( for j in range 1 (calc "i + 1") ))
+  - (( concat i "." j ))
+(( done ))
+(( done ))
+`, "out", "[1.1 1.2 2.1 2.2 2.3]"},
+	}
+	for _, mode := range rootRefModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				data := runLoopMergeYAML(t, mode.opts, tc.src)
+				if got := fmt.Sprint(data[tc.key]); got != tc.want {
+					t.Errorf("%s = %s, want %s", tc.key, got, tc.want)
 				}
 			})
 		}

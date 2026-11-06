@@ -148,3 +148,40 @@ func TestRewriteVarRefs_OperatorNames(t *testing.T) {
 		})
 	}
 }
+
+// TestRewriteVarRefs_CalcStrings pins which names the rewrite finds
+// inside the quoted expression of a calc call, which calc reads in its
+// own expression language.
+func TestRewriteVarRefs_CalcStrings(t *testing.T) {
+	const i, svc = "__graft_loop.l1.0.i", "__graft_loop.l1.0.svc"
+	targets := map[string]string{"i": i, "svc": svc}
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"bare name", `calc "i + 100"`, `calc "` + i + ` + 100"`},
+		{"single quotes", `calc 'i * 2'`, `calc '` + i + ` * 2'`},
+		{"dotted path", `calc "svc.n - 1"`, `calc "` + svc + `.n - 1"`},
+		{"subtraction with no spaces", `calc "i-1"`, `calc "` + i + ` -1"`},
+		{"dotted path before a dash", `calc "svc.n-1"`, `calc "` + svc + `.n-1"`},
+		{"function argument", `calc "max(i, 2)"`, `calc "max(` + i + `, 2)"`},
+		{"name before a paren is a function", `calc "i (2)"`, `calc "i (2)"`},
+		{"inner string", `calc "'i' == 'x' ? i : 0"`, `calc "'i' == 'x' ? ` + i + ` : 0"`},
+		{"escaped inner quotes", `calc "\"i\" == \"x\" ? i : 0"`, `calc "\"i\" == \"x\" ? ` + i + ` : 0"`},
+		{"escaped name", `calc "[i] + i"`, `calc "[i] + ` + i + `"`},
+		{"keyword, number, and longer name", `calc "true && 1i > 0 && i_x > i"`, `calc "true && 1i > 0 && i_x > ` + i + `"`},
+		{"after a dollar", `calc "$i + i"`, `calc "$i + ` + i + `"`},
+		{"calc in a group", `concat "v" (calc "i * 10")`, `concat "v" (calc "` + i + ` * 10")`},
+		{"string that is not a calc expression", `concat "i" i`, `concat "i" ` + i},
+		{"string after a reference named calc", `concat calc "i"`, `concat calc "i"`},
+		{"rewritten names of an inner loop", `calc "__graft_loop.l2.0.j + i"`, `calc "__graft_loop.l2.0.j + ` + i + `"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rewriteVarRefs(tc.in, targets, nil); got != tc.want {
+				t.Fatalf("rewriteVarRefs(%q)\n got  %q\n want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}

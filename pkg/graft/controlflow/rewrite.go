@@ -93,6 +93,11 @@ type nameSpan struct {
 	// a rooted name ends, so the name and the rest of its path are
 	// expr[start:tokenEnd].
 	tokenEnd int
+
+	// calc marks a name inside the quoted expression of a calc call,
+	// which calc's own expression language reads. dotted marks such a
+	// name that starts a dotted path, as "svc" in "svc.n * 2".
+	calc, dotted bool
 }
 
 // newExprLexer returns a tokenizer over expr with the options the
@@ -122,16 +127,21 @@ func newExprLexer(expr string, engine graft.Engine) *interfaces.AdvancedTokenize
 // calls, when non-nil, maps the offset of each identifier the parser
 // reads as the name of an operator call to that name, as
 // graft.OperatorCallNames returns it. Such an identifier names no key,
-// so it is left out.
+// so it is left out. A string right after a calc call's name holds an
+// expression in calc's own language, and the names calc reads in it are
+// returned as well (calcNameSpans).
 func pathNameSpans(expr string, engine graft.Engine, calls map[int]string) []nameSpan {
 	tz := newExprLexer(expr, engine)
 	var spans []nameSpan
+	afterCalc := false
 	for tz.HasMore() {
 		before := tz.Position()
 		tok := tz.NextToken()
 		if tok.Type == interfaces.TokenEOF || tz.Position() <= before {
 			break
 		}
+		calcString := afterCalc
+		afterCalc = false
 		switch tok.Type {
 		case interfaces.TokenIdentifier:
 			if tz.HeadName() {
@@ -139,16 +149,124 @@ func pathNameSpans(expr string, engine graft.Engine, calls map[int]string) []nam
 				// "prod" in "vault@prod", names no key.
 				continue
 			}
-			if _, ok := calls[tok.Pos.Offset]; ok {
+			if name, ok := calls[tok.Pos.Offset]; ok {
+				afterCalc = name == "calc"
 				continue
 			}
 			spans = append(spans, nameSpan{start: tok.Pos.Offset, end: tok.Pos.Offset + len(tok.Literal), bare: true})
 		case interfaces.TokenReference:
 			spans = append(spans, referenceNameSpans(tok.Literal, tok.Pos.Offset)...)
+		case interfaces.TokenString, interfaces.TokenRawString:
+			if calcString {
+				spans = append(spans, calcNameSpans(tok.Literal, tok.Pos.Offset)...)
+			}
 		default:
 		}
 	}
 	return spans
+}
+
+// calcNameSpans returns the names that calc reads from the document in
+// lit, a quoted string token that starts at byte offset base and holds a
+// calc expression. calc reads a name that starts with a letter and runs
+// on with letters, digits, '_', and '.', and it reads every dotted part
+// of it as one path, so only the part before the first '.' is returned,
+// marked dotted when a path follows it. A name inside a quoted string of
+// the expression, inside an escaped "[...]" name, or before a '(' that
+// makes it a function call is left out, and so are the keywords true,
+// false, in, and IN. A backslash before a quote in lit is read as that
+// quote, because the string's value holds the quote on its own.
+func calcNameSpans(lit string, base int) []nameSpan {
+	if len(lit) < 2 || (lit[0] != '"' && lit[0] != '\'') || lit[len(lit)-1] != lit[0] {
+		return nil
+	}
+	content := lit[1 : len(lit)-1]
+	var spans []nameSpan
+	var quote byte
+	for i := 0; i < len(content); {
+		if quote != 0 || !isCalcWordByte(content[i]) {
+			if i = skipCalcByte(content, i, &quote); i < 0 {
+				break
+			}
+			continue
+		}
+		start := i
+		for i < len(content) && (isCalcWordByte(content[i]) || content[i] == '.') {
+			i++
+		}
+		if sp, ok := calcName(content, start, i); ok {
+			sp.start += base + 1
+			sp.end += base + 1
+			spans = append(spans, sp)
+		}
+	}
+	return spans
+}
+
+// skipCalcByte steps past the byte of a calc expression at content[i]
+// that does not begin a name, and returns where the scan goes on, or -1
+// when an escaped "[...]" name never closes. quote holds the quote
+// that opened the string the scan is in, or 0 outside one. A
+// backslash and the byte after it are stepped past together, and an
+// escaped quote counts as that quote.
+func skipCalcByte(content string, i int, quote *byte) int {
+	ch := content[i]
+	i++
+	if ch == '\\' && i < len(content) {
+		ch = content[i]
+		i++
+		if ch != '"' && ch != '\'' {
+			return i
+		}
+	}
+	switch {
+	case *quote != 0:
+		if ch == *quote {
+			*quote = 0
+		}
+	case ch == '"' || ch == '\'':
+		*quote = ch
+	case ch == '[':
+		closing := strings.IndexByte(content[i:], ']')
+		if closing < 0 {
+			return -1
+		}
+		return i + closing + 1
+	}
+	return i
+}
+
+// calcName reports whether content[start:end], a run of word bytes and
+// dots, is a name calc reads from the document, and returns the span of
+// its first dotted part.
+func calcName(content string, start, end int) (nameSpan, bool) {
+	c := content[start]
+	if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+		return nameSpan{}, false
+	}
+	if start > 0 && content[start-1] == '$' {
+		return nameSpan{}, false
+	}
+	run := content[start:end]
+	switch run {
+	case "true", "false", "in", "IN":
+		return nameSpan{}, false
+	}
+	if rest := strings.TrimLeft(content[end:], " \t"); strings.HasPrefix(rest, "(") {
+		return nameSpan{}, false
+	}
+	name := run
+	if dot := strings.IndexByte(run, '.'); dot >= 0 {
+		name = run[:dot]
+	}
+	return nameSpan{start: start, end: start + len(name), calc: true, dotted: len(name) < len(run)}, true
+}
+
+// isCalcWordByte reports whether c can continue a name or a number in a
+// calc expression. Any byte of a multi-byte character counts, so such a
+// character never splits a run.
+func isCalcWordByte(c byte) bool {
+	return c == '_' || c >= 0x80 || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
 // referenceNameSpans returns the names in one reference token, lit, that
@@ -234,6 +352,11 @@ func rewriteVarRefs(inner string, targets map[string]string, engine graft.Engine
 		out.WriteString(inner[last:sp.start])
 		out.WriteString(target)
 		if sp.bare && sp.end < len(inner) && (inner[sp.end] == '+' || inner[sp.end] == '=') {
+			out.WriteByte(' ')
+		}
+		if sp.calc && !sp.dotted && sp.end < len(inner) && inner[sp.end] == '-' {
+			// calc reads a '-' in a dotted path as part of the path, so
+			// the rewritten path would swallow the subtraction.
 			out.WriteByte(' ')
 		}
 		last = sp.end
