@@ -421,6 +421,95 @@ func (w *walk) normalize(v any, depth int) any {
 		}
 		return out
 	default:
+		return w.copyTyped(v, depth)
+	}
+}
+
+// copyTyped copies a slice, array, map, or pointer to one of those that
+// the cases above do not cover, such as a []string or a
+// map[string][]string, and keeps its type. Everything else comes back as
+// it is, and that includes a struct, because a struct can hold fields
+// that reflect cannot copy, and a pointer to anything but a container.
+func (w *walk) copyTyped(v any, depth int) any {
+	if v == nil {
 		return v
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.Pointer:
+		return w.copyValue(rv, depth).Interface()
+	default:
+		return v
+	}
+}
+
+var valueType = reflect.TypeOf(Value{})
+
+func (w *walk) copyValue(rv reflect.Value, depth int) reflect.Value {
+	if depth > maxDepth {
+		return rv
+	}
+	switch rv.Kind() {
+	case reflect.Interface:
+		if rv.IsNil() {
+			return rv
+		}
+		out := reflect.New(rv.Type()).Elem()
+		out.Set(reflect.ValueOf(w.normalize(rv.Elem().Interface(), depth+1)))
+		return out
+	case reflect.Slice:
+		if rv.IsNil() {
+			return rv
+		}
+		defer w.leave(w.enter(rv.Interface(), rv.Len()))
+		out := reflect.MakeSlice(rv.Type(), rv.Len(), rv.Len())
+		for i := range rv.Len() {
+			out.Index(i).Set(w.copyValue(rv.Index(i), depth+1))
+		}
+		return out
+	case reflect.Array:
+		out := reflect.New(rv.Type()).Elem()
+		for i := range rv.Len() {
+			out.Index(i).Set(w.copyValue(rv.Index(i), depth+1))
+		}
+		return out
+	case reflect.Map:
+		if rv.IsNil() {
+			return rv
+		}
+		defer w.leave(w.enter(rv.Interface(), -1))
+		out := reflect.MakeMapWithSize(rv.Type(), rv.Len())
+		for it := rv.MapRange(); it.Next(); {
+			out.SetMapIndex(it.Key(), w.copyValue(it.Value(), depth+1))
+		}
+		return out
+	case reflect.Pointer:
+		if rv.IsNil() {
+			return rv
+		}
+		switch rv.Elem().Kind() {
+		case reflect.Slice, reflect.Array, reflect.Map, reflect.Pointer, reflect.Interface:
+		default:
+			return rv
+		}
+		id := containerID{addr: rv.Pointer(), n: -2}
+		if w.stack == nil {
+			w.stack = make(map[containerID]struct{})
+		}
+		if _, inside := w.stack[id]; inside {
+			panic(CycleMessage)
+		}
+		w.stack[id] = struct{}{}
+		defer delete(w.stack, id)
+		out := reflect.New(rv.Type().Elem())
+		out.Elem().Set(w.copyValue(rv.Elem(), depth+1))
+		return out
+	case reflect.Struct:
+		if rv.Type() == valueType {
+			return reflect.ValueOf(w.normalize(rv.Interface(), depth+1))
+		}
+		return rv
+	default:
+		return rv
 	}
 }
