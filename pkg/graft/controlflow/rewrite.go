@@ -339,18 +339,7 @@ func rewriteVarRefs(inner string, targets map[string]string, engine graft.Engine
 	if !mentionsAny(inner, targets) {
 		return inner
 	}
-	calls := graft.OperatorCalls(engine, inner)
-	names := make(map[int]string, len(calls))
-	var deferred [][2]int
-	for off, call := range calls {
-		names[off] = call.Name
-		if call.Name == "defer" {
-			// defer writes its expression back out for a later merge,
-			// which cannot see this loop's bindings, so the expression
-			// stays as the user wrote it.
-			deferred = append(deferred, [2]int{off, call.End})
-		}
-	}
+	names, deferred := callNamesAndDefers(graft.OperatorCalls(engine, inner))
 	var out strings.Builder
 	last := 0
 	for _, sp := range pathNameSpans(inner, engine, names) {
@@ -378,6 +367,23 @@ func rewriteVarRefs(inner string, targets map[string]string, engine graft.Engine
 	}
 	out.WriteString(inner[last:])
 	return out.String()
+}
+
+// callNamesAndDefers splits calls into the name of each operator call,
+// keyed by its offset, and the start and end offsets of each defer.
+// defer writes its expression back out for a later merge, which cannot
+// see a loop's bindings, so the rewrite leaves a defer's text as the
+// user wrote it.
+func callNamesAndDefers(calls map[int]graft.CallSpan) (map[int]string, [][2]int) {
+	names := make(map[int]string, len(calls))
+	var deferred [][2]int
+	for off, call := range calls {
+		names[off] = call.Name
+		if call.Name == "defer" {
+			deferred = append(deferred, [2]int{off, call.End})
+		}
+	}
+	return names, deferred
 }
 
 // insideAny reports whether offset falls inside any of spans, each a
