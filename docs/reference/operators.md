@@ -74,7 +74,9 @@ A path may start with `$.`, which names the document root the way spruce reads i
 
 A bracket in a path holds a key that graft looks up first, so `(( grab meta.sizes[meta.size] ))` reads `meta.size` and then reads the entry of `meta.sizes` that it names. `(( grab $[k] ))` does the same at the document root. When an operator computes the key, the grab runs after it, and it also runs after the operator that computes the value the key picks out. When the key's target can't be known before the key is computed, the grab waits on every operator under the part of the path before the bracket, unless one of them already waits on the grab.
 
-A grab fails when its target still holds an operator that hasn't run and graft can't order the grab after it. Two sibling grabs whose keys name each other in the wrong order can do this, and so can a grab of two or more paths that copies a list entry whose operator hasn't run yet. The error names the grab's path and the target's path and quotes no value, and a `||` fallback doesn't hide it. Text that only looks like an operator, such as the output of `(( defer ))`, is still grabbed as data.
+Every grab also waits on the operators under the path it reads, unless one of them already waits on the grab, so `(( join "," (grab meta.list) ))` joins the values of the list's entries rather than their operator text.
+
+A grab fails when the value it would hand on still holds an operator that hasn't run and graft can't order the grab after it. Two sibling grabs whose keys name each other in the wrong order can do this, and so can a grab nested in another call whose list holds an entry that reads the grab. A grab of one path whose value goes straight into the document doesn't fail this way, because it hands back the same map or list, and the operators inside fill it in when they run. The error names the target's path inside the path error for the grab and quotes no value, and a `||` fallback doesn't hide it. `graft.ErrNotEvaluated` matches it with `errors.Is`. Text that only looks like an operator, such as the output of `(( defer ))`, is still grabbed as data.
 
 ```yaml
 value: (( grab path.to.value ))

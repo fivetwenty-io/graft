@@ -89,7 +89,7 @@ A path with a bracket key, such as `(( grab meta[k] ))` or `(( grab $[k] ))`, ne
 
 #### Soft dependencies
 
-When an operator computes a bracket key, the grab's target is unknown until that operator runs. The grab then asks to run after every operator under the part of the path before the key, or after every operator in the phase for a path such as `$[k]`. Those requests are soft dependencies, and an operator makes them by implementing `SoftDependent`:
+A grab hands on the value it finds, and that value can hold operators that haven't run yet. So a grab asks to run after every operator under the path it reads, other than itself. It does that for a plain path, and for a bracket path whose keys already hold their values. When an operator computes a bracket key, the grab's target is unknown until that operator runs, so the grab asks to run after every operator under the part of the path before the key, or after every operator in the phase for a path such as `$[k]`. A path that an expression computes, such as `(( grab (concat "meta." k) ))`, isn't known until the grab runs, so it makes no such request. Those requests are soft dependencies, and an operator makes them by implementing `SoftDependent`:
 
 ```go
 type SoftDependent interface {
@@ -97,13 +97,23 @@ type SoftDependent interface {
 }
 ```
 
-`Opcall.SoftDependencies` collects them from the operator and from every operator call nested in its arguments, so `(( concat "v=" (grab tgt[k]) ))` makes the same requests a bare grab would. `dataFlowContext.addSoftEdges` adds an edge for each request unless the operator it names already waits on the grab, directly or through others. Such an edge would close a cycle, so it is dropped. A soft dependency therefore never turns a graph without cycles into one with them, and every cycle error still comes from hard dependencies alone.
+`Opcall.SoftDependencies` collects them from the operator and from every operator call nested in its arguments, so `(( concat "v=" (grab tgt[k]) ))` makes the same requests a bare grab would. `kahnSort` takes the hard and the soft edges together. Each wave holds every operator whose hard and soft dependencies have all run. When no operator is ready but some wait only on soft dependencies, the sort releases the first of them in sorted order and drops the soft edges still holding it, which are the ones that would close a cycle. A soft dependency therefore never turns a graph without cycles into one with them, and every cycle error still comes from hard dependencies alone. The soft edges the sort keeps are exactly the ones its order agrees with, and it finds them in one pass over the graph, so a document with thousands of soft edges still sorts quickly.
 
-`addSoftEdges` visits operators in reverse evaluation order. When two sibling grabs each ask to run after the other, the one that sorts later gets its edge first, so it waits on the one that sorts earlier, and the two keep the order the sorted waves gave them before. The parallel scheduler recomputes each operator's dependencies, and it keeps a soft one only when the operator it names comes earlier in `DataFlow`'s order. That is exactly the set of soft edges the sequential graph kept, so both evaluators order a bracket grab the same way, and `BuildDependencyGraph` reports the soft edges along with the hard ones.
+When two sibling grabs each ask to run after the other, the one that sorts first is released first, and the other waits on it. A grab whose target holds the operator that reads the grab, as in `out: (( grab meta ))` beside `meta.v: (( grab out.x ))`, can't wait on that operator, so its soft edge is dropped and the grab runs first, as it did before soft edges existed. The parallel scheduler recomputes each operator's dependencies, and it keeps a soft one only when the operator it names comes earlier in `DataFlow`'s order. That is exactly the set of soft edges the sequential graph kept, so both evaluators order a grab the same way, and `BuildDependencyGraph` reports the soft edges along with the hard ones.
 
 #### Operators that have not run
 
-A dependency edge can't order every grab. A grab whose key names a sibling that waits on it, or a grab of two or more paths that copies a list entry no edge points to, can still run before the operator at its target. While a phase runs, the evaluator keeps a record of the operators that are scheduled and have not run yet, in both modes. `(( grab ))` checks its target against that record, and when the target is one of them it fails with an error that names the grab's path and the target's path and quotes no value. The record decides, never the text at the path, so the output of `(( defer ))`, an unspaced `(( a/b ))`, a literal, and a string that merely holds `((` are all grabbed as data. A grab of one path is not checked below its target, because it hands back the same map or list it finds there, and each operator inside that container writes its value into it when it runs.
+A dependency edge can't order every grab. A grab whose soft edge was dropped, a grab of a computed path, and a grab that reaches an operator through another grab's value can still run before an operator its value holds. While a phase runs, the evaluator keeps a record of the operators that are scheduled and have not run yet, in both modes. It keys each one by its path and also by the map or list entry that holds it, so a path that reaches the same entry through another grab's value finds it too. An operator stays in the record until it has run, so a grab that reaches its own entry finds itself there.
+
+`(( grab ))` checks its target against that record, and how far below the target it looks depends on who reads its value:
+
+- A grab nested in another operator call's arguments, as in `(( join "," (grab meta.list) ))`, checks its whole value, because the operator that called it reads the value straight away.
+
+- A grab of two or more paths checks each list entry it copies into its result, because no operator fills in a copy later.
+
+- A grab of one path that writes its value into the document checks only its target. It hands back the same map or list it finds there, and each operator inside that container writes its value into it when it runs, so `meta: {a: (( grab meta ))}` still gives a map that holds itself.
+
+When the check finds an operator that hasn't run, the grab fails with an error that names the target's path, inside the path error that names the grab's own path, and quotes no value. The record decides, never the text at the path, so the output of `(( defer ))`, an unspaced `(( a/b ))`, a literal, and a string that merely holds `((` are all grabbed as data.
 
 ### Dependency Graph Construction
 
