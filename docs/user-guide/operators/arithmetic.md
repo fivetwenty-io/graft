@@ -69,6 +69,8 @@ Once a `/` joins a path, the name after it belongs to the path too, and the path
 | `grab:nocache /b`, `vault@prod /b` | The key `/b`, just as after a plain operator name. A `:modifier` or `@target` glued to the operator name is part of the call, so nothing before the `/` is a left operand. |
 | `concat "v=" /b` | Division, because the string is a left operand. Spruce has no arithmetic and reads two arguments, so put the `/b` first or after a comma, as in `(( concat "v=", /b ))`. |
 | `1e+5/2`, `1E5/2`, `1.5e3/2` | A path, just as `8/2` is, and spruce reads it that way too. `1.5e3/2` is the key `5e3/2` inside `1`. With a space, as in `1e+5 / 2`, it divides. |
+| `3abc`, `3em`, `1e`, `2e5x` | One key, because a letter or `_` glued after a number makes the whole run a name, as it does in spruce. `3-1` still subtracts, because a `-` right after a number is the operator. |
+| `1e5.x`, `1.foo` | The key `x` inside `1e5`, or `foo` inside `1`. A name segment after a number makes the run a path. |
 | `arr/[0]` | The key `arr/`, then index 0 of it. |
 | `arr[0]/x` | Index 0 of `arr`, then the key `/x` inside it. |
 | `m./x` | The key `/x` inside `m`. This is how `defer` writes `arr[0]/x` back out, as `arr.0./x`. |

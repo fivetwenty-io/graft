@@ -156,6 +156,43 @@ func isExponentMantissa(run []rune) bool {
 	return true
 }
 
+// numberEnd returns the index one past the number that starts at pos:
+// digits, then an optional '.' and digits, then an optional exponent. An
+// exponent is an 'e' or 'E', an optional sign, and at least one digit,
+// so the "e" in "1e" or "3em" is not one. pos may hold the '.' of a
+// fraction with no integer part, as in ".5".
+func numberEnd(runes []rune, pos int) int {
+	pos = consumeDigitRun(runes, pos)
+	if pos+1 < len(runes) && runes[pos] == '.' && unicode.IsDigit(runes[pos+1]) {
+		pos = consumeDigitRun(runes, pos+1)
+	}
+	if pos < len(runes) && (runes[pos] == 'e' || runes[pos] == 'E') {
+		digits := pos + 1
+		if digits < len(runes) && (runes[digits] == '+' || runes[digits] == '-') {
+			digits++
+		}
+		if digits < len(runes) && unicode.IsDigit(runes[digits]) {
+			pos = consumeDigitRun(runes, digits)
+		}
+	}
+	return pos
+}
+
+// digitLedNameEnd reports whether the run that starts with a digit at
+// pos is a name rather than a number, and where the name ends. The run
+// is a name when a letter or '_' follows the number at its start, as in
+// "3abc", "3em", "1e", or "2e5x", and then the name takes every name
+// character after that, '-' included. spruce reads such a run as one key.
+// A '-' right after the number is not part of a name, so "3-1" and
+// "2e5-1" still subtract.
+func digitLedNameEnd(runes []rune, pos int) (int, bool) {
+	end := numberEnd(runes, pos)
+	if end >= len(runes) || !isIdentifierStart(runes[end]) {
+		return pos, false
+	}
+	return consumeIdentifierRun(runes, end), true
+}
+
 // consumeSegmentIdentifier consumes an identifier appearing after a dot,
 // where a '+' followed by an identifier character continues the same
 // segment: genesis's vaultified manifests use map keys like
@@ -211,13 +248,17 @@ func matchReferencePath(runes []rune, leadingSlash bool) (bool, int) {
 
 	pos := 0
 
-	// A path whose first segment starts with a digit is a reference only
-	// when a '/' joins it to more text, as in "8/2" or "0/x". Without a
-	// '/' the scanner reads it as a number, as it always has.
+	// A path whose first segment is a number is a reference only when a
+	// '/' joins it to more text, as in "8/2" or "0/x", or when a name
+	// segment follows the whole number, as in "1e5.x" or "1.foo". Without either
+	// the scanner reads it as a number, as it always has. A first segment
+	// that starts with a digit but is a name, as "3abc" is, starts the
+	// path the way an identifier does.
 	numericStart := false
 	sawSlash := false
+	sawName := false
 	finish := func() (bool, int) {
-		if numericStart && !sawSlash {
+		if numericStart && !sawSlash && !sawName {
 			return false, 0
 		}
 		return pos > 0, pos
@@ -229,6 +270,10 @@ func matchReferencePath(runes []rune, leadingSlash bool) (bool, int) {
 	case leadingSlash && runes[pos] == '/':
 		// The loop's '/' case below consumes the '/' and its segment.
 	case unicode.IsDigit(runes[pos]):
+		if end, isName := digitLedNameEnd(runes, pos); isName {
+			pos = end
+			break
+		}
 		numericStart = true
 		pos = consumeNumericSegment(runes, pos)
 	case runes[pos] == '$' && len(runes) > 1 && (runes[1] == '.' || runes[1] == '['):
@@ -374,6 +419,13 @@ func matchReferencePath(runes []rune, leadingSlash bool) (bool, int) {
 					pos++
 				}
 			case isIdentifierStart(runes[pos]):
+				// A name segment right after a whole number makes the
+				// path a reference, as spruce reads "1e5.x". A '-'
+				// before the dot leaves it arithmetic, so "3-abc.def"
+				// still subtracts.
+				if numericStart && numberEnd(runes, 0) == pos-1 {
+					sawName = true
+				}
 				// Consume identifier
 				for pos < len(runes) && isIdentifierContinue(runes[pos]) {
 					pos++
@@ -1079,69 +1131,32 @@ func (t *AdvancedTokenizer) scanString(quote rune) Token {
 	}
 }
 
-// scanNumber scans integer and floating-point numbers.
-//
-//nolint:gocyclo // number scanning handles integers, floats, and exponents
+// scanNumber scans an integer or a floating-point number, or a name
+// that starts with a digit. The number grammar is numberEnd's, so an 'e'
+// is an exponent only when a digit follows it or its sign. When a letter
+// or '_' follows the number, the whole run is a name, as spruce reads
+// "3abc", "3em", "1e", and "2e5x", and the scanner returns it as a
+// reference. The '-' of a negative number is a separate TokenMinus, which
+// keeps precedence parsing simple.
 func (t *AdvancedTokenizer) scanNumber() Token {
 	start := t.position
 	startLine := t.line
 	startColumn := t.column
 
-	var value strings.Builder
-	isFloat := false
-
-	// Note: negative sign is handled as separate token (TokenMinus)
-	// This allows for proper precedence parsing
-
-	// Scan integer part
-	for t.position < len(t.input) && unicode.IsDigit(t.current()) {
-		value.WriteRune(t.current())
-		t.advance(1)
-	}
-
-	// Check for decimal point
-	if t.position < len(t.input) && t.current() == '.' {
-		// Look ahead to ensure there's a digit after the decimal
-		if t.position+1 < len(t.input) && unicode.IsDigit(rune(t.input[t.position+1])) {
-			isFloat = true
-			value.WriteRune('.')
-			t.advance(1)
-
-			// Scan fractional part
-			for t.position < len(t.input) && unicode.IsDigit(t.current()) {
-				value.WriteRune(t.current())
-				t.advance(1)
-			}
-		}
-	}
-
-	// Check for exponent
-	if t.position < len(t.input) && (t.current() == 'e' || t.current() == 'E') {
-		isFloat = true
-		value.WriteRune(t.current())
-		t.advance(1)
-
-		// Handle optional sign
-		if t.position < len(t.input) && (t.current() == '+' || t.current() == '-') {
-			value.WriteRune(t.current())
-			t.advance(1)
-		}
-
-		// Scan exponent digits
-		for t.position < len(t.input) && unicode.IsDigit(t.current()) {
-			value.WriteRune(t.current())
-			t.advance(1)
-		}
-	}
-
+	runes := []rune(t.input[t.position:])
+	end := numberEnd(runes, 0)
 	tokenType := TokenInteger
-	if isFloat {
+	if nameEnd, isName := digitLedNameEnd(runes, 0); isName {
+		end = nameEnd
+		tokenType = TokenReference
+	} else if strings.ContainsAny(string(runes[:end]), ".eE") {
 		tokenType = TokenFloat
 	}
+	t.advance(end)
 
 	return Token{
 		Type:    tokenType,
-		Literal: value.String(),
+		Literal: t.input[start:t.position],
 		Pos:     Position{Offset: start, Line: startLine, Column: startColumn},
 		End:     Position{Offset: t.position, Line: t.line, Column: t.column},
 	}

@@ -18,6 +18,8 @@ svc/0: slash-zero
 "a/$X+y": slash-dollar-plus
 "1e+5/2": exp-slash
 "1": {"5e3/2": dec-exp-slash}
+"3svc": digit-name
+"2e5svc": exp-name
 `
 
 // TestLoopBodyReadsLikeTheLexer pins that a loop body reads each
@@ -52,6 +54,8 @@ func TestLoopBodyReadsLikeTheLexer(t *testing.T) {
 		{"decimal exponent slash path with a variable named e", "e", "grab 1.5e3/2", "dec-exp-slash"},
 		{"exponent slash path beside a variable named e", "e", `concat 1e+5/2 "-" e.name`, "exp-slash-n0"},
 		{"decimal exponent slash path beside a variable named e", "e", `concat 1.5e3/2 "-" e.name`, "dec-exp-slash-n0"},
+		{"digit-led name that ends with the variable", "svc", "grab 3svc", "digit-name"},
+		{"exponent-led name that ends with the variable", "svc", "grab 2e5svc", "exp-name"},
 		{"root path named like the variable", "svc", "grab $.svc.name", "top"},
 		{"root path beside the variable", "svc", `concat $.svc.name "-" svc.name`, "top-n0"},
 	}
