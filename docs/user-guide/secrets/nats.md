@@ -192,7 +192,9 @@ value: (( nats "kv:bucket/path/subkey1" ))
 
 ### Value Types
 
-KV values are returned as strings. Parse as needed:
+A single-line KV value comes back as the string it holds, even when it looks like JSON or a number. A value of more than one line is read as YAML, the way a merge reads a document, so it comes back as the map or list it holds, a plain `yes` in it is a boolean, and `010` is the octal number 8. A value that doesn't decode stays the text it was. An object with a YAML or JSON content type, or with a name that ends in `.yaml` or `.yml`, decodes the same way. When an object with a YAML or JSON content type doesn't decode, the error names the object but no part of its data.
+
+Parse a single-line value as needed:
 
 ```yaml
 # String value
