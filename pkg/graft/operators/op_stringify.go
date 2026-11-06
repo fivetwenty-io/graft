@@ -87,6 +87,16 @@ func (StringifyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			Value: v,
 		}, nil
 
+	case uint64:
+		// A number too big for an int64, which an environment variable
+		// can decode to, stays the number. spruce gives it bare, and
+		// the YAML marshal below would write it as a literal block.
+		DEBUG("keeping a uint64 as a number")
+		return &Response{
+			Type:  Replace,
+			Value: v,
+		}, nil
+
 	case int, int64, float64, bool:
 		DEBUG("converting scalar to string: %v", v)
 		return &Response{

@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `(( stringify $V ))` of an environment variable too big for a 64-bit integer, such as `9223372036854775808`, now gives the bare number, as spruce does. Before, it gave a literal block holding the number.
+
 - The debugger no longer turns a plain `yes` into the string `"yes"` when it wraps a session's deferred paths. It now reads each document it rewrites the way a merge reads it, so `enabled: yes` stays a boolean in the merge that follows, and an alias-heavy document fails rather than expanding.
 
 - A grab through a bracket now waits for the key and for the path the key names, in both evaluator modes. With `k: x`, the line `(( grab tgt[k] ))` runs after `k` and after any operator at `tgt.x`, and `(( grab $[k] ))` does the same at the root. When an operator computes the key, the grab also runs after the operators under the path before the bracket, unless that would close a cycle, so sibling grabs that point into the same map still evaluate. Before, the grab could run first and fail with "unable to resolve", or return the target's operator text as its value.
