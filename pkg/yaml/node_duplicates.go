@@ -57,19 +57,30 @@ func (w nodeDupWalker) walk(n *Node, path string) {
 // sources of every merge key, with the sources of a later merge key
 // before those of an earlier one. A decode merges that sequence with a
 // key in an earlier source winning, so a later merge key still wins over
-// an earlier one, as it does in the text. A decode lets a merged value win over a key
-// written before the merge key and lets a key written after it win, so a
-// pair whose key a source supplies moves to the side of the merge key
-// that keeps the value written last, as arrange describes.
+// an earlier one, as it does in the text. A decode lets a merged value
+// win over a key written before the merge key and lets a key written
+// after it win, so a pair whose key a source supplies moves to the side
+// of the merge key that keeps the value written last, as arrange
+// describes.
+//
+// When the value of any merge key is one a decode refuses, as
+// refusedMerge describes, the merge keys stay as they are, so that a
+// decode fails at the merge key the text route fails at, and not at a
+// sequence that hides an alias to a list.
 func (w nodeDupWalker) mapping(n *Node, path string) {
 	var keys yamlnode.KeySet[*Node]
 	lastAt := make(map[string]int, len(n.Content)/2)
 	var kept []keptPair
 	var m merges
+	combine := !refusedMerge(n)
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		key, val := n.Content[i], n.Content[i+1]
-		if key != nil && key.Kind == ScalarNode && key.Tag == yamlnode.TagMerge {
+		if isMergeKey(key) {
 			w.walk(val, path)
+			if !combine {
+				kept = append(kept, keptPair{key: key, val: val, last: i})
+				continue
+			}
 			if m.add(i, val, len(kept)) {
 				kept = append(kept, keptPair{key: key, val: val, last: i})
 			} else {
@@ -106,6 +117,49 @@ func (w nodeDupWalker) mapping(n *Node, path string) {
 		out = append(out, n.Content[len(n.Content)-1])
 	}
 	n.Content = out
+}
+
+// isMergeKey reports whether key is a << merge key.
+func isMergeKey(key *Node) bool {
+	return key != nil && key.Kind == ScalarNode && key.Tag == yamlnode.TagMerge
+}
+
+// refusedMerge reports whether the mapping n holds a merge key whose
+// value a decode refuses. That is a value that is neither a map nor a
+// list of maps, a list that holds anything but maps, and an alias to a
+// list, which spruce refuses though it takes the same list written in
+// place.
+func refusedMerge(n *Node) bool {
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if !isMergeKey(n.Content[i]) {
+			continue
+		}
+		val := n.Content[i+1]
+		if val == nil {
+			return true
+		}
+		if val.Kind == AliasNode {
+			if val.Alias == nil || val.Alias.Kind != MappingNode {
+				return true
+			}
+			continue
+		}
+		if val.Kind == SequenceNode {
+			for _, item := range val.Content {
+				if item != nil && item.Kind == AliasNode {
+					item = item.Alias
+				}
+				if item == nil || item.Kind != MappingNode {
+					return true
+				}
+			}
+			continue
+		}
+		if val.Kind != MappingNode {
+			return true
+		}
+	}
+	return false
 }
 
 // keptPair is a pair mapping keeps. last is the index in Content of the

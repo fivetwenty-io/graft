@@ -201,3 +201,46 @@ func TestQuotedMergeKeyIsAKey(t *testing.T) {
 		}
 	}
 }
+
+// TestNodeMergeOfAliasToListRefused pins that a merge key whose value is
+// an alias to a list, or any other value no merge takes, fails on the
+// Node route as it fails on the text route, with or without
+// OnDuplicateKey, and however many merge keys the mapping holds. Unmarshal into a Node keeps the document, and
+// Node.Decode fails with the text route's error, at the same line.
+func TestNodeMergeOfAliasToListRefused(t *testing.T) {
+	const msg = "map merge requires map or sequence of maps as the value"
+	cases := []struct {
+		doc  string
+		line int
+	}{
+		{"l: &l [{a: 1}]\nm:\n  <<: *l\n", 3},
+		{"l: &l [{a: 1}]\nb: &b {c: 2}\nm:\n  <<: *b\n  <<: *l\n", 5},
+		{"l: &l [{a: 1}]\nb: &b {c: 2}\nm:\n  <<: *l\n  <<: *b\n", 4},
+		{"l: &l [{a: 1}]\nm:\n  <<: {c: 2}\n  <<: *l\n  d: 1\n", 4},
+		{"l: &l [{a: 1}]\nb: &b {c: 2}\nm:\n  <<: *b\n  <<: [*l]\n", 5},
+		{"l: &l [{a: 1}]\nb: &b {c: 2}\nm:\n  <<: *b\n  ? <<\n  : *l\n", 5},
+		{"m:\n  <<: {c: 2}\n  <<: [{a: 1}, 5]\n", 3},
+		{"m:\n  <<: 5\n  <<: {c: 2}\n", 2},
+	}
+	for _, c := range cases {
+		for name, opts := range map[string]yaml.DecodeOptions{"strict": {}, "callback": collect(new([]yaml.DuplicateKey))} {
+			t.Run(name+"/"+c.doc, func(t *testing.T) {
+				var m map[string]any
+				err := yaml.UnmarshalWith([]byte(c.doc), &m, opts)
+				var de *yaml.DecodeError
+				if !errors.As(err, &de) || de.Line != c.line || !strings.Contains(err.Error(), msg) {
+					t.Fatalf("map: error = %v, want the merge error at line %d", err, c.line)
+				}
+				var n yaml.Node
+				if err := yaml.UnmarshalWith([]byte(c.doc), &n, opts); err != nil {
+					t.Fatalf("Node: %v", err)
+				}
+				var v any
+				err = n.Decode(&v)
+				if !errors.As(err, &de) || de.Line != c.line || !strings.Contains(err.Error(), msg) {
+					t.Fatalf("Node.Decode: error = %v and value %v, want the merge error at line %d", err, v, c.line)
+				}
+			})
+		}
+	}
+}
