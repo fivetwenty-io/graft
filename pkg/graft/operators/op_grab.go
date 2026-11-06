@@ -22,7 +22,9 @@ func (GrabOperator) Phase() OperatorPhase {
 	return EvalPhase
 }
 
-// Dependencies ...
+// Dependencies returns the paths each argument reads, plus, for a path
+// with a dynamic bracket key, the key's own path and the target the
+// path reaches once every key holds its value.
 func (GrabOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
 	deps := make([]*tree.Cursor, 0, len(auto))
 	deps = append(deps, auto...)
@@ -31,6 +33,7 @@ func (GrabOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Curso
 		if arg != nil {
 			argDeps := arg.Dependencies(ev, locs)
 			deps = append(deps, argDeps...)
+			deps = append(deps, bracketDependencies(ev, arg, locs)...)
 		}
 	}
 
