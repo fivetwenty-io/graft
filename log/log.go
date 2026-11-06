@@ -33,22 +33,19 @@ func init() {
 	}
 }
 
+// Filter, when non-nil, sees each DEBUG and TRACE message, all of its
+// lines together, before it is written. It returns the message to write
+// in its place, and false to leave the whole message out. pkg/graft sets
+// it so that the trace of a control-flow loop never names the loop's
+// internal bindings.
+var Filter func(message string) (string, bool)
+
 // DEBUG - Prints out a debug message.
 //
 //nolint:goprintffuncname // DEBUG is an established name used throughout the codebase
 func DEBUG(format string, args ...interface{}) {
 	if DebugOn {
-		content := fmt.Sprintf(format, args...)
-		lines := strings.Split(content, "\n")
-		for i, line := range lines {
-			lines[i] = "DEBUG> " + line
-		}
-		content = strings.Join(lines, "\n")
-		if Writer != nil {
-			_, _ = fmt.Fprintf(Writer, "%s\n", content)
-			return
-		}
-		PrintStdErrf("%s\n", content)
+		emit("DEBUG> ", fmt.Sprintf(format, args...))
 	}
 }
 
@@ -57,16 +54,27 @@ func DEBUG(format string, args ...interface{}) {
 //nolint:goprintffuncname // TRACE is an established name used throughout the codebase
 func TRACE(format string, args ...interface{}) {
 	if TraceOn {
-		content := fmt.Sprintf(format, args...)
-		lines := strings.Split(content, "\n")
-		for i, line := range lines {
-			lines[i] = "-----> " + line
-		}
-		content = strings.Join(lines, "\n")
-		if Writer != nil {
-			_, _ = fmt.Fprintf(Writer, "%s\n", content)
+		emit("-----> ", fmt.Sprintf(format, args...))
+	}
+}
+
+// emit writes each line of content behind prefix, after passing the
+// whole of content through Filter when it is set.
+func emit(prefix, content string) {
+	if Filter != nil {
+		var keep bool
+		if content, keep = Filter(content); !keep {
 			return
 		}
-		PrintStdErrf("%s\n", content)
 	}
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	content = strings.Join(lines, "\n")
+	if Writer != nil {
+		_, _ = fmt.Fprintf(Writer, "%s\n", content)
+		return
+	}
+	PrintStdErrf("%s\n", content)
 }

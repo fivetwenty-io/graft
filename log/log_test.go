@@ -33,3 +33,31 @@ func TestDebug(t *testing.T) {
 		})
 	})
 }
+
+func TestFilter(t *testing.T) {
+	var stderr string
+	PrintStdErrf = func(format string, args ...interface{}) {
+		stderr += fmt.Sprintf(format, args...)
+	}
+	defer func() { Filter = nil }()
+	Convey("filter", t, func() {
+		Filter = func(message string) (string, bool) {
+			if message == "drop" {
+				return "", false
+			}
+			return "<" + message + ">", true
+		}
+		Convey("Rewrites a kept message before each line is prefixed", func() {
+			stderr = ""
+			DebugOn = true
+			DEBUG("one\ntwo")
+			So(stderr, ShouldEqual, "DEBUG> <one\nDEBUG> two>\n")
+		})
+		Convey("Writes nothing for a dropped message", func() {
+			stderr = ""
+			TraceOn = true
+			TRACE("drop")
+			So(stderr, ShouldEqual, "")
+		})
+	})
+}

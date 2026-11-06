@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
+	"github.com/fivetwenty-io/graft/log"
 )
 
 // loopBindingKey is the reserved top-level key that control-flow
@@ -19,6 +20,50 @@ const loopBindingKey = "__graft_loop"
 // The loop id is "l", twelve hex digits of the source's digest, "_", and
 // a sequence number (see controlflow's nextUID).
 var loopBindingPrefix = regexp.MustCompile(`__graft_loop\.l[0-9a-f]+_\d+\.\d+\.`)
+
+//nolint:gochecknoinits // the trace filter must be in place before any merge logs a line
+func init() {
+	log.Filter = traceWithoutLoopNames
+}
+
+// bindingTreePath matches a trace line's mention of the binding tree
+// itself as a document path, such as "$.__graft_loop.l1a2b3c4d5e6f_1",
+// and bindingKeyInList the binding key in a printed list of keys.
+var (
+	bindingTreePath  = regexp.MustCompile(`\$\.` + loopBindingKey + `\b`)
+	bindingKeyInList = regexp.MustCompile(`(\[| )` + loopBindingKey + `( |\])`)
+)
+
+// traceWithoutLoopNames is the log package's Filter. A trace message
+// about the binding tree itself, such as the merge that adds it, is
+// left out, since the merged output never holds it. A list of keys
+// leaves out the binding key, and an expression in a loop body has the
+// binding prefix taken out, so it reads as the user wrote it. Any other
+// message that still names the tree is left out too.
+func traceWithoutLoopNames(message string) (string, bool) {
+	if !strings.Contains(message, loopBindingKey) {
+		return message, true
+	}
+	if bindingTreePath.MatchString(message) {
+		return "", false
+	}
+	message = withoutLoopPrefix(message)
+	message = bindingKeyInList.ReplaceAllStringFunc(message, func(m string) string {
+		switch {
+		case m[0] == '[' && m[len(m)-1] == ']':
+			return "[]"
+		case m[0] == '[':
+			return "["
+		case m[len(m)-1] == ']':
+			return "]"
+		}
+		return " "
+	})
+	if strings.Contains(message, loopBindingKey) {
+		return "", false
+	}
+	return message, true
+}
 
 // withoutLoopPrefix returns text with every loop binding prefix taken
 // out, so a path reads as the user wrote it in the loop body.

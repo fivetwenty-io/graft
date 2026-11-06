@@ -1,11 +1,14 @@
 package controlflow
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 
+	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
@@ -328,4 +331,67 @@ out:
 			})
 		}
 	}
+}
+
+// TestLoopBodyTraceNamesTheWrittenPath runs nested loops with tracing on
+// and checks that the trace never names the loop binding tree. The
+// merge of the bindings themselves is left out, a list of new keys
+// leaves out the binding key, and each loop body expression shows the
+// path the user wrote.
+func TestLoopBodyTraceNamesTheWrittenPath(t *testing.T) {
+	debugOn, traceOn, writer := log.DebugOn, log.TraceOn, log.Writer
+	defer func() { log.DebugOn, log.TraceOn, log.Writer = debugOn, traceOn, writer }()
+
+	src := `outer: [{n: 1}]
+inner: [1, 2]
+out:
+(( for svc in outer ))
+(( for i in inner ))
+  - (( grab svc.n ))
+  - big-(( grab i ))
+(( done ))
+(( done ))
+`
+	for _, mode := range rootRefModes {
+		t.Run(mode.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			opts := append([]graft.EngineOption{graft.WithTraceOutput(&buf), graft.WithTraceLevel(graft.TraceLevelTrace)}, mode.opts...)
+			data := runLoopMergeYAML(t, opts, src)
+			if got := fmt.Sprint(data["out"]); got != "[1 big-(( grab i )) 1 big-(( grab i ))]" {
+				t.Fatalf("out = %v", got)
+			}
+			trace := buf.String()
+			if strings.Contains(trace, "__graft_loop") {
+				t.Errorf("the trace names the loop binding tree:\n%s", trace)
+			}
+			if !traceListsTopKeys(trace, "outer", "inner", "out") {
+				t.Errorf("the trace does not list the top-level keys outer, inner, and out alone:\n%s", trace)
+			}
+			for _, want := range []string{"(( grab svc.n ))", "big-(( grab i ))"} {
+				if !strings.Contains(trace, want) {
+					t.Errorf("the trace does not show %q:\n%s", want, trace)
+				}
+			}
+		})
+	}
+}
+
+// traceListsTopKeys reports whether trace has a "new keys" line that
+// lists exactly keys, in any order, as the merge of the document's top
+// level prints them.
+func traceListsTopKeys(trace string, keys ...string) bool {
+	for _, line := range strings.Split(trace, "\n") {
+		_, list, ok := strings.Cut(line, "new keys = [")
+		if !ok {
+			continue
+		}
+		got := strings.Fields(strings.TrimSuffix(list, "]"))
+		sort.Strings(got)
+		want := append([]string(nil), keys...)
+		sort.Strings(want)
+		if strings.Join(got, " ") == strings.Join(want, " ") {
+			return true
+		}
+	}
+	return false
 }
