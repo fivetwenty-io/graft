@@ -60,8 +60,8 @@ func findMergeKeys(body ast.Node) mergeKeys {
 func (m *mergeKeys) Visit(n ast.Node) ast.Visitor {
 	if pair, ok := n.(*ast.MappingValueNode); ok && yamlnode.IsMergeKey(pair.Key) {
 		m.found = true
-		if yamlnode.ExplicitMergeKey(pair.Key) != nil {
-			m.explicit = append(m.explicit, pair.Key.(*ast.MappingKeyNode))
+		if key, ok := pair.Key.(*ast.MappingKeyNode); ok && yamlnode.ExplicitMergeKey(key) != nil {
+			m.explicit = append(m.explicit, key)
 		}
 		if _, alias := pair.Value.(*ast.AliasNode); alias {
 			m.aliasValued[pair] = true
