@@ -232,6 +232,32 @@ func (w *walk) deepCopy(v any, depth int) any {
 	}
 }
 
+// copyPointer copies what a pointer to a container points at, and
+// returns any other pointer as it is. It panics with CycleMessage when
+// the pointer is already being copied.
+func (w *walk) copyPointer(rv reflect.Value, depth int) reflect.Value {
+	if rv.IsNil() {
+		return rv
+	}
+	switch rv.Elem().Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.Pointer, reflect.Interface:
+	default:
+		return rv
+	}
+	id := containerID{addr: rv.Pointer(), n: -2}
+	if w.stack == nil {
+		w.stack = make(map[containerID]struct{})
+	}
+	if _, inside := w.stack[id]; inside {
+		panic(CycleMessage)
+	}
+	w.stack[id] = struct{}{}
+	defer delete(w.stack, id)
+	out := reflect.New(rv.Type().Elem())
+	out.Elem().Set(w.copyValue(rv.Elem(), depth+1))
+	return out
+}
+
 // CycleMessage is the text of the panic New and Copy raise when a value
 // contains itself. It quotes nothing from the value.
 const CycleMessage = "graft: the value contains itself, and a literal cannot hold cyclic data"
@@ -432,7 +458,7 @@ func (w *walk) normalize(v any, depth int) any {
 // that reflect cannot copy, and a pointer to anything but a container.
 func (w *walk) copyTyped(v any, depth int) any {
 	if v == nil {
-		return v
+		return nil
 	}
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
@@ -484,26 +510,7 @@ func (w *walk) copyValue(rv reflect.Value, depth int) reflect.Value {
 		}
 		return out
 	case reflect.Pointer:
-		if rv.IsNil() {
-			return rv
-		}
-		switch rv.Elem().Kind() {
-		case reflect.Slice, reflect.Array, reflect.Map, reflect.Pointer, reflect.Interface:
-		default:
-			return rv
-		}
-		id := containerID{addr: rv.Pointer(), n: -2}
-		if w.stack == nil {
-			w.stack = make(map[containerID]struct{})
-		}
-		if _, inside := w.stack[id]; inside {
-			panic(CycleMessage)
-		}
-		w.stack[id] = struct{}{}
-		defer delete(w.stack, id)
-		out := reflect.New(rv.Type().Elem())
-		out.Elem().Set(w.copyValue(rv.Elem(), depth+1))
-		return out
+		return w.copyPointer(rv, depth)
 	case reflect.Struct:
 		if rv.Type() == valueType {
 			return reflect.ValueOf(w.normalize(rv.Interface(), depth+1))
