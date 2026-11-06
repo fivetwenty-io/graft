@@ -151,6 +151,8 @@ No history found for path no.such.path
 ```
 (exit code 2)
 
+The path may carry the `$.` root anchor and bracket indexes, as paths do everywhere else in graft. So `--trace-path '$.database.host'` prints the same history as `--trace-path database.host`.
+
 ### Show Changes
 
 ```sh

@@ -278,6 +278,22 @@ random by design and differs run to run on either binary.
 
 **Impact.** We keep arithmetic working on purpose, because that is what graft's expression language is for. Every shape here either fails in spruce or stays as text, so a template that works in spruce reads the same in graft, with one exception. A template that names a key such as `3-1` or `2e5-1` by its bare spelling gets arithmetic in graft rather than the key, and a quoted `"3-1"` is a string in both tools, so such a key needs a name that doesn't start with a number followed by `-`.
 
+### unset-variable-in-path-stays-literal
+
+**Graft behavior.** A `$NAME` node in an operator path is replaced only when the variable is set and not empty. Otherwise the node stays the text `$NAME`, so `(( grab mm.$UNSET ))` looks for a key spelled `$UNSET` inside `mm`, and a lone `$` stays `$`.
+
+**Spruce behavior.** spruce replaces the node with the variable's value even when it is unset, which gives the empty string. `(( grab mm.$UNSET ))` looks up `mm.` and fails.
+
+**Impact.** We keep this on purpose. The error names the variable that was missing, where spruce's error names an empty segment. A template that relies on spruce failing for an unset variable gets the same failure in graft, because the key `$UNSET` is not there unless the document spells it.
+
+### cherry-pick-merges-picks-inside-one-list-entry
+
+**Graft behavior.** Two `--cherry-pick` paths that go below the same list entry, such as `jobs.0.k` and `jobs.0.name`, give one entry that holds both keys. A pick of the whole entry together with a longer pick inside it, as in `jobs.0` and `jobs.0.k`, gives that entry once.
+
+**Spruce behavior.** spruce adds one list entry per pick, so the two picks give two entries, `name: a` and `k: 1`, and the second pair gives the entry twice.
+
+**Impact.** We keep this on purpose, because one entry per pick splits a document that the picks describe as a single item. A script that counts on one entry per pick needs a different pick list.
+
 ## Resolved
 
 Items that were tracked as open gaps and have since been closed. Kept
