@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/oploc"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -152,11 +153,8 @@ const (
 // holds it already. A key at or under the path of an operator in locs
 // is still to be computed.
 func bracketKeyNow(ev *Evaluator, node string, key *tree.Cursor, locs []*tree.Cursor) (string, bracketKeyState) {
-	canon := canonicalPath(ev, key)
-	for _, loc := range locs {
-		if canonicalPath(ev, loc).Contains(canon) {
-			return "", keyComputed
-		}
+	if oploc.For(ev, locs, ev.Tree).AtOrAbove(canonicalPath(ev, key).Nodes) {
+		return "", keyComputed
 	}
 	val, err := key.ResolveLiteral(ev.Tree)
 	if err != nil {
@@ -178,31 +176,18 @@ func bracketKeyNow(ev *Evaluator, node string, key *tree.Cursor, locs []*tree.Cu
 // ev.Here. An empty prefix stands for the whole document.
 func operatorsUnder(ev *Evaluator, prefix []string, locs []*tree.Cursor) []*tree.Cursor {
 	base := canonicalPath(ev, &tree.Cursor{Nodes: append([]string(nil), prefix...)})
-	var self string
+	var self []string
 	if ev.Here != nil {
-		self = canonicalPath(ev, ev.Here).String()
+		self = canonicalPath(ev, ev.Here).Nodes
 	}
-	var out []*tree.Cursor
-	for _, loc := range locs {
-		canon := canonicalPath(ev, loc)
-		if canon.String() == self {
-			continue
-		}
-		if len(prefix) == 0 || base.Contains(canon) {
-			out = append(out, loc)
-		}
-	}
-	return out
+	return oploc.For(ev, locs, ev.Tree).Under(base.Nodes, self)
 }
 
 // canonicalPath returns c with list entries named by index, the form
 // the dependency graph keys operators by, or c itself when it does not
 // resolve against ev.Tree.
 func canonicalPath(ev *Evaluator, c *tree.Cursor) *tree.Cursor {
-	if canon, err := c.Canonical(ev.Tree); err == nil {
-		return canon
-	}
-	return c
+	return oploc.Canonical(c, ev.Tree)
 }
 
 // hasDynamicBracket reports whether any node is a bracketed segment that

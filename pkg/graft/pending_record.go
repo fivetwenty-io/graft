@@ -1,15 +1,22 @@
 package graft
 
 import (
+	"github.com/fivetwenty-io/graft/internal/oploc"
 	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
-//nolint:gochecknoinits // the operators package reads the pending record through this hook from its first call
+//nolint:gochecknoinits // the operators package reads the pending record and the path index through these hooks from its first call
 func init() {
 	pending.SetLookup(func(ev any) *pending.Record {
 		if e, ok := ev.(*Evaluator); ok && e != nil {
 			return e.pending
+		}
+		return nil
+	})
+	oploc.SetLookup(func(ev any) *oploc.Index {
+		if e, ok := ev.(*Evaluator); ok && e != nil {
+			return e.locIndex
 		}
 		return nil
 	})

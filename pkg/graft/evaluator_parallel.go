@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/fivetwenty-io/graft/internal/oploc"
 	"github.com/fivetwenty-io/graft/internal/parallel"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -237,7 +238,11 @@ func (ev *Evaluator) addSchedulerTasks(scheduler *parallel.Scheduler, ops []*Opc
 	defer atomic.AddInt32(&ev.depComputing, -1)
 
 	savedHere := ev.Here
-	defer func() { ev.Here = savedHere }()
+	ev.locIndex = oploc.New(allLocs, ev.Tree)
+	defer func() {
+		ev.Here = savedHere
+		ev.locIndex = nil
+	}()
 
 	// ops arrive in DataFlow's order, which already honors every soft
 	// edge the sequential graph kept. pos lets softDependencyIDs keep

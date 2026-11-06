@@ -358,6 +358,44 @@ meta:
 	}
 }
 
+// largeDocLimit is the time a large document may take to evaluate. The
+// race detector slows evaluation several times over, so the bound under
+// it only catches a return to quadratic behavior.
+func largeDocLimit() time.Duration {
+	if raceEnabled {
+		return 20 * time.Second
+	}
+	return time.Second
+}
+
+// timeBracketDoc merges doc in each mode, checks that path holds want,
+// and fails when the merge takes longer than largeDocLimit.
+func timeBracketDoc(t *testing.T, doc, path string, want interface{}) {
+	t.Helper()
+	limit := largeDocLimit()
+	for _, mode := range leakModes {
+		t.Run(mode.name, func(t *testing.T) {
+			start := time.Now()
+			got, err := mergeBracketDoc(t, mode.parallel, doc)
+			elapsed := time.Since(start)
+			if err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			v, err := got.Get(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fmt.Sprint(v) != fmt.Sprint(want) {
+				t.Fatalf("%s is %v, want %v", path, v, want)
+			}
+			t.Logf("evaluation took %v", elapsed)
+			if elapsed > limit {
+				t.Fatalf("evaluation took %v, want under %v", elapsed, limit)
+			}
+		})
+	}
+}
+
 // TestGrabBracketLargeDocument checks that a document with many bracket
 // grabs at the root, each of which waits on every other operator in the
 // document, still evaluates quickly in both modes.
@@ -370,31 +408,22 @@ func TestGrabBracketLargeDocument(t *testing.T) {
 	for i := 0; i < 40; i++ {
 		fmt.Fprintf(&doc, "g%d: (( grab $[k] ))\n", i)
 	}
+	timeBracketDoc(t, doc.String(), "g39", "x0")
+}
 
-	// The race detector slows evaluation several times over, so the bound
-	// under it only catches a return to quadratic behavior.
-	limit := time.Second
-	if raceEnabled {
-		limit = 20 * time.Second
+// TestGrabBracketManyComputedKeys checks that a document with 1600
+// computed-key grabs, 600 of them a mesh of siblings that each wait on
+// every other operator in their map, still evaluates quickly in both
+// modes.
+func TestGrabBracketManyComputedKeys(t *testing.T) {
+	var doc strings.Builder
+	doc.WriteString("k: (( concat \"x\" \"\" ))\nsrc:\n  x: 1\n")
+	for i := 0; i < 1000; i++ {
+		fmt.Fprintf(&doc, "g%d: (( grab src[k] ))\n", i)
 	}
-	for _, mode := range leakModes {
-		t.Run(mode.name, func(t *testing.T) {
-			start := time.Now()
-			got, err := mergeBracketDoc(t, mode.parallel, doc.String())
-			elapsed := time.Since(start)
-			if err != nil {
-				t.Fatalf("Execute: %v", err)
-			}
-			v, err := got.Get("g39")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if v != "x0" {
-				t.Fatalf("g39 is %v, want x0", v)
-			}
-			if elapsed > limit {
-				t.Fatalf("evaluation took %v, want under %v", elapsed, limit)
-			}
-		})
+	doc.WriteString("meta:\n")
+	for i := 0; i < 600; i++ {
+		fmt.Fprintf(&doc, "  k%d: (( concat \"v\" \"%d\" ))\n  v%d: %d\n  m%d: (( grab meta[meta.k%d] ))\n", i, i, i, i, i, i)
 	}
+	timeBracketDoc(t, doc.String(), "meta.m599", 599)
 }
