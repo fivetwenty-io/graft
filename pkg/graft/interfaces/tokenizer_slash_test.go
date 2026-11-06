@@ -82,8 +82,8 @@ func TestTokenizerSlashContinuesReference(t *testing.T) {
 }
 
 // slashTokensWithOperators tokenizes src as slashTokens does, but with
-// grab and concat registered as operator names, the way the expression
-// parser sets the tokenizer up.
+// grab, concat, and the operators that take an @target registered as
+// operator names, the way the expression parser sets the tokenizer up.
 func slashTokensWithOperators(t *testing.T, src string) []string {
 	t.Helper()
 	tz := NewAdvancedTokenizer(src, TokenizerOptions{
@@ -92,7 +92,11 @@ func slashTokensWithOperators(t *testing.T, src string) []string {
 		TrackPositions:          true,
 		AllowUnicode:            true,
 		OperatorName: func(name string) bool {
-			return name == "grab" || name == "concat"
+			switch name {
+			case "grab", "concat", "vault", "awsparam", "awssecret", "nats":
+				return true
+			}
+			return false
 		},
 	})
 	var out []string
@@ -228,6 +232,81 @@ func TestTokenizerDollarSegmentGluesPlusName(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := slashTokens(t, tc.src)
+			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
+				t.Fatalf("tokens for %q:\n got  %v\n want %v", tc.src, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestTokenizerOperatorHeadBeginsReference pins that a '/' after a whole
+// operator head begins a reference, the way it does after a plain
+// operator name. The head is the name with any glued ":modifier" and
+// "@target", as in "vault:nocache@prod". Nothing in the head is a left
+// operand, so "/b" after it is the key "/b", not a division. A colon or
+// '@' with whitespace on either side is not part of the head.
+func TestTokenizerOperatorHeadBeginsReference(t *testing.T) {
+	ref := func(s string) string { return TokenReference.String() + "(" + s + ")" }
+	ident := func(s string) string { return TokenIdentifier.String() + "(" + s + ")" }
+	tk := func(tt TokenType, lit string) string { return tt.String() + "(" + lit + ")" }
+	start := tk(TokenOperatorStart, "((")
+	end := tk(TokenOperatorEnd, "))")
+	colon := tk(TokenColon, ":")
+	at := tk(TokenAt, "@")
+	slash := tk(TokenSlash, "/")
+	str := func(s string) string { return TokenString.String() + `("` + s + `")` }
+
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{"grab with a modifier", "(( grab:nocache /b ))", []string{start, ident("grab"), colon, ident("nocache"), ref("/b"), end}},
+		{"concat with a modifier", `(( concat:nocache /b "x" ))`, []string{
+			start, ident("concat"), colon, ident("nocache"), ref("/b"), str("x"), end,
+		}},
+		{"vault with a target", "(( vault@prod /b ))", []string{start, ident("vault"), at, ident("prod"), ref("/b"), end}},
+		{"vault with a modifier", "(( vault:nocache /b ))", []string{start, ident("vault"), colon, ident("nocache"), ref("/b"), end}},
+		{"vault with a modifier and a target", "(( vault:nocache@prod /b ))", []string{
+			start, ident("vault"), colon, ident("nocache"), at, ident("prod"), ref("/b"), end,
+		}},
+		{"awsparam with a target", "(( awsparam@x /b ))", []string{start, ident("awsparam"), at, ident("x"), ref("/b"), end}},
+		{"awsparam with a modifier", "(( awsparam:nocache /b ))", []string{start, ident("awsparam"), colon, ident("nocache"), ref("/b"), end}},
+		{"awssecret with a target", "(( awssecret@x /b ))", []string{start, ident("awssecret"), at, ident("x"), ref("/b"), end}},
+		{"awssecret with a modifier", "(( awssecret:nocache /b ))", []string{start, ident("awssecret"), colon, ident("nocache"), ref("/b"), end}},
+		{"nats with a target", "(( nats@x /b ))", []string{start, ident("nats"), at, ident("x"), ref("/b"), end}},
+		{"nats with a modifier and a target", "(( nats:nocache@x /b ))", []string{
+			start, ident("nats"), colon, ident("nocache"), at, ident("x"), ref("/b"), end,
+		}},
+		{"head after a comma", "(( concat a, vault@prod /b ))", []string{
+			start, ident("concat"), ident("a"), tk(TokenComma, ","), ident("vault"), at, ident("prod"), ref("/b"), end,
+		}},
+		{"head right of ||", "(( grab c || vault@prod /b ))", []string{
+			start, ident("grab"), ident("c"), tk(TokenOr, "||"), ident("vault"), at, ident("prod"), ref("/b"), end,
+		}},
+		{"an argument after the head still divides", "(( grab:nocache a /b ))", []string{
+			start, ident("grab"), colon, ident("nocache"), ident("a"), slash, ident("b"), end,
+		}},
+		{"a string after the head still divides", `(( concat:nocache "x" /b ))`, []string{
+			start, ident("concat"), colon, ident("nocache"), str("x"), slash, ident("b"), end,
+		}},
+		{"a spaced colon is not part of the head", "(( grab :nocache /b ))", []string{
+			start, ident("grab"), colon, ident("nocache"), slash, ident("b"), end,
+		}},
+		{"a colon with a space after it is not part of the head", "(( grab: nocache /b ))", []string{
+			start, ident("grab"), colon, ident("nocache"), slash, ident("b"), end,
+		}},
+		{"a spaced at sign is not part of the head", "(( vault @prod /b ))", []string{
+			start, ident("vault"), at, ident("prod"), slash, ident("b"), end,
+		}},
+		{"a name that is not an operator has no head", "(( a:b /c ))", []string{
+			start, ident("a"), colon, ident("b"), slash, ident("c"), end,
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := slashTokensWithOperators(t, tc.src)
 			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
 				t.Fatalf("tokens for %q:\n got  %v\n want %v", tc.src, got, tc.want)
 			}

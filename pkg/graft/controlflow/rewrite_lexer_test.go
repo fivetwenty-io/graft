@@ -117,6 +117,11 @@ type lexedToken struct {
 	typ   interfaces.TokenType
 	lit   string
 	start int
+
+	// headName marks the modifier or target name of an operator head,
+	// such as "prod" in "vault@prod", which the lexer reports as part of
+	// the call and not as a name in the document.
+	headName bool
 }
 
 // lexForAgreement lexes src with the parser's own tokenizer options.
@@ -132,7 +137,7 @@ func lexForAgreement(src string) []lexedToken {
 		if tok.Type == interfaces.TokenEOF || tz.Position() <= before {
 			break
 		}
-		out = append(out, lexedToken{typ: tok.Type, lit: tok.Literal, start: tok.Pos.Offset})
+		out = append(out, lexedToken{typ: tok.Type, lit: tok.Literal, start: tok.Pos.Offset, headName: tz.HeadName()})
 	}
 	return out
 }
@@ -140,13 +145,14 @@ func lexForAgreement(src string) []lexedToken {
 // expectedRewrite is the rewrite this test expects of one token. It is
 // written from the lexer's tokens and the evaluator's own path reader,
 // tree.ParseCursor, and not from the rewrite's code. An identifier equal
-// to name is the variable. A reference is the variable when its first
+// to name is the variable, unless the lexer reads it as the modifier or
+// target name of an operator head. A reference is the variable when its first
 // node is name and it does not start with '$', and a bracket index is
 // when its first dotted part is name.
 func expectedRewrite(tok lexedToken, name, target string) (string, bool) {
 	switch tok.typ {
 	case interfaces.TokenIdentifier:
-		if tok.lit == name {
+		if tok.lit == name && !tok.headName {
 			return target, true
 		}
 	case interfaces.TokenReference:

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A `/` right after an operator name that carries a `:modifier` or an `@target` now begins a reference, as it already did after a plain operator name, so `(( grab:nocache /b ))`, `(( vault@prod /b ))`, and `(( vault:nocache@prod /b ))` read the key `/b`. Before, the modifier or target name counted as a left operand, so the `/` divided it and the call failed with "no arguments specified" or "requires at least one argument". Inside a loop, a modifier or target name is no longer taken for the loop variable, so a loop over `prod` leaves `vault@prod` alone. Spruce has no modifiers or targets and leaves these expressions in the output unevaluated.
+
 ## [1.45.2] - 2026-11-05
 
 This release closes the reference-path corner cases that 1.45.1 left open, so `$.` root paths, a leading `/`, and an exponent number before a `/` now read the way spruce reads them. Loop bodies find the loop variable with the expression lexer itself, so a reference inside a loop reads the same way it does anywhere else in the document. Every operator now treats a value from `graft.NewLiteral` as data and never as code, a path, or the name of a secret, file, or server, which closes a hole where `(( calc ))` could read any number in the merged tree. Library callers who pass literals should read the Security section before they upgrade, and anyone whose templates hold a bare `(( /b || c ))` should check its output.

@@ -416,6 +416,20 @@ func matchReferencePath(runes []rune, leadingSlash bool) (bool, int) {
 	return finish()
 }
 
+// headState tracks how far the tokenizer is through an operator head.
+type headState int
+
+const (
+	// headNone means the last token is not part of an operator head.
+	headNone headState = iota
+	// headOpen means the last token ends a head that could continue,
+	// such as "grab" or the "nocache" in "grab:nocache".
+	headOpen
+	// headJoin means the last token is a ':' or '@' glued to a head, so
+	// a name glued after it continues the head.
+	headJoin
+)
+
 // AdvancedTokenizer provides enhanced tokenization with path recognition.
 type AdvancedTokenizer struct {
 	input    string
@@ -438,6 +452,20 @@ type AdvancedTokenizer struct {
 	// operand, so that a '/' scanned next has a left operand to divide.
 	// slashBeginsReference reads it, and noteScanned keeps it current.
 	leftOperand bool
+
+	// callHead records whether the last tokens scanned are an operator
+	// head, the operator name with any ":modifier" or "@target" glued to
+	// it, as in "vault:nocache@prod". A name glued after a ':' or an '@'
+	// in a head is part of the head, not an operand, so a '/' after the
+	// whole head still begins a reference. prevEnd is the byte offset
+	// where the last scanned token ends, which tells whether the next
+	// token is glued to it.
+	callHead headState
+	prevEnd  int
+
+	// headName records whether the last token scanned is a modifier or
+	// target name inside an operator head. HeadName reports it.
+	headName bool
 
 	// groupStack tracks the still-open "(" / "((" groups, innermost last:
 	// true for a group opened by "((" (needs "))" to close), false for one
@@ -536,6 +564,9 @@ func (t *AdvancedTokenizer) Reset(input string) {
 	t.column = 1
 	t.state = StateNormal
 	t.leftOperand = false
+	t.callHead = headNone
+	t.prevEnd = 0
+	t.headName = false
 	t.nextToken = nil
 	t.nextComputed = false
 	t.nextPosition = 0
@@ -569,19 +600,58 @@ func (t *AdvancedTokenizer) scanToken() Token {
 // references, environment variables, and closing brackets end one. An
 // identifier ends one too, unless it names an operator and has no left
 // operand before it, because then it opens an operator call, as "grab"
-// does in "(( grab /b ))". Every other token, such as "((", "(", ",",
-// "||", "?", ":", "!", or a binary operator, leaves no left operand.
+// does in "(( grab /b ))". The call stays open through a ':' or an '@'
+// glued to the head and the name glued after it, so "grab:nocache /b"
+// and "vault@prod /b" read "/b" the same way. Every other token, such as
+// "((", "(", ",", "||", "?", ":", "!", or a binary operator, leaves no
+// left operand.
 func (t *AdvancedTokenizer) noteScanned(tok Token) {
+	glued := tok.Pos.Offset == t.prevEnd
+	t.prevEnd = tok.End.Offset
+	t.headName = false
 	switch tok.Type {
 	case TokenInteger, TokenFloat, TokenString, TokenRawString, TokenBoolean, TokenNull,
 		TokenReference, TokenEnvironment, TokenRightParen, TokenOperatorEnd,
 		TokenRightBracket, TokenRightBrace:
 		t.leftOperand = true
+		t.callHead = headNone
 	case TokenIdentifier:
-		t.leftOperand = t.leftOperand || !t.namesOperator(tok.Literal)
+		switch {
+		case t.callHead == headJoin && glued:
+			// The modifier or target name of a head, as "nocache" in
+			// "grab:nocache" or "prod" in "vault@prod".
+			t.callHead = headOpen
+			t.headName = true
+		case !t.leftOperand && t.namesOperator(tok.Literal):
+			t.callHead = headOpen
+		default:
+			t.leftOperand = true
+			t.callHead = headNone
+		}
+	case TokenColon, TokenAt:
+		// A ':' or '@' glued to the end of a head joins the name after
+		// it to the head. One with whitespace before it does not, so the
+		// ternary "c ? grab : /b" is unaffected.
+		if t.callHead == headOpen && glued {
+			t.callHead = headJoin
+		} else {
+			t.callHead = headNone
+		}
+		t.leftOperand = false
 	default:
 		t.leftOperand = false
+		t.callHead = headNone
 	}
+}
+
+// HeadName reports whether the token NextToken last returned is the
+// modifier or target name of an operator head, as "nocache" is in
+// "grab:nocache" and "prod" is in "vault@prod". Such a name belongs to
+// the operator call and never names a key in the document. The answer
+// describes the last token scanned, so it holds only when PeekToken has
+// not been called since.
+func (t *AdvancedTokenizer) HeadName() bool {
+	return t.headName
 }
 
 // namesOperator reports whether name is a registered operator, through
@@ -594,8 +664,9 @@ func (t *AdvancedTokenizer) namesOperator(name string) bool {
 // begins a reference rather than dividing. This is the one place that
 // decides how a '/' with nothing attached before it reads. A '/' begins
 // a reference when no left operand comes before it: at the start of an
-// expression, right after an operator name that opens a call, and after
-// "(", ",", "||", "?", ":", or a binary operator. That is how spruce
+// expression, right after an operator head that opens a call, such as
+// "grab" or "vault:nocache@prod", and after "(", ",", "||", "?", ":", or
+// a binary operator. That is how spruce
 // reads "(( grab /b ))", as the key "/b". A '/' after an operand divides,
 // with or without whitespace between them, so "a / b" and "a /b" still
 // divide. A '/' attached to the end of a reference never gets here,

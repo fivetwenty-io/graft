@@ -114,7 +114,8 @@ func newExprLexer(expr string, engine graft.Engine) *interfaces.AdvancedTokenize
 // lexer itself decides where each reference starts and ends, a name
 // inside a quoted string, an environment variable, a key that continues
 // a path, or the value side of a "field=value" selector is never
-// returned. engine resolves operator names, which decide whether a '/'
+// returned, and neither is the modifier or target name of an operator
+// head, such as "prod" in "vault@prod". engine resolves operator names, which decide whether a '/'
 // right after a name begins a reference. A nil engine uses the default
 // registry.
 func pathNameSpans(expr string, engine graft.Engine) []nameSpan {
@@ -128,6 +129,11 @@ func pathNameSpans(expr string, engine graft.Engine) []nameSpan {
 		}
 		switch tok.Type {
 		case interfaces.TokenIdentifier:
+			if tz.HeadName() {
+				// The modifier or target of an operator head, as
+				// "prod" in "vault@prod", names no key.
+				continue
+			}
 			spans = append(spans, nameSpan{start: tok.Pos.Offset, end: tok.Pos.Offset + len(tok.Literal), bare: true})
 		case interfaces.TokenReference:
 			spans = append(spans, referenceNameSpans(tok.Literal, tok.Pos.Offset)...)

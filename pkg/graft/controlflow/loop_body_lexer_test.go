@@ -44,6 +44,8 @@ func TestLoopBodyReadsLikeTheLexer(t *testing.T) {
 		{"selector value in a bracket", "svc", "grab jobs[name=svc].ip", "7.7.7.7"},
 		{"dollar plus segment", "y", "grab a/$X+y", "slash-dollar-plus"},
 		{"leading slash", "svc", "grab /svc", "lead-slash"},
+		{"leading slash after a modifier", "svc", "grab:nocache /svc", "lead-slash"},
+		{"modifier named like the variable", "nocache", "grab:nocache /svc", "lead-slash"},
 		{"unspaced subtraction is one key", "svc", "grab svc-1", "dash-key"},
 		{"slash key that starts with the name", "svc", "grab svc/0", "slash-zero"},
 		{"exponent slash path with a variable named e", "e", "grab 1e+5/2", "exp-slash"},
