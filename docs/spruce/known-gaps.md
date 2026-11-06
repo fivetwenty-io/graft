@@ -129,6 +129,14 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Impact.** The number is the same in both tools, and only the bytes differ. A program that reads the output back gets a float from graft and an integer from spruce, which matters only when it checks the type.
 
+### stringify-of-an-env-value-gives-a-string
+
+**Current behavior.** `(( stringify $FOO ))` turns the decoded value of an environment variable into a string, as stringify turns every value into one. With `FOO=8080` the result is the string `"8080"`, with `FOO=yes` it is the string `"true"`, and with `FOO=3.5` it is the string `"3.5"`. A value that decodes to a map or a list becomes a literal block holding its YAML, so `FOO='a: b'` gives a block that reads `a: b`.
+
+**Expected behavior.** spruce hands back the decoded value itself when the argument is an environment variable. With `FOO=8080` the result is the integer 8080, with `FOO=yes` it is the boolean `true`, with `FOO=3.5` it is the float 3.5, and with `FOO='a: b'` it is the map. A value that is already a string, such as `hello`, comes out the same in both tools.
+
+**Impact.** The two results differ only in type, and a program that reads the output back sees a string where spruce gives a number, a boolean, or a map. A template that needs the text of the variable in graft can use `(( raw_env $FOO ))`. This behavior is older than the decoding of environment values and has not changed with it. The one exception is a number too big for a signed 64-bit integer, such as `9223372036854775808`, which stringify leaves as the bare number, as spruce does.
+
 ### memory-use-on-very-large-single-line-inputs
 
 **Current behavior.** graft needs a lot of memory for a file with a very long single line, because its YAML library builds a token list and a syntax tree at roughly 1 KB per token. We measured peak resident size with `/usr/bin/time -l` on three rejected inputs and on one valid input. The first line of `r2m3` and `r2m5` is `a: [[], [], ...` and runs to about 800,000 bytes, which is 400,000 tokens or more, followed by a `...#c` line in `r2m3` or a `...` line in `r2m5`, and then 500,000 lines of `# pad`. The third file, `r2m7`, is `a: 1` followed by a `...#c` line and the same kind of padding. The valid input is a single line of 800,000 `[]` tokens in a file of 3,200,004 bytes.
