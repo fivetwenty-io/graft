@@ -76,6 +76,13 @@ type Evaluator struct {
 	// SoftDependencies run.
 	locIndex *oploc.Index
 
+	// outerCall is the operator call that Opcall.Run is running on this
+	// evaluator at the top level, which is the call RunOp or computeOp
+	// started, or nil when none is running. A call run while it is set
+	// is nested in it, so (( grab )) can tell a value it hands to another
+	// operator from one it writes to the tree.
+	outerCall *Opcall
+
 	// Reference to the engine (for accessing registries and state)
 	engine Engine
 

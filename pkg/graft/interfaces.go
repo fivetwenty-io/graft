@@ -333,6 +333,10 @@ func (op *Opcall) Run(ev *Evaluator) (*Response, error) {
 		}
 	}
 
+	if ev.outerCall == nil {
+		ev.outerCall = op
+		defer func() { ev.outerCall = nil }()
+	}
 	was := ev.Here
 	wasTarget := ev.Target
 	wasNoCache := ev.NoCache

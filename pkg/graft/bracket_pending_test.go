@@ -52,7 +52,7 @@ meta:
 	{"a list entry flattened into a grab of two paths", `aa: (( grab b.list c ))
 b:
   list:
-  - (( concat "a" "b" ))
+  - (( concat "a" (grab aa.2) ))
   - 2
 c: 3
 `, "aa", "b.list.0"},

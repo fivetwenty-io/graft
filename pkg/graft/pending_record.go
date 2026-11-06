@@ -14,6 +14,15 @@ func init() {
 		}
 		return nil
 	})
+	pending.SetOuterArgs(func(ev any, args any) bool {
+		e, ok := ev.(*Evaluator)
+		if !ok || e == nil || e.outerCall == nil {
+			return false
+		}
+		a, ok := args.([]*Expr)
+		outer := e.outerCall.args
+		return ok && len(a) > 0 && len(a) == len(outer) && &a[0] == &outer[0]
+	})
 	oploc.SetLookup(func(ev any) *oploc.Index {
 		if e, ok := ev.(*Evaluator); ok && e != nil {
 			return e.locIndex
@@ -30,12 +39,26 @@ func (ev *Evaluator) startPending(ops []*Opcall) func() {
 	rec := pending.NewRecord()
 	for _, op := range ops {
 		if at := pendingPath(op); at != nil && op.where != nil {
-			rec.Add(at.Nodes, op.where.String())
+			rec.Add(at.Nodes, op.where.String(), parentOf(ev.Tree, at))
 		}
 	}
 	saved := ev.pending
 	ev.pending = rec
 	return func() { ev.pending = saved }
+}
+
+// parentOf returns the container that holds the value at the path at in
+// root, or nil when at is the root or its parent does not resolve.
+func parentOf(root map[string]interface{}, at *tree.Cursor) interface{} {
+	if len(at.Nodes) == 0 {
+		return nil
+	}
+	parent := &tree.Cursor{Nodes: at.Nodes[:len(at.Nodes)-1]}
+	o, err := parent.Resolve(root)
+	if err != nil {
+		return nil
+	}
+	return o
 }
 
 // donePending records on ev that op has run, whether or not it

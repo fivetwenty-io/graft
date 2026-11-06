@@ -77,7 +77,9 @@ func resolveGrabDynamicBrackets(arg *Expr, ev *Evaluator) error {
 // When an operator still has to compute a key, the target cannot be
 // known yet. Every operator under the path before that key, other than
 // the grab itself, is then a soft dependency: the evaluator orders the
-// grab after it unless that would close a cycle. A path that starts
+// grab after it unless that would close a cycle. When the target is
+// known, every operator under it is a soft dependency instead, as it is
+// for a path with no bracket key. A path that starts
 // with such a key, as "$[k]" does, has the whole document before it. A
 // LogicalOr argument contributes the dependencies of both sides,
 // because grab may try either.
@@ -130,6 +132,7 @@ func referenceBracketDependencies(ev *Evaluator, nodes []string, bracketed []boo
 	}
 	if known {
 		hard = append(hard, &tree.Cursor{Nodes: target})
+		soft = operatorsUnder(ev, target, locs)
 	}
 	return hard, soft
 }
