@@ -333,12 +333,19 @@ func referenceNameSpans(lit string, base int) []nameSpan {
 // directly followed by a '+' or a '=' gets a space after it. The lexer
 // glues "+name" and "=value" onto a dotted segment but not onto a bare
 // identifier, so without the space "svc+x" would become one key instead
-// of an addition.
+// of an addition. An expression that is a defer call is returned as
+// written, because defer writes it back out for a later merge.
 func rewriteVarRefs(inner string, targets map[string]string, engine graft.Engine) string {
 	if !mentionsAny(inner, targets) {
 		return inner
 	}
 	calls := graft.OperatorCallNames(engine, inner)
+	if calls[len(inner)-len(strings.TrimLeft(inner, " \t"))] == "defer" {
+		// defer writes its expression back out for a later merge, which
+		// cannot see this loop's bindings, so the expression stays as
+		// the user wrote it.
+		return inner
+	}
 	var out strings.Builder
 	last := 0
 	for _, sp := range pathNameSpans(inner, engine, calls) {

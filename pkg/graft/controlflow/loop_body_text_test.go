@@ -239,3 +239,26 @@ hdr:
 		}
 	}
 }
+
+// TestLoopBodyDeferWritesTheWrittenText checks that defer in a loop
+// body writes the expression as the user wrote it in the body, which is
+// what the same defer writes outside a loop.
+func TestLoopBodyDeferWritesTheWrittenText(t *testing.T) {
+	src := `items: [{name: A, ip: 10.0.0.1}]
+out:
+(( for svc in items ))
+  - (( defer svc.name ))
+  - (( defer grab svc.ip ))
+  - (( defer concat svc.name "-" (grab svc.ip) ))
+(( done ))
+`
+	want := "[(( svc.name )) (( grab svc.ip )) (( concat svc.name \"-\" grab svc.ip ))]"
+	for _, mode := range rootRefModes {
+		t.Run(mode.name, func(t *testing.T) {
+			data := runLoopMergeYAML(t, mode.opts, src)
+			if got := fmt.Sprint(data["out"]); got != want {
+				t.Errorf("out = %s, want %s", got, want)
+			}
+		})
+	}
+}

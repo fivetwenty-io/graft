@@ -185,3 +185,27 @@ func TestRewriteVarRefs_CalcStrings(t *testing.T) {
 		})
 	}
 }
+
+// TestRewriteVarRefs_Defer pins that the rewrite leaves a defer
+// expression as written, and still rewrites a path named defer.
+func TestRewriteVarRefs_Defer(t *testing.T) {
+	const svc, deferVar = "__graft_loop.l1.0.svc", "__graft_loop.l1.0.defer"
+	targets := map[string]string{"svc": svc, "defer": deferVar}
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"defer of an operator", ` defer grab svc.ip `, ` defer grab svc.ip `},
+		{"defer of a bare path", `defer svc.name`, `defer svc.name`},
+		{"grab of a path named defer", `grab defer.svc`, `grab ` + deferVar + `.svc`},
+		{"concat with a variable named defer", `concat defer svc`, `concat ` + deferVar + ` ` + svc},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rewriteVarRefs(tc.in, targets, nil); got != tc.want {
+				t.Fatalf("rewriteVarRefs(%q)\n got  %q\n want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
