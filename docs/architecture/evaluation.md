@@ -121,7 +121,7 @@ When the check finds an operator that hasn't run, the grab fails with an error t
 
 #### Limits
 
-The record protects a grab and the operators that call one, but it doesn't protect an operator that reads a value some grab handed on. Take `a: (( grab meta ))`, with `meta.l: [(( concat "1" (join "," a.n) ))]` and `meta.m: (( join "," a.l ))` beside it. The grab writes the map at `meta` into `a`, so `a.l` and `meta.l` are the same list. The `join` at `meta.m` reads `a.l` through its own argument, not through a grab, so nothing checks that list against the record. In parallel mode the `join` can run before the `concat` in that list, and `meta.m` then holds the `concat` call's text. Graft did the same before it ordered grabs after the operators under their targets, and a fix would mean checking every operator's arguments against the record, which this release doesn't do.
+The record protects a grab and the operators that call one, but it doesn't protect an operator that reads a value some grab handed on. Take `a: (( grab meta ))`, with `meta.n: [q]`, `meta.l: [(( concat "1" (join "," a.n) ))]`, and `meta.m: (( join "," a.l ))` beside it. The grab writes the map at `meta` into `a`, so `a.l` and `meta.l` are the same list. The `join` at `meta.m` reads `a.l` through its own argument, not through a grab, so nothing checks that list against the record. In parallel mode the `join` can run before the `concat` in that list, and `meta.m` then holds the `concat` call's text. Graft did the same before it ordered grabs after the operators under their targets, and a fix would mean checking every operator's arguments against the record, which this release doesn't do.
 
 ### Dependency Graph Construction
 
