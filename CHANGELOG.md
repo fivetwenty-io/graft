@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- With `--go-patch`, an op whose value is written as `~`, `Null`, or `NULL` now sets its path to null, as it does in spruce, and so does an anchored `~` or an alias to one. Before, graft reported "Missing value" for it. A value written as `null`, an empty value, and a value tagged `!!null` still fail with "Missing value", as they do in spruce, because spruce's YAML library leaves those unset. A `remove` op with `value: ~` now fails with "Cannot specify value", as in spruce.
+
 - The error for a node with two tags, as in `a:\n  b: !x !y`, now names the line of the second tag, counted from 1. Before, it named the line above, as spruce does, and named no line at all when the tags sat on the first line. The error still quotes no value.
 
 - An environment variable that holds a dash followed by a tab inside a flow collection, as in `[-<TAB>a]` or `{a: -<TAB>b}`, now keeps its text, as it does in spruce. Before, it decoded to a nested list.

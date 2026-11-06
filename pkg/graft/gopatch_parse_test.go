@@ -182,3 +182,63 @@ func TestGoPatchReadsBoolWordsAsMergeDoes(t *testing.T) {
 		t.Errorf("patched = %#v, want %#v", got, want)
 	}
 }
+
+// TestParseGoPatchNullValue pins which spellings of a null value spruce's
+// YAML library gives go-patch as a value. ~, Null, and NULL set the path
+// to null, as an anchored ~ and an alias to one do, while null, an empty
+// value, and any null with a !!null tag leave the op with no value, and
+// so does an alias to null.
+func TestParseGoPatchNullValue(t *testing.T) {
+	cases := []struct {
+		value string
+		set   bool
+	}{
+		{"~", true},
+		{"Null", true},
+		{"NULL", true},
+		{"&n ~", true},
+		{"null", false},
+		{"", false},
+		{"!!null ~", false},
+		{"!!null", false},
+		{"!!null null", false},
+		{"&n null", false},
+	}
+	for _, c := range cases {
+		t.Run(c.value, func(t *testing.T) {
+			ops, err := ParseGoPatch([]byte("- type: replace\n  path: /a\n  value: " + c.value + "\n"))
+			if !c.set {
+				if err == nil || !strings.Contains(DetailedError(err), "Missing value") {
+					t.Fatalf("ParseGoPatch error = %v, want Missing value", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ParseGoPatch: %v", err)
+			}
+			got, err := ops.Apply(map[any]any{"a": 1, "b": 2})
+			if err != nil {
+				t.Fatalf("Apply: %v", err)
+			}
+			if want := (map[any]any{"a": nil, "b": 2}); !reflect.DeepEqual(got, want) {
+				t.Fatalf("Apply = %#v, want %#v", got, want)
+			}
+		})
+	}
+
+	for doc, want := range map[string]string{
+		"- type: replace\n  path: /a\n  x: &z ~\n  value: *z\n":                                 "",
+		"- {type: replace, path: /a, value: ~}\n":                                               "",
+		"- type: replace\n  path: /a\n  x: &z null\n  value: *z\n":                              "Missing value",
+		"- type: replace\n  path: /a\n  value: ~\n- type: replace\n  path: /b\n  value: null\n": "Replace operation [1]: Missing value",
+		"- type: remove\n  path: /a\n  value: ~\n":                                              "Cannot specify value",
+	} {
+		_, err := ParseGoPatch([]byte(doc))
+		if want == "" && err != nil {
+			t.Errorf("%q: ParseGoPatch: %v", doc, err)
+		}
+		if want != "" && (err == nil || !strings.Contains(DetailedError(err), want)) {
+			t.Errorf("%q: ParseGoPatch error = %v, want %q", doc, err, want)
+		}
+	}
+}

@@ -437,6 +437,29 @@ func ParseFirstBody(data []byte, tag bool) (ast.Node, error) {
 	return PrepareBody(body, tag)
 }
 
+// ParseFirstBodyAsWritten parses data and returns the root node of its
+// first document with every alias expanded and every merge key folded,
+// as ExpandBody describes, or nil when data holds no document. Unlike
+// ParseFirstBody, it leaves each tag where the text put it and resolves
+// none, so a caller can tell how a scalar was written, such as a null
+// written as ~ from one written as !!null ~. It fails an alias inside
+// its own anchor's collection, and a document that expands past
+// maxExpandedNodes.
+func ParseFirstBodyAsWritten(data []byte) (ast.Node, error) {
+	file, err := yamlnode.ParseBytes(data, 0)
+	if err != nil {
+		return nil, err
+	}
+	body := yamlnode.FirstBody(file)
+	if body == nil {
+		return nil, nil
+	}
+	if err := CheckAnchors(body); err != nil {
+		return nil, err
+	}
+	return ExpandBody(body)
+}
+
 // PrepareBody is the part of ParseFirstBody that follows the parse. It
 // takes body, the root node of a document, which may come from goccy's
 // parser or be built by hand, and returns it ready for DecodeBody. It
