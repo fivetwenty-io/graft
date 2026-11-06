@@ -14,10 +14,8 @@ import (
 // shapes.
 func TestSchedulerBarrierMembersKeepWaves(t *testing.T) {
 	for seed := int64(1); seed <= 200; seed++ {
-		rng := rand.New(rand.NewSource(seed))
-		full := randomSchedTasks(rng)
-		rng = rand.New(rand.NewSource(seed))
-		lean := randomSchedTasks(rng)
+		full := randomSchedTasks(seededRand(seed))
+		lean := randomSchedTasks(seededRand(seed))
 
 		place := make(map[string]int, len(full))
 		for i, task := range full {
@@ -47,6 +45,13 @@ func TestSchedulerBarrierMembersKeepWaves(t *testing.T) {
 			}
 		}
 	}
+}
+
+// seededRand returns a generator that gives the same graphs for the
+// same seed.
+func seededRand(seed int64) *rand.Rand {
+	//nolint:gosec // G404: the graphs must repeat for a seed, and nothing here is secret
+	return rand.New(rand.NewSource(seed))
 }
 
 // randomSchedTasks returns tasks in order, each with hard dependencies
