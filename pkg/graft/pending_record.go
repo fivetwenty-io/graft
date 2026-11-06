@@ -6,6 +6,17 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
+// ErrNotEvaluated is the error that every (( grab )) of an operator
+// that has not run yet matches with errors.Is. A grab fails this way
+// when the value it would hand on holds an operator of the same phase
+// that has not run, and the dependency graph could not order the grab
+// after it, so the grab never passes that operator's text on as data.
+// The match holds through the errors that Merge(...).Execute and
+// Evaluate return, and through the error list a merge with several
+// failures returns, so a caller can tell this failure apart from every
+// other.
+var ErrNotEvaluated = pending.ErrNotEvaluated
+
 //nolint:gochecknoinits // the operators package reads the pending record and the path index through these hooks from its first call
 func init() {
 	pending.SetLookup(func(ev any) *pending.Record {
