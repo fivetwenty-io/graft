@@ -100,7 +100,9 @@ value of << is a list of maps, an earlier map wins over a later one, and a
 second << key in the mapping writes over the first. A << whose value is
 neither a map nor a list of maps fails with an ErrorKindSyntax error at the
 line of the <<, and so does a << whose value is an alias to a list, which
-spruce refuses even though it takes the same list written in place.
+spruce refuses even though it takes the same list written in place. A plain
+<< written after the explicit key indicator, as in "? <<", is a merge key
+too, and a quoted << is an ordinary key.
 
 A Node target merges nothing, so that it stays a lossless picture of the
 text. It keeps each << key and its value as written, with an alias still an

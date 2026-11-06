@@ -163,6 +163,14 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Impact.** The exit code and the failure are the same in both tools, and only the text on stderr differs. A script that matches spruce's error text won't match graft's, and a log that keeps stderr can hold the lines the snippet quotes. Dropping the snippet would make graft's errors harder to read, so we have not changed it yet.
 
+### tagged-merge-keys-fail-to-parse
+
+**Current behavior.** A `<<` key with a tag before it fails to parse in `graft merge` and `pkg/yaml`. The shape `!!merge <<: {a: 1}` merges, but `? !!merge <<` on one line with its value on the next fails with "could not find merge key", and `!!str <<: {a: 1}` fails with "unexpected scalar value". goccy's parser expects a merge key after a tag in those places, and its scanner reads neither `<<` as one.
+
+**Expected behavior.** spruce merges `{a: 1}` for `? !!merge <<`, and it reads `!!str <<` as an ordinary key named `<<`.
+
+**Impact.** Both shapes fail loudly, so graft never gives different output for them. A template that writes a tag on a merge key has to drop the tag, or write the plain `<<:` form, before graft reads it.
+
 ### memory-use-on-very-large-single-line-inputs
 
 **Current behavior.** graft needs a lot of memory for a file with a very long single line, because its YAML library builds a token list and a syntax tree at roughly 1 KB per token. We measured peak resident size with `/usr/bin/time -l` on three rejected inputs and on one valid input. The first line of `r2m3` and `r2m5` is `a: [[], [], ...` and runs to about 800,000 bytes, which is 400,000 tokens or more, followed by a `...#c` line in `r2m3` or a `...` line in `r2m5`, and then 500,000 lines of `# pad`. The third file, `r2m7`, is `a: 1` followed by a `...#c` line and the same kind of padding. The valid input is a single line of 800,000 `[]` tokens in a file of 3,200,004 bytes.

@@ -573,7 +573,7 @@ func bareKey(t *Node, i int) bool {
 // in its place. A << merge key repeats no key, since a second one is a
 // second merge, as the text route reads it.
 func (b *astBuilder) checkKey(keys *yamlnode.KeySet[*token.Position], key ast.MapKeyNode, alias bool) {
-	if !alias && key.IsMergeKey() {
+	if !alias && yamlnode.IsMergeKey(key) {
 		return
 	}
 	id, _ := yamlnode.KeyIDOf(key)

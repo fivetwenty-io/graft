@@ -61,6 +61,12 @@ func TestMergeKeysFollowSpruce(t *testing.T) {
 		{"second merge key wins",
 			"b: &b {a: 1, b: 1}\nm:\n  <<: *b\n  <<: {a: 2}\n  c: 9\n",
 			map[string]int{"a": 2, "b": 1, "c": 9}},
+		{"explicit merge key",
+			"b: &b {a: 1, c: 1}\nm:\n  ? <<\n  : *b\n  c: 2\n",
+			map[string]int{"a": 1, "c": 2}},
+		{"two explicit merge keys",
+			"m:\n  ? <<\n  : {a: 1, b: 1}\n  ? <<\n  : [{a: 2}]\n",
+			map[string]int{"a": 2, "b": 1}},
 	}
 	for _, c := range cases {
 		for name, opts := range map[string]yaml.DecodeOptions{"strict": {}, "callback": collect(new([]yaml.DuplicateKey))} {
@@ -162,6 +168,36 @@ func TestMergeKeyValueRefusedOnEveryTarget(t *testing.T) {
 		var v any
 		if err := n.Decode(&v); err == nil || !strings.Contains(err.Error(), "map merge") {
 			t.Errorf("%q: Node.Decode error = %v, want the merge error", doc, err)
+		}
+	}
+}
+
+// TestQuotedMergeKeyIsAKey pins that a quoted << key, or one with a
+// string tag, is an ordinary key on every target, as spruce reads it.
+func TestQuotedMergeKeyIsAKey(t *testing.T) {
+	for _, doc := range []string{
+		"m:\n  \"<<\": {a: 1}\n",
+		"m:\n  '<<': {a: 1}\n",
+		"m:\n  ? \"<<\"\n  : {a: 1}\n",
+		"m:\n  ? !!str <<\n  : {a: 1}\n",
+	} {
+		want := map[string]any{"<<": map[string]any{"a": 1}}
+		var direct map[string]map[string]any
+		if err := yaml.Unmarshal([]byte(doc), &direct); err != nil {
+			t.Fatalf("%q: %v", doc, err)
+		}
+		var n yaml.Node
+		if err := yaml.Unmarshal([]byte(doc), &n); err != nil {
+			t.Fatalf("%q into Node: %v", doc, err)
+		}
+		var back map[string]map[string]any
+		if err := n.Decode(&back); err != nil {
+			t.Fatalf("%q: Node.Decode: %v", doc, err)
+		}
+		for target, got := range map[string]map[string]any{"map": direct["m"], "Node.Decode": back["m"]} {
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("%q: %s m = %v, want %v", doc, target, got, want)
+			}
 		}
 	}
 }

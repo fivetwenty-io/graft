@@ -205,7 +205,7 @@ func (c *dupChecker) mapping(pairs []*ast.MappingValueNode, flow bool) {
 			continue
 		}
 		at := pair.Key.GetToken()
-		if !pair.Key.IsMergeKey() && (!flow || pair.Start != at) {
+		if !IsMergeKey(pair.Key) && (!flow || pair.Start != at) {
 			id, _ := KeyIDOf(pair.Key)
 			if first, repeat := keys.Add(id, at); repeat && at != nil && at.Position != nil {
 				c.err = &yaml.SyntaxError{Message: duplicateKeyMessage + place(first), Token: at}

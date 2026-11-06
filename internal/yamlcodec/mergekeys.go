@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/goccy/go-yaml/ast"
+	"github.com/goccy/go-yaml/token"
 
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
@@ -24,16 +25,21 @@ func ExpandBody(body ast.Node) (ast.Node, error) {
 	if err != nil || !merges.found {
 		return body, err
 	}
+	for _, key := range merges.explicit {
+		key.Value = explicitMergeKey(key.Value)
+	}
 	x := &mergeExpander{done: make(map[ast.Node]ast.Node), aliasValued: merges.aliasValued}
 	return x.node(body)
 }
 
 // mergeKeys is what findMergeKeys learns of a document before its
-// aliases expand. found says it holds a merge key, and aliasValued holds
-// each merge key pair whose value is an alias.
+// aliases expand. found says it holds a merge key, aliasValued holds
+// each merge key pair whose value is an alias, and explicit holds each
+// merge key written as "? <<", which goccy reads as a string.
 type mergeKeys struct {
 	found       bool
 	aliasValued map[*ast.MappingValueNode]bool
+	explicit    []*ast.MappingKeyNode
 }
 
 // findMergeKeys walks body, whose aliases have not expanded yet, for
@@ -43,7 +49,8 @@ type mergeKeys struct {
 // spruce's YAML library refuses a merge key whose value is an alias to a
 // sequence, though it reads the same sequence written in place, so the
 // pairs whose value is an alias are recorded before expansion hides
-// them.
+// them. A "? <<" key is recorded too, since once an alias puts a <<
+// string inside an explicit key, as "? *x" does, the two look alike.
 func findMergeKeys(body ast.Node) mergeKeys {
 	m := mergeKeys{aliasValued: make(map[*ast.MappingValueNode]bool)}
 	ast.Walk(&m, body)
@@ -51,13 +58,30 @@ func findMergeKeys(body ast.Node) mergeKeys {
 }
 
 func (m *mergeKeys) Visit(n ast.Node) ast.Visitor {
-	if pair, ok := n.(*ast.MappingValueNode); ok && pair.Key != nil && pair.Key.IsMergeKey() {
+	if pair, ok := n.(*ast.MappingValueNode); ok && yamlnode.IsMergeKey(pair.Key) {
 		m.found = true
+		if yamlnode.ExplicitMergeKey(pair.Key) != nil {
+			m.explicit = append(m.explicit, pair.Key.(*ast.MappingKeyNode))
+		}
 		if _, alias := pair.Value.(*ast.AliasNode); alias {
 			m.aliasValued[pair] = true
 		}
 	}
 	return m
+}
+
+// explicitMergeKey returns the merge key node to put inside a "? <<"
+// key in place of n, the << string goccy read there, so that the key
+// reads as a merge key from then on. The string itself is left as it
+// is, since an alias to its anchor may name it.
+func explicitMergeKey(n ast.Node) ast.Node {
+	s, ok := n.(*ast.StringNode)
+	if !ok || s.Token == nil {
+		return n
+	}
+	tk := *s.Token
+	tk.Type = token.MergeKeyType
+	return ast.MergeKey(&tk)
 }
 
 // mergeExpander folds the merge keys of a document whose aliases have

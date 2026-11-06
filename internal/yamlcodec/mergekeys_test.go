@@ -51,6 +51,29 @@ func TestMergeKeysFollowSpruce(t *testing.T) {
 		{"single pair source", "m:\n  <<: {a: 1}\n", map[string]any{"a": 1}},
 		{"empty list", "m:\n  <<: []\n  a: 1\n", map[string]any{"a": 1}},
 		{"empty map", "m:\n  <<: {}\n", map[string]any{}},
+		{"explicit merge key",
+			"b: &b {a: 1, c: 1}\nm:\n  ? <<\n  : *b\n  c: 2\n",
+			map[string]any{"a": 1, "c": 2}},
+		{"explicit merge key with a list",
+			"x: &x {a: 1}\ny: &y {a: 2, d: 2}\nm:\n  ? <<\n  : [*x, *y]\n",
+			map[string]any{"a": 1, "d": 2}},
+		{"explicit merge key with spaces and a comment",
+			"m:\n  ?   <<   # c\n  :   {a: 1}\n  b: 2\n",
+			map[string]any{"a": 1, "b": 2}},
+		{"anchored explicit merge key", "m:\n  ? &x <<\n  : {a: 1}\n", map[string]any{"a": 1}},
+		{"two explicit merge keys",
+			"m:\n  ? <<\n  : {a: 1}\n  ? <<\n  : [{a: 2}]\n",
+			map[string]any{"a": 2}},
+		{"explicit and plain merge keys",
+			"m:\n  ? <<\n  : {a: 1}\n  <<: {a: 2, b: 1}\n",
+			map[string]any{"a": 2, "b": 1}},
+		{"double-quoted key is no merge", "m:\n  \"<<\": {a: 1}\n", map[string]any{"<<": map[string]any{"a": 1}}},
+		{"single-quoted key is no merge", "m:\n  '<<': {a: 1}\n", map[string]any{"<<": map[string]any{"a": 1}}},
+		{"quoted explicit key is no merge", "m:\n  ? \"<<\"\n  : {a: 1}\n", map[string]any{"<<": map[string]any{"a": 1}}},
+		{"string-tagged explicit key is no merge", "m:\n  ? !!str <<\n  : {a: 1}\n", map[string]any{"<<": map[string]any{"a": 1}}},
+		{"explicit alias to a << string is no merge",
+			"k: &x <<\nm:\n  ? *x\n  : {a: 1}\n",
+			map[string]any{"<<": map[string]any{"a": 1}}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -68,11 +91,11 @@ func TestMergeKeysFollowSpruce(t *testing.T) {
 
 // TestMergeKeysInListItems pins merge keys in the maps of a list.
 func TestMergeKeysInListItems(t *testing.T) {
-	v, err := decodeMerge(t, "l:\n- <<: {a: 1}\n  b: 2\n- <<: [{a: 3}, {a: 4, c: 4}]\n")
+	v, err := decodeMerge(t, "l:\n- <<: {a: 1}\n  b: 2\n- <<: [{a: 3}, {a: 4, c: 4}]\n- ? <<\n  : {e: 5}\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []any{map[string]any{"a": 1, "b": 2}, map[string]any{"a": 3, "c": 4}}
+	want := []any{map[string]any{"a": 1, "b": 2}, map[string]any{"a": 3, "c": 4}, map[string]any{"e": 5}}
 	if got := v.(map[string]any)["l"]; !reflect.DeepEqual(got, want) {
 		t.Fatalf("l = %#v, want %#v", got, want)
 	}
@@ -98,6 +121,9 @@ func TestMergeKeyValueRefused(t *testing.T) {
 		{"x: &x s3kr1t\nm:\n  <<: [*x]\n", 3},
 		{"x: &x [1]\nm:\n  <<: [*x]\n", 3},
 		{"x: &x {a: 1}\nm:\n  <<: [*x, s3kr1t]\n", 3},
+		{"m:\n  ? <<\n  : s3kr1t\n", 2},
+		{"m:\n  ? <<\n", 2},
+		{"s: &s [{a: 1}]\nm:\n  ? <<\n  : *s\n", 3},
 	}
 	for _, c := range cases {
 		t.Run(c.doc, func(t *testing.T) {
