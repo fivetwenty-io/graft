@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The error for a node with two tags, as in `a:\n  b: !x !y`, now names the line of the second tag, counted from 1. Before, it named the line above, as spruce does, and named no line at all when the tags sat on the first line. The error still quotes no value.
+
 - An environment variable that holds a dash followed by a tab inside a flow collection, as in `[-<TAB>a]` or `{a: -<TAB>b}`, now keeps its text, as it does in spruce. Before, it decoded to a nested list.
 
 - The errors from `(( ips ... ))` no longer quote the address, the CIDR, or the numbers in the call. They name the path and the problem, as "first argument must be a valid IP or CIDR", "start index exceeds size of subnet", and "start index and count would exceed size of subnet". Before, the text the graft CLI printed held the value, which can come from an environment variable or a secret.
