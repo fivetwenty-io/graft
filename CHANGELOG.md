@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A custom operator can implement the new `SoftDependent` interface to name paths it should run after when it can. Graft adds each of those edges only when it would not close a cycle, so a soft dependency never turns a document that evaluates into a cycle error.
+
 ### Fixed
+
+- A grab through a bracket now waits for the key and for the path the key names, in both evaluator modes. With `k: x`, the line `(( grab tgt[k] ))` runs after `k` and after any operator at `tgt.x`, and `(( grab $[k] ))` does the same at the root. When an operator computes the key, the grab also runs after the operators under the path before the bracket, unless that would close a cycle, so sibling grabs that point into the same map still evaluate. Before, the grab could run first and fail with "unable to resolve", or return the target's operator text as its value. The dependency sort is faster as well, so a document with thousands of operators sorts in a few milliseconds.
+
+- A grab that reads a path whose operator is scheduled and has not run yet, where graft can't order the grab after it, now fails with an error that names the grab's path and the target's path and quotes no value. Before, the grab returned the operator text, as spruce does. The check uses the evaluator's record of the operators that have not run, so the output of `(( defer ))`, a quoted string that holds `((`, and a literal whose text holds `((` are still grabbed as data. A `||` fallback doesn't hide the error. A grab of a computed path, such as `(( grab (concat "meta." k) ))`, can now fail this way where it used to return operator text.
 
 - A `/` right after an operator name that carries a `:modifier` or an `@target` now begins a reference, as it already did after a plain operator name, so `(( grab:nocache /b ))`, `(( vault@prod /b ))`, and `(( vault:nocache@prod /b ))` read the key `/b`. Before, the modifier or target name counted as a left operand, so the `/` divided it and the call failed with "no arguments specified" or "requires at least one argument". Inside a loop, a modifier or target name is no longer taken for the loop variable, so a loop over `prod` leaves `vault@prod` alone. Spruce has no modifiers or targets and leaves these expressions in the output unevaluated.
 

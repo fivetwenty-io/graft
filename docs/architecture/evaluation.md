@@ -75,13 +75,35 @@ func (GrabOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Curso
     for _, arg := range args {
         if arg != nil {
             deps = append(deps, arg.Dependencies(ev, locs)...)
+            hard, _ := bracketDependencies(ev, arg, locs)
+            deps = append(deps, hard...)
         }
     }
     return deps
 }
 ```
 
-`grab`'s own contribution is nothing beyond `auto` and each argument's own `Dependencies` - the reference itself, resolved to a cursor, is what `Expr.Dependencies` already added to `auto` for a plain `(( grab some.path ))`.
+For a plain `(( grab some.path ))`, `grab` adds nothing beyond `auto` and each argument's own `Dependencies`, because `Expr.Dependencies` already put the reference itself into `auto`.
+
+A path with a bracket key, such as `(( grab meta[k] ))` or `(( grab $[k] ))`, needs more, because the reference as written reads the key's name as a literal node and so names the wrong path. `bracketDependencies` adds the key's own path, so the grab runs after whatever computes the key. When every key in the path already holds its value in the tree, it also adds the path with those values in place, so the grab runs after whatever computes the value it reaches.
+
+#### Soft dependencies
+
+When an operator computes a bracket key, the grab's target is unknown until that operator runs. The grab then asks to run after every operator under the part of the path before the key, or after every operator in the phase for a path such as `$[k]`. Those requests are soft dependencies, and an operator makes them by implementing `SoftDependent`:
+
+```go
+type SoftDependent interface {
+    SoftDependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor) []*tree.Cursor
+}
+```
+
+`Opcall.SoftDependencies` collects them from the operator and from every operator call nested in its arguments, so `(( concat "v=" (grab tgt[k]) ))` makes the same requests a bare grab would. `dataFlowContext.addSoftEdges` adds an edge for each request unless the operator it names already waits on the grab, directly or through others. Such an edge would close a cycle, so it is dropped. A soft dependency therefore never turns a graph without cycles into one with them, and every cycle error still comes from hard dependencies alone.
+
+`addSoftEdges` visits operators in reverse evaluation order. When two sibling grabs each ask to run after the other, the one that sorts later gets its edge first, so it waits on the one that sorts earlier, and the two keep the order the sorted waves gave them before. The parallel scheduler recomputes each operator's dependencies, and it keeps a soft one only when the operator it names comes earlier in `DataFlow`'s order. That is exactly the set of soft edges the sequential graph kept, so both evaluators order a bracket grab the same way, and `BuildDependencyGraph` reports the soft edges along with the hard ones.
+
+#### Operators that have not run
+
+A dependency edge can't order every grab. A grab whose key names a sibling that waits on it, or a grab of two or more paths that copies a list entry no edge points to, can still run before the operator at its target. While a phase runs, the evaluator keeps a record of the operators that are scheduled and have not run yet, in both modes. `(( grab ))` checks its target against that record, and when the target is one of them it fails with an error that names the grab's path and the target's path and quotes no value. The record decides, never the text at the path, so the output of `(( defer ))`, an unspaced `(( a/b ))`, a literal, and a string that merely holds `((` are all grabbed as data. A grab of one path is not checked below its target, because it hands back the same map or list it finds there, and each operator inside that container writes its value into it when it runs.
 
 ### Dependency Graph Construction
 

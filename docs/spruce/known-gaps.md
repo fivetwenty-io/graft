@@ -294,6 +294,22 @@ random by design and differs run to run on either binary.
 
 **Impact.** We keep this on purpose, because one entry per pick splits a document that the picks describe as a single item. A script that counts on one entry per pick needs a different pick list.
 
+### bracket-grab-waits-for-a-computed-target
+
+**Graft behavior.** A grab through a bracket waits for the operator at the path it reads. With `k: x` and `tgt.x: (( concat "computed" "-value" ))`, the line `aa: (( grab tgt[k] ))` gives `computed-value` in both evaluator modes, because graft orders the grab after the key and after the target it names. When an operator computes the key, the grab also waits for the operators under the path before the bracket, unless that wait would close a cycle.
+
+**Spruce behavior.** spruce orders the grab after the key but not after the target, so `aa` comes out as the text `(( concat "computed" "-value" ))` when the grab happens to run first.
+
+**Impact.** We keep this on purpose, because operator text in the output is never what a template means. A template that worked in spruce gets the value its grab names, and the only output that changes is output that held raw operator text.
+
+### grab-of-an-operator-yet-to-run-is-an-error
+
+**Graft behavior.** When a grab reads a path whose operator is scheduled and has not run yet, and graft can't order the grab after it, the grab fails. The error names the grab's path and the target's path and quotes no value, as in `(( grab )) at $.meta.p1 reads $.meta.p2 before the operator there has run`. That happens when two sibling grabs name each other in the wrong order through computed keys, when the operator at the target reads the grab itself, and when a grab of several paths flattens a list whose entry still holds an operator, as in `(( grab b.list c ))` with `b.list` holding a `(( concat ))`. A `||` fallback doesn't hide the error. The check uses the evaluator's own record of the operators that have not run, so text that only looks like an operator, such as the output of `(( defer ))` or a quoted string that holds `((`, is still grabbed as data.
+
+**Spruce behavior.** spruce returns the operator text it finds. In the sibling case it gives `p1` the text `(( grab meta[k] ))`, and in the flattened list it puts `(( concat "a" "b" ))` in the result. When the target's operator reads the grab, spruce fails too, but with a parse error that reads "unable to resolve `(grab`".
+
+**Impact.** We keep this on purpose, because a silent wrong value is worse than an error. A template that relied on spruce leaving operator text in its output now fails at the grab, and the error names both paths so the order can be fixed. Grabbing the list itself with one path, as in `(( grab b.list ))`, gives the evaluated entries, because the grab hands back the same list the operator later fills.
+
 ## Resolved
 
 Items that were tracked as open gaps and have since been closed. Kept

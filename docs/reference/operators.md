@@ -72,10 +72,15 @@ specified to `(( grab ... ))`".
 
 A path may start with `$.`, which names the document root the way spruce reads it, so `(( grab $.meta.a ))` is the same as `(( grab meta.a ))`. The `$.` form works anywhere a reference does, including inside `||`, as an argument to any operator, in a ternary branch, and as the subject of a `for` loop or a `case`. `--prune` and `--cherry-pick` accept it too. A bare `$.` with no path after it is a parse error.
 
+A bracket in a path holds a key that graft looks up first, so `(( grab meta.sizes[meta.size] ))` reads `meta.size` and then reads the entry of `meta.sizes` that it names. `(( grab $[k] ))` does the same at the document root. When an operator computes the key, the grab runs after it, and it also runs after the operator that computes the value the key picks out. When the key's target can't be known before the key is computed, the grab waits on every operator under the part of the path before the bracket, unless one of them already waits on the grab.
+
+A grab fails when its target still holds an operator that hasn't run and graft can't order the grab after it. Two sibling grabs whose keys name each other in the wrong order can do this, and so can a grab of two or more paths that copies a list entry whose operator hasn't run yet. The error names the grab's path and the target's path and quotes no value, and a `||` fallback doesn't hide it. Text that only looks like an operator, such as the output of `(( defer ))`, is still grabbed as data.
+
 ```yaml
 value: (( grab path.to.value ))
 combined: (( grab list_a list_b ))
 rooted: (( grab $.path.to.value ))
+picked: (( grab meta.sizes[meta.size] ))
 ```
 
 ### String operators
