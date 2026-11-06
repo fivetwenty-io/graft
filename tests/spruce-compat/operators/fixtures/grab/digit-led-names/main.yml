@@ -1,0 +1,31 @@
+# A run that starts with a digit but is not purely a number is one key,
+# so each one below reads a single key rather than a number and a name.
+"3em": k3em
+"1e": k1e
+"3abc": k3abc
+"2e5x": k2e5x
+"1e5a": k1e5a
+"3":
+  "5abc": k3.5abc
+abc: plain-abc
+x: plain-x
+
+em: (( grab 3em ))
+bare_e: (( grab 1e ))
+letters: (( grab 3abc ))
+after_exponent: (( grab 2e5x ))
+after_exponent_digit: (( grab 1e5a ))
+after_fraction: (( grab 3.5abc ))
+concat: (( concat "a" 3em "b" ))
+left_of_or: (( grab 3em || "d" ))
+right_of_or: (( grab missing || 3abc ))
+m:
+  "3x": m3x
+  "3e5": m3e5
+  "1e": m1e
+  "2e5x": m2e5x
+segment: (( grab m.3x ))
+segment_exponent: (( grab m.3e5 ))
+segment_bare_e: (( grab m.1e ))
+segment_concat: (( concat "a" m.2e5x ))
+segment_right_of_or: (( grab missing || m.3x ))

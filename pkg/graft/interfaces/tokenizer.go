@@ -414,9 +414,17 @@ func matchReferencePath(runes []rune, leadingSlash bool) (bool, int) {
 				// rejects the match and the scanner reads the number.
 				pos = consumeNumericSegment(runes, pos)
 			case unicode.IsDigit(runes[pos]):
-				// Consume numeric index
-				for pos < len(runes) && unicode.IsDigit(runes[pos]) {
-					pos++
+				// A segment that starts with a digit is a number, an
+				// index such as the 0 in "list.0", or a digit-led name,
+				// as the first segment can be. A name takes the rest of
+				// the run, so "m.3x" is the key "3x" inside "m", and a
+				// number takes its exponent, so "m.3e5" is the key "3e5".
+				// spruce reads both that way. A '-' or '+' after the
+				// number still ends the path, so "a.3-1" subtracts.
+				if end, isName := digitLedNameEnd(runes, pos); isName {
+					pos = consumePlusNames(runes, end)
+				} else {
+					pos = numberEnd(runes, pos)
 				}
 			case isIdentifierStart(runes[pos]):
 				// A name segment right after a whole number makes the
