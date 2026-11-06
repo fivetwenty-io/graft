@@ -421,9 +421,9 @@ func joinPath(base, segment string) string {
 }
 
 // buildDependencyGraph builds the dependency graph from all operators.
-// It returns the hard edges, which always hold, and the soft edges each
-// operator asks for, which the sort keeps only where they close no
-// cycle. Each edge is {dependency, dependent}.
+// It returns the hard edges, which always hold, and the soft barriers
+// the operators wait on, which the sort honors only where they close no
+// cycle. Each hard edge is {dependency, dependent}.
 //
 // ctx.ev.Here is set to each opcall's own path before calling its
 // Dependencies(), mirroring Opcall.Run's own "ev.Here = op.where" during
@@ -436,7 +436,7 @@ func joinPath(base, segment string) string {
 // always computes the wrong relative cursor, silently drops the one
 // dependency edge that would have ordered it correctly, and lets it run
 // before the sibling it actually needs.
-func (ctx *dataFlowContext) buildDependencyGraph() (hard, soft [][]*Opcall) {
+func (ctx *dataFlowContext) buildDependencyGraph() (hard [][]*Opcall, soft []*softBarrier) {
 	savedHere := ctx.ev.Here
 	ctx.ev.locIndex = oploc.New(ctx.locs, ctx.ev.Tree)
 	defer func() {
@@ -451,6 +451,7 @@ func (ctx *dataFlowContext) buildDependencyGraph() (hard, soft [][]*Opcall) {
 			}
 		}
 	}
+	barriers := make(map[string]*softBarrier)
 	keys := ctx.ev.getSortedKeys(ctx.all, ctx.insertionOrder)
 	for _, k := range keys {
 		a, ok := ctx.all[k]
@@ -458,15 +459,67 @@ func (ctx *dataFlowContext) buildDependencyGraph() (hard, soft [][]*Opcall) {
 			continue
 		}
 		ctx.ev.Here = a.where
-		seen := map[*Opcall]bool{}
 		for _, path := range a.SoftDependencies(ctx.ev, ctx.locs) {
-			if b := ctx.findDependency(path); b != nil && b != a && !seen[b] {
-				seen[b] = true
-				soft = append(soft, []*Opcall{b, a})
+			nodes := oploc.Canonical(path, ctx.ev.Tree).Nodes
+			id := oploc.Key(nodes)
+			bar, ok := barriers[id]
+			if !ok {
+				bar = &softBarrier{members: ctx.operatorsUnder(nodes), waiting: map[*Opcall]bool{}}
+				barriers[id] = bar
+				soft = append(soft, bar)
+			}
+			if !bar.waiting[a] {
+				bar.waiting[a] = true
+				bar.waiters = append(bar.waiters, a)
 			}
 		}
 	}
 	return hard, soft
+}
+
+// softBarrier is one soft dependency that any number of operators can
+// share. Its members are the operators at or under one path, and each of
+// its waiters runs after every member other than itself, when the graph
+// allows it. Sharing one barrier per path keeps the graph in proportion
+// to the members plus the waiters, where an edge from each member to
+// each waiter would grow with their product.
+type softBarrier struct {
+	members []*Opcall
+	waiters []*Opcall
+	waiting map[*Opcall]bool
+}
+
+// operatorsUnder returns the operators at or under the canonical path
+// nodes, each once, in the order the phase indexed them.
+func (ctx *dataFlowContext) operatorsUnder(nodes []string) []*Opcall {
+	locs := ctx.ev.locIndex.Under(nodes, nil)
+	out := make([]*Opcall, 0, len(locs))
+	seen := make(map[*Opcall]bool, len(locs))
+	for _, loc := range locs {
+		if b := ctx.findDependency(loc); b != nil && !seen[b] {
+			seen[b] = true
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// softPairs expands soft into one {dependency, dependent} pair for each
+// waiter and each member other than the waiter, with each pair once.
+func softPairs(soft []*softBarrier) [][]*Opcall {
+	var pairs [][]*Opcall
+	seen := make(map[[2]*Opcall]bool)
+	for _, bar := range soft {
+		for _, a := range bar.waiters {
+			for _, b := range bar.members {
+				if k := [2]*Opcall{b, a}; b != a && !seen[k] {
+					seen[k] = true
+					pairs = append(pairs, []*Opcall{b, a})
+				}
+			}
+		}
+	}
+	return pairs
 }
 
 // findDependency finds the dependency for a path in the operators map.
@@ -518,14 +571,73 @@ func (ctx *dataFlowContext) findParentDependency(path *tree.Cursor) *Opcall {
 // "three incompatible forms" note on Wave C's C9a plan section for why
 // that matters.
 type dataFlowGraph struct {
-	ctx   *dataFlowContext
-	edges [][]*Opcall // each element is {dependency, dependent}: edges[i][0] must run before edges[i][1]
+	ctx  *dataFlowContext
+	hard [][]*Opcall // each element is {dependency, dependent}: hard[i][0] must run before hard[i][1]
+	soft []*softBarrier
 
 	// order is the evaluation order the sort found, and sortErr is the
-	// cycle error it stalled on instead, if any. edges holds every hard
-	// edge and the soft edges the sort kept.
+	// cycle error it stalled on instead, if any.
 	order   []*Opcall
 	sortErr error
+}
+
+// edges returns every hard edge and the soft edges the sort kept, each
+// as {dependency, dependent}. A soft edge is kept when its dependency
+// sorted before its dependent, which is exactly when the sort honored
+// it. The list grows with each waiter's members, so it is built only
+// for the callers that ask for edges one by one.
+func (dfg *dataFlowGraph) edges() [][]*Opcall {
+	g := append([][]*Opcall(nil), dfg.hard...)
+	if len(dfg.soft) == 0 {
+		return g
+	}
+	pos := make(map[*Opcall]int, len(dfg.order))
+	for i, node := range dfg.order {
+		if _, ok := pos[node]; !ok {
+			pos[node] = i
+		}
+	}
+	hardPair := make(map[[2]*Opcall]bool, len(dfg.hard))
+	for _, pair := range dfg.hard {
+		hardPair[[2]*Opcall{pair[0], pair[1]}] = true
+	}
+	waits := make(map[*Opcall][]*softBarrier)
+	for _, bar := range dfg.soft {
+		for _, a := range bar.waiters {
+			waits[a] = append(waits[a], bar)
+		}
+	}
+	done := make(map[*Opcall]bool, len(pos))
+	for _, a := range dfg.order {
+		if done[a] {
+			continue
+		}
+		done[a] = true
+		for _, b := range keptBefore(a, waits[a], pos, hardPair) {
+			g = append(g, []*Opcall{b, a})
+		}
+	}
+	return g
+}
+
+// keptBefore returns the members of a's barriers that sorted before a,
+// which pos gives, other than a and those a hard edge already orders,
+// each once and in the order they sorted.
+func keptBefore(a *Opcall, barriers []*softBarrier, pos map[*Opcall]int, hardPair map[[2]*Opcall]bool) []*Opcall {
+	var kept []*Opcall
+	seen := make(map[*Opcall]bool)
+	for _, bar := range barriers {
+		for _, b := range bar.members {
+			at, ok := pos[b]
+			if b == a || seen[b] || !ok || at >= pos[a] || hardPair[[2]*Opcall{b, a}] {
+				continue
+			}
+			seen[b] = true
+			kept = append(kept, b)
+		}
+	}
+	sort.Slice(kept, func(i, j int) bool { return pos[kept[i]] < pos[kept[j]] })
+	return kept
 }
 
 // computeDataFlowGraph scans ev.Tree for phase's operator calls, builds
@@ -554,22 +666,25 @@ func (ev *Evaluator) computeDataFlowGraph(phase OperatorPhase) (*dataFlowGraph, 
 	if len(ev.Only) > 0 {
 		// A soft dependency of a picked operator is picked too, as a hard
 		// one is, so the filter sees both kinds and the split afterward
-		// tells them apart again.
-		isSoft := make(map[[2]*Opcall]bool, len(soft))
-		for _, e := range soft {
+		// tells them apart again. The filter works edge by edge, so each
+		// barrier is spread into its edges first and each soft edge kept
+		// becomes a barrier of its own.
+		pairs := softPairs(soft)
+		isSoft := make(map[[2]*Opcall]bool, len(pairs))
+		for _, e := range pairs {
 			isSoft[[2]*Opcall{e[0], e[1]}] = true
 		}
-		g := make([][]*Opcall, 0, len(hard)+len(soft))
+		g := make([][]*Opcall, 0, len(hard)+len(pairs))
 		g = append(g, hard...)
-		g = append(g, soft...)
+		g = append(g, pairs...)
 		g, err := ev.applyCherryPickFilter(g, ctx)
 		if err != nil {
 			return nil, err
 		}
-		hard, soft = hard[:0], soft[:0]
+		hard, soft = hard[:0], nil
 		for _, e := range g {
 			if isSoft[[2]*Opcall{e[0], e[1]}] {
-				soft = append(soft, e)
+				soft = append(soft, &softBarrier{members: []*Opcall{e[0]}, waiters: []*Opcall{e[1]}})
 			} else {
 				hard = append(hard, e)
 			}
@@ -577,14 +692,13 @@ func (ev *Evaluator) computeDataFlowGraph(phase OperatorPhase) (*dataFlowGraph, 
 	}
 
 	sortedKeys := ev.getSortedKeys(ctx.all, ctx.insertionOrder)
-	order, kept, sortErr := ev.kahnSort(hard, soft, ctx.all, sortedKeys)
-	g := append(hard, kept...)
+	order, sortErr := ev.kahnSort(hard, soft, ctx.all, sortedKeys)
 
-	for i, node := range g {
+	for i, node := range hard {
 		log.TRACE("data flow -- g[%d] is { %s:%s, %s:%s }\n", i, node[0].where, node[0].src, node[1].where, node[1].src)
 	}
 
-	return &dataFlowGraph{ctx: ctx, edges: g, order: order, sortErr: sortErr}, nil
+	return &dataFlowGraph{ctx: ctx, hard: hard, soft: soft, order: order, sortErr: sortErr}, nil
 }
 
 // DataFlow computes the dependency-ordered list of operators for a given phase.
@@ -714,30 +828,32 @@ func (ev *Evaluator) getSortedKeys(all map[string]*Opcall, insertionOrder []stri
 }
 
 // kahnSort performs Kahn's topological sort algorithm in waves over the
-// hard edges in hard and the soft edges in soft, and returns the order,
-// the soft edges it kept, and the cycle error it stalled on, if any.
-// Each edge is {dependency, dependent}. It leaves all as it found it.
+// hard edges in hard and the soft barriers in soft, and returns the
+// order and the cycle error it stalled on, if any. Each hard edge is
+// {dependency, dependent}. It leaves all as it found it.
 //
-// Each wave holds every unsorted operator that no hard edge and no soft
-// edge from an unsorted operator points to, in sortedKeys order, and the
-// wave's edges are released only once the whole wave is placed. When no
-// operator is free but some are held back by soft edges alone, the first
-// of those in sortedKeys order makes a wave by itself, and its soft edges
-// from operators still unsorted are dropped. A soft edge therefore never
-// closes a cycle, and of two operators that each ask to wait on the
-// other, the one that sorts later waits on the one that sorts earlier.
-// The soft edges kept are exactly those whose source comes before their
-// target in the order returned.
+// Each wave holds every unsorted operator that no hard edge from an
+// unsorted operator points to and that waits on no soft barrier with an
+// unsorted member other than itself, in sortedKeys order, and the wave's
+// edges are released only once the whole wave is placed. When no
+// operator is free but some are held back by soft barriers alone, the
+// first of those in sortedKeys order makes a wave by itself and stops
+// waiting on its barriers. A soft dependency therefore never closes a
+// cycle, and of two operators that each ask to wait on the other, the
+// one that sorts later waits on the one that sorts earlier.
 //
 // An edge from an operator that never sorts, such as a self-edge, is
 // never released, so the operators behind it stall and report a cycle
 // built from the hard edges alone.
 //
-// The work is in proportion to the operators and edges, plus a log
-// factor for keeping each wave in sortedKeys order.
+// Each barrier counts its unsorted members, and a waiter is told only
+// when that count falls to the point where every member but the waiter
+// has sorted. The work is therefore in proportion to the operators, the
+// edges, and the barriers' members and waiters, plus a log factor for
+// keeping each wave in sortedKeys order.
 //
 //nolint:gocyclo // the wave loop, the soft release, and the edge release share counters that are clearest kept together
-func (ev *Evaluator) kahnSort(hard, soft [][]*Opcall, all map[string]*Opcall, sortedKeys []string) ([]*Opcall, [][]*Opcall, error) {
+func (ev *Evaluator) kahnSort(hard [][]*Opcall, soft []*softBarrier, all map[string]*Opcall, sortedKeys []string) ([]*Opcall, error) {
 	// Each key in all is one entry of the order, numbered by its place in
 	// sortedKeys. An operator filed under two keys has two entries.
 	entryNode := make([]*Opcall, 0, len(all))
@@ -755,31 +871,28 @@ func (ev *Evaluator) kahnSort(hard, soft [][]*Opcall, all map[string]*Opcall, so
 
 	blockers := make(map[*Opcall]int, len(entries))
 	edgesFrom := make(map[*Opcall][]*Opcall, len(entries))
-	hardPair := make(map[[2]*Opcall]bool, len(hard))
 	for _, pair := range hard {
 		blockers[pair[1]]++
 		edgesFrom[pair[0]] = append(edgesFrom[pair[0]], pair[1])
-		hardPair[[2]*Opcall{pair[0], pair[1]}] = true
 	}
 	softBlockers := make(map[*Opcall]int, len(entries))
-	softFrom := make(map[*Opcall][]*Opcall, len(entries))
-	for _, pair := range soft {
-		b, a := pair[0], pair[1]
-		if b == a || entries[b] == nil || entries[a] == nil || hardPair[[2]*Opcall{b, a}] {
-			continue
+	memberOf := make(map[*Opcall][]*barrierCount, len(entries))
+	for _, bar := range soft {
+		count := newBarrierCount(bar, entries)
+		for _, b := range count.members {
+			memberOf[b] = append(memberOf[b], count)
 		}
-		softBlockers[a]++
-		softFrom[b] = append(softFrom[b], a)
+		for _, a := range count.blocked() {
+			softBlockers[a]++
+		}
 	}
 
 	sorted := make(map[*Opcall]bool, len(entries))
-	keptFor := make(map[*Opcall][][]*Opcall)
-	var kept [][]*Opcall
 	held := &entryHeap{}
 	var ready []int
 
 	// offer files node as ready when nothing holds it back, or as held
-	// back by soft edges alone when only those do.
+	// back by soft barriers alone when only those do.
 	offer := func(node *Opcall) {
 		switch {
 		case blockers[node] != 0:
@@ -816,7 +929,7 @@ func (ev *Evaluator) kahnSort(hard, soft [][]*Opcall, all map[string]*Opcall, so
 					remaining[k] = node
 				}
 			}
-			return ops, kept, ev.newCycleError(unsortedEdges(hard, sorted), remaining)
+			return ops, ev.newCycleError(unsortedEdges(hard, sorted), remaining)
 		}
 
 		sort.Ints(ready)
@@ -829,8 +942,6 @@ func (ev *Evaluator) kahnSort(hard, soft [][]*Opcall, all map[string]*Opcall, so
 			if !sorted[node] {
 				sorted[node] = true
 				free = append(free, node)
-				kept = append(kept, keptFor[node]...)
-				delete(keptFor, node)
 			}
 		}
 		ready = ready[:0]
@@ -842,19 +953,89 @@ func (ev *Evaluator) kahnSort(hard, soft [][]*Opcall, all map[string]*Opcall, so
 					offer(next)
 				}
 			}
-			for _, next := range softFrom[node] {
-				if sorted[next] || softBlockers[next] == 0 {
-					continue
-				}
-				keptFor[next] = append(keptFor[next], []*Opcall{node, next})
-				softBlockers[next]--
-				if softBlockers[next] == 0 && blockers[next] == 0 {
-					ready = append(ready, entries[next]...)
+			for _, count := range memberOf[node] {
+				for _, next := range count.sorted() {
+					if sorted[next] || softBlockers[next] == 0 {
+						continue
+					}
+					softBlockers[next]--
+					if softBlockers[next] == 0 && blockers[next] == 0 {
+						ready = append(ready, entries[next]...)
+					}
 				}
 			}
 		}
 	}
-	return ops, kept, nil
+	return ops, nil
+}
+
+// barrierCount is kahnSort's running count of one soft barrier.
+type barrierCount struct {
+	// members are the barrier's members that are in the order, each
+	// once, and left is how many of them have not sorted yet.
+	members []*Opcall
+	left    int
+	// outside are the waiters that are not members, which wait until
+	// left is 0, and inside are the waiters that are members, which wait
+	// until left is 1, because the one member left is then the waiter.
+	outside, inside []*Opcall
+}
+
+// newBarrierCount counts bar's members and waiters that have entries in
+// the order.
+func newBarrierCount(bar *softBarrier, entries map[*Opcall][]int) *barrierCount {
+	count := &barrierCount{}
+	member := make(map[*Opcall]bool, len(bar.members))
+	for _, b := range bar.members {
+		if entries[b] != nil && !member[b] {
+			member[b] = true
+			count.members = append(count.members, b)
+		}
+	}
+	count.left = len(count.members)
+	for _, a := range bar.waiters {
+		switch {
+		case entries[a] == nil:
+		case member[a]:
+			count.inside = append(count.inside, a)
+		default:
+			count.outside = append(count.outside, a)
+		}
+	}
+	return count
+}
+
+// blocked returns the waiters the barrier holds back before anything
+// sorts.
+func (c *barrierCount) blocked() []*Opcall {
+	var out []*Opcall
+	if c.left > 0 {
+		out = append(out, c.outside...)
+	} else {
+		c.outside = nil
+	}
+	if c.left > 1 {
+		out = append(out, c.inside...)
+	} else {
+		c.inside = nil
+	}
+	return out
+}
+
+// sorted records that one more member has sorted, and returns the
+// waiters that stop waiting on the barrier because of it.
+func (c *barrierCount) sorted() []*Opcall {
+	c.left--
+	var out []*Opcall
+	switch c.left {
+	case 1:
+		out, c.inside = c.inside, nil
+	case 0:
+		out, c.outside = c.outside, nil
+		out = append(out, c.inside...)
+		c.inside = nil
+	}
+	return out
 }
 
 // entryHeap is a min-heap of entry numbers, which kahnSort uses to find

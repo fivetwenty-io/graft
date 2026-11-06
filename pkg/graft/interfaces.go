@@ -173,14 +173,17 @@ type Operator interface {
 
 // SoftDependent is implemented by operators that should run after some
 // other operators when the dependency graph allows it, without making
-// those operators hard dependencies. The evaluator adds an edge for each
-// soft dependency unless the dependency already waits on the operator,
-// directly or through others, so a soft dependency never closes a
-// cycle. (( grab )) uses it for a path whose bracket key is computed,
-// where the operator that computes the target is not known until the
-// key is.
+// those operators hard dependencies. Each path an operator returns
+// stands for every operator at or under it, other than the operator
+// itself, and the evaluator orders the operator after all of them
+// unless that would close a cycle. Every operator that names the same
+// path shares one node in the graph, so a path with many operators
+// under it costs no more when many operators name it. (( grab )) uses
+// it for the path it reads, so the value it copies holds the results of
+// the operators under that path, and for a path whose bracket key is
+// computed, where the target is not known until the key is.
 type SoftDependent interface {
-	// SoftDependencies returns the paths of the operators this call
+	// SoftDependencies returns the paths whose operators this call
 	// should run after, given its arguments and every operator path in
 	// the phase.
 	SoftDependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor) []*tree.Cursor

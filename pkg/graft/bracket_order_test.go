@@ -427,3 +427,20 @@ func TestGrabBracketManyComputedKeys(t *testing.T) {
 	}
 	timeBracketDoc(t, doc.String(), "meta.m599", 599)
 }
+
+// TestGrabBracketComputedKeyOverManyOperators checks that 1600 grabs
+// with a computed key, over a map that holds 1600 operators, evaluate
+// quickly. Each grab waits on every operator in the map, so the graph
+// must not hold one edge for each grab and operator pair.
+func TestGrabBracketComputedKeyOverManyOperators(t *testing.T) {
+	var doc strings.Builder
+	doc.WriteString("src:\n")
+	for i := 0; i < 1600; i++ {
+		fmt.Fprintf(&doc, "  x%d: (( concat \"a\" \"%d\" ))\n", i, i)
+	}
+	doc.WriteString("kk: (( concat \"x\" \"5\" ))\n")
+	for i := 0; i < 1600; i++ {
+		fmt.Fprintf(&doc, "g%d: (( grab src[kk] ))\n", i)
+	}
+	timeBracketDoc(t, doc.String(), "g1599", "a5")
+}

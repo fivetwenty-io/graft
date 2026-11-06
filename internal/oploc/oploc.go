@@ -97,8 +97,13 @@ func Canonical(c *tree.Cursor, root interface{}) *tree.Cursor {
 	return c
 }
 
-// key encodes nodes so that no two paths share a key, even when a node
+// Key encodes nodes so that no two paths share a key, even when a node
 // holds a dot.
+func Key(nodes []string) string {
+	return key(nodes)
+}
+
+// key is Key.
 func key(nodes []string) string {
 	var b strings.Builder
 	for _, n := range nodes {

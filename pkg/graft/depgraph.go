@@ -100,7 +100,7 @@ func newDependencyGraph(phase OperatorPhase, dfg *dataFlowGraph) *DependencyGrap
 	// resolve to the same producing opcall. Dedup so Dependencies() and
 	// Dependents() each report a path once.
 	seen := make(map[string]bool)
-	for _, pair := range dfg.edges {
+	for _, pair := range dfg.edges() {
 		depPath := pair[0].canonical.String()
 		dependentPath := pair[1].canonical.String()
 		key := depPath + "\x00" + dependentPath
@@ -355,7 +355,7 @@ func (e *DefaultEngine) validateEvalPlan(data map[string]interface{}, waves []Ev
 			return fmt.Errorf("%w: could not compute live dependency graph for phase %v: %w", ErrInvalidEvalPlan, phase, err)
 		}
 
-		for _, pair := range dfg.edges {
+		for _, pair := range dfg.edges() {
 			depPath := pair[0].canonical.String()
 			dependentPath := pair[1].canonical.String()
 

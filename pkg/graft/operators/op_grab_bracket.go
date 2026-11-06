@@ -124,7 +124,7 @@ func referenceBracketDependencies(ev *Evaluator, nodes []string, bracketed []boo
 		case keyHeld:
 			target = append(target, name)
 		case keyComputed:
-			soft = operatorsUnder(ev, target, locs)
+			soft = []*tree.Cursor{canonicalPath(ev, &tree.Cursor{Nodes: append([]string(nil), target...)})}
 			known = false
 		case keyUnusable:
 			known = false
@@ -132,7 +132,7 @@ func referenceBracketDependencies(ev *Evaluator, nodes []string, bracketed []boo
 	}
 	if known {
 		hard = append(hard, &tree.Cursor{Nodes: target})
-		soft = operatorsUnder(ev, target, locs)
+		soft = []*tree.Cursor{canonicalPath(ev, &tree.Cursor{Nodes: append([]string(nil), target...)})}
 	}
 	return hard, soft
 }
@@ -172,18 +172,6 @@ func bracketKeyNow(ev *Evaluator, node string, key *tree.Cursor, locs []*tree.Cu
 		return "", keyUnusable
 	}
 	return name, keyHeld
-}
-
-// operatorsUnder returns every path in locs at or under prefix, except
-// the path of the operator whose dependencies are being built, which is
-// ev.Here. An empty prefix stands for the whole document.
-func operatorsUnder(ev *Evaluator, prefix []string, locs []*tree.Cursor) []*tree.Cursor {
-	base := canonicalPath(ev, &tree.Cursor{Nodes: append([]string(nil), prefix...)})
-	var self []string
-	if ev.Here != nil {
-		self = canonicalPath(ev, ev.Here).Nodes
-	}
-	return oploc.For(ev, locs, ev.Tree).Under(base.Nodes, self)
 }
 
 // canonicalPath returns c with list entries named by index, the form

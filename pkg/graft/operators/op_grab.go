@@ -369,14 +369,14 @@ func init() {
 	RegisterOp("grab", GrabOperator{})
 }
 
-// SoftDependencies returns the operators under the path each argument
-// reads, other than the grab itself. The grab runs after each of them
-// unless that would close a cycle, so the value it hands on holds their
-// values rather than their text. For a path with a dynamic bracket key
-// that an operator still has to compute, the target is not known yet,
-// so the operators under the path before that key stand in for it. A
-// LogicalOr argument contributes both sides. A path an expression
-// computes is not known until the grab runs and contributes nothing.
+// SoftDependencies returns the path each argument reads, so the grab
+// runs after the operators at or under it, other than the grab itself,
+// unless that would close a cycle. The value it hands on then holds
+// their values rather than their text. For a path with a dynamic
+// bracket key that an operator still has to compute, the target is not
+// known yet, so the path before that key stands in for it. A LogicalOr
+// argument contributes both sides. A path an expression computes is not
+// known until the grab runs and contributes nothing.
 func (GrabOperator) SoftDependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor) []*tree.Cursor {
 	out := make([]*tree.Cursor, 0, len(args))
 	for _, arg := range args {
@@ -400,5 +400,5 @@ func grabSoftDependencies(ev *Evaluator, arg *Expr, locs []*tree.Cursor) []*tree
 		_, soft := referenceBracketDependencies(ev, arg.Reference.Nodes, arg.BracketedNodes, locs)
 		return soft
 	}
-	return operatorsUnder(ev, arg.Reference.Nodes, locs)
+	return []*tree.Cursor{canonicalPath(ev, &tree.Cursor{Nodes: append([]string(nil), arg.Reference.Nodes...)})}
 }
