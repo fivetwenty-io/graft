@@ -99,7 +99,7 @@ octet_crossing:
   plus_10_multi: (( ips octet_crossing.base2 10 ))    # 10.1.0.4
   
   # Note: an offset that would exceed a CIDR's own subnet size errors
-  # ("start index 20 exceeds size of subnet 10.0.0.240/28" -- the /28
+  # ("start index exceeds size of subnet" -- the /28
   # only holds 16 addresses); use a plain IP, not a CIDR, to cross a
   # subnet boundary.
   subnet_base: "10.0.0.240"  # .240-.255

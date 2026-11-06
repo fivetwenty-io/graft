@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The errors from `(( ips ... ))` no longer quote the address, the CIDR, or the numbers in the call. They name the path and the problem, as "first argument must be a valid IP or CIDR", "start index exceeds size of subnet", and "start index and count would exceed size of subnet". Before, the text the graft CLI printed held the value, which can come from an environment variable or a secret.
+
 - `(( stringify $V ))` of an environment variable too big for a 64-bit integer, such as `9223372036854775808`, now gives the bare number, as spruce does. Before, it gave a literal block holding the number.
 
 - The debugger no longer turns a plain `yes` into the string `"yes"` when it wraps a session's deferred paths. It now reads each document it rewrites the way a merge reads it, so `enabled: yes` stays a boolean in the merge that follows, and an alias-heavy document fails rather than expanding.

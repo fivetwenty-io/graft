@@ -100,9 +100,9 @@ var operatorErrorCases = []errorTextCase{
 	{name: "divide by zero", out: "(( meta.n / 0 ))"},
 	{name: "less than list", out: "(( meta.l < 3 ))", detailed: true},
 	{name: "greater than map", out: "(( meta.m > 3 ))", detailed: true},
-	{name: "ips address", out: "(( ips meta.s 1 ))", detailed: true},
-	{name: "ips range", out: "(( ips meta.cidr 9 ))", probe: "10.9.8.0/30", detailed: true},
-	{name: "ips count", out: "(( ips meta.cidr 1 7 ))", probe: "10.9.8.0/30", detailed: true},
+	{name: "ips address", out: "(( ips meta.s 1 ))"},
+	{name: "ips range", out: "(( ips meta.cidr 9 ))", probe: "10.9.8.0/30"},
+	{name: "ips count", out: "(( ips meta.cidr 1 7 ))", probe: "10.9.8.0/30"},
 	{name: "base64 map", out: "(( base64 meta.m ))"},
 	{name: "base64-decode", out: "(( base64-decode meta.s ))"},
 	{name: "base64-decode map", out: "(( base64-decode meta.m ))", detailed: true},
@@ -183,5 +183,43 @@ func assertErrorText(t *testing.T, err error, probe string, detailed bool) {
 	}
 	if !detailed && strings.Contains(detail, probe) {
 		t.Errorf("DetailedError quotes the value, so the case should say detailed:\n%s", detail)
+	}
+}
+
+// TestIpsErrorsNameThePathAndNoValue checks that each ips failure names
+// the path of the call and the problem, and that neither of the error's
+// texts holds the address, the CIDR, or the numbers the call was given.
+func TestIpsErrorsNameThePathAndNoValue(t *testing.T) {
+	cases := []struct {
+		name, out, problem string
+		quoted             []string
+	}{
+		{"address", "(( ips meta.s 1 ))", "valid IP or CIDR", []string{errProbe}},
+		{"range", "(( ips meta.cidr 4077 ))", "exceeds size of subnet", []string{"10.9.8.0", "4077"}},
+		{"count", "(( ips meta.cidr 1 4078 ))", "would exceed size of subnet", []string{"10.9.8.0", "4078"}},
+	}
+	for _, mode := range leakModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				eng, _ := leakEngine(t, mode.parallel)
+				doc, err := eng.ParseYAML([]byte(errProbeMeta + "out: " + tc.out + "\n"))
+				if err == nil {
+					_, err = eng.Merge(context.Background(), doc).Execute()
+				}
+				if err == nil {
+					t.Fatal("the document must fail")
+				}
+				for _, text := range []string{err.Error(), graft.DetailedError(err)} {
+					if !strings.Contains(text, "$.out") || !strings.Contains(text, tc.problem) {
+						t.Errorf("error should name the path and %q:\n%s", tc.problem, text)
+					}
+					for _, q := range tc.quoted {
+						if strings.Contains(text, q) {
+							t.Errorf("error quotes %q:\n%s", q, text)
+						}
+					}
+				}
+			})
+		}
 	}
 }
