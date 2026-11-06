@@ -6,7 +6,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 )
 
@@ -86,8 +86,9 @@ func EvaluateExpr(e *Expr, ev *Evaluator) (*Response, error) {
 			// Left side succeeded, use its value
 			return left, nil
 		}
-		if literal.IsRefusal(err) {
-			// A refused literal is never a reason to fall back.
+		if pending.StopsFallback(err) {
+			// A refused literal, or a grab of an operator that has not run,
+			// is never a reason to fall back.
 			return nil, err
 		}
 		// Left side failed, check if right side is prune

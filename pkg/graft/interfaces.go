@@ -8,7 +8,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -620,7 +620,7 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 				// Return the value even if it's nil
 				return left, nil
 			}
-			if literal.IsRefusal(err) {
+			if pending.StopsFallback(err) {
 				return nil, err
 			}
 		}

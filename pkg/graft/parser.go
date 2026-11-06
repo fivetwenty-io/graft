@@ -11,7 +11,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/exprlex"
-	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -1631,7 +1631,7 @@ func evaluateKeepingLiteral(e *Expr, treeData interface{}) (interface{}, error) 
 			if err == nil {
 				return left, nil
 			}
-			if literal.IsRefusal(err) {
+			if pending.StopsFallback(err) {
 				return nil, err
 			}
 		}

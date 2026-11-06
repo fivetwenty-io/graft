@@ -7,6 +7,7 @@ import (
 	"github.com/goccy/go-yaml"
 
 	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 )
 
@@ -94,8 +95,9 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 			DEBUG("LogicalOr: left side succeeded with value %v (type %T), stopping here", left, left)
 			return left, nil
 		}
-		if literal.IsRefusal(err) {
-			// A refused literal is never a reason to fall back.
+		if pending.StopsFallback(err) {
+			// A refused literal, or a grab of an operator that has not
+			// run, is never a reason to fall back.
 			return nil, err
 		}
 		// Left failed, try right

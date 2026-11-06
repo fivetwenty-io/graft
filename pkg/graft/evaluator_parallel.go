@@ -146,6 +146,8 @@ func resolveOpIDForDependency(ev *Evaluator, opIDMap map[string]string, path *tr
 func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.WorkerPool, ops []*Opcall) error {
 	parallelStats.totalPhases.Add(1)
 
+	defer ev.startPending(ops)()
+
 	scheduler := parallel.NewScheduler()
 	allLocs, opIDMap, opByID := indexOps(ops)
 	ev.addSchedulerTasks(scheduler, ops, allLocs, opIDMap)
@@ -451,6 +453,7 @@ func (ev *Evaluator) runConcurrentTasks(ctx context.Context, pool *parallel.Work
 	for _, r := range results {
 		parallelStats.totalOps.Add(1)
 		if r.err != nil {
+			ev.donePending(r.op)
 			parallelStats.totalErrors.Add(1)
 			errs.Append(r.err)
 			continue
@@ -459,6 +462,7 @@ func (ev *Evaluator) runConcurrentTasks(ctx context.Context, pool *parallel.Work
 		treeMu.Lock()
 		applyErr := ev.scrubLiteralError(r.op, ev.applyResponse(r.op, r.resp, r.oldValue))
 		treeMu.Unlock()
+		ev.donePending(r.op)
 
 		if applyErr != nil {
 			parallelStats.totalErrors.Add(1)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -82,8 +83,9 @@ func resolveInjectArg(ev *Evaluator, arg *Expr, viaOr bool) (interface{}, error)
 		if err == nil {
 			return val, nil
 		}
-		if literal.IsRefusal(err) {
-			// A refused literal is never a reason to fall back.
+		if pending.StopsFallback(err) {
+			// A refused literal, or a grab of an operator that has not run,
+			// is never a reason to fall back.
 			return nil, err
 		}
 		return resolveInjectArg(ev, arg.Right, true)

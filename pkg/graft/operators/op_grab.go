@@ -2,9 +2,11 @@ package operators
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
@@ -54,21 +56,22 @@ func (GrabOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Curso
 // actually produced the value, and what lets a computed path that fails
 // to resolve — not just a sub-expression that errors outright — fall
 // through to the right side.
-func resolveGrabArgValue(ev *Evaluator, arg *Expr) (interface{}, error) {
+func resolveGrabArgValue(ev *Evaluator, arg *Expr, flatten bool) (interface{}, error) {
 	if arg == nil {
 		return nil, nil
 	}
 
 	if arg.Type == LogicalOr {
-		val, err := resolveGrabArgValue(ev, arg.Left)
+		val, err := resolveGrabArgValue(ev, arg.Left, flatten)
 		if err == nil {
 			return val, nil
 		}
-		if literal.IsRefusal(err) {
-			// A refused literal is never a reason to fall back.
+		if pending.StopsFallback(err) {
+			// A refused literal, or a target whose operator has not
+			// run, is never a reason to fall back.
 			return nil, err
 		}
-		return resolveGrabArgValue(ev, arg.Right)
+		return resolveGrabArgValue(ev, arg.Right, flatten)
 	}
 
 	// Substitute any bracket-notation dynamic key segments (e.g.
@@ -106,11 +109,14 @@ func resolveGrabArgValue(ev *Evaluator, arg *Expr) (interface{}, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to resolve `%s`: %w", arg.Reference, err)
 		}
+		if err := checkPending(ev, arg.Reference, resolved, flatten); err != nil {
+			return nil, err
+		}
 		return resolved, nil
 	}
 
 	if pathStr, ok := val.(string); ok && !valueIsFinal(arg) {
-		return resolveComputedPath(ev, pathStr)
+		return resolveComputedPath(ev, pathStr, flatten)
 	}
 
 	// For literals and other non-string values, use them directly.
@@ -177,7 +183,7 @@ func forwardVaultPlaceholder(ev *Evaluator, arg *Expr, val interface{}) {
 // resolveComputedPath resolves a string an expression produced as a
 // reference path. A string that does not parse as a path is not an error:
 // it is a legitimate grab result, returned as-is.
-func resolveComputedPath(ev *Evaluator, pathStr string) (interface{}, error) {
+func resolveComputedPath(ev *Evaluator, pathStr string, flatten bool) (interface{}, error) {
 	cursor, err := tree.ParseCursor(pathStr)
 	if err != nil {
 		return pathStr, nil //nolint:nilerr // a non-path string is a legitimate grab result
@@ -187,7 +193,62 @@ func resolveComputedPath(ev *Evaluator, pathStr string) (interface{}, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve `%s`: %w", pathStr, err)
 	}
+	if err := checkPending(ev, cursor, resolved, flatten); err != nil {
+		return nil, err
+	}
 	return resolved, nil
+}
+
+// checkPending returns a pending.NotEvaluatedError when the path target,
+// whose value is val, holds an operator of the running phase that has
+// not run yet. The grab would otherwise return that operator's text as
+// if it were data. A grab of two or more paths copies each list it
+// reads into its result, so for such a grab, flatten is true and each
+// entry of a list val is checked too. A single path's value, and a map
+// or list held in an entry, reaches the result as the same container,
+// which takes on each operator's value when that operator runs, so
+// nothing under them is checked.
+//
+// The evaluator's record of operators still to run decides this, never
+// the text at the path, so text that only looks like an operator, such
+// as the output of (( defer )), is grabbed like any other value. The
+// grab's own path is skipped, and nothing is checked when the evaluator
+// keeps no record.
+func checkPending(ev *Evaluator, target *tree.Cursor, val interface{}, flatten bool) error {
+	rec := pending.For(ev)
+	if rec == nil || target == nil {
+		return nil
+	}
+	canon := canonicalPath(ev, target)
+	var self string
+	if ev.Here != nil {
+		self = canonicalPath(ev, ev.Here).String()
+	}
+	notRun := func(nodes []string) error {
+		where, ok := rec.At(nodes)
+		if !ok || (&tree.Cursor{Nodes: nodes}).String() == self {
+			return nil
+		}
+		grab := ""
+		if ev.Here != nil {
+			grab = ev.Here.String()
+		}
+		return &pending.NotEvaluatedError{Grab: grab, Target: where}
+	}
+	if err := notRun(canon.Nodes); err != nil {
+		return err
+	}
+	list, ok := val.([]interface{})
+	if !flatten || !ok {
+		return nil
+	}
+	for i := range list {
+		nodes := append(append([]string(nil), canon.Nodes...), strconv.Itoa(i))
+		if err := notRun(nodes); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Run ...
@@ -198,7 +259,7 @@ func (GrabOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	var vals []interface{}
 
 	for i, arg := range args {
-		val, err := resolveGrabArgValue(ev, arg)
+		val, err := resolveGrabArgValue(ev, arg, len(args) > 1)
 		if err != nil {
 			DEBUG("     [%d]: resolution failed\n    error: %s", i, err)
 			return nil, err

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
@@ -60,6 +61,13 @@ type Evaluator struct {
 	// the evaluator, so the count belongs to one call and the calls it
 	// nests. A plain int, like depComputing, keeps that copy vet-clean.
 	literalReads int
+
+	// pending records the operators of the running phase that have not
+	// run yet, so (( grab )) can tell an operator still waiting to run
+	// from text that only looks like one. RunOps and the parallel
+	// scheduler set it for the length of a phase. computeOp's copy of
+	// the evaluator shares it, and it is nil outside a phase.
+	pending *pending.Record
 
 	// Reference to the engine (for accessing registries and state)
 	engine Engine
@@ -803,6 +811,8 @@ func (ev *Evaluator) newCycleError(g [][]*Opcall, all map[string]*Opcall) error 
 func (ev *Evaluator) RunOps(ops []*Opcall) error {
 	log.DEBUG("patching up YAML by evaluating outstanding operators\n")
 
+	defer ev.startPending(ops)()
+
 	errors := MultiError{Errors: []error{}}
 	for _, op := range ops {
 		err := ev.RunOp(op)
@@ -1068,6 +1078,7 @@ func (ev *Evaluator) CheckForCycles(maxDepth int) error {
 // halves separately so it can run computeOp for multiple operators
 // concurrently and serialize only applyResponse - see runOpsWithScheduler.
 func (ev *Evaluator) RunOp(op *Opcall) error {
+	defer ev.donePending(op)
 	resp, oldValue, err := ev.computeOp(op)
 	if err != nil {
 		return err
