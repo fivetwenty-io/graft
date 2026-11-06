@@ -137,6 +137,14 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Impact.** The two results differ only in type, and a program that reads the output back sees a string where spruce gives a number, a boolean, or a map. A template that needs the text of the variable in graft can use `(( raw_env $FOO ))`. This behavior is older than the decoding of environment values and has not changed with it. The one exception is a number too big for a signed 64-bit integer, such as `9223372036854775808`, which stringify leaves as the bare number when it comes from an environment variable, as spruce does.
 
+### question-mark-key-indicator-inside-a-flow-collection
+
+**Current behavior.** graft refuses a flow collection that has a `?` key indicator in a flow sequence, such as `[? a]`, `[?<TAB>a]`, or `[a, ? b: 1]`. In a merge document the parse fails, and an environment variable that holds one keeps its text, so `(( grab $FOO ))` gives the string.
+
+**Expected behavior.** spruce reads the `?` as an explicit key, so `[? a]` is a list holding the map `a: null`, and `[a, ? b: 1]` is a list holding `a` and the map `b: 1`.
+
+**Impact.** The spelling is very rare. A tab after the `?` behaves the same as a space there.
+
 ### memory-use-on-very-large-single-line-inputs
 
 **Current behavior.** graft needs a lot of memory for a file with a very long single line, because its YAML library builds a token list and a syntax tree at roughly 1 KB per token. We measured peak resident size with `/usr/bin/time -l` on three rejected inputs and on one valid input. The first line of `r2m3` and `r2m5` is `a: [[], [], ...` and runs to about 800,000 bytes, which is 400,000 tokens or more, followed by a `...#c` line in `r2m3` or a `...` line in `r2m5`, and then 500,000 lines of `# pad`. The third file, `r2m7`, is `a: 1` followed by a `...#c` line and the same kind of padding. The valid input is a single line of 800,000 `[]` tokens in a file of 3,200,004 bytes.

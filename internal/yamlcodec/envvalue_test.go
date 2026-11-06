@@ -99,6 +99,16 @@ func TestDecodeEnvValueFollowsSpruce(t *testing.T) {
 		{"-\t", "-\t"},
 		{"- a\t\n-\tb", "- a\t\n-\tb"},
 
+		// The same dash inside a flow collection.
+		{"[-\ta]", "[-\ta]"},
+		{"[a, -\tb]", "[a, -\tb]"},
+		{"[a, - \tb]", "[a, - \tb]"},
+		{"a: [b, -\tc]", "a: [b, -\tc]"},
+		{"{a: -\tb}", "{a: -\tb}"},
+		{"{a: [-\tb]}", "{a: [-\tb]}"},
+		{"[\"x\", -\ty]", "[\"x\", -\ty]"},
+		{"[a, b-\tc]", []any{"a", "b-\tc"}},
+
 		// A tab that is not right after a line-leading indicator is
 		// fine in both tools.
 		{"a:\t1", map[string]any{"a": 1}},

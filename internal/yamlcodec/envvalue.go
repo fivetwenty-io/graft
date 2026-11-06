@@ -104,7 +104,13 @@ func tabAfterIndicator(data []byte) bool {
 			continue
 		}
 		text := lines[line]
-		if !strings.ContainsRune("-?:", rune(text[col])) || !opensLine(text[:col]) {
+		if !strings.ContainsRune("-?:", rune(text[col])) {
+			continue
+		}
+		// A dash is an indicator wherever the lexer finds one, even
+		// inside a flow collection. A key or value indicator counts
+		// only when it opens its line.
+		if tk.Type != token.SequenceEntryType && !opensLine(text[:col]) {
 			continue
 		}
 		rest := text[col+1:]
