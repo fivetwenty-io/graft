@@ -285,7 +285,7 @@ retry_configs:
 
 The unquoted form is rewritten like any other reference, and the quoted form lets the expression call functions such as `pow` and `sqrt`. In the quoted form, a name inside a quoted string within the expression, an escaped `[name]`, and a function name before `(` keep the meaning calc gives them.
 
-calc puts each path's value into the expression as text, so when one loop variable's name begins another's, as `i` and `item` do, the shorter path would also change the start of the longer one. Write the longer path first, as in `(( calc "item.n + i" ))`, or rename one of the variables.
+calc puts each path's value into the expression as text, and a path whose text begins a longer path in the same expression can change the start of that longer path. Two variables of one loop can meet this, as `i` and `item` do in `for i, item in list`. There `(( calc "i + item.n" ))` fails, while `(( calc "item.n + i" ))` gives the sum. Write the longer path first, or rename one of the variables.
 
 ## Practical Examples
 

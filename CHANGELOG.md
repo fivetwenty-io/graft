@@ -45,7 +45,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - An error from an expression in a loop body, in either evaluator mode, now names the path as the user wrote it, such as `svc.missing`, and a dependency cycle through a loop body shows each operator as written. Before, the message named the internal `__graft_loop` path that holds the binding. `errors.Is` and `errors.As` match the same errors as before.
 
-- `defer` in a loop body now writes its expression as the user wrote it, so `(( defer grab svc.ip ))` writes `(( grab svc.ip ))`, the same text it writes outside a loop. Before, it wrote the internal `__graft_loop` path, which a later merge can't read.
+- `defer` in a loop body now writes its expression as the user wrote it, so `(( defer grab svc.ip ))` writes `(( grab svc.ip ))`, the same text it writes outside a loop. Before, it wrote the internal `__graft_loop` path, which a later merge can't read. A `defer` inside another operator, as in `(( concat svc.name (defer grab svc.ip) ))`, keeps its text too.
+
+- Loop body text that stays a string in the output, such as a lone `(( svc ))`, `big-(( grab i ))`, or an expression the parser can't read, now comes out as the user wrote it. Before, it held the internal `__graft_loop` path.
+
+- `merge --history`, `--trace-path`, `--show-changes`, and `--changes-only` no longer list a loop's internal bindings as removed paths, and they show loop body expressions as the user wrote them. The `-T` trace leaves out the bindings in the same way.
+
+- `errors.As` on an error from a loop body now hands out a `tree.TypeMismatchError` or `tree.NotFoundError` whose `Path` segments start at the loop variable. Any other typed error it finds there has the prefix taken out of its exported fields.
 
 ## [1.45.2] - 2026-11-05
 

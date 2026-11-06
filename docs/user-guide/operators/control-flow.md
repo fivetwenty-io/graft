@@ -618,17 +618,21 @@ nest and both would otherwise end in `(( done ))`:
 
   The binding works by rewriting the name where it appears as a reference, and quoted strings are left alone, so `(( concat "https://name.example.com/" name ))` is not corrupted. The one exception is the quoted expression right after `calc`, which calc reads in its own expression language. There a loop variable reads the current element, in a loop body and in a header alike, and never a document key of the same name. Inside `for i in range 1 3`, `(( calc "pow(2, i)" ))` gives 2, 4, and 8, and `(( if calc "i > 1" ))` keeps the iterations where `i` is 2 or 3. A dotted path such as `svc.n` in the expression reads the loop variable `svc` the same way. A name inside a quoted string within the expression, an escaped `[name]`, and a function name before `(` keep the meaning calc gives them.
 
-  calc puts each path's value into the expression as text, so when one loop variable's name begins another's, as `i` and `item` do, the shorter path would also change the start of the longer one. Write the longer path first, as in `(( calc "item.n + i" ))`, or rename one of the variables. calc does the same with any two paths outside a loop.
+  calc puts each path's value into the expression as text, and a path whose text begins a longer path in the same expression can change the start of that longer path. Two variables of one loop can meet this, as `i` and `item` do in `for i, item in list`. There `(( calc "i + item.n" ))` fails, while `(( calc "item.n + i" ))` gives the sum. Write the longer path first, or rename one of the variables. calc does the same with two paths outside a loop, so `(( calc "x.i + x.item" ))` fails and `(( calc "x.item + x.i" ))` works.
 
   A path built from strings at run time is a different case. In a body, `(( grab (concat "svc" ".name") ))` reads the document key `svc`, while the same expression in a header reads the loop variable.
 
 - **defer in a loop body**
 
-  `defer` writes its expression back out for a later merge, and that merge can't see the loop's bindings. So a loop body's `defer` writes the expression as the user wrote it, and `(( defer grab svc.ip ))` writes `(( grab svc.ip ))` in every iteration, the same text it writes outside a loop. If the deferred expression needs a value from the loop, have the later merge define a key of that name.
+  `defer` writes its expression back out for a later merge, and that merge can't see the loop's bindings. So a loop body's `defer` writes the expression as the user wrote it, and `(( defer grab svc.ip ))` writes `(( grab svc.ip ))` in every iteration, the same text it writes outside a loop. The same holds for a `defer` inside another operator, as in `(( concat svc.name (defer grab svc.ip) ))`, where `svc.name` reads the loop variable and the deferred text stays `(( grab svc.ip ))`. If the deferred expression needs a value from the loop, have the later merge define a key of that name.
 
 - **Errors name the path as written**
 
   An error from an expression in a loop body names the path the user wrote, such as `svc.missing`, and never the internal path that holds the binding. A dependency cycle report through a loop body shows each operator as it appears in the body. This holds in sequential and parallel evaluation alike.
+
+- **Text a loop body passes through reads as written**
+
+  Some loop body text stays a string in the output, such as a lone `(( svc ))`, an operator inside other text such as `big-(( grab i ))`, and an expression the parser can't read. That text comes out as the user wrote it. The `--history`, `--trace-path`, `--show-changes`, and `--changes-only` views and the `-T` trace show loop body expressions the same way, and they leave out the internal bindings.
 
 - **`__graft_loop` is a reserved top-level key**
 
