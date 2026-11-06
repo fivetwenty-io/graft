@@ -33,6 +33,8 @@ db_user: (( awssecret "production/db?key=username" ))
 db_pass: (( awssecret "production/db?key=password" ))
 ```
 
+graft reads the whole secret as YAML, the way spruce does, so a JSON object works and so does a YAML map. The subkey's value always comes back as a string. A plain `yes` or `no` comes back as `true` or `false`, `010` comes back as `8` because a leading zero makes the number octal, and a list or map prints the way Go prints it, such as `[a b]`. A secret that isn't a map fails with an error that names no part of the secret, and a secret with no document in it, or a null one, reports the key as missing.
+
 ### Nested JSON Access
 
 ```yaml

@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `join` and `concat` now print an environment variable's decoded value whole, the way spruce prints it, both when the variable is an argument of its own and when it gives the value of a `||` chain. With `LIST='[a, b]'`, `(( join "," $LIST ))` gives `[a b]` instead of `a,b`, a map value gives `map[a:b]`, and a null value gives `<nil>` instead of nothing. A list or map reached through a reference is still joined element by element.
 
+- `(( awssecret "path?key=k" ))` and `(( awsparam "path?key=k" ))` now read the secret through the same YAML layer a merge uses, with spruce's rules. A plain `yes` in the subkey now gives `true`, `010` gives `8`, only the first document counts, and the merge's alias limits apply. A secret that isn't a map, or doesn't decode, now fails with an error that names no part of the secret, where before the error quoted the start of it. A null or empty secret now reports the key as missing.
+
 ### Fixed
 
 - A grab through a bracket now waits for the key and for the path the key names, in both evaluator modes. With `k: x`, the line `(( grab tgt[k] ))` runs after `k` and after any operator at `tgt.x`, and `(( grab $[k] ))` does the same at the root. When an operator computes the key, the grab also runs after the operators under the path before the bracket, unless that would close a cycle, so sibling grabs that point into the same map still evaluate. Before, the grab could run first and fail with "unable to resolve", or return the target's operator text as its value.

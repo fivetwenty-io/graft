@@ -79,6 +79,8 @@ The same holds for a key. `graft json --strict` fails on a `yes`, `no`, `on`, or
 
 The same holds for the value of an environment variable. With `FOO=y`, spruce gives `true` for `(( grab $FOO ))` and `x-true` for `(( concat "x-" $FOO ))`, and graft gives the string `y` and `x-y`.
 
+An AWS subkey reads the same way. When a secret holds `k: y`, spruce gives `true` for `(( awssecret "path?key=k" ))`, and graft gives `y`.
+
 ### line-and-paragraph-separators-outside-quotes-and-blocks
 
 **Current behavior.** graft reads a line separator (U+2028) or a paragraph separator (U+2029) as a line break inside a single-quoted scalar and inside a literal block scalar (`|`), which are the two places where spruce writes them. The one exception is a separator that starts a line of a literal block, which graft fails to read at all. In every other place graft still reads the character as ordinary text, where libyaml reads a line break. A next-line character (U+0085) is already a line break everywhere, in both tools. We compared both binaries on each of the cases below, with U+2028 and with U+2029, and the two separators behaved the same way.
@@ -116,6 +118,8 @@ The same holds for the value of an environment variable. With `FOO=y`, spruce gi
 **Expected behavior.** spruce's YAML library reads every one of them as a number. `0X10` is 16, `08` is 8, `1e3` is 1000, and `1e-3` is 0.001. An integer out of range becomes a float, so `18446744073709551616` merges to `1.8446744e+19`, and concat prints it as `1.8446744073709552e+19`.
 
 **Impact.** These spellings are rare in real configuration, and a value that is meant as a number can be written in plain decimal, such as `16`, `8`, or `1000`, which both tools read as the same integer.
+
+The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gives `16` for `(( awssecret "path?key=k" ))`, and graft gives `0X10`.
 
 ### whole-floats-keep-their-decimal-point
 
@@ -273,6 +277,8 @@ random by design and differs run to run on either binary.
 **Impact.** We keep this on purpose, because failing loudly is better than silently choosing one of two values. A repeated key is almost always a copy and paste slip or a bad hand merge, and the value that wins in spruce is rarely the one the author meant. A file that relies on the last value winning needs the earlier definition removed before graft will read it.
 
 The value of an environment variable can't fail the merge, so a value such as `x: 1` followed by `x: 2` on the next line stays the text it was, as any value that doesn't decode does. spruce gives the map `x: 2` for it.
+
+An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( awssecret "path?key=k" ))` fails with an error that names no part of the secret. spruce takes the last value for the key.
 
 ### json-and-merge-keep-y-and-n-keys
 
