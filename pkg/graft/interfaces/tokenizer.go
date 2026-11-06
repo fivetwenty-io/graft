@@ -376,6 +376,12 @@ func matchReferencePath(runes []rune, leadingSlash bool) (bool, int) {
 			// Allow either identifier, number, bracket, or an embedded
 			// environment-variable segment after dot
 			switch {
+			case runes[pos] == '.':
+				// A second '.' leaves an empty segment. The run stays in
+				// this one reference so the parser can refuse the whole
+				// path with one message, rather than reading the path up
+				// to the first '.' and choking on the rest.
+				continue
 			case runes[pos] == '[':
 				// Continue with bracket parsing (handled in next iteration)
 				continue

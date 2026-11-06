@@ -262,6 +262,14 @@ random by design and differs run to run on either binary.
 
 **Impact.** The value half of this is a separate open gap, described in [y-n-boolean-values-not-coerced](#y-n-boolean-values-not-coerced), where graft already agrees with spruce on `yes`, `no`, `on`, and `off`. For keys, spruce's rewrite loses data, since the file `y: 1` followed by `true: 2` merges to the single key `true: 2`, and a `grab y` of a key spelled `y` fails there with "could not be found". graft keeps both keys and resolves the path. Matching spruce would make graft turn a key such as GitHub Actions' `on:` into `true:`, so we keep keys untouched, and `graft json` agrees with `graft merge` on every key. This is also why the [mixed-key-type](#mixed-key-type-map-encoding-order) entry says typed keys can't be told apart from quoted ones. The exception is `graft json --strict`, which does look at key types. It refuses a `yes`, `no`, `on`, or `off` key, as spruce does, and it accepts a bare `y` or `n` key.
 
+### empty-path-segments-are-an-error
+
+**Graft behavior.** A reference path that starts with a `.` or holds two `.` in a row outside a bracket fails to parse, with one error that says the path has an empty segment. That covers `(( grab meta..a ))`, `(( grab meta...a ))`, `(( grab $..list ))`, `(( grab $.meta..a ))`, `(( grab list..[0] ))`, `(( grab .meta ))`, and `(( grab .5abc ))`, as a `grab` or `concat` argument and on either side of `||`. The message quotes none of the path. A single trailing `.`, as in `(( grab meta. ))`, still reads `meta`.
+
+**Spruce behavior.** spruce drops every empty segment and reads what is left, so `meta..a` and `meta...a` read `meta.a`, `$..list` reads `list`, `.meta` reads `meta`, and `list..[0]` reads `list[0]`. A `$..` with nothing after it overflows spruce's recursion limit.
+
+**Impact.** We keep this on purpose. A doubled or leading dot is almost always a typo, and spruce silently reads a different path than the one written. A template that relies on spruce dropping the empty segment needs the extra dot removed before graft will read it.
+
 ### numbers-in-arithmetic-stay-numbers
 
 **Graft behavior.** graft has arithmetic, so a number that is an operand stays a number even when spruce would read the same text as a key. `(( 1e5 * 2 ))` gives 200000, `(( grab 1e5 + 1 ))` is `(grab 1e5) + 1` and gives 100001, and `(( concat "a" (1e5 * 2) ))` gives `a200000`. A `-` right after a number subtracts, so `(( 3-1 ))` gives 2 and `(( 2e5-1 ))` gives 199999. As an operator argument, `2e5-1` is the argument `2e5` followed by the argument `-1`, because a `-` before a number starts the next argument. A number in exponent form that stands as a whole argument is a reference, as it is in spruce, so `(( grab 1e5 ))` reads the key `1e5`.

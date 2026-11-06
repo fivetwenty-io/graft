@@ -2,6 +2,7 @@
 package graft
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -490,11 +491,40 @@ func (p *Parser) parsePrimary() (*Expr, error) {
 		interfaces.TokenFor, interfaces.TokenIn, interfaces.TokenDone, interfaces.TokenWhile,
 		interfaces.TokenCase, interfaces.TokenWhen, interfaces.TokenDefault, interfaces.TokenEsac,
 		interfaces.TokenOn, interfaces.TokenBefore, interfaces.TokenAfter, interfaces.TokenRange, interfaces.TokenOperatorName:
-		return nil, fmt.Errorf("unexpected token: %v (%s) at position %d",
-			tok.Type, tok.Literal, tok.Pos.Offset)
+		return nil, p.unexpectedPrimary(tok)
 	}
-	return nil, fmt.Errorf("unexpected token: %v (%s) at position %d",
+	return nil, p.unexpectedPrimary(tok)
+}
+
+// unexpectedPrimary returns the error for a token that cannot begin a
+// primary. A '.' glued to a name, number, or path after it is a path
+// with an empty first segment, as in "(( grab .meta ))", so it gets the
+// empty-segment error instead.
+func (p *Parser) unexpectedPrimary(tok interfaces.Token) error {
+	if tok.Type == interfaces.TokenDot && p.dotLeadsPath() {
+		return errEmptyPathSegment
+	}
+	return fmt.Errorf("unexpected token: %v (%s) at position %d",
 		tok.Type, tok.Literal, tok.Pos.Offset)
+}
+
+// dotLeadsPath reports whether the '.' at the current position is glued
+// to a token that could be a path segment, so the two together read as a
+// path whose first segment is empty.
+func (p *Parser) dotLeadsPath() bool {
+	dot := p.current()
+	next := p.tokenAt(p.pos + 1)
+	if next.Pos.Offset != dot.End.Offset {
+		return false
+	}
+	switch next.Type {
+	case interfaces.TokenIdentifier, interfaces.TokenReference, interfaces.TokenInteger,
+		interfaces.TokenFloat, interfaces.TokenDot, interfaces.TokenEnvironment,
+		interfaces.TokenBoolean, interfaces.TokenNull, interfaces.TokenLeftBracket:
+		return true
+	default:
+		return false
+	}
 }
 
 // parseInteger parses an integer literal.
@@ -1139,9 +1169,54 @@ func (p *Parser) parseReferencePath(start string) (*Expr, error) {
 	}, nil
 }
 
+// errEmptyPathSegment is the one error for a reference path with an
+// empty segment, from a leading '.' or two '.' in a row. spruce drops the
+// empty segment and reads the path without it, which hides a typo, so
+// graft refuses the path. The message quotes none of the path.
+var errEmptyPathSegment = errors.New("a reference path has an empty segment, from a leading '.' or two '.' in a row")
+
+// hasEmptySegment reports whether a reference literal starts with a '.'
+// or holds two '.' in a row outside a bracket. Text inside brackets is a
+// key or an expression of its own, so its dots are not path separators.
+func hasEmptySegment(path string) bool {
+	if strings.HasPrefix(path, ".") {
+		return true
+	}
+	depth := 0
+	var quote rune
+	prevDot := false
+	for _, r := range path {
+		switch {
+		case quote != 0:
+			if r == quote {
+				quote = 0
+			}
+			continue
+		case depth > 0 && (r == '"' || r == '\''):
+			quote = r
+			continue
+		case r == '[':
+			depth++
+		case r == ']' && depth > 0:
+			depth--
+		case r == '.' && depth == 0:
+			if prevDot {
+				return true
+			}
+			prevDot = true
+			continue
+		}
+		prevDot = false
+	}
+	return false
+}
+
 // parseReference parses a reference token.
 func (p *Parser) parseReference() (*Expr, error) {
 	tok := p.current()
+	if hasEmptySegment(tok.Literal) {
+		return nil, errEmptyPathSegment
+	}
 	p.advance()
 
 	cursor, err := tree.ParseCursor(tok.Literal)
