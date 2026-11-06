@@ -148,3 +148,25 @@ func runOneKeyCases(t *testing.T, doc string, paths []oneKeyCase) {
 		}
 	}
 }
+
+// TestNegativeDigitLedNameIsOneKey pins that a '-' glued in front of a
+// digit-led name in argument position is part of the key, the way it is
+// for "-1e5" and the way spruce v1.35.17 reads "-3abc".
+func TestNegativeDigitLedNameIsOneKey(t *testing.T) {
+	const doc = `
+"-3abc": km3abc
+"-3em": km3em
+"-1e5a": km1e5a
+"-1e5x": km1e5x
+"-3x":
+  y: km3x.y
+"3abc": k3abc
+`
+	runOneKeyCases(t, doc, []oneKeyCase{
+		{"-3abc", "km3abc"},
+		{"-3em", "km3em"},
+		{"-1e5a", "km1e5a"},
+		{"-1e5x", "km1e5x"},
+		{"-3x.y", "km3x.y"},
+	})
+}

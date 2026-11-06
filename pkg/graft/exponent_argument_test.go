@@ -139,6 +139,8 @@ func TestExponentArgumentParse(t *testing.T) {
 		{`(( concat "a" 1e5 -1e5 ))`, []string{"a", "ref:1e5", "ref:-1e5"}},
 		{`(( concat "a" 1e5 - 1 ))`, []string{"a", "ref:1e5", "-1"}},
 		{`(( concat "a" 2e5-1 ))`, []string{"a", "ref:2e5", "-1"}},
+		{`(( concat "a" -3abc "b" ))`, []string{"a", "ref:-3abc", "b"}},
+		{`(( concat "a" - 3abc ))`, []string{"(concat(...) - 3abc)"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.src, func(t *testing.T) {

@@ -935,7 +935,7 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 
 		// Check for binary operators that would end the argument list
 		// Handle || as a LogicalOr marker for fallback expressions
-		if p.isBinaryOperator(p.current().Type) && !nextIsNumber {
+		if p.isBinaryOperator(p.current().Type) && !nextIsNumber && !p.minusGluedToDigitName(p.pos) {
 			if p.current().Type == interfaces.TokenOr {
 				// Capture || and the fallback value as a LogicalOr expression
 				// This handles (( grab this || "that" )) and (( concat a || b  c || d ))
@@ -1006,7 +1006,8 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 // whole argument is a reference there, the way spruce reads it, so
 // "(( grab 1e5 ))" reads the key "1e5" and "(( grab 1.5e3 ))" reads the
 // key "5e3" inside "1". A '-' glued in front of it is part of the name,
-// so "-1e5" is one key. Everything else goes to parsePrimary unchanged.
+// so "-1e5" is one key, and so is a '-' glued in front of a digit-led
+// name, as in "-3abc". Everything else goes to parsePrimary unchanged.
 func (p *Parser) parseArgument() (*Expr, error) {
 	tok := p.current()
 	idx := p.pos
@@ -1017,12 +1018,15 @@ func (p *Parser) parseArgument() (*Expr, error) {
 		}
 		idx++
 	}
-	if !p.exponentArgumentAt(idx) {
+	if !p.exponentArgumentAt(idx) && !p.minusGluedToDigitName(p.pos) {
 		return p.parsePrimary()
 	}
 	path := p.tokenAt(idx).Literal
 	if idx > p.pos {
 		path = "-" + path
+	}
+	if hasEmptySegment(path) {
+		return nil, errEmptyPathSegment
 	}
 	cursor, err := tree.ParseCursor(path)
 	if err != nil {
@@ -1036,6 +1040,19 @@ func (p *Parser) parseArgument() (*Expr, error) {
 		Reference:      cursor,
 		BracketedNodes: tree.BracketsOf(path),
 	}, nil
+}
+
+// minusGluedToDigitName reports whether the token at idx is a '-' glued
+// to a reference that starts with a digit, such as the "3abc" in "-3abc".
+// In argument position the two are one key, as spruce reads them, the
+// same way a '-' glued to "1e5" is.
+func (p *Parser) minusGluedToDigitName(idx int) bool {
+	minus := p.tokenAt(idx)
+	next := p.tokenAt(idx + 1)
+	return minus.Type == interfaces.TokenMinus &&
+		next.Type == interfaces.TokenReference &&
+		next.Pos.Offset == minus.End.Offset &&
+		next.Literal != "" && next.Literal[0] >= '0' && next.Literal[0] <= '9'
 }
 
 // exponentArgumentAt reports whether the token at idx is a number in
