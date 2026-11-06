@@ -37,8 +37,11 @@ import "github.com/fivetwenty-io/graft/internal/literal"
 // of its error holds a key or a scalar of 3 or more characters from
 // inside any literal in the document, the evaluator replaces that text
 // with a message that names only the path. A shorter text, such as "80",
-// is not withheld, because it turns up in too many ordinary messages,
-// and an operator that read no literal keeps its message. DetailedError
+// is not withheld, so an error can quote literal text of one or two
+// characters. The floor exists because text that short turns up in too
+// many ordinary messages, such as the letter "a" in a word, and
+// withholding it would hide messages that have nothing to do with the
+// literal. An operator that read no literal keeps its message. DetailedError
 // still returns the original text, literal values and all, so a caller
 // should show it only where the literal's content may be seen.
 //

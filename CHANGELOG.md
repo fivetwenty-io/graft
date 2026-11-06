@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `(( nats ... ))` now decodes a multi-line KV value, and a YAML or JSON object, through the same YAML layer a merge uses. A plain `yes` in such a value now gives `true` where it gave the string `yes`, and the merge's alias limits apply. When an object with a YAML or JSON content type doesn't decode, the error still names the object, but it no longer quotes the data. A single-line KV value still comes back as its string.
 
+- The documentation for `graft.NewLiteral` and the library guide now say that the error scrub withholds literal text of three or more characters only. An error can still quote literal text of one or two characters, because text that short turns up in too many ordinary messages to withhold. The code is unchanged.
+
 ### Fixed
 
 - `graft.NewLiteral` now copies typed containers, such as a `[]string`, a `map[string][]string`, a `[][]string`, a fixed-size array, and a pointer to one of these, along with the maps and lists of `interface{}` it already copied. Before, a change to the original after the call showed through in the merge output. A copy keeps its type, a nil container stays nil, and an empty one stays empty. A struct, and a pointer to a struct or a scalar, is still shared with the original.
