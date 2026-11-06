@@ -7,19 +7,13 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
+	"github.com/fivetwenty-io/graft/internal/loopbind"
 	"github.com/fivetwenty-io/graft/log"
 )
 
 // loopBindingKey is the reserved top-level key that control-flow
 // expansion stores loop bindings under.
-const loopBindingKey = "__graft_loop"
-
-// loopBindingPrefix matches the prefix the loop rewrite puts in front of
-// a loop variable, "__graft_loop.<loop id>.<iteration>.", so that
-// "svc.name" in a loop body reads "__graft_loop.l1a2b3c4d5e6f_1.0.svc.name".
-// The loop id is "l", twelve hex digits of the source's digest, "_", and
-// a sequence number (see controlflow's nextUID).
-var loopBindingPrefix = regexp.MustCompile(`__graft_loop\.l[0-9a-f]+_\d+\.\d+\.`)
+const loopBindingKey = loopbind.Key
 
 //nolint:gochecknoinits // the trace filter must be in place before any merge logs a line
 func init() {
@@ -68,10 +62,7 @@ func traceWithoutLoopNames(message string) (string, bool) {
 // withoutLoopPrefix returns text with every loop binding prefix taken
 // out, so a path reads as the user wrote it in the loop body.
 func withoutLoopPrefix(text string) string {
-	if !strings.Contains(text, loopBindingKey) {
-		return text
-	}
-	return loopBindingPrefix.ReplaceAllString(text, "")
+	return loopbind.WithoutPrefix(text)
 }
 
 // withoutLoopNames returns err with the loop binding prefix taken out of
@@ -309,39 +300,4 @@ func withoutLoopSegments(path reflect.Value) reflect.Value {
 		out.Index(i).SetString(seg)
 	}
 	return out
-}
-
-// withoutLoopText takes the loop binding prefix out of every string in
-// data, map keys included, in place. Evaluation leaves a loop body's
-// text as written when it is not an operator to run, such as a lone
-// "(( svc ))", an operator embedded in other text, or an expression the
-// parser cannot read, and that text still holds the rewrite's prefix.
-// It runs once the bindings are pruned, so the output reads as the user
-// wrote it. A literal.Value is left whole, since its content is data.
-func withoutLoopText(data interface{}) interface{} {
-	switch v := data.(type) {
-	case string:
-		return withoutLoopPrefix(v)
-	case map[string]interface{}:
-		for key, item := range v {
-			plain := withoutLoopPrefix(key)
-			if plain == key {
-				v[key] = withoutLoopText(item)
-				continue
-			}
-			if _, taken := v[plain]; taken {
-				v[key] = withoutLoopText(item)
-				continue
-			}
-			delete(v, key)
-			v[plain] = withoutLoopText(item)
-		}
-		return v
-	case []interface{}:
-		for i, item := range v {
-			v[i] = withoutLoopText(item)
-		}
-		return v
-	}
-	return data
 }

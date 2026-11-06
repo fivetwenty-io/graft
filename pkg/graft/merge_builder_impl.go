@@ -14,6 +14,7 @@ import (
 	"github.com/cppforlife/go-patch/patch"
 
 	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/loopbind"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 	"github.com/fivetwenty-io/graft/pkg/graft/merger"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -1214,7 +1215,7 @@ func (m *mergeBuilderImpl) applyPostProcessing(doc Document, startTime time.Time
 	// passed through as a string reads as the user wrote it. The
 	// evaluated tree is this run's own, so the walk changes it in place.
 	if loopBound {
-		withoutLoopText(treeOf(result))
+		loopbind.WithoutText(treeOf(result))
 	}
 
 	// Apply queued (( sort by X )) list ordering AFTER all pruning and

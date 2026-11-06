@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/history"
+	"github.com/fivetwenty-io/graft/internal/loopbind"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -148,6 +149,11 @@ func buildMergeHistorySteps(opts *mergeOpts, rewrite historyDocRewriter, limit i
 		if mergeErr != nil {
 			return nil, 0, mergeErr
 		}
+		// An unevaluated merge keeps a loop's bindings and the binding
+		// prefix in its loop body expressions, which evaluation prunes
+		// and takes out. The report shows the loop body as the user
+		// wrote it and leaves the bindings out.
+		loopbind.Strip(data)
 		phase := history.PhaseMerge
 		if i == 0 {
 			phase = history.PhaseLoad
