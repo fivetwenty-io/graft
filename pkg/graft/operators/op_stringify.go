@@ -62,7 +62,7 @@ func (StringifyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	}
 
 	// Use ResolveOperatorArgument to handle nested expressions
-	val, err := ResolveOperatorArgument(ev, args[0])
+	val, fromEnv, err := resolveNotingEnv(ev, args[0])
 	if err != nil {
 		DEBUG("failed to resolve expression to a concrete value")
 		DEBUG("error was: %s", err)
@@ -87,21 +87,23 @@ func (StringifyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			Value: v,
 		}, nil
 
-	case uint64:
-		// A number too big for an int64, which an environment variable
-		// can decode to, stays the number. spruce gives it bare, and
-		// the YAML marshal below would write it as a literal block.
-		DEBUG("keeping a uint64 as a number")
-		return &Response{
-			Type:  Replace,
-			Value: v,
-		}, nil
-
 	case int, int64, float64, bool:
 		DEBUG("converting scalar to string: %v", v)
 		return &Response{
 			Type:  Replace,
 			Value: fmt.Sprintf("%v", v),
+		}, nil
+	}
+
+	// A number too big for an int64 that an environment variable decoded
+	// to stays the number, as spruce gives it. A document value of that
+	// size still goes through the YAML marshal below, which writes a
+	// literal block, as spruce does.
+	if n, ok := val.(uint64); ok && fromEnv {
+		DEBUG("keeping an environment uint64 as a number")
+		return &Response{
+			Type:  Replace,
+			Value: n,
 		}, nil
 	}
 

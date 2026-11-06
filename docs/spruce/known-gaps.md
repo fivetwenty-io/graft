@@ -135,7 +135,7 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Expected behavior.** spruce hands back the decoded value itself when the argument is an environment variable. With `FOO=8080` the result is the integer 8080, with `FOO=yes` it is the boolean `true`, with `FOO=3.5` it is the float 3.5, and with `FOO='a: b'` it is the map. A value that is already a string, such as `hello`, comes out the same in both tools.
 
-**Impact.** The two results differ only in type, and a program that reads the output back sees a string where spruce gives a number, a boolean, or a map. A template that needs the text of the variable in graft can use `(( raw_env $FOO ))`. This behavior is older than the decoding of environment values and has not changed with it. The one exception is a number too big for a signed 64-bit integer, such as `9223372036854775808`, which stringify leaves as the bare number, as spruce does.
+**Impact.** The two results differ only in type, and a program that reads the output back sees a string where spruce gives a number, a boolean, or a map. A template that needs the text of the variable in graft can use `(( raw_env $FOO ))`. This behavior is older than the decoding of environment values and has not changed with it. The one exception is a number too big for a signed 64-bit integer, such as `9223372036854775808`, which stringify leaves as the bare number when it comes from an environment variable, as spruce does.
 
 ### memory-use-on-very-large-single-line-inputs
 

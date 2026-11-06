@@ -29,3 +29,13 @@ func TestStringifyEnvValueStaysString(t *testing.T) {
 		}
 	}
 }
+
+// TestStringifyDocumentValueAboveInt64StaysBlock checks that the bare
+// number is only for an env value. A number from the document still
+// stringifies to a literal block, as it does in spruce.
+func TestStringifyDocumentValueAboveInt64StaysBlock(t *testing.T) {
+	got := mergeEnvShape(t, "m: 9223372036854775808\nv: (( stringify m ))\n")
+	if want := "m: 9223372036854775808\nv: |\n  9223372036854775808"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
