@@ -94,6 +94,11 @@ meta:
 out:
   v: (( grab meta[k].v ))
 `, "out.v", "out.v"},
+		{"a nested grab of its own ancestor", `meta:
+  a: (( grab meta.b ))
+  b: (( concat "x" "y" ))
+  c: (( join "," (grab meta) ))
+`, "meta.c", "meta.c"},
 	}
 	for _, mode := range leakModes {
 		for _, tc := range cases {
