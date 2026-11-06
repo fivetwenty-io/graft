@@ -352,6 +352,14 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 **Impact.** We keep this on purpose, because a silent wrong value is worse than an error. A template that relied on spruce leaving operator text in its output now fails at the grab, and the error names both paths so the order can be fixed. A grab of one path whose value goes straight into the document, as in `(( grab b.list ))`, still gives the evaluated entries when it has to run first, because it hands back the same list the operators later fill. A grab nested in another call, such as `(( join "," (grab b.list) ))`, gets no such help, because the call reads the list before its entries run, so it fails instead.
 
+### dash-line-inside-a-flow-collection-is-an-error
+
+**Graft behavior.** A plain scalar in a flow collection that continues onto a line starting with `- ` fails to parse. That covers `a: {b: [x` followed by a line `- w]}`, and `a:` followed by `  - [w` and `    - w]`. The error names the line and column of the dash and says that a block sequence entry cannot appear inside a flow collection. The same error covers every other `- ` inside a flow collection, such as `a: [x,` followed by `- w]` and `a: [x, - w]`, which spruce refuses too.
+
+**Spruce behavior.** libyaml folds the dash line into the scalar, so spruce reads `a: {b: [x` over `- w]}` as a list that holds the one string `x - w`. When the dash starts an entry of its own, after a comma or a bracket, spruce fails with "did not find expected node content".
+
+**Impact.** We keep this on purpose. goccy reads the rest of the dash line into the scalar, closing bracket and all, so graft can't give spruce's value without a scanner of its own. A dash at the start of a line inside brackets almost always means a list entry written in the wrong style, so an error serves the author better than a string that hides the mistake. Quoting the scalar, or writing it on one line, gives the same value in both tools.
+
 ## Resolved
 
 Items that were tracked as open gaps and have since been closed. Kept

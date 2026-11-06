@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A `- ` inside a flow collection now fails to parse, as it does in spruce, with an error that names the line and column of the dash and says that a block sequence entry cannot appear inside a flow collection. Before, graft read `a: [x,` followed by a line `- w]` as a list holding `x` and a nested list, and it gave goccy's errors for the same dash in a flow mapping. A plain scalar that continues onto such a line, as in `a: {b: [x` followed by `- w]}`, fails with the same error, where spruce reads the string `x - w`. The known gaps record that difference. A dash with no blank after it, as in `[-]` or `[x, -w]`, is still text.
+
 - With `--go-patch`, an op whose value is written as `~`, `Null`, or `NULL` now sets its path to null, as it does in spruce, and so does an anchored `~` or an alias to one. Before, graft reported "Missing value" for it. A value written as `null`, an empty value, and a value tagged `!!null` still fail with "Missing value", as they do in spruce, because spruce's YAML library leaves those unset. A `remove` op with `value: ~` now fails with "Cannot specify value", as in spruce.
 
 - The error for a node with two tags, as in `a:\n  b: !x !y`, now names the line of the second tag, counted from 1. Before, it named the line above, as spruce does, and named no line at all when the tags sat on the first line. The error still quotes no value.
