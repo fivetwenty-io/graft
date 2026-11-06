@@ -91,6 +91,12 @@ func TestGrabPendingTargetFails(t *testing.T) {
 						t.Errorf("error %q does not name %s", msg, want)
 					}
 				}
+				// The path error names the grab, and the message inside
+				// it does not name it again, even when the grab is
+				// nested in another operator call.
+				if n := strings.Count(msg, "$."+tc.grab+":"); n != 1 || strings.Contains(msg, "at $.") {
+					t.Errorf("error %q names the grab %d times, want once", msg, n)
+				}
 				// The error names the operator it comes from, so it holds
 				// "(( grab ))", but no operator text found at either path
 				// and no value.

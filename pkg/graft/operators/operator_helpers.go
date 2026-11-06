@@ -1,6 +1,7 @@
 package operators
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -191,6 +192,13 @@ func evaluateNestedOperator(ev *Evaluator, expr *Expr) (interface{}, error) {
 	// Run the nested operator
 	resp, err := opcall.Run(ev)
 	if err != nil {
+		// opcall.Run names ev.Here in a path error, and the call this
+		// one is nested in names the same path in its own, so only the
+		// cause is kept here and the path appears once.
+		var perr *graft.PathError
+		if ev.Here != nil && errors.As(err, &perr) && perr.Path == ev.Here.String() {
+			err = perr.Cause
+		}
 		return nil, fmt.Errorf("nested operator %s failed: %w", opName, err)
 	}
 

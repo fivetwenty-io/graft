@@ -110,8 +110,12 @@ out:
 				if nerr.Grab != tc.grab || nerr.Target != tc.target {
 					t.Fatalf("error names grab %q and target %q, want %q and %q", nerr.Grab, nerr.Target, tc.grab, tc.target)
 				}
-				if msg := err.Error(); strings.Contains(msg, "concat") || strings.Contains(msg, "join") {
+				msg := err.Error()
+				if strings.Contains(msg, "concat") || strings.Contains(msg, "join") {
 					t.Fatalf("error %q quotes operator text", msg)
+				}
+				if n := strings.Count(msg, "$."+tc.grab+":"); n != 1 || strings.Contains(msg, "at $.") {
+					t.Fatalf("error %q names the grab %d times, want once", msg, n)
 				}
 			})
 		}

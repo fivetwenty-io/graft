@@ -247,7 +247,9 @@ var ErrNotEvaluated = errors.New("a grab read a path whose operator has not run 
 
 // NotEvaluatedError is the error a grab returns when the path it reads
 // holds an operator that has not run yet, and the dependency graph could
-// not order the grab after it. It names both paths and quotes no value.
+// not order the grab after it. Its message names the target and quotes
+// no value. It does not name the grab, because the path error the
+// evaluator wraps it in does.
 type NotEvaluatedError struct {
 	// Grab is the path of the operator call that ran the grab, without
 	// a leading "$.".
@@ -258,7 +260,7 @@ type NotEvaluatedError struct {
 }
 
 func (e *NotEvaluatedError) Error() string {
-	return fmt.Sprintf("(( grab )) at $.%s reads $.%s before the operator there has run, and graft could not order the grab after it", e.Grab, e.Target)
+	return fmt.Sprintf("(( grab )) reads $.%s before the operator there has run, and graft could not order the grab after it", e.Target)
 }
 
 // Is reports whether target is ErrNotEvaluated.
