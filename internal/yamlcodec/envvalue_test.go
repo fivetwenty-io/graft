@@ -83,6 +83,30 @@ func TestDecodeEnvValueFollowsSpruce(t *testing.T) {
 		{" \tyes", " \tyes"},
 		{"\n\tyes", "\n\tyes"},
 		{"\t- a", "\t- a"},
+
+		// libyaml refuses a tab right after a block indicator that
+		// opens a line, with spaces between or not, and on any line.
+		{"-\ta", "-\ta"},
+		{"- \ta", "- \ta"},
+		{"-  \ta", "-  \ta"},
+		{"- a\n-\tb", "- a\n-\tb"},
+		{"a:\n  -\tb", "a:\n  -\tb"},
+		{"? a\n:\tb", "? a\n:\tb"},
+		{"? a\n: \tb", "? a\n: \tb"},
+		{"?\ta", "?\ta"},
+		{"- -\ta", "- -\ta"},
+		{"- ?\ta", "- ?\ta"},
+		{"-\t", "-\t"},
+		{"- a\t\n-\tb", "- a\t\n-\tb"},
+
+		// A tab that is not right after a line-leading indicator is
+		// fine in both tools.
+		{"a:\t1", map[string]any{"a": 1}},
+		{"- a:\tb", []any{map[string]any{"a": "b"}}},
+		{"a: [1,\t2]", map[string]any{"a": []any{1, 2}}},
+		{"k: |\n  -\ty", map[string]any{"k": "-\ty"}},
+		{"a: x\n  -\ty", map[string]any{"a": "x -\ty"}},
+		{"a: -\tb", "a: -\tb"},
 	}
 	for _, tc := range cases {
 		got := yamlcodec.DecodeEnvValue(tc.text)

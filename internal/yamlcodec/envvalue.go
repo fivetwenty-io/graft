@@ -1,7 +1,12 @@
 package yamlcodec
 
 import (
+	"bytes"
 	"errors"
+	"strings"
+
+	"github.com/goccy/go-yaml/lexer"
+	"github.com/goccy/go-yaml/token"
 )
 
 // ErrExternalValue is the error DecodeExternal gives for a value that
@@ -27,6 +32,9 @@ func DecodeExternal(data []byte) (any, error) {
 	}
 	first, err := FirstMergeDocument(data)
 	if err != nil {
+		return nil, ErrExternalValue
+	}
+	if tabAfterIndicator(first) {
 		return nil, ErrExternalValue
 	}
 	v, err := DecodeGeneric(first, DefaultYAMLCompat(), false)
@@ -70,4 +78,55 @@ func leadsWithTab(data []byte) bool {
 		}
 	}
 	return false
+}
+
+// tabAfterIndicator reports whether a block indicator that opens a line
+// in data, a "-", "?", or ":", has a tab after it, with spaces between
+// or not. A previous indicator on the line, as in "- -", does not stop
+// an indicator from opening it. libyaml refuses such a tab, so spruce
+// keeps the text, while goccy reads past it. The lexer finds the
+// indicators, so a "-" inside a block scalar or a quoted string does
+// not count, and a tab after a ":" that follows a key, as in "a:\t1",
+// is fine in both tools.
+func tabAfterIndicator(data []byte) bool {
+	if !bytes.Contains(data, []byte{'\t'}) {
+		return false
+	}
+	lines := bytes.Split(data, []byte{'\n'})
+	for _, tk := range lexer.Tokenize(string(data)) {
+		switch tk.Type {
+		case token.SequenceEntryType, token.MappingKeyType, token.MappingValueType:
+		default:
+			continue
+		}
+		line, col := tk.Position.Line-1, tk.Position.Column-1
+		if line < 0 || line >= len(lines) || col < 0 || col >= len(lines[line]) {
+			continue
+		}
+		text := lines[line]
+		if !strings.ContainsRune("-?:", rune(text[col])) || !opensLine(text[:col]) {
+			continue
+		}
+		rest := text[col+1:]
+		for len(rest) > 0 && rest[0] == ' ' {
+			rest = rest[1:]
+		}
+		if len(rest) > 0 && rest[0] == '\t' {
+			return true
+		}
+	}
+	return false
+}
+
+// opensLine reports whether before, the text ahead of an indicator on
+// its line, holds nothing but spaces and other indicators.
+func opensLine(before []byte) bool {
+	for _, c := range before {
+		switch c {
+		case ' ', '-', '?', ':':
+		default:
+			return false
+		}
+	}
+	return true
 }
