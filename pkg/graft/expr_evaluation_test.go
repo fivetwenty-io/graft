@@ -243,9 +243,9 @@ func TestEvaluateExpr_EnvVar(t *testing.T) {
 			expected: "test value",
 		},
 		{
-			name:     "numeric string stays string",
+			name:     "numeric string decodes as an integer",
 			envVar:   "TEST_NUMBER",
-			expected: "42",
+			expected: 42,
 		},
 		{
 			name:     "boolean env var",
@@ -260,9 +260,11 @@ func TestEvaluateExpr_EnvVar(t *testing.T) {
 			},
 		},
 		{
-			name:     "YAML env var",
-			envVar:   "TEST_YAML",
-			expected: "key: value", // YAML parsing only happens for specific patterns
+			name:   "YAML env var",
+			envVar: "TEST_YAML",
+			expected: map[string]interface{}{
+				"key": "value",
+			},
 		},
 		{
 			name:     "list env var",

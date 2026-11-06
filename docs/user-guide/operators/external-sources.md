@@ -139,10 +139,7 @@ port: (( raw_env $PORT ))     # the string "8080"
 grabbed: (( grab $PORT ))     # the integer 8080
 ```
 
-Ordinary `$VAR` substitution parses the variable's value as YAML, so
-`8080` becomes a number and `true` becomes a boolean. `raw_env` skips
-that coercion and always returns the literal string. A set-but-empty
-variable is a valid empty string; an unset variable is an error:
+Every other read of a variable decodes its value as YAML, the way spruce does, and uses the result unless it is a string. So `8080` becomes a number, `yes` and `true` become booleans, `01234` becomes the octal number 668, and `a: b` becomes a map, while `hello` and a value that isn't valid YAML stay the text they were. `raw_env` skips that decoding and always returns the text. A variable that is set but empty gives the empty string, and an unset variable is an error:
 
 ```
 environment variable $PORT is not set

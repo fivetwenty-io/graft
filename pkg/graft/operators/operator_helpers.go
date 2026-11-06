@@ -5,24 +5,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/goccy/go-yaml"
-
 	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/internal/pending"
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/pkg/graft"
-)
-
-// Literal value constants for YAML parsing.
-const (
-	literalTrue  = "true"
-	literalFalse = "false"
-	literalNull  = "null"
 )
 
 // ResolveOperatorArgument resolves an expression argument, including nested operator calls
 // This helper allows operators to handle nested expressions transparently.
-//
-//nolint:gocyclo // expression resolution requires handling all expression types
 func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 	if arg == nil {
 		return nil, nil
@@ -61,22 +51,9 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 			// Return an error so LogicalOr can fall back to the next option
 			return nil, fmt.Errorf("environment variable '%s' is not set", arg.Name)
 		}
-		// Try to unmarshal the value as YAML if it looks like structured data
-		if val == literalTrue || val == literalFalse || val == literalNull ||
-			(val != "" && (val[0] == '{' || val[0] == '[' || val[0] == '-')) {
-			var unmarshalled interface{}
-			if err := yaml.Unmarshal([]byte(val), &unmarshalled); err == nil {
-				// Only use unmarshalled value if it's not a string
-				if _, isString := unmarshalled.(string); !isString {
-					if m, isMap := unmarshalled.(map[string]interface{}); isMap {
-						unmarshalled = graft.NormalizeMap(m)
-					}
-					return unmarshalled, nil
-				}
-			}
-		}
-		// Return as string for plain strings or if unmarshalling fails
-		return val, nil
+		// The value decodes the way spruce decodes it. See
+		// yamlcodec.DecodeEnvValue.
+		return yamlcodec.DecodeEnvValue(val), nil
 
 	case OperatorCall:
 		// Evaluate nested operator call. Its result reaches this operator

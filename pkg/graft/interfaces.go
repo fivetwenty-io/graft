@@ -6,8 +6,6 @@ import (
 	"os"
 	"sort"
 
-	"github.com/goccy/go-yaml"
-
 	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -593,14 +591,7 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 		if val == "" {
 			return val, nil
 		}
-		var unmarshaled interface{}
-		if err := yaml.Unmarshal([]byte(val), &unmarshaled); err == nil {
-			unmarshaled = yamlcodec.NormalizeValue(unmarshaled)
-			if _, isString := unmarshaled.(string); !isString {
-				return unmarshaled, nil
-			}
-		}
-		return val, nil
+		return yamlcodec.DecodeEnvValue(val), nil
 	case OperatorCall:
 		// Evaluate nested operator call using the evaluator
 		if e.evaluator == nil {

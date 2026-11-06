@@ -77,12 +77,18 @@ func (ConcatOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 
 		// Convert to string. References already rejected non-scalar values
 		// above; this branch only handles scalars and non-reference list
-		// results (e.g. from a nested operator call).
+		// results (e.g. from a nested operator call). An environment
+		// variable's decoded value prints the way spruce prints it, so a
+		// list reads [a b] and a map reads map[a:b].
 		var stringVal string
 		switch val := v.(type) {
 		case string:
 			stringVal = val
 		case []interface{}:
+			if arg.Type == EnvVar {
+				stringVal = fmt.Sprintf("%v", val)
+				break
+			}
 			stringSlice := make([]string, len(val))
 			for j, elem := range val {
 				stringSlice[j] = fmt.Sprintf("%v", elem)

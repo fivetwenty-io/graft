@@ -36,7 +36,7 @@ exact byte-for-byte parity until confirmed (see [Known gaps](known-gaps.md)).
 | `shuffle` | Yes | Yes | Randomly reorders the combined elements of its arguments. |
 | `stringify` | Yes | Yes | YAML-marshals a referenced value to a string, or passes a literal through unchanged. |
 | `cartesian-product` | Yes | Yes | Combines multiple list/scalar arguments into the flat cartesian expansion of concatenated strings. graft additionally registers the shorter alias `cartesian` for the same implementation; spruce has no such alias. |
-| `raw_env` | Yes | Yes | Resolves a single `$ENVVAR`-style argument to its raw string value, bypassing YAML type coercion: `(( raw_env $PORT ))` keeps `"8080"` a string where `(( grab $PORT ))` yields the integer 8080. A set-but-empty variable is a valid (empty string) value. Fallback branches after `\|\|` get normal coercing evaluation — that asymmetry matches spruce. Checked directly: error strings (`environment variable $X is not set`, arity, non-env argument) are byte-identical to spruce's. |
+| `raw_env` | Yes | Yes | Resolves a single `$ENVVAR`-style argument to the variable's text, without the YAML decoding that every other read of a variable applies. So `(( raw_env $PORT ))` keeps `"8080"` a string, while `(( grab $PORT ))` gives the integer 8080, as it does in spruce. A variable that is set but empty gives the empty string. In a `\|\|` chain, each environment variable stays its text, and any other fallback, such as a number or a reference, keeps its own type, which matches spruce. We checked the error strings directly, and `environment variable $X is not set`, the arity error, and the non-env argument error all match spruce's byte for byte. |
 
 ## Operators present only in graft
 

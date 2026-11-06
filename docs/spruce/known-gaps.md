@@ -77,6 +77,8 @@ coerces in both.
 
 The same holds for a key. `graft json --strict` fails on a `yes`, `no`, `on`, or `off` key, as spruce does, but it accepts a bare `y` or `n` key, which spruce refuses as a boolean.
 
+The same holds for the value of an environment variable. With `FOO=y`, spruce gives `true` for `(( grab $FOO ))` and `x-true` for `(( concat "x-" $FOO ))`, and graft gives the string `y` and `x-y`.
+
 ### line-and-paragraph-separators-outside-quotes-and-blocks
 
 **Current behavior.** graft reads a line separator (U+2028) or a paragraph separator (U+2029) as a line break inside a single-quoted scalar and inside a literal block scalar (`|`), which are the two places where spruce writes them. The one exception is a separator that starts a line of a literal block, which graft fails to read at all. In every other place graft still reads the character as ordinary text, where libyaml reads a line break. A next-line character (U+0085) is already a line break everywhere, in both tools. We compared both binaries on each of the cases below, with U+2028 and with U+2029, and the two separators behaved the same way.
@@ -106,6 +108,22 @@ The same holds for a key. `graft json --strict` fails on a `yes`, `no`, `on`, or
 **Expected behavior.** `(( load ))` reads a file exactly as `graft merge` reads it.
 
 **Impact.** Both cases are rare. The first one fails loudly, and the second one silently produces null. Until this is closed, we can pass the file to `graft merge` as another input instead of loading it, or we can put another key after the final block scalar and avoid aliases that point into an anchored collection.
+
+### numbers-libyaml-types-and-graft-reads-as-strings
+
+**Current behavior.** graft reads a few number spellings as strings where spruce reads them as numbers. They are a hex number written with a capital `0X`, such as `0X10`, a number with a leading zero and an 8 or a 9 in it, such as `08`, and an exponent with no decimal point, such as `1e3`, `1E3`, `1e+3`, or `1e-3`. The same goes for an integer too large for an unsigned 64-bit integer, such as `18446744073709551616`, and for one below the smallest signed 64-bit integer, such as `-9223372036854775809`. A merge document gives `a: "0X10"` for `a: 0X10`, and an environment variable behaves the same way, so with `FOO=1e3` the expression `(( grab $FOO ))` gives the string `1e3` and `(( concat "x-" $FOO ))` gives `x-1e3`.
+
+**Expected behavior.** spruce's YAML library reads every one of them as a number. `0X10` is 16, `08` is 8, `1e3` is 1000, and `1e-3` is 0.001. An integer out of range becomes a float, so `18446744073709551616` merges to `1.8446744e+19`, and concat prints it as `1.8446744073709552e+19`.
+
+**Impact.** These spellings are rare in real configuration, and a value that is meant as a number can be written in plain decimal, such as `16`, `8`, or `1000`, which both tools read as the same integer.
+
+### whole-floats-keep-their-decimal-point
+
+**Current behavior.** graft writes a float that holds a whole number with its decimal point. A merge document with `a: 1.0` or `a: 100.0` merges to `1.0` or `100.0`, and the spellings `1.` and `.1e3` come out as `1.0` and `100.0`. An environment variable behaves the same way, so with `FOO=1.0` the expression `(( grab $FOO ))` gives `1.0`. concat prints the number without the point, so `(( concat "x-" $FOO ))` gives `x-1` in both tools.
+
+**Expected behavior.** spruce writes such a float as the whole number, so `1.0` merges to `1` and `100.0` merges to `100`.
+
+**Impact.** The number is the same in both tools, and only the bytes differ. A program that reads the output back gets a float from graft and an integer from spruce, which matters only when it checks the type.
 
 ### memory-use-on-very-large-single-line-inputs
 
@@ -253,6 +271,8 @@ random by design and differs run to run on either binary.
 **Spruce behavior.** spruce merges `a: 1` followed by `a: 2` to `a: 2`, and `spruce json` gives `{"a":2}`, so the last value wins and nothing is reported.
 
 **Impact.** We keep this on purpose, because failing loudly is better than silently choosing one of two values. A repeated key is almost always a copy and paste slip or a bad hand merge, and the value that wins in spruce is rarely the one the author meant. A file that relies on the last value winning needs the earlier definition removed before graft will read it.
+
+The value of an environment variable can't fail the merge, so a value such as `x: 1` followed by `x: 2` on the next line stays the text it was, as any value that doesn't decode does. spruce gives the map `x: 2` for it.
 
 ### json-and-merge-keep-y-and-n-keys
 
