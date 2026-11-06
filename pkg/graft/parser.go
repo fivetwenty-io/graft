@@ -56,26 +56,35 @@ type Parser struct {
 	// one, so the engine threads through recursion for free.
 	engine Engine
 
-	// callNames, when non-nil, collects the byte offset and name of
-	// every identifier this parser reads as the name of an operator
-	// call that the identifier itself opens (OperatorCallNames).
-	callNames map[int]string
+	// calls, when non-nil, collects every operator call whose name
+	// opens the call on its own, keyed by the byte offset of that name
+	// (OperatorCalls).
+	calls map[int]CallSpan
 }
 
-// OperatorCallNames parses expr, the text between "((" and "))", the way
-// e's parser does, and returns the byte offset in expr of every
-// identifier read as the name of an operator call, mapped to that name.
-// It reports only a name that opens the call on its own, which is a
-// registered operator followed by a token that can begin an argument,
-// so "type" in "type || x" and "join" alone in "join" are left out. A
-// name in argument position, as the second "join" in `join ", " join`,
-// is a reference and is left out too. The result is nil when expr does
-// not parse. The control-flow loop rewrite uses it to leave an operator
-// name alone when a loop variable shares it.
-func OperatorCallNames(e Engine, expr string) map[int]string {
+// CallSpan is one operator call OperatorCalls found. Name is the
+// operator's name, and End is the byte offset just past the call's last
+// argument, so the call's text runs from its name's offset to End.
+type CallSpan struct {
+	Name string
+	End  int
+}
+
+// OperatorCalls parses expr, the text between "((" and "))", the way e's
+// parser does, and returns every operator call in it, keyed by the byte
+// offset in expr of the identifier that names it. It reports only a name
+// that opens the call on its own, which is a registered operator
+// followed by a token that can begin an argument, so "type" in
+// "type || x" and "join" alone in "join" are left out. A name in
+// argument position, as the second "join" in `join ", " join`, is a
+// reference and is left out too. The result is nil when expr does not
+// parse. The control-flow loop rewrite uses it to leave an operator
+// name alone when a loop variable shares it, and to leave the argument
+// text of a defer as the user wrote it.
+func OperatorCalls(e Engine, expr string) map[int]CallSpan {
 	const lead = "(( "
 	p := NewParserForEngine(lead+expr+" ))", EvalPhase, e)
-	p.callNames = map[int]string{}
+	p.calls = map[int]CallSpan{}
 	if err := p.tokenize(); err != nil {
 		return nil
 	}
@@ -90,9 +99,23 @@ func OperatorCallNames(e Engine, expr string) map[int]string {
 	if p.current().Type != interfaces.TokenOperatorEnd {
 		return nil
 	}
-	out := make(map[int]string, len(p.callNames))
-	for off, name := range p.callNames {
-		out[off-len(lead)] = name
+	out := make(map[int]CallSpan, len(p.calls))
+	for off, call := range p.calls {
+		call.End -= len(lead)
+		out[off-len(lead)] = call
+	}
+	return out
+}
+
+// OperatorCallNames is OperatorCalls with only each call's name.
+func OperatorCallNames(e Engine, expr string) map[int]string {
+	calls := OperatorCalls(e, expr)
+	if calls == nil {
+		return nil
+	}
+	out := make(map[int]string, len(calls))
+	for off, call := range calls {
+		out[off] = call.Name
 	}
 	return out
 }
@@ -851,8 +874,11 @@ func (p *Parser) nextTokenPlacesIdentifierInOperandPosition() bool {
 //
 //nolint:gocyclo // operator call parsing supports multiple argument styles
 func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
-	if p.callNames != nil && p.identifierOpensOpcallAt(p.pos) {
-		p.callNames[p.current().Pos.Offset] = opName
+	if p.calls != nil && p.identifierOpensOpcallAt(p.pos) {
+		start := p.current().Pos.Offset
+		defer func() {
+			p.calls[start] = CallSpan{Name: opName, End: p.tokenAt(p.pos - 1).End.Offset}
+		}()
 	}
 	p.advance() // consume operator name
 

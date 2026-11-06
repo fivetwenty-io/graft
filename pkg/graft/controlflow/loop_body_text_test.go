@@ -250,9 +250,11 @@ out:
   - (( defer svc.name ))
   - (( defer grab svc.ip ))
   - (( defer concat svc.name "-" (grab svc.ip) ))
+  - x(( defer grab svc.ip ))
+  - (( concat svc.name (defer grab svc.ip) ))
 (( done ))
 `
-	want := "[(( svc.name )) (( grab svc.ip )) (( concat svc.name \"-\" grab svc.ip ))]"
+	want := "[(( svc.name )) (( grab svc.ip )) (( concat svc.name \"-\" grab svc.ip )) x(( defer grab svc.ip )) A(( grab svc.ip ))]"
 	for _, mode := range rootRefModes {
 		t.Run(mode.name, func(t *testing.T) {
 			data := runLoopMergeYAML(t, mode.opts, src)

@@ -1,7 +1,10 @@
 package graft_test
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/fivetwenty-io/graft/pkg/graft"
 
 	_ "github.com/fivetwenty-io/graft/pkg/graft/operators" // registers grab, sort, type, empty, ips, keys, ...
 )
@@ -128,5 +131,25 @@ func TestOperandPositionOperatorCalls(t *testing.T) {
 				t.Fatalf("expected %v, got %v (%T)", tc.want, got, got)
 			}
 		})
+	}
+}
+
+// TestOperatorCallsSpanTheirArguments pins where OperatorCalls says each
+// call ends: just past its last argument, so a call nested in another
+// call or after a fallback ends before the text that follows it.
+func TestOperatorCallsSpanTheirArguments(t *testing.T) {
+	cases := []struct {
+		expr string
+		want map[int]graft.CallSpan
+	}{
+		{`defer grab a.b`, map[int]graft.CallSpan{0: {"defer", 14}}},
+		{`concat x (defer grab a) y`, map[int]graft.CallSpan{0: {"concat", 25}, 10: {"defer", 22}}},
+		{`grab x || defer grab y`, map[int]graft.CallSpan{0: {"grab", 22}, 10: {"defer", 22}}},
+	}
+	for _, tc := range cases {
+		got := graft.OperatorCalls(nil, tc.expr)
+		if fmt.Sprint(got) != fmt.Sprint(tc.want) {
+			t.Errorf("OperatorCalls(%q) = %v, want %v", tc.expr, got, tc.want)
+		}
 	}
 }

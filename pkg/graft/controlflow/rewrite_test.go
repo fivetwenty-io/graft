@@ -200,6 +200,9 @@ func TestRewriteVarRefs_Defer(t *testing.T) {
 		{"defer of a bare path", `defer svc.name`, `defer svc.name`},
 		{"grab of a path named defer", `grab defer.svc`, `grab ` + deferVar + `.svc`},
 		{"concat with a variable named defer", `concat defer svc`, `concat ` + deferVar + ` ` + svc},
+		{"defer inside concat", `concat svc.name (defer grab svc.ip)`, `concat ` + svc + `.name (defer grab svc.ip)`},
+		{"defer after a fallback", `grab svc.x || defer grab svc.ip`, `grab ` + svc + `.x || defer grab svc.ip`},
+		{"two defers in one call", `concat (defer grab svc.a) svc.b (defer grab svc.c)`, `concat (defer grab svc.a) ` + svc + `.b (defer grab svc.c)`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
