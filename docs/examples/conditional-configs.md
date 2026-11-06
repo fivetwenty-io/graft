@@ -649,13 +649,7 @@ retries:
   delay_seconds: 25
 ```
 
-The delay uses `calc`'s unquoted form on purpose. A loop variable is bound by
-rewriting the name where it appears as a reference, and quoted string literals
-are left alone, so `calc`'s quoted form cannot see `attempt`:
-`(( calc "pow(2, attempt)" ))` fails with `calc operator does not support named
-variables in expression: attempt`. Unquoted `calc` handles infix arithmetic and
-parentheses but no function calls, so an exponential table has to be written
-out as a literal list.
+The delay uses `calc`'s unquoted form, which reads `attempt` like any other reference. The quoted form reads the loop variable too, and it can call functions, so an exponential table takes one line. With `(( calc "base_delay * pow(2, attempt)" ))`, the delays are 5, 10, 20, 40, and 80.
 
 ## Case/When Pattern Matching
 
@@ -1084,11 +1078,9 @@ it, with no template duplicated.
   only in a different merged file fails at expansion time. Move the loop into
   the file that defines the data.
 
-- **Loop variables are invisible inside quoted strings**
+- **Loop variables are invisible inside quoted strings, except in calc**
 
-  A binding is applied by rewriting the name where it appears as a reference,
-  and string literals are deliberately left alone. This is why `concat "https://name.example.com/" name`
-  is not corrupted, and why `calc`'s quoted form cannot see a loop variable.
+  A binding is applied by rewriting the name where it appears as a reference, and string literals are deliberately left alone, which is why `concat "https://name.example.com/" name` is not corrupted. The quoted expression right after `calc` is the exception, because calc reads it in its own expression language, so `(( calc "pow(2, i)" ))` sees the loop variable `i`.
 
 - **`__graft_loop` is a reserved top-level key**
 

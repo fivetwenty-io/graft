@@ -253,18 +253,7 @@ Three limits are worth knowing before you rely on this:
 
 ### calc Inside Loops
 
-A loop variable is substituted where it appears as a reference, and quoted
-string literals are deliberately left alone. So `calc`'s quoted form cannot see
-a loop variable:
-
-```yaml
-(( for i in range 0 3 ))
-  - delay: (( calc "pow(2, i)" ))
-(( done ))
-```
-
-fails with `calc operator does not support named variables in expression: i`.
-Use the unquoted form, which is rewritten like any other reference:
+A loop variable is substituted where it appears as a reference, and quoted string literals are left alone. The quoted expression right after `calc` is the one exception, because calc reads it in its own expression language. There a loop variable reads the current element, in a loop body and in a header alike, and never a document key of the same name. The example below uses both forms.
 
 ```yaml
 # retries.yml
@@ -272,6 +261,7 @@ retry_configs:
 (( for i in range 0 3 ))
   - attempt: (( grab i ))
     delay_seconds: (( calc (i + 1) * 5 ))
+    backoff_seconds: (( calc "pow(2, i)" ))
 (( done ))
 ```
 
@@ -280,17 +270,22 @@ retry_configs:
 ```yaml
 retry_configs:
 - attempt: 0
+  backoff_seconds: 1
   delay_seconds: 5
 - attempt: 1
+  backoff_seconds: 2
   delay_seconds: 10
 - attempt: 2
+  backoff_seconds: 4
   delay_seconds: 15
 - attempt: 3
+  backoff_seconds: 8
   delay_seconds: 20
 ```
 
-Since the unquoted form has no functions, an expression that genuinely needs
-`pow` or `sqrt` has to be lifted out of the loop.
+The unquoted form is rewritten like any other reference, and the quoted form lets the expression call functions such as `pow` and `sqrt`. In the quoted form, a name inside a quoted string within the expression, an escaped `[name]`, and a function name before `(` keep the meaning calc gives them.
+
+calc puts each path's value into the expression as text, so when one loop variable's name begins another's, as `i` and `item` do, the shorter path would also change the start of the longer one. Write the longer path first, as in `(( calc "item.n + i" ))`, or rename one of the variables.
 
 ## Practical Examples
 

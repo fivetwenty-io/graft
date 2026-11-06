@@ -39,6 +39,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `--cherry-pick jobs.0.k` now prints a list with `k: 1` as its one entry, as spruce does, where it printed a map keyed `"0"`. This holds for a name in place of the index, for several picks inside one list, and for a pick that goes below an entry another pick took whole. Two picks inside the same entry give one merged entry, where spruce prints two.
 
+- A loop variable named after an operator, such as `join`, `keys`, or `type`, no longer breaks the operator in a loop body. Inside `for join in names`, `(( join ", " join ))` now joins the current element, where it used to pass through as raw text naming an internal path. Where the name opens an operator call, it stays the operator, so `(( type "x" ))` calls `type`. Everywhere else it reads the loop variable, and that includes `(( grab type ))`, `(( type == "a" ? "yes" : "no" ))`, and `(( type || "z" ))`.
+
+- A loop variable inside the quoted expression of a `calc` in a loop body now reads the current element, as it already did in a loop header. Inside `for i in range 1 3`, `(( calc "pow(2, i)" ))` gives 2, 4, and 8. Before, the body failed with "does not support named variables", or read a top-level `i` when the document had one.
+
+- An error from an expression in a loop body, in either evaluator mode, now names the path as the user wrote it, such as `svc.missing`, and a dependency cycle through a loop body shows each operator as written. Before, the message named the internal `__graft_loop` path that holds the binding. `errors.Is` and `errors.As` match the same errors as before.
+
+- `defer` in a loop body now writes its expression as the user wrote it, so `(( defer grab svc.ip ))` writes `(( grab svc.ip ))`, the same text it writes outside a loop. Before, it wrote the internal `__graft_loop` path, which a later merge can't read.
+
 ## [1.45.2] - 2026-11-05
 
 This release closes the reference-path corner cases that 1.45.1 left open, so `$.` root paths, a leading `/`, and an exponent number before a `/` now read the way spruce reads them. Loop bodies find the loop variable with the expression lexer itself, so a reference inside a loop reads the same way it does anywhere else in the document. Every operator now treats a value from `graft.NewLiteral` as data and never as code, a path, or the name of a secret, file, or server, which closes a hole where `(( calc ))` could read any number in the merged tree. Library callers who pass literals should read the Security section before they upgrade, and anyone whose templates hold a bare `(( /b || c ))` should check its output.

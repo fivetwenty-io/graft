@@ -608,17 +608,27 @@ nest and both would otherwise end in `(( done ))`:
 
   A path that starts with `$.` always names the document root, even when its first segment is the loop variable's name. Inside a loop over `svc`, `(( grab $.svc.name ))` reads the top-level `svc`, while `(( grab svc.name ))` reads the current element. The same holds in a header nested inside the loop, so `(( for y in $.svc.list ))`, `(( if $.svc.flag ))`, and `(( case $.svc.kind ))` read the top-level `svc` as well.
 
-- **Loop variables are not visible inside quoted strings**
+- **A loop variable named after an operator**
 
-  The binding works by rewriting the name where it appears as a reference, and
-  quoted string literals are deliberately left alone so that
-  `(( concat "https://name.example.com/" name ))` is not corrupted. The
-  practical consequence is that `calc`'s quoted form cannot see a loop
-  variable: `(( calc "pow(2, i)" ))` inside a `for i in ...` fails with `calc
-  operator does not support named variables in expression: i`. Use calc's
-  unquoted form — `(( calc (i + 1) * 5 ))` — which is rewritten like any other
-  reference. Unquoted calc has no function calls, so an expression needing
-  `pow` or `sqrt` has to be lifted out of the loop.
+  A loop variable can share its name with an operator, such as `join`, `keys`, or `type`. Where the name opens an operator call, it stays the operator, and everywhere else it reads the loop variable. So inside `for join in names`, `(( join ", " join ))` joins the current element, while `(( grab join ))` and `(( concat "n=" join ))` read it. The name opens a call when it starts the expression or a parenthesized group and the next token can begin an argument. When an infix operator such as `==` or `||` follows it, the name reads the loop variable, so `(( type == "a" ? "yes" : "no" ))` and `(( type || "z" ))` test the current element.
+
+  This means such a variable can't be read as the bare head of a call. Inside `for type in names`, `(( type "x" ))` calls the `type` operator on `"x"`. To read the variable there, pass it to an operator, as in `(( grab type ))`, or give the variable a name that no operator uses.
+
+- **Quoted strings keep their text, except in calc**
+
+  The binding works by rewriting the name where it appears as a reference, and quoted strings are left alone, so `(( concat "https://name.example.com/" name ))` is not corrupted. The one exception is the quoted expression right after `calc`, which calc reads in its own expression language. There a loop variable reads the current element, in a loop body and in a header alike, and never a document key of the same name. Inside `for i in range 1 3`, `(( calc "pow(2, i)" ))` gives 2, 4, and 8, and `(( if calc "i > 1" ))` keeps the iterations where `i` is 2 or 3. A dotted path such as `svc.n` in the expression reads the loop variable `svc` the same way. A name inside a quoted string within the expression, an escaped `[name]`, and a function name before `(` keep the meaning calc gives them.
+
+  calc puts each path's value into the expression as text, so when one loop variable's name begins another's, as `i` and `item` do, the shorter path would also change the start of the longer one. Write the longer path first, as in `(( calc "item.n + i" ))`, or rename one of the variables. calc does the same with any two paths outside a loop.
+
+  A path built from strings at run time is a different case. In a body, `(( grab (concat "svc" ".name") ))` reads the document key `svc`, while the same expression in a header reads the loop variable.
+
+- **defer in a loop body**
+
+  `defer` writes its expression back out for a later merge, and that merge can't see the loop's bindings. So a loop body's `defer` writes the expression as the user wrote it, and `(( defer grab svc.ip ))` writes `(( grab svc.ip ))` in every iteration, the same text it writes outside a loop. If the deferred expression needs a value from the loop, have the later merge define a key of that name.
+
+- **Errors name the path as written**
+
+  An error from an expression in a loop body names the path the user wrote, such as `svc.missing`, and never the internal path that holds the binding. A dependency cycle report through a loop body shows each operator as it appears in the body. This holds in sequential and parallel evaluation alike.
 
 - **`__graft_loop` is a reserved top-level key**
 
