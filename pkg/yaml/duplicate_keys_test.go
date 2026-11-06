@@ -357,9 +357,10 @@ func TestOnDuplicateKeyExplicitKeyPlace(t *testing.T) {
 }
 
 // TestOnDuplicateKeyRepeatedMergeKeys pins two merge keys in one mapping,
-// which every target reads as one merge of both sources in their order,
-// so a key in the later source wins, as it does in spruce. The Node
-// target holds one merge key whose value is a sequence of the sources.
+// which every target reads as two merges in turn, so a key the later
+// merge key brings in wins, while in a list the earlier source wins, as
+// in spruce. The Node target holds one merge key whose value is a
+// sequence of the sources, with the later merge key's sources first.
 func TestOnDuplicateKeyRepeatedMergeKeys(t *testing.T) {
 	const anchors = "b1: &b1\n  p: 1\n  q: 1\nb2: &b2\n  q: 2\n  r: 2\nb3: &b3\n  r: 3\n  w: 3\n"
 	cases := []struct {
@@ -368,7 +369,7 @@ func TestOnDuplicateKeyRepeatedMergeKeys(t *testing.T) {
 		sources int
 	}{
 		{anchors + "m:\n  <<: *b1\n  <<: *b2\n", map[string]int{"p": 1, "q": 2, "r": 2}, 2},
-		{anchors + "m:\n  <<: [*b1, *b2]\n  <<: *b3\n  p: 9\n", map[string]int{"p": 9, "q": 2, "r": 3, "w": 3}, 3},
+		{anchors + "m:\n  <<: [*b1, *b2]\n  <<: *b3\n  p: 9\n", map[string]int{"p": 9, "q": 1, "r": 3, "w": 3}, 3},
 		{anchors + "m:\n  <<: *b1\n  <<: {q: 2, s: 2}\n", map[string]int{"p": 1, "q": 2, "s": 2}, 2},
 		{anchors + "m:\n  <<: *b1\n  x: 0\n  <<: *b2\n  <<: *b3\n", map[string]int{"p": 1, "q": 2, "r": 3, "w": 3, "x": 0}, 3},
 	}

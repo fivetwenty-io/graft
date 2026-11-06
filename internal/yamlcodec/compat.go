@@ -443,7 +443,8 @@ func ParseFirstBody(data []byte, tag bool) (ast.Node, error) {
 // fails a body with an alias inside the collection its anchor names, or
 // with an invalid tag, resolves every scalar with an explicit core tag as
 // spruce does (see ResolveTags), marks the quoted YAML 1.1
-// boolean-lookalike scalars when tag is set, and expands every alias. It
+// boolean-lookalike scalars when tag is set, expands every alias, and
+// folds every << merge key into its mapping as spruce does. It
 // rewrites body in place, so a caller passes a body that nothing else
 // holds.
 func PrepareBody(body ast.Node, tag bool) (ast.Node, error) {
@@ -466,7 +467,9 @@ func PrepareBody(body ast.Node, tag bool) (ast.Node, error) {
 
 	// The tagger runs first, since expansion shares one subtree among
 	// every alias to it, and the tagger must mark each scalar only once.
-	return ExpandAliases(body)
+	// Merge keys fold after aliases expand, so a merge key that names an
+	// anchor reads the anchor's map (see ExpandBody).
+	return ExpandBody(body)
 }
 
 // DecodeFirst decodes the first document of data into v the way goccy's

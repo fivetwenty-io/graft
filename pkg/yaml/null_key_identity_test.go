@@ -133,7 +133,6 @@ func TestRepeatedKeysStillRefused(t *testing.T) {
 		"\"a\": 1\na: 2\n",
 		"!foo null: 1\n\"null\": 2\n",
 		"o: {a: 1, a: 2}\n",
-		"b: &b {x: 1}\nm:\n  <<: *b\n  <<: *b\n",
 	} {
 		var v any
 		if err := yaml.Unmarshal([]byte(doc), &v); err == nil {

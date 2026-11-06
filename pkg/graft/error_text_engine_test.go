@@ -173,7 +173,9 @@ var parseErrorCases = []errorTextCase{
 	{name: "tab indent", doc: "a: b\n\tc: PROBEzq81x\n", detailed: true},
 	{name: "mapping in a scalar", doc: "a: PROBEzq81x\n  b: c\n", detailed: true},
 	{name: "unknown alias", doc: "a: *PROBEzq81x\n", detailed: true},
-	{name: "merge of a scalar", doc: "a: &x PROBEzq81x\nb: {<<: *x}\n", detailed: true},
+	// graft's own merge-key check fails this one, as spruce does, and
+	// its error carries a line but no source lines.
+	{name: "merge of a scalar", doc: "a: &x PROBEzq81x\nb: {<<: *x}\n"},
 	{name: "duplicate key", doc: "a: 1\na: PROBEzq81x\n", detailed: true},
 	{name: "line before the failure", doc: "a: |\n PROBEzq81x\n  x\n- y\n", detailed: true},
 	{name: "tag mismatch", doc: "x: 1\na: !!int PROBEzq81x\n"},

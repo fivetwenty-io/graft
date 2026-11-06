@@ -17,7 +17,7 @@ func TestParseBytesRepeatedKeys(t *testing.T) {
 		{"{a: 1, a: 2}\n", "[1:8] mapping key already defined at [1:2]"},
 		{"{? a, ? a}\n", "[1:7] mapping key already defined at [1:2]"},
 		{"a: &x 1\n*x : 1\n*x : 2\n", "[3:1] mapping key already defined at [2:1]"},
-		{"<<: {a: 1}\n<<: {b: 1}\n", "[2:1] mapping key already defined at [1:1]"},
+		{"<<: {a: 1}\n<<: {b: 1}\n", ""},
 		{"a: 1\n---\nb: 1\nb: 2\n", "[4:1] mapping key already defined at [3:1]"},
 		{"~: 1\n~: 2\n", "[2:1] mapping key already defined at [1:1]"},
 		{"~: 1\n!!str null: 2\n", "[2:1] mapping key already defined at [1:1]"},

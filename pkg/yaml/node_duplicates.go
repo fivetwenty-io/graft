@@ -54,8 +54,10 @@ func (w nodeDupWalker) walk(n *Node, path string) {
 //
 // Merge keys are never reported. The first one keeps its place, and when
 // the mapping holds more than one, its value becomes a sequence of the
-// sources of every merge key, in order, which a decode merges with a key
-// in a later source winning. A decode lets a merged value win over a key
+// sources of every merge key, with the sources of a later merge key
+// before those of an earlier one. A decode merges that sequence with a
+// key in an earlier source winning, so a later merge key still wins over
+// an earlier one, as it does in the text. A decode lets a merged value win over a key
 // written before the merge key and lets a key written after it win, so a
 // pair whose key a source supplies moves to the side of the merge key
 // that keeps the value written last, as arrange describes.
@@ -130,7 +132,8 @@ type merges struct {
 // add records a merge key with the value val at index i of Content,
 // where at is the number of pairs kept so far. It returns true for the
 // first merge key, which the caller keeps as a pair, and false for a
-// later one, whose sources join value.
+// later one, whose sources go at the front of value, so that they win
+// over the sources of the merge keys before it.
 func (m *merges) add(i int, val *Node, at int) bool {
 	if m.supplied == nil {
 		m.supplied = make(map[string]int)
@@ -146,7 +149,7 @@ func (m *merges) add(i int, val *Node, at int) bool {
 	if m.count == 2 {
 		m.value = mergeSequence(m.value)
 	}
-	m.value.Content = append(m.value.Content, sourcesOf(val)...)
+	m.value.Content = append(append([]*Node(nil), sourcesOf(val)...), m.value.Content...)
 	return false
 }
 
@@ -211,9 +214,9 @@ func suppliedKeys(n *Node, seen map[*Node]bool) map[string]bool {
 
 // mergeSequence returns a flow sequence at first's place of the merge
 // sources that first, the value of a merge key, names. A merge key with
-// that sequence as its value merges the sources in turn, as the merge
-// keys that named them would, and the sources of a later merge key are
-// appended to it.
+// that sequence as its value merges the sources as the merge key that
+// named them would, and the sources of a later merge key go at its
+// front.
 func mergeSequence(first *Node) *Node {
 	out := &Node{
 		Kind: SequenceNode, Tag: yamlnode.TagSeq, Line: first.Line, Column: first.Column,

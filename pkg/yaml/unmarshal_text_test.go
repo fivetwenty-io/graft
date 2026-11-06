@@ -141,9 +141,9 @@ var textShapes = []struct {
 	{"integer key collision", "0x10: a\n16: b\n", func() any { return &map[string]string{} },
 		&map[string]string{"0x10": "a", "16": "b"}},
 	// A merge list into a struct follows the generic route, where the
-	// later map wins, so N is 2. yaml.v2 and yaml.v3 give N 1.
+	// earlier map wins, as in spruce, yaml.v2, and yaml.v3, so N is 1.
 	{"merge list", "a: &a {v: 1.10, n: 1}\nb: &b {n: 2}\nc:\n  <<: [*a, *b]\n", func() any { return &struct{ C textOuter }{} },
-		&struct{ C textOuter }{C: textOuter{TextInner: TextInner{V: "1.10"}, N: 2}}},
+		&struct{ C textOuter }{C: textOuter{TextInner: TextInner{V: "1.10"}, N: 1}}},
 	{"beside a generic value", "v: 1.10\na: \"yes\"\n", func() any {
 		return &struct {
 			V string
