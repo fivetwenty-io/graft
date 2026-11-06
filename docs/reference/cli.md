@@ -225,10 +225,7 @@ graft merge --prune 'servers.name=primary' inventory.yml
 ```
 
 This is a graft extension — spruce rejects predicate segments in either flag.
-Only the dotted spelling is accepted here. The bracketed spelling
-(`servers[name=primary]`) works in expressions but not in these flags:
-`--cherry-pick` reports `validation_error: key not found`, and `--prune`
-silently matches nothing.
+Only the dotted spelling of a `field=value` selector is accepted here. The bracketed spelling (`servers[name=primary]`) works in expressions but not in these flags, where `--cherry-pick` reports `validation_error: key not found` and `--prune` silently matches nothing.
 
 A bracket that holds a plain index or name reads like the dotted spelling, as it does in spruce. So `--prune 'list[0]'`, `--prune 'jobs[0].k'`, and `--prune 'jobs.[0].k'` remove what `list.0` and `jobs.0.k` would, and `--cherry-pick 'list[0]'`, `--cherry-pick 'jobs[1]'`, and `--cherry-pick 'jobs[b]'` keep that one list entry. A cherry-pick that goes on below a list entry keeps a list, not a map keyed by the index, so `--cherry-pick jobs.0.k` prints `jobs:` followed by a list holding `k: 1`. Several picks inside one list come out with the entry picked last first, which is the order spruce uses. Two picks inside the same entry, such as `jobs.0.k` and `jobs.0.name`, give one merged entry here, where spruce prints two. An index outside the list prunes nothing, where spruce stops with a panic.
 

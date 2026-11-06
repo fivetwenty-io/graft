@@ -34,23 +34,21 @@ func TestPathVariableSubstitution(t *testing.T) {
 	t.Setenv("QQ", "q")
 	t.Setenv("Q", "q")
 
-	cases := map[string]string{
-		"grab one letter":  "mm: {foo: 1}\nr: (( grab mm.$X ))\n",
-		"grab two letters": "mm: {foo: 1}\nr: (( grab mm.$XY ))\n",
-		"inject long":      "mm: {q: {a: 1}}\nr: (( inject mm.$QQ ))\n",
-		"inject one":       "mm: {q: {a: 1}}\nr: (( inject mm.$Q ))\n",
+	cases := []struct {
+		name string
+		src  string
+		path string
+	}{
+		{"grab one letter", "mm: {foo: 1}\nr: (( grab mm.$X ))\n", "r"},
+		{"grab two letters", "mm: {foo: 1}\nr: (( grab mm.$XY ))\n", "r"},
+		{"inject long", "mm: {q: {a: 1}}\nr: (( inject mm.$QQ ))\n", "a"},
+		{"inject one", "mm: {q: {a: 1}}\nr: (( inject mm.$Q ))\n", "a"},
 	}
-	for name, src := range cases {
-		t.Run(name, func(t *testing.T) {
-			out := evalEnvPathDoc(t, src)
-			if name[:4] == "grab" {
-				if v, err := out.Get("r"); err != nil || v != 1 {
-					t.Fatalf("r = %v, %v; want 1", v, err)
-				}
-				return
-			}
-			if v, err := out.Get("a"); err != nil || v != 1 {
-				t.Fatalf("a = %v, %v; want 1", v, err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := evalEnvPathDoc(t, tc.src)
+			if v, err := out.Get(tc.path); err != nil || v != 1 {
+				t.Fatalf("%s = %v, %v; want 1", tc.path, v, err)
 			}
 		})
 	}

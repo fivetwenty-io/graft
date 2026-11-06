@@ -1526,17 +1526,19 @@ func (m *mergeBuilderImpl) applyCherryPicking(doc Document) (Document, error) {
 					if idx, isNum := isNumericIndex(lastPart); isNum {
 						if idx >= 0 && idx < len(arr) {
 							// Valid numeric index
-							selectionFor(parentPath).indices[idx] = true
-							selectionFor(parentPath).pickOrder = append(selectionFor(parentPath).pickOrder, idx)
+							sel := selectionFor(parentPath)
+							sel.indices[idx] = true
+							sel.pickOrder = append(sel.pickOrder, idx)
 							continue
 						}
 					} else {
 						// Try named lookup
 						_, found := findNamedArrayEntry(arr, lastPart)
 						if found {
-							selectionFor(parentPath).names[lastPart] = true
+							sel := selectionFor(parentPath)
+							sel.names[lastPart] = true
 							if namedIdx, _, ok := findNamedArrayEntryWithIndex(arr, lastPart); ok {
-								selectionFor(parentPath).pickOrder = append(selectionFor(parentPath).pickOrder, namedIdx)
+								sel.pickOrder = append(sel.pickOrder, namedIdx)
 							}
 							continue
 						}
