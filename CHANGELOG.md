@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The debugger no longer turns a plain `yes` into the string `"yes"` when it wraps a session's deferred paths. It now reads each document it rewrites the way a merge reads it, so `enabled: yes` stays a boolean in the merge that follows, and an alias-heavy document fails rather than expanding.
+
 - A grab through a bracket now waits for the key and for the path the key names, in both evaluator modes. With `k: x`, the line `(( grab tgt[k] ))` runs after `k` and after any operator at `tgt.x`, and `(( grab $[k] ))` does the same at the root. When an operator computes the key, the grab also runs after the operators under the path before the bracket, unless that would close a cycle, so sibling grabs that point into the same map still evaluate. Before, the grab could run first and fail with "unable to resolve", or return the target's operator text as its value.
 
 - Every grab now waits for the operators under the path it reads, unless that would close a cycle, so the value it hands on holds their values. That matters for a grab nested in another call, as in `(( join "," (grab meta.list) ))`, which used to join the text of any entry whose operator hadn't run, and for a grab of two or more paths, which used to copy that text into its list.

@@ -25,6 +25,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/humanreport"
 	"github.com/fivetwenty-io/graft/internal/termstyle"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/internal/yamldiff"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 
@@ -33,8 +34,6 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft/controlflow" // Register the (( if/for/while/case )) preprocessor
 	_ "github.com/fivetwenty-io/graft/pkg/graft/operators" // Register operators
 	"github.com/fivetwenty-io/graft/pkg/sortkeys"
-
-	"github.com/goccy/go-yaml"
 )
 
 // stdinPath is the pseudo-path recorded for a file read from standard
@@ -1637,6 +1636,12 @@ func main() {
 	}
 }
 
+// parseYAML decodes data, a document the debugger rewrites, into a map.
+// It reads the document the way a merge reads it, through the merge's own
+// YAML layer, so plain yes and no stay booleans, 010 is octal, only the
+// first document counts, and aliases are capped. The debugger writes the
+// map back out for a merge to read, so a decode that read the document
+// any other way would change what that merge gives.
 func parseYAML(data []byte) (map[string]interface{}, error) {
 	// Handle empty document
 	if len(bytes.TrimSpace(data)) == 0 {
@@ -1644,10 +1649,10 @@ func parseYAML(data []byte) (map[string]interface{}, error) {
 		return make(map[string]interface{}), nil
 	}
 
-	// First, unmarshal into a generic interface to detect root type
-	var raw interface{}
-	if err := yaml.Unmarshal(graft.QuoteInjectKeys(data), &raw); err != nil {
-		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", graft.DetailedError(err))
+	// First, decode into a generic value to detect the root type
+	raw, err := yamlcodec.DecodeExternal(data)
+	if err != nil {
+		return nil, ansi.Errorf("@R{Root of YAML document is not a hash/map}: %s\n", err)
 	}
 
 	switch v := raw.(type) {
