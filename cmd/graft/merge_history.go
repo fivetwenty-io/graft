@@ -10,6 +10,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/log"
 	"github.com/fivetwenty-io/graft/pkg/graft"
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
 // handleMergeHistory implements `merge --history`/`--trace-path`/
@@ -216,7 +217,10 @@ func historyStepPlan(limit, fileCount int, opts *mergeOpts) (fileSteps int, incl
 }
 
 // findPathHistory returns the PathHistory for path, if any.
+// The path may carry the "$." root anchor and bracket indexes, which are
+// read like the dotted spelling history paths use.
 func findPathHistory(all []history.PathHistory, path string) (history.PathHistory, bool) {
+	path = tree.NormalizeBrackets(strings.TrimPrefix(path, "$."))
 	for _, ph := range all {
 		if ph.Path == path {
 			return ph, true
