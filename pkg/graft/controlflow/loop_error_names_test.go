@@ -3,12 +3,14 @@ package controlflow
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/internal/utils/ansi"
 	"github.com/fivetwenty-io/graft/pkg/graft"
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
 // runLoopMergeErr merges src on an engine built with opts and returns
@@ -201,5 +203,44 @@ out:
 				t.Errorf("NotEvaluatedError names the loop binding tree: %#v", ne)
 			}
 		})
+	}
+}
+
+// TestLoopBodyTypedPathErrorsNameTheWrittenPath fails a grab in a loop
+// body on a path that descends into a scalar and on a path that is
+// missing. errors.As hands out a tree.TypeMismatchError and a
+// tree.NotFoundError whose Path segments read as the user wrote them,
+// in both evaluator modes.
+func TestLoopBodyTypedPathErrorsNameTheWrittenPath(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"type mismatch", "  - (( grab svc.n.k ))\n", "[svc n]"},
+		{"not found", "  - (( grab svc.nope ))\n", "[svc nope]"},
+	}
+	for _, mode := range rootRefModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				src := "list: [{n: 1}]\nout:\n(( for svc in list ))\n" + tc.body + "(( done ))\n"
+				err := runLoopMergeErr(t, mode.opts, src)
+				assertNoLoopNames(t, err)
+				var got []string
+				var mismatch tree.TypeMismatchError
+				var missing tree.NotFoundError
+				switch {
+				case errors.As(err, &mismatch):
+					got = mismatch.Path
+				case errors.As(err, &missing):
+					got = missing.Path
+				default:
+					t.Fatalf("errors.As found no typed path error: %v", err)
+				}
+				if fmt.Sprint(got) != tc.want {
+					t.Errorf("Path = %v, want %s", got, tc.want)
+				}
+			})
+		}
 	}
 }

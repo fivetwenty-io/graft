@@ -9,6 +9,8 @@ import (
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/internal/pending"
+	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
 const testLoopPath = "__graft_loop.l0123456789ab_1.0.svc"
@@ -106,4 +108,30 @@ func TestWithoutLoopNamesNeedsLoopBindings(t *testing.T) {
 func sameError(got, want error) bool {
 	pe, ok := got.(*PathError) //nolint:errorlint // the very value, not one down the chain
 	return ok && pe == want    //nolint:errorlint // identity, not a match down the chain
+}
+
+// TestWithoutLoopNamesScrubsAnyTypedError checks that errors.As hands
+// out a scrubbed copy of a typed error the scrub has no case for, both
+// a pointer to a struct with a string path and a struct value with a
+// path split into segments, and leaves the originals as they were.
+func TestWithoutLoopNamesScrubsAnyTypedError(t *testing.T) {
+	ref := &interfaces.ReferenceError{Message: "bad", Reference: testLoopPath + ".x"}
+	segments := []string{loopBindingKey, "l0123456789ab_1", "0", "svc", "n"}
+	mismatch := tree.TypeMismatchError{Path: segments, Wanted: "a map or a list", Got: "a scalar"}
+	err := loopTree().withoutLoopNames(MultiError{Errors: []error{
+		fmt.Errorf("wrapped: %w", ref),
+		fmt.Errorf("wrapped: %w", mismatch),
+	}})
+
+	var gotRef *interfaces.ReferenceError
+	if !errors.As(err, &gotRef) || gotRef.Reference != "svc.x" || gotRef.Message != "bad" {
+		t.Errorf("errors.As(*ReferenceError) = %#v, want Reference svc.x", gotRef)
+	}
+	var gotMismatch tree.TypeMismatchError
+	if !errors.As(err, &gotMismatch) || fmt.Sprint(gotMismatch.Path) != "[svc n]" || gotMismatch.Got != "a scalar" {
+		t.Errorf("errors.As(TypeMismatchError) = %#v, want Path [svc n]", gotMismatch)
+	}
+	if ref.Reference != testLoopPath+".x" || segments[0] != loopBindingKey || len(mismatch.Path) != 5 {
+		t.Error("the scrub changed the original errors in place")
+	}
 }
