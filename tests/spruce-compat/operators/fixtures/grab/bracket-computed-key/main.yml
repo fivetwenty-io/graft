@@ -1,0 +1,9 @@
+# Each grab's bracket key is computed by an operator that sorts after the
+# grab, so only a dependency on the key's own path orders them.
+aa: (( grab meta[z] ))
+ab: (( grab $[w] ))
+meta:
+  ab: 1
+root_ab: 7
+w: (( concat "root_" "ab" ))
+z: (( concat "a" "b" ))

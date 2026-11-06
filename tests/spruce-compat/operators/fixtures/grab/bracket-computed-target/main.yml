@@ -1,0 +1,15 @@
+# Each grab's key and target are both computed, so the grab waits on the
+# operators under the path before the key, or on every operator for $[k].
+aa: (( grab tgt[z] ))
+a:
+  b:
+    c: (( grab a.b[k].v ))
+    x:
+      v: (( concat "v" "1" ))
+ab: (( grab $[rk] ))
+k: (( concat "x" "" ))
+rk: (( concat "rt" "gt" ))
+rtgt: (( concat "root" "-value" ))
+tgt:
+  x: (( concat "computed" "-value" ))
+z: (( concat "x" "" ))

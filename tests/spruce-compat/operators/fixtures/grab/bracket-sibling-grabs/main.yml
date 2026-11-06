@@ -1,0 +1,23 @@
+# Sibling grabs under one parent each wait on the others, because each
+# key is computed. A wait that would close a cycle is dropped, so every
+# one of them still resolves.
+cfg:
+  a: 1
+idx: (( calc "0 + 1" ))
+items:
+- (( grab items[idx] ))
+- two
+- (( grab items[idx] ))
+key: (( concat "a" "" ))
+meta:
+  a: 1
+  pick1: (( grab meta[key] ))
+  pick2: (( grab meta[key] ))
+  use: (( concat "got=" meta.pick1 ))
+other2: (( grab cfg[sel] || "n" ))
+out: (( grab cfg[sel] ))
+self:
+  ab: 1
+  k: (( concat "a" "b" ))
+  pick: (( grab self[self.k] ))
+sel: (( concat "a" "" ))

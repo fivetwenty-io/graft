@@ -1,0 +1,20 @@
+# Each sibling's key names the sibling that sorts before it, so each grab
+# reads a value another grab computed.
+meta:
+  d: (( concat "chain" "-end" ))
+  g0: (( grab meta[k0] ))
+  g1: (( grab meta[k1] ))
+  g2: (( grab meta[k2] ))
+  g3: (( grab meta[k3] ))
+  g4: (( grab meta[k4] ))
+  g5: (( grab meta[k5] ))
+  g6: (( grab meta[k6] ))
+  g7: (( grab meta[k7] ))
+k0: (( concat "d" "" ))
+k1: (( concat "g" "0" ))
+k2: (( concat "g" "1" ))
+k3: (( concat "g" "2" ))
+k4: (( concat "g" "3" ))
+k5: (( concat "g" "4" ))
+k6: (( concat "g" "5" ))
+k7: (( concat "g" "6" ))
