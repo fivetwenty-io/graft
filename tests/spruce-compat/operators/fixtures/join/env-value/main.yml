@@ -1,0 +1,7 @@
+port: (( join "," "s" $P5_PORT ))
+flag: (( join "," "s" $P5_FLAG ))
+nil: (( join "," "s" $P5_NIL ))
+list: (( join "," "s" $P5_LIST ))
+map: (( join "," "s" $P5_MAP ))
+text: (( join "," "s" $P5_TEXT ))
+fallback: (( join "," "s" $P5_UNSET_VALUE || $P5_LIST ))

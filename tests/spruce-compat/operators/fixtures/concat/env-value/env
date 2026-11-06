@@ -1,0 +1,10 @@
+P5_PORT=8080
+P5_ZIP=01234
+P5_FLAG=yes
+P5_OFF=Off
+P5_NIL=~
+P5_LIST=[a, yes]
+P5_MAP={a: yes, b: [1, 2]}
+P5_TEXT=hello world
+P5_QUOTED="q"
+P5_BAD=[unclosed
