@@ -332,7 +332,7 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 ### empty-path-segments-are-an-error
 
-**Graft behavior.** A reference path that starts with a `.` or holds two `.` in a row outside a bracket fails to parse, with one error that says the path has an empty segment. That covers `(( grab meta..a ))`, `(( grab meta...a ))`, `(( grab $..list ))`, `(( grab $.meta..a ))`, `(( grab list..[0] ))`, `(( grab .meta ))`, and `(( grab .5abc ))`, as a `grab` or `concat` argument and on either side of `||`. The message quotes none of the path. A single trailing `.`, as in `(( grab meta. ))`, still reads `meta`.
+**Graft behavior.** A reference path that starts with a `.` or holds two `.` in a row outside a bracket fails to parse, with one error that says the path has an empty segment. That covers `(( grab meta..a ))`, `(( grab meta...a ))`, `(( grab $..list ))`, `(( grab $.meta..a ))`, `(( grab list..[0] ))`, `(( grab .meta ))`, and `(( grab .5abc ))`, as a `grab` or `concat` argument and on either side of `||`. The message gives the position of the dot that makes the empty segment and quotes none of the path. A single trailing `.`, as in `(( grab meta. ))`, still reads `meta`.
 
 **Spruce behavior.** spruce drops every empty segment and reads what is left, so `meta..a` and `meta...a` read `meta.a`, `$..list` reads `list`, `.meta` reads `meta`, and `list..[0]` reads `list[0]`. A `$..` with nothing after it overflows spruce's recursion limit.
 

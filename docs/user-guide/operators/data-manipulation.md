@@ -23,7 +23,7 @@ value: (( grab path.to.value ))
 
 A path may start with `$.` to name the document root, as spruce allows, so `(( grab $.path.to.value ))` reads the same value. A `$` followed by a name, as in `$HOME`, is still an environment variable.
 
-Every segment of a path needs a name, so a path that starts with a `.` or holds two `.` in a row, such as `(( grab .meta ))`, `(( grab meta..a ))`, or `(( grab $..list ))`, fails with an error that says the path has an empty segment. Spruce drops the empty segment and reads `meta.a`, but a doubled dot is almost always a typo, so graft reports it. A single trailing `.`, as in `(( grab meta. ))`, still reads `meta`.
+Every segment of a path needs a name, so a path that starts with a `.` or holds two `.` in a row, such as `(( grab .meta ))`, `(( grab meta..a ))`, or `(( grab $..list ))`, fails with an error that says the path has an empty segment and gives the position of the dot that makes it. Spruce drops the empty segment and reads `meta.a`, but a doubled dot is almost always a typo, so graft reports it. A single trailing `.`, as in `(( grab meta. ))`, still reads `meta`.
 
 **Examples:**
 

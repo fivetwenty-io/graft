@@ -2,7 +2,6 @@
 package graft
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -565,7 +564,7 @@ func (p *Parser) parsePrimary() (*Expr, error) {
 // empty-segment error instead.
 func (p *Parser) unexpectedPrimary(tok interfaces.Token) error {
 	if tok.Type == interfaces.TokenDot && p.dotLeadsPath() {
-		return errEmptyPathSegment
+		return emptySegmentError(tok.Pos.Offset)
 	}
 	return fmt.Errorf("unexpected token: %v (%s) at position %d",
 		tok.Type, tok.Literal, tok.Pos.Offset)
@@ -1094,8 +1093,8 @@ func (p *Parser) parseArgument() (*Expr, error) {
 	if idx > p.pos {
 		path = "-" + path
 	}
-	if hasEmptySegment(path) {
-		return nil, errEmptyPathSegment
+	if at := emptySegmentAt(path); at >= 0 {
+		return nil, emptySegmentError(p.current().Pos.Offset + at)
 	}
 	cursor, err := tree.ParseCursor(path)
 	if err != nil {
@@ -1255,23 +1254,29 @@ func (p *Parser) parseReferencePath(start string) (*Expr, error) {
 	}, nil
 }
 
-// errEmptyPathSegment is the one error for a reference path with an
-// empty segment, from a leading '.' or two '.' in a row. spruce drops the
-// empty segment and reads the path without it, which hides a typo, so
-// graft refuses the path. The message quotes none of the path.
-var errEmptyPathSegment = errors.New("a reference path has an empty segment, from a leading '.' or two '.' in a row")
+// emptySegmentError is the one error for a reference path with an empty
+// segment, from a leading '.' or two '.' in a row. spruce drops the empty
+// segment and reads the path without it, which hides a typo, so graft
+// refuses the path. The message gives the offset of the dot that makes
+// the empty segment, counted from the start of the expression, and
+// quotes none of the path.
+func emptySegmentError(offset int) error {
+	return fmt.Errorf("a reference path has an empty segment at position %d, from a leading '.' or two '.' in a row", offset)
+}
 
-// hasEmptySegment reports whether a reference literal starts with a '.'
-// or holds two '.' in a row outside a bracket. Text inside brackets is a
-// key or an expression of its own, so its dots are not path separators.
-func hasEmptySegment(path string) bool {
+// emptySegmentAt returns the byte offset in a reference literal of the
+// dot that makes an empty segment, which is a leading '.' or the second
+// of two '.' in a row outside a bracket, or -1 when there is none. Text
+// inside brackets is a key or an expression of its own, so its dots are
+// not path separators.
+func emptySegmentAt(path string) int {
 	if strings.HasPrefix(path, ".") {
-		return true
+		return 0
 	}
 	depth := 0
 	var quote rune
 	prevDot := false
-	for _, r := range path {
+	for i, r := range path {
 		switch {
 		case quote != 0:
 			if r == quote {
@@ -1287,21 +1292,21 @@ func hasEmptySegment(path string) bool {
 			depth--
 		case r == '.' && depth == 0:
 			if prevDot {
-				return true
+				return i
 			}
 			prevDot = true
 			continue
 		}
 		prevDot = false
 	}
-	return false
+	return -1
 }
 
 // parseReference parses a reference token.
 func (p *Parser) parseReference() (*Expr, error) {
 	tok := p.current()
-	if hasEmptySegment(tok.Literal) {
-		return nil, errEmptyPathSegment
+	if at := emptySegmentAt(tok.Literal); at >= 0 {
+		return nil, emptySegmentError(tok.Pos.Offset + at)
 	}
 	p.advance()
 

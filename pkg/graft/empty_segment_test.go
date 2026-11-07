@@ -95,3 +95,38 @@ func TestPathsNextToAnEmptySegmentStillRead(t *testing.T) {
 		}
 	}
 }
+
+// TestEmptyPathSegmentGivesPosition pins that the empty-segment error
+// gives the offset of the dot that makes the empty segment, counted from
+// the start of the expression, as the parse error before it did. For two
+// dots in a row that is the second one. The offset quotes nothing.
+func TestEmptyPathSegmentGivesPosition(t *testing.T) {
+	cases := []struct {
+		expr string
+		at   int
+	}{
+		{"(( grab meta..a ))", 13},
+		{"(( grab meta...a ))", 13},
+		{"(( grab $..list ))", 10},
+		{"(( grab $.meta..a ))", 15},
+		{"(( grab .meta ))", 8},
+		{"(( grab .5abc ))", 8},
+		{`(( concat "v=" meta..a ))`, 20},
+		{`(( grab meta..a || "d" ))`, 13},
+		{"(( grab missing.key || meta..a ))", 28},
+	}
+	for _, mode := range slashModes {
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.expr, func(t *testing.T) {
+				_, err := evalSlashDoc(t, mode.opts, emptySegmentDoc+"result: "+tc.expr+"\n")
+				if err == nil {
+					t.Fatalf("expected an error")
+				}
+				want := fmt.Sprintf("a reference path has an empty segment at position %d,", tc.at)
+				if !strings.Contains(err.Error(), want) {
+					t.Fatalf("error %q does not hold %q", err.Error(), want)
+				}
+			})
+		}
+	}
+}
