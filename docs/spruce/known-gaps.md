@@ -165,7 +165,7 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 ### tagged-merge-keys-fail-to-parse
 
-**Current behavior.** A `<<` key with a tag before it fails to parse in `graft merge` and `pkg/yaml`. The shape `!!merge <<: {a: 1}` merges, but `? !!merge <<` on one line with its value on the next fails with "could not find merge key", and `!!str <<: {a: 1}` fails with "unexpected scalar value". goccy's parser expects a merge key after a tag in those places, and its scanner reads neither `<<` as one.
+**Current behavior.** Two shapes of a tagged `<<` key fail to parse in `graft merge` and `pkg/yaml`, which are `? !!merge <<` and `!!str <<:`. The shape `!!merge <<: {a: 1}` merges, but `? !!merge <<` on one line with its value on the next fails with "could not find merge key", and `!!str <<: {a: 1}` fails with "unexpected scalar value". goccy's parser expects a merge key after a tag in those places, and its scanner reads neither `<<` as one.
 
 **Expected behavior.** spruce merges `{a: 1}` for `? !!merge <<`, and it reads `!!str <<` as an ordinary key named `<<`.
 
