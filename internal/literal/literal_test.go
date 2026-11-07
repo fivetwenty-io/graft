@@ -233,3 +233,44 @@ func TestIsRefusal(t *testing.T) {
 		}
 	}
 }
+
+// TestCopyCopiesTypedContainers checks that Copy copies the typed
+// containers inside a Value, as New does, so a change to the original's
+// content never reaches the copy. Copy keeps every type it meets, so a
+// map[any]any inside a typed container stays one.
+func TestCopyCopiesTypedContainers(t *testing.T) {
+	strs := []string{"a"}
+	byKey := map[string][]string{"k": {"x"}}
+	ptr := &[]int{1}
+	arr := [1][]string{{"q"}}
+	nested := map[string][]any{"l": {map[any]any{1: "one"}}}
+	orig := literal.Wrap(map[string]any{"s": strs, "m": byKey, "p": ptr, "a": arr, "n": nested})
+
+	got := literal.Copy(orig).(literal.Value).Value().(map[string]any)
+
+	strs[0] = "z"
+	byKey["k"][0] = "y"
+	(*ptr)[0] = 9
+	arr[0][0] = "w"
+	nested["l"][0].(map[any]any)[1] = "uno"
+
+	if s := got["s"].([]string); s[0] != "a" {
+		t.Errorf("[]string shows the change: %v", s)
+	}
+	if m := got["m"].(map[string][]string); m["k"][0] != "x" {
+		t.Errorf("map[string][]string shows the change: %v", m)
+	}
+	if p := got["p"].(*[]int); p == ptr || (*p)[0] != 1 {
+		t.Errorf("*[]int is shared or shows the change: %v", *p)
+	}
+	if a := got["a"].([1][]string); a[0][0] != "q" {
+		t.Errorf("[1][]string shows the change: %v", a)
+	}
+	inner, ok := got["n"].(map[string][]any)["l"][0].(map[any]any)
+	if !ok {
+		t.Fatalf("a map[any]any inside a typed container changed type: %T", got["n"].(map[string][]any)["l"][0])
+	}
+	if inner[1] != "one" {
+		t.Errorf("map[any]any inside a typed container shows the change: %v", inner)
+	}
+}

@@ -192,10 +192,13 @@ func contains(v any, depth int) bool {
 
 // Copy returns a deep copy of v's maps and lists. A Value stays a Value
 // and gets a copy of its content, so the copy shares no container with
-// v. Any other value is returned as it is. Copy panics with
-// CycleMessage when v contains itself.
+// v. Copy also copies typed containers the way New does, such as a
+// []string or a map[string][]string, and keeps every type it meets, so
+// a map[any]any stays one. A struct, and a pointer to a struct or a
+// scalar, is shared, as it is in New. Any other value is returned as it
+// is. Copy panics with CycleMessage when v contains itself.
 func Copy(v any) any {
-	var w walk
+	w := walk{keepTypes: true}
 	return w.deepCopy(v, 0)
 }
 
@@ -228,7 +231,7 @@ func (w *walk) deepCopy(v any, depth int) any {
 		}
 		return out
 	default:
-		return v
+		return w.copyTyped(v, depth)
 	}
 }
 
@@ -266,8 +269,21 @@ const CycleMessage = "graft: the value contains itself, and a literal cannot hol
 // cycle the first time round instead of following it until maxDepth,
 // which takes exponential time when a container refers to itself more
 // than once.
+//
+// keepTypes is set for Copy, which keeps every type it meets. Without it
+// the walk is New's, which turns a map[any]any into a map[string]any.
 type walk struct {
-	stack map[containerID]struct{}
+	stack     map[containerID]struct{}
+	keepTypes bool
+}
+
+// element copies a value the reflect walk finds inside an interface or
+// a Value, in the way the walk copies values.
+func (w *walk) element(v any, depth int) any {
+	if w.keepTypes {
+		return w.deepCopy(v, depth)
+	}
+	return w.normalize(v, depth)
 }
 
 // containerID names a map or a list by the address of its storage. A
@@ -481,7 +497,7 @@ func (w *walk) copyValue(rv reflect.Value, depth int) reflect.Value {
 			return rv
 		}
 		out := reflect.New(rv.Type()).Elem()
-		out.Set(reflect.ValueOf(w.normalize(rv.Elem().Interface(), depth+1)))
+		out.Set(reflect.ValueOf(w.element(rv.Elem().Interface(), depth+1)))
 		return out
 	case reflect.Slice:
 		if rv.IsNil() {
@@ -513,7 +529,7 @@ func (w *walk) copyValue(rv reflect.Value, depth int) reflect.Value {
 		return w.copyPointer(rv, depth)
 	case reflect.Struct:
 		if rv.Type() == valueType {
-			return reflect.ValueOf(w.normalize(rv.Interface(), depth+1))
+			return reflect.ValueOf(w.element(rv.Interface(), depth+1))
 		}
 		return rv
 	default:

@@ -969,7 +969,7 @@ func (l LiteralValue) Value() any
 
 - `RawData`, `GetData`, `ToMap`, `Get` and the other getters, `Paths`, `ToYAML`, `ToJSON`, `ToJSONIndent`, `graft.MarshalYAML`, `pkg/yaml` `Marshal`, and `encoding/json` all write the plain value with every wrapper removed.
 
-- `Clone` and the engine's own copies keep the wrapper and copy the value inside it.
+- `Clone` and the engine's own copies keep the wrapper and copy the value inside it, and that includes typed containers such as a `[]string` or a `map[string][]string`, which keep their types. A struct, and a pointer to a struct or a scalar, is shared with the original, as it is in `NewLiteral`.
 
 - `Get`, `GetMap`, and `GetSlice` return the document's own maps and lists from inside a wrapped value, just as they do for plain data, so a change to what they return changes the document. `Set` and `Delete` cannot reach inside a wrapped value and return an error when a path goes through one.
 

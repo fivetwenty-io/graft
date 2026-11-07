@@ -155,3 +155,22 @@ func TestLiteralTypedContainerCycleIsRefused(t *testing.T) {
 	s[0] = p
 	NewLiteral(p)
 }
+
+// TestCloneCopiesTypedContainersInALiteral checks that Clone copies the
+// typed containers inside a literal, so a change to the original
+// document's literal never shows in the clone.
+func TestCloneCopiesTypedContainersInALiteral(t *testing.T) {
+	doc := NewDocument(map[string]interface{}{"params": NewLiteral(map[string]interface{}{"list": []string{"a", "b"}})})
+	clone := doc.Clone()
+
+	orig := doc.(*document).data["params"].(LiteralValue).Value().(map[string]interface{})
+	orig["list"].([]string)[0] = "changed"
+
+	got, err := clone.Get("params.list")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Fatalf("the clone shows the change to the original: %#v", got)
+	}
+}
