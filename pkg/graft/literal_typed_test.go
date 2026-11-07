@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/fivetwenty-io/graft/internal/literal"
 )
 
 // TestLiteralCopiesTypedContainers wraps typed containers, changes the
@@ -145,8 +147,8 @@ func TestLiteralTypedContainersKeepNilAndEmpty(t *testing.T) {
 
 func TestLiteralTypedContainerCycleIsRefused(t *testing.T) {
 	defer func() {
-		if recover() == nil {
-			t.Fatal("a pointer cycle did not panic")
+		if r := recover(); r != literal.CycleMessage {
+			t.Fatalf("a pointer cycle panicked with %v, want %q", r, literal.CycleMessage)
 		}
 	}()
 	var p *[]interface{}

@@ -2,7 +2,6 @@ package literal_test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -59,8 +58,8 @@ func TestNewPanicsOnACycle(t *testing.T) {
 			if text == "" {
 				t.Fatal("New returned on a value that holds itself")
 			}
-			if !strings.Contains(text, "contains itself") || strings.Contains(text, "cyc-probe") {
-				t.Fatalf("panic text is not plain: %q", text)
+			if text != literal.CycleMessage {
+				t.Fatalf("panic text is %q, want %q", text, literal.CycleMessage)
 			}
 			wrapped := panicText(t, func() { literal.New([]any{literal.Wrap(v)}) })
 			if wrapped != text {
@@ -74,8 +73,8 @@ func TestCopyPanicsOnACycle(t *testing.T) {
 	for name, v := range cyclic() {
 		t.Run(name, func(t *testing.T) {
 			text := panicText(t, func() { literal.Copy(literal.Wrap(v)) })
-			if !strings.Contains(text, "contains itself") || strings.Contains(text, "cyc-probe") {
-				t.Fatalf("Copy did not panic with a plain message: %q", text)
+			if text != literal.CycleMessage {
+				t.Fatalf("Copy panicked with %q, want %q", text, literal.CycleMessage)
 			}
 		})
 	}
