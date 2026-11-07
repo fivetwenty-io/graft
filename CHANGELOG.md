@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.46.0] - 2026-11-06
+
+This release closes the items that 1.44.0 through 1.45.2 left parked. Environment variable values and `<<` merge keys now decode the way spruce decodes them, and both change merge output for existing templates, so please read the Changed section before you upgrade. A grab now waits for the operators it reads, and when it still can't get a finished value, it fails with an error that matches `graft.ErrNotEvaluated` instead of returning raw operator text. Digit-led names and exponent-form arguments now read the way spruce reads them, a `/` after `op@target` now begins a reference as it already did after a plain operator name, and an empty path segment now fails with one clear error, where spruce silently drops it. The `--trace-path` flag now accepts the `$.` anchor and bracket indexes, and `--prune` and `--cherry-pick` now accept bracket indexes. Loop bodies no longer leak internal names into errors or output, and `graft.NewLiteral` now copies typed containers as well as untyped ones.
+
 ### Added
 
 - A custom operator can implement the new `SoftDependent` interface to name paths whose operators it should run after when it can. Each path stands for every operator at or under it, and every operator that names the same path shares one node in the graph, so many grabs of a map with many operators in it still sort quickly. Graft orders the operator after them only when that would not close a cycle, so a soft dependency never turns a document that evaluates into a cycle error.
@@ -1348,6 +1352,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.46.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.46.0
 [1.45.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.2
 [1.45.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.1
 [1.45.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.0
