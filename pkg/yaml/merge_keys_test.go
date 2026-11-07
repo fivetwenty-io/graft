@@ -205,8 +205,9 @@ func TestQuotedMergeKeyIsAKey(t *testing.T) {
 // TestNodeMergeOfAliasToListRefused pins that a merge key whose value is
 // an alias to a list, or any other value no merge takes, fails on the
 // Node route as it fails on the text route, with or without
-// OnDuplicateKey, and however many merge keys the mapping holds. Unmarshal into a Node keeps the document, and
-// Node.Decode fails with the text route's error, at the same line.
+// OnDuplicateKey, and however many merge keys the mapping holds.
+// Unmarshal into a Node keeps the document, and Node.Decode fails with
+// the text route's error, at the same line.
 func TestNodeMergeOfAliasToListRefused(t *testing.T) {
 	const msg = "map merge requires map or sequence of maps as the value"
 	cases := []struct {
