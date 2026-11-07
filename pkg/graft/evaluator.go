@@ -581,63 +581,64 @@ type dataFlowGraph struct {
 	sortErr error
 }
 
-// edges returns every hard edge and the soft edges the sort kept, each
-// as {dependency, dependent}. A soft edge is kept when its dependency
-// sorted before its dependent, which is exactly when the sort honored
-// it. The list grows with each waiter's members, so it is built only
-// for the callers that ask for edges one by one.
-func (dfg *dataFlowGraph) edges() [][]*Opcall {
-	g := append([][]*Opcall(nil), dfg.hard...)
-	if len(dfg.soft) == 0 {
-		return g
-	}
+// keptBarrier is one soft barrier as the sort kept it. A soft edge from
+// a member to a waiter is kept when the member sorted before the waiter,
+// which is exactly when the sort honored it. With the members in the
+// order they sorted, the members each waiter keeps are a prefix of them,
+// so one count per waiter stands for all of its soft edges, and the
+// barrier stays in proportion to its members plus its waiters.
+type keptBarrier struct {
+	// members are the barrier's members that sorted, in the order they
+	// sorted.
+	members []*Opcall
+	// waiters are the barrier's waiters that sorted after at least one
+	// member, each with how many members sorted before it.
+	waiters []keptWaiter
+}
+
+// keptWaiter is one waiter of a keptBarrier and the number of members,
+// from the start, that it keeps.
+type keptWaiter struct {
+	op   *Opcall
+	kept int
+}
+
+// keptSoft returns where each operator first appears in the order the
+// sort found, and each soft barrier as the sort kept it, leaving out a
+// barrier no waiter keeps any member of. A waiter or member that never
+// sorted keeps no edge.
+func (dfg *dataFlowGraph) keptSoft() (map[*Opcall]int, []keptBarrier) {
 	pos := make(map[*Opcall]int, len(dfg.order))
 	for i, node := range dfg.order {
 		if _, ok := pos[node]; !ok {
 			pos[node] = i
 		}
 	}
-	hardPair := make(map[[2]*Opcall]bool, len(dfg.hard))
-	for _, pair := range dfg.hard {
-		hardPair[[2]*Opcall{pair[0], pair[1]}] = true
-	}
-	waits := make(map[*Opcall][]*softBarrier)
+	var kept []keptBarrier
 	for _, bar := range dfg.soft {
-		for _, a := range bar.waiters {
-			waits[a] = append(waits[a], bar)
-		}
-	}
-	done := make(map[*Opcall]bool, len(pos))
-	for _, a := range dfg.order {
-		if done[a] {
-			continue
-		}
-		done[a] = true
-		for _, b := range keptBefore(a, waits[a], pos, hardPair) {
-			g = append(g, []*Opcall{b, a})
-		}
-	}
-	return g
-}
-
-// keptBefore returns the members of a's barriers that sorted before a,
-// which pos gives, other than a and those a hard edge already orders,
-// each once and in the order they sorted.
-func keptBefore(a *Opcall, barriers []*softBarrier, pos map[*Opcall]int, hardPair map[[2]*Opcall]bool) []*Opcall {
-	var kept []*Opcall
-	seen := make(map[*Opcall]bool)
-	for _, bar := range barriers {
+		members := make([]*Opcall, 0, len(bar.members))
 		for _, b := range bar.members {
-			at, ok := pos[b]
-			if b == a || seen[b] || !ok || at >= pos[a] || hardPair[[2]*Opcall{b, a}] {
+			if _, ok := pos[b]; ok {
+				members = append(members, b)
+			}
+		}
+		sort.SliceStable(members, func(i, j int) bool { return pos[members[i]] < pos[members[j]] })
+		var waiters []keptWaiter
+		for _, a := range bar.waiters {
+			at, ok := pos[a]
+			if !ok {
 				continue
 			}
-			seen[b] = true
-			kept = append(kept, b)
+			n := sort.Search(len(members), func(i int) bool { return pos[members[i]] >= at })
+			if n > 0 {
+				waiters = append(waiters, keptWaiter{op: a, kept: n})
+			}
+		}
+		if len(waiters) > 0 {
+			kept = append(kept, keptBarrier{members: members, waiters: waiters})
 		}
 	}
-	sort.Slice(kept, func(i, j int) bool { return pos[kept[i]] < pos[kept[j]] })
-	return kept
+	return pos, kept
 }
 
 // computeDataFlowGraph scans ev.Tree for phase's operator calls, builds
