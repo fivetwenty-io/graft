@@ -495,3 +495,39 @@ func TestErrLiteralRefusedThroughWrappers(t *testing.T) {
 		})
 	}
 }
+
+// TestLiteralTypedContainerIsNeverCode checks that the taint of a
+// literal reaches the elements of a typed container inside it. A
+// []string wrapped by NewLiteral holds an expression, and calc on that
+// element's text refuses it without quoting it. A reference path does
+// not index into a typed slice, for a literal or any other value, so
+// the plans reach the element through the list, through join, and
+// through grab.
+func TestLiteralTypedContainerIsNeverCode(t *testing.T) {
+	plans := []struct{ name, plan string }{
+		{"calc on the list", "out: (( calc params.list ))\n"},
+		{"calc on the joined element", "x: (( join \"\" params.list ))\nout: (( calc x ))\n"},
+		{"calc on an inline join", "out: (( calc (join \"\" params.list) ))\n"},
+		{"calc on an inline grab", "out: (( calc (grab params.list) ))\n"},
+		{"calc on a top-level list", "x: (( join \"\" params.top ))\nout: (( calc x ))\n"},
+	}
+	for _, mode := range leakModes {
+		for _, p := range plans {
+			t.Run(mode.name+"/"+p.name, func(t *testing.T) {
+				eng, _ := codeEngine(t, mode.parallel)
+				planDoc, err := eng.ParseYAML([]byte("meta:\n  zq7secret: 21\n" + p.plan))
+				if err != nil {
+					t.Fatal(err)
+				}
+				user := graft.NewDocument(map[string]interface{}{
+					"params": map[string]interface{}{
+						"list": graft.NewLiteral([]string{"meta.zq7secret * 2"}),
+						"top":  graft.NewLiteral([]string{"meta.zq7secret", " * 2"}),
+					},
+				})
+				_, err = eng.Merge(context.Background(), planDoc, user).Execute()
+				assertRefused(t, err)
+			})
+		}
+	}
+}
