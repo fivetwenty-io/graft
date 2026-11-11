@@ -44,16 +44,17 @@ import (
 // which gives the same values and errors that decoding the text gives,
 // and every other target is decoded from the text directly.
 //
-// These limits apply to that route:
+// These limits apply to the direct route:
 //
 //   - A named bool type, such as type Flag bool, follows goccy's YAML 1.2
 //     rule, so only true and false decode into it and a plain yes is a
 //     type error.
 //   - A type with an UnmarshalText method receives goccy's formatted text
-//     of a scalar, so 1.10 arrives as "1.1". So does a string that a
-//     goccy-style UnmarshalYAML method decodes through its callback.
-//   - A goccy-style UnmarshalYAML method that keeps what it decodes in an
-//     unexported field, or in a local variable, gets goccy's raw values.
+//     of a scalar, so 1.10 arrives as "1.1". So does a string that an
+//     UnmarshalYAML method that takes a callback decodes through it.
+//   - An UnmarshalYAML method that takes a callback and keeps what it
+//     decodes in an unexported field, or in a local variable, gets goccy's
+//     raw values.
 //     In YAML 1.1 mode, when v also holds a value of interface type, a
 //     quoted yes, no, on, or off can reach that method with an internal
 //     marker character in front of it.

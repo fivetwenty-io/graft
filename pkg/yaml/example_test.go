@@ -118,3 +118,30 @@ func ExampleNode() {
 	// ports is on line 2 and holds a !!seq
 	// [80 443]
 }
+
+func ExampleMarshalWith_indent() {
+	v := map[string]any{"jobs": []any{map[string]any{"name": "api"}}}
+	out, err := yaml.MarshalWith(v, yaml.EncodeOptions{Indent: 4, IndentSequence: true})
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	fmt.Print(string(out))
+	// Output:
+	// jobs:
+	//     - name: api
+}
+
+func ExampleMapSlice() {
+	out, err := yaml.Marshal(yaml.MapSlice{{Key: "name", Value: "api"}, {Key: "instances", Value: 2}, {Key: "azs", Value: []string{"z1"}}})
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	fmt.Print(string(out))
+	// Output:
+	// name: api
+	// instances: 2
+	// azs:
+	// - z1
+}

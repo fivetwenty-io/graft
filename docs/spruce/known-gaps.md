@@ -171,6 +171,22 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Impact.** Both shapes fail loudly, so graft never gives different output for them. A template that writes a tag on a merge key has to drop the tag, or write the plain `<<:` form, before graft reads it.
 
+### pkg-yaml-array-target-refuses-extra-items
+
+**Current behavior.** `yaml.Unmarshal` into a Go array target fails when the document holds more items than the array does, so `[1, 2, 3]` into a `[2]int` returns the error "cannot decode into Go value of type *[2]int". The target stays at its zero value. This holds in 1.46.0 and later releases of `pkg/yaml`.
+
+**Expected behavior.** yaml.v3 also refuses the mismatch, with "invalid array: want 2 elements but got 3". Only the wording differs, and the Go array case has no spruce equivalent, because spruce decodes into generic values.
+
+**Impact.** The decode fails loudly, so no data is dropped. A caller that matches the error text sees graft's wording.
+
+### pkg-yaml-tagged-mapping-into-struct-fails
+
+**Current behavior.** `yaml.Unmarshal` into a struct fails on a mapping that carries a tag, such as `!foo {a: 1}`, with "tag was used where mapping is expected". The same happens for a tagged mapping that sits under a field of the struct. This holds in 1.46.0 and later releases of `pkg/yaml`.
+
+**Expected behavior.** yaml.v3 ignores a custom tag on a mapping and fills the struct from its keys, so `!foo {a: 1}` gives `a` the value 1.
+
+**Impact.** The decode fails loudly, so no value is read wrongly. A document that tags a mapping with a custom tag has to drop the tag before a struct target can read it.
+
 ### memory-use-on-very-large-single-line-inputs
 
 **Current behavior.** graft needs a lot of memory for a file with a very long single line, because its YAML library builds a token list and a syntax tree at roughly 1 KB per token. We measured peak resident size with `/usr/bin/time -l` on three rejected inputs and on one valid input. The first line of `r2m3` and `r2m5` is `a: [[], [], ...` and runs to about 800,000 bytes, which is 400,000 tokens or more, followed by a `...#c` line in `r2m3` or a `...` line in `r2m5`, and then 500,000 lines of `# pad`. The third file, `r2m7`, is `a: 1` followed by a `...#c` line and the same kind of padding. The valid input is a single line of 800,000 `[]` tokens in a file of 3,200,004 bytes.

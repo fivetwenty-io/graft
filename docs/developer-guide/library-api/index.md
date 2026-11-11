@@ -72,6 +72,8 @@ graph TB
 | `DiffResult` | Represents differences between documents | [diff-api.md](diff-api.md) |
 | `History` | Tracks changes through operations | [history-api.md](history-api.md) |
 
+Programs that decode and encode YAML with goccy's `go-yaml` can read [Coming from goccy](coming-from-goccy.md) for what changes when they move to `pkg/yaml`.
+
 ## Data Flow
 
 ```mermaid

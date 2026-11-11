@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+This release adds the pieces of goccy's API that a program needs in order to move to `pkg/yaml` without importing goccy. It adds indent options, an ordered map type, a streaming encoder and decoder, and the `Unmarshaler` hook, and the hook changes what happens for types that already have an `UnmarshalYAML(*yaml.Node) error` method, so please read the Changed section before you upgrade.
+
+### Added
+
+- `yaml.EncodeOptions` now has `Indent` and `IndentSequence`. `Indent` sets how many columns a nested mapping, and a block scalar's content, sits past its parent key. The zero value means 2, 2 through 9 are accepted, and any other value is an error. `IndentSequence` indents a sequence under a mapping key, and a root sequence, by `Indent` columns, as goccy's `IndentSequence(true)` does.
+
+- `yaml.MapSlice` and `yaml.MapItem` let `Marshal` write a mapping in the order its items are in, at any depth, whatever the key order says. A key that is a collection is refused, and so are two items whose keys write the same text. `Unmarshal` into a `MapSlice` is refused with an explicit error, because the type is for encoding only.
+
+- `yaml.Encoder`, with `NewEncoder`, `NewEncoderWith`, `Encode`, and `Close`, writes a stream of documents with a `---` line before each document after the first. Each document has the bytes `MarshalWith` gives for the same value.
+
+- `yaml.Decoder`, with `NewDecoder`, `NewDecoderWith`, and `Decode`, reads a stream of documents one at a time and returns `io.EOF` at the end. Only a framing error, which is a reader error, invalid UTF-16 after a byte order mark, or content after a `...` with no `---`, ends the stream, and the error stays latched. Any other error, such as a repeated key, a type mismatch, a bad merge, or an error that a hook returns, fails only its own document, and the next `Decode` moves on to the next one. Positions in errors, in duplicate-key reports, and in the `Node` lines a hook reads count from the start of the stream. A document that holds only comments, directives, or markers is skipped, and so is the empty document after a final `---`. An alias can't point at an anchor in an earlier document, because YAML scopes an anchor to its own document, where goccy and yaml.v3 allow it.
+
+- `yaml.Unmarshaler` is the interface of a type with an `UnmarshalYAML(*yaml.Node) error` method. `Node.Decode`, `Unmarshal`, `UnmarshalWith`, and `Decoder.Decode` call the method with the node that holds the value, so a type can read the node's line, column, and tag, and decode itself in its own way. A null with no tag never reaches the method.
+
+- `yaml.DecodeError` now has an `Unwrap` method, so the error that a hook returns stays reachable with `errors.Is` and `errors.As`. The error is never printed in the message.
+
+- The page "Coming from goccy" in the library guide lists what changes for a program that moves from goccy's `go-yaml`, and maps each goccy call to its graft counterpart.
+
+### Changed
+
+- A type that already has an `UnmarshalYAML(*yaml.Node) error` method now has it called by `Node.Decode`, `Unmarshal`, `UnmarshalWith`, and `Decoder.Decode`.
+
+- A type that implements `yaml.Unmarshaler` and is used as a map key is now refused with an error.
+
+- When a struct has a named field that implements the hook and also an `,inline` map or a self-decoding inline field, the inline part no longer sees the hook field's key. This matches yaml.v3.
+
+- A target that reaches an `Unmarshaler` is decoded by a second route that parses the document once more, so hook targets cost a little more to decode. Targets without a hook are unchanged.
+
+- The goccy hook forms, which are `BytesUnmarshaler`, `InterfaceUnmarshaler`, `NodeUnmarshaler`, and the variants that take a context, still run, so existing code keeps working. `Unmarshaler` is the supported hook, and a major release may stop calling the others.
+
 ## [1.46.0] - 2026-11-06
 
 This release closes the items that 1.44.0 through 1.45.2 left parked. Environment variable values and `<<` merge keys now decode the way spruce decodes them, and both change merge output for existing templates, so please read the Changed section before you upgrade. A grab now waits for the operators it reads, and when it still can't get a finished value, it fails with an error that matches `graft.ErrNotEvaluated` instead of returning raw operator text. Digit-led names and exponent-form arguments now read the way spruce reads them, a `/` after `op@target` now begins a reference as it already did after a plain operator name, and an empty path segment now fails with one clear error, where spruce silently drops it. The `--trace-path` flag now accepts the `$.` anchor and bracket indexes, and `--prune` and `--cherry-pick` now accept bracket indexes. Loop bodies no longer leak internal names into errors or output, and `graft.NewLiteral` now copies typed containers as well as untyped ones.
