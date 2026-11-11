@@ -22,7 +22,7 @@ A float that holds a whole number marshals as integer digits, so `3.0` becomes `
 
 Quoting
 
-Marshal quotes strings by spruce's rules, with a few more of its own. There is no option for this either.
+Marshal quotes strings by spruce's rules, with a few additional rules of its own. There is no option for this either.
 
 Struct tags
 
@@ -93,7 +93,7 @@ The graft `Decoder` follows these stream rules.
 
 - An alias can't point at an anchor in an earlier document, because YAML scopes an anchor to its own document. goccy and yaml.v3 allow it.
 
-Two differences from goccy's decoder are worth knowing. First, content after a `...` with no `---` fails in graft, where goccy accepts it. Second, graft skips a document that holds only comments, directives, or markers, such as a `---` followed by `...`, wherever it sits in the stream. goccy skips such a document only at the very end, and it fails when one sits between two documents, as in `a: 1`, `---`, `...`, `---`, `b: 2` on separate lines, where graft returns both documents.
+Two differences from goccy's decoder are worth knowing. First, content after a `...` with no `---` fails in graft, where goccy accepts it. Second, graft skips a document that holds only comments, directives, or markers, such as a `---` followed by `...`, wherever it sits in the stream. goccy skips such a document only at the very end, and it fails when one sits between two documents. Take `a: 1`, `---`, `...`, `---`, and `b: 2` on separate lines, where graft returns both documents.
 
 ### Types that decode themselves
 

@@ -51,7 +51,7 @@ import (
 //     type error.
 //   - A type with an UnmarshalText method receives goccy's formatted text
 //     of a scalar, so 1.10 arrives as "1.1". So does a string that an
-//     UnmarshalYAML method that takes a callback decodes through it.
+//     UnmarshalYAML method decodes through the callback it takes.
 //   - An UnmarshalYAML method that takes a callback and keeps what it
 //     decodes in an unexported field, or in a local variable, gets goccy's
 //     raw values.
@@ -116,10 +116,9 @@ func unmarshalAt(data []byte, v any, opts DecodeOptions, lineOffset int) error {
 	return shiftError(err, lineOffset)
 }
 
-// shiftError returns err with its line moved lineOffset lines on, when it
-// is a *DecodeError that has a place, and with the place of a first key
-// that its message names moved on too. It leaves any other error, and
-// nil, as it is.
+// shiftError moves the line of err on by lineOffset lines when err is a
+// *DecodeError that has a place. It moves on the place of a first key that
+// the message names as well. It leaves any other error, and nil, as it is.
 func shiftError(err error, lineOffset int) error {
 	var de *DecodeError
 	if lineOffset == 0 || !errors.As(err, &de) || de.Line <= 0 {

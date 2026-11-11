@@ -8,10 +8,10 @@ import (
 
 // Decoder reads a stream of YAML documents from an io.Reader, one
 // document for each call to Decode. Each document decodes into its target
-// as UnmarshalWith decodes it, with the same routes, rules, and errors,
-// except that every line, in an error, in a duplicate key it reports, and
-// in a Node, counts from the start of the stream rather than the start of
-// the document.
+// as UnmarshalWith decodes it, with the same routes, rules, and errors.
+// The one difference is that lines count from the start of the stream
+// rather than the start of the document, whether they appear in an error,
+// in a duplicate key report, or in a Node.
 //
 // On its first Decode, a Decoder reads all of r before it decodes
 // anything, as goccy/go-yaml's decoder does, and then cuts the stream
@@ -20,7 +20,7 @@ import (
 // final "---", is skipped, wherever it sits in the stream. goccy skips
 // such a document only at the end, and fails when one sits between two
 // documents. Content that follows a "..." with no "---" before it fails,
-// as Unmarshal fails it, where goccy accepts it.
+// just as it does in Unmarshal, although goccy accepts it.
 //
 // Once the documents run out, Decode returns io.EOF. Only an error in the
 // framing of the stream ends it, and every later Decode returns that same
@@ -55,9 +55,9 @@ func NewDecoderWith(r io.Reader, opts DecodeOptions) *Decoder {
 }
 
 // Decode decodes the next document of the stream into v, which must be a
-// non-nil pointer, as for Unmarshal. A target Decode refuses is an
-// ErrorKindType error that consumes no document. Decode returns io.EOF
-// when no document is left.
+// non-nil pointer, as for Unmarshal. Decode refuses some targets with an
+// ErrorKindType error, and that error consumes no document. Decode returns
+// io.EOF when no document is left.
 func (d *Decoder) Decode(v any) error {
 	if err := checkTargetFor("Decode", v); err != nil {
 		return err

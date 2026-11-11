@@ -7,21 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-This release adds the pieces of goccy's API that a program needs in order to move to `pkg/yaml` without importing goccy. It adds indent options, an ordered map type, a streaming encoder and decoder, and the `Unmarshaler` hook, and the hook changes what happens for types that already have an `UnmarshalYAML(*yaml.Node) error` method, so please read the Changed section before you upgrade.
+This release adds the pieces of goccy's API that a program needs in order to move to `pkg/yaml` without importing goccy. It adds indent options, an ordered map type, a streaming encoder and decoder, and the `Unmarshaler` hook. The hook changes what happens for types that already have an `UnmarshalYAML(*yaml.Node) error` method, so please read the Changed section before you upgrade.
 
 ### Added
 
 - `yaml.EncodeOptions` now has `Indent` and `IndentSequence`. `Indent` sets how many columns a nested mapping, and a block scalar's content, sits past its parent key. The zero value means 2, 2 through 9 are accepted, and any other value is an error. `IndentSequence` indents a sequence under a mapping key, and a root sequence, by `Indent` columns, as goccy's `IndentSequence(true)` does.
 
-- `yaml.MapSlice` and `yaml.MapItem` let `Marshal` write a mapping in the order its items are in, at any depth, whatever the key order says. A key that is a collection is refused, and so are two items whose keys write the same text. `Unmarshal` into a `MapSlice` is refused with an explicit error, because the type is for encoding only.
+- `yaml.MapSlice` and `yaml.MapItem` let `Marshal` write a mapping with its items in their own order, at any depth, whatever the key order says. A key that is a collection is refused, and so are two items whose keys write the same text. `Unmarshal` into a `MapSlice` is refused with an explicit error, because the type is for encoding only.
 
 - `yaml.Encoder`, with `NewEncoder`, `NewEncoderWith`, `Encode`, and `Close`, writes a stream of documents with a `---` line before each document after the first. Each document has the bytes `MarshalWith` gives for the same value.
 
-- `yaml.Decoder`, with `NewDecoder`, `NewDecoderWith`, and `Decode`, reads a stream of documents one at a time and returns `io.EOF` at the end. Only a framing error, which is a reader error, invalid UTF-16 after a byte order mark, or content after a `...` with no `---`, ends the stream, and the error stays latched. Any other error, such as a repeated key, a type mismatch, a bad merge, or an error that a hook returns, fails only its own document, and the next `Decode` moves on to the next one. Positions in errors, in duplicate-key reports, and in the `Node` lines a hook reads count from the start of the stream. A document that holds only comments, directives, or markers is skipped, and so is the empty document after a final `---`. An alias can't point at an anchor in an earlier document, because YAML scopes an anchor to its own document, where goccy and yaml.v3 allow it.
+- `yaml.Decoder`, with `NewDecoder`, `NewDecoderWith`, and `Decode`, reads a stream of documents one at a time and returns `io.EOF` at the end. Only a framing error ends the stream, and the error stays latched. A framing error is a reader error, invalid UTF-16 after a byte order mark, or content after a `...` with no `---`. Any other error, such as a repeated key, a type mismatch, a bad merge, or an error that a hook returns, fails only its own document, and the next `Decode` moves on to the next one. Positions in errors, in duplicate-key reports, and in the `Node` lines a hook reads count from the start of the stream. A document that holds only comments, directives, or markers is skipped, and so is the empty document after a final `---`. An alias can't point at an anchor in an earlier document, because YAML scopes an anchor to its own document. goccy and yaml.v3 allow it.
 
 - `yaml.Unmarshaler` is the interface of a type with an `UnmarshalYAML(*yaml.Node) error` method. `Node.Decode`, `Unmarshal`, `UnmarshalWith`, and `Decoder.Decode` call the method with the node that holds the value, so a type can read the node's line, column, and tag, and decode itself in its own way. A null with no tag never reaches the method.
 
-- `yaml.DecodeError` now has an `Unwrap` method, so the error that a hook returns stays reachable with `errors.Is` and `errors.As`. The error is never printed in the message.
+- `yaml.DecodeError` now has an `Unwrap` method, so the error that a hook returns stays reachable with `errors.Is` and `errors.As`. The message never prints that error.
 
 - The page "Coming from goccy" in the library guide lists what changes for a program that moves from goccy's `go-yaml`, and maps each goccy call to its graft counterpart.
 

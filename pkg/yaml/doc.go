@@ -180,13 +180,13 @@ sequence at the column of its key.
 # Ordered maps
 
 A MapSlice is a list of MapItem values, each holding a Key and a Value, and
-Marshal writes its items in the order they sit at any depth, whatever
+Marshal writes its items in the order they sit, at any depth, whatever
 KeyOrder says. The Go maps inside its values still follow KeyOrder. A key
 follows the rules for a map key, so a collection is refused, and so are
 two items whose keys write the same text. Only MapSlice and *MapSlice are
-written as ordered mappings. Unmarshal into a MapSlice is refused, because the type is
-for encoding. Decode into a Node when the order of keys matters on the way
-in.
+written as ordered mappings. Unmarshal into a MapSlice is refused, because
+the type is for encoding. Decode into a Node when the order of keys
+matters on the way in.
 
 # Streams of documents
 
@@ -200,12 +200,12 @@ call to Decode into a pointer, as UnmarshalWith would, and returns io.EOF
 when the documents run out. It reads all of its reader on the first call.
 It skips a document that holds only comments, directives, or markers.
 Lines in errors, in duplicate-key reports, and in Node values count from
-the start of the stream. Only a framing error ends the stream for good,
-which means a reader error, invalid UTF-16 after a byte order mark, or
-content after a "..." with no "---" before it. Any other error fails only
-its own document, and the next call to Decode moves on to the next one. An
-alias cannot point at an anchor in an earlier document, because YAML scopes
-an anchor to its own document.
+the start of the stream. Only a framing error ends the stream for good.
+A framing error is a reader error, invalid UTF-16 after a byte order mark,
+or content after a "..." with no "---" before it. Any other error fails
+only its own document, and the next call to Decode moves on to the next
+one. An alias cannot point at an anchor in an earlier document, because
+YAML scopes an anchor to its own document.
 
 # Types that decode themselves
 
@@ -219,15 +219,14 @@ leaves the value as it was. A type that is a map key, or a named ,inline
 field, is refused, because no method can run there. Embedding a type that
 has the method gives the outer type the method too, so the outer type
 decodes through it, and its other fields stay unset unless the method
-fills them. When more than one struct field reads the same
-key, the method does not run for that key, and the fields get a plain
-decode.
+fills them. When more than one struct field reads the same key, the method
+does not run for that key, and the fields get a plain decode.
 
 The error an Unmarshaler returns comes back as a *DecodeError, and Unwrap
 on it returns the method's own error, so errors.Is and errors.As reach it.
-Error never prints that cause. If the decode by goccy fails first, no
-method runs, and that error comes back even when a method would also have
-failed.
+Error never prints that cause. If goccy's own decode of the document fails
+first, no method runs, and that error comes back even when a method would
+also have failed.
 
 # Known limitations
 
