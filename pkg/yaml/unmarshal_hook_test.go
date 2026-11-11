@@ -143,3 +143,60 @@ func TestUnmarshalWithUnmarshalerReportsEachDuplicateOnce(t *testing.T) {
 		t.Errorf("got %+v, want one report at line 2 of a key first seen at line 1", seen)
 	}
 }
+
+type nullTargets struct {
+	Field endpoint            `yaml:"field"`
+	Ptr   *endpoint           `yaml:"ptr"`
+	ByKey map[string]endpoint `yaml:"byKey"`
+	Items []endpoint          `yaml:"items"`
+	Skip  counted             `yaml:"skip"`
+}
+
+// An explicit !!null skips the method, as a null with no tag does and as
+// yaml.v3 skips it, so the null decodes as it would for a type with no
+// method: a struct field keeps its value, a pointer becomes nil, and a
+// map value or a list item is the zero value.
+func TestUnmarshalerSkipsAnExplicitNull(t *testing.T) {
+	t.Parallel()
+	inputs := []string{
+		"field: !!null ~\nptr: !!null ~\nbyKey: {k: !!null ~}\nitems: [!!null ~]\nskip: !!null ~\n",
+		"field: !!null null\nptr: !!null null\nbyKey: {k: !!null null}\nitems: [!!null null]\nskip: !!null null\n",
+		"field: !!null ''\nptr: !!null ''\nbyKey: {k: !!null ''}\nitems: [!!null '']\nskip: !!null ''\n",
+		"field: !!null\nptr: !!null\nbyKey:\n  k: !!null\nitems:\n  - !!null\nskip: !!null\n",
+	}
+	want := nullTargets{
+		Field: endpoint{"f", 1, 0},
+		ByKey: map[string]endpoint{"k": {}},
+		Items: []endpoint{{}},
+	}
+	for _, in := range inputs {
+		for _, route := range []string{"Unmarshal", "Node.Decode"} {
+			got := nullTargets{
+				Field: endpoint{"f", 1, 0},
+				Ptr:   &endpoint{"p", 2, 0},
+				ByKey: map[string]endpoint{"k": {"m", 3, 0}},
+			}
+			var err error
+			if route == "Unmarshal" {
+				err = yaml.Unmarshal([]byte(in), &got)
+			} else {
+				err = decodeViaNode(t, in, &got, yaml.DecodeOptions{})
+			}
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Errorf("%s of %q: got %+v, %v\nwant %+v", route, in, got, err, want)
+			}
+		}
+	}
+	for _, route := range []string{"Unmarshal", "Node.Decode"} {
+		var c counted
+		var err error
+		if route == "Unmarshal" {
+			err = yaml.Unmarshal([]byte("!!null ~\n"), &c)
+		} else {
+			err = decodeViaNode(t, "!!null ~\n", &c, yaml.DecodeOptions{})
+		}
+		if err != nil || c.Seen {
+			t.Errorf("%s at the root: called %v, %v", route, c.Seen, err)
+		}
+	}
+}

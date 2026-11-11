@@ -137,7 +137,7 @@ Several rules go with the hook.
 
 - Embedding a type that has the method promotes it to the outer type. The outer type then decodes through it, and its other fields stay unset unless the method fills them. A struct that embeds `Endpoint` and adds a `Name` field loses the name for this reason. Give the outer type its own method, or hold the inner type in a named field.
 
-- A null with no tag never reaches the method, and the value stays as it was.
+- A null never reaches the method, whether it has no tag or the tag `!!null`, as in yaml.v3, and the value stays as it was.
 
 - A type that has both this method and `UnmarshalText` decodes through this one.
 

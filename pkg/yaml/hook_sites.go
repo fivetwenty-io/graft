@@ -46,7 +46,8 @@ type hookStep struct {
 //
 // A struct field's pair comes out of its mapping, so goccy leaves the
 // field as it was, and a sequence item or a map value becomes a null. A
-// null with no tag is no site, and goccy decodes it as before. The walk
+// null is no site, whether it has no tag or the tag !!null, and goccy
+// decodes it as before. The walk
 // never changes a node in place, since alias expansion shares a subtree
 // among every alias to its anchor. It copies each node on the path to a
 // hole and leaves every other subtree shared, as asWritten does.
@@ -94,7 +95,7 @@ func (w *siteWalk) node(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, 
 	}
 	if isUnmarshaler(t) {
 		owner := w.owners.of(n)
-		if owner == nil || untaggedNull(owner) {
+		if owner == nil || nullNode(owner) {
 			return n, false
 		}
 		w.add(hookSite{path: path, node: owner, typ: t})

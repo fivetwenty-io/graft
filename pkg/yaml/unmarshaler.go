@@ -17,9 +17,10 @@ import (
 //
 // A node reached through an alias is the node that holds the anchor, and
 // a mapping with a << merge key is the mapping as written, which
-// node.Decode merges as Unmarshal does. A null with no tag never reaches
-// the method, and leaves the value as it was. A type with both this
-// method and UnmarshalText decodes through this one.
+// node.Decode merges as Unmarshal does. A null never reaches the method,
+// whether it has no tag or the tag !!null, as in yaml.v3, and it leaves
+// the value as it was. A type with both this method and UnmarshalText
+// decodes through this one.
 //
 // When the method fails, Decode returns a *DecodeError. A *DecodeError
 // the method returns comes back as it is. An error that wraps one, such
@@ -98,10 +99,10 @@ func nilIfNoError(de *DecodeError) error {
 	return de
 }
 
-// callUnmarshaler calls u's method with n, unless n is a null with no
-// tag, which leaves u as it was. t is the type of the value u points at.
+// callUnmarshaler calls u's method with n, unless n is a null, which
+// leaves u as it was. t is the type of the value u points at.
 func callUnmarshaler(u Unmarshaler, n *Node, t reflect.Type) error {
-	if untaggedNull(n) {
+	if nullNode(n) {
 		return nil
 	}
 	if err := u.UnmarshalYAML(n); err != nil {
@@ -110,21 +111,28 @@ func callUnmarshaler(u Unmarshaler, n *Node, t reflect.Type) error {
 	return nil
 }
 
-// untaggedNull reports whether n reads as a null and carries no tag the
-// text would write, which is the zero Node, or a plain scalar such as ~,
-// null, or nothing at all. A tag the caller set counts only when it is
-// not the tag the value has anyway, as astBuilder writes it.
-func untaggedNull(n *Node) bool {
+// nullNode reports whether n is a null that no method sees, as yaml.v3
+// skips every node whose tag is !!null. That is the zero Node, a plain
+// scalar such as ~, null, or nothing at all, and any scalar tagged !!null,
+// whether the text wrote the tag or the caller set it. A scalar the text
+// marked with the non-specific tag "!" is a string, not a null.
+func nullNode(n *Node) bool {
 	if isZero(n) {
 		return true
 	}
-	if n.Kind != ScalarNode || n.style&(yamlnode.StyleSingle|yamlnode.StyleDouble|yamlnode.StyleLiteral|yamlnode.StyleFolded) != 0 {
+	if n.Kind != ScalarNode {
 		return false
 	}
 	if n.read && n.Tag == n.readTag {
-		return n.Tag == yamlnode.TagNull && n.style&yamlnode.StyleTagged == 0 && !n.bareTag
+		return n.Tag == yamlnode.TagNull && !n.bareTag
 	}
-	return (n.Tag == "" || n.Tag == yamlnode.TagNull) && yamlnode.ResolvePlainTag(n.Value) == yamlnode.TagNull
+	if n.Tag == yamlnode.TagNull {
+		return true
+	}
+	if n.style&(yamlnode.StyleSingle|yamlnode.StyleDouble|yamlnode.StyleLiteral|yamlnode.StyleFolded) != 0 {
+		return false
+	}
+	return n.Tag == "" && yamlnode.ResolvePlainTag(n.Value) == yamlnode.TagNull
 }
 
 // hookError returns err, the error an UnmarshalYAML method returned for

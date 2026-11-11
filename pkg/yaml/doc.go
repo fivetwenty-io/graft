@@ -214,13 +214,14 @@ Unmarshal, UnmarshalWith, and Decoder.Decode all call the method, with the
 Node that holds the value, wherever a value of the type sits in the target.
 The method reads the node's Line, Column, and Tag, or calls node.Decode,
 usually into a private type of its own with no such method, so that it does
-not call itself again. A null with no tag never reaches the method and
-leaves the value as it was. A type that is a map key, or a named ,inline
-field, is refused, because no method can run there. Embedding a type that
-has the method gives the outer type the method too, so the outer type
-decodes through it, and its other fields stay unset unless the method
-fills them. When more than one struct field reads the same key, the method
-does not run for that key, and the fields get a plain decode.
+not call itself again. A null never reaches the method, whether it has no
+tag or the tag !!null, as in yaml.v3, and it leaves the value as it was. A
+type that is a map key, or a named ,inline field, is refused, because no
+method can run there. Embedding a type that has the method gives the outer
+type the method too, so the outer type decodes through it, and its other
+fields stay unset unless the method fills them. When more than one struct
+field reads the same key, the method does not run for that key, and the
+fields get a plain decode.
 
 The error an Unmarshaler returns comes back as a *DecodeError, and Unwrap
 on it returns the method's own error, so errors.Is and errors.As reach it.
