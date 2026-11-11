@@ -1,7 +1,6 @@
 package yaml
 
 import (
-	"errors"
 	"io"
 
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
@@ -22,12 +21,15 @@ import (
 // "..." with no "---" before it fails, as Unmarshal fails it, where goccy
 // accepts it.
 //
-// Once the documents run out, Decode returns io.EOF. An error from r, a
-// syntax error, and a limit error end the stream, and every later Decode
-// returns that same error. Any other error, such as a type error, ends
-// only its own document, so the next Decode moves on to the next one. Each
-// document decodes on its own, so an alias cannot refer to an anchor that
-// an earlier document defines.
+// Once the documents run out, Decode returns io.EOF. Only an error in the
+// framing of the stream ends it, and every later Decode returns that same
+// error. Those errors are an error from r, input that is not valid UTF-16
+// after a UTF-16 byte order mark, and content that follows a "..." with
+// no "---" before it. Any error inside a document, whether a syntax
+// error, a limit error, a type error, or an error an UnmarshalYAML method
+// returns, ends only that document, so the next Decode moves on to the
+// next one. Each document decodes on its own, so an alias cannot refer to
+// an anchor that an earlier document defines.
 //
 // A Decoder is not safe for concurrent use.
 type Decoder struct {
@@ -73,11 +75,7 @@ func (d *Decoder) Decode(v any) error {
 		if doc.Empty {
 			continue
 		}
-		err := unmarshalAt([]byte(doc.Text), v, d.opts, doc.LineOffset)
-		if endsStream(err) {
-			d.err = err
-		}
-		return err
+		return unmarshalAt([]byte(doc.Text), v, d.opts, doc.LineOffset)
 	}
 	if d.err != nil {
 		return d.err
@@ -99,11 +97,4 @@ func (d *Decoder) split() error {
 	}
 	d.docs = yamlnode.SplitStream(string(data))
 	return nil
-}
-
-// endsStream reports whether err, from one document, ends the stream,
-// which a syntax error and a limit error do.
-func endsStream(err error) bool {
-	var de *DecodeError
-	return errors.As(err, &de) && (de.Kind == ErrorKindSyntax || de.Kind == ErrorKindLimit)
 }

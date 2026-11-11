@@ -122,18 +122,31 @@ func TestDecoderCountsLinesFromTheStreamStart(t *testing.T) {
 	}
 }
 
-func TestDecoderStopsAtASyntaxOrReadError(t *testing.T) {
+func TestDecoderStopsAtAFramingOrReadError(t *testing.T) {
 	t.Parallel()
-	d := yaml.NewDecoder(strings.NewReader("a: [\n"))
 	var v any
-	first := d.Decode(&v)
 	var de *yaml.DecodeError
-	if !errors.As(first, &de) || de.Kind != yaml.ErrorKindSyntax {
-		t.Fatalf("got %v", first)
+	framing := yaml.NewDecoder(strings.NewReader("a: x\n...\nb: y\n---\nc: z\n"))
+	if err := framing.Decode(&v); err != nil {
+		t.Fatalf("the first document: got %v", err)
 	}
-	if again := d.Decode(&v); again != first { //nolint:errorlint // A later Decode returns the very same error.
+	first := framing.Decode(&v)
+	if !errors.As(first, &de) || de.Kind != yaml.ErrorKindSyntax {
+		t.Fatalf("content after a document end: got %v", first)
+	}
+	if again := framing.Decode(&v); again != first { //nolint:errorlint // A later Decode returns the very same error.
 		t.Errorf("a second Decode: got %v, want the same error", again)
 	}
+
+	utf16 := yaml.NewDecoder(strings.NewReader("\xFF\xFEa\x00:"))
+	first = utf16.Decode(&v)
+	if !errors.As(first, &de) || de.Kind != yaml.ErrorKindSyntax {
+		t.Fatalf("odd UTF-16 input: got %v", first)
+	}
+	if again := utf16.Decode(&v); again != first { //nolint:errorlint // A later Decode returns the very same error.
+		t.Errorf("a second Decode of odd UTF-16 input: got %v, want the same error", again)
+	}
+
 	boom := errors.New("boom")
 	r := yaml.NewDecoder(iotest.ErrReader(boom))
 	if err := r.Decode(&v); !errors.Is(err, boom) {
@@ -144,6 +157,46 @@ func TestDecoderStopsAtASyntaxOrReadError(t *testing.T) {
 	}
 	if err := yaml.NewDecoder(strings.NewReader("a: 1\n")).Decode(nil); err == nil || err.Error() != "yaml: Decode(nil)" {
 		t.Errorf("Decode(nil): got %v", err)
+	}
+}
+
+// syntaxHook is an Unmarshaler that always fails with a Syntax-kind
+// error of its own.
+type syntaxHook struct{}
+
+func (*syntaxHook) UnmarshalYAML(*yaml.Node) error {
+	return &yaml.DecodeError{Kind: yaml.ErrorKindSyntax, Msg: "the hook refuses it"}
+}
+
+func TestDecoderMovesOnAfterADocumentFails(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		doc    string
+		target func() any
+		kind   yaml.ErrorKind
+	}{
+		{"a duplicate key", "k: 1\nk: 2\n", func() any { return new(any) }, yaml.ErrorKindSyntax},
+		{"an unclosed flow sequence", "a: [\n", func() any { return new(any) }, yaml.ErrorKindSyntax},
+		{"a tag mismatch", "a: !!int word\n", func() any { return new(any) }, yaml.ErrorKindSyntax},
+		{"a bad merge value", "<<: 5\n", func() any { return new(any) }, yaml.ErrorKindSyntax},
+		{"a hook's own Syntax error", "a: 1\n", func() any { return new(syntaxHook) }, yaml.ErrorKindSyntax},
+		{"a type error", "a: [1]\n", func() any { return new(map[string]string) }, yaml.ErrorKindType},
+	}
+	for _, c := range cases {
+		d := yaml.NewDecoder(strings.NewReader(c.doc + "---\nb: 1\n"))
+		var de *yaml.DecodeError
+		if err := d.Decode(c.target()); !errors.As(err, &de) || de.Kind != c.kind {
+			t.Errorf("%s: got %v, want an error of kind %d", c.name, err, c.kind)
+			continue
+		}
+		var next any
+		if err := d.Decode(&next); err != nil || !reflect.DeepEqual(next, map[string]any{"b": 1}) {
+			t.Errorf("%s: the next document gives %#v, %v", c.name, next, err)
+		}
+		if err := d.Decode(&next); !errors.Is(err, io.EOF) {
+			t.Errorf("%s: after the last document: got %v, want io.EOF", c.name, err)
+		}
 	}
 }
 
