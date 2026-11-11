@@ -2,6 +2,7 @@ package yaml
 
 import (
 	"bytes"
+	"reflect"
 	"strings"
 	"unicode/utf8"
 
@@ -346,8 +347,10 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 //
 // Decode builds from n the syntax tree that the parser would build from its
 // text, and it decodes that tree as Unmarshal does once it has parsed. A
-// type with its own UnmarshalYAML method receives the tree written out as
-// flow-style text, which keeps every value but not the layout or the
+// type that is an Unmarshaler has its method called with the Node that
+// holds its value, as the Unmarshaler documentation describes. A type
+// with one of goccy's UnmarshalYAML methods receives the tree written out
+// as flow-style text, which keeps every value but not the layout or the
 // comments of the input.
 //
 // Decode into a *Node copies n into it. A malformed tree is an
@@ -374,5 +377,8 @@ func (n *Node) Decode(v any) error {
 	if err := checkTargetFor("Decode", v); err != nil {
 		return err
 	}
-	return decodeFrom(n.source(), v, n.opts)
+	if reachesUnmarshaler(reflect.TypeOf(v).Elem()) {
+		return n.decodeHooked(v)
+	}
+	return decodeFrom(n.source(), v, n.opts, nil)
 }

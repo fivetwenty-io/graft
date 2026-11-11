@@ -82,7 +82,7 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
 	if err := checkTarget(v); err != nil {
 		return err
 	}
-	return decodeFrom(textSource(data, opts), v, opts)
+	return decodeFrom(textSource(data, opts), v, opts, nil)
 }
 
 // source hands the decode routes the root of the document they decode,
@@ -119,8 +119,10 @@ func textSource(data []byte, opts DecodeOptions) source {
 }
 
 // decodeFrom decodes the document src returns into v, a non-nil pointer
-// that checkTarget accepted, by the route v's type takes.
-func decodeFrom(src source, v any, opts DecodeOptions) (err error) {
+// that checkTarget accepted, by the route v's type takes. owners is set
+// when src records the Node each token came from, so the typed route
+// calls each Unmarshaler in v, as decodeTyped describes.
+func decodeFrom(src source, v any, opts DecodeOptions, owners *tokenOwners) (err error) {
 	// The typed route recovers a decoder panic itself, so the fixer still
 	// runs on what goccy filled. This catches one anywhere else.
 	defer func() {
@@ -156,7 +158,7 @@ func decodeFrom(src source, v any, opts DecodeOptions) (err error) {
 			return nil
 		})
 	default:
-		return decodeTyped(src, v, opts)
+		return decodeTyped(src, v, opts, owners)
 	}
 }
 

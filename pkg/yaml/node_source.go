@@ -7,9 +7,60 @@ import (
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/token"
 
+	"github.com/fivetwenty-io/graft/internal/yamlcodec"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 	"github.com/fivetwenty-io/graft/internal/yamlprep"
 )
+
+// tokenOwners records, for the syntax tree Decode builds from a Node
+// tree, the Node each token came from, so the decode can hand an
+// Unmarshaler the very node that holds its value. A node reached through
+// an alias is recorded as the node that holds the anchor.
+type tokenOwners struct {
+	byToken map[*token.Token]*Node
+}
+
+// add records tk as a token of n.
+func (o *tokenOwners) add(tk *token.Token, n *Node) {
+	if tk != nil {
+		o.byToken[tk] = n
+	}
+}
+
+// moved records that to stands where from stood, so to has from's owner.
+func (o *tokenOwners) moved(from, to *token.Token) {
+	if n, ok := o.byToken[from]; ok && to != nil {
+		o.byToken[to] = n
+	}
+}
+
+// of returns the Node that the syntax node n came from, or nil when the
+// record holds none.
+func (o *tokenOwners) of(n ast.Node) *Node {
+	if n == nil {
+		return nil
+	}
+	return o.byToken[n.GetToken()]
+}
+
+// trackedSource is the source Decode reads n through when the target can
+// hold an Unmarshaler. It builds the same tree that n.source builds, and
+// fills owners with the Node each of that tree's tokens came from, as the
+// steps after the parse leave them.
+func (n *Node) trackedSource(owners *tokenOwners) source {
+	return func(tag bool) (ast.Node, error) {
+		owners.byToken = make(map[*token.Token]*Node)
+		body, err := n.syntaxTree(owners)
+		if err != nil || body == nil {
+			return nil, err
+		}
+		body, err = yamlcodec.PrepareBodyTracked(body, tag, owners.moved)
+		if err != nil {
+			return nil, translate(err)
+		}
+		return body, nil
+	}
+}
 
 // readText is the document a tree was read from. Unmarshal's own parser
 // reads some scalars differently from the tree, which follows yaml.v3,

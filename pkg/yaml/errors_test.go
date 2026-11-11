@@ -25,8 +25,8 @@ func wantDecodeError(t *testing.T, err error, kind yaml.ErrorKind, line int) *ya
 	if de.Msg == "" {
 		t.Errorf("Msg is empty")
 	}
-	if _, ok := any(de).(interface{ Unwrap() error }); ok {
-		t.Errorf("DecodeError has an Unwrap method, which would expose the input")
+	if errors.Unwrap(de) != nil {
+		t.Errorf("DecodeError wraps an error, which only a failed UnmarshalYAML method may give it")
 	}
 	return de
 }
