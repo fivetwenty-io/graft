@@ -35,6 +35,12 @@ import (
 // map. A failed decode can leave v partly filled, with those values
 // already converted.
 //
+// A type that is an Unmarshaler has its method called with the Node that
+// holds its value, wherever it sits in v, as Node.Decode calls it. A
+// target that holds one is read into a Node first and decoded from there,
+// which gives the same values and errors that decoding the text gives,
+// and every other target is decoded from the text directly.
+//
 // These limits apply to that route:
 //
 //   - A named bool type, such as type Flag bool, follows goccy's YAML 1.2
@@ -42,8 +48,8 @@ import (
 //     type error.
 //   - A type with an UnmarshalText method receives goccy's formatted text
 //     of a scalar, so 1.10 arrives as "1.1". So does a string that a
-//     type's own UnmarshalYAML method decodes through its callback.
-//   - A type's own UnmarshalYAML method that keeps what it decodes in an
+//     goccy-style UnmarshalYAML method decodes through its callback.
+//   - A goccy-style UnmarshalYAML method that keeps what it decodes in an
 //     unexported field, or in a local variable, gets goccy's raw values.
 //     In YAML 1.1 mode, when v also holds a value of interface type, a
 //     quoted yes, no, on, or off can reach that method with an internal
@@ -81,6 +87,16 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
 	}
 	if err := checkTarget(v); err != nil {
 		return err
+	}
+	if reachesUnmarshaler(reflect.TypeOf(v).Elem()) {
+		// Each method needs the Node that holds its value, so the
+		// document goes through a Node first. Every other target keeps
+		// the direct route, which costs less.
+		var root Node
+		if err := decodeNode(data, &root, opts); err != nil {
+			return err
+		}
+		return root.Decode(v)
 	}
 	return decodeFrom(textSource(data, opts), v, opts, nil)
 }
