@@ -1,7 +1,10 @@
 package yaml
 
 import (
+	"errors"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/goccy/go-yaml/ast"
 
@@ -75,6 +78,14 @@ func Unmarshal(data []byte, v any) error {
 // opts.OnDuplicateKey is set, in which case the last value wins and the
 // callback receives each later occurrence.
 func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
+	return unmarshalAt(data, v, opts, 0)
+}
+
+// unmarshalAt is UnmarshalWith for a document that starts lineOffset
+// lines into the stream it came from, so that its errors, the duplicate
+// keys it reports, and the lines of its Nodes all count from the start
+// of that stream.
+func unmarshalAt(data []byte, v any, opts DecodeOptions, lineOffset int) error {
 	data, err := toUTF8(data)
 	if err != nil {
 		return err
@@ -83,7 +94,7 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
 		if n == nil {
 			return typeError("Unmarshal(nil %T)", n)
 		}
-		return decodeNode(data, n, opts)
+		return decodeNode(data, n, opts, lineOffset)
 	}
 	if err := checkTarget(v); err != nil {
 		return err
@@ -91,14 +102,77 @@ func UnmarshalWith(data []byte, v any, opts DecodeOptions) error {
 	if reachesUnmarshaler(reflect.TypeOf(v).Elem()) {
 		// Each method needs the Node that holds its value, so the
 		// document goes through a Node first. Every other target keeps
-		// the direct route, which costs less.
+		// the direct route, which costs less. The Nodes already count
+		// their lines from the start of the stream, and so do the
+		// errors their decode gives.
 		var root Node
-		if err := decodeNode(data, &root, opts); err != nil {
+		if err := decodeNode(data, &root, opts, lineOffset); err != nil {
 			return err
 		}
 		return root.Decode(v)
 	}
-	return decodeFrom(textSource(data, opts), v, opts, nil)
+	err = decodeFrom(textSource(data, shiftDuplicates(opts, lineOffset)), v, opts, nil)
+	return shiftError(err, lineOffset)
+}
+
+// shiftError returns err with its line moved lineOffset lines on, when it
+// is a *DecodeError that has a place, and with the place of a first key
+// that its message names moved on too. It leaves any other error, and
+// nil, as it is.
+func shiftError(err error, lineOffset int) error {
+	var de *DecodeError
+	if lineOffset == 0 || !errors.As(err, &de) || de.Line <= 0 {
+		return err
+	}
+	out := *de
+	out.Line += lineOffset
+	out.Msg = shiftMessagePlace(out.Msg, lineOffset)
+	return &out
+}
+
+// shiftMessagePlace moves on the line of the place that ends msg, as in
+// "mapping key already defined at [2:1]", which is where goccy names the
+// first of two repeated keys. Any other msg comes back as it is.
+func shiftMessagePlace(msg string, lineOffset int) string {
+	const open = " at ["
+	start := strings.LastIndex(msg, open)
+	if start < 0 || !strings.HasSuffix(msg, "]") {
+		return msg
+	}
+	lineText, column, ok := strings.Cut(msg[start+len(open):len(msg)-1], ":")
+	if !ok {
+		return msg
+	}
+	line, err := strconv.Atoi(lineText)
+	if _, colErr := strconv.Atoi(column); err != nil || colErr != nil || line <= 0 {
+		return msg
+	}
+	return msg[:start] + open + strconv.Itoa(line+lineOffset) + ":" + column + "]"
+}
+
+// shiftDuplicates returns opts with an OnDuplicateKey callback that moves
+// each report's lines lineOffset lines on before the caller's callback
+// receives it.
+func shiftDuplicates(opts DecodeOptions, lineOffset int) DecodeOptions {
+	report := opts.OnDuplicateKey
+	if lineOffset == 0 || report == nil {
+		return opts
+	}
+	opts.OnDuplicateKey = func(d DuplicateKey) {
+		d.Line = atLine(d.Line, lineOffset)
+		d.FirstLine = atLine(d.FirstLine, lineOffset)
+		report(d)
+	}
+	return opts
+}
+
+// atLine returns line moved lineOffset lines on, and leaves a line below
+// 1, which marks no place, as it is.
+func atLine(line, lineOffset int) int {
+	if line <= 0 {
+		return line
+	}
+	return line + lineOffset
 }
 
 // source hands the decode routes the root of the document they decode,

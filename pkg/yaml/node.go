@@ -104,28 +104,33 @@ var publicKinds = [...]Kind{
 
 // decodeNode is the route for a *Node target. It reads the first document
 // of data with graft's YAML reader and copies it into out. Empty input,
-// or input that holds only comments, leaves out unchanged.
-func decodeNode(data []byte, out *Node, opts DecodeOptions) error {
+// or input that holds only comments, leaves out unchanged. data starts
+// lineOffset lines into its stream, so each Node's Line, each error, and
+// each duplicate key reported count from the start of that stream.
+func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int) error {
 	doc, err := yamlcodec.FirstMergeDocument(data)
 	if err != nil {
-		return translate(err)
+		return shiftError(translate(err), lineOffset)
 	}
 	docs, err := yamlnode.Parse(doc)
 	if err != nil {
-		return translate(err)
+		return shiftError(translate(err), lineOffset)
 	}
 	if len(docs) == 0 {
 		return nil
 	}
 	lines := bytes.Split(doc, []byte("\n"))
-	c := &converter{seen: make(map[*yamlnode.Node]*Node), opts: opts, lines: lines, text: &readText{doc: doc}}
+	c := &converter{
+		seen: make(map[*yamlnode.Node]*Node), opts: opts, lines: lines, lineOffset: lineOffset,
+		text: &readText{doc: doc, lineOffset: lineOffset},
+	}
 	var root Node
 	c.fill(&root, docs[0])
 	if opts.OnDuplicateKey != nil {
 		collapseDuplicates(&root, opts.OnDuplicateKey)
 	}
 	if line := documentLine(data); line > 0 {
-		root.Line, root.Column = line, 1
+		root.Line, root.Column = line+lineOffset, 1
 	}
 	*out = root
 	return nil
@@ -266,12 +271,15 @@ func (s *quoteScan) flow(r rune, slash bool) bool {
 // internal node to its copy, so every alias points at the copy of its
 // anchor, and a node is copied once however many times it is reached.
 // Each node enters seen before its children are copied, so the copy ends
-// on any finite tree, even one with a cycle.
+// on any finite tree, even one with a cycle. Each copy adds lineOffset
+// to the lines of the document it was read from, so that they count from
+// the start of its stream.
 type converter struct {
-	seen  map[*yamlnode.Node]*Node
-	opts  DecodeOptions
-	lines [][]byte
-	text  *readText
+	seen       map[*yamlnode.Node]*Node
+	opts       DecodeOptions
+	lines      [][]byte
+	text       *readText
+	lineOffset int
 }
 
 // node returns the copy of in, making it on first sight.
@@ -295,7 +303,8 @@ func (c *converter) fill(out *Node, in *yamlnode.Node) {
 	if in.Line > 0 && in.Line <= len(c.lines) && in.Column > 0 {
 		out.Column = v3Column(c.lines[in.Line-1], in.Column)
 	}
-	out.tokenLine, out.tokenColumn = in.TokenLine, in.TokenColumn
+	out.Line = atLine(out.Line, c.lineOffset)
+	out.tokenLine, out.tokenColumn = atLine(in.TokenLine, c.lineOffset), in.TokenColumn
 	out.style, out.read, out.opts, out.bareTag = in.Style, true, c.opts, in.BareTag
 	out.readValue, out.text = in.Value, c.text
 	if int(in.Kind) < len(publicKinds) {

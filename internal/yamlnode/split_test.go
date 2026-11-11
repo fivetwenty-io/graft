@@ -240,19 +240,19 @@ func TestParseIndentIndicatorBeforeDocumentMarker(t *testing.T) {
 // that comments after the last "..." come back as a tail chunk.
 func TestSplitDocumentsCarriesLeadingComments(t *testing.T) {
 	for in, want := range map[string][]chunk{
-		"#!/usr/bin/env genesis\n---\nkit: a\n": {{text: "#!/usr/bin/env genesis\n---\nkit: a\n", startLine: 2, textLine: 1}},
+		"#!/usr/bin/env genesis\n---\nkit: a\n": {{text: "#!/usr/bin/env genesis\n---\nkit: a\n", startLine: 2, textLine: 1, content: true}},
 		"x: 1\n...\n# c\n---\na: 1\n": {
-			{text: "x: 1\n...\n", startLine: 1, textLine: 1, marker: true},
-			{text: "# c\n---\na: 1\n", startLine: 4, textLine: 3, index: 1, afterEnd: true},
+			{text: "x: 1\n...\n", startLine: 1, textLine: 1, marker: true, content: true},
+			{text: "# c\n---\na: 1\n", startLine: 4, textLine: 3, index: 1, afterEnd: true, content: true},
 		},
 		"x: 1\n...\n# c\n": {
-			{text: "x: 1\n...\n", startLine: 1, textLine: 1, marker: true},
+			{text: "x: 1\n...\n", startLine: 1, textLine: 1, marker: true, content: true},
 			{text: "# c\n", startLine: 3, textLine: 3, index: 1, afterEnd: true, tail: true},
 		},
 		"x: 1\n---\ny: 2\n...\n---\nz: 3\n": {
-			{text: "x: 1\n", startLine: 1, textLine: 1, marker: true},
-			{text: "---\ny: 2\n...\n", startLine: 2, textLine: 2, index: 1, marker: true},
-			{text: "---\nz: 3\n", startLine: 5, textLine: 5, index: 2, afterEnd: true},
+			{text: "x: 1\n", startLine: 1, textLine: 1, marker: true, content: true},
+			{text: "---\ny: 2\n...\n", startLine: 2, textLine: 2, index: 1, marker: true, content: true},
+			{text: "---\nz: 3\n", startLine: 5, textLine: 5, index: 2, afterEnd: true, content: true},
 		},
 	} {
 		// A chunk holds an error, which reflect.DeepEqual cannot compare
