@@ -93,7 +93,7 @@ The graft `Decoder` follows these stream rules.
 
 - An alias can't point at an anchor in an earlier document, because YAML scopes an anchor to its own document. goccy and yaml.v3 allow it.
 
-Two differences from goccy's decoder are worth knowing. Content after a `...` with no `---` fails in graft, where goccy accepts it. A `---` followed by `...` is skipped as an empty document, as goccy skips it, and so is any document that holds only comments, directives, or markers.
+Two differences from goccy's decoder are worth knowing. First, content after a `...` with no `---` fails in graft, where goccy accepts it. Second, graft skips a document that holds only comments, directives, or markers, such as a `---` followed by `...`, wherever it sits in the stream. goccy skips such a document only at the very end, and it fails when one sits between two documents, as in `a: 1`, `---`, `...`, `---`, `b: 2` on separate lines, where graft returns both documents.
 
 ### Types that decode themselves
 
@@ -145,7 +145,7 @@ Several rules go with the hook.
 
 - When a struct has a named field that implements the hook and also an `,inline` map or a self-decoding inline field, the inline part no longer sees the hook field's key. This matches yaml.v3.
 
-- When more than one struct field reads the same key, the hook doesn't run for that key, and the fields get a plain decode. yaml.v3 refuses such a struct.
+- When a named field and an `,inline` struct both read the same key, the hook doesn't run for that key, and the fields get a plain decode. yaml.v3 refuses such a struct. Two fields with the same `yaml` name never get this far, because goccy fails them with "duplicated struct field name".
 
 - If goccy's own decode of the document fails, no hook runs. That error is the one we get, even when a hook would also have failed.
 
@@ -161,7 +161,7 @@ goccy's hook interfaces, which are `BytesUnmarshaler`, `InterfaceUnmarshaler`, `
 
 ## Behavior that existing callers can notice
 
-A type that already has an `UnmarshalYAML(*yaml.Node) error` method now has it called by `Node.Decode`, `Unmarshal`, `UnmarshalWith`, and `Decoder.Decode`. If our code already has such a method, we should read it once before upgrading, because it now runs in places it did not run before.
+A type that already has an `UnmarshalYAML(*yaml.Node) error` method now has it called by `Node.Decode`, `Unmarshal`, `UnmarshalWith`, and `Decoder.Decode`. If our code already has such a method, we should read it once before upgrading, because it now runs in places it did not run before. The other three changes, which cover map keys, inline fields, and the cost of the second decode route, are listed under the hook rules above and in the Changed section of the CHANGELOG entry for 1.47.0.
 
 ## Concurrency
 

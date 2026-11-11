@@ -183,8 +183,8 @@ A MapSlice is a list of MapItem values, each holding a Key and a Value, and
 Marshal writes its items in the order they sit at any depth, whatever
 KeyOrder says. The Go maps inside its values still follow KeyOrder. A key
 follows the rules for a map key, so a collection is refused, and so are
-two items whose keys write the same text. Marshal accepts MapSlice and
-*MapSlice only. Unmarshal into a MapSlice is refused, because the type is
+two items whose keys write the same text. Only MapSlice and *MapSlice are
+written as ordered mappings. Unmarshal into a MapSlice is refused, because the type is
 for encoding. Decode into a Node when the order of keys matters on the way
 in.
 
@@ -366,10 +366,9 @@ the memory of one document for each tree that is read.
 
 A type that decodes through an UnmarshalYAML method that takes a callback,
 or that keeps what it decodes in an unexported field, receives goccy's raw
-values. In the
-default mode, a quoted or block scalar holding yes, no, on, or off can reach
-that method with an internal marker character in front of it when the
-target also holds a value of interface type.
+values. In the default mode, a quoted or block scalar holding yes, no, on,
+or off can reach that method with an internal marker character in front of
+it when the target also holds a value of interface type.
 
 # Stability
 

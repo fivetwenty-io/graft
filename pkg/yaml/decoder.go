@@ -17,9 +17,10 @@ import (
 // anything, as goccy/go-yaml's decoder does, and then cuts the stream
 // into documents the way yaml.v3 counts them. A document that holds only
 // comments, directives, or markers, such as the empty document after a
-// final "---", is skipped, as goccy skips it. Content that follows a
-// "..." with no "---" before it fails, as Unmarshal fails it, where goccy
-// accepts it.
+// final "---", is skipped, wherever it sits in the stream. goccy skips
+// such a document only at the end, and fails when one sits between two
+// documents. Content that follows a "..." with no "---" before it fails,
+// as Unmarshal fails it, where goccy accepts it.
 //
 // Once the documents run out, Decode returns io.EOF. Only an error in the
 // framing of the stream ends it, and every later Decode returns that same
