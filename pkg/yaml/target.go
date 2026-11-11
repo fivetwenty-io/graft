@@ -30,7 +30,10 @@ func checkTargetFor(fn string, v any) *DecodeError {
 		return typeError("%s(nil %s)", fn, t)
 	}
 	w := targetWalk{seen: make(map[reflect.Type]bool)}
-	if where, found := w.find(t.Elem(), t.Elem().String()); found {
+	if where, found := w.find(t.Elem(), t.Elem().String()); found != nil {
+		if found == mapSliceType {
+			return typeError("%s does not support yaml.MapSlice, which %s holds at %s; decode into a yaml.Node to keep key order", fn, t, where)
+		}
 		return typeError("%s does not support map[interface {}]interface {}, which %s holds at %s; use map[string]any instead", fn, t, where)
 	}
 	return nil
@@ -43,23 +46,26 @@ type targetWalk struct {
 	seen map[reflect.Type]bool
 }
 
-// find reports whether t holds map[interface{}]interface{}, and where,
+// find reports whether t holds map[interface{}]interface{} or MapSlice, and where,
 // as a path that starts at path, the name of t. A map's key adds "{key}"
 // to the path, and an element or a map's value adds "[]".
-func (w targetWalk) find(t reflect.Type, path string) (string, bool) {
+func (w targetWalk) find(t reflect.Type, path string) (string, reflect.Type) {
 	if w.seen[t] {
-		return "", false
+		return "", nil
 	}
 	w.seen[t] = true
+	if t == mapSliceType {
+		return path, mapSliceType
+	}
 	if t.Kind() == reflect.Map && t.Key() == interfaceMapType.Key() && t.Elem() == interfaceMapType.Elem() {
-		return path, true
+		return path, interfaceMapType
 	}
 	switch t.Kind() {
 	case reflect.Pointer:
 		return w.find(t.Elem(), path)
 	case reflect.Map:
-		if where, found := w.find(t.Key(), path+"{key}"); found {
-			return where, true
+		if where, found := w.find(t.Key(), path+"{key}"); found != nil {
+			return where, found
 		}
 		return w.find(t.Elem(), path+"[]")
 	case reflect.Slice, reflect.Array:
@@ -70,11 +76,11 @@ func (w targetWalk) find(t reflect.Type, path string) (string, bool) {
 			if !f.IsExported() && !f.Anonymous {
 				continue
 			}
-			if where, found := w.find(f.Type, path+"."+f.Name); found {
-				return where, true
+			if where, found := w.find(f.Type, path+"."+f.Name); found != nil {
+				return where, found
 			}
 		}
 	default:
 	}
-	return "", false
+	return "", nil
 }
