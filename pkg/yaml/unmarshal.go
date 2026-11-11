@@ -44,7 +44,7 @@ import (
 // which gives the same values and errors that decoding the text gives,
 // and every other target is decoded from the text directly.
 //
-// These limits apply to the direct route:
+// These limits apply to every typed target, whichever route it takes:
 //
 //   - A named bool type, such as type Flag bool, follows goccy's YAML 1.2
 //     rule, so only true and false decode into it and a plain yes is a
@@ -59,12 +59,10 @@ import (
 //     quoted yes, no, on, or off can reach that method with an internal
 //     marker character in front of it.
 //   - An ,inline map receives every key of its mapping, including keys
-//     that name another field of the struct. When the inline map's values
+//     that name another field of the struct, though not the key of a
+//     field whose type is an Unmarshaler. When the inline map's values
 //     are not strings, a string field beside it keeps goccy's formatted
 //     text, so name: 012 gives "10".
-//   - In a << merge key's list of maps, a later map wins over an earlier
-//     one, as on the generic route, where yaml.v2 and yaml.v3 let the
-//     earlier map win.
 //   - A time.Time accepts any string goccy's timestamp layouts parse, so
 //     a quoted "2001-12-14" decodes, where yaml.v2 and yaml.v3 refuse a
 //     quoted date that is not RFC 3339.

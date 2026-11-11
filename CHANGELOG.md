@@ -29,13 +29,13 @@ This release adds the pieces of goccy's API that a program needs in order to mov
 
 - A type that already has an `UnmarshalYAML(*yaml.Node) error` method now has it called by `Node.Decode`, `Unmarshal`, `UnmarshalWith`, and `Decoder.Decode`.
 
-- A type that implements `yaml.Unmarshaler` and is used as a map key is now refused with an error.
+- A type that implements `yaml.Unmarshaler` and is used as a map key is now refused with an error. So is one used as a named `,inline` field, which 1.46.0 accepted and decoded without calling the method.
 
 - When a struct has a named field that implements the hook and also an `,inline` map or a self-decoding inline field, the inline part no longer sees the hook field's key. This matches yaml.v3.
 
 - A target that reaches an `Unmarshaler` is decoded by a second route that parses the document once more, so hook targets cost a little more to decode. Targets without a hook are unchanged.
 
-- The goccy hook forms, which are `BytesUnmarshaler`, `InterfaceUnmarshaler`, `NodeUnmarshaler`, and the variants that take a context, still run, so existing code keeps working. `Unmarshaler` is the supported hook, and a major release may stop calling the others.
+- The goccy hook forms, which are `BytesUnmarshaler`, `InterfaceUnmarshaler`, `NodeUnmarshaler`, and the variants that take a context, still run. When a target holds no `Unmarshaler`, a `BytesUnmarshaler` still receives the source text of its value, without its comments. When the target also reaches an `Unmarshaler`, the target takes the second route, and the `BytesUnmarshaler` now receives flow-style text instead, as it already did under `Node.Decode`. That text keeps every value but not the layout, so code that reads the layout of those bytes can behave differently once we add an `Unmarshaler` beside it. `Unmarshaler` is the supported hook, and a major release may stop calling the others.
 
 ## [1.46.0] - 2026-11-06
 

@@ -9,6 +9,13 @@ import (
 // to Encode produces the same bytes as MarshalWith for that value, and
 // documents after the first are preceded by a "---" separator line. An
 // Encoder is not safe for concurrent use.
+//
+// When the writer fails, Encode returns its error, and whatever part of
+// the document the writer took stays in the stream. A later Encode still
+// writes its document right after that partial text, with a separator
+// line only when an earlier document was written in full, so the stream
+// no longer reads as the documents we encoded. As with encoding/json, we
+// should stop using an Encoder after a write fails.
 type Encoder struct {
 	w      io.Writer
 	opts   EncodeOptions

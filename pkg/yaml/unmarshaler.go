@@ -18,9 +18,11 @@ import (
 // A node reached through an alias is the node that holds the anchor, and
 // a mapping with a << merge key is the mapping as written, which
 // node.Decode merges as Unmarshal does. A null never reaches the method,
-// whether it has no tag or the tag !!null, as in yaml.v3, and it leaves
-// the value as it was. A type with both this method and UnmarshalText
-// decodes through this one.
+// whether it has no tag or the tag !!null, as in yaml.v3. It decodes as
+// it would for a type without the method, so a struct field and the
+// value at the root keep what they held, a pointer below the root
+// becomes nil, and a map value or a list item becomes the zero value. A
+// type with both this method and UnmarshalText decodes through this one.
 //
 // When the method fails, Decode returns a *DecodeError. A *DecodeError
 // the method returns comes back as it is. An error that wraps one, such

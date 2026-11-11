@@ -142,11 +142,15 @@ reflect and the panic starts inside it.
 
 A type with an UnmarshalText method receives the formatted text of a scalar,
 not the source text, so 1.10 arrives as "1.1". A type whose UnmarshalYAML
-method takes a callback or a byte slice, in goccy's forms, receives the YAML
-as flow-style text, which keeps every value but not the layout or the
-comments of the input. We keep those forms working so that existing code
-runs unchanged, but Unmarshaler is the supported hook, and a major release
-may stop calling the others.
+method takes a byte slice, in goccy's form, receives the source text of its
+value, without its comments, from Unmarshal, UnmarshalWith, and
+Decoder.Decode when the target holds no Unmarshaler. Under Node.Decode, and
+whenever the target also holds an Unmarshaler, it receives flow-style text,
+which keeps every value but not the layout of the input. A method that takes
+a callback, in goccy's other form, decodes the same values on either route.
+We keep those forms working so that existing code runs unchanged, but
+Unmarshaler is the supported hook, and a major release may stop calling the
+others.
 
 A whole float inside the int64 range marshals as integer digits, so 3.0
 becomes 3 and 1e6 becomes 1000000. Reading that output into an any gives an
@@ -215,13 +219,15 @@ Node that holds the value, wherever a value of the type sits in the target.
 The method reads the node's Line, Column, and Tag, or calls node.Decode,
 usually into a private type of its own with no such method, so that it does
 not call itself again. A null never reaches the method, whether it has no
-tag or the tag !!null, as in yaml.v3, and it leaves the value as it was. A
-type that is a map key, or a named ,inline field, is refused, because no
-method can run there. Embedding a type that has the method gives the outer
-type the method too, so the outer type decodes through it, and its other
-fields stay unset unless the method fills them. When more than one struct
-field reads the same key, the method does not run for that key, and the
-fields get a plain decode.
+tag or the tag !!null, as in yaml.v3. It decodes as it would for a type
+without the method, so a struct field and the value at the root keep what
+they held, a pointer below the root becomes nil, and a map value or a list
+item becomes the zero value. A type that is a map key, or a named ,inline
+field, is refused, because no method can run there. Embedding a type that
+has the method gives the outer type the method too, so the outer type
+decodes through it, and its other fields stay unset unless the method
+fills them. When more than one struct field reads the same key, the method
+does not run for that key, and the fields get a plain decode.
 
 The error an Unmarshaler returns comes back as a *DecodeError, and Unwrap
 on it returns the method's own error, so errors.Is and errors.As reach it.

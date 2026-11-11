@@ -137,7 +137,7 @@ Several rules go with the hook.
 
 - Embedding a type that has the method promotes it to the outer type. The outer type then decodes through it, and its other fields stay unset unless the method fills them. A struct that embeds `Endpoint` and adds a `Name` field loses the name for this reason. Give the outer type its own method, or hold the inner type in a named field.
 
-- A null never reaches the method, whether it has no tag or the tag `!!null`, as in yaml.v3, and the value stays as it was.
+- A null never reaches the method, whether it has no tag or the tag `!!null`, as in yaml.v3. The null then decodes as it would for a type without the method, so a struct field and the value at the root keep what they held, a pointer below the root becomes nil, and a map value or a list item becomes the zero value.
 
 - A type that has both this method and `UnmarshalText` decodes through this one.
 
@@ -157,7 +157,7 @@ A target that reaches an `Unmarshaler` decodes by a second route that parses the
 
 ### goccy's own hook forms
 
-goccy's hook interfaces, which are `BytesUnmarshaler`, `InterfaceUnmarshaler`, `NodeUnmarshaler`, and the variants that take a context, still fire in 1.47.0, so existing code keeps working. They receive flow-style text or goccy's raw values, as they did before. `Unmarshaler` is the supported hook, and a major release may stop calling the others.
+goccy's hook interfaces, which are `BytesUnmarshaler`, `InterfaceUnmarshaler`, `NodeUnmarshaler`, and the variants that take a context, still fire in 1.47.0. What a `BytesUnmarshaler` receives depends on the route that decodes the target. When the target holds no `Unmarshaler`, `Unmarshal`, `UnmarshalWith`, and `Decoder.Decode` give it the source text of its value, without its comments, as `Unmarshal` did in 1.46.0. Under `Node.Decode`, and whenever the target also reaches an `Unmarshaler`, it receives flow-style text, which keeps every value but not the layout. That second case is new in 1.47.0, so a `BytesUnmarshaler` that reads the layout of its bytes can behave differently once we add an `Unmarshaler` field beside it. A method that takes a callback decodes the same values on either route. `Unmarshaler` is the supported hook, and a major release may stop calling the others.
 
 ## Behavior that existing callers can notice
 
