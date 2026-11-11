@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-This release adds the pieces of goccy's API that a program needs in order to move to `pkg/yaml` without importing goccy. It adds indent options, an ordered map type, a streaming encoder and decoder, and the `Unmarshaler` hook. The hook changes what happens for types that already have an `UnmarshalYAML(*yaml.Node) error` method, so please read the Changed section before you upgrade.
+## [1.47.0] - 2026-11-10
+
+This release adds the pieces of goccy's API that a program needs in order to move to `pkg/yaml` without importing goccy. It adds indent options, an ordered map type, a streaming encoder and decoder, and the `Unmarshaler` hook. The hook changes what happens for types that already have an `UnmarshalYAML(*yaml.Node) error` method, so please read the Changed section before you upgrade. Merge output doesn't change, so templates and the `graft` command give the same results as on 1.46.0.
 
 ### Added
 
@@ -1386,6 +1388,7 @@ Fixed.
   in a fixed order. Set `GRAFT_PARALLEL_ENABLED=false` to fall back to
   serial evaluation.
 
+[1.47.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.47.0
 [1.46.0]: https://github.com/fivetwenty-io/graft/releases/tag/v1.46.0
 [1.45.2]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.2
 [1.45.1]: https://github.com/fivetwenty-io/graft/releases/tag/v1.45.1
