@@ -72,6 +72,7 @@ func TestGrabOfAnAncestorIsACycle(t *testing.T) {
 		{"computed path", "k: q\nq:\n  b: (( grab (( concat k \"\" )) ))\n", "$.q.b grabs $.q"},
 		{"nested in another call", "q:\n  b: (( concat \"x\" (( grab q )) ))\n", "$.q.b grabs $.q"},
 		{"bare reference after ||", "q:\n  c: (( nope || q ))\n", "$.q.c grabs $.q"},
+		{"nested grab after a bare ||", "q:\n  x: 1\n  c: (( nope || (( grab q )) ))\n", "$.q.c grabs $.q"},
 		{"bare reference on both sides of ||", "q:\n  c: (( q || q ))\n", "$.q.c grabs $.q"},
 		{"ternary branch", "q:\n  t: \"(( true ? q : 0 ))\"\n", "$.q.t grabs $.q"},
 		{"ternary branches, two edges", "q:\n  t: \"(( false ? 0 : q ))\"\n  c:\n    u: \"(( true ? q : 0 ))\"\n", "grabs $.q"},
