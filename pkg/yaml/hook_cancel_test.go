@@ -1,7 +1,12 @@
 package yaml_test
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
+	"sort"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/yaml"
@@ -155,4 +160,140 @@ func TestRepeatedFieldKeyCancelsEarlierHooks(t *testing.T) {
 		{"empty over a nested hook", "&k b: {c: x}\n*k : {}\n", fields, cancelFields{}, 0},
 		{"value over a hooked field", "&k a: x\n*k : y\n", fields, later, 1},
 	})
+}
+
+// renderEntries prints v with every pointer followed, a nil pointer as
+// nil, map entries sorted, and a gapHook as the text its hook received,
+// so a hooked result and the result goccy keeps for the same input with
+// string in place of gapHook print alike exactly when they agree.
+func renderEntries(v reflect.Value) string {
+	switch v.Kind() {
+	case reflect.Pointer:
+		if v.IsNil() {
+			return "nil"
+		}
+		return "&" + renderEntries(v.Elem())
+	case reflect.Map:
+		if v.IsNil() {
+			return "nilmap"
+		}
+		var out []string
+		for it := v.MapRange(); it.Next(); {
+			out = append(out, renderEntries(it.Key())+": "+renderEntries(it.Value()))
+		}
+		sort.Strings(out)
+		return "{" + strings.Join(out, ", ") + "}"
+	case reflect.Struct:
+		if h, ok := v.Interface().(gapHook); ok {
+			return strings.TrimPrefix(h.Val, "hook:")
+		}
+		return fmt.Sprintf("%+v", v.Interface())
+	default:
+		return fmt.Sprintf("%v", v.Interface())
+	}
+}
+
+// ptrKeyCase decodes in into the hooked target and into the plain one,
+// which holds string where the hooked one holds gapHook.
+type ptrKeyCase struct {
+	name          string
+	in            string
+	hooked, plain func() any
+	calls         int
+}
+
+// TestPointerKeysPlaceEachHook checks that a map with pointer keys gets
+// each hook on the entry goccy made for its pair.
+func TestPointerKeysPlaceEachHook(t *testing.T) {
+	ints := func() any { return new(map[*int]gapHook) }
+	intsPlain := func() any { return new(map[*int]string) }
+	for _, tc := range []ptrKeyCase{
+		{"distinct keys", "1: a\n2: b\n", ints, intsPlain, 2},
+		{"a nil key alone", "~: a\n", ints, intsPlain, 1},
+		{"a nil key beside another", "~: a\n1: b\n", ints, intsPlain, 2},
+		{"an alias to a nil key", "&n ~: a\n*n : b\n", ints, intsPlain, 1},
+		{"a null under a nil key", "~: a\nnull: ~\n", ints, intsPlain, 0},
+		{"nested maps", "x: {1: a, 2: b}\ny: {1: c}\n",
+			func() any { return new(map[*string]map[*int]gapHook) },
+			func() any { return new(map[*string]map[*int]string) }, 3},
+		{"equal keys with no hook site", "1: ~\n0x1: ~\n", ints, intsPlain, 0},
+		{"equal keys over empty maps", "1: {}\n0x1: {}\n",
+			func() any { return new(map[*int]map[string]gapHook) },
+			func() any { return new(map[*int]map[string]string) }, 0},
+		{"a pointer to a struct as a nil key", "~: a\n",
+			func() any { return new(map[*cancelFields]gapHook) },
+			func() any { return new(map[*cancelFields]string) }, 1},
+	} {
+		gapHookCalls = 0
+		hooked, plain := tc.hooked(), tc.plain()
+		if err := yaml.Unmarshal([]byte(tc.in), hooked); err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+			continue
+		}
+		if err := yaml.Unmarshal([]byte(tc.in), plain); err != nil {
+			t.Fatalf("%s: plain: %v", tc.name, err)
+		}
+		got, want := renderEntries(reflect.ValueOf(hooked)), renderEntries(reflect.ValueOf(plain))
+		if got != want {
+			t.Errorf("%s: got %s, want %s", tc.name, got, want)
+		}
+		if gapHookCalls != tc.calls {
+			t.Errorf("%s: the hook ran %d times, want %d", tc.name, gapHookCalls, tc.calls)
+		}
+	}
+}
+
+// checkPointerKeyRefusal checks that err refuses a map of Go type typ at
+// line, and that its message quotes no scalar of in.
+func checkPointerKeyRefusal(t *testing.T, name, in string, err error, typ string, line int) {
+	t.Helper()
+	var de *yaml.DecodeError
+	if !errors.As(err, &de) {
+		t.Errorf("%s: got %v, want a *DecodeError", name, err)
+		return
+	}
+	want := "two keys of a map of Go type " + typ + " point to equal values, and a value under one of them has an UnmarshalYAML method"
+	if de.Kind != yaml.ErrorKindType || de.Msg != want || de.Line != line {
+		t.Errorf("%s: got kind %v, line %d, %q", name, de.Kind, de.Line, de.Msg)
+	}
+	// A word the message holds in any case, such as the line number or a
+	// letter of the type, says nothing about quoting.
+	fixed := "yaml: line " + strconv.Itoa(line) + ": " + want
+	for _, word := range strings.FieldsFunc(in, func(r rune) bool { return strings.ContainsRune(" :\n{},&*<", r) }) {
+		if !strings.Contains(fixed, word) && strings.Contains(err.Error(), word) {
+			t.Errorf("%s: the message quotes %q: %v", name, word, err)
+		}
+	}
+}
+
+// TestPointerKeysWithEqualValuesAreRefused checks the maps with pointer
+// keys whose hooks no entry can be matched to, since two keys point to
+// equal values and only document order tells their entries apart.
+func TestPointerKeysWithEqualValuesAreRefused(t *testing.T) {
+	ints := func() any { return new(map[*int]gapHook) }
+	for _, tc := range []struct {
+		name, in string
+		target   func() any
+		typ      string
+		line     int
+		opts     yaml.DecodeOptions
+	}{
+		{"two spellings", "1: alpha\n0x1: bravo\n", ints, "map[*int]yaml_test.gapHook", 2, yaml.DecodeOptions{}},
+		{"a hook on the earlier key only", "1: a\n0x1: ~\n", ints, "map[*int]yaml_test.gapHook", 2, yaml.DecodeOptions{}},
+		{"a hook on the later key only", "1: ~\n0x1: b\n", ints, "map[*int]yaml_test.gapHook", 2, yaml.DecodeOptions{}},
+		{"bool keys", "true: alpha\nTrue: bravo\n", func() any { return new(map[*bool]gapHook) }, "map[*bool]yaml_test.gapHook", 2, yaml.DecodeOptions{YAML12: true}},
+		// An alias expands to its anchor's own node, so the refusal names
+		// the line of the anchor's key.
+		{"an alias key", "&k 1: a\n*k : b\n", ints, "map[*int]yaml_test.gapHook", 1, yaml.DecodeOptions{}},
+		{"zero and negative zero", "-0.0: a\n0.0: b\n", func() any { return new(map[*float64]gapHook) }, "map[*float64]yaml_test.gapHook", 2, yaml.DecodeOptions{}},
+		{"an inner map", "x:\n  1: a\n  0x1: b\n", func() any { return new(map[*string]map[*int]gapHook) }, "map[*int]yaml_test.gapHook", 3, yaml.DecodeOptions{}},
+		{"a key a merge supplies", "<<: {1: a}\n0x1: b\n", ints, "map[*int]yaml_test.gapHook", 2, yaml.DecodeOptions{}},
+	} {
+		gapHookCalls = 0
+		err := yaml.UnmarshalWith([]byte(tc.in), tc.target(), tc.opts)
+		checkPointerKeyRefusal(t, tc.name, tc.in, err, tc.typ, tc.line)
+		if gapHookCalls != 0 {
+			t.Errorf("%s: the hook ran %d times", tc.name, gapHookCalls)
+		}
+	}
 }

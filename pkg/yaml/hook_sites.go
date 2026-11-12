@@ -3,6 +3,8 @@ package yaml
 import (
 	"fmt"
 	"hash/maphash"
+	"math"
+	"math/cmplx"
 	"reflect"
 	"slices"
 
@@ -362,6 +364,13 @@ func sharedHookKeyError(key ast.MapKeyNode, t reflect.Type) *DecodeError {
 // key, and goccy then keeps the value of the later pair, null or not. So
 // the walk keeps a tree of the mapping's keys, and a pair whose key is
 // already there cancels every site the earlier pair recorded under it.
+//
+// goccy gives each key of a map with pointer keys a new pointer, so every
+// pair keeps an entry, except that nil keys collide. A hook finds its
+// entry by the value the key points to, which fails when two non-nil keys
+// point to equal values, as 1 and 0x1 do, since only document order tells
+// their entries apart. Such a map is refused when either pair holds a
+// hook site, as pointedKey describes.
 func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, error) {
 	m, ok := n.(*ast.MappingNode)
 	if !ok {
@@ -369,6 +378,7 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 	}
 	var out *ast.MappingNode
 	var slots *hookStep
+	var pointed pointedKeys
 	for i, mv := range m.Values {
 		key, ok := w.mapKey(mv.Key, t.Key())
 		if !ok {
@@ -396,6 +406,9 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 		case link != nil && len(w.sites) > first:
 			step.slot.first, step.slot.end = first, len(w.sites)
 			*link = step
+		}
+		if err := w.pointedKey(&pointed, mv.Key, key, len(w.sites) > first, t); err != nil {
+			return nil, err
 		}
 		if hole {
 			got = nullAt(mv.Value)
@@ -435,6 +448,101 @@ func findSlot(root **hookStep, step *hookStep) (*hookStep, **hookStep) {
 		}
 	}
 	return nil, link
+}
+
+// pointedKeys holds the values that the non-nil keys of one mapping
+// with pointer keys point to, by pointeeHash, each with whether its pair
+// recorded a hook site.
+type pointedKeys map[uint64][]pointedKey
+
+type pointedKey struct {
+	value  reflect.Value
+	hooked bool
+}
+
+// pointedKey records the value that v, the decoded key node of a pair
+// of a map of type t, points to, with hooked, which says whether the
+// pair recorded a hook site. It refuses node when an earlier key points
+// to a value alikeValues matches, and either pair recorded a site, since
+// no hook could tell the two entries apart. A key that is no pointer, or
+// is nil, is left alone.
+func (w *siteWalk) pointedKey(seen *pointedKeys, node ast.MapKeyNode, v reflect.Value, hooked bool, t reflect.Type) error {
+	if v.Kind() != reflect.Pointer || v.IsNil() {
+		return nil
+	}
+	value := v.Elem()
+	h := pointeeHash(w.seed, value)
+	for _, p := range (*seen)[h] {
+		if (p.hooked || hooked) && alikeValues(p.value, value) {
+			return pointerKeyError(node, t)
+		}
+	}
+	if *seen == nil {
+		*seen = make(pointedKeys)
+	}
+	(*seen)[h] = append((*seen)[h], pointedKey{value: value, hooked: hooked})
+	return nil
+}
+
+// pointerKeyError returns the refusal of key, a key of a map of type t
+// that points to a value an earlier key points to as well, at the key's
+// place. It names only the Go type, never the key or its value.
+func pointerKeyError(key ast.MapKeyNode, t reflect.Type) *DecodeError {
+	e := &DecodeError{
+		Kind: ErrorKindType,
+		Msg:  fmt.Sprintf("two keys of a map of Go type %s point to equal values, and a value under one of them has an UnmarshalYAML method", t),
+	}
+	if tk := key.GetToken(); tk != nil && tk.Position != nil {
+		e.Line, e.Column = tk.Position.Line, tk.Position.Column
+	}
+	return e
+}
+
+// alikeValues reports whether a and b, the values two pointer keys point
+// to, are equal or are both NaN, so that the values cannot tell the two
+// keys apart.
+func alikeValues(a, b reflect.Value) bool {
+	return reflect.DeepEqual(a.Interface(), b.Interface()) || valueNaN(a) && valueNaN(b)
+}
+
+// valueNaN reports whether v, or the value an interface v holds, is a float
+// or a complex number that is NaN.
+func valueNaN(v reflect.Value) bool {
+	for v.Kind() == reflect.Interface && !v.IsNil() {
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Float32, reflect.Float64:
+		return math.IsNaN(v.Float())
+	case reflect.Complex64, reflect.Complex128:
+		return cmplx.IsNaN(v.Complex())
+	default:
+		return false
+	}
+}
+
+// pointeeHash returns the hash of v, the value a pointer key points to,
+// under seed. Values that alikeValues matches hash alike, so every NaN,
+// and a value of a kind that keyHash would hash by an address, or by
+// nothing, hashes to 0.
+func pointeeHash(seed maphash.Seed, v reflect.Value) uint64 {
+	if valueNaN(v) {
+		return 0
+	}
+	switch v.Kind() {
+	case reflect.Interface:
+		if v.IsNil() {
+			return 0
+		}
+		return pointeeHash(seed, v.Elem())
+	case reflect.Bool, reflect.String,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+		return keyHash(seed, v)
+	default:
+		return 0
+	}
 }
 
 // comparableKey reports whether v, a decoded map key, can be compared,
@@ -518,11 +626,38 @@ func (w *siteWalk) mapKey(k ast.MapKeyNode, kt reflect.Type) (reflect.Value, boo
 	if explicit, ok := k.(*ast.MappingKeyNode); ok {
 		key = explicit.Value
 	}
+	if kt.Kind() == reflect.Pointer {
+		return w.pointerKey(key, kt)
+	}
 	p := reflect.New(kt)
 	if err := decodeBody(key, p.Interface(), w.opts); err != nil {
 		return reflect.Value{}, false
 	}
 	return p.Elem(), true
+}
+
+// pointerKey decodes key into a value of the pointer type kt as goccy
+// decodes a map key of that type. A null gives a nil pointer, and any
+// other key decodes into a new value of the type kt points to at its
+// end, behind as many pointers as kt has.
+func (w *siteWalk) pointerKey(key ast.Node, kt reflect.Type) (reflect.Value, bool) {
+	if key.Type() == ast.NullType {
+		return reflect.Zero(kt), true
+	}
+	base := kt
+	for base.Kind() == reflect.Pointer {
+		base = base.Elem()
+	}
+	v := reflect.New(base)
+	if err := decodeBody(key, v.Interface(), w.opts); err != nil {
+		return reflect.Value{}, false
+	}
+	for v.Type() != kt {
+		p := reflect.New(v.Type())
+		p.Elem().Set(v)
+		v = p
+	}
+	return v, true
 }
 
 // sequence returns n, a sequence that fills a slice or an array of type
@@ -575,8 +710,9 @@ func nullAt(n ast.Node) ast.Node {
 // runHookSites calls the Unmarshaler at each of sites in turn, inside
 // root, the decode target's value, and stops at the first failure.
 func runHookSites(root reflect.Value, sites []hookSite) error {
+	var entries pointerEntries
 	for i := range sites {
-		if err := sites[i].fill(root, sites[i].path); err != nil {
+		if err := sites[i].fill(root, sites[i].path, &entries); err != nil {
 			return err
 		}
 	}
@@ -585,10 +721,11 @@ func runHookSites(root reflect.Value, sites []hookSite) error {
 
 // fill follows path from v, filling each nil pointer on the way, and
 // calls the Unmarshaler at its end through the value's address. A map
-// value is read out, filled, and stored back. A place the decode cannot
+// value is read out, filled, and stored back. A map with pointer keys
+// holds the value under the key goccy made, which entries finds. A place the decode cannot
 // set, such as one inside an unexported embedded struct, is left alone,
 // as goccy leaves it.
-func (s *hookSite) fill(v reflect.Value, path []hookStep) error {
+func (s *hookSite) fill(v reflect.Value, path []hookStep, entries *pointerEntries) error {
 	v, ok := settle(v)
 	if !ok {
 		return nil
@@ -606,12 +743,12 @@ func (s *hookSite) fill(v reflect.Value, path []hookStep) error {
 	step, rest := path[0], path[1:]
 	switch step.kind {
 	case stepField:
-		return s.fill(v.Field(step.index), rest)
+		return s.fill(v.Field(step.index), rest, entries)
 	case stepIndex:
 		if step.index >= v.Len() {
 			return nil
 		}
-		return s.fill(v.Index(step.index), rest)
+		return s.fill(v.Index(step.index), rest, entries)
 	default:
 		if !v.CanSet() {
 			return nil
@@ -619,14 +756,59 @@ func (s *hookSite) fill(v reflect.Value, path []hookStep) error {
 		if v.IsNil() {
 			v.Set(reflect.MakeMap(v.Type()))
 		}
+		key := step.key
+		if key.Kind() == reflect.Pointer {
+			key = entries.find(v, key)
+		}
 		item := reflect.New(v.Type().Elem()).Elem()
-		if old := v.MapIndex(step.key); old.IsValid() {
+		if old := v.MapIndex(key); old.IsValid() {
 			item.Set(old)
 		}
-		err := s.fill(item, rest)
-		v.SetMapIndex(step.key, item)
+		err := s.fill(item, rest, entries)
+		v.SetMapIndex(key, item)
 		return err
 	}
+}
+
+// pointerEntries holds, for each map with pointer keys that a site
+// reaches, the map's non-nil keys by pointeeHash of the values they
+// point to. It is built the first time a site reaches the map, before
+// any hook in the map has run.
+type pointerEntries struct {
+	seed maphash.Seed
+	maps map[uintptr]map[uint64][]reflect.Value
+}
+
+// find returns the key of the map m that points to a value alikeValues
+// matches with the value key points to, or key itself when m holds none,
+// or when key is nil. typedMapping refuses a map in which a key whose
+// pair holds a site points to the same value as another key, so the key
+// found is the one goccy made for the site's pair.
+func (e *pointerEntries) find(m, key reflect.Value) reflect.Value {
+	if key.IsNil() {
+		return key
+	}
+	if e.maps == nil {
+		e.seed = maphash.MakeSeed()
+		e.maps = make(map[uintptr]map[uint64][]reflect.Value)
+	}
+	keys, ok := e.maps[m.Pointer()]
+	if !ok {
+		keys = make(map[uint64][]reflect.Value, m.Len())
+		for it := m.MapRange(); it.Next(); {
+			if k := it.Key(); !k.IsNil() {
+				h := pointeeHash(e.seed, k.Elem())
+				keys[h] = append(keys[h], k)
+			}
+		}
+		e.maps[m.Pointer()] = keys
+	}
+	for _, k := range keys[pointeeHash(e.seed, key.Elem())] {
+		if alikeValues(k.Elem(), key.Elem()) {
+			return k
+		}
+	}
+	return key
 }
 
 // settle follows v through its pointers, filling each nil one with a new
