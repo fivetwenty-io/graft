@@ -1,0 +1,7 @@
+base: &b
+  a: 1
+m:
+  !!merge <<: *b
+  c: 2
+s:
+  !!str <<: kept

@@ -26,11 +26,13 @@ import (
 // tabs stay as they are.
 //
 // A plain << key with a tab before or after its colon is a merge key, as
-// it is with a space there, as mergeKeysBeforeTabs describes.
+// it is with a space there, as mergeKeysBeforeTabs describes, and a <<
+// key tagged !!merge or !!str reads as YAML 1.1 reads it, as
+// taggedMergeKeys describes.
 func Tokenize(src string) token.Tokens {
 	toks := tokenize(src)
 	mergeKeysBeforeTabs(src, toks)
-	return toks
+	return taggedMergeKeys(toks)
 }
 
 // tokenize is Tokenize without the fix for merge keys.
@@ -108,4 +110,62 @@ func mayHoldTabbedMergeKey(src string) bool {
 		i += 2 + next
 	}
 	return false
+}
+
+// taggedMergeKeys makes "!!merge <<" a merge key, with the tag token
+// removed and its neighbors relinked, and makes "!!str <<" a plain
+// string key, as YAML 1.1 reads them.
+//
+// goccy reads "? !!merge <<" as the string <<, which it then fails to
+// merge, and it reads "!!str <<:" as a tagged merge key, which it fails.
+// A << key counts when it is plain, sits right after its tag on the
+// tag's line, and either ends at a colon or follows a "?". Any other tag
+// on << stays as goccy reads it.
+//
+// A merge key takes the tag's place. Its position becomes the tag's, so
+// the key starts at the column goccy measures its mapping by, and the
+// tag's text joins the front of its source text, so the tokens print
+// the text they came from. Every other token stays where it was. The
+// tag leaves tks itself, so the slice taggedMergeKeys returns can be
+// shorter than tks.
+func taggedMergeKeys(tks token.Tokens) token.Tokens {
+	for i := 0; i < len(tks); i++ {
+		tag := tks[i]
+		if !isTaggedMergeKey(tks, i) {
+			continue
+		}
+		key := tks[i+1]
+		if tag.Value == "!!str" {
+			key.Type, key.CharacterType, key.Indicator = token.StringType, token.CharacterTypeMiscellaneous, token.NotIndicator
+			continue
+		}
+		merge := token.MergeKey(tag.Origin+key.Origin, tag.Position)
+		key.Type, key.CharacterType, key.Indicator = merge.Type, merge.CharacterType, merge.Indicator
+		key.Origin, key.Position = merge.Origin, merge.Position
+		key.Prev = tag.Prev
+		if tag.Prev != nil {
+			tag.Prev.Next = key
+		}
+		tag.Prev, tag.Next = nil, nil
+		tks = append(tks[:i], tks[i+1:]...)
+	}
+	return tks
+}
+
+// isTaggedMergeKey reports whether toks[i] is a !!merge or !!str tag
+// that taggedMergeKeys rewrites, as it describes.
+func isTaggedMergeKey(toks token.Tokens, i int) bool {
+	tag := toks[i]
+	if tag.Type != token.TagType || tag.Value != "!!merge" && tag.Value != "!!str" || i+1 >= len(toks) {
+		return false
+	}
+	key := toks[i+1]
+	if key.Value != "<<" || key.Type != token.MergeKeyType && key.Type != token.StringType ||
+		key.Position.Line != tag.Position.Line {
+		return false
+	}
+	if i+2 < len(toks) && toks[i+2].Type == token.MappingValueType {
+		return true
+	}
+	return i > 0 && toks[i-1].Type == token.MappingKeyType
 }
