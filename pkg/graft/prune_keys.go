@@ -6,7 +6,7 @@ import (
 	"github.com/fivetwenty-io/graft/internal/prunekeys"
 )
 
-//nolint:gochecknoinits // the operators package reads the paths to prune through this hook from its first call
+//nolint:gochecknoinits // operators read the paths to prune through this hook
 func init() {
 	prunekeys.SetLookup(func(ev any) []string {
 		e, ok := ev.(*Evaluator)

@@ -320,10 +320,10 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 	prunePaths := rs.GetKeysToPrune()
 	log.DEBUG("Engine: Found %d prune paths to process: %v", len(prunePaths), prunePaths)
 	if len(prunePaths) > 0 {
-		// Remove each path from the tree itself, as spruce does, rather
-		// than from a copy. A grab hands back the map it reads, not a
-		// copy, so a key pruned from that map also leaves every place
-		// that grabbed it, at any depth.
+		// Remove each path from the tree itself, as spruce does,
+		// rather than from a copy. A grab hands back the map it
+		// reads, not a copy, so a key pruned from that map also
+		// leaves every place that grabbed it, at any depth.
 		doc := &document{data: ev.Tree}
 		cleanedPaths := make([]string, 0, len(prunePaths))
 		for _, path := range prunePaths {

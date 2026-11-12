@@ -73,7 +73,8 @@ func EvaluateExpr(e *Expr, ev *Evaluator) (*Response, error) {
 			// is never a reason to fall back.
 			return nil, err
 		}
-		// Left side failed, so a (( prune )) on the right prunes the key
+		// Left side failed, so a (( prune )) on the right prunes
+		// the key
 		if pruneFallback(e.Right, ev) {
 			return &Response{
 				Type:  Replace,

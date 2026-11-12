@@ -1662,8 +1662,9 @@ func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 		if len(m.priorCalcValues) > 0 {
 			evalCtx = WithPriorCalcValues(evalCtx, m.priorCalcValues)
 		}
-		// The --prune keys, which applyPruning removes only after
-		// evaluation, so join can leave them out of a map as grab does.
+		// The --prune keys, which applyPruning removes only
+		// after evaluation, so join can leave them out of a map
+		// as grab does.
 		if len(m.pruneKeys) > 0 {
 			evalCtx = withCallerPrunes(evalCtx, m.pruneKeys)
 		}
