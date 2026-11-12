@@ -74,7 +74,7 @@ func TestUnmarshalDecodeErrors(t *testing.T) {
 		{"self-containing anchor", "a: &x\n  b: *x\n  pw: supersecret\n", yaml.ErrorKindSyntax, 2, 6, []string{"supersecret"}},
 		{"self-containing anchor on line 1", "c: &x [*x, supersecret]\n", yaml.ErrorKindSyntax, 1, 8, []string{"supersecret"}},
 		{"self-containing anchor on line 3", "a: 1\npw: supersecret\nc: &x [*x]\n", yaml.ErrorKindSyntax, 3, 8, []string{"supersecret"}},
-		{"unknown merge alias", "pw: supersecret\n<<: *S3KRITzq9\n", yaml.ErrorKindSyntax, 0, 0, []string{"supersecret", "S3KRITzq9"}},
+		{"unknown merge alias", "pw: supersecret\n<<: *S3KRITzq9\n", yaml.ErrorKindSyntax, 2, 6, []string{"supersecret", "S3KRITzq9"}},
 		{"bad anchor name on line 1", "a: &x[1] supersecret\n", yaml.ErrorKindSyntax, 1, 0, []string{"supersecret"}},
 		{"bad anchor name on line 3", "a: 1\npw: supersecret\nc: &x[1] y\n", yaml.ErrorKindSyntax, 3, 0, []string{"supersecret"}},
 		{"bad tag on line 1", "c: !x^y supersecret\n", yaml.ErrorKindSyntax, 1, 0, []string{"supersecret"}},

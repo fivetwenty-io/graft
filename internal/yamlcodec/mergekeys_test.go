@@ -151,6 +151,27 @@ func TestMergeKeyUnknownAlias(t *testing.T) {
 	}
 }
 
+// TestMergeKeyRefusesAnUnknownAliasItDrops pins that an alias to an
+// anchor the document never defines fails the decode, as it does
+// anywhere else, even inside a merged map whose pairs all lose to an
+// earlier one, so the fold drops them.
+func TestMergeKeyRefusesAnUnknownAliasItDrops(t *testing.T) {
+	for _, doc := range []string{
+		"<<: [{n: 1}, {n: *a0}]\n",
+		"m:\n  <<: [{n: 1}, {n: *a0}]\n",
+		"m:\n  <<: {n: *a0}\n  n: 1\n",
+		"m:\n  <<: [{n: 1}, {n: [*a0]}]\n",
+		"m:\n  <<: [{n: 1}, {n: {k: *a0}}]\n",
+	} {
+		t.Run(doc, func(t *testing.T) {
+			_, err := decodeMerge(t, doc)
+			if err == nil || !strings.Contains(err.Error(), "could not find alias") {
+				t.Fatalf("error = %v, want the unknown alias error", err)
+			}
+		})
+	}
+}
+
 // TestMergeKeysStayBounded pins that merges of merges, merges of long
 // lists of aliases, and an alias bomb built of merge keys all finish
 // quickly, and that the bomb fails at the alias expansion limit.
