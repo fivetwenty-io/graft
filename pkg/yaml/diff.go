@@ -3,10 +3,12 @@ package yaml
 import (
 	"bytes"
 	"errors"
+	"io"
 	"strconv"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/cursorpath"
+	"github.com/fivetwenty-io/graft/internal/humanreport"
 	"github.com/fivetwenty-io/graft/internal/yamldiff"
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
@@ -75,6 +77,31 @@ func (r *DiffReport) Changes() []Change {
 // Empty reports whether the inputs have no differences.
 func (r *DiffReport) Empty() bool {
 	return len(r.changes) == 0
+}
+
+// ReportStyle says how Write prints a report. The zero value prints
+// plain text in the narrow layout graft diff uses when it can't read a
+// terminal width.
+type ReportStyle struct {
+	Color     bool
+	TrueColor bool
+	Width     int
+}
+
+// Write prints the report as graft diff prints it, without the final
+// blank line graft diff adds after it. A report that can't be rendered
+// comes back as a *DiffError, and an error from w comes back as it is.
+func (r *DiffReport) Write(w io.Writer, style ReportStyle) error {
+	err := humanreport.Write(w, r.report, humanreport.Options{
+		Color:     style.Color,
+		TrueColor: style.TrueColor,
+		Width:     style.Width,
+	})
+	var fatal *humanreport.FatalError
+	if errors.As(err, &fatal) {
+		return &DiffError{Reason: "the report could not be written", err: err}
+	}
+	return err
 }
 
 // DiffError is a pair of inputs that Diff can't compare. Reason is fixed

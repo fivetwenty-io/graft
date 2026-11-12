@@ -11,18 +11,24 @@ import (
 // allow-list, so a new dependency fails the test until someone adds it
 // here on purpose.
 var allowedImports = map[string]bool{
-	"github.com/fivetwenty-io/graft/pkg/yaml":            true, // the external tests import the package itself
-	"github.com/fivetwenty-io/graft/pkg/sortkeys":        true,
-	"github.com/fivetwenty-io/graft/pkg/decimal":         true, // sortkeys compares numbers with it
-	"github.com/fivetwenty-io/graft/pkg/query/value":     true, // sortkeys orders these values
-	"github.com/fivetwenty-io/graft/internal/keyorder":   true, // sortkeys' key comparator
-	"github.com/fivetwenty-io/graft/internal/cursorpath": true, // yaml.Document reads graft's cursor paths
-	"github.com/fivetwenty-io/graft/internal/literal":    true, // yamlcodec strips literal wrappers before encoding
-	"github.com/fivetwenty-io/graft/internal/yamlcodec":  true,
-	"github.com/fivetwenty-io/graft/internal/yamlerr":    true, // gives pkg/graft the plain text of a decoding error
-	"github.com/fivetwenty-io/graft/internal/yamlnode":   true,
-	"github.com/fivetwenty-io/graft/internal/yamldiff":   true, // yaml.Diff runs graft diff's engine
-	"github.com/fivetwenty-io/graft/internal/yamlprep":   true,
+	"github.com/fivetwenty-io/graft/pkg/yaml":             true, // the external tests import the package itself
+	"github.com/fivetwenty-io/graft/pkg/sortkeys":         true,
+	"github.com/fivetwenty-io/graft/pkg/decimal":          true, // sortkeys compares numbers with it
+	"github.com/fivetwenty-io/graft/pkg/query/value":      true, // sortkeys orders these values
+	"github.com/fivetwenty-io/graft/internal/keyorder":    true, // sortkeys' key comparator
+	"github.com/fivetwenty-io/graft/internal/cursorpath":  true, // yaml.Document reads graft's cursor paths
+	"github.com/fivetwenty-io/graft/internal/literal":     true, // yamlcodec strips literal wrappers before encoding
+	"github.com/fivetwenty-io/graft/internal/yamlcodec":   true,
+	"github.com/fivetwenty-io/graft/internal/yamlerr":     true, // gives pkg/graft the plain text of a decoding error
+	"github.com/fivetwenty-io/graft/internal/yamlnode":    true,
+	"github.com/fivetwenty-io/graft/internal/yamldiff":    true, // yaml.Diff runs graft diff's engine
+	"github.com/fivetwenty-io/graft/internal/humanreport": true, // DiffReport.Write renders as graft diff does
+	"github.com/fivetwenty-io/graft/internal/termstyle":   true, // humanreport styles its output with it
+	"github.com/mattn/go-isatty":                          true, // termstyle checks whether output is a terminal
+	"golang.org/x/sys/unix":                               true, // isatty and term call it
+	"golang.org/x/term":                                   true, // termstyle reads the terminal width
+	"github.com/sergi/go-diff/diffmatchpatch":             true, // humanreport marks the changed words of a string
+	"github.com/fivetwenty-io/graft/internal/yamlprep":    true,
 }
 
 // bannedImports are the packages pkg/yaml exists to replace, plus graft's
