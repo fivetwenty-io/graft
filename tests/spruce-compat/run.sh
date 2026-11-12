@@ -751,6 +751,12 @@ pattern_aux_dash_continuation() {
   aux_fixture_merge "aux: merge of plain scalars continued on a line that starts with -" dash-continuation dashcont
 }
 
+# aux: a plain scalar that starts with "-" on a line of its own reads as
+# the number or string it reads on its key's line.
+pattern_aux_dash_own_line() {
+  aux_fixture_merge "aux: merge of plain scalars that start with - on their own line" dash-own-line dashown
+}
+
 # aux_fixture_merge NAME FIXTURE PREFIX merges $FIX/FIXTURE.yml with both
 # tools and reports NAME as passed when the exit codes and output match.
 aux_fixture_merge() {
@@ -837,6 +843,7 @@ pattern_aux_quoted_scalar_tabs
 pattern_aux_tag_anchor_tabs
 pattern_aux_merge_key_tabs
 pattern_aux_dash_continuation
+pattern_aux_dash_own_line
 report_secret_not_found_skip
 
 echo

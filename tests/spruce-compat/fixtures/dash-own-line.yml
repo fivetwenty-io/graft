@@ -1,0 +1,27 @@
+int:
+  -1
+float:
+  -1.5
+inf:
+  -.inf
+hex:
+  -0x1
+blank:
+
+  -1 #c
+list:
+- 
+  -1
+- -2
+flow: [
+  -1, -x]
+anchored: &n
+  -1
+alias: *n
+nested:
+  a:
+    -1
+  b: v
+continued:
+  -1
+  -2
