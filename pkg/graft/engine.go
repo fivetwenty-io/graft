@@ -636,6 +636,9 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 		ev.PriorValues = priorValues
 	}
 
+	// The paths the caller prunes after this call returns.
+	ev.callerPrunes = callerPrunesFrom(ctx)
+
 	// Run evaluation
 	err := e.evaluate(ctx, ev, false)
 	if err != nil {

@@ -84,6 +84,11 @@ type Evaluator struct {
 	// operator from one it writes to the tree.
 	outerCall *Opcall
 
+	// callerPrunes holds the paths the caller will prune once evaluation
+	// is done, such as graft merge --prune, so an operator that prints a
+	// map, as join does, can leave those keys out while it runs.
+	callerPrunes []string
+
 	// Reference to the engine (for accessing registries and state)
 	engine Engine
 
@@ -1610,6 +1615,9 @@ func (ev *Evaluator) Run(prune, picks []string) error {
 
 	eng := GetEngine(ev)
 	state := eng.GetOperatorState()
+	if len(prune) > 0 {
+		ev.callerPrunes = append(slices.Clip(ev.callerPrunes), prune...)
+	}
 
 	if os.Getenv("REDACT") != "" {
 		log.DEBUG("Setting vault & aws & nats operators to redact keys")

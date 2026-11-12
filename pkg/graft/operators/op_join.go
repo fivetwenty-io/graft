@@ -10,7 +10,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
-	"github.com/fivetwenty-io/graft/pkg/graft"
+	"github.com/fivetwenty-io/graft/internal/prunekeys"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -193,13 +193,13 @@ func joinParts(i int, val interface{}, fromEnv bool) ([]string, error) {
 	return []string{fmt.Sprintf("%v", val)}, nil
 }
 
-// withoutPrunedKeys returns m without the map keys queued for pruning,
+// withoutPrunedKeys returns m without the map keys that will be pruned,
 // at any depth, since they will not be in the output. A pruned entry of
 // a list is gone from the list before join reads it, and a pruned key of
 // a map is left out the same way. A grab hands back the map it reads,
 // not a copy, so a key is matched by the map that holds it in the tree,
 // whether join reached that map through a reference or a nested call.
-// m is returned as it is when no key in it is queued.
+// m is returned as it is when no key in it will be pruned.
 func withoutPrunedKeys(ev *Evaluator, m map[string]interface{}) map[string]interface{} {
 	pruned := prunedKeysByMap(ev)
 	if len(pruned) == 0 {
@@ -213,19 +213,15 @@ func withoutPrunedKeys(ev *Evaluator, m map[string]interface{}) map[string]inter
 }
 
 // prunedKeysByMap returns, for each map in the tree that holds a key
-// queued for pruning, the set of those keys, keyed by the map's
-// address.
+// that will be pruned, the set of those keys, keyed by the map's
+// address. A key will be pruned when an operator has queued it, or when
+// the caller prunes it after evaluation, as graft merge --prune does.
 func prunedKeysByMap(ev *Evaluator) map[uintptr]map[string]bool {
-	engine := graft.EngineOf(ev)
-	if engine == nil || ev.Tree == nil {
-		return nil
-	}
-	state := engine.GetOperatorState()
-	if state == nil {
+	if ev == nil || ev.Tree == nil {
 		return nil
 	}
 	var out map[uintptr]map[string]bool
-	for _, path := range state.GetKeysToPrune() {
+	for _, path := range prunekeys.For(ev) {
 		c, err := tree.ParseCursor(path)
 		if err != nil || len(c.Nodes) == 0 {
 			continue

@@ -261,3 +261,42 @@ func TestCopiesLeaveOutPrunedKeys(t *testing.T) {
 		}
 	}
 }
+
+// A key the caller prunes, as graft merge --prune does, is left out of
+// a joined map the way grab leaves it out, although the prune runs only
+// after evaluation.
+func TestJoinLeavesOutAKeyTheCallerPrunes(t *testing.T) {
+	src := "m:\n  a: 1\n  b: 2\n  n:\n    x: 1\n    y: 2\n" +
+		"j: (( join \",\" m ))\nk: (( join \",\" (( grab m.n )) ))\n" +
+		"x: (( grab m ))\n"
+	for _, parallel := range []bool{true, false} {
+		t.Run(fmt.Sprintf("parallel=%v", parallel), func(t *testing.T) {
+			engine, err := graft.NewEngine(graft.WithParallel(parallel))
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc, err := engine.ParseYAML([]byte(src))
+			if err != nil {
+				t.Fatal(err)
+			}
+			out, err := engine.Merge(context.Background(), doc).
+				WithPrune("m.b", "$.m.n.x").Execute()
+			if err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			got := out.RawData().(map[string]interface{})
+			want := map[string]interface{}{
+				"j": "a:1,n:map[y:2]",
+				"k": "y:2",
+				"x": map[string]interface{}{
+					"a": 1, "n": map[string]interface{}{"y": 2},
+				},
+			}
+			for key, w := range want {
+				if !reflect.DeepEqual(got[key], w) {
+					t.Errorf("%s = %#v, want %#v", key, got[key], w)
+				}
+			}
+		})
+	}
+}
