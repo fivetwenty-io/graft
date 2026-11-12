@@ -31,9 +31,6 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 		}
 		// Use the existing reference resolution
 		DEBUG("ResolveOperatorArgument: resolving reference %s", arg.Reference.String())
-		// Expand environment variables in the reference path
-		arg.Reference.Nodes = ResolveEnv(arg.Reference.Nodes)
-		DEBUG("ResolveOperatorArgument: after env expansion: %s", arg.Reference.String())
 		val, err := arg.Reference.ResolveLiteral(ev.Tree)
 		DEBUG("ResolveOperatorArgument: reference %s resolved to %v (type %T)", arg.Reference.String(), val, val)
 		if err != nil {

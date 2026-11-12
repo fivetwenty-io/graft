@@ -60,6 +60,12 @@ type Parser struct {
 	// opens the call on its own, keyed by the byte offset of that name
 	// (OperatorCalls).
 	calls map[int]CallSpan
+
+	// keepEnvSegments is true while the parser reads the arguments of a
+	// (( defer )) call. defer writes its arguments back out as text for a
+	// later pass, so a $NAME path segment there stays as written instead
+	// of taking the variable's value now.
+	keepEnvSegments bool
 }
 
 // CallSpan is one operator call OperatorCalls found. Name is the
@@ -882,6 +888,12 @@ func (p *Parser) parseOperatorCall(opName string) (*Expr, error) {
 	}
 	p.advance() // consume operator name
 
+	if opName == "defer" {
+		saved := p.keepEnvSegments
+		p.keepEnvSegments = true
+		defer func() { p.keepEnvSegments = saved }()
+	}
+
 	op := p.operatorFor(opName)
 
 	// Check for :modifier (name:modifier, written without whitespace).
@@ -1101,13 +1113,15 @@ func (p *Parser) parseArgument() (*Expr, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid reference path in an operator argument")
 	}
+	bracketed := tree.BracketsOf(path)
+	p.substituteEnv(cursor, bracketed)
 	for p.pos <= idx {
 		p.advance()
 	}
 	return &Expr{
 		Type:           Reference,
 		Reference:      cursor,
-		BracketedNodes: tree.BracketsOf(path),
+		BracketedNodes: bracketed,
 	}, nil
 }
 
@@ -1248,6 +1262,7 @@ func (p *Parser) parseReferencePath(start string) (*Expr, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid reference path: %s", path)
 	}
+	p.substituteEnv(cursor, nil)
 
 	return &Expr{
 		Type:      Reference,
@@ -1322,12 +1337,26 @@ func (p *Parser) parseReference() (*Expr, error) {
 	if strings.HasPrefix(tok.Literal, "$") && len(cursor.Nodes) == 0 {
 		return nil, fmt.Errorf("a reference that starts with $ needs a path after it")
 	}
+	bracketed := tree.BracketsOf(tok.Literal)
+	p.substituteEnv(cursor, bracketed)
 
 	return &Expr{
 		Type:           Reference,
 		Reference:      cursor,
-		BracketedNodes: tree.BracketsOf(tok.Literal),
+		BracketedNodes: bracketed,
 	}, nil
+}
+
+// substituteEnv replaces the $NAME nodes of a reference's cursor with
+// their values when the reference is parsed, so the dependency graph
+// orders the operator after whatever it reads. Operators never expand
+// a node again, so a value that itself starts with '$' is a key. The
+// arguments of a (( defer )) call keep their $NAME nodes as written.
+func (p *Parser) substituteEnv(cursor *tree.Cursor, bracketed []bool) {
+	if p.keepEnvSegments {
+		return
+	}
+	cursor.Nodes = substituteReferenceEnv(cursor.Nodes, bracketed)
 }
 
 // parseEnvironment parses an environment variable reference.

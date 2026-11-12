@@ -96,7 +96,6 @@ func resolveInjectArg(ev *Evaluator, arg *Expr, viaOr bool) (interface{}, error)
 		if arg.Reference == nil {
 			return nil, fmt.Errorf("unable to resolve reference: @%s is a target, not a value", arg.Name)
 		}
-		arg.Reference.Nodes = ResolveEnv(arg.Reference.Nodes)
 		val, err := arg.Reference.ResolveLiteral(ev.Tree)
 		if err != nil && viaOr {
 			return nil, fmt.Errorf("unable to resolve `%s`: %w", arg.Reference.String(), err)
