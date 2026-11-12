@@ -119,8 +119,8 @@ func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			}
 
 			fromEnv := leaf != nil && leaf.Type == EnvVar
-			if m, ok := val.(map[string]interface{}); ok && !fromEnv {
-				val = withoutPrunedKeys(ev, m)
+			if _, ok := val.(map[string]interface{}); ok && !fromEnv {
+				val = withoutPrunedKeys(ev, val)
 			}
 			parts, err := joinParts(i, val, fromEnv)
 			if err != nil {
@@ -193,23 +193,21 @@ func joinParts(i int, val interface{}, fromEnv bool) ([]string, error) {
 	return []string{fmt.Sprintf("%v", val)}, nil
 }
 
-// withoutPrunedKeys returns m without the map keys that will be pruned,
-// at any depth, since they will not be in the output. A pruned entry of
-// a list is gone from the list before join reads it, and a pruned key of
-// a map is left out the same way. A grab hands back the map it reads,
-// not a copy, so a key is matched by the map that holds it in the tree,
-// whether join reached that map through a reference or a nested call.
-// m is returned as it is when no key in it will be pruned.
-func withoutPrunedKeys(ev *Evaluator, m map[string]interface{}) map[string]interface{} {
+// withoutPrunedKeys returns val without the map keys that will be
+// pruned, at any depth, since they will not be in the output. A pruned
+// entry of a list is gone from the list before join or stringify reads
+// it, and a pruned key of a map is left out the same way. A grab hands
+// back the map it reads, not a copy, so a key is matched by the map that
+// holds it in the tree, whether the operator reached that map through a
+// reference or a nested call. val is returned as it is when no key in
+// it will be pruned.
+func withoutPrunedKeys(ev *Evaluator, val interface{}) interface{} {
 	pruned := prunedKeysByMap(ev)
 	if len(pruned) == 0 {
-		return m
+		return val
 	}
-	out, _ := dropPrunedKeys(m, pruned, map[uintptr]bool{})
-	if mm, ok := out.(map[string]interface{}); ok {
-		return mm
-	}
-	return m
+	out, _ := dropPrunedKeys(val, pruned, map[uintptr]bool{})
+	return out
 }
 
 // prunedKeysByMap returns, for each map in the tree that holds a key

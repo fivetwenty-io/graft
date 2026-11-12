@@ -99,6 +99,13 @@ func (StringifyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 		}, nil
 	}
 
+	// A key that will be pruned is not in the output, so it is left out
+	// here too, as grab and join leave it out. An environment value is
+	// left as it is, since no prune can reach it.
+	if !fromEnv {
+		val = withoutPrunedKeys(ev, val)
+	}
+
 	// For complex types, use the shared YAML marshal so stringified
 	// subtrees carry the same spruce-compatible key ordering as every
 	// other YAML emit.

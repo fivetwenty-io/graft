@@ -418,6 +418,14 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 **Impact.** We keep this on purpose. Neither tool falls back to `"fb"`, and both leave operator text in the output, so a later pass sees an operator in both. Only the text differs, because graft keeps the nested call and spruce keeps the whole expression. An unknown operator written as the call itself, as in `(( nosuch a || "fb" ))`, passes through whole in graft.
 
+### stringify-leaves-out-pruned-keys
+
+**Graft behavior.** When `(( stringify ))` reads a map, it leaves out every key that will be pruned, at any depth. With `m: {a: 1, b: (( prune ))}` and `s: (( stringify m ))`, `s` holds only the line `a: 1`. The same holds when the prune replaces an earlier value, when a `||` falls back to `(( prune ))`, and when the key is given to `--prune`. grab and join leave these keys out in the same way.
+
+**Spruce behavior.** spruce writes the key into the string. A prune with no earlier value shows up as `b: null`, and a prune over an earlier value, or a key given to `--prune`, shows up with that earlier value, such as `b: 2`.
+
+**Impact.** We keep this on purpose. The key isn't in the output, so a string that still holds it describes a map that the output doesn't contain, and graft keeps stringify, grab, and join in agreement with the output instead. A template that needs the key in the string has to leave the key unpruned.
+
 ### dash-line-inside-a-flow-collection-is-an-error
 
 **Graft behavior.** A plain scalar in a flow collection that continues onto a line starting with `- ` fails to parse. That covers `a: {b: [x` followed by a line `- w]}`, and `a:` followed by `  - [w` and `    - w]`. The error names the line and column of the dash and says that a block sequence entry cannot appear inside a flow collection. The same error covers every other `- ` inside a flow collection, such as `a: [x,` followed by `- w]` and `a: [x, - w]`, which spruce refuses too.

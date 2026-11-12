@@ -251,6 +251,10 @@ config_string: "database:\n  host: localhost\n  port: 5432\n"
 This is the usual way to embed a config file inside a Kubernetes ConfigMap or a
 BOSH property that expects text.
 
+A key inside the map that will be pruned, by `(( prune ))` or by `--prune`, is
+left out of the string, because it isn't in the output either. spruce writes
+such a key into the string, as `null` or as its earlier value.
+
 ## keys
 
 Extract keys from a map as an array. The keys come back sorted.

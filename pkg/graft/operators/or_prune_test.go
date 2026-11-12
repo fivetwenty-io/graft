@@ -300,3 +300,94 @@ func TestJoinLeavesOutAKeyTheCallerPrunes(t *testing.T) {
 		})
 	}
 }
+
+// stringify leaves out every key that will be pruned, at any depth, as
+// grab and join do, because the key is not in the output.
+func TestStringifyLeavesOutPrunedKeys(t *testing.T) {
+	t.Setenv("GRAFT_TEST_PRUNE_UNSET", "")
+	cases := []struct {
+		name   string
+		srcs   []string
+		prunes []string
+		want   string
+	}{
+		{
+			name: "prune with no earlier value",
+			srcs: []string{"m:\n  a: 1\n  b: (( prune ))\n" +
+				"s: (( stringify m ))\n"},
+			want: "a: 1\n",
+		},
+		{
+			name: "prune over an earlier value",
+			srcs: []string{
+				"m:\n  a: 1\n  b: 2\n",
+				"m:\n  b: (( prune ))\ns: (( stringify m ))\n",
+			},
+			want: "a: 1\n",
+		},
+		{
+			name: "|| falling back to prune",
+			srcs: []string{"m:\n  a: 1\n  b: (( nope || (( prune )) ))\n" +
+				"s: (( stringify m ))\n"},
+			want: "a: 1\n",
+		},
+		{
+			name: "grab of an unset variable falling back to prune",
+			srcs: []string{"m:\n  a: 1\n" +
+				"  b: (( grab $GRAFT_TEST_PRUNE_UNSET || (( prune )) ))\n" +
+				"s: (( stringify m ))\n"},
+			want: "a: 1\n",
+		},
+		{
+			name: "deeper key",
+			srcs: []string{"m:\n  a: 1\n  nn:\n    b: (( prune ))\n" +
+				"    c: 3\ns: (( stringify m ))\n"},
+			want: "a: 1\nnn:\n  c: 3\n",
+		},
+		{
+			name: "map in a list",
+			srcs: []string{"l:\n- name: e\n  b: (( prune ))\n  c: 4\n" +
+				"s: (( stringify l ))\n"},
+			want: "- c: 4\n  name: e\n",
+		},
+		{
+			name: "under a named list entry",
+			srcs: []string{"l:\n- name: e\n  m:\n    a: 1\n" +
+				"    b: (( prune ))\ns: (( stringify l.e.m ))\n"},
+			want: "a: 1\n",
+		},
+		{
+			name:   "key the caller prunes",
+			srcs:   []string{"m:\n  a: 1\n  bb: 2\ns: (( stringify m ))\n"},
+			prunes: []string{"m.bb"},
+			want:   "a: 1\n",
+		},
+	}
+	for _, tc := range cases {
+		for _, parallel := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/parallel=%v", tc.name, parallel), func(t *testing.T) {
+				engine, err := graft.NewEngine(graft.WithParallel(parallel))
+				if err != nil {
+					t.Fatal(err)
+				}
+				docs := make([]graft.Document, 0, len(tc.srcs))
+				for _, src := range tc.srcs {
+					doc, err := engine.ParseYAML([]byte(src))
+					if err != nil {
+						t.Fatal(err)
+					}
+					docs = append(docs, doc)
+				}
+				out, err := engine.Merge(context.Background(), docs...).
+					WithPrune(tc.prunes...).Execute()
+				if err != nil {
+					t.Fatalf("err = %v", err)
+				}
+				got := out.RawData().(map[string]interface{})["s"]
+				if got != tc.want {
+					t.Fatalf("s = %#v, want %q", got, tc.want)
+				}
+			})
+		}
+	}
+}
