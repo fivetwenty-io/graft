@@ -179,3 +179,115 @@ func TestParseReaderContextCanceledAfterFinalRead(t *testing.T) {
 		t.Errorf("doc = %v, err = %v", doc, err)
 	}
 }
+
+func TestOutputAndDiffContextVariants(t *testing.T) {
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := mustParseYAMLDoc(t, engine, "a: 1\n")
+	b := mustParseYAMLDoc(t, engine, "a: 2\n")
+	live := context.Background()
+	dead, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if out, err := engine.ToYAMLContext(live, a.Clone()); err != nil || string(out) != "a: 1\n" {
+		t.Errorf("ToYAMLContext = %q, %v", out, err)
+	}
+	if out, err := engine.ToJSONContext(live, a.Clone()); err != nil || !strings.Contains(string(out), `"a"`) {
+		t.Errorf("ToJSONContext = %q, %v", out, err)
+	}
+	if out, err := engine.ToJSONIndentContext(live, a.Clone(), "  "); err != nil || !strings.Contains(string(out), "\n  \"a\"") {
+		t.Errorf("ToJSONIndentContext = %q, %v", out, err)
+	}
+	if r, err := engine.DiffContext(live, a, b, nil); err != nil || r == nil || !r.HasChanges() {
+		t.Errorf("DiffContext = %v, %v", r, err)
+	}
+
+	for name, call := range map[string]func() error{
+		"ToYAMLContext":       func() error { _, err := engine.ToYAMLContext(dead, a.Clone()); return err },
+		"ToJSONContext":       func() error { _, err := engine.ToJSONContext(dead, a.Clone()); return err },
+		"ToJSONIndentContext": func() error { _, err := engine.ToJSONIndentContext(dead, a.Clone(), " "); return err },
+	} {
+		err := call()
+		if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "encoding stopped") {
+			t.Errorf("%s canceled: %v", name, err)
+		}
+	}
+	r, err := engine.DiffContext(dead, a, b, nil)
+	if r != nil || !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "diff stopped") {
+		t.Errorf("DiffContext canceled: %v, %v", r, err)
+	}
+}
+
+func TestOutputContextKeepsNilDocumentError(t *testing.T) {
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.ToYAMLContext(context.Background(), nil); err == nil {
+		t.Error("ToYAMLContext(nil) returned no error")
+	}
+	if _, err := engine.ToJSONContext(context.Background(), nil); err == nil {
+		t.Error("ToJSONContext(nil) returned no error")
+	}
+	if _, err := engine.ToJSONIndentContext(context.Background(), nil, " "); err == nil {
+		t.Error("ToJSONIndentContext(nil) returned no error")
+	}
+}
+
+func TestToYAMLContextStopsEvaluation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	op := &stopper{cancel: cancel}
+	engine, err := NewEngine(WithCustomOperator("stopper", op), WithParallel(false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := mustParseYAMLDoc(t, engine, "a: (( stopper ))\nb: (( stopper \"a\" ))\n")
+	if _, err := engine.ToYAMLContext(ctx, doc); !errors.Is(err, context.Canceled) || op.runs.Load() != 1 {
+		t.Errorf("err = %v, runs = %d", err, op.runs.Load())
+	}
+}
+
+func TestOutputContextBothModes(t *testing.T) {
+	var results []string
+	for _, parallel := range []string{"true", "false"} {
+		t.Setenv("GRAFT_FEATURE_PARALLEL", parallel)
+		engine, err := NewEngine()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := context.Background()
+		base := mustParseYAMLDoc(t, engine, "n: 1\nx: (( concat \"v\" meta.n ))\nmeta:\n  n: 7\n")
+		overlay := mustParseYAMLDoc(t, engine, "y: (( grab x ))\nmeta:\n  n: 8\n")
+		merged, err := engine.Merge(ctx, base, overlay).Execute()
+		if err != nil {
+			t.Fatalf("parallel=%s merge: %v", parallel, err)
+		}
+		want := mustParseYAMLDoc(t, engine, "n: 1\nx: v8\ny: v8\nmeta:\n  n: 8\n")
+		diff, err := engine.DiffContext(ctx, merged.Clone(), want, nil)
+		if err != nil {
+			t.Fatalf("parallel=%s diff: %v", parallel, err)
+		}
+		if diff.HasChanges() {
+			t.Errorf("parallel=%s: merged document differs from the expected one", parallel)
+		}
+		yml, err := engine.ToYAMLContext(ctx, merged.Clone())
+		if err != nil {
+			t.Fatalf("parallel=%s yaml: %v", parallel, err)
+		}
+		js, err := engine.ToJSONContext(ctx, merged.Clone())
+		if err != nil {
+			t.Fatalf("parallel=%s json: %v", parallel, err)
+		}
+		ind, err := engine.ToJSONIndentContext(ctx, merged.Clone(), "\t")
+		if err != nil {
+			t.Fatalf("parallel=%s indent: %v", parallel, err)
+		}
+		results = append(results, fmt.Sprintf("%v|%s|%s|%s", diff.HasChanges(), yml, js, ind))
+	}
+	if results[0] != results[1] {
+		t.Errorf("parallel %q, sequential %q", results[0], results[1])
+	}
+}

@@ -86,3 +86,63 @@ func (c *contextReader) Read(p []byte) (int, error) {
 	}
 	return c.r.Read(p)
 }
+
+// DiffContext is DiffWithOptions under ctx. It checks ctx before and
+// after the comparison, and a canceled ctx yields a nil DiffResult and an
+// error that wraps ctx.Err().
+func (e *DefaultEngine) DiffContext(ctx context.Context, a, b Document, opts *DiffOptions) (DiffResult, error) {
+	if err := stopped(ctx, "diff", "comparing the documents"); err != nil {
+		return nil, err
+	}
+	result, err := DiffDocuments(a, b, opts)
+	if cerr := stopped(ctx, "diff", "returning the result"); cerr != nil {
+		return nil, cerr
+	}
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// encodeContext evaluates doc under ctx, which stops the evaluation
+// between operators, and then serializes the result with encode. A nil
+// doc is a validation error, as in the plain methods.
+func (e *DefaultEngine) encodeContext(ctx context.Context, name string, doc Document, encode func(Document) ([]byte, error)) ([]byte, error) {
+	if doc == nil {
+		return nil, NewValidationError(name + ": document must be non-nil")
+	}
+	if err := stopped(ctx, "encoding", "evaluating the document"); err != nil {
+		return nil, err
+	}
+	evaluated, err := e.Evaluate(ctx, doc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate document: %w", err)
+	}
+	if err := stopped(ctx, "encoding", "serializing the document"); err != nil {
+		return nil, err
+	}
+	out, err := encode(evaluated)
+	if cerr := stopped(ctx, "encoding", "returning the output"); cerr != nil {
+		return nil, cerr
+	}
+	return out, err
+}
+
+// ToYAMLContext is ToYAML under ctx. A canceled ctx stops the evaluation
+// between operators and yields an error that wraps ctx.Err().
+func (e *DefaultEngine) ToYAMLContext(ctx context.Context, doc Document) ([]byte, error) {
+	return e.encodeContext(ctx, "ToYAML", doc, Document.ToYAML)
+}
+
+// ToJSONContext is ToJSON under ctx, with the behavior of ToYAMLContext.
+func (e *DefaultEngine) ToJSONContext(ctx context.Context, doc Document) ([]byte, error) {
+	return e.encodeContext(ctx, "ToJSON", doc, Document.ToJSON)
+}
+
+// ToJSONIndentContext is ToJSONIndent under ctx, with the behavior of
+// ToYAMLContext.
+func (e *DefaultEngine) ToJSONIndentContext(ctx context.Context, doc Document, indent string) ([]byte, error) {
+	return e.encodeContext(ctx, "ToJSONIndent", doc, func(d Document) ([]byte, error) {
+		return d.ToJSONIndent(indent)
+	})
+}

@@ -191,6 +191,16 @@ type Engine interface {
 	ToJSON(doc Document) ([]byte, error)
 	ToJSONIndent(doc Document, indent string) ([]byte, error)
 
+	// DiffContext is DiffWithOptions under ctx. It returns a nil
+	// DiffResult and an error that wraps ctx.Err() once ctx is done.
+	DiffContext(ctx context.Context, a, b Document, opts *DiffOptions) (DiffResult, error)
+	// ToYAMLContext, ToJSONContext, and ToJSONIndentContext are the
+	// output operations under ctx. ctx reaches the evaluation, so a
+	// cancel stops it between operators, and the error wraps ctx.Err().
+	ToYAMLContext(ctx context.Context, doc Document) ([]byte, error)
+	ToJSONContext(ctx context.Context, doc Document) ([]byte, error)
+	ToJSONIndentContext(ctx context.Context, doc Document, indent string) ([]byte, error)
+
 	// Operator management
 	RegisterOperator(name string, op Operator) error
 	UnregisterOperator(name string) error

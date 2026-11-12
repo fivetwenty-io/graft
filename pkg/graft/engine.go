@@ -672,7 +672,7 @@ func (e *DefaultEngine) Diff(a, b Document) DiffResult {
 // empty DiffResult rather than panicking, consistent with this method
 // having no error return to report it through.
 func (e *DefaultEngine) DiffWithOptions(a, b Document, opts *DiffOptions) DiffResult {
-	result, err := DiffDocuments(a, b, opts)
+	result, err := e.DiffContext(context.Background(), a, b, opts)
 	if err != nil {
 		return &diffResult{}
 	}
@@ -695,14 +695,7 @@ func (e *DefaultEngine) DiffWithOptions(a, b Document, opts *DiffOptions) DiffRe
 // keep the original alongside the evaluated form - should pass
 // doc.Clone() (a genuine deep copy) instead of doc.
 func (e *DefaultEngine) ToYAML(doc Document) ([]byte, error) {
-	if doc == nil {
-		return nil, NewValidationError("ToYAML: document must be non-nil")
-	}
-	evaluated, err := e.Evaluate(context.Background(), doc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate document: %w", err)
-	}
-	return evaluated.ToYAML()
+	return e.ToYAMLContext(context.Background(), doc)
 }
 
 // ToJSON evaluates doc's operators (see Evaluate) and converts the
@@ -711,14 +704,7 @@ func (e *DefaultEngine) ToYAML(doc Document) ([]byte, error) {
 // the doc-mutation caveat (pass doc.Clone() to avoid it) this shares with
 // ToJSON/ToJSONIndent.
 func (e *DefaultEngine) ToJSON(doc Document) ([]byte, error) {
-	if doc == nil {
-		return nil, NewValidationError("ToJSON: document must be non-nil")
-	}
-	evaluated, err := e.Evaluate(context.Background(), doc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate document: %w", err)
-	}
-	return evaluated.ToJSON()
+	return e.ToJSONContext(context.Background(), doc)
 }
 
 // ToJSONIndent evaluates doc's operators (see Evaluate) and converts the
@@ -728,14 +714,7 @@ func (e *DefaultEngine) ToJSON(doc Document) ([]byte, error) {
 // the doc-mutation caveat (pass doc.Clone() to avoid it) this shares with
 // ToYAML/ToJSON.
 func (e *DefaultEngine) ToJSONIndent(doc Document, indent string) ([]byte, error) {
-	if doc == nil {
-		return nil, NewValidationError("ToJSONIndent: document must be non-nil")
-	}
-	evaluated, err := e.Evaluate(context.Background(), doc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate document: %w", err)
-	}
-	return evaluated.ToJSONIndent(indent)
+	return e.ToJSONIndentContext(context.Background(), doc, indent)
 }
 
 // UnregisterOperator removes an operator from the engine's registry clone.
