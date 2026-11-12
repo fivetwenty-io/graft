@@ -38,6 +38,9 @@ func TestTaggedMergeKeyErrorPositions(t *testing.T) {
 		src          string
 		line, column int
 	}{
+		// goccy reports this unclosed { one column early, at 2:14 where
+		// the { sits at 2:15, after any tagged key, as the same document
+		// without the pass does.
 		{"m:\n  !!merge <<: {a: 1\n", 2, 14},
 		{"m:\n  !!merge <<: {a: 1}\n  c: 2\nd: [1, 2\n", 4, 4},
 		{"m:\n  ? !!merge <<\n  : {a: 1}\n  c: 2\nd: [1, 2\n", 5, 4},
@@ -90,5 +93,63 @@ func TestDocumentTaggedMergeKeys(t *testing.T) {
 		if got := string(d.Bytes()); got != want {
 			t.Errorf("after Set, Bytes() = %q, want %q", got, want)
 		}
+	}
+}
+
+// TestAnchoredTaggedMergeKeys pins merge keys with an anchor in front of
+// the tag, which goccy reads as merge keys with or without a sibling
+// key, in a block mapping, a sequence item, a flow mapping, and at the
+// top level.
+func TestAnchoredTaggedMergeKeys(t *testing.T) {
+	cases := []struct {
+		src  string
+		path []string
+	}{
+		{"b: &b {a: 1}\nm:\n  &x !!merge <<: *b\n  c: 2\n", []string{"m"}},
+		{"b: &b {a: 1}\nm:\n  c: 2\n  &x !!merge <<: *b\n", []string{"m"}},
+		{"b: &b {a: 1}\nm: {&x !!merge <<: *b, c: 2}\n", []string{"m"}},
+		{"b: &b {a: 1}\nl:\n- &x !!merge <<: *b\n  c: 2\n", []string{"l", "0"}},
+		{"b: &b {a: 1}\nm:\n  &x !!str <<: *b\n  c: 2\n", nil},
+	}
+	for _, c := range cases {
+		var v map[string]any
+		if err := yaml.Unmarshal([]byte(c.src), &v); err != nil {
+			t.Errorf("%q: %v", c.src, err)
+			continue
+		}
+		var got any = v
+		for _, p := range c.path {
+			switch x := got.(type) {
+			case map[string]any:
+				got = x[p]
+			case []any:
+				got = x[0]
+			}
+		}
+		want := map[string]any{"a": 1, "c": 2}
+		if c.path == nil {
+			got = v["m"]
+			want = map[string]any{"<<": map[string]any{"a": 1}, "c": 2}
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: read %v, want %v", c.src, got, want)
+		}
+		d, err := yaml.ParseDocument([]byte(c.src))
+		if err != nil {
+			t.Errorf("%q: ParseDocument: %v", c.src, err)
+			continue
+		}
+		if string(d.Bytes()) != c.src {
+			t.Errorf("%q: Bytes() = %q", c.src, d.Bytes())
+		}
+	}
+}
+
+// TestMergeTagRefusesColonOnNextLine pins a !!merge << key whose colon
+// sits on the next line, which spruce refuses, as goccy does.
+func TestMergeTagRefusesColonOnNextLine(t *testing.T) {
+	var v any
+	if err := yaml.Unmarshal([]byte("b: &b {a: 1}\nm:\n  !!merge <<\n  : *b\n"), &v); err == nil {
+		t.Errorf("read %v, want an error", v)
 	}
 }

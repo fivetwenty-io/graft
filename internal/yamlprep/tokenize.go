@@ -32,7 +32,8 @@ import (
 func Tokenize(src string) token.Tokens {
 	toks := tokenize(src)
 	mergeKeysBeforeTabs(src, toks)
-	return taggedMergeKeys(toks)
+	taggedMergeKeys(toks)
+	return toks
 }
 
 // tokenize is Tokenize without the fix for merge keys.
@@ -112,60 +113,51 @@ func mayHoldTabbedMergeKey(src string) bool {
 	return false
 }
 
-// taggedMergeKeys makes "!!merge <<" a merge key, with the tag token
-// removed and its neighbors relinked, and makes "!!str <<" a plain
-// string key, as YAML 1.1 reads them.
+// taggedMergeKeys makes the << of "? !!merge <<" a merge key and the <<
+// of "!!str <<" a plain string, as YAML 1.1 reads them. Both tags stay
+// in toks, and no token moves.
 //
-// goccy reads "? !!merge <<" as the string <<, which it then fails to
-// merge, and it reads "!!str <<:" as a tagged merge key, which it fails.
-// A << key counts when it is plain, sits right after its tag on the
-// tag's line, and either ends at a colon or follows a "?". Any other tag
-// on << stays as goccy reads it.
-//
-// A merge key takes the tag's place. Its position becomes the tag's, so
-// the key starts at the column goccy measures its mapping by, and the
-// tag's text joins the front of its source text, so the tokens print
-// the text they came from. Every other token stays where it was. The
-// tag leaves tks itself, so the slice taggedMergeKeys returns can be
-// shorter than tks.
-func taggedMergeKeys(tks token.Tokens) token.Tokens {
-	for i := 0; i < len(tks); i++ {
-		tag := tks[i]
-		if !isTaggedMergeKey(tks, i) {
+// goccy reads the << of "? !!merge <<" as a string, so the tag finds no
+// merge key to go with and the parse fails, and it reads the << of
+// "!!str <<:" as a merge key, which a !!str tag cannot hold. A << counts
+// when it is plain and sits right after its tag on the tag's line. A
+// !!merge tag counts only right after a "?", since goccy already reads
+// "!!merge <<:" in a block or flow mapping as a merge key, and a !!str
+// tag counts there too or when its << ends at a colon. Any other tag on
+// << stays as goccy reads it.
+func taggedMergeKeys(toks token.Tokens) {
+	for i := range toks {
+		if !isTaggedMergeKey(toks, i) {
 			continue
 		}
-		key := tks[i+1]
-		if tag.Value == "!!str" {
+		key := toks[i+1]
+		if toks[i].Value == "!!str" {
 			key.Type, key.CharacterType, key.Indicator = token.StringType, token.CharacterTypeMiscellaneous, token.NotIndicator
 			continue
 		}
-		merge := token.MergeKey(tag.Origin+key.Origin, tag.Position)
+		merge := token.MergeKey(key.Origin, key.Position)
 		key.Type, key.CharacterType, key.Indicator = merge.Type, merge.CharacterType, merge.Indicator
-		key.Origin, key.Position = merge.Origin, merge.Position
-		key.Prev = tag.Prev
-		if tag.Prev != nil {
-			tag.Prev.Next = key
-		}
-		tag.Prev, tag.Next = nil, nil
-		tks = append(tks[:i], tks[i+1:]...)
 	}
-	return tks
 }
 
 // isTaggedMergeKey reports whether toks[i] is a !!merge or !!str tag
-// that taggedMergeKeys rewrites, as it describes.
+// whose << taggedMergeKeys changes, as it describes.
 func isTaggedMergeKey(toks token.Tokens, i int) bool {
 	tag := toks[i]
-	if tag.Type != token.TagType || tag.Value != "!!merge" && tag.Value != "!!str" || i+1 >= len(toks) {
+	if tag.Type != token.TagType || i+1 >= len(toks) {
 		return false
 	}
 	key := toks[i+1]
-	if key.Value != "<<" || key.Type != token.MergeKeyType && key.Type != token.StringType ||
+	if key.Value != "<<" || (key.Type != token.MergeKeyType && key.Type != token.StringType) ||
 		key.Position.Line != tag.Position.Line {
 		return false
 	}
-	if i+2 < len(toks) && toks[i+2].Type == token.MappingValueType {
-		return true
+	explicit := i > 0 && toks[i-1].Type == token.MappingKeyType
+	switch tag.Value {
+	case "!!merge":
+		return explicit
+	case "!!str":
+		return explicit || (i+2 < len(toks) && toks[i+2].Type == token.MappingValueType)
 	}
-	return i > 0 && toks[i-1].Type == token.MappingKeyType
+	return false
 }
