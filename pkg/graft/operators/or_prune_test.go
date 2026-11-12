@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/fivetwenty-io/graft/pkg/graft"
@@ -596,5 +597,55 @@ func TestMergeDropsEveryPrunedListEntry(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A (( prune )) call gives nil to any operator that reads its key
+// before the key goes, as spruce does, so no reader ever gets the
+// call's text.
+func TestReadersOfAPruneCallGetNil(t *testing.T) {
+	for _, parallel := range []bool{true, false} {
+		t.Run(fmt.Sprintf("grab/parallel=%v", parallel), func(t *testing.T) {
+			src := "m:\n  b: (( prune ))\n  c: 1\ng: (( grab m.b ))\n"
+			doc, err := evaluateWithin(t, parallel, src)
+			if err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			merged, err := mergeWithin(t, parallel, src)
+			if err != nil {
+				t.Fatalf("merge err = %v", err)
+			}
+			for name, got := range map[string]map[string]interface{}{
+				"evaluated": doc.RawData().(map[string]interface{}),
+				"merged":    merged,
+			} {
+				g, ok := got["g"]
+				if !ok || g != nil {
+					t.Errorf("%s g = %#v (present %v), want nil",
+						name, g, ok)
+				}
+				want := map[string]interface{}{"c": 1}
+				if !reflect.DeepEqual(got["m"], want) {
+					t.Errorf("%s m = %#v, want %#v", name, got["m"], want)
+				}
+			}
+		})
+		t.Run(fmt.Sprintf("prepended list/parallel=%v", parallel), func(t *testing.T) {
+			got, err := mergeWithin(t, parallel, "l: [z]\n",
+				"l:\n- (( prepend ))\n- (( prune ))\n- a\n"+
+					"q: (( grab l ))\n")
+			if err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			if want := []interface{}{"a", "z"}; !reflect.DeepEqual(got["l"], want) {
+				t.Errorf("l = %#v, want %#v", got["l"], want)
+			}
+			q, _ := got["q"].([]interface{})
+			for i, e := range q {
+				if s, ok := e.(string); ok && strings.Contains(s, "prune") {
+					t.Errorf("q[%d] = %q, want no operator text", i, s)
+				}
+			}
+		})
 	}
 }
