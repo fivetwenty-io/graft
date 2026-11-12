@@ -551,3 +551,50 @@ func TestEvaluateDropsPrunedListEntriesFirst(t *testing.T) {
 		}
 	}
 }
+
+// A merge removes a (( prune )) list entry however it is spaced, and in
+// a list inside a list, even when the document has no other prune, so
+// a grab of the list never gets the call's text.
+func TestMergeDropsEveryPrunedListEntry(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want map[string]interface{}
+	}{
+		{
+			name: "spaced entry",
+			src:  "l: [a, ((  prune  )), b]\nx: (( grab l ))\n",
+			want: map[string]interface{}{
+				"l": []interface{}{"a", "b"},
+				"x": []interface{}{"a", "b"},
+			},
+		},
+		{
+			name: "entry in a list inside a list",
+			src:  "k: [[a, (( prune )), b], [c]]\nz: (( grab k ))\n",
+			want: map[string]interface{}{
+				"k": []interface{}{
+					[]interface{}{"a", "b"}, []interface{}{"c"},
+				},
+				"z": []interface{}{
+					[]interface{}{"a", "b"}, []interface{}{"c"},
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		for _, parallel := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/parallel=%v", tc.name, parallel), func(t *testing.T) {
+				got, err := mergeWithin(t, parallel, tc.src)
+				if err != nil {
+					t.Fatalf("err = %v", err)
+				}
+				for key, w := range tc.want {
+					if !reflect.DeepEqual(got[key], w) {
+						t.Errorf("%s = %#v, want %#v", key, got[key], w)
+					}
+				}
+			})
+		}
+	}
+}

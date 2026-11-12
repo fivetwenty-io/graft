@@ -1090,32 +1090,32 @@ func (m *mergeBuilderImpl) hasArraysWithMaps(data map[string]interface{}) bool {
 	return false
 }
 
-// hasPruneOperators checks if a map contains prune operators.
+// hasPruneOperators checks if a map contains prune operators, at any
+// depth and in any list, spelled the way the merger matches them.
 func (m *mergeBuilderImpl) hasPruneOperators(data map[string]interface{}) bool {
 	for _, value := range data {
-		switch v := value.(type) {
-		case string:
-			// Check if it's a prune operator
-			if strings.TrimSpace(v) == "(( prune ))" {
+		if hasPruneValue(value) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasPruneValue reports whether v is a (( prune )) call or holds one.
+func hasPruneValue(v interface{}) bool {
+	switch t := v.(type) {
+	case string:
+		return isPruneEntry(t)
+	case map[string]interface{}:
+		for _, e := range t {
+			if hasPruneValue(e) {
 				return true
 			}
-		case map[string]interface{}:
-			// Recursively check nested maps
-			if m.hasPruneOperators(v) {
+		}
+	case []interface{}:
+		for _, e := range t {
+			if hasPruneValue(e) {
 				return true
-			}
-		case []interface{}:
-			// Check arrays for prune operators
-			for _, item := range v {
-				if str, ok := item.(string); ok && strings.TrimSpace(str) == "(( prune ))" {
-					return true
-				}
-				// Also check if array contains maps with prune operators
-				if mapItem, ok := item.(map[string]interface{}); ok {
-					if m.hasPruneOperators(mapItem) {
-						return true
-					}
-				}
 			}
 		}
 	}
