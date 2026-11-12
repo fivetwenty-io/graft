@@ -13,18 +13,22 @@ import (
 // value. Merge keys are never reported, and the merge keys of one
 // mapping become one, as mapping describes. Keys that are aliases or
 // collections are left alone. A node reached a second time, through an
-// alias, is not walked again.
-func collapseDuplicates(root *Node, report func(DuplicateKey)) {
-	w := nodeDupWalker{report: report, seen: make(map[*Node]bool)}
+// alias, is not walked again. It returns, for each key whose later
+// repeats it folded, the last of those repeats, or nil when it folded
+// none.
+func collapseDuplicates(root *Node, report func(DuplicateKey)) map[*Node]*Node {
+	w := &nodeDupWalker{report: report, seen: make(map[*Node]bool)}
 	w.walk(root, "")
+	return w.folded
 }
 
 type nodeDupWalker struct {
 	report func(DuplicateKey)
 	seen   map[*Node]bool
+	folded map[*Node]*Node
 }
 
-func (w nodeDupWalker) walk(n *Node, path string) {
+func (w *nodeDupWalker) walk(n *Node, path string) {
 	if n == nil || w.seen[n] {
 		return
 	}
@@ -67,7 +71,7 @@ func (w nodeDupWalker) walk(n *Node, path string) {
 // refusedMerge describes, the merge keys stay as they are, so that a
 // decode fails at the merge key the text route fails at, and not at a
 // sequence that hides an alias to a list.
-func (w nodeDupWalker) mapping(n *Node, path string) {
+func (w *nodeDupWalker) mapping(n *Node, path string) {
 	var keys yamlnode.KeySet[*Node]
 	lastAt := make(map[string]int, len(n.Content)/2)
 	var kept []keptPair
@@ -102,6 +106,10 @@ func (w nodeDupWalker) mapping(n *Node, path string) {
 				w.walk(val, child)
 				at := lastAt[id.Slot()]
 				kept[at].val, kept[at].last = val, i
+				if w.folded == nil {
+					w.folded = make(map[*Node]*Node)
+				}
+				w.folded[kept[at].key] = key
 				continue
 			}
 			lastAt[id.Slot()] = len(kept)

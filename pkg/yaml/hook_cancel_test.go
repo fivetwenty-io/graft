@@ -247,19 +247,25 @@ func TestPointerKeysPlaceEachHook(t *testing.T) {
 // line, and that its message quotes no scalar of in.
 func checkPointerKeyRefusal(t *testing.T, name, in string, err error, typ string, line int) {
 	t.Helper()
+	checkRefusal(t, name, in, err, "two keys of a map of Go type "+typ+" point to equal values, and a value under one of them has an UnmarshalYAML method", line)
+}
+
+// checkRefusal checks that err is a type error at line with the message
+// want, and that the message quotes no scalar of in.
+func checkRefusal(t *testing.T, name, in string, err error, want string, line int) {
+	t.Helper()
 	var de *yaml.DecodeError
 	if !errors.As(err, &de) {
 		t.Errorf("%s: got %v, want a *DecodeError", name, err)
 		return
 	}
-	want := "two keys of a map of Go type " + typ + " point to equal values, and a value under one of them has an UnmarshalYAML method"
 	if de.Kind != yaml.ErrorKindType || de.Msg != want || de.Line != line {
 		t.Errorf("%s: got kind %v, line %d, %q", name, de.Kind, de.Line, de.Msg)
 	}
 	// A word the message holds in any case, such as the line number or a
 	// letter of the type, says nothing about quoting.
 	fixed := "yaml: line " + strconv.Itoa(line) + ": " + want
-	for _, word := range strings.FieldsFunc(in, func(r rune) bool { return strings.ContainsRune(" :\n{},&*<", r) }) {
+	for _, word := range strings.FieldsFunc(in, func(r rune) bool { return strings.ContainsRune(" :\n{},&*<?", r) }) {
 		if !strings.Contains(fixed, word) && strings.Contains(err.Error(), word) {
 			t.Errorf("%s: the message quotes %q: %v", name, word, err)
 		}
@@ -294,6 +300,70 @@ func TestPointerKeysWithEqualValuesAreRefused(t *testing.T) {
 		checkPointerKeyRefusal(t, tc.name, tc.in, err, tc.typ, tc.line)
 		if gapHookCalls != 0 {
 			t.Errorf("%s: the hook ran %d times", tc.name, gapHookCalls)
+		}
+	}
+}
+
+// TestReportedRepeatOfAPointerKeyIsRefused checks that a key written
+// twice in a map with pointer keys, which OnDuplicateKey folds into one
+// pair before the decode sees it, is refused when the map has a hook
+// under it, since goccy keeps an entry for each pair of such a map.
+func TestReportedRepeatOfAPointerKeyIsRefused(t *testing.T) {
+	report := yaml.DecodeOptions{OnDuplicateKey: func(yaml.DuplicateKey) {}}
+	ints := func() any { return new(map[*int]gapHook) }
+	for _, tc := range []struct {
+		name, in string
+		target   func() any
+		typ      string
+		line     int
+	}{
+		{"a repeat", "1: alpha\n1: bravo\n", ints, "map[*int]yaml_test.gapHook", 2},
+		{"a repeat with no hook site", "1: ~\n1: ~\n", ints, "map[*int]yaml_test.gapHook", 2},
+		{"a third repeat", "1: alpha\n1: bravo\n1: charlie\n", ints, "map[*int]yaml_test.gapHook", 3},
+		{"explicit keys", "? 1\n: alpha\n? 1\n: bravo\n", ints, "map[*int]yaml_test.gapHook", 3},
+		{"an inner map", "x:\n  1: alpha\n  1: bravo\n", func() any { return new(map[*string]map[*int]gapHook) }, "map[*int]yaml_test.gapHook", 3},
+	} {
+		gapHookCalls = 0
+		err := yaml.UnmarshalWith([]byte(tc.in), tc.target(), report)
+		checkRefusal(t, tc.name, tc.in, err, "a key repeats in a map of Go type "+tc.typ+", which has an UnmarshalYAML method under it", tc.line)
+		if gapHookCalls != 0 {
+			t.Errorf("%s: the hook ran %d times", tc.name, gapHookCalls)
+		}
+	}
+}
+
+// TestReportedRepeatsElsewhereAreUnchanged checks that OnDuplicateKey
+// still folds a repeat of a nil key, a repeat in a map whose keys are no
+// pointers, and a repeat in a map with no hook under it, as it did.
+func TestReportedRepeatsElsewhereAreUnchanged(t *testing.T) {
+	for _, tc := range []struct {
+		name, in      string
+		hooked, plain func() any
+		calls, report int
+	}{
+		{"a nil key", "~: a\n~: b\n", func() any { return new(map[*int]gapHook) }, func() any { return new(map[*int]string) }, 1, 1},
+		{"keys that are no pointers", "1: a\n1: b\n", func() any { return new(map[int]gapHook) }, func() any { return new(map[int]string) }, 1, 1},
+		{"no hook", "1: a\n1: b\n", func() any { return new(map[*int]string) }, func() any { return new(map[*int]string) }, 0, 1},
+	} {
+		gapHookCalls = 0
+		reports := 0
+		opts := yaml.DecodeOptions{OnDuplicateKey: func(yaml.DuplicateKey) { reports++ }}
+		hooked, plain := tc.hooked(), tc.plain()
+		if err := yaml.UnmarshalWith([]byte(tc.in), hooked, opts); err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if reports != tc.report {
+			t.Errorf("%s: %d reports, want %d", tc.name, reports, tc.report)
+		}
+		if err := yaml.UnmarshalWith([]byte(tc.in), plain, opts); err != nil {
+			t.Fatalf("%s: plain: %v", tc.name, err)
+		}
+		got, want := renderEntries(reflect.ValueOf(hooked)), renderEntries(reflect.ValueOf(plain))
+		if got != want {
+			t.Errorf("%s: got %s, want %s", tc.name, got, want)
+		}
+		if gapHookCalls != tc.calls {
+			t.Errorf("%s: the hook ran %d times, want %d", tc.name, gapHookCalls, tc.calls)
 		}
 	}
 }

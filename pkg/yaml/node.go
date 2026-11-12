@@ -106,18 +106,20 @@ var publicKinds = [...]Kind{
 // of data with graft's YAML reader and copies it into out. Empty input,
 // or input that holds only comments, leaves out unchanged. data starts
 // lineOffset lines into its stream, so each Node's Line, each error, and
-// each duplicate key reported count from the start of that stream.
-func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int) error {
+// each duplicate key reported count from the start of that stream. It
+// returns the repeated keys that OnDuplicateKey folded, as
+// collapseDuplicates describes.
+func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int) (map[*Node]*Node, error) {
 	doc, err := yamlcodec.FirstMergeDocument(data)
 	if err != nil {
-		return shiftError(translate(err), lineOffset)
+		return nil, shiftError(translate(err), lineOffset)
 	}
 	docs, err := yamlnode.Parse(doc)
 	if err != nil {
-		return shiftError(translate(err), lineOffset)
+		return nil, shiftError(translate(err), lineOffset)
 	}
 	if len(docs) == 0 {
-		return nil
+		return nil, nil
 	}
 	lines := bytes.Split(doc, []byte("\n"))
 	c := &converter{
@@ -126,14 +128,15 @@ func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int) erro
 	}
 	var root Node
 	c.fill(&root, docs[0])
+	var folded map[*Node]*Node
 	if opts.OnDuplicateKey != nil {
-		collapseDuplicates(&root, opts.OnDuplicateKey)
+		folded = collapseDuplicates(&root, opts.OnDuplicateKey)
 	}
 	if line := documentLine(data); line > 0 {
 		root.Line, root.Column = line+lineOffset, 1
 	}
 	*out = root
-	return nil
+	return folded, nil
 }
 
 // documentLine returns the line of the first document's "---" marker or
@@ -387,7 +390,7 @@ func (n *Node) Decode(v any) error {
 		return err
 	}
 	if reachesUnmarshaler(reflect.TypeOf(v).Elem()) {
-		return n.decodeHooked(v)
+		return n.decodeHooked(v, nil)
 	}
 	return decodeFrom(n.source(), v, n.opts, nil)
 }

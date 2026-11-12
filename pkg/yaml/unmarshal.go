@@ -93,7 +93,8 @@ func unmarshalAt(data []byte, v any, opts DecodeOptions, lineOffset int) error {
 		if n == nil {
 			return typeError("Unmarshal(nil %T)", n)
 		}
-		return decodeNode(data, n, opts, lineOffset)
+		_, err := decodeNode(data, n, opts, lineOffset)
+		return err
 	}
 	if err := checkTarget(v); err != nil {
 		return err
@@ -103,12 +104,15 @@ func unmarshalAt(data []byte, v any, opts DecodeOptions, lineOffset int) error {
 		// document goes through a Node first. Every other target keeps
 		// the direct route, which costs less. The Nodes already count
 		// their lines from the start of the stream, and so do the
-		// errors their decode gives.
+		// errors their decode gives. The decode learns which keys
+		// OnDuplicateKey folded, since a map with pointer keys keeps
+		// an entry for each of them on the direct route.
 		var root Node
-		if err := decodeNode(data, &root, opts, lineOffset); err != nil {
+		folded, err := decodeNode(data, &root, opts, lineOffset)
+		if err != nil {
 			return err
 		}
-		return root.Decode(v)
+		return root.decodeHooked(v, folded)
 	}
 	err = decodeFrom(textSource(data, shiftDuplicates(opts, lineOffset)), v, opts, nil)
 	return shiftError(err, lineOffset)

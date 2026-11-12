@@ -466,9 +466,20 @@ type pointedKey struct {
 // to a value alikeValues matches, and either pair recorded a site, since
 // no hook could tell the two entries apart. A key that is no pointer, or
 // is nil, is left alone.
+//
+// It refuses as well a key whose repeats OnDuplicateKey folded into its
+// pair, whether or not the pair recorded a site, since goccy keeps an
+// entry for each of them, and the fold has dropped every value but the
+// last.
 func (w *siteWalk) pointedKey(seen *pointedKeys, node ast.MapKeyNode, v reflect.Value, hooked bool, t reflect.Type) error {
 	if v.Kind() != reflect.Pointer || v.IsNil() {
 		return nil
+	}
+	if repeat := w.owners.repeatOf(node); repeat != nil {
+		return &DecodeError{
+			Kind: ErrorKindType, Line: repeat.Line, Column: repeat.Column,
+			Msg: fmt.Sprintf("a key repeats in a map of Go type %s, which has an UnmarshalYAML method under it", t),
+		}
 	}
 	value := v.Elem()
 	h := pointeeHash(w.seed, value)
