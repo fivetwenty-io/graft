@@ -9,34 +9,58 @@ import (
 // reasonOtherPart is the reason the verifier refuses every edit with.
 const reasonOtherPart = "the edit would change another part of the document"
 
-// commit puts next in place of d.src when next parses to exactly one
-// document whose tree matches d's everywhere except at the node loc
-// names, and check accepts the node next holds there. On any failure it
-// leaves d unchanged and returns a DocumentError wrapping
-// ErrUnsupportedEdit.
+// commit puts next in place of d.src when next is d.src with the bytes
+// of old replaced, parses to exactly one document whose tree matches
+// d's everywhere except at the node loc names, and check accepts the
+// node next holds there. On any failure it leaves d unchanged and
+// returns a DocumentError wrapping ErrUnsupportedEdit.
 //
-// The node next holds there must keep the old node's comments and
-// anchor. Outside the node the text must not change at all: the lines
-// before the node's first line stay as they are, and the lines after its
-// last line follow the node's new last line unchanged, so they move only
-// by the number of lines the node gained or lost.
-func (d *Document) commit(op, path string, next []byte, loc located, check func(n *yamlnode.Node) error) error {
-	old := loc.node
+// old is the span of d.src the edit replaces. Every byte before its
+// start must open next unchanged, and every byte after its end must
+// close next unchanged. The node next holds where loc pointed must keep
+// the old node's comments and anchor. The lines before the node's first
+// line must stay as they are, and the lines after its last line must
+// follow the node's new last line unchanged, so they move only by the
+// number of lines the node gained or lost.
+//
+// commit does not look at the bytes the edit wrote in place of old, and
+// does not compare the new node's Value, Style, or Tag with the old
+// one's, since an edit means to change them. check must compare them
+// with what the edit meant to write, and make sure the new node's text
+// is the text the edit wrote.
+func (d *Document) commit(op, path string, next []byte, loc located, old span, check func(n *yamlnode.Node) error) error {
+	if !keepsAround(d.src, next, old) {
+		return refuseEdit(op, path, loc.written().Line)
+	}
+	was := loc.node
 	return d.swapIn(op, path, loc.written().Line, next, func(root *yamlnode.Node, lines []int) bool {
 		var found *yamlnode.Node
-		if !sameTree(d.docs[0], root, old, &found) || found == nil {
+		if !sameTree(d.docs[0], root, was, &found) || found == nil {
 			return false
 		}
-		if !sameComments(old, found) || old.Anchor != found.Anchor {
+		if !sameComments(was, found) || was.Anchor != found.Anchor {
 			return false
 		}
-		first := max(old.Line, found.Line)
+		first := max(was.Line, found.Line)
 		if !sameOutside(d.src, d.lines, next, lines, first,
-			lastLine(d.src, d.lines, d.docs[0], old), lastLine(next, lines, root, found)) {
+			lastLine(d.src, d.lines, d.docs[0], was), lastLine(next, lines, root, found)) {
 			return false
 		}
 		return check(found) == nil
 	})
+}
+
+// keepsAround reports whether next is src with only the bytes of old
+// replaced: old lies within src, next opens with every byte of src
+// before old and closes with every byte after it, and the two runs
+// don't overlap in next.
+func keepsAround(src, next []byte, old span) bool {
+	if old.start < 0 || old.start > old.end || old.end > len(src) {
+		return false
+	}
+	before, after := src[:old.start], src[old.end:]
+	return len(next) >= len(before)+len(after) &&
+		bytes.HasPrefix(next, before) && bytes.HasSuffix(next, after)
 }
 
 // swapIn parses next and, when it holds exactly one document that

@@ -100,13 +100,19 @@ func (d *Document) Get(path string) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	text := parsedText(d.src)
+	return publicNode(d.src, loc.node), nil
+}
+
+// publicNode returns the Node that Get gives for n, a node of the tree
+// yamlnode.Parse reads from src.
+func publicNode(src []byte, n *yamlnode.Node) *Node {
+	text := parsedText(src)
 	c := &converter{
 		seen:  make(map[*yamlnode.Node]*Node),
 		lines: bytes.Split(text, []byte("\n")),
 		text:  &readText{doc: text},
 	}
-	return c.node(loc.node), nil
+	return c.node(n)
 }
 
 // parsedText returns src as yamlnode.Parse reads it, with no byte order
