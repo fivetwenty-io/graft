@@ -110,7 +110,7 @@ var publicKinds = [...]Kind{
 // returns the repeated keys that OnDuplicateKey folded, as
 // collapseDuplicates describes, and moves each pair it keeps to the
 // place of its last repeat when last is set.
-func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int, last bool) (map[*Node]*Node, error) {
+func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int, last bool) (foldedKeys, error) {
 	doc, err := yamlcodec.FirstMergeDocument(data)
 	if err != nil {
 		return nil, shiftError(translate(err), lineOffset)
@@ -129,7 +129,7 @@ func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int, last
 	}
 	var root Node
 	c.fill(&root, docs[0])
-	var folded map[*Node]*Node
+	var folded foldedKeys
 	if opts.OnDuplicateKey != nil {
 		folded = collapseDuplicates(&root, opts.OnDuplicateKey, last)
 	}

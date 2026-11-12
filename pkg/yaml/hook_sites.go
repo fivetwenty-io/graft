@@ -407,7 +407,7 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 			step.slot.first, step.slot.end = first, len(w.sites)
 			*link = step
 		}
-		if err := w.pointedKey(&pointed, mv.Key, key, len(w.sites) > first, t); err != nil {
+		if err := w.pointedKey(&pointed, m, mv.Key, key, len(w.sites) > first, t); err != nil {
 			return nil, err
 		}
 		if hole {
@@ -461,21 +461,22 @@ type pointedKey struct {
 }
 
 // pointedKey records the value that v, the decoded key node of a pair
-// of a map of type t, points to, with hooked, which says whether the
-// pair recorded a hook site. It refuses node when an earlier key points
-// to a value alikeValues matches, and either pair recorded a site, since
-// no hook could tell the two entries apart. A key that is no pointer, or
-// is nil, is left alone.
+// of the mapping m, of a map of type t, points to, with hooked, which
+// says whether the pair recorded a hook site. It refuses node when an
+// earlier key points to a value alikeValues matches, and either pair
+// recorded a site, since no hook could tell the two entries apart. A
+// key that is no pointer, or is nil, is left alone.
 //
 // It refuses as well a key whose repeats OnDuplicateKey folded into its
-// pair, whether or not the pair recorded a site, since goccy keeps an
-// entry for each of them, and the fold has dropped every value but the
-// last.
-func (w *siteWalk) pointedKey(seen *pointedKeys, node ast.MapKeyNode, v reflect.Value, hooked bool, t reflect.Type) error {
+// pair in m, whether or not the pair recorded a site, since goccy keeps
+// an entry for each of them, and the fold has dropped every value but
+// the last. A fold in another mapping, whose key an alias key in m
+// names, leaves the key alone.
+func (w *siteWalk) pointedKey(seen *pointedKeys, m *ast.MappingNode, node ast.MapKeyNode, v reflect.Value, hooked bool, t reflect.Type) error {
 	if v.Kind() != reflect.Pointer || v.IsNil() {
 		return nil
 	}
-	if repeat := w.owners.repeatOf(node); repeat != nil {
+	if repeat := w.owners.repeatOf(m, node); repeat != nil {
 		return &DecodeError{
 			Kind: ErrorKindType, Line: repeat.Line, Column: repeat.Column,
 			Msg: fmt.Sprintf("a key repeats in a map of Go type %s, which has an UnmarshalYAML method under it", t),

@@ -16,11 +16,11 @@ import (
 // tree, the Node each token came from, so the decode can hand an
 // Unmarshaler the very node that holds its value. A node reached through
 // an alias is recorded as the node that holds the anchor. folded holds,
-// for each key whose later repeats OnDuplicateKey folded, the last of
-// those repeats.
+// for each key whose later repeats OnDuplicateKey folded, with the
+// mapping that holds it, the last of those repeats.
 type tokenOwners struct {
 	byToken map[*token.Token]*Node
-	folded  map[*Node]*Node
+	folded  foldedKeys
 }
 
 // add records tk as a token of n.
@@ -47,15 +47,15 @@ func (o *tokenOwners) of(n ast.Node) *Node {
 }
 
 // repeatOf returns the last repeat that OnDuplicateKey folded into the
-// key node n, or nil when it folded none.
-func (o *tokenOwners) repeatOf(n ast.Node) *Node {
+// key node n of the mapping node m, or nil when it folded none there.
+func (o *tokenOwners) repeatOf(m, n ast.Node) *Node {
 	if o == nil || o.folded == nil {
 		return nil
 	}
 	if explicit, ok := n.(*ast.MappingKeyNode); ok {
 		n = explicit.Value
 	}
-	return o.folded[o.of(n)]
+	return o.folded[foldKey{mapping: o.of(m), key: o.of(n)}]
 }
 
 // trackedSource is the source Decode reads n through when the target can

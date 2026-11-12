@@ -77,7 +77,7 @@ func reachesUnmarshaler(t reflect.Type) bool {
 // of its tokens came from, so each method finds the node that holds its
 // value. folded holds the repeated keys that OnDuplicateKey folded in
 // n, as collapseDuplicates describes, or nil.
-func (n *Node) decodeHooked(v any, folded map[*Node]*Node) error {
+func (n *Node) decodeHooked(v any, folded foldedKeys) error {
 	if u, ok := v.(Unmarshaler); ok {
 		root, de := documentRoot(n)
 		if de != nil || root == nil {

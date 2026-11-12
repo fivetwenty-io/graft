@@ -435,3 +435,42 @@ func TestReportedRepeatLeavesTheNodeOrder(t *testing.T) {
 		t.Errorf("%d reports, want 2", reports)
 	}
 }
+
+// foldElsewhere has a map whose keys a fold can touch beside a map with
+// pointer keys that can hold an alias to one of them.
+type foldElsewhere struct {
+	A map[string]gapHook  `yaml:"a"`
+	B map[*string]gapHook `yaml:"b"`
+}
+
+// foldElsewherePlain is foldElsewhere with string in place of gapHook.
+type foldElsewherePlain struct {
+	A map[string]string  `yaml:"a"`
+	B map[*string]string `yaml:"b"`
+}
+
+// TestFoldInAnotherMappingIsNotRefused checks that a key that
+// OnDuplicateKey folds in one mapping never refuses an alias to it that
+// is a key of a map with pointer keys in another mapping.
+func TestFoldInAnotherMappingIsNotRefused(t *testing.T) {
+	opts := yaml.DecodeOptions{OnDuplicateKey: func(yaml.DuplicateKey) {}}
+	for _, tc := range []struct{ name, in string }{
+		{"the anchor on the first key", "a:\n  &k x: one\n  x: two\nb:\n  *k : three\n"},
+		{"the anchor on the repeat", "a:\n  x: one\n  &k x: two\nb:\n  *k : three\n"},
+	} {
+		var hooked foldElsewhere
+		var plain foldElsewherePlain
+		if err := yaml.UnmarshalWith([]byte(tc.in), &hooked, opts); err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+			continue
+		}
+		if err := yaml.UnmarshalWith([]byte(tc.in), &plain, opts); err != nil {
+			t.Fatalf("%s: plain: %v", tc.name, err)
+		}
+		got := renderEntries(reflect.ValueOf(hooked.A)) + renderEntries(reflect.ValueOf(hooked.B))
+		want := renderEntries(reflect.ValueOf(plain.A)) + renderEntries(reflect.ValueOf(plain.B))
+		if got != want {
+			t.Errorf("%s: got %s, want %s", tc.name, got, want)
+		}
+	}
+}

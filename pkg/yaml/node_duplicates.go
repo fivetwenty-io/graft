@@ -14,8 +14,8 @@ import (
 // mapping become one, as mapping describes. Keys that are aliases or
 // collections are left alone. A node reached a second time, through an
 // alias, is not walked again. It returns, for each key whose later
-// repeats it folded, the last of those repeats, or nil when it folded
-// none.
+// repeats it folded, with the mapping that holds it, the last of those
+// repeats, or nil when it folded none.
 //
 // When last is set, the last repeat's pair is kept at its own place, and
 // every earlier pair with the same slot is dropped instead. A decode
@@ -27,7 +27,7 @@ import (
 // into Go values sets last. A mapping with a merge key keeps the first
 // place either way, since the merge fold of the text route keeps each
 // key where it was first written, as yamlcodec's mergeExpander does.
-func collapseDuplicates(root *Node, report func(DuplicateKey), last bool) map[*Node]*Node {
+func collapseDuplicates(root *Node, report func(DuplicateKey), last bool) foldedKeys {
 	w := &nodeDupWalker{report: report, seen: make(map[*Node]bool), last: last}
 	w.walk(root, "")
 	return w.folded
@@ -36,8 +36,19 @@ func collapseDuplicates(root *Node, report func(DuplicateKey), last bool) map[*N
 type nodeDupWalker struct {
 	report func(DuplicateKey)
 	seen   map[*Node]bool
-	folded map[*Node]*Node
+	folded foldedKeys
 	last   bool
+}
+
+// foldedKeys holds, for each key that a fold kept, the last repeat the
+// fold dropped into its pair.
+type foldedKeys map[foldKey]*Node
+
+// foldKey is a key a fold kept, with the mapping that holds it. An
+// alias key in another mapping names the same key node, so the key
+// alone can't tell which mapping the fold was in.
+type foldKey struct {
+	mapping, key *Node
 }
 
 func (w *nodeDupWalker) walk(n *Node, path string) {
@@ -123,11 +134,11 @@ func (w *nodeDupWalker) mapping(n *Node, path string) {
 			case repeat && !move:
 				w.walk(val, child)
 				kept[at].val, kept[at].last = val, i
-				w.fold(kept[at].key, key)
+				w.fold(n, kept[at].key, key)
 				continue
 			case repeat:
 				dropSlot(kept, at)
-				w.fold(key, key)
+				w.fold(n, key, key)
 			case held:
 				pair.prev = at + 1
 			}
@@ -160,13 +171,13 @@ func isMergeKey(key *Node) bool {
 	return key != nil && key.Kind == ScalarNode && key.Tag == yamlnode.TagMerge
 }
 
-// fold records that the pair whose key is kept now holds the value of
-// the later repeat of that key.
-func (w *nodeDupWalker) fold(kept, repeat *Node) {
+// fold records that the pair of the mapping n whose key is kept now
+// holds the value of the later repeat of that key.
+func (w *nodeDupWalker) fold(n, kept, repeat *Node) {
 	if w.folded == nil {
-		w.folded = make(map[*Node]*Node)
+		w.folded = make(foldedKeys)
 	}
-	w.folded[kept] = repeat
+	w.folded[foldKey{mapping: n, key: kept}] = repeat
 }
 
 // holdsMergeKey reports whether the mapping n holds a << merge key.
