@@ -1,6 +1,7 @@
 package yaml_test
 
 import (
+	"bytes"
 	"errors"
 	"sort"
 	"strings"
@@ -181,5 +182,24 @@ func TestDiffDoesNotReadTOML(t *testing.T) {
 	cs := r.Changes()
 	if len(cs) != 1 || cs[0].Kind != yaml.ChangeModified || cs[0].Path != "" || cs[0].From.Kind != yaml.ScalarNode {
 		t.Errorf("key = value lines should read as one string: %+v", cs)
+	}
+}
+
+func TestDiffReportWrite(t *testing.T) {
+	r, err := yaml.Diff([]byte("a: 1\n"), []byte("a: 2\n"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := r.Write(&buf, yaml.ReportStyle{}); err != nil {
+		t.Fatal(err)
+	}
+	if out := buf.String(); !strings.Contains(out, "a\n") || strings.Contains(out, "\x1b") {
+		t.Errorf("plain output = %q", out)
+	}
+
+	boom := errors.New("disk full")
+	if err := r.Write(failingWriter{boom}, yaml.ReportStyle{}); !errors.Is(err, boom) {
+		t.Errorf("writer error = %v", err)
 	}
 }
