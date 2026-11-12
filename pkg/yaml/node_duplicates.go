@@ -46,11 +46,11 @@ type nodeDupWalker struct {
 
 // writtenPairs holds, for each mapping whose pairs OnDuplicateKey's fold
 // changed on the way to a decode into Go values, the Content it held
-// before the fold, with every pair the text wrote. The fold reads a key as its text, so
-// it takes keys such as a null and the string null, or 1 and "1", for
-// one key, though a map with interface keys holds them as two. The
-// decode reads these pairs in turn, as it reads the text, and the Nodes
-// that methods receive keep the fold.
+// before the fold, with every pair the text wrote. The fold reads a key
+// as its text, so it takes keys such as a null and the string null, or
+// 1 and "1", for one key, though a map with interface keys holds them
+// as two. The decode reads these pairs in turn, as it reads the text,
+// and the Nodes that methods receive keep the fold.
 type writtenPairs map[*Node][]*Node
 
 func (w *nodeDupWalker) walk(n *Node, path string) {
