@@ -517,8 +517,8 @@ func alikeValues(a, b reflect.Value) bool {
 	return reflect.DeepEqual(a.Interface(), b.Interface()) || valueNaN(a) && valueNaN(b)
 }
 
-// valueNaN reports whether v, or the value an interface v holds, is a float
-// or a complex number that is NaN.
+// valueNaN reports whether v, or the value an interface v holds, is a
+// float or a complex number that is NaN.
 func valueNaN(v reflect.Value) bool {
 	for v.Kind() == reflect.Interface && !v.IsNil() {
 		v = v.Elem()
@@ -734,9 +734,9 @@ func runHookSites(root reflect.Value, sites []hookSite) error {
 // fill follows path from v, filling each nil pointer on the way, and
 // calls the Unmarshaler at its end through the value's address. A map
 // value is read out, filled, and stored back. A map with pointer keys
-// holds the value under the key goccy made, which entries finds. A place the decode cannot
-// set, such as one inside an unexported embedded struct, is left alone,
-// as goccy leaves it.
+// holds the value under the key goccy made, which entries finds. A
+// place the decode cannot set, such as one inside an unexported
+// embedded struct, is left alone, as goccy leaves it.
 func (s *hookSite) fill(v reflect.Value, path []hookStep, entries *pointerEntries) error {
 	v, ok := settle(v)
 	if !ok {

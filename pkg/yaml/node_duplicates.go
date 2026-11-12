@@ -23,10 +23,11 @@ import (
 // that gives a key wins, so a pair written between two repeats must
 // still lose to the later one. The pairs with the same slot hold keys
 // that a map with string keys holds as one, such as ~ and null, which
-// the later repeat writes over in any case. A Node keeps the first place, and only a decode that goes on
-// into Go values sets last. A mapping with a merge key keeps the first
-// place either way, since the merge fold of the text route keeps each
-// key where it was first written, as yamlcodec's mergeExpander does.
+// the later repeat writes over in any case. A Node keeps the first
+// place, and only a decode that goes on into Go values sets last. A
+// mapping with a merge key keeps the first place either way, since the
+// merge fold of the text route keeps each key where it was first
+// written, as yamlcodec's mergeExpander does.
 func collapseDuplicates(root *Node, report func(DuplicateKey), last bool) foldedKeys {
 	w := &nodeDupWalker{report: report, seen: make(map[*Node]bool), last: last}
 	w.walk(root, "")
