@@ -426,6 +426,14 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 **Impact.** We keep this on purpose. The key isn't in the output, so a string that still holds it describes a map that the output doesn't contain, and graft keeps stringify, grab, and join in agreement with the output instead. A template that needs the key in the string has to leave the key unpruned.
 
+### prune-entry-in-a-list-inside-a-list-is-dropped
+
+**Graft behavior.** A `(( prune ))` entry goes from a list wherever the list sits, including a list inside another list. With `k: [[a, (( prune )), b], [c]]`, `k` comes out as `[[a, b], [c]]`, and a `(( grab k ))` gets the same value. The spelling doesn't matter, so `((  prune  ))` goes too, and `Engine.Evaluate` on a parsed document removes these entries the same way a merge does.
+
+**Spruce behavior.** spruce removes a prune entry only from a list that sits directly under a map key. In a list inside a list, the entry stays and comes out as `null`, so `k` comes out as `[[a, null, b], [c]]`. A grab of a list that loses an entry can also see the list before the entry goes, so with `l: [a, ((  prune  )), b]`, `(( grab l ))` gives `[a, b, b]`.
+
+**Impact.** We keep this on purpose. A template that writes `(( prune ))` in a list means the entry to go, so graft removes it at every depth, and every reader of the list sees the same entries the output holds. A template that relied on the `null` has to write `~` in place of the prune entry.
+
 ### dash-line-inside-a-flow-collection-is-an-error
 
 **Graft behavior.** A plain scalar in a flow collection that continues onto a line starting with `- ` fails to parse. That covers `a: {b: [x` followed by a line `- w]}`, and `a:` followed by `  - [w` and `    - w]`. The error names the line and column of the dash and says that a block sequence entry cannot appear inside a flow collection. The same error covers every other `- ` inside a flow collection, such as `a: [x,` followed by `- w]` and `a: [x, - w]`, which spruce refuses too.
