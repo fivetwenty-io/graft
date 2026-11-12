@@ -101,6 +101,73 @@ func TestDiffErrors(t *testing.T) {
 	}
 }
 
+func TestDiffStreamReorder(t *testing.T) {
+	doc := func(name string) string {
+		return "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: " + name + "\n"
+	}
+	a := doc("a") + "---\n" + doc("b")
+	b := doc("b") + "---\n" + doc("a")
+	r, err := yaml.Diff([]byte(a), []byte(b), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := r.Changes()
+	if len(cs) != 1 || cs[0].Document != -1 || cs[0].Kind != yaml.ChangeOrder || cs[0].Path != "" {
+		t.Fatalf("changes = %+v", cs)
+	}
+	if cs[0].From == nil || cs[0].To == nil || len(cs[0].From.Content) != 2 || len(cs[0].To.Content) != 2 {
+		t.Errorf("order nodes = %+v, %+v", cs[0].From, cs[0].To)
+	}
+	r, err = yaml.Diff([]byte(a), []byte(b), &yaml.DiffOptions{IgnoreOrderChanges: true})
+	if err != nil || !r.Empty() {
+		t.Errorf("with IgnoreOrderChanges: Empty = %v, %v", r.Empty(), err)
+	}
+}
+
+func TestDiffAddedAndRemovedNodes(t *testing.T) {
+	r, err := yaml.Diff([]byte("a: 1\n"), []byte("a: 1\nb:\n  x: 1\n"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := r.Changes()
+	if len(cs) != 1 || cs[0].Kind != yaml.ChangeAdded || cs[0].From != nil || cs[0].To == nil {
+		t.Fatalf("added: %+v", cs)
+	}
+	if to := cs[0].To; to.Kind != yaml.MappingNode || len(to.Content) != 2 || to.Content[0].Value != "b" {
+		t.Errorf("added node = %+v", to)
+	}
+
+	r, err = yaml.Diff([]byte("a: 1\nb:\n  x: 1\n"), []byte("a: 1\n"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs = r.Changes()
+	if len(cs) != 1 || cs[0].Kind != yaml.ChangeRemoved || cs[0].To != nil || cs[0].From == nil {
+		t.Fatalf("removed: %+v", cs)
+	}
+	if from := cs[0].From; from.Kind != yaml.MappingNode || len(from.Content) != 2 || from.Content[0].Value != "b" {
+		t.Errorf("removed node = %+v", from)
+	}
+}
+
+func TestDiffErrorUnwrap(t *testing.T) {
+	_, err := yaml.Diff([]byte("a: 1\n"), []byte("a: 1\n---\nb: 2\n"), nil)
+	var diffErr *yaml.DiffError
+	if !errors.As(err, &diffErr) {
+		t.Fatalf("error = %v", err)
+	}
+	inner := errors.Unwrap(err)
+	if inner == nil || inner == error(diffErr) || inner.Error() == "" {
+		t.Errorf("Unwrap = %v", inner)
+	}
+	if strings.Contains(err.Error(), inner.Error()) {
+		t.Errorf("the error repeats the wrapped text: %v", err)
+	}
+	if (&yaml.DiffError{Reason: "x"}).Unwrap() != nil {
+		t.Error("Unwrap of an error with no cause is not nil")
+	}
+}
+
 func TestDiffDoesNotReadTOML(t *testing.T) {
 	_, err := yaml.Diff([]byte("[server]\nport = 1\n"), []byte("[server]\nport = 2\n"), nil)
 	var de *yaml.DecodeError
