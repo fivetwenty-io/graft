@@ -2,6 +2,7 @@ package yaml
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
@@ -50,6 +51,93 @@ func (d *Document) commit(path string, next []byte, loc located, old span, check
 		}
 		return check(found) == nil
 	})
+}
+
+// commitDelete is commit for a removal. The new tree must equal the old
+// one with the entry at loc.index taken out of loc.parent.
+//
+// It puts next in place of d.src when next is d.src with lines first to
+// last cut out and nothing else changed, every node of the entry loc
+// names sits on those lines, and next parses to exactly one document
+// whose tree is d's with that entry taken out of loc.parent. The
+// collection that held the entry must keep its own comments, anchor,
+// tag, and style, and every other node must keep its comments. On any
+// failure it leaves d unchanged and returns a DocumentError for the
+// "delete" operation, wrapping ErrUnsupportedEdit.
+func (d *Document) commitDelete(path string, next []byte, loc located, first, last int) error {
+	const op = "delete"
+	line := 0
+	if loc.index >= 0 && loc.index < len(loc.parent.Content) {
+		line = loc.written().Line
+	}
+	kept, ok := d.deleteCut(next, loc, first, last)
+	if !ok {
+		return refuseEdit(op, path, line)
+	}
+	return d.swapIn(op, path, line, next, func(root *yamlnode.Node, _ []int) bool {
+		var found *yamlnode.Node
+		return sameTree(d.docs[0], root, loc.parent, &found) && found != nil && sameHolding(loc.parent, found, kept)
+	})
+}
+
+// deleteCut reports whether next is d.src with lines first to last cut
+// out and nothing else changed, and every node of the entry loc names
+// sits on those lines. It returns the nodes of loc.parent's Content that
+// the cut keeps.
+func (d *Document) deleteCut(next []byte, loc located, first, last int) ([]*yamlnode.Node, bool) {
+	parent := loc.parent
+	from := loc.index - (entryWidth(parent) - 1)
+	if from < 0 || loc.index >= len(parent.Content) || first < 1 || last < first || last > len(d.lines) ||
+		pathTo(d.docs[0], parent) == nil {
+		return nil, false
+	}
+	for _, n := range parent.Content[from : loc.index+1] {
+		if !withinLines(n, first, last) {
+			return nil, false
+		}
+	}
+	cut := d.lineSpan(first, last)
+	if !keepsAround(d.src, next, cut) || len(next) != len(d.src)-(cut.end-cut.start) {
+		return nil, false
+	}
+	return slices.Concat(parent.Content[:from], parent.Content[loc.index+1:]), true
+}
+
+// sameHolding reports whether b is the collection a with the same kind,
+// tag, anchor, style, and comments, holding trees equal to those of kept
+// and nothing else.
+func sameHolding(a, b *yamlnode.Node, kept []*yamlnode.Node) bool {
+	if b.Kind != a.Kind || b.Tag != a.Tag || b.Anchor != a.Anchor || b.Style != a.Style ||
+		b.BareTag != a.BareTag || !sameComments(a, b) || len(b.Content) != len(kept) {
+		return false
+	}
+	for i := range kept {
+		var none *yamlnode.Node
+		if !sameTree(kept[i], b.Content[i], nil, &none) {
+			return false
+		}
+	}
+	return true
+}
+
+// withinLines reports whether every node of n's tree that has a source
+// position sits on a line from first to last, where its own token does
+// too. Aliases are not followed.
+func withinLines(n *yamlnode.Node, first, last int) bool {
+	for _, at := range []int{n.Line, n.TokenLine} {
+		if at != 0 && (at < first || at > last) {
+			return false
+		}
+	}
+	if n.Kind == yamlnode.AliasNode {
+		return true
+	}
+	for _, c := range n.Content {
+		if !withinLines(c, first, last) {
+			return false
+		}
+	}
+	return true
 }
 
 // keepsAround reports whether next is src with only the bytes of old

@@ -415,3 +415,120 @@ func TestCommitChecksBlockPlacement(t *testing.T) {
 		}
 	}
 }
+
+// TestCommitDeleteTakesOnlyTheCut hands commitDelete texts other than
+// d's text with the entry's lines cut out, and lines that don't fit the
+// tree, and checks that it refuses each one and accepts the true cut.
+func TestCommitDeleteTakesOnlyTheCut(t *testing.T) {
+	const src = "a: 1\nb: 2\nc: 3\n"
+	d := mustParse(t, src)
+	loc, err := d.resolve("delete", "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		next        string
+		first, last int
+	}{
+		{"a: 1\nc: 4\n", 2, 2},
+		{"a: 1\nb: 2\nc: 3\n", 2, 2},
+		{"a: 1\n", 2, 2},
+		{"a: 1\nc: 3\n\n", 2, 2},
+		{"a: 1\n", 2, 3},
+		{"b: 2\nc: 3\n", 1, 1},
+		{"a: 1\nc: 3\n", 0, 2},
+		{"a: 1\nc: 3\n", 2, 1},
+		{"a: 1\nc: 3\n", 2, 9},
+	} {
+		err := d.commitDelete("b", []byte(c.next), loc, c.first, c.last)
+		var de *DocumentError
+		if !errors.As(err, &de) || !errors.Is(err, ErrUnsupportedEdit) || de.Op != "delete" || de.Reason != reasonOtherPart {
+			t.Errorf("%q lines %d-%d: commitDelete = %v", c.next, c.first, c.last, err)
+		}
+		if string(d.Bytes()) != src {
+			t.Fatalf("Bytes = %q", d.Bytes())
+		}
+	}
+	if err := d.commitDelete("b", []byte("a: 1\nc: 3\n"), loc, 2, 2); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.commitDelete("b", []byte("a: 1\n"), loc, 2, 2); !errors.Is(err, ErrUnsupportedEdit) {
+		t.Errorf("a stale loc: commitDelete = %v", err)
+	}
+	if string(d.Bytes()) != "a: 1\nc: 3\n" {
+		t.Errorf("Bytes = %q", d.Bytes())
+	}
+}
+
+// TestCommitDeleteCutsTheEntryItself cuts the lines of a sibling that
+// reads the same as the entry, so the tree that is left is the one the
+// delete means but the entry's own text stays.
+func TestCommitDeleteCutsTheEntryItself(t *testing.T) {
+	for _, c := range []struct {
+		src, path, next string
+		first, last     int
+	}{
+		{"- a\n-   a\n", "0", "- a\n", 2, 2},
+		{"- a # c\n- a  # c\n", "1", "- a  # c\n", 1, 1},
+		{"l:\n- x: 1\n  y: 2\n- x: 1\n  y:  2\n", "l.0", "l:\n- x: 1\n  y: 2\n", 4, 5},
+	} {
+		d := mustParse(t, c.src)
+		loc, err := d.resolve("delete", c.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := d.commitDelete(c.path, []byte(c.next), loc, c.first, c.last); !errors.Is(err, ErrUnsupportedEdit) {
+			t.Errorf("%q: commitDelete = %v", c.src, err)
+		}
+		if string(d.Bytes()) != c.src {
+			t.Errorf("%q: Bytes = %q", c.src, d.Bytes())
+		}
+	}
+}
+
+// TestCommitDeleteComparesTheTreeAroundTheEntry cuts the right number of
+// lines from the wrong place, so the entry that goes is the one meant
+// but another node changes.
+func TestCommitDeleteComparesTheTreeAroundTheEntry(t *testing.T) {
+	const src = "x:\n  y: 1\n  z: 2\nw: 3\n"
+	d := mustParse(t, src)
+	loc, err := d.resolve("delete", "x.y")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		next        string
+		first, last int
+	}{
+		{"  y: 1\n  z: 2\nw: 3\n", 1, 1},
+		{"x:\n  y: 1\nw: 3\n", 3, 3},
+		{"x:\n  y: 1\n  z: 2\n", 4, 4},
+	} {
+		if err := d.commitDelete("x.y", []byte(c.next), loc, c.first, c.last); !errors.Is(err, ErrUnsupportedEdit) {
+			t.Errorf("%q: commitDelete = %v", c.next, err)
+		}
+		if string(d.Bytes()) != src {
+			t.Fatalf("Bytes = %q", d.Bytes())
+		}
+	}
+}
+
+// TestCommitDeleteKeepsTheCollectionsComments gives the collection that
+// holds the entry a comment its text does not hold, which no cut can
+// keep, and checks that commitDelete sees it go.
+func TestCommitDeleteKeepsTheCollectionsComments(t *testing.T) {
+	const src = "a:\n  x: 1\n  y: 2\n"
+	d := mustParse(t, src)
+	loc, err := d.resolve("delete", "a.x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc.parent.HeadComment = "# c"
+	if err := d.commitDelete("a.x", []byte("a:\n  y: 2\n"), loc, 2, 2); !errors.Is(err, ErrUnsupportedEdit) {
+		t.Errorf("commitDelete = %v", err)
+	}
+	loc.parent.HeadComment = ""
+	if err := d.commitDelete("a.x", []byte("a:\n  y: 2\n"), loc, 2, 2); err != nil {
+		t.Errorf("commitDelete = %v", err)
+	}
+}
