@@ -12,8 +12,6 @@ import (
 const literalTrue = "true"
 
 // EvaluateExpr evaluates an expression, including nested operator calls.
-//
-//nolint:gocyclo // expression evaluation requires handling all expression types
 func EvaluateExpr(e *Expr, ev *Evaluator) (*Response, error) {
 	if e == nil {
 		return nil, NewExprEvaluationError("nil expression", Position{})
