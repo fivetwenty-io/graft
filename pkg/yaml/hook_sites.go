@@ -51,14 +51,22 @@ type hookStep struct {
 // never changes a node in place, since alias expansion shares a subtree
 // among every alias to its anchor. It copies each node on the path to a
 // hole and leaves every other subtree shared, as asWritten does.
-func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOptions) (ast.Node, []hookSite) {
+//
+// The walk stops at the first key in document order that more than one
+// field of a struct reads, when one of those fields can reach an
+// Unmarshaler, since goccy would fill none of them and the method would
+// never run. That key's refusal comes back as the error.
+func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOptions) (ast.Node, []hookSite, error) {
 	w := &siteWalk{
 		owners: owners,
 		opts:   opts,
 		keys:   &textWalk{structs: make(map[reflect.Type]*structKeys), kinds: make(map[reflect.Type]ownKind)},
 		at:     make(map[string]int),
 	}
-	out, hole := w.node(body, t, nil)
+	out, hole, err := w.node(body, t, nil)
+	if err != nil {
+		return nil, nil, err
+	}
 	if hole {
 		out = nil
 	}
@@ -68,7 +76,7 @@ func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOp
 			sites = append(sites, s)
 		}
 	}
-	return out, sites
+	return out, sites, nil
 }
 
 // siteWalk walks a syntax tree and a target type side by side, as
@@ -85,21 +93,22 @@ type siteWalk struct {
 
 // node returns n with holes punched for the hook sites under it, which
 // fill a value of type t at path, and reports whether n itself is a hook
-// site, which its parent turns into a hole.
-func (w *siteWalk) node(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, bool) {
+// site, which its parent turns into a hole. The error is a key's refusal
+// from field.
+func (w *siteWalk) node(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, bool, error) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if n == nil || !reachesUnmarshaler(t) {
-		return n, false
+		return n, false, nil
 	}
 	if isUnmarshaler(t) {
 		owner := w.owners.of(n)
 		if owner == nil || nullNode(owner) {
-			return n, false
+			return n, false, nil
 		}
 		w.add(hookSite{path: path, node: owner, typ: t})
-		return n, true
+		return n, true, nil
 	}
 	// A tag on a collection, such as !!map, stays in the tree, and goccy
 	// reads the collection under it.
@@ -109,25 +118,29 @@ func (w *siteWalk) node(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, 
 		inner = tagNode.Value
 	}
 	var out ast.Node
+	var err error
 	switch t.Kind() {
 	case reflect.Struct:
-		out = w.structMapping(inner, t, path)
+		out, err = w.structMapping(inner, t, path)
 	case reflect.Map:
-		out = w.typedMapping(inner, t, path)
+		out, err = w.typedMapping(inner, t, path)
 	case reflect.Slice, reflect.Array:
-		out = w.sequence(inner, t, path)
+		out, err = w.sequence(inner, t, path)
 	default:
-		return n, false
+		return n, false, nil
+	}
+	if err != nil {
+		return nil, false, err
 	}
 	if out == inner {
-		return n, false
+		return n, false, nil
 	}
 	if tagged {
 		c := *tagNode
 		c.Value = out
-		return &c, false
+		return &c, false, nil
 	}
-	return out, false
+	return out, false, nil
 }
 
 // add records s, in place of an earlier site at the same path, which
@@ -171,16 +184,19 @@ func then(path []hookStep, steps ...hookStep) []hookStep {
 // a hole for each field that is a hook site. A key fills a field when
 // exactly one field reads it, as goccy matches keys, and the field's path
 // runs through any ,inline structs.
-func (w *siteWalk) structMapping(n ast.Node, t reflect.Type, path []hookStep) ast.Node {
+func (w *siteWalk) structMapping(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, error) {
 	m, ok := n.(*ast.MappingNode)
 	if !ok {
-		return n
+		return n, nil
 	}
 	keys := w.keys.structKeys(t)
 	// pairs stays nil until a pair changes, and then holds every pair kept.
 	var pairs []*ast.MappingValueNode
 	for i, mv := range m.Values {
-		got, hole := w.field(mv, keys, t, path)
+		got, hole, err := w.field(mv, keys, t, path)
+		if err != nil {
+			return nil, err
+		}
 		if pairs == nil && (hole || got != mv) {
 			pairs = append(make([]*ast.MappingValueNode, 0, len(m.Values)), m.Values[:i]...)
 		}
@@ -189,47 +205,87 @@ func (w *siteWalk) structMapping(n ast.Node, t reflect.Type, path []hookStep) as
 		}
 	}
 	if pairs == nil {
-		return m
+		return m, nil
 	}
 	c := *m
 	c.Values = pairs
-	return &c
+	return &c, nil
 }
 
 // field returns the pair mv of a mapping that fills a struct of type t
 // at path, with holes punched under its value, and reports whether its
-// value is a hook site, so the pair comes out.
-func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.Type, path []hookStep) (*ast.MappingValueNode, bool) {
+// value is a hook site, so the pair comes out. When more than one field
+// reads the key, it refuses the key if one of them can reach an
+// Unmarshaler, and otherwise leaves the pair for goccy to decide.
+func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.Type, path []hookStep) (*ast.MappingValueNode, bool, error) {
 	index := keys.index[keyString(keyText(mv.Key))]
+	if len(index) > 1 && anyReachesUnmarshaler(t, index) {
+		return nil, false, sharedHookKeyError(mv.Key, t)
+	}
 	if len(index) != 1 {
-		return mv, false
+		return mv, false, nil
 	}
 	steps := make([]hookStep, len(index[0]))
-	ft := t
 	for i, at := range index[0] {
-		for ft.Kind() == reflect.Pointer {
-			ft = ft.Elem()
-		}
-		ft = ft.Field(at).Type
 		steps[i] = hookStep{kind: stepField, index: at}
 	}
-	got, hole := w.node(mv.Value, ft, then(path, steps...))
+	got, hole, err := w.node(mv.Value, fieldType(t, index[0]), then(path, steps...))
+	if err != nil {
+		return nil, false, err
+	}
 	if hole || got == mv.Value {
-		return mv, hole
+		return mv, hole, nil
 	}
 	c := *mv
 	c.Value = got
-	return &c, false
+	return &c, false, nil
+}
+
+// fieldType returns the type of the field that the field indexes in
+// steps lead to from a struct of type t, through any pointers on the way.
+func fieldType(t reflect.Type, steps []int) reflect.Type {
+	for _, at := range steps {
+		for t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+		t = t.Field(at).Type
+	}
+	return t
+}
+
+// anyReachesUnmarshaler reports whether any of the fields that index
+// leads to from a struct of type t can reach an Unmarshaler.
+func anyReachesUnmarshaler(t reflect.Type, index [][]int) bool {
+	for _, steps := range index {
+		if reachesUnmarshaler(fieldType(t, steps)) {
+			return true
+		}
+	}
+	return false
+}
+
+// sharedHookKeyError returns the refusal of key, which more than one
+// field of a struct of type t reads, at the key's place. It names only
+// the Go type, never the key or its value.
+func sharedHookKeyError(key ast.MapKeyNode, t reflect.Type) *DecodeError {
+	e := &DecodeError{
+		Kind: ErrorKindType,
+		Msg:  fmt.Sprintf("a key of Go type %s is read by more than one field, and one of them has an UnmarshalYAML method", t),
+	}
+	if tk := key.GetToken(); tk != nil && tk.Position != nil {
+		e.Line, e.Column = tk.Position.Line, tk.Position.Column
+	}
+	return e
 }
 
 // typedMapping returns n, a mapping that fills a map of type t, with a
 // null in place of each value that is a hook site. Each key's Go value
 // comes from decoding the key alone into the key type, and a key that
 // does not decode leaves its pair alone, for goccy to refuse.
-func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) ast.Node {
+func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, error) {
 	m, ok := n.(*ast.MappingNode)
 	if !ok {
-		return n
+		return n, nil
 	}
 	var out *ast.MappingNode
 	for i, mv := range m.Values {
@@ -237,7 +293,10 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) ast
 		if !ok {
 			continue
 		}
-		got, hole := w.node(mv.Value, t.Elem(), then(path, hookStep{kind: stepKey, key: key}))
+		got, hole, err := w.node(mv.Value, t.Elem(), then(path, hookStep{kind: stepKey, key: key}))
+		if err != nil {
+			return nil, err
+		}
 		if hole {
 			got = nullAt(mv.Value)
 		}
@@ -254,9 +313,9 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) ast
 		out.Values[i] = &pair
 	}
 	if out == nil {
-		return m
+		return m, nil
 	}
-	return out
+	return out, nil
 }
 
 // mapKey decodes the key k alone into a value of type kt, after the
@@ -280,17 +339,20 @@ func (w *siteWalk) mapKey(k ast.MapKeyNode, kt reflect.Type) (reflect.Value, boo
 // sequence returns n, a sequence that fills a slice or an array of type
 // t, with a null in place of each item that is a hook site. Items past
 // the end of an array fill nothing.
-func (w *siteWalk) sequence(n ast.Node, t reflect.Type, path []hookStep) ast.Node {
+func (w *siteWalk) sequence(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, error) {
 	seq, ok := n.(*ast.SequenceNode)
 	if !ok {
-		return n
+		return n, nil
 	}
 	var out *ast.SequenceNode
 	for i, item := range seq.Values {
 		if t.Kind() == reflect.Array && i >= t.Len() {
 			break
 		}
-		got, hole := w.node(item, t.Elem(), then(path, hookStep{kind: stepIndex, index: i}))
+		got, hole, err := w.node(item, t.Elem(), then(path, hookStep{kind: stepIndex, index: i}))
+		if err != nil {
+			return nil, err
+		}
 		if hole {
 			got = nullAt(item)
 		}
@@ -305,9 +367,9 @@ func (w *siteWalk) sequence(n ast.Node, t reflect.Type, path []hookStep) ast.Nod
 		out.Values[i] = got
 	}
 	if out == nil {
-		return seq
+		return seq, nil
 	}
-	return out
+	return out, nil
 }
 
 // nullAt returns a null node at the place of n, the hole goccy decodes in
