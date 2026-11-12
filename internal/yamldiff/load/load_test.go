@@ -148,6 +148,18 @@ func TestDocumentsStillReadsTOML(t *testing.T) {
 	}
 }
 
+// TestDocumentsReadsEmptyInputBeforeTOML pins that blank input and a
+// bare document marker are one null document, where TOML would read them
+// as an empty table.
+func TestDocumentsReadsEmptyInputBeforeTOML(t *testing.T) {
+	for _, in := range []string{"", "---"} {
+		docs, err := Documents([]byte(in))
+		if err != nil || len(docs) != 1 || docs[0].Content[0].Kind != yamlnode.ScalarNode || docs[0].Content[0].Tag != yamlnode.TagNull {
+			t.Errorf("Documents(%q) = %v, %v", in, docs, err)
+		}
+	}
+}
+
 // inCoreDir runs the test from internal/yamldiff, where the fixtures and
 // the goldens live.
 func inCoreDir(t *testing.T) {
