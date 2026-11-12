@@ -20,10 +20,7 @@ func (ev *Evaluator) context() context.Context {
 // context.Canceled or context.DeadlineExceeded. The step names where
 // evaluation stopped, such as an operator's path, and never a value.
 func canceled(ctx context.Context, step string) error {
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("evaluation stopped before %s: %w", step, err)
-	}
-	return nil
+	return stopped(ctx, "evaluation", step)
 }
 
 // isCancel reports whether err is the cancellation of ctx, so a phase
