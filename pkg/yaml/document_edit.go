@@ -39,6 +39,14 @@ var (
 // end.
 type span struct{ start, end int }
 
+// slot is where Set writes the value at a path: the span of its text,
+// and for a block scalar the header and the body's indentation.
+type slot struct {
+	span
+	header blockHeader
+	indent int
+}
+
 // Editable reports whether Set can replace the value at path. It
 // returns nil when it can, and otherwise the error Set would return.
 //
@@ -59,26 +67,26 @@ func (d *Document) Editable(path string) error {
 }
 
 // setTarget resolves path for Set and returns where the value is and the
-// span of its text, or the error Set returns. op is the operation the
+// slot Set writes it in, or the error Set returns. op is the operation the
 // caller reports in an error.
-func (d *Document) setTarget(op, path string) (located, span, error) {
+func (d *Document) setTarget(op, path string) (located, slot, error) {
 	loc, err := d.resolve(op, path)
 	if err != nil {
-		return located{}, span{}, err
+		return located{}, slot{}, err
 	}
 	if reason := d.setRefusal(loc); reason != "" {
-		return located{}, span{}, loc.refusal(op, path, reason)
+		return located{}, slot{}, loc.refusal(op, path, reason)
 	}
-	var sp span
+	var sl slot
 	if isBlockScalar(loc.node) {
-		_, sp, _, err = d.blockSlot(loc.node)
+		sl.header, sl.span, sl.indent, err = d.blockSlot(loc.node)
 	} else {
-		sp, err = d.scalarSpan(loc.node)
+		sl.span, err = d.scalarSpan(loc.node)
 	}
 	if err != nil {
-		return located{}, span{}, loc.refusal(op, path, err.Error())
+		return located{}, slot{}, loc.refusal(op, path, err.Error())
 	}
-	return loc, sp, nil
+	return loc, sl, nil
 }
 
 // refusal is the error that refuses an edit of the value l names, at the

@@ -66,13 +66,14 @@ func (d *Document) Set(path string, value any) error {
 		reason := fmt.Sprintf("Set does not write a value of Go type %s", reflect.TypeOf(value))
 		return &DocumentError{Op: op, Path: path, Reason: reason, err: ErrUnsupportedEdit}
 	}
-	loc, sp, err := d.setTarget(op, path)
+	loc, sl, err := d.setTarget(op, path)
 	if err != nil {
 		return err
 	}
 	if isBlockScalar(loc.node) {
-		return d.setBlock(path, loc, value)
+		return d.setBlock(path, loc, sl, value)
 	}
+	sp := sl.span
 	w := renderSet(loc, value, tag)
 	next := make([]byte, 0, len(d.src)-(sp.end-sp.start)+len(w.text))
 	next = append(next, d.src[:sp.start]...)

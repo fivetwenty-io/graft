@@ -258,3 +258,29 @@ func TestDocumentSetRefusesToMoveAComment(t *testing.T) {
 		t.Errorf("Set(a, z) = %v, Bytes = %q", err, d.Bytes())
 	}
 }
+
+// TestDocumentSetEscapesLineSeparators checks that a one-line Set writes
+// U+2028 and U+2029 as double-quoted escapes, never raw, since YAML 1.1
+// parsers read the raw characters as line breaks.
+func TestDocumentSetEscapesLineSeparators(t *testing.T) {
+	for _, c := range []struct{ src, v, want string }{
+		{"a: b\n", "x y", "a: \"x\\Ly\"\n"},
+		{"a: b\n", "x y", "a: \"x\\Py\"\n"},
+		{"a: 'b'\n", "x y", "a: \"x\\Ly\"\n"},
+		{"a: \"b\"\n", "x y", "a: \"x\\Py\"\n"},
+		{"l: [b]\n", "x y", "l: [\"x\\Ly\"]\n"},
+	} {
+		path := "a"
+		if strings.HasPrefix(c.src, "l:") {
+			path = "l.0"
+		}
+		d := mustDoc(t, c.src)
+		if err := d.Set(path, c.v); err != nil {
+			t.Errorf("%q Set(%q): %v", c.src, c.v, err)
+			continue
+		}
+		if got := string(d.Bytes()); got != c.want {
+			t.Errorf("%q Set(%q) = %q, want %q", c.src, c.v, got, c.want)
+		}
+	}
+}

@@ -88,6 +88,10 @@ func TestDocumentSetBlockScalarRefusals(t *testing.T) {
 		"nil":                             {"a: |\n  one\n", nil, "a block scalar takes a string"},
 		"carriage return":                 {"a: |\n  one\n", "x\ry\n", "the value does not fit the block scalar's header"},
 		"next line":                       {"a: |\n  one\n", "x\u0085y\n", "the value does not fit the block scalar's header"},
+		"line separator":                  {"a: |\n  one\n", "x\u2028y\n", "the value does not fit the block scalar's header"},
+		"paragraph separator":             {"a: |\n  one\n", "x\u2029y\n", "the value does not fit the block scalar's header"},
+		"folded line separator":           {"a: >\n  one\n", "x\u2028y\n", "the value does not fit the block scalar's header"},
+		"folded paragraph separator":      {"a: >\n  one\n", "x\u2029y\n", "the value does not fit the block scalar's header"},
 		"indentation indicator and chomp": {"a: >-1\n one\n", "x", "the block scalar has an indentation indicator"},
 	}
 	for name, c := range cases {

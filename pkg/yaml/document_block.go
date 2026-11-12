@@ -194,7 +194,8 @@ func leadingSpaces(line []byte) int {
 // first non-empty line starts with a space or a tab, and, for a folded
 // header, any line that starts with a space or a tab. It also refuses a
 // value that holds a carriage return or U+0085, which the parser would
-// read back as a line break. Clip takes an
+// read back as a line break, or U+2028 or U+2029, which YAML 1.1
+// parsers such as yaml.v3 and libyaml read as one. Clip takes an
 // empty value or one that ends in exactly one line break, strip a value
 // with no final line break, and keep a value with at least one, each
 // extra one of which becomes a blank line. A value that holds nothing
@@ -206,7 +207,7 @@ func blockBody(value string, h blockHeader, indent int) (string, error) {
 	breaks := len(value) - len(text)
 	core := strings.TrimLeft(text, "\n")
 	if !chompFits(h.chomp, value, core, breaks) || startsIndented(core) ||
-		strings.ContainsAny(value, "\r\u0085") {
+		strings.ContainsAny(value, "\r\u0085\u2028\u2029") {
 		return "", errBlockFit
 	}
 	if value == "" {
@@ -256,22 +257,19 @@ func startsIndented(line string) bool {
 	return line != "" && (line[0] == ' ' || line[0] == '\t')
 }
 
-// setBlock makes Set's edit of the block scalar at loc, which setTarget
-// has accepted. It writes value as the scalar's body under the header
+// setBlock makes Set's edit of the block scalar at loc, whose slot
+// setTarget has found. It writes value as the scalar's body under the header
 // as written, at the body's indentation, and leaves the header line and
 // its comment alone. A value equal to the one the scalar holds changes
 // nothing, since the body may be written another way that reads the
 // same.
-func (d *Document) setBlock(path string, loc located, value any) error {
+func (d *Document) setBlock(path string, loc located, sl slot, value any) error {
 	const op = "set"
 	s, ok := value.(string)
 	if !ok {
 		return loc.refusal(op, path, reasonBlockString)
 	}
-	h, sp, indent, err := d.blockSlot(loc.node)
-	if err != nil {
-		return loc.refusal(op, path, err.Error())
-	}
+	h, sp, indent := sl.header, sl.span, sl.indent
 	if s == loc.node.Value {
 		return nil
 	}
