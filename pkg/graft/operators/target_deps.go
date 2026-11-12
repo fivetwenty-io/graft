@@ -2,6 +2,7 @@ package operators
 
 import (
 	"github.com/fivetwenty-io/graft/internal/oploc"
+	"github.com/fivetwenty-io/graft/internal/prunekeys"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -47,4 +48,35 @@ func readDeps(ev *Evaluator, arg *Expr, locs []*tree.Cursor, fallbacks bool) []*
 	default:
 		return nil
 	}
+}
+
+// prunedKeyHolders returns the path of each operator that sits above a
+// key that will be pruned, for an operator that leaves such keys out of
+// what it reads. A key given to --prune can be reached only through
+// what such an operator hands back, as x.bb is with x: (( grab m )), and
+// until that operator runs the key is not found in the map that holds
+// it. A reader that runs after the operator finds the key, so it leaves
+// the key out in either mode and in any order, as the output does.
+func prunedKeyHolders(ev *Evaluator, locs []*tree.Cursor) []*tree.Cursor {
+	paths := prunekeys.For(ev)
+	if len(paths) == 0 || len(locs) == 0 {
+		return nil
+	}
+	idx := oploc.For(ev, locs, ev.Tree)
+	var out []*tree.Cursor
+	for _, path := range paths {
+		c, err := tree.ParseCursor(path)
+		if err != nil {
+			continue
+		}
+		for n := 1; n < len(c.Nodes); n++ {
+			above := &tree.Cursor{Nodes: c.Nodes[:n]}
+			canon := oploc.Canonical(above, ev.Tree)
+			if idx.At(canon.Nodes) {
+				out = append(out, canon)
+				break
+			}
+		}
+	}
+	return out
 }

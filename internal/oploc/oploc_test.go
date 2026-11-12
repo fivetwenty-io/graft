@@ -66,6 +66,17 @@ func TestIndexUnderAndAbove(t *testing.T) {
 	if idx.AtOrAbove(nil) {
 		t.Fatal("the root is never an operator")
 	}
+
+	if !idx.At([]string{"meta", "a"}) || !idx.At([]string{"list", "0", "v"}) {
+		t.Fatal("meta.a and list.0.v are operators")
+	}
+	if idx.At([]string{"meta"}) || idx.At([]string{"meta", "a", "deep"}) {
+		t.Fatal("At names only the operator's own path")
+	}
+	var none *Index
+	if none.At([]string{"top"}) {
+		t.Fatal("a nil index holds nothing")
+	}
 }
 
 func TestIndexCovers(t *testing.T) {

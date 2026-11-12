@@ -391,3 +391,82 @@ func TestStringifyLeavesOutPrunedKeys(t *testing.T) {
 		}
 	}
 }
+
+// A key the caller prunes through a map that an operator hands back, as
+// --prune x.bb is with x: (( grab m )), leaves the map that operator
+// reads, so join and stringify leave it out of that map whichever order
+// they run in, and agree with the map the output holds.
+func TestReadersLeaveOutAKeyPrunedThroughAGrab(t *testing.T) {
+	cases := []struct {
+		name   string
+		src    string
+		prunes []string
+		want   map[string]interface{}
+	}{
+		{
+			name: "grab of the map",
+			src: "m: {a: 1, bb: 2}\nx: (( grab m ))\n" +
+				"aj: (( join \",\" m ))\nzj: (( join \",\" m ))\n" +
+				"as: (( stringify m ))\nzs: (( stringify m ))\n",
+			prunes: []string{"x.bb"},
+			want: map[string]interface{}{
+				"m": map[string]interface{}{"a": 1},
+				"aj": "a:1", "zj": "a:1",
+				"as": "a: 1\n", "zs": "a: 1\n",
+			},
+		},
+		{
+			name: "key below the grab",
+			src: "m: {k: {a: 1, bb: 2}}\nx: (( grab m ))\n" +
+				"aj: (( join \",\" m.k ))\nzj: (( join \",\" m.k ))\n",
+			prunes: []string{"x.k.bb"},
+			want: map[string]interface{}{
+				"aj": "a:1", "zj": "a:1",
+			},
+		},
+		{
+			name: "grab under a named list entry",
+			src: "m: {a: 1, bb: 2}\nl:\n- name: e\n  x: (( grab m ))\n" +
+				"aj: (( join \",\" m ))\nzj: (( join \",\" m ))\n",
+			prunes: []string{"l.e.x.bb"},
+			want: map[string]interface{}{
+				"aj": "a:1", "zj": "a:1",
+			},
+		},
+		{
+			name: "join the grab reads",
+			src: "m: {a: 1}\nx: (( grab y ))\n" +
+				"y:\n  bb: 1\n  j: (( join \",\" m ))\n",
+			prunes: []string{"x.bb"},
+			want: map[string]interface{}{
+				"x": map[string]interface{}{"j": "a:1"},
+				"y": map[string]interface{}{"j": "a:1"},
+			},
+		},
+	}
+	for _, tc := range cases {
+		for _, parallel := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/parallel=%v", tc.name, parallel), func(t *testing.T) {
+				engine, err := graft.NewEngine(graft.WithParallel(parallel))
+				if err != nil {
+					t.Fatal(err)
+				}
+				doc, err := engine.ParseYAML([]byte(tc.src))
+				if err != nil {
+					t.Fatal(err)
+				}
+				out, err := engine.Merge(context.Background(), doc).
+					WithPrune(tc.prunes...).Execute()
+				if err != nil {
+					t.Fatalf("err = %v", err)
+				}
+				got := out.RawData().(map[string]interface{})
+				for key, w := range tc.want {
+					if !reflect.DeepEqual(got[key], w) {
+						t.Errorf("%s = %#v, want %#v", key, got[key], w)
+					}
+				}
+			})
+		}
+	}
+}

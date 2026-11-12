@@ -79,6 +79,13 @@ func (JoinOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Curso
 	return deps
 }
 
+// SoftDependencies returns the operators above a key that will be
+// pruned, so join finds the key in the map that holds it and leaves it
+// out. See prunedKeyHolders.
+func (JoinOperator) SoftDependencies(ev *Evaluator, _ []*Expr, locs []*tree.Cursor) []*tree.Cursor {
+	return prunedKeyHolders(ev, locs)
+}
+
 // Run ...
 func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("running (( join ... )) operation at $.%s", ev.Here)

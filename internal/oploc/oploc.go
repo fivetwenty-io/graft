@@ -54,6 +54,11 @@ func (idx *Index) Covers(locs []*tree.Cursor) bool {
 	return len(locs) == 0 || &idx.locs[0] == &locs[0]
 }
 
+// At reports whether an operator sits at the canonical path nodes.
+func (idx *Index) At(nodes []string) bool {
+	return idx != nil && idx.at[key(nodes)]
+}
+
 // AtOrAbove reports whether an operator sits at the canonical path nodes
 // or at a path above it, other than the document root.
 func (idx *Index) AtOrAbove(nodes []string) bool {

@@ -44,6 +44,13 @@ func (StringifyOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.
 	return deps
 }
 
+// SoftDependencies returns the operators above a key that will be
+// pruned, so stringify finds the key in the map that holds it and leaves it
+// out. See prunedKeyHolders.
+func (StringifyOperator) SoftDependencies(ev *Evaluator, _ []*Expr, locs []*tree.Cursor) []*tree.Cursor {
+	return prunedKeyHolders(ev, locs)
+}
+
 // Run ...
 func (StringifyOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("running (( stringify ... )) operation at $.%s", ev.Here)
