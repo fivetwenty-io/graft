@@ -100,3 +100,19 @@ func TestDiffErrors(t *testing.T) {
 		t.Errorf("the error quotes the input: %v", err)
 	}
 }
+
+func TestDiffDoesNotReadTOML(t *testing.T) {
+	_, err := yaml.Diff([]byte("[server]\nport = 1\n"), []byte("[server]\nport = 2\n"), nil)
+	var de *yaml.DecodeError
+	if !errors.As(err, &de) {
+		t.Errorf("table header: %v", err)
+	}
+	r, err := yaml.Diff([]byte("name = \"x\"\nport = 1\n"), []byte("name = \"x\"\nport = 2\n"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := r.Changes()
+	if len(cs) != 1 || cs[0].Kind != yaml.ChangeModified || cs[0].Path != "" || cs[0].From.Kind != yaml.ScalarNode {
+		t.Errorf("key = value lines should read as one string: %+v", cs)
+	}
+}

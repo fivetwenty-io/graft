@@ -95,9 +95,11 @@ func (e *DiffError) Unwrap() error {
 }
 
 // Diff compares two YAML or JSON inputs, each of which may hold several
-// documents, with the engine graft diff uses. A parse failure comes back
-// as a *DecodeError, and inputs it can't compare come back as a
-// *DiffError.
+// documents, with the engine graft diff uses. It never reads TOML, which
+// graft diff reads only when it opens a file. TOML that starts with a
+// table header fails to parse, and TOML made of key = value lines reads
+// as one YAML string. A parse failure comes back as a *DecodeError, and
+// inputs it can't compare come back as a *DiffError.
 func Diff(a, b []byte, opts *DiffOptions) (*DiffReport, error) {
 	fromDocs, err := yamldiff.ParseDocuments(a)
 	if err != nil {
