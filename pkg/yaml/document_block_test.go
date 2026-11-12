@@ -111,3 +111,23 @@ func TestDocumentSetBlockScalarRefusals(t *testing.T) {
 		t.Errorf("Editable of an indentation indicator = %v", err)
 	}
 }
+
+// TestDocumentEditableRefusesBlockAtEndWithoutBreak checks that Editable
+// refuses a clip or keep block scalar that ends the input with no line
+// break, because no value with text fits it, and accepts a strip one.
+func TestDocumentEditableRefusesBlockAtEndWithoutBreak(t *testing.T) {
+	for in, refused := range map[string]bool{
+		"a: >\n  x":   true,
+		"a: |+\n  x":  true,
+		"a: |-\n  x":  false,
+		"a: >\n  x\n": false,
+	} {
+		d, err := yaml.ParseDocument([]byte(in))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := d.Editable("a") != nil; got != refused {
+			t.Errorf("Editable on %q refused = %v, want %v", in, got, refused)
+		}
+	}
+}
