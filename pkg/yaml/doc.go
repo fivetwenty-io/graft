@@ -115,7 +115,10 @@ Node reads the values a decode of the text reads.
 yaml.v2 agrees with graft about the order of a list and about a key written
 before or after the <<. yaml.v3 also lets an earlier map in the list win,
 but a key written in the mapping always wins over a merged value there,
-wherever the << sits.
+wherever the << sits. goccy's own decoder lets a later map in the list win
+instead, so a program that moves to this package from goccy keeps the value
+of the first map that holds a key, as spruce and the YAML merge key
+specification do.
 
 A time.Time target accepts a quoted date such as "2001-12-14". yaml.v2 and
 yaml.v3 refuse a quoted date that is not RFC 3339.
