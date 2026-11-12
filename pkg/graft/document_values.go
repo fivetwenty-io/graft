@@ -2,14 +2,33 @@ package graft
 
 import "reflect"
 
+// Limits for the quick check that finds a tree already in plain form.
+// A tree that goes deeper or holds more values than these allows is
+// handed to the slower walk, which tracks the containers it has seen,
+// so a cycle or heavy sharing can never make the quick check run long.
+const (
+	plainMaxDepth  = 512
+	plainMaxVisits = 1 << 21
+)
+
 // plainGoValue returns v with every slice or array (except []byte) as
 // []interface{} and every map with string keys as
 // map[string]interface{}, recursively. Other values come back as they
 // are. Values already in the plain form are rebuilt only when something
-// inside them changes. A container that holds itself is left as it is,
-// so the cycle checks further on still see it.
+// inside them changes, and a tree that is plain throughout comes back
+// without any allocation. A container that holds itself is left as it
+// is, so the cycle checks further on still see it, and a container
+// that appears in several places is converted once.
 func plainGoValue(v interface{}) interface{} {
-	return (&plainer{active: map[plainVisit]struct{}{}}).value(v)
+	budget := plainMaxVisits
+	if isPlainTree(v, 0, &budget) {
+		return v
+	}
+	p := &plainer{
+		active: map[plainVisit]struct{}{},
+		done:   map[plainVisit]interface{}{},
+	}
+	return p.value(v)
 }
 
 // plainGoMap is plainGoValue for a map[string]interface{}.
@@ -20,7 +39,53 @@ func plainGoMap(m map[string]interface{}) map[string]interface{} {
 	return m
 }
 
-// plainVisit identifies a map or slice that is being converted.
+// isPlainTree reports whether nothing in v needs converting. It
+// returns false, without having decided anything, when the tree is
+// deeper or larger than the limits allow.
+func isPlainTree(v interface{}, depth int, budget *int) bool {
+	switch t := v.(type) {
+	case nil, string, bool, int, int64, float64, []byte:
+		return true
+	case map[string]interface{}:
+		if depth > plainMaxDepth {
+			return false
+		}
+		for _, e := range t {
+			*budget--
+			if *budget < 0 || !isPlainTree(e, depth+1, budget) {
+				return false
+			}
+		}
+		return true
+	case []interface{}:
+		if depth > plainMaxDepth {
+			return false
+		}
+		for _, e := range t {
+			*budget--
+			if *budget < 0 || !isPlainTree(e, depth+1, budget) {
+				return false
+			}
+		}
+		return true
+	}
+	return !needsConversion(reflect.TypeOf(v))
+}
+
+// needsConversion reports whether a value of type t is a slice, array,
+// or string-keyed map that plainGoValue rewrites.
+func needsConversion(t reflect.Type) bool {
+	k := t.Kind()
+	if k == reflect.Map {
+		return t.Key().Kind() == reflect.String
+	}
+	if k == reflect.Slice || k == reflect.Array {
+		return t.Elem().Kind() != reflect.Uint8
+	}
+	return false
+}
+
+// plainVisit identifies a map or slice by its storage.
 type plainVisit struct {
 	ptr uintptr
 	typ reflect.Type
@@ -29,17 +94,7 @@ type plainVisit struct {
 
 type plainer struct {
 	active map[plainVisit]struct{}
-}
-
-// enter marks the container rv as being converted. It reports false
-// when rv is already being converted, which means it holds itself.
-func (p *plainer) enter(rv reflect.Value) (plainVisit, bool) {
-	k := plainVisit{ptr: rv.Pointer(), typ: rv.Type(), n: rv.Len()}
-	if _, seen := p.active[k]; seen && k.ptr != 0 {
-		return k, false
-	}
-	p.active[k] = struct{}{}
-	return k, true
+	done   map[plainVisit]interface{}
 }
 
 func (p *plainer) value(v interface{}) interface{} {
@@ -48,25 +103,27 @@ func (p *plainer) value(v interface{}) interface{} {
 		return v
 	}
 	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
-	case reflect.Map:
-		if rv.Type().Key().Kind() != reflect.String {
-			return v
-		}
-	case reflect.Slice, reflect.Array:
-		if rv.Type().Elem().Kind() == reflect.Uint8 {
-			return v
-		}
-	default:
+	if !needsConversion(rv.Type()) {
 		return v
 	}
-	if rv.Kind() != reflect.Array {
-		k, ok := p.enter(rv)
-		if !ok {
-			return v
-		}
-		defer delete(p.active, k)
+	if rv.Kind() == reflect.Array || rv.Pointer() == 0 {
+		return p.convert(v, rv)
 	}
+	k := plainVisit{ptr: rv.Pointer(), typ: rv.Type(), n: rv.Len()}
+	if res, ok := p.done[k]; ok {
+		return res
+	}
+	if _, busy := p.active[k]; busy {
+		return v
+	}
+	p.active[k] = struct{}{}
+	res := p.convert(v, rv)
+	delete(p.active, k)
+	p.done[k] = res
+	return res
+}
+
+func (p *plainer) convert(v interface{}, rv reflect.Value) interface{} {
 	switch t := v.(type) {
 	case map[string]interface{}:
 		return p.plainMap(t)

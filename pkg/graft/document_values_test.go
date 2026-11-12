@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 )
 
 type label string
@@ -89,5 +90,111 @@ func TestTypedValuesEvaluateTheSameInBothModes(t *testing.T) {
 	}
 	if results[0] != "a,b" || results[1] != results[0] {
 		t.Errorf("sequential %q, parallel %q", results[0], results[1])
+	}
+}
+
+func TestPlainGoValueAllocatesNothingForPlainTrees(t *testing.T) {
+	tree := map[string]interface{}{
+		"a": []interface{}{"x", 1, map[string]interface{}{"k": true}},
+		"b": map[string]interface{}{"c": []byte("raw"), "d": nil},
+	}
+	if n := testing.AllocsPerRun(100, func() { plainGoValue(tree) }); n != 0 {
+		t.Errorf("plainGoValue allocated %v times on a plain tree", n)
+	}
+	if n := testing.AllocsPerRun(100, func() { NewDocument(tree) }); n > 1 {
+		t.Errorf("NewDocument allocated %v times on a plain tree", n)
+	}
+}
+
+func TestPlainGoValueSharedSubstructureIsLinear(t *testing.T) {
+	var shared interface{} = []string{"leaf"}
+	for i := 0; i < 40; i++ {
+		shared = []interface{}{shared, shared}
+	}
+	done := make(chan interface{}, 1)
+	go func() { done <- plainGoValue(shared) }()
+	select {
+	case got := <-done:
+		top, ok := got.([]interface{})
+		if !ok || len(top) != 2 {
+			t.Fatalf("unexpected result %T", got)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("conversion of a heavily shared tree did not finish")
+	}
+}
+
+func TestPlainGoValueSharedContainerConvertsOnce(t *testing.T) {
+	leaf := []string{"a"}
+	got := plainGoValue(map[string]interface{}{"x": leaf, "y": leaf}).(map[string]interface{})
+	x, y := got["x"].([]interface{}), got["y"].([]interface{})
+	if len(x) != 1 || len(y) != 1 || &x[0] != &y[0] {
+		t.Errorf("shared slice was not converted once: %#v", got)
+	}
+}
+
+func TestPlainGoValueKeepsCyclesCyclic(t *testing.T) {
+	m := map[string]interface{}{"typed": []string{"a"}}
+	m["self"] = m
+	got := plainGoValue(m).(map[string]interface{})
+	if _, ok := got["typed"].([]interface{}); !ok {
+		t.Errorf("typed slice next to a cycle not converted: %T", got["typed"])
+	}
+	if inner, ok := got["self"].(map[string]interface{}); !ok || inner["self"] == nil {
+		t.Errorf("cycle was lost: %#v", got["self"])
+	}
+
+	s := make([]interface{}, 2)
+	s[0] = s
+	s[1] = []int{7}
+	gs := plainGoValue(s).([]interface{})
+	if _, ok := gs[1].([]interface{}); !ok {
+		t.Errorf("typed element next to a slice cycle not converted: %T", gs[1])
+	}
+
+	// A plain cycle is too deep for the quick check and must still end.
+	plain := map[string]interface{}{}
+	plain["self"] = plain
+	if got := plainGoValue(plain).(map[string]interface{}); got["self"] == nil {
+		t.Error("plain cycle was lost")
+	}
+}
+
+type namedBytes []byte
+
+func TestPlainGoValueEdgeShapes(t *testing.T) {
+	got := plainGoValue(map[string]interface{}{
+		"nilSlice": []string(nil),
+		"nilMap":   map[string]int(nil),
+		"arrOfSl":  [2][]string{{"a"}, {"b", "c"}},
+		"named":    namedBytes("xy"),
+	}).(map[string]interface{})
+	if v, ok := got["nilSlice"].([]interface{}); !ok || len(v) != 0 {
+		t.Errorf("nil typed slice = %#v", got["nilSlice"])
+	}
+	if v, ok := got["nilMap"].(map[string]interface{}); !ok || len(v) != 0 {
+		t.Errorf("nil typed map = %#v", got["nilMap"])
+	}
+	want := []interface{}{[]interface{}{"a"}, []interface{}{"b", "c"}}
+	if !reflect.DeepEqual(got["arrOfSl"], want) {
+		t.Errorf("array of slices = %#v", got["arrOfSl"])
+	}
+	if _, ok := got["named"].(namedBytes); !ok {
+		t.Errorf("named byte slice changed to %T", got["named"])
+	}
+}
+
+func TestSetTypedValueThenEvaluate(t *testing.T) {
+	engine := newModeEngine(t, false)
+	doc := NewDocument(map[string]interface{}{"j": "(( join \"-\" l ))"})
+	if err := doc.Set("l", []string{"a", "b"}); err != nil {
+		t.Fatal(err)
+	}
+	out, err := engine.Evaluate(context.Background(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := out.GetString("j"); v != "a-b" {
+		t.Errorf("j = %q", v)
 	}
 }

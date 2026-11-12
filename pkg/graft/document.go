@@ -70,7 +70,14 @@ func (d *document) plainData() map[string]interface{} {
 	return plainMap(d.data)
 }
 
-// NewDocument creates a new document from a map.
+// NewDocument creates a new document from a map. Typed slices and
+// string-keyed maps inside it, such as []string or map[string]int, are
+// converted to the plain []interface{} and map[string]interface{}
+// forms the operators read. When nothing in the map needs converting,
+// the document uses the caller's map itself, so later changes to it
+// show up in the document. When something does, the document gets a
+// converted copy of the map and later top-level changes to the
+// caller's map are not seen.
 func NewDocument(data map[string]interface{}) Document {
 	if data == nil {
 		data = make(map[string]interface{})
