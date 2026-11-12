@@ -135,3 +135,47 @@ func TestParseReaderContextStopsMidRead(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// eofWithData hands out all its data together with io.EOF, and runs
+// after once that final Read has happened.
+type eofWithData struct {
+	data  string
+	after func()
+}
+
+func (e *eofWithData) Read(p []byte) (int, error) {
+	n := copy(p, e.data)
+	if e.after != nil {
+		e.after()
+	}
+	return n, io.EOF
+}
+
+func TestParseReaderContextKeepsDataReturnedWithEOF(t *testing.T) {
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := engine.ParseReaderContext(context.Background(), &eofWithData{data: "a: 1\nb: 2\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := doc.GetInt("a")
+	b, _ := doc.GetInt("b")
+	if a != 1 || b != 2 {
+		t.Errorf("a = %d, b = %d", a, b)
+	}
+}
+
+func TestParseReaderContextCanceledAfterFinalRead(t *testing.T) {
+	engine, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	doc, err := engine.ParseReaderContext(ctx, &eofWithData{data: "a: 1\n", after: cancel})
+	if doc != nil || !errors.Is(err, context.Canceled) {
+		t.Errorf("doc = %v, err = %v", doc, err)
+	}
+}
