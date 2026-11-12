@@ -33,7 +33,7 @@ func inlinesMap(t reflect.Type) bool {
 			continue
 		}
 		_, opts, _ := strings.Cut(fieldTag(f), ",")
-		if !hasOption(opts, "inline") {
+		if !inlineOption(opts) {
 			continue
 		}
 		ft := f.Type

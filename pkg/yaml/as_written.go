@@ -313,7 +313,7 @@ func (w *textWalk) structKeys(t reflect.Type) *structKeys {
 			continue
 		}
 		name, opts, _ := strings.Cut(fieldTag(f), ",")
-		if hasOption(opts, "inline") {
+		if inlineOption(opts) {
 			w.addInline(got, i, f.Type)
 			continue
 		}
@@ -372,13 +372,13 @@ func (w *textWalk) addInline(keys *structKeys, i int, ft reflect.Type) {
 	}
 }
 
-// hasOption reports whether the comma-separated tag options opts hold
-// want.
-func hasOption(opts, want string) bool {
+// inlineOption reports whether the comma-separated tag options opts
+// hold inline.
+func inlineOption(opts string) bool {
 	for opts != "" {
 		var opt string
 		opt, opts, _ = strings.Cut(opts, ",")
-		if opt == want {
+		if opt == "inline" {
 			return true
 		}
 	}

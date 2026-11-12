@@ -423,7 +423,7 @@ func readsAsField(t reflect.Type, name string) bool {
 	for i := range t.NumField() {
 		f := t.Field(i)
 		_, opts, _ := strings.Cut(fieldTag(f), ",")
-		if decodesField(f) && !hasOption(opts, "inline") && fieldKey(f) == name {
+		if decodesField(f) && !inlineOption(opts) && fieldKey(f) == name {
 			return true
 		}
 	}
