@@ -230,9 +230,14 @@ func (w *siteWalk) structMapping(n ast.Node, t reflect.Type, path []hookStep) (a
 //
 // The mapping's sites start at index from. An alias can give a key that
 // an earlier pair of the mapping already has, and goccy then fills the
-// field from the later pair alone, so the sites an earlier pair recorded
-// for the same field are canceled first. A mapping has a pair for each
-// field at most, apart from such repeats, so the search stays short.
+// field from the later pair alone. So before a pair's value is walked,
+// every site the mapping's earlier pairs recorded is checked, and those
+// under the same field are canceled. The check runs for every pair that
+// fills a field, whether or not its key repeats, so one mapping costs
+// its pairs times the sites recorded under it. Each check compares a few
+// field indexes and allocates nothing. The struct type bounds the pairs,
+// since goccy fills each field from one pair, but nothing bounds the
+// sites under an earlier field.
 func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.Type, path []hookStep, from int) (*ast.MappingValueNode, bool, error) {
 	at, shared := reader(t, keys.index[keyString(keyText(mv.Key))])
 	if shared {
