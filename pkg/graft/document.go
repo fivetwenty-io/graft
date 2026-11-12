@@ -459,9 +459,12 @@ func (d *document) Prune(keys ...string) Document {
 	return cloned
 }
 
-// pruneKeyInPlace removes a single key from d's own data in place. Callers
-// must only invoke this on a document that is already an isolated clone
-// (see Prune); it mutates d.data directly rather than copying first.
+// pruneKeyInPlace removes a single key from d's own data in place,
+// without copying first. It has two callers. Prune calls it on a clone
+// it has just made, so the document Prune was called on is unchanged.
+// The engine's prune step calls it on the evaluated tree itself, on
+// purpose, so a key pruned from a map leaves every place that grabbed
+// that map, and the Document a caller passed to Evaluate loses the key.
 func (d *document) pruneKeyInPlace(key string) {
 	// Split on dots, keeping a bracketed dotted node (as the (( prune ))
 	// operator queues one) whole
