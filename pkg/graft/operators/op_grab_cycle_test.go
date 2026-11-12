@@ -1,0 +1,118 @@
+package operators_test
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/fivetwenty-io/graft/pkg/graft"
+	_ "github.com/fivetwenty-io/graft/pkg/graft/operators"
+)
+
+// evaluateWithin evaluates src on an engine with the parallel evaluator
+// on or off, and fails the test when evaluation takes longer than 10s,
+// so a cycle that never settles fails instead of hanging the suite. A
+// result that holds itself is returned as an error, because rendering
+// it would recurse without end.
+func evaluateWithin(t *testing.T, parallel bool, src string) (graft.Document, error) {
+	t.Helper()
+	engine, err := graft.NewEngine(graft.WithParallel(parallel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	de, ok := engine.(*graft.DefaultEngine)
+	if !ok {
+		t.Fatalf("engine is %T, want *graft.DefaultEngine", engine)
+	}
+	if got := de.GetWorkerPool() != nil; got != parallel {
+		t.Fatalf("worker pool present = %v, want %v", got, parallel)
+	}
+	doc, err := engine.ParseYAML([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		doc graft.Document
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		out, err := engine.Evaluate(context.Background(), doc)
+		if err == nil {
+			err = graft.CheckForCycles(out.RawData(), 64)
+		}
+		done <- result{out, err}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	select {
+	case r := <-done:
+		return r.doc, r.err
+	case <-ctx.Done():
+		t.Fatal("Evaluate did not finish within 10s")
+		return nil, nil
+	}
+}
+
+func TestGrabOfAnAncestorIsACycle(t *testing.T) {
+	cases := []struct {
+		name, src, want string
+	}{
+		{"direct child", "q:\n  b: (( grab q ))\n", "$.q.b grabs $.q"},
+		{"deeper", "q:\n  c:\n    y: (( grab q ))\n", "$.q.c.y grabs $.q"},
+		{"two at once", "q:\n  b: (( grab q ))\n  c:\n    y: (( grab q ))\n", "grabs $.q"},
+		{"named item", "jobs:\n- name: api\n  self: (( grab jobs.api ))\n", "grabs $.jobs.api"},
+		{"indexed item", "jobs:\n- name: api\n  self: (( grab jobs.0 ))\n", "grabs $.jobs.0"},
+		{"predicate item", "jobs:\n- name: api\n  self: (( grab jobs[name=api] ))\n", "grabs $.jobs.name=api"},
+		{"second of two paths", "a: 1\nq:\n  b: (( grab a q ))\n", "$.q.b grabs $.q"},
+		{"computed path", "k: q\nq:\n  b: (( grab (( concat k \"\" )) ))\n", "$.q.b grabs $.q"},
+		{"nested in another call", "q:\n  b: (( concat \"x\" (( grab q )) ))\n", "$.q.b grabs $.q"},
+	}
+	for _, tc := range cases {
+		for _, parallel := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/parallel=%v", tc.name, parallel), func(t *testing.T) {
+				_, err := evaluateWithin(t, parallel, tc.src)
+				if err == nil || !strings.Contains(err.Error(), "cycle detected") || !strings.Contains(err.Error(), "which contains it") {
+					t.Fatalf("err = %v, want a cycle error", err)
+				}
+				if !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("err = %v, want it to say %q", err, tc.want)
+				}
+			})
+		}
+	}
+}
+
+func TestGrabOfASiblingStillWorks(t *testing.T) {
+	src := "q:\n  a: 1\n  b: (( grab q.a ))\n" +
+		"qa:\n  x: (( grab q ))\n  y: (( grab q.a ))\n" +
+		"jobs:\n- name: api\n  peer: (( grab jobs.web.port ))\n- name: web\n  port: 80\n" +
+		"r: (( grab q ))\n" +
+		"f:\n  x: (( grab f || \"fallback\" ))\n"
+	for _, parallel := range []bool{true, false} {
+		out, err := evaluateWithin(t, parallel, src)
+		if err != nil {
+			t.Fatalf("parallel=%v: %v", parallel, err)
+		}
+		if v, _ := out.GetInt("q.b"); v != 1 {
+			t.Errorf("parallel=%v: q.b = %d", parallel, v)
+		}
+		if v, _ := out.GetInt("qa.x.a"); v != 1 {
+			t.Errorf("parallel=%v: qa.x.a = %d", parallel, v)
+		}
+		if v, _ := out.GetInt("qa.y"); v != 1 {
+			t.Errorf("parallel=%v: qa.y = %d", parallel, v)
+		}
+		if v, _ := out.GetInt("jobs.0.peer"); v != 80 {
+			t.Errorf("parallel=%v: jobs.0.peer = %d", parallel, v)
+		}
+		if v, _ := out.GetInt("r.b"); v != 1 {
+			t.Errorf("parallel=%v: r.b = %d", parallel, v)
+		}
+		if v, _ := out.GetString("f.x"); v != "fallback" {
+			t.Errorf("parallel=%v: f.x = %q", parallel, v)
+		}
+	}
+}

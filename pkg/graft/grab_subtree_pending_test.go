@@ -3,7 +3,6 @@ package graft_test
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -83,22 +82,12 @@ zmeta:
   - (( concat "1" (grab aaa.1) ))
   - "2"
 `, "x", "zmeta.l.0"},
-		{"a list that holds the reader itself", `meta:
-  l:
-  - 1
-  - (( join "," (grab meta.l) ))
-`, "meta.l.1", "meta.l.1"},
 		{"a bracket path that reaches the grab itself", `k: (( concat "t" "" ))
 meta:
   t: (( grab out ))
 out:
   v: (( grab meta[k].v ))
 `, "out.v", "out.v"},
-		{"a nested grab of its own ancestor", `meta:
-  a: (( grab meta.b ))
-  b: (( concat "x" "y" ))
-  c: (( join "," (grab meta) ))
-`, "meta.c", "meta.c"},
 	}
 	for _, mode := range leakModes {
 		for _, tc := range cases {
@@ -127,42 +116,46 @@ out:
 	}
 }
 
-// TestGrabOfOwnAncestorKeepsBehavior checks that a grab of a map that
-// holds the grab itself still gives the map, which then holds itself, as
-// it did before graft ordered grabs after the operators under their
-// targets. Neither the soft edges nor the pending check turn it into an
-// error.
-func TestGrabOfOwnAncestorKeepsBehavior(t *testing.T) {
-	docs := map[string]string{
-		"alone": `meta:
+// TestGrabOfOwnAncestorFailsAsACycle checks that a grab of a map or
+// list that holds the grab itself fails in both modes with an error that
+// names the grab and its target, whether the grab is written to the tree
+// or nested in another call. The target would otherwise end up holding
+// itself, or hand on the text of the call that reads it.
+func TestGrabOfOwnAncestorFailsAsACycle(t *testing.T) {
+	cases := []struct {
+		name, doc, grab, target string
+	}{
+		{"alone", `meta:
   a: (( grab meta ))
-`,
-		"beside another operator": `meta:
+`, "meta.a", "meta"},
+		{"beside another operator", `meta:
   a: (( grab meta ))
   b: (( concat "x" "y" ))
-`,
+`, "meta.a", "meta"},
+		{"nested in another call", `meta:
+  b: (( concat "x" "y" ))
+  a: (( join "," (grab meta) ))
+`, "meta.a", "meta"},
+		{"a list that holds the reader itself", `meta:
+  l:
+  - 1
+  - (( join "," (grab meta.l) ))
+`, "meta.l.1", "meta.l"},
 	}
 	for _, mode := range leakModes {
-		for name, doc := range docs {
-			t.Run(mode.name+"/"+name, func(t *testing.T) {
-				got, err := mergeBracketDoc(t, mode.parallel, doc)
-				if err != nil {
-					t.Fatalf("Execute: %v", err)
+		for _, tc := range cases {
+			t.Run(mode.name+"/"+tc.name, func(t *testing.T) {
+				_, err := mergeBracketDoc(t, mode.parallel, tc.doc)
+				if err == nil {
+					t.Fatal("Execute succeeded, want a cycle error")
 				}
-				v, err := got.Get("meta")
-				if err != nil {
-					t.Fatal(err)
+				msg := err.Error()
+				want := "cycle detected: $." + tc.grab + " grabs $." + tc.target + ", which contains it"
+				if !strings.Contains(msg, want) {
+					t.Fatalf("error %q does not say %q", msg, want)
 				}
-				meta, ok := v.(map[string]interface{})
-				if !ok {
-					t.Fatalf("meta is %T, want a map", v)
-				}
-				inner, ok := meta["a"].(map[string]interface{})
-				if !ok || reflect.ValueOf(inner).Pointer() != reflect.ValueOf(meta).Pointer() {
-					t.Fatalf("meta.a is not meta itself")
-				}
-				if b, ok := meta["b"]; ok && b != "xy" {
-					t.Fatalf("meta.b is %v, want xy", b)
+				if strings.Contains(msg, "concat") || strings.Contains(msg, "join") || strings.Contains(msg, "xy") {
+					t.Fatalf("error %q quotes input", msg)
 				}
 			})
 		}
