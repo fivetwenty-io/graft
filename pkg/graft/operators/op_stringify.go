@@ -35,18 +35,10 @@ func (StringifyOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.
 	deps = append(deps, auto...)
 
 	for _, arg := range args {
-		if arg == nil || arg.Type != Reference || arg.Reference == nil {
+		if arg == nil || arg.Type != Reference {
 			continue
 		}
-		canon, err := arg.Reference.Canonical(ev.Tree)
-		if err != nil {
-			continue
-		}
-		for _, other := range locs {
-			if other.Under(canon) {
-				deps = append(deps, other)
-			}
-		}
+		deps = append(deps, locsUnder(ev, arg.Reference, locs)...)
 	}
 
 	return deps
