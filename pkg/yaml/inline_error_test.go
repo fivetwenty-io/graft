@@ -3,6 +3,7 @@ package yaml_test
 import (
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -126,6 +127,66 @@ func TestInlineMapErrorKeepsWhatTheDecodeWrote(t *testing.T) {
 	}
 	if v.Name != "n" {
 		t.Errorf("got %+v, want the name the decode wrote", v)
+	}
+}
+
+// keyRing is a caller's type whose method panics unless its mapping
+// holds every key from a to h, as a method that trusts its input can.
+type keyRing struct {
+	keys map[string]int
+}
+
+// keyRingPanics counts the panics keyRing's method raises.
+var keyRingPanics atomic.Int64
+
+func (k *keyRing) UnmarshalYAML(unmarshal func(any) error) error {
+	var m map[string]int
+	if err := unmarshal(&m); err != nil {
+		return err
+	}
+	for _, name := range strings.Split("abcdefgh", "") {
+		if _, ok := m[name]; !ok {
+			keyRingPanics.Add(1)
+			panic("keyRing has no key " + name)
+		}
+	}
+	k.keys = m
+	return nil
+}
+
+// ringBetween puts a keyRing between two inline maps, and declares the
+// later one first so that goccy reports its bad value first.
+type ringBetween struct {
+	Second inlineRest `yaml:"second"`
+	Keys   keyRing    `yaml:"keys"`
+	First  inlineRest `yaml:"first"`
+}
+
+func TestInlineMapErrorSurvivesAPanickingMethod(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("first:\n  a: 1\n  b: x\nkeys:\n")
+	for i, name := range strings.Split("abcdefgh", "") {
+		b.WriteString("  " + name + ": " + string(rune('1'+i)) + "\n")
+	}
+	b.WriteString("second:\n  a: 1\n  b: y\n")
+	src := []byte(b.String())
+	keyRingPanics.Store(0)
+	var want string
+	for i := 0; i < 200; i++ {
+		var v ringBetween
+		err := yaml.Unmarshal(src, &v)
+		var de *yaml.DecodeError
+		if !errors.As(err, &de) || de.Kind != yaml.ErrorKindType || de.Line != 3 {
+			t.Fatalf("run %d: %v, want a type error at line 3", i, err)
+		}
+		if i == 0 {
+			want = err.Error()
+		} else if err.Error() != want {
+			t.Fatalf("run %d: %q, run 0: %q", i, err.Error(), want)
+		}
+	}
+	if keyRingPanics.Load() == 0 {
+		t.Fatal("the search never handed keyRing a mapping without all its keys")
 	}
 }
 

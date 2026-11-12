@@ -76,6 +76,12 @@ func inlinesMap(t reflect.Type) bool {
 // two rounds unless aliases put values out of document order. The
 // rounds are capped at a small multiple of the bits in the unit count,
 // and past the cap the best error so far is returned.
+//
+// A caller's own unmarshal method can panic when a prefix hands it a
+// mapping with keys missing. Such a panic stops the search, and the
+// best error so far is returned. Every error the search returns is one
+// goccy reported, so a stopped search names a real bad value, only
+// perhaps not the earliest.
 func earliestTypeError(body ast.Node, v any, opts DecodeOptions, own ownScalars, first *DecodeError) *DecodeError {
 	s := prefixSearch{target: reflect.TypeOf(v), opts: opts, own: own}
 	best, last := first, first
@@ -86,7 +92,7 @@ func earliestTypeError(body ast.Node, v any, opts DecodeOptions, own ownScalars,
 			break
 		}
 		body = next
-		found, units := s.firstFailure(body, errorSrcPos(best))
+		found, units, stopped := s.firstFailure(body, errorSrcPos(best))
 		if round == 0 {
 			limit = 4 + 2*bits.Len(uint(units))
 		}
@@ -96,6 +102,9 @@ func earliestTypeError(body ast.Node, v any, opts DecodeOptions, own ownScalars,
 		last = found
 		if earlier(last, best) {
 			best = last
+		}
+		if stopped {
+			break
 		}
 	}
 	return best
@@ -148,36 +157,50 @@ type prefixSearch struct {
 
 // firstFailure returns the error of the shortest prefix of body that
 // ends at a unit start no later than bound and fails, or nil when none
-// fails. It also returns how many units body holds.
-func (s prefixSearch) firstFailure(body ast.Node, bound srcPos) (*DecodeError, int) {
+// fails. It also returns how many units body holds, and whether a decode
+// panicked. A panic ends the search, which then returns the error of the
+// shortest failing prefix it has decoded, or nil when it has none.
+func (s prefixSearch) firstFailure(body ast.Node, bound srcPos) (found *DecodeError, units int, stopped bool) {
 	st := &unitStarts{memo: make(map[ast.Node]srcPos), seen: make(map[ast.Node]bool)}
 	st.collect(body)
-	units := len(st.all)
+	units = len(st.all)
 	ends := st.upTo(bound)
 	if len(ends) == 0 {
-		return nil, units
+		return nil, units, false
 	}
 	failed := st.prefix(body, ends[len(ends)-1])
-	err := s.decode(failed)
-	if err == nil {
-		return nil, units
+	panicked, err := s.decode(failed)
+	if panicked || err == nil {
+		return nil, units, panicked
 	}
 	lo, hi := 0, len(ends)-1
 	for lo < hi {
 		mid := lo + (hi-lo)/2
 		b := st.prefix(body, ends[mid])
-		if got := s.decode(b); got != nil {
+		panicked, got := s.decode(b)
+		if panicked {
+			stopped = true
+			break
+		}
+		if got != nil {
 			hi, err, failed = mid, got, b
 		} else {
 			lo = mid + 1
 		}
 	}
-	return translate(s.own.locate(locate(err, failed, s.target), s.target.Elem())), units
+	return translate(s.own.locate(locate(err, failed, s.target), s.target.Elem())), units, stopped
 }
 
-// decode decodes body into a new value of target.
-func (s prefixSearch) decode(body ast.Node) error {
-	return decodeBody(body, reflect.New(s.target.Elem()).Interface(), s.opts)
+// decode decodes body into a new value of target. It recovers any panic
+// and reports it, since a caller's own unmarshal method may not expect
+// a mapping that the search has cut short.
+func (s prefixSearch) decode(body ast.Node) (panicked bool, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			panicked, err = true, nil
+		}
+	}()
+	return false, decodeBody(body, reflect.New(s.target.Elem()).Interface(), s.opts)
 }
 
 // unitStarts computes where each node's subtree starts, once for each
