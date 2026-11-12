@@ -9,11 +9,12 @@ import (
 // reasonOtherPart is the reason the verifier refuses every edit with.
 const reasonOtherPart = "the edit would change another part of the document"
 
-// commit puts next in place of d.src when next is d.src with the bytes
-// of old replaced, parses to exactly one document whose tree matches
-// d's everywhere except at the node loc names, and check accepts the
-// node next holds there. On any failure it leaves d unchanged and
-// returns a DocumentError wrapping ErrUnsupportedEdit.
+// commit makes Set's edit at path. It puts next in place of d.src when
+// next is d.src with the bytes of old replaced, parses to exactly one
+// document whose tree matches d's everywhere except at the node loc
+// names, and check accepts the node next holds there. On any failure it
+// leaves d unchanged and returns a DocumentError for the "set"
+// operation, wrapping ErrUnsupportedEdit.
 //
 // old is the span of d.src the edit replaces. Every byte before its
 // start must open next unchanged, and every byte after its end must
@@ -28,7 +29,8 @@ const reasonOtherPart = "the edit would change another part of the document"
 // one's, since an edit means to change them. check must compare them
 // with what the edit meant to write, and make sure the new node's text
 // is the text the edit wrote.
-func (d *Document) commit(op, path string, next []byte, loc located, old span, check func(n *yamlnode.Node) error) error {
+func (d *Document) commit(path string, next []byte, loc located, old span, check func(n *yamlnode.Node) error) error {
+	const op = "set"
 	if !keepsAround(d.src, next, old) {
 		return refuseEdit(op, path, loc.written().Line)
 	}
@@ -117,11 +119,12 @@ func sameComments(a, b *yamlnode.Node) bool {
 
 // sameOutside reports whether a and b, whose line indexes are al and bl,
 // differ only on the lines of one node: from line first to line aLast
-// in a, and from line first to line bLast in b. It takes the lines the
-// two have in common at the start and at the end, and requires that
-// those cover every line before first and every line after the node's
-// last line on each side, so the lines after the node move by
-// bLast-aLast and nothing else.
+// in a, and from line first to line bLast in b. It counts the lines the
+// two have in common at the start and, separately, at the end, and
+// requires that those cover every line before first and every line
+// after the node's last line on each side, so the lines after the node
+// move by bLast-aLast and nothing else. The two counts may overlap, as
+// they do when the node's text is unchanged.
 func sameOutside(a []byte, al []int, b []byte, bl []int, first, aLast, bLast int) bool {
 	na, nb := len(al), len(bl)
 	head := 0
@@ -129,7 +132,7 @@ func sameOutside(a []byte, al []int, b []byte, bl []int, first, aLast, bLast int
 		head++
 	}
 	tail := 0
-	for tail < na-head && tail < nb-head && bytes.Equal(lineOf(a, al, na-tail), lineOf(b, bl, nb-tail)) {
+	for tail < na && tail < nb && bytes.Equal(lineOf(a, al, na-tail), lineOf(b, bl, nb-tail)) {
 		tail++
 	}
 	return head >= first-1 && na-tail <= aLast && nb-tail <= bLast

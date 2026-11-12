@@ -299,8 +299,9 @@ func scalarToken(t token.Type) bool {
 		token.OctetIntegerType, token.HexIntegerType, token.FloatType,
 		token.InfinityType, token.NanType:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 // readsAs reports whether text, written as a mapping value, parses to

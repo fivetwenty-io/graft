@@ -11,10 +11,6 @@ import (
 	"github.com/fivetwenty-io/graft/internal/yamlnode"
 )
 
-// reasonUnwritable is the reason Set refuses a value the encoder can't
-// write as one plain scalar on one line.
-const reasonUnwritable = "the value can't be written on one line"
-
 // errNotWritten is what a Set check returns when the edited text holds
 // a node other than the one Set meant to write.
 var errNotWritten = errors.New("the edited text does not hold the value Set wrote")
@@ -43,7 +39,12 @@ var errNotWritten = errors.New("the edited text does not hold the value Set wrot
 // ErrPathNotFound, since Set never adds a key. Set parses the edited
 // text again, and refuses with ErrUnsupportedEdit unless the new value
 // decodes back to value and nothing else in the document has changed.
-// A refused Set leaves the bytes as they were.
+// That includes where a comment belongs, so Set refuses to quote a
+// plain value that a comment line directly follows, since the parser
+// gives that comment to the document rather than to the value's key once
+// the value is quoted. Setting a value to what it already holds
+// succeeds and changes nothing. A refused Set leaves the bytes as they
+// were.
 func (d *Document) Set(path string, value any) error {
 	const op = "set"
 	tag, ok := setTag(value)
@@ -55,16 +56,13 @@ func (d *Document) Set(path string, value any) error {
 	if err != nil {
 		return err
 	}
-	w, ok := renderSet(loc, value, tag)
-	if !ok {
-		return loc.refusal(op, path, reasonUnwritable)
-	}
+	w := renderSet(loc, value, tag)
 	next := make([]byte, 0, len(d.src)-(sp.end-sp.start)+len(w.text))
 	next = append(next, d.src[:sp.start]...)
 	next = append(next, w.text...)
 	next = append(next, d.src[sp.end:]...)
 	wrote := span{sp.start, sp.start + len(w.text)}
-	return d.commit(op, path, next, loc, sp, func(n *yamlnode.Node) error {
+	return d.commit(path, next, loc, sp, func(n *yamlnode.Node) error {
 		return w.check(next, wrote, n, value)
 	})
 }
@@ -97,16 +95,18 @@ type setText struct {
 }
 
 // renderSet returns the text Set writes for value, whose tag is tag, in
-// the slot loc names. It returns false when value has no one-line text.
-func renderSet(loc located, value any, tag string) (setText, bool) {
+// the slot loc names.
+func renderSet(loc located, value any, tag string) setText {
 	s, isString := value.(string)
 	if !isString {
-		out, err := yamlcodec.MarshalYAML(value)
+		// MarshalYAML writes every type setTag accepts on one line, and
+		// the check refuses any text that does not read back as value.
+		out, _ := yamlcodec.MarshalYAML(value)
 		text := strings.TrimSuffix(string(out), "\n")
-		if err != nil || text == "" || strings.ContainsAny(text, "\r\n") {
-			return setText{}, false
+		if tag == yamlnode.TagFloat {
+			text = withDecimalPoint(text)
 		}
-		return setText{text: text, value: text, tag: tag}, true
+		return setText{text: text, value: text, tag: tag}
 	}
 	prefer := yamlcodec.InlinePlain
 	switch {
@@ -122,7 +122,19 @@ func renderSet(loc located, value any, tag string) (setText, bool) {
 		text = yamlcodec.InlineScalar(s, yamlcodec.InlineDouble)
 		style = yamlnode.StyleDouble
 	}
-	return setText{text: text, value: s, tag: tag, style: style}, true
+	return setText{text: text, value: s, tag: tag, style: style}
+}
+
+// withDecimalPoint returns the float text f with ".0" put before an
+// exponent whose mantissa has no decimal point, so that 1e+06 becomes
+// 1.0e+06. Unmarshal and Node.Decode read a plain 1e+06 as a string
+// when they decode into an interface, and read 1.0e+06 as a float64.
+func withDecimalPoint(f string) string {
+	e := strings.IndexAny(f, "eE")
+	if e < 0 || strings.IndexByte(f[:e], '.') >= 0 {
+		return f
+	}
+	return f[:e] + ".0" + f[e:]
 }
 
 // quotedStyle returns the style of the one-line scalar text: double or
@@ -140,8 +152,10 @@ func quotedStyle(text string) yamlnode.Style {
 // check reports whether n, a node of the tree parsed from next, is the
 // node Set meant to write for value at wrote. Its Value, Tag, and Style
 // must be the ones w names, and its text must be exactly the bytes at
-// wrote. The public Node for it must decode into value's Go type as a
-// value equal to value, or as a NaN when value is a NaN.
+// wrote. The public Node for it must decode into an interface as the
+// kind of Go value value is, so a reader that doesn't know the type
+// sees the one Set was given. It must also decode into value's Go type
+// as a value equal to value, or as a NaN when value is a NaN.
 func (w setText) check(next []byte, wrote span, n *yamlnode.Node, value any) error {
 	if n.Kind != yamlnode.ScalarNode || n.Value != w.value || n.Tag != w.tag || n.Style != w.style || n.BareTag {
 		return errNotWritten
@@ -150,11 +164,19 @@ func (w setText) check(next []byte, wrote span, n *yamlnode.Node, value any) err
 	if at, err := edited.scalarSpan(n); err != nil || at != wrote {
 		return errNotWritten
 	}
+	pn := publicNode(next, n)
+	var generic any
+	if err := pn.Decode(&generic); err != nil {
+		return err
+	}
+	if kindClass(generic) != kindClass(value) {
+		return errNotWritten
+	}
 	if value == nil {
 		return nil
 	}
 	got := reflect.New(reflect.TypeOf(value))
-	if err := publicNode(next, n).Decode(got.Interface()); err != nil {
+	if err := pn.Decode(got.Interface()); err != nil {
 		return err
 	}
 	if isNaN(value) {
@@ -167,6 +189,27 @@ func (w setText) check(next []byte, wrote span, n *yamlnode.Node, value any) err
 		return errNotWritten
 	}
 	return nil
+}
+
+// kindClass groups a decoded value by the kind of scalar it is: nil, a
+// string, a bool, an integer of any size or sign, or a float.
+func kindClass(v any) string {
+	if v == nil {
+		return "null"
+	}
+	switch reflect.TypeOf(v).Kind() {
+	case reflect.String:
+		return "string"
+	case reflect.Bool:
+		return "bool"
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return "int"
+	case reflect.Float32, reflect.Float64:
+		return "float"
+	default:
+		return reflect.TypeOf(v).String()
+	}
 }
 
 // isNaN reports whether v is a float32 or float64 NaN.

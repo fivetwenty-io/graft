@@ -190,3 +190,71 @@ func TestDocumentSetErrorNamesTheOperation(t *testing.T) {
 		t.Errorf("Set(name, uintptr) = %v", err)
 	}
 }
+
+// TestDocumentSetFloatsReadBackAsFloats checks that a float written in
+// exponent form decodes as a float64 into an interface, through both
+// Node.Decode and Unmarshal, and not as the string a bare 1e+06 reads
+// as.
+func TestDocumentSetFloatsReadBackAsFloats(t *testing.T) {
+	for _, f := range []float64{1e6, 3e10, 1e21, 1e100, 1e-7, -2.5e-9, 1.25, 1.0} {
+		d := mustDoc(t, setSrc)
+		if err := d.Set("ratio", f); err != nil {
+			t.Errorf("Set(ratio, %v): %v", f, err)
+			continue
+		}
+		n, err := d.Get("ratio")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var viaNode any
+		if err := n.Decode(&viaNode); err != nil || viaNode != f {
+			t.Errorf("Set(ratio, %v) writes %s, which Decode reads as %T %v, %v", f, n.Value, viaNode, viaNode, err)
+		}
+		var doc map[string]any
+		if err := yaml.Unmarshal(d.Bytes(), &doc); err != nil || doc["ratio"] != f {
+			t.Errorf("Set(ratio, %v) writes %s, which Unmarshal reads as %T %v, %v", f, n.Value, doc["ratio"], doc["ratio"], err)
+		}
+	}
+}
+
+// TestDocumentSetToTheSameValue checks that setting a slot to the value
+// it already holds succeeds and leaves the bytes as they were.
+func TestDocumentSetToTheSameValue(t *testing.T) {
+	for _, c := range []struct {
+		src, path string
+		v         any
+	}{
+		{"a: x\n", "a", "x"},
+		{"a: 'x'\n", "a", "x"},
+		{"a: \"x\"\n", "a", "x"},
+		{"a: ''\n", "a", ""},
+		{"a: 1\n", "a", 1},
+		{"a: 1 # c\nb: 2\n", "a", 1},
+		{"x\n", "", "x"},
+		{setSrc, "list.1", "b"},
+		{setSrc, "flow.n", 1},
+	} {
+		d := mustDoc(t, c.src)
+		if err := d.Set(c.path, c.v); err != nil {
+			t.Errorf("%q Set(%q, %#v): %v", c.src, c.path, c.v, err)
+		}
+		if string(d.Bytes()) != c.src {
+			t.Errorf("%q Set(%q, %#v) changed the bytes to %q", c.src, c.path, c.v, d.Bytes())
+		}
+	}
+}
+
+// TestDocumentSetRefusesToMoveAComment pins a refusal the parser
+// forces. A comment line right after a plain value is that value's
+// key's foot comment, but after a quoted value it is the document's, so
+// quoting the value would move the comment, and Set refuses.
+func TestDocumentSetRefusesToMoveAComment(t *testing.T) {
+	const src = "a: X\n# end\n"
+	d := mustDoc(t, src)
+	if err := d.Set("a", "y"); !errors.Is(err, yaml.ErrUnsupportedEdit) || string(d.Bytes()) != src {
+		t.Errorf("Set(a, y) = %v, Bytes = %q", err, d.Bytes())
+	}
+	if err := d.Set("a", "z"); err != nil || string(d.Bytes()) != "a: z\n# end\n" {
+		t.Errorf("Set(a, z) = %v, Bytes = %q", err, d.Bytes())
+	}
+}

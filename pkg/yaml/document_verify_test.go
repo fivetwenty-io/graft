@@ -48,16 +48,16 @@ func TestCommitRefusesWhenAnotherNodeMoves(t *testing.T) {
 		"a: 9\n---\nb: 2 # keep\n",
 		"a: [9\nb: 2 # keep\n",
 	} {
-		err := d.commit("set", "a", []byte(next), loc, whole(string(d.Bytes())), accept)
+		err := d.commit("a", []byte(next), loc, whole(string(d.Bytes())), accept)
 		if !errors.Is(err, ErrUnsupportedEdit) || string(d.Bytes()) != "a: 1\nb: 2 # keep\n" {
 			t.Errorf("%q: commit = %v, Bytes = %q", next, err, d.Bytes())
 		}
-		err = d.commit("set", "a", []byte(next), loc, sp, accept)
+		err = d.commit("a", []byte(next), loc, sp, accept)
 		if !errors.Is(err, ErrUnsupportedEdit) || string(d.Bytes()) != "a: 1\nb: 2 # keep\n" {
 			t.Errorf("%q: commit = %v, Bytes = %q", next, err, d.Bytes())
 		}
 	}
-	if err := d.commit("set", "a", []byte("a: 9\nb: 2 # keep\n"), loc, sp, accept); err != nil {
+	if err := d.commit("a", []byte("a: 9\nb: 2 # keep\n"), loc, sp, accept); err != nil {
 		t.Fatalf("a clean edit: %v", err)
 	}
 	if string(d.Bytes()) != "a: 9\nb: 2 # keep\n" {
@@ -72,7 +72,7 @@ func TestCommitRunsTheTargetCheck(t *testing.T) {
 	d := mustParse(t, "a: 1\n")
 	loc, _ := d.resolve("set", "a")
 	refuse := func(n *yamlnode.Node) error { return errors.New("no") }
-	if err := d.commit("set", "a", []byte("a: 2\n"), loc, mustSpan(t, d, loc), refuse); !errors.Is(err, ErrUnsupportedEdit) {
+	if err := d.commit("a", []byte("a: 2\n"), loc, mustSpan(t, d, loc), refuse); !errors.Is(err, ErrUnsupportedEdit) {
 		t.Errorf("commit = %v", err)
 	}
 	if string(d.Bytes()) != "a: 1\n" {
@@ -103,7 +103,7 @@ func TestCommitComparesTheTextOutsideTheNode(t *testing.T) {
 			t.Fatal(err)
 		}
 		var de *DocumentError
-		err = d.commit("set", "a", []byte(next), loc, whole(src), accept)
+		err = d.commit("a", []byte(next), loc, whole(src), accept)
 		if !errors.As(err, &de) || de.Reason != "the edit would change another part of the document" || de.Line != 2 {
 			t.Errorf("%q: commit = %v", next, err)
 		}
@@ -129,7 +129,7 @@ func TestCommitLetsTheNodeChangeItsLineCount(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := d.commit("set", c.path, []byte(c.next), loc, textSpan(t, c.src, c.old), accept); err != nil {
+		if err := d.commit(c.path, []byte(c.next), loc, textSpan(t, c.src, c.old), accept); err != nil {
 			t.Errorf("%q to %q: %v", c.src, c.next, err)
 			continue
 		}
@@ -147,7 +147,7 @@ func TestCommitHandsTheCheckTheNewNode(t *testing.T) {
 	}
 	var seen *yamlnode.Node
 	check := func(n *yamlnode.Node) error { seen = n; return nil }
-	if err := d.commit("set", "a.b", []byte("a:\n  b: 'x' # one\nc: 2\n"), loc, mustSpan(t, d, loc), check); err != nil {
+	if err := d.commit("a.b", []byte("a:\n  b: 'x' # one\nc: 2\n"), loc, mustSpan(t, d, loc), check); err != nil {
 		t.Fatal(err)
 	}
 	if seen == nil || seen.Value != "x" || seen.Style != yamlnode.StyleSingle || seen.Line != 2 {
@@ -166,7 +166,7 @@ func TestCommitRefusesANewCommentOrAnchorOnTheNode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := d.commit("set", "a", []byte(next), loc, mustSpan(t, d, loc), accept); !errors.Is(err, ErrUnsupportedEdit) {
+		if err := d.commit("a", []byte(next), loc, mustSpan(t, d, loc), accept); !errors.Is(err, ErrUnsupportedEdit) {
 			t.Errorf("%q: commit = %v", next, err)
 		}
 	}
@@ -219,10 +219,10 @@ func TestCommitSeesACommentTheTreeDrops(t *testing.T) {
 		t.Fatal(err)
 	}
 	accept := func(n *yamlnode.Node) error { return nil }
-	if err := d.commit("set", "y", []byte("x: &a 1\ny: 3\nz: *a # d\n"), loc, whole(string(d.Bytes())), accept); !errors.Is(err, ErrUnsupportedEdit) {
+	if err := d.commit("y", []byte("x: &a 1\ny: 3\nz: *a # d\n"), loc, whole(string(d.Bytes())), accept); !errors.Is(err, ErrUnsupportedEdit) {
 		t.Errorf("commit = %v", err)
 	}
-	if err := d.commit("set", "y", []byte("x: &a 1\ny: 3\nz: *a # c\n"), loc, mustSpan(t, d, loc), accept); err != nil {
+	if err := d.commit("y", []byte("x: &a 1\ny: 3\nz: *a # c\n"), loc, mustSpan(t, d, loc), accept); err != nil {
 		t.Errorf("a clean edit: %v", err)
 	}
 }
@@ -248,7 +248,7 @@ func TestCommitKeepsTheBytesAroundTheSpan(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := d.commit("set", c.path, []byte(c.next), loc, textSpan(t, c.src, c.old), accept); !errors.Is(err, ErrUnsupportedEdit) {
+		if err := d.commit(c.path, []byte(c.next), loc, textSpan(t, c.src, c.old), accept); !errors.Is(err, ErrUnsupportedEdit) {
 			t.Errorf("%q to %q: commit = %v", c.src, c.next, err)
 		}
 		if string(d.Bytes()) != c.src {
@@ -261,11 +261,11 @@ func TestCommitKeepsTheBytesAroundTheSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, sp := range []span{{3, 99}, {5, 3}, {-1, 4}} {
-		if err := d.commit("set", "a", []byte("a: 9 # c\n"), loc, sp, accept); !errors.Is(err, ErrUnsupportedEdit) {
+		if err := d.commit("a", []byte("a: 9 # c\n"), loc, sp, accept); !errors.Is(err, ErrUnsupportedEdit) {
 			t.Errorf("span %v: commit = %v", sp, err)
 		}
 	}
-	if err := d.commit("set", "a", []byte("a: 9 # c\n"), loc, span{3, 4}, accept); err != nil {
+	if err := d.commit("a", []byte("a: 9 # c\n"), loc, span{3, 4}, accept); err != nil {
 		t.Errorf("a clean edit: %v", err)
 	}
 }
@@ -280,10 +280,10 @@ func TestCommitRefusesAStaleLoc(t *testing.T) {
 	}
 	sp := mustSpan(t, d, loc)
 	accept := func(n *yamlnode.Node) error { return nil }
-	if err := d.commit("set", "a", []byte("a: 9\nb: 2\n"), loc, sp, accept); err != nil {
+	if err := d.commit("a", []byte("a: 9\nb: 2\n"), loc, sp, accept); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.commit("set", "a", []byte("a: 7\nb: 2\n"), loc, sp, accept); !errors.Is(err, ErrUnsupportedEdit) {
+	if err := d.commit("a", []byte("a: 7\nb: 2\n"), loc, sp, accept); !errors.Is(err, ErrUnsupportedEdit) {
 		t.Errorf("a stale loc: commit = %v", err)
 	}
 	if string(d.Bytes()) != "a: 9\nb: 2\n" {
@@ -313,6 +313,8 @@ func TestSetCheckComparesWhatSetMeantToWrite(t *testing.T) {
 		{"padding before the text", nine, 9, "a:  9 # c\nb: 2\n", false},
 		{"a value that decodes to another", nine, 10, "a: 9 # c\nb: 2\n", false},
 		{"a value that does not fit the type", setText{text: "300", value: "300", tag: "!!int"}, uint8(44), "a: 300 # c\nb: 2\n", false},
+		{"a float an interface reads as a string", setText{text: "1e+06", value: "1e+06", tag: "!!float"}, 1e6, "a: 1e+06 # c\nb: 2\n", false},
+		{"a float with a decimal point", setText{text: "1.0e+06", value: "1.0e+06", tag: "!!float"}, 1e6, "a: 1.0e+06 # c\nb: 2\n", true},
 		{"a NaN", setText{text: ".nan", value: ".nan", tag: "!!float"}, math.NaN(), "a: .nan # c\nb: 2\n", true},
 		{"a NaN written as infinity", setText{text: ".inf", value: ".inf", tag: "!!float"}, math.NaN(), "a: .inf # c\nb: 2\n", false},
 	} {
@@ -324,11 +326,35 @@ func TestSetCheckComparesWhatSetMeantToWrite(t *testing.T) {
 		sp := mustSpan(t, d, loc)
 		next := []byte(c.next)
 		wrote := span{sp.start, sp.start + len(c.w.text)}
-		err = d.commit("set", "a", next, loc, sp, func(n *yamlnode.Node) error {
+		err = d.commit("a", next, loc, sp, func(n *yamlnode.Node) error {
 			return c.w.check(next, wrote, n, c.value)
 		})
 		if (err == nil) != c.ok {
 			t.Errorf("%s: commit = %v, want ok %v", c.name, err, c.ok)
 		}
+	}
+}
+
+// TestCommitAcceptsAnUnchangedText checks that an edit that writes the
+// text it replaces commits, at any position in the input.
+func TestCommitAcceptsAnUnchangedText(t *testing.T) {
+	accept := func(n *yamlnode.Node) error { return nil }
+	for _, c := range []struct{ src, path string }{
+		{"a: x\n", "a"},
+		{"a: 1 # c\nb: 2\n", "a"},
+		{"a: 1\nb: 2\nc: 3\n", "b"},
+		{"# h\nl: [1, two]\n\n# f\n", "l.1"},
+	} {
+		d := mustParse(t, c.src)
+		loc, err := d.resolve("set", c.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := d.commit(c.path, []byte(c.src), loc, mustSpan(t, d, loc), accept); err != nil {
+			t.Errorf("%q at %q: %v", c.src, c.path, err)
+		}
+	}
+	if !sameOutside([]byte("a\nb\n"), []int{0, 2}, []byte("a\nb\n"), []int{0, 2}, 1, 1, 1) {
+		t.Error("sameOutside refuses two equal texts")
 	}
 }
