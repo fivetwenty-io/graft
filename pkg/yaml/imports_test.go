@@ -11,16 +11,17 @@ import (
 // allow-list, so a new dependency fails the test until someone adds it
 // here on purpose.
 var allowedImports = map[string]bool{
-	"github.com/fivetwenty-io/graft/pkg/yaml":           true, // the external tests import the package itself
-	"github.com/fivetwenty-io/graft/pkg/sortkeys":       true,
-	"github.com/fivetwenty-io/graft/pkg/decimal":        true, // sortkeys compares numbers with it
-	"github.com/fivetwenty-io/graft/pkg/query/value":    true, // sortkeys orders these values
-	"github.com/fivetwenty-io/graft/internal/keyorder":  true, // sortkeys' key comparator
-	"github.com/fivetwenty-io/graft/internal/literal":   true, // yamlcodec strips literal wrappers before encoding
-	"github.com/fivetwenty-io/graft/internal/yamlcodec": true,
-	"github.com/fivetwenty-io/graft/internal/yamlerr":   true, // gives pkg/graft the plain text of a decoding error
-	"github.com/fivetwenty-io/graft/internal/yamlnode":  true,
-	"github.com/fivetwenty-io/graft/internal/yamlprep":  true,
+	"github.com/fivetwenty-io/graft/pkg/yaml":            true, // the external tests import the package itself
+	"github.com/fivetwenty-io/graft/pkg/sortkeys":        true,
+	"github.com/fivetwenty-io/graft/pkg/decimal":         true, // sortkeys compares numbers with it
+	"github.com/fivetwenty-io/graft/pkg/query/value":     true, // sortkeys orders these values
+	"github.com/fivetwenty-io/graft/internal/keyorder":   true, // sortkeys' key comparator
+	"github.com/fivetwenty-io/graft/internal/cursorpath": true, // yaml.Document reads graft's cursor paths
+	"github.com/fivetwenty-io/graft/internal/literal":    true, // yamlcodec strips literal wrappers before encoding
+	"github.com/fivetwenty-io/graft/internal/yamlcodec":  true,
+	"github.com/fivetwenty-io/graft/internal/yamlerr":    true, // gives pkg/graft the plain text of a decoding error
+	"github.com/fivetwenty-io/graft/internal/yamlnode":   true,
+	"github.com/fivetwenty-io/graft/internal/yamlprep":   true,
 }
 
 // bannedImports are the packages pkg/yaml exists to replace, plus graft's
