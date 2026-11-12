@@ -159,6 +159,14 @@ type Engine interface {
 	ParseFile(path string) (Document, error)
 	ParseReader(reader io.Reader) (Document, error)
 
+	// Context variants stop with an error that wraps ctx.Err() once ctx
+	// is done, checking on entry and again after parsing. They return what
+	// the plain forms return while ctx is live.
+	ParseYAMLContext(ctx context.Context, data []byte) (Document, error)
+	ParseJSONContext(ctx context.Context, data []byte) (Document, error)
+	ParseFileContext(ctx context.Context, path string) (Document, error)
+	ParseReaderContext(ctx context.Context, r io.Reader) (Document, error)
+
 	// Merge operations with builder pattern options
 	Merge(ctx context.Context, docs ...Document) MergeBuilder
 	MergeFiles(ctx context.Context, paths ...string) MergeBuilder

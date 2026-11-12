@@ -60,3 +60,13 @@ func opCanceled(ctx context.Context, op *Opcall) error {
 	}
 	return canceled(ctx, opStep(op))
 }
+
+// stopped is canceled for a phase that is not evaluation. The verb names
+// the phase, such as "parse", so the message reads "parse stopped before
+// <step>" and wraps ctx.Err().
+func stopped(ctx context.Context, verb, step string) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("%s stopped before %s: %w", verb, step, err)
+	}
+	return nil
+}

@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -66,13 +67,22 @@ func isJSONPath(path string) bool {
 // produce them (not wrapped), so callers can use os.IsNotExist to tell a
 // missing file apart from a parse failure.
 func (e *DefaultEngine) ParseFile(path string) (Document, error) {
+	return e.ParseFileContext(context.Background(), path)
+}
+
+// parseFile is the body of ParseFile and ParseFileContext. It checks ctx
+// between reading and parsing, and the parse itself checks it again.
+func (e *DefaultEngine) parseFile(ctx context.Context, path string) (Document, error) {
+	if err := parseCanceled(ctx, "reading "+path); err != nil {
+		return nil, err
+	}
 	data, displayPath, err := readSource(path)
 	if err != nil {
 		return nil, err
 	}
 
 	if isJSONPath(path) {
-		doc, jsonErr := e.ParseJSON(data)
+		doc, jsonErr := e.ParseJSONContext(ctx, data)
 		if jsonErr != nil {
 			return nil, fmt.Errorf("%s: %w", displayPath, jsonErr)
 		}
@@ -87,7 +97,7 @@ func (e *DefaultEngine) ParseFile(path string) (Document, error) {
 		return NewGoPatchDocument(ops), nil
 	}
 
-	doc, yamlErr := e.ParseYAML(data)
+	doc, yamlErr := e.ParseYAMLContext(ctx, data)
 	if yamlErr != nil {
 		return nil, fmt.Errorf("%s: %w", displayPath, yamlErr)
 	}
@@ -101,12 +111,7 @@ func (e *DefaultEngine) ParseFile(path string) (Document, error) {
 // matching the documented contract (engine.md) that ParseReader always
 // treats its content as YAML.
 func (e *DefaultEngine) ParseReader(reader io.Reader) (Document, error) {
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, fmt.Errorf("error reading input: %w", err)
-	}
-
-	return e.ParseYAML(data)
+	return e.ParseReaderContext(context.Background(), reader)
 }
 
 // ParseMultiDocFile reads path (or STDIN for "-", per ParseFile's

@@ -369,8 +369,8 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 
 // Implement Engine interface methods
 
-// ParseYAML parses YAML data into a Document.
-func (e *DefaultEngine) ParseYAML(data []byte) (Document, error) {
+// parseYAML is the body of ParseYAML and ParseYAMLContext.
+func (e *DefaultEngine) parseYAML(data []byte) (Document, error) {
 	// Handle empty data
 	if len(data) == 0 {
 		return nil, nil
@@ -490,8 +490,8 @@ func (e *DefaultEngine) ParseMultiDocYAML(data []byte) ([]Document, error) {
 	return docs, nil
 }
 
-// ParseJSON parses JSON data into a Document.
-func (e *DefaultEngine) ParseJSON(data []byte) (Document, error) {
+// parseJSON is the body of ParseJSON and ParseJSONContext.
+func (e *DefaultEngine) parseJSON(data []byte) (Document, error) {
 	// Handle empty data
 	if len(data) == 0 {
 		return nil, nil
