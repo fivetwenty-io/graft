@@ -106,6 +106,7 @@ func TestLaterKeyCancelsEveryForm(t *testing.T) {
 	runCancelCases(t, []cancelCase{
 		{"later value replaces", "1: a\n0x1: b\n", ints, map[int]gapHook{1: {Val: "hook:b"}}, 1},
 		{"third key wins", "1: a\n0x1: ~\n+1: c\n", ints, map[int]gapHook{1: {Val: "hook:c"}}, 1},
+		{"a null after a later value", "1: a\n0x1: b\n+1: ~\n", ints, map[int]gapHook{1: {}}, 0},
 		{"bool keys", "true: a\nyes: ~\n", func() any { return new(map[bool]gapHook) }, map[bool]gapHook{true: {}}, 0},
 		{"bool keys, later value", "yes: a\ntrue: b\n", func() any { return new(map[bool]gapHook) }, map[bool]gapHook{true: {Val: "hook:b"}}, 1},
 		{"merge supplies the earlier key", "<<: {1: a}\n0x1: ~\n", ints, map[int]gapHook{1: {}}, 0},
