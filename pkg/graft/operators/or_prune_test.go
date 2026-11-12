@@ -470,3 +470,84 @@ func TestReadersLeaveOutAKeyPrunedThroughAGrab(t *testing.T) {
 		}
 	}
 }
+
+// Engine.Evaluate drops a (( prune )) entry from a list before any
+// operator reads the list, as a merge of the same document does, so no
+// copy of the list holds the operator's text and an index names the
+// same entry on both paths.
+func TestEvaluateDropsPrunedListEntriesFirst(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want map[string]interface{}
+	}{
+		{
+			name: "readers of the list",
+			src: "m:\n  l: [a, (( prune )), c, d]\n" +
+				"x: (( grab m.l ))\nj: (( join \",\" m.l ))\n" +
+				"s: (( stringify m.l ))\nt: (( stringify m ))\n" +
+				"g: (( grab m.l.2 ))\nf: (( flatten m.l ))\n" +
+				"cp: (( cartesian-product m.l \"x\" ))\n" +
+				"i:\n  _: (( inject m ))\n",
+			want: map[string]interface{}{
+				"m": map[string]interface{}{
+					"l": []interface{}{"a", "c", "d"},
+				},
+				"x":  []interface{}{"a", "c", "d"},
+				"j":  "a,c,d",
+				"s":  "- a\n- c\n- d\n",
+				"t":  "l:\n- a\n- c\n- d\n",
+				"g":  "d",
+				"f":  []interface{}{"a", "c", "d"},
+				"cp": []interface{}{"ax", "cx", "dx"},
+				"i": map[string]interface{}{
+					"l": []interface{}{"a", "c", "d"},
+				},
+			},
+		},
+		{
+			name: "two entries and spacing",
+			src:  "l: [a, ((  prune  )), (( prune )), b]\nx: (( grab l ))\n",
+			want: map[string]interface{}{
+				"l": []interface{}{"a", "b"},
+				"x": []interface{}{"a", "b"},
+			},
+		},
+		{
+			name: "list in a list and a list of maps",
+			src: "l:\n- [a, (( prune )), b]\n- (( prune ))\n- c\n" +
+				"n:\n- name: a\n- (( prune ))\n- name: b\n" +
+				"x: (( grab l ))\ny: (( grab n ))\n",
+			want: map[string]interface{}{
+				"x": []interface{}{[]interface{}{"a", "b"}, "c"},
+				"y": []interface{}{
+					map[string]interface{}{"name": "a"},
+					map[string]interface{}{"name": "b"},
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		for _, parallel := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/parallel=%v", tc.name, parallel), func(t *testing.T) {
+				doc, err := evaluateWithin(t, parallel, tc.src)
+				if err != nil {
+					t.Fatalf("err = %v", err)
+				}
+				got := doc.RawData().(map[string]interface{})
+				merged, err := mergeWithin(t, parallel, tc.src)
+				if err != nil {
+					t.Fatalf("merge err = %v", err)
+				}
+				for key, w := range tc.want {
+					if !reflect.DeepEqual(got[key], w) {
+						t.Errorf("%s = %#v, want %#v", key, got[key], w)
+					}
+					if !reflect.DeepEqual(merged[key], w) {
+						t.Errorf("merged %s = %#v, want %#v", key, merged[key], w)
+					}
+				}
+			})
+		}
+	}
+}

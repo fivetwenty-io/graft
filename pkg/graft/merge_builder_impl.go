@@ -1647,7 +1647,9 @@ func (m *mergeBuilderImpl) applyCherryPicking(doc Document) (Document, error) {
 func (m *mergeBuilderImpl) applyEvaluation(doc Document) (Document, error) {
 	// Use the engine's evaluate method if available
 	if m.engine != nil {
-		evalCtx := m.ctx
+		// The merge has already handled the (( prune )) entries in
+		// the result's lists.
+		evalCtx := withMerged(m.ctx)
 		// Continue this merge's run (see applyPostProcessing). Only this
 		// context, which never leaves Evaluate, carries the run state.
 		if m.runState != nil {

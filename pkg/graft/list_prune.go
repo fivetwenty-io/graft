@@ -1,0 +1,107 @@
+package graft
+
+import (
+	"context"
+	"reflect"
+	"regexp"
+)
+
+// pruneEntryRx matches a list entry that is a (( prune )) call, the
+// way the merger matches one, so a spaced spelling counts too.
+var pruneEntryRx = regexp.MustCompile(`^\s*\Q((\E\s*prune\s*\Q))\E`)
+
+// isPruneEntry reports whether v is a (( prune )) call.
+func isPruneEntry(v interface{}) bool {
+	s, ok := v.(string)
+	return ok && pruneEntryRx.MatchString(s)
+}
+
+// mergedKey is the context key a merge sets when it hands its result to
+// Evaluate, since the merge has already handled the result's lists.
+type mergedKey struct{}
+
+// withMerged returns a copy of ctx that tells Evaluate its document
+// comes from a merge.
+func withMerged(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, mergedKey{}, true)
+}
+
+// fromMerge reports whether ctx carries a merge's result.
+func fromMerge(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	merged, _ := ctx.Value(mergedKey{}).(bool)
+	return merged
+}
+
+// dropPruneEntries removes every (( prune )) entry from the lists in
+// data, at any depth, in place. A merge removes these entries as it
+// merges each document, before any operator runs, so an operator that
+// reads the list never sees the call's text, and an index past the
+// entry names the entry after it. A document evaluated with no merge
+// gets the same treatment here. A map or list that appears in more than
+// one place is handled once, and each place gets the same result.
+func dropPruneEntries(data map[string]interface{}) {
+	w := pruneEntryWalk{
+		maps:  map[uintptr]bool{},
+		lists: map[uintptr][]interface{}{},
+	}
+	w.value(data)
+}
+
+// pruneEntryWalk is one dropPruneEntries walk. maps holds the maps
+// already walked, and lists holds what each list already walked became.
+type pruneEntryWalk struct {
+	maps  map[uintptr]bool
+	lists map[uintptr][]interface{}
+}
+
+// value returns v with the (( prune )) entries gone from its lists.
+func (w *pruneEntryWalk) value(v interface{}) interface{} {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		if t == nil {
+			return v
+		}
+		p := reflect.ValueOf(t).Pointer()
+		if w.maps[p] {
+			return v
+		}
+		w.maps[p] = true
+		for k, e := range t {
+			t[k] = w.value(e)
+		}
+		return v
+	case []interface{}:
+		if len(t) == 0 {
+			return v
+		}
+		p := reflect.ValueOf(t).Pointer()
+		if out, ok := w.lists[p]; ok {
+			return out
+		}
+		out := t
+		for i, e := range t {
+			if isPruneEntry(e) {
+				out = make([]interface{}, i, len(t))
+				copy(out, t[:i])
+				for _, rest := range t[i+1:] {
+					if !isPruneEntry(rest) {
+						out = append(out, rest)
+					}
+				}
+				break
+			}
+		}
+		w.lists[p] = out
+		for i, e := range out {
+			out[i] = w.value(e)
+		}
+		return out
+	}
+	return v
+}

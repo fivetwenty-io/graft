@@ -172,11 +172,14 @@ type Engine interface {
 	MergeFiles(ctx context.Context, paths ...string) MergeBuilder
 	MergeReaders(ctx context.Context, readers ...io.Reader) MergeBuilder
 
-	// Evaluate processes operators in a document. It resolves them in
-	// doc itself, and removes the keys they prune from doc itself, so
-	// doc must not be used by another call while Evaluate runs, and
-	// holds the evaluated result once it returns. A caller that needs
-	// the document as it was should pass doc.Clone(). Concurrent
+	// Evaluate processes operators in a document. It first removes
+	// each (( prune )) entry from doc's lists, as a merge does, so an
+	// index into a list counts only the entries that stay. It resolves
+	// the operators in doc itself, and removes the keys they prune from
+	// doc itself, so doc must not be used by another call while
+	// Evaluate runs, and holds the evaluated result once it returns. A
+	// caller that needs the document as it was should pass
+	// doc.Clone(). Concurrent
 	// Evaluate calls on one engine are safe; each keeps its own
 	// operator state (see the Engine doc comment).
 	Evaluate(ctx context.Context, doc Document) (Document, error)

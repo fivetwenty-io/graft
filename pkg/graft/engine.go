@@ -616,6 +616,13 @@ func (e *DefaultEngine) Evaluate(ctx context.Context, doc Document) (Document, e
 		return nil, fmt.Errorf("document data is not a map")
 	}
 
+	// A merge removes the (( prune )) entries from each list before any
+	// operator reads it. A document evaluated with no merge loses them
+	// here, so both paths give the same result.
+	if !fromMerge(ctx) {
+		dropPruneEntries(data)
+	}
+
 	// Create evaluator
 	ev := e.createEvaluator(data)
 
