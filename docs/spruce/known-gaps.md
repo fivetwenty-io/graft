@@ -394,6 +394,14 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 
 **Impact.** We keep this on purpose, because a silent wrong value is worse than an error. A template that relied on spruce leaving operator text in its output now fails at the grab, and the error names both paths so the order can be fixed. A grab of one path whose value goes straight into the document, as in `(( grab b.list ))`, still gives the evaluated entries when it has to run first, because it hands back the same list the operators later fill. A grab nested in another call, such as `(( join "," (grab b.list) ))`, gets no such help, because the call reads the list before its entries run, so it fails instead.
 
+### shuffle-flatten-and-join-wait-for-what-they-read
+
+**Graft behavior.** shuffle, flatten, and join read a whole list or map, so each one waits for every operator under the path it reads before it runs. That holds for a bare reference, for either side of a `||`, and for a `||` nested in the call, as in `(( join "," (( z || "fb" )) ))`. With `z: [x, (( concat "p" "q" ))]`, the line `a: (( join "," z || "fb" ))` gives `x,pq`, and `a: (( shuffle z ))` gives a list that holds `x` and `pq`. A call that reads its own list or an ancestor of it, such as `l: [1, (( shuffle l ))]` or `l: [x, (( join "," l || "fb" ))]`, fails with a data-flow cycle error in both evaluator modes.
+
+**Spruce behavior.** spruce orders these operators after the path they name but not after the operators under it. So the same `join` and `shuffle` lines can run first and give `x,(( concat "p" "q" ))` or a list that holds the operator text, and the self-reading forms succeed with the operator text in their result.
+
+**Impact.** We keep this on purpose, because operator text in the output is never what a template means, as with [bracket-grab-waits-for-a-computed-target](#bracket-grab-waits-for-a-computed-target). A template that worked in spruce gets evaluated values instead of operator text. A template whose operator reads its own list now fails with a cycle error, so it needs to read a list that doesn't hold the call.
+
 ### dash-line-inside-a-flow-collection-is-an-error
 
 **Graft behavior.** A plain scalar in a flow collection that continues onto a line starting with `- ` fails to parse. That covers `a: {b: [x` followed by a line `- w]}`, and `a:` followed by `  - [w` and `    - w]`. The error names the line and column of the dash and says that a block sequence entry cannot appear inside a flow collection. The same error covers every other `- ` inside a flow collection, such as `a: [x,` followed by `- w]` and `a: [x, - w]`, which spruce refuses too.
