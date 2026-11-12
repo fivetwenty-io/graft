@@ -6,6 +6,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/oploc"
 	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -213,24 +214,11 @@ func resolveComputedPath(ev *Evaluator, pathStr string, read grabRead) (interfac
 // refuseAncestorGrab returns an error when the operator at ev.Here sits
 // under target, because the grab would then read its own unresolved
 // call and never settle: the value it hands on is the container that
-// holds the grab, so the document would end up containing itself. Both
-// paths are compared in canonical form, so a name or predicate segment
-// that picks the same list item as an index is caught too, while the
-// error names both paths as they are spelled. A target that does not
-// resolve is left to the caller's not-found error. The refusal is an
-// ordinary operator error, so a || fallback still applies.
+// holds the grab, so the document would end up containing itself. The
+// refusal is an ordinary operator error, so a || fallback still applies.
+// oploc.RefuseAncestor says how the two paths are compared.
 func refuseAncestorGrab(ev *Evaluator, target *tree.Cursor) error {
-	if ev.Here == nil || target == nil {
-		return nil
-	}
-	canon, err := target.Canonical(ev.Tree)
-	if err != nil {
-		return nil //nolint:nilerr // an unresolved target gets the caller's not-found error
-	}
-	if !canonicalPath(ev, ev.Here).Under(canon) {
-		return nil
-	}
-	return fmt.Errorf("cycle detected: $.%s grabs $.%s, which contains it", ev.Here, target)
+	return oploc.RefuseAncestor(ev.Here, target, ev.Tree)
 }
 
 // grabRead says how the value a grab reads reaches its reader, which

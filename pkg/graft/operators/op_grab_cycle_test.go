@@ -37,16 +37,18 @@ func evaluateWithin(t *testing.T, parallel bool, src string) (graft.Document, er
 		doc graft.Document
 		err error
 	}
+	// Evaluate shares the deadline, so a regression that hangs inside
+	// it stops there instead of running on after the test fails.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	done := make(chan result, 1)
 	go func() {
-		out, err := engine.Evaluate(context.Background(), doc)
+		out, err := engine.Evaluate(ctx, doc)
 		if err == nil {
 			err = graft.CheckForCycles(out.RawData(), 64)
 		}
 		done <- result{out, err}
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	select {
 	case r := <-done:
 		return r.doc, r.err
@@ -69,6 +71,10 @@ func TestGrabOfAnAncestorIsACycle(t *testing.T) {
 		{"second of two paths", "a: 1\nq:\n  b: (( grab a q ))\n", "$.q.b grabs $.q"},
 		{"computed path", "k: q\nq:\n  b: (( grab (( concat k \"\" )) ))\n", "$.q.b grabs $.q"},
 		{"nested in another call", "q:\n  b: (( concat \"x\" (( grab q )) ))\n", "$.q.b grabs $.q"},
+		{"bare reference after ||", "q:\n  c: (( nope || q ))\n", "$.q.c grabs $.q"},
+		{"bare reference on both sides of ||", "q:\n  c: (( q || q ))\n", "$.q.c grabs $.q"},
+		{"ternary branch", "q:\n  t: \"(( true ? q : 0 ))\"\n", "$.q.t grabs $.q"},
+		{"ternary branches, two edges", "q:\n  t: \"(( false ? 0 : q ))\"\n  c:\n    u: \"(( true ? q : 0 ))\"\n", "grabs $.q"},
 	}
 	for _, tc := range cases {
 		for _, parallel := range []bool{true, false} {
@@ -113,6 +119,31 @@ func TestGrabOfASiblingStillWorks(t *testing.T) {
 		}
 		if v, _ := out.GetString("f.x"); v != "fallback" {
 			t.Errorf("parallel=%v: f.x = %q", parallel, v)
+		}
+	}
+}
+
+func TestBareReferenceToAnAncestorFallsBack(t *testing.T) {
+	cases := map[string]string{
+		"one edge":  "q:\n  a: 1\n  c: (( q || \"fb\" ))\n",
+		"two edges": "q:\n  a: 1\n  b: (( q || \"fb\" ))\n  c:\n    y: (( q || \"fb\" ))\n",
+	}
+	for name, src := range cases {
+		for _, parallel := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/parallel=%v", name, parallel), func(t *testing.T) {
+				out, err := evaluateWithin(t, parallel, src)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, path := range []string{"q.c", "q.b", "q.c.y"} {
+					if v, err := out.GetString(path); err == nil && v != "fb" {
+						t.Errorf("%s = %q, want fb", path, v)
+					}
+				}
+				if v, _ := out.GetInt("q.a"); v != 1 {
+					t.Errorf("q.a = %d, want 1", v)
+				}
+			})
 		}
 	}
 }

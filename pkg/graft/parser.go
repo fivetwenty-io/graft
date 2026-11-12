@@ -10,6 +10,7 @@ import (
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/exprlex"
+	"github.com/fivetwenty-io/graft/internal/oploc"
 	"github.com/fivetwenty-io/graft/internal/pending"
 	"github.com/fivetwenty-io/graft/pkg/graft/interfaces"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -1688,12 +1689,19 @@ func (e *exprOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 // does, except that a reference, on its own or as a side of ||, keeps a
 // LiteralValue it reads as a LiteralValue. That matches (( grab x || y )),
 // so the value a bare (( x || y )) copies out of a literal is replaced
-// whole by a later merge. Every other kind of expression goes through
-// Evaluate unchanged.
+// whole by a later merge. Such a reference is also refused, as grab
+// refuses it, when it names a path that holds the expression itself, so
+// the other side of || is tried instead. Every other kind of expression
+// goes through Evaluate unchanged.
 func evaluateKeepingLiteral(e *Expr, treeData interface{}) (interface{}, error) {
 	switch e.Type {
 	case Reference:
 		if e.Reference != nil {
+			if e.evaluator != nil {
+				if err := oploc.RefuseAncestor(e.evaluator.Here, e.Reference, treeData); err != nil {
+					return nil, err
+				}
+			}
 			return e.Reference.ResolveLiteral(treeData)
 		}
 	case LogicalOr:

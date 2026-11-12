@@ -1439,6 +1439,13 @@ func (ev *Evaluator) computeOp(op *Opcall) (resp *Response, oldValue interface{}
 		return resp, oldValue, ev.scrubLiteralError(op, err)
 	}
 	ev.guardLiteralResponse(op, resp)
+	if resp != nil && resp.Type == Replace {
+		// No operator may write the map or list that holds it into
+		// itself, whatever path its value came by.
+		if err := oploc.RefuseSelfHolding(op.where, resp.Value, ev.Tree); err != nil {
+			return nil, oldValue, &PathError{Path: op.where.String(), Cause: err}
+		}
+	}
 	return resp, oldValue, nil
 }
 
