@@ -80,7 +80,7 @@ func (d *Document) setTarget(op, path string) (located, slot, error) {
 	var sl slot
 	if isBlockScalar(loc.node) {
 		sl.header, sl.span, sl.indent, err = d.blockSlot(loc.node)
-		if err == nil && sl.span.end == len(d.src) && sl.header.chomp != '-' {
+		if err == nil && sl.end == len(d.src) && sl.header.chomp != '-' {
 			// No line break follows the body, so only a strip header
 			// can hold a value with text.
 			err = errBlockFit

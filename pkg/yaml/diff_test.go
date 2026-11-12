@@ -158,7 +158,7 @@ func TestDiffErrorUnwrap(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 	inner := errors.Unwrap(err)
-	if inner == nil || inner == error(diffErr) || inner.Error() == "" {
+	if inner == nil || errors.Is(inner, diffErr) || inner.Error() == "" {
 		t.Errorf("Unwrap = %v", inner)
 	}
 	if strings.Contains(err.Error(), inner.Error()) {

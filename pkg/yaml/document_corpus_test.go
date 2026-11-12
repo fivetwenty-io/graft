@@ -105,6 +105,9 @@ func stringPaths(n *yaml.Node, prefix string, limit int, out *[]string) {
 		if n.Tag == "!!str" && !strings.Contains(n.Value, "\n") && prefix != "" {
 			*out = append(*out, prefix)
 		}
+	case yaml.DocumentNode, yaml.AliasNode:
+		// The caller passes the document's root, and the sweep never
+		// edits through an alias.
 	}
 }
 

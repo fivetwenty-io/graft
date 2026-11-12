@@ -199,6 +199,8 @@ func changeKind(k yamldiff.DetailKind) ChangeKind {
 		return ChangeRemoved
 	case yamldiff.ORDERCHANGE:
 		return ChangeOrder
+	case yamldiff.MODIFICATION:
+		return ChangeModified
 	}
 	return ChangeModified
 }
