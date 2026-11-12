@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/fivetwenty-io/graft/internal/features"
 )
 
 var _ Engine = (*MockEngine)(nil)
@@ -84,20 +86,36 @@ func TestParseContextDeadline(t *testing.T) {
 	}
 }
 
+// newModeEngine returns an engine that evaluates in parallel, with a
+// worker pool, when parallel is set, and in sequence when it is not.
+// NewEngine reads no environment, so a test that means to cover both
+// modes picks the mode here.
+func newModeEngine(t *testing.T, parallel bool) Engine {
+	t.Helper()
+	engine, err := NewEngine(WithParallel(parallel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	de, ok := engine.(*DefaultEngine)
+	if !ok {
+		t.Fatalf("NewEngine returned %T", engine)
+	}
+	if got := de.IsFeatureEnabled(features.FeatureParallelEvaluation) && de.Pool != nil; got != parallel {
+		t.Fatalf("engine runs in parallel = %v, want %v", got, parallel)
+	}
+	return engine
+}
+
 func TestParseContextBothModes(t *testing.T) {
 	var results []string
-	for _, parallel := range []string{"true", "false"} {
-		t.Setenv("GRAFT_FEATURE_PARALLEL", parallel)
-		engine, err := NewEngine()
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, parallel := range []bool{true, false} {
+		engine := newModeEngine(t, parallel)
 		calls := parseContextCalls(t, engine)
 		var got []string
 		for _, name := range []string{"yaml", "json", "file", "reader"} {
 			doc, err := calls[name](context.Background())
 			if err != nil {
-				t.Fatalf("%s parallel=%s: %v", name, parallel, err)
+				t.Fatalf("%s parallel=%v: %v", name, parallel, err)
 			}
 			v, _ := doc.GetInt("a")
 			got = append(got, fmt.Sprintf("%s=%d", name, v))
@@ -252,38 +270,34 @@ func TestToYAMLContextStopsEvaluation(t *testing.T) {
 
 func TestOutputContextBothModes(t *testing.T) {
 	var results []string
-	for _, parallel := range []string{"true", "false"} {
-		t.Setenv("GRAFT_FEATURE_PARALLEL", parallel)
-		engine, err := NewEngine()
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, parallel := range []bool{true, false} {
+		engine := newModeEngine(t, parallel)
 		ctx := context.Background()
 		base := mustParseYAMLDoc(t, engine, "n: 1\nx: (( concat \"v\" meta.n ))\nmeta:\n  n: 7\n")
 		overlay := mustParseYAMLDoc(t, engine, "y: (( grab x ))\nmeta:\n  n: 8\n")
 		merged, err := engine.Merge(ctx, base, overlay).Execute()
 		if err != nil {
-			t.Fatalf("parallel=%s merge: %v", parallel, err)
+			t.Fatalf("parallel=%v merge: %v", parallel, err)
 		}
 		want := mustParseYAMLDoc(t, engine, "n: 1\nx: v8\ny: v8\nmeta:\n  n: 8\n")
 		diff, err := engine.DiffContext(ctx, merged.Clone(), want, nil)
 		if err != nil {
-			t.Fatalf("parallel=%s diff: %v", parallel, err)
+			t.Fatalf("parallel=%v diff: %v", parallel, err)
 		}
 		if diff.HasChanges() {
-			t.Errorf("parallel=%s: merged document differs from the expected one", parallel)
+			t.Errorf("parallel=%v: merged document differs from the expected one", parallel)
 		}
 		yml, err := engine.ToYAMLContext(ctx, merged.Clone())
 		if err != nil {
-			t.Fatalf("parallel=%s yaml: %v", parallel, err)
+			t.Fatalf("parallel=%v yaml: %v", parallel, err)
 		}
 		js, err := engine.ToJSONContext(ctx, merged.Clone())
 		if err != nil {
-			t.Fatalf("parallel=%s json: %v", parallel, err)
+			t.Fatalf("parallel=%v json: %v", parallel, err)
 		}
 		ind, err := engine.ToJSONIndentContext(ctx, merged.Clone(), "\t")
 		if err != nil {
-			t.Fatalf("parallel=%s indent: %v", parallel, err)
+			t.Fatalf("parallel=%v indent: %v", parallel, err)
 		}
 		results = append(results, fmt.Sprintf("%v|%s|%s|%s", diff.HasChanges(), yml, js, ind))
 	}

@@ -31,21 +31,17 @@ func TestTaggedMergeKeysBothModes(t *testing.T) {
 	const overlay = "o:\n  !!merge <<: *b\nr: (( grab m.a ))\n"
 	const want = "base:\n  a: 1\nm:\n  a: 1\n  c: 2\no:\n  a: 1\nr: 1\ns:\n  <<: kept\n"
 	var results []string
-	for _, parallel := range []string{"true", "false"} {
-		t.Setenv("GRAFT_FEATURE_PARALLEL", parallel)
-		engine, err := NewEngine()
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, parallel := range []bool{true, false} {
+		engine := newModeEngine(t, parallel)
 		merged, err := engine.Merge(context.Background(),
 			mustParseYAMLDoc(t, engine, base),
 			mustParseYAMLDoc(t, engine, "base: &b {a: 1}\n"+overlay)).Execute()
 		if err != nil {
-			t.Fatalf("parallel=%s: %v", parallel, err)
+			t.Fatalf("parallel=%v: %v", parallel, err)
 		}
 		out, err := merged.ToYAML()
 		if err != nil {
-			t.Fatalf("parallel=%s: %v", parallel, err)
+			t.Fatalf("parallel=%v: %v", parallel, err)
 		}
 		results = append(results, string(out))
 	}
