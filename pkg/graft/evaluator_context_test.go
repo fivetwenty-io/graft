@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/fivetwenty-io/graft/internal/parallel"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -84,9 +87,9 @@ func quietGoroutines() int {
 // one clean evaluation on it, so the goroutines an engine keeps for its
 // whole life, such as its worker pool, are already counted. It returns
 // the engine and the goroutine count after that clean run.
-func warmEngine(t *testing.T, op Operator, parallel bool) (Engine, int) {
+func warmEngine(t *testing.T, op Operator, useParallel bool) (Engine, int) {
 	t.Helper()
-	engine, err := NewEngine(WithCustomOperator("stopper", op), WithCustomOperator("failer", failer{}), WithParallel(parallel))
+	engine, err := NewEngine(WithCustomOperator("stopper", op), WithCustomOperator("failer", failer{}), WithParallel(useParallel))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,12 +105,12 @@ func TestEvaluateStopsBetweenOperators(t *testing.T) {
 	for i := 1; i < 20; i++ {
 		fmt.Fprintf(&src, "k%02d: (( stopper \"k%02d\" ))\n", i, i-1)
 	}
-	for _, parallel := range []bool{true, false} {
-		t.Run(fmt.Sprintf("parallel=%v", parallel), func(t *testing.T) {
+	for _, useParallel := range []bool{true, false} {
+		t.Run(fmt.Sprintf("parallel=%v", useParallel), func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op := &stopper{cancel: cancel}
-			engine, before := warmEngine(t, op, parallel)
+			engine, before := warmEngine(t, op, useParallel)
 			doc := mustParseYAMLDoc(t, engine, src.String())
 			_, err := engine.Evaluate(ctx, doc)
 			if !errors.Is(err, context.Canceled) {
@@ -137,12 +140,12 @@ func TestEvaluateStopsAWideWave(t *testing.T) {
 		fmt.Fprintf(&src, "k%02d: (( stopper ))\n", i)
 	}
 	src.WriteString("bad: (( failer ))\n")
-	for _, parallel := range []bool{true, false} {
-		t.Run(fmt.Sprintf("parallel=%v", parallel), func(t *testing.T) {
+	for _, useParallel := range []bool{true, false} {
+		t.Run(fmt.Sprintf("parallel=%v", useParallel), func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op := &stopper{cancel: cancel}
-			engine, before := warmEngine(t, op, parallel)
+			engine, before := warmEngine(t, op, useParallel)
 			_, err := engine.Evaluate(ctx, mustParseYAMLDoc(t, engine, src.String()))
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("err = %v, want context.Canceled", err)
@@ -250,5 +253,126 @@ func TestOpCanceledIsFreeOnALiveContext(t *testing.T) {
 	cancel()
 	if got, want := fmt.Sprint(opCanceled(done, op)), "evaluation stopped before $.meta.x: context canceled"; got != want {
 		t.Errorf("opCanceled = %q, want %q", got, want)
+	}
+}
+
+// gate is an operator whose every run reports where it started and then
+// blocks until release is closed, so a test can hold a whole pool's
+// workers inside running operators while it cancels.
+type gate struct {
+	started chan string
+	release chan struct{}
+
+	mu   sync.Mutex
+	runs []string
+}
+
+func (g *gate) Setup() error         { return nil }
+func (g *gate) Phase() OperatorPhase { return EvalPhase }
+func (g *gate) Dependencies(_ *Evaluator, _ []*Expr, _ []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
+	return auto
+}
+
+func (g *gate) Run(ev *Evaluator, _ []*Expr) (*Response, error) {
+	at := ev.Here.String()
+	g.mu.Lock()
+	g.runs = append(g.runs, at)
+	g.mu.Unlock()
+	g.started <- at
+	<-g.release
+	return &Response{Type: Replace, Value: "ran"}, nil
+}
+
+func (g *gate) ran() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return slices.Clone(g.runs)
+}
+
+// TestEvaluateCancelWaitsForRunningOperators fills an eight-worker pool
+// with operators that block, cancels while all eight are running, and
+// then lets them finish. Every operator that started must be applied to
+// the tree before Evaluate returns, and none may start after the cancel.
+func TestEvaluateCancelWaitsForRunningOperators(t *testing.T) {
+	const workers, width = 8, 32
+	pool, err := parallel.NewPool(workers, workers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.ShutdownWait)
+
+	g := &gate{started: make(chan string, width), release: make(chan struct{})}
+	engine, err := NewEngine(WithCustomOperator("gate", g), WithParallel(true), WithWorkerPool(pool))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var src strings.Builder
+	for i := 0; i < width; i++ {
+		fmt.Fprintf(&src, "k%02d: (( gate ))\n", i)
+	}
+	doc := mustParseYAMLDoc(t, engine, src.String())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type outcome struct {
+		doc Document
+		err error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		d, err := engine.Evaluate(ctx, doc)
+		done <- outcome{d, err}
+	}()
+
+	timeout := time.After(10 * time.Second)
+	for i := 0; i < workers; i++ {
+		select {
+		case <-g.started:
+		case <-timeout:
+			close(g.release)
+			t.Fatalf("only %d of %d operators started", i, workers)
+		}
+	}
+	cancel()
+	startedAtCancel := g.ran()
+	close(g.release)
+
+	var got outcome
+	select {
+	case got = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Evaluate did not return after the cancel")
+	}
+	if !errors.Is(got.err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", got.err)
+	}
+	if len(startedAtCancel) != workers {
+		t.Errorf("%d operators had started at the cancel, want %d", len(startedAtCancel), workers)
+	}
+	if after := g.ran(); len(after) != len(startedAtCancel) {
+		t.Errorf("%d operators started after the cancel", len(after)-len(startedAtCancel))
+	}
+
+	var partial *PartialEvaluationError
+	if !errors.As(got.err, &partial) {
+		t.Fatalf("err = %T, want a *PartialEvaluationError", got.err)
+	}
+	data, ok := treeOf(partial.Tree).(map[string]interface{})
+	if !ok {
+		t.Fatalf("partial tree is %T, want a map", treeOf(partial.Tree))
+	}
+	started := make(map[string]bool, len(startedAtCancel))
+	for _, at := range startedAtCancel {
+		started[at] = true
+	}
+	for i := 0; i < width; i++ {
+		key := fmt.Sprintf("k%02d", i)
+		applied := data[key] == "ran"
+		if started[key] && !applied {
+			t.Errorf("%s started but was not applied to the tree", key)
+		}
+		if !started[key] && applied {
+			t.Errorf("%s was applied but never started before the cancel", key)
+		}
 	}
 }
