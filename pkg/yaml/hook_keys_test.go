@@ -103,6 +103,53 @@ func TestNaNKeysKeepOneEntryEach(t *testing.T) {
 	}
 }
 
+// TestReplacedNaNKeysMoveNothing checks that a pair whose value held a
+// NaN key, and that a later pair replaces, moves no entry of the later
+// pair's value, even when that value holds a key equal to the stand-in
+// the NaN key went to goccy under.
+func TestReplacedNaNKeysMoveNothing(t *testing.T) {
+	const top = "1.7976931348623157e308"
+	inner := func() any { return new(map[string]map[float64]gapHook) }
+	innerPlain := func() any { return new(map[string]map[float64]string) }
+	runKeyCases(t, true, []keyCase{
+		{"a repeated key", "x:\n  .NaN: a\nx:\n  " + top + ": b\n", inner, innerPlain, 1},
+		{"a repeated key in flow", "x: {.nan: a, 1: c}\nx: {" + top + ": b}\n", inner, innerPlain, 1},
+		{"a repeated key over a float32", "x: {.nan: a}\nx: {3.4028234663852886e+38: b}\n",
+			func() any { return new(map[string]map[float32]gapHook) },
+			func() any { return new(map[string]map[float32]string) }, 1},
+		{"a repeated key two maps down", "x: {y: {.nan: a}}\nx: {y: {" + top + ": b}}\n",
+			func() any { return new(map[string]map[string]map[float64]gapHook) },
+			func() any { return new(map[string]map[string]map[float64]string) }, 1},
+		{"a repeated field", "m: {.nan: a}\nm: {" + top + ": b}\n",
+			func() any { return new(nanField) }, func() any { return new(nanFieldPlain) }, 1},
+		{"a repeated key over a merge", "<<: {x: {.nan: a}}\nx: {" + top + ": b}\n", inner, innerPlain, 1},
+	})
+	runKeyCases(t, false, []keyCase{
+		{"integer keys that fold alike", "+1:\n  .nan: a\n0x1:\n  " + top + ": b\n",
+			func() any { return new(map[int]map[float64]gapHook) },
+			func() any { return new(map[int]map[float64]string) }, 1},
+		{"null keys that fold alike", "~:\n  .nan: a\nnull:\n  " + top + ": b\n",
+			func() any { return new(map[any]map[any]gapHook) },
+			func() any { return new(map[any]map[any]string) }, 1},
+		{"a NaN kept beside a replaced one", "+1: {.nan: a}\n0x1: {.nan: c, " + top + ": b}\n",
+			func() any { return new(map[int]map[float64]gapHook) },
+			func() any { return new(map[int]map[float64]string) }, 2},
+	})
+
+	// Node.Decode walks the same sites.
+	var n yaml.Node
+	if err := yaml.Unmarshal([]byte("+1: {.nan: a}\n0x1: {"+top+": b}\n"), &n); err != nil {
+		t.Fatal(err)
+	}
+	var m map[int]map[float64]gapHook
+	if err := n.Decode(&m); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := renderEntries(reflect.ValueOf(m)), "{1: {1.7976931348623157e+308: b}}"; got != want {
+		t.Errorf("Node.Decode: got %s, want %s", got, want)
+	}
+}
+
 // nanField has a map with float keys beside a hooked field.
 type nanField struct {
 	M map[float64]gapHook `yaml:"m"`

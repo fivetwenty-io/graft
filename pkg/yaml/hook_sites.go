@@ -50,12 +50,14 @@ type hookStep struct {
 // keeps of them. The tree orders its entries by hash, the hash of the
 // key, and holds one entry for each Go key whose pairs recorded sites.
 // first and end bound the sites that the latest of those pairs recorded,
-// as indexes into siteWalk.sites. The entry lives in the pair's path, so
-// the tree costs the walk no allocation of its own.
+// as indexes into siteWalk.sites, and moved and movedEnd bound the moves
+// it recorded, as indexes into siteWalk.moves. The entry lives in the
+// pair's path, so the tree costs the walk no allocation of its own.
 type keySlot struct {
-	hash        uint64
-	left, right *hookStep
-	first, end  int
+	hash            uint64
+	left, right     *hookStep
+	first, end      int
+	moved, movedEnd int
 }
 
 // hookSites finds the places in body, a prepared syntax tree that fills
@@ -99,7 +101,13 @@ func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOp
 			sites = append(sites, s)
 		}
 	}
-	return out, hookPlan{sites: sites, moves: w.moves}, nil
+	moves := make([]keyMove, 0, len(w.moves))
+	for _, mv := range w.moves {
+		if mv.from.IsValid() {
+			moves = append(moves, mv)
+		}
+	}
+	return out, hookPlan{sites: sites, moves: moves}, nil
 }
 
 // hookPlan is what hookSites finds. sites are the hook sites in document
@@ -111,7 +119,7 @@ type hookPlan struct {
 }
 
 // keyMove moves the entry under the key from, in the map that path leads
-// to, to the key to.
+// to, to the key to. A move whose from is the zero Value is canceled.
 type keyMove struct {
 	path     []hookStep
 	from, to reflect.Value
@@ -123,9 +131,10 @@ type keyMove struct {
 // mappings.
 //
 // When a later pair of a mapping fills the place an earlier pair filled,
-// goccy keeps only the later value, so every site the earlier pair
-// recorded is canceled. A site is canceled by clearing its node, and
-// the holes stay as they are, so goccy decodes the same body either way.
+// goccy keeps only the later value, so every site and every key move the
+// earlier pair recorded is canceled. A site is canceled by clearing its
+// node, and a move by clearing its from key. The holes and stand-in keys
+// stay as they are, so goccy decodes the same body either way.
 type siteWalk struct {
 	owners *tokenOwners
 	opts   DecodeOptions
@@ -202,6 +211,15 @@ func (w *siteWalk) cancel(first, end int) {
 	}
 }
 
+// cancelMoves clears the key moves from index first up to end, which a
+// later pair has replaced. Each of them would move an entry of the
+// value that replaced theirs, which may hold a key equal to a stand-in.
+func (w *siteWalk) cancelMoves(first, end int) {
+	for i := first; i < end; i++ {
+		w.moves[i].from = reflect.Value{}
+	}
+}
+
 // then returns path with steps after it, in a new slice, since sibling
 // paths share their prefix.
 func then(path []hookStep, steps ...hookStep) []hookStep {
@@ -219,7 +237,7 @@ func (w *siteWalk) structMapping(n ast.Node, t reflect.Type, path []hookStep) (a
 		return n, nil
 	}
 	keys := w.keys.structKeys(t)
-	from := len(w.sites)
+	from := walkMark{sites: len(w.sites), moves: len(w.moves)}
 	// pairs stays nil until a pair changes, and then holds every pair kept.
 	var pairs []*ast.MappingValueNode
 	for i, mv := range m.Values {
@@ -247,17 +265,19 @@ func (w *siteWalk) structMapping(n ast.Node, t reflect.Type, path []hookStep) (a
 // value is a hook site, so the pair comes out. The key's reader comes
 // from reader, which refuses a key that a hook can never see.
 //
-// The mapping's sites start at index from. An alias can give a key that
-// an earlier pair of the mapping already has, and goccy then fills the
-// field from the later pair alone. So before a pair's value is walked,
-// every site the mapping's earlier pairs recorded is checked, and those
-// under the same field are canceled. The check runs for every pair that
-// fills a field, whether or not its key repeats, so one mapping costs
-// its pairs times the sites recorded under it. Each check compares a few
-// field indexes and allocates nothing. The struct type bounds the pairs,
+// The mapping's sites and key moves start at the indexes in from. An
+// alias can give a key that an earlier pair of the mapping already has,
+// and goccy then fills the field from the later pair alone. So before a
+// pair's value is walked, every site and move the mapping's earlier pairs
+// recorded is checked, and those under the same field are canceled. The
+// check runs for every pair that fills a field, whether or not its key
+// repeats, so one mapping costs its pairs times the sites and moves
+// recorded under it. A pair records a move only beside a site, so the
+// moves add no more than the sites do. Each check compares a few field
+// indexes and allocates nothing. The struct type bounds the pairs,
 // since goccy fills each field from one pair, but nothing bounds the
 // sites under an earlier field.
-func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.Type, path []hookStep, from int) (*ast.MappingValueNode, bool, error) {
+func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.Type, path []hookStep, from walkMark) (*ast.MappingValueNode, bool, error) {
 	at, shared := reader(t, keys.index[keyString(keyText(mv.Key))])
 	if shared {
 		return nil, false, sharedHookKeyError(mv.Key, t)
@@ -265,9 +285,14 @@ func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.T
 	if at == nil {
 		return mv, false, nil
 	}
-	for i := from; i < len(w.sites); i++ {
+	for i := from.sites; i < len(w.sites); i++ {
 		if entersField(w.sites[i].path[len(path):], at) {
 			w.sites[i].node = nil
+		}
+	}
+	for i := from.moves; i < len(w.moves); i++ {
+		if entersField(w.moves[i].path[len(path):], at) {
+			w.moves[i].from = reflect.Value{}
 		}
 	}
 	steps := make([]hookStep, len(at))
@@ -284,6 +309,12 @@ func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.T
 	c := *mv
 	c.Value = got
 	return &c, false, nil
+}
+
+// walkMark holds the lengths of siteWalk.sites and siteWalk.moves at a
+// point of the walk.
+type walkMark struct {
+	sites, moves int
 }
 
 // entersField reports whether steps, the rest of a site's path past a
@@ -422,8 +453,10 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 		switch {
 		case prior != nil:
 			prior.slot.first, prior.slot.end = first, len(w.sites)
+			prior.slot.moved, prior.slot.movedEnd = moves, len(w.moves)
 		case link != nil && len(w.sites) > first:
 			step.slot.first, step.slot.end = first, len(w.sites)
+			step.slot.moved, step.slot.movedEnd = moves, len(w.moves)
 			*link = step
 		}
 		if err := w.pointedKey(&pointed, mv.Key, key, len(w.sites) > first, t); err != nil {
@@ -443,9 +476,9 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 }
 
 // slotOf looks for an entry with step's key in the key tree at root, as
-// findSlot does, and cancels every site that entry's pair recorded. A
-// key that cannot be compared, or that is NaN, which equals no key, has
-// no entry and gets neither.
+// findSlot does, and cancels every site and key move that entry's pair
+// recorded. A key that cannot be compared, or that is NaN, which equals
+// no key, has no entry and gets neither.
 func (w *siteWalk) slotOf(root **hookStep, step *hookStep) (*hookStep, **hookStep) {
 	if !comparableKey(step.key) || valueNaN(step.key) {
 		return nil, nil
@@ -454,6 +487,7 @@ func (w *siteWalk) slotOf(root **hookStep, step *hookStep) (*hookStep, **hookSte
 	prior, link := findSlot(root, step)
 	if prior != nil {
 		w.cancel(prior.slot.first, prior.slot.end)
+		w.cancelMoves(prior.slot.moved, prior.slot.movedEnd)
 	}
 	return prior, link
 }
