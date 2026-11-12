@@ -410,7 +410,7 @@ func TestReadersLeaveOutAKeyPrunedThroughAGrab(t *testing.T) {
 				"as: (( stringify m ))\nzs: (( stringify m ))\n",
 			prunes: []string{"x.bb"},
 			want: map[string]interface{}{
-				"m": map[string]interface{}{"a": 1},
+				"m":  map[string]interface{}{"a": 1},
 				"aj": "a:1", "zj": "a:1",
 				"as": "a: 1\n", "zs": "a: 1\n",
 			},
