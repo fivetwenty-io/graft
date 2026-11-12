@@ -475,12 +475,12 @@ func withPair(m, out *ast.MappingNode, i int, key ast.MapKeyNode, value ast.Node
 // standIn returns the key node that goccy decodes in place of k, a key
 // of the mapping m that decodes to nan, a NaN, in a map with keys of
 // type kt at path. The pair's value recorded the sites from index first
-// and the moves from index moves on. The stand-in is a float that no key of m decodes to, so the
-// hooks find the entry goccy makes for the pair, and a keyMove puts the
-// entry under the NaN key once they have run. taken holds the keys of
-// m, decoded the first time a NaN key needs them, and the stand-ins
-// handed out so far. When kt can hold no such float, or no stand-in is
-// found, k comes back as it is.
+// and the moves from index moves on. The stand-in is a float that no key
+// of m decodes to, so the hooks find the entry goccy makes for the pair,
+// and a keyMove puts the entry under the NaN key once they have run.
+// taken holds the keys of m, decoded the first time a NaN key needs
+// them, and the stand-ins handed out so far. When kt can hold no such
+// float, or no stand-in is found, k comes back as it is.
 func (w *siteWalk) standIn(m *ast.MappingNode, k ast.MapKeyNode, nan reflect.Value, kt reflect.Type, taken *[]reflect.Value, path []hookStep, first, moves int) ast.MapKeyNode {
 	bits := 64
 	switch {
