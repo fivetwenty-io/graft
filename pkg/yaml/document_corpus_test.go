@@ -2,6 +2,7 @@ package yaml_test
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -17,14 +18,14 @@ const (
 	corpusFloor   = 1070
 	sentinel      = "graft-document-sentinel"
 	maxSetsInFile = 20
-	setSweepFloor = 500
+	setSweepFloor = 3380
 
 	// The short sweep visits every shortStride-th file and makes at
 	// most shortSetsInFile edits in each, which keeps make test-race
 	// quick while still covering every kind of file.
 	shortStride     = 8
 	shortSetsInFile = 4
-	shortSweepFloor = 60
+	shortSweepFloor = 165
 )
 
 // corpusFiles returns every YAML file under tests and examples, leaving
@@ -138,12 +139,12 @@ func nodeEnd(lines []string, line int) int {
 	return line
 }
 
-// checkEditStayedLocal checks that the edit changed only the node that
-// started on the 1-based line before. Everything above the node and
-// everything below it must be unchanged, and a block scalar edit may
-// change the line count, which shifts the lines below it.
-func checkEditStayedLocal(t *testing.T, f, p string, oldLines, newLines []string, line int) {
-	t.Helper()
+// editLeak checks that an edit changed only the node that started on the
+// 1-based line before. Everything above the node and everything below it
+// must be unchanged, and a block scalar edit may change the line count,
+// which shifts the lines below it. It returns "" when the edit stayed
+// local, or a description of the stray change.
+func editLeak(oldLines, newLines []string, line int) string {
 	pre := 0
 	for pre < len(oldLines) && pre < len(newLines) && oldLines[pre] == newLines[pre] {
 		pre++
@@ -157,8 +158,40 @@ func checkEditStayedLocal(t *testing.T, f, p string, oldLines, newLines []string
 	// The changed block is oldLines[pre:len-suf] and must sit inside the
 	// node's old range, which is lines line-1 up to oldEnd.
 	if pre < line-1 || len(oldLines)-suf > oldEnd {
-		t.Errorf("%s: Set(%s) changed lines %d to %d, outside the node at lines %d to %d",
-			f, p, pre+1, len(oldLines)-suf, line, oldEnd)
+		return fmt.Sprintf("changed lines %d to %d, outside the node at lines %d to %d",
+			pre+1, len(oldLines)-suf, line, oldEnd)
+	}
+	return ""
+}
+
+// TestEditLeakCatchesStrayEdits feeds editLeak edits that touch a line
+// outside the node, alone and next to a legitimate edit, and checks that
+// it reports both while accepting the legitimate edit by itself.
+func TestEditLeakCatchesStrayEdits(t *testing.T) {
+	old := strings.Split("a: 1\nb: 2\nc: 3\nd: 4", "\n")
+	cases := map[string][]string{
+		"stray line before":       {"a: X", "b: SENTINEL", "c: 3", "d: 4"},
+		"stray line after":        {"a: 1", "b: SENTINEL", "c: 3", "d: X"},
+		"stray beside the edit":   {"a: 1", "b: SENTINEL", "c: X", "d: 4"},
+		"stray both sides":        {"a: X", "b: SENTINEL", "c: 3", "d: X"},
+		"stray with a line added": {"a: 1", "b: SENTINEL", "c: X", "d: 4", "e: 5"},
+	}
+	for name, next := range cases {
+		if editLeak(old, next, 2) == "" {
+			t.Errorf("%s: editLeak did not report the stray edit", name)
+		}
+	}
+	if got := editLeak(old, []string{"a: 1", "b: SENTINEL", "c: 3", "d: 4"}, 2); got != "" {
+		t.Errorf("legitimate edit reported: %s", got)
+	}
+	block := strings.Split("k: |\n  one\n  two\nz: 1", "\n")
+	grown := strings.Split("k: |\n  one\n  two\n  three\nz: 1", "\n")
+	if got := editLeak(block, grown, 1); got != "" {
+		t.Errorf("block edit that adds a line reported: %s", got)
+	}
+	grown[4] = "z: 2"
+	if editLeak(block, grown, 1) == "" {
+		t.Error("stray edit beside a block edit not reported")
 	}
 }
 
@@ -168,7 +201,7 @@ func TestDocumentCorpusSetSweep(t *testing.T) {
 		stride, perFile, floor = shortStride, shortSetsInFile, shortSweepFloor
 	}
 	start := time.Now()
-	sets, skipped := 0, 0
+	sets, skipped, refused := 0, 0, 0
 	for i, f := range corpusFiles(t) {
 		if i%stride != 0 {
 			continue
@@ -192,6 +225,7 @@ func TestDocumentCorpusSetSweep(t *testing.T) {
 		for _, p := range paths {
 			d, _ := yaml.ParseDocument(data)
 			if d.Editable(p) != nil {
+				refused++
 				continue
 			}
 			before, _ := d.Get(p)
@@ -205,12 +239,14 @@ func TestDocumentCorpusSetSweep(t *testing.T) {
 				continue
 			}
 			newLines := strings.Split(string(d.Bytes()), "\n")
-			checkEditStayedLocal(t, f, p, oldLines, newLines, before.Line)
+			if leak := editLeak(oldLines, newLines, before.Line); leak != "" {
+				t.Errorf("%s: Set(%s) %s", f, p, leak)
+			}
 			sets++
 		}
 	}
 	if sets < floor {
 		t.Fatalf("the sweep made %d edits, want at least %d", sets, floor)
 	}
-	t.Logf("%d edits verified in %s, %d unparsable files skipped", sets, time.Since(start).Round(time.Millisecond), skipped)
+	t.Logf("%d edits verified in %s, %d Editable refusals, %d unparsable files skipped", sets, time.Since(start).Round(time.Millisecond), refused, skipped)
 }
