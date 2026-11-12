@@ -2,7 +2,6 @@ package operators
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
@@ -130,8 +129,7 @@ func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 // i, adds to the joined list. An environment variable's decoded value is
 // printed whole, the way spruce prints it, so a list reads [a b], a map
 // map[a:b], and a null <nil>. Otherwise a null adds nothing, a list adds
-// each of its entries, and a map adds a key:value pair for each key in
-// sorted order.
+// each of its entries, and a map is refused, as spruce refuses it.
 func joinParts(i int, val interface{}, fromEnv bool) ([]string, error) {
 	if fromEnv {
 		DEBUG("     [%d]: resolved to an environment value", i)
@@ -162,20 +160,8 @@ func joinParts(i int, val interface{}, fromEnv bool) ([]string, error) {
 		return parts, nil
 
 	case map[string]interface{}:
-		DEBUG("     [%d]: resolved to a map", i)
-		// Sort keys for consistent output
-		keys := make([]string, 0, len(v))
-		for k := range v {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-
-		// Join key:value pairs
-		parts := make([]string, 0, len(keys))
-		for _, k := range keys {
-			parts = append(parts, fmt.Sprintf("%s:%v", k, v[k]))
-		}
-		return parts, nil
+		DEBUG("     [%d]: resolved to a map (not a list or a literal)", i)
+		return nil, errtext.Colorf("referenced entry is not a list or string for @c{(( join ... ))}")
 	}
 	DEBUG("     [%d]: resolved to a literal value", i)
 	return []string{fmt.Sprintf("%v", val)}, nil

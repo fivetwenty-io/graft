@@ -141,7 +141,7 @@ result: (( join "," missing.thing ))
 		So(secondIdx, ShouldBeLessThan, 0)
 	})
 
-	Convey("join: map argument is joined as sorted key:value pairs (documented graft extension)", t, func() {
+	Convey("join: a map argument is refused, as spruce refuses it", t, func() {
 		engine, err := graft.NewEngine()
 		So(err, ShouldBeNil)
 
@@ -153,12 +153,9 @@ result: (( join ", " settings ))
 `))
 		So(err, ShouldBeNil)
 
-		out, err := engine.Evaluate(context.TODO(), doc)
-		So(err, ShouldBeNil)
-
-		val, err := out.GetString("result")
-		So(err, ShouldBeNil)
-		So(val, ShouldEqual, "debug:true, timeout:30")
+		_, err = engine.Evaluate(context.TODO(), doc)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldContainSubstring, "referenced entry is not a list or string for (( join ... ))")
 	})
 
 	// --- defer ----------------------------------------------------------
