@@ -358,3 +358,17 @@ func TestCommitAcceptsAnUnchangedText(t *testing.T) {
 		t.Error("sameOutside refuses two equal texts")
 	}
 }
+
+// TestSameOutsideCountsTheLinesAfterTheNode checks that a line added
+// after the edited node is refused, even where the lines the two texts
+// share at the start and at the end cover every line.
+func TestSameOutsideCountsTheLinesAfterTheNode(t *testing.T) {
+	a, b := []byte("x\nx\n"), []byte("x\nx\nx\n")
+	if sameOutside(a, newLineIndex(a), b, newLineIndex(b), 1, 1, 1) {
+		t.Error("sameOutside accepts a line added after the node")
+	}
+	c := []byte("x\ny\nx\n")
+	if !sameOutside(a, newLineIndex(a), c, newLineIndex(c), 1, 1, 2) {
+		t.Error("sameOutside refuses a node that grew by one line")
+	}
+}

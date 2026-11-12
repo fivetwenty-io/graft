@@ -122,9 +122,10 @@ func sameComments(a, b *yamlnode.Node) bool {
 // in a, and from line first to line bLast in b. It counts the lines the
 // two have in common at the start and, separately, at the end, and
 // requires that those cover every line before first and every line
-// after the node's last line on each side, so the lines after the node
-// move by bLast-aLast and nothing else. The two counts may overlap, as
-// they do when the node's text is unchanged.
+// after the node's last line on each side, and that the two sides have
+// as many lines after the node, so the lines after the node move by
+// bLast-aLast and nothing else. The two counts may overlap, as they do
+// when the node's text is unchanged.
 func sameOutside(a []byte, al []int, b []byte, bl []int, first, aLast, bLast int) bool {
 	na, nb := len(al), len(bl)
 	head := 0
@@ -135,7 +136,7 @@ func sameOutside(a []byte, al []int, b []byte, bl []int, first, aLast, bLast int
 	for tail < na && tail < nb && bytes.Equal(lineOf(a, al, na-tail), lineOf(b, bl, nb-tail)) {
 		tail++
 	}
-	return head >= first-1 && na-tail <= aLast && nb-tail <= bLast
+	return head >= first-1 && na-tail <= aLast && nb-tail <= bLast && na-aLast == nb-bLast
 }
 
 // lastLine returns the last line that node n of root, whose text is src
