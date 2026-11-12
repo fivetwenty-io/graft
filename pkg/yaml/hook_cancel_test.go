@@ -137,6 +137,8 @@ func TestDistinctKeysKeepTheirHooks(t *testing.T) {
 			map[string]gapHook{"1": {Val: "hook:a"}, "0x1": {Val: "hook:b"}}, 2},
 		{"an int and a float", "1: a\n1.0: b\n", func() any { return new(map[any]gapHook) },
 			map[any]gapHook{uint64(1): {Val: "hook:a"}, 1.0: {Val: "hook:b"}}, 2},
+		{"a negative int and a negative float", "-1: a\n-1.0: b\n", func() any { return new(map[any]gapHook) },
+			map[any]gapHook{int64(-1): {Val: "hook:a"}, -1.0: {Val: "hook:b"}}, 2},
 		{"a null in another map", "a: {b: 1}\n0x1: ~\n", func() any { return new(map[any]map[string]gapHook) },
 			map[any]map[string]gapHook{"a": {"b": {Val: "hook:1"}}, uint64(1): nil}, 1},
 	})

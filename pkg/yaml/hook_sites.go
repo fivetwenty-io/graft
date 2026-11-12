@@ -5,8 +5,6 @@ import (
 	"hash/maphash"
 	"reflect"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/token"
@@ -83,7 +81,6 @@ func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOp
 		owners: owners,
 		opts:   opts,
 		keys:   &textWalk{structs: make(map[reflect.Type]*structKeys), kinds: make(map[reflect.Type]ownKind)},
-		at:     make(map[string]int),
 		seed:   maphash.MakeSeed(),
 	}
 	out, hole, err := w.node(body, t, nil)
@@ -104,9 +101,8 @@ func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOp
 
 // siteWalk walks a syntax tree and a target type side by side, as
 // textWalk does, and collects the hook sites it meets. keys holds the
-// struct keys goccy matches fields by, and at holds the index in sites
-// of each path seen, so that when a key repeats, only its last site runs.
-// seed hashes the keys of typed mappings.
+// struct keys goccy matches fields by, and seed hashes the keys of typed
+// mappings.
 //
 // When a later pair of a mapping fills the place an earlier pair filled,
 // goccy keeps only the later value, so every site the earlier pair
@@ -117,7 +113,6 @@ type siteWalk struct {
 	opts   DecodeOptions
 	keys   *textWalk
 	sites  []hookSite
-	at     map[string]int
 	seed   maphash.Seed
 }
 
@@ -173,14 +168,10 @@ func (w *siteWalk) node(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, 
 	return out, false, nil
 }
 
-// add records s, in place of an earlier site at the same path, which
-// then no longer runs.
+// add records s. A site that a later pair replaces is canceled where
+// the later pair is walked, as typedMapping and field describe, since
+// only the decoded key tells which places two pairs share.
 func (w *siteWalk) add(s hookSite) {
-	id := pathID(s.path)
-	if i, ok := w.at[id]; ok {
-		w.sites[i].node = nil
-	}
-	w.at[id] = len(w.sites)
 	w.sites = append(w.sites, s)
 }
 
@@ -190,25 +181,6 @@ func (w *siteWalk) cancel(first, end int) {
 	for i := first; i < end; i++ {
 		w.sites[i].node = nil
 	}
-}
-
-// pathID returns a text that tells path apart from every other path.
-func pathID(path []hookStep) string {
-	var b strings.Builder
-	for _, s := range path {
-		switch s.kind {
-		case stepField:
-			b.WriteString(".")
-			b.WriteString(strconv.Itoa(s.index))
-		case stepIndex:
-			b.WriteString("[")
-			b.WriteString(strconv.Itoa(s.index))
-			b.WriteString("]")
-		case stepKey:
-			fmt.Fprintf(&b, "{%#v}", s.key.Interface())
-		}
-	}
-	return b.String()
 }
 
 // then returns path with steps after it, in a new slice, since sibling
