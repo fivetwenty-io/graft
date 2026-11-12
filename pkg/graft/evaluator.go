@@ -1135,7 +1135,7 @@ func (ev *Evaluator) RunOps(ops []*Opcall) error {
 	ctx := ev.context()
 	errors := MultiError{Errors: []error{}}
 	for _, op := range ops {
-		if err := canceled(ctx, opStep(op)); err != nil {
+		if err := opCanceled(ctx, op); err != nil {
 			return err
 		}
 		err := ev.RunOp(op)

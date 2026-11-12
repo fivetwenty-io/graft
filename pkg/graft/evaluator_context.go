@@ -50,3 +50,13 @@ func opStep(op *Opcall) string {
 func phaseStep(phase OperatorPhase) string {
 	return "the " + phaseToString(phase) + " phase"
 }
+
+// opCanceled is canceled for the step of running op. It runs before
+// every operator, so it names the step only once ctx is done, and a live
+// context costs no allocation.
+func opCanceled(ctx context.Context, op *Opcall) error {
+	if ctx.Err() == nil {
+		return nil
+	}
+	return canceled(ctx, opStep(op))
+}

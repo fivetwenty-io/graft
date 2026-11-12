@@ -168,7 +168,7 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 		sort.Slice(wave, func(i, j int) bool { return wave[i].ID < wave[j].ID })
 
 		if len(wave) > 0 {
-			if err := canceled(ctx, opStep(opByID[wave[0].ID])); err != nil {
+			if err := opCanceled(ctx, opByID[wave[0].ID]); err != nil {
 				return err
 			}
 		}
@@ -455,12 +455,12 @@ func (ev *Evaluator) runSequentialTasks(ctx context.Context, pool *parallel.Work
 	poolCtx := context.WithoutCancel(ctx)
 	for _, task := range tasks {
 		op := opByID[task.ID]
-		if err := canceled(ctx, opStep(op)); err != nil {
+		if err := opCanceled(ctx, op); err != nil {
 			return err
 		}
 		parallelStats.totalOps.Add(1)
 		taskErr := pool.SubmitWaitContext(poolCtx, func(context.Context) error {
-			if err := canceled(ctx, opStep(op)); err != nil {
+			if err := opCanceled(ctx, op); err != nil {
 				return err
 			}
 			treeMu.Lock()
@@ -517,11 +517,11 @@ func (ev *Evaluator) runConcurrentTasks(ctx context.Context, pool *parallel.Work
 	for i, task := range tasks {
 		idx := i
 		op := opByID[task.ID]
-		if err := canceled(ctx, opStep(op)); err != nil {
+		if err := opCanceled(ctx, op); err != nil {
 			// No task from here on may start, so each is marked
 			// stopped and its wg.Done accounted for here.
 			for j := i; j < len(tasks); j++ {
-				results[j] = computeResult{op: opByID[tasks[j].ID], stopped: canceled(ctx, opStep(opByID[tasks[j].ID]))}
+				results[j] = computeResult{op: opByID[tasks[j].ID], stopped: opCanceled(ctx, opByID[tasks[j].ID])}
 				wg.Done()
 			}
 			break
@@ -538,7 +538,7 @@ func (ev *Evaluator) runConcurrentTasks(ctx context.Context, pool *parallel.Work
 		// rejecting work the pool merely hasn't drained yet.
 		submitErr := pool.SubmitBlocking(poolCtx, func(context.Context) error {
 			defer wg.Done()
-			if err := canceled(ctx, opStep(op)); err != nil {
+			if err := opCanceled(ctx, op); err != nil {
 				results[idx] = computeResult{op: op, stopped: err}
 				return nil
 			}

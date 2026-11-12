@@ -233,3 +233,22 @@ func TestCanceledNamesTheStep(t *testing.T) {
 		t.Errorf("context() with none set = %v, want context.Background", got)
 	}
 }
+
+// TestOpCanceledIsFreeOnALiveContext checks that the check made before
+// every operator builds no step text while the context is live.
+func TestOpCanceledIsFreeOnALiveContext(t *testing.T) {
+	where, err := tree.ParseCursor("meta.x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	op := &Opcall{where: where}
+	ctx := context.Background()
+	if n := testing.AllocsPerRun(100, func() { _ = opCanceled(ctx, op) }); n != 0 {
+		t.Errorf("opCanceled on a live context made %v allocations, want 0", n)
+	}
+	done, cancel := context.WithCancel(ctx)
+	cancel()
+	if got, want := fmt.Sprint(opCanceled(done, op)), "evaluation stopped before $.meta.x: context canceled"; got != want {
+		t.Errorf("opCanceled = %q, want %q", got, want)
+	}
+}
