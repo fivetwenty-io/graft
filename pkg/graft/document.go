@@ -75,7 +75,7 @@ func NewDocument(data map[string]interface{}) Document {
 	if data == nil {
 		data = make(map[string]interface{})
 	}
-	return &document{data: data}
+	return &document{data: plainGoMap(data)}
 }
 
 // NewDocumentFromInterface creates a document from any interface{}.
@@ -86,6 +86,9 @@ func NewDocumentFromInterface(data interface{}) (Document, error) {
 	case nil:
 		return NewDocument(nil), nil
 	default:
+		if m, ok := plainGoValue(data).(map[string]interface{}); ok {
+			return NewDocument(m), nil
+		}
 		return nil, NewValidationError(fmt.Sprintf("cannot create document from type %T", data))
 	}
 }
@@ -114,6 +117,7 @@ func (d *document) Get(path string) (interface{}, error) {
 
 // Set sets a value at the given path.
 func (d *document) Set(path string, value interface{}) error {
+	value = plainGoValue(value)
 	if path == "" || path == "$" {
 		if mapValue, ok := value.(map[string]interface{}); ok {
 			d.data = mapValue
