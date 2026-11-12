@@ -432,7 +432,7 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 	var out *ast.MappingNode
 	var slots *hookStep
 	var pointed pointedKeys
-	var taken []reflect.Value
+	var stands standIns
 	for i, mv := range m.Values {
 		key, ok := w.mapKey(mv.Key, t.Key())
 		if !ok {
@@ -448,7 +448,7 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 		}
 		newKey := mv.Key
 		if len(w.sites) > first && valueNaN(key) {
-			newKey = w.standIn(m, mv.Key, key, t.Key(), &taken, path, first, moves)
+			newKey = w.standIn(m, mv.Key, key, t.Key(), &stands, path, first, moves)
 		}
 		switch {
 		case prior != nil:
@@ -512,10 +512,10 @@ func withPair(m, out *ast.MappingNode, i int, key ast.MapKeyNode, value ast.Node
 // and the moves from index moves on. The stand-in is a float that no key
 // of m decodes to, so the hooks find the entry goccy makes for the pair,
 // and a keyMove puts the entry under the NaN key once they have run.
-// taken holds the keys of m, decoded the first time a NaN key needs
-// them, and the stand-ins handed out so far. When kt can hold no such
-// float, or no stand-in is found, k comes back as it is.
-func (w *siteWalk) standIn(m *ast.MappingNode, k ast.MapKeyNode, nan reflect.Value, kt reflect.Type, taken *[]reflect.Value, path []hookStep, first, moves int) ast.MapKeyNode {
+// stands holds the floats the keys of m decode to, read the first time
+// a NaN key needs them, and the next float to try. When kt can hold no
+// such float, or no stand-in is found, k comes back as it is.
+func (w *siteWalk) standIn(m *ast.MappingNode, k ast.MapKeyNode, nan reflect.Value, kt reflect.Type, stands *standIns, path []hookStep, first, moves int) ast.MapKeyNode {
 	bits := 64
 	switch {
 	case w.keys.kind(kt) != notOwn:
@@ -527,19 +527,24 @@ func (w *siteWalk) standIn(m *ast.MappingNode, k ast.MapKeyNode, nan reflect.Val
 	default:
 		return k
 	}
-	if *taken == nil {
-		*taken = make([]reflect.Value, 0, len(m.Values)+1)
+	if stands.taken == nil {
+		stands.taken = make(map[uint64]struct{}, len(m.Values))
 		for _, mv := range m.Values {
 			if key, ok := w.mapKey(mv.Key, kt); ok {
-				*taken = append(*taken, key)
+				if f, ok := keyFloat(key); ok {
+					stands.taken[floatBits(f)] = struct{}{}
+				}
 			}
 		}
+		stands.next = math.MaxFloat64
+		if bits == 32 {
+			stands.next = math.MaxFloat32
+		}
 	}
-	key, node, ok := w.freeFloat(*taken, k, kt, bits)
+	key, node, ok := w.freeFloat(stands, k, kt, bits)
 	if !ok {
 		return k
 	}
-	*taken = append(*taken, key)
 	for i := first; i < len(w.sites); i++ {
 		w.sites[i].path[len(path)].key = key
 	}
@@ -550,53 +555,86 @@ func (w *siteWalk) standIn(m *ast.MappingNode, k ast.MapKeyNode, nan reflect.Val
 	return node
 }
 
-// freeFloat returns a key of type kt that equals none of taken, and a
-// float node at the place of k that decodes to it. It tries the largest
-// finite float of the given bits and then each float below it, so it
-// tries at most one more than taken holds. It reports false when the
-// free float's node does not decode to it as a key of type kt.
-func (w *siteWalk) freeFloat(taken []reflect.Value, k ast.MapKeyNode, kt reflect.Type, bits int) (reflect.Value, ast.MapKeyNode, bool) {
-	f := math.MaxFloat64
-	if bits == 32 {
-		f = math.MaxFloat32
-	}
-	for range len(taken) + 1 {
-		if !slices.ContainsFunc(taken, func(v reflect.Value) bool { return floatKey(v, f) }) {
-			text := strconv.FormatFloat(f, 'g', -1, bits)
-			pos := &token.Position{}
-			if tk := k.GetToken(); tk != nil && tk.Position != nil {
-				c := *tk.Position
-				pos = &c
-			}
-			node := ast.Float(token.New(text, text, pos))
-			if got, ok := w.mapKey(node, kt); ok && floatKey(got, f) {
-				return got, node, true
-			}
-			return reflect.Value{}, nil, false
-		}
-		if bits == 32 {
-			f = float64(math.Nextafter32(float32(f), 0))
-		} else {
-			f = math.Nextafter(f, 0)
-		}
-	}
-	return reflect.Value{}, nil, false
+// standIns holds the stand-in search of one mapping. taken holds the
+// floats that the mapping's keys decode to, by floatBits, and next is
+// the float to try next. The search walks down from the largest finite
+// float and never turns back, so the floats above next are each taken
+// or handed out already, and a stand-in needs no record of its own.
+type standIns struct {
+	taken map[uint64]struct{}
+	next  float64
 }
 
-// floatKey reports whether v, a decoded map key, is the float f, or an
-// interface that holds it.
-func floatKey(v reflect.Value, f float64) bool {
+// freeFloat returns a key of type kt that no key of the mapping that
+// stands searches decodes to, and a float node at the place of k that
+// decodes to it. It tries stands.next and then each float of the given
+// bits below it, and moves stands.next past the float it hands out. A
+// search tries at most one float more than stands.taken holds, and
+// every search of a mapping together tries at most that many more than
+// the searches. It reports false when the free float's node does not
+// decode to it as a key of type kt.
+func (w *siteWalk) freeFloat(stands *standIns, k ast.MapKeyNode, kt reflect.Type, bits int) (reflect.Value, ast.MapKeyNode, bool) {
+	f, free := stands.next, false
+	for range len(stands.taken) + 1 {
+		if _, held := stands.taken[floatBits(f)]; !held {
+			free = true
+			break
+		}
+		f = floatBelow(f, bits)
+	}
+	if !free {
+		return reflect.Value{}, nil, false
+	}
+	stands.next = floatBelow(f, bits)
+	text := strconv.FormatFloat(f, 'g', -1, bits)
+	pos := &token.Position{}
+	if tk := k.GetToken(); tk != nil && tk.Position != nil {
+		c := *tk.Position
+		pos = &c
+	}
+	node := ast.Float(token.New(text, text, pos))
+	got, ok := w.mapKey(node, kt)
+	if !ok {
+		return reflect.Value{}, nil, false
+	}
+	if g, ok := keyFloat(got); !ok || g != f {
+		return reflect.Value{}, nil, false
+	}
+	return got, node, true
+}
+
+// floatBelow returns the float of the given bits next below f, which is
+// a positive float of those bits.
+func floatBelow(f float64, bits int) float64 {
+	if bits == 32 {
+		return float64(math.Nextafter32(float32(f), 0))
+	}
+	return math.Nextafter(f, 0)
+}
+
+// floatBits returns the bits of f, with -0 read as 0, since the two are
+// one map key.
+func floatBits(f float64) uint64 {
+	if f == 0 {
+		f = 0
+	}
+	return math.Float64bits(f)
+}
+
+// keyFloat returns the float that v, a decoded map key, is, or that an
+// interface v holds, and reports false when v holds no float.
+func keyFloat(v reflect.Value) (float64, bool) {
 	if v.Kind() == reflect.Interface {
 		if v.IsNil() {
-			return false
+			return 0, false
 		}
 		v = v.Elem()
 	}
 	switch v.Kind() {
 	case reflect.Float32, reflect.Float64:
-		return v.Float() == f
+		return v.Float(), true
 	default:
-		return false
+		return 0, false
 	}
 }
 

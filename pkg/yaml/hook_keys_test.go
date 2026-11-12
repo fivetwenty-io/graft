@@ -3,7 +3,9 @@ package yaml_test
 import (
 	"math"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/fivetwenty-io/graft/pkg/yaml"
 )
@@ -147,6 +149,62 @@ func TestReplacedNaNKeysMoveNothing(t *testing.T) {
 	}
 	if got, want := renderEntries(reflect.ValueOf(m)), "{1: {1.7976931348623157e+308: b}}"; got != want {
 		t.Errorf("Node.Decode: got %s, want %s", got, want)
+	}
+}
+
+// TestNaNStandInsSkipTakenFloats checks that the stand-ins of several
+// NaN keys pass over the keys of the mapping that sit just below the
+// largest float, among them one that comes after the NaN keys.
+func TestNaNStandInsSkipTakenFloats(t *testing.T) {
+	floats := func() any { return new(map[float64]gapHook) }
+	floatsPlain := func() any { return new(map[float64]string) }
+	runKeyCases(t, false, []keyCase{
+		{"the two largest floats", "1.7976931348623157e308: a\n.nan: u\n" +
+			".NaN: v\n1.7976931348623155e308: b\n.NAN: w\n", floats, floatsPlain, 5},
+		{"the two largest float32s", "3.4028234663852886e+38: a\n.nan: u\n" +
+			".NaN: v\n3.4028232635611926e+38: b\n.NAN: w\n",
+			func() any { return new(map[float32]gapHook) }, func() any { return new(map[float32]string) }, 5},
+		{"a float in the gap", ".nan: u\n1.7976931348623155e308: b\n.NaN: v\n" +
+			"1.7976931348623151e308: c\n.NAN: w\n", floats, floatsPlain, 5},
+	})
+}
+
+// TestNaNKeysCostIsLinear checks that a mapping with many NaN keys
+// costs about what a plain decode of it costs, since each NaN key's
+// stand-in search resumes where the last one ended. A search that
+// started over at the largest float for each key, and checked each
+// float against every key, took over a minute here.
+func TestNaNKeysCostIsLinear(t *testing.T) {
+	if testing.Short() {
+		t.Skip("decodes 4000 NaN keys")
+	}
+	const n, times = 4000, 25
+	in := []byte(strings.Repeat(".nan: x\n", n))
+	opts := yaml.DecodeOptions{OnDuplicateKey: func(yaml.DuplicateKey) {}}
+	best := func(v func() any, stop time.Duration) time.Duration {
+		least := time.Duration(math.MaxInt64)
+		for range 3 {
+			start := time.Now()
+			if err := yaml.UnmarshalWith(in, v(), opts); err != nil {
+				t.Fatal(err)
+			}
+			least = min(least, time.Since(start))
+			if least <= stop {
+				break
+			}
+		}
+		return least
+	}
+	plain := best(func() any { return new(map[float64]string) }, 0)
+	bound := times * plain
+	var m map[float64]gapHook
+	took := best(func() any { m = nil; return &m }, bound)
+	t.Logf("%d NaN keys: hooked %v, plain %v", n, took, plain)
+	if len(m) != n {
+		t.Errorf("got %d entries, want %d", len(m), n)
+	}
+	if took > bound {
+		t.Errorf("the hooked decode took %v, more than %d times the %v a plain decode takes", took, times, plain)
 	}
 }
 
