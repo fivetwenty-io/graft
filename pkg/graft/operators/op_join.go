@@ -2,11 +2,15 @@ package operators
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/fivetwenty-io/graft/internal/errtext"
 	"github.com/fivetwenty-io/graft/internal/literal"
+	"github.com/fivetwenty-io/graft/internal/oploc"
+	"github.com/fivetwenty-io/graft/pkg/graft"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -106,7 +110,7 @@ func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 			separator = fmt.Sprintf("%v", arg.Literal)
 		} else { // argument #1..n: list, literal, or expression
 			// Use ResolveOperatorArgument to handle nested expressions
-			val, fromEnv, err := resolveNotingEnv(ev, arg)
+			val, leaf, err := resolveNotingLeaf(ev, arg)
 			if err != nil {
 				DEBUG("     [%d]: resolution failed\n    error: %s", i, err)
 				// ResolveOperatorArgument already formats reference resolution
@@ -114,6 +118,10 @@ func (JoinOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 				return nil, err
 			}
 
+			fromEnv := leaf != nil && leaf.Type == EnvVar
+			if m, ok := val.(map[string]interface{}); ok && leaf != nil && leaf.Type == Reference {
+				val = withoutPrunedKeys(ev, leaf.Reference, m)
+			}
 			parts, err := joinParts(i, val, fromEnv)
 			if err != nil {
 				return nil, err
@@ -183,6 +191,45 @@ func joinParts(i int, val interface{}, fromEnv bool) ([]string, error) {
 	}
 	DEBUG("     [%d]: resolved to a literal value", i)
 	return []string{fmt.Sprintf("%v", val)}, nil
+}
+
+// withoutPrunedKeys returns m, the map at ref, without the keys queued
+// for pruning, since they will not be in the output. A pruned entry of
+// a list is gone from the list before join reads it, and a pruned key
+// of a map is left out the same way. m is returned as it is when no
+// key of it is queued.
+func withoutPrunedKeys(ev *Evaluator, ref *tree.Cursor, m map[string]interface{}) map[string]interface{} {
+	engine := graft.EngineOf(ev)
+	if engine == nil || ref == nil {
+		return m
+	}
+	state := engine.GetOperatorState()
+	if state == nil {
+		return m
+	}
+	at := oploc.Canonical(ref, ev.Tree).Nodes
+	var out map[string]interface{}
+	for _, path := range state.GetKeysToPrune() {
+		c, err := tree.ParseCursor(path)
+		if err != nil || len(c.Nodes) != len(at)+1 {
+			continue
+		}
+		key := c.Pop()
+		if _, ok := m[key]; !ok {
+			continue
+		}
+		if !slices.Equal(oploc.Canonical(c, ev.Tree).Nodes, at) {
+			continue
+		}
+		if out == nil {
+			out = maps.Clone(m)
+		}
+		delete(out, key)
+	}
+	if out == nil {
+		return m
+	}
+	return out
 }
 
 //nolint:gochecknoinits // Operator registration must happen at package load time

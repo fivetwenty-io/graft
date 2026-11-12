@@ -10,19 +10,23 @@ import (
 	"github.com/fivetwenty-io/graft/pkg/graft/operators"
 )
 
-// mergeWithin merges src alone, which evaluates it and then prunes,
-// in the parallel or the sequential mode, and returns the result.
-func mergeWithin(t *testing.T, parallel bool, src string) (map[string]interface{}, error) {
+// mergeWithin merges srcs in order, which evaluates the result and then
+// prunes it, in the parallel or the sequential mode, and returns it.
+func mergeWithin(t *testing.T, parallel bool, srcs ...string) (map[string]interface{}, error) {
 	t.Helper()
 	engine, err := graft.NewEngine(graft.WithParallel(parallel))
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, err := engine.ParseYAML([]byte(src))
-	if err != nil {
-		t.Fatal(err)
+	docs := make([]graft.Document, 0, len(srcs))
+	for _, src := range srcs {
+		doc, err := engine.ParseYAML([]byte(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		docs = append(docs, doc)
 	}
-	out, err := engine.Merge(context.Background(), doc).Execute()
+	out, err := engine.Merge(context.Background(), docs...).Execute()
 	if err != nil {
 		return nil, err
 	}
@@ -95,5 +99,52 @@ func TestPruneWithNoPathGivesNil(t *testing.T) {
 	}
 	if resp.Value != nil {
 		t.Fatalf("value = %#v, want nil", resp.Value)
+	}
+}
+
+// join over a map leaves out a key that is pruned, the way a pruned
+// entry of a list is left out, because the key is not in the output.
+func TestJoinLeavesOutAPrunedMapKey(t *testing.T) {
+	cases := []struct {
+		name string
+		srcs []string
+		want string
+	}{
+		{
+			name: "prune with no earlier value",
+			srcs: []string{"m:\n  a: 1\n  b: (( prune ))\nj: (( join \",\" m ))\n"},
+			want: "a:1",
+		},
+		{
+			name: "prune over an earlier value",
+			srcs: []string{
+				"m:\n  a: 1\n  b: 2\n",
+				"m:\n  b: (( prune ))\nj: (( join \",\" m ))\n",
+			},
+			want: "a:1",
+		},
+		{
+			name: "|| falling back to prune",
+			srcs: []string{"m:\n  a: 1\n  b: (( nope || (( prune )) ))\nj: (( join \",\" m ))\n"},
+			want: "a:1",
+		},
+		{
+			name: "under a named list entry",
+			srcs: []string{"l:\n- name: x\n  m:\n    a: 1\n    b: (( prune ))\nj: (( join \",\" l.x.m ))\n"},
+			want: "a:1",
+		},
+	}
+	for _, tc := range cases {
+		for _, parallel := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/parallel=%v", tc.name, parallel), func(t *testing.T) {
+				got, err := mergeWithin(t, parallel, tc.srcs...)
+				if err != nil {
+					t.Fatalf("err = %v", err)
+				}
+				if got["j"] != tc.want {
+					t.Fatalf("j = %#v, want %q", got["j"], tc.want)
+				}
+			})
+		}
 	}
 }
