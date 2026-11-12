@@ -63,6 +63,15 @@ type inlineDurations struct {
 	Rest map[string]time.Duration `yaml:",inline"`
 }
 
+type inlineIntKeys struct {
+	Rest map[string]map[int]string `yaml:",inline"`
+}
+
+type inlineDefs struct {
+	Defs  map[string]string `yaml:"defs"`
+	Inner inlineRest        `yaml:"inner"`
+}
+
 type inlinePointer struct {
 	Rest *map[string]int `yaml:",inline"`
 }
@@ -83,6 +92,13 @@ func TestInlineMapErrorIsTheSameEveryRun(t *testing.T) {
 		{"pointer to map", "b: 1\nc: x\nd: y\ne: z\n", func() any { return &inlinePointer{} }, 2},
 		{"in a sequence", "- a: 1\n  b: 2\n- a: 1\n  b: x\n  c: y\n  d: z\n", func() any { return &[]inlineRest{} }, 4},
 		{"in a map value", "k:\n  a: 1\n  b: x\n  c: y\n  d: z\n", func() any { return &map[string]inlineRest{} }, 3},
+		{"alias after the bad value", "name: &x hello\ninner:\n  a: 1\n  b: x\n  c: *x\n", func() any { return &inlineOuter{} }, 1},
+		{"alias after several bad values", "name: &x hello\ninner:\n  a: 1\n  b: x\n  c: y\n  d: z\n  e: *x\n", func() any { return &inlineOuter{} }, 1},
+		{"alias to a mapping", "name: n\ninner:\n  a: 1\n  b: x\n  c: &m {k: 1}\n  d: *m\n", func() any { return &inlineOuter{} }, 4},
+		{"merge from an anchor", "defs: &d\n  k: zz\n  j: ww\ninner:\n  a: 1\n  b: x\n  <<: *d\n", func() any { return &inlineDefs{} }, 2},
+		{"merge with an override", "defs: &d\n  k: zz\n  j: ww\ninner:\n  a: 1\n  b: x\n  <<: *d\n  k: 5\n", func() any { return &inlineDefs{} }, 3},
+		{"flow merge", "inner:\n  a: 1\n  <<: {m: q, n: r}\n  b: x\n", func() any { return &inlineOuter{} }, 3},
+		{"bad keys", "k:\n  1: a\n  x: b\nj:\n  y: c\nm:\n  z: d\n", func() any { return &inlineIntKeys{} }, 3},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -110,5 +126,89 @@ func TestInlineMapErrorKeepsWhatTheDecodeWrote(t *testing.T) {
 	}
 	if v.Name != "n" {
 		t.Errorf("got %+v, want the name the decode wrote", v)
+	}
+}
+
+// nextFirst and xFirst are recursive types whose inline maps let every
+// level hold a bad value. goccy fills a struct's fields in the order they
+// are declared, so it reports the deepest x of a nextFirst document
+// first and the shallowest x of an xFirst document first.
+type nextFirst struct {
+	Next *nextFirst     `yaml:"next"`
+	X    int            `yaml:"x"`
+	Rest map[string]any `yaml:",inline"`
+}
+
+type xFirst struct {
+	X    int            `yaml:"x"`
+	Next *xFirst        `yaml:"next"`
+	Rest map[string]any `yaml:",inline"`
+}
+
+// xThenNext nests depth levels, each with x set to value and written
+// before next, so the shallowest x comes first.
+func xThenNext(depth int, value string) []byte {
+	var b strings.Builder
+	for i := range depth {
+		indent := strings.Repeat("  ", i)
+		b.WriteString(indent + "x: " + value + "\n" + indent + "next:\n")
+	}
+	b.WriteString(strings.Repeat("  ", depth) + "x: " + value + "\n")
+	return []byte(b.String())
+}
+
+// nextThenX nests depth levels, each with x written after next, so the
+// deepest x comes first.
+func nextThenX(depth int, value string) []byte {
+	var b strings.Builder
+	for i := range depth {
+		b.WriteString(strings.Repeat("  ", i) + "next:\n")
+	}
+	for i := depth; i >= 0; i-- {
+		b.WriteString(strings.Repeat("  ", i) + "x: " + value + "\n")
+	}
+	return []byte(b.String())
+}
+
+// TestInlineMapErrorCostIsBounded checks that finding the earliest bad
+// value in a deep document costs a bounded number of decodes, measured
+// against a decode of the same document with every value good. When
+// goccy meets the bad values in reverse document order, each round of
+// the search halves the prefixes it tries, and every prefix holds the
+// whole chain of next keys, so that case costs about one decode for
+// each bit of the unit count, and its bound is looser.
+func TestInlineMapErrorCostIsBounded(t *testing.T) {
+	if testing.Short() {
+		t.Skip("decodes 1000-level documents")
+	}
+	const depth = 1000
+	cases := []struct {
+		name  string
+		doc   func(int, string) []byte
+		v     func() any
+		line  int
+		times time.Duration
+	}{
+		{"errors in reverse order, x first", xThenNext, func() any { return &nextFirst{} }, 1, 8},
+		{"errors in reverse order, next first", nextThenX, func() any { return &xFirst{} }, depth + 1, 32},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			start := time.Now()
+			if err := yaml.Unmarshal(c.doc(depth, "1"), c.v()); err != nil {
+				t.Fatal(err)
+			}
+			once := time.Since(start)
+			start = time.Now()
+			err := yaml.Unmarshal(c.doc(depth, "bad"), c.v())
+			took := time.Since(start)
+			var de *yaml.DecodeError
+			if !errors.As(err, &de) || de.Kind != yaml.ErrorKindType || de.Line != c.line {
+				t.Fatalf("%v, want a type error at line %d", err, c.line)
+			}
+			if took > c.times*once {
+				t.Errorf("the error took %v, more than %d times the %v a good decode takes", took, c.times, once)
+			}
+		})
 	}
 }
