@@ -132,6 +132,7 @@ func runnableExamples() []exampleCase {
 		}},
 		{name: "ips/network-planning", files: []string{"ips/network-planning.yml"}},
 		{name: "ips/service-allocation", files: []string{"ips/service-allocation.yml"}},
+		{name: "join-maps/example", files: []string{"join-maps/example.yml"}},
 		{name: "keys/basic", files: []string{"keys/basic.yml"}},
 		{name: "keys/with-nested-grab", files: []string{"keys/with-nested-grab.yml"}},
 		{name: "negate/basic", files: []string{"negate/basic.yml"}},

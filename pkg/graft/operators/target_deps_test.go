@@ -85,6 +85,11 @@ func TestFlattenWaitsForTheOperatorsItReads(t *testing.T) {
 func TestJoinWaitsForTheOperatorsItReads(t *testing.T) {
 	runTargetCases(t, []targetCase{
 		{
+			name: "sibling map holding an operator",
+			src:  "z:\n  k: (( concat \"p\" \"q\" ))\na: (( join \",\" z ))\n",
+			path: "a", want: "k:pq",
+		},
+		{
 			name: "sibling list holding an operator",
 			src:  "z:\n- x\n- (( concat \"p\" \"q\" ))\na: (( join \",\" z ))\n",
 			path: "a", want: "x,pq",
@@ -98,42 +103,6 @@ func TestJoinWaitsForTheOperatorsItReads(t *testing.T) {
 			name:  "an ancestor two levels up",
 			src:   "q:\n  r:\n    a: (( join \",\" q ))\n",
 			cycle: true,
-		},
-	})
-}
-
-func TestJoinRefusesAMap(t *testing.T) {
-	const notList = "referenced entry is not a list or string for (( join ... ))"
-	runTargetCases(t, []targetCase{
-		{
-			name: "reference",
-			src:  "m:\n  a: 1\nr: (( join \",\" m ))\n",
-			errs: notList,
-		},
-		{
-			name: "sibling holding an operator",
-			src:  "z:\n  k: (( concat \"p\" \"q\" ))\na: (( join \",\" z ))\n",
-			errs: notList,
-		},
-		{
-			name: "after ||",
-			src:  "m:\n  a: 1\nr: (( join \",\" m || \"fb\" ))\n",
-			errs: notList,
-		},
-		{
-			name: "nested ||",
-			src:  "m:\n  a: 1\nr: (( join \",\" (( m || \"fb\" )) ))\n",
-			errs: notList,
-		},
-		{
-			name: "nested grab",
-			src:  "m:\n  a: 1\nr: (( join \",\" (( grab m )) ))\n",
-			errs: notList,
-		},
-		{
-			name: "list beside it still joins",
-			src:  "l: [x, y]\nr: (( join \",\" (( grab l )) \"z\" ))\n",
-			path: "r", want: "x,y,z",
 		},
 	})
 }
