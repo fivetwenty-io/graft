@@ -2,6 +2,7 @@ package yaml
 
 import (
 	"fmt"
+	"hash/maphash"
 	"reflect"
 	"slices"
 	"strconv"
@@ -33,10 +34,27 @@ const (
 // struct field or the sequence item at index, or the map value under
 // key. Every pointer the path meets on the way is followed, and filled
 // with a new value when it is nil.
+//
+// The step a typed mapping makes for one of its keys also serves as that
+// key's entry in the mapping's key tree, which keySlot describes. A path
+// that copies the step carries the entry along, and nothing reads it.
 type hookStep struct {
 	kind  stepKind
 	index int
 	key   reflect.Value
+	slot  keySlot
+}
+
+// keySlot is the entry of a typed mapping's key in the tree typedMapping
+// keeps of them. The tree orders its entries by hash, the hash of the
+// key, and holds one entry for each Go key whose pairs recorded sites.
+// first and end bound the sites that the latest of those pairs recorded,
+// as indexes into siteWalk.sites. The entry lives in the pair's path, so
+// the tree costs the walk no allocation of its own.
+type keySlot struct {
+	hash        uint64
+	left, right *hookStep
+	first, end  int
 }
 
 // hookSites finds the places in body, a prepared syntax tree that fills
@@ -66,6 +84,7 @@ func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOp
 		opts:   opts,
 		keys:   &textWalk{structs: make(map[reflect.Type]*structKeys), kinds: make(map[reflect.Type]ownKind)},
 		at:     make(map[string]int),
+		seed:   maphash.MakeSeed(),
 	}
 	out, hole, err := w.node(body, t, nil)
 	if err != nil {
@@ -87,12 +106,19 @@ func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOp
 // textWalk does, and collects the hook sites it meets. keys holds the
 // struct keys goccy matches fields by, and at holds the index in sites
 // of each path seen, so that when a key repeats, only its last site runs.
+// seed hashes the keys of typed mappings.
+//
+// When a later pair of a mapping fills the place an earlier pair filled,
+// goccy keeps only the later value, so every site the earlier pair
+// recorded is canceled. A site is canceled by clearing its node, and
+// the holes stay as they are, so goccy decodes the same body either way.
 type siteWalk struct {
 	owners *tokenOwners
 	opts   DecodeOptions
 	keys   *textWalk
 	sites  []hookSite
 	at     map[string]int
+	seed   maphash.Seed
 }
 
 // node returns n with holes punched for the hook sites under it, which
@@ -158,6 +184,14 @@ func (w *siteWalk) add(s hookSite) {
 	w.sites = append(w.sites, s)
 }
 
+// cancel clears the sites from index first up to end, which a later pair
+// has replaced, so their methods never run.
+func (w *siteWalk) cancel(first, end int) {
+	for i := first; i < end; i++ {
+		w.sites[i].node = nil
+	}
+}
+
 // pathID returns a text that tells path apart from every other path.
 func pathID(path []hookStep) string {
 	var b strings.Builder
@@ -194,10 +228,11 @@ func (w *siteWalk) structMapping(n ast.Node, t reflect.Type, path []hookStep) (a
 		return n, nil
 	}
 	keys := w.keys.structKeys(t)
+	from := len(w.sites)
 	// pairs stays nil until a pair changes, and then holds every pair kept.
 	var pairs []*ast.MappingValueNode
 	for i, mv := range m.Values {
-		got, hole, err := w.field(mv, keys, t, path)
+		got, hole, err := w.field(mv, keys, t, path, from)
 		if err != nil {
 			return nil, err
 		}
@@ -220,13 +255,24 @@ func (w *siteWalk) structMapping(n ast.Node, t reflect.Type, path []hookStep) (a
 // at path, with holes punched under its value, and reports whether its
 // value is a hook site, so the pair comes out. The key's reader comes
 // from reader, which refuses a key that a hook can never see.
-func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.Type, path []hookStep) (*ast.MappingValueNode, bool, error) {
+//
+// The mapping's sites start at index from. An alias can give a key that
+// an earlier pair of the mapping already has, and goccy then fills the
+// field from the later pair alone, so the sites an earlier pair recorded
+// for the same field are canceled first. A mapping has a pair for each
+// field at most, apart from such repeats, so the search stays short.
+func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.Type, path []hookStep, from int) (*ast.MappingValueNode, bool, error) {
 	at, shared := reader(t, keys.index[keyString(keyText(mv.Key))])
 	if shared {
 		return nil, false, sharedHookKeyError(mv.Key, t)
 	}
 	if at == nil {
 		return mv, false, nil
+	}
+	for i := from; i < len(w.sites); i++ {
+		if entersField(w.sites[i].path[len(path):], at) {
+			w.sites[i].node = nil
+		}
 	}
 	steps := make([]hookStep, len(at))
 	for i, field := range at {
@@ -242,6 +288,21 @@ func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.T
 	c := *mv
 	c.Value = got
 	return &c, false, nil
+}
+
+// entersField reports whether steps, the rest of a site's path past a
+// struct, starts with the field indexes in at. Only one key reads the
+// field at leads to, and no key reads a field above it or below it.
+func entersField(steps []hookStep, at []int) bool {
+	if len(steps) < len(at) {
+		return false
+	}
+	for i, field := range at {
+		if steps[i].kind != stepField || steps[i].index != field {
+			return false
+		}
+	}
+	return true
 }
 
 // fieldType returns the type of the field that the field indexes in
@@ -319,20 +380,45 @@ func sharedHookKeyError(key ast.MapKeyNode, t reflect.Type) *DecodeError {
 // null in place of each value that is a hook site. Each key's Go value
 // comes from decoding the key alone into the key type, and a key that
 // does not decode leaves its pair alone, for goccy to refuse.
+//
+// Two keys written differently, such as 1 and 0x1, can decode to one Go
+// key, and goccy then keeps the value of the later pair, null or not. So
+// the walk keeps a tree of the mapping's keys, and a pair whose key is
+// already there cancels every site the earlier pair recorded under it.
 func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, error) {
 	m, ok := n.(*ast.MappingNode)
 	if !ok {
 		return n, nil
 	}
 	var out *ast.MappingNode
+	var slots *hookStep
 	for i, mv := range m.Values {
 		key, ok := w.mapKey(mv.Key, t.Key())
 		if !ok {
 			continue
 		}
-		got, hole, err := w.node(mv.Value, t.Elem(), then(path, hookStep{kind: stepKey, key: key}))
+		at := then(path, hookStep{kind: stepKey, key: key})
+		step := &at[len(path)]
+		var prior *hookStep
+		var link **hookStep
+		if comparableKey(key) {
+			step.slot.hash = keyHash(w.seed, key)
+			prior, link = findSlot(&slots, step)
+		}
+		if prior != nil {
+			w.cancel(prior.slot.first, prior.slot.end)
+		}
+		first := len(w.sites)
+		got, hole, err := w.node(mv.Value, t.Elem(), at)
 		if err != nil {
 			return nil, err
+		}
+		switch {
+		case prior != nil:
+			prior.slot.first, prior.slot.end = first, len(w.sites)
+		case link != nil && len(w.sites) > first:
+			step.slot.first, step.slot.end = first, len(w.sites)
+			*link = step
 		}
 		if hole {
 			got = nullAt(mv.Value)
@@ -353,6 +439,95 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 		return m, nil
 	}
 	return out, nil
+}
+
+// findSlot looks for an entry with step's key in the key tree at root.
+// It returns that entry, or else the link where step's entry belongs.
+// Keys that a Go map holds in one slot have the same hash, so a search
+// takes the path that the entry of an equal key took when it went in.
+func findSlot(root **hookStep, step *hookStep) (*hookStep, **hookStep) {
+	link := root
+	for entry := *link; entry != nil; entry = *link {
+		if entry.slot.hash == step.slot.hash && entry.key.Equal(step.key) {
+			return entry, nil
+		}
+		if step.slot.hash < entry.slot.hash {
+			link = &entry.slot.left
+		} else {
+			link = &entry.slot.right
+		}
+	}
+	return nil, link
+}
+
+// comparableKey reports whether v, a decoded map key, can be compared,
+// which it cannot be when an interface in it holds a slice or a map.
+// reflect.Value.Comparable answers the same but allocates.
+func comparableKey(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Interface:
+		return v.IsNil() || comparableKey(v.Elem())
+	case reflect.Array:
+		for i := range v.Len() {
+			if !comparableKey(v.Index(i)) {
+				return false
+			}
+		}
+		return true
+	case reflect.Struct:
+		for i := range v.NumField() {
+			if !comparableKey(v.Field(i)) {
+				return false
+			}
+		}
+		return true
+	case reflect.Slice, reflect.Map, reflect.Func:
+		return false
+	default:
+		return true
+	}
+}
+
+// keyHash returns the hash of v, a comparable map key, under seed. Keys
+// that a Go map holds in one slot hash alike. That includes 0 and -0,
+// and an interface holding either, so a key's dynamic type stays out of
+// its hash.
+func keyHash(seed maphash.Seed, v reflect.Value) uint64 {
+	switch v.Kind() {
+	case reflect.Bool:
+		return maphash.Comparable(seed, v.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return maphash.Comparable(seed, v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return maphash.Comparable(seed, v.Uint())
+	case reflect.Float32, reflect.Float64:
+		return maphash.Comparable(seed, v.Float())
+	case reflect.Complex64, reflect.Complex128:
+		return maphash.Comparable(seed, v.Complex())
+	case reflect.String:
+		return maphash.String(seed, v.String())
+	case reflect.Pointer, reflect.UnsafePointer, reflect.Chan:
+		return maphash.Comparable(seed, v.Pointer())
+	case reflect.Interface:
+		if v.IsNil() {
+			return 0
+		}
+		return keyHash(seed, v.Elem())
+	case reflect.Array:
+		var h uint64
+		for i := range v.Len() {
+			h = h*31 + keyHash(seed, v.Index(i))
+		}
+		return h
+	case reflect.Struct:
+		var h uint64
+		for i := range v.NumField() {
+			h = h*31 + keyHash(seed, v.Field(i))
+		}
+		return h
+	default:
+		return 0
+	}
 }
 
 // mapKey decodes the key k alone into a value of type kt, after the
