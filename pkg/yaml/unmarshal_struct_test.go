@@ -3,6 +3,7 @@ package yaml_test
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -654,5 +655,35 @@ func TestUnmarshalOwnUnmarshalerWithoutGenericValues(t *testing.T) {
 				t.Errorf("word = %q, want %q", got.W.word, "yes")
 			}
 		})
+	}
+}
+
+// TestUnmarshalGenericValuesUnderNaNKeys checks that a map with float
+// keys and values of type any keeps one entry for each NaN key, as goccy
+// makes it, once those values are converted.
+func TestUnmarshalGenericValuesUnderNaNKeys(t *testing.T) {
+	type nanValues struct {
+		M map[float64]any `yaml:"m"`
+	}
+	for _, tc := range []struct {
+		in   string
+		want []string
+	}{
+		{"m: {.nan: x}\n", []string{"x"}},
+		{"m: {.nan: x, .NaN: y, 1: z}\n", []string{"x", "y", "z"}},
+		{"m: {.nan: {a: yes}}\n", []string{"map[a:true]"}},
+	} {
+		var got nanValues
+		if err := yaml.Unmarshal([]byte(tc.in), &got); err != nil {
+			t.Fatalf("%q: %v", tc.in, err)
+		}
+		values := make([]string, 0, len(got.M))
+		for _, v := range got.M {
+			values = append(values, fmt.Sprint(v))
+		}
+		slices.Sort(values)
+		if !slices.Equal(values, tc.want) {
+			t.Errorf("%q: got values %q, want %q", tc.in, values, tc.want)
+		}
 	}
 }

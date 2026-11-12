@@ -272,6 +272,11 @@ func (f *genericFixer) fixInterface(v reflect.Value) {
 
 // fixMap fixes each value of the map v, through a copy, since a map's
 // values cannot be set in place.
+//
+// A NaN key finds no entry, so storing a value under it adds an entry,
+// which a walk of the map can then meet again. The values under NaN keys
+// are set aside instead, and when there are any, the map is emptied and
+// filled again, with each entry it held once.
 func (f *genericFixer) fixMap(v reflect.Value) {
 	if v.IsNil() {
 		return
@@ -280,12 +285,32 @@ func (f *genericFixer) fixMap(v reflect.Value) {
 	if !f.reaches(elem) {
 		return
 	}
+	var nans []reflect.Value
 	iter := v.MapRange()
 	for iter.Next() {
 		item := reflect.New(elem).Elem()
 		item.Set(iter.Value())
 		f.fix(item)
+		if valueNaN(iter.Key()) {
+			nans = append(nans, iter.Key(), item)
+			continue
+		}
 		v.SetMapIndex(iter.Key(), item)
+	}
+	if len(nans) == 0 {
+		return
+	}
+	pairs := make([]reflect.Value, 0, 2*v.Len())
+	for it := v.MapRange(); it.Next(); {
+		if !valueNaN(it.Key()) {
+			pairs = append(pairs, it.Key(), it.Value())
+		}
+	}
+	v.Clear()
+	for _, set := range [][]reflect.Value{pairs, nans} {
+		for i := 0; i+1 < len(set); i += 2 {
+			v.SetMapIndex(set[i], set[i+1])
+		}
 	}
 }
 
