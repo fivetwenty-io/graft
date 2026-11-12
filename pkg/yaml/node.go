@@ -125,7 +125,7 @@ func decodeNode(data []byte, out *Node, opts DecodeOptions, lineOffset int, last
 	lines := bytes.Split(doc, []byte("\n"))
 	c := &converter{
 		seen: make(map[*yamlnode.Node]*Node), opts: opts, lines: lines, lineOffset: lineOffset,
-		text: &readText{doc: doc, lineOffset: lineOffset},
+		text: &readText{doc: doc, lineOffset: lineOffset, dups: last},
 	}
 	var root Node
 	c.fill(&root, docs[0])

@@ -135,3 +135,22 @@ func TestNullKeysOfIntegerMaps(t *testing.T) {
 			func() any { return new(map[int]map[string]gapHook) }, func() any { return new(map[int]map[string]string) }, 1},
 	})
 }
+
+// TestKeysReadAsWrittenBesideRepeats checks that a hooked decode reads
+// each key of a document that repeats a key as the plain decode reads
+// it, such as -0.0, which the plain decode keeps as a string, in a
+// nested mapping, in a merge, and as the repeated key itself.
+func TestKeysReadAsWrittenBesideRepeats(t *testing.T) {
+	nested := func() any { return new(map[string]map[any]gapHook) }
+	nestedPlain := func() any { return new(map[string]map[any]string) }
+	anys := func() any { return new(map[any]gapHook) }
+	anysPlain := func() any { return new(map[any]string) }
+	runKeyCases(t, true, []keyCase{
+		{"a nested key", "x:\n  -0.0: q\n  a: u\n  a: v\n", nested, nestedPlain, 2},
+		{"a nested key beside a repeat above", "x:\n  -1.5: q\ny: {}\ny: {a: u}\n",
+			nested, nestedPlain, 2},
+		{"a merged key", "<<: {-0.0: m}\na: u\na: v\n", anys, anysPlain, 2},
+		{"a repeated key", "x:\n  -0.0: q\n  -0.0: ~\n", nested, nestedPlain, 1},
+		{"a key repeated with a value", "x:\n  -0.0: p\n  -0.0: 'yes'\n", nested, nestedPlain, 2},
+	})
+}
