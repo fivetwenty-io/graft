@@ -1,6 +1,7 @@
 package operators
 
 import (
+	"github.com/fivetwenty-io/graft/internal/oploc"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
 )
 
@@ -10,21 +11,18 @@ import (
 // a read of the operator's own ancestor closes a cycle in the data-flow
 // graph instead of handing back operator text. The path itself needs
 // no entry here, because the automatic dependencies already hold it.
+// Both paths are compared in canonical form, through the index the
+// evaluator built for locs, so each call costs the locs it returns
+// rather than every loc in the phase.
 func locsUnder(ev *Evaluator, ref *tree.Cursor, locs []*tree.Cursor) []*tree.Cursor {
 	if ref == nil {
 		return nil
 	}
 	canon, err := ref.Canonical(ev.Tree)
-	if err != nil {
+	if err != nil || len(canon.Nodes) == 0 {
 		return nil
 	}
-	var deps []*tree.Cursor
-	for _, other := range locs {
-		if other.Under(canon) {
-			deps = append(deps, other)
-		}
-	}
-	return deps
+	return oploc.For(ev, locs, ev.Tree).Under(canon.Nodes, canon.Nodes)
 }
 
 // readDeps returns locsUnder for each reference whose value arg can
