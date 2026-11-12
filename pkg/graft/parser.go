@@ -1717,7 +1717,9 @@ func evaluateKeepingLiteral(e *Expr, treeData interface{}) (interface{}, error) 
 			if e.evaluator != nil && e.Left.evaluator == nil {
 				e.Left.SetEvaluator(e.evaluator)
 			}
-			left, err := evaluateKeepingLiteral(e.Left, treeData)
+			left, err := orOperand(e.Left, func(x *Expr) (interface{}, error) {
+				return evaluateKeepingLiteral(x, treeData)
+			})
 			if err == nil {
 				return left, nil
 			}

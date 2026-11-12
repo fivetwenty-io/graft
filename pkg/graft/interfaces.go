@@ -632,7 +632,9 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 			if e.evaluator != nil && e.Left.evaluator == nil {
 				e.Left.SetEvaluator(e.evaluator)
 			}
-			left, err := e.Left.Evaluate(treeData)
+			left, err := orOperand(e.Left, func(x *Expr) (interface{}, error) {
+				return x.Evaluate(treeData)
+			})
 			if err == nil {
 				// Return the value even if it's nil
 				return left, nil

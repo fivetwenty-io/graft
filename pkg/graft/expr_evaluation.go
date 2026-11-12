@@ -63,7 +63,9 @@ func EvaluateExpr(e *Expr, ev *Evaluator) (*Response, error) {
 		// LogicalOr implements fallback behavior in Graft:
 		// Try left side first, if it fails (error), try right side
 		// This is NOT boolean OR - it returns the actual value, not true/false
-		left, err := EvaluateExpr(e.Left, ev)
+		left, err := orOperand(e.Left, func(x *Expr) (*Response, error) {
+			return EvaluateExpr(x, ev)
+		})
 		if err == nil {
 			// Left side succeeded, use its value
 			return left, nil
