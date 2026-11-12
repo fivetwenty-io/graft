@@ -372,3 +372,46 @@ func TestSameOutsideCountsTheLinesAfterTheNode(t *testing.T) {
 		t.Error("sameOutside refuses a node that grew by one line")
 	}
 }
+
+// TestCommitChecksBlockPlacement checks that a block scalar edit is
+// refused unless the new node's body sits exactly on the bytes Set
+// wrote, under the same header and at the same indentation, even where
+// the value reads back the same.
+func TestCommitChecksBlockPlacement(t *testing.T) {
+	const src = "a: |\n  one\nb: 1\n"
+	d := mustParse(t, src)
+	loc, err := d.resolve("set", "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, sp, indent, err := d.blockSlot(loc.node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := blockText{header: h, body: "\n  x", value: "x\n", indent: indent, of: loc.node}
+	for _, c := range []struct {
+		name, next string
+		ok         bool
+	}{
+		{"the text Set wrote", "a: |\n  x\nb: 1\n", true},
+		{"a deeper indentation", "a: |\n   x\nb: 1\n", false},
+		{"a leading blank line", "a: |\n\n  x\nb: 1\n", false},
+		{"another chomping indicator", "a: |+\n  x\nb: 1\n", false},
+		{"a folded header", "a: >\n  x\nb: 1\n", false},
+	} {
+		next := []byte(c.next)
+		wrote := span{sp.start, sp.start + len(w.body)}
+		err := d.commit("a", next, loc, sp, func(n *yamlnode.Node) error {
+			return w.check(next, wrote, n)
+		})
+		if (err == nil) != c.ok {
+			t.Errorf("%s: commit = %v, want ok %v", c.name, err, c.ok)
+		}
+		if c.ok {
+			d = mustParse(t, src)
+			if loc, err = d.resolve("set", "a"); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}

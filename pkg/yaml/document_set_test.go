@@ -72,7 +72,7 @@ func TestDocumentSetRefusals(t *testing.T) {
 		{setSrc, "flow", "x", yaml.ErrUnsupportedEdit},
 		{"a: &x 1\nb: *x\n", "a", 2, yaml.ErrUnsupportedEdit},
 		{"a: 1\r\n", "a", 2, yaml.ErrUnsupportedEdit},
-		{"a: |\n  x\n", "a", "y\n", yaml.ErrUnsupportedEdit},
+		{"a: |\n  x\n", "a", 5, yaml.ErrUnsupportedEdit},
 	}
 	for _, c := range cases {
 		d := mustDoc(t, c.src)

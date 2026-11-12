@@ -19,14 +19,12 @@ const editableSrc = "plain: a\nquoted: \"b\"\nsingle: 'c'\nlit: |\n  x\nfold: >\
 
 func TestDocumentEditable(t *testing.T) {
 	d := mustParse(t, editableSrc)
-	for _, p := range []string{"plain", "quoted", "single", "map.k", "list.1", "nested.deep"} {
+	for _, p := range []string{"plain", "quoted", "single", "lit", "fold", "map.k", "list.1", "nested.deep"} {
 		if err := d.Editable(p); err != nil {
 			t.Errorf("Editable(%q) = %v, want nil", p, err)
 		}
 	}
 	for p, reason := range map[string]string{
-		"lit":    "the value is a block scalar",
-		"fold":   "the value is a block scalar",
 		"map":    "the value is a collection",
 		"anch":   "the value is anchored",
 		"ali":    "the value is an alias",
@@ -223,6 +221,29 @@ func TestScalarSpanRefusesAQuotedScalarThatRunsOn(t *testing.T) {
 		}
 		if sp, err := d.scalarSpan(loc.node); !errors.Is(err, errMultiLine) {
 			t.Errorf("%q: span = %v, %v; want the multi-line refusal", src, sp, err)
+		}
+	}
+}
+
+func TestParseBlockHeader(t *testing.T) {
+	for text, want := range map[string]blockHeader{
+		"|":        {},
+		">":        {folded: true},
+		"|-":       {chomp: '-'},
+		">+":       {folded: true, chomp: '+'},
+		"|2":       {explicit: true},
+		"|-2":      {chomp: '-', explicit: true},
+		">1+":      {folded: true, chomp: '+', explicit: true},
+		"| # note": {},
+		"|-\t# c":  {chomp: '-'},
+	} {
+		if got, ok := parseBlockHeader(text); !ok || got != want {
+			t.Errorf("parseBlockHeader(%q) = %+v, %v, want %+v", text, got, ok, want)
+		}
+	}
+	for _, text := range []string{"", "x", "|x", "|#", "|--", "|22", "|0", "|+-", "| x"} {
+		if _, ok := parseBlockHeader(text); ok {
+			t.Errorf("parseBlockHeader(%q) accepted", text)
 		}
 	}
 }

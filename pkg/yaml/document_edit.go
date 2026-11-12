@@ -22,7 +22,6 @@ const (
 	reasonAnchored       = "the value is anchored"
 	reasonTagged         = "the value has a tag"
 	reasonCollection     = "the value is a collection"
-	reasonBlockScalar    = "the value is a block scalar"
 	reasonNoText         = "the value has no text to replace"
 	reasonMultiLine      = "the value is a multi-line flow scalar"
 	reasonTab            = "a tab sits on a line the edit touches"
@@ -44,14 +43,16 @@ type span struct{ start, end int }
 // returns nil when it can, and otherwise the error Set would return.
 //
 // Set replaces the text of one plain, single-quoted, or double-quoted
-// scalar that sits on one line, which may be inside a flow collection.
-// It refuses, with ErrUnsupportedEdit, a value that is a collection, a
-// block scalar, an alias, anchored, tagged, or empty as written, a value
-// inside an anchored node or reached through an alias, a value on a line
-// that holds a tab, and any value of an input that holds a carriage
-// return or starts with a byte order mark. It also refuses a value whose
-// text it can't place exactly in the input, such as one on a line that
-// the parser only reads after rewriting it.
+// scalar that sits on one line, which may be inside a flow collection,
+// and the body of a literal or folded block scalar. It refuses, with
+// ErrUnsupportedEdit, a value that is a collection, an alias, anchored,
+// or tagged, a plain value with no text, a block scalar whose header has
+// an indentation indicator, a value inside an anchored node or reached
+// through an alias, a value on a line that holds a tab, and any value of
+// an input that holds a carriage return or starts with a byte order
+// mark. It also refuses a value whose text it can't place exactly in the
+// input, such as one on a line that the parser only reads after
+// rewriting it.
 func (d *Document) Editable(path string) error {
 	_, _, err := d.setTarget("edit", path)
 	return err
@@ -68,7 +69,12 @@ func (d *Document) setTarget(op, path string) (located, span, error) {
 	if reason := d.setRefusal(loc); reason != "" {
 		return located{}, span{}, loc.refusal(op, path, reason)
 	}
-	sp, err := d.scalarSpan(loc.node)
+	var sp span
+	if isBlockScalar(loc.node) {
+		_, sp, _, err = d.blockSlot(loc.node)
+	} else {
+		sp, err = d.scalarSpan(loc.node)
+	}
 	if err != nil {
 		return located{}, span{}, loc.refusal(op, path, err.Error())
 	}
@@ -109,11 +115,11 @@ func (d *Document) pathRefusal(loc located) string {
 
 // setRefusal returns the reason Set can't replace the value at loc, or
 // "". It adds to pathRefusal the reasons that only Set has: a value that
-// is not one scalar written as plain or quoted text, an anchor on the
-// value or on any node above it, which every alias of that anchor would
-// see changed, and a tab on the value's line, after which goccy's column
-// is not the column in the input. scalarSpan makes the checks that need
-// the value's text.
+// is not one scalar, a plain scalar with no text, an anchor on the value
+// or on any node above it, which every alias of that anchor would see
+// changed, and a tab on the value's line, after which goccy's column is
+// not the column in the input. A block scalar's line is its header's.
+// scalarSpan and blockSlot make the checks that need the value's text.
 func (d *Document) setRefusal(loc located) string {
 	if reason := d.pathRefusal(loc); reason != "" {
 		return reason
@@ -126,9 +132,7 @@ func (d *Document) setRefusal(loc located) string {
 		return reasonTagged
 	case n.Kind != yamlnode.ScalarNode:
 		return reasonCollection
-	case n.Style&(yamlnode.StyleLiteral|yamlnode.StyleFolded) != 0:
-		return reasonBlockScalar
-	case n.Value == "" && n.Style&(yamlnode.StyleSingle|yamlnode.StyleDouble) == 0:
+	case n.Value == "" && n.Style&(yamlnode.StyleSingle|yamlnode.StyleDouble) == 0 && !isBlockScalar(n):
 		return reasonNoText
 	}
 	return d.tabRefusal(min(n.Line, n.TokenLine), max(n.Line, n.TokenLine))

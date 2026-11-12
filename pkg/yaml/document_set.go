@@ -34,6 +34,20 @@ var errNotWritten = errors.New("the edited text does not hold the value Set wrot
 // a flow indicator is double-quoted. Any other value is written plain,
 // as MarshalYAML writes it, so a quoted slot loses its quotes.
 //
+// A literal (|) or folded (>) block scalar takes only a string, which
+// replaces its body. The header line and its comment stay as written,
+// and the body keeps its indentation, or takes the header line's own
+// indentation plus 2 when it had no text. The value must fit the
+// header's chomping: clip takes an empty value or one that ends in
+// exactly one line break, strip a value with no final line break, and
+// keep a value with at least one, each extra one of which is written as
+// a blank line. A value whose first line with text starts with a space
+// or a tab, or that holds a carriage return or U+0085, fits no header,
+// and in a folded scalar no line may start with a space or a tab. A
+// folded body writes each line break between two lines of text as two,
+// and never folds a long line. Set refuses a header with an indentation
+// indicator.
+//
 // Set only replaces a value that Editable accepts, and otherwise
 // returns the error Editable returns. A path that names nothing is
 // ErrPathNotFound, since Set never adds a key. Set parses the edited
@@ -55,6 +69,9 @@ func (d *Document) Set(path string, value any) error {
 	loc, sp, err := d.setTarget(op, path)
 	if err != nil {
 		return err
+	}
+	if isBlockScalar(loc.node) {
+		return d.setBlock(path, loc, value)
 	}
 	w := renderSet(loc, value, tag)
 	next := make([]byte, 0, len(d.src)-(sp.end-sp.start)+len(w.text))
