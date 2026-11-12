@@ -88,6 +88,13 @@ func TestStopsFallback(t *testing.T) {
 	if !StopsFallback(literal.Refuse("grab", "a path")) {
 		t.Fatal("a refused literal does not stop a fallback")
 	}
+	uerr := fmt.Errorf("nested operator x failed: %w", UnknownOperator("x"))
+	if !errors.Is(uerr, ErrUnknownOperator) || !StopsFallback(uerr) {
+		t.Fatal("a wrapped unknown operator error does not stop a fallback")
+	}
+	if got := UnknownOperator("x").Error(); got != "unknown operator: x" {
+		t.Fatalf("UnknownOperator(x) = %q", got)
+	}
 	if StopsFallback(errors.New("not found")) {
 		t.Fatal("an ordinary error stops a fallback")
 	}

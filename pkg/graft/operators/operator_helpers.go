@@ -180,7 +180,7 @@ func evaluateNestedOperator(ev *Evaluator, expr *Expr) (interface{}, error) {
 	// handling makes unnecessary here.
 	op := OperatorForEngine(graft.EngineOf(ev), opName)
 	if _, ok := op.(graft.NullOperator); ok {
-		return nil, fmt.Errorf("unknown operator: %s", opName)
+		return nil, pending.UnknownOperator(opName)
 	}
 
 	// Create a temporary opcall for the nested operator. NewOpcallForExpr
