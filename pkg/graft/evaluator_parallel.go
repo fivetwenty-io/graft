@@ -195,6 +195,9 @@ func (ev *Evaluator) runOpsWithScheduler(ctx context.Context, pool *parallel.Wor
 // cursor-string to task ID map (a canonical path maps to the same task ID
 // as the path it canonicalizes), and a task ID back to its *Opcall, since
 // the scheduler's Task carries only an ID string plus arbitrary Data.
+// The locations are in canonical form, as the sequential engine hands
+// them to Dependencies, so an operator that compares them with a
+// canonical path finds an op under a list entry named by its name.
 func indexOps(ops []*Opcall) (allLocs []*tree.Cursor, opIDMap map[string]string, opByID map[string]*Opcall) {
 	allLocs = make([]*tree.Cursor, 0, len(ops))
 	opIDMap = make(map[string]string, len(ops))
@@ -205,13 +208,14 @@ func indexOps(ops []*Opcall) (allLocs []*tree.Cursor, opIDMap map[string]string,
 			continue
 		}
 
-		allLocs = append(allLocs, op.Where())
-
 		id := op.Where().String()
 		opIDMap[id] = id
 		opByID[id] = op
 		if op.canonical != nil {
 			opIDMap[op.canonical.String()] = id
+			allLocs = append(allLocs, op.canonical)
+		} else {
+			allLocs = append(allLocs, op.Where())
 		}
 	}
 

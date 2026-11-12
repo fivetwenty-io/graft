@@ -232,3 +232,48 @@ func TestConcatRefusesAMapOrAListFromAnyArgument(t *testing.T) {
 		},
 	})
 }
+
+// namedJobs is a list of named maps whose entry web holds operators
+// under l and m, so a read of jobs.web.l or jobs.0.l must wait for them.
+const namedJobs = "jobs:\n- name: web\n" +
+	"  l:\n  - [1]\n  - [(( concat \"p\" \"q\" ))]\n" +
+	"  m:\n    k: (( concat \"p\" \"q\" ))\n"
+
+func TestReadsUnderANamedListEntryWait(t *testing.T) {
+	var cases []targetCase
+	for _, at := range []string{"jobs.web", "jobs.0"} {
+		cases = append(cases,
+			targetCase{
+				name: "flatten " + at + ".l",
+				src:  namedJobs + "a: (( flatten " + at + ".l ))\n",
+				path: "a", want: []interface{}{1, "pq"},
+			},
+			targetCase{
+				name: "shuffle " + at + ".l.1",
+				src:  namedJobs + "a: (( shuffle " + at + ".l.1 ))\n",
+				path: "a", want: []interface{}{"pq"},
+			},
+			targetCase{
+				name: "join " + at + ".l.1",
+				src:  namedJobs + "a: (( join \",\" " + at + ".l.1 ))\n",
+				path: "a", want: "pq",
+			},
+			targetCase{
+				name: "join " + at + ".m",
+				src:  namedJobs + "a: (( join \",\" " + at + ".m ))\n",
+				path: "a", want: "k:pq",
+			},
+			targetCase{
+				name: "stringify " + at + ".m",
+				src:  namedJobs + "a: (( stringify " + at + ".m ))\n",
+				path: "a", want: "k: pq\n",
+			},
+			targetCase{
+				name: "inject " + at + ".m",
+				src:  namedJobs + "a:\n  b: (( inject " + at + ".m ))\n",
+				path: "a.k", want: "pq",
+			},
+		)
+	}
+	runTargetCases(t, cases)
+}
