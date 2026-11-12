@@ -110,6 +110,7 @@ func (d *Document) resolve(op, path string) (located, error) {
 // unclosedBracket reports the position of a '[' that path never closes.
 // cursorpath.Parse reads such a path as if the bracket were closed at the
 // end, which an edit must not guess at.
+// It runs only after cursorpath.Parse has accepted path.
 func unclosedBracket(path string) (int, bool) {
 	open := -1
 	for i, c := range path {

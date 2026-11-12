@@ -1,6 +1,9 @@
 package yaml
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestOffsetOfLineAndColumn(t *testing.T) {
 	d := &Document{src: []byte("a: 1\nné: x\n\nz")}
@@ -32,7 +35,7 @@ func TestOffsetOfLineAndColumn(t *testing.T) {
 // node's Line finds its line in the input as written.
 func TestLineIndexCountsLineBreaksAsTheParserDoes(t *testing.T) {
 	src := []byte("a\r\nb\rc\u0085d\n")
-	if got, want := newLineIndex(src), []int{0, 3, 5, 8, 10}; !equalInts(got, want) {
+	if got, want := newLineIndex(src), []int{0, 3, 5, 8, 10}; !slices.Equal(got, want) {
 		t.Fatalf("newLineIndex = %v, want %v", got, want)
 	}
 	d := &Document{src: src, lines: newLineIndex(src)}
@@ -44,18 +47,6 @@ func TestLineIndexCountsLineBreaksAsTheParserDoes(t *testing.T) {
 	if _, ok := d.offset(1, 3); ok {
 		t.Error("offset ran past the end of a CRLF line")
 	}
-}
-
-func equalInts(a, b []int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func TestResolveRecordsAliasesAndAnchors(t *testing.T) {
