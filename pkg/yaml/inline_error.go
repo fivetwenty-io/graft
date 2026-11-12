@@ -58,56 +58,72 @@ func inlinesMap(t reflect.Type) bool {
 // items of a sequence. A unit starts at the earliest position of any
 // node under it, aliases included, since alias expansion puts the
 // anchor's node in the alias's slot and a merge folds the anchor's pairs
-// into the mapping that names them. A prefix of body keeps only the
-// units that start at or before a position, so it holds every node at
-// or before that position, with the same Go type to fill as in body.
-// Whether a value fits depends only on the value and that type, so
-// whether a prefix fails can only go from false to true as the prefix
-// grows.
+// into the mapping that names them. Units are ordered by where they
+// start and then by their own token, which is a pair's key or the item
+// itself, so units that share a start, as pairs whose values alias one
+// anchor do, still fall in a strict order. A prefix of body keeps the
+// units up to a point in that order. The prefix that keeps every unit
+// starting at or before a position holds every node at or before it,
+// with the same Go type to fill as in body. Whether a value fits
+// depends only on the value and that type, so whether a prefix fails
+// can only go from false to true as the prefix grows.
 //
-// Each round drops every innermost unit that holds the last error's
-// position, and then searches by halves for the shortest failing
-// prefix that ends at or before the best error so far. That prefix
-// either fails at the earliest bad value left or at a value that sits
-// after it in a unit that starts before it, and the next round drops
-// that value. When no such prefix fails, nothing at or before the best
-// error is left, and the best error is the earliest. A round costs one
-// decode and one for each halving, and an input reaches the answer in
-// two rounds unless aliases put values out of document order. The
-// rounds are capped at a small multiple of the bits in the unit count,
-// and past the cap the best error so far is returned.
+// Each round searches by halves for the shortest failing prefix that
+// keeps no unit starting after the best error so far. The units before
+// that prefix's last one hold no bad value, so its error is the first
+// bad value in unit order, and it does not depend on the order goccy
+// happens to fill an inline map in. The first round searches the whole
+// body, and each later round first drops every innermost unit that
+// holds the last error's position. When the longest prefix fails no
+// more, nothing at or before the best error is left, and the best error
+// is the earliest. A round costs one decode and one for each halving,
+// and an input reaches the answer in two rounds unless aliases put
+// values out of document order. The rounds are capped at a small
+// multiple of the bits in the unit count, and past the cap the best
+// error found is returned. Since every round's search is the same on
+// every run, so is that error.
+//
+// The drop removes a shared node's unit at every site the node fills,
+// since an error names a position and not a site. When one node fills
+// two sites as two different Go types, the unit dropped at one site can
+// hold a bad key that sits before the error, and that key is lost.
 //
 // A caller's own unmarshal method can panic when a prefix hands it a
 // mapping with keys missing. Such a panic stops the search, and the
-// best error so far is returned. Every error the search returns is one
-// goccy reported, so a stopped search names a real bad value, only
-// perhaps not the earliest.
+// best error found so far is returned. Every error the search returns
+// is one goccy reported, so a stopped search names a real bad value,
+// only perhaps not the earliest.
 func earliestTypeError(body ast.Node, v any, opts DecodeOptions, own ownScalars, first *DecodeError) *DecodeError {
 	s := prefixSearch{target: reflect.TypeOf(v), opts: opts, own: own}
-	best, last := first, first
-	limit := 1
-	for round := 0; round < limit; round++ {
+	best, units, stopped := s.firstFailure(body, errorSrcPos(first))
+	if !reportable(best) {
+		return first
+	}
+	last := best
+	limit := 4 + 2*bits.Len(uint(units))
+	for round := 1; round < limit && !stopped; round++ {
 		next, dropped := unitDrop{at: errorSrcPos(last), memo: make(map[ast.Node]dropped)}.node(body)
 		if !dropped {
 			break
 		}
 		body = next
-		found, units, stopped := s.firstFailure(body, errorSrcPos(best))
-		if round == 0 {
-			limit = 4 + 2*bits.Len(uint(units))
-		}
-		if found == nil || found.Kind != ErrorKindType || found.Line == 0 {
+		var found *DecodeError
+		found, _, stopped = s.firstFailure(body, errorSrcPos(best))
+		if !reportable(found) {
 			break
 		}
 		last = found
 		if earlier(last, best) {
 			best = last
 		}
-		if stopped {
-			break
-		}
 	}
 	return best
+}
+
+// reportable reports whether e is a type error with a position, which
+// is the only kind the search compares.
+func reportable(e *DecodeError) bool {
+	return e != nil && e.Kind == ErrorKindType && e.Line > 0
 }
 
 // earlier reports whether a comes before b by line, then column, then
@@ -155,11 +171,12 @@ type prefixSearch struct {
 	own    ownScalars
 }
 
-// firstFailure returns the error of the shortest prefix of body that
-// ends at a unit start no later than bound and fails, or nil when none
-// fails. It also returns how many units body holds, and whether a decode
-// panicked. A panic ends the search, which then returns the error of the
-// shortest failing prefix it has decoded, or nil when it has none.
+// firstFailure returns the error of the shortest failing prefix of body
+// that keeps no unit starting after bound, or nil when none fails. It
+// also returns how many units body holds, and whether a decode panicked.
+// A panic ends the search, which then returns the error of the shortest
+// failing prefix it has decoded, or nil when it has none or when
+// placing that error panics.
 func (s prefixSearch) firstFailure(body ast.Node, bound srcPos) (found *DecodeError, units int, stopped bool) {
 	st := &unitStarts{memo: make(map[ast.Node]srcPos), seen: make(map[ast.Node]bool)}
 	st.collect(body)
@@ -188,7 +205,23 @@ func (s prefixSearch) firstFailure(body ast.Node, bound srcPos) (found *DecodeEr
 			lo = mid + 1
 		}
 	}
-	return translate(s.own.locate(locate(err, failed, s.target), s.target.Elem())), units, stopped
+	found, panicked = s.place(err, failed)
+	if panicked {
+		return nil, units, true
+	}
+	return found, units, stopped
+}
+
+// place turns err, which decoding body returned, into the error the
+// caller sees, by the same steps as the first error. locate can decode
+// body again, so place recovers a panic and reports it as decode does.
+func (s prefixSearch) place(err error, body ast.Node) (found *DecodeError, panicked bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			found, panicked = nil, true
+		}
+	}()
+	return translate(s.own.locate(locate(err, body, s.target), s.target.Elem())), false
 }
 
 // decode decodes body into a new value of target. It recovers any panic
@@ -203,12 +236,40 @@ func (s prefixSearch) decode(body ast.Node) (panicked bool, err error) {
 	return false, decodeBody(body, reflect.New(s.target.Elem()).Interface(), s.opts)
 }
 
+// unitKey places a unit in the search's order, by where its subtree
+// starts and then by its own token.
+type unitKey struct {
+	start, own srcPos
+}
+
+// compare orders k and o by start, then by own token.
+func (k unitKey) compare(o unitKey) int {
+	switch {
+	case k == o:
+		return 0
+	case k.start == o.start && o.own.after(k.own), o.start.after(k.start):
+		return -1
+	default:
+		return 1
+	}
+}
+
 // unitStarts computes where each node's subtree starts, once for each
 // node, since alias expansion shares subtrees.
 type unitStarts struct {
 	memo map[ast.Node]srcPos
 	seen map[ast.Node]bool
-	all  []srcPos
+	all  []unitKey
+}
+
+// pairKey returns the key of the unit a pair makes.
+func (st *unitStarts) pairKey(pair *ast.MappingValueNode) unitKey {
+	return unitKey{start: st.start(pair), own: srcPosOf(pair.Key)}
+}
+
+// itemKey returns the key of the unit a sequence item makes.
+func (st *unitStarts) itemKey(item ast.Node) unitKey {
+	return unitKey{start: st.start(item), own: srcPosOf(item)}
 }
 
 // start returns the earliest position of n or any node under it.
@@ -255,7 +316,7 @@ func (st *unitStarts) collect(n ast.Node) {
 	switch n := n.(type) {
 	case *ast.MappingNode:
 		for _, pair := range n.Values {
-			st.all = append(st.all, st.start(pair))
+			st.all = append(st.all, st.pairKey(pair))
 			st.collect(pair.Key)
 			st.collect(pair.Value)
 		}
@@ -264,7 +325,7 @@ func (st *unitStarts) collect(n ast.Node) {
 		st.collect(n.Value)
 	case *ast.SequenceNode:
 		for _, item := range n.Values {
-			st.all = append(st.all, st.start(item))
+			st.all = append(st.all, st.itemKey(item))
 			st.collect(item)
 		}
 	default:
@@ -274,39 +335,32 @@ func (st *unitStarts) collect(n ast.Node) {
 	}
 }
 
-// upTo returns the distinct unit starts no later than bound, in order.
-func (st *unitStarts) upTo(bound srcPos) []srcPos {
-	out := make([]srcPos, 0, len(st.all))
-	for _, p := range st.all {
-		if !p.after(bound) {
-			out = append(out, p)
+// upTo returns the distinct keys of the units that start no later than
+// bound, in order.
+func (st *unitStarts) upTo(bound srcPos) []unitKey {
+	out := make([]unitKey, 0, len(st.all))
+	for _, k := range st.all {
+		if !k.start.after(bound) {
+			out = append(out, k)
 		}
 	}
-	slices.SortFunc(out, func(a, b srcPos) int {
-		switch {
-		case a == b:
-			return 0
-		case b.after(a):
-			return -1
-		default:
-			return 1
-		}
-	})
+	slices.SortFunc(out, unitKey.compare)
 	return slices.Compact(out)
 }
 
-// prefix returns body with only the units that start at or before end.
-// It copies each node on the path to one it changes and shares every
-// other subtree.
-func (st *unitStarts) prefix(body ast.Node, end srcPos) ast.Node {
+// prefix returns body with only the units whose keys come no later than
+// end. It copies each node on the path to one it changes and shares
+// every other subtree.
+func (st *unitStarts) prefix(body ast.Node, end unitKey) ast.Node {
 	pr := unitPrefix{starts: st, end: end, memo: make(map[ast.Node]ast.Node)}
 	return pr.node(body)
 }
 
-// unitPrefix cuts a body down to the units that start at or before end.
+// unitPrefix cuts a body down to the units whose keys come no later
+// than end.
 type unitPrefix struct {
 	starts *unitStarts
-	end    srcPos
+	end    unitKey
 	memo   map[ast.Node]ast.Node
 }
 
@@ -344,7 +398,7 @@ func (pr unitPrefix) mapping(m *ast.MappingNode) ast.Node {
 	kept := make([]*ast.MappingValueNode, 0, len(m.Values))
 	changed := false
 	for _, pair := range m.Values {
-		if pr.starts.start(pair).after(pr.end) {
+		if pr.starts.pairKey(pair).compare(pr.end) > 0 {
 			changed = true
 			continue
 		}
@@ -366,7 +420,7 @@ func (pr unitPrefix) sequence(s *ast.SequenceNode) ast.Node {
 	kept := make([]ast.Node, 0, len(s.Values))
 	changed := false
 	for _, item := range s.Values {
-		if pr.starts.start(item).after(pr.end) {
+		if pr.starts.itemKey(item).compare(pr.end) > 0 {
 			changed = true
 			continue
 		}

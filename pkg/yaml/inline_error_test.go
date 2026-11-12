@@ -2,6 +2,7 @@ package yaml_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -168,7 +169,13 @@ func TestInlineMapErrorSurvivesAPanickingMethod(t *testing.T) {
 	for i, name := range strings.Split("abcdefgh", "") {
 		b.WriteString("  " + name + ": " + string(rune('1'+i)) + "\n")
 	}
-	b.WriteString("second:\n  a: 1\n  b: y\n")
+	// Good pairs after the ring let the search narrow to the first bad
+	// value before it cuts the ring short.
+	b.WriteString("second:\n  a: 1\n")
+	for i := range 20 {
+		b.WriteString("  f" + string(rune('a'+i)) + ": 1\n")
+	}
+	b.WriteString("  b: y\n")
 	src := []byte(b.String())
 	keyRingPanics.Store(0)
 	var want string
@@ -187,6 +194,95 @@ func TestInlineMapErrorSurvivesAPanickingMethod(t *testing.T) {
 	}
 	if keyRingPanics.Load() == 0 {
 		t.Fatal("the search never handed keyRing a mapping without all its keys")
+	}
+}
+
+// boolShy is a caller's type whose method panics when a value in its
+// mapping is a bool.
+type boolShy struct {
+	values map[string]any
+}
+
+func (b *boolShy) UnmarshalYAML(unmarshal func(any) error) error {
+	var m map[string]any
+	if err := unmarshal(&m); err != nil {
+		return err
+	}
+	for k, v := range m {
+		if _, ok := v.(bool); ok {
+			panic("boolShy got a bool at " + k)
+		}
+	}
+	b.values = m
+	return nil
+}
+
+// shyAndFlag holds a boolShy beside a bool that YAML 1.1 refuses a
+// quoted "yes" for. Placing that refusal decodes the document again
+// with each plain yes read as a bool, which boolShy panics on.
+type shyAndFlag struct {
+	Second inlineRest `yaml:"second"`
+	Flag   bool       `yaml:"flag"`
+	Ring   boolShy    `yaml:"ring"`
+}
+
+func TestInlineMapErrorSurvivesAPanicWhilePlacingIt(t *testing.T) {
+	src := []byte("ring: {v: yes}\nflag: \"yes\"\nsecond:\n  a: 1\n  b: x\n")
+	var want string
+	for i := 0; i < 200; i++ {
+		var v shyAndFlag
+		err := yaml.Unmarshal(src, &v)
+		var de *yaml.DecodeError
+		if !errors.As(err, &de) || de.Kind != yaml.ErrorKindType || de.Line != 5 {
+			t.Fatalf("run %d: %v, want a type error at line 5", i, err)
+		}
+		if i == 0 {
+			want = err.Error()
+		} else if err.Error() != want {
+			t.Fatalf("run %d: %q, run 0: %q", i, err.Error(), want)
+		}
+	}
+}
+
+// aliasedValues writes n inline values that each hold an alias to the
+// anchor on line 1. Every one of them is a sequence where an int
+// belongs, and every one starts where the anchor does.
+func aliasedValues(n int) []byte {
+	var b strings.Builder
+	b.WriteString("name: &x hello\ninner:\n  a: 1\n")
+	for i := range n {
+		fmt.Fprintf(&b, "  c%04d: [*x]\n", i)
+	}
+	return []byte(b.String())
+}
+
+func TestInlineMapErrorWithManyAliasedValues(t *testing.T) {
+	cases := []struct {
+		n, runs int
+	}{
+		{200, 100},
+		{1000, 20},
+	}
+	for _, c := range cases {
+		t.Run(fmt.Sprint(c.n), func(t *testing.T) {
+			if c.n > 200 && testing.Short() {
+				t.Skip("decodes a 1000-value document")
+			}
+			src := aliasedValues(c.n)
+			var want string
+			for i := 0; i < c.runs; i++ {
+				err := yaml.Unmarshal(src, &inlineOuter{})
+				var de *yaml.DecodeError
+				if !errors.As(err, &de) || de.Kind != yaml.ErrorKindType || de.Line != 4 {
+					t.Fatalf("run %d: %v, want a type error at line 4", i, err)
+				}
+				if i == 0 {
+					want = err.Error()
+				} else if err.Error() != want {
+					t.Fatalf("run %d: %q, run 0: %q", i, err.Error(), want)
+				}
+			}
+		})
 	}
 }
 
