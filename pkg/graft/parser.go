@@ -1727,6 +1727,9 @@ func evaluateKeepingLiteral(e *Expr, treeData interface{}) (interface{}, error) 
 				return nil, err
 			}
 		}
+		if pruneFallback(e.Right, e.evaluator) {
+			return nil, nil
+		}
 		if e.Right != nil {
 			if e.evaluator != nil && e.Right.evaluator == nil {
 				e.Right.SetEvaluator(e.evaluator)

@@ -53,6 +53,11 @@ func (PruneOperator) Run(ev *Evaluator, args []*Expr) (*Response, error) {
 	DEBUG("running (( prune ... )) operation at $.%s", ev.Here)
 	defer DEBUG("done with (( prune ... )) operation at $.%s\n", ev.Here)
 
+	if ev.Here == nil {
+		// With no path there is no key to prune or value to keep.
+		return &Response{Type: Replace, Value: nil}, nil
+	}
+
 	engine := graft.GetEngine(ev)
 	// Quoted keeps a dotted node, such as a Genesis network name, whole
 	// when the prune step splits this path again

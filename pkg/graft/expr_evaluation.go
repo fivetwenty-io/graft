@@ -75,14 +75,8 @@ func EvaluateExpr(e *Expr, ev *Evaluator) (*Response, error) {
 			// is never a reason to fall back.
 			return nil, err
 		}
-		// Left side failed, check if right side is prune
-		if e.Right != nil && e.Right.Type == OperatorCall && e.Right.Operator == "prune" {
-			// Mark the current path for pruning
-			engine := GetEngine(ev)
-			if engine != nil && engine.GetOperatorState() != nil {
-				engine.GetOperatorState().AddKeyToPrune(ev.Here.Quoted())
-			}
-			// Return a special prune response
+		// Left side failed, so a (( prune )) on the right prunes the key
+		if pruneFallback(e.Right, ev) {
 			return &Response{
 				Type:  Replace,
 				Value: nil, // This will be pruned later

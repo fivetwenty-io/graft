@@ -617,7 +617,16 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 			return nil, fmt.Errorf("operator call evaluation requires an evaluator; use SetEvaluator() first")
 		}
 		if e.Call != nil {
-			resp, err := e.Call.Run(e.evaluator)
+			call := e.Call
+			if call.where == nil && e.evaluator.Here != nil {
+				// A nested call runs at the path of the call it sits
+				// in, as evaluateNestedOperator runs one, so an
+				// operator that reads ev.Here finds that path.
+				at := *call
+				at.where = e.evaluator.Here.Copy()
+				call = &at
+			}
+			resp, err := call.Run(e.evaluator)
 			if err != nil {
 				return nil, err
 			}
@@ -642,6 +651,9 @@ func (e *Expr) Evaluate(treeData interface{}) (interface{}, error) {
 			if pending.StopsFallback(err) {
 				return nil, err
 			}
+		}
+		if pruneFallback(e.Right, e.evaluator) {
+			return nil, nil
 		}
 		if e.Right != nil {
 			// Propagate evaluator to right side before evaluating
