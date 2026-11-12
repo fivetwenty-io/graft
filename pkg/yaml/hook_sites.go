@@ -756,7 +756,9 @@ func keyHash(seed maphash.Seed, v reflect.Value) uint64 {
 
 // mapKey decodes the key k alone into a value of type kt, after the
 // change asWritten makes to the key of a map with string keys, and
-// reports whether it decoded.
+// reports whether it decoded. A null key is the zero value of kt when
+// goccy decodes kt with no method of its own, as goccy makes such a key,
+// though a null alone does not decode into an integer.
 func (w *siteWalk) mapKey(k ast.MapKeyNode, kt reflect.Type) (reflect.Value, bool) {
 	if kt.Kind() == reflect.String && w.keys.kind(kt) == notOwn {
 		k = keyText(k)
@@ -767,6 +769,9 @@ func (w *siteWalk) mapKey(k ast.MapKeyNode, kt reflect.Type) (reflect.Value, boo
 	}
 	if kt.Kind() == reflect.Pointer {
 		return w.pointerKey(key, kt)
+	}
+	if k.Type() == ast.NullType && w.keys.kind(kt) == notOwn {
+		return reflect.Zero(kt), true
 	}
 	p := reflect.New(kt)
 	if err := decodeBody(key, p.Interface(), w.opts); err != nil {

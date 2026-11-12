@@ -114,3 +114,24 @@ type nanFieldPlain struct {
 	M map[float64]string `yaml:"m"`
 	N string             `yaml:"n"`
 }
+
+// TestNullKeysOfIntegerMaps checks that a null key of a hooked map with
+// integer keys is the zero key, as goccy reads it, so it keeps or
+// replaces the entry of a key written 0, with the hook only on the value
+// goccy keeps.
+func TestNullKeysOfIntegerMaps(t *testing.T) {
+	ints := func() any { return new(map[int]gapHook) }
+	intsPlain := func() any { return new(map[int]string) }
+	runKeyCases(t, false, []keyCase{
+		{"a null key alone", "~: a\n", ints, intsPlain, 1},
+		{"a null value over 0", "0: a\n~: ~\n", ints, intsPlain, 0},
+		{"a null key over 0", "0: a\nnull: b\n", ints, intsPlain, 1},
+		{"0 over a null key", "~: a\n0: b\n", ints, intsPlain, 1},
+		{"a tagged null key", "0: a\n!!null ~: ~\n", ints, intsPlain, 0},
+		{"a null key beside others", "1: a\n~: b\n2: c\n", ints, intsPlain, 3},
+		{"a null key of a small int", "0: a\n~: ~\n",
+			func() any { return new(map[uint8]gapHook) }, func() any { return new(map[uint8]string) }, 0},
+		{"a null key over an inner map", "0: {a: x}\n~: {b: y}\n",
+			func() any { return new(map[int]map[string]gapHook) }, func() any { return new(map[int]map[string]string) }, 1},
+	})
+}
