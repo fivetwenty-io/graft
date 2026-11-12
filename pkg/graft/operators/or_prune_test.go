@@ -148,3 +148,90 @@ func TestJoinLeavesOutAPrunedMapKey(t *testing.T) {
 		}
 	}
 }
+
+// A copy of a map, made by grab or inject, leaves out every key under
+// it that is pruned, at any depth, as spruce does, because the copy
+// and the map share the keys the prune step removes.
+func TestCopiesLeaveOutPrunedKeys(t *testing.T) {
+	t.Setenv("GRAFT_TEST_PRUNE_UNSET", "")
+	am := map[string]interface{}{"a": 1}
+	deep := map[string]interface{}{
+		"a": 1, "n": map[string]interface{}{"c": 3},
+	}
+	cases := []struct {
+		name string
+		srcs []string
+		at   string
+		want interface{}
+	}{
+		{
+			name: "prune with no earlier value",
+			srcs: []string{"m:\n  a: 1\n  b: (( prune ))\nx: (( grab m ))\n"},
+			at:   "x", want: am,
+		},
+		{
+			name: "deeper key",
+			srcs: []string{"m:\n  a: 1\n  n:\n    b: (( prune ))\n    c: 3\n" +
+				"x: (( grab m ))\n"},
+			at: "x", want: deep,
+		},
+		{
+			name: "prune over an earlier value",
+			srcs: []string{
+				"m:\n  a: 1\n  b: 2\n",
+				"m:\n  b: (( prune ))\nx: (( grab m ))\n",
+			},
+			at: "x", want: am,
+		},
+		{
+			name: "|| falling back to prune",
+			srcs: []string{"m:\n  a: 1\n  b: (( nope || (( prune )) ))\n" +
+				"x: (( grab m ))\n"},
+			at: "x", want: am,
+		},
+		{
+			name: "unset variable falling back to prune",
+			srcs: []string{"m:\n  a: 1\n" +
+				"  b: (( $GRAFT_TEST_PRUNE_UNSET || (( prune )) ))\n" +
+				"x: (( grab m ))\n"},
+			at: "x", want: am,
+		},
+		{
+			name: "grab of the map that holds the key",
+			srcs: []string{"m:\n  a: 1\n  n:\n    b: (( prune ))\n    c: 3\n" +
+				"x: (( grab m.n ))\n"},
+			at: "x", want: map[string]interface{}{"c": 3},
+		},
+		{
+			name: "grab with a fallback",
+			srcs: []string{"m:\n  a: 1\n  b: (( prune ))\n" +
+				"x: (( grab m || \"fb\" ))\n"},
+			at: "x", want: am,
+		},
+		{
+			name: "grab in a list",
+			srcs: []string{"m:\n  a: 1\n  b: (( prune ))\n" +
+				"x:\n- (( grab m ))\n"},
+			at: "x", want: []interface{}{am},
+		},
+		{
+			name: "inject",
+			srcs: []string{"m:\n  a: 1\n  n:\n    b: (( prune ))\n    c: 3\n" +
+				"x:\n  _: (( inject m ))\n"},
+			at: "x", want: deep,
+		},
+	}
+	for _, tc := range cases {
+		for _, parallel := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/parallel=%v", tc.name, parallel), func(t *testing.T) {
+				got, err := mergeWithin(t, parallel, tc.srcs...)
+				if err != nil {
+					t.Fatalf("err = %v", err)
+				}
+				if !reflect.DeepEqual(got[tc.at], tc.want) {
+					t.Fatalf("%s = %#v, want %#v", tc.at, got[tc.at], tc.want)
+				}
+			})
+		}
+	}
+}

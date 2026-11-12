@@ -320,19 +320,18 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 	prunePaths := rs.GetKeysToPrune()
 	log.DEBUG("Engine: Found %d prune paths to process: %v", len(prunePaths), prunePaths)
 	if len(prunePaths) > 0 {
-		// Convert tree paths to Document paths and remove them
-		doc := NewDocument(ev.Tree)
+		// Remove each path from the tree itself, as spruce does, rather
+		// than from a copy. A grab hands back the map it reads, not a
+		// copy, so a key pruned from that map also leaves every place
+		// that grabbed it, at any depth.
+		doc := &document{data: ev.Tree}
 		cleanedPaths := make([]string, 0, len(prunePaths))
 		for _, path := range prunePaths {
 			// Remove the "$." prefix if present
 			cleanPath := strings.TrimPrefix(path, "$.")
 			log.DEBUG("Engine: Pruning path '%s' (cleaned: '%s')", path, cleanPath)
-			doc = doc.Prune(cleanPath)
+			doc.pruneKeyInPlace(cleanPath)
 			cleanedPaths = append(cleanedPaths, cleanPath)
-		}
-		// Update the evaluator tree with the pruned document
-		if pruned, ok := treeOf(doc).(map[string]interface{}); ok {
-			ev.Tree = pruned
 		}
 
 		// Stash the paths this run actually pruned, in the same "$."-free
@@ -598,7 +597,8 @@ func (e *DefaultEngine) logDebugf(format string, args ...interface{}) {
 }
 
 // Evaluate processes operators in a document. It resolves them in doc
-// itself, so doc must not be used by another call while Evaluate runs.
+// itself, and removes the keys they prune from it, so doc must not be
+// used by another call while Evaluate runs.
 // Each call works on an operator state of its own, so concurrent calls on
 // one engine do not disturb one another, and when the call finishes its
 // vault references, vault placeholders, deferred paths, and pruned paths

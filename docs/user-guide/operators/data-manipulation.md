@@ -546,6 +546,18 @@ server:
 Inside a single document, `(( prune ))` still works for a key whose own value
 you want dropped, such as a scratch value computed for a sibling.
 
+A grab of a map hands back that map rather than a copy, so a key pruned from
+the map is gone from the grabbed value too, at any depth, as in spruce:
+
+```yaml
+meta:
+  name: web
+  scratch: (( prune ))
+job: (( grab meta ))
+```
+
+gives `job: {name: web}`, with no `scratch` key.
+
 ## inject
 
 Deep-merge the contents of one or more maps into the map that contains it.
