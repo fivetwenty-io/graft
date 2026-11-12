@@ -277,3 +277,29 @@ func TestReadsUnderANamedListEntryWait(t *testing.T) {
 	}
 	runTargetCases(t, cases)
 }
+
+// namedLists is a list of named maps whose entry web holds an operator
+// in its list l, so a read of jobs.web.l or jobs.0.l must wait for it.
+const namedLists = "jobs:\n- name: web\n" +
+	"  l:\n  - a\n  - (( concat \"p\" \"q\" ))\n"
+
+func TestListArgumentsUnderANamedListEntryWait(t *testing.T) {
+	var cases []targetCase
+	for _, at := range []string{"jobs.web", "jobs.0"} {
+		cases = append(cases,
+			targetCase{
+				name: "cartesian-product " + at + ".l",
+				src: namedLists +
+					"a: (( cartesian-product " + at + ".l \"x\" ))\n",
+				path: "a", want: []interface{}{"ax", "pqx"},
+			},
+			targetCase{
+				name: "ips " + at,
+				src: "jobs:\n- name: web\n" +
+					"  ip: (( ips " + at + " 1 ))\n",
+				cycle: true,
+			},
+		)
+	}
+	runTargetCases(t, cases)
+}
