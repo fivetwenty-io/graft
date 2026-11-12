@@ -3,6 +3,7 @@ package oploc
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 
 	"github.com/fivetwenty-io/graft/internal/literal"
 	"github.com/fivetwenty-io/graft/pkg/graft/tree"
@@ -31,53 +32,67 @@ func RefuseAncestor(here, target *tree.Cursor, root interface{}) error {
 }
 
 // RefuseSelfHolding returns a cycle error when val, the value an
-// operator at here is about to write, is the very map or list of one of
-// here's ancestors in root. Writing it would leave that container
-// holding itself. It is the evaluator's last guard for any operator
-// whose read RefuseAncestor did not see.
+// operator at here is about to write, would make one of here's
+// ancestors in root hold itself: val is that ancestor's map, or a list
+// whose entries include the ancestor's entry on the way to here. A list
+// cut from an ancestor list counts only when its span covers that
+// entry. It is the evaluator's last guard for any operator whose read
+// RefuseAncestor did not see.
 func RefuseSelfHolding(here *tree.Cursor, val, root interface{}) error {
 	if here == nil {
 		return nil
 	}
-	ptr, ok := containerPointer(val)
-	if !ok {
+	val, _ = literal.Unwrap(val)
+	switch val.(type) {
+	case map[string]interface{}, []interface{}:
+	default:
 		return nil
 	}
-	for n := len(here.Nodes) - 1; n > 0; n-- {
-		anc := &tree.Cursor{Nodes: here.Nodes[:n]}
-		o, err := anc.Resolve(root)
+	nodes := Canonical(here, root).Nodes
+	if len(nodes) != len(here.Nodes) {
+		nodes = here.Nodes
+	}
+	for n := len(nodes) - 1; n > 0; n-- {
+		o, err := (&tree.Cursor{Nodes: nodes[:n]}).Resolve(root)
 		if err != nil {
 			continue
 		}
-		if p, ok := containerPointer(o); ok && p == ptr {
-			return cycleError(here, anc)
+		if holds(val, o, nodes[n]) {
+			return cycleError(here, &tree.Cursor{Nodes: here.Nodes[:n]})
 		}
 	}
 	return nil
+}
+
+// holds reports whether val holds the entry key of the container o: val
+// is o's own map, or a non-empty list whose span of entries covers the
+// entry key of the list o, read through a literal wrapper.
+func holds(val, o interface{}, key string) bool {
+	o, _ = literal.Unwrap(o)
+	switch c := val.(type) {
+	case map[string]interface{}:
+		m, ok := o.(map[string]interface{})
+		return ok && c != nil && m != nil &&
+			reflect.ValueOf(c).Pointer() == reflect.ValueOf(m).Pointer()
+	case []interface{}:
+		l, ok := o.([]interface{})
+		if !ok || len(c) == 0 {
+			return false
+		}
+		i, err := strconv.Atoi(key)
+		if err != nil || i < 0 || i >= len(l) {
+			return false
+		}
+		slot := reflect.ValueOf(&l[i]).Pointer()
+		lo := reflect.ValueOf(&c[0]).Pointer()
+		hi := reflect.ValueOf(&c[len(c)-1]).Pointer()
+		return lo <= slot && slot <= hi
+	}
+	return false
 }
 
 // cycleError is the error both guards return. It names the two paths and
 // quotes no value.
 func cycleError(here, target *tree.Cursor) error {
 	return fmt.Errorf("cycle detected: $.%s grabs $.%s, which contains it", here, target)
-}
-
-// containerPointer returns the address that identifies v when v is a map
-// or a non-empty list, reading through a literal wrapper. An empty list
-// holds nothing, so it never identifies an ancestor.
-func containerPointer(v interface{}) (uintptr, bool) {
-	v, _ = literal.Unwrap(v)
-	switch c := v.(type) {
-	case map[string]interface{}:
-		if c == nil {
-			return 0, false
-		}
-		return reflect.ValueOf(c).Pointer(), true
-	case []interface{}:
-		if len(c) == 0 {
-			return 0, false
-		}
-		return reflect.ValueOf(&c[0]).Pointer(), true
-	}
-	return 0, false
 }

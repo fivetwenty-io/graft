@@ -75,3 +75,34 @@ func TestRefuseSelfHolding(t *testing.T) {
 		}
 	}
 }
+
+// A list that shares its backing array with an ancestor list holds that
+// ancestor's entry exactly when the entry lies inside its own span, so
+// a reslice is told apart from the list it was cut from.
+func TestRefuseSelfHoldingReslices(t *testing.T) {
+	arr := []interface{}{"a", "b", "(( op ))", "d"}
+	root := map[string]interface{}{"l": arr}
+	cases := []struct {
+		name string
+		here string
+		val  interface{}
+		want string
+	}{
+		{"the whole list", "l.2", arr, "$.l.2 grabs $.l"},
+		{"a prefix that stops short", "l.2", arr[:2], ""},
+		{"a prefix that holds the entry", "l.2", arr[:3], "$.l.2 grabs $.l"},
+		{"a suffix that holds the entry", "l.2", arr[1:], "$.l.2 grabs $.l"},
+		{"a suffix that starts after it", "l.2", arr[3:], ""},
+		{"a suffix under the entry", "l.2.x", arr[1:], "$.l.2.x grabs $.l"},
+		{"a copy", "l.2", append([]interface{}(nil), arr...), ""},
+	}
+	for _, tc := range cases {
+		err := RefuseSelfHolding(cursors(t, tc.here)[0], tc.val, root)
+		switch {
+		case tc.want == "" && err != nil:
+			t.Errorf("%s: unexpected error %v", tc.name, err)
+		case tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)):
+			t.Errorf("%s: err = %v, want it to say %q", tc.name, err, tc.want)
+		}
+	}
+}
