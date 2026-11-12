@@ -95,6 +95,36 @@ func TestJoinWaitsForTheOperatorsItReads(t *testing.T) {
 			path: "a", want: "x,pq",
 		},
 		{
+			name: "sibling through ||",
+			src:  "z:\n- x\n- (( concat \"p\" \"q\" ))\na: (( join \",\" z || \"fb\" ))\n",
+			path: "a", want: "x,pq",
+		},
+		{
+			name: "sibling through a nested ||",
+			src:  "z:\n- x\n- (( concat \"p\" \"q\" ))\na: (( join \",\" (( z || \"fb\" )) ))\n",
+			path: "a", want: "x,pq",
+		},
+		{
+			name: "fallback side of ||",
+			src:  "z:\n- x\n- (( concat \"p\" \"q\" ))\na: (( join \",\" nope || z ))\n",
+			path: "a", want: "x,pq",
+		},
+		{
+			name: "fallback after a missing reference",
+			src:  "a: (( join \",\" nope || \"fb\" ))\n",
+			path: "a", want: "fb",
+		},
+		{
+			name:  "its own list through ||",
+			src:   "l:\n- x\n- (( join \",\" l || \"fb\" ))\n",
+			cycle: true,
+		},
+		{
+			name:  "its own list through a nested ||",
+			src:   "l:\n- x\n- (( join \",\" (( l || \"fb\" )) ))\n",
+			cycle: true,
+		},
+		{
 			name:  "an ancestor map",
 			src:   "q:\n  a: (( join \",\" q ))\n",
 			cycle: true,
@@ -102,6 +132,41 @@ func TestJoinWaitsForTheOperatorsItReads(t *testing.T) {
 		{
 			name:  "an ancestor two levels up",
 			src:   "q:\n  r:\n    a: (( join \",\" q ))\n",
+			cycle: true,
+		},
+	})
+}
+
+func TestShuffleWaitsForTheOperatorsItReads(t *testing.T) {
+	runTargetCases(t, []targetCase{
+		{
+			name: "sibling holding an operator",
+			src:  "z:\n- (( concat \"p\" \"q\" ))\na: (( shuffle z ))\n",
+			path: "a", want: []interface{}{"pq"},
+		},
+		{
+			name: "sibling through ||",
+			src:  "z:\n- (( concat \"p\" \"q\" ))\na: (( shuffle z || \"fb\" ))\n",
+			path: "a", want: []interface{}{"pq"},
+		},
+		{
+			name: "sibling through a nested ||",
+			src:  "z:\n- (( concat \"p\" \"q\" ))\na: (( shuffle (( z || \"fb\" )) ))\n",
+			path: "a", want: []interface{}{"pq"},
+		},
+		{
+			name: "fallback side of ||",
+			src:  "z:\n- (( concat \"p\" \"q\" ))\na: (( shuffle nope || z ))\n",
+			path: "a", want: []interface{}{"pq"},
+		},
+		{
+			name:  "its own list",
+			src:   "l:\n- 1\n- (( shuffle l ))\n",
+			cycle: true,
+		},
+		{
+			name:  "an ancestor two levels up",
+			src:   "q:\n  l:\n  - 1\n  - x: (( shuffle q.l ))\n",
 			cycle: true,
 		},
 	})

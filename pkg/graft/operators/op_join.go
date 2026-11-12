@@ -25,10 +25,9 @@ func (JoinOperator) Phase() OperatorPhase {
 
 // Dependencies returns the nodes that (( join ... )) requires to be
 // resolved. A reference argument also waits for every operator under
-// the path it names, the way stringify does, so join never reads an
-// operator's text and a read of its own ancestor is a cycle. A
-// reference on either side of a || gets only the automatic dependency,
-// as in spruce.
+// the path it names, the way stringify does, and so does a reference on
+// either side of a ||, so join never reads an operator's text and a
+// read of its own ancestor is a cycle.
 func (JoinOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Cursor, auto []*tree.Cursor) []*tree.Cursor {
 	deps := make([]*tree.Cursor, 0, len(auto))
 	deps = append(deps, auto...)
@@ -37,6 +36,11 @@ func (JoinOperator) Dependencies(ev *Evaluator, args []*Expr, locs []*tree.Curso
 	for i := 1; i < len(args); i++ {
 		arg := args[i]
 		if arg == nil {
+			continue
+		}
+
+		if arg.Type == LogicalOr {
+			deps = append(deps, readDeps(ev, arg, locs, true)...)
 			continue
 		}
 
