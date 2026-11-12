@@ -147,6 +147,14 @@ The same spellings reach an AWS subkey. When a secret holds `k: 0X10`, spruce gi
 
 **Impact.** The two results differ only in type, and a program that reads the output back sees a string where spruce gives a number, a boolean, or a map. A template that needs the text of the variable in graft can use `(( raw_env $FOO ))`. This behavior is older than the decoding of environment values and has not changed with it. The one exception is a number too big for a signed 64-bit integer, such as `9223372036854775808`, which stringify leaves as the bare number when it comes from an environment variable, as spruce does.
 
+### concat-prints-an-env-value-that-is-a-map-or-list
+
+**Current behavior.** concat refuses a map or a list from a reference or from a nested call, with an error that says the value is not a string scalar. An environment variable is the one exception. When its value decodes to a map or a list, concat prints the decoded value the way Go prints it, so `GK_MAP='a: b'` gives `(( concat "x" $GK_MAP ))` the value `xmap[a:b]`, and `GK_LIST='[1, 2]'` gives `x[1 2]`.
+
+**Expected behavior.** spruce prints the decoded value the same way, so graft's output matches spruce's. The gap is in graft's own rule, which refuses a map or a list from every other kind of argument.
+
+**Impact.** A template that concatenates a variable holding YAML gets Go's printed form of the value, not YAML, and no error tells it so. We keep the spruce output because templates that pass a variable through concat already depend on it. A template that needs the variable's text can use `(( concat "x" (( raw_env $GK_MAP )) ))`.
+
 ### question-mark-key-indicator-inside-a-flow-collection
 
 **Current behavior.** graft refuses a flow collection that has a `?` key indicator in a flow sequence, such as `[? a]`, `[?<TAB>a]`, or `[a, ? b: 1]`. In a merge document the parse fails, and an environment variable that holds one keeps its text, so `(( grab $FOO ))` gives the string.
@@ -401,6 +409,14 @@ An AWS secret with a repeated key can't give a `?key=` subkey in graft, so `(( a
 **Spruce behavior.** spruce orders these operators after the path they name but not after the operators under it. So the same `join` and `shuffle` lines can run first and give `x,(( concat "p" "q" ))` or a list that holds the operator text, and the self-reading forms succeed with the operator text in their result.
 
 **Impact.** We keep this on purpose, because operator text in the output is never what a template means, as with [bracket-grab-waits-for-a-computed-target](#bracket-grab-waits-for-a-computed-target). A template that worked in spruce gets evaluated values instead of operator text. A template whose operator reads its own list now fails with a cycle error, so it needs to read a list that doesn't hold the call.
+
+### nested-unknown-operator-before-or-passes-through
+
+**Graft behavior.** An unknown operator nested on the left of a bare `||`, as in `a: (( (( nosuch a )) || "fb" ))`, passes through as the text of the nested call, so `a` comes out as `(( nosuch a ))`. The `||` doesn't fall back, because an unknown operator never makes a `||` fall back, and graft passes an unknown operator through as text so that a later pass, or an engine that registers it, can still run it.
+
+**Spruce behavior.** spruce can't parse a call nested inside another call, so it leaves the whole expression as it was written, and `a` comes out as `(( (( nosuch a )) || "fb" ))`.
+
+**Impact.** We keep this on purpose. Neither tool falls back to `"fb"`, and both leave operator text in the output, so a later pass sees an operator in both. Only the text differs, because graft keeps the nested call and spruce keeps the whole expression. An unknown operator written as the call itself, as in `(( nosuch a || "fb" ))`, passes through whole in graft.
 
 ### dash-line-inside-a-flow-collection-is-an-error
 
