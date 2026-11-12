@@ -1,6 +1,7 @@
 package graft
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"reflect"
@@ -127,6 +128,12 @@ type Evaluator struct {
 
 	// Memory tracker for recording evaluation changes
 	memory interfaces.MemoryTracker
+
+	// ctx is the context the evaluation runs under, which the engine
+	// sets before a run. RunOps and the parallel scheduler check it
+	// before each operator and stop once it is done. Nil means
+	// context.Background; read it through context().
+	ctx context.Context
 }
 
 // SetEngine sets the engine for the evaluator.
@@ -1117,13 +1124,20 @@ func (ev *Evaluator) newCycleError(g [][]*Opcall, all map[string]*Opcall) error 
 }
 
 // RunOps executes a list of operators in order, collecting any errors.
+// Before each operator it checks the evaluator's context, and once that
+// is done it returns the cancellation alone, without the errors from the
+// operators that already ran.
 func (ev *Evaluator) RunOps(ops []*Opcall) error {
 	log.DEBUG("patching up YAML by evaluating outstanding operators\n")
 
 	defer ev.startPending(ops)()
 
+	ctx := ev.context()
 	errors := MultiError{Errors: []error{}}
 	for _, op := range ops {
+		if err := canceled(ctx, opStep(op)); err != nil {
+			return err
+		}
 		err := ev.RunOp(op)
 		if err != nil {
 			errors.Append(err)
@@ -1600,13 +1614,27 @@ func (ev *Evaluator) Run(prune, picks []string) error {
 
 	if !ev.SkipEval {
 		ev.Only = picks
-		errors.Append(ev.RunPhase(MergePhase))
-		paramErrs.Append(ev.RunPhase(ParamPhase))
-		if len(paramErrs.Errors) > 0 {
-			return paramErrs
+		// The evaluator's context is checked before each phase as well
+		// as before each operator, and a cancellation in any phase is
+		// returned alone.
+		ctx := ev.context()
+		for _, phase := range []OperatorPhase{MergePhase, ParamPhase, EvalPhase} {
+			if err := canceled(ctx, phaseStep(phase)); err != nil {
+				return err
+			}
+			err := ev.RunPhase(phase)
+			if isCancel(ctx, err) {
+				return err
+			}
+			if phase != ParamPhase {
+				errors.Append(err)
+				continue
+			}
+			paramErrs.Append(err)
+			if len(paramErrs.Errors) > 0 {
+				return paramErrs
+			}
 		}
-
-		errors.Append(ev.RunPhase(EvalPhase))
 	}
 
 	// this is a big failure...

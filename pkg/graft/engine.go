@@ -216,11 +216,12 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 	// sees a wrapper that answers with the run's state.
 	ev.engine = run
 
-	// Check context cancellation
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
+	// The evaluator checks ctx before each operator it starts, so a
+	// canceled ctx stops the run between operators.
+	ev.ctx = ctx
+
+	if err := canceled(ctx, phaseStep(MergePhase)); err != nil {
+		return err
 	}
 
 	// A non-empty REDACT environment variable forces vault, AWS, and NATS
@@ -259,13 +260,13 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 	// matching spruce: once a required param is unresolved, downstream
 	// EvalPhase operators can't be trusted to evaluate meaningfully, so
 	// spruce doesn't bother combining prior merge errors into that report.
+	//
+	// A canceled ctx ends the run with the cancellation alone, dropping
+	// the errors gathered so far, whichever phase it stops.
 	var mergeErrs MultiError
 	for _, phase := range []OperatorPhase{MergePhase, ParamPhase, EvalPhase} {
-		// Check context cancellation before each phase
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+		if err := canceled(ctx, phaseStep(phase)); err != nil {
+			return err
 		}
 
 		var phaseErr error
@@ -273,6 +274,9 @@ func (e *DefaultEngine) evaluate(ctx context.Context, ev *Evaluator, forceParall
 			phaseErr = ev.RunPhaseParallel(phase)
 		} else {
 			phaseErr = ev.RunPhase(phase)
+		}
+		if isCancel(ctx, phaseErr) {
+			return phaseErr
 		}
 		if phaseErr != nil {
 			// Record failure metric if enabled
