@@ -60,29 +60,33 @@ type pruneEntryWalk struct {
 	lists map[uintptr][]interface{}
 }
 
-// value returns v with the (( prune )) entries gone from its lists.
-func (w *pruneEntryWalk) value(v interface{}) interface{} {
+// value returns v with the (( prune )) entries gone from its lists, and
+// whether v itself had to change. It writes only where an entry goes,
+// so a document with none is left untouched.
+func (w *pruneEntryWalk) value(v interface{}) (interface{}, bool) {
 	switch t := v.(type) {
 	case map[string]interface{}:
 		if t == nil {
-			return v
+			return v, false
 		}
 		p := reflect.ValueOf(t).Pointer()
 		if w.maps[p] {
-			return v
+			return v, false
 		}
 		w.maps[p] = true
 		for k, e := range t {
-			t[k] = w.value(e)
+			if out, changed := w.value(e); changed {
+				t[k] = out
+			}
 		}
-		return v
+		return v, false
 	case []interface{}:
 		if len(t) == 0 {
-			return v
+			return v, false
 		}
 		p := reflect.ValueOf(t).Pointer()
 		if out, ok := w.lists[p]; ok {
-			return out
+			return out, len(out) != len(t)
 		}
 		out := t
 		for i, e := range t {
@@ -99,9 +103,11 @@ func (w *pruneEntryWalk) value(v interface{}) interface{} {
 		}
 		w.lists[p] = out
 		for i, e := range out {
-			out[i] = w.value(e)
+			if inner, changed := w.value(e); changed {
+				out[i] = inner
+			}
 		}
-		return out
+		return out, len(out) != len(t)
 	}
-	return v
+	return v, false
 }
