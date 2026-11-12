@@ -137,3 +137,64 @@ func TestJoinRefusesAMap(t *testing.T) {
 		},
 	})
 }
+
+func TestConcatRefusesAMapOrAListFromAnyArgument(t *testing.T) {
+	const notScalar = "which is not a string scalar"
+	runTargetCases(t, []targetCase{
+		{
+			name:  "ancestor through a nested ||",
+			src:   "q:\n  a: (( concat \"x\" (( q || \"fb\" )) ))\n",
+			cycle: true,
+		},
+		{
+			name:  "ancestor through ||",
+			src:   "q:\n  a: (( concat \"x\" q || \"fb\" ))\n",
+			cycle: true,
+		},
+		{
+			name:  "ancestor list through a nested ||",
+			src:   "q:\n  l:\n  - x\n  - (( concat \"p\" (( q.l || \"fb\" )) ))\n",
+			cycle: true,
+		},
+		{
+			name: "sibling list holding an operator",
+			src:  "z:\n- (( concat \"p\" \"q\" ))\na: (( concat \"x\" (( z || \"fb\" )) ))\n",
+			errs: "tried to concat z, " + notScalar,
+		},
+		{
+			name: "map through ||",
+			src:  "m:\n  a: 1\nb: (( concat \"x\" m || \"fb\" ))\n",
+			errs: "tried to concat m, " + notScalar,
+		},
+		{
+			name: "map from a nested grab",
+			src:  "m:\n  a: 1\nb: (( concat \"x\" (( grab m )) ))\n",
+			errs: "tried to concat the result of (( grab )), " + notScalar,
+		},
+		{
+			name: "list from a nested grab",
+			src:  "m: [1, 2]\nb: (( concat \"x\" (( grab m )) ))\n",
+			errs: "tried to concat the result of (( grab )), " + notScalar,
+		},
+		{
+			name: "list from a nested keys",
+			src:  "m:\n  a: 1\nb: (( concat \"x\" (( keys m )) ))\n",
+			errs: "tried to concat the result of (( keys )), " + notScalar,
+		},
+		{
+			name: "scalar sibling through ||",
+			src:  "z: (( concat \"p\" \"q\" ))\na: (( concat \"x\" (( z || \"fb\" )) ))\n",
+			path: "a", want: "xpq",
+		},
+		{
+			name: "fallback after a missing reference",
+			src:  "a: (( concat \"x\" (( nope || \"fb\" )) ))\n",
+			path: "a", want: "xfb",
+		},
+		{
+			name: "scalar from a nested grab",
+			src:  "q:\n  b: 1\n  a: (( concat \"x\" (( grab q.b )) ))\n",
+			path: "q.a", want: "x1",
+		},
+	})
+}

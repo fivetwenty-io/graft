@@ -100,21 +100,29 @@ func ResolveOperatorArgument(ev *Evaluator, arg *Expr) (interface{}, error) {
 // would walk a list or map reached through a reference, so join and
 // concat need to know which one they hold.
 func resolveNotingEnv(ev *Evaluator, arg *Expr) (interface{}, bool, error) {
+	val, leaf, err := resolveNotingLeaf(ev, arg)
+	return val, leaf != nil && leaf.Type == EnvVar, err
+}
+
+// resolveNotingLeaf resolves arg like ResolveOperatorArgument and also
+// returns the expression that gave the value: arg itself, or the leaf
+// of a || chain in arg that the value came from.
+func resolveNotingLeaf(ev *Evaluator, arg *Expr) (interface{}, *Expr, error) {
 	if arg != nil && arg.Type == LogicalOr {
-		left, fromEnv, err := resolveNotingEnv(ev, arg.Left)
+		left, leaf, err := resolveNotingLeaf(ev, arg.Left)
 		if err == nil {
-			return left, fromEnv, nil
+			return left, leaf, nil
 		}
 		if pending.StopsFallback(err) {
-			return nil, false, err
+			return nil, nil, err
 		}
-		return resolveNotingEnv(ev, arg.Right)
+		return resolveNotingLeaf(ev, arg.Right)
 	}
 	val, err := ResolveOperatorArgument(ev, arg)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
-	return val, arg != nil && arg.Type == EnvVar, nil
+	return val, arg, nil
 }
 
 // stripNotingRead returns val without any literal wrapper in it, and
