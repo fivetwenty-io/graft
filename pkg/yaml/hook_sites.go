@@ -3,6 +3,7 @@ package yaml
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -52,10 +53,13 @@ type hookStep struct {
 // among every alias to its anchor. It copies each node on the path to a
 // hole and leaves every other subtree shared, as asWritten does.
 //
-// The walk stops at the first key in document order that more than one
-// field of a struct reads, when one of those fields can reach an
-// Unmarshaler, since goccy would fill none of them and the method would
-// never run. That key's refusal comes back as the error.
+// When more than one field of a struct reads a key, goccy fills each of
+// them natively, except a field that a non-inline field one level up
+// shadows, which it zeroes. When exactly one field is left, it is the
+// key's reader, as when only one field reads the key. When more than one
+// is left and one of them can reach an Unmarshaler, goccy would fill
+// that field natively and its method would never run, so the walk stops
+// at the first such key in document order and returns its refusal.
 func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOptions) (ast.Node, []hookSite, error) {
 	w := &siteWalk{
 		owners: owners,
@@ -214,22 +218,21 @@ func (w *siteWalk) structMapping(n ast.Node, t reflect.Type, path []hookStep) (a
 
 // field returns the pair mv of a mapping that fills a struct of type t
 // at path, with holes punched under its value, and reports whether its
-// value is a hook site, so the pair comes out. When more than one field
-// reads the key, it refuses the key if one of them can reach an
-// Unmarshaler, and otherwise leaves the pair for goccy to decide.
+// value is a hook site, so the pair comes out. The key's reader comes
+// from reader, which refuses a key that a hook can never see.
 func (w *siteWalk) field(mv *ast.MappingValueNode, keys *structKeys, t reflect.Type, path []hookStep) (*ast.MappingValueNode, bool, error) {
-	index := keys.index[keyString(keyText(mv.Key))]
-	if len(index) > 1 && anyReachesUnmarshaler(t, index) {
+	at, shared := reader(t, keys.index[keyString(keyText(mv.Key))])
+	if shared {
 		return nil, false, sharedHookKeyError(mv.Key, t)
 	}
-	if len(index) != 1 {
+	if at == nil {
 		return mv, false, nil
 	}
-	steps := make([]hookStep, len(index[0]))
-	for i, at := range index[0] {
-		steps[i] = hookStep{kind: stepField, index: at}
+	steps := make([]hookStep, len(at))
+	for i, field := range at {
+		steps[i] = hookStep{kind: stepField, index: field}
 	}
-	got, hole, err := w.node(mv.Value, fieldType(t, index[0]), then(path, steps...))
+	got, hole, err := w.node(mv.Value, fieldType(t, at), then(path, steps...))
 	if err != nil {
 		return nil, false, err
 	}
@@ -253,11 +256,45 @@ func fieldType(t reflect.Type, steps []int) reflect.Type {
 	return t
 }
 
-// anyReachesUnmarshaler reports whether any of the fields that index
-// leads to from a struct of type t can reach an Unmarshaler.
-func anyReachesUnmarshaler(t reflect.Type, index [][]int) bool {
-	for _, steps := range index {
-		if reachesUnmarshaler(fieldType(t, steps)) {
+// reader returns the path of the field of a struct of type t that the
+// walk enters for a key, among the fields whose paths index holds. One
+// path is that field. With more than one, goccy fills every field
+// natively except a field it shadows, which it zeroes, and reader
+// returns the one field left when it can reach an Unmarshaler. Otherwise
+// it returns nil, since the walk has nothing to enter, and it reports
+// shared when more than one field is left and one of them can reach an
+// Unmarshaler, whose method would then never run.
+func reader(t reflect.Type, index [][]int) (at []int, shared bool) {
+	if len(index) == 1 {
+		return index[0], false
+	}
+	live, hooked := 0, false
+	for _, q := range index {
+		if shadowed(q, index) {
+			continue
+		}
+		live++
+		at = q
+		hooked = hooked || reachesUnmarshaler(fieldType(t, q))
+	}
+	if live != 1 || !hooked {
+		return nil, live > 1 && hooked
+	}
+	return at, false
+}
+
+// shadowed reports whether goccy zeroes the field at path q, among the
+// fields whose paths index holds. Once goccy decodes an ,inline struct,
+// it zeroes each field of that struct whose key a non-inline field of
+// the struct that inlines it also reads. The path of that non-inline
+// field is q without its last two steps, plus one step of its own. A
+// field two or more ,inline levels below the other is not zeroed.
+func shadowed(q []int, index [][]int) bool {
+	if len(q) < 2 {
+		return false
+	}
+	for _, r := range index {
+		if len(r) == len(q)-1 && slices.Equal(r[:len(r)-1], q[:len(q)-2]) {
 			return true
 		}
 	}

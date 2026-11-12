@@ -23,8 +23,9 @@ var boolType = reflect.TypeFor[bool]()
 // leaves alone. Once goccy and the fixer are done, each of those places
 // has its method called in document order, with the Node that holds its
 // value, and the first failure ends the decode. A key that more than one
-// struct field reads, when one of them can reach an Unmarshaler, is
-// refused before goccy decodes anything, since its method would never
+// struct field reads, past those that goccy shadows, is refused before
+// goccy decodes anything when one of them can reach an Unmarshaler,
+// since goccy would fill that field natively and its method would never
 // run. The refusal comes from a walk in document order, so it is the
 // same on every run and needs none of the search for the earliest error
 // that a goccy error inside an ,inline map gets.

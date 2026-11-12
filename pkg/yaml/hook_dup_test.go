@@ -2,6 +2,8 @@ package yaml_test
 
 import (
 	"errors"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -15,12 +17,22 @@ func (h *dupHook) UnmarshalYAML(n *yaml.Node) error {
 	return nil
 }
 
+// dupScalarHook is a hook type that goccy can also fill natively from a
+// scalar, so a field of it that goccy shadows still decodes.
+type dupScalarHook string
+
+func (h *dupScalarHook) UnmarshalYAML(n *yaml.Node) error {
+	*h = dupScalarHook("hook:" + n.Value)
+	return nil
+}
+
 // DupInner is inlined beside a hooked field that reads the same key.
 type DupInner struct {
 	X string `yaml:"x"`
 	Y int    `yaml:"y"`
 }
 
+// dupOuter's hooked field shadows the field DupInner has for x.
 type dupOuter struct {
 	X        dupHook `yaml:"x"`
 	DupInner `yaml:",inline"`
@@ -38,18 +50,59 @@ type dupPlain struct {
 
 // DupHookInner puts the hook on the inlined side of the clash.
 type DupHookInner struct {
-	X dupHook `yaml:"x"`
+	X dupScalarHook `yaml:"x"`
 }
 
+// dupOuterPlain's plain field shadows the hooked field of DupHookInner.
 type dupOuterPlain struct {
 	X            string `yaml:"x"`
 	DupHookInner `yaml:",inline"`
 }
 
-// dupPointerInner reaches the inlined struct through a pointer.
+// dupOuterPlainPointer is dupOuterPlain through a pointer embed.
+type dupOuterPlainPointer struct {
+	X             string `yaml:"x"`
+	*DupHookInner `yaml:",inline"`
+}
+
+// dupPointerInner reaches the shadowed struct through a pointer.
 type dupPointerInner struct {
 	X         dupHook `yaml:"x"`
 	*DupInner `yaml:",inline"`
+}
+
+// dupSiblings inlines two structs that both read x, so goccy fills both
+// natively and the hook never runs.
+type dupSiblings struct {
+	DupInner     `yaml:",inline"`
+	DupHookInner `yaml:",inline"`
+}
+
+// DupMid inlines the hooked struct one level further down.
+type DupMid struct {
+	DupHookInner `yaml:",inline"`
+}
+
+// dupTwoDeep's plain field shadows nothing two ,inline levels down, so
+// goccy fills both fields natively.
+type dupTwoDeep struct {
+	X      string `yaml:"x"`
+	DupMid `yaml:",inline"`
+}
+
+// dupMixed has a hook on one key and a plain duplicate on another.
+type dupMixed struct {
+	H             dupHook `yaml:"h"`
+	X             string  `yaml:"x"`
+	DupPlainInner `yaml:",inline"`
+}
+
+// dupMixedSiblings has a hook on one key and two plain inlined structs
+// that both read another.
+type dupMixedSiblings struct {
+	H             dupHook `yaml:"h"`
+	DupInner      `yaml:",inline"`
+	DupPlainInner `yaml:",inline"`
 }
 
 const dupRefusal = "a key of Go type %s is read by more than one field, and one of them has an UnmarshalYAML method"
@@ -62,7 +115,7 @@ func wantDupRefusal(t *testing.T, err error, typ string, line, column int) {
 	if !errors.As(err, &de) || de.Kind != yaml.ErrorKindType || de.Line != line || de.Column != column {
 		t.Fatalf("err = %v, want a type error at %d:%d", err, line, column)
 	}
-	if want := strings.Replace(dupRefusal, "%s", typ, 1); de.Msg != want {
+	if want := fmt.Sprintf(dupRefusal, typ); de.Msg != want {
 		t.Errorf("Msg = %q, want %q", de.Msg, want)
 	}
 	if strings.Contains(err.Error(), "secret") {
@@ -70,18 +123,25 @@ func wantDupRefusal(t *testing.T, err error, typ string, line, column int) {
 	}
 }
 
-func TestHookKeyReadByTwoFieldsIsRefused(t *testing.T) {
+// wantDecoded decodes src into a new value of want's type and checks
+// that it succeeds with want.
+func wantDecoded[T any](t *testing.T, src string, want T) {
+	t.Helper()
+	var got T
+	if err := yaml.Unmarshal([]byte(src), &got); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got  %+v\nwant %+v", got, want)
+	}
+}
+
+func TestHookFieldThatShadowsAnInlinedFieldRuns(t *testing.T) {
 	t.Parallel()
-	var v dupOuter
-	err := yaml.Unmarshal([]byte("y: 1\nx: secret\n"), &v)
-	var de *yaml.DecodeError
-	if !errors.As(err, &de) || de.Kind != yaml.ErrorKindType || de.Line != 2 || de.Column != 1 {
-		t.Fatalf("err = %v, want a type error at 2:1", err)
-	}
-	want := "a key of Go type yaml_test.dupOuter is read by more than one field, and one of them has an UnmarshalYAML method"
-	if de.Msg != want {
-		t.Errorf("Msg = %q", de.Msg)
-	}
+	// goccy zeroes the inlined field that the outer one shadows, so the
+	// outer field is the key's only reader and its method runs.
+	wantDecoded(t, "y: 1\nx: secret\n", dupOuter{X: dupHook{Val: "hook:secret"}, DupInner: DupInner{Y: 1}})
+	wantDecoded(t, "x: secret\n", dupPointerInner{X: dupHook{Val: "hook:secret"}, DupInner: &DupInner{}})
 }
 
 func TestHookStructWithoutTheKeyStillDecodes(t *testing.T) {
@@ -100,29 +160,47 @@ func TestPlainDuplicateFieldKeepsTodaysBehavior(t *testing.T) {
 	}
 }
 
-func TestHookKeyRefusedWhenTheInlinedFieldHasTheHook(t *testing.T) {
+func TestShadowedHookFieldDecodesAsGoccyShadowsIt(t *testing.T) {
 	t.Parallel()
-	var v dupOuterPlain
-	err := yaml.Unmarshal([]byte("x: secret\n"), &v)
-	wantDupRefusal(t, err, "yaml_test.dupOuterPlain", 1, 1)
+	// The plain outer field wins, and goccy zeroes the hooked field, so
+	// the method has nothing to fill and the decode is goccy's own.
+	wantDecoded(t, "x: secret\n", dupOuterPlain{X: "secret"})
+	wantDecoded(t, "x: secret\n", dupOuterPlainPointer{X: "secret", DupHookInner: &DupHookInner{}})
 }
 
-func TestHookKeyRefusedThroughAnInlinePointer(t *testing.T) {
+func TestPlainDuplicateInAHookedStructDecodesAsBefore(t *testing.T) {
 	t.Parallel()
-	var v dupPointerInner
+	wantDecoded(t, "h: a\nx: b\n", dupMixed{H: dupHook{Val: "hook:a"}, X: "b"})
+	wantDecoded(t, "h: a\nx: b\n", dupMixedSiblings{
+		H:             dupHook{Val: "hook:a"},
+		DupInner:      DupInner{X: "b"},
+		DupPlainInner: DupPlainInner{X: "b"},
+	})
+}
+
+func TestHookKeyReadByTwoInlinedFieldsIsRefused(t *testing.T) {
+	t.Parallel()
+	var v dupSiblings
+	err := yaml.Unmarshal([]byte("y: 1\nx: secret\n"), &v)
+	wantDupRefusal(t, err, "yaml_test.dupSiblings", 2, 1)
+}
+
+func TestHookKeyTwoInlineLevelsDownIsRefused(t *testing.T) {
+	t.Parallel()
+	var v dupTwoDeep
 	err := yaml.Unmarshal([]byte("x: secret\n"), &v)
-	wantDupRefusal(t, err, "yaml_test.dupPointerInner", 1, 1)
+	wantDupRefusal(t, err, "yaml_test.dupTwoDeep", 1, 1)
 }
 
 func TestHookKeyRefusedInsideAMapAndASequence(t *testing.T) {
 	t.Parallel()
-	var m map[string]dupOuter
+	var m map[string]dupSiblings
 	err := yaml.Unmarshal([]byte("a:\n  y: 1\nb:\n  x: secret\n"), &m)
-	wantDupRefusal(t, err, "yaml_test.dupOuter", 4, 3)
+	wantDupRefusal(t, err, "yaml_test.dupSiblings", 4, 3)
 
-	var s []*dupOuter
+	var s []*dupSiblings
 	err = yaml.Unmarshal([]byte("- y: 1\n- y: 2\n  x: secret\n"), &s)
-	wantDupRefusal(t, err, "yaml_test.dupOuter", 3, 3)
+	wantDupRefusal(t, err, "yaml_test.dupSiblings", 3, 3)
 }
 
 func TestHookKeyRefusedOnNodeDecode(t *testing.T) {
@@ -131,8 +209,8 @@ func TestHookKeyRefusedOnNodeDecode(t *testing.T) {
 	if err := yaml.Unmarshal([]byte("y: 1\nx: secret\n"), &n); err != nil {
 		t.Fatal(err)
 	}
-	var v dupOuter
-	wantDupRefusal(t, n.Decode(&v), "yaml_test.dupOuter", 2, 1)
+	var v dupSiblings
+	wantDupRefusal(t, n.Decode(&v), "yaml_test.dupSiblings", 2, 1)
 }
 
 func TestHookKeyRefusalIsTheSameOnEveryRun(t *testing.T) {
@@ -141,19 +219,19 @@ func TestHookKeyRefusalIsTheSameOnEveryRun(t *testing.T) {
 	// document must win every time, whatever order a Go map would give.
 	src := []byte("a:\n  x: secret\nb:\n  x: secret\nc:\n  y: nope\n")
 	for range 200 {
-		var m map[string]dupOuter
+		var m map[string]dupSiblings
 		err := yaml.Unmarshal(src, &m)
-		wantDupRefusal(t, err, "yaml_test.dupOuter", 2, 3)
+		wantDupRefusal(t, err, "yaml_test.dupSiblings", 2, 3)
 	}
 }
 
 func TestHookKeyRefusalCountsLinesFromTheStreamStart(t *testing.T) {
 	t.Parallel()
 	d := yaml.NewDecoder(strings.NewReader("y: 1\n---\ny: 2\nx: secret\n"))
-	var first dupOuter
+	var first dupSiblings
 	if err := d.Decode(&first); err != nil || first.Y != 1 {
 		t.Fatalf("got %+v, %v", first, err)
 	}
-	var second dupOuter
-	wantDupRefusal(t, d.Decode(&second), "yaml_test.dupOuter", 4, 1)
+	var second dupSiblings
+	wantDupRefusal(t, d.Decode(&second), "yaml_test.dupSiblings", 4, 1)
 }
