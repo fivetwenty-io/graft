@@ -70,7 +70,14 @@ func decodeTyped(src source, v any, opts DecodeOptions, owners *tokenOwners) err
 		f.fix(reflect.ValueOf(v))
 	}
 	if err != nil {
-		return translate(own.locate(locate(err, body, target), target.Elem()))
+		de := translate(own.locate(locate(err, body, target), target.Elem()))
+		if de.Kind == ErrorKindType && de.Line > 0 && reachesInlineMap(target) {
+			// goccy fills an ,inline map in Go map order, so the value
+			// its error names varies from run to run. The earliest bad
+			// value is the same on every run.
+			de = earliestTypeError(body, v, opts, own, de)
+		}
+		return de
 	}
 	if err := own.badTime(); err != nil {
 		return err
