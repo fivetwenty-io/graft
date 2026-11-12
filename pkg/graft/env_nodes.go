@@ -1,6 +1,11 @@
 package graft
 
-import "os"
+import (
+	"os"
+	"slices"
+
+	"github.com/fivetwenty-io/graft/pkg/graft/tree"
+)
 
 // SubstituteEnvNodes replaces each node of the form $NAME with the value
 // of the environment variable NAME when it is set and not empty. A lone
@@ -19,16 +24,25 @@ func SubstituteEnvNodes(nodes []string) []string {
 	return out
 }
 
-// substituteReferenceEnv replaces the $NAME nodes of a parsed reference
-// with their values, so the dependency graph sees the path the operator
-// will read. A bracket node that a variable replaced is a key from then
-// on, not a path to resolve, so its flag in bracketed is cleared.
-func substituteReferenceEnv(nodes []string, bracketed []bool) []string {
-	out := SubstituteEnvNodes(nodes)
+// substituteReferenceEnv replaces the $NAME nodes of a reference's
+// cursor with their values when the reference is parsed, so the
+// dependency graph orders the operator after whatever it reads.
+// Operators never expand a node again, so a value that itself starts
+// with '$' is a key. A bracket node that a variable replaced is a key
+// from then on, not a path to resolve, so its flag in bracketed is
+// cleared. It returns the nodes as written when any node changed, and
+// nil when none did, so the Expr can write the path back out as written.
+func substituteReferenceEnv(cursor *tree.Cursor, bracketed []bool) []string {
+	out := SubstituteEnvNodes(cursor.Nodes)
+	if slices.Equal(out, cursor.Nodes) {
+		return nil
+	}
 	for i := range out {
-		if out[i] != nodes[i] && i < len(bracketed) {
+		if out[i] != cursor.Nodes[i] && i < len(bracketed) {
 			bracketed[i] = false
 		}
 	}
-	return out
+	written := cursor.Nodes
+	cursor.Nodes = out
+	return written
 }

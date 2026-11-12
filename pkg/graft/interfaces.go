@@ -54,15 +54,34 @@ type Expr struct {
 	// notation, as recovered by tree.BracketsOf. Only populated for
 	// Reference expressions; nil/empty for every other expression type.
 	BracketedNodes []bool
-	Call           *Opcall
-	Pos            Position
-	evaluator      *Evaluator // Optional evaluator for nested operator calls
+	// writtenNodes holds a Reference's nodes as the source wrote them,
+	// when the parser replaced a $NAME node with the variable's value.
+	// It is nil when no node changed. WrittenPath reads it.
+	writtenNodes []string
+	Call         *Opcall
+	Pos          Position
+	evaluator    *Evaluator // Optional evaluator for nested operator calls
 	// modifiers holds `:modifier` annotations parsed from the operator
 	// name position (e.g. the "nocache" in "(( vault:nocache ... ))").
 	// nil means none; access through SetModifier/HasModifier/GetModifiers
 	// so the zero value stays valid. Deliberately excluded from String()
 	// and from anything that feeds cache keys or error text.
 	modifiers map[string]bool
+}
+
+// WrittenPath returns a Reference's path as the source wrote it. A
+// $NAME node that the parser replaced with the variable's value is
+// written as $NAME again, so text that graft writes back out for a
+// later pass reads the variable then. It returns "" when e holds no
+// cursor.
+func (e *Expr) WrittenPath() string {
+	if e == nil || e.Reference == nil {
+		return ""
+	}
+	if e.writtenNodes != nil {
+		return (&tree.Cursor{Nodes: e.writtenNodes}).String()
+	}
+	return e.Reference.String()
 }
 
 // SetModifier records a `:modifier` annotation on the expression.
@@ -490,7 +509,7 @@ func (e *Expr) String() string {
 		return fmt.Sprintf("%v", e.Literal)
 	case Reference:
 		if e.Reference != nil {
-			return e.Reference.String()
+			return e.WrittenPath()
 		}
 		return "<nil reference>"
 	case OperatorCall:
