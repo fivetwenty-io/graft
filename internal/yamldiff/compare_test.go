@@ -323,3 +323,12 @@ func TestPairDocumentsKeepsTheOrderChangeSeparate(t *testing.T) {
 		t.Errorf("OrderChange = %+v, want one change without a path", order)
 	}
 }
+
+func TestDocumentCountRefusalIsASentinel(t *testing.T) {
+	from, _ := ParseDocuments([]byte("a: 1\n"))
+	to, _ := ParseDocuments([]byte("a: 1\n---\nb: 2\n"))
+	_, err := CompareInputFiles(InputFile{Documents: from}, InputFile{Documents: to})
+	if !errors.Is(err, ErrDocumentCount) || err.Error() != ErrDocumentCount.Error() {
+		t.Fatalf("got %v", err)
+	}
+}

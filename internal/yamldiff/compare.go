@@ -29,6 +29,7 @@
 package yamldiff
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -133,6 +134,10 @@ type indexedPair struct {
 	idx  int
 }
 
+// ErrDocumentCount is the refusal for inputs that are compared by position
+// and hold different numbers of documents.
+var ErrDocumentCount = errors.New("comparing YAMLs with a different number of documents is currently not supported")
+
 // PairDocuments decides which documents of from and to are compared with
 // each other. It fails when the inputs are compared by position and hold
 // different numbers of documents, or when a Kubernetes resource cannot be
@@ -152,7 +157,7 @@ func PairDocuments(from, to InputFile) (DocumentPairing, error) {
 	}
 
 	if len(from.Documents) != len(to.Documents) {
-		return DocumentPairing{}, fmt.Errorf("comparing YAMLs with a different number of documents is currently not supported")
+		return DocumentPairing{}, ErrDocumentCount
 	}
 
 	pairing := DocumentPairing{From: from, To: to}

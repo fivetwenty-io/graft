@@ -21,6 +21,7 @@ var allowedImports = map[string]bool{
 	"github.com/fivetwenty-io/graft/internal/yamlcodec":  true,
 	"github.com/fivetwenty-io/graft/internal/yamlerr":    true, // gives pkg/graft the plain text of a decoding error
 	"github.com/fivetwenty-io/graft/internal/yamlnode":   true,
+	"github.com/fivetwenty-io/graft/internal/yamldiff":   true, // yaml.Diff runs graft diff's engine
 	"github.com/fivetwenty-io/graft/internal/yamlprep":   true,
 }
 
@@ -32,6 +33,8 @@ var bannedImports = map[string]string{
 	"gopkg.in/yaml.v3":                         "pkg/yaml replaces yaml.v3",
 	"go.yaml.in/yaml":                          "pkg/yaml must not depend on the yaml.v3 fork",
 	"github.com/fivetwenty-io/graft/pkg/graft": "pkg/yaml must not depend on the merge engine",
+	"net/http":                                 "pkg/yaml reads only the bytes it's given",
+	"github.com/BurntSushi/toml":               "pkg/yaml reads only the bytes it's given",
 }
 
 const goccyPrefix = "github.com/goccy/go-yaml"
