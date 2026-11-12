@@ -55,16 +55,19 @@ func decodeTyped(src source, v any, opts DecodeOptions, owners *tokenOwners) err
 		return nil
 	}
 
-	var sites []hookSite
+	var plan hookPlan
 	if owners != nil {
-		body, sites, err = hookSites(body, target.Elem(), owners, opts)
+		body, plan, err = hookSites(body, target.Elem(), owners, opts)
 		if err != nil {
 			return err
 		}
 		if body == nil {
 			// The root itself is a hook site, so goccy has nothing to do.
-			return runHookSites(reflect.ValueOf(v).Elem(), sites)
+			return runHookSites(reflect.ValueOf(v).Elem(), plan.sites)
 		}
+		// Each entry a stand-in key holds moves to its NaN key on every
+		// way out, once the hooks have run or the decode has failed.
+		defer moveKeys(reflect.ValueOf(v).Elem(), plan.moves)
 	}
 	body, own := asWritten(body, target.Elem())
 	err = decodeBody(body, v, opts)
@@ -92,7 +95,7 @@ func decodeTyped(src source, v any, opts DecodeOptions, owners *tokenOwners) err
 	if err := own.badTime(); err != nil {
 		return err
 	}
-	return runHookSites(reflect.ValueOf(v).Elem(), sites)
+	return runHookSites(reflect.ValueOf(v).Elem(), plan.sites)
 }
 
 // decodeBody decodes body into v with goccy, and returns a decoder panic

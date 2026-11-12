@@ -189,6 +189,12 @@ func renderEntries(v reflect.Value) string {
 		}
 		sort.Strings(out)
 		return "{" + strings.Join(out, ", ") + "}"
+	case reflect.Slice:
+		items := make([]string, v.Len())
+		for i := range items {
+			items[i] = renderEntries(v.Index(i))
+		}
+		return "[" + strings.Join(items, ", ") + "]"
 	case reflect.Struct:
 		if h, ok := v.Interface().(gapHook); ok {
 			return strings.TrimPrefix(h.Val, "hook:")

@@ -7,6 +7,7 @@ import (
 	"math/cmplx"
 	"reflect"
 	"slices"
+	"strconv"
 
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/token"
@@ -60,8 +61,8 @@ type keySlot struct {
 // hookSites finds the places in body, a prepared syntax tree that fills
 // a value of type t, that an Unmarshaler fills, and punches a hole at
 // each one, so goccy leaves those places alone. It returns the body with
-// its holes, which is nil when the root itself is such a place, and the
-// sites in document order. owners gives the Node each value came from.
+// its holes, which is nil when the root itself is such a place, and a
+// hookPlan with the sites. owners gives the Node each value came from.
 //
 // A struct field's pair comes out of its mapping, so goccy leaves the
 // field as it was, and a sequence item or a map value becomes a null. A
@@ -78,7 +79,7 @@ type keySlot struct {
 // is left and one of them can reach an Unmarshaler, goccy would fill
 // that field natively and its method would never run, so the walk stops
 // at the first such key in document order and returns its refusal.
-func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOptions) (ast.Node, []hookSite, error) {
+func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOptions) (ast.Node, hookPlan, error) {
 	w := &siteWalk{
 		owners: owners,
 		opts:   opts,
@@ -87,7 +88,7 @@ func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOp
 	}
 	out, hole, err := w.node(body, t, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, hookPlan{}, err
 	}
 	if hole {
 		out = nil
@@ -98,7 +99,22 @@ func hookSites(body ast.Node, t reflect.Type, owners *tokenOwners, opts DecodeOp
 			sites = append(sites, s)
 		}
 	}
-	return out, sites, nil
+	return out, hookPlan{sites: sites, moves: w.moves}, nil
+}
+
+// hookPlan is what hookSites finds. sites are the hook sites in document
+// order, and moves are the entries that stand-in keys hold until the
+// hooks have run, in the order they move, as standIn describes.
+type hookPlan struct {
+	sites []hookSite
+	moves []keyMove
+}
+
+// keyMove moves the entry under the key from, in the map that path leads
+// to, to the key to.
+type keyMove struct {
+	path     []hookStep
+	from, to reflect.Value
 }
 
 // siteWalk walks a syntax tree and a target type side by side, as
@@ -115,6 +131,7 @@ type siteWalk struct {
 	opts   DecodeOptions
 	keys   *textWalk
 	sites  []hookSite
+	moves  []keyMove
 	seed   maphash.Seed
 }
 
@@ -371,6 +388,11 @@ func sharedHookKeyError(key ast.MapKeyNode, t reflect.Type) *DecodeError {
 // point to equal values, as 1 and 0x1 do, since only document order tells
 // their entries apart. Such a map is refused when either pair holds a
 // hook site, as pointedKey describes.
+//
+// A NaN key equals no key, not even itself, so goccy gives each pair
+// with one an entry of its own, which no later lookup finds. A pair with
+// a NaN key whose value holds a hook site therefore goes to goccy under
+// a stand-in key, as standIn describes.
 func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (ast.Node, error) {
 	m, ok := n.(*ast.MappingNode)
 	if !ok {
@@ -379,6 +401,7 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 	var out *ast.MappingNode
 	var slots *hookStep
 	var pointed pointedKeys
+	var taken []reflect.Value
 	for i, mv := range m.Values {
 		key, ok := w.mapKey(mv.Key, t.Key())
 		if !ok {
@@ -386,19 +409,15 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 		}
 		at := then(path, hookStep{kind: stepKey, key: key})
 		step := &at[len(path)]
-		var prior *hookStep
-		var link **hookStep
-		if comparableKey(key) {
-			step.slot.hash = keyHash(w.seed, key)
-			prior, link = findSlot(&slots, step)
-		}
-		if prior != nil {
-			w.cancel(prior.slot.first, prior.slot.end)
-		}
-		first := len(w.sites)
+		prior, link := w.slotOf(&slots, step)
+		first, moves := len(w.sites), len(w.moves)
 		got, hole, err := w.node(mv.Value, t.Elem(), at)
 		if err != nil {
 			return nil, err
+		}
+		newKey := mv.Key
+		if len(w.sites) > first && valueNaN(key) {
+			newKey = w.standIn(m, mv.Key, key, t.Key(), &taken, path, first, moves)
 		}
 		switch {
 		case prior != nil:
@@ -413,22 +432,138 @@ func (w *siteWalk) typedMapping(n ast.Node, t reflect.Type, path []hookStep) (as
 		if hole {
 			got = nullAt(mv.Value)
 		}
-		if got == mv.Value {
-			continue
+		if got != mv.Value || newKey != mv.Key {
+			out = withPair(m, out, i, newKey, got)
 		}
-		if out == nil {
-			c := *m
-			c.Values = append([]*ast.MappingValueNode(nil), m.Values...)
-			out = &c
-		}
-		pair := *mv
-		pair.Value = got
-		out.Values[i] = &pair
 	}
 	if out == nil {
 		return m, nil
 	}
 	return out, nil
+}
+
+// slotOf looks for an entry with step's key in the key tree at root, as
+// findSlot does, and cancels every site that entry's pair recorded. A
+// key that cannot be compared, or that is NaN, which equals no key, has
+// no entry and gets neither.
+func (w *siteWalk) slotOf(root **hookStep, step *hookStep) (*hookStep, **hookStep) {
+	if !comparableKey(step.key) || valueNaN(step.key) {
+		return nil, nil
+	}
+	step.slot.hash = keyHash(w.seed, step.key)
+	prior, link := findSlot(root, step)
+	if prior != nil {
+		w.cancel(prior.slot.first, prior.slot.end)
+	}
+	return prior, link
+}
+
+// withPair returns out, a copy of the mapping m that it makes the first
+// time, with key and value in place of the pair at index i.
+func withPair(m, out *ast.MappingNode, i int, key ast.MapKeyNode, value ast.Node) *ast.MappingNode {
+	if out == nil {
+		c := *m
+		c.Values = append([]*ast.MappingValueNode(nil), m.Values...)
+		out = &c
+	}
+	pair := *m.Values[i]
+	pair.Key, pair.Value = key, value
+	out.Values[i] = &pair
+	return out
+}
+
+// standIn returns the key node that goccy decodes in place of k, a key
+// of the mapping m that decodes to nan, a NaN, in a map with keys of
+// type kt at path. The pair's value recorded the sites from index first
+// and the moves from index moves on. The stand-in is a float that no key of m decodes to, so the
+// hooks find the entry goccy makes for the pair, and a keyMove puts the
+// entry under the NaN key once they have run. taken holds the keys of
+// m, decoded the first time a NaN key needs them, and the stand-ins
+// handed out so far. When kt can hold no such float, or no stand-in is
+// found, k comes back as it is.
+func (w *siteWalk) standIn(m *ast.MappingNode, k ast.MapKeyNode, nan reflect.Value, kt reflect.Type, taken *[]reflect.Value, path []hookStep, first, moves int) ast.MapKeyNode {
+	bits := 64
+	switch {
+	case w.keys.kind(kt) != notOwn:
+		return k
+	case kt.Kind() == reflect.Float32:
+		bits = 32
+	case kt.Kind() == reflect.Float64:
+	case kt.Kind() == reflect.Interface && kt.NumMethod() == 0:
+	default:
+		return k
+	}
+	if *taken == nil {
+		*taken = make([]reflect.Value, 0, len(m.Values)+1)
+		for _, mv := range m.Values {
+			if key, ok := w.mapKey(mv.Key, kt); ok {
+				*taken = append(*taken, key)
+			}
+		}
+	}
+	key, node, ok := w.freeFloat(*taken, k, kt, bits)
+	if !ok {
+		return k
+	}
+	*taken = append(*taken, key)
+	for i := first; i < len(w.sites); i++ {
+		w.sites[i].path[len(path)].key = key
+	}
+	for i := moves; i < len(w.moves); i++ {
+		w.moves[i].path[len(path)].key = key
+	}
+	w.moves = append(w.moves, keyMove{path: then(path), from: key, to: nan})
+	return node
+}
+
+// freeFloat returns a key of type kt that equals none of taken, and a
+// float node at the place of k that decodes to it. It tries the largest
+// finite float of the given bits and then each float below it, so it
+// tries at most one more than taken holds. It reports false when the
+// free float's node does not decode to it as a key of type kt.
+func (w *siteWalk) freeFloat(taken []reflect.Value, k ast.MapKeyNode, kt reflect.Type, bits int) (reflect.Value, ast.MapKeyNode, bool) {
+	f := math.MaxFloat64
+	if bits == 32 {
+		f = math.MaxFloat32
+	}
+	for range len(taken) + 1 {
+		if !slices.ContainsFunc(taken, func(v reflect.Value) bool { return floatKey(v, f) }) {
+			text := strconv.FormatFloat(f, 'g', -1, bits)
+			pos := &token.Position{}
+			if tk := k.GetToken(); tk != nil && tk.Position != nil {
+				c := *tk.Position
+				pos = &c
+			}
+			node := ast.Float(token.New(text, text, pos))
+			if got, ok := w.mapKey(node, kt); ok && floatKey(got, f) {
+				return got, node, true
+			}
+			return reflect.Value{}, nil, false
+		}
+		if bits == 32 {
+			f = float64(math.Nextafter32(float32(f), 0))
+		} else {
+			f = math.Nextafter(f, 0)
+		}
+	}
+	return reflect.Value{}, nil, false
+}
+
+// floatKey reports whether v, a decoded map key, is the float f, or an
+// interface that holds it.
+func floatKey(v reflect.Value, f float64) bool {
+	if v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return false
+		}
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Float32, reflect.Float64:
+		return v.Float() == f
+	default:
+		return false
+	}
 }
 
 // findSlot looks for an entry with step's key in the key tree at root.
@@ -709,6 +844,71 @@ func nullAt(n ast.Node) ast.Node {
 		pos = &c
 	}
 	return ast.Null(token.New("null", "null", pos))
+}
+
+// moveKeys makes each of moves inside root, the decode target's value,
+// in turn. A move whose map or entry is missing, as when goccy failed
+// before it got there, is skipped, and so is a map the decode cannot
+// set.
+func moveKeys(root reflect.Value, moves []keyMove) {
+	var entries pointerEntries
+	for _, mv := range moves {
+		m, ok := reach(root, mv.path, &entries)
+		if !ok || m.Kind() != reflect.Map || m.IsNil() || !m.CanInterface() {
+			continue
+		}
+		v := m.MapIndex(mv.from)
+		if !v.IsValid() {
+			continue
+		}
+		m.SetMapIndex(mv.from, reflect.Value{})
+		m.SetMapIndex(mv.to, v)
+	}
+}
+
+// reach follows path from v, and through any pointers at its end, as
+// fill does, but fills nothing. It reports false when a nil pointer, an
+// item past the end of a sequence, or a missing entry ends the path.
+func reach(v reflect.Value, path []hookStep, entries *pointerEntries) (reflect.Value, bool) {
+	for _, step := range path {
+		if v = deref(v); !v.IsValid() {
+			return v, false
+		}
+		switch step.kind {
+		case stepField:
+			v = v.Field(step.index)
+		case stepIndex:
+			if step.index >= v.Len() {
+				return v, false
+			}
+			v = v.Index(step.index)
+		default:
+			if v.IsNil() {
+				return v, false
+			}
+			key := step.key
+			if key.Kind() == reflect.Pointer {
+				key = entries.find(v, key)
+			}
+			if v = v.MapIndex(key); !v.IsValid() {
+				return v, false
+			}
+		}
+	}
+	v = deref(v)
+	return v, v.IsValid()
+}
+
+// deref follows v through its pointers, and returns the zero Value when
+// it meets a nil one.
+func deref(v reflect.Value) reflect.Value {
+	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return reflect.Value{}
+		}
+		v = v.Elem()
+	}
+	return v
 }
 
 // runHookSites calls the Unmarshaler at each of sites in turn, inside
