@@ -36,13 +36,17 @@ func orOperand[T any](x *Expr, eval func(*Expr) (T, error)) (T, error) {
 // pruneFallback reports whether x, the operand a || falls back to, is
 // (( prune )). When it is, the path ev is at is marked for pruning, so
 // the key leaves the output and the || gives nil in its place. An
-// evaluator with no path marks nothing.
+// evaluator with no path, or with no engine to hold the mark, marks
+// nothing. EngineOf, not GetEngine, so no throwaway engine is built.
 func pruneFallback(x *Expr, ev *Evaluator) bool {
 	if x == nil || x.Type != OperatorCall || x.Operator != "prune" {
 		return false
 	}
-	if ev != nil && ev.Here != nil {
-		if state := GetEngine(ev).GetOperatorState(); state != nil {
+	if ev == nil || ev.Here == nil {
+		return true
+	}
+	if eng := EngineOf(ev); eng != nil {
+		if state := eng.GetOperatorState(); state != nil {
 			state.AddKeyToPrune(ev.Here.Quoted())
 		}
 	}
